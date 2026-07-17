@@ -197,6 +197,7 @@
       </fileset>
     </copy>
     <copy file="etc/ansgar-config.properties" tofile="bin/haven-config.properties" />
+    <fixcrlf srcdir="etc" includes="run.bat" destdir="bin" eol="crlf" />
     <chmod file="bin/hafen.jar" perm="a+x" />
   </target>
 
