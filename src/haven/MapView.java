@@ -499,6 +499,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	this.clickmap = new ClickMap();
 	clmaptree.add(clickmap);
 	setcanfocus(true);
+	io.brodgar.voice.Voice.attach(this);   // brodgar voice: connect on entering the game
     }
     
     protected void envdispose() {
@@ -510,6 +511,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     public void dispose() {
+	io.brodgar.voice.Voice.detach(this);   // brodgar voice: stop instantly on logout
 	gobs.slot.remove();
 	clmaplist.dispose();
 	clobjlist.dispose();
@@ -1986,6 +1988,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 	
 	protected void hit(Coord pc, Coord2d mc, ClickData inf) {
+	    if(inf == null) io.brodgar.voice.Voice.onMove(MapView.this, mc);   // brodgar voice: report move intent
+	    VoiceTarget.note(clickedgob(inf), plgob);   // brodgar voice: remember clicked player for the radial menu
 	    Object[] args = {pc, mc.floor(posres), clickb, ui.modflags()};
 	    if(inf != null)
 		args = Utils.extend(args, inf.clickargs());
@@ -2073,6 +2077,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public boolean iteminteract(Coord cc, Coord ul) {
 	new Hittest(cc) {
 	    public void hit(Coord pc, Coord2d mc, ClickData inf) {
+		VoiceTarget.note(clickedgob(inf), plgob);   // brodgar voice
 		Object[] args = {pc, mc.floor(posres), ui.modflags()};
 		if(inf != null)
 		    args = Utils.extend(args, inf.clickargs());
@@ -2080,6 +2085,18 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    }
 	}.run();
 	return(true);
+    }
+
+    /* brodgar voice: resolve the Gob a click landed on, unwrapping the composite
+     * clickable that player/animal gobs use. Returns null for the ground or non-gobs. */
+    static Gob clickedgob(ClickData inf) {
+	if(inf == null)
+	    return(null);
+	if(inf.ci instanceof Gob.GobClick)
+	    return(((Gob.GobClick)inf.ci).gob);
+	if(inf.ci instanceof Composited.CompositeClick)
+	    return(((Composited.CompositeClick)inf.ci).gi.gob);
+	return(null);
     }
 
     public boolean keydown(KeyDownEvent ev) {
@@ -2091,9 +2108,21 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    if((ev.code == KeyEvent.VK_RIGHT) && placing.adjust.rotate(placing, new MouseWheelEvent(Coord.z, 1, 1), ui.modflags()))
 		return(true);
 	}
+	if(io.brodgar.voice.Voice.kb_ptt.key().match(ev)) {
+	    io.brodgar.voice.Voice.setPushToTalk(true);   // brodgar voice: push-to-talk pressed
+	    return(true);
+	}
 	if(camera.keydown(ev))
 	    return(true);
 	return(super.keydown(ev));
+    }
+
+    public boolean keyup(KeyUpEvent ev) {
+	if(io.brodgar.voice.Voice.kb_ptt.key().match(ev)) {
+	    io.brodgar.voice.Voice.setPushToTalk(false);  // brodgar voice: push-to-talk released
+	    return(true);
+	}
+	return(super.keyup(ev));
     }
 
     public static final KeyBinding kb_grid = KeyBinding.get("grid", KeyMatch.forchar('G', KeyMatch.C));

@@ -452,6 +452,98 @@ public class OptWnd extends Window {
 	}
     }
 
+    /* A full showcase of the io.brodgar.voice.Voice API — every control routes
+     * through Voice.* (never a session handle), and the live state is read the same
+     * way. Copy the bits you want into your own client's UI. */
+    public class VoiceChatPanel extends Panel {
+	private final Label status, hearing, heard, speaking, event;
+	private volatile String lastEvent = "—";
+
+	// Event API: callbacks fire on a background thread, so we only stash the
+	// latest here and render it from tick() on the UI thread.
+	private final io.brodgar.voice.VoiceListener vl = new io.brodgar.voice.VoiceListener() {
+		public void onConnectionState(boolean connected) {lastEvent = connected ? "connected" : "disconnected";}
+		public void onAudibleSetChanged(java.util.Set<Long> gobs) {lastEvent = "audible set (" + gobs.size() + ")";}
+		public void onHeardByChanged(java.util.Set<Long> gobs) {lastEvent = "heard-by set (" + gobs.size() + ")";}
+		public void onError(String code, String msg, boolean fatal) {lastEvent = "error: " + code;}
+	    };
+
+	public VoiceChatPanel(Panel back) {
+	    Widget prev;
+	    prev = add(new Label("Brodgar.io Proximity Voice Chat"), 0, 0);
+
+	    prev = add(new CheckBox("Enable voice chat") {
+		    {a = io.brodgar.voice.Voice.isEnabled();}
+		    public void set(boolean val) {io.brodgar.voice.Voice.setEnabled(val); a = val;}
+		}, prev.pos("bl").adds(0, 10));
+
+	    // -- Microphone (you -> others) --
+	    prev = add(new Label("Microphone"), prev.pos("bl").adds(0, 15));
+	    prev = add(new CheckBox("Open mic (off = push-to-talk)") {
+		    {a = io.brodgar.voice.Voice.isOpenMic();}
+		    public void set(boolean val) {io.brodgar.voice.Voice.setOpenMic(val); a = val;}
+		}, prev.pos("bl").adds(0, 2));
+	    prev = add(new CheckBox("Mute my microphone") {
+		    {a = io.brodgar.voice.Voice.isMicMuted();}
+		    public void set(boolean val) {io.brodgar.voice.Voice.setMicMuted(val); a = val;}
+		}, prev.pos("bl").adds(0, 2));
+	    prev = add(new Label("Open-mic threshold (lower = more sensitive)"), prev.pos("bl").adds(0, 8));
+	    {
+		Label dpy = new Label("");
+		addhlp(prev.pos("bl").adds(0, 2), UI.scale(5),
+		       prev = new HSlider(UI.scale(160), 0, 1000, (int)io.brodgar.voice.Voice.micSensitivity()) {
+			       protected void added() {dpy();}
+			       void dpy() {dpy.settext(Integer.toString(this.val));}
+			       public void changed() {io.brodgar.voice.Voice.setMicSensitivity(this.val); dpy();}
+			   }, dpy);
+	    }
+
+	    // -- Playback (others -> you) --
+	    prev = add(new Label("Playback"), prev.pos("bl").adds(0, 15));
+	    prev = add(new CheckBox("Deafen (silence others)") {
+		    {a = io.brodgar.voice.Voice.isDeafened();}
+		    public void set(boolean val) {io.brodgar.voice.Voice.setDeafened(val); a = val;}
+		}, prev.pos("bl").adds(0, 2));
+	    prev = add(new Label("Master volume"), prev.pos("bl").adds(0, 8));
+	    {
+		Label dpy = new Label("");
+		addhlp(prev.pos("bl").adds(0, 2), UI.scale(5),
+		       prev = new HSlider(UI.scale(160), 0, 400, (int)(io.brodgar.voice.Voice.masterVolume() * 100)) {
+			       protected void added() {dpy();}
+			       void dpy() {dpy.settext(this.val + "%");}
+			       public void changed() {io.brodgar.voice.Voice.setMasterVolume(this.val / 100f); dpy();}
+			   }, dpy);
+	    }
+
+	    // -- Live state (read API + events) --
+	    status = add(new Label(""), prev.pos("bl").adds(0, 15));
+	    hearing = add(new Label(""), status.pos("bl").adds(0, 4));
+	    heard = add(new Label(""), hearing.pos("bl").adds(0, 2));
+	    speaking = add(new Label(""), heard.pos("bl").adds(0, 2));
+	    event = add(new Label(""), speaking.pos("bl").adds(0, 6));
+
+	    io.brodgar.voice.Voice.addListener(vl);
+	    add(new PButton(UI.scale(200), "Back", 27, back), event.pos("bl").adds(0, 30));
+	    pack();
+	}
+
+	public void tick(double dt) {
+	    super.tick(dt);
+	    if(status == null)
+		return;
+	    status.settext("Status: " + (io.brodgar.voice.Voice.isConnected() ? "connected" : "not connected"));
+	    hearing.settext("Hearing: " + io.brodgar.voice.Voice.audible().size());
+	    heard.settext("Heard by: " + io.brodgar.voice.Voice.heardBy().size());
+	    speaking.settext("Speaking: " + io.brodgar.voice.Voice.speakingGobs().size());
+	    event.settext("last event: " + lastEvent);
+	}
+
+	public void destroy() {
+	    io.brodgar.voice.Voice.removeListener(vl);
+	    super.destroy();
+	}
+    }
+
     public class InterfacePanel extends Panel {
 	public InterfacePanel(Panel back) {
 	    Widget prev = add(new Label("Interface scale (requires restart)"), 0, 0);
@@ -588,6 +680,8 @@ public class OptWnd extends Window {
 	    for(int i = 0; i < Fightsess.kb_acts.length; i++)
 		y = addbtn(cont, String.format("Combat action %d", i + 1), Fightsess.kb_acts[i], y);
 	    y = addbtn(cont, "Switch targets", Fightsess.kb_relcycle, y);
+	    y = cont.adda(new Label("Voice chat"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
+	    y = addbtn(cont, "Push to talk", io.brodgar.voice.Voice.kb_ptt, y);
 	    prev = adda(new PointBind(UI.scale(200)), scroll.pos("bl").adds(0, 10).x(scroll.sz.x / 2), 0.5, 0.0);
 	    prev = adda(new PButton(UI.scale(200), "Back", 27, back), prev.pos("bl").adds(0, 10).x(scroll.sz.x / 2), 0.5, 0.0);
 	    pack();
@@ -746,6 +840,7 @@ public class OptWnd extends Window {
 	y = main.add(new PButton(UI.scale(200), "Video settings", 'v', () -> new VideoPanel(ui, main)), 0, y).pos("bl").adds(0, 5).y;
 	y = main.add(new PButton(UI.scale(200), "Audio settings", 'a', () -> new AudioPanel(ui, main)), 0, y).pos("bl").adds(0, 5).y;
 	y = main.add(new PButton(UI.scale(200), "Keybindings", 'k', () -> new BindingPanel(main)), 0, y).pos("bl").adds(0, 5).y;
+	y = main.add(new PButton(UI.scale(200), "Voice Chat Integration", 'c', () -> new VoiceChatPanel(main)), 0, y).pos("bl").adds(0, 5).y;
 	y += UI.scale(60);
 	if(gopts) {
 	    if((SteamStore.steamsvc.get() != null) && (Steam.get() != null)) {

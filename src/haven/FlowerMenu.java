@@ -54,6 +54,7 @@ public class FlowerMenu extends Widget {
 	public String name;
 	public double ta, tr;
 	public int num;
+	public long voiceMuteGob = -1;   // brodgar voice: >=0 marks a client-side Mute/Unmute petal
 	private Text text;
 	private double a = 1;
 
@@ -214,8 +215,24 @@ public class FlowerMenu extends Widget {
 	    c = parent.ui.lcc;
 	mg = ui.grabmouse(this);
 	kg = ui.grabkeys(this);
+	addVoicePetal();
 	organize(opts);
 	new Opening().ntick(0);
+    }
+
+    // brodgar voice: append a client-side Mute/Unmute petal when a player was just clicked.
+    private void addVoicePetal() {
+	long gob = VoiceTarget.recent();
+	if(gob < 0)
+	    return;
+	String label = io.brodgar.voice.Voice.isPlayerMuted(gob) ? "Unmute voice" : "Mute voice";
+	Petal p = add(new Petal(label));
+	p.num = opts.length;
+	p.voiceMuteGob = gob;
+	Petal[] na = new Petal[opts.length + 1];
+	System.arraycopy(opts, 0, na, 0, opts.length);
+	na[opts.length] = p;
+	opts = na;
     }
 
     public boolean mousedown(MouseDownEvent ev) {
@@ -259,6 +276,11 @@ public class FlowerMenu extends Widget {
     }
 
     public void choose(Petal option) {
+	if(option != null && option.voiceMuteGob >= 0) {   // brodgar voice: client-side petal, handled locally
+	    io.brodgar.voice.Voice.togglePlayerMuted(option.voiceMuteGob);
+	    wdgmsg("cl", -1);   // cancel the server's menu; no server petal was chosen
+	    return;
+	}
 	if(option == null) {
 	    wdgmsg("cl", -1);
 	} else {
