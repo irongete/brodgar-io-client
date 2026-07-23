@@ -110,6 +110,18 @@ public final class Voice {
         }
     }
 
+    /**
+     * Recompute local spatialization (panning) for the players you hear. Call once
+     * per frame from {@code MapView.tick} — the same cadence the game ticks its own
+     * positional audio. Call site #4 (optional; enables smooth 3D voice).
+     */
+    public static void tick() {
+        Bridge s = session;
+        if (s != null) {
+            s.updateSpatial();
+        }
+    }
+
     // ----------------------------------------------------------- master switch
 
     /**
@@ -452,25 +464,15 @@ public final class Voice {
                 }
             }
 
-            // Then classify + project without the lock.
+            // Then classify + project without the lock. WORLD vectors for the server
+            // (axis-aligned, shared by all clients); never rotate these. Local panning
+            // is recomputed per frame in updateSpatial.
             List<VisibleGob> out = new ArrayList<>();
-            Map<Long, Vec> spatial = new HashMap<>();
             for (Snap s : snaps) {
-                if (!isPlayer(s.g)) {
-                    continue;
+                if (isPlayer(s.g)) {
+                    Coord2d v = s.rc.sub(origin).div(MCache.tilesz);
+                    out.add(new VisibleGob(s.g.id, v.x, v.y));
                 }
-                // WORLD vector for the server (axis-aligned, shared by all clients);
-                // never rotate this.
-                Coord2d v = s.rc.sub(origin).div(MCache.tilesz);
-                out.add(new VisibleGob(s.g.id, v.x, v.y));
-                // Screen-relative vector for LOCAL panning, so audio matches what you
-                // see even when the camera is rotated. v.abs() = distance in tiles
-                // (Haven's Coord2d.norm() returns a unit vector, not length).
-                spatial.put(s.g.id, screenVector(s.rc, v.abs()));
-            }
-            BrodgarVoice voice = this.voice;
-            if (voice != null) {
-                voice.setSpatialVectors(spatial);
             }
             return out;
         }
@@ -487,22 +489,36 @@ public final class Voice {
         }
 
         /**
-         * Listener-relative spatial vector: the gob's on-screen direction (from the
-         * camera projection, so it accounts for camera rotation) scaled by the true
-         * world distance. {@code screenangle} returns {@code atan2(screenUp,
-         * screenRight)}, so {@code cos} is the right-ward component.
+         * Per-frame local spatialization (called from {@code MapView.tick}): for each
+         * player you hear, build the camera-relative (right, forward) vector from
+         * {@link MapView#spatialAzimuth} — the same eye-space balance the game uses for
+         * its own positional audio, so voices pan smoothly in every camera. Purely
+         * local; nothing here is sent to the server.
          */
-        private Vec screenVector(Coord2d rc, double distTiles) {
-            double sa;
-            try {
-                sa = mv.screenangle(rc, false);
-            } catch (RuntimeException notReadyYet) {
-                sa = Double.NaN;
+        void updateSpatial() {
+            BrodgarVoice v = this.voice;
+            if (v == null) {
+                return;
             }
-            if (Double.isNaN(sa)) {
-                return new Vec(0, distTiles); // unknown heading → centered, keep distance
+            Gob me = mv.player();
+            Map<Long, Vec> spatial = new HashMap<>();
+            if (me != null && me.rc != null) {
+                Coord2d origin = me.rc;
+                OCache oc = me.glob.oc;
+                for (long id : v.audibleGobs()) {
+                    Gob g = oc.getgob(id);
+                    if (g == null || g.rc == null) {
+                        continue;
+                    }
+                    double az = mv.spatialAzimuth(g.rc);
+                    if (Double.isNaN(az)) {
+                        continue;
+                    }
+                    double dist = g.rc.sub(origin).div(MCache.tilesz).abs();
+                    spatial.put(id, new Vec(Math.sin(az) * dist, Math.cos(az) * dist)); // (right, forward)
+                }
             }
-            return new Vec(distTiles * Math.cos(sa), distTiles * Math.sin(sa)); // +x = screen right
+            v.setSpatialVectors(spatial);
         }
 
         @Override

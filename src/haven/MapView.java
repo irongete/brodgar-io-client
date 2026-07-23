@@ -1598,6 +1598,21 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	return(Math.atan2(sloc[1] * a, sloc[0]));
     }
 
+    /* brodgar voice: horizontal azimuth of a map point relative to the camera's
+     * facing, in eye space (0 = ahead, + = right) — the same as the game's own
+     * positional audio (ActAudio: atan2(pos.x, -pos.z)), and continuous in every
+     * camera, unlike screenangle which flips for points behind the camera plane. */
+    public double spatialAzimuth(Coord2d mc) {
+	Coord3f cc;
+	try {
+	    cc = getcc();
+	} catch(Loading e) {
+	    return(Double.NaN);
+	}
+	Coord3f eye = camera.view.fin(Matrix4f.id).mul4(new Coord3f((float)mc.x, -(float)mc.y, cc.z));
+	return(Math.atan2(eye.x, -eye.z));
+    }
+
     private void partydraw(GOut g) {
 	for(Party.Member m : ui.sess.glob.party.memb.values()) {
 	    if(m.gobid == this.plgob)
@@ -1672,6 +1687,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     public void tick(double dt) {
 	super.tick(dt);
+	io.brodgar.voice.Voice.tick();   // brodgar voice: per-frame spatialization, like the game's positional audio
 	checkload();
 	camload = null;
 	try {
