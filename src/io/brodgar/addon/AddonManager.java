@@ -7,6 +7,8 @@ import haven.MapView;
 
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaNumber;
+import org.luaj.vm2.LuaString;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.OneArgFunction;
@@ -99,7 +101,7 @@ public final class AddonManager {
             }
             LuaValue r = chunk.call();
             if((m != null) && (m.ui != null) && !r.isnil())
-                m.ui.msg("lua= " + r.tojstring());
+                m.ui.msg("lua= " + json(r));
         } catch(LuaError e) {
             if((m != null) && (m.ui != null))
                 m.ui.error("lua: " + e.getMessage());
@@ -140,5 +142,101 @@ public final class AddonManager {
             sb.append(args[i]);
         }
         return sb.toString();
+    }
+
+    // -------------------------------------------------- compact JSON for the REPL (copy-friendly)
+
+    /** Serialize a Lua value to compact single-line JSON so console output is inspectable/copyable. */
+    private static String json(LuaValue v) {
+        StringBuilder sb = new StringBuilder();
+        json(v, sb, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()));
+        return sb.toString();
+    }
+
+    private static void json(LuaValue v, StringBuilder sb, java.util.Set<LuaValue> seen) {
+        if(v.isnil()) {
+            sb.append("null");
+        } else if(v.isboolean()) {
+            sb.append(v.toboolean() ? "true" : "false");
+        } else if(v instanceof LuaNumber) {
+            double d = v.todouble();
+            if(!Double.isFinite(d))
+                sb.append("null");                       // JSON has no NaN/Infinity
+            else if((d == Math.rint(d)) && (Math.abs(d) < 1e15))
+                sb.append(Long.toString((long)d));       // clean integers (no trailing .0)
+            else
+                sb.append(Double.toString(d));
+        } else if(v instanceof LuaString) {
+            jsonstr(v.tojstring(), sb);
+        } else if(v instanceof LuaTable) {
+            jsontab((LuaTable)v, sb, seen);
+        } else {
+            jsonstr(v.tojstring(), sb);                  // function/userdata/thread → quoted tostring
+        }
+    }
+
+    private static void jsontab(LuaTable t, StringBuilder sb, java.util.Set<LuaValue> seen) {
+        if(!seen.add(t)) {                               // break reference cycles
+            sb.append("\"<cycle>\"");
+            return;
+        }
+        try {
+            LuaValue[] keys = t.keys();
+            int len = t.length();
+            boolean array = (keys.length == len);
+            if(array) {
+                for(LuaValue k : keys) {
+                    if(!k.isint() || (k.toint() < 1) || (k.toint() > len)) {
+                        array = false;
+                        break;
+                    }
+                }
+            }
+            if(array) {
+                sb.append('[');
+                for(int i = 1; i <= len; i++) {
+                    if(i > 1)
+                        sb.append(',');
+                    json(t.get(i), sb, seen);
+                }
+                sb.append(']');
+            } else {
+                sb.append('{');
+                boolean first = true;
+                for(LuaValue k : keys) {
+                    if(!first)
+                        sb.append(',');
+                    first = false;
+                    jsonstr(k.tojstring(), sb);           // JSON keys are strings
+                    sb.append(':');
+                    json(t.get(k), sb, seen);
+                }
+                sb.append('}');
+            }
+        } finally {
+            seen.remove(t);
+        }
+    }
+
+    private static void jsonstr(String s, StringBuilder sb) {
+        sb.append('"');
+        for(int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch(c) {
+            case '"':  sb.append("\\\""); break;
+            case '\\': sb.append("\\\\"); break;
+            case '\n': sb.append("\\n"); break;
+            case '\r': sb.append("\\r"); break;
+            case '\t': sb.append("\\t"); break;
+            case '\b': sb.append("\\b"); break;
+            case '\f': sb.append("\\f"); break;
+            default:
+                if(c < 0x20)
+                    sb.append(String.format("\\u%04x", (int)c));
+                else
+                    sb.append(c);
+            }
+        }
+        sb.append('"');
     }
 }

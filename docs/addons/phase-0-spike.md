@@ -24,12 +24,16 @@ LuaJ if it's missing.
 In-game, open the console with `:` and type `lua` followed by a Lua expression or statement.
 
 ```
-:lua hafen.gob.pos().x        -> lua= 1234.5     (your X, shown as a system message)
-:lua hafen.gob.pos().y        -> lua= 6789.0     (your Y)
+:lua hafen.gob.pos()          -> lua= {"x":1234.5,"y":6789}   (compact JSON, copy-friendly)
+:lua hafen.gob.pos().x        -> lua= 1234.5                   (your X)
+:lua hafen.gob.pos().y        -> lua= 6789                     (your Y)
 :lua 1 + 2                    -> lua= 3
 ```
 - An **expression** shows its value in-game (via a system message); a **statement**
   (e.g. `print(...)`) runs but its output goes to the process stdout/terminal.
+- The value is serialized as **compact single-line JSON** (recursive; tables become `{...}` objects
+  or `[...]` arrays; integral numbers drop the trailing `.0`; reference cycles show as `"<cycle>"`),
+  so you can copy it straight out of the console.
 - Lua **errors** are shown in-game as an error notice.
 
 ### Console quoting caveat
