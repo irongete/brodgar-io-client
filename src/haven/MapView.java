@@ -500,6 +500,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	clmaptree.add(clickmap);
 	setcanfocus(true);
 	io.brodgar.voice.Voice.attach(this);   // brodgar voice: connect on entering the game
+	io.brodgar.addon.AddonManager.attach(this);   // addon: capture the live view for the engine
     }
     
     protected void envdispose() {
@@ -512,6 +513,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     public void dispose() {
 	io.brodgar.voice.Voice.detach(this);   // brodgar voice: stop instantly on logout
+	io.brodgar.addon.AddonManager.detach(this);   // addon:
 	gobs.slot.remove();
 	clmaplist.dispose();
 	clobjlist.dispose();
