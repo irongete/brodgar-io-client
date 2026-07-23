@@ -146,6 +146,7 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
 
     public void init(UI ui) {
 	ui.sess = sess;
+	io.brodgar.addon.AddonManager.init(ui);   // addon: (re)load addons for this session
     }
 
     public String title() {

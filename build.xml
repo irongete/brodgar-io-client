@@ -202,6 +202,9 @@
       <fileset dir="lib/ext/steamworks"><include name="*.jar" /></fileset>
       <fileset dir="lib/brodgar"><include name="*.jar" /></fileset>
     </copy>
+    <copy todir="bin/addons" failonerror="false" quiet="true">
+      <fileset dir="addons" />
+    </copy>
     <copy todir="bin" failonerror="false" quiet="true">
       <fileset dir="build">
 	<include name="hafen-panama.jar" />

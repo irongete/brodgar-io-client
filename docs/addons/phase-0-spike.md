@@ -36,22 +36,25 @@ In-game, open the console with `:` and type `lua` followed by a Lua expression o
   so you can copy it straight out of the console.
 - Lua **errors** are shown in-game as an error notice.
 
-### Console quoting caveat
-The in-game console strips quotes (`Utils.splitwords`), so string literals can't survive a `:lua`
-line. To keep the REPL usable, the spike:
-- defaults `hafen.gob.pos()` (no argument) to the **player**, and
-- predefines the globals `player`, `me`, `target` as their token strings.
-
-So all of these work from the console without quotes:
+### Strings in the `:lua` console
+The in-game console word-splits its input and would strip `"quotes"`. So the engine evaluates the
+**raw command line** (quotes intact) instead — normal Lua works, **including string literals**:
 ```
-:lua hafen.gob.pos().x            -- no arg = player
-:lua hafen.gob.pos(player).x      -- 'player' global
-:lua hafen.gob.pos(me).x
+:lua hafen.log("hello world")     -> logs: hello world
+:lua hafen.gob.pos("player").x    -> your X
+:lua hafen.gob.pos().x            -> your X   (no argument = player, a convenience)
 ```
-Inside a loaded addon file (Phase 1+), normal quoted strings work: `hafen.gob.pos("player")`.
+This needed a tiny `haven.Console` change: it now exposes the raw command line via
+`Console.rawcmd()`, which the `:lua` command reads. Inside loaded addon files, quotes always worked.
 
 ## API: `hafen.gob.pos(ref)`
 Returns `{ x = <number>, y = <number> }` in world units, or `nil` if the gob isn't present.
+
+> **Note — this position is session-local, not global.** Haven & Hearth has no global coordinate:
+> `rc` starts around (-10,-10) tiles at login and is relative to the session, so it is **not**
+> comparable across sessions or between players. It's fine for local/relative use. Cross-session or
+> cross-player positioning must be anchored on **grid IDs** (stable and shared) plus the within-grid
+> offset — a later phase adds `hafen.map.grid` / `hafen.player.gridPos` for that.
 
 `ref` (a GobRef):
 | `ref` | Resolves to |

@@ -1,0 +1,9 @@
+{
+  "name": "Hello",
+  "id": "hello",
+  "version": "0.1.0",
+  "author": "brodgar",
+  "description": "Minimal example addon — logs on load and reads the player position.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

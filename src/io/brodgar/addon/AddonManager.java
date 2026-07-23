@@ -4,6 +4,8 @@ import haven.Console;
 import haven.Coord2d;
 import haven.Gob;
 import haven.MapView;
+import haven.UI;
+import haven.Utils;
 
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
@@ -14,101 +16,198 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+
 /**
- * Phase-0 spike of the AddOn engine (see {@code specs/addons/15-implementation-plan.md}).
+ * The AddOn engine (see {@code specs/addons/15-implementation-plan.md}).
  *
- * <p>Goal of this phase: prove that a Lua VM (LuaJ) runs on the UI thread and can read live
- * game state through a stable {@code hafen.*} facade. It exposes exactly one read —
- * {@code hafen.gob.pos(ref)} — and an in-game {@code :lua <expr>} REPL to exercise it.
+ * <p>Phase 0 proved a Lua VM (LuaJ) reads live state on the UI thread. Phase 1a adds **loading
+ * addons from disk**: it discovers {@code <client>/addons/<name>/manifest.json}, gives each addon
+ * its own Lua environment, runs its files, and exposes {@code hafen.log}. A {@code :lua} REPL and
+ * {@code :addons} console command aid inspection.
  *
- * <p>Design, mirroring {@code io.brodgar.voice.Voice}: an all-static facade that captures the
- * live {@link MapView} on {@code attach} and never blocks the game thread. Per-addon Lua
- * environments, the sandbox, the tick pump, disk loading and the full API arrive in Phase 1+.
+ * <p>All-static facade, mirroring {@code io.brodgar.voice.Voice}. Per-addon sandbox, the tick pump,
+ * events, the full read API, saved-vars and the options panel arrive in later Phase-1 steps.
  */
 public final class AddonManager {
 
-    /** The live in-game map view, or {@code null}. Captured like {@code io.brodgar.voice.Voice}. */
-    private static volatile MapView view;
-
-    /** Single shared Lua env for the spike. Per-addon envs + sandbox come in Phase 1 (D-017). */
-    private static Globals lua;
+    private static volatile MapView view;   // live map view (for hafen.gob.pos)
+    private static volatile UI ui;          // live UI (for output; set at RemoteUI.init)
+    private static Globals console;         // shared env for the :lua REPL
+    private static final List<Addon> addons = new ArrayList<Addon>();
 
     private AddonManager() {
     }
 
     static {
-        // Engine-lifetime console command. Console has no unregister, so Reload UI must never
-        // re-register it (specs/addons/05-lifecycle-and-reload.md). Registered once at class load.
-        Console.setscmd("lua", (cons, args) -> eval(join(args)));
+        // Use the RAW console line (quotes intact) so string literals survive; args are pre-split
+        // by Utils.splitwords, which strips quotes. Fall back to joined args if the raw line is absent.
+        Console.setscmd("lua", (cons, args) -> {
+            String raw = cons.rawcmd();
+            eval((raw != null) ? stripCmd(raw) : join(args));
+        });
+        Console.setscmd("addons", (cons, args) -> listAddons());
     }
 
-    // ------------------------------------------------------------- MapView call sites
+    // ------------------------------------------------------------- lifecycle
 
-    /** Call site #1 — end of the MapView constructor. Idempotent, non-blocking. */
+    /** Call site — end of the MapView constructor. Captures the live view for state reads. */
     public static void attach(MapView mv) {
         if(mv != null)
             view = mv;
     }
 
-    /** Call site #2 — first line of MapView.dispose(). */
+    /** Call site — first line of MapView.dispose(). */
     public static void detach(MapView mv) {
         if(view == mv)
             view = null;
     }
 
-    // ------------------------------------------------------------- Lua env + REPL
-
-    private static synchronized Globals env() {
-        if(lua == null) {
-            Globals g = JsePlatform.standardGlobals();  // Phase 1 tightens this to a sandbox (D-017)
-            LuaTable hafen = new LuaTable();
-            LuaTable gob = new LuaTable();
-            // hafen.gob.pos(ref) -> {x=, y=} | nil. ref = "player"/"me", a gob id, or nil (=player).
-            gob.set("pos", new OneArgFunction() {
-                public LuaValue call(LuaValue ref) {
-                    Coord2d rc = pos(ref);
-                    if(rc == null)
-                        return LuaValue.NIL;
-                    LuaTable t = new LuaTable();
-                    t.set("x", LuaValue.valueOf(rc.x));
-                    t.set("y", LuaValue.valueOf(rc.y));
-                    return t;
-                }
-            });
-            hafen.set("gob", gob);
-            g.set("hafen", hafen);
-            // The in-game console strips quotes (Utils.splitwords), so string tokens can't survive
-            // ":lua". Expose the common tokens as globals so `hafen.gob.pos(player)` works unquoted.
-            g.set("player", LuaValue.valueOf("player"));
-            g.set("me", LuaValue.valueOf("player"));
-            g.set("target", LuaValue.valueOf("target"));
-            lua = g;
-        }
-        return lua;
+    /** Per-session init (from RemoteUI.init, where ui.sess is bound): (re)load addons from disk. */
+    public static synchronized void init(UI ui_) {
+        ui = ui_;
+        addons.clear();
+        loadAll();
     }
 
-    /** Evaluate a console Lua line; show the value (if any) in-game, errors as an error notice. */
+    // ------------------------------------------------------------- discovery + loading
+
+    /** Default: the {@code addons/} folder beside the client jar. {@code -Dhaven.addondir} overrides. */
+    static File addonDir() {
+        String override = System.getProperty("haven.addondir");
+        if((override != null) && !override.isEmpty())
+            return new File(override);
+        try {
+            return Utils.srcpath(AddonManager.class).resolveSibling("addons").toFile();
+        } catch(RuntimeException e) {
+            return new File("addons");
+        }
+    }
+
+    private static void loadAll() {
+        File dir = addonDir();
+        log("addons dir: " + dir);
+        File[] subs = dir.listFiles(File::isDirectory);
+        if(subs == null) {
+            log("no addons/ directory");
+            return;
+        }
+        for(File sub : subs) {
+            if(!new File(sub, "manifest.json").isFile())
+                continue;
+            try {
+                Manifest m = Manifest.load(sub.toPath());
+                Globals g = JsePlatform.standardGlobals();   // sandbox hardening = later phase
+                installHafen(g);
+                LuaTable ad = new LuaTable();
+                ad.set("id", LuaValue.valueOf(m.id));
+                ad.set("dir", LuaValue.valueOf(sub.getAbsolutePath()));
+                g.set("ADDON", ad);
+                Addon addon = new Addon(m, sub.toPath(), g);
+                addon.run();
+                addons.add(addon);
+                log((addon.error == null) ? ("loaded " + m.id + " v" + m.version)
+                                          : ("error in " + m.id + ": " + addon.error));
+            } catch(Exception e) {
+                log("failed to load '" + sub.getName() + "': " + e.getMessage());
+            }
+        }
+        log(addons.size() + " addon(s) loaded");
+    }
+
+    private static void listAddons() {
+        if(addons.isEmpty()) {
+            log("no addons loaded");
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        for(Addon a : addons) {
+            if(sb.length() > 0)
+                sb.append(", ");
+            sb.append(a.manifest.id).append((a.error == null) ? "" : " (error)");
+        }
+        log("addons: " + sb);
+    }
+
+    // ------------------------------------------------------------- the hafen facade
+
+    /** Install the stable {@code hafen.*} facade into a Lua env (shared by addons and the REPL). */
+    private static void installHafen(Globals g) {
+        LuaTable hafen = new LuaTable();
+
+        LuaTable gob = new LuaTable();
+        gob.set("pos", new OneArgFunction() {
+            public LuaValue call(LuaValue ref) {
+                Coord2d rc = pos(ref);
+                if(rc == null)
+                    return LuaValue.NIL;
+                LuaTable t = new LuaTable();
+                t.set("x", LuaValue.valueOf(rc.x));
+                t.set("y", LuaValue.valueOf(rc.y));
+                return t;
+            }
+        });
+        hafen.set("gob", gob);
+
+        hafen.set("log", new OneArgFunction() {
+            public LuaValue call(LuaValue msg) {
+                log(msg.isnil() ? "nil" : msg.tojstring());
+                return LuaValue.NIL;
+            }
+        });
+
+        g.set("hafen", hafen);
+    }
+
+    /** Output: always to stdout; and in-game via the UI notice system when it's available. */
+    static void log(String msg) {
+        System.out.println("[addon] " + msg);
+        UI u = ui;
+        if(u != null) {
+            try {
+                u.msg(msg);
+            } catch(RuntimeException e) {
+                /* pre-HUD or no notice sink yet; stdout still has it */
+            }
+        }
+    }
+
+    // ------------------------------------------------------------- :lua REPL
+
+    private static synchronized Globals console() {
+        if(console == null) {
+            Globals g = JsePlatform.standardGlobals();
+            installHafen(g);
+            console = g;
+        }
+        return console;
+    }
+
     private static void eval(String src) {
-        MapView m = view;
         if(src.isEmpty())
             return;
+        UI u = ui;
         try {
             LuaValue chunk;
             try {
-                chunk = env().load("return " + src, "=lua");   // expression form: show its value
+                chunk = console().load("return " + src, "=lua");   // expression form: show its value
             } catch(LuaError e) {
-                chunk = env().load(src, "=lua");                // statement form (e.g. print(...))
+                chunk = console().load(src, "=lua");                // statement form (e.g. print(...))
             }
             LuaValue r = chunk.call();
-            if((m != null) && (m.ui != null) && !r.isnil())
-                m.ui.msg("lua= " + json(r));
+            if((u != null) && !r.isnil())
+                u.msg("lua= " + json(r));
         } catch(LuaError e) {
-            if((m != null) && (m.ui != null))
-                m.ui.error("lua: " + e.getMessage());
+            if(u != null)
+                u.error("lua: " + e.getMessage());
         }
     }
 
-    /** Resolve a GobRef (Phase 0: "player"/"me", a numeric id, or nil=player) to a live position. */
+    // ------------------------------------------------------------- GobRef resolution
+
+    /** Resolve a GobRef ("player"/"me", a numeric id, or nil=player) to a live position. */
     private static Coord2d pos(LuaValue ref) {
         MapView m = view;
         if((m == null) || (m.ui == null) || (m.ui.sess == null))
@@ -142,6 +241,16 @@ public final class AddonManager {
             sb.append(args[i]);
         }
         return sb.toString();
+    }
+
+    /** Drop the leading command word (and following whitespace) from a raw console line. */
+    private static String stripCmd(String line) {
+        int i = 0;
+        while((i < line.length()) && !Character.isWhitespace(line.charAt(i)))
+            i++;
+        while((i < line.length()) && Character.isWhitespace(line.charAt(i)))
+            i++;
+        return line.substring(i);
     }
 
     // -------------------------------------------------- compact JSON for the REPL (copy-friendly)

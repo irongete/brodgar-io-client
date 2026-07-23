@@ -34,6 +34,7 @@ public class Console {
     private final Map<String, Command> commands = new TreeMap<String, Command>();
     private final Collection<Directory> dirs = new LinkedList<Directory>();
     private final ThreadLocal<Host> host = new ThreadLocal<>();
+    private final ThreadLocal<String> rawtext = new ThreadLocal<>();   // addon: raw command line, quotes intact
     public PrintWriter out;
     
     {
@@ -106,7 +107,19 @@ public class Console {
     }
     
     public void run(Host host, String cmdl) throws Exception {
-	run(host, Utils.splitwords(cmdl));
+	String prev = rawtext.get();
+	try {
+	    rawtext.set(cmdl);                        // addon: keep the raw line for rawcmd()
+	    run(host, Utils.splitwords(cmdl));
+	} finally {
+	    rawtext.set(prev);
+	}
+    }
+
+    /* addon: the raw, unsplit command line of the command currently running (quotes intact), or
+     * null when invoked with pre-split args. Lets a command (e.g. :lua) read its own literal text. */
+    public String rawcmd() {
+	return(rawtext.get());
     }
 
     public Host host() {
