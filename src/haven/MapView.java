@@ -1688,6 +1688,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public void tick(double dt) {
 	super.tick(dt);
 	io.brodgar.voice.Voice.tick();   // brodgar voice: per-frame spatialization, like the game's positional audio
+	SpeakerIcon.sweep(this);   // brodgar voice: colour-coded speaker icon above each player
 	checkload();
 	camload = null;
 	try {
