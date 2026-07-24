@@ -1,6 +1,10 @@
--- Example addon (Phase 3a): WIDGET-CREATION INTERCEPTION — hafen.ui.onWidgetCreate(fn) observes the server's
--- OWN UI as the client builds it (fn(desc) runs per server widget; desc = {id,type,place,caption,parentType}),
--- the foundation for replacing native windows (bag/inventory reskins). It also demonstrates GLOBAL HOTKEYS —
+-- Example addon (Phase 3b): WIDGET MODELS — hafen.ui.adopt(id) adopts a live SERVER widget (by the desc.id a 3a
+-- onWidgetCreate observer hands out) as a hidden MODEL you can hide/show, read items() from, and get lifecycle
+-- events on (onItemAdded/onItemRemoved/onDestroy) — "wrap, don't reimplement" (D-009). Here we adopt the MAIN
+-- INVENTORY: Ctrl+B hides/shows its grid while it stays live, and :reload/disable un-hides it (the 3b DoD). Item
+-- MUTATING verbs (take/drop/transfer/use) are NOT here — they are gameplay actions (the gated Phase-4 tier).
+-- Built on 3a WIDGET-CREATION INTERCEPTION — hafen.ui.onWidgetCreate(fn) observes the server's OWN UI as the
+-- client builds it (fn(desc) runs per server widget; desc = {id,type,place,caption,parentType}). It also demonstrates GLOBAL HOTKEYS —
 -- hafen.key.bind(name, defaultKey, fn) binds a remappable, persisted hotkey (over the client's KeyBinding
 -- registry) that fires when no widget consumed the keypress first; here Ctrl+H toggles the custom window, plus
 -- an unbound "ping". Because this addon registers hotkeys, a "Hello" section appears under Options > Keybindings.
@@ -17,7 +21,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.20.0)")
+hafen.log("hello loaded (v0.21.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -174,6 +178,26 @@ local function readActionbar(tag)
     (first and first.cooldown) and (" cd=%.2f"):format(first.cooldown) or ""))
 end
 
+-- 3b: WIDGET MODEL (hafen.ui.adopt). We adopt the MAIN INVENTORY as a model down in the onWidgetCreate observer
+-- (the 3a -> 3b flow: observe a widget's creation, then adopt it by desc.id). invModel is that handle (nil until
+-- the inventory is observed at login). readBags reads it: item count + first item (via model:items(), the same
+-- Item snapshots as hafen.items.inventory) + whether its grid is currently shown. The KEY property: a hidden
+-- server widget stays bound to its id, so items() and the onItemAdded/onItemRemoved events keep working while it
+-- is hidden -- a perfect headless model. Like the rest of the inventory data, items stream in a beat after
+-- enter-world, so this is read at now (often 0) and +3s.
+local invModel            -- the adopted inventory model (set in the observer below; nil after :reload until relog)
+local itemsAdded, itemsRemoved = 0, 0
+-- The ~dozen items already in the backpack fire onItemAdded as they stream in at login (like BuffAdded does for
+-- existing buffs). So log only the first few of that initial fill, then flip bagsReady a few seconds in and log
+-- EVERY live add/remove after that -- so a pick-up/drop while the grid is hidden is clearly visible in the log.
+local bagsReady = false
+local function readBags(tag)
+  if not invModel then hafen.log(("[%s] bags: inventory not adopted yet"):format(tag)); return end
+  local items = invModel:items()
+  hafen.log(("[%s] bags: %d item(s) via model, first=%s, grid-visible=%s"):format(tag, #items,
+    items[1] and tostring(items[1].name or items[1].res) or "none", tostring(invModel:visible())))
+end
+
 hafen.events.on("OnEnterWorld", function()
   hafen.log("entered the world")
 
@@ -206,10 +230,12 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now"); readStudy("now"); readActionbar("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readActionbar("now"); readBags("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readActionbar("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readActionbar("+3s"); readBags("+3s")
+    bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
+    if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via Ctrl+B) and it logs") end
   end)
 
   -- 1c-2: an audible confirmation ping (a client-bundled sound), proving hafen.sound.play works.
@@ -360,6 +386,40 @@ hafen.ui.onWidgetCreate(function(desc)
       :format(tostring(desc.id), tostring(desc.type), tostring(desc.place),
               tostring(desc.parentType), tostring(desc.caption)))
   end
+
+  -- 3b: when the MAIN inventory ({type="inv", place="inv", parentType="GameUI"}) is built, ADOPT it as a model
+  -- (hafen.ui.adopt(desc.id)) -- the observe -> adopt handoff. We hold the model to hide/show its grid (Ctrl+B)
+  -- and to receive item add/remove events. onDestroy fires if the server ever destroys it (it won't for the main
+  -- backpack, but a container/cupboard model would). NB: :reload does NOT recreate the existing inventory, so the
+  -- freshly-registered observer won't re-fire for it -- re-adoption after :reload waits for a relog (or 3c's
+  -- hafen.ui.replace, which FINDS an already-open window by descriptor). adopt() returns nil if the id is gone.
+  if desc.type == "inv" and desc.place == "inv" and desc.parentType == "GameUI" and not invModel then
+    invModel = hafen.ui.adopt(desc.id)
+    if invModel then
+      hafen.log(("3b: adopted main inventory (id=%s) -- Ctrl+B hides/shows its grid; it stays live while hidden")
+        :format(tostring(desc.id)))
+      invModel:onItemAdded(function(item)
+        itemsAdded = itemsAdded + 1
+        if bagsReady or itemsAdded <= 3 then          -- initial fill: first few only; after +3s: every live add
+          hafen.log(("3b: item ADDED to inventory: %s x%s (total seen %d)%s")
+            :format(tostring(item.name or item.res), tostring(item.num or 1), itemsAdded,
+                    (invModel and not invModel:visible()) and " [grid hidden -- model still live]" or ""))
+        end
+      end)
+      invModel:onItemRemoved(function(item)
+        itemsRemoved = itemsRemoved + 1
+        if bagsReady or itemsRemoved <= 3 then
+          hafen.log(("3b: item REMOVED from inventory: %s (total seen %d)%s")
+            :format(tostring(item.name or item.res), itemsRemoved,
+                    (invModel and not invModel:visible()) and " [grid hidden -- model still live]" or ""))
+        end
+      end)
+      invModel:onDestroy(function()
+        hafen.log("3b: inventory model destroyed by the server")
+        invModel = nil
+      end)
+    end
+  end
 end)
 hafen.log("3a: onWidgetCreate observer installed -- open a cupboard/chest or a crafting window to see it log")
 
@@ -439,6 +499,22 @@ hafen.log(("2e-2: global hotkey bound (%s toggles the window) -- remappable in t
 hafen.key.bind("ping", nil, function()
   hafen.sound.play("sfx/msg")
   hafen.log("2e-3: ping hotkey fired (assigned in Options > Keybindings > Hello)")
+end)
+
+-- 3b: a THIRD hotkey (Ctrl+B, "bags") toggling the ADOPTED inventory model's visibility -- hide()/show() a real
+-- server widget while it stays live. Open your inventory (Tab), press Ctrl+B: the item grid HIDES (the model is
+-- still bound, so items() and the add/remove events keep working -- drop something in and 3b still logs it);
+-- press again: it SHOWS. Disabling hello or :reload UN-HIDES it automatically (teardown restores the stock UI) --
+-- the Phase-3b DoD. This adds a third row to the "Hello" keybind section (2e-3 grouping). If Ctrl+B is already a
+-- client binding the client wins (addon hotkeys are the fallback) -- just re-map "bags" in Options > Keybindings.
+hafen.key.bind("bags", "Ctrl+B", function()
+  if not invModel then
+    hafen.log("3b: Ctrl+B -- inventory not adopted yet (relog to re-adopt; 3c will re-find an open window)")
+    return
+  end
+  if invModel:visible() then invModel:hide() else invModel:show() end
+  hafen.log(("3b: Ctrl+B -> inventory grid %s (%d item(s) still live via the model)")
+    :format(invModel:visible() and "shown" or "hidden", #invModel:items()))
 end)
 
 hafen.events.on("OnEnterWorld", function()

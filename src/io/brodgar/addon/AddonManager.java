@@ -192,6 +192,13 @@ public final class AddonManager {
     private static final Map<Integer, String> widgetTypes = new ConcurrentHashMap<Integer, String>();
     private static final List<LuaWidgetObserver> widgetObservers = new CopyOnWriteArrayList<LuaWidgetObserver>();
 
+    // -- adopted widget models (spec 08 / Phase 3b): hafen.ui.adopt(id) wraps a live server-bound widget so an
+    // addon can hide it as a headless model + present a custom view (D-009). A FLAT global list, polled each tick
+    // (pollModels) for item add/remove (a WItem create/cdestroy, not a uimsg) and server destroy (its id stops
+    // mapping to the widget); globally empty = a near-zero fast path. Owned copies live on each Addon for teardown
+    // (which un-hides anything the addon hid, restoring the stock UI). Session-scoped (cleared per init).
+    private static final List<LuaModel> models = new CopyOnWriteArrayList<LuaModel>();
+
     // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
     // Adapters read a GameUI widget tree into a Lua snapshot and fire a semantic event on change. The
     // UI.uimsg core tap runs off the UI thread, so it only marks the interested adapter(s) dirty; the
@@ -288,6 +295,9 @@ public final class AddonManager {
         reloadPending = false;        // drop any :reload queued against the previous session
 
         widgetTypes.clear();          // 3a: drop in-flight widget-type records (ids are per-session)
+        models.clear();               // 3b: drop adopted-widget models (widget ids are per-session; addon-owned
+        if(consoleOwner != null)      //     ones were dropped by the teardown loop above — this catches the REPL's)
+            consoleOwner.models.clear();
         treeDirty.clear();            // reset the widget-tree read mechanism for the new session
         vitalsCache = null;
         treeAdapters.clear();
@@ -398,6 +408,7 @@ public final class AddonManager {
         }
         flush(a);                     // ...then persist them (spec 05: flushed at OnDisable)
         destroyWidgets(a);            // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
+        teardownModels(a);            // 3b: drop adopted models + un-hide any native widget the addon had hidden
         teardownHooks(a);             // 2c: deafen input hooks (engine widgets outlive a :reload — must detach)
         teardownActionHooks(a);       // 2d: unregister action hooks from the outbound-wdgmsg dispatch map
         teardownMessageHooks(a);      // 2e-1: unregister message hooks from the inbound-uimsg dispatch map
@@ -675,6 +686,11 @@ public final class AddonManager {
             //     not BuffChanged-then-BuffAdded.
             refreshTreeAdapters();
             pollTreeAdapters();
+
+            // 1c. Adopted widget models (3b): per-tick poll for item add/remove (a WItem create/cdestroy on the
+            //     model, not a uimsg — like the buff/study adapters) and server destroy (the model's id stops
+            //     mapping to its widget → fire onDestroy). Fast-paths out when no addon has adopted anything.
+            pollModels();
 
             // 2. "Entered the world" — fire OnEnterWorld once the HUD (GameUI) is not just built but
             //    ATTACHED to ui.root. The map view sets enterWorldPending from its ctor (loader thread),
@@ -2136,6 +2152,28 @@ public final class AddonManager {
                 return newWidgetObserver(owner, fn);
             }
         });
+        // hafen.ui.adopt(id) — adopt a live SERVER widget by its id (the desc.id an onWidgetCreate observer hands
+        // out) as a MODEL (spec 08 / Phase 3b): keep the real, server-bound widget as a hidden model and present
+        // your own view over it — "wrap, don't reimplement" (D-009). Returns a model handle, or nil if no widget
+        // has that id (e.g. it was already destroyed). The handle:
+        //   :hide() / :show()      -- toggle the widget's visibility (chainable). A HIDDEN server widget stays
+        //                             bound to its id, so it keeps receiving item adds / updates — a headless model.
+        //   :visible()             -- is it currently visible?
+        //   :raw()                 -- the server widget id (a WidgetRef); the facade-safe escape hatch.
+        //   :items()               -- array of Item snapshots (same shape as hafen.items.inventory) off the
+        //                             widget's WItem children; empty for a non-inventory widget. READ-ONLY:
+        //                             item verbs (take/drop/transfer/use) are gameplay actions -> the gated
+        //                             actions tier (Phase 4, D-010/D-025), not here.
+        //   :onItemAdded(fn)/:onItemRemoved(fn)  -- fn(item) when an item enters/leaves (poll-diffed each tick).
+        //   :onDestroy(fn)         -- fn() once when the SERVER destroys the widget (the view must die with it).
+        // Bridge-owned (P2): :reload/disable drops the model and UN-HIDES anything it hid (restoring the stock UI).
+        // Adopt from an onWidgetCreate observer (which fires as the widget is built); re-finding an ALREADY-open
+        // window by type/descriptor is hafen.ui.replace (Phase 3c).
+        uiT.set("adopt", new OneArgFunction() {
+            public LuaValue call(LuaValue id) {
+                return newModel(owner, id);
+            }
+        });
         hafen.set("ui", uiT);
 
         // hafen.hook — intercept/alter client behaviour, not just observe it (spec 13-hooks-and-interception).
@@ -2701,6 +2739,167 @@ public final class AddonManager {
             o.alive = false;
         widgetObservers.removeAll(a.widgetObservers);
         a.widgetObservers.clear();
+    }
+
+    // -------------------------------------------------------------- adopted widget models (hafen.ui, 3b)
+
+    /**
+     * Adopt a live server widget as a {@link LuaModel} ({@code hafen.ui.adopt(id)}, spec 08 / Phase 3b): look the
+     * widget up by its server id ({@code desc.id}), wrap it, register it globally (polled each tick) + in the
+     * addon's owned-resource registry (P2), and return the Lua handle. Returns {@code nil} when no widget has that
+     * id (it may have been destroyed) — the caller tests it the idiomatic way. A non-number id is a clear error.
+     */
+    private static LuaValue newModel(final Addon owner, LuaValue idv) {
+        if(!idv.isnumber())
+            throw new LuaError("hafen.ui.adopt(id) expects a widget id (number)");
+        UI u = ui;
+        if(u == null)
+            return LuaValue.NIL;
+        int id = idv.toint();
+        Widget w = u.getwidget(id);
+        if(w == null)
+            return LuaValue.NIL;                 // no server widget with that id (already destroyed, etc.)
+        LuaModel m = new LuaModel(owner, id, w);
+        models.add(m);
+        owner.models.add(m);
+        return modelHandle(m);
+    }
+
+    /**
+     * The Lua handle for an adopted {@link LuaModel}: {@code :hide/:show/:visible/:raw/:items} +
+     * {@code :onItemAdded/:onItemRemoved/:onDestroy}. Geometry-free (a model is the real widget, not our chrome);
+     * the mutating item verbs are deliberately absent (gated actions tier, Phase 4). Every method no-ops safely
+     * once the model is dead (server-destroyed or torn down). The colon-call convention passes {@code self} as
+     * arg1, so a callback setter reads {@code arg(2)} and returns arg1 (the handle) for chaining.
+     */
+    private static LuaValue modelHandle(final LuaModel m) {
+        LuaTable h = new LuaTable();
+        h.set("hide", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                if(m.alive) { m.wdg.hide(); m.hidden = true; }   // stays server-bound → still a live model
+                return a.arg1();
+            }
+        });
+        h.set("show", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                if(m.alive) { m.wdg.show(); m.hidden = false; }
+                return a.arg1();
+            }
+        });
+        h.set("visible", new ZeroArgFunction() {
+            public LuaValue call() { return LuaValue.valueOf(m.alive && m.wdg.visible()); }
+        });
+        h.set("raw", new ZeroArgFunction() {
+            public LuaValue call() { return LuaValue.valueOf(m.id); }   // the server id: a facade-safe WidgetRef (P1)
+        });
+        h.set("items", new ZeroArgFunction() {
+            public LuaValue call() {
+                LuaTable out = new LuaTable();
+                if(m.alive) {
+                    int i = 0;
+                    for(WItem w : m.wdg.children(WItem.class))
+                        out.set(++i, itemSnapshot(w.item, cellPos(w)));
+                }
+                return out;
+            }
+        });
+        h.set("onItemAdded", new VarArgFunction() {
+            public Varargs invoke(Varargs a) { m.onItemAdded = fnOrNull(a.arg(2)); return a.arg1(); }
+        });
+        h.set("onItemRemoved", new VarArgFunction() {
+            public Varargs invoke(Varargs a) { m.onItemRemoved = fnOrNull(a.arg(2)); return a.arg1(); }
+        });
+        h.set("onDestroy", new VarArgFunction() {
+            public Varargs invoke(Varargs a) { m.onDestroy = fnOrNull(a.arg(2)); return a.arg1(); }
+        });
+        return h;
+    }
+
+    /** A Lua function value, or {@code null} if it is not a function (an unset callback). */
+    private static LuaValue fnOrNull(LuaValue v) {
+        return v.isfunction() ? v : null;
+    }
+
+    /**
+     * Per-tick poll of every adopted model (UI thread, spec 08 / Phase 3b). For each live model: if the server
+     * destroyed the widget (its id no longer maps to it), fire {@code onDestroy} once and drop the model; else
+     * diff its {@link WItem} children for add/remove when a listener is registered. Fast-paths out when nothing is
+     * adopted. Item add/remove is a widget create/{@code cdestroy}, not a {@code uimsg}, so it can only be seen by
+     * polling — the same discipline as the buff/study adapters.
+     */
+    private static void pollModels() {
+        if(models.isEmpty())
+            return;
+        UI u = ui;
+        if(u == null)
+            return;
+        for(LuaModel m : models) {           // copy-on-write: a callback may adopt/drop a model here
+            if(!m.alive)
+                continue;
+            if(u.getwidget(m.id) != m.wdg) {  // server destroyed it (or reused the id) → the model is gone
+                m.alive = false;
+                models.remove(m);
+                m.owner.models.remove(m);
+                if(m.onDestroy != null)
+                    callLua(m.owner, m.onDestroy);
+                continue;
+            }
+            if((m.onItemAdded != null) || (m.onItemRemoved != null))
+                pollModelItems(m);
+        }
+    }
+
+    /** Diff one model's {@link WItem} children against its cache, firing onItemAdded/onItemRemoved (mirrors BuffsAdapter). */
+    private static void pollModelItems(LuaModel m) {
+        Set<WItem> present = new LinkedHashSet<WItem>();
+        for(WItem w : m.wdg.children(WItem.class))
+            present.add(w);
+        for(WItem w : present) {                        // additions (unseen items)
+            if(!m.items.containsKey(w)) {
+                LuaValue snap = itemSnapshot(w.item, cellPos(w));
+                m.items.put(w, snap);
+                if(m.onItemAdded != null)
+                    callLua(m.owner, m.onItemAdded, snap);
+            }
+        }
+        for(Iterator<Map.Entry<WItem, LuaValue>> it = m.items.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<WItem, LuaValue> e = it.next();   // removals (items that left)
+            if(!present.contains(e.getKey())) {
+                LuaValue snap = e.getValue();
+                it.remove();
+                if(m.onItemRemoved != null)
+                    callLua(m.owner, m.onItemRemoved, snap);
+            }
+        }
+    }
+
+    /**
+     * Tear down every adopted model this addon owns (reload/disable, P2): mark each dead, drop it from the global
+     * poll list, and — critically — <b>un-hide</b> a widget the addon had hidden, so disabling a UI-replacement
+     * addon restores the stock window (spec 08). Only a still-live server-bound widget is un-hidden (a stale or
+     * already-destroyed one is skipped). The un-hide is a tree op → done under {@code synchronized(ui)}, like
+     * {@link #destroyWidgets}.
+     */
+    private static void teardownModels(Addon a) {
+        if(a.models.isEmpty())
+            return;
+        final UI u = ui;
+        final List<LuaModel> ms = new ArrayList<LuaModel>(a.models);
+        a.models.clear();
+        models.removeAll(ms);
+        Runnable unhide = () -> {
+            for(LuaModel m : ms) {
+                m.alive = false;
+                if(m.hidden && (u != null) && (u.getwidget(m.id) == m.wdg)) {
+                    try { m.wdg.show(); } catch(RuntimeException e) { /* best-effort: never abort teardown */ }
+                }
+            }
+        };
+        if(u != null) {
+            synchronized(u) { unhide.run(); }
+        } else {
+            unhide.run();
+        }
     }
 
     // ------------------------------------------------------------------ global hotkeys (hafen.key, 2e-2)

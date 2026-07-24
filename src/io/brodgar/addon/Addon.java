@@ -91,6 +91,15 @@ public final class Addon {
      * there is no widget to deafen. Copy-on-write: a firing observer may {@code :remove()} itself mid-dispatch.
      */
     public final List<LuaWidgetObserver> widgetObservers = new CopyOnWriteArrayList<LuaWidgetObserver>();
+    /**
+     * Live adopted widget models owned by this addon ({@code hafen.ui.adopt}, Phase 3b): each wraps a live
+     * server-bound widget (by id) so the addon can hide it as a headless model + present a custom view (D-009).
+     * They live in a flat global list in {@link AddonManager} (polled each tick for item add/remove + server
+     * destroy); teardown marks each dead, drops it from that list, and <b>un-hides</b> any widget the addon had
+     * hidden so disabling restores the stock UI (spec 08). Copy-on-write: a firing lifecycle callback may adopt
+     * or drop a model mid-poll.
+     */
+    public final List<LuaModel> models = new CopyOnWriteArrayList<LuaModel>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per
