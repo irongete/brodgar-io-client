@@ -36,6 +36,19 @@ public final class Addon {
      * cleanly on reload/disable.
      */
     public final List<LuaWidget> widgets = new CopyOnWriteArrayList<LuaWidget>();
+    /**
+     * Live HUD overlays owned by this addon ({@code hafen.ui.overlay}, Phase 2b): draw callbacks painted on
+     * top of the HUD each frame. The engine iterates this list to paint (so clearing it stops the overlays
+     * immediately) — no widget, nothing else to release, so teardown is just {@code clear()}.
+     */
+    public final List<AddonManager.HudOverlay> hudOverlays = new CopyOnWriteArrayList<AddonManager.HudOverlay>();
+    /**
+     * Live world-space gob overlays owned by this addon ({@code hafen.ui.gobOverlay}, Phase 2b): a
+     * filter + draw callback painted over each matching gob (via a shared {@link LuaGobOverlay} attrib per
+     * gob). Clearing this list stops the overlays immediately; the engine detaches the idle attribs once no
+     * addon wants gob overlays at all (see {@link AddonManager#teardown}).
+     */
+    public final List<AddonManager.GobOverlay> gobOverlays = new CopyOnWriteArrayList<AddonManager.GobOverlay>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per

@@ -1,13 +1,14 @@
--- Example addon (Phase 1f-2): the addon layer can now be RELOADED from disk without a relog (:reload,
--- D-005) and individual addons enabled/disabled (:addons, D-006). It runs inside the Lua SANDBOX (D-017
--- strict env + D-018 instruction watchdog) on top of 1e hafen.store (saved variables), 1d-4 actionbar/
--- equip, 1d-3 study/skills, 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c items/char/party reads, the
--- gob/world/map/player/time/sound reads, the 1b event bus, and timers. `hafen` is the API facade;
--- `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad fires, then
--- (on entering the world) OnEnterWorld. On :reload the whole cycle repeats — OnDisable, then the file
--- body + OnLoad + OnEnterWorld again. Every call in is watchdog-armed — a runaway loop aborts, no freeze.
+-- Example addon (Phase 2b): custom UI now includes OVERLAYS — hafen.ui.overlay (paint on top of the HUD)
+-- and hafen.ui.gobOverlay (labels/markers pinned over game objects, the SpeakerIcon pattern) — on top of
+-- 2a custom windows/widgets + the GOut wrapper. It runs inside the Lua SANDBOX (D-017 strict env + D-018
+-- instruction watchdog) over 1e hafen.store (saved variables), 1d-4 actionbar/equip, 1d-3 study/skills,
+-- 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c items/char/party reads, the gob/world/map/player/time/sound
+-- reads, the 1b event bus, and timers, and can be RELOADED from disk without a relog (:reload, D-005) and
+-- enabled/disabled (:addons, D-006). `hafen` is the API facade; `ADDON` describes this addon ({ id, dir }).
+-- The file body runs once at load; then OnLoad, then (on entering the world) OnEnterWorld. On :reload the
+-- whole cycle repeats. Every call in is watchdog-armed — a runaway loop aborts, no freeze.
 
-hafen.log("hello loaded (v0.13.0)")
+hafen.log("hello loaded (v0.14.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -372,6 +373,49 @@ hafen.events.on("OnEnterWorld", function()
     onClose = function() hafen.log("panel closed (X) -- :reload to bring it back") end,
   }
   hafen.log("2a: custom window up -- drag the title bar, click the body, or close it")
+end)
+
+-- 2b: HUD OVERLAY (hafen.ui.overlay). Paint on top of the HUD WITHOUT owning a widget — fn(g, w, h) runs
+-- every frame with the shared GOut wrapper and the SCREEN size, drawing at absolute screen coords. It is
+-- drawn AFTER the whole HUD (via a re-queued UI.drawafter), so it lands on top. Bridge-owned (P2): :reload
+-- or disabling the addon removes it automatically. Here: a small readout box at top-centre + a crosshair at
+-- the exact screen centre. The gob count is refreshed once a second by a timer (NOT scanned every frame —
+-- draw callbacks should stay cheap; the per-frame draw time is not covered by the soft CPU budget).
+local gobCount = 0
+hafen.timer.every(1, function() gobCount = hafen.world.count() end)
+
+local function drawHud(g, w, h)
+  local txt = ("2b HUD overlay   gobs=%d   clock=%.0f"):format(gobCount, hafen.time.clock() or 0)
+  local bw = 210
+  local x = math.floor(w / 2 - bw / 2)
+  g:color(0, 0, 0, 140); g:frect(x, 2, bw, 18); g:color()        -- translucent backdrop
+  g:color(120, 200, 120); g:rect(x, 2, bw, 18); g:color()        -- green border
+  g:text(txt, x + 6, 4)
+  local cx, cy = math.floor(w / 2), math.floor(h / 2)            -- crosshair at the exact screen centre
+  g:color(255, 90, 90, 200)
+  g:line(cx - 8, cy, cx + 8, cy, 1); g:line(cx, cy - 8, cx, cy + 8, 1)
+  g:color()
+end
+
+-- 2b: WORLD-SPACE gob overlay (hafen.ui.gobOverlay). filter(gob) selects gobs (here: players — `isplayer`
+-- is set on the snapshot when the base sprite is the borka body); draw(g, gob, sx, sy) paints at the gob's
+-- projected screen point (just above the head). Your OWN gob always matches, so you will see at least your
+-- own tag. The gob passed is the same snapshot shape as hafen.gob.info (no display-name field for players —
+-- a client limitation — so we show the char name for self and "player" otherwise). Auto-removed on teardown.
+local function drawPlayerTag(g, gob, sx, sy)
+  local me = hafen.player.id()
+  local label = (me and gob.id == me) and (hafen.player.name() or "you") or "player"
+  g:color(80, 220, 90); g:frect(sx - 3, sy - 3, 6, 6); g:color()   -- a marker dot at the anchor
+  g:atext(label, sx, sy - 6, 0.5, 1.0)                             -- name centred just above the marker
+end
+
+local overlaysUp = false
+hafen.events.on("OnEnterWorld", function()
+  if overlaysUp then return end                                   -- register the overlays once
+  overlaysUp = true
+  hafen.ui.overlay(drawHud)                                       -- returns a handle with :remove() (also auto)
+  hafen.ui.gobOverlay(function(gob) return gob.isplayer end, drawPlayerTag)
+  hafen.log("2b: HUD overlay (top-centre + crosshair) + player gob-tags up -- :reload/disable removes them")
 end)
 
 -- One-shot timer: proves the timer wheel fires exactly once, ~2s after load.
