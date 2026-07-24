@@ -1,10 +1,11 @@
--- Example addon (Phase 1d-2): adds hafen.buffs.* (+ BuffAdded/BuffRemoved/BuffChanged) and
--- hafen.char.food() (+ FepChanged) — two more surfaces backed by the widget-tree read mechanism, on
--- top of 1d-1 vitals, the 1c items/char/party reads, the gob/world/map/player/time/sound reads, the
--- 1b event bus, and timers. `hafen` is the API facade; `ADDON` describes this addon ({ id, dir }).
--- The file body runs once at load; then OnLoad fires, then (on entering the world) OnEnterWorld.
+-- Example addon (Phase 1d-3): adds hafen.study.* (slots/summary + StudyChanged) and
+-- hafen.char.skills()/skill(name) — the study window (curiosities) and known skills, both read off the
+-- character sheet via the widget-tree mechanism, on top of 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c
+-- items/char/party reads, the gob/world/map/player/time/sound reads, the 1b event bus, and timers.
+-- `hafen` is the API facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at
+-- load; then OnLoad fires, then (on entering the world) OnEnterWorld.
 
-hafen.log("hello loaded (v0.7.0)")
+hafen.log("hello loaded (v0.8.0)")
 
 hafen.events.on("OnLoad", function()
   hafen.log("OnLoad fired")
@@ -93,6 +94,22 @@ local function readFood(tag)
   end
 end
 
+-- 1d-3: study/curiosity slots + known skills, both off the character sheet (widget-tree). slots() gives
+-- each curiosity's study profile {res,name,lp,attention,cost,time,progress?}; summary() the live totals
+-- {lp,attention,cost}; char.skills() the KNOWN skills as {name,res}. Like the rest of the char sheet the
+-- study window and skill list stream in a beat after enter-world, so read at now (often empty) and +3s.
+local function readStudy(tag)
+  local slots = hafen.study.slots()
+  local sum = hafen.study.summary()
+  local first = slots[1]
+  hafen.log(("[%s] study=%d slot(s), first=%s, totals=%s"):format(tag, #slots,
+    first and tostring(first.name or first.res) or "none",
+    sum and ("lp=%s att=%s cost=%s"):format(tostring(sum.lp), tostring(sum.attention), tostring(sum.cost)) or "nil"))
+  local skills = hafen.char.skills()
+  hafen.log(("[%s] skills=%d known, first=%s"):format(tag, #skills,
+    skills[1] and tostring(skills[1].name) or "none"))
+end
+
 hafen.events.on("OnEnterWorld", function()
   hafen.log("entered the world")
 
@@ -125,10 +142,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now")
+  readBuffs("now"); readFood("now"); readStudy("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s")
   end)
 
   -- 1c-2: an audible confirmation ping (a client-bundled sound), proving hafen.sound.play works.
@@ -194,6 +211,18 @@ hafen.events.on("FepChanged", function(f)
     local total = (f.fep and f.fep.total) or 0
     local hunger = f.hunger and (f.hunger.label or f.hunger.level)
     hafen.log(("FepChanged: fep total=%.0f hunger=%s (%d)"):format(total, tostring(hunger), fepSeen))
+  end
+end)
+
+-- 1d-3: StudyChanged fires when the study slots change — a curiosity added/finished, or study data
+-- streaming in a beat after enter-world (a few fires at login). Payload is the same array as
+-- hafen.study.slots(). Log the first few so it does not flood.
+local studySeen = 0
+hafen.events.on("StudyChanged", function(slots)
+  studySeen = studySeen + 1
+  if studySeen <= 5 then
+    hafen.log(("StudyChanged: %d slot(s)%s (%d)"):format(#slots,
+      slots[1] and (", first=" .. tostring(slots[1].name or slots[1].res)) or "", studySeen))
   end
 end)
 

@@ -32,11 +32,14 @@ import haven.Music;
 import haven.OCache;
 import haven.Party;
 import haven.Resource;
+import haven.SAttrWnd;
+import haven.SkillWnd;
 import haven.Speaking;
 import haven.UI;
 import haven.Utils;
 import haven.WItem;
 import haven.Widget;
+import haven.resutil.Curiosity;
 
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
@@ -149,6 +152,7 @@ public final class AddonManager {
         treeAdapters.add(new VitalsAdapter());   // hp/stamina/energy (uimsg-driven)
         treeAdapters.add(new BuffsAdapter());    // buff add/remove (per-tick poll) + change (uimsg)
         treeAdapters.add(new FepAdapter());      // FEP/food + hunger (uimsg-driven)
+        treeAdapters.add(new StudyAdapter());    // study/curiosity slots (per-tick poll)
 
         attachRoot(ui_);              // invisible per-frame tick widget (drives the engine)
         registerOcache(ui_);          // GobAdded/GobRemoved source (marshalled to the UI thread)
@@ -545,6 +549,37 @@ public final class AddonManager {
             LuaValue snap = readFood();
             if(!snap.isnil())
                 fire("FepChanged", snap);
+        }
+    }
+
+    /**
+     * Study / curiosity — the items placed in the study window, each carrying a {@link Curiosity}
+     * study profile. Located via the public {@code CharWnd.sattr} ({@link SAttrWnd}) → its
+     * {@link SAttrWnd.StudyInfo} child → the study inventory it wraps. Like buffs, a curiosity being
+     * added/removed is a widget create/{@code cdestroy} (not a {@code uimsg}) and its study data
+     * streams in a beat after the item appears, so this is <b>poll-driven</b>: each tick it re-reads
+     * the slots snapshot and fires {@code StudyChanged} only when it differs from the cache (an
+     * add/remove, or a slot's fields resolving/changing). While the sattr tab is not up yet the poll is
+     * skipped (the cache is kept), so no spurious event fires before there is anything to read.
+     */
+    private static final class StudyAdapter implements TreeAdapter {
+        private LuaValue cache;   // last study-slots snapshot (UI thread; change-detect)
+
+        public boolean interested(Widget w, String msg) {
+            return false;         // study changes are structural / streamed, not a targeted uimsg — see poll()
+        }
+
+        public void refresh() {}
+
+        public void poll() {
+            SAttrWnd.StudyInfo si = studyInfo();
+            if(si == null)
+                return;           // study window not up yet — keep the cache, fire nothing
+            LuaValue snap = readStudySlots(si.study);
+            if(!studySlotsEqual(snap, cache)) {
+                cache = snap;
+                fire("StudyChanged", snap);
+            }
         }
     }
 
@@ -1255,7 +1290,40 @@ public final class AddonManager {
                 return readFood();
             }
         });
+        // skills() — the character's KNOWN skills as {name, res} snapshots; skill(name) — a substring
+        // membership test over them (name OR res, matching hafen.buffs.has). Backed by the SkillWnd
+        // "Skills" tab (widget-tree), which streams in after enter-world like the rest of the sheet.
+        // Credos and experiences (the other SkillWnd tabs) are deferred.
+        chr.set("skills", new ZeroArgFunction() {
+            public LuaValue call() {
+                return readSkills();
+            }
+        });
+        chr.set("skill", new OneArgFunction() {
+            public LuaValue call(LuaValue name) {
+                return (name.isstring() && hasSkill(name.tojstring())) ? LuaValue.TRUE : LuaValue.FALSE;
+            }
+        });
         hafen.set("char", chr);
+
+        // hafen.study.* — the study window (curiosities being studied), via the widget-tree mechanism
+        // (1d-3). slots() = the curiosities, each {res,name,lp,attention,cost,time,progress?}; summary()
+        // = the live totals {lp,attention,cost}. Both empty/nil until the character sheet's "Abilities"
+        // (sattr) tab streams in, a beat after enter-world. Subscribe to StudyChanged (fired per-tick
+        // when the slots change — an add/remove or study data resolving), not per frame.
+        LuaTable study = new LuaTable();
+        study.set("slots", new ZeroArgFunction() {
+            public LuaValue call() {
+                SAttrWnd.StudyInfo si = studyInfo();
+                return (si == null) ? new LuaTable() : readStudySlots(si.study);
+            }
+        });
+        study.set("summary", new ZeroArgFunction() {
+            public LuaValue call() {
+                return studySummary();
+            }
+        });
+        hafen.set("study", study);
 
         // hafen.party.* — the party roster (Glob.party). Members are ordered by Member.seq (the ordinal
         // behind the "partyN" GobRef). A PartyMember is DERIVED: id=gobid, x,y=getc() (live gob pos if in
@@ -1866,6 +1934,178 @@ public final class AddonManager {
         t.set("base", LuaValue.valueOf(a.base));
         t.set("comp", LuaValue.valueOf(a.comp));
         return t;
+    }
+
+    // -- study / curiosity + skills (1d-3): all-public reads off the character sheet (no haven edit) --
+
+    /**
+     * The character sheet's study widget ({@link SAttrWnd}, the "Abilities / Study Report" tab) → its
+     * {@link SAttrWnd.StudyInfo} (which references the study inventory and holds the live totals), or
+     * {@code null} until the sattr tab streams in (a beat after enter-world, like {@code battr}). There
+     * is exactly one StudyInfo per study inventory, so the first hit is it.
+     */
+    private static SAttrWnd.StudyInfo studyInfo() {
+        CharWnd c = charwnd();
+        if((c == null) || (c.sattr == null))
+            return null;
+        for(SAttrWnd.StudyInfo si : c.sattr.children(SAttrWnd.StudyInfo.class))
+            return si;
+        return null;
+    }
+
+    /** Read a study inventory's {@link GItem} children into an array of curiosity snapshots. */
+    private static LuaValue readStudySlots(Widget study) {
+        LuaTable out = new LuaTable();
+        if(study == null)
+            return out;
+        int i = 0;
+        for(GItem it : study.children(GItem.class))
+            out.set(++i, studySnapshot(it));
+        return out;
+    }
+
+    /**
+     * A study-slot snapshot: {@code res}/{@code name} (the curiosity item) plus its {@link Curiosity}
+     * study profile — {@code lp} (learning points), {@code attention} (mental weight), {@code cost}
+     * (experience cost), {@code time} (total study time, seconds). {@code progress} (0..1) is the item
+     * meter, best-effort (present only when the client tracks it for that item). All Loading-guarded:
+     * {@code res} may be the only field until the item's info resolves, then the rest fills in (which
+     * surfaces as another {@code StudyChanged}). NB {@code time} is the TOTAL study time — the client
+     * has no per-item countdown, so there is no true "time left".
+     */
+    private static LuaValue studySnapshot(GItem it) {
+        if(it == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        String res = itemRes(it);
+        if(res != null)
+            t.set("res", LuaValue.valueOf(res));
+        String name = itemName(it);
+        if(name != null)
+            t.set("name", LuaValue.valueOf(name));
+        try {
+            Curiosity ci = ItemInfo.find(Curiosity.class, it.info());   // may throw Loading
+            if(ci != null) {
+                t.set("lp", LuaValue.valueOf(ci.exp));
+                t.set("attention", LuaValue.valueOf(ci.mw));
+                t.set("cost", LuaValue.valueOf(ci.enc));
+                t.set("time", LuaValue.valueOf(ci.time));
+            }
+        } catch(RuntimeException e) {
+            /* info still Loading — res/name may be set; the Curiosity fields arrive on a later read */
+        }
+        if(it.meter > 0)
+            t.set("progress", LuaValue.valueOf(it.meter / 100.0));   // 0..1, best-effort (item meter)
+        return t;
+    }
+
+    /** Do two study-slot arrays carry the same items/fields? (positional; for change-detection.) */
+    private static boolean studySlotsEqual(LuaValue a, LuaValue b) {
+        if((a == null) || (b == null) || !a.istable() || !b.istable())
+            return false;
+        int n = a.length();
+        if(n != b.length())
+            return false;
+        for(int i = 1; i <= n; i++) {
+            LuaValue ea = a.get(i), eb = b.get(i);
+            if(!luaFieldEq(ea, eb, "res") || !luaFieldEq(ea, eb, "name") || !luaFieldEq(ea, eb, "lp")
+               || !luaFieldEq(ea, eb, "attention") || !luaFieldEq(ea, eb, "cost")
+               || !luaFieldEq(ea, eb, "time") || !luaFieldEq(ea, eb, "progress"))
+                return false;
+        }
+        return true;
+    }
+
+    /**
+     * Study totals from {@link SAttrWnd.StudyInfo} (recomputed live each tick): {@code lp} (total
+     * learning points across the curiosities), {@code attention} (total mental weight used — compare
+     * with {@code hafen.char.attr("int").comp}, the cap), {@code cost} (total experience cost). nil
+     * until the study window exists.
+     */
+    private static LuaValue studySummary() {
+        SAttrWnd.StudyInfo si = studyInfo();
+        if(si == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        t.set("lp", LuaValue.valueOf(si.texp));
+        t.set("attention", LuaValue.valueOf(si.tw));
+        t.set("cost", LuaValue.valueOf(si.tenc));
+        return t;
+    }
+
+    /** The character sheet's "Lore &amp; Skills" widget ({@link SkillWnd}), or {@code null}. */
+    private static SkillWnd skillwnd() {
+        CharWnd c = charwnd();
+        return (c == null) ? null : c.skill;
+    }
+
+    /** Display name of a skill: the resource tooltip, else the internal skill token ({@code Skill.nm}). */
+    private static String skillName(SkillWnd.Skill s) {
+        try {
+            Resource r = s.res.get();
+            if(r != null) {
+                Resource.Tooltip tt = r.layer(Resource.tooltip);
+                if((tt != null) && (tt.t != null))
+                    return tt.t;
+            }
+        } catch(RuntimeException e) {   // Loading etc.
+        }
+        return s.nm;
+    }
+
+    /** Resource name (stable identity) of a skill, or {@code null} (Loading-guarded). */
+    private static String skillRes(SkillWnd.Skill s) {
+        try {
+            Resource r = s.res.get();
+            return (r == null) ? null : r.name;
+        } catch(RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * The character's KNOWN skills ({@code SkillWnd.skg.csk}) as {@code {name, res}} snapshots.
+     * {@code name} is always present (the resource tooltip, else the internal token); {@code res} is
+     * Loading-guarded. The list is copied defensively (the {@code Group.items} reference is swapped
+     * wholesale off-thread by the {@code csk}/{@code nsk} uimsgs). "Available to learn" ({@code nsk})
+     * and credos/experiences are deferred.
+     */
+    private static LuaValue readSkills() {
+        LuaTable out = new LuaTable();
+        SkillWnd w = skillwnd();
+        if(w == null)
+            return out;
+        int i = 0;
+        try {
+            for(SkillWnd.Skill s : new ArrayList<SkillWnd.Skill>(w.skg.csk.items)) {
+                LuaTable t = new LuaTable();
+                t.set("name", LuaValue.valueOf(skillName(s)));
+                String res = skillRes(s);
+                if(res != null)
+                    t.set("res", LuaValue.valueOf(res));
+                out.set(++i, t);
+            }
+        } catch(RuntimeException e) {
+            /* skg/csk not ready or the list was swapped mid-read — return what we have */
+        }
+        return out;
+    }
+
+    /** Does the character KNOW a skill whose name or resource contains {@code needle}? */
+    private static boolean hasSkill(String needle) {
+        SkillWnd w = skillwnd();
+        if(w == null)
+            return false;
+        try {
+            for(SkillWnd.Skill s : new ArrayList<SkillWnd.Skill>(w.skg.csk.items)) {
+                String name = skillName(s), res = skillRes(s);
+                if(((name != null) && name.contains(needle)) || ((res != null) && res.contains(needle)))
+                    return true;
+            }
+        } catch(RuntimeException e) {
+            /* list swapped mid-read — treat as not found */
+        }
+        return false;
     }
 
     /** The live {@link Party}, or {@code null} before a session is up. */

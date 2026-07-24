@@ -23,5 +23,7 @@ built up **progressively** as each piece lands. It is the counterpart to the des
 | [phase-1c2-map-player-time-sound.md](phase-1c2-map-player-time-sound.md) | ✅ Implemented & verified | Read API part 2: `hafen.map.*`, `hafen.player.*`, `hafen.time.*`, `hafen.sound`/`hafen.music` |
 | [phase-1c3-items-char-party.md](phase-1c3-items-char-party.md) | ✅ Implemented & verified | Read API part 3: `hafen.items.*`, `hafen.char.*`, `hafen.party.*`; the `"partyN"` GobRef token |
 | [phase-1d1-vitals-widget-tree.md](phase-1d1-vitals-widget-tree.md) | ✅ Implemented & verified | Widget-tree read mechanism (Locator + Adapter + inbound-`uimsg` tap) + `hafen.player.vitals` + `VitalsChanged` |
+| [phase-1d2-buffs-food.md](phase-1d2-buffs-food.md) | ✅ Implemented (in-game check pending) | Widget-tree part 2: `hafen.buffs.*` (+ BuffAdded/Removed/Changed) + `hafen.char.food()` (+ FepChanged); per-tick `poll()` path |
+| [phase-1d3-study-skills.md](phase-1d3-study-skills.md) | ✅ Implemented & verified | Widget-tree part 3: `hafen.study.*` (slots/summary + StudyChanged) + `hafen.char.skills()`/`skill(name)` — zero core edit |
 
 _(Grows as phases land — see [`specs/addons/15-implementation-plan.md`](../../specs/addons/15-implementation-plan.md) for the build order.)_
