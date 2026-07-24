@@ -1,10 +1,10 @@
--- Example addon (Phase 1d-1): adds hafen.player.vitals() + the VitalsChanged event — the first
--- surface backed by the widget-tree read mechanism (Locator + Adapter + inbound-uimsg hook) — on top
--- of the 1c items/char/party reads, the gob/world/map/player/time/sound reads, the 1b event bus, and
--- timers. `hafen` is the API facade; `ADDON` describes this addon ({ id, dir }). The file body runs
--- once at load; then OnLoad fires, then (on entering the world) OnEnterWorld.
+-- Example addon (Phase 1d-2): adds hafen.buffs.* (+ BuffAdded/BuffRemoved/BuffChanged) and
+-- hafen.char.food() (+ FepChanged) — two more surfaces backed by the widget-tree read mechanism, on
+-- top of 1d-1 vitals, the 1c items/char/party reads, the gob/world/map/player/time/sound reads, the
+-- 1b event bus, and timers. `hafen` is the API facade; `ADDON` describes this addon ({ id, dir }).
+-- The file body runs once at load; then OnLoad fires, then (on entering the world) OnEnterWorld.
 
-hafen.log("hello loaded (v0.6.0)")
+hafen.log("hello loaded (v0.7.0)")
 
 hafen.events.on("OnLoad", function()
   hafen.log("OnLoad fired")
@@ -67,6 +67,32 @@ local function readVitals(tag)
   end
 end
 
+-- 1d-2: active buffs/debuffs. Each is a snapshot {res,name,amount,cooldown,number} — amount/cooldown
+-- are 0..1 fractions (NOT seconds) and often nil. The buff bar streams in a beat after enter-world,
+-- so like vitals this is read at now + a delay. Most characters carry a buff or two at login.
+local function readBuffs(tag)
+  local list = hafen.buffs.list()
+  local first = list[1]
+  hafen.log(("[%s] buffs=%d, first=%s%s"):format(tag, #list,
+    first and tostring(first.name or first.res) or "none",
+    (first and first.cooldown) and (" cd=%.2f"):format(first.cooldown) or ""))
+end
+
+-- 1d-2: FEP + hunger via the character sheet. food() = { fep={cap,total,entries={{res,name,amount}}},
+-- hunger={level,label,efficacy} } or nil until the base-attributes tab exists (streams in after
+-- enter-world, like char/items). No absolute vital numbers exist, but FEP/hunger DO (this is them).
+local function readFood(tag)
+  local f = hafen.char.food()
+  if f and f.fep then
+    hafen.log(("[%s] food: fep=%.0f/%.0f (%d type(s)) hunger=%s efficacy=%s"):format(tag,
+      f.fep.total or 0, f.fep.cap or 0, #f.fep.entries,
+      f.hunger and tostring(f.hunger.label or f.hunger.level) or "nil",
+      f.hunger and tostring(f.hunger.efficacy) or "nil"))
+  else
+    hafen.log(("[%s] food: nil (char sheet not up yet)"):format(tag))
+  end
+end
+
 hafen.events.on("OnEnterWorld", function()
   hafen.log("entered the world")
 
@@ -99,8 +125,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
+  readBuffs("now"); readFood("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
+    readBuffs("+3s"); readFood("+3s")
   end)
 
   -- 1c-2: an audible confirmation ping (a client-bundled sound), proving hafen.sound.play works.
@@ -136,6 +164,36 @@ hafen.events.on("VitalsChanged", function(v)
   if vitalsSeen <= 5 then
     hafen.log(("VitalsChanged: hp=%s stamina=%s energy=%s (%d)"):format(
       tostring(v.hp), tostring(v.stamina), tostring(v.energy), vitalsSeen))
+  end
+end)
+
+-- 1d-2: buff add/remove/change. Buffs the character already has re-appear as BuffAdded shortly after
+-- enter-world (the bar streams in). Content updates (e.g. a cooldown ticking down a step) fire
+-- BuffChanged. Log the first few of each so it does not flood.
+local buffsSeen = 0
+hafen.events.on("BuffAdded", function(b)
+  buffsSeen = buffsSeen + 1
+  if buffsSeen <= 5 then
+    hafen.log(("BuffAdded: %s (%s)"):format(tostring(b.name or b.res), tostring(b.res)))
+  end
+end)
+hafen.events.on("BuffRemoved", function(b)
+  hafen.log(("BuffRemoved: %s"):format(tostring(b.name or b.res)))
+end)
+hafen.events.on("BuffChanged", function(b)
+  hafen.log(("BuffChanged: %s amount=%s cooldown=%s"):format(
+    tostring(b.name or b.res), tostring(b.amount), tostring(b.cooldown)))
+end)
+
+-- 1d-2: FEP/hunger changes. The FEP bar and hunger level stream in as "food"/"glut" updates a beat
+-- after enter-world (so FepChanged fires a few times at login) and again whenever you eat.
+local fepSeen = 0
+hafen.events.on("FepChanged", function(f)
+  fepSeen = fepSeen + 1
+  if fepSeen <= 5 then
+    local total = (f.fep and f.fep.total) or 0
+    local hunger = f.hunger and (f.hunger.label or f.hunger.level)
+    hafen.log(("FepChanged: fep total=%.0f hunger=%s (%d)"):format(total, tostring(hunger), fepSeen))
   end
 end)
 

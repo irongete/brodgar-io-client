@@ -28,4 +28,13 @@ public final class AddonWidgets {
     public static List<LayerMeter.Meter> meters(LayerMeter m) {
         return (m == null) ? java.util.Collections.<LayerMeter.Meter>emptyList() : m.meters;
     }
+
+    /**
+     * Whether a {@link Buff} is fading out after a server-side removal (the {@code protected dest}
+     * flag). The bridge treats a {@code dest} buff as already gone, so {@code hafen.buffs.list} omits
+     * it and {@code BuffRemoved} fires at removal time rather than 0.35s later when the fade finishes.
+     */
+    public static boolean buffDest(Buff b) {
+        return (b != null) && b.dest;
+    }
 }

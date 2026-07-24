@@ -3,6 +3,9 @@ package io.brodgar.addon;
 import haven.AddonWidgets;
 import haven.Astronomy;
 import haven.Audio;
+import haven.BAttrWnd;
+import haven.Buff;
+import haven.Bufflist;
 import haven.CharWnd;
 import haven.Console;
 import haven.Coord;
@@ -48,7 +51,11 @@ import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -139,7 +146,9 @@ public final class AddonManager {
         treeDirty.clear();            // reset the widget-tree read mechanism for the new session
         vitalsCache = null;
         treeAdapters.clear();
-        treeAdapters.add(new VitalsAdapter());
+        treeAdapters.add(new VitalsAdapter());   // hp/stamina/energy (uimsg-driven)
+        treeAdapters.add(new BuffsAdapter());    // buff add/remove (per-tick poll) + change (uimsg)
+        treeAdapters.add(new FepAdapter());      // FEP/food + hunger (uimsg-driven)
 
         attachRoot(ui_);              // invisible per-frame tick widget (drives the engine)
         registerOcache(ui_);          // GobAdded/GobRemoved source (marshalled to the UI thread)
@@ -267,8 +276,13 @@ public final class AddonManager {
                 fire(ge.added ? "GobAdded" : "GobRemoved", gobSnapshot(ge.gob));
 
             // 1b. Widget-tree adapters flagged dirty by an inbound uimsg → re-read + fire the semantic
-            //     event, now on the UI thread. (Marked off-thread in onUimsg; drained here.)
+            //     event, now on the UI thread. (Marked off-thread in onUimsg; drained here.) Then the
+            //     per-tick poll for changes the uimsg tap can't see (buff add/remove is widget
+            //     create/cdestroy on the Bufflist, not a uimsg — spec 14). Refresh before poll so a
+            //     brand-new buff surfaces as a single BuffAdded (with its content already applied),
+            //     not BuffChanged-then-BuffAdded.
             refreshTreeAdapters();
+            pollTreeAdapters();
 
             // 2. "Entered the world" — defer until the HUD (GameUI) is actually up, so GameUI-backed
             //    reads (player.name, and later items/char/party) work INSIDE the handler. The map view
@@ -353,15 +367,33 @@ public final class AddonManager {
         }
     }
 
+    /** Give every adapter a per-tick look (UI thread) for changes no inbound uimsg announces. */
+    private static void pollTreeAdapters() {
+        for(TreeAdapter a : treeAdapters) {
+            try {
+                a.poll();
+            } catch(RuntimeException e) {
+                log("tree adapter poll error: " + e);
+            }
+        }
+    }
+
     /**
      * A widget-tree read adapter (spec {@code 14-widget-tree-reads.md}): the one place that knows a
-     * target widget tree's shape, localizing that upstream-volatile knowledge. It recognizes its
-     * target from an inbound uimsg ({@link #interested}, off-thread — cheap, no state read) and, once
-     * flagged dirty, re-reads a snapshot and fires a semantic event ({@link #refresh}, UI thread).
+     * target widget tree's shape, localizing that upstream-volatile knowledge. Two update paths:
+     * <ul>
+     *   <li><b>uimsg-driven</b> ({@link #interested} off-thread → dirty → {@link #refresh} on the UI
+     *       thread): for state the server pushes via a targeted {@code uimsg} (vitals, FEP, buff
+     *       content).</li>
+     *   <li><b>poll-driven</b> ({@link #poll} every tick, UI thread): for structural changes the tap
+     *       can't see — buff add/remove is a widget create/{@code cdestroy} on the {@code Bufflist},
+     *       not a {@code uimsg}. Default is a no-op; only adapters that need it override it.</li>
+     * </ul>
      */
     private interface TreeAdapter {
         boolean interested(Widget w, String msg);
         void refresh();
+        default void poll() {}
     }
 
     /**
@@ -440,6 +472,234 @@ public final class AddonManager {
                 return false;
         }
         return true;
+    }
+
+    /**
+     * Buffs/debuffs — the {@link Buff} widgets under {@link GameUI#buffs} (a {@link Bufflist}). Add and
+     * remove are widget create/{@code cdestroy}, NOT a {@code uimsg}, so they are detected by
+     * <b>poll</b> (diffing {@code children(Buff.class)} each tick against a cache keyed by widget
+     * identity); the per-buff {@code "ch"}/{@code "tt"} content updates ARE {@code uimsg}s, so
+     * <b>refresh</b> re-reads the cached buffs and fires {@code BuffChanged}. Fires {@code BuffAdded}/
+     * {@code BuffRemoved}/{@code BuffChanged} with the {@code Buff} snapshot. A buff fading out after a
+     * server removal ({@code Buff.dest}) is treated as already gone (excluded), so removal is timely.
+     */
+    private static final class BuffsAdapter implements TreeAdapter {
+        // Active buff -> its last snapshot. UI-thread-only (poll + refresh); reset per session by
+        // re-instantiation in init(). IdentityHashMap: Buff widgets are keyed by object identity.
+        private final Map<Buff, LuaValue> cache = new IdentityHashMap<Buff, LuaValue>();
+
+        public boolean interested(Widget w, String msg) {
+            return (w instanceof Buff) && ("ch".equals(msg) || "tt".equals(msg));
+        }
+
+        public void refresh() {
+            for(Map.Entry<Buff, LuaValue> e : cache.entrySet()) {
+                LuaValue snap = buffSnapshot(e.getKey());
+                if(!buffEqual(snap, e.getValue())) {
+                    e.setValue(snap);
+                    fire("BuffChanged", snap);
+                }
+            }
+        }
+
+        public void poll() {
+            Bufflist bl = bufflist();
+            Set<Buff> active = new LinkedHashSet<Buff>();
+            if(bl != null) {
+                for(Buff b : bl.children(Buff.class)) {
+                    if(!AddonWidgets.buffDest(b))
+                        active.add(b);
+                }
+            }
+            for(Buff b : active) {                        // additions (unseen buffs)
+                if(!cache.containsKey(b)) {
+                    LuaValue snap = buffSnapshot(b);
+                    cache.put(b, snap);
+                    fire("BuffAdded", snap);
+                }
+            }
+            for(Iterator<Map.Entry<Buff, LuaValue>> it = cache.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<Buff, LuaValue> e = it.next();  // removals (gone or fading out)
+                if(!active.contains(e.getKey())) {
+                    fire("BuffRemoved", e.getValue());
+                    it.remove();
+                }
+            }
+        }
+    }
+
+    /**
+     * FEP + hunger — the {@link BAttrWnd} (character-sheet "Base Attributes" tab). Located directly via
+     * the public {@code CharWnd.battr} field (no tree-walk), then its public {@code feps}
+     * ({@link BAttrWnd.FoodMeter}) and {@code glut} ({@link BAttrWnd.GlutMeter}) are read — all public
+     * fields, so this needs no {@code haven}-package accessor. Both update via a {@code BAttrWnd}
+     * {@code "food"}/{@code "glut"} {@code uimsg}, so it is purely uimsg-driven; each is a genuine
+     * server change, so {@code FepChanged} fires whenever one lands (no change-detection needed).
+     */
+    private static final class FepAdapter implements TreeAdapter {
+        public boolean interested(Widget w, String msg) {
+            return (w instanceof BAttrWnd) && ("food".equals(msg) || "glut".equals(msg));
+        }
+
+        public void refresh() {
+            LuaValue snap = readFood();
+            if(!snap.isnil())
+                fire("FepChanged", snap);
+        }
+    }
+
+    /** The player's buff bar ({@link GameUI#buffs}), or {@code null} before the HUD is up. */
+    private static Bufflist bufflist() {
+        GameUI g = gui();
+        return (g == null) ? null : g.buffs;
+    }
+
+    /** Resource name (stable identity) of a buff, or {@code null} (Loading-guarded). */
+    private static String buffRes(Buff b) {
+        try {
+            Resource r = b.res.get();
+            return (r == null) ? null : r.name;
+        } catch(RuntimeException e) {   // Loading etc.
+            return null;
+        }
+    }
+
+    /** Display name of a buff: the resource tooltip, else a server-pushed Name info, else nil. */
+    private static String buffName(Buff b) {
+        try {
+            Resource r = b.res.get();
+            if(r != null) {
+                Resource.Tooltip tt = r.layer(Resource.tooltip);
+                if((tt != null) && (tt.t != null))
+                    return tt.t;
+            }
+        } catch(RuntimeException e) {   // Loading etc.
+        }
+        try {
+            ItemInfo.Name n = ItemInfo.find(ItemInfo.Name.class, b.info());
+            return ((n == null) || (n.str == null)) ? null : n.str.text;
+        } catch(RuntimeException e) {   // info() still Loading / no rawinfo yet
+            return null;
+        }
+    }
+
+    /**
+     * A Buff snapshot (the {@code Buff} shape in api-reference.md): {@code res}/{@code name} (stable),
+     * plus {@code amount}/{@code cooldown}/{@code number} which come from resource-published
+     * {@link ItemInfo} over {@link Buff#info} and are 0..1 fractions / an integer, content-dependent
+     * and often absent. All Loading-guarded — a partial snapshot (res only) is fine while the buff
+     * resource/tooltip is still resolving; the rest arrives on the next {@code "tt"} update.
+     */
+    private static LuaValue buffSnapshot(Buff b) {
+        if(b == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        String res = buffRes(b);
+        if(res != null)
+            t.set("res", LuaValue.valueOf(res));
+        String name = buffName(b);
+        if(name != null)
+            t.set("name", LuaValue.valueOf(name));
+        try {
+            List<ItemInfo> info = b.info();   // may throw Loading
+            Buff.AMeterInfo am = ItemInfo.find(Buff.AMeterInfo.class, info);
+            if(am != null)
+                t.set("amount", LuaValue.valueOf(am.ameter()));
+            GItem.MeterInfo mi = ItemInfo.find(GItem.MeterInfo.class, info);
+            if(mi != null)
+                t.set("cooldown", LuaValue.valueOf(mi.meter()));
+            GItem.NumberInfo ni = ItemInfo.find(GItem.NumberInfo.class, info);
+            if(ni != null)
+                t.set("number", LuaValue.valueOf(ni.itemnum()));
+        } catch(RuntimeException e) {
+            /* info still Loading — res/name may already be set; the rest arrives on a later update */
+        }
+        return t;
+    }
+
+    /** Do two buff snapshots carry the same res/name/amount/cooldown/number? (for change-detection.) */
+    private static boolean buffEqual(LuaValue a, LuaValue b) {
+        if((a == null) || (b == null))
+            return false;
+        return luaFieldEq(a, b, "res") && luaFieldEq(a, b, "name") && luaFieldEq(a, b, "amount")
+            && luaFieldEq(a, b, "cooldown") && luaFieldEq(a, b, "number");
+    }
+
+    /** Field-level equality for a snapshot key: nil/number/string aware (used by buffEqual). */
+    private static boolean luaFieldEq(LuaValue a, LuaValue b, String k) {
+        LuaValue va = a.get(k), vb = b.get(k);
+        if(va.isnil() != vb.isnil())
+            return false;
+        if(va.isnumber())
+            return vb.isnumber() && (va.todouble() == vb.todouble());
+        if(va.isstring())
+            return vb.isstring() && va.tojstring().equals(vb.tojstring());
+        return true;
+    }
+
+    /** The character sheet's Base-Attributes widget ({@code CharWnd.battr}), or {@code null}. */
+    private static BAttrWnd battrwnd() {
+        CharWnd c = charwnd();
+        return (c == null) ? null : c.battr;
+    }
+
+    /**
+     * A food snapshot ({@code hafen.char.food}): {@code fep = {cap,total,entries=[{res,name,amount}]}}
+     * from the {@link BAttrWnd.FoodMeter}, and {@code hunger = {level,label,efficacy}} from the
+     * {@link BAttrWnd.GlutMeter}. All backing fields are public; per-entry name/res are Loading-guarded
+     * (skipped while resolving). nil until the character sheet's {@code battr} tab exists (it streams
+     * in a beat after enter-world, like vitals/char/items).
+     */
+    private static LuaValue readFood() {
+        BAttrWnd w = battrwnd();
+        if(w == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        try {
+            BAttrWnd.FoodMeter fm = w.feps;
+            if(fm != null) {
+                LuaTable fep = new LuaTable();
+                fep.set("cap", LuaValue.valueOf(fm.cap));
+                LuaTable entries = new LuaTable();
+                double total = 0;
+                int i = 0;
+                for(BAttrWnd.FoodMeter.El el : new ArrayList<BAttrWnd.FoodMeter.El>(fm.els)) {
+                    LuaTable e = new LuaTable();
+                    try {
+                        Resource r = el.res.get();
+                        if(r != null)
+                            e.set("res", LuaValue.valueOf(r.name));
+                        BAttrWnd.FoodMeter.Event ev = el.ev();
+                        if((ev != null) && (ev.nm != null))
+                            e.set("name", LuaValue.valueOf(ev.nm));
+                    } catch(RuntimeException ex) {
+                        /* this event's resource is still Loading — keep the amount */
+                    }
+                    e.set("amount", LuaValue.valueOf(el.a));
+                    total += el.a;
+                    entries.set(++i, e);
+                }
+                fep.set("total", LuaValue.valueOf(total));
+                fep.set("entries", entries);
+                t.set("fep", fep);
+            }
+        } catch(RuntimeException e) {
+            /* partial snapshot is fine while food data streams in */
+        }
+        try {
+            BAttrWnd.GlutMeter gm = w.glut;
+            if(gm != null) {
+                LuaTable h = new LuaTable();
+                h.set("level", LuaValue.valueOf(gm.glut));
+                if(gm.lbl != null)
+                    h.set("label", LuaValue.valueOf(gm.lbl));
+                h.set("efficacy", LuaValue.valueOf(gm.gmod));
+                t.set("hunger", h);
+            }
+        } catch(RuntimeException e) {
+            /* partial */
+        }
+        return t;
     }
 
     // ------------------------------------------------------------- event dispatch
@@ -986,6 +1246,15 @@ public final class AddonManager {
                 return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.enc);
             }
         });
+        // food() — FEP + hunger via the widget-tree mechanism (BAttrWnd; 1d-2). Returns
+        // { fep = {cap,total,entries={{res,name,amount}}}, hunger = {level,label,efficacy} } or nil
+        // until the character sheet's base-attributes tab exists (it streams in after enter-world).
+        // Subscribe to FepChanged for updates (fired on the server's "food"/"glut" uimsgs).
+        chr.set("food", new ZeroArgFunction() {
+            public LuaValue call() {
+                return readFood();
+            }
+        });
         hafen.set("char", chr);
 
         // hafen.party.* — the party roster (Glob.party). Members are ordered by Member.seq (the ordinal
@@ -1018,6 +1287,46 @@ public final class AddonManager {
             }
         });
         hafen.set("party", party);
+
+        // hafen.buffs.* — active buffs/debuffs (GameUI.buffs → Buff widgets), via the widget-tree
+        // mechanism (1d-2). list() returns Buff snapshots {res,name,amount,cooldown,number}; amount/
+        // cooldown/number are 0..1 fractions / an integer from resource-published ItemInfo (often nil,
+        // NOT seconds). A buff fading out after removal is omitted. Subscribe to BuffAdded/BuffRemoved/
+        // BuffChanged (add/remove detected per-tick; content changes on the buff's "ch"/"tt" uimsg).
+        LuaTable buffs = new LuaTable();
+        buffs.set("list", new ZeroArgFunction() {
+            public LuaValue call() {
+                LuaTable out = new LuaTable();
+                Bufflist bl = bufflist();
+                if(bl == null)
+                    return out;
+                int i = 0;
+                for(Buff b : bl.children(Buff.class)) {
+                    if(!AddonWidgets.buffDest(b))
+                        out.set(++i, buffSnapshot(b));
+                }
+                return out;
+            }
+        });
+        buffs.set("has", new OneArgFunction() {
+            public LuaValue call(LuaValue q) {
+                if(!q.isstring())
+                    return LuaValue.FALSE;
+                String needle = q.tojstring();
+                Bufflist bl = bufflist();
+                if(bl == null)
+                    return LuaValue.FALSE;
+                for(Buff b : bl.children(Buff.class)) {
+                    if(AddonWidgets.buffDest(b))
+                        continue;
+                    String res = buffRes(b), name = buffName(b);
+                    if(((res != null) && res.contains(needle)) || ((name != null) && name.contains(needle)))
+                        return LuaValue.TRUE;
+                }
+                return LuaValue.FALSE;
+            }
+        });
+        hafen.set("buffs", buffs);
 
         hafen.set("log", new OneArgFunction() {
             public LuaValue call(LuaValue msg) {
