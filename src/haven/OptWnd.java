@@ -682,6 +682,14 @@ public class OptWnd extends Window {
 	    y = addbtn(cont, "Switch targets", Fightsess.kb_relcycle, y);
 	    y = cont.adda(new Label("Voice chat"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
 	    y = addbtn(cont, "Push to talk", io.brodgar.voice.Voice.kb_ptt, y);
+	    // addon: dynamic per-addon hotkey sections (WoW-style; Phase 2e-3). One section per addon that
+	    // registered a hafen.key.bind hotkey (none registered -> no section); the client's SetButton captures
+	    // and persists each re-map exactly like a built-in binding, so nothing else is needed here.
+	    for(io.brodgar.addon.AddonManager.KeyBindGroup grp : io.brodgar.addon.AddonManager.describeKeyBinds()) {
+		y = cont.adda(new Label(grp.addon), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
+		for(io.brodgar.addon.AddonManager.KeyBindEntry e : grp.binds)
+		    y = addbtn(cont, e.name, e.binding, y);
+	    }
 	    prev = adda(new PointBind(UI.scale(200)), scroll.pos("bl").adds(0, 10).x(scroll.sz.x / 2), 0.5, 0.0);
 	    prev = adda(new PButton(UI.scale(200), "Back", 27, back), prev.pos("bl").adds(0, 10).x(scroll.sz.x / 2), 0.5, 0.0);
 	    pack();

@@ -180,11 +180,9 @@ LuaGobOverlay, LuaInputHook, LuaActionHook, LuaMarshal, LuaMessageHook, LuaKeyBi
 
 ## Known gaps / deferred
 
-- **Not shown in the client's keybind *panel* list.** The binding **is** created, persisted, and re-mappable via
-  the `KeyBinding` registry, but the client's `OptWnd.BindingPanel` is a **hardcoded list** (it does not
-  auto-enumerate `KeyBinding.bindings`), so addon bindings do not yet appear there for point-and-click re-mapping.
-  Surfacing them needs either a core edit adding an "AddOn hotkeys" section to the panel or a dedicated
-  addon-bindings sub-panel (candidate for the AddOns options panel, Phase 2 UI). Deferred.
+- ~~**Not shown in the client's keybind *panel* list.**~~ **Done in [2e-3](phase-2e3-keybind-panel.md)** — the
+  `OptWnd.BindingPanel` now appends one section per addon (named after the addon) listing its
+  `hafen.key.bind` hotkeys with the standard capture button; re-mapping persists like any built-in binding.
 - **Character keys go through `forchar`, named keys through `forcode`.** A single character (`"M"`) binds by
   *character* (caps/lock-independent); a named key (`"F5"`, `"Left"`) binds by *key code*. The `+` separator
   means a literal `+` or `Space` **as the last token via the string** is awkward (`"Space"` works via the named

@@ -68,6 +68,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -2698,6 +2699,50 @@ public final class AddonManager {
             keyBinds.remove(h);
         }
         a.keybinds.clear();
+    }
+
+    /**
+     * One addon's registered hotkeys, for the client keybind panel (Phase 2e-3, WoW-style). Immutable; built by
+     * {@link #describeKeyBinds()}. Only addons that registered at least one hotkey get a group, so the panel
+     * shows a section per addon (labelled {@link #addon}) exactly when that addon has hotkeys.
+     */
+    public static final class KeyBindGroup {
+        public final String addon;                 // the addon's display name — the section header
+        public final List<KeyBindEntry> binds;     // its hotkeys, in registration order
+        KeyBindGroup(String addon, List<KeyBindEntry> binds) { this.addon = addon; this.binds = binds; }
+    }
+
+    /** One hotkey row: the binding's addon-local {@link #name} (label) + its client {@link #binding} (remap target). */
+    public static final class KeyBindEntry {
+        public final String name;
+        public final KeyBinding binding;
+        KeyBindEntry(String name, KeyBinding binding) { this.name = name; this.binding = binding; }
+    }
+
+    /**
+     * The registered addon hotkeys grouped by owning addon, for the client keybind panel (Options &gt;
+     * Keybindings, Phase 2e-3). Only addons with at least one <b>live</b> hotkey appear (WoW-style) — each as a
+     * {@link KeyBindGroup} whose {@code addon} is the section header and whose {@code binds} are the rows. Order
+     * is the addons' first registration; within an addon, registration order. Reads the live {@link #keyBinds}
+     * list on the UI thread (panel build): a disabled/unloaded addon has no live hotkey, so it does not appear
+     * (its persisted key pref still survives in the {@link KeyBinding} registry). The panel drives each
+     * {@code binding} through the client's own capture button, which persists the re-map exactly like every
+     * built-in binding — so no extra persistence is needed here.
+     */
+    public static List<KeyBindGroup> describeKeyBinds() {
+        LinkedHashMap<Addon, List<KeyBindEntry>> byAddon = new LinkedHashMap<Addon, List<KeyBindEntry>>();
+        for(LuaKeyBind kb : keyBinds) {
+            if(!kb.alive)
+                continue;
+            List<KeyBindEntry> l = byAddon.get(kb.owner);
+            if(l == null)
+                byAddon.put(kb.owner, l = new ArrayList<KeyBindEntry>());
+            l.add(new KeyBindEntry(kb.name, kb.binding));
+        }
+        List<KeyBindGroup> out = new ArrayList<KeyBindGroup>();
+        for(Map.Entry<Addon, List<KeyBindEntry>> e : byAddon.entrySet())
+            out.add(new KeyBindGroup(e.getKey().manifest.name, e.getValue()));
+        return out;
     }
 
     /** Any addon currently has a HUD overlay? (Decides whether to queue the per-frame afterdraw.) */

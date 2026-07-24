@@ -26,6 +26,7 @@
 
 package haven;
 
+import java.awt.event.KeyEvent;
 import java.util.*;
 
 public class KeyBinding {
@@ -42,8 +43,43 @@ public class KeyBinding {
     }
 
     public void set(KeyMatch key) {
+	// addon: keybinding exclusivity — a physical key+modifier combo can only be bound to ONE action.
+	// When a real key is assigned, unbind it from any OTHER binding that fires on the same key (WoW-style),
+	// so you can't bind one key to two actions. Reverting-to-default (null) and disabling (nil) never steal.
+	if((key != null) && (key != KeyMatch.nil)) {
+	    synchronized(bindings) {
+		for(KeyBinding other : bindings.values()) {
+		    if((other != this) && sameKey(key, other.key()))
+			other.clear();
+		}
+	    }
+	}
 	Utils.setpref("keybind/" + id, KeyMatch.reduce(key));
 	this.key = key;
+    }
+
+    // addon: force this binding to "unbound" (nil), distinct from null which means "use the default".
+    private void clear() {
+	Utils.setpref("keybind/" + id, KeyMatch.reduce(KeyMatch.nil));
+	this.key = KeyMatch.nil;
+    }
+
+    // addon: do two key-matches fire on the same key+modifiers? Normalizes a char-based match (forchar) and a
+    // code-based one (forcode/forevent) to one keycode, so "Ctrl+G" as a letter or as a VK code still conflict.
+    // "None"/unbound (keycode VK_UNDEFINED) conflicts with nothing.
+    private static boolean sameKey(KeyMatch a, KeyMatch b) {
+	if((a == null) || (b == null) || (a.modmatch != b.modmatch))
+	    return(false);
+	int ca = keycode(a);
+	return((ca != KeyEvent.VK_UNDEFINED) && (ca == keycode(b)));
+    }
+
+    private static int keycode(KeyMatch k) {
+	if(k.code != KeyEvent.VK_UNDEFINED)
+	    return(k.code);
+	if(k.chr != 0)
+	    return(KeyEvent.getExtendedKeyCodeForChar(k.chr));
+	return(KeyEvent.VK_UNDEFINED);
     }
 
     public boolean set() {

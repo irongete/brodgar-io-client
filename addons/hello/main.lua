@@ -1,6 +1,8 @@
--- Example addon (Phase 2e-2): GLOBAL HOTKEYS — hafen.key.bind(name, defaultKey, fn) binds a remappable,
+-- Example addon (Phase 2e-3): GLOBAL HOTKEYS — hafen.key.bind(name, defaultKey, fn) binds a remappable,
 -- persisted hotkey (over the client's KeyBinding registry) that fires when no widget consumed the keypress
--- first; here Ctrl+H toggles the custom window. On top of the THREE hook levels — 2c hafen.hook.input (L1:
+-- first; here Ctrl+H toggles the custom window, plus an unbound "ping". Because this addon registers hotkeys,
+-- a "Hello" section appears under Options > Keybindings (WoW-style) where each is remappable + persisted.
+-- On top of the THREE hook levels — 2c hafen.hook.input (L1:
 -- intercept a widget's raw input BEFORE its own handler), 2d hafen.hook.action (L2: intercept the OUTBOUND
 -- action a widget sends to the server, arguments already RESOLVED — e.g. a move's destination world coord),
 -- and 2e-1 hafen.hook.message (L3: intercept an INBOUND server update BEFORE the widget applies it — swallow
@@ -13,7 +15,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.18.0)")
+hafen.log("hello loaded (v0.19.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -402,6 +404,16 @@ local toggleKey = hafen.key.bind("toggle", "Ctrl+H", function()
 end)
 hafen.log(("2e-2: global hotkey bound (%s toggles the window) -- remappable in the keybind options")
   :format(toggleKey:key()))
+
+-- 2e-3: a SECOND hotkey, UNBOUND by default (nil). Because this addon registered a hotkey, a "Hello"
+-- section now appears in Options > Keybindings (WoW-style) listing BOTH "toggle" (Ctrl+H) and this "ping".
+-- "ping" starts as None, so it does nothing until you ASSIGN it a key there — demonstrating the panel's
+-- assign-from-scratch flow and the per-addon grouping. Once bound it plays a sound on press, and the choice
+-- persists across restarts exactly like every built-in keybinding.
+hafen.key.bind("ping", nil, function()
+  hafen.sound.play("sfx/msg")
+  hafen.log("2e-3: ping hotkey fired (assigned in Options > Keybindings > Hello)")
+end)
 
 hafen.events.on("OnEnterWorld", function()
   if panel then return end                                        -- defensive: create the window once
