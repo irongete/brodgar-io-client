@@ -1,4 +1,10 @@
--- Example addon (gap subsystem A1): MAP MARKERS — hafen.markers reads the client's on-disk map DB
+-- Example addon (gap subsystem A2): RADAR / MINIMAP ICONS — hafen.radar reads the character's gob-icon
+-- registry (categories() -> {name,res,show,notify} per category) and can flip a category's show (draw it on
+-- the minimap) or notify (sound + msg when one appears) flag over every match of a filter
+-- (setVisible/setNotify(filter,on); filter = nil=all / name substring / predicate). It IS the same registry
+-- the in-client "Icon settings" window edits, so hello only READS it here (mutating would persist to your real
+-- radar config); try the setters from :lua (see docs/addons/a2-radar.md). Built on gap subsystem A1: MAP
+-- MARKERS — hafen.markers reads the client's on-disk map DB
 -- (list([filter]) / nearest([filter]) -> marker snapshots {id,name,type,seg,tc, color|icon, x,y,dist}),
 -- ADDS a persistent PLAYER marker at a WORLD position (add(name,x,y[,opts])) and REMOVES it (remove(ref)); the
 -- global MarkersChanged event fires when the marker set changes. A marker's PERSISTENT anchor is seg+tc (it
@@ -233,6 +239,26 @@ local function readMarkers(tag)
     (near and near.dist) and (" dist=%.1f"):format(near.dist) or ""))
 end
 
+-- A2: RADAR / minimap icon categories via hafen.radar. categories([filter]) lists every gob-icon category the
+-- character has seen as {name (tooltip), res (stable id), show, notify}; the registry (GobIcon.Settings) is the
+-- SAME one the in-client "Icon settings" window edits. hello is READ-ONLY here: the setters
+-- setVisible(filter,on)/setNotify(filter,on) PERSIST to your real radar config, so mutating from the harness
+-- would disturb it -- test them yourself from :lua (e.g. `hafen.radar.setVisible("boar", false)`, watch the
+-- minimap, then flip it back). Like the rest of the HUD the registry is empty until it streams in and grows as
+-- new icon types are seen, so read at now (often 0) and +3s.
+local function readRadar(tag)
+  local cats = hafen.radar.categories()
+  local shown, notif = 0, 0
+  for _, c in ipairs(cats) do
+    if c.show then shown = shown + 1 end
+    if c.notify then notif = notif + 1 end
+  end
+  local first = cats[1]
+  hafen.log(("[%s] radar=%d categor(ies), %d shown, %d notify, first=%s%s"):format(tag, #cats, shown, notif,
+    first and tostring(first.name or first.res) or "none",
+    first and (" [show=%s notify=%s]"):format(tostring(first.show), tostring(first.notify)) or ""))
+end
+
 -- 3b: WIDGET MODEL (hafen.ui.adopt). We adopt the MAIN INVENTORY as a model down in the onWidgetCreate observer
 -- (the 3a -> 3b flow: observe a widget's creation, then adopt it by desc.id). invModel is that handle (nil until
 -- the inventory is observed at login). readBags reads it: item count + first item (via model:items(), the same
@@ -285,10 +311,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via Ctrl+B) and it logs") end
   end)

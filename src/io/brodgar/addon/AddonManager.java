@@ -1872,6 +1872,40 @@ public final class AddonManager {
         });
         hafen.set("markers", markers);
 
+        // hafen.radar.* — the minimap icon registry (A2): each gob-icon "category" (a boar, a fir tree, a
+        // player, …) has a show flag (draw it on the minimap/radar) and a notify flag (a sound + chat msg
+        // when one appears). Backed by GobIcon.Settings (GameUI.iconconf) — the SAME registry the in-client
+        // "Icon settings" window drives, so changes show there too and persist per character. A category
+        // snapshot is { name (the icon tooltip), res (the resource name — the stable id), show, notify }.
+        // categories([filter]) reads the current set; setVisible(filter,on)/setNotify(filter,on) flip a flag
+        // on EVERY category the filter matches and persist it (debounced), returning the number matched. The
+        // filter is the canonical one used across the API (nil = all, string = name substring, function =
+        // predicate(snapshot)->truthy — use a predicate to match on res). The registry is empty until the
+        // HUD is up and grows as the character sees new icon types (read on demand — no *Changed event).
+        LuaTable radar = new LuaTable();
+        radar.set("categories", new OneArgFunction() {
+            public LuaValue call(LuaValue filter) {
+                LuaTable out = new LuaTable();
+                int i = 0;
+                for(LuaValue snap : radarSnapshots()) {
+                    if(matches(filter, snap))
+                        out.set(++i, snap);
+                }
+                return out;
+            }
+        });
+        radar.set("setVisible", new TwoArgFunction() {
+            public LuaValue call(LuaValue filter, LuaValue on) {
+                return LuaValue.valueOf(radarSet(filter, on.toboolean(), false));
+            }
+        });
+        radar.set("setNotify", new TwoArgFunction() {
+            public LuaValue call(LuaValue filter, LuaValue on) {
+                return LuaValue.valueOf(radarSet(filter, on.toboolean(), true));
+            }
+        });
+        hafen.set("radar", radar);
+
         // hafen.player.* — only data with NO per-gob equivalent (position/health/moving/… of the player
         // come from hafen.gob.*("player")). name() is the LOCAL character name (GameUI.chrid); other
         // players' display names are not reliably available. worldToScreen is MAP-VIEW-relative pixels.
@@ -3780,13 +3814,24 @@ public final class AddonManager {
         }
     }
 
+    /** The in-game notice sink ({@link UI#msg}/{@link UI#error}) renders a line as ONE text texture; a very
+     *  long single line (a big compact-JSON REPL result, or an addon logging a large value) can exceed the
+     *  GL max texture size and crash the render thread (GL_INVALID_VALUE, 1281). Clamp what we hand it — the
+     *  full text always goes to stdout, and addons receive the real Lua value regardless. */
+    static final int NOTICE_MAX = 500;
+    static String clampMsg(String s) {
+        if((s == null) || (s.length() <= NOTICE_MAX))
+            return s;
+        return s.substring(0, NOTICE_MAX) + "... (" + s.length() + " chars; full output on the terminal)";
+    }
+
     /** Engine-level output: stdout (prefixed) and in-game notice when available. */
     static void log(String msg) {
         System.out.println("[addon] " + msg);
         UI u = ui;
         if(u != null) {
             try {
-                u.msg(msg);
+                u.msg(clampMsg(msg));
             } catch(RuntimeException e) {
                 /* pre-HUD or no notice sink yet; stdout still has it */
             }
@@ -3800,7 +3845,7 @@ public final class AddonManager {
         UI u = ui;
         if(u != null) {
             try {
-                u.msg(id + ": " + msg);
+                u.msg(clampMsg(id + ": " + msg));
             } catch(RuntimeException e) {
                 /* pre-HUD or no notice sink yet; stdout still has it */
             }
@@ -3835,15 +3880,15 @@ public final class AddonManager {
             LuaValue r = chunk.call();
             if(!r.isnil()) {
                 String out = "lua= " + json(r);
-                System.out.println("[console] " + out);            // ...and mirror the result there
+                System.out.println("[console] " + out);            // full result to the terminal...
                 if(u != null)
-                    u.msg(out);
+                    u.msg(clampMsg(out));                          // ...clamped in-game (a huge one-line result crashes the text renderer)
             }
         } catch(LuaError e) {
             String err = "lua: " + e.getMessage();
             System.out.println("[console] " + err);
             if(u != null)
-                u.error(err);
+                u.error(clampMsg(err));
         }
     }
 
@@ -4942,6 +4987,91 @@ public final class AddonManager {
             ev.set("count", LuaValue.valueOf(count));
             fire("MarkersChanged", ev);
         }
+    }
+
+    // ---- radar (A2: hafen.radar) -----------------------------------------------------------------
+    // The minimap icon registry (GobIcon.Settings, GameUI.iconconf) — one "category" per gob-icon kind
+    // (a boar, a fir tree, a player, …), each with a show flag (draw it on the minimap) and a notify flag
+    // (sound + chat msg when one appears). This is the same registry the in-client "Icon settings" window
+    // edits, so our reads/writes are the exact ones it uses (its checkboxes flip set.show/set.notify and
+    // call dsave(); we do the same). settings is a Map the loader thread swaps WHOLESALE (it builds a fresh
+    // map and assigns it), so a local reference is a stable snapshot to iterate; individual boolean flags
+    // may be written on the UI thread (as the checkboxes already do) with no torn read. All access is on the
+    // UI thread (addon tick / REPL), matching the settings window. No *Changed event — categories change
+    // only as new icon types are seen (rare); read on demand (the A4 precedent for rarely-changing data).
+
+    /** The character's minimap icon registry (GameUI.iconconf), or null before the HUD is up. */
+    private static GobIcon.Settings iconconf() {
+        GameUI g = gui();
+        return (g == null) ? null : g.iconconf;
+    }
+
+    /** Snapshots of every radar category (icon setting) in the registry. */
+    private static List<LuaValue> radarSnapshots() {
+        List<LuaValue> out = new ArrayList<LuaValue>();
+        GobIcon.Settings conf = iconconf();
+        if(conf == null)
+            return out;
+        Map<GobIcon.Setting.ID, GobIcon.Setting> m = conf.settings;   // swapped wholesale by the loader → a stable ref
+        if(m == null)
+            return out;
+        for(GobIcon.Setting set : m.values())
+            out.add(radarSnapshot(set));
+        return out;
+    }
+
+    /** One category snapshot: { name, res, show, notify }. */
+    private static LuaValue radarSnapshot(GobIcon.Setting set) {
+        LuaTable t = new LuaTable();
+        t.set("name", LuaValue.valueOf(radarName(set)));
+        t.set("res", LuaValue.valueOf(set.id.res));
+        t.set("show", LuaValue.valueOf(set.show));
+        t.set("notify", LuaValue.valueOf(set.notify));
+        return t;
+    }
+
+    /** The category's display name (the icon tooltip), falling back to the resource name; never throws. */
+    private static String radarName(GobIcon.Setting set) {
+        try {
+            if(set.icon != null) {
+                String nm = set.icon.name();
+                if(nm != null)
+                    return nm;
+            }
+        } catch(RuntimeException e) {   // Loading, or a custom mapicon name() that blows up → fall back to res
+        }
+        return set.id.res;
+    }
+
+    /** Flip show (notifyFlag=false) or notify (true) on every category the filter matches; persist if any
+     *  actually changed. Returns the number of categories matched. UI thread (like the settings checkboxes). */
+    private static int radarSet(LuaValue filter, boolean value, boolean notifyFlag) {
+        return radarSetIn(iconconf(), filter, value, notifyFlag);
+    }
+
+    /** Testable core of {@link #radarSet}: operates on a given Settings (null-safe), so it can be exercised
+     *  headlessly without a live GameUI. */
+    static int radarSetIn(GobIcon.Settings conf, LuaValue filter, boolean value, boolean notifyFlag) {
+        if(conf == null)
+            return 0;
+        Map<GobIcon.Setting.ID, GobIcon.Setting> m = conf.settings;
+        if(m == null)
+            return 0;
+        int matched = 0;
+        boolean changed = false;
+        for(GobIcon.Setting set : m.values()) {
+            if(!matches(filter, radarSnapshot(set)))
+                continue;
+            matched++;
+            if(notifyFlag) {
+                if(set.notify != value) { set.notify = value; changed = true; }
+            } else {
+                if(set.show != value) { set.show = value; changed = true; }
+            }
+        }
+        if(changed)
+            conf.dsave();   // debounced persist, exactly like the icon-settings checkboxes (andsave -> dsave)
+        return matched;
     }
 
     private static String join(String[] args) {
