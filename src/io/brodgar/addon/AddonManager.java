@@ -51,6 +51,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.ThreeArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
@@ -321,6 +322,7 @@ public final class AddonManager {
         }
         flush(a);                     // ...then persist them (spec 05: flushed at OnDisable)
         destroyWidgets(a);            // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
+        teardownHooks(a);             // 2c: deafen input hooks (engine widgets outlive a :reload — must detach)
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
         a.subs.clear();
@@ -1898,6 +1900,24 @@ public final class AddonManager {
         });
         hafen.set("ui", uiT);
 
+        // hafen.hook — intercept/alter client behaviour, not just observe it (spec 13-hooks-and-interception).
+        // Phase 2c ships Level 1 (input/gesture hooks), the built-in zero-core-edit seam:
+        //   hafen.hook.input(target, event, fn) -> handle{ :remove() }
+        // fn(ev) is a PRE-hook: it runs BEFORE the target widget's own handler (via Widget.listen), and
+        // ev:preventDefault() cancels the default. At this seam preventDefault ALSO stops the event reaching
+        // child widgets (Event.dispatch short-circuits on a consuming listener), so there is no separate
+        // stopPropagation. target is a string naming a client widget — "mapview" (alias "map"), "gameui"
+        // (alias "hud"), or "root"; event is "mousedown" | "mouseup" | "mousemove" | "mousewheel". ev carries
+        // x,y (widget-local pixels) plus button (down/up) / amount (wheel). Register in OnEnterWorld — the
+        // target widget must already exist. Levels 2/3 (action/message hooks) and hafen.key arrive in 2d/2e.
+        LuaTable hook = new LuaTable();
+        hook.set("input", new ThreeArgFunction() {
+            public LuaValue call(LuaValue target, LuaValue event, LuaValue fn) {
+                return newInputHook(owner, target, event, fn);
+            }
+        });
+        hafen.set("hook", hook);
+
         hafen.set("log", new OneArgFunction() {
             public LuaValue call(LuaValue msg) {
                 log(owner, msg.isnil() ? "nil" : msg.tojstring());
@@ -2140,6 +2160,109 @@ public final class AddonManager {
             }
         });
         return h;
+    }
+
+    // ------------------------------------------------------------- input/gesture hooks (hafen.hook, 2c)
+
+    /**
+     * Register a Level-1 input hook ({@code hafen.hook.input(target, event, fn)}, spec 13 §L1): install {@code
+     * fn} as a pre-hook on a client widget's input via {@link Widget#listen}. Resolves {@code target} (a
+     * string naming a known client widget) and {@code event} (a mouse-event name) to a {@link Widget} + event
+     * class, wires a {@link LuaInputHook} listener, registers it in the addon's owned-resource registry
+     * (deafened on reload/disable, P2), and returns the Lua handle ({@code :remove()}). Throws a
+     * {@link LuaError} for a bad event name, an unknown target, or a target that is not up yet (register in
+     * OnEnterWorld, when the MapView/HUD exist).
+     */
+    private static LuaValue newInputHook(final Addon owner, LuaValue target, LuaValue event, LuaValue fn) {
+        if(!event.isstring() || !fn.isfunction())
+            throw new LuaError("hafen.hook.input(target, event, fn) expects (target, string, function)");
+        Class<? extends Widget.Event> cls = eventClass(event.tojstring());
+        if(cls == null)
+            throw new LuaError("hafen.hook.input: unknown event '" + event.tojstring()
+                               + "' (expected mousedown / mouseup / mousemove / mousewheel)");
+        String tok = target.isstring() ? target.tojstring().toLowerCase() : null;
+        if(!isKnownTarget(tok))
+            throw new LuaError("hafen.hook.input: target must be \"mapview\", \"gameui\", or \"root\" (got "
+                               + (target.isnil() ? "nil" : target.tojstring()) + ")");
+        Widget w = hookTarget(tok);
+        if(w == null)
+            throw new LuaError("hafen.hook.input: the " + tok
+                               + " is not up yet — register this hook in OnEnterWorld");
+        final LuaInputHook h = new LuaInputHook(owner, w, event.tojstring(), fn);
+        listenHook(w, cls, h);
+        owner.hooks.add(h);
+        LuaTable handle = new LuaTable();
+        handle.set("remove", new ZeroArgFunction() {
+            public LuaValue call() {
+                removeHook(owner, h);
+                return LuaValue.NIL;
+            }
+        });
+        return handle;
+    }
+
+    /** Map an input-hook event name to its {@link Widget.Event} class (2c supports the mouse gestures). */
+    private static Class<? extends Widget.Event> eventClass(String name) {
+        if(name.equals("mousedown"))  return Widget.MouseDownEvent.class;
+        if(name.equals("mouseup"))    return Widget.MouseUpEvent.class;
+        if(name.equals("mousemove"))  return Widget.MouseMoveEvent.class;
+        if(name.equals("mousewheel")) return Widget.MouseWheelEvent.class;
+        return null;
+    }
+
+    /** Is {@code tok} a recognized hook-target token? (Distinguishes "unknown target" from "not up yet".) */
+    private static boolean isKnownTarget(String tok) {
+        return "mapview".equals(tok) || "map".equals(tok)
+            || "gameui".equals(tok)  || "hud".equals(tok)
+            || "root".equals(tok);
+    }
+
+    /** Resolve a (lower-cased, already-known) hook-target token to the live {@link Widget}, or null if not up. */
+    private static Widget hookTarget(String tok) {
+        if("mapview".equals(tok) || "map".equals(tok))
+            return view;
+        if("gameui".equals(tok) || "hud".equals(tok))
+            return gui();
+        if("root".equals(tok)) {
+            UI u = ui;
+            return (u == null) ? null : u.root;
+        }
+        return null;
+    }
+
+    /**
+     * Register {@code h} as a typed listener on {@code w}. {@link Widget#listen} wants an
+     * {@code EventHandler<? super E>}; a {@link LuaInputHook} is {@code EventHandler<Widget.Event>} (it works
+     * for any concrete event type), so we widen the class token's <i>compile-time</i> type — the runtime
+     * {@link Class} is unchanged, so listener matching ({@code t.isInstance}) still keys on the real subclass.
+     */
+    @SuppressWarnings("unchecked")
+    private static void listenHook(Widget w, Class<? extends Widget.Event> cls, LuaInputHook h) {
+        w.listen((Class<Widget.Event>)(Class<?>)cls, h);
+    }
+
+    /** Remove one input hook: stop it firing, deafen the target, drop it from the registry (handle :remove()). */
+    private static void removeHook(Addon owner, LuaInputHook h) {
+        h.alive = false;
+        try {
+            h.target.deafen(h);
+        } catch(RuntimeException e) {
+            /* target already gone (its listener list went with it): harmless */
+        }
+        owner.hooks.remove(h);
+    }
+
+    /** Deafen + drop every input hook this addon owns (teardown on reload/disable, P2). */
+    private static void teardownHooks(Addon a) {
+        for(LuaInputHook h : a.hooks) {
+            h.alive = false;
+            try {
+                h.target.deafen(h);
+            } catch(RuntimeException e) {
+                /* target already destroyed; best-effort, never abort teardown */
+            }
+        }
+        a.hooks.clear();
     }
 
     /** Any addon currently has a HUD overlay? (Decides whether to queue the per-frame afterdraw.) */

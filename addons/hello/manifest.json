@@ -1,9 +1,9 @@
 {
   "name": "Hello",
   "id": "hello",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "author": "brodgar",
-  "description": "Example addon — runs in the Lua sandbox (self-checks it at OnLoad) and demonstrates the event bus, timers, saved variables (hafen.store), custom UI (hafen.ui — a draggable window, a HUD overlay, and world-space gob overlays, all drawn via the GOut wrapper), and the read API (hafen.gob.*, hafen.world.*, hafen.map.*, hafen.player.* incl. vitals, hafen.time.*, hafen.sound.*, hafen.items.*, hafen.char.* incl. food/skills, hafen.party.*, hafen.buffs.*, hafen.study.*, hafen.actionbar.*) plus the widget-tree events (VitalsChanged, BuffAdded/Removed/Changed, FepChanged, StudyChanged, ActionbarChanged, EquipChanged).",
+  "description": "Example addon — runs in the Lua sandbox (self-checks it at OnLoad) and demonstrates the event bus, timers, saved variables (hafen.store), custom UI (hafen.ui — a draggable window, a HUD overlay, and world-space gob overlays, all drawn via the GOut wrapper), input hooks (hafen.hook.input — a MapView mousedown pre-hook that cancels map clicks while 'map-lock' is on), and the read API (hafen.gob.*, hafen.world.*, hafen.map.*, hafen.player.* incl. vitals, hafen.time.*, hafen.sound.*, hafen.items.*, hafen.char.* incl. food/skills, hafen.party.*, hafen.buffs.*, hafen.study.*, hafen.actionbar.*) plus the widget-tree events (VitalsChanged, BuffAdded/Removed/Changed, FepChanged, StudyChanged, ActionbarChanged, EquipChanged).",
   "api_version": 1,
   "files": ["main.lua"],
   "saved_variables": ["persist", { "name": "acct", "scope": "account" }]

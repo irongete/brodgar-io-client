@@ -49,6 +49,13 @@ public final class Addon {
      * addon wants gob overlays at all (see {@link AddonManager#teardown}).
      */
     public final List<AddonManager.GobOverlay> gobOverlays = new CopyOnWriteArrayList<AddonManager.GobOverlay>();
+    /**
+     * Live input/gesture hooks owned by this addon ({@code hafen.hook.input}, Phase 2c): pre-hooks registered
+     * on a client widget via {@link haven.Widget#listen}. Teardown deafens each ({@link haven.Widget#deafen})
+     * and marks it dead, so a {@code :reload}/disable (which keeps the engine widgets alive) never leaves a
+     * listener firing into a torn-down env (principle P2). Copy-on-write: a firing hook may {@code :remove()}.
+     */
+    public final List<LuaInputHook> hooks = new CopyOnWriteArrayList<LuaInputHook>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per
