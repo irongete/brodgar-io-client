@@ -50,7 +50,6 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
-import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -234,7 +233,7 @@ public final class AddonManager {
                 continue;
             try {
                 Manifest m = Manifest.load(sub.toPath());
-                Globals g = JsePlatform.standardGlobals();   // sandbox hardening = later phase
+                Globals g = Sandbox.create();   // D-017 stdlib whitelist + D-018 instruction watchdog
                 Addon addon = new Addon(m, sub.toPath(), g);
                 installHafen(g, addon);
                 LuaTable ad = new LuaTable();
@@ -868,6 +867,7 @@ public final class AddonManager {
     /** Call into Lua with full error isolation (a Lua error never escapes the engine step). */
     private static void callLua(Addon owner, LuaValue fn, LuaValue... args) {
         try {
+            Sandbox.arm(owner.env);   // reset the watchdog's instruction budget for this callback (D-018)
             fn.invoke((args.length == 0) ? LuaValue.NONE : LuaValue.varargsOf(args));
         } catch(LuaError e) {
             log(owner, "handler error: " + e.getMessage());
@@ -1852,7 +1852,7 @@ public final class AddonManager {
 
     private static synchronized Globals console() {
         if(consoleOwner == null) {
-            Globals g = JsePlatform.standardGlobals();
+            Globals g = Sandbox.consoleGlobals();   // trusted operator console (full stdlib) + watchdog
             Addon owner = new Addon(Manifest.internal("(console)"), null, g);
             installHafen(g, owner);
             consoleOwner = owner;
@@ -1872,6 +1872,7 @@ public final class AddonManager {
             } catch(LuaError e) {
                 chunk = console().load(src, "=lua");                // statement form (e.g. print(...))
             }
+            Sandbox.arm(consoleOwner.env);   // watchdog the console too (e.g. a stray `while true do end`)
             LuaValue r = chunk.call();
             if(!r.isnil()) {
                 String out = "lua= " + json(r);

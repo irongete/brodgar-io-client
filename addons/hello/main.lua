@@ -1,13 +1,36 @@
--- Example addon (Phase 1e): adds hafen.store — saved variables persisted as JSON under savedata/ — on
--- top of 1d-4 actionbar/equip, 1d-3 study/skills, 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c items/char/
--- party reads, the gob/world/map/player/time/sound reads, the 1b event bus, and timers. `hafen` is the
--- API facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad
--- fires, then (on entering the world) OnEnterWorld.
+-- Example addon (Phase 1f-1): runs inside the Lua SANDBOX (D-017 strict env + D-018 instruction
+-- watchdog) on top of 1e hafen.store (saved variables), 1d-4 actionbar/equip, 1d-3 study/skills,
+-- 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c items/char/party reads, the gob/world/map/player/time/
+-- sound reads, the 1b event bus, and timers. `hafen` is the API facade; `ADDON` describes this addon
+-- ({ id, dir }). The file body runs once at load; then OnLoad fires, then (on entering the world)
+-- OnEnterWorld. Every call into this addon is watchdog-armed — a runaway loop is aborted, not a freeze.
 
-hafen.log("hello loaded (v0.10.0)")
+hafen.log("hello loaded (v0.11.0)")
 
 hafen.events.on("OnLoad", function()
   hafen.log("OnLoad fired")
+end)
+
+-- 1f-1: self-check the sandbox from inside the live client. Addons get a STRICT environment (D-017):
+-- the dangerous stdlib is withheld — no `io`, no `os.execute`/`exit`/`getenv`, no `require`/`load`/
+-- `loadfile`/`dofile`, no `debug`, and no `luajava` (the Java-reflection escape hatch) — while the safe
+-- stdlib (string/table/math/os.time/pcall/…) stays. Referencing a withheld global just yields nil (Lua
+-- has no strict-global error by default), and a guarded call to one is safely caught by pcall. This logs
+-- what is locked down, proving the sandbox is active in-game. The other half — the instruction watchdog
+-- (D-018) — is best tested manually: run  :lua while true do end  in the console; it aborts (~35 ms)
+-- with an "addon watchdog" error instead of freezing the client. (Do NOT bake such a loop into an addon.)
+hafen.events.on("OnLoad", function()
+  local blocked = {}
+  local function chk(name, v) if v == nil then blocked[#blocked + 1] = name end end
+  chk("io", io); chk("require", require); chk("load", load); chk("loadfile", loadfile)
+  chk("dofile", dofile); chk("debug", debug); chk("luajava", luajava); chk("package", package)
+  chk("os.execute", os and os.execute)
+  local safe = not (string == nil or table == nil or math == nil or os == nil
+    or os.time == nil or pcall == nil or tostring == nil)
+  -- Prove a shell-exec attempt is genuinely unusable (not merely absent) and is catchable:
+  local ranExec = pcall(function() return os.execute("echo pwned") end)   -- os.execute is nil -> errors
+  hafen.log(("sandbox: withheld={%s}; safe-stdlib=%s; os.execute usable=%s")
+    :format(table.concat(blocked, ","), tostring(safe), tostring(ranExec)))
 end)
 
 -- 1c-2: read the map/projection data at the player's position and log it with a tag. The grid, terrain

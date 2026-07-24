@@ -52,6 +52,7 @@ public final class Addon {
                 Path fp = dir.resolve(file);
                 String src = new String(Files.readAllBytes(fp), StandardCharsets.UTF_8);
                 LuaValue chunk = env.load(src, "@" + manifest.id + "/" + file);
+                Sandbox.arm(env);   // watchdog the file body too (D-018) — reset the budget per file
                 chunk.call();
             } catch(Exception e) {
                 error = file + ": " + e.getMessage();

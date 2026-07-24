@@ -1,0 +1,200 @@
+package io.brodgar.addon;
+
+import haven.Utils;
+
+import org.luaj.vm2.Globals;
+import org.luaj.vm2.LoadState;
+import org.luaj.vm2.LuaClosure;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaFunction;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.compiler.LuaC;
+import org.luaj.vm2.lib.DebugLib;
+import org.luaj.vm2.lib.PackageLib;
+import org.luaj.vm2.lib.StringLib;
+import org.luaj.vm2.lib.TableLib;
+import org.luaj.vm2.lib.jse.JseBaseLib;
+import org.luaj.vm2.lib.jse.JseMathLib;
+import org.luaj.vm2.lib.jse.JseOsLib;
+import org.luaj.vm2.lib.jse.JsePlatform;
+
+/**
+ * The addon <b>Lua sandbox</b> (spec {@code 12-security-and-tos.md}, decisions D-017 + D-018).
+ *
+ * <p>Two protections, both aimed at <em>addon</em> code (not the operator):
+ * <ul>
+ *   <li><b>Environment whitelist (D-017).</b> {@link #create()} builds a {@link Globals} with only
+ *       the safe stdlib — {@code string}, {@code table}, {@code math}, a trimmed {@code os}
+ *       ({@code time}/{@code clock}/{@code date}/{@code difftime} only), and the safe base functions
+ *       ({@code pairs}/{@code ipairs}/{@code next}/{@code select}/{@code type}/{@code tostring}/
+ *       {@code tonumber}/{@code pcall}/{@code xpcall}/{@code error}/{@code assert}/{@code unpack}/…).
+ *       It is built <b>constructively</b> (load only safe libraries) rather than by neutering
+ *       {@link JsePlatform#standardGlobals()} — so the dangerous surfaces are <i>absent</i>, not
+ *       merely hidden: no {@code io}, no {@code luajava} (the Java-reflection escape hatch, which
+ *       {@code standardGlobals()} bundles — the whole point of P1/D-017), no {@code debug} table, no
+ *       {@code require}/{@code package}, and no {@code load}/{@code loadfile}/{@code dofile}. The few
+ *       dangerous entries that ride along inside otherwise-safe libraries ({@code os.execute}/
+ *       {@code exit}/{@code getenv}/{@code remove}/{@code rename}/{@code tmpname}, and the base
+ *       loaders) are stripped explicitly.</li>
+ *   <li><b>Instruction hard-stop watchdog (D-018, layer 1).</b> Lua runs on the UI/render thread, so
+ *       an infinite loop would freeze the client. Each {@link Globals} gets a {@link Watchdog}
+ *       installed as its {@code debuglib}: LuaJ then calls {@code onInstruction} on every VM
+ *       instruction (guarded only by {@code debuglib != null} in {@code LuaClosure.execute}), so the
+ *       watchdog decrements a per-call budget and raises a {@link LuaError} when it is exhausted —
+ *       which the engine's per-callback error isolation catches. Setting the field <b>without</b>
+ *       {@code load()}-ing a {@code DebugLib} means the hook is active yet no {@code debug} table is
+ *       reachable from Lua (D-017).</li>
+ * </ul>
+ *
+ * <p>The {@link #arm(Globals)} / call pattern resets the budget before <em>every</em> entry into Lua
+ * (the {@code AddonManager} call sites: each handler/timer via {@code callLua}, each file body in
+ * {@link Addon#run()}, and each {@code :lua} REPL evaluation), so a legitimate callback always gets
+ * the full budget and only a genuine runaway trips it.
+ *
+ * <p><b>The {@code :lua} REPL is deliberately NOT whitelisted</b> ({@link #consoleGlobals()}): it is
+ * the operator's own trusted debugging console (full {@code standardGlobals()}, incl. {@code luajava}
+ * for poking the engine), and the sandbox exists to constrain <em>shared addon code</em>, not the
+ * user at their own console. It still gets the watchdog, so an accidental {@code :lua while true do
+ * end} is aborted rather than freezing the client.
+ *
+ * <p><b>Known limitation (deferred hardening):</b> LuaJ's string metatable is a process-global static
+ * ({@code LuaString.s_metatable}); a hostile addon calling {@code getmetatable("")} could tamper with
+ * string handling for everyone. D-017's explicit list does not cover it; per-env string metatables
+ * are a later refinement. The soft per-tick time budget + auto-disable (D-018, layer 2) is likewise a
+ * follow-up slice.
+ */
+public final class Sandbox {
+
+    /**
+     * Per-call instruction hard-stop cap (D-018). Generous enough that no legitimate single callback
+     * or file body approaches it, yet low enough that a runaway loop is aborted within a brief hitch
+     * rather than a real freeze. Override with {@code -Dhaven.addon.insncap=<n>} ({@code <= 0} disables
+     * the hard stop entirely). Read once at class-load, like the other addon-layer properties.
+     */
+    static final long INSN_CAP = propLong("haven.addon.insncap", 10_000_000L);
+
+    private Sandbox() {
+    }
+
+    /**
+     * Build a fresh <b>sandboxed</b> environment for an addon: the D-017 stdlib whitelist plus the
+     * D-018 instruction watchdog. The returned {@link Globals} still needs the {@code hafen} facade
+     * and {@code ADDON} table installed by the caller.
+     */
+    public static Globals create() {
+        Globals g = new Globals();
+        // Whitelist: load ONLY the safe libraries (constructive sandbox — dangerous libs are never
+        // present, so there is nothing to forget to strip). Intentionally omitted vs standardGlobals():
+        // JseIoLib (io), LuajavaLib (Java reflection), CoroutineLib, Bit32Lib, and DebugLib-as-a-table.
+        // PackageLib IS loaded (the stdlib modules register themselves in package.loaded on load, so
+        // omitting it makes TableLib/StringLib/… fail) — but require/module/package are stripped in
+        // harden(): the LIBRARIES are wanted, the require MACHINERY is not (D-017 "withhold require").
+        g.load(new JseBaseLib());   // assert/error/pcall/xpcall/select/type/tostring/tonumber/pairs/… (+ load*, stripped below)
+        g.load(new PackageLib());   // needed only so the modules below can register; then stripped
+        g.load(new TableLib());     // table.*
+        g.load(new StringLib());    // string.* (+ the string metatable)
+        g.load(new JseMathLib());   // math.*
+        g.load(new JseOsLib());     // os.* (dangerous entries stripped below)
+        LoadState.install(g);       // so env.load(src, name) can decode/compile addon chunks...
+        LuaC.install(g);            // ...(the Lua->bytecode compiler)
+        harden(g);
+        return g;
+    }
+
+    /**
+     * The {@code :lua} REPL environment: full {@link JsePlatform#standardGlobals()} (trusted operator
+     * console — NOT whitelisted, see class doc) but with the watchdog installed so a runaway console
+     * expression is still aborted.
+     */
+    public static Globals consoleGlobals() {
+        Globals g = JsePlatform.standardGlobals();
+        g.debuglib = new Watchdog();   // typo protection; does NOT install a `debug` table
+        return g;
+    }
+
+    /** Strip the dangerous entries that ride inside otherwise-safe libs, then install the watchdog. */
+    private static void harden(Globals g) {
+        // require machinery — a controlled addon-folder-only require is a deferred nice-to-have; the
+        // strict default withholds it entirely (D-017). The stdlib modules are already installed as
+        // globals (string/table/…), so dropping package/require does not remove them.
+        g.set("require", LuaValue.NIL);
+        g.set("module", LuaValue.NIL);
+        g.set("package", LuaValue.NIL);
+        // Base loaders — arbitrary code / path loading (D-017 "withhold load/loadfile/dofile").
+        g.set("load", LuaValue.NIL);
+        g.set("loadfile", LuaValue.NIL);
+        g.set("dofile", LuaValue.NIL);
+        g.set("loadstring", LuaValue.NIL);   // 5.1-compat alias, if present
+        // os.* — keep only time/clock/date/difftime; drop process/filesystem/env access.
+        LuaValue os = g.get("os");
+        if(!os.isnil()) {
+            os.set("execute", LuaValue.NIL);
+            os.set("exit", LuaValue.NIL);
+            os.set("getenv", LuaValue.NIL);
+            os.set("remove", LuaValue.NIL);
+            os.set("rename", LuaValue.NIL);
+            os.set("tmpname", LuaValue.NIL);
+            os.set("setlocale", LuaValue.NIL);   // process-global locale state; not in the D-017 whitelist
+        }
+        // Watchdog: enabling the per-instruction hook without exposing a `debug` table (D-017).
+        g.debuglib = new Watchdog();
+    }
+
+    /**
+     * Reset the instruction budget on {@code g}'s watchdog to a full {@link #INSN_CAP} for the call
+     * that is about to run. Call immediately before every entry into Lua. No-op if {@code g} has no
+     * watchdog or the cap is disabled ({@code <= 0}).
+     */
+    public static void arm(Globals g) {
+        if((g != null) && (g.debuglib instanceof Watchdog))
+            ((Watchdog)g.debuglib).remaining = (INSN_CAP > 0) ? INSN_CAP : Long.MAX_VALUE;
+    }
+
+    private static long propLong(String name, long def) {
+        try {
+            String v = Utils.getprop(name, null);
+            return (v == null) ? def : Long.parseLong(v.trim());
+        } catch(RuntimeException e) {
+            return def;
+        }
+    }
+
+    /**
+     * A {@link DebugLib} whose only job is the instruction hard-stop. It is <b>assigned to</b>
+     * {@code Globals.debuglib} (not {@code load()}-ed), so LuaJ invokes its {@code on*} callbacks
+     * during execution but no {@code debug} table is ever installed into Lua. {@code onCall}/
+     * {@code onReturn} are overridden to no-ops (the default implementations maintain a call-stack for
+     * {@code debug.traceback}, which this sandbox does not need and which would touch an
+     * uninitialized {@code globals}); {@code onInstruction} does the budget check and never calls
+     * {@code super}, so it never touches that state either.
+     *
+     * <p>{@link #remaining} is single-threaded per addon (Lua for one env is serialized), set by
+     * {@link Sandbox#arm(Globals)} before each call and decremented per instruction; on underflow it
+     * self-resets and throws so a caught error does not immediately re-trip on the next instruction.
+     *
+     * <p>{@link #traceback(int)} is overridden to return {@code ""}: LuaJ's default error path
+     * ({@code LuaClosure.processErrorHooks}) calls {@code debuglib.traceback(level)} on <b>every</b>
+     * error, and the inherited implementation dereferences the {@code DebugLib.globals} field — which
+     * is never initialized here (this watchdog is <i>assigned</i>, not {@code load()}-ed) and would
+     * NPE. Since the no-op {@code onCall}/{@code onReturn} keep no call-stack, an empty traceback is
+     * also the honest answer; addon errors are still reported by the engine with the LuaJ
+     * {@code chunkname:line} prefix carried on the message.
+     */
+    static final class Watchdog extends DebugLib {
+        long remaining = Long.MAX_VALUE;   // instructions left for the current call; armed before each entry
+
+        public void onInstruction(int pc, Varargs v, int top) {
+            if(--remaining < 0) {
+                remaining = Long.MAX_VALUE;   // avoid re-throwing on every subsequent instruction
+                throw new LuaError("addon watchdog: instruction budget exceeded (>" + INSN_CAP
+                    + " instructions in one call — possible infinite loop)");
+            }
+        }
+
+        public void onCall(LuaFunction f) {}
+        public void onCall(LuaClosure c, Varargs varargs, LuaValue[] stack) {}
+        public void onReturn() {}
+        public String traceback(int level) { return ""; }
+    }
+}
