@@ -83,6 +83,14 @@ public final class Addon {
      * {@code :remove()} itself while the dispatcher iterates.
      */
     public final List<LuaKeyBind> keybinds = new CopyOnWriteArrayList<LuaKeyBind>();
+    /**
+     * Live widget-creation observers owned by this addon ({@code hafen.ui.onWidgetCreate}, Phase 3a): each runs a
+     * Lua handler for every server widget as it is placed into the tree (spec 08's creation seam). They live in a
+     * flat global dispatch list in {@link AddonManager} (an observer watches EVERY creation, not one keyed
+     * target); teardown marks each dead and drops it from that list (principle P2) — like an action/message hook
+     * there is no widget to deafen. Copy-on-write: a firing observer may {@code :remove()} itself mid-dispatch.
+     */
+    public final List<LuaWidgetObserver> widgetObservers = new CopyOnWriteArrayList<LuaWidgetObserver>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per

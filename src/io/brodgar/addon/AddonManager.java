@@ -179,6 +179,19 @@ public final class AddonManager {
         KEYCODES.put("RIGHT",     KeyEvent.VK_RIGHT);
     }
 
+    // -- widget-creation interception (spec 08 / Phase 3a): observe server widgets as the server creates them ---
+    // hafen.ui.onWidgetCreate(fn) fires fn(desc) for every SERVER widget as it is placed into the tree, where
+    // desc = {id, type, place, caption, parentType} (the targeting descriptor, D-024). Two UI.java edits feed it:
+    // NewWidget.run records the server type name (onWidgetCreated), AddWidget.run fires onWidgetPlaced once the
+    // widget is in the tree — the first moment place + parent exist. onWidgetPlaced runs inside AddWidget.run's
+    // synchronized(ui) block (the monitor tick/draw hold), so observer Lua never races other Lua. A FLAT list
+    // (observers watch EVERY creation, not one keyed target); globally empty = a near-zero fast path, so an
+    // unobserving client pays only an isEmpty() check per placement. widgetTypes holds only in-flight creations
+    // (recorded at NewWidget, removed at the matching AddWidget) and is recorded only while an observer exists;
+    // owned observer copies live on each Addon for teardown. Both are session-scoped (cleared per init).
+    private static final Map<Integer, String> widgetTypes = new ConcurrentHashMap<Integer, String>();
+    private static final List<LuaWidgetObserver> widgetObservers = new CopyOnWriteArrayList<LuaWidgetObserver>();
+
     // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
     // Adapters read a GameUI widget tree into a Lua snapshot and fire a semantic event on change. The
     // UI.uimsg core tap runs off the UI thread, so it only marks the interested adapter(s) dirty; the
@@ -274,6 +287,7 @@ public final class AddonManager {
         lastGobSweep = 0;             // 2b: sweep gob overlays promptly on the new session
         reloadPending = false;        // drop any :reload queued against the previous session
 
+        widgetTypes.clear();          // 3a: drop in-flight widget-type records (ids are per-session)
         treeDirty.clear();            // reset the widget-tree read mechanism for the new session
         vitalsCache = null;
         treeAdapters.clear();
@@ -388,6 +402,7 @@ public final class AddonManager {
         teardownActionHooks(a);       // 2d: unregister action hooks from the outbound-wdgmsg dispatch map
         teardownMessageHooks(a);      // 2e-1: unregister message hooks from the inbound-uimsg dispatch map
         teardownKeyBinds(a);          // 2e-2: unregister global hotkeys from the GlobKeyEvent dispatch list
+        teardownWidgetObservers(a);   // 3a: unregister widget-creation observers from the placement dispatch list
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
         a.subs.clear();
@@ -900,6 +915,47 @@ public final class AddonManager {
             }
         }
         return false;
+    }
+
+    /**
+     * Record a server widget's <b>type name</b> (spec 08 / Phase 3a) — called from the {@code UI.NewWidget.run}
+     * core edit right after the widget is bound to its id. The widget instance does not carry its registered type
+     * string, so we stash {@code id -> typenm} here and read it back when the widget is placed (the descriptor's
+     * {@code type} field). Kept only while an observer is registered (so an unobserving client records nothing),
+     * and only the in-flight set (the matching {@link #onWidgetPlaced} removes it), so the map stays tiny.
+     * {@code typenm} is {@code null} when the widget was built from a {@link Widget.Factory} directly rather than
+     * a type string (never the case for a server widget) — those simply record no type.
+     */
+    public static void onWidgetCreated(int id, String typenm) {
+        if(widgetObservers.isEmpty() || (typenm == null))
+            return;                                   // fast path: nobody is observing, or no type string
+        widgetTypes.put(Integer.valueOf(id), typenm);
+    }
+
+    /**
+     * Fire every {@code hafen.ui.onWidgetCreate(fn)} observer for one placed server widget (spec 08 / Phase 3a) —
+     * called from the {@code UI.AddWidget.run} core edit, right after {@code pwdg.addchild(wdg, pargs)}, i.e. the
+     * first moment the FULL descriptor exists (placement supplies the {@code place}-string + parent that creation
+     * lacks). Builds {@code desc = {id, type, place, caption, parentType}} (D-024) and hands it to each observer's
+     * Lua {@code fn(desc)}. This slice is observe-only (the return is ignored — adopt/replace is 3b/3c).
+     *
+     * <p><b>Threading.</b> Reached only from inside {@code AddWidget.run}'s {@code synchronized(ui)} block (on a
+     * Loader thread, under the monitor tick/draw hold), so observer Lua never races other Lua — the same
+     * discipline as {@link #onMessage} (no {@code holdsLock} guard needed). The fast path (no observers anywhere)
+     * returns immediately, so an unobserving client is unaffected even though every widget placement passes here.
+     */
+    public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] pargs) {
+        if(widgetObservers.isEmpty())
+            return;                                   // fast path: no widget-create observers anywhere
+        String type = widgetTypes.remove(Integer.valueOf(id));
+        String place = ((pargs != null) && (pargs.length > 0) && (pargs[0] instanceof String))
+                       ? (String)pargs[0] : null;
+        String parentType = (pwdg == null) ? null : pwdg.getClass().getSimpleName();
+        String caption = (wdg instanceof Window) ? ((Window)wdg).cap : null;
+        for(LuaWidgetObserver o : widgetObservers) {  // copy-on-write: an observer may :remove() itself here
+            if(o.alive)
+                o.invoke(id, type, place, caption, parentType);
+        }
     }
 
     /** Re-read each dirty adapter and fire its semantic event (UI thread, drained from the tick). */
@@ -2066,6 +2122,20 @@ public final class AddonManager {
                 return newGobOverlay(owner, filter, fn);
             }
         });
+        // hafen.ui.onWidgetCreate(fn) — observe the server's own UI as it is built (spec 08, Phase 3a). fn(desc)
+        // runs for every SERVER widget as it is placed into the tree, with desc = {id, type, place, caption,
+        // parentType} (the targeting descriptor, D-024) — e.g. the inventory is {type="inv", place="inv",
+        // parentType="GameUI"}; a cupboard is {type="wnd", place="misc", caption="Cupboard", parentType="GameUI"}.
+        // A HUD-placed window always reports parentType="GameUI"; item widgets streaming into an inventory report
+        // their container instead, so an addon filters by parentType/type/place. This slice is observe-only
+        // (adopting the real widget as a hidden model + drawing a custom view is a later slice); the return is
+        // ignored. Returns a handle with :remove(); auto-removed on reload/disable (P2). Register any time (no
+        // live target needed) — the file body catches the login window burst too.
+        uiT.set("onWidgetCreate", new OneArgFunction() {
+            public LuaValue call(LuaValue fn) {
+                return newWidgetObserver(owner, fn);
+            }
+        });
         hafen.set("ui", uiT);
 
         // hafen.hook — intercept/alter client behaviour, not just observe it (spec 13-hooks-and-interception).
@@ -2590,6 +2660,47 @@ public final class AddonManager {
             unregisterMessageHook(h);
         }
         a.messageHooks.clear();
+    }
+
+    // ------------------------------------------------------- widget-creation observers (hafen.ui, 3a)
+
+    /**
+     * Register a widget-creation observer ({@code hafen.ui.onWidgetCreate(fn)}, spec 08 / Phase 3a): install
+     * {@code fn} in the global observer list (fired by {@link #onWidgetPlaced} for every server widget) and in the
+     * addon's owned-resource registry (dropped on reload/disable, P2). Returns the Lua handle ({@code :remove()}).
+     * Needs no live target, so it can be registered any time — the file body is fine (and catches the login
+     * window burst). An observer watches EVERY creation (there is no per-target keying), so this is a flat list,
+     * not a per-name map like the hook levels.
+     */
+    private static LuaValue newWidgetObserver(final Addon owner, LuaValue fn) {
+        if(!fn.isfunction())
+            throw new LuaError("hafen.ui.onWidgetCreate(fn) expects a function");
+        final LuaWidgetObserver o = new LuaWidgetObserver(owner, fn);
+        widgetObservers.add(o);
+        owner.widgetObservers.add(o);
+        LuaTable handle = new LuaTable();
+        handle.set("remove", new ZeroArgFunction() {
+            public LuaValue call() {
+                removeWidgetObserver(owner, o);
+                return LuaValue.NIL;
+            }
+        });
+        return handle;
+    }
+
+    /** Remove one widget-creation observer: stop it firing + drop it from both lists (the handle's {@code :remove()}). */
+    private static void removeWidgetObserver(Addon owner, LuaWidgetObserver o) {
+        o.alive = false;
+        widgetObservers.remove(o);
+        owner.widgetObservers.remove(o);
+    }
+
+    /** Mark dead + drop every widget-creation observer this addon owns (teardown on reload/disable, P2). */
+    private static void teardownWidgetObservers(Addon a) {
+        for(LuaWidgetObserver o : a.widgetObservers)
+            o.alive = false;
+        widgetObservers.removeAll(a.widgetObservers);
+        a.widgetObservers.clear();
     }
 
     // ------------------------------------------------------------------ global hotkeys (hafen.key, 2e-2)

@@ -1,7 +1,9 @@
--- Example addon (Phase 2e-3): GLOBAL HOTKEYS — hafen.key.bind(name, defaultKey, fn) binds a remappable,
--- persisted hotkey (over the client's KeyBinding registry) that fires when no widget consumed the keypress
--- first; here Ctrl+H toggles the custom window, plus an unbound "ping". Because this addon registers hotkeys,
--- a "Hello" section appears under Options > Keybindings (WoW-style) where each is remappable + persisted.
+-- Example addon (Phase 3a): WIDGET-CREATION INTERCEPTION — hafen.ui.onWidgetCreate(fn) observes the server's
+-- OWN UI as the client builds it (fn(desc) runs per server widget; desc = {id,type,place,caption,parentType}),
+-- the foundation for replacing native windows (bag/inventory reskins). It also demonstrates GLOBAL HOTKEYS —
+-- hafen.key.bind(name, defaultKey, fn) binds a remappable, persisted hotkey (over the client's KeyBinding
+-- registry) that fires when no widget consumed the keypress first; here Ctrl+H toggles the custom window, plus
+-- an unbound "ping". Because this addon registers hotkeys, a "Hello" section appears under Options > Keybindings.
 -- On top of the THREE hook levels — 2c hafen.hook.input (L1:
 -- intercept a widget's raw input BEFORE its own handler), 2d hafen.hook.action (L2: intercept the OUTBOUND
 -- action a widget sends to the server, arguments already RESOLVED — e.g. a move's destination world coord),
@@ -15,7 +17,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.19.0)")
+hafen.log("hello loaded (v0.20.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -337,6 +339,30 @@ hafen.events.on("EquipChanged", function(eq)
   end
 end)
 
+-- 3a: WIDGET-CREATION INTERCEPTION (hafen.ui.onWidgetCreate). Observe the server's OWN UI as the client builds
+-- it — the foundation for replacing native windows (a bag/inventory reskin, etc.). fn(desc) runs for every
+-- SERVER widget as it is placed into the tree, with desc = {id, type, place, caption, parentType} (the targeting
+-- descriptor): the inventory is {type="inv", place="inv", parentType="GameUI"}; a cupboard is {type="wnd",
+-- place="misc", caption="Cupboard", parentType="GameUI"}. A HUD-placed window reports parentType="GameUI"; item
+-- widgets streaming into an inventory report their container instead — so we log only HUD-level widgets + any
+-- titled window/container (the interesting replace targets), skipping the item churn. This slice is OBSERVE-ONLY
+-- (adopting a widget as a hidden MODEL and drawing a custom VIEW over it comes in a later slice); the return is
+-- ignored. Registered in the FILE BODY (no live target needed) so it also catches the burst of windows created
+-- at login. Bridge-owned: :reload/disable removes it (the handle also exposes :remove()). VERIFY in-game: open a
+-- cupboard/chest or a crafting window and a "3a:" line carrying its caption should appear.
+local widgetsSeen = 0
+hafen.ui.onWidgetCreate(function(desc)
+  local hud = desc.parentType == "GameUI"            -- HUD-placed windows (inv/equ/chr/craft/containers/…)
+  if not (hud or desc.caption) then return end        -- skip item/nested widgets (no caption, non-GameUI parent)
+  widgetsSeen = widgetsSeen + 1
+  if widgetsSeen <= 20 or desc.caption then           -- cap the login burst; always log a titled window/container
+    hafen.log(("3a: widget created id=%s type=%s place=%s parent=%s caption=%s")
+      :format(tostring(desc.id), tostring(desc.type), tostring(desc.place),
+              tostring(desc.parentType), tostring(desc.caption)))
+  end
+end)
+hafen.log("3a: onWidgetCreate observer installed -- open a cupboard/chest or a crafting window to see it log")
+
 -- 2a: CUSTOM UI (hafen.ui). Create a small DRAGGABLE window that draws live state through the GOut
 -- wrapper `g` and counts clicks — the Phase 2 "draggable custom window" DoD. The window is bridge-owned
 -- (P2): :reload or disabling the addon DESTROYS it automatically (no leak) — no OnDisable cleanup needed.
@@ -418,7 +444,7 @@ end)
 hafen.events.on("OnEnterWorld", function()
   if panel then return end                                        -- defensive: create the window once
   panel = hafen.ui.window{
-    title   = "Hello 2e-2",
+    title   = "Hello 3a",
     size    = { 190, 136 },
     pos     = { 80, 120 },
     onDraw  = drawPanel,
