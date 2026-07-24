@@ -2,27 +2,34 @@ package io.brodgar.addon;
 
 import haven.Astronomy;
 import haven.Audio;
+import haven.CharWnd;
 import haven.Console;
 import haven.Coord;
 import haven.Coord2d;
 import haven.Coord3f;
 import haven.Drawable;
+import haven.Equipory;
 import haven.GameUI;
+import haven.GItem;
 import haven.Glob;
 import haven.Gob;
 import haven.GobHealth;
 import haven.GobIcon;
 import haven.Indir;
+import haven.Inventory;
+import haven.ItemInfo;
 import haven.Loading;
 import haven.MapView;
 import haven.MCache;
 import haven.Moving;
 import haven.Music;
 import haven.OCache;
+import haven.Party;
 import haven.Resource;
 import haven.Speaking;
 import haven.UI;
 import haven.Utils;
+import haven.WItem;
 import haven.Widget;
 
 import org.luaj.vm2.Globals;
@@ -725,6 +732,135 @@ public final class AddonManager {
         });
         hafen.set("music", music);
 
+        // hafen.items.* — inventory / equipment / cursor items as snapshots (the "Item" shape in
+        // api-reference.md). Items have no stable addon-visible id yet, so bulk reads return
+        // point-in-time snapshots carrying name/res/num/wear/pos; per-item live accessors wait for
+        // item handles (the UI phase). Reads walk the WItem children of the inventory/equipory widgets
+        // (both public) → zero core edit; item names/resources are Loading-guarded → nil while resolving.
+        LuaTable items = new LuaTable();
+        items.set("inventory", new ZeroArgFunction() {
+            public LuaValue call() {
+                LuaTable out = new LuaTable();
+                Inventory inv = maininv();
+                if(inv == null)
+                    return out;
+                int i = 0;
+                for(WItem w : inv.children(WItem.class))
+                    out.set(++i, itemSnapshot(w.item, cellPos(w)));
+                return out;
+            }
+        });
+        items.set("equipment", new ZeroArgFunction() {
+            public LuaValue call() {
+                LuaTable out = new LuaTable();
+                Equipory eq = equipory();
+                if(eq == null)
+                    return out;
+                int i = 0;
+                for(WItem w : eq.children(WItem.class)) {
+                    int ep = slotOf(eq, w);
+                    LuaValue snap = itemSnapshot(w.item, slotName(ep));
+                    if((ep >= 0) && snap.istable())
+                        ((LuaTable)snap).set("slot", LuaValue.valueOf(ep));
+                    out.set(++i, snap);
+                }
+                return out;
+            }
+        });
+        items.set("hand", new ZeroArgFunction() {
+            public LuaValue call() {
+                GameUI g = gui();
+                if((g == null) || (g.vhand == null))
+                    return LuaValue.NIL;
+                return itemSnapshot(g.vhand.item, LuaValue.NIL);
+            }
+        });
+        items.set("find", new OneArgFunction() {
+            public LuaValue call(LuaValue q) {
+                LuaTable out = new LuaTable();
+                Inventory inv = maininv();
+                if((inv == null) || !q.isstring())
+                    return out;
+                String needle = q.tojstring();
+                int i = 0;
+                for(WItem w : inv.children(WItem.class)) {
+                    LuaValue snap = itemSnapshot(w.item, cellPos(w));
+                    LuaValue nm = snap.get("name"), rs = snap.get("res");
+                    if((nm.isstring() && nm.tojstring().contains(needle)) ||
+                       (rs.isstring() && rs.tojstring().contains(needle)))
+                        out.set(++i, snap);
+                }
+                return out;
+            }
+        });
+        hafen.set("items", items);
+
+        // hafen.char.* — character attributes (Glob.getcattr; a zero-info entry is reported as nil),
+        // plus learning points (CharWnd.exp) and encumbrance/weight (CharWnd.enc) — public live fields
+        // on the character window (created hidden at login). attrs() returns the nine base attributes
+        // that have data, keyed by name. ("char" is a Java keyword → the local is named "chr".)
+        LuaTable chr = new LuaTable();
+        chr.set("attr", new OneArgFunction() {
+            public LuaValue call(LuaValue name) {
+                return name.isstring() ? attrSnapshot(name.tojstring()) : LuaValue.NIL;
+            }
+        });
+        chr.set("attrs", new ZeroArgFunction() {
+            public LuaValue call() {
+                LuaTable out = new LuaTable();
+                for(String nm : ATTR_NAMES) {
+                    LuaValue a = attrSnapshot(nm);
+                    if(!a.isnil())
+                        out.set(nm, a);
+                }
+                return out;
+            }
+        });
+        chr.set("lp", new ZeroArgFunction() {
+            public LuaValue call() {
+                CharWnd c = charwnd();
+                return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.exp);
+            }
+        });
+        chr.set("weight", new ZeroArgFunction() {
+            public LuaValue call() {
+                CharWnd c = charwnd();
+                return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.enc);
+            }
+        });
+        hafen.set("char", chr);
+
+        // hafen.party.* — the party roster (Glob.party). Members are ordered by Member.seq (the ordinal
+        // behind the "partyN" GobRef). A PartyMember is DERIVED: id=gobid, x,y=getc() (live gob pos if in
+        // view, else last-known), color={r,g,b,a}, leader=(member==party.leader). There is NO name field
+        // for party members (a client/protocol limitation).
+        LuaTable party = new LuaTable();
+        party.set("members", new ZeroArgFunction() {
+            public LuaValue call() {
+                LuaTable out = new LuaTable();
+                int i = 0;
+                for(Party.Member m : partyMembers())
+                    out.set(++i, memberSnapshot(m));
+                return out;
+            }
+        });
+        party.set("leader", new ZeroArgFunction() {
+            public LuaValue call() {
+                Party p = party();
+                return ((p == null) || (p.leader == null)) ? LuaValue.NIL : memberSnapshot(p.leader);
+            }
+        });
+        party.set("member", new OneArgFunction() {
+            public LuaValue call(LuaValue id) {
+                Party p = party();
+                if((p == null) || !id.isnumber())
+                    return LuaValue.NIL;
+                Party.Member m = p.memb.get(Long.valueOf((long)id.todouble()));
+                return (m == null) ? LuaValue.NIL : memberSnapshot(m);
+            }
+        });
+        hafen.set("party", party);
+
         hafen.set("log", new OneArgFunction() {
             public LuaValue call(LuaValue msg) {
                 log(owner, msg.isnil() ? "nil" : msg.tojstring());
@@ -962,8 +1098,9 @@ public final class AddonManager {
     }
 
     /**
-     * Resolve a GobRef to a live {@link Gob}: {@code nil}/"player"/"me" = the player, a number (or
-     * numeric string) = that gob id. Unknown string tokens ("target"/"partyN"/…) return {@code null}
+     * Resolve a GobRef to a live {@link Gob}: {@code nil}/"player"/"me" = the player, {@code "partyN"}
+     * = the Nth party member by {@link Party.Member#seq} (nil if out of view), a number (or numeric
+     * string) = that gob id. Other unknown string tokens ("target"/"mouseover"/…) return {@code null}
      * for now — they are wired up when their subsystems land. Never throws into Lua.
      */
     private static Gob resolve(LuaValue ref) {
@@ -978,6 +1115,10 @@ public final class AddonManager {
             String s = ref.tojstring();
             if(s.equals("player") || s.equals("me"))
                 return m.player();
+            if(s.startsWith("party")) {         // "partyN" → member N by seq (empty/non-numeric → NFE → nil)
+                Party.Member pm = partyMemberByOrdinal(Integer.parseInt(s.substring(5)));
+                return (pm == null) ? null : getgob(pm.gobid);
+            }
             return getgob(Long.parseLong(s));   // numeric string; unknown token → NumberFormatException
         } catch(RuntimeException e) {
             return null;
@@ -1139,6 +1280,185 @@ public final class AddonManager {
         } catch(RuntimeException e) {
             /* partial snapshot is fine (e.g. world data still resolving) */
         }
+        return t;
+    }
+
+    // ------------------------------------------------------------- items / char / party reads
+
+    /** The nine base character attributes (content-defined; not discoverable from {@link Glob}). */
+    private static final String[] ATTR_NAMES =
+        {"str", "agi", "int", "con", "prc", "csm", "dex", "wil", "psy"};
+
+    /** The player's main inventory widget, or {@code null} before the HUD/inventory exists. */
+    private static Inventory maininv() {
+        GameUI g = gui();
+        return (g == null) ? null : g.maininv;
+    }
+
+    /**
+     * The player's equipment widget: the {@link Equipory} under the HUD. {@code GameUI.equwnd} is a
+     * private {@code Window}, so we descend to the Equipory itself — typically the only one open (a
+     * second appears only while inspecting another gob's equipment). {@code null} before it exists.
+     */
+    private static Equipory equipory() {
+        GameUI g = gui();
+        if(g != null) {
+            for(Equipory e : g.children(Equipory.class))
+                return e;
+        }
+        return null;
+    }
+
+    /** The character window (created hidden at login, but live), or {@code null} before it exists. */
+    private static CharWnd charwnd() {
+        GameUI g = gui();
+        return (g == null) ? null : g.chrwdg;
+    }
+
+    /** The inventory grid cell {@code {x,y}} of an inventory {@link WItem} (reverses the placement). */
+    private static LuaValue cellPos(WItem w) {
+        Coord cell = w.c.sub(1, 1).div(Inventory.sqsz);
+        return xy(cell.x, cell.y);
+    }
+
+    /** The equipment slot index of a {@link WItem} under an {@link Equipory}, or {@code -1}. */
+    private static int slotOf(Equipory eq, WItem w) {
+        try {
+            return eq.epat(w.c);
+        } catch(RuntimeException e) {
+            return -1;
+        }
+    }
+
+    /** The human-readable equipment slot name for an ep index, or nil. */
+    private static LuaValue slotName(int ep) {
+        if((ep >= 0) && (ep < Equipory.etts.length) && (Equipory.etts[ep] != null))
+            return LuaValue.valueOf(Equipory.etts[ep].text);
+        return LuaValue.NIL;
+    }
+
+    /** {@code ItemInfo.Name} display text for an item, or {@code null} (Loading-guarded). */
+    private static String itemName(GItem it) {
+        try {
+            ItemInfo.Name n = ItemInfo.find(ItemInfo.Name.class, it.info());
+            return ((n == null) || (n.str == null)) ? null : n.str.text;
+        } catch(RuntimeException e) {   // Loading etc.
+            return null;
+        }
+    }
+
+    /** Resource name (stable identity) for an item, or {@code null} (Loading-guarded). */
+    private static String itemRes(GItem it) {
+        try {
+            Resource r = it.res.get();
+            return (r == null) ? null : r.name;
+        } catch(RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * An Item snapshot (the {@code Item} shape in api-reference.md) from a {@link GItem}. {@code pos}
+     * is supplied by the caller (grid cell for inventory, slot name for equipment; nil for the hand).
+     * Every field is optional / Loading-guarded: {@code num == -1} and {@code meter == 0} are treated
+     * as "absent" (matching the client's own convention). {@code quality}/{@code contents} are deferred
+     * (content-defined value / container widgets).
+     */
+    private static LuaValue itemSnapshot(GItem it, LuaValue pos) {
+        if(it == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        String res = itemRes(it);
+        if(res != null)
+            t.set("res", LuaValue.valueOf(res));
+        String name = itemName(it);
+        if(name != null)
+            t.set("name", LuaValue.valueOf(name));
+        if(it.num != -1)
+            t.set("num", LuaValue.valueOf(it.num));
+        if(it.meter > 0)
+            t.set("wear", LuaValue.valueOf(it.meter));   // 0..100 %, only meaningful when > 0
+        if((pos != null) && !pos.isnil())
+            t.set("pos", pos);
+        return t;
+    }
+
+    /**
+     * A character attribute {@code {base, comp}} for a name, or nil. {@link Glob#getcattr} never
+     * returns {@code null} (it auto-creates a zero entry for unknown names), so a {@code base==0 &&
+     * comp==0} entry is reported as nil ("not populated by the server yet").
+     */
+    private static LuaValue attrSnapshot(String name) {
+        Glob g = glob();
+        if(g == null)
+            return LuaValue.NIL;
+        Glob.CAttr a = g.getcattr(name);
+        if((a == null) || ((a.base == 0) && (a.comp == 0)))
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        t.set("base", LuaValue.valueOf(a.base));
+        t.set("comp", LuaValue.valueOf(a.comp));
+        return t;
+    }
+
+    /** The live {@link Party}, or {@code null} before a session is up. */
+    private static Party party() {
+        Glob g = glob();
+        return (g == null) ? null : g.party;
+    }
+
+    /**
+     * Party members ordered by {@link Party.Member#seq} (the ordinal behind the {@code "partyN"}
+     * GobRef). {@code party.memb} is replaced wholesale off-thread, so a {@code values()} copy is
+     * snapshot-safe (defensive catch for the rare in-flight swap).
+     */
+    private static List<Party.Member> partyMembers() {
+        List<Party.Member> out = new ArrayList<Party.Member>();
+        Party p = party();
+        if(p == null)
+            return out;
+        try {
+            out.addAll(p.memb.values());
+        } catch(RuntimeException e) {
+            return out;
+        }
+        out.sort((a, b) -> Integer.compare(a.seq, b.seq));
+        return out;
+    }
+
+    /** The Nth party member (1-based, by seq order) for the {@code "partyN"} GobRef, or {@code null}. */
+    private static Party.Member partyMemberByOrdinal(int n) {
+        if(n < 1)
+            return null;
+        List<Party.Member> ms = partyMembers();
+        return (n <= ms.size()) ? ms.get(n - 1) : null;
+    }
+
+    /** A PartyMember snapshot: id / x,y / color / leader (there is no name for party members). */
+    private static LuaValue memberSnapshot(Party.Member m) {
+        if(m == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        t.set("id", LuaValue.valueOf((double)m.gobid));
+        Coord2d c = m.getc();               // live gob pos if in view, else last-known; may be null
+        if(c != null) {
+            t.set("x", LuaValue.valueOf(c.x));
+            t.set("y", LuaValue.valueOf(c.y));
+        }
+        if(m.col != null)
+            t.set("color", color(m.col));
+        Party p = party();
+        t.set("leader", LuaValue.valueOf((p != null) && (p.leader == m)));
+        return t;
+    }
+
+    /** A {@code {r,g,b,a}} table (0..255) for an AWT color. */
+    private static LuaValue color(java.awt.Color c) {
+        LuaTable t = new LuaTable();
+        t.set("r", LuaValue.valueOf(c.getRed()));
+        t.set("g", LuaValue.valueOf(c.getGreen()));
+        t.set("b", LuaValue.valueOf(c.getBlue()));
+        t.set("a", LuaValue.valueOf(c.getAlpha()));
         return t;
     }
 

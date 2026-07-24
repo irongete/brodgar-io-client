@@ -1,9 +1,9 @@
 {
   "name": "Hello",
   "id": "hello",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": "brodgar",
-  "description": "Example addon — demonstrates the event bus, timers, and the Glob-backed read API (hafen.gob.*, hafen.world.*, hafen.map.*, hafen.player.*, hafen.time.*, hafen.sound.*).",
+  "description": "Example addon — demonstrates the event bus, timers, and the Glob-backed read API (hafen.gob.*, hafen.world.*, hafen.map.*, hafen.player.*, hafen.time.*, hafen.sound.*, hafen.items.*, hafen.char.*, hafen.party.*).",
   "api_version": 1,
   "files": ["main.lua"]
 }

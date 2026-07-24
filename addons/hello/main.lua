@@ -1,9 +1,9 @@
--- Example addon (Phase 1c-2): extends the Glob-backed read API with hafen.map / hafen.player /
--- hafen.time / hafen.sound on top of the 1c-1 gob+world reads, the 1b event bus, and timers.
--- `hafen` is the API facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at
--- load; then OnLoad fires, then (on entering the world) OnEnterWorld.
+-- Example addon (Phase 1c-3): extends the Glob-backed read API with hafen.items / hafen.char /
+-- hafen.party on top of the 1c-1 gob+world reads, the 1c-2 map/player/time/sound reads, the 1b event
+-- bus, and timers. `hafen` is the API facade; `ADDON` describes this addon ({ id, dir }). The file
+-- body runs once at load; then OnLoad fires, then (on entering the world) OnEnterWorld.
 
-hafen.log("hello loaded (v0.4.0)")
+hafen.log("hello loaded (v0.5.0)")
 
 hafen.events.on("OnLoad", function()
   hafen.log("OnLoad fired")
@@ -25,6 +25,32 @@ local function readPlace(tag)
   hafen.log(("[%s] gridPos=%s worldToScreen=%s"):format(tag,
     gp and (gp.gridId .. " @" .. ("%.0f,%.0f"):format(gp.x, gp.y)) or "nil",
     s and ("%.0f,%.0f"):format(s.x, s.y) or "nil"))
+end
+
+-- 1c-3: read the inventory / equipment / cursor through hafen.items. Item NAMES come from resolved
+-- item info, which (like the inventory widget itself) can stream in a beat after enter-world, so this
+-- is read twice — immediately and after a short delay — the same pattern as the map reads above.
+local function readInv(tag)
+  local inv = hafen.items.inventory()   -- array of Item snapshots {name,res,num,wear,pos}
+  local eq = hafen.items.equipment()    -- array of Item snapshots {..., slot}
+  local hand = hafen.items.hand()       -- Item snapshot or nil (cursor item)
+  local first = inv[1]
+  hafen.log(("[%s] inventory=%d item(s), first=%s x%s")
+    :format(tag, #inv, first and tostring(first.name or first.res) or "nil",
+            first and tostring(first.num or 1) or "-"))
+  hafen.log(("[%s] equipment=%d slot(s), hand=%s")
+    :format(tag, #eq, hand and tostring(hand.name or hand.res) or "empty"))
+end
+
+-- 1c-3: character attributes + learning points + weight, and the party size. Like items and map, the
+-- char data (Glob cattrs, CharWnd.exp/enc) STREAMS IN a beat after enter-world, so this too is read at
+-- OnEnterWorld (often still nil) and again after the delay (resolved).
+local function readChar(tag)
+  local str = hafen.char.attr("str")   -- {base, comp} or nil
+  hafen.log(("[%s] char: str=%s lp=%s weight=%s"):format(tag,
+    str and (str.base .. "/" .. str.comp) or "nil",
+    tostring(hafen.char.lp()), tostring(hafen.char.weight())))
+  hafen.log(("[%s] party: %d member(s)"):format(tag, #hafen.party.members()))
 end
 
 hafen.events.on("OnEnterWorld", function()
@@ -55,9 +81,11 @@ hafen.events.on("OnEnterWorld", function()
             tostring(hafen.time.isNight()), tostring(hafen.time.season()),
             tostring(hafen.time.moon())))
 
-  -- 1c-2: map + projection reads — now (often still loading) and again after 3s (resolved).
-  readPlace("now")
-  hafen.timer.after(3, function() readPlace("+3s") end)
+  -- 1c-2/1c-3: map, projection, item and char/party reads — now (often still loading/streaming) and
+  -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
+  -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
+  readPlace("now"); readInv("now"); readChar("now")
+  hafen.timer.after(3, function() readPlace("+3s"); readInv("+3s"); readChar("+3s") end)
 
   -- 1c-2: an audible confirmation ping (a client-bundled sound), proving hafen.sound.play works.
   hafen.sound.play("sfx/msg")
