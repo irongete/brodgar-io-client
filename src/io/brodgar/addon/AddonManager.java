@@ -1,18 +1,29 @@
 package io.brodgar.addon;
 
+import haven.Astronomy;
+import haven.Audio;
 import haven.Console;
+import haven.Coord;
 import haven.Coord2d;
+import haven.Coord3f;
 import haven.Drawable;
+import haven.GameUI;
+import haven.Glob;
 import haven.Gob;
 import haven.GobHealth;
 import haven.GobIcon;
+import haven.Indir;
+import haven.Loading;
 import haven.MapView;
+import haven.MCache;
 import haven.Moving;
+import haven.Music;
 import haven.OCache;
 import haven.Resource;
 import haven.Speaking;
 import haven.UI;
 import haven.Utils;
+import haven.Widget;
 
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
@@ -230,8 +241,11 @@ public final class AddonManager {
             while((ge = gobEvents.poll()) != null)
                 fire(ge.added ? "GobAdded" : "GobRemoved", gobSnapshot(ge.gob));
 
-            // 2. "Entered the world" (MapView attached on a loader thread).
-            if(enterWorldPending) {
+            // 2. "Entered the world" — defer until the HUD (GameUI) is actually up, so GameUI-backed
+            //    reads (player.name, and later items/char/party) work INSIDE the handler. The map view
+            //    attaches from its ctor (on a loader thread) a few frames before the HUD finishes
+            //    assembling; enterWorldPending is reset per session in init(), so it can't get stuck.
+            if(enterWorldPending && (gui() != null)) {
                 enterWorldPending = false;
                 fire("OnEnterWorld");
             }
@@ -500,6 +514,217 @@ public final class AddonManager {
         });
         hafen.set("world", world);
 
+        // hafen.map.* — terrain reads. Positional args are WORLD coords (matching hafen.gob.pos);
+        // convert with worldToTile/tileToWorld/tileToGrid. Grid-backed reads swallow Loading (the map
+        // for that spot isn't here yet) → nil. Grid ids are 64-bit → exposed as decimal STRINGS so the
+        // persistent/shareable anchor round-trips exactly (Lua numbers are doubles; see gridPos).
+        LuaTable map = new LuaTable();
+        map.set("tile", new TwoArgFunction() {
+            public LuaValue call(LuaValue x, LuaValue y) {
+                MCache mc = mcache();
+                if((mc == null) || !x.isnumber() || !y.isnumber())
+                    return LuaValue.NIL;
+                try {
+                    Coord tc = Coord2d.of(x.todouble(), y.todouble()).floor(MCache.tilesz);
+                    int id = mc.gettile(tc);
+                    LuaTable t = new LuaTable();
+                    t.set("id", LuaValue.valueOf(id));
+                    Resource r = mc.tilesetr(id);
+                    if(r != null)
+                        t.set("name", LuaValue.valueOf(r.name));
+                    return t;
+                } catch(RuntimeException e) {   // Loading etc.
+                    return LuaValue.NIL;
+                }
+            }
+        });
+        map.set("height", new TwoArgFunction() {
+            public LuaValue call(LuaValue x, LuaValue y) {
+                MCache mc = mcache();
+                if((mc == null) || !x.isnumber() || !y.isnumber())
+                    return LuaValue.NIL;
+                try {
+                    return LuaValue.valueOf(mc.getcz(x.todouble(), y.todouble()));
+                } catch(RuntimeException e) {
+                    return LuaValue.NIL;
+                }
+            }
+        });
+        map.set("grid", new TwoArgFunction() {
+            public LuaValue call(LuaValue x, LuaValue y) {
+                MCache mc = mcache();
+                if((mc == null) || !x.isnumber() || !y.isnumber())
+                    return LuaValue.NIL;
+                try {
+                    Coord tc = Coord2d.of(x.todouble(), y.todouble()).floor(MCache.tilesz);
+                    MCache.Grid g = mc.getgrid(tc.div(MCache.cmaps));
+                    LuaTable t = new LuaTable();
+                    t.set("id", LuaValue.valueOf(Long.toString(g.id)));   // 64-bit → string (exact anchor)
+                    t.set("gc", xy(g.gc.x, g.gc.y));
+                    return t;
+                } catch(RuntimeException e) {
+                    return LuaValue.NIL;
+                }
+            }
+        });
+        // gridPos([x,y]) — the shareable/persistent position: stable grid id + within-grid WORLD offset
+        // (0..1100). No args = the player. Use this, not raw rc, across sessions/players.
+        map.set("gridPos", new TwoArgFunction() {
+            public LuaValue call(LuaValue x, LuaValue y) {
+                MCache mc = mcache();
+                if(mc == null)
+                    return LuaValue.NIL;
+                Coord2d wc = (x.isnumber() && y.isnumber())
+                    ? Coord2d.of(x.todouble(), y.todouble())
+                    : pos(LuaValue.NIL);   // player
+                if(wc == null)
+                    return LuaValue.NIL;
+                try {
+                    MCache.Grid g = mc.getgrid(wc.floor(MCache.tilesz).div(MCache.cmaps));
+                    LuaTable t = new LuaTable();
+                    t.set("gridId", LuaValue.valueOf(Long.toString(g.id)));
+                    t.set("x", LuaValue.valueOf(wc.x - (g.ul.x * MCache.tilesz.x)));
+                    t.set("y", LuaValue.valueOf(wc.y - (g.ul.y * MCache.tilesz.y)));
+                    return t;
+                } catch(RuntimeException e) {
+                    return LuaValue.NIL;
+                }
+            }
+        });
+        // Pure coordinate conversions (no map data needed). worldToTile floors; tileToWorld returns the
+        // tile's upper-left world corner; tileToGrid floor-divides into grid coords.
+        map.set("worldToTile", new TwoArgFunction() {
+            public LuaValue call(LuaValue x, LuaValue y) {
+                if(!x.isnumber() || !y.isnumber())
+                    return LuaValue.NIL;
+                Coord tc = Coord2d.of(x.todouble(), y.todouble()).floor(MCache.tilesz);
+                return xy(tc.x, tc.y);
+            }
+        });
+        map.set("tileToWorld", new TwoArgFunction() {
+            public LuaValue call(LuaValue tx, LuaValue ty) {
+                if(!tx.isnumber() || !ty.isnumber())
+                    return LuaValue.NIL;
+                return xy(tx.todouble() * MCache.tilesz.x, ty.todouble() * MCache.tilesz.y);
+            }
+        });
+        map.set("tileToGrid", new TwoArgFunction() {
+            public LuaValue call(LuaValue tx, LuaValue ty) {
+                if(!tx.isnumber() || !ty.isnumber())
+                    return LuaValue.NIL;
+                Coord gc = Coord.of((int)tx.todouble(), (int)ty.todouble()).div(MCache.cmaps);
+                return xy(gc.x, gc.y);
+            }
+        });
+        hafen.set("map", map);
+
+        // hafen.player.* — only data with NO per-gob equivalent (position/health/moving/… of the player
+        // come from hafen.gob.*("player")). name() is the LOCAL character name (GameUI.chrid); other
+        // players' display names are not reliably available. worldToScreen is MAP-VIEW-relative pixels.
+        LuaTable player = new LuaTable();
+        player.set("exists", new ZeroArgFunction() {
+            public LuaValue call() {
+                MapView m = view;
+                return LuaValue.valueOf((m != null) && (m.plgob >= 0));
+            }
+        });
+        player.set("id", new ZeroArgFunction() {
+            public LuaValue call() {
+                MapView m = view;
+                return ((m == null) || (m.plgob < 0)) ? LuaValue.NIL : LuaValue.valueOf((double)m.plgob);
+            }
+        });
+        player.set("name", new ZeroArgFunction() {
+            public LuaValue call() {
+                GameUI g = gui();
+                return ((g == null) || (g.chrid == null)) ? LuaValue.NIL : LuaValue.valueOf(g.chrid);
+            }
+        });
+        player.set("worldToScreen", new TwoArgFunction() {
+            public LuaValue call(LuaValue x, LuaValue y) {
+                MapView m = view;
+                if((m == null) || !x.isnumber() || !y.isnumber())
+                    return LuaValue.NIL;
+                try {
+                    Coord3f sc = m.screenxf(Coord2d.of(x.todouble(), y.todouble()));
+                    return (sc == null) ? LuaValue.NIL : xy(sc.x, sc.y);
+                } catch(RuntimeException e) {
+                    return LuaValue.NIL;
+                }
+            }
+        });
+        hafen.set("player", player);
+
+        // hafen.time.* — game clock + astronomy. clock() is always available; the astronomy readers are
+        // nil until the first "astro" update lands (Glob.ast is nil before then).
+        LuaTable time = new LuaTable();
+        time.set("clock", new ZeroArgFunction() {
+            public LuaValue call() {
+                Glob g = glob();
+                return (g == null) ? LuaValue.NIL : LuaValue.valueOf(g.globtime());
+            }
+        });
+        time.set("dayFraction", new ZeroArgFunction() {
+            public LuaValue call() {
+                Astronomy a = astro();
+                return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.dt);
+            }
+        });
+        time.set("isNight", new ZeroArgFunction() {
+            public LuaValue call() {
+                Astronomy a = astro();
+                return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.night);
+            }
+        });
+        time.set("season", new ZeroArgFunction() {
+            public LuaValue call() {
+                Astronomy a = astro();
+                return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.is);
+            }
+        });
+        time.set("moon", new ZeroArgFunction() {
+            public LuaValue call() {
+                Astronomy a = astro();
+                return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.mp);
+            }
+        });
+        time.set("yearFraction", new ZeroArgFunction() {
+            public LuaValue call() {
+                Astronomy a = astro();
+                return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.yt);
+            }
+        });
+        hafen.set("time", time);
+
+        // hafen.sound.play(resname) — fire a client sound. The resource resolves OFF the UI thread
+        // (loader.defer, mirroring GobIcon.resnotif) so a not-yet-loaded resource never throws Loading
+        // into Lua. Client-bundled names resolve locally (e.g. "sfx/msg", "sfx/error").
+        LuaTable sound = new LuaTable();
+        sound.set("play", new OneArgFunction() {
+            public LuaValue call(LuaValue resname) {
+                if(resname.isstring())
+                    playSound(resname.tojstring());
+                return LuaValue.NIL;
+            }
+        });
+        hafen.set("sound", sound);
+
+        // hafen.music.play(resname, loop) — background music (a content resource; interrupts current
+        // music). A nil/empty resname STOPS playback. Music.play takes a lazy Indir and resolves on its
+        // own player thread, so no defer is needed here.
+        LuaTable music = new LuaTable();
+        music.set("play", new TwoArgFunction() {
+            public LuaValue call(LuaValue resname, LuaValue loop) {
+                if(!resname.isstring() || resname.tojstring().isEmpty()) {
+                    Music.play(null, false);            // stop
+                } else {
+                    Music.play(Resource.remote().load(resname.tojstring()), loop.optboolean(false));
+                }
+                return LuaValue.NIL;
+            }
+        });
+        hafen.set("music", music);
+
         hafen.set("log", new OneArgFunction() {
             public LuaValue call(LuaValue msg) {
                 log(owner, msg.isnil() ? "nil" : msg.tojstring());
@@ -636,12 +861,94 @@ public final class AddonManager {
     /** The player body resource — identity test for the {@code isplayer} snapshot field. */
     private static final String PLAYER_RES = "gfx/borka/body";
 
-    /** The live object cache, or {@code null} before a session/world is up. */
-    private static OCache oc() {
+    /** The live session root ({@link Glob}), or {@code null} before a session/world is up. */
+    private static Glob glob() {
         MapView m = view;
         if((m == null) || (m.ui == null) || (m.ui.sess == null))
             return null;
-        return m.ui.sess.glob.oc;
+        return m.ui.sess.glob;
+    }
+
+    /** The live object cache, or {@code null} before a session/world is up. */
+    private static OCache oc() {
+        Glob g = glob();
+        return (g == null) ? null : g.oc;
+    }
+
+    /** The live map cache, or {@code null} before a session/world is up. */
+    private static MCache mcache() {
+        Glob g = glob();
+        return (g == null) ? null : g.map;
+    }
+
+    /** The current astronomy snapshot, or {@code null} before the first "astro" update. */
+    private static Astronomy astro() {
+        Glob g = glob();
+        return (g == null) ? null : g.ast;
+    }
+
+    /**
+     * The in-game HUD ({@link GameUI}). Fast path: walk up from the map view. Fallback: scan down from
+     * {@code ui.root} — right at {@code OnEnterWorld} the map view exists (it fired the event) but may
+     * not be parented to {@code GameUI} yet, whereas {@code GameUI} is already a child of the root
+     * (its widget message arrives before the map view's). {@code null} before the HUD is up.
+     */
+    private static GameUI gui() {
+        MapView m = view;
+        if(m != null) {
+            GameUI g = m.getparent(GameUI.class);
+            if(g != null)
+                return g;
+        }
+        UI u = ui;
+        return (u == null) ? null : findGui(u.root);
+    }
+
+    /** Depth-first search of the widget tree for the (unique) {@link GameUI}. */
+    private static GameUI findGui(Widget w) {
+        for(Widget c = (w == null) ? null : w.child; c != null; c = c.next) {
+            if(c instanceof GameUI)
+                return (GameUI)c;
+            GameUI g = findGui(c);
+            if(g != null)
+                return g;
+        }
+        return null;
+    }
+
+    /** A Lua {@code {x=..,y=..}} table (the shape returned by the coordinate/position readers). */
+    private static LuaValue xy(double x, double y) {
+        LuaTable t = new LuaTable();
+        t.set("x", LuaValue.valueOf(x));
+        t.set("y", LuaValue.valueOf(y));
+        return t;
+    }
+
+    /**
+     * Play a client sound by resource name without blocking the UI thread: resolve the resource on a
+     * loader thread ({@code Loading} re-runs the task), then hand the clip to {@link UI#sfx}. Mirrors
+     * {@code GobIcon.resnotif}. Non-{@code Loading} resolve failures are reported and swallowed.
+     */
+    private static void playSound(final String name) {
+        final Glob g = glob();
+        final UI u = ui;
+        if((g == null) || (u == null))
+            return;
+        final Indir<Resource> resid = Resource.local().load(name);
+        g.loader.defer(new Runnable() {
+            public void run() {
+                Resource res;
+                try {
+                    res = resid.get();               // Loading → the loader re-runs this task
+                } catch(Loading l) {
+                    throw(l);
+                } catch(RuntimeException e) {
+                    u.error("addon: could not play " + name);
+                    return;
+                }
+                u.sfx(Audio.fromres(res));
+            }
+        }, null);
     }
 
     private static Gob getgob(long id) {

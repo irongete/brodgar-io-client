@@ -38,7 +38,7 @@ Handlers **always run on the UI thread**. Events available in this phase:
 | Event | Payload | When |
 |---|---|---|
 | `OnLoad` | — | right after this addon's files finish running |
-| `OnEnterWorld` | — | when the map view comes up (you're in the world) |
+| `OnEnterWorld` | — | when you're in the world **and the HUD (GameUI) is up** |
 | `OnUpdate` | `dt` (seconds) | every frame |
 | `OnDisable` | — | on teardown (reload / relog / disable) |
 | `GobAdded` | `{ id, x, y }` | a game object appeared near you |
@@ -50,8 +50,10 @@ The gob table is minimal for now (`id`, `x`, `y`); the full attribute set arrive
 
 ### Lifecycle ordering
 `OnLoad` fires **per addon** as it loads (like WoW's `ADDON_LOADED`). `OnEnterWorld` fires once the
-world is up (like `PLAYER_ENTERING_WORLD`) — this is where reading `hafen.gob.pos("player")` works,
-since at `OnLoad` the world doesn't exist yet.
+world is up **and the HUD (`GameUI`) has been assembled** (like `PLAYER_ENTERING_WORLD`) — this is
+where reading `hafen.gob.pos("player")` works, since at `OnLoad` the world doesn't exist yet. Waiting
+for the HUD (added in 1c-2) means `GameUI`-backed reads such as `hafen.player.name()` also work
+inside the handler; the map view can attach a few frames before the HUD finishes.
 
 ## Timers — `hafen.timer`
 
