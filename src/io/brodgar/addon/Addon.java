@@ -100,6 +100,17 @@ public final class Addon {
      * or drop a model mid-poll.
      */
     public final List<LuaModel> models = new CopyOnWriteArrayList<LuaModel>();
+    /**
+     * Live widget replacers owned by this addon ({@code hafen.ui.replace}, Phase 3c): each watches for a server
+     * widget matching a descriptor (by type/context/caption), then adopts it as a hidden {@link LuaModel} and
+     * hands the addon a custom view — "wrap, don't reimplement" (D-009). They live in a flat global dispatch list
+     * in {@link AddonManager} (consulted at widget placement, like {@link #widgetObservers}) and also scan the live
+     * tree once at registration to catch an already-open target (the {@code :reload} case). Teardown marks each dead
+     * and drops it from that list (principle P2); the adopted models are un-hidden by {@link AddonManager}'s model
+     * teardown and the views destroyed with the rest of {@link #widgets}. Copy-on-write: a firing replacer may
+     * {@code :remove()} itself mid-dispatch.
+     */
+    public final List<LuaReplacer> replacers = new CopyOnWriteArrayList<LuaReplacer>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per

@@ -53,7 +53,26 @@ public final class LuaModel {
     final int id;          // the server widget id (the desc.id the observer handed out)
     final Widget wdg;      // the adopted, server-bound widget
     boolean alive = true;  // false once the server destroys it or the addon is torn down
-    boolean hidden;        // did WE hide it? (teardown un-hides only what we hid, restoring the native UI)
+    boolean hidden;        // did WE hide {@link #hideTarget}? (teardown restores only what we hid)
+
+    /**
+     * The widget that {@code :hide()}/{@code :show()} and teardown actually toggle. For {@code hafen.ui.adopt}
+     * (3b) it is {@link #wdg} itself (hide the grid). For {@code hafen.ui.replace} (3c) it is the <b>native
+     * window</b> wrapping the widget (the "Inventory" {@code Hidewnd} around {@code maininv}), so replacing hides
+     * the whole stock window, not just its content. {@link #hideTargetOrigVisible} is its visibility before we hid
+     * it, so teardown restores it exactly (a window hidden-by-default is put back to hidden, not shown).
+     */
+    Widget hideTarget;
+    boolean hideTargetOrigVisible;
+
+    /**
+     * {@code hafen.ui.replace} only: the addon's custom view handle (what the {@code fn(model)} builder returned),
+     * and the replacer that created this model. The view is auto-destroyed and the replacer notified when the model
+     * dies (server-destroy in {@link AddonManager#pollModels}, or {@code :remove()}). {@code null} for a plain
+     * {@code adopt} model.
+     */
+    LuaValue replaceView;
+    LuaReplacer fromReplace;
 
     LuaValue onItemAdded, onItemRemoved, onDestroy;   // lifecycle callbacks (null = unset)
 
@@ -64,5 +83,7 @@ public final class LuaModel {
         this.owner = owner;
         this.id = id;
         this.wdg = wdg;
+        this.hideTarget = wdg;                          // adopt: hide the widget itself; replace overrides this
+        this.hideTargetOrigVisible = wdg.visible();
     }
 }

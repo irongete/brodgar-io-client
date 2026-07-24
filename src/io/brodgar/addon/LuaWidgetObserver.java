@@ -2,7 +2,6 @@ package io.brodgar.addon;
 
 import haven.Widget;
 
-import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 /**
@@ -58,12 +57,6 @@ public final class LuaWidgetObserver {
      * idiomatic way ({@code if desc.caption then ... end}).
      */
     void invoke(int id, String type, String place, String caption, String parentType) {
-        LuaTable desc = new LuaTable();
-        desc.set("id", LuaValue.valueOf(id));
-        if(type != null)       desc.set("type", LuaValue.valueOf(type));
-        if(place != null)      desc.set("place", LuaValue.valueOf(place));
-        if(caption != null)    desc.set("caption", LuaValue.valueOf(caption));
-        if(parentType != null) desc.set("parentType", LuaValue.valueOf(parentType));
-        AddonManager.callLua(owner, fn, desc);
+        AddonManager.callLua(owner, fn, AddonManager.descTable(id, type, place, caption, parentType));
     }
 }
