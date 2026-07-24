@@ -111,6 +111,16 @@ public final class Addon {
      * {@code :remove()} itself mid-dispatch.
      */
     public final List<LuaReplacer> replacers = new CopyOnWriteArrayList<LuaReplacer>();
+    /**
+     * Live addon slash commands owned by this addon ({@code hafen.slash.register}, gap subsystem A11): each routes
+     * a console command {@code :name} to a Lua handler. Unlike the hook lists, the engine's {@link haven.Console}
+     * dispatcher for a name is <b>engine-lifetime</b> and is deliberately <b>not</b> removed on teardown (coverage-
+     * gaps C1: {@code Console.setscmd} has no unregister, so a single dispatcher per name routes to the current live
+     * handler and is never re-registered). Teardown only marks each dead and drops it from {@link AddonManager}'s
+     * {@code slashHandlers} registry (principle P2) — after which the dispatcher reports "no addon handles :name".
+     * Copy-on-write: a firing command may {@code :remove()} itself.
+     */
+    public final List<LuaSlashCommand> slashCommands = new CopyOnWriteArrayList<LuaSlashCommand>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per

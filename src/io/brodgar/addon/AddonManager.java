@@ -142,6 +142,21 @@ public final class AddonManager {
     private static final Map<String, List<LuaMessageHook>> messageHooks =
         new ConcurrentHashMap<String, List<LuaMessageHook>>();
 
+    // -- addon slash commands (gap subsystem A11 / api-reference "hafen.slash"): WoW-style :command ----------
+    // hafen.slash.register(name, fn) routes ":name args…" to a Lua handler. The one reload-leak the audit flagged
+    // (coverage-gaps C1): Console.setscmd has NO unregister, so re-registering a command per reload would leak /
+    // duplicate commands. The fix is a SINGLE ENGINE-LIFETIME DISPATCHER per name — the first time a name is
+    // registered we install one Console command that forever routes to slashHandlers.get(name), the CURRENT live
+    // handler, and never touch Console again for that name. Reload/disable only swaps (or drops) the entry in
+    // slashHandlers; a dropped name's dispatcher stays installed but replies "no addon handles :name". So the count
+    // of Console commands is bounded by the distinct names ever used, and each always routes to live state or none.
+    // slashHandlers = name -> current live handler; slashDispatched = names whose dispatcher is installed (grows
+    // only — engine-lifetime, deliberately NOT reset per session, UNLIKE the session-scoped hooks above).
+    // Registration may arrive on the UI thread (in-game ":") or the stdin reader thread, so both are concurrent
+    // and the install path synchronizes on slashDispatched.
+    private static final Map<String, LuaSlashCommand> slashHandlers = new ConcurrentHashMap<String, LuaSlashCommand>();
+    private static final Set<String> slashDispatched = ConcurrentHashMap.newKeySet();
+
     // -- global hotkeys (spec 07 "Input" / Phase 2e-2): hafen.key.bind over the KeyBinding registry --------
     // hafen.key.bind(name, defaultKey, fn) pairs a remappable+persisted client KeyBinding with a Lua handler.
     // Dispatch is the engine's built-in GlobKeyEvent seam (ZERO core edit, like 2c's Widget.listen): UI.keydown
@@ -432,6 +447,7 @@ public final class AddonManager {
         teardownKeyBinds(a);          // 2e-2: unregister global hotkeys from the GlobKeyEvent dispatch list
         teardownWidgetObservers(a);   // 3a: unregister widget-creation observers from the placement dispatch list
         teardownReplacers(a);         // 3c: stop the replacers matching (models un-hidden above, views destroyed above)
+        teardownSlashCommands(a);     // A11: drop the addon's live slash handlers (Console dispatchers stay — C1)
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
         a.subs.clear();
@@ -2405,6 +2421,21 @@ public final class AddonManager {
         });
         hafen.set("key", key);
 
+        // hafen.slash.register(name, fn) — a WoW-style ":name" console command routed to fn (gap subsystem A11).
+        // fn(args) runs when the user types ":name a b c" in the console, with args = a 1-based table of the
+        // whitespace-split arguments AFTER the name (Utils.splitwords, so "quoted words" group and \\ escapes),
+        // the command name excluded. Returns a handle { :remove() }. Needs no live target — the file body is a
+        // fine place to register. Reload-safe: a single engine-lifetime dispatcher routes to the current handler,
+        // so editing + :reload swaps the handler with no duplicate/leaked command (coverage-gaps C1). Reserved
+        // engine names (lua / addons / reload) and names a client command already owns are refused (a clear error).
+        LuaTable slash = new LuaTable();
+        slash.set("register", new TwoArgFunction() {
+            public LuaValue call(LuaValue name, LuaValue fn) {
+                return newSlashCommand(owner, name, fn);
+            }
+        });
+        hafen.set("slash", slash);
+
         hafen.set("log", new OneArgFunction() {
             public LuaValue call(LuaValue msg) {
                 log(owner, msg.isnil() ? "nil" : msg.tojstring());
@@ -2872,6 +2903,127 @@ public final class AddonManager {
             unregisterMessageHook(h);
         }
         a.messageHooks.clear();
+    }
+
+    // ------------------------------------------------------------------ slash commands (hafen.slash, A11)
+
+    /**
+     * Register an addon slash command ({@code hafen.slash.register(name, fn)}, gap subsystem A11): route the
+     * console command {@code :name} to {@code fn(args)}. Reload-safe by construction — see {@link #dispatchSlash}
+     * and the {@code slashHandlers}/{@code slashDispatched} field notes (coverage-gaps C1: {@code Console} has no
+     * unregister, so we install ONE engine-lifetime dispatcher per name and only ever swap the live handler).
+     * Refuses a reserved engine name (lua/addons/reload) and a name a client command already owns. Returns the Lua
+     * handle ({@code :remove()}). Needs no live target, so the file body / OnLoad is a fine place to call it.
+     */
+    private static LuaValue newSlashCommand(final Addon owner, LuaValue name, LuaValue fn) {
+        if(!name.isstring() || !fn.isfunction())
+            throw new LuaError("hafen.slash.register(name, fn) expects (string, function)");
+        final String cmd = name.tojstring();
+        if((cmd.length() == 0) || hasWhitespace(cmd))
+            throw new LuaError("hafen.slash.register: name must be a non-empty word with no spaces (got '" + cmd + "')");
+        if(isReservedSlash(cmd))
+            throw new LuaError("hafen.slash.register: ':" + cmd + "' is a reserved engine command");
+        final LuaSlashCommand h = new LuaSlashCommand(owner, cmd, fn);
+        synchronized(slashDispatched) {
+            if(!slashDispatched.contains(cmd)) {
+                // First time we see this name: refuse if a client command already owns it (our dispatcher would
+                // otherwise clobber a static command, or be silently shadowed by an instance/dir command), then
+                // install the ONE engine-lifetime dispatcher that forever routes to slashHandlers.get(cmd) (C1).
+                boolean exists = false;
+                try {
+                    UI u = ui;
+                    exists = (u != null) && (u.cons != null) && (u.cons.findcmd(cmd) != null);
+                } catch(RuntimeException e) {
+                    /* best-effort collision check — proceed if the console can't be queried right now */
+                }
+                if(exists)
+                    throw new LuaError("hafen.slash.register: ':" + cmd + "' is already a client command");
+                Console.setscmd(cmd, new Console.Command() {
+                    public void run(Console cons, String[] args) {
+                        dispatchSlash(cmd, args);
+                    }
+                });
+                slashDispatched.add(cmd);
+            } else {
+                // A dispatcher already exists for this name — a :reload re-register (same addon) or a takeover by a
+                // different addon. If a LIVE handler owned by a different addon holds it, note the reassignment
+                // (last registration wins, WoW-like); a same-owner re-register (the reload case) is silent.
+                LuaSlashCommand cur = slashHandlers.get(cmd);
+                if((cur != null) && cur.alive && (cur.owner != owner))
+                    log("slash ':" + cmd + "' reassigned from '" + idOf(cur.owner) + "' to '" + idOf(owner) + "'");
+            }
+            slashHandlers.put(cmd, h);   // last registration wins (the current live handler the dispatcher routes to)
+        }
+        owner.slashCommands.add(h);
+        LuaTable handle = new LuaTable();
+        handle.set("remove", new ZeroArgFunction() {
+            public LuaValue call() {
+                removeSlashCommand(owner, h);
+                return LuaValue.NIL;
+            }
+        });
+        return handle;
+    }
+
+    /**
+     * Run the current handler for console command {@code :name}. Installed ONCE per name (engine-lifetime) and
+     * routes to {@code slashHandlers.get(name)} — the live handler — so it survives {@code :reload} with no
+     * re-registration (C1). If no addon currently owns the name (torn down / disabled), it replies with a friendly
+     * notice rather than the raw "no such command" (the name is still known to the console — its dispatcher
+     * persists). Runs on the calling thread — the UI thread for the in-game ":" console (like tick/draw), or the
+     * stdin reader thread in a terminal build (the {@code :lua} REPL's threading profile); {@code invoke} routes
+     * through {@link #callLua} (watchdog-armed, error-isolated, CPU-accounted).
+     */
+    private static void dispatchSlash(String name, String[] words) {
+        LuaSlashCommand h = slashHandlers.get(name);
+        if((h == null) || !h.alive) {
+            log("no addon currently handles :" + name);
+            return;
+        }
+        h.invoke(words);
+    }
+
+    /**
+     * Remove one slash command: drop the live handler (so {@code :name} stops routing to it) and drop it from the
+     * owner (the handle's {@code :remove()}). The engine-lifetime {@code Console} dispatcher is deliberately KEPT
+     * (C1) — it will simply report "no addon handles :name" until the name is registered again.
+     */
+    private static void removeSlashCommand(Addon owner, LuaSlashCommand h) {
+        h.alive = false;
+        slashHandlers.remove(h.name, h);   // only if h is STILL the current handler (a later addon may own it now)
+        owner.slashCommands.remove(h);
+    }
+
+    /**
+     * Drop every slash command this addon owns (teardown on reload/disable, P2). The {@code Console} dispatchers
+     * stay installed (engine-lifetime, C1); we only clear the live handlers this addon still owns — an already
+     * reassigned name (a different addon took it over) is left alone via the identity-checked map remove.
+     */
+    private static void teardownSlashCommands(Addon a) {
+        for(LuaSlashCommand h : a.slashCommands) {
+            h.alive = false;
+            slashHandlers.remove(h.name, h);
+        }
+        a.slashCommands.clear();
+    }
+
+    /** Is {@code name} one of the addon engine's own console commands (which live in the same static map)? */
+    private static boolean isReservedSlash(String name) {
+        return name.equals("lua") || name.equals("addons") || name.equals("reload");
+    }
+
+    /** True if {@code s} contains any whitespace (a console command name is a single whitespace-split word). */
+    private static boolean hasWhitespace(String s) {
+        for(int i = 0; i < s.length(); i++) {
+            if(Character.isWhitespace(s.charAt(i)))
+                return true;
+        }
+        return false;
+    }
+
+    /** An addon's id for a log line (owner/manifest are non-null on the live paths; guarded for safety). */
+    private static String idOf(Addon a) {
+        return ((a != null) && (a.manifest != null)) ? a.manifest.id : "?";
     }
 
     // ------------------------------------------------------- widget-creation observers (hafen.ui, 3a)

@@ -37,7 +37,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.23.0)")
+hafen.log("hello loaded (v0.25.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -632,6 +632,41 @@ hafen.key.bind("marker", "Ctrl+Shift+M", function()
     hafen.log("A1: Ctrl+Shift+M -> could not add marker (map/session location not up yet)")
   end
 end)
+
+-- A11: SLASH COMMANDS (hafen.slash). Register a WoW-style ":command" routed to a Lua handler. fn(args) runs when
+-- you type ":hello a b c" in the console (chat), with args = a 1-based table of the whitespace-split arguments
+-- AFTER the name ("quoted words" group, \\ escapes; the command name itself excluded). Like the hotkeys above it
+-- needs NO live target, so it is registered here in the FILE BODY. It is RELOAD-SAFE: a single engine-lifetime
+-- console dispatcher routes to the CURRENT handler, so editing this file + :reload swaps the handler with NO
+-- duplicate or leaked command (coverage-gaps C1); after disabling hello (+ :reload) ":hello" replies "no addon
+-- handles :hello". Reserved engine names (lua / addons / reload) and names a client command already owns are
+-- refused with a clear error. The handle exposes :remove(). We demo sub-command dispatch off args[1]: bare :hello
+-- greets, ":hello toggle" flips the 2a window (a slash command driving live addon state), ":hello ping" plays a
+-- sound, and ":hello echo <text...>" shows the args rejoined (quoting survives — :hello echo "a b" c -> a b c).
+hafen.slash.register("hello", function(args)
+  if #args == 0 then
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...>")
+    return
+  end
+  local sub = args[1]
+  if sub == "toggle" then
+    if not panel then hafen.log(":hello toggle -> the window is not up yet (enter the world first)"); return end
+    local show = not panel:visible()
+    if show then panel:show() else panel:hide() end
+    hafen.log((":hello toggle -> window %s"):format(show and "shown" or "hidden"))
+  elseif sub == "ping" then
+    hafen.sound.play("sfx/msg")
+    hafen.log(":hello ping -> played sfx/msg")
+  elseif sub == "echo" then
+    local rest = {}
+    for i = 2, #args do rest[#rest + 1] = args[i] end
+    hafen.log((":hello echo -> %q"):format(table.concat(rest, " ")))
+  else
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo)")
+      :format(#args, table.concat(args, " | ")))
+  end
+end)
+hafen.log("A11: slash command registered -- type  :hello  in the console (chat) to try it")
 
 hafen.events.on("OnEnterWorld", function()
   if panel then return end                                        -- defensive: create the window once
