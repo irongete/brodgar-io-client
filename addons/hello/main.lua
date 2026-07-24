@@ -1,11 +1,11 @@
--- Example addon (Phase 1d-3): adds hafen.study.* (slots/summary + StudyChanged) and
--- hafen.char.skills()/skill(name) — the study window (curiosities) and known skills, both read off the
--- character sheet via the widget-tree mechanism, on top of 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c
--- items/char/party reads, the gob/world/map/player/time/sound reads, the 1b event bus, and timers.
--- `hafen` is the API facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at
--- load; then OnLoad fires, then (on entering the world) OnEnterWorld.
+-- Example addon (Phase 1d-4): adds hafen.actionbar.slot(n) (+ ActionbarChanged) and an EquipChanged event
+-- over the 1c-3 equipment read — the hotbar and worn equipment, both via the widget-tree mechanism, on 1d-3
+-- study/skills, 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c items/char/party reads, the gob/world/map/
+-- player/time/sound reads, the 1b event bus, and timers. `hafen` is the API facade; `ADDON` describes
+-- this addon ({ id, dir }). The file body runs once at load; then OnLoad fires, then (on entering the
+-- world) OnEnterWorld.
 
-hafen.log("hello loaded (v0.8.0)")
+hafen.log("hello loaded (v0.9.0)")
 
 hafen.events.on("OnLoad", function()
   hafen.log("OnLoad fired")
@@ -110,6 +110,26 @@ local function readStudy(tag)
     skills[1] and tostring(skills[1].name) or "none"))
 end
 
+-- 1d-4: action bar / hotbar slots (the engine calls it the "belt"). slot(n) takes the RAW 0-based game
+-- index (0..143 — the same index action-bar USE will take in Phase 4), returning {res,name,cooldown} for
+-- an occupied slot or nil for an empty one. cooldown (0..1) appears only on ability slots (not seconds).
+-- The hotbar streams in a beat after enter-world like the rest of the HUD, so scan at now (often empty)
+-- and +3s (populated).
+local function readActionbar(tag)
+  local occupied, first, firstn = 0, nil, nil
+  for n = 0, 143 do
+    local s = hafen.actionbar.slot(n)
+    if s then
+      occupied = occupied + 1
+      if not first then first, firstn = s, n end
+    end
+  end
+  hafen.log(("[%s] actionbar=%d slot(s), first[%s]=%s%s"):format(tag, occupied,
+    firstn and tostring(firstn) or "-",
+    first and tostring(first.name or first.res) or "none",
+    (first and first.cooldown) and (" cd=%.2f"):format(first.cooldown) or ""))
+end
+
 hafen.events.on("OnEnterWorld", function()
   hafen.log("entered the world")
 
@@ -142,10 +162,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now"); readStudy("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readActionbar("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readActionbar("+3s")
   end)
 
   -- 1c-2: an audible confirmation ping (a client-bundled sound), proving hafen.sound.play works.
@@ -223,6 +243,31 @@ hafen.events.on("StudyChanged", function(slots)
   if studySeen <= 5 then
     hafen.log(("StudyChanged: %d slot(s)%s (%d)"):format(#slots,
       slots[1] and (", first=" .. tostring(slots[1].name or slots[1].res)) or "", studySeen))
+  end
+end)
+
+-- 1d-4: ActionbarChanged{n} fires when action-bar slot n changes — slots stream in at login (a burst, one
+-- per occupied slot) and then on any set/clear/drag. Action-bar changes are user-driven (not per-frame),
+-- so — unlike vitals/gobs — we log EVERY one (with a running ordinal) to make it easy to verify live:
+-- put an item/action on a slot or clear one and you should see a line each time. The payload is the slot
+-- index; read it back to show its new content.
+local actionbarSeen = 0
+hafen.events.on("ActionbarChanged", function(n)
+  actionbarSeen = actionbarSeen + 1
+  local s = hafen.actionbar.slot(n)
+  hafen.log(("ActionbarChanged: slot %s -> %s (%d)"):format(tostring(n),
+    s and tostring(s.name or s.res) or "empty", actionbarSeen))
+end)
+
+-- 1d-4: EquipChanged fires when worn equipment changes (equip/unequip) — the payload is the same array
+-- as hafen.items.equipment(). Equipment streams in at login (a few fires), then on any change. Log the
+-- first few so it does not flood.
+local equipSeen = 0
+hafen.events.on("EquipChanged", function(eq)
+  equipSeen = equipSeen + 1
+  if equipSeen <= 5 then
+    hafen.log(("EquipChanged: %d slot(s), first=%s (%d)"):format(#eq,
+      eq[1] and tostring(eq[1].name or eq[1].res) or "none", equipSeen))
   end
 end)
 

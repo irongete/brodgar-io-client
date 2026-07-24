@@ -54,6 +54,7 @@ import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -153,6 +154,8 @@ public final class AddonManager {
         treeAdapters.add(new BuffsAdapter());    // buff add/remove (per-tick poll) + change (uimsg)
         treeAdapters.add(new FepAdapter());      // FEP/food + hunger (uimsg-driven)
         treeAdapters.add(new StudyAdapter());    // study/curiosity slots (per-tick poll)
+        treeAdapters.add(new ActionbarAdapter()); // action-bar / hotbar slots (per-tick poll)
+        treeAdapters.add(new EquipAdapter());    // equipment add/remove (per-tick poll)
 
         attachRoot(ui_);              // invisible per-frame tick widget (drives the engine)
         registerOcache(ui_);          // GobAdded/GobRemoved source (marshalled to the UI thread)
@@ -579,6 +582,82 @@ public final class AddonManager {
             if(!studySlotsEqual(snap, cache)) {
                 cache = snap;
                 fire("StudyChanged", snap);
+            }
+        }
+    }
+
+    /**
+     * Action bar / hotbar — the 144 {@link GameUI.BeltSlot}s of {@code GameUI.belt} (the F-key /
+     * number-key hotbar; the engine's own name for the action bar is the "belt"). Setting/clearing/
+     * dragging a slot is a {@code setbelt}/{@code setbelt2} {@code uimsg} to {@code GameUI}, but for the
+     * common (resource/pagina) cases the slot array is mutated on a <b>deferred loader task</b> that runs
+     * after the message is dispatched — so a synchronous refresh-on-uimsg would race the write. Hence this
+     * is <b>poll-driven</b> (like buffs/study): each tick it diffs the occupied slots against a per-index
+     * cache and fires {@code ActionbarChanged{n}} on a set/clear/change (or a slot's data resolving).
+     * Change-detection ignores {@code cooldown} (a live meter that would otherwise fire every frame while
+     * an ability cools down); {@code hafen.actionbar.slot(n)} still reads it live.
+     */
+    private static final class ActionbarAdapter implements TreeAdapter {
+        // slot index -> last snapshot, occupied slots only. UI-thread-only; reset per session by
+        // re-instantiation in init(). Keyed by Integer (value identity), not widget identity.
+        private final Map<Integer, LuaValue> cache = new HashMap<Integer, LuaValue>();
+
+        public boolean interested(Widget w, String msg) {
+            return false;         // slot set/clear mutates belt[] on a deferred loader task — see poll()
+        }
+
+        public void refresh() {}
+
+        public void poll() {
+            GameUI g = gui();
+            if((g == null) || (g.belt == null))
+                return;           // HUD not up yet — keep the cache, fire nothing
+            GameUI.BeltSlot[] belt = g.belt;
+            for(int n = 0; n < belt.length; n++) {
+                GameUI.BeltSlot s = belt[n];
+                LuaValue prev = cache.get(n);
+                if(s == null) {
+                    if(prev != null) {                        // occupied -> empty (cleared)
+                        cache.remove(n);
+                        fire("ActionbarChanged", LuaValue.valueOf(n));
+                    }
+                } else {
+                    LuaValue snap = actionbarSnapshot(s);
+                    if((prev == null) || !actionbarEqual(snap, prev)) {   // empty->occupied or content changed
+                        cache.put(n, snap);
+                        fire("ActionbarChanged", LuaValue.valueOf(n));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Equipment — the {@link WItem}s worn in the {@link Equipory}. Equipping/removing is a widget
+     * create/{@code cdestroy} under the Equipory (not a targeted {@code uimsg}), and item data streams
+     * in a beat after each item appears, so this is <b>poll-driven</b>: each tick it re-reads the
+     * equipment snapshot (the same array {@code hafen.items.equipment()} returns) and fires {@code
+     * EquipChanged} with it when the set changes. Change-detection compares {@code slot}/{@code res}/
+     * {@code name}/{@code num} — not {@code wear} (a slowly-changing durability that is not an equip
+     * change; read it live via {@code hafen.items.equipment()}).
+     */
+    private static final class EquipAdapter implements TreeAdapter {
+        private LuaValue cache;   // last equipment snapshot (UI thread; change-detect)
+
+        public boolean interested(Widget w, String msg) {
+            return false;         // equip/unequip is a widget create/cdestroy, not a uimsg — see poll()
+        }
+
+        public void refresh() {}
+
+        public void poll() {
+            Equipory eq = equipory();
+            if(eq == null)
+                return;           // equipory not up yet — keep the cache, fire nothing
+            LuaValue snap = readEquipment(eq);
+            if(!equipEqual(snap, cache)) {
+                cache = snap;
+                fire("EquipChanged", snap);
             }
         }
     }
@@ -1205,19 +1284,7 @@ public final class AddonManager {
         });
         items.set("equipment", new ZeroArgFunction() {
             public LuaValue call() {
-                LuaTable out = new LuaTable();
-                Equipory eq = equipory();
-                if(eq == null)
-                    return out;
-                int i = 0;
-                for(WItem w : eq.children(WItem.class)) {
-                    int ep = slotOf(eq, w);
-                    LuaValue snap = itemSnapshot(w.item, slotName(ep));
-                    if((ep >= 0) && snap.istable())
-                        ((LuaTable)snap).set("slot", LuaValue.valueOf(ep));
-                    out.set(++i, snap);
-                }
-                return out;
+                return readEquipment(equipory());   // {..., slot} per worn item; EquipChanged mirrors this
             }
         });
         items.set("hand", new ZeroArgFunction() {
@@ -1395,6 +1462,20 @@ public final class AddonManager {
             }
         });
         hafen.set("buffs", buffs);
+
+        // hafen.actionbar.* — the action bar / hotbar (the engine calls it the "belt": GameUI.belt, a
+        // BeltSlot[144]), via the widget-tree mechanism (1d-4). slot(n) returns {res,name,cooldown} for the
+        // occupied slot n (the RAW 0-based game index 0..143 — the same index action-bar USE will take in
+        // Phase 4), or nil if empty; cooldown (0..1) is a pagina action's meter, present only for ability
+        // slots (not seconds). Subscribe to ActionbarChanged{n} (fired per-tick when slot n's content
+        // changes — a set/clear/drag or its data resolving). Action-bar USE is the gated action tier (Phase 4).
+        LuaTable actionbar = new LuaTable();
+        actionbar.set("slot", new OneArgFunction() {
+            public LuaValue call(LuaValue n) {
+                return n.isnumber() ? actionbarSlot(n.toint()) : LuaValue.NIL;
+            }
+        });
+        hafen.set("actionbar", actionbar);
 
         hafen.set("log", new OneArgFunction() {
             public LuaValue call(LuaValue msg) {
@@ -2106,6 +2187,135 @@ public final class AddonManager {
             /* list swapped mid-read — treat as not found */
         }
         return false;
+    }
+
+    // ------------------------------------------------ action bar / hotbar + equipment (1d-4)
+    // NB the engine calls the action bar the "belt" (GameUI.belt / BeltSlot / setbelt) — H&H's own term;
+    // the addon-facing API deliberately exposes it as `hafen.actionbar` (clearer, WoW-like). These helpers
+    // are named actionbar* but read the engine's belt[] array; the two names denote the same thing.
+
+    /**
+     * Read action-bar slot {@code n} into a snapshot, or nil for an out-of-range or empty slot. Slots are
+     * the <b>raw 0-based game index</b> (0..143 — the same index the server uses and that action-bar
+     * <i>use</i> will take in Phase 4), NOT a 1-based Lua position: the slot index is the game's index
+     * everywhere (one canonical way).
+     */
+    private static LuaValue actionbarSlot(int n) {
+        GameUI g = gui();
+        if((g == null) || (g.belt == null) || (n < 0) || (n >= g.belt.length))
+            return LuaValue.NIL;
+        return actionbarSnapshot(g.belt[n]);
+    }
+
+    /**
+     * An action-bar slot snapshot: {@code res} (the icon resource — stable identity), {@code name} (the
+     * action's display name for a pagina slot, else the resource tooltip), and {@code cooldown} (0..1,
+     * present only for a pagina action carrying a meter — e.g. an ability recharging; not seconds). Every
+     * field is optional / Loading-guarded, so a slot resolving surfaces as a partial-then-full snapshot.
+     */
+    private static LuaValue actionbarSnapshot(GameUI.BeltSlot s) {
+        if(s == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        Resource r = actionbarResObj(s);
+        if(r != null)
+            t.set("res", LuaValue.valueOf(r.name));
+        String name = actionbarName(s, r);
+        if(name != null)
+            t.set("name", LuaValue.valueOf(name));
+        Double cd = actionbarCooldown(s);
+        if(cd != null)
+            t.set("cooldown", LuaValue.valueOf(cd));
+        return t;
+    }
+
+    /** The icon {@link Resource} behind an action-bar slot (a {@code ResBeltSlot} item or a
+     *  {@code PagBeltSlot} action), or {@code null} (Loading-guarded). */
+    private static Resource actionbarResObj(GameUI.BeltSlot s) {
+        try {
+            if(s instanceof GameUI.ResBeltSlot)
+                return ((GameUI.ResBeltSlot)s).getres();
+            if(s instanceof GameUI.PagBeltSlot)
+                return ((GameUI.PagBeltSlot)s).pag.res();
+        } catch(RuntimeException e) {   // Loading etc.
+        }
+        return null;
+    }
+
+    /** Display name of an action-bar slot: the pagina action's name, else the resource tooltip, else nil. */
+    private static String actionbarName(GameUI.BeltSlot s, Resource r) {
+        if(s instanceof GameUI.PagBeltSlot) {
+            try {
+                return ((GameUI.PagBeltSlot)s).pag.button().name();
+            } catch(RuntimeException e) {   // Loading — fall through to the tooltip
+            }
+        }
+        if(r != null) {
+            try {
+                Resource.Tooltip tt = r.layer(Resource.tooltip);
+                if((tt != null) && (tt.t != null))
+                    return tt.t;
+            } catch(RuntimeException e) {
+            }
+        }
+        return null;
+    }
+
+    /** Cooldown/meter fraction (0..1) of a pagina action-bar slot, or {@code null} (none / Loading). */
+    private static Double actionbarCooldown(GameUI.BeltSlot s) {
+        if(s instanceof GameUI.PagBeltSlot) {
+            try {
+                return ((GameUI.PagBeltSlot)s).pag.button().meter.get();   // AttrCache swallows Loading -> null
+            } catch(RuntimeException e) {   // button() itself may be Loading
+            }
+        }
+        return null;
+    }
+
+    /** Do two action-bar slot snapshots carry the same res/name? ({@code cooldown} is excluded — a live
+     *  meter must not fire {@code ActionbarChanged} every frame; for change-detection only.) */
+    private static boolean actionbarEqual(LuaValue a, LuaValue b) {
+        if((a == null) || (b == null))
+            return false;
+        return luaFieldEq(a, b, "res") && luaFieldEq(a, b, "name");
+    }
+
+    /**
+     * Read an {@link Equipory}'s worn {@link WItem} children into an array of item snapshots, each with
+     * its equipment {@code slot} index and slot {@code pos} name. Backs both {@code hafen.items.equipment}
+     * and the {@code EquipChanged} change-detection. A two-slot item appears as two entries (distinct
+     * {@code slot}).
+     */
+    private static LuaValue readEquipment(Equipory eq) {
+        LuaTable out = new LuaTable();
+        if(eq == null)
+            return out;
+        int i = 0;
+        for(WItem w : eq.children(WItem.class)) {
+            int ep = slotOf(eq, w);
+            LuaValue snap = itemSnapshot(w.item, slotName(ep));
+            if((ep >= 0) && snap.istable())
+                ((LuaTable)snap).set("slot", LuaValue.valueOf(ep));
+            out.set(++i, snap);
+        }
+        return out;
+    }
+
+    /** Do two equipment snapshots carry the same slot/res/name/num? ({@code wear} is excluded — a slow
+     *  durability drift is not an equip change; positional, for change-detection.) */
+    private static boolean equipEqual(LuaValue a, LuaValue b) {
+        if((a == null) || (b == null) || !a.istable() || !b.istable())
+            return false;
+        int n = a.length();
+        if(n != b.length())
+            return false;
+        for(int i = 1; i <= n; i++) {
+            LuaValue ea = a.get(i), eb = b.get(i);
+            if(!luaFieldEq(ea, eb, "slot") || !luaFieldEq(ea, eb, "res")
+               || !luaFieldEq(ea, eb, "name") || !luaFieldEq(ea, eb, "num"))
+                return false;
+        }
+        return true;
     }
 
     /** The live {@link Party}, or {@code null} before a session is up. */

@@ -1,9 +1,9 @@
 {
   "name": "Hello",
   "id": "hello",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "author": "brodgar",
-  "description": "Example addon — demonstrates the event bus, timers, and the read API (hafen.gob.*, hafen.world.*, hafen.map.*, hafen.player.* incl. vitals, hafen.time.*, hafen.sound.*, hafen.items.*, hafen.char.* incl. food/skills, hafen.party.*, hafen.buffs.*, hafen.study.*) plus the widget-tree events (VitalsChanged, BuffAdded/Removed/Changed, FepChanged, StudyChanged).",
+  "description": "Example addon — demonstrates the event bus, timers, and the read API (hafen.gob.*, hafen.world.*, hafen.map.*, hafen.player.* incl. vitals, hafen.time.*, hafen.sound.*, hafen.items.*, hafen.char.* incl. food/skills, hafen.party.*, hafen.buffs.*, hafen.study.*, hafen.actionbar.*) plus the widget-tree events (VitalsChanged, BuffAdded/Removed/Changed, FepChanged, StudyChanged, ActionbarChanged, EquipChanged).",
   "api_version": 1,
   "files": ["main.lua"]
 }
