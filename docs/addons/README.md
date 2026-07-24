@@ -28,5 +28,6 @@ built up **progressively** as each piece lands. It is the counterpart to the des
 | [phase-1d4-actionbar-equip.md](phase-1d4-actionbar-equip.md) | ✅ Implemented (in-game check pending) | Widget-tree part 4: `hafen.actionbar.slot(n)` (+ ActionbarChanged) + `EquipChanged` — zero core edit; completes Phase 1d |
 | [phase-1e-saved-variables.md](phase-1e-saved-variables.md) | ✅ Implemented (in-game check pending) | Saved variables: `hafen.store.<name>` + `flush()`, JSON under `savedata/` (per-char + account scope) — zero core edit |
 | [phase-1f1-sandbox.md](phase-1f1-sandbox.md) | ✅ Implemented & verified | Lua sandbox: strict env whitelist (no `io`/`luajava`/`require`/`load`/`debug`) + instruction hard-stop watchdog (D-017/D-018) — zero `haven` edit |
+| [a1-markers.md](a1-markers.md) | ✅ Implemented (in-game check pending) | Gap subsystem A1: `hafen.markers` (list/nearest/add/remove) over the client-side map DB + `MarkersChanged` — zero `haven` edit |
 
 _(Grows as phases land — see [`specs/addons/15-implementation-plan.md`](../../specs/addons/15-implementation-plan.md) for the build order.)_

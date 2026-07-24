@@ -28,8 +28,10 @@ import haven.KeyBinding;
 import haven.KeyMatch;
 import haven.LayerMeter;
 import haven.Loading;
+import haven.MapFile;
 import haven.MapView;
 import haven.MCache;
+import haven.MiniMap;
 import haven.Moving;
 import haven.Music;
 import haven.OCache;
@@ -308,6 +310,11 @@ public final class AddonManager {
             consoleOwner.models.clear();      // this catches the REPL owner's (it is not in `addons`)
             consoleOwner.replacers.clear();
         }
+        synchronized(markerById) {    // A1: drop the per-session marker-ref map (Marker identities are per-session)
+            markerIds.clear();
+            markerById.clear();
+        }
+        markersPrimed = false;        // re-prime MarkersChanged against the new session's map DB
         treeDirty.clear();            // reset the widget-tree read mechanism for the new session
         vitalsCache = null;
         treeAdapters.clear();
@@ -702,6 +709,11 @@ public final class AddonManager {
             //     model, not a uimsg — like the buff/study adapters) and server destroy (the model's id stops
             //     mapping to its widget → fire onDestroy). Fast-paths out when no addon has adopted anything.
             pollModels();
+
+            // 1d. Map markers (A1): fire MarkersChanged when the on-disk map DB's markerseq changes (a
+            //     marker add/remove is not a uimsg — the server pushes SMarkers via markobj, the player/
+            //     addon adds PMarkers, and segment merges re-key them; all bump markerseq). Global event.
+            pollMarkers();
 
             // 2. "Entered the world" — fire OnEnterWorld once the HUD (GameUI) is not just built but
             //    ATTACHED to ui.root. The map view sets enterWorldPending from its ctor (loader thread),
@@ -1804,6 +1816,61 @@ public final class AddonManager {
             }
         });
         hafen.set("map", map);
+
+        // hafen.markers.* — client-side map markers (A1), read/added/removed against the client's on-disk
+        // map DB (MapFile, owned by the map window / corner minimap — the same instance). Two kinds:
+        // PLAYER markers (user pins: a name + colour) and SYSTEM markers (server/quest pins: a name +
+        // icon). A snapshot is { id, name, type ("player"|"system"), seg (id string), tc={x,y} (the
+        // segment tile coord — the PERSISTENT anchor that survives a relog, coverage-gaps C4),
+        // color={r,g,b,a}+onmap (player) | icon (system), and x,y (world) + dist (from the player) which
+        // are SESSION-LOCAL, present only when the marker is in the player's current segment }. add()
+        // creates a PLAYER marker and persists it; remove() takes a ref from list()/add(). The DB streams
+        // in a beat after enter-world (nil/empty until then — read on a timer); MarkersChanged fires on any
+        // change. Coords are WORLD units (matching hafen.gob.pos/hafen.map), converted to the persistent
+        // segment anchor at add time — there is no global position (anchor on grid ids / segment tc — C4).
+        LuaTable markers = new LuaTable();
+        markers.set("list", new OneArgFunction() {
+            public LuaValue call(LuaValue filter) {
+                LuaTable out = new LuaTable();
+                int i = 0;
+                for(LuaValue snap : markerSnapshots()) {
+                    if(matches(filter, snap))
+                        out.set(++i, snap);
+                }
+                return out;
+            }
+        });
+        markers.set("nearest", new OneArgFunction() {
+            public LuaValue call(LuaValue filter) {
+                LuaValue best = LuaValue.NIL;
+                double bestd = Double.POSITIVE_INFINITY;
+                for(LuaValue snap : markerSnapshots()) {
+                    if(!matches(filter, snap))
+                        continue;
+                    LuaValue d = snap.get("dist");
+                    if(!d.isnumber())
+                        continue;                        // cross-segment marker → no world distance
+                    double dd = d.todouble();
+                    if(dd < bestd) { bestd = dd; best = snap; }
+                }
+                return best;
+            }
+        });
+        markers.set("add", new VarArgFunction() {
+            // add(name, x, y [, opts{color={r,g,b[,a]}, onmap=bool}]) -> ref | nil  (world coords; player marker)
+            public Varargs invoke(Varargs a) {
+                String nm = a.optjstring(1, null);
+                if((nm == null) || !a.arg(2).isnumber() || !a.arg(3).isnumber())
+                    return LuaValue.NIL;
+                return addMarker(nm, a.arg(2).todouble(), a.arg(3).todouble(), a.arg(4));
+            }
+        });
+        markers.set("remove", new OneArgFunction() {
+            public LuaValue call(LuaValue ref) {
+                return LuaValue.valueOf(removeMarker(ref));
+            }
+        });
+        hafen.set("markers", markers);
 
         // hafen.player.* — only data with NO per-gob equivalent (position/health/moving/… of the player
         // come from hafen.gob.*("player")). name() is the LOCAL character name (GameUI.chrid); other
@@ -4527,6 +4594,198 @@ public final class AddonManager {
         t.set("b", LuaValue.valueOf(c.getBlue()));
         t.set("a", LuaValue.valueOf(c.getAlpha()));
         return t;
+    }
+
+    // ---- markers (A1: hafen.markers) -------------------------------------------------------------
+    // Client-side map markers live in the on-disk map DB (MapFile), owned by the map window / corner
+    // minimap (both hold the same MapFile). A marker's PERSISTENT identity is its segment id + segment
+    // tile coord (survives a relog — coverage-gaps C4); the world x,y/dist a snapshot also carries are
+    // SESSION-LOCAL conveniences, present only when the marker is in the player's current segment. Reads
+    // copy the marker list under the MapFile read lock (it is mutated on loader threads — server markobj
+    // adds, segment merges), then build snapshots outside the lock (the OCache gob-read discipline). Adds/
+    // removes go straight to the shared DB and persist. MarkersChanged is fired by pollMarkers() when
+    // MapFile.markerseq changes (a marker add/remove is not a uimsg — poll it, like buffs/study).
+
+    private static final java.awt.Color DEFAULT_MARKER_COLOR = new java.awt.Color(255, 215, 0);  // gold pin
+
+    /** Facade-safe marker refs (P1: no Java Marker crosses to Lua). Per-session (Marker identity is per-session). */
+    private static final IdentityHashMap<MapFile.Marker, Long> markerIds = new IdentityHashMap<MapFile.Marker, Long>();
+    private static final Map<Long, MapFile.Marker> markerById = new HashMap<Long, MapFile.Marker>();
+    private static long markerIdSeq = 0;
+
+    /** MarkersChanged is primed (not fired) the first time the map DB is seen, then fired on each markerseq change. */
+    private static boolean markersPrimed = false;
+    private static int lastMarkerSeq = 0;
+
+    /** The client's on-disk map DB (markers/segments), or null before the HUD/map is up. */
+    private static MapFile mapfile() {
+        GameUI g = gui();
+        if(g == null)
+            return null;
+        if(g.mapfile != null)          // the big Map window (MapWnd.file)
+            return g.mapfile.file;
+        MiniMap mm = g.mmap;            // fall back to the corner minimap (same MapFile instance)
+        return (mm == null) ? null : mm.file;
+    }
+
+    /**
+     * The session location — the segment plus the segment-tile-coord of session tile (0,0): the bridge
+     * between session-local WORLD coords and the persistent segment coords markers store (world→segment =
+     * sessloc.tc + floor(world/tilesz), mirroring {@code MapWnd.FindMark.hit}). Resolved live by the
+     * corner minimap; null until the map grid-info has streamed in (a beat after enter-world).
+     */
+    private static MiniMap.Location sessloc() {
+        GameUI g = gui();
+        MiniMap mm = (g == null) ? null : g.mmap;
+        return (mm == null) ? null : mm.sessloc;
+    }
+
+    /** Assign (or look up) a stable per-session ref id for a marker. Touched from UI + REPL threads → guarded. */
+    private static long markerId(MapFile.Marker m) {
+        synchronized(markerById) {
+            Long id = markerIds.get(m);
+            if(id == null) {
+                id = Long.valueOf(++markerIdSeq);
+                markerIds.put(m, id);
+                markerById.put(id, m);
+            }
+            return id.longValue();
+        }
+    }
+    private static MapFile.Marker markerByRef(long id) {
+        synchronized(markerById) {
+            return markerById.get(Long.valueOf(id));
+        }
+    }
+
+    /** Snapshots of every marker in the DB (list copied under the read lock, snapshots built outside it). */
+    private static List<LuaValue> markerSnapshots() {
+        List<LuaValue> out = new ArrayList<LuaValue>();
+        MapFile file = mapfile();
+        if(file == null)
+            return out;
+        List<MapFile.Marker> copy = new ArrayList<MapFile.Marker>();
+        file.lock.readLock().lock();
+        try {
+            copy.addAll(file.markers);
+        } finally {
+            file.lock.readLock().unlock();
+        }
+        MiniMap.Location sl = sessloc();
+        Coord2d prc = pos(LuaValue.NIL);   // player world pos (may be null before the player gob is up)
+        for(MapFile.Marker m : copy)
+            out.add(markerSnapshot(m, sl, prc));
+        return out;
+    }
+
+    /**
+     * One marker → a Lua snapshot: {@code {id, name, type, seg, tc}} plus type-specific fields
+     * ({@code color}/{@code onmap} for a player marker, {@code icon} for a system marker) and, when the
+     * marker shares the player's current segment, the session-local {@code x,y} (world, tile centre) +
+     * {@code dist} (from the player). {@code seg} is a decimal string (64-bit id); {@code tc} the segment
+     * tile coord — those two are the persistent anchor, {@code x,y}/{@code dist} the session convenience.
+     */
+    private static LuaValue markerSnapshot(MapFile.Marker m, MiniMap.Location sl, Coord2d prc) {
+        LuaTable t = new LuaTable();
+        t.set("id", LuaValue.valueOf((double)markerId(m)));
+        if(m.nm != null)
+            t.set("name", LuaValue.valueOf(m.nm));
+        t.set("seg", LuaValue.valueOf(Long.toString(m.seg)));   // 64-bit segment id (local anchor) → string
+        t.set("tc", xy(m.tc.x, m.tc.y));                        // segment tile coord (the persistent position)
+        if(m instanceof MapFile.PMarker) {
+            MapFile.PMarker pm = (MapFile.PMarker)m;
+            t.set("type", LuaValue.valueOf("player"));
+            if(pm.color != null)
+                t.set("color", color(pm.color));
+            t.set("onmap", LuaValue.valueOf(pm.onmap));
+        } else if(m instanceof MapFile.SMarker) {
+            MapFile.SMarker sm = (MapFile.SMarker)m;
+            t.set("type", LuaValue.valueOf("system"));
+            if((sm.res != null) && (sm.res.name != null))
+                t.set("icon", LuaValue.valueOf(sm.res.name));
+        }
+        // Session-local WORLD position (tile centre) + distance — only when the marker shares the player's
+        // segment (a marker in another explored area has no valid world coord this session).
+        if((sl != null) && (m.seg == sl.seg.id)) {
+            double wx = ((m.tc.x - sl.tc.x) * MCache.tilesz.x) + (MCache.tilesz.x / 2);
+            double wy = ((m.tc.y - sl.tc.y) * MCache.tilesz.y) + (MCache.tilesz.y / 2);
+            t.set("x", LuaValue.valueOf(wx));
+            t.set("y", LuaValue.valueOf(wy));
+            if(prc != null)
+                t.set("dist", LuaValue.valueOf(Math.hypot(wx - prc.x, wy - prc.y)));
+        }
+        return t;
+    }
+
+    /** add(name, worldX, worldY, opts) — create a PLAYER marker at a world position; returns its ref or nil. */
+    private static LuaValue addMarker(String nm, double wx, double wy, LuaValue opts) {
+        MapFile file = mapfile();
+        MiniMap.Location sl = sessloc();
+        if((file == null) || (sl == null))
+            return LuaValue.NIL;                  // map / session location not up yet
+        // world → segment tile coord (mirrors MapWnd.FindMark.hit: sessloc.tc + floor(world / tilesz)).
+        Coord segTc = sl.tc.add(Coord2d.of(wx, wy).floor(MCache.tilesz));
+        java.awt.Color col = DEFAULT_MARKER_COLOR;
+        boolean onmap = false;
+        if((opts != null) && opts.istable()) {
+            LuaValue c = opts.get("color");
+            if(c.istable())
+                col = luaColor(c, col);
+            LuaValue om = opts.get("onmap");
+            if(!om.isnil())
+                onmap = om.toboolean();
+        }
+        MapFile.PMarker pm = new MapFile.PMarker(file, sl.seg.id, segTc, nm, col, onmap);
+        file.add(pm);                             // takes the write lock, persists (defersave), bumps markerseq
+        return LuaValue.valueOf((double)markerId(pm));
+    }
+
+    /** remove(ref) — remove a marker by the ref id list()/add() handed out. Returns whether it was removed. */
+    private static boolean removeMarker(LuaValue ref) {
+        if(!ref.isnumber())
+            return false;
+        MapFile file = mapfile();
+        if(file == null)
+            return false;
+        MapFile.Marker m = markerByRef((long)ref.todouble());
+        if(m == null)
+            return false;
+        file.remove(m);                           // no-ops if already gone; bumps markerseq if it removed one
+        return true;
+    }
+
+    private static java.awt.Color luaColor(LuaValue t, java.awt.Color dflt) {
+        LuaValue r = t.get("r"), g = t.get("g"), b = t.get("b"), a = t.get("a");
+        if(!r.isnumber() || !g.isnumber() || !b.isnumber())
+            return dflt;
+        int ai = a.isnumber() ? clampByte(a.toint()) : 255;
+        return new java.awt.Color(clampByte(r.toint()), clampByte(g.toint()), clampByte(b.toint()), ai);
+    }
+    private static int clampByte(int v) {
+        return (v < 0) ? 0 : ((v > 255) ? 255 : v);
+    }
+
+    /** Fire MarkersChanged when the DB's markerseq changes (a marker add/remove is not a uimsg — poll it). */
+    private static void pollMarkers() {
+        MapFile file = mapfile();
+        if(file == null)
+            return;
+        int seq = file.markerseq;
+        if(!markersPrimed) {
+            markersPrimed = true;
+            lastMarkerSeq = seq;                  // prime silently; the initial set is read via markers.list()
+            return;
+        }
+        if(seq != lastMarkerSeq) {
+            lastMarkerSeq = seq;
+            int count;
+            file.lock.readLock().lock();
+            try { count = file.markers.size(); }
+            finally { file.lock.readLock().unlock(); }
+            LuaTable ev = new LuaTable();
+            ev.set("count", LuaValue.valueOf(count));
+            fire("MarkersChanged", ev);
+        }
     }
 
     private static String join(String[] args) {

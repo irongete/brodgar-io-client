@@ -1,4 +1,12 @@
--- Example addon (Phase 3b): WIDGET MODELS — hafen.ui.adopt(id) adopts a live SERVER widget (by the desc.id a 3a
+-- Example addon (gap subsystem A1): MAP MARKERS — hafen.markers reads the client's on-disk map DB
+-- (list([filter]) / nearest([filter]) -> marker snapshots {id,name,type,seg,tc, color|icon, x,y,dist}),
+-- ADDS a persistent PLAYER marker at a WORLD position (add(name,x,y[,opts])) and REMOVES it (remove(ref)); the
+-- global MarkersChanged event fires when the marker set changes. A marker's PERSISTENT anchor is seg+tc (it
+-- survives a relog — there is no global position, coverage-gaps C4); the x,y/dist are session-local (present
+-- only while the marker is in your current segment). Ctrl+Shift+M drops (and, pressed again, removes) a "Hello
+-- marker" at your position — watch it appear on the map (M) and the corner minimap. add() writes the shared
+-- on-disk DB so it persists, but hello removes its own demo marker on disable/reload so the regression harness
+-- never pollutes your map. Built on Phase 3b WIDGET MODELS — hafen.ui.adopt(id) adopts a live SERVER widget (by the desc.id a 3a
 -- onWidgetCreate observer hands out) as a hidden MODEL you can hide/show, read items() from, and get lifecycle
 -- events on (onItemAdded/onItemRemoved/onDestroy) — "wrap, don't reimplement" (D-009). Here we adopt the MAIN
 -- INVENTORY: Ctrl+B hides/shows its grid while it stays live, and :reload/disable un-hides it (the 3b DoD). Item
@@ -21,7 +29,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.21.0)")
+hafen.log("hello loaded (v0.22.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -178,6 +186,22 @@ local function readActionbar(tag)
     (first and first.cooldown) and (" cd=%.2f"):format(first.cooldown) or ""))
 end
 
+-- A1: map markers via hafen.markers. list()/nearest() read the client's on-disk map DB; each snapshot is
+-- {id, name, type ("player"|"system"), seg, tc={x,y} (the persistent anchor), color|icon, and — when the
+-- marker is in your current segment — x,y (world) + dist (from you)}. The DB streams in a beat after
+-- enter-world (like the rest of the HUD), so read at now (often 0) and +3s. Most markers a character has are
+-- SYSTEM markers the server pushed (quest/tracked pins); a fresh spot may have none until you add one (Ctrl+Shift+M).
+local function readMarkers(tag)
+  local list = hafen.markers.list()
+  local near = hafen.markers.nearest()
+  local first = list[1]
+  hafen.log(("[%s] markers=%d, first=%s%s, nearest=%s%s"):format(tag, #list,
+    first and tostring(first.name or first.type) or "none",
+    first and (" @tc %d,%d"):format(first.tc.x, first.tc.y) or "",
+    near and tostring(near.name or near.type) or "none",
+    (near and near.dist) and (" dist=%.1f"):format(near.dist) or ""))
+end
+
 -- 3b: WIDGET MODEL (hafen.ui.adopt). We adopt the MAIN INVENTORY as a model down in the onWidgetCreate observer
 -- (the 3a -> 3b flow: observe a widget's creation, then adopt it by desc.id). invModel is that handle (nil until
 -- the inventory is observed at login). readBags reads it: item count + first item (via model:items(), the same
@@ -230,10 +254,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now"); readStudy("now"); readActionbar("now"); readBags("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readActionbar("now"); readBags("now"); readMarkers("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readActionbar("+3s"); readBags("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via Ctrl+B) and it logs") end
   end)
@@ -362,6 +386,17 @@ hafen.events.on("EquipChanged", function(eq)
   if equipSeen <= 5 then
     hafen.log(("EquipChanged: %d slot(s), first=%s (%d)"):format(#eq,
       eq[1] and tostring(eq[1].name or eq[1].res) or "none", equipSeen))
+  end
+end)
+
+-- A1: MarkersChanged fires when the map's marker set changes — the server pushing a system/quest marker
+-- (markobj), you or an addon adding/removing one, or a segment merge re-keying them. Payload is {count}.
+-- A few may fire at login as server markers stream in; log the first few so it does not flood.
+local markersSeen = 0
+hafen.events.on("MarkersChanged", function(ev)
+  markersSeen = markersSeen + 1
+  if markersSeen <= 5 then
+    hafen.log(("MarkersChanged: %d marker(s) (%d)"):format(ev.count, markersSeen))
   end
 end)
 
@@ -517,6 +552,30 @@ hafen.key.bind("bags", "Ctrl+B", function()
     :format(invModel:visible() and "shown" or "hidden", #invModel:items()))
 end)
 
+-- A1: a FOURTH hotkey (Ctrl+Shift+M, "marker") — a TOGGLE that drops a persistent "Hello marker" at your
+-- current position (hafen.markers.add at your gob's world coord), or removes it if already placed
+-- (hafen.markers.remove). Watch it appear on the map (M) and the corner minimap. add() writes the shared
+-- on-disk map DB, so it PERSISTS — but hello removes its own marker on disable/reload (see OnDisable) so the
+-- regression harness never pollutes your map. Adds a fourth row to the "Hello" keybind section (2e-3 grouping).
+local helloMarker   -- the ref of the demo marker while placed (nil = not placed); session-local
+hafen.key.bind("marker", "Ctrl+Shift+M", function()
+  if helloMarker then
+    hafen.markers.remove(helloMarker)
+    helloMarker = nil
+    hafen.log("A1: Ctrl+Shift+M -> removed the Hello marker")
+    return
+  end
+  local p = hafen.gob.pos("player")
+  if not p then hafen.log("A1: Ctrl+Shift+M -> no player position yet"); return end
+  helloMarker = hafen.markers.add("Hello marker", p.x, p.y, { color = { r = 80, g = 220, b = 90 }, onmap = true })
+  if helloMarker then
+    hafen.log(("A1: Ctrl+Shift+M -> dropped 'Hello marker' at %.0f,%.0f (ref %s) -- press again to remove")
+      :format(p.x, p.y, tostring(helloMarker)))
+  else
+    hafen.log("A1: Ctrl+Shift+M -> could not add marker (map/session location not up yet)")
+  end
+end)
+
 hafen.events.on("OnEnterWorld", function()
   if panel then return end                                        -- defensive: create the window once
   panel = hafen.ui.window{
@@ -670,5 +729,9 @@ hafen.timer.after(2, function()
 end)
 
 hafen.events.on("OnDisable", function()
+  if helloMarker then                                   -- A1: clean up our demo marker so the harness never
+    hafen.markers.remove(helloMarker)                   -- leaves 'Hello marker' pins on your persistent map DB
+    helloMarker = nil
+  end
   hafen.log("OnDisable fired")
 end)
