@@ -1,14 +1,26 @@
--- Example addon (Phase 1f-1): runs inside the Lua SANDBOX (D-017 strict env + D-018 instruction
--- watchdog) on top of 1e hafen.store (saved variables), 1d-4 actionbar/equip, 1d-3 study/skills,
--- 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c items/char/party reads, the gob/world/map/player/time/
--- sound reads, the 1b event bus, and timers. `hafen` is the API facade; `ADDON` describes this addon
--- ({ id, dir }). The file body runs once at load; then OnLoad fires, then (on entering the world)
--- OnEnterWorld. Every call into this addon is watchdog-armed — a runaway loop is aborted, not a freeze.
+-- Example addon (Phase 1f-2): the addon layer can now be RELOADED from disk without a relog (:reload,
+-- D-005) and individual addons enabled/disabled (:addons, D-006). It runs inside the Lua SANDBOX (D-017
+-- strict env + D-018 instruction watchdog) on top of 1e hafen.store (saved variables), 1d-4 actionbar/
+-- equip, 1d-3 study/skills, 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c items/char/party reads, the
+-- gob/world/map/player/time/sound reads, the 1b event bus, and timers. `hafen` is the API facade;
+-- `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad fires, then
+-- (on entering the world) OnEnterWorld. On :reload the whole cycle repeats — OnDisable, then the file
+-- body + OnLoad + OnEnterWorld again. Every call in is watchdog-armed — a runaway loop aborts, no freeze.
 
-hafen.log("hello loaded (v0.11.0)")
+hafen.log("hello loaded (v0.12.0)")
 
+-- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
+-- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
+-- torn down, then the files re-run and OnLoad + OnEnterWorld fire again (the WoW PLAYER_LOGIN analog — so
+-- the login counters further down also tick on each reload). The log line below is a RELOAD MARKER: change
+-- its text, `:reload`, and the new text should appear — that is the whole WoW dev loop. acct.loads counts
+-- every OnLoad (incl. reloads) and is persisted, proving saved variables survive a reload. Enabling/
+-- disabling is operator-driven from the console and applies on reload (D-006):  :addons  (list + status) ·
+-- :addons disable hello  +  :reload  (hello stops loading) ·  :addons enable hello  +  :reload  (loads again).
 hafen.events.on("OnLoad", function()
-  hafen.log("OnLoad fired")
+  local a = hafen.store.acct
+  a.loads = (a.loads or 0) + 1
+  hafen.log(("OnLoad fired — reload marker: edit me and :reload  [OnLoad #%d]"):format(a.loads))
 end)
 
 -- 1f-1: self-check the sandbox from inside the live client. Addons get a STRICT environment (D-017):

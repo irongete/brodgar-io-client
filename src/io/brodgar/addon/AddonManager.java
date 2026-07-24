@@ -94,6 +94,7 @@ public final class AddonManager {
     private static AddonRoot addonRoot;                 // the attached tick widget (per session)
     private static OCache.ChangeCallback ocCb;          // strong ref: OCache keeps callbacks weakly
     private static volatile boolean enterWorldPending;  // set off-thread (MapView attach), read on tick
+    private static volatile boolean reloadPending;      // set by :reload (any thread), applied on the UI tick
     private static double clock;                        // seconds accumulated from tick dt (UI thread)
     private static final Queue<GobEvent> gobEvents = new ConcurrentLinkedQueue<GobEvent>();
 
@@ -113,6 +114,14 @@ public final class AddonManager {
     private static double lastAutoSave;                  // engine-clock time of the last throttled flush
     private static final double SAVE_INTERVAL = 30.0;    // throttled auto-save period (seconds; UI thread)
 
+    // -- enabled set + reload (spec 1f-2 / D-005 / D-006): which addons run, persisted client-side --------
+    // WoW "apply on reload" model: toggling enable/disable updates a persisted DISABLED set (an addon runs
+    // unless its id is in it — so a freshly-installed addon defaults to enabled) and marks changes pending;
+    // the change takes effect on the next :reload / login, never live. Stored in the client's own
+    // preferences (Utils.getprefsl → under the client folder), NOT per-character.
+    private static final String PREF_DISABLED = "addons/disabled";
+    private static volatile boolean reloadNeeded;        // enabled set changed since the last (re)load
+
     private AddonManager() {
     }
 
@@ -123,7 +132,22 @@ public final class AddonManager {
             String raw = cons.rawcmd();
             eval((raw != null) ? stripCmd(raw) : join(args));
         });
-        Console.setscmd("addons", (cons, args) -> listAddons());
+        // :addons               list every discovered addon + its status (loaded version / disabled / error)
+        // :addons enable  <id>  mark an addon enabled  (applied on the next :reload — D-006)
+        // :addons disable <id>  mark an addon disabled (applied on the next :reload — D-006)
+        Console.setscmd("addons", (cons, args) -> {
+            if((args.length >= 3) && "enable".equals(args[1])) {
+                setEnabled(args[2], true);
+                log("addon '" + args[2] + "' enabled (pending — run :reload to apply)");
+            } else if((args.length >= 3) && "disable".equals(args[1])) {
+                setEnabled(args[2], false);
+                log("addon '" + args[2] + "' disabled (pending — run :reload to apply)");
+            } else {
+                listAddons();
+            }
+        });
+        // :reload  reload the addon layer from disk (D-005) — no relog. Queued to the UI-thread tick.
+        Console.setscmd("reload", (cons, args) -> queueReload());
     }
 
     // ------------------------------------------------------------- lifecycle
@@ -160,6 +184,7 @@ public final class AddonManager {
 
         charScope = null;             // per-char saved-var folder is unknown until the new HUD is up
         lastAutoSave = 0;
+        reloadPending = false;        // drop any :reload queued against the previous session
 
         treeDirty.clear();            // reset the widget-tree read mechanism for the new session
         vitalsCache = null;
@@ -221,6 +246,7 @@ public final class AddonManager {
     }
 
     private static void loadAll() {
+        reloadNeeded = false;         // whatever is on disk now IS the applied enabled set
         File dir = addonDir();
         log("addons dir: " + dir);
         File[] subs = dir.listFiles(File::isDirectory);
@@ -228,9 +254,14 @@ public final class AddonManager {
             log("no addons/ directory");
             return;
         }
+        Set<String> disabled = disabledSet();   // D-006: honor the persisted enabled set (skip disabled)
         for(File sub : subs) {
             if(!new File(sub, "manifest.json").isFile())
                 continue;
+            if(disabled.contains(sub.getName())) {
+                log("skipping disabled addon '" + sub.getName() + "'");
+                continue;
+            }
             try {
                 Manifest m = Manifest.load(sub.toPath());
                 Globals g = Sandbox.create();   // D-017 stdlib whitelist + D-018 instruction watchdog
@@ -267,18 +298,108 @@ public final class AddonManager {
         a.timers.clear();
     }
 
-    private static void listAddons() {
-        if(addons.isEmpty()) {
-            log("no addons loaded");
+    // ------------------------------------------------------------- reload + enabled set (1f-2)
+
+    /** Queue a full addon-layer reload; applied on the next UI-thread tick (see {@link #tick}). */
+    private static void queueReload() {
+        reloadPending = true;
+        log("reload queued");
+    }
+
+    /**
+     * Reload the addon layer only (D-005) — no relog, the session stays connected. Tears down every
+     * loaded addon (OnDisable → flush saved vars → drop owned resources, in reverse load order),
+     * re-scans {@code addons/} and the enabled set, re-runs the enabled addons from disk (firing
+     * {@code OnLoad}), and — if already in-world — restores per-character saved vars and re-fires
+     * {@code OnEnterWorld} so addons re-initialize as if freshly logged in (the WoW {@code PLAYER_LOGIN}
+     * analog). Runs on the UI thread (queued via {@link #queueReload}); the tick pump, gob callback and
+     * uimsg tap are <b>session-scoped</b> and left in place — only the Lua layer is rebuilt. Per-addon
+     * teardown/load is error-isolated so one bad addon cannot abort the reload.
+     */
+    public static synchronized void reload() {
+        if(ui == null) {
+            log("reload: no active session");
             return;
         }
+        log("reloading addons...");
+        List<Addon> cur = new ArrayList<Addon>(addons);
+        for(int i = cur.size() - 1; i >= 0; i--)     // reverse load order
+            teardown(cur.get(i));
+        addons.clear();
+        loadAll();                                   // re-scan disk + enabled set; re-run; fire OnLoad
+        if(gui() != null) {                          // already in-world → re-init as a fresh login
+            restorePerChar();                        // reload per-char saved vars (charScope still valid)
+            fire("OnEnterWorld");
+        }
+        log("reload complete (" + addons.size() + " addon[s] active)");
+    }
+
+    /** The persisted set of disabled addon ids (client-scope). An addon runs unless it is in here. */
+    private static Set<String> disabledSet() {
+        List<String> l = Utils.getprefsl(PREF_DISABLED, new String[0]);
+        return (l == null) ? new LinkedHashSet<String>() : new LinkedHashSet<String>(l);
+    }
+
+    /** Is an addon enabled? (i.e. NOT in the persisted disabled set — the default for a new addon.) */
+    public static boolean isEnabled(String id) {
+        return !disabledSet().contains(id);
+    }
+
+    /**
+     * Persist an addon's enabled state. Per D-006 (WoW model) this does NOT load/unload it live — the
+     * change takes effect on the next {@link #reload} / login; {@code reloadNeeded} then flags a pending
+     * reload. Idempotent: a no-op change writes nothing.
+     */
+    public static void setEnabled(String id, boolean enabled) {
+        if((id == null) || id.isEmpty())
+            return;
+        Set<String> d = disabledSet();
+        boolean changed = enabled ? d.remove(id) : d.add(id);
+        if(changed) {
+            Utils.setprefsl(PREF_DISABLED, d);
+            reloadNeeded = true;
+        }
+    }
+
+    /** The loaded addon with this id, or {@code null} if none is loaded (disabled, missing, or errored). */
+    private static Addon findLoaded(String id) {
+        for(Addon a : addons)
+            if((a.manifest != null) && a.manifest.id.equals(id))
+                return a;
+        return null;
+    }
+
+    /** List every discovered addon (a folder with a manifest) and its status: version / disabled / error. */
+    private static void listAddons() {
+        File dir = addonDir();
+        File[] subs = dir.listFiles(File::isDirectory);
+        if(subs == null) {
+            log("no addons/ directory");
+            return;
+        }
+        Set<String> disabled = disabledSet();
         StringBuilder sb = new StringBuilder();
-        for(Addon a : addons) {
+        int n = 0;
+        for(File sub : subs) {
+            if(!new File(sub, "manifest.json").isFile())
+                continue;
+            String id = sub.getName();
+            Addon a = findLoaded(id);
+            String status;
+            if(a != null)
+                status = (a.error == null) ? ("v" + a.manifest.version) : "error";
+            else
+                status = disabled.contains(id) ? "disabled" : "not loaded";
             if(sb.length() > 0)
                 sb.append(", ");
-            sb.append(a.manifest.id).append((a.error == null) ? "" : " (error)");
+            sb.append(id).append(" [").append(status).append("]");
+            n++;
         }
-        log("addons: " + sb);
+        if(n == 0) {
+            log("no addons found");
+            return;
+        }
+        log("addons: " + sb + (reloadNeeded ? "  (changes pending — run :reload to apply)" : ""));
     }
 
     // ------------------------------------------------------------- the tick pump
@@ -291,6 +412,15 @@ public final class AddonManager {
     static void tick(double dt) {
         try {
             clock += dt;
+
+            // 0. A queued :reload / Reload UI — rebuild the addon layer on the UI thread (spec 1f-2,
+            //    D-005). Done first + return so the reloaded addons begin their own tick cleanly next
+            //    frame (this frame's OnUpdate/timers belonged to the addons we just tore down).
+            if(reloadPending) {
+                reloadPending = false;
+                reload();
+                return;
+            }
 
             // 1. Gob spawn/despawn captured on network/loader threads → dispatch on the UI thread.
             GobEvent ge;
