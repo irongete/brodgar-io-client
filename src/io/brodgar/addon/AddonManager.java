@@ -4,6 +4,7 @@ import haven.AddonWidgets;
 import haven.Astronomy;
 import haven.Audio;
 import haven.BAttrWnd;
+import haven.BuddyWnd;
 import haven.Buff;
 import haven.Bufflist;
 import haven.CharWnd;
@@ -339,6 +340,7 @@ public final class AddonManager {
         treeAdapters.add(new StudyAdapter());    // study/curiosity slots (per-tick poll)
         treeAdapters.add(new ActionbarAdapter()); // action-bar / hotbar slots (per-tick poll)
         treeAdapters.add(new EquipAdapter());    // equipment add/remove (per-tick poll)
+        treeAdapters.add(new KinAdapter());      // kin/buddy roster add/remove/status (uimsg-driven)
 
         attachRoot(ui_);              // invisible per-frame tick widget (drives the engine)
         registerOcache(ui_);          // GobAdded/GobRemoved source (marshalled to the UI thread)
@@ -1336,6 +1338,34 @@ public final class AddonManager {
         }
     }
 
+    /**
+     * Kin/buddy roster (A6) — the {@link BuddyWnd.Buddy} entries in the Kin window ({@link
+     * GameUI#buddies}, a {@link BuddyWnd}). Every roster change the client learns of arrives as a
+     * targeted {@code uimsg} to the {@code BuddyWnd} — a kin added ({@code "add"}), removed ({@code
+     * "rm"}), edited ({@code "upd"}: nick/group) or an online-status flip ({@code "chst"}) — so unlike
+     * the buff/study adapters (whose add/remove is a widget create, invisible to the tap) this is
+     * <b>uimsg-driven</b>: {@link #interested} flags those four messages, and {@link #refresh} re-reads
+     * the snapshot list and fires {@code KinChanged} (with the new list) when it actually differs.
+     * Change-detection is a snapshot diff, NOT {@code BuddyWnd.serial} — {@code serial} does not bump on
+     * {@code "chst"} (an online/offline flip), which a kin-alert addon most wants to hear.
+     */
+    private static final class KinAdapter implements TreeAdapter {
+        private LuaValue cache = LuaValue.NIL;   // last kin snapshot list (UI thread; change-detect)
+
+        public boolean interested(Widget w, String msg) {
+            return (w instanceof BuddyWnd) &&
+                   ("add".equals(msg) || "rm".equals(msg) || "chst".equals(msg) || "upd".equals(msg));
+        }
+
+        public void refresh() {
+            LuaValue snap = kinList(LuaValue.NIL);
+            if(!kinListEqual(snap, cache)) {
+                cache = snap;
+                fire("KinChanged", snap);
+            }
+        }
+    }
+
     /** The player's buff bar ({@link GameUI#buffs}), or {@code null} before the HUD is up. */
     private static Bufflist bufflist() {
         GameUI g = gui();
@@ -2218,6 +2248,26 @@ public final class AddonManager {
             }
         });
         hafen.set("party", party);
+
+        // hafen.kin.* — the kin/buddy roster (A6), read from the Kin window (GameUI.buddies, a BuddyWnd —
+        // the same list the in-client Kin tab shows). list([filter]) returns kin snapshots {id, name,
+        // group (0..7), color={r,g,b,a} (the group's colour), online (bool)} in the window's current sort
+        // order; filter is the canonical nil=all / name-substring / predicate. find(nameOrId) returns one
+        // snapshot — a number matches by id, a string by exact (case-insensitive) name. Subscribe to
+        // KinChanged (fired with the new list when a kin is added/removed, renamed/regrouped, or flips
+        // online/offline). Kin management (add/remove/rename) is the gated action tier (Phase 4).
+        LuaTable kin = new LuaTable();
+        kin.set("list", new OneArgFunction() {
+            public LuaValue call(LuaValue filter) {
+                return kinList(filter);
+            }
+        });
+        kin.set("find", new OneArgFunction() {
+            public LuaValue call(LuaValue key) {
+                return kinFind(key);
+            }
+        });
+        hafen.set("kin", kin);
 
         // hafen.buffs.* — active buffs/debuffs (GameUI.buffs → Buff widgets), via the widget-tree
         // mechanism (1d-2). list() returns Buff snapshots {res,name,amount,cooldown,number}; amount/
@@ -4947,6 +4997,88 @@ public final class AddonManager {
         t.set("b", LuaValue.valueOf(c.getBlue()));
         t.set("a", LuaValue.valueOf(c.getAlpha()));
         return t;
+    }
+
+    // ---- kin / buddy (A6: hafen.kin) -------------------------------------------------------------
+    // The kin/buddy roster lives in the BuddyWnd (GameUI.buddies) — the same widget the in-client Kin tab
+    // shows. Its Buddy list is mutated on the network/loader thread as the server pushes add/rm/chst/upd
+    // uimsgs; BuddyWnd.iterator() copies the list under its own lock, so iterating it is snapshot-safe.
+    // All our reads run on the UI thread (addon tick / REPL). online is a tri-state internally (1 online,
+    // 0 offline, -1 hearth-secret-only) that we expose as a boolean (online == 1) — the common "is this
+    // kin online" question; the group index maps to a fixed colour palette (BuddyWnd.gc).
+
+    /** The Kin/buddy window ({@link GameUI#buddies}), or {@code null} before the HUD/Kin window exists. */
+    private static BuddyWnd buddywnd() {
+        GameUI g = gui();
+        return (g == null) ? null : g.buddies;
+    }
+
+    /** A kin snapshot: {@code {id, name, group, color={r,g,b,a}, online(bool)}}. */
+    private static LuaValue kinSnapshot(BuddyWnd.Buddy b) {
+        if(b == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        t.set("id", LuaValue.valueOf(b.id));
+        if(b.name != null)
+            t.set("name", LuaValue.valueOf(b.name));
+        t.set("group", LuaValue.valueOf(b.group));
+        if((b.group >= 0) && (b.group < BuddyWnd.gc.length))
+            t.set("color", color(BuddyWnd.gc[b.group]));
+        t.set("online", LuaValue.valueOf(b.online == 1));
+        return t;
+    }
+
+    /** Kin snapshots in the window's current sort order, passing the canonical {@code matches} filter. */
+    private static LuaValue kinList(LuaValue filter) {
+        LuaTable out = new LuaTable();
+        BuddyWnd bw = buddywnd();
+        if(bw == null)
+            return out;
+        int i = 0;
+        for(BuddyWnd.Buddy b : bw) {               // iterator() copies under the BuddyWnd's own lock
+            LuaValue snap = kinSnapshot(b);
+            if(matches(filter, snap))
+                out.set(++i, snap);
+        }
+        return out;
+    }
+
+    /** One kin snapshot: a number matches by id, a string by exact (case-insensitive) name; else nil. */
+    private static LuaValue kinFind(LuaValue key) {
+        BuddyWnd bw = buddywnd();
+        if(bw == null)
+            return LuaValue.NIL;
+        if(key.isnumber())
+            return kinSnapshot(bw.find(key.toint()));
+        if(key.isstring()) {
+            String needle = key.tojstring();
+            for(BuddyWnd.Buddy b : bw) {
+                if((b.name != null) && b.name.equalsIgnoreCase(needle))
+                    return kinSnapshot(b);
+            }
+        }
+        return LuaValue.NIL;
+    }
+
+    /** Do two kin snapshot lists carry the same id/name/group/online per entry? (change-detection.) */
+    private static boolean kinListEqual(LuaValue a, LuaValue b) {
+        if((a == null) || (b == null) || !a.istable() || !b.istable())
+            return a == b;
+        int n = a.length();
+        if(n != b.length())
+            return false;
+        for(int i = 1; i <= n; i++) {
+            LuaValue ea = a.get(i), eb = b.get(i);
+            if(ea.get("id").toint() != eb.get("id").toint())
+                return false;
+            if(!ea.get("name").tojstring().equals(eb.get("name").tojstring()))
+                return false;
+            if(ea.get("group").toint() != eb.get("group").toint())
+                return false;
+            if(ea.get("online").toboolean() != eb.get("online").toboolean())
+                return false;
+        }
+        return true;
     }
 
     // ---- markers (A1: hafen.markers) -------------------------------------------------------------

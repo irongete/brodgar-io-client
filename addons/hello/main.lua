@@ -259,6 +259,24 @@ local function readRadar(tag)
     first and (" [show=%s notify=%s]"):format(tostring(first.show), tostring(first.notify)) or ""))
 end
 
+-- A6: KIN / BUDDY ROSTER via hafen.kin. list([filter]) returns your kin as {id, name, group (0..7),
+-- color={r,g,b,a} (the group's colour), online (bool)}; filter is the canonical nil=all / name-substring /
+-- predicate. find(nameOrId) returns one entry (number = by id, string = exact case-insensitive name). Like
+-- the rest of the HUD the Kin list streams in a beat after enter-world, so read at now (often 0) and +3s.
+-- hello is READ-ONLY here (kin add/remove/rename is the gated Phase-4 action tier). We also demo find() on
+-- the first listed kin's name, and count how many are currently online.
+local function readKin(tag)
+  local kin = hafen.kin.list()
+  local online = 0
+  for _, k in ipairs(kin) do if k.online then online = online + 1 end end
+  local first = kin[1]
+  local found = first and hafen.kin.find(first.name)     -- round-trip find() by name
+  hafen.log(("[%s] kin=%d (%d online), first=%s%s, find(name)->%s"):format(tag, #kin, online,
+    first and tostring(first.name) or "none",
+    first and (" [group=%d online=%s]"):format(first.group, tostring(first.online)) or "",
+    found and tostring(found.name) or "nil"))
+end
+
 -- 3b: WIDGET MODEL (hafen.ui.adopt). We adopt the MAIN INVENTORY as a model down in the onWidgetCreate observer
 -- (the 3a -> 3b flow: observe a widget's creation, then adopt it by desc.id). invModel is that handle (nil until
 -- the inventory is observed at login). readBags reads it: item count + first item (via model:items(), the same
@@ -311,10 +329,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via Ctrl+B) and it logs") end
   end)
@@ -454,6 +472,28 @@ hafen.events.on("MarkersChanged", function(ev)
   markersSeen = markersSeen + 1
   if markersSeen <= 5 then
     hafen.log(("MarkersChanged: %d marker(s) (%d)"):format(ev.count, markersSeen))
+  end
+end)
+
+-- A6: KinChanged fires when the roster changes — a kin added/removed, renamed/regrouped, or (the one a
+-- kin-alert addon most wants) an online/offline flip. Payload is the new kin list (the same shape as
+-- hafen.kin.list()). A few fire at login as the roster streams in; log the first few, then keep our own
+-- last-online set so we can name WHO just came online/offline on every later change.
+local kinSeen = 0
+local kinOnline = {}          -- name -> true while we believe them online (so we can report transitions)
+hafen.events.on("KinChanged", function(list)
+  kinSeen = kinSeen + 1
+  local now = {}
+  for _, k in ipairs(list) do
+    if k.name then                                   -- names are always present, but keying a table by nil errors
+      now[k.name] = k.online or false
+      if k.online and not kinOnline[k.name] then hafen.log(("KinChanged: %s came ONLINE"):format(k.name)) end
+      if (not k.online) and kinOnline[k.name] then hafen.log(("KinChanged: %s went offline"):format(k.name)) end
+    end
+  end
+  kinOnline = now
+  if kinSeen <= 5 then
+    hafen.log(("KinChanged: %d kin (%d)"):format(#list, kinSeen))
   end
 end)
 

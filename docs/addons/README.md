@@ -30,5 +30,8 @@ built up **progressively** as each piece lands. It is the counterpart to the des
 | [phase-1f1-sandbox.md](phase-1f1-sandbox.md) | ✅ Implemented & verified | Lua sandbox: strict env whitelist (no `io`/`luajava`/`require`/`load`/`debug`) + instruction hard-stop watchdog (D-017/D-018) — zero `haven` edit |
 | [a1-markers.md](a1-markers.md) | ✅ Implemented & verified | Gap subsystem A1: `hafen.markers` (list/nearest/add/remove) over the client-side map DB + `MarkersChanged` — zero `haven` edit |
 | [a4-skills-credos-lore.md](a4-skills-credos-lore.md) | ✅ Implemented & verified | Gap subsystem A4 (completion): `hafen.char.skillsAvailable()`/`credos()`/`experiences()` — buyable skills, credos, lore — zero `haven` edit |
+| [a2-radar.md](a2-radar.md) | ✅ Implemented & verified | Gap subsystem A2: `hafen.radar` (categories/setVisible/setNotify) over `GobIcon.Settings` — zero `haven` edit |
+| [a11-slash-commands.md](a11-slash-commands.md) | ✅ Implemented & verified | Gap subsystem A11: `hafen.slash.register` (WoW `/command`) via a single engine-lifetime `Console` dispatcher (C1) — zero `haven` edit |
+| [a6-kin.md](a6-kin.md) | ✅ Implemented & verified | Gap subsystem A6: `hafen.kin` (list/find) over the Kin window (`BuddyWnd`) + `KinChanged` — zero `haven` edit |
 
 _(Grows as phases land — see [`specs/addons/15-implementation-plan.md`](../../specs/addons/15-implementation-plan.md) for the build order.)_
