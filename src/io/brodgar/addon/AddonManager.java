@@ -117,6 +117,16 @@ public final class AddonManager {
     private static final double GOB_SWEEP_INTERVAL =                      // gob-overlay filter sweep period (s)
         Double.parseDouble(System.getProperty("haven.addon.gobsweepsec", "0.2"));
 
+    // -- action hooks (spec 13 §L2 / Phase 2d): intercept the outbound UI.wdgmsg action stream ------------
+    // hafen.hook.action(msg, fn) installs a pre-hook at the single outbound choke point (the UI.java edit
+    // calls onWdgmsg here). Keyed by action name for a near-zero fast path when a given msg is unhooked, and
+    // globally empty when no addon hooks anything (the common case). Lua runs ONLY while the current thread
+    // holds the UI monitor (onWdgmsg's holdsLock guard) — the click send comes from the render thread but
+    // under synchronized(ui), and tick/draw hold it too, so hook Lua never races other Lua. Session-scoped.
+    private static final Map<String, List<LuaActionHook>> actionHooks =
+        new ConcurrentHashMap<String, List<LuaActionHook>>();
+    private static boolean dispatchingAction;   // re-entrancy guard (a hook body that itself sends a wdgmsg)
+
     // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
     // Adapters read a GameUI widget tree into a Lua snapshot and fire a semantic event on change. The
     // UI.uimsg core tap runs off the UI thread, so it only marks the interested adapter(s) dirty; the
@@ -323,6 +333,7 @@ public final class AddonManager {
         flush(a);                     // ...then persist them (spec 05: flushed at OnDisable)
         destroyWidgets(a);            // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
         teardownHooks(a);             // 2c: deafen input hooks (engine widgets outlive a :reload — must detach)
+        teardownActionHooks(a);       // 2d: unregister action hooks from the outbound-wdgmsg dispatch map
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
         a.subs.clear();
@@ -732,6 +743,48 @@ public final class AddonManager {
                 /* an adapter's recognizer must never break server message application */
             }
         }
+    }
+
+    /**
+     * The outbound-{@code wdgmsg} action hook (spec 13 §L2 / Phase 2d) — the core edit in
+     * {@link UI#wdgmsg(Widget, String, Object...)}. Runs every registered {@code hafen.hook.action(msg, fn)}
+     * whose name matches, <b>before</b> the message reaches the server, and reports whether the default send
+     * should proceed: {@code false} once any hook called {@code ev:preventDefault()} (or {@code ev:resend}/
+     * {@code ev:send}, which take over the send themselves via {@link UI#rawWdgmsg}).
+     *
+     * <p><b>Threading.</b> It runs Lua only when the calling thread already holds the UI monitor
+     * ({@code Thread.holdsLock}). A player action's {@code wdgmsg} is always sent under {@code synchronized(ui)}
+     * — from input dispatch and the addon tick (both inside the frame loop's {@code synchronized(ui)}), or from
+     * the MapView hit-test callback (which takes {@code synchronized(ui)} before it sends {@code "click"}). Since
+     * the tick and draw also hold that monitor, holding it here means the hook Lua cannot race any other Lua —
+     * and, because we only <i>test</i> the lock (never acquire a new one), there is no deadlock risk. A rare
+     * off-lock sender is passed straight through (unhooked). The re-entrancy guard makes a hook body that itself
+     * triggers a {@code wdgmsg} pass through rather than recurse (the spec's {@code resend} caveat; {@code resend}/
+     * {@code send} themselves bypass this via {@code rawWdgmsg}). Returns {@code true} (proceed) on every fast-path
+     * exit, so an unhooked action is unaffected.
+     */
+    public static boolean onWdgmsg(Widget sender, String msg, Object[] args) {
+        if(actionHooks.isEmpty())
+            return true;                              // fast path: no action hooks anywhere
+        List<LuaActionHook> matching = actionHooks.get(msg);
+        if((matching == null) || matching.isEmpty())
+            return true;                              // fast path: nothing hooks this action
+        UI u = ui;
+        if((u == null) || !Thread.holdsLock(u))
+            return true;                              // only run Lua on a UI-locked (Lua-safe) send path
+        if(dispatchingAction)
+            return true;                              // re-entrancy: a hook body sent another wdgmsg
+        dispatchingAction = true;
+        boolean[] prevented = new boolean[1];
+        try {
+            for(LuaActionHook h : matching) {         // copy-on-write: a hook may :remove() itself here
+                if(h.alive)
+                    h.invoke(sender, msg, args, prevented, u);
+            }
+        } finally {
+            dispatchingAction = false;
+        }
+        return !prevented[0];
     }
 
     /** Re-read each dirty adapter and fire its semantic event (UI thread, drained from the tick). */
@@ -1901,19 +1954,29 @@ public final class AddonManager {
         hafen.set("ui", uiT);
 
         // hafen.hook — intercept/alter client behaviour, not just observe it (spec 13-hooks-and-interception).
-        // Phase 2c ships Level 1 (input/gesture hooks), the built-in zero-core-edit seam:
-        //   hafen.hook.input(target, event, fn) -> handle{ :remove() }
-        // fn(ev) is a PRE-hook: it runs BEFORE the target widget's own handler (via Widget.listen), and
-        // ev:preventDefault() cancels the default. At this seam preventDefault ALSO stops the event reaching
-        // child widgets (Event.dispatch short-circuits on a consuming listener), so there is no separate
-        // stopPropagation. target is a string naming a client widget — "mapview" (alias "map"), "gameui"
-        // (alias "hud"), or "root"; event is "mousedown" | "mouseup" | "mousemove" | "mousewheel". ev carries
-        // x,y (widget-local pixels) plus button (down/up) / amount (wheel). Register in OnEnterWorld — the
-        // target widget must already exist. Levels 2/3 (action/message hooks) and hafen.key arrive in 2d/2e.
+        // Two levels so far, both PRE-hooks (fn(ev) runs BEFORE the default; ev:preventDefault() cancels it):
+        //   L1 hafen.hook.input(target, event, fn)  (Phase 2c) — the built-in zero-core-edit Widget.listen
+        //       seam. Fires before a client widget's own input handler; preventDefault ALSO stops the event
+        //       reaching child widgets (Event.dispatch short-circuits), so there is no separate stopPropagation.
+        //       target = "mapview"(alias "map") | "gameui"(alias "hud") | "root"; event = mousedown | mouseup |
+        //       mousemove | mousewheel; ev carries x,y (widget-local px) + button (down/up) / amount (wheel).
+        //   L2 hafen.hook.action(msg, fn)  (Phase 2d) — the outbound-action choke point (UI.wdgmsg). Fires when
+        //       a widget is about to send an action to the server, with the arguments FULLY RESOLVED (for a
+        //       MapView move: the destination world coord + any clicked gob — none of which exist at L1's
+        //       mousedown). ev = { msg, sender, args (1-based; Coord -> {x,y}), preventDefault(), resend(),
+        //       send(t) }. resend()/send(t) re-issue the action (bypassing the hook chain, so no loop) — the
+        //       "intercept my move, do X, then move" case. Each returns a handle{ :remove() }.
+        // Register hooks in OnEnterWorld (the L1 target widget must exist; L2 needs no target). Level 3
+        // (message hooks) + hafen.key arrive in 2e.
         LuaTable hook = new LuaTable();
         hook.set("input", new ThreeArgFunction() {
             public LuaValue call(LuaValue target, LuaValue event, LuaValue fn) {
                 return newInputHook(owner, target, event, fn);
+            }
+        });
+        hook.set("action", new TwoArgFunction() {
+            public LuaValue call(LuaValue msg, LuaValue fn) {
+                return newActionHook(owner, msg, fn);
             }
         });
         hafen.set("hook", hook);
@@ -2263,6 +2326,67 @@ public final class AddonManager {
             }
         }
         a.hooks.clear();
+    }
+
+    // ------------------------------------------------------------------ action hooks (hafen.hook, 2d)
+
+    /**
+     * Register a Level-2 action hook ({@code hafen.hook.action(msg, fn)}, spec 13 §L2): install {@code fn} as a
+     * pre-hook on the outbound action {@code msg}, tracked in the engine's dispatch map (keyed by name) and in
+     * the addon's owned-resource registry (unregistered on reload/disable, P2). Returns the Lua handle
+     * ({@code :remove()}). Needs no live target (unlike an input hook) so it can be registered any time, but
+     * OnEnterWorld onward is the natural place (matching L1).
+     */
+    private static LuaValue newActionHook(final Addon owner, LuaValue msg, LuaValue fn) {
+        if(!msg.isstring() || !fn.isfunction())
+            throw new LuaError("hafen.hook.action(msg, fn) expects (string, function)");
+        final LuaActionHook h = new LuaActionHook(owner, msg.tojstring(), fn);
+        registerActionHook(h);
+        owner.actionHooks.add(h);
+        LuaTable handle = new LuaTable();
+        handle.set("remove", new ZeroArgFunction() {
+            public LuaValue call() {
+                removeActionHook(owner, h);
+                return LuaValue.NIL;
+            }
+        });
+        return handle;
+    }
+
+    /** Add {@code h} to the per-action dispatch list (created on demand). Copy-on-write so onWdgmsg can iterate. */
+    private static void registerActionHook(LuaActionHook h) {
+        List<LuaActionHook> l = actionHooks.get(h.msg);
+        if(l == null) {
+            l = new CopyOnWriteArrayList<LuaActionHook>();
+            actionHooks.put(h.msg, l);
+        }
+        l.add(h);
+    }
+
+    /** Drop {@code h} from the dispatch map, removing the (now-empty) per-action list so the fast path stays cheap. */
+    private static void unregisterActionHook(LuaActionHook h) {
+        List<LuaActionHook> l = actionHooks.get(h.msg);
+        if(l != null) {
+            l.remove(h);
+            if(l.isEmpty())
+                actionHooks.remove(h.msg);
+        }
+    }
+
+    /** Remove one action hook: stop it firing + unregister it (the handle's {@code :remove()}). */
+    private static void removeActionHook(Addon owner, LuaActionHook h) {
+        h.alive = false;
+        unregisterActionHook(h);
+        owner.actionHooks.remove(h);
+    }
+
+    /** Mark dead + unregister every action hook this addon owns (teardown on reload/disable, P2). */
+    private static void teardownActionHooks(Addon a) {
+        for(LuaActionHook h : a.actionHooks) {
+            h.alive = false;
+            unregisterActionHook(h);
+        }
+        a.actionHooks.clear();
     }
 
     /** Any addon currently has a HUD overlay? (Decides whether to queue the per-frame afterdraw.) */

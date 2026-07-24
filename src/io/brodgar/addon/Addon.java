@@ -56,6 +56,14 @@ public final class Addon {
      * listener firing into a torn-down env (principle P2). Copy-on-write: a firing hook may {@code :remove()}.
      */
     public final List<LuaInputHook> hooks = new CopyOnWriteArrayList<LuaInputHook>();
+    /**
+     * Live action hooks owned by this addon ({@code hafen.hook.action}, Phase 2d): pre-hooks on the outbound
+     * {@link haven.UI#wdgmsg} choke point, keyed by action name in {@link AddonManager}'s dispatch map.
+     * Teardown marks each dead and unregisters it from that map (principle P2) — unlike an input hook there is
+     * no widget to deafen; the hook lives only in the engine's dispatcher. Copy-on-write: a firing hook may
+     * {@code :remove()} itself while the dispatcher iterates the per-action list.
+     */
+    public final List<LuaActionHook> actionHooks = new CopyOnWriteArrayList<LuaActionHook>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per

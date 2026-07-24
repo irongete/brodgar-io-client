@@ -1,7 +1,9 @@
--- Example addon (Phase 2c): custom UI now includes INPUT HOOKS — hafen.hook.input (intercept a widget's
--- input BEFORE its own handler, cancel it with ev:preventDefault()) — on top of 2b overlays (hafen.ui.overlay
--- on the HUD + hafen.ui.gobOverlay over game objects) and 2a custom windows/widgets + the GOut wrapper. It
--- runs inside the Lua SANDBOX (D-017 strict env + D-018
+-- Example addon (Phase 2d): HOOKS now span two levels — 2c hafen.hook.input (L1: intercept a widget's raw
+-- input BEFORE its own handler) AND 2d hafen.hook.action (L2: intercept the OUTBOUND action a widget sends
+-- to the server, with the arguments already RESOLVED — e.g. a move's destination world coord). Both are
+-- pre-hooks with ev:preventDefault(); L2 also has ev:resend()/ev:send() to re-issue the action. On top of 2b
+-- overlays (hafen.ui.overlay on the HUD + hafen.ui.gobOverlay over game objects) and 2a custom windows/widgets
+-- + the GOut wrapper. It runs inside the Lua SANDBOX (D-017 strict env + D-018
 -- instruction watchdog) over 1e hafen.store (saved variables), 1d-4 actionbar/equip, 1d-3 study/skills,
 -- 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c items/char/party reads, the gob/world/map/player/time/sound
 -- reads, the 1b event bus, and timers, and can be RELOADED from disk without a relog (:reload, D-005) and
@@ -9,7 +11,7 @@
 -- The file body runs once at load; then OnLoad, then (on entering the world) OnEnterWorld. On :reload the
 -- whole cycle repeats. Every call in is watchdog-armed — a runaway loop aborts, no freeze.
 
-hafen.log("hello loaded (v0.15.0)")
+hafen.log("hello loaded (v0.16.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -339,8 +341,10 @@ end)
 -- it with the X (onClose fires, then it is destroyed). onDraw runs every frame with (g, width, height).
 local panel          -- the window handle (nil until created; a fresh reload rebuilds the Lua env -> nil)
 local clicks = 0
-local mapLock = false -- 2c: while true, the MapView mousedown hook cancels map clicks (toggle by clicking the window)
+local mapLock = false -- 2c: while true, the MapView mousedown hook cancels map clicks (toggle: LEFT-click the window)
 local mapDowns = 0    -- 2c: how many map mousedowns the hook has seen (for the "observed" log lines)
+local moveIntercept = false -- 2d: while true, the "click" action hook intercepts moves and re-sends them (toggle: RIGHT-click)
+local moveHookSeen = 0      -- 2d: how many moves the action hook has observed while OFF (for the "observed" log lines)
 
 local function drawPanel(g, w, h)
   g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()          -- translucent backdrop
@@ -358,9 +362,13 @@ local function drawPanel(g, w, h)
   else
     g:text("vitals loading...", 6, 42)
   end
-  -- 2c: map-lock state (click the window to toggle; red = clicks on the map are being cancelled by the hook)
+  -- 2c: map-lock state (LEFT-click the window to toggle; red = map clicks are being cancelled by the L1 hook)
   g:color(mapLock and 235 or 150, mapLock and 90 or 150, 90)
-  g:text(("map-lock %s (click me)"):format(mapLock and "ON" or "OFF"), 6, 90)
+  g:text(("map-lock %s (LMB)"):format(mapLock and "ON" or "OFF"), 6, 90)
+  g:color()
+  -- 2d: move-intercept state (RIGHT-click the window to toggle; orange = moves are intercepted + re-sent by L2)
+  g:color(moveIntercept and 245 or 150, moveIntercept and 160 or 150, moveIntercept and 60 or 150)
+  g:text(("move-hook %s (RMB)"):format(moveIntercept and "ON" or "OFF"), 6, 104)
   g:color()
   g:color(170, 170, 170); g:rect(0, 0, w, h); g:color()          -- 1px border
 end
@@ -368,28 +376,32 @@ end
 hafen.events.on("OnEnterWorld", function()
   if panel then return end                                        -- defensive: create the window once
   panel = hafen.ui.window{
-    title   = "Hello 2a/2c",
-    size    = { 168, 108 },
+    title   = "Hello 2c/2d",
+    size    = { 184, 122 },
     pos     = { 80, 120 },
     onDraw  = drawPanel,
     onClick = function(x, y, button)
       clicks = clicks + 1
-      mapLock = not mapLock                                       -- 2c: toggle the MapView mousedown hook
-      hafen.log(("panel click #%d at %d,%d (button %d) -> map-lock %s")
-        :format(clicks, x, y, button, mapLock and "ON" or "OFF"))
+      if button == 3 then                                        -- RIGHT-click -> 2d: toggle the action hook
+        moveIntercept = not moveIntercept
+        hafen.log(("panel RMB #%d -> move-intercept %s"):format(clicks, moveIntercept and "ON" or "OFF"))
+      else                                                        -- LEFT/other -> 2c: toggle the input hook
+        mapLock = not mapLock
+        hafen.log(("panel click #%d at %d,%d (button %d) -> map-lock %s")
+          :format(clicks, x, y, button, mapLock and "ON" or "OFF"))
+      end
       return true                                                 -- truthy = consume the click
     end,
     onClose = function() hafen.log("panel closed (X) -- :reload to bring it back") end,
   }
-  hafen.log("2a: custom window up -- drag the title bar, click the body (toggles map-lock), or close it")
+  hafen.log("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, X=close")
 
-  -- 2c: INPUT HOOK (hafen.hook.input). Pre-hook MapView's mousedown through the engine's built-in
-  -- Widget.listen seam (ZERO core edit): fn(ev) runs BEFORE MapView's own mousedown. While map-lock is ON
-  -- (click the window body to toggle), ev:preventDefault() cancels the click so it never reaches MapView --
-  -- your character does NOT move: the Phase-2c DoD (a mousedown pre-hook on MapView cancels the default).
-  -- While OFF the hook only observes (logs the first few), proving it sees every click without altering it.
-  -- ev.x/ev.y are MapView-local pixels; ev.button is 1=left/2=middle/3=right. The handle (returned, with
-  -- :remove()) is bridge-owned, so :reload/disable removes the hook automatically -- no leak, no OnDisable.
+  -- 2c: INPUT HOOK (hafen.hook.input, L1). Pre-hook MapView's mousedown through the engine's built-in
+  -- Widget.listen seam (ZERO core edit): fn(ev) runs BEFORE MapView's own mousedown, at SCREEN coords, before
+  -- any hit-test. While map-lock is ON (LEFT-click the window to toggle), ev:preventDefault() cancels the click
+  -- so it never reaches MapView -- your character does NOT move (the Phase-2c DoD). While OFF the hook only
+  -- observes (logs the first few). ev.x/ev.y are MapView-local pixels; ev.button is 1=left/2=middle/3=right.
+  -- The handle (returned, with :remove()) is bridge-owned, so :reload/disable removes the hook automatically.
   hafen.hook.input("mapview", "mousedown", function(ev)
     mapDowns = mapDowns + 1
     if mapLock then
@@ -401,7 +413,35 @@ hafen.events.on("OnEnterWorld", function()
         :format(ev.x, ev.y, ev.button, mapDowns))
     end
   end)
-  hafen.log("2c: MapView mousedown hook installed -- click the window to toggle map-lock, then click the map")
+  hafen.log("2c: MapView mousedown hook installed -- LEFT-click the window to toggle map-lock, then click the map")
+
+  -- 2d: ACTION HOOK (hafen.hook.action, L2). Intercept the OUTBOUND "click" action MapView sends to the
+  -- server to move -- the UI.wdgmsg choke point, where the arguments are ALREADY RESOLVED: ev.args[2] is the
+  -- destination WORLD coordinate (impossible to know at 2c's L1 mousedown, before the hit-test). RIGHT-click
+  -- the window to arm move-intercept. While ON, a plain move-to-ground click is intercepted: ev:preventDefault()
+  -- drops the server send, we log the resolved destination, then ev:resend() re-issues it ourselves -- the
+  -- Phase-2d DoD (intercept a move-click, run logic, then re-send; the character still moves, via our resend).
+  -- While OFF we only observe-log the first few, proving L2 sees every resolved move without altering it.
+  -- We target MapView moves precisely: ev.sender == "MapView" and #ev.args == 4 (clicking a gob appends more
+  -- args). resend()/send() bypass the hook chain, so re-issuing cannot loop. NB: if map-lock (2c) is ON, the L1
+  -- hook cancels the click before any hit-test, so no "click" is ever sent and this L2 hook never fires -- turn
+  -- map-lock OFF to see move-intercept. The handle is bridge-owned (:reload/disable removes it -- no leak).
+  hafen.hook.action("click", function(ev)
+    if ev.sender ~= "MapView" or #ev.args ~= 4 then return end    -- only plain MapView move-to-ground clicks
+    local w = ev.args[2]                                          -- resolved destination (world coord {x,y})
+    if moveIntercept then
+      ev:preventDefault()                                         -- do NOT send the move to the server...
+      hafen.log(("2d: MOVE intercepted -> %d,%d (btn %s) -- resending")
+        :format(w.x, w.y, tostring(ev.args[3])))
+      ev:resend()                                                 -- ...then issue it myself (unchanged) -> still moves
+    else
+      moveHookSeen = moveHookSeen + 1
+      if moveHookSeen <= 3 then
+        hafen.log(("2d: move observed -> %d,%d (passed through) [#%d]"):format(w.x, w.y, moveHookSeen))
+      end
+    end
+  end)
+  hafen.log("2d: MapView 'click' action hook installed -- RIGHT-click the window to arm move-intercept, then click the map")
 end)
 
 -- 2b: HUD OVERLAY (hafen.ui.overlay). Paint on top of the HUD WITHOUT owning a widget — fn(g, w, h) runs
@@ -414,15 +454,17 @@ local gobCount = 0
 hafen.timer.every(1, function() gobCount = hafen.world.count() end)
 
 local function drawHud(g, w, h)
-  -- 2c: surface the map-lock state here too, so the input hook has clear on-HUD feedback (border turns red
-  -- while map clicks are being cancelled).
-  local txt = ("2b HUD   gobs=%d   clock=%.0f   map-lock=%s"):format(
-    gobCount, hafen.time.clock() or 0, mapLock and "ON" or "OFF")
-  local bw = 250
+  -- 2c/2d: surface the hook states here too, so the input+action hooks have clear on-HUD feedback (border
+  -- turns red while map-lock cancels clicks, orange while move-intercept re-sends them).
+  local txt = ("2b HUD  gobs=%d  clock=%.0f  map-lock=%s  move=%s"):format(
+    gobCount, hafen.time.clock() or 0, mapLock and "ON" or "OFF", moveIntercept and "ON" or "OFF")
+  local bw = 320
   local x = math.floor(w / 2 - bw / 2)
   g:color(0, 0, 0, 140); g:frect(x, 2, bw, 18); g:color()        -- translucent backdrop
-  if mapLock then g:color(235, 90, 90) else g:color(120, 200, 120) end
-  g:rect(x, 2, bw, 18); g:color()                                -- border: red while map-locked, else green
+  if mapLock then g:color(235, 90, 90)                           -- red: L1 cancelling map clicks
+  elseif moveIntercept then g:color(245, 160, 60)                -- orange: L2 intercepting + re-sending moves
+  else g:color(120, 200, 120) end                                -- green: hooks observing only
+  g:rect(x, 2, bw, 18); g:color()
   g:text(txt, x + 6, 4)
   local cx, cy = math.floor(w / 2), math.floor(h / 2)            -- crosshair at the exact screen centre
   g:color(255, 90, 90, 200)

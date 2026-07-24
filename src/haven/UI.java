@@ -663,6 +663,19 @@ public class UI {
     }
 	
     public void wdgmsg(Widget sender, String msg, Object... args) {
+	// addon: outbound-action hook (L2 — spec 13 §L2). A hafen.hook.action handler runs here, before the
+	// message reaches the server, and may cancel the send (ev:preventDefault) or re-issue it via
+	// ev:resend()/ev:send() (which call rawWdgmsg to bypass this chain — no re-dispatch loop). Returns
+	// false to suppress. It only runs Lua when it already holds the UI monitor (the normal path), so this
+	// is a near-zero no-op when no action hooks are registered.
+	if(!io.brodgar.addon.AddonManager.onWdgmsg(sender, msg, args))
+	    return;
+	rawWdgmsg(sender, msg, args);
+    }
+
+    // addon: the original send path, split out so a hook's ev:resend()/ev:send() can reach the server
+    // WITHOUT re-entering the action-hook chain above (guards against re-dispatch loops — spec 13 §L2).
+    public void rawWdgmsg(Widget sender, String msg, Object... args) {
 	int id = widgetid(sender);
 	if(id < 0) {
 	    new Warning("wdgmsg sender (%s) is not in rwidgets, message is %s", sender.getClass().getName(), msg).issue();
