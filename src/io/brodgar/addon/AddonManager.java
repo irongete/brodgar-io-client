@@ -41,6 +41,7 @@ import haven.Resource;
 import haven.SAttrWnd;
 import haven.SkillWnd;
 import haven.Speaking;
+import haven.Speedget;
 import haven.UI;
 import haven.Utils;
 import haven.WItem;
@@ -2268,6 +2269,43 @@ public final class AddonManager {
             }
         });
         hafen.set("kin", kin);
+
+        // hafen.speed.* — movement speed (A7), read from the speed selector widget (Speedget: the four-way
+        // crawl/walk/run/sprint toggle at the bottom of the HUD). get() returns the CURRENT speed as 0..3
+        // (0=crawl 1=walk 2=run 3=sprint), or nil if the widget isn't up yet. max() returns the highest
+        // speed currently SELECTABLE (0..3) — speeds 0..max() are available, higher ones are disabled (e.g.
+        // sprint locked); nil if not up. name([n]) returns the display name of speed n (default = current;
+        // from the widget's own tooltips), or nil. Read-only here — speed.set (change speed) is the gated
+        // action tier (Phase 4). No SpeedChanged event: speed is read on demand (the classic use is a
+        // speed-toggle keybind that reads get() then sets), like the other read-only gap surfaces.
+        LuaTable speed = new LuaTable();
+        speed.set("get", new ZeroArgFunction() {
+            public LuaValue call() {
+                Speedget s = speedget();
+                return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s.cur);
+            }
+        });
+        speed.set("max", new ZeroArgFunction() {
+            public LuaValue call() {
+                Speedget s = speedget();
+                return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s.max);
+            }
+        });
+        speed.set("name", new OneArgFunction() {
+            public LuaValue call(LuaValue n) {
+                int idx;
+                if(n.isnumber()) {
+                    idx = n.toint();
+                } else {                       // no/absent arg → the current speed
+                    Speedget s = speedget();
+                    if(s == null)
+                        return LuaValue.NIL;
+                    idx = s.cur;
+                }
+                return speedName(idx);
+            }
+        });
+        hafen.set("speed", speed);
 
         // hafen.buffs.* — active buffs/debuffs (GameUI.buffs → Buff widgets), via the widget-tree
         // mechanism (1d-2). list() returns Buff snapshots {res,name,amount,cooldown,number}; amount/
@@ -5079,6 +5117,32 @@ public final class AddonManager {
                 return false;
         }
         return true;
+    }
+
+    // ---- movement speed (A7: hafen.speed) --------------------------------------------------------
+    // The speed selector is a Speedget widget (crawl/walk/run/sprint) the server places under the HUD.
+    // It has no named GameUI field, so we locate it with the 1d-1 Locator (a children(Class) subtree
+    // walk from the HUD) — the same way vitals finds its IMeters. Both fields we read (cur = current
+    // speed, max = highest currently-selectable speed) are public ints, so this is a zero-haven-edit
+    // read. All calls run on the UI thread (addon tick / REPL). Changing speed is the gated Phase-4 tier.
+
+    /** The (unique) movement-speed widget under the HUD, or {@code null} before it has streamed in. */
+    private static Speedget speedget() {
+        GameUI g = gui();
+        if(g == null)
+            return null;
+        for(Speedget s : g.children(Speedget.class))   // recursive subtree walk; take the first
+            return s;
+        return null;
+    }
+
+    /** The display name of speed {@code n} (0..3) from the widget's own tooltips, or nil if out of range. */
+    private static LuaValue speedName(int n) {
+        String[] tips = Speedget.tips;                 // "Crawl"/"Walk"/"Run"/"Sprint" (resource tooltips)
+        if((tips == null) || (n < 0) || (n >= tips.length))
+            return LuaValue.NIL;
+        String t = tips[n];
+        return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t);
     }
 
     // ---- markers (A1: hafen.markers) -------------------------------------------------------------

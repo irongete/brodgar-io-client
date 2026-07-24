@@ -1,4 +1,8 @@
--- Example addon (gap subsystem A2): RADAR / MINIMAP ICONS — hafen.radar reads the character's gob-icon
+-- Example addon (gap subsystem A7): MOVEMENT SPEED — hafen.speed reads the crawl/walk/run/sprint selector
+-- (get() -> current speed 0..3, max() -> highest currently-selectable, name([n]) -> display name); read-only
+-- here, since changing speed is the gated Phase-4 action tier. Built on gap subsystem A6: KIN / BUDDY ROSTER —
+-- hafen.kin reads the Kin window (list([filter]) -> {id,name,group,color,online}, find(nameOrId)) and fires
+-- KinChanged when a kin is added/removed or flips online/offline. Built on gap subsystem A2: RADAR / MINIMAP ICONS — hafen.radar reads the character's gob-icon
 -- registry (categories() -> {name,res,show,notify} per category) and can flip a category's show (draw it on
 -- the minimap) or notify (sound + msg when one appears) flag over every match of a filter
 -- (setVisible/setNotify(filter,on); filter = nil=all / name substring / predicate). It IS the same registry
@@ -37,7 +41,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.25.0)")
+hafen.log("hello loaded (v0.27.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -277,6 +281,21 @@ local function readKin(tag)
     found and tostring(found.name) or "nil"))
 end
 
+-- A7: MOVEMENT SPEED via hafen.speed. get() returns the CURRENT speed as 0..3 (0=crawl 1=walk 2=run 3=sprint)
+-- or nil if the speed selector (the crawl/walk/run/sprint toggle at the bottom of the HUD) isn't up yet;
+-- max() returns the highest speed currently SELECTABLE (speeds 0..max are available); name([n]) returns a
+-- speed's display name (default = current). Like the rest of the HUD the widget streams in a beat after
+-- enter-world, so read at now (often nil) and +3s. hello is READ-ONLY here -- changing speed is the gated
+-- Phase-4 action tier; the classic speed addon reads get() in a keybind and (Phase 4) sets the next speed.
+local function readSpeed(tag)
+  local cur = hafen.speed.get()
+  if cur == nil then
+    hafen.log(("[%s] speed: nil (selector not up yet)"):format(tag)); return
+  end
+  hafen.log(("[%s] speed: cur=%d (%s), max=%s"):format(tag, cur,
+    tostring(hafen.speed.name()), tostring(hafen.speed.max())))
+end
+
 -- 3b: WIDGET MODEL (hafen.ui.adopt). We adopt the MAIN INVENTORY as a model down in the onWidgetCreate observer
 -- (the 3a -> 3b flow: observe a widget's creation, then adopt it by desc.id). invModel is that handle (nil until
 -- the inventory is observed at login). readBags reads it: item count + first item (via model:items(), the same
@@ -329,10 +348,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via Ctrl+B) and it logs") end
   end)

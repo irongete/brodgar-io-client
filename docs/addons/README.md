@@ -33,5 +33,6 @@ built up **progressively** as each piece lands. It is the counterpart to the des
 | [a2-radar.md](a2-radar.md) | ✅ Implemented & verified | Gap subsystem A2: `hafen.radar` (categories/setVisible/setNotify) over `GobIcon.Settings` — zero `haven` edit |
 | [a11-slash-commands.md](a11-slash-commands.md) | ✅ Implemented & verified | Gap subsystem A11: `hafen.slash.register` (WoW `/command`) via a single engine-lifetime `Console` dispatcher (C1) — zero `haven` edit |
 | [a6-kin.md](a6-kin.md) | ✅ Implemented & verified | Gap subsystem A6: `hafen.kin` (list/find) over the Kin window (`BuddyWnd`) + `KinChanged` — zero `haven` edit |
+| [a7-speed.md](a7-speed.md) | ✅ Implemented & verified | Gap subsystem A7: `hafen.speed` (get/max/name) over the `Speedget` selector; read-only (set = gated Phase 4) — zero `haven` edit |
 
 _(Grows as phases land — see [`specs/addons/15-implementation-plan.md`](../../specs/addons/15-implementation-plan.md) for the build order.)_
