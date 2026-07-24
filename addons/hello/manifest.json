@@ -1,9 +1,9 @@
 {
   "name": "Hello",
   "id": "hello",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "brodgar",
-  "description": "Example addon — demonstrates the event bus (OnLoad/OnEnterWorld/OnUpdate/GobAdded) and timers.",
+  "description": "Example addon — demonstrates the event bus, timers, and the Glob-backed read API (hafen.gob.* + hafen.world.*).",
   "api_version": 1,
   "files": ["main.lua"]
 }

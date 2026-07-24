@@ -2,9 +2,15 @@ package io.brodgar.addon;
 
 import haven.Console;
 import haven.Coord2d;
+import haven.Drawable;
 import haven.Gob;
+import haven.GobHealth;
+import haven.GobIcon;
 import haven.MapView;
+import haven.Moving;
 import haven.OCache;
+import haven.Resource;
+import haven.Speaking;
 import haven.UI;
 import haven.Utils;
 
@@ -20,6 +26,7 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -305,7 +312,20 @@ public final class AddonManager {
     private static void installHafen(Globals g, final Addon owner) {
         LuaTable hafen = new LuaTable();
 
+        // hafen.gob.*(ref) — the canonical per-gob accessor. ref = gob id, "player"/"me", or nil
+        // (=player). Each call re-resolves the gob → always fresh; returns nil if it's gone. Unknown
+        // tokens ("target"/"partyN"/…) resolve to nil for now (added with their subsystems).
         LuaTable gob = new LuaTable();
+        gob.set("exists", new OneArgFunction() {
+            public LuaValue call(LuaValue ref) {
+                return LuaValue.valueOf(resolve(ref) != null);
+            }
+        });
+        gob.set("info", new OneArgFunction() {
+            public LuaValue call(LuaValue ref) {
+                return gobSnapshot(resolve(ref));
+            }
+        });
         gob.set("pos", new OneArgFunction() {
             public LuaValue call(LuaValue ref) {
                 Coord2d rc = pos(ref);
@@ -317,7 +337,168 @@ public final class AddonManager {
                 return t;
             }
         });
+        gob.set("facing", new OneArgFunction() {
+            public LuaValue call(LuaValue ref) {
+                Gob g = resolve(ref);
+                if(g == null)
+                    return LuaValue.NIL;
+                synchronized(g) {
+                    return LuaValue.valueOf(g.a);
+                }
+            }
+        });
+        gob.set("name", new OneArgFunction() {
+            public LuaValue call(LuaValue ref) {
+                Gob g = resolve(ref);
+                String n = (g == null) ? null : gobName(g);
+                return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n);
+            }
+        });
+        gob.set("health", new OneArgFunction() {
+            public LuaValue call(LuaValue ref) {
+                Gob g = resolve(ref);
+                if(g == null)
+                    return LuaValue.NIL;
+                GobHealth h = g.getattr(GobHealth.class);
+                return (h == null) ? LuaValue.NIL : LuaValue.valueOf(h.hp);
+            }
+        });
+        gob.set("moving", new OneArgFunction() {
+            public LuaValue call(LuaValue ref) {
+                Gob g = resolve(ref);
+                if(g == null)
+                    return LuaValue.NIL;
+                return LuaValue.valueOf(g.getattr(Moving.class) != null);
+            }
+        });
+        gob.set("speed", new OneArgFunction() {
+            public LuaValue call(LuaValue ref) {
+                Gob g = resolve(ref);
+                if(g == null)
+                    return LuaValue.NIL;
+                Moving mv = g.getattr(Moving.class);
+                if(mv == null)
+                    return LuaValue.NIL;
+                try {
+                    return LuaValue.valueOf(mv.getv());
+                } catch(RuntimeException e) {
+                    return LuaValue.NIL;
+                }
+            }
+        });
+        gob.set("speech", new OneArgFunction() {
+            public LuaValue call(LuaValue ref) {
+                Gob g = resolve(ref);
+                String s = (g == null) ? null : gobSpeech(g);
+                return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s);
+            }
+        });
+        gob.set("icon", new OneArgFunction() {
+            public LuaValue call(LuaValue ref) {
+                Gob g = resolve(ref);
+                String s = (g == null) ? null : gobIcon(g);
+                return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s);
+            }
+        });
+        // distance(ref [, ref2]); ref2 defaults to "player".
+        gob.set("distance", new TwoArgFunction() {
+            public LuaValue call(LuaValue ref, LuaValue ref2) {
+                Gob a = resolve(ref);
+                Gob b = resolve(ref2.isnil() ? LuaValue.valueOf("player") : ref2);
+                if((a == null) || (b == null))
+                    return LuaValue.NIL;
+                Coord2d ra, rb;
+                synchronized(a) { ra = a.rc; }
+                synchronized(b) { rb = b.rc; }
+                if((ra == null) || (rb == null))
+                    return LuaValue.NIL;
+                return LuaValue.valueOf(ra.dist(rb));
+            }
+        });
         hafen.set("gob", gob);
+
+        // hafen.world.* — enumerate gobs as snapshots. nearest/within measure from the player and skip
+        // the player's own gob. Prefer the GobAdded/GobRemoved events over per-frame scanning.
+        LuaTable world = new LuaTable();
+        world.set("gobs", new OneArgFunction() {
+            public LuaValue call(LuaValue filter) {
+                LuaTable out = new LuaTable();
+                int i = 0;
+                for(Gob g : allGobs()) {
+                    LuaValue snap = gobSnapshot(g);
+                    if(matches(filter, snap))
+                        out.set(++i, snap);
+                }
+                return out;
+            }
+        });
+        world.set("count", new OneArgFunction() {
+            public LuaValue call(LuaValue filter) {
+                List<Gob> all = allGobs();
+                if(filter.isnil())
+                    return LuaValue.valueOf(all.size());
+                int n = 0;
+                for(Gob g : all)
+                    if(matches(filter, gobSnapshot(g)))
+                        n++;
+                return LuaValue.valueOf(n);
+            }
+        });
+        world.set("nearest", new OneArgFunction() {
+            public LuaValue call(LuaValue filter) {
+                Gob pl = playerGob();
+                if(pl == null)
+                    return LuaValue.NIL;
+                Coord2d prc;
+                synchronized(pl) { prc = pl.rc; }
+                if(prc == null)
+                    return LuaValue.NIL;
+                long self = pl.id;
+                LuaValue best = LuaValue.NIL;
+                double bestd = Double.POSITIVE_INFINITY;
+                for(Gob g : allGobs()) {
+                    if(g.id == self)
+                        continue;
+                    LuaValue snap = gobSnapshot(g);
+                    if(!matches(filter, snap))
+                        continue;
+                    double d = distTo(snap, prc);
+                    if(Double.isNaN(d) || (d >= bestd))
+                        continue;
+                    bestd = d;
+                    best = snap;
+                }
+                return best;
+            }
+        });
+        world.set("within", new TwoArgFunction() {
+            public LuaValue call(LuaValue radius, LuaValue filter) {
+                double r = radius.optdouble(0);
+                LuaTable out = new LuaTable();
+                Gob pl = playerGob();
+                if(pl == null)
+                    return out;
+                Coord2d prc;
+                synchronized(pl) { prc = pl.rc; }
+                if(prc == null)
+                    return out;
+                long self = pl.id;
+                int i = 0;
+                for(Gob g : allGobs()) {
+                    if(g.id == self)
+                        continue;
+                    LuaValue snap = gobSnapshot(g);
+                    if(!matches(filter, snap))
+                        continue;
+                    double d = distTo(snap, prc);
+                    if(Double.isNaN(d) || (d > r))
+                        continue;
+                    out.set(++i, snap);
+                }
+                return out;
+            }
+        });
+        hafen.set("world", world);
 
         hafen.set("log", new OneArgFunction() {
             public LuaValue call(LuaValue msg) {
@@ -427,6 +608,7 @@ public final class AddonManager {
         if(src.isEmpty())
             return;
         UI u = ui;
+        System.out.println("[console] :lua " + src);               // echo the input to the terminal
         try {
             LuaValue chunk;
             try {
@@ -435,35 +617,69 @@ public final class AddonManager {
                 chunk = console().load(src, "=lua");                // statement form (e.g. print(...))
             }
             LuaValue r = chunk.call();
-            if((u != null) && !r.isnil())
-                u.msg("lua= " + json(r));
+            if(!r.isnil()) {
+                String out = "lua= " + json(r);
+                System.out.println("[console] " + out);            // ...and mirror the result there
+                if(u != null)
+                    u.msg(out);
+            }
         } catch(LuaError e) {
+            String err = "lua: " + e.getMessage();
+            System.out.println("[console] " + err);
             if(u != null)
-                u.error("lua: " + e.getMessage());
+                u.error(err);
         }
     }
 
     // ------------------------------------------------------------- GobRef resolution + snapshots
 
-    /** Resolve a GobRef ("player"/"me", a numeric id, or nil=player) to a live position. */
-    private static Coord2d pos(LuaValue ref) {
+    /** The player body resource — identity test for the {@code isplayer} snapshot field. */
+    private static final String PLAYER_RES = "gfx/borka/body";
+
+    /** The live object cache, or {@code null} before a session/world is up. */
+    private static OCache oc() {
         MapView m = view;
         if((m == null) || (m.ui == null) || (m.ui.sess == null))
             return null;
-        Gob g;
+        return m.ui.sess.glob.oc;
+    }
+
+    private static Gob getgob(long id) {
+        OCache oc = oc();
+        return (oc == null) ? null : oc.getgob(id);
+    }
+
+    private static Gob playerGob() {
+        MapView m = view;
+        return (m == null) ? null : m.player();
+    }
+
+    /**
+     * Resolve a GobRef to a live {@link Gob}: {@code nil}/"player"/"me" = the player, a number (or
+     * numeric string) = that gob id. Unknown string tokens ("target"/"partyN"/…) return {@code null}
+     * for now — they are wired up when their subsystems land. Never throws into Lua.
+     */
+    private static Gob resolve(LuaValue ref) {
+        MapView m = view;
+        if(m == null)
+            return null;
         try {
-            if(ref.isnil()) {
-                g = m.player();
-            } else if(ref.isnumber()) {
-                g = m.ui.sess.glob.oc.getgob((long)ref.todouble());
-            } else {
-                String s = ref.tojstring();
-                g = (s.equals("player") || s.equals("me")) ? m.player()
-                    : m.ui.sess.glob.oc.getgob(Long.parseLong(s));
-            }
+            if((ref == null) || ref.isnil())
+                return m.player();
+            if(ref.isnumber())
+                return getgob((long)ref.todouble());
+            String s = ref.tojstring();
+            if(s.equals("player") || s.equals("me"))
+                return m.player();
+            return getgob(Long.parseLong(s));   // numeric string; unknown token → NumberFormatException
         } catch(RuntimeException e) {
             return null;
         }
+    }
+
+    /** Resolve a GobRef to a live position (backs {@code hafen.gob.pos}). */
+    private static Coord2d pos(LuaValue ref) {
+        Gob g = resolve(ref);
         if(g == null)
             return null;
         synchronized(g) {
@@ -471,10 +687,107 @@ public final class AddonManager {
         }
     }
 
+    /** A copy of the live gob list (taken under the OCache lock; snapshots built by the caller). */
+    private static List<Gob> allGobs() {
+        List<Gob> out = new ArrayList<Gob>();
+        OCache oc = oc();
+        if(oc == null)
+            return out;
+        synchronized(oc) {
+            for(Gob g : oc)
+                out.add(g);
+        }
+        return out;
+    }
+
     /**
-     * A minimal gob snapshot ({@code {id, x, y}}) for {@code GobAdded}/{@code GobRemoved} payloads.
-     * Read on the UI thread under the gob lock; defensive against transient/{@code Loading} state.
-     * The full attribute set arrives with the read API (task 1c).
+     * Does {@code snap} pass {@code filter}? {@code nil} → all; a string → substring match on the
+     * gob's {@code name}; a function → called with the snapshot, truthy keeps it (errors drop it).
+     */
+    private static boolean matches(LuaValue filter, LuaValue snap) {
+        if((filter == null) || filter.isnil())
+            return true;
+        if(filter.isfunction()) {
+            try {
+                return filter.call(snap).toboolean();
+            } catch(RuntimeException e) {   // LuaError is a RuntimeException
+                return false;
+            }
+        }
+        if(filter.isstring()) {
+            LuaValue name = snap.get("name");
+            return name.isstring() && name.tojstring().contains(filter.tojstring());
+        }
+        return true;
+    }
+
+    /** Distance from {@code from} to a snapshot's {@code {x,y}}, or NaN if it has no position. */
+    private static double distTo(LuaValue snap, Coord2d from) {
+        LuaValue x = snap.get("x"), y = snap.get("y");
+        if(!x.isnumber() || !y.isnumber())
+            return Double.NaN;
+        return from.dist(Coord2d.of(x.todouble(), y.todouble()));
+    }
+
+    // -- per-attribute readers (each Loading-guarded: resource-backed reads can throw before load) --
+
+    private static String gobName(Gob g) {
+        try {
+            Drawable d = g.getattr(Drawable.class);
+            if(d == null)
+                return null;
+            Resource r = d.getres();   // may throw Loading, or be null before it resolves
+            return (r == null) ? null : r.name;
+        } catch(RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static String gobSpeech(Gob g) {
+        try {
+            Speaking sp = g.getattr(Speaking.class);
+            return ((sp == null) || (sp.text == null)) ? null : sp.text.text;
+        } catch(RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static String gobIcon(Gob g) {
+        try {
+            GobIcon ic = g.getattr(GobIcon.class);
+            if(ic == null)
+                return null;
+            GobIcon.Icon icon = ic.icon();   // resolves the icon resource; may throw Loading
+            return (icon == null) ? null : icon.name();
+        } catch(RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Best-effort active-overlay resource names ({@code Gob.ols}); unresolved ones are skipped. */
+    private static LuaTable overlayNames(Gob g) {
+        LuaTable out = new LuaTable();
+        int i = 0;
+        try {
+            for(Gob.Overlay ol : g.ols) {
+                try {
+                    if((ol.spr != null) && (ol.spr.res != null))
+                        out.set(++i, LuaValue.valueOf(ol.spr.res.name));
+                } catch(RuntimeException e) {
+                    /* skip an overlay still resolving */
+                }
+            }
+        } catch(RuntimeException e) {
+            /* concurrent overlay mutation etc. — return what we have */
+        }
+        return out;
+    }
+
+    /**
+     * A full gob snapshot (the {@code Gob} shape in api-reference.md), used by {@code hafen.gob.info},
+     * {@code hafen.world.*}, and the {@code GobAdded}/{@code GobRemoved} payloads. Read on the UI
+     * thread under the gob lock; every field is optional and defensive against transient/{@code
+     * Loading} state (a partial snapshot is fine while world data is still resolving).
      */
     private static LuaValue gobSnapshot(Gob g) {
         if(g == null)
@@ -488,6 +801,33 @@ public final class AddonManager {
                     t.set("x", LuaValue.valueOf(rc.x));
                     t.set("y", LuaValue.valueOf(rc.y));
                 }
+                t.set("angle", LuaValue.valueOf(g.a));
+                String name = gobName(g);
+                if(name != null) {
+                    t.set("name", LuaValue.valueOf(name));
+                    t.set("isplayer", LuaValue.valueOf(name.equals(PLAYER_RES)));
+                }
+                GobHealth h = g.getattr(GobHealth.class);
+                if(h != null)
+                    t.set("hp", LuaValue.valueOf(h.hp));
+                Moving mv = g.getattr(Moving.class);
+                t.set("moving", LuaValue.valueOf(mv != null));
+                if(mv != null) {
+                    try {
+                        t.set("speed", LuaValue.valueOf(mv.getv()));
+                    } catch(RuntimeException e) {
+                        /* speed unavailable this frame */
+                    }
+                }
+                String speech = gobSpeech(g);
+                if(speech != null)
+                    t.set("speech", LuaValue.valueOf(speech));
+                String icon = gobIcon(g);
+                if(icon != null)
+                    t.set("icon", LuaValue.valueOf(icon));
+                LuaTable ols = overlayNames(g);
+                if(ols.length() > 0)
+                    t.set("overlays", ols);
             }
         } catch(RuntimeException e) {
             /* partial snapshot is fine (e.g. world data still resolving) */
