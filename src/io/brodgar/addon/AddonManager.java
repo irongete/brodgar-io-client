@@ -39,6 +39,7 @@ import haven.UI;
 import haven.Utils;
 import haven.WItem;
 import haven.Widget;
+import haven.Window;
 import haven.resutil.Curiosity;
 
 import org.luaj.vm2.Globals;
@@ -47,8 +48,10 @@ import org.luaj.vm2.LuaNumber;
 import org.luaj.vm2.LuaString;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
+import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 import java.io.File;
@@ -301,8 +304,32 @@ public final class AddonManager {
             /* isolation is per-handler in callLua; this is just a backstop */
         }
         flush(a);                     // ...then persist them (spec 05: flushed at OnDisable)
+        destroyWidgets(a);            // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
         a.subs.clear();
         a.timers.clear();
+    }
+
+    /** Destroy every custom UI widget/window this addon owns (2a). Widget removal locks on {@code ui}. */
+    private static void destroyWidgets(Addon a) {
+        if(a.widgets.isEmpty())
+            return;
+        UI u = ui;
+        List<LuaWidget> ws = new ArrayList<LuaWidget>(a.widgets);
+        a.widgets.clear();
+        Runnable kill = () -> {
+            for(LuaWidget w : ws) {
+                try {
+                    w.kill();   // stop callbacks + destroy its root (the window chrome, or the widget)
+                } catch(RuntimeException e) {
+                    /* a half-attached widget: best-effort, never abort teardown */
+                }
+            }
+        };
+        if(u != null) {
+            synchronized(u) { kill.run(); }
+        } else {
+            kill.run();
+        }
     }
 
     // ------------------------------------------------------------- reload + enabled set (1f-2)
@@ -547,14 +574,23 @@ public final class AddonManager {
             refreshTreeAdapters();
             pollTreeAdapters();
 
-            // 2. "Entered the world" — defer until the HUD (GameUI) is actually up, so GameUI-backed
-            //    reads (player.name, and later items/char/party) work INSIDE the handler. The map view
-            //    attaches from its ctor (on a loader thread) a few frames before the HUD finishes
-            //    assembling; enterWorldPending is reset per session in init(), so it can't get stuck.
-            if(enterWorldPending && (gui() != null)) {
-                enterWorldPending = false;
-                restorePerChar();     // now <genus>_<char> is known → load per-char saved vars BEFORE
-                fire("OnEnterWorld");  // the handler runs, so it can read hafen.store (spec 1e)
+            // 2. "Entered the world" — fire OnEnterWorld once the HUD (GameUI) is not just built but
+            //    ATTACHED to ui.root. The map view sets enterWorldPending from its ctor (loader thread),
+            //    and gui() finds GameUI via the map view a beat BEFORE GameUI is added to the RootWidget
+            //    (confirmed via the widget-place trace: the old "gui()!=null" signal fired one line before
+            //    "ADD GameUI -> RootWidget"). Firing then would add an addon window to ui.root as a sibling
+            //    placed *before* GameUI, so the full-screen HUD draws on top of it (invisible until a
+            //    :reload re-adds it after GameUI). Gating on gui().parent != null (GameUI is in the tree)
+            //    fires the tick after the HUD mounts, so ui.root windows land on top. enterWorldPending is
+            //    reset per session in init(), so it can't stick. (GameUI-backed reads still stream in a beat
+            //    later — read them on a timer, not synchronously here.)
+            if(enterWorldPending) {
+                GameUI hud = gui();
+                if((hud != null) && (hud.parent != null)) {
+                    enterWorldPending = false;
+                    restorePerChar();     // now <genus>_<char> is known → load per-char saved vars BEFORE
+                    fire("OnEnterWorld");  // the handler runs, so it can read hafen.store (spec 1e)
+                }
             }
 
             // 3. Per-frame update.
@@ -1147,12 +1183,18 @@ public final class AddonManager {
         }
     }
 
-    /** Call into Lua with full error isolation (a Lua error never escapes the engine step). */
-    private static void callLua(Addon owner, LuaValue fn, LuaValue... args) {
+    /**
+     * Call into Lua with full error isolation (a Lua error never escapes the engine step) and return its
+     * result varargs (or {@link LuaValue#NIL} on error). Most callers (events/timers) ignore the return;
+     * the custom-UI input forwards ({@link LuaWidget}) read {@code .arg1().toboolean()} for "consume".
+     * Package-visible so {@link LuaWidget} (same package) routes its draw/tick/mouse callbacks through the
+     * one watchdog-armed, CPU-accounted choke point.
+     */
+    static Varargs callLua(Addon owner, LuaValue fn, LuaValue... args) {
         long t0 = System.nanoTime();
         try {
             Sandbox.arm(owner.env);   // reset the watchdog's instruction budget for this callback (D-018)
-            fn.invoke((args.length == 0) ? LuaValue.NONE : LuaValue.varargsOf(args));
+            return fn.invoke((args.length == 0) ? LuaValue.NONE : LuaValue.varargsOf(args));
         } catch(LuaError e) {
             log(owner, "handler error: " + e.getMessage());
         } catch(RuntimeException e) {
@@ -1160,6 +1202,7 @@ public final class AddonManager {
         } finally {
             owner.tickLuaNanos += System.nanoTime() - t0;   // soft per-tick CPU-budget accounting (D-018 layer 2)
         }
+        return LuaValue.NIL;
     }
 
     // ------------------------------------------------------------- the hafen facade
@@ -1789,6 +1832,26 @@ public final class AddonManager {
         });
         hafen.set("actionbar", actionbar);
 
+        // hafen.ui — custom client-side UI (spec 07, Phase 2a). window(opts) = a draggable, titled window;
+        // widget(opts) = a bare rectangle (no chrome). opts: size={w,h}, pos={x,y}, parent="root"|"gameui",
+        // title (window only), and callbacks onDraw(g,w,h) / onTick(dt) / onClick(x,y,button) / onMouseUp /
+        // onMouseMove(x,y) / onWheel(x,y,amount) / onClose (window). Returns a handle:
+        //   :move(x,y)  :show()  :hide()  :visible()  :pack()  :size(w,h)  :destroy()
+        // The widget is bridge-owned (P2) and torn down on reload/disable. Client-side only: it cannot
+        // wdgmsg the server (that is hafen.act, Phase 4). See LuaWidget for the callback plumbing.
+        LuaTable uiT = new LuaTable();
+        uiT.set("window", new OneArgFunction() {
+            public LuaValue call(LuaValue opts) {
+                return newUi(owner, opts, true);
+            }
+        });
+        uiT.set("widget", new OneArgFunction() {
+            public LuaValue call(LuaValue opts) {
+                return newUi(owner, opts, false);
+            }
+        });
+        hafen.set("ui", uiT);
+
         hafen.set("log", new OneArgFunction() {
             public LuaValue call(LuaValue msg) {
                 log(owner, msg.isnil() ? "nil" : msg.tojstring());
@@ -1870,6 +1933,114 @@ public final class AddonManager {
             public LuaValue call() {
                 t.alive = false;
                 owner.timers.remove(t);
+                return LuaValue.NIL;
+            }
+        });
+        return h;
+    }
+
+    // ------------------------------------------------------------- custom UI (hafen.ui, 2a)
+
+    /**
+     * Build a custom UI element for {@code hafen.ui.window}/{@code widget} (spec 07): a {@link LuaWidget}
+     * content leaf, optionally wrapped in a draggable {@link Window} (chrome). Reads {@code size}/{@code
+     * pos} (both {@code {a,b}} arrays), {@code parent} ({@code "root"} default, or {@code "gameui"}), and
+     * {@code title} from {@code opts}; the callbacks live on the same table and are wired in the
+     * LuaWidget. Attaches to the tree (locks on {@code ui}), registers the content in the addon's
+     * owned-resource registry (torn down on reload/disable), and returns the Lua handle.
+     */
+    private static LuaValue newUi(final Addon owner, LuaValue opts, boolean window) {
+        String what = window ? "window" : "widget";
+        if(!opts.istable())
+            throw new LuaError("hafen.ui." + what + "(opts) expects a table");
+        UI u = ui;
+        if((u == null) || (u.root == null))
+            throw new LuaError("hafen.ui." + what + ": no UI is up yet");
+
+        LuaValue sizev = opts.get("size");
+        int w = sizev.istable() ? sizev.get(1).optint(200) : 200;
+        int h = sizev.istable() ? sizev.get(2).optint(140) : 140;
+        LuaValue posv = opts.get("pos");
+        int px = posv.istable() ? posv.get(1).optint(100) : 100;
+        int py = posv.istable() ? posv.get(2).optint(100) : 100;
+
+        final LuaWidget content = new LuaWidget(owner, Coord.of(w, h), opts);
+
+        // Parent: default ui.root; "gameui" attaches under the HUD (falls back to root before it is up).
+        Widget parent = u.root;
+        if("gameui".equals(opts.get("parent").optjstring("root"))) {
+            GameUI g = gui();
+            if(g != null)
+                parent = g;
+            else
+                log(owner, "hafen.ui." + what + ": HUD not up yet; attaching to root");
+        }
+
+        final Widget rootw;
+        final boolean isWindow;
+        if(window) {
+            final Window win = new Window(Coord.of(w, h), opts.get("title").optjstring(""));
+            win.add(content, Coord.z);
+            content.root(win);
+            LuaValue oc = opts.get("onClose");
+            final LuaValue onClose = oc.isfunction() ? oc : null;
+            win.reqclose(() -> {                      // the chrome close button: fire onClose, then destroy
+                if(onClose != null)
+                    callLua(owner, onClose);
+                content.kill();
+                owner.widgets.remove(content);
+            });
+            rootw = win;
+            isWindow = true;
+        } else {
+            rootw = content;
+            isWindow = false;
+        }
+        rootw.c = Coord.of(px, py);      // initial position (set before attach)
+        parent.add(rootw);               // add() locks on ui; content ticks/draws from the next frame
+        owner.widgets.add(content);
+        return uiHandle(owner, content, rootw, isWindow);
+    }
+
+    /**
+     * The Lua handle for a {@link #newUi} element: {@code :move/:show/:hide/:visible/:pack/:size/:destroy}.
+     * Geometry ops target the root (the window chrome, or the widget); {@code :size} resizes the content
+     * (and repacks a window). {@code :pack} is a no-op for a bare widget (a leaf has no children to fit).
+     * Handle methods are safe to call after teardown (they act on a detached widget).
+     */
+    private static LuaValue uiHandle(final Addon owner, final LuaWidget content, final Widget rootw,
+                                     final boolean isWindow) {
+        LuaTable h = new LuaTable();
+        h.set("move", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                rootw.move(Coord.of(a.arg(2).toint(), a.arg(3).toint()));
+                return a.arg1();          // return the handle for chaining (win:move(..):show())
+            }
+        });
+        h.set("show", new VarArgFunction() {
+            public Varargs invoke(Varargs a) { rootw.show(); return a.arg1(); }
+        });
+        h.set("hide", new VarArgFunction() {
+            public Varargs invoke(Varargs a) { rootw.hide(); return a.arg1(); }
+        });
+        h.set("visible", new ZeroArgFunction() {
+            public LuaValue call() { return LuaValue.valueOf(rootw.visible()); }
+        });
+        h.set("pack", new VarArgFunction() {
+            public Varargs invoke(Varargs a) { if(isWindow) rootw.pack(); return a.arg1(); }
+        });
+        h.set("size", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                content.resize(Coord.of(a.arg(2).toint(), a.arg(3).toint()));
+                if(isWindow)
+                    rootw.pack();
+                return a.arg1();
+            }
+        });
+        h.set("destroy", new ZeroArgFunction() {
+            public LuaValue call() {
+                content.kill();
+                owner.widgets.remove(content);
                 return LuaValue.NIL;
             }
         });

@@ -29,6 +29,13 @@ public final class Addon {
     public final List<AddonManager.Sub> subs = new CopyOnWriteArrayList<AddonManager.Sub>();
     /** Live timers owned by this addon (see {@link AddonManager.Timer}). */
     public final List<AddonManager.Timer> timers = new CopyOnWriteArrayList<AddonManager.Timer>();
+    /**
+     * Live custom UI widgets/windows owned by this addon ({@code hafen.ui.widget}/{@code window}, Phase
+     * 2a). Each entry is the {@link LuaWidget} content; {@link LuaWidget#kill()} destroys its <i>root</i>
+     * (the window chrome, or the widget itself), which cascades to children — so the addon's UI vanishes
+     * cleanly on reload/disable.
+     */
+    public final List<LuaWidget> widgets = new CopyOnWriteArrayList<LuaWidget>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per

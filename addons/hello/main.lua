@@ -7,7 +7,7 @@
 -- (on entering the world) OnEnterWorld. On :reload the whole cycle repeats — OnDisable, then the file
 -- body + OnLoad + OnEnterWorld again. Every call in is watchdog-armed — a runaway loop aborts, no freeze.
 
-hafen.log("hello loaded (v0.12.0)")
+hafen.log("hello loaded (v0.13.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -231,14 +231,14 @@ hafen.events.on("OnEnterWorld", function()
 end)
 
 -- OnUpdate fires every frame; throttle a heartbeat to once every 5 seconds so it is readable.
-local acc = 0
-hafen.events.on("OnUpdate", function(dt)
-  acc = acc + dt
-  if acc >= 5 then
-    acc = acc - 5
-    hafen.log(("tick heartbeat (dt=%.3f s)"):format(dt))
-  end
-end)
+-- local acc = 0
+-- hafen.events.on("OnUpdate", function(dt)
+--   acc = acc + dt
+--   if acc >= 5 then
+--     acc = acc - 5
+--     hafen.log(("tick heartbeat (dt=%.3f s)"):format(dt))
+--   end
+-- end)
 
 -- Count gob spawns; log only the first few so it does not flood. The GobAdded payload is a full
 -- snapshot (same shape as hafen.gob.info), so we can log the gob's type name too.
@@ -327,6 +327,51 @@ hafen.events.on("EquipChanged", function(eq)
     hafen.log(("EquipChanged: %d slot(s), first=%s (%d)"):format(#eq,
       eq[1] and tostring(eq[1].name or eq[1].res) or "none", equipSeen))
   end
+end)
+
+-- 2a: CUSTOM UI (hafen.ui). Create a small DRAGGABLE window that draws live state through the GOut
+-- wrapper `g` and counts clicks — the Phase 2 "draggable custom window" DoD. The window is bridge-owned
+-- (P2): :reload or disabling the addon DESTROYS it automatically (no leak) — no OnDisable cleanup needed.
+-- It is client-side (it cannot talk to the server; that is hafen.act, Phase 4). Created at OnEnterWorld
+-- because the HUD must be up. Drag it by the title bar; click the body (onClick consumes and logs); close
+-- it with the X (onClose fires, then it is destroyed). onDraw runs every frame with (g, width, height).
+local panel          -- the window handle (nil until created; a fresh reload rebuilds the Lua env -> nil)
+local clicks = 0
+
+local function drawPanel(g, w, h)
+  g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()          -- translucent backdrop
+  g:text(("clock %.0f"):format(hafen.time.clock() or 0), 6, 6)
+  g:text(("clicks %d"):format(clicks), 6, 22)
+  local v = hafen.player.vitals()
+  if v then                                                       -- draw hp/stamina/energy as 0..1 bars
+    local bars = {{"hp", v.hp, 235, 80, 80}, {"stam", v.stamina, 235, 210, 70}, {"en", v.energy, 110, 170, 255}}
+    for i = 1, #bars do
+      local b, y = bars[i], 42 + (i - 1) * 15
+      g:text(b[1], 6, y)
+      g:color(60, 60, 60); g:frect(44, y + 2, 110, 9); g:color()
+      g:color(b[3], b[4], b[5]); g:frect(44, y + 2, math.floor(110 * (b[2] or 0)), 9); g:color()
+    end
+  else
+    g:text("vitals loading...", 6, 42)
+  end
+  g:color(170, 170, 170); g:rect(0, 0, w, h); g:color()          -- 1px border
+end
+
+hafen.events.on("OnEnterWorld", function()
+  if panel then return end                                        -- defensive: create the window once
+  panel = hafen.ui.window{
+    title   = "Hello 2a",
+    size    = { 168, 90 },
+    pos     = { 80, 120 },
+    onDraw  = drawPanel,
+    onClick = function(x, y, button)
+      clicks = clicks + 1
+      hafen.log(("panel click #%d at %d,%d (button %d)"):format(clicks, x, y, button))
+      return true                                                 -- truthy = consume the click
+    end,
+    onClose = function() hafen.log("panel closed (X) -- :reload to bring it back") end,
+  }
+  hafen.log("2a: custom window up -- drag the title bar, click the body, or close it")
 end)
 
 -- One-shot timer: proves the timer wheel fires exactly once, ~2s after load.
