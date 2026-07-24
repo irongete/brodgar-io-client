@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +29,15 @@ public final class Manifest {
         this.files = files;
         this.dependencies = dependencies;
         this.optionalDependencies = optionalDependencies;
+    }
+
+    /**
+     * A synthetic manifest for an engine-internal resource owner (e.g. the {@code :lua} REPL), which
+     * is not loaded from disk and runs no files. Lets the REPL own events/timers like a real addon.
+     */
+    static Manifest internal(String id) {
+        List<String> none = Collections.emptyList();
+        return new Manifest(id, id, "0", "brodgar", "engine-internal owner", 1, none, none, none);
     }
 
     /** Read and validate {@code <dir>/manifest.json}. Throws with a clear message on any problem. */

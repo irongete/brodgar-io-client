@@ -18,5 +18,6 @@ built up **progressively** as each piece lands. It is the counterpart to the des
 |---|---|---|
 | [phase-0-spike.md](phase-0-spike.md) | ✅ Implemented & verified | LuaJ engine spike, `:lua` REPL, `hafen.gob.pos` |
 | [phase-1a-loading.md](phase-1a-loading.md) | ✅ Implemented (in-game check pending) | Loading addons from disk: `manifest.json`, per-addon env, `hafen.log`, `:addons` |
+| [phase-1b-events-timers.md](phase-1b-events-timers.md) | ✅ Implemented (in-game check pending) | Tick pump, event bus (`hafen.events`: OnLoad/OnEnterWorld/OnUpdate/GobAdded/GobRemoved/OnDisable), timers (`hafen.timer`) |
 
 _(Grows as phases land — see [`specs/addons/15-implementation-plan.md`](../../specs/addons/15-implementation-plan.md) for the build order.)_
