@@ -53,6 +53,10 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -102,6 +106,14 @@ public final class AddonManager {
     private static final Set<TreeAdapter> treeDirty = ConcurrentHashMap.newKeySet();
     private static LuaValue vitalsCache;                 // last vitals snapshot (UI thread; change-detect)
 
+    // -- saved variables (spec 1e / D-002 / D-023): hafen.store persisted as JSON under savedata/ ------
+    // Per-character vars key on <genus>_<char>, known only once the HUD is up (OnEnterWorld) — captured
+    // here and reused on flush so a relog (which rebinds ui before the new GameUI exists) still writes to
+    // the OLD character's folder. Account-scope vars need no char and load at addon-load time.
+    private static volatile String charScope;           // "<genus>_<char>" once in-world, else null
+    private static double lastAutoSave;                  // engine-clock time of the last throttled flush
+    private static final double SAVE_INTERVAL = 30.0;    // throttled auto-save period (seconds; UI thread)
+
     private AddonManager() {
     }
 
@@ -137,8 +149,8 @@ public final class AddonManager {
      */
     public static synchronized void init(UI ui_) {
         ui = ui_;
-        for(Addon a : addons)         // fire OnDisable + drop owned resources of the old session
-            teardown(a);
+        for(Addon a : addons)         // fire OnDisable + flush saved vars + drop owned resources
+            teardown(a);              // (flushes with the OLD charScope, still set from the last session)
         addons.clear();
 
         clock = 0;
@@ -146,6 +158,9 @@ public final class AddonManager {
         gobEvents.clear();
         addonRoot = null;
         ocCb = null;
+
+        charScope = null;             // per-char saved-var folder is unknown until the new HUD is up
+        lastAutoSave = 0;
 
         treeDirty.clear();            // reset the widget-tree read mechanism for the new session
         vitalsCache = null;
@@ -241,13 +256,14 @@ public final class AddonManager {
         log(addons.size() + " addon(s) loaded");
     }
 
-    /** Fire {@code OnDisable} then drop an addon's owned resources (events + timers). */
+    /** Fire {@code OnDisable}, flush the addon's saved vars, then drop its owned resources. */
     private static void teardown(Addon a) {
         try {
-            fireTo(a, "OnDisable");
+            fireTo(a, "OnDisable");   // the addon's last chance to write its store tables...
         } catch(RuntimeException e) {
             /* isolation is per-handler in callLua; this is just a backstop */
         }
+        flush(a);                     // ...then persist them (spec 05: flushed at OnDisable)
         a.subs.clear();
         a.timers.clear();
     }
@@ -297,7 +313,8 @@ public final class AddonManager {
             //    assembling; enterWorldPending is reset per session in init(), so it can't get stuck.
             if(enterWorldPending && (gui() != null)) {
                 enterWorldPending = false;
-                fire("OnEnterWorld");
+                restorePerChar();     // now <genus>_<char> is known → load per-char saved vars BEFORE
+                fire("OnEnterWorld");  // the handler runs, so it can read hafen.store (spec 1e)
             }
 
             // 3. Per-frame update.
@@ -305,6 +322,15 @@ public final class AddonManager {
 
             // 4. Due timers.
             runTimers();
+
+            // 5. Throttled auto-save of saved variables (mirrors GameUI's window-position saves). Covers
+            //    an unclean exit; a relog also flushes via teardown. flush() skips unchanged files, so
+            //    this is cheap when nothing changed. On the UI thread → no races reading the Lua tables.
+            if(clock - lastAutoSave >= SAVE_INTERVAL) {
+                lastAutoSave = clock;
+                for(Addon a : addons)
+                    flush(a);
+            }
         } catch(RuntimeException e) {
             log("tick error: " + e);
         }
@@ -1520,6 +1546,28 @@ public final class AddonManager {
         });
         hafen.set("timer", timer);
 
+        // hafen.store — saved variables (1e / D-002 / D-023). One Lua table per manifest-declared
+        // saved variable (read/written like any table), persisted to JSON under savedata/. hafen.store.
+        // flush() forces a write now. Per-character vars are restored at OnEnterWorld (the <genus>_<char>
+        // folder is only known then); account-scope vars are loaded here, before the addon's files run,
+        // so they are ready in the file body / OnLoad. The table object for each name is STABLE for the
+        // addon's whole life (restore fills it in place), so a cached reference stays valid.
+        LuaTable store = new LuaTable();
+        for(Manifest.SavedVar sv : owner.manifest.savedVariables) {
+            if(store.get(sv.name).istable())
+                continue;                                // duplicate name in the manifest: keep the first
+            store.set(sv.name, new LuaTable());          // always a usable (possibly empty) table
+        }
+        store.set("flush", new ZeroArgFunction() {
+            public LuaValue call() {
+                flush(owner);
+                return LuaValue.NIL;
+            }
+        });
+        owner.store = store;
+        loadScope(owner, true);                          // account-scope vars: ready before OnLoad
+        hafen.set("store", store);
+
         g.set("hafen", hafen);
     }
 
@@ -1540,6 +1588,237 @@ public final class AddonManager {
             }
         });
         return h;
+    }
+
+    // ------------------------------------------------------------- saved variables (hafen.store, 1e)
+
+    /**
+     * The {@code savedata/} directory: sibling of the resolved addon dir (so it follows the same
+     * dev/release resolution as {@link #addonDir} — {@code bin/savedata} in a release,
+     * {@code ${basedir}/savedata} under the dev override). {@code -Dhaven.savedatadir} overrides.
+     */
+    static File saveDir() {
+        String override = System.getProperty("haven.savedatadir");
+        if((override != null) && !override.isEmpty())
+            return new File(override);
+        File addons = addonDir();
+        File parent = addons.getParentFile();
+        return new File((parent != null) ? parent : new File("."), "savedata");
+    }
+
+    /**
+     * Capture the per-character scope folder ({@code <genus>_<char>}) now that the HUD is up, and load
+     * every addon's per-character saved variables into its {@code hafen.store} <b>before</b>
+     * {@code OnEnterWorld} fires (so handlers see restored data). Called once per world entry.
+     */
+    private static void restorePerChar() {
+        GameUI g = gui();
+        if(g == null)
+            return;
+        charScope = scopeKey(g.genus, g.chrid);
+        if(charScope == null)
+            return;
+        for(Addon a : addons)
+            loadScope(a, false);
+    }
+
+    /** Build the {@code <genus>_<char>} folder name (path-sanitized), or {@code null} if no character. */
+    private static String scopeKey(String genus, String chrid) {
+        if((chrid == null) || chrid.isEmpty())
+            return null;
+        String g = sanitize((genus == null) ? "" : genus);
+        String c = sanitize(chrid);
+        return g.isEmpty() ? c : (g + "_" + c);
+    }
+
+    /** Replace filesystem-hostile characters so a genus/char string is a safe single path segment. */
+    private static String sanitize(String s) {
+        StringBuilder b = new StringBuilder(s.length());
+        for(int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            b.append(((c >= 'a') && (c <= 'z')) || ((c >= 'A') && (c <= 'Z')) ||
+                     ((c >= '0') && (c <= '9')) || (c == '.') || (c == '-') ? c : '_');
+        }
+        return b.toString().trim();
+    }
+
+    /** The on-disk JSON file for one addon + scope (may not exist yet). */
+    private static File storeFile(Addon a, boolean account) {
+        File dir = account ? new File(saveDir(), "account") : new File(saveDir(), charScope);
+        return new File(dir, a.manifest.id + ".json");
+    }
+
+    /**
+     * Load one scope's saved variables from disk into the addon's {@code hafen.store} tables (filling
+     * them in place, preserving table identity). Missing/malformed files leave the tables as-is. After
+     * loading, the write-skip cache is primed with the canonical serialization of what we now hold, so
+     * an unchanged first flush writes nothing.
+     */
+    private static void loadScope(Addon a, boolean account) {
+        if((a.store == null) || !hasScope(a, account))
+            return;
+        if(!account && (charScope == null))
+            return;                                     // per-char load needs a known character
+        String text = readFile(storeFile(a, account));
+        if(text != null) {
+            try {
+                Object root = Json.parse(text);
+                if(root instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> m = (Map<String, Object>)root;
+                    for(Manifest.SavedVar sv : a.manifest.savedVariables) {
+                        if(sv.account != account)
+                            continue;
+                        LuaValue cur = a.store.get(sv.name);
+                        LuaTable tgt;
+                        if(cur.istable()) {
+                            tgt = (LuaTable)cur;
+                            clearTable(tgt);            // refill in place → the addon's ref stays valid
+                        } else {
+                            tgt = new LuaTable();
+                            a.store.set(sv.name, tgt);
+                        }
+                        fillTable(tgt, m.get(sv.name));  // object or array; absent/scalar → left empty
+                    }
+                }
+            } catch(RuntimeException e) {
+                log(a, "store: could not read " + storeFile(a, account).getName() + ": " + e);
+            }
+        }
+        String canon = scopeJson(a, account);          // prime the write-skip cache
+        if(account) a.lastAccountJson = canon; else a.lastCharJson = canon;
+    }
+
+    /** Write an addon's changed saved variables to disk (both scopes). Skips unchanged files. */
+    private static void flush(Addon a) {
+        if((a == null) || (a.store == null) || a.manifest.savedVariables.isEmpty())
+            return;
+        try {
+            writeScope(a, true);                        // account (always resolvable)
+            if(charScope != null)
+                writeScope(a, false);                   // per-char (only once in-world)
+        } catch(RuntimeException e) {
+            log(a, "store: flush failed: " + e);
+        }
+    }
+
+    /** Serialize one scope's vars and write the file if it differs from the last write. */
+    private static void writeScope(Addon a, boolean account) {
+        String out = scopeJson(a, account);
+        if(out == null)
+            return;                                     // this addon declares no vars of this scope
+        String last = account ? a.lastAccountJson : a.lastCharJson;
+        if(out.equals(last))
+            return;                                     // unchanged since the last write → skip disk I/O
+        if(writeFile(storeFile(a, account), out)) {
+            if(account) a.lastAccountJson = out; else a.lastCharJson = out;
+        }
+    }
+
+    /**
+     * Serialize one scope's saved vars as a JSON object {@code {name: table, …}} (reusing the compact
+     * REPL writer), or {@code null} if the addon declares no vars of this scope. A non-table value at a
+     * declared name is written as {@code {}} (the contract is "a table per name").
+     */
+    private static String scopeJson(Addon a, boolean account) {
+        LuaTable wrap = new LuaTable();
+        boolean any = false;
+        for(Manifest.SavedVar sv : a.manifest.savedVariables) {
+            if(sv.account != account)
+                continue;
+            any = true;
+            LuaValue v = a.store.get(sv.name);
+            wrap.set(sv.name, v.istable() ? v : new LuaTable());
+        }
+        return any ? json(wrap) : null;
+    }
+
+    /** Does the addon declare at least one saved variable of the given scope? */
+    private static boolean hasScope(Addon a, boolean account) {
+        for(Manifest.SavedVar sv : a.manifest.savedVariables)
+            if(sv.account == account)
+                return true;
+        return false;
+    }
+
+    /** Convert a parsed-JSON value ({@link Json} shapes) to a Lua value (arrays → 1-based tables). */
+    private static LuaValue jsonToLua(Object o) {
+        if(o == null)
+            return LuaValue.NIL;
+        if(o instanceof Boolean)
+            return LuaValue.valueOf(((Boolean)o).booleanValue());
+        if(o instanceof Number)
+            return LuaValue.valueOf(((Number)o).doubleValue());
+        if(o instanceof String)
+            return LuaValue.valueOf((String)o);
+        if((o instanceof Map) || (o instanceof List)) {
+            LuaTable t = new LuaTable();
+            fillTable(t, o);
+            return t;
+        }
+        return LuaValue.NIL;                            // unknown type → drop
+    }
+
+    /**
+     * Fill a Lua table from a parsed-JSON object (string keys) or array (1-based). Anything else is a
+     * no-op (so a missing/scalar value leaves the table empty). JSON nulls are skipped.
+     */
+    private static void fillTable(LuaTable t, Object o) {
+        if(o instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> m = (Map<String, Object>)o;
+            for(Map.Entry<String, Object> e : m.entrySet()) {
+                LuaValue v = jsonToLua(e.getValue());
+                if(!v.isnil())
+                    t.set(e.getKey(), v);
+            }
+        } else if(o instanceof List) {
+            int i = 1;
+            for(Object e : (List<?>)o)
+                t.set(i++, jsonToLua(e));               // our writes never put null in an array (no holes)
+        }
+    }
+
+    /** Remove every key from a Lua table (keys() is a snapshot, so this is safe). */
+    private static void clearTable(LuaTable t) {
+        for(LuaValue k : t.keys())
+            t.set(k, LuaValue.NIL);
+    }
+
+    /** Read a UTF-8 file, or {@code null} if it is absent/unreadable. */
+    private static String readFile(File f) {
+        if((f == null) || !f.isFile())
+            return null;
+        try {
+            return new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
+        } catch(Exception e) {
+            log("store: could not read " + f + ": " + e);
+            return null;
+        }
+    }
+
+    /**
+     * Write text to a file atomically (temp file + move), creating parent dirs. Returns whether it
+     * succeeded (a failure — e.g. a read-only install — is logged, not thrown).
+     */
+    private static boolean writeFile(File f, String text) {
+        try {
+            File parent = f.getParentFile();
+            if(parent != null)
+                parent.mkdirs();
+            Path dst = f.toPath();
+            Path tmp = dst.resolveSibling(f.getName() + ".tmp");
+            Files.write(tmp, text.getBytes(StandardCharsets.UTF_8));
+            try {
+                Files.move(tmp, dst, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch(Exception atomicUnsupported) {
+                Files.move(tmp, dst, StandardCopyOption.REPLACE_EXISTING);
+            }
+            return true;
+        } catch(Exception e) {
+            log("store: could not write " + f + ": " + e);
+            return false;
+        }
     }
 
     /** Engine-level output: stdout (prefixed) and in-game notice when available. */

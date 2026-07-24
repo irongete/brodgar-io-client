@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 import java.nio.charset.StandardCharsets;
@@ -28,6 +29,15 @@ public final class Addon {
     public final List<AddonManager.Sub> subs = new CopyOnWriteArrayList<AddonManager.Sub>();
     /** Live timers owned by this addon (see {@link AddonManager.Timer}). */
     public final List<AddonManager.Timer> timers = new CopyOnWriteArrayList<AddonManager.Timer>();
+
+    /**
+     * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per
+     * declared saved variable plus the {@code flush} function. Populated in
+     * {@link AddonManager#installHafen}; the engine reads it on flush. {@code null} until installed.
+     */
+    public LuaTable store;
+    /** Write-skip caches: the last JSON serialized for each scope, so an unchanged flush skips disk I/O. */
+    public String lastCharJson, lastAccountJson;
 
     Addon(Manifest manifest, Path dir, Globals env) {
         this.manifest = manifest;

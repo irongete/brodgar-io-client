@@ -16,10 +16,28 @@ public final class Manifest {
     public final String id, name, version, author, description;
     public final int apiVersion;
     public final List<String> files, dependencies, optionalDependencies;
+    /** Saved-variable declarations (name + scope) the engine persists/restores — see {@link SavedVar}. */
+    public final List<SavedVar> savedVariables;
+
+    /**
+     * One {@code saved_variables} declaration: a global Lua table the engine persists to JSON and
+     * restores on load (D-002/D-023). {@code account} = shared across all characters
+     * ({@code savedata/account/<addon>.json}); otherwise per-character
+     * ({@code savedata/<genus>_<char>/<addon>.json}).
+     */
+    public static final class SavedVar {
+        public final String name;
+        public final boolean account;
+
+        SavedVar(String name, boolean account) {
+            this.name = name;
+            this.account = account;
+        }
+    }
 
     private Manifest(String id, String name, String version, String author, String description,
                      int apiVersion, List<String> files, List<String> dependencies,
-                     List<String> optionalDependencies) {
+                     List<String> optionalDependencies, List<SavedVar> savedVariables) {
         this.id = id;
         this.name = name;
         this.version = version;
@@ -29,6 +47,7 @@ public final class Manifest {
         this.files = files;
         this.dependencies = dependencies;
         this.optionalDependencies = optionalDependencies;
+        this.savedVariables = savedVariables;
     }
 
     /**
@@ -37,7 +56,8 @@ public final class Manifest {
      */
     static Manifest internal(String id) {
         List<String> none = Collections.emptyList();
-        return new Manifest(id, id, "0", "brodgar", "engine-internal owner", 1, none, none, none);
+        List<SavedVar> novars = Collections.emptyList();
+        return new Manifest(id, id, "0", "brodgar", "engine-internal owner", 1, none, none, none, novars);
     }
 
     /** Read and validate {@code <dir>/manifest.json}. Throws with a clear message on any problem. */
@@ -63,7 +83,33 @@ public final class Manifest {
         return new Manifest(id, (name != null) ? name : id,
                             str(m, "version", false), str(m, "author", false),
                             str(m, "description", false), intv(m, "api_version", 1),
-                            files, strlist(m, "dependencies"), strlist(m, "optional_dependencies"));
+                            files, strlist(m, "dependencies"), strlist(m, "optional_dependencies"),
+                            savedvars(m));
+    }
+
+    /**
+     * Parse {@code saved_variables}: an array whose entries are either a bare table name (per-character)
+     * or {@code {"name": ..., "scope": "account"}} for account-wide storage (D-023). Any scope other
+     * than {@code "account"} (incl. absent) is per-character.
+     */
+    private static List<SavedVar> savedvars(Map<String, Object> m) {
+        List<SavedVar> out = new ArrayList<SavedVar>();
+        Object v = m.get("saved_variables");
+        if(v == null) return out;
+        if(!(v instanceof List)) throw new IllegalArgumentException("'saved_variables' must be an array");
+        for(Object o : (List<?>)v) {
+            if(o instanceof String) {
+                out.add(new SavedVar((String)o, false));
+            } else if(o instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> e = (Map<String, Object>)o;
+                String nm = str(e, "name", true);
+                out.add(new SavedVar(nm, "account".equals(e.get("scope"))));
+            } else {
+                throw new IllegalArgumentException("'saved_variables' entries must be a string or an object");
+            }
+        }
+        return out;
     }
 
     private static String str(Map<String, Object> m, String key, boolean required) {

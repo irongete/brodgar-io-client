@@ -25,5 +25,7 @@ built up **progressively** as each piece lands. It is the counterpart to the des
 | [phase-1d1-vitals-widget-tree.md](phase-1d1-vitals-widget-tree.md) | ✅ Implemented & verified | Widget-tree read mechanism (Locator + Adapter + inbound-`uimsg` tap) + `hafen.player.vitals` + `VitalsChanged` |
 | [phase-1d2-buffs-food.md](phase-1d2-buffs-food.md) | ✅ Implemented (in-game check pending) | Widget-tree part 2: `hafen.buffs.*` (+ BuffAdded/Removed/Changed) + `hafen.char.food()` (+ FepChanged); per-tick `poll()` path |
 | [phase-1d3-study-skills.md](phase-1d3-study-skills.md) | ✅ Implemented & verified | Widget-tree part 3: `hafen.study.*` (slots/summary + StudyChanged) + `hafen.char.skills()`/`skill(name)` — zero core edit |
+| [phase-1d4-actionbar-equip.md](phase-1d4-actionbar-equip.md) | ✅ Implemented (in-game check pending) | Widget-tree part 4: `hafen.actionbar.slot(n)` (+ ActionbarChanged) + `EquipChanged` — zero core edit; completes Phase 1d |
+| [phase-1e-saved-variables.md](phase-1e-saved-variables.md) | ✅ Implemented (in-game check pending) | Saved variables: `hafen.store.<name>` + `flush()`, JSON under `savedata/` (per-char + account scope) — zero core edit |
 
 _(Grows as phases land — see [`specs/addons/15-implementation-plan.md`](../../specs/addons/15-implementation-plan.md) for the build order.)_

@@ -1,11 +1,10 @@
--- Example addon (Phase 1d-4): adds hafen.actionbar.slot(n) (+ ActionbarChanged) and an EquipChanged event
--- over the 1c-3 equipment read — the hotbar and worn equipment, both via the widget-tree mechanism, on 1d-3
--- study/skills, 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c items/char/party reads, the gob/world/map/
--- player/time/sound reads, the 1b event bus, and timers. `hafen` is the API facade; `ADDON` describes
--- this addon ({ id, dir }). The file body runs once at load; then OnLoad fires, then (on entering the
--- world) OnEnterWorld.
+-- Example addon (Phase 1e): adds hafen.store — saved variables persisted as JSON under savedata/ — on
+-- top of 1d-4 actionbar/equip, 1d-3 study/skills, 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c items/char/
+-- party reads, the gob/world/map/player/time/sound reads, the 1b event bus, and timers. `hafen` is the
+-- API facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad
+-- fires, then (on entering the world) OnEnterWorld.
 
-hafen.log("hello loaded (v0.9.0)")
+hafen.log("hello loaded (v0.10.0)")
 
 hafen.events.on("OnLoad", function()
   hafen.log("OnLoad fired")
@@ -170,6 +169,30 @@ hafen.events.on("OnEnterWorld", function()
 
   -- 1c-2: an audible confirmation ping (a client-bundled sound), proving hafen.sound.play works.
   hafen.sound.play("sfx/msg")
+end)
+
+-- 1e: saved variables (hafen.store). Each name declared in the manifest is a persisted Lua table:
+--   persist -> per-character  (savedata/<genus>_<char>/hello.json)
+--   acct    -> account-wide   (savedata/account/hello.json)
+-- The per-char store is restored just BEFORE OnEnterWorld (so it is ready here — no streaming delay,
+-- unlike the read API above), the account store before the file body. We bump a login counter in each
+-- to prove the values survive a relog (per character) and are shared across all characters (account).
+-- s.recent is a small bounded array, demonstrating a nested JSON array round-tripping intact.
+-- (A second OnEnterWorld handler — the bus dispatches to every subscriber in order.)
+hafen.events.on("OnEnterWorld", function()
+  local s = hafen.store.persist
+  s.logins = (s.logins or 0) + 1
+  s.name = hafen.player.name() or s.name          -- remember the character name across sessions
+  s.recent = s.recent or {}                        -- history array (round-trips as a JSON array)
+  s.recent[#s.recent + 1] = ("login #%d"):format(s.logins)
+  while #s.recent > 5 do table.remove(s.recent, 1) end
+
+  local a = hafen.store.acct
+  a.logins = (a.logins or 0) + 1
+
+  hafen.log(("store: %s entered %d time(s) [account total %d]; recent: %s")
+    :format(tostring(s.name), s.logins, a.logins, table.concat(s.recent, ", ")))
+  hafen.store.flush()                              -- write now (also autosaved + flushed on relog)
 end)
 
 -- OnUpdate fires every frame; throttle a heartbeat to once every 5 seconds so it is readable.
