@@ -1,17 +1,19 @@
--- Example addon (Phase 2e-1): HOOKS now span THREE levels — 2c hafen.hook.input (L1: intercept a widget's raw
--- input BEFORE its own handler), 2d hafen.hook.action (L2: intercept the OUTBOUND action a widget sends to the
--- server, with the arguments already RESOLVED — e.g. a move's destination world coord), and 2e hafen.hook.message
--- (L3: intercept an INBOUND server update BEFORE the widget applies it — swallow it with ev:preventDefault() or
--- rewrite its args with ev:rewrite()). All three are pre-hooks with ev:preventDefault(). On top of 2b overlays
--- (hafen.ui.overlay on the HUD + hafen.ui.gobOverlay over game objects) and 2a custom windows/widgets + the GOut
--- wrapper. It runs inside the Lua SANDBOX (D-017 strict env + D-018 instruction watchdog) over 1e hafen.store
--- (saved variables), 1d-4 actionbar/equip, 1d-3 study/skills, 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c
+-- Example addon (Phase 2e-2): GLOBAL HOTKEYS — hafen.key.bind(name, defaultKey, fn) binds a remappable,
+-- persisted hotkey (over the client's KeyBinding registry) that fires when no widget consumed the keypress
+-- first; here Ctrl+H toggles the custom window. On top of the THREE hook levels — 2c hafen.hook.input (L1:
+-- intercept a widget's raw input BEFORE its own handler), 2d hafen.hook.action (L2: intercept the OUTBOUND
+-- action a widget sends to the server, arguments already RESOLVED — e.g. a move's destination world coord),
+-- and 2e-1 hafen.hook.message (L3: intercept an INBOUND server update BEFORE the widget applies it — swallow
+-- it with ev:preventDefault() or rewrite its args with ev:rewrite()). Plus 2b overlays (hafen.ui.overlay on
+-- the HUD + hafen.ui.gobOverlay over game objects) and 2a custom windows/widgets + the GOut wrapper. It runs
+-- inside the Lua SANDBOX (D-017 strict env + D-018 instruction watchdog) over 1e hafen.store (saved
+-- variables), 1d-4 actionbar/equip, 1d-3 study/skills, 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c
 -- items/char/party reads, the gob/world/map/player/time/sound reads, the 1b event bus, and timers, and can be
 -- RELOADED from disk without a relog (:reload, D-005) and enabled/disabled (:addons, D-006). `hafen` is the API
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.17.0)")
+hafen.log("hello loaded (v0.18.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -380,10 +382,31 @@ local function drawPanel(g, w, h)
   g:color(170, 170, 170); g:rect(0, 0, w, h); g:color()          -- 1px border
 end
 
+-- 2e-2: GLOBAL HOTKEY (hafen.key.bind). Bind a remappable, persisted hotkey over the client's KeyBinding
+-- registry (namespaced addon/hello/toggle) — Ctrl+H toggles this window's visibility, the WoW "show/hide my
+-- panel" pattern. Unlike the input/action/message hooks below, a hotkey needs NO live target, so it is bound
+-- here in the FILE BODY (it simply does nothing until you are in-world and the window exists). It fires ONLY
+-- when no focused widget consumed the keypress first (a focused text field consumes all ORDINARY typing, so a
+-- hotkey on a plainly-typed key is naturally suppressed while typing) and no client binding owns Ctrl+H (addon
+-- hotkeys are the fallback, walked after the client's — never a hijack). Exactly the engine's own global-hotkey
+-- behaviour (Ctrl+H behaves like the client's Ctrl-bindings). The key is user-remappable in the client's
+-- keybind options; the handle exposes :key() (the current key's display name) and :remove(). Bridge-owned:
+-- :reload or disabling the addon removes it (the KeyBinding entry itself is kept, so a user's re-map survives).
+-- Pass nil or "None" as the default for unbound-by-default. Accepts "F5", "Ctrl+M", "Shift+Alt+Left", a bare
+-- letter/digit, etc.
+local toggleKey = hafen.key.bind("toggle", "Ctrl+H", function()
+  if not panel then hafen.log("2e-2: Ctrl+H pressed, but the window is not up yet"); return end
+  local show = not panel:visible()                                -- flip the current (settled/animating) state
+  if show then panel:show() else panel:hide() end
+  hafen.log(("2e-2: Ctrl+H -> window %s"):format(show and "shown" or "hidden"))
+end)
+hafen.log(("2e-2: global hotkey bound (%s toggles the window) -- remappable in the keybind options")
+  :format(toggleKey:key()))
+
 hafen.events.on("OnEnterWorld", function()
   if panel then return end                                        -- defensive: create the window once
   panel = hafen.ui.window{
-    title   = "Hello 2e",
+    title   = "Hello 2e-2",
     size    = { 190, 136 },
     pos     = { 80, 120 },
     onDraw  = drawPanel,
@@ -404,7 +427,7 @@ hafen.events.on("OnEnterWorld", function()
     end,
     onClose = function() hafen.log("panel closed (X) -- :reload to bring it back") end,
   }
-  hafen.log("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, MMB=vitals-freeze, X=close")
+  hafen.log("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, MMB=vitals-freeze, X=close, Ctrl+H=toggle")
 
   -- 2c: INPUT HOOK (hafen.hook.input, L1). Pre-hook MapView's mousedown through the engine's built-in
   -- Widget.listen seam (ZERO core edit): fn(ev) runs BEFORE MapView's own mousedown, at SCREEN coords, before

@@ -24,6 +24,8 @@ import haven.IMeter;
 import haven.Indir;
 import haven.Inventory;
 import haven.ItemInfo;
+import haven.KeyBinding;
+import haven.KeyMatch;
 import haven.LayerMeter;
 import haven.Loading;
 import haven.MapView;
@@ -56,6 +58,7 @@ import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
+import java.awt.event.KeyEvent;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -135,6 +138,45 @@ public final class AddonManager {
     // synchronized(ui) block, the same monitor tick/draw hold, so hook Lua never races other Lua. Session-scoped.
     private static final Map<String, List<LuaMessageHook>> messageHooks =
         new ConcurrentHashMap<String, List<LuaMessageHook>>();
+
+    // -- global hotkeys (spec 07 "Input" / Phase 2e-2): hafen.key.bind over the KeyBinding registry --------
+    // hafen.key.bind(name, defaultKey, fn) pairs a remappable+persisted client KeyBinding with a Lua handler.
+    // Dispatch is the engine's built-in GlobKeyEvent seam (ZERO core edit, like 2c's Widget.listen): UI.keydown
+    // fires a GlobKeyEvent ONLY after an unconsumed focused KeyDownEvent (so a hotkey never fires while a text
+    // field has focus), which walks the widget tree calling globtype; AddonRoot.globtype runs onGlobKey below.
+    // A flat list (not a per-name map — keys match by KeyMatch, not by string) iterated per unconsumed keypress
+    // (NOT per frame — cheap); owned copies live on each Addon for teardown. Runs on the UI thread (input
+    // dispatch), like an input hook, so callLua goes straight through with no thread guard.
+    private static final List<LuaKeyBind> keyBinds = new CopyOnWriteArrayList<LuaKeyBind>();
+
+    // Named keys the hotkey-string parser recognizes; anything else that is a single char goes through
+    // KeyMatch.forchar (letters, digits, symbols). Built once (KeyEvent VK_* are compile-time constants).
+    private static final Map<String, Integer> KEYCODES = new HashMap<String, Integer>();
+    static {
+        for(int i = 1; i <= 12; i++)                       // F1..F12 (VK_F1..VK_F12 are consecutive)
+            KEYCODES.put("F" + i, KeyEvent.VK_F1 + (i - 1));
+        KEYCODES.put("SPACE",     KeyEvent.VK_SPACE);
+        KEYCODES.put("ENTER",     KeyEvent.VK_ENTER);
+        KEYCODES.put("RETURN",    KeyEvent.VK_ENTER);
+        KEYCODES.put("TAB",       KeyEvent.VK_TAB);
+        KEYCODES.put("ESC",       KeyEvent.VK_ESCAPE);
+        KEYCODES.put("ESCAPE",    KeyEvent.VK_ESCAPE);
+        KEYCODES.put("BACKSPACE", KeyEvent.VK_BACK_SPACE);
+        KEYCODES.put("DELETE",    KeyEvent.VK_DELETE);
+        KEYCODES.put("DEL",       KeyEvent.VK_DELETE);
+        KEYCODES.put("INSERT",    KeyEvent.VK_INSERT);
+        KEYCODES.put("INS",       KeyEvent.VK_INSERT);
+        KEYCODES.put("HOME",      KeyEvent.VK_HOME);
+        KEYCODES.put("END",       KeyEvent.VK_END);
+        KEYCODES.put("PAGEUP",    KeyEvent.VK_PAGE_UP);
+        KEYCODES.put("PGUP",      KeyEvent.VK_PAGE_UP);
+        KEYCODES.put("PAGEDOWN",  KeyEvent.VK_PAGE_DOWN);
+        KEYCODES.put("PGDN",      KeyEvent.VK_PAGE_DOWN);
+        KEYCODES.put("UP",        KeyEvent.VK_UP);
+        KEYCODES.put("DOWN",      KeyEvent.VK_DOWN);
+        KEYCODES.put("LEFT",      KeyEvent.VK_LEFT);
+        KEYCODES.put("RIGHT",     KeyEvent.VK_RIGHT);
+    }
 
     // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
     // Adapters read a GameUI widget tree into a Lua snapshot and fire a semantic event on change. The
@@ -343,7 +385,8 @@ public final class AddonManager {
         destroyWidgets(a);            // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
         teardownHooks(a);             // 2c: deafen input hooks (engine widgets outlive a :reload — must detach)
         teardownActionHooks(a);       // 2d: unregister action hooks from the outbound-wdgmsg dispatch map
-        teardownMessageHooks(a);      // 2e: unregister message hooks from the inbound-uimsg dispatch map
+        teardownMessageHooks(a);      // 2e-1: unregister message hooks from the inbound-uimsg dispatch map
+        teardownKeyBinds(a);          // 2e-2: unregister global hotkeys from the GlobKeyEvent dispatch list
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
         a.subs.clear();
@@ -830,6 +873,32 @@ public final class AddonManager {
         if(prevented[0])
             return null;                              // swallow (preventDefault wins over any rewrite)
         return (rewritten[0] != null) ? rewritten[0] : args;
+    }
+
+    /**
+     * The global-hotkey seam (spec 07 "Input" / Phase 2e-2) — called from {@link AddonRoot#globtype} for every
+     * {@link Widget.GlobKeyEvent}. {@link UI#keydown} fires that event only after an unconsumed focused
+     * {@code KeyDownEvent}, so a hotkey never fires while a text field has focus; the event then walks the whole
+     * widget tree calling {@code globtype}. Runs the handler of the first registered {@code hafen.key.bind}
+     * whose current key matches and returns whether the key was <b>consumed</b> ({@code true} stops the
+     * GlobKeyEvent walk). The addon-root is an early child of {@code ui.root}, hence walked <b>last</b>, so a
+     * client binding on the same key is matched first — an addon hotkey is the fallback, never a hijack.
+     *
+     * <p><b>Threading.</b> Reached on the UI thread (input dispatch, under {@code synchronized(ui)}) — the same
+     * path as an L1 input hook — so the handler goes straight through {@link #callLua} (watchdog-armed,
+     * error-isolated, CPU-accounted), with no thread guard. The fast path (no hotkeys anywhere) returns
+     * immediately, so an unbound client is unaffected.
+     */
+    public static boolean onGlobKey(Widget.GlobKeyEvent ev) {
+        if(keyBinds.isEmpty())
+            return false;                            // fast path: no addon hotkeys anywhere
+        for(LuaKeyBind kb : keyBinds) {              // copy-on-write: a hotkey may :remove() itself here
+            if(kb.alive && kb.matches(ev)) {
+                callLua(kb.owner, kb.fn);
+                return true;                         // consume: the addon bound this key
+            }
+        }
+        return false;
     }
 
     /** Re-read each dirty adapter and fire its semantic event (UI thread, drained from the tick). */
@@ -2016,8 +2085,8 @@ public final class AddonManager {
         //       (1-based, same marshalling as L2), preventDefault(), rewrite(t) }. preventDefault() SWALLOWS the
         //       update (the widget never applies it); rewrite(t) applies it with new args. Runs on a Loader
         //       thread under synchronized(ui) — keep handlers light (the instruction watchdog still bounds them).
-        // Register hooks in OnEnterWorld (the L1 target widget must exist; L2/L3 need no target). hafen.key
-        // hotkeys arrive in 2e-2.
+        // Register hooks in OnEnterWorld (the L1 target widget must exist; L2/L3 need no target). Global
+        // hotkeys are hafen.key.bind (below), not a hook level.
         LuaTable hook = new LuaTable();
         hook.set("input", new ThreeArgFunction() {
             public LuaValue call(LuaValue target, LuaValue event, LuaValue fn) {
@@ -2035,6 +2104,23 @@ public final class AddonManager {
             }
         });
         hafen.set("hook", hook);
+
+        // hafen.key.bind(name, defaultKey, fn) — a remappable GLOBAL HOTKEY (spec 07 "Input"). `name` is the
+        // addon-local binding name (registered as addon/<id>/<name> in the client keybind registry, persisted
+        // + remappable there); `defaultKey` is a string like "F5" / "Ctrl+M" / "Shift+Alt+Left" (or nil /
+        // "None" for unbound-by-default, letting the user assign it later); `fn()` runs when the key is pressed.
+        // Returns a handle { :remove(), :key() -> the current key's display name }. The hotkey fires only when
+        // no focused widget consumed the keypress first (so NOT while typing in chat) and no client binding on
+        // the same key took it (addon hotkeys are the fallback). Register any time — no live target needed —
+        // and it is auto-removed on reload/disable. The KeyBinding itself is persistent (a user's re-map
+        // survives reloads); the default applies only on first creation.
+        LuaTable key = new LuaTable();
+        key.set("bind", new ThreeArgFunction() {
+            public LuaValue call(LuaValue name, LuaValue defaultKey, LuaValue fn) {
+                return newKeyBind(owner, name, defaultKey, fn);
+            }
+        });
+        hafen.set("key", key);
 
         hafen.set("log", new OneArgFunction() {
             public LuaValue call(LuaValue msg) {
@@ -2503,6 +2589,115 @@ public final class AddonManager {
             unregisterMessageHook(h);
         }
         a.messageHooks.clear();
+    }
+
+    // ------------------------------------------------------------------ global hotkeys (hafen.key, 2e-2)
+
+    /**
+     * Register a global hotkey ({@code hafen.key.bind(name, defaultKey, fn)}, spec 07 "Input"): create/fetch a
+     * namespaced {@link KeyBinding} (remappable + persisted under {@code keybind/addon/<id>/<name>}) for the
+     * parsed default key, pair it with {@code fn} in a {@link LuaKeyBind}, register it in the global dispatch
+     * list + the addon's owned-resource registry (dropped on reload/disable, P2), and return the Lua handle
+     * ({@code :remove()} / {@code :key()}). {@code defaultKey} may be {@code nil} or {@code "None"} (unbound by
+     * default — the user assigns it in the keybind panel). Throws a {@link LuaError} for a bad {@code name}/{@code
+     * fn} or an unparseable key string. Needs no live target (unlike an input hook) so it can be registered any
+     * time, but the file body / OnLoad is the natural place.
+     */
+    private static LuaValue newKeyBind(final Addon owner, LuaValue name, LuaValue defaultKey, LuaValue fn) {
+        if(!name.isstring() || !fn.isfunction())
+            throw new LuaError("hafen.key.bind(name, defaultKey, fn) expects (string, string|nil, function)");
+        String nm = name.tojstring();
+        KeyMatch def;
+        if(defaultKey.isnil()) {
+            def = KeyMatch.nil;                       // unbound by default; user assigns it in the keybind panel
+        } else if(defaultKey.isstring()) {
+            def = parseKeyMatch(defaultKey.tojstring());
+            if(def == null)
+                throw new LuaError("hafen.key.bind: cannot parse key '" + defaultKey.tojstring()
+                                   + "' (examples: \"F5\", \"Ctrl+M\", \"Shift+Alt+Left\", \"None\")");
+        } else {
+            throw new LuaError("hafen.key.bind: defaultKey must be a string like \"Ctrl+M\" or nil");
+        }
+        // KeyBinding.get() is a process-global registry: it returns the SAME binding across reloads/sessions, so
+        // a user's re-map (persisted in the client prefs) survives; the default is used only when first created.
+        KeyBinding kbnd = KeyBinding.get("addon/" + owner.manifest.id + "/" + nm, def);
+        final LuaKeyBind h = new LuaKeyBind(owner, nm, kbnd, fn);
+        keyBinds.add(h);
+        owner.keybinds.add(h);
+        LuaTable handle = new LuaTable();
+        handle.set("remove", new ZeroArgFunction() {
+            public LuaValue call() {
+                removeKeyBind(owner, h);
+                return LuaValue.NIL;
+            }
+        });
+        handle.set("key", new ZeroArgFunction() {     // the current key's display name (e.g. "Ctrl+M" / "None")
+            public LuaValue call() {
+                KeyMatch km = h.binding.key();
+                return (km == null) ? LuaValue.NIL : LuaValue.valueOf(km.name());
+            }
+        });
+        return handle;
+    }
+
+    /**
+     * Parse a hotkey description ("F5", "Ctrl+M", "Shift+Alt+Left", "None") into a {@link KeyMatch}. The last
+     * {@code "+"}-separated token is the key; the earlier tokens are modifiers (Ctrl/Control/Ctl, Shift, Alt/Meta,
+     * case-insensitive). A named key (F1..F12, arrows, Home/End/PageUp/PageDown, Space, Enter/Return, Tab,
+     * Escape, Backspace, Delete, Insert — see {@link #KEYCODES}) resolves to its code via {@link KeyMatch#forcode};
+     * any single character resolves via {@link KeyMatch#forchar} (so letters/digits/symbols work directly).
+     * {@code "None"}/empty → {@link KeyMatch#nil}. Modifier matching is exact (no mods → the bare key only, so
+     * "M" never fires on Ctrl+M). Returns {@code null} if it cannot be parsed (unknown modifier, or an unknown
+     * multi-character key name), so the caller can raise a clear Lua error.
+     */
+    private static KeyMatch parseKeyMatch(String desc) {
+        if(desc == null)
+            return null;
+        String s = desc.trim();
+        if(s.isEmpty() || s.equalsIgnoreCase("none"))
+            return KeyMatch.nil;
+        String[] parts = s.split("\\+");
+        String keytok = parts[parts.length - 1].trim();
+        if(keytok.isEmpty())                          // e.g. a trailing '+' with no key
+            return null;
+        int mods = 0;
+        for(int i = 0; i < parts.length - 1; i++) {
+            String m = parts[i].trim().toLowerCase();
+            if(m.equals("ctrl") || m.equals("control") || m.equals("ctl") || m.equals("c"))
+                mods |= KeyMatch.C;
+            else if(m.equals("shift") || m.equals("s"))
+                mods |= KeyMatch.S;
+            else if(m.equals("alt") || m.equals("meta") || m.equals("m"))
+                mods |= KeyMatch.M;
+            else
+                return null;                          // unknown modifier token
+        }
+        Integer code = KEYCODES.get(keytok.toUpperCase());
+        if(code != null)
+            return KeyMatch.forcode(code, mods);
+        if(keytok.length() == 1)
+            return KeyMatch.forchar(keytok.charAt(0), mods);
+        return null;                                  // unknown multi-character key name
+    }
+
+    /** Remove one hotkey: stop it firing + drop it from the global dispatch list (the handle's {@code :remove()}). */
+    private static void removeKeyBind(Addon owner, LuaKeyBind h) {
+        h.alive = false;
+        keyBinds.remove(h);
+        owner.keybinds.remove(h);
+    }
+
+    /**
+     * Mark dead + unregister every hotkey this addon owns (teardown on reload/disable, P2). The {@link KeyBinding}
+     * registry entries are process-global + persistent and are deliberately left intact (that is how the client
+     * remembers a re-mapped addon key across reloads) — teardown drops only the Lua-handler wrapper.
+     */
+    private static void teardownKeyBinds(Addon a) {
+        for(LuaKeyBind h : a.keybinds) {
+            h.alive = false;
+            keyBinds.remove(h);
+        }
+        a.keybinds.clear();
     }
 
     /** Any addon currently has a HUD overlay? (Decides whether to queue the per-frame afterdraw.) */

@@ -73,6 +73,16 @@ public final class Addon {
      * {@code :remove()} itself while the dispatcher iterates the per-message list.
      */
     public final List<LuaMessageHook> messageHooks = new CopyOnWriteArrayList<LuaMessageHook>();
+    /**
+     * Live global hotkeys owned by this addon ({@code hafen.key.bind}, Phase 2e-2): each pairs a client
+     * {@link haven.KeyBinding} with a Lua handler, dispatched from {@link AddonRoot#globtype} via the engine's
+     * {@code GlobKeyEvent} seam. Teardown marks each dead and drops it from {@link AddonManager}'s global
+     * dispatch list (principle P2) — like an action/message hook there is no widget to deafen. The
+     * {@code KeyBinding} itself is process-global + persistent and is deliberately <b>not</b> removed (that is how
+     * the client remembers a re-mapped key across reloads/sessions). Copy-on-write: a firing hotkey may
+     * {@code :remove()} itself while the dispatcher iterates.
+     */
+    public final List<LuaKeyBind> keybinds = new CopyOnWriteArrayList<LuaKeyBind>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per
