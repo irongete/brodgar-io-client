@@ -689,6 +689,7 @@ public class UI {
 		synchronized(UI.this) {
 		    dispatch(wdg, new Widget.MessageEvent(msg, args));
 		}
+		io.brodgar.addon.AddonManager.onUimsg(wdg, msg);   // addon: widget-tree read tap (post-apply; enqueues a semantic-event refresh)
 	    } else {
 		throw(new UIException("Uimsg to non-existent widget " + id, msg, args));
 	    }

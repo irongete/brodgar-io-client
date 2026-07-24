@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.AddonWidgets;
 import haven.Astronomy;
 import haven.Audio;
 import haven.CharWnd;
@@ -15,9 +16,11 @@ import haven.Glob;
 import haven.Gob;
 import haven.GobHealth;
 import haven.GobIcon;
+import haven.IMeter;
 import haven.Indir;
 import haven.Inventory;
 import haven.ItemInfo;
+import haven.LayerMeter;
 import haven.Loading;
 import haven.MapView;
 import haven.MCache;
@@ -47,6 +50,8 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -77,6 +82,14 @@ public final class AddonManager {
     private static volatile boolean enterWorldPending;  // set off-thread (MapView attach), read on tick
     private static double clock;                        // seconds accumulated from tick dt (UI thread)
     private static final Queue<GobEvent> gobEvents = new ConcurrentLinkedQueue<GobEvent>();
+
+    // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
+    // Adapters read a GameUI widget tree into a Lua snapshot and fire a semantic event on change. The
+    // UI.uimsg core tap runs off the UI thread, so it only marks the interested adapter(s) dirty; the
+    // tick re-reads + fires on the UI thread (principle P5). Both collections are session-scoped.
+    private static final List<TreeAdapter> treeAdapters = new CopyOnWriteArrayList<TreeAdapter>();
+    private static final Set<TreeAdapter> treeDirty = ConcurrentHashMap.newKeySet();
+    private static LuaValue vitalsCache;                 // last vitals snapshot (UI thread; change-detect)
 
     private AddonManager() {
     }
@@ -122,6 +135,11 @@ public final class AddonManager {
         gobEvents.clear();
         addonRoot = null;
         ocCb = null;
+
+        treeDirty.clear();            // reset the widget-tree read mechanism for the new session
+        vitalsCache = null;
+        treeAdapters.clear();
+        treeAdapters.add(new VitalsAdapter());
 
         attachRoot(ui_);              // invisible per-frame tick widget (drives the engine)
         registerOcache(ui_);          // GobAdded/GobRemoved source (marshalled to the UI thread)
@@ -248,6 +266,10 @@ public final class AddonManager {
             while((ge = gobEvents.poll()) != null)
                 fire(ge.added ? "GobAdded" : "GobRemoved", gobSnapshot(ge.gob));
 
+            // 1b. Widget-tree adapters flagged dirty by an inbound uimsg → re-read + fire the semantic
+            //     event, now on the UI thread. (Marked off-thread in onUimsg; drained here.)
+            refreshTreeAdapters();
+
             // 2. "Entered the world" — defer until the HUD (GameUI) is actually up, so GameUI-backed
             //    reads (player.name, and later items/char/party) work INSIDE the handler. The map view
             //    attaches from its ctor (on a loader thread) a few frames before the HUD finishes
@@ -291,6 +313,133 @@ public final class AddonManager {
                 }
             }
         }
+    }
+
+    // ------------------------------------------------------------- widget-tree read mechanism (1d)
+
+    /**
+     * The inbound-{@code uimsg} tap — the core edit in {@code UI.UiMessage.run} (spec 13, Level 3),
+     * called <b>after</b> the target widget applies a server update, on a Loader thread under
+     * {@code synchronized(ui)}. Much high-value state (vitals, buffs, FEP, …) lives in widget trees
+     * updated by targeted {@code uimsg} (audit B1); this is where the engine learns about it. It must
+     * <b>not</b> touch Lua — it only flags the interested adapter(s) dirty; {@link #tick(double)}
+     * drains them and fires the semantic event on the UI thread (principle P5).
+     */
+    public static void onUimsg(Widget w, String msg) {
+        if((w == null) || treeAdapters.isEmpty())
+            return;
+        for(TreeAdapter a : treeAdapters) {
+            try {
+                if(a.interested(w, msg))
+                    treeDirty.add(a);
+            } catch(RuntimeException e) {
+                /* an adapter's recognizer must never break server message application */
+            }
+        }
+    }
+
+    /** Re-read each dirty adapter and fire its semantic event (UI thread, drained from the tick). */
+    private static void refreshTreeAdapters() {
+        if(treeDirty.isEmpty())
+            return;
+        for(TreeAdapter a : treeAdapters) {
+            if(treeDirty.remove(a)) {
+                try {
+                    a.refresh();
+                } catch(RuntimeException e) {
+                    log("tree adapter error: " + e);
+                }
+            }
+        }
+    }
+
+    /**
+     * A widget-tree read adapter (spec {@code 14-widget-tree-reads.md}): the one place that knows a
+     * target widget tree's shape, localizing that upstream-volatile knowledge. It recognizes its
+     * target from an inbound uimsg ({@link #interested}, off-thread — cheap, no state read) and, once
+     * flagged dirty, re-reads a snapshot and fires a semantic event ({@link #refresh}, UI thread).
+     */
+    private interface TreeAdapter {
+        boolean interested(Widget w, String msg);
+        void refresh();
+    }
+
+    /**
+     * Player vitals — hp / stamina / energy as bar fractions (0..1). The {@link IMeter} widgets are
+     * <i>located</i> by walking the HUD (public {@code children(Class)} — no reflection to find them);
+     * the bar value is the {@code protected LayerMeter.meters}, reached via the {@link AddonWidgets}
+     * haven-package accessor — the admitted non-zero-edit read (audit B5). The three vitals are created
+     * in a fixed order (hp, stamina, energy), so they are mapped positionally. Fires {@code
+     * VitalsChanged} only when a value actually changes (driven by the {@code IMeter "set"} uimsg).
+     */
+    private static final class VitalsAdapter implements TreeAdapter {
+        public boolean interested(Widget w, String msg) {
+            return w instanceof IMeter;
+        }
+
+        public void refresh() {
+            LuaValue snap = readVitals();
+            if(snap.isnil())
+                return;                              // meters not up / no values yet — nothing to fire
+            if(!vitalsEqual(snap, vitalsCache)) {
+                vitalsCache = snap;
+                fire("VitalsChanged", snap);
+            }
+        }
+    }
+
+    /** The vitals keys, in the server's fixed meter-creation order. */
+    private static final String[] VITAL_KEYS = {"hp", "stamina", "energy"};
+
+    /**
+     * A {@code {hp,stamina,energy}} snapshot (0..1) read live from the HUD's {@link IMeter} widgets in
+     * tree (= creation) order, or nil if none are up yet. Backs both {@code hafen.player.vitals} and
+     * the {@code VitalsChanged} change-detection. Extra meters beyond the three vitals are ignored.
+     */
+    private static LuaValue readVitals() {
+        GameUI g = gui();
+        if(g == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        boolean any = false;
+        int i = 0;
+        for(IMeter m : g.children(IMeter.class)) {
+            if(i < VITAL_KEYS.length) {
+                Double v = meterValue(m);
+                if(v != null) {
+                    t.set(VITAL_KEYS[i], LuaValue.valueOf(v));
+                    any = true;
+                }
+            }
+            i++;
+        }
+        return any ? t : LuaValue.NIL;
+    }
+
+    /** The first bar fraction (0..1) of a meter, or null (empty / still resolving). */
+    private static Double meterValue(IMeter m) {
+        try {
+            List<LayerMeter.Meter> ms = AddonWidgets.meters(m);
+            if((ms == null) || ms.isEmpty())
+                return null;
+            return ms.get(0).a;
+        } catch(RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Do two vitals snapshots carry the same hp/stamina/energy? (nil-safe; for change-detection.) */
+    private static boolean vitalsEqual(LuaValue a, LuaValue b) {
+        if((a == null) || a.isnil() || (b == null) || b.isnil())
+            return false;
+        for(String k : VITAL_KEYS) {
+            LuaValue va = a.get(k), vb = b.get(k);
+            if(va.isnil() != vb.isnil())
+                return false;
+            if(va.isnumber() && (va.todouble() != vb.todouble()))
+                return false;
+        }
+        return true;
     }
 
     // ------------------------------------------------------------- event dispatch
@@ -645,6 +794,15 @@ public final class AddonManager {
             public LuaValue call() {
                 GameUI g = gui();
                 return ((g == null) || (g.chrid == null)) ? LuaValue.NIL : LuaValue.valueOf(g.chrid);
+            }
+        });
+        // vitals() — {hp,stamina,energy} bar fractions (0..1), read live from the HUD meters via the
+        // widget-tree mechanism (1d). Bar-fraction ONLY: no absolute values, no hunger (those don't
+        // exist as client state — coverage-gaps B5). nil until the meters are up. Subscribe to
+        // VitalsChanged for updates; the initial values arrive as widget-creation args, not a uimsg.
+        player.set("vitals", new ZeroArgFunction() {
+            public LuaValue call() {
+                return readVitals();
             }
         });
         player.set("worldToScreen", new TwoArgFunction() {

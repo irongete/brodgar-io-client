@@ -1,9 +1,10 @@
--- Example addon (Phase 1c-3): extends the Glob-backed read API with hafen.items / hafen.char /
--- hafen.party on top of the 1c-1 gob+world reads, the 1c-2 map/player/time/sound reads, the 1b event
--- bus, and timers. `hafen` is the API facade; `ADDON` describes this addon ({ id, dir }). The file
--- body runs once at load; then OnLoad fires, then (on entering the world) OnEnterWorld.
+-- Example addon (Phase 1d-1): adds hafen.player.vitals() + the VitalsChanged event — the first
+-- surface backed by the widget-tree read mechanism (Locator + Adapter + inbound-uimsg hook) — on top
+-- of the 1c items/char/party reads, the gob/world/map/player/time/sound reads, the 1b event bus, and
+-- timers. `hafen` is the API facade; `ADDON` describes this addon ({ id, dir }). The file body runs
+-- once at load; then OnLoad fires, then (on entering the world) OnEnterWorld.
 
-hafen.log("hello loaded (v0.5.0)")
+hafen.log("hello loaded (v0.6.0)")
 
 hafen.events.on("OnLoad", function()
   hafen.log("OnLoad fired")
@@ -53,6 +54,19 @@ local function readChar(tag)
   hafen.log(("[%s] party: %d member(s)"):format(tag, #hafen.party.members()))
 end
 
+-- 1d-1: player vitals — hp/stamina/energy as 0..1 bar fractions (no absolute numbers exist). Read
+-- through the widget-tree mechanism (the HUD meters). The meters stream in a beat after enter-world
+-- (like char/items), so the "now" pass is usually nil and "+3s" has the bars.
+local function readVitals(tag)
+  local v = hafen.player.vitals()
+  if v then
+    hafen.log(("[%s] vitals: hp=%s stamina=%s energy=%s"):format(tag,
+      tostring(v.hp), tostring(v.stamina), tostring(v.energy)))
+  else
+    hafen.log(("[%s] vitals: nil (meters not up yet)"):format(tag))
+  end
+end
+
 hafen.events.on("OnEnterWorld", function()
   hafen.log("entered the world")
 
@@ -84,8 +98,10 @@ hafen.events.on("OnEnterWorld", function()
   -- 1c-2/1c-3: map, projection, item and char/party reads — now (often still loading/streaming) and
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
-  readPlace("now"); readInv("now"); readChar("now")
-  hafen.timer.after(3, function() readPlace("+3s"); readInv("+3s"); readChar("+3s") end)
+  readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
+  hafen.timer.after(3, function()
+    readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
+  end)
 
   -- 1c-2: an audible confirmation ping (a client-bundled sound), proving hafen.sound.play works.
   hafen.sound.play("sfx/msg")
@@ -108,6 +124,18 @@ hafen.events.on("GobAdded", function(g)
   spawned = spawned + 1
   if spawned <= 3 then
     hafen.log(("GobAdded id=%s name=%s (%d so far)"):format(tostring(g.id), tostring(g.name), spawned))
+  end
+end)
+
+-- 1d-1: VitalsChanged fires when the server updates a vital bar (stamina drain, energy change,
+-- taking damage) — the payload is the same {hp,stamina,energy} snapshot as hafen.player.vitals().
+-- Stamina/energy change often, so log only the first few to avoid flooding.
+local vitalsSeen = 0
+hafen.events.on("VitalsChanged", function(v)
+  vitalsSeen = vitalsSeen + 1
+  if vitalsSeen <= 5 then
+    hafen.log(("VitalsChanged: hp=%s stamina=%s energy=%s (%d)"):format(
+      tostring(v.hp), tostring(v.stamina), tostring(v.energy), vitalsSeen))
   end
 end)
 

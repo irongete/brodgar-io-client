@@ -19,6 +19,9 @@ built up **progressively** as each piece lands. It is the counterpart to the des
 | [phase-0-spike.md](phase-0-spike.md) | ✅ Implemented & verified | LuaJ engine spike, `:lua` REPL, `hafen.gob.pos` |
 | [phase-1a-loading.md](phase-1a-loading.md) | ✅ Implemented (in-game check pending) | Loading addons from disk: `manifest.json`, per-addon env, `hafen.log`, `:addons` |
 | [phase-1b-events-timers.md](phase-1b-events-timers.md) | ✅ Implemented (in-game check pending) | Tick pump, event bus (`hafen.events`: OnLoad/OnEnterWorld/OnUpdate/GobAdded/GobRemoved/OnDisable), timers (`hafen.timer`) |
-| [phase-1c-read-gobs.md](phase-1c-read-gobs.md) | ✅ Implemented (in-game check pending) | Read API part 1: `hafen.gob.*` (per-gob accessor) + `hafen.world.*` (enumerate/nearest/within); full gob snapshots |
+| [phase-1c-read-gobs.md](phase-1c-read-gobs.md) | ✅ Implemented & verified | Read API part 1: `hafen.gob.*` (per-gob accessor) + `hafen.world.*` (enumerate/nearest/within); full gob snapshots |
+| [phase-1c2-map-player-time-sound.md](phase-1c2-map-player-time-sound.md) | ✅ Implemented & verified | Read API part 2: `hafen.map.*`, `hafen.player.*`, `hafen.time.*`, `hafen.sound`/`hafen.music` |
+| [phase-1c3-items-char-party.md](phase-1c3-items-char-party.md) | ✅ Implemented & verified | Read API part 3: `hafen.items.*`, `hafen.char.*`, `hafen.party.*`; the `"partyN"` GobRef token |
+| [phase-1d1-vitals-widget-tree.md](phase-1d1-vitals-widget-tree.md) | ✅ Implemented & verified | Widget-tree read mechanism (Locator + Adapter + inbound-`uimsg` tap) + `hafen.player.vitals` + `VitalsChanged` |
 
 _(Grows as phases land — see [`specs/addons/15-implementation-plan.md`](../../specs/addons/15-implementation-plan.md) for the build order.)_
