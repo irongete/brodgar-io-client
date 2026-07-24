@@ -61,8 +61,8 @@ import org.luaj.vm2.lib.jse.JsePlatform;
  * <p><b>Known limitation (deferred hardening):</b> LuaJ's string metatable is a process-global static
  * ({@code LuaString.s_metatable}); a hostile addon calling {@code getmetatable("")} could tamper with
  * string handling for everyone. D-017's explicit list does not cover it; per-env string metatables
- * are a later refinement. The soft per-tick time budget + auto-disable (D-018, layer 2) is likewise a
- * follow-up slice.
+ * are a later refinement. (The soft per-tick time budget + auto-disable, D-018 layer 2, is implemented
+ * in Phase 1f-3 — see {@link #SOFT_BUDGET_NANOS} + {@link AddonManager#enforceSoftBudget()}.)
  */
 public final class Sandbox {
 
@@ -73,6 +73,21 @@ public final class Sandbox {
      * the hard stop entirely). Read once at class-load, like the other addon-layer properties.
      */
     static final long INSN_CAP = propLong("haven.addon.insncap", 10_000_000L);
+
+    /**
+     * Soft per-tick CPU budget (D-018 <b>layer 2</b>), the complement to the hard instruction cap above.
+     * The hard stop bounds a <em>single</em> call; this bounds an addon's <em>total</em> Lua time within
+     * one engine tick (summed across its {@code OnUpdate}, timers, and event handlers). An addon whose
+     * per-tick Lua time exceeds {@link #SOFT_BUDGET_NANOS} for {@link #SOFT_STRIKE_LIMIT} <b>consecutive</b>
+     * ticks is a sustained offender and is auto-disabled for the session — a runaway the per-call cap
+     * cannot catch (a handler that individually stays under the instruction cap yet burns most of every
+     * frame). A single spike (a heavy {@code OnEnterWorld}, one janky frame) resets the strike counter, so
+     * only genuinely sustained overrun trips it. Enforced in {@link AddonManager#enforceSoftBudget()} and
+     * surfaced in the AddOns panel. Override with {@code -Dhaven.addon.tickbudgetms} (milliseconds;
+     * {@code <= 0} disables the soft budget) and {@code -Dhaven.addon.tickstrikes}.
+     */
+    static final long SOFT_BUDGET_NANOS = propLong("haven.addon.tickbudgetms", 10L) * 1_000_000L;
+    static final int  SOFT_STRIKE_LIMIT = (int)propLong("haven.addon.tickstrikes", 30L);
 
     private Sandbox() {
     }

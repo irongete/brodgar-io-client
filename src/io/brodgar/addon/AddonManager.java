@@ -121,6 +121,12 @@ public final class AddonManager {
     // preferences (Utils.getprefsl → under the client folder), NOT per-character.
     private static final String PREF_DISABLED = "addons/disabled";
     private static volatile boolean reloadNeeded;        // enabled set changed since the last (re)load
+    private static volatile int reloadGen;               // bumped by each completed reload() (the AddOns panel watches it)
+
+    // -- soft CPU-budget auto-disable (spec 1f-3 / D-018 layer 2): id -> reason for an addon torn down
+    // mid-session by the per-tick CPU watchdog. This is a SESSION action (not the persisted disabled set),
+    // surfaced in the AddOns panel and cleared on the next (re)load so the addon gets a fresh start.
+    private static final Map<String, String> autoDisabledWarn = new ConcurrentHashMap<String, String>();
 
     private AddonManager() {
     }
@@ -247,6 +253,7 @@ public final class AddonManager {
 
     private static void loadAll() {
         reloadNeeded = false;         // whatever is on disk now IS the applied enabled set
+        autoDisabledWarn.clear();     // a (re)load gives every addon a fresh start (drop session warnings)
         File dir = addonDir();
         log("addons dir: " + dir);
         File[] subs = dir.listFiles(File::isDirectory);
@@ -331,6 +338,7 @@ public final class AddonManager {
             restorePerChar();                        // reload per-char saved vars (charScope still valid)
             fire("OnEnterWorld");
         }
+        reloadGen++;                                 // notify any live AddOns panel to rebuild its rows
         log("reload complete (" + addons.size() + " addon[s] active)");
     }
 
@@ -402,6 +410,103 @@ public final class AddonManager {
         log("addons: " + sb + (reloadNeeded ? "  (changes pending — run :reload to apply)" : ""));
     }
 
+    // ------------------------------------------------------------- AddOns options panel API (1f-3)
+
+    /**
+     * A snapshot of one discovered addon for the AddOns options panel (spec 10): its manifest metadata
+     * plus its live state. Immutable; built by {@link #describeAddons()}.
+     */
+    public static final class AddonInfo {
+        public final String id, name, version, author, description;
+        public final int apiVersion;
+        public final boolean enabled;   // persisted enabled state (the checkbox) — NOT the live-loaded state
+        public final boolean loaded;    // currently running this session
+        public final String error;      // load/runtime error, or null
+        public final String warning;    // session warning (e.g. auto-disabled by the CPU watchdog), or null
+
+        AddonInfo(String id, String name, String version, String author, String description,
+                  int apiVersion, boolean enabled, boolean loaded, String error, String warning) {
+            this.id = id; this.name = name; this.version = version; this.author = author;
+            this.description = description; this.apiVersion = apiVersion; this.enabled = enabled;
+            this.loaded = loaded; this.error = error; this.warning = warning;
+        }
+    }
+
+    /**
+     * Every discovered addon (a folder under {@link #addonDir()} with a {@code manifest.json}), sorted by
+     * id, as {@link AddonInfo} for the AddOns panel. Reads each manifest fresh from disk so disabled /
+     * not-loaded addons still show name/version/author. Call on panel build/reload (it does disk I/O), not
+     * per frame — use {@link #liveStatus(String)} for the cheap per-frame status refresh.
+     */
+    public static List<AddonInfo> describeAddons() {
+        List<AddonInfo> out = new ArrayList<AddonInfo>();
+        File dir = addonDir();
+        File[] subs = dir.listFiles(File::isDirectory);
+        if(subs == null)
+            return out;
+        java.util.Arrays.sort(subs, (x, y) -> x.getName().compareToIgnoreCase(y.getName()));
+        Set<String> disabled = disabledSet();
+        for(File sub : subs) {
+            if(!new File(sub, "manifest.json").isFile())
+                continue;
+            String id = sub.getName();
+            Manifest m = null;
+            try { m = Manifest.load(sub.toPath()); } catch(Exception e) { /* keep an id-only row */ }
+            Addon loaded = findLoaded(id);
+            String error = (loaded != null) ? loaded.error : ((m == null) ? "manifest error" : null);
+            out.add(new AddonInfo(id,
+                (m != null) ? m.name : id,
+                (m != null) ? m.version : null,
+                (m != null) ? m.author : null,
+                (m != null) ? m.description : null,
+                (m != null) ? m.apiVersion : 0,
+                !disabled.contains(id),
+                loaded != null,
+                error,
+                autoDisabledWarn.get(id)));
+        }
+        return out;
+    }
+
+    /**
+     * A short live status string for one addon id, cheap enough to call each frame (no manifest I/O): the
+     * session auto-disable warning if any, else loaded-version / error / disabled / not-loaded. Backs the
+     * per-row status label the AddOns panel refreshes on tick.
+     */
+    public static String liveStatus(String id) {
+        String w = autoDisabledWarn.get(id);
+        if(w != null)
+            return "auto-disabled (" + w + ")";
+        Addon a = findLoaded(id);
+        if(a != null)
+            return (a.error == null) ? ("loaded v" + a.manifest.version) : ("error: " + a.error);
+        return isEnabled(id) ? "not loaded" : "disabled";
+    }
+
+    /** Whether the enabled set has changed since the last (re)load (a reload is pending to apply it). */
+    public static boolean reloadNeeded() {
+        return reloadNeeded;
+    }
+
+    /** A counter bumped by each completed {@link #reload}, so a live AddOns panel can detect a rebuild. */
+    public static int reloadGen() {
+        return reloadGen;
+    }
+
+    /** Queue an addon-layer reload from the AddOns panel's "Reload UI" button (applied on the next tick). */
+    public static void requestReload() {
+        queueReload();
+    }
+
+    /** Open the addons folder in the OS file browser (AddOns panel convenience). Best-effort, non-fatal. */
+    public static void openAddonsFolder() {
+        try {
+            java.awt.Desktop.getDesktop().open(addonDir());
+        } catch(Exception e) {
+            log("could not open addons folder: " + e);
+        }
+    }
+
     // ------------------------------------------------------------- the tick pump
 
     /**
@@ -421,6 +526,12 @@ public final class AddonManager {
                 reload();
                 return;
             }
+
+            // Soft CPU-budget accounting (D-018 layer 2): zero every addon's per-tick Lua time before any
+            // handler runs this tick; callLua accumulates into it, enforceSoftBudget() evaluates it at the
+            // end. (Skipped on a reload tick, which returns above — its OnLoad/OnEnterWorld are one-offs.)
+            for(Addon a : addons)
+                a.tickLuaNanos = 0L;
 
             // 1. Gob spawn/despawn captured on network/loader threads → dispatch on the UI thread.
             GobEvent ge;
@@ -460,9 +571,51 @@ public final class AddonManager {
                 for(Addon a : addons)
                     flush(a);
             }
+
+            // 6. Soft per-tick CPU budget (D-018 layer 2): auto-disable an addon that has been over budget
+            //    for too many consecutive ticks — a sustained runaway the hard per-call cap doesn't catch.
+            enforceSoftBudget();
         } catch(RuntimeException e) {
             log("tick error: " + e);
         }
+    }
+
+    /**
+     * Enforce the soft per-tick CPU budget (D-018 layer 2 / spec 12). Each addon accrued its total Lua
+     * time this tick in {@code tickLuaNanos} (via {@link #callLua}); an addon over
+     * {@link Sandbox#SOFT_BUDGET_NANOS} adds a strike, one under budget clears the count. On reaching
+     * {@link Sandbox#SOFT_STRIKE_LIMIT} consecutive over-budget ticks it is auto-disabled for the session
+     * (torn down + a warning surfaced in the AddOns panel). Runs at end of tick, so mutating {@code addons}
+     * via {@link #autoDisable} is safe. The {@code :lua} REPL owner is exempt (it is not in {@code addons}
+     * — the sandbox constrains shared addon code, not the operator's console).
+     */
+    private static void enforceSoftBudget() {
+        if((Sandbox.SOFT_BUDGET_NANOS <= 0) || (Sandbox.SOFT_STRIKE_LIMIT <= 0))
+            return;   // soft budget disabled by config
+        for(Addon a : addons) {
+            if(a.tickLuaNanos > Sandbox.SOFT_BUDGET_NANOS) {
+                if(++a.overBudgetStrikes >= Sandbox.SOFT_STRIKE_LIMIT)
+                    autoDisable(a, ">" + (Sandbox.SOFT_BUDGET_NANOS / 1_000_000L) + "ms/tick x"
+                        + Sandbox.SOFT_STRIKE_LIMIT + " ticks; last " + (a.tickLuaNanos / 1_000_000L) + "ms");
+            } else {
+                a.overBudgetStrikes = 0;   // must be SUSTAINED — a single spike doesn't count
+            }
+        }
+    }
+
+    /**
+     * Auto-disable an addon for the current session (D-018): record a panel warning, run its teardown
+     * ({@code OnDisable} → flush saved vars → drop owned resources) and drop it from the live set so it
+     * stops ticking. This does NOT touch the persisted enabled set — a {@code :reload}/login gives the
+     * addon a fresh start (the user can persist-disable it via the panel checkbox). Called from
+     * {@link #enforceSoftBudget} at end of tick, so mutating {@code addons} here is safe.
+     */
+    private static void autoDisable(Addon a, String reason) {
+        String id = (a.manifest != null) ? a.manifest.id : "addon";
+        log(a, "AUTO-DISABLED this session by the CPU watchdog (" + reason + ") - see Options -> AddOns");
+        autoDisabledWarn.put(id, reason);
+        teardown(a);
+        addons.remove(a);
     }
 
     private static void runTimers() {
@@ -996,6 +1149,7 @@ public final class AddonManager {
 
     /** Call into Lua with full error isolation (a Lua error never escapes the engine step). */
     private static void callLua(Addon owner, LuaValue fn, LuaValue... args) {
+        long t0 = System.nanoTime();
         try {
             Sandbox.arm(owner.env);   // reset the watchdog's instruction budget for this callback (D-018)
             fn.invoke((args.length == 0) ? LuaValue.NONE : LuaValue.varargsOf(args));
@@ -1003,6 +1157,8 @@ public final class AddonManager {
             log(owner, "handler error: " + e.getMessage());
         } catch(RuntimeException e) {
             log(owner, "handler error: " + e);
+        } finally {
+            owner.tickLuaNanos += System.nanoTime() - t0;   // soft per-tick CPU-budget accounting (D-018 layer 2)
         }
     }
 

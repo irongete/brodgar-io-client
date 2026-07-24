@@ -39,6 +39,16 @@ public final class Addon {
     /** Write-skip caches: the last JSON serialized for each scope, so an unchanged flush skips disk I/O. */
     public String lastCharJson, lastAccountJson;
 
+    /**
+     * Soft per-tick CPU-budget accounting (D-018 layer 2). {@link #tickLuaNanos} is the total time this
+     * addon spent in Lua during the current engine tick (summed across its {@code OnUpdate}/timers/event
+     * handlers by {@link AddonManager#callLua}); {@link #overBudgetStrikes} counts consecutive ticks over
+     * the budget. {@link AddonManager#tick(double)} zeroes {@code tickLuaNanos} each tick and
+     * {@link AddonManager#enforceSoftBudget()} evaluates the strikes — see {@link Sandbox#SOFT_BUDGET_NANOS}.
+     */
+    public long tickLuaNanos;
+    public int  overBudgetStrikes;
+
     Addon(Manifest manifest, Path dir, Globals env) {
         this.manifest = manifest;
         this.dir = dir;
