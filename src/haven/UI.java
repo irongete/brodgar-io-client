@@ -699,10 +699,21 @@ public class UI {
 	public void run() {
 	    Widget wdg = getwidget(id);
 	    if(wdg != null) {
+		boolean applied = false;
 		synchronized(UI.this) {
-		    dispatch(wdg, new Widget.MessageEvent(msg, args));
+		    // addon: inbound-message hook (L3 — spec 13 §L3). A hafen.hook.message handler runs here, BEFORE
+		    // the widget applies the server update, and may swallow it (ev:preventDefault -> null) or rewrite
+		    // its args (ev:rewrite). onMessage returns the args to apply, or null to swallow. It runs Lua under
+		    // this synchronized(ui) block (the monitor tick/draw hold), so hook Lua never races other Lua, and
+		    // is a near-zero no-op when no message hooks are registered (uimsg application is hot).
+		    Object[] happly = io.brodgar.addon.AddonManager.onMessage(wdg, msg, args);
+		    if(happly != null) {
+			dispatch(wdg, new Widget.MessageEvent(msg, happly));
+			applied = true;
+		    }
 		}
-		io.brodgar.addon.AddonManager.onUimsg(wdg, msg);   // addon: widget-tree read tap (post-apply; enqueues a semantic-event refresh)
+		if(applied)
+		    io.brodgar.addon.AddonManager.onUimsg(wdg, msg);   // addon: widget-tree read tap (post-apply; enqueues a semantic-event refresh; skipped when an L3 hook swallowed the message)
 	    } else {
 		throw(new UIException("Uimsg to non-existent widget " + id, msg, args));
 	    }

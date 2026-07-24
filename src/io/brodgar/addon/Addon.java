@@ -64,6 +64,15 @@ public final class Addon {
      * {@code :remove()} itself while the dispatcher iterates the per-action list.
      */
     public final List<LuaActionHook> actionHooks = new CopyOnWriteArrayList<LuaActionHook>();
+    /**
+     * Live message hooks owned by this addon ({@code hafen.hook.message}, Phase 2e): pre-hooks on the inbound
+     * {@link haven.UI#uimsg} choke point, keyed by message name in {@link AddonManager}'s dispatch map.
+     * Teardown marks each dead and unregisters it from that map (principle P2) — like an action hook (and
+     * unlike an input hook) there is no widget to deafen; the hook lives only in the engine's dispatcher, which
+     * a {@code :reload} keeps alive while the Lua layer rebuilds. Copy-on-write: a firing hook may
+     * {@code :remove()} itself while the dispatcher iterates the per-message list.
+     */
+    public final List<LuaMessageHook> messageHooks = new CopyOnWriteArrayList<LuaMessageHook>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per

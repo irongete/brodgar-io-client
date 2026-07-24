@@ -1,17 +1,17 @@
--- Example addon (Phase 2d): HOOKS now span two levels — 2c hafen.hook.input (L1: intercept a widget's raw
--- input BEFORE its own handler) AND 2d hafen.hook.action (L2: intercept the OUTBOUND action a widget sends
--- to the server, with the arguments already RESOLVED — e.g. a move's destination world coord). Both are
--- pre-hooks with ev:preventDefault(); L2 also has ev:resend()/ev:send() to re-issue the action. On top of 2b
--- overlays (hafen.ui.overlay on the HUD + hafen.ui.gobOverlay over game objects) and 2a custom windows/widgets
--- + the GOut wrapper. It runs inside the Lua SANDBOX (D-017 strict env + D-018
--- instruction watchdog) over 1e hafen.store (saved variables), 1d-4 actionbar/equip, 1d-3 study/skills,
--- 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c items/char/party reads, the gob/world/map/player/time/sound
--- reads, the 1b event bus, and timers, and can be RELOADED from disk without a relog (:reload, D-005) and
--- enabled/disabled (:addons, D-006). `hafen` is the API facade; `ADDON` describes this addon ({ id, dir }).
--- The file body runs once at load; then OnLoad, then (on entering the world) OnEnterWorld. On :reload the
--- whole cycle repeats. Every call in is watchdog-armed — a runaway loop aborts, no freeze.
+-- Example addon (Phase 2e-1): HOOKS now span THREE levels — 2c hafen.hook.input (L1: intercept a widget's raw
+-- input BEFORE its own handler), 2d hafen.hook.action (L2: intercept the OUTBOUND action a widget sends to the
+-- server, with the arguments already RESOLVED — e.g. a move's destination world coord), and 2e hafen.hook.message
+-- (L3: intercept an INBOUND server update BEFORE the widget applies it — swallow it with ev:preventDefault() or
+-- rewrite its args with ev:rewrite()). All three are pre-hooks with ev:preventDefault(). On top of 2b overlays
+-- (hafen.ui.overlay on the HUD + hafen.ui.gobOverlay over game objects) and 2a custom windows/widgets + the GOut
+-- wrapper. It runs inside the Lua SANDBOX (D-017 strict env + D-018 instruction watchdog) over 1e hafen.store
+-- (saved variables), 1d-4 actionbar/equip, 1d-3 study/skills, 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c
+-- items/char/party reads, the gob/world/map/player/time/sound reads, the 1b event bus, and timers, and can be
+-- RELOADED from disk without a relog (:reload, D-005) and enabled/disabled (:addons, D-006). `hafen` is the API
+-- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
+-- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.16.0)")
+hafen.log("hello loaded (v0.17.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -345,6 +345,8 @@ local mapLock = false -- 2c: while true, the MapView mousedown hook cancels map 
 local mapDowns = 0    -- 2c: how many map mousedowns the hook has seen (for the "observed" log lines)
 local moveIntercept = false -- 2d: while true, the "click" action hook intercepts moves and re-sends them (toggle: RIGHT-click)
 local moveHookSeen = 0      -- 2d: how many moves the action hook has observed while OFF (for the "observed" log lines)
+local vitalsFreeze = false  -- 2e: while true, the "set" message hook SWALLOWS meter updates -> the HUD vitals bars freeze (toggle: MIDDLE-click)
+local msgHookSeen = 0       -- 2e: how many meter "set" messages the hook has observed while OFF (for the "observed" log lines)
 
 local function drawPanel(g, w, h)
   g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()          -- translucent backdrop
@@ -370,14 +372,19 @@ local function drawPanel(g, w, h)
   g:color(moveIntercept and 245 or 150, moveIntercept and 160 or 150, moveIntercept and 60 or 150)
   g:text(("move-hook %s (RMB)"):format(moveIntercept and "ON" or "OFF"), 6, 104)
   g:color()
+  -- 2e: vitals-freeze state (MIDDLE-click the window to toggle; cyan = the L3 message hook is swallowing meter
+  -- updates, so the hp/stamina/energy bars above — and the real HUD meters — freeze until toggled off)
+  g:color(vitalsFreeze and 90 or 150, vitalsFreeze and 210 or 150, vitalsFreeze and 235 or 150)
+  g:text(("vitals-freeze %s (MMB)"):format(vitalsFreeze and "ON" or "OFF"), 6, 118)
+  g:color()
   g:color(170, 170, 170); g:rect(0, 0, w, h); g:color()          -- 1px border
 end
 
 hafen.events.on("OnEnterWorld", function()
   if panel then return end                                        -- defensive: create the window once
   panel = hafen.ui.window{
-    title   = "Hello 2c/2d",
-    size    = { 184, 122 },
+    title   = "Hello 2e",
+    size    = { 190, 136 },
     pos     = { 80, 120 },
     onDraw  = drawPanel,
     onClick = function(x, y, button)
@@ -385,6 +392,9 @@ hafen.events.on("OnEnterWorld", function()
       if button == 3 then                                        -- RIGHT-click -> 2d: toggle the action hook
         moveIntercept = not moveIntercept
         hafen.log(("panel RMB #%d -> move-intercept %s"):format(clicks, moveIntercept and "ON" or "OFF"))
+      elseif button == 2 then                                     -- MIDDLE-click -> 2e: toggle the message hook
+        vitalsFreeze = not vitalsFreeze
+        hafen.log(("panel MMB #%d -> vitals-freeze %s"):format(clicks, vitalsFreeze and "ON" or "OFF"))
       else                                                        -- LEFT/other -> 2c: toggle the input hook
         mapLock = not mapLock
         hafen.log(("panel click #%d at %d,%d (button %d) -> map-lock %s")
@@ -394,7 +404,7 @@ hafen.events.on("OnEnterWorld", function()
     end,
     onClose = function() hafen.log("panel closed (X) -- :reload to bring it back") end,
   }
-  hafen.log("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, X=close")
+  hafen.log("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, MMB=vitals-freeze, X=close")
 
   -- 2c: INPUT HOOK (hafen.hook.input, L1). Pre-hook MapView's mousedown through the engine's built-in
   -- Widget.listen seam (ZERO core edit): fn(ev) runs BEFORE MapView's own mousedown, at SCREEN coords, before
@@ -442,6 +452,28 @@ hafen.events.on("OnEnterWorld", function()
     end
   end)
   hafen.log("2d: MapView 'click' action hook installed -- RIGHT-click the window to arm move-intercept, then click the map")
+
+  -- 2e: MESSAGE HOOK (hafen.hook.message, L3). Intercept an INBOUND server update at the UI.uimsg choke point,
+  -- BEFORE the target widget applies it -- the mirror of 2d's outbound L2. We hook the "set" message and scope it
+  -- to the HUD vitals meters (ev.target == "IMeter"; "set" is what LayerMeter uses to update a bar). MIDDLE-click
+  -- the window to arm vitals-freeze. While ON, ev:preventDefault() SWALLOWS the meter update, so it never reaches
+  -- the widget: the hp/stamina/energy bars -- both in this window and the REAL HUD meters -- FREEZE (and no
+  -- VitalsChanged fires, since nothing changed). Toggle it off and the next update thaws them -- fully reversible,
+  -- purely cosmetic (the server still knows your real vitals). While OFF we only observe-log the first few meter
+  -- "set" messages, proving L3 sees inbound traffic. ev.args is a 1-based snapshot (ev:rewrite(t) could apply new
+  -- args instead -- not used here). NB: this handler runs on a Loader thread under the UI lock, so keep it light.
+  -- The handle is bridge-owned (:reload/disable removes the hook -- no leak).
+  hafen.hook.message("set", function(ev)
+    if ev.target ~= "IMeter" then return end                     -- only the HUD vitals/stat meters, not every "set"
+    if vitalsFreeze then
+      ev:preventDefault()                                        -- swallow it -> the meter never updates (bar freezes)
+    elseif msgHookSeen < 3 then
+      msgHookSeen = msgHookSeen + 1
+      hafen.log(("2e: meter 'set' observed (target=%s, %d arg(s)) (passed through) [#%d]")
+        :format(ev.target, #ev.args, msgHookSeen))
+    end
+  end)
+  hafen.log("2e: IMeter 'set' message hook installed -- MIDDLE-click the window to freeze the vitals bars")
 end)
 
 -- 2b: HUD OVERLAY (hafen.ui.overlay). Paint on top of the HUD WITHOUT owning a widget — fn(g, w, h) runs
@@ -454,15 +486,17 @@ local gobCount = 0
 hafen.timer.every(1, function() gobCount = hafen.world.count() end)
 
 local function drawHud(g, w, h)
-  -- 2c/2d: surface the hook states here too, so the input+action hooks have clear on-HUD feedback (border
-  -- turns red while map-lock cancels clicks, orange while move-intercept re-sends them).
-  local txt = ("2b HUD  gobs=%d  clock=%.0f  map-lock=%s  move=%s"):format(
-    gobCount, hafen.time.clock() or 0, mapLock and "ON" or "OFF", moveIntercept and "ON" or "OFF")
-  local bw = 320
+  -- 2c/2d/2e: surface the hook states here too, so the input+action+message hooks have clear on-HUD feedback
+  -- (border turns red while map-lock cancels clicks, orange while move-intercept re-sends moves, cyan while
+  -- vitals-freeze swallows meter updates).
+  local txt = ("2b HUD  gobs=%d  map-lock=%s  move=%s  freeze=%s"):format(
+    gobCount, mapLock and "ON" or "OFF", moveIntercept and "ON" or "OFF", vitalsFreeze and "ON" or "OFF")
+  local bw = 340
   local x = math.floor(w / 2 - bw / 2)
   g:color(0, 0, 0, 140); g:frect(x, 2, bw, 18); g:color()        -- translucent backdrop
   if mapLock then g:color(235, 90, 90)                           -- red: L1 cancelling map clicks
   elseif moveIntercept then g:color(245, 160, 60)                -- orange: L2 intercepting + re-sending moves
+  elseif vitalsFreeze then g:color(90, 210, 235)                 -- cyan: L3 swallowing meter updates
   else g:color(120, 200, 120) end                                -- green: hooks observing only
   g:rect(x, 2, bw, 18); g:color()
   g:text(txt, x + 6, 4)
