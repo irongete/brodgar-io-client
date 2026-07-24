@@ -41,7 +41,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.27.0)")
+hafen.log("hello loaded (v0.28.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -296,6 +296,36 @@ local function readSpeed(tag)
     tostring(hafen.speed.name()), tostring(hafen.speed.max())))
 end
 
+-- A8: CRAFTING via hafen.craft. current() returns the OPEN recipe/craft window (a Makewindow) as {recipe,
+-- inputs, outputs, qmod, tools}, or nil when none is open. inputs/outputs are {res, name, num, opt} specs
+-- (res = the DISPLAYED resource's stable name -- the constraint category when the recipe accepts one, else the
+-- concrete item; num = required/produced count, -1 = unspecified ~ 1; opt = an optional ingredient / chance
+-- byproduct); qmod (quality-affecting inputs) and tools (required tools) are {res, name} arrays. hello is
+-- READ-ONLY here -- craft.make (actually crafting the item) is the gated Phase-4 action tier -- and there is NO
+-- CraftChanged event (a recipe changes only when you open one), so this is READ ON DEMAND. At login no craft
+-- window is open, so the now/+3s passes just show "none"; open any recipe (a crafting-menu entry) and type
+--   :hello craft   to dump its inputs / outputs / tools.
+local function craftLine(s)                     -- one input/output spec -> "name xN[ opt]"
+  return ("%s x%d%s"):format(tostring(s.name or s.res or "?"), s.num or -1, s.opt and " opt" or "")
+end
+local function readCraft(tag)
+  local c = hafen.craft.current()
+  if not c then hafen.log(("[%s] craft: none open"):format(tag)); return end
+  local i1 = c.inputs[1]
+  hafen.log(("[%s] craft '%s': %d input(s), %d output(s), %d qmod, %d tool(s)%s"):format(
+    tag, tostring(c.recipe), #c.inputs, #c.outputs, #c.qmod, #c.tools,
+    i1 and (", in1=" .. craftLine(i1)) or ""))
+end
+local function dumpCraft()                       -- :hello craft -- the full breakdown of the open recipe
+  local c = hafen.craft.current()
+  if not c then hafen.log(":hello craft -> no craft/recipe window open (open one first)"); return end
+  hafen.log((":hello craft -> recipe '%s'"):format(tostring(c.recipe)))
+  for i, s in ipairs(c.inputs)  do hafen.log(("  input[%d]  %s"):format(i, craftLine(s))) end
+  for i, s in ipairs(c.outputs) do hafen.log(("  output[%d] %s"):format(i, craftLine(s))) end
+  for i, r in ipairs(c.qmod)    do hafen.log(("  qmod[%d]   %s"):format(i, tostring(r.name or r.res))) end
+  for i, r in ipairs(c.tools)   do hafen.log(("  tool[%d]   %s"):format(i, tostring(r.name or r.res))) end
+end
+
 -- 3b: WIDGET MODEL (hafen.ui.adopt). We adopt the MAIN INVENTORY as a model down in the onWidgetCreate observer
 -- (the 3a -> 3b flow: observe a widget's creation, then adopt it by desc.id). invModel is that handle (nil until
 -- the inventory is observed at login). readBags reads it: item count + first item (via model:items(), the same
@@ -348,10 +378,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now"); readCraft("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via Ctrl+B) and it logs") end
   end)
@@ -704,7 +734,7 @@ end)
 -- sound, and ":hello echo <text...>" shows the args rejoined (quoting survives — :hello echo "a b" c -> a b c).
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...>")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft")
     return
   end
   local sub = args[1]
@@ -720,8 +750,10 @@ hafen.slash.register("hello", function(args)
     local rest = {}
     for i = 2, #args do rest[#rest + 1] = args[i] end
     hafen.log((":hello echo -> %q"):format(table.concat(rest, " ")))
+  elseif sub == "craft" then
+    dumpCraft()                                  -- A8: dump the currently-open recipe (open one first)
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft)")
       :format(#args, table.concat(args, " | ")))
   end
 end)

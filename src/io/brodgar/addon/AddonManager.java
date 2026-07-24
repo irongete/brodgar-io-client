@@ -29,6 +29,7 @@ import haven.KeyBinding;
 import haven.KeyMatch;
 import haven.LayerMeter;
 import haven.Loading;
+import haven.Makewindow;
 import haven.MapFile;
 import haven.MapView;
 import haven.MCache;
@@ -2306,6 +2307,24 @@ public final class AddonManager {
             }
         });
         hafen.set("speed", speed);
+
+        // hafen.craft.* — crafting read (A8), off the crafting/recipe window (Makewindow: the widget the
+        // server places under the HUD when the player opens a recipe — its input slots, output slots, the
+        // quality-affecting inputs and the required tools). current() returns a snapshot of the OPEN recipe
+        // {recipe, inputs, outputs, qmod, tools}, or nil when no craft window is up. inputs/outputs are spec
+        // snapshots {res, name, num, opt} (res = the DISPLAYED resource's stable name — the constraint
+        // category when the recipe accepts one, else the concrete item; name = its tooltip; num = the
+        // required/produced count, -1 = unspecified ≈ 1; opt = an optional ingredient / chance byproduct).
+        // qmod (quality-affecting inputs) and tools (required tools) are {res, name} arrays. Read-only —
+        // craft.make (actually craft the item) is the gated Phase-4 action tier; no CraftChanged event
+        // (read on demand, like A7 speed / A2 radar — a recipe changes only when the player opens/updates one).
+        LuaTable craft = new LuaTable();
+        craft.set("current", new ZeroArgFunction() {
+            public LuaValue call() {
+                return readCraft();
+            }
+        });
+        hafen.set("craft", craft);
 
         // hafen.buffs.* — active buffs/debuffs (GameUI.buffs → Buff widgets), via the widget-tree
         // mechanism (1d-2). list() returns Buff snapshots {res,name,amount,cooldown,number}; amount/
@@ -5143,6 +5162,110 @@ public final class AddonManager {
             return LuaValue.NIL;
         String t = tips[n];
         return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t);
+    }
+
+    // ---- crafting (A8: hafen.craft) --------------------------------------------------------------
+    // The crafting/recipe window is a Makewindow (@RName("make")) the server places under the HUD when
+    // the player opens a recipe. It is wrapped in GameUI.makewnd (a private Window), so — like A7's speed
+    // selector — we locate the content widget with the 1d-1 Locator (a children(Class) subtree walk from
+    // the HUD), not a named GameUI field. A recipe carries: rcpnm (the recipe name), inputs (ingredient
+    // slots), outputs (product slots), qmod (quality-affecting input resources) and tools (required tool
+    // resources). Read-only here — craft.make is the gated Phase-4 action tier.
+    //
+    // Threading: inputs/outputs/qmod are List references the "inpop"/"opop"/"qmod" uimsgs swap WHOLESALE
+    // off the UI thread (on a Loader thread, under synchronized(ui)); tools is mutated IN PLACE ("tool"
+    // uimsg → tools.add). So we copy all four lists under the ui monitor (the marker "copy under the lock,
+    // snapshot outside it" discipline), then resolve resource names outside the lock (res.get() may Loading).
+    // All backings are public (Makewindow.rcpnm/inputs/outputs/qmod/tools, SpecWidget.spec, Spec.item/
+    // constraint/num/opt(), ResData.res) → zero haven edit, like A7/A6/A4/A2.
+
+    /** The (unique) crafting window content under the HUD, or {@code null} if no recipe is open. */
+    private static Makewindow makewindow() {
+        GameUI g = gui();
+        if(g == null)
+            return null;
+        for(Makewindow m : g.children(Makewindow.class))   // recursive subtree walk; take the first
+            return m;
+        return null;
+    }
+
+    /** {@code hafen.craft.current()} — a snapshot of the open recipe, or {@code nil}. */
+    private static LuaValue readCraft() {
+        Makewindow mw = makewindow();
+        UI u = ui;
+        if((mw == null) || (u == null))                    // mw is found via gui() (needs ui) → u!=null here
+            return LuaValue.NIL;
+        String recipe;
+        List<Makewindow.Input> inputs;
+        List<Makewindow.SpecWidget> outputs;
+        List<Indir<Resource>> qmod, tools;
+        synchronized(u) {                                  // copy the off-thread-mutated lists under the lock
+            recipe = mw.rcpnm;
+            inputs = new ArrayList<Makewindow.Input>(mw.inputs);
+            outputs = new ArrayList<Makewindow.SpecWidget>(mw.outputs);
+            qmod = new ArrayList<Indir<Resource>>(mw.qmod);
+            tools = new ArrayList<Indir<Resource>>(mw.tools);
+        }
+        LuaTable t = new LuaTable();                       // ...then snapshot outside it (names may Loading)
+        t.set("recipe", LuaValue.valueOf(recipe == null ? "" : recipe));
+        t.set("inputs", craftSpecs(inputs));
+        t.set("outputs", craftSpecs(outputs));
+        t.set("qmod", craftReses(qmod));
+        t.set("tools", craftReses(tools));
+        return t;
+    }
+
+    /** An array (1-based) of crafting-spec snapshots for the given input/output widgets. */
+    private static LuaTable craftSpecs(List<? extends Makewindow.SpecWidget> widgets) {
+        LuaTable out = new LuaTable();
+        int i = 0;
+        for(Makewindow.SpecWidget w : widgets)
+            out.set(++i, craftSpec(w.spec));
+        return out;
+    }
+
+    /** A crafting spec (one input or output slot) as {@code {res, name, num, opt}}. Loading-guarded. */
+    private static LuaValue craftSpec(Makewindow.Spec spec) {
+        LuaTable t = new LuaTable();
+        // The displayed resource is the constraint (a category, e.g. "any board") when the recipe accepts
+        // one, else the concrete item — mirroring Makewindow.Spec.display(): that is what fills the slot.
+        Indir<Resource> res = (spec.constraint != null) ? spec.constraint.res : spec.item.res;
+        String id = resIdent(res);
+        if(id != null)
+            t.set("res", LuaValue.valueOf(id));
+        String name = resTipName(res, id);
+        if(name != null)
+            t.set("name", LuaValue.valueOf(name));
+        t.set("num", LuaValue.valueOf(spec.num));          // -1 = unspecified (≈ 1); exposed faithfully
+        boolean opt;
+        try {
+            opt = spec.opt();                              // reads info() — may Loading before resources land
+        } catch(RuntimeException e) {
+            opt = false;
+        }
+        t.set("opt", LuaValue.valueOf(opt));
+        return t;
+    }
+
+    /** An array (1-based) of {@code {res, name}} snapshots for bare resource lists (qmod / tools). */
+    private static LuaTable craftReses(List<Indir<Resource>> reses) {
+        LuaTable out = new LuaTable();
+        int i = 0;
+        for(Indir<Resource> res : reses)
+            out.set(++i, craftRes(res));
+        return out;
+    }
+
+    /** A bare resource reference as {@code {res, name}} (a quality modifier or a tool). Loading-guarded. */
+    private static LuaValue craftRes(Indir<Resource> res) {
+        LuaTable t = new LuaTable();
+        String id = resIdent(res);
+        if(id != null)
+            t.set("res", LuaValue.valueOf(id));
+        String name = resTipName(res, id);
+        if(name != null)
+            t.set("name", LuaValue.valueOf(name));
+        return t;
     }
 
     // ---- markers (A1: hafen.markers) -------------------------------------------------------------
