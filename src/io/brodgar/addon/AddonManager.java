@@ -2084,7 +2084,6 @@ public final class AddonManager {
         // skills() — the character's KNOWN skills as {name, res} snapshots; skill(name) — a substring
         // membership test over them (name OR res, matching hafen.buffs.has). Backed by the SkillWnd
         // "Skills" tab (widget-tree), which streams in after enter-world like the rest of the sheet.
-        // Credos and experiences (the other SkillWnd tabs) are deferred.
         chr.set("skills", new ZeroArgFunction() {
             public LuaValue call() {
                 return readSkills();
@@ -2093,6 +2092,29 @@ public final class AddonManager {
         chr.set("skill", new OneArgFunction() {
             public LuaValue call(LuaValue name) {
                 return (name.isstring() && hasSkill(name.tojstring())) ? LuaValue.TRUE : LuaValue.FALSE;
+            }
+        });
+        // A4 (completes the study/skills subsystem): the rest of the "Lore & Skills" window beyond the
+        // known skills above. skillsAvailable() = the BUYABLE skills {name,res,cost} (the nsk group next
+        // to the known csk group; cost = LP price). credos() = the Credos tab — {acquired, available}
+        // lists (each of {name,res}) + the currently-pursued credo under `pursuing` ({name,res,level,
+        // levelTotal,quest,questTotal,questId}, absent when none) + `cost` (LP to begin pursuing one), or
+        // nil until the window exists. experiences() = the Lore tab {name,res,score,mtime}. All stream in
+        // after enter-world like the known skills; there is no *Changed event — these change only on
+        // explicit, infrequent player actions (buy / pursue / quest progress), so read them on demand.
+        chr.set("skillsAvailable", new ZeroArgFunction() {
+            public LuaValue call() {
+                return readAvailableSkills();
+            }
+        });
+        chr.set("credos", new ZeroArgFunction() {
+            public LuaValue call() {
+                return readCredos();
+            }
+        });
+        chr.set("experiences", new ZeroArgFunction() {
+            public LuaValue call() {
+                return readExperiences();
             }
         });
         hafen.set("char", chr);
@@ -4337,10 +4359,14 @@ public final class AddonManager {
         return (c == null) ? null : c.skill;
     }
 
-    /** Display name of a skill: the resource tooltip, else the internal skill token ({@code Skill.nm}). */
-    private static String skillName(SkillWnd.Skill s) {
+    /**
+     * Display name from a resource's tooltip layer, else {@code fallback} (which may be null).
+     * Loading-guarded (returns {@code fallback} while the resource is still resolving). Shared by the
+     * skill / credo / experience reads — all name themselves off the resource tooltip.
+     */
+    private static String resTipName(Indir<Resource> res, String fallback) {
         try {
-            Resource r = s.res.get();
+            Resource r = res.get();
             if(r != null) {
                 Resource.Tooltip tt = r.layer(Resource.tooltip);
                 if((tt != null) && (tt.t != null))
@@ -4348,17 +4374,27 @@ public final class AddonManager {
             }
         } catch(RuntimeException e) {   // Loading etc.
         }
-        return s.nm;
+        return fallback;
     }
 
-    /** Resource name (stable identity) of a skill, or {@code null} (Loading-guarded). */
-    private static String skillRes(SkillWnd.Skill s) {
+    /** Stable resource identity (its {@code name}), or {@code null} (Loading-guarded). */
+    private static String resIdent(Indir<Resource> res) {
         try {
-            Resource r = s.res.get();
+            Resource r = res.get();
             return (r == null) ? null : r.name;
         } catch(RuntimeException e) {
             return null;
         }
+    }
+
+    /** Display name of a skill: the resource tooltip, else the internal skill token ({@code Skill.nm}). */
+    private static String skillName(SkillWnd.Skill s) {
+        return resTipName(s.res, s.nm);
+    }
+
+    /** Resource name (stable identity) of a skill, or {@code null} (Loading-guarded). */
+    private static String skillRes(SkillWnd.Skill s) {
+        return resIdent(s.res);
     }
 
     /**
@@ -4404,6 +4440,126 @@ public final class AddonManager {
             /* list swapped mid-read — treat as not found */
         }
         return false;
+    }
+
+    /**
+     * The character's AVAILABLE (buyable) skills ({@code SkillWnd.skg.nsk}) as {@code {name, res, cost}}
+     * snapshots — {@code cost} = the LP price to learn. The counterpart to {@link #readSkills()} (known
+     * skills). Same discipline: {@code name} always present, {@code res} Loading-guarded, the list copied
+     * defensively (the {@code Group.items} reference is swapped wholesale off-thread by the {@code nsk} uimsg).
+     */
+    private static LuaValue readAvailableSkills() {
+        LuaTable out = new LuaTable();
+        SkillWnd w = skillwnd();
+        if(w == null)
+            return out;
+        int i = 0;
+        try {
+            for(SkillWnd.Skill s : new ArrayList<SkillWnd.Skill>(w.skg.nsk.items)) {
+                LuaTable t = new LuaTable();
+                t.set("name", LuaValue.valueOf(skillName(s)));
+                String res = skillRes(s);
+                if(res != null)
+                    t.set("res", LuaValue.valueOf(res));
+                t.set("cost", LuaValue.valueOf(s.cost));
+                out.set(++i, t);
+            }
+        } catch(RuntimeException e) {
+            /* nsk not ready or the list was swapped mid-read — return what we have */
+        }
+        return out;
+    }
+
+    /** A credo snapshot {@code {name, res}} — name from the resource tooltip (else the {@code Credo.nm} token). */
+    private static LuaValue credoSnapshot(SkillWnd.Credo c) {
+        LuaTable t = new LuaTable();
+        t.set("name", LuaValue.valueOf(resTipName(c.res, c.nm)));
+        String res = resIdent(c.res);
+        if(res != null)
+            t.set("res", LuaValue.valueOf(res));
+        return t;
+    }
+
+    /** A list of credos as {@code {name,res}} snapshots (defensively copied — swapped off-thread). */
+    private static LuaValue readCredoList(List<SkillWnd.Credo> list) {
+        LuaTable out = new LuaTable();
+        int i = 0;
+        for(SkillWnd.Credo c : new ArrayList<SkillWnd.Credo>(list))
+            out.set(++i, credoSnapshot(c));
+        return out;
+    }
+
+    /**
+     * The Credos tab ({@code SkillWnd.credos}): {@code acquired}/{@code available} (arrays of
+     * {@code {name,res}}), the currently-pursued credo under {@code pursuing} ({@code {name,res,level,
+     * levelTotal,quest,questTotal,questId}}, absent when none), and {@code cost} (LP to begin pursuing a
+     * new credo). nil until the "Lore &amp; Skills" window exists (it streams in after enter-world).
+     */
+    private static LuaValue readCredos() {
+        SkillWnd w = skillwnd();
+        if(w == null)
+            return LuaValue.NIL;
+        SkillWnd.CredoGrid cg = w.credos;
+        LuaTable out = new LuaTable();
+        try {
+            out.set("acquired", readCredoList(cg.ccr));
+            out.set("available", readCredoList(cg.ncr));
+            out.set("cost", LuaValue.valueOf(cg.cost));
+            SkillWnd.Credo p = cg.pcr;
+            if(p != null) {
+                LuaTable pt = new LuaTable();
+                pt.set("name", LuaValue.valueOf(resTipName(p.res, p.nm)));
+                String res = resIdent(p.res);
+                if(res != null)
+                    pt.set("res", LuaValue.valueOf(res));
+                pt.set("level",      LuaValue.valueOf(cg.pcl));
+                pt.set("levelTotal", LuaValue.valueOf(cg.pclt));
+                pt.set("quest",      LuaValue.valueOf(cg.pcql));
+                pt.set("questTotal", LuaValue.valueOf(cg.pcqlt));
+                pt.set("questId",    LuaValue.valueOf(cg.pqid));
+                out.set("pursuing", pt);
+            }
+        } catch(RuntimeException e) {
+            /* credo lists swapped mid-read — return the partial table */
+        }
+        return out;
+    }
+
+    /**
+     * An experience/lore snapshot {@code {name, res, score, mtime}} from the Lore tab. An {@code Experience}
+     * has no internal token, so {@code name} is the resource tooltip (else the resource path, else absent);
+     * {@code score} = experience points, {@code mtime} = the server-supplied time field (faithful passthrough).
+     */
+    private static LuaValue experienceSnapshot(SkillWnd.Experience e) {
+        LuaTable t = new LuaTable();
+        String nm = resTipName(e.res, resIdent(e.res));
+        if(nm != null)
+            t.set("name", LuaValue.valueOf(nm));
+        String res = resIdent(e.res);
+        if(res != null)
+            t.set("res", LuaValue.valueOf(res));
+        t.set("score", LuaValue.valueOf(e.score));
+        t.set("mtime", LuaValue.valueOf(e.mtime));
+        return t;
+    }
+
+    /**
+     * The character's seen experiences / lore ({@code SkillWnd.exps.seen}) as {@code {name,res,score,mtime}}
+     * snapshots (the "Lore" tab). Defensively copied (swapped off-thread by the {@code exps} uimsg).
+     */
+    private static LuaValue readExperiences() {
+        LuaTable out = new LuaTable();
+        SkillWnd w = skillwnd();
+        if(w == null)
+            return out;
+        int i = 0;
+        try {
+            for(SkillWnd.Experience e : new ArrayList<SkillWnd.Experience>(w.exps.seen.items))
+                out.set(++i, experienceSnapshot(e));
+        } catch(RuntimeException ex) {
+            /* seen not ready or swapped mid-read — return what we have */
+        }
+        return out;
     }
 
     // ------------------------------------------------ action bar / hotbar + equipment (1d-4)

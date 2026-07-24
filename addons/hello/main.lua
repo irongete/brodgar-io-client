@@ -23,13 +23,15 @@
 -- it with ev:preventDefault() or rewrite its args with ev:rewrite()). Plus 2b overlays (hafen.ui.overlay on
 -- the HUD + hafen.ui.gobOverlay over game objects) and 2a custom windows/widgets + the GOut wrapper. It runs
 -- inside the Lua SANDBOX (D-017 strict env + D-018 instruction watchdog) over 1e hafen.store (saved
--- variables), 1d-4 actionbar/equip, 1d-3 study/skills, 1d-2 buffs + FEP/food, 1d-1 vitals, the 1c
--- items/char/party reads, the gob/world/map/player/time/sound reads, the 1b event bus, and timers, and can be
+-- variables), 1d-4 actionbar/equip, 1d-3 study/skills (+ A4: the full Lore & Skills window — buyable skills,
+-- credos, and experiences/lore via hafen.char.skillsAvailable/credos/experiences), 1d-2 buffs + FEP/food,
+-- 1d-1 vitals, the 1c items/char/party reads, the gob/world/map/player/time/sound reads, the 1b event bus,
+-- and timers, and can be
 -- RELOADED from disk without a relog (:reload, D-005) and enabled/disabled (:addons, D-006). `hafen` is the API
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.22.0)")
+hafen.log("hello loaded (v0.23.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -166,6 +168,35 @@ local function readStudy(tag)
     skills[1] and tostring(skills[1].name) or "none"))
 end
 
+-- A4 (completes study/skills): the rest of the "Lore & Skills" window beyond the KNOWN skills above.
+-- skillsAvailable() = the BUYABLE skills {name,res,cost} (cost = LP price). credos() = the Credos tab:
+-- { acquired, available (each an array of {name,res}), pursuing = {name,res,level,levelTotal,quest,
+-- questTotal,questId} or nil, cost } (nil until the window is up). experiences() = the Lore tab, each
+-- {name,res,score,mtime}. Like the known skills these stream in a beat after enter-world, so read at now
+-- (often empty/nil) and +3s. There is NO *Changed event — they change only on explicit, infrequent
+-- actions (buy / pursue / quest progress), so an addon reads them on demand (e.g. after its own action).
+local function readLore(tag)
+  local avail = hafen.char.skillsAvailable()
+  local cr = hafen.char.credos()
+  local lore = hafen.char.experiences()
+  hafen.log(("[%s] skillsAvailable=%d, first=%s%s"):format(tag, #avail,
+    avail[1] and tostring(avail[1].name) or "none",
+    avail[1] and (" cost=%s LP"):format(tostring(avail[1].cost)) or ""))
+  if cr then
+    local p = cr.pursuing
+    hafen.log(("[%s] credos: acquired=%d available=%d cost=%s, pursuing=%s%s"):format(tag,
+      #cr.acquired, #cr.available, tostring(cr.cost),
+      p and tostring(p.name) or "none",
+      p and (" (lvl %s/%s, quest %s/%s)"):format(
+        tostring(p.level), tostring(p.levelTotal), tostring(p.quest), tostring(p.questTotal)) or ""))
+  else
+    hafen.log(("[%s] credos: nil (Lore & Skills window not up yet)"):format(tag))
+  end
+  hafen.log(("[%s] experiences=%d, first=%s%s"):format(tag, #lore,
+    lore[1] and tostring(lore[1].name) or "none",
+    lore[1] and (" score=%s"):format(tostring(lore[1].score)) or ""))
+end
+
 -- 1d-4: action bar / hotbar slots (the engine calls it the "belt"). slot(n) takes the RAW 0-based game
 -- index (0..143 — the same index action-bar USE will take in Phase 4), returning {res,name,cooldown} for
 -- an occupied slot or nil for an empty one. cooldown (0..1) appears only on ability slots (not seconds).
@@ -254,10 +285,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now"); readStudy("now"); readActionbar("now"); readBags("now"); readMarkers("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via Ctrl+B) and it logs") end
   end)
