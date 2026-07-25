@@ -38,6 +38,7 @@ import haven.Moving;
 import haven.Music;
 import haven.OCache;
 import haven.Party;
+import haven.QuestWnd;
 import haven.Resource;
 import haven.SAttrWnd;
 import haven.SkillWnd;
@@ -343,6 +344,7 @@ public final class AddonManager {
         treeAdapters.add(new ActionbarAdapter()); // action-bar / hotbar slots (per-tick poll)
         treeAdapters.add(new EquipAdapter());    // equipment add/remove (per-tick poll)
         treeAdapters.add(new KinAdapter());      // kin/buddy roster add/remove/status (uimsg-driven)
+        treeAdapters.add(new QuestAdapter());    // quest log add / complete (uimsg-driven)
 
         attachRoot(ui_);              // invisible per-frame tick widget (drives the engine)
         registerOcache(ui_);          // GobAdded/GobRemoved source (marshalled to the UI thread)
@@ -1368,6 +1370,85 @@ public final class AddonManager {
         }
     }
 
+    /**
+     * Quest log (A9) — the quests under the character sheet's "Quest Log" tab ({@link QuestWnd},
+     * reached via the public {@code CharWnd.quest} field). Every quest change the client learns of
+     * arrives as a targeted {@code "quests"} {@code uimsg} to the {@code QuestWnd} (a quest added, its
+     * status advanced, or removed) — so, like the {@link KinAdapter}, this is <b>uimsg-driven</b>:
+     * {@link #interested} flags that message and {@link #refresh} re-reads the full quest set and diffs
+     * it against a per-id status cache via the pure {@link #questDiff}. Fires {@code QuestAdded} when a
+     * new <i>active</i> quest (pending/disabled) appears and {@code QuestDone} when a previously-active
+     * quest becomes <i>finished</i> (done/failed) — mirroring {@code QuestWnd}'s own completion trigger.
+     * Completed quests already present at login are recorded silently (no {@code QuestAdded}), so the
+     * quest history doesn't spam events. Payload = the quest snapshot.
+     */
+    private static final class QuestAdapter implements TreeAdapter {
+        // quest id -> its last-seen status int. UI-thread-only (refresh); reset per session by
+        // re-instantiation in init().
+        private final Map<Integer, Integer> cache = new HashMap<Integer, Integer>();
+
+        public boolean interested(Widget w, String msg) {
+            return (w instanceof QuestWnd) && "quests".equals(msg);
+        }
+
+        public void refresh() {
+            QuestWnd qw = questwnd();
+            UI u = ui;
+            if((qw == null) || (u == null))
+                return;
+            // Copy both quest lists under the ui monitor (QuestWnd.uimsg mutates them off-thread), then
+            // build snapshots outside it (names may Loading) — the marker "copy under the lock" discipline.
+            List<QuestWnd.Quest> all = new ArrayList<QuestWnd.Quest>();
+            synchronized(u) {
+                all.addAll(qw.cqst.quests);          // "Current" tab (pending / disabled)
+                all.addAll(qw.dqst.quests);          // "Completed" tab (done / failed)
+            }
+            Map<Integer, Integer> fresh = new LinkedHashMap<Integer, Integer>();   // id -> done (in order)
+            Map<Integer, QuestWnd.Quest> byId = new HashMap<Integer, QuestWnd.Quest>();
+            for(QuestWnd.Quest q : all) {
+                fresh.put(q.id, q.done);
+                byId.put(q.id, q);
+            }
+            for(Object[] ev : questDiff(cache, fresh)) {          // pure diff (also updates the cache)
+                QuestWnd.Quest q = byId.get((Integer)ev[1]);
+                if(q != null)
+                    fire((String)ev[0], questSnapshot(q));
+            }
+        }
+    }
+
+    /**
+     * Diff a fresh {@code id -> done} quest map against {@code cache}, returning the events to fire as
+     * {@code {String event, Integer id}} pairs and updating {@code cache} to match {@code fresh}. Pure
+     * (no widget / Lua access) so the add/complete semantics are headless-testable:
+     * <ul>
+     *   <li><b>QuestAdded</b> — an id not previously cached whose status is <i>active</i>
+     *       (pending/disabled). A quest already finished when first seen (e.g. the completed history that
+     *       streams in at login) is recorded silently — no event.</li>
+     *   <li><b>QuestDone</b> — a previously-<i>active</i> id that is now <i>finished</i> (done/failed),
+     *       mirroring {@code QuestWnd}'s own completion trigger.</li>
+     * </ul>
+     * An id absent from {@code fresh} (server-removed) is pruned with no event, so a later re-add re-fires
+     * {@code QuestAdded}.
+     */
+    private static List<Object[]> questDiff(Map<Integer, Integer> cache, Map<Integer, Integer> fresh) {
+        List<Object[]> events = new ArrayList<Object[]>();
+        for(Map.Entry<Integer, Integer> e : fresh.entrySet()) {
+            Integer id = e.getKey();
+            int done = e.getValue().intValue();
+            Integer prev = cache.get(id);
+            if(prev == null) {
+                if(questActive(done))
+                    events.add(new Object[]{"QuestAdded", id});
+            } else if(questActive(prev.intValue()) && !questActive(done)) {
+                events.add(new Object[]{"QuestDone", id});
+            }
+        }
+        cache.keySet().retainAll(fresh.keySet());    // prune ids the server dropped
+        cache.putAll(fresh);                          // update to the current statuses
+        return events;
+    }
+
     /** The player's buff bar ({@link GameUI#buffs}), or {@code null} before the HUD is up. */
     private static Bufflist bufflist() {
         GameUI g = gui();
@@ -2325,6 +2406,29 @@ public final class AddonManager {
             }
         });
         hafen.set("craft", craft);
+
+        // hafen.quests.* — the quest log (A9), read from the character sheet's "Quest Log" tab (QuestWnd,
+        // reached via CharWnd.quest — created hidden at login but live, so quests are readable without ever
+        // opening the window). list([filter]) returns quest snapshots {id, name (the quest title), res
+        // (stable resource id), status ("pending"/"done"/"failed"/"disabled"), mtime (the server change
+        // stamp; higher = more recent)} for BOTH the Current (active) and Completed tabs, filtered by the
+        // canonical nil=all / name-substring / predicate (e.g. only-active = a predicate on status).
+        // selected() returns the quest currently OPEN in the log — the only one whose conditions the client
+        // loads — as a list snapshot plus conds={{desc, status ("pending"/"done"/"failed"), text?}}, or nil
+        // when none is selected. Subscribe to QuestAdded (a new active quest appears) and QuestDone (an
+        // active quest is completed/failed). Read-only — there is no quest action tier.
+        LuaTable quests = new LuaTable();
+        quests.set("list", new OneArgFunction() {
+            public LuaValue call(LuaValue filter) {
+                return questList(filter);
+            }
+        });
+        quests.set("selected", new ZeroArgFunction() {
+            public LuaValue call() {
+                return questSelected();
+            }
+        });
+        hafen.set("quests", quests);
 
         // hafen.buffs.* — active buffs/debuffs (GameUI.buffs → Buff widgets), via the widget-tree
         // mechanism (1d-2). list() returns Buff snapshots {res,name,amount,cooldown,number}; amount/
@@ -5266,6 +5370,139 @@ public final class AddonManager {
         if(name != null)
             t.set("name", LuaValue.valueOf(name));
         return t;
+    }
+
+    // ---- quest log (A9: hafen.quests) ------------------------------------------------------------
+    // The quest log is a QuestWnd (@RName("quests")) — the character sheet's "Quest Log" tab, held by the
+    // public CharWnd.quest field (created hidden at login but live, so quests read without opening it). It
+    // keeps two lists: cqst (the "Current" tab: pending/disabled quests) and dqst (the "Completed" tab:
+    // done/failed). Each Quest carries {id, res (Indir<Resource>), title (may be null), done (a status
+    // int), mtime}. The conditions/objectives of a quest are loaded only for the one the player has SELECTED
+    // (QuestWnd.quest, a Quest.Box with a Condition[]) — a faithful client limitation (like A8's no per-item
+    // countdown), so selected() is the only place conds appear. All backings are public (QuestWnd.cqst/dqst/
+    // quest, QuestList.quests/get, Quest.id/res/title/done/mtime, Quest.Box.id/cond, Quest.Condition.desc/
+    // done/status) → zero haven edit, like A8/A7/A6/A4/A2. The status ints (QST_PEND/DONE/FAIL/DISABLED) are
+    // compile-time constants → inlined, so the status helpers do NOT load Quest (whose <clinit> renders text
+    // and would fail headless) — they stay headless-testable.
+    //
+    // Threading: the quest lists (and the selected box's cond[]) are mutated on a Loader thread by
+    // QuestWnd.uimsg("quests")/Box.uimsg("conds") under synchronized(ui). So we copy the list/array refs
+    // under the ui monitor, then build the Lua snapshots outside it (res.get() may Loading) — the marker
+    // "copy under the lock, snapshot outside it" discipline (A1/A8).
+
+    /** The Quest Log window (the character sheet's "Quest Log" tab — created hidden at login but live),
+     *  or {@code null} before it exists. Via the public {@code CharWnd.quest} field (no tree-walk). */
+    private static QuestWnd questwnd() {
+        CharWnd c = charwnd();
+        return (c == null) ? null : c.quest;
+    }
+
+    /** {@code hafen.quests.list([filter])} — every quest (Current + Completed) as {@code {id, name, res,
+     *  status, mtime}} snapshots, filtered by the canonical nil=all / name-substring / predicate. */
+    private static LuaValue questList(LuaValue filter) {
+        LuaTable out = new LuaTable();
+        QuestWnd qw = questwnd();
+        UI u = ui;
+        if((qw == null) || (u == null))
+            return out;
+        List<QuestWnd.Quest> all = new ArrayList<QuestWnd.Quest>();
+        synchronized(u) {                            // the quest lists mutate off-thread (QuestWnd.uimsg)
+            all.addAll(qw.cqst.quests);              // "Current" tab (pending / disabled)
+            all.addAll(qw.dqst.quests);              // "Completed" tab (done / failed)
+        }
+        int i = 0;
+        for(QuestWnd.Quest q : all) {                // resolve names outside the lock (res.get() may Loading)
+            LuaValue snap = questSnapshot(q);
+            if(matches(filter, snap))
+                out.set(++i, snap);
+        }
+        return out;
+    }
+
+    /** {@code hafen.quests.selected()} — the quest currently open in the log (the only one whose conditions
+     *  the client loads), as a list snapshot plus {@code conds={{desc, status, text?}}}, or {@code nil}. */
+    private static LuaValue questSelected() {
+        QuestWnd qw = questwnd();
+        UI u = ui;
+        if((qw == null) || (u == null))
+            return LuaValue.NIL;
+        QuestWnd.Quest q;
+        QuestWnd.Quest.Condition[] conds;
+        synchronized(u) {                            // qw.quest / box.cond are swapped off-thread (uimsg)
+            QuestWnd.Quest.Info info = qw.quest;     // the selected quest's Box, or null (nothing selected)
+            if(!(info instanceof QuestWnd.Quest.Box))
+                return LuaValue.NIL;
+            QuestWnd.Quest.Box box = (QuestWnd.Quest.Box)info;
+            conds = box.cond;                        // Condition[] (swapped wholesale on the "conds" uimsg)
+            q = qw.cqst.get(box.id);                 // the matching Quest (for status/mtime) in either tab
+            if(q == null)
+                q = qw.dqst.get(box.id);
+        }
+        if(q == null)
+            return LuaValue.NIL;                     // selected id not in either list (shouldn't happen)
+        LuaTable t = (LuaTable)questSnapshot(q);
+        t.set("conds", questConds(conds));
+        return t;
+    }
+
+    /** One quest as {@code {id, name, res, status, mtime}}. {@code name} = the quest title (the explicit
+     *  title, else the resource tooltip); {@code res} = the stable resource id. Loading-guarded. */
+    private static LuaValue questSnapshot(QuestWnd.Quest q) {
+        LuaTable t = new LuaTable();
+        t.set("id", LuaValue.valueOf(q.id));
+        // Quest.title() prefers the explicit title over the tooltip; mirror it (both Loading-guarded).
+        String name = (q.title != null) ? q.title : resTipName(q.res, null);
+        if(name != null)
+            t.set("name", LuaValue.valueOf(name));
+        String res = resIdent(q.res);
+        if(res != null)
+            t.set("res", LuaValue.valueOf(res));
+        t.set("status", LuaValue.valueOf(questStatus(q.done)));
+        t.set("mtime", LuaValue.valueOf(q.mtime));
+        return t;
+    }
+
+    /** The selected quest's conditions as a 1-based array of {@code {desc, status, text?}}. */
+    private static LuaValue questConds(QuestWnd.Quest.Condition[] cond) {
+        LuaTable out = new LuaTable();
+        if(cond == null)
+            return out;
+        int i = 0;
+        for(QuestWnd.Quest.Condition c : cond)
+            out.set(++i, questCond(c));
+        return out;
+    }
+
+    /** One condition as {@code {desc, status ("pending"/"done"/"failed"), text?}}. {@code text} = the
+     *  condition's extra status string (absent when none). */
+    private static LuaValue questCond(QuestWnd.Quest.Condition c) {
+        LuaTable t = new LuaTable();
+        if(c.desc != null)
+            t.set("desc", LuaValue.valueOf(c.desc));
+        t.set("status", LuaValue.valueOf(questCondStatus(c.done)));
+        if(c.status != null)
+            t.set("text", LuaValue.valueOf(c.status));
+        return t;
+    }
+
+    /** Is a quest status "active" (shown in the Quest Log's Current tab)? — pending or disabled. */
+    private static boolean questActive(int done) {
+        return (done == QuestWnd.Quest.QST_PEND) || (done == QuestWnd.Quest.QST_DISABLED);
+    }
+
+    /** The API status string for a {@code Quest.done} code (QST_PEND/DONE/FAIL/DISABLED). */
+    private static String questStatus(int done) {
+        if(done == QuestWnd.Quest.QST_DONE)     return "done";
+        if(done == QuestWnd.Quest.QST_FAIL)     return "failed";
+        if(done == QuestWnd.Quest.QST_DISABLED) return "disabled";
+        return "pending";                            // QST_PEND (and any unexpected code)
+    }
+
+    /** The API status string for a condition's {@code done} code (0=pending, 1=done, 2=failed). */
+    private static String questCondStatus(int done) {
+        if(done == QuestWnd.Quest.QST_DONE) return "done";
+        if(done == QuestWnd.Quest.QST_FAIL) return "failed";
+        return "pending";
     }
 
     // ---- markers (A1: hafen.markers) -------------------------------------------------------------

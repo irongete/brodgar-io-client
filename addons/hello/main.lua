@@ -41,7 +41,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.28.0)")
+hafen.log("hello loaded (v0.29.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -326,6 +326,35 @@ local function dumpCraft()                       -- :hello craft -- the full bre
   for i, r in ipairs(c.tools)   do hafen.log(("  tool[%d]   %s"):format(i, tostring(r.name or r.res))) end
 end
 
+-- A9: QUEST LOG via hafen.quests. list([filter]) returns quest snapshots {id, name (the quest title), res
+-- (stable id), status ("pending"/"done"/"failed"/"disabled"), mtime} for BOTH the Current (active) and
+-- Completed tabs; filter is the canonical nil=all / name-substring / predicate (so "only active" is a status
+-- predicate). selected() returns the quest currently OPEN in the log -- the ONLY one whose conditions the
+-- client loads -- plus conds={{desc, status ("pending"/"done"/"failed"), text?}}, or nil when nothing is
+-- selected. Like the rest of the character sheet the quest log streams in a beat after enter-world, so read
+-- at now (often 0) and +3s. hello is READ-ONLY (there is no quest action tier); we subscribe to QuestAdded /
+-- QuestDone below, and ':hello quest' dumps the selected quest's objectives on demand.
+local function readQuests(tag)
+  local all    = hafen.quests.list()
+  local active = hafen.quests.list(function(q) return q.status == "pending" or q.status == "disabled" end)
+  local first  = all[1]
+  local sel    = hafen.quests.selected()
+  hafen.log(("[%s] quests=%d (%d active), first=%s%s, selected=%s"):format(tag, #all, #active,
+    first and tostring(first.name) or "none",
+    first and (" [%s]"):format(tostring(first.status)) or "",
+    sel and ("'%s' (%d cond)"):format(tostring(sel.name), #sel.conds) or "none"))
+end
+local function dumpQuest()                       -- :hello quest -- the selected quest + its objectives
+  local q = hafen.quests.selected()
+  if not q then hafen.log(":hello quest -> no quest selected (open the Quest Log and click a quest)"); return end
+  hafen.log((":hello quest -> '%s' [%s] -- %d condition(s)"):format(
+    tostring(q.name), tostring(q.status), #q.conds))
+  for i, c in ipairs(q.conds) do
+    hafen.log(("  cond[%d] [%s] %s%s"):format(i, tostring(c.status), tostring(c.desc),
+      c.text and (" -- " .. c.text) or ""))
+  end
+end
+
 -- 3b: WIDGET MODEL (hafen.ui.adopt). We adopt the MAIN INVENTORY as a model down in the onWidgetCreate observer
 -- (the 3a -> 3b flow: observe a widget's creation, then adopt it by desc.id). invModel is that handle (nil until
 -- the inventory is observed at login). readBags reads it: item count + first item (via model:items(), the same
@@ -378,10 +407,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now"); readCraft("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now"); readCraft("now"); readQuests("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via Ctrl+B) and it logs") end
   end)
@@ -544,6 +573,21 @@ hafen.events.on("KinChanged", function(list)
   if kinSeen <= 5 then
     hafen.log(("KinChanged: %d kin (%d)"):format(#list, kinSeen))
   end
+end)
+
+-- A9: QuestAdded fires when a new ACTIVE quest (pending/disabled) appears; QuestDone when a previously-active
+-- quest is completed/failed. Payload = the quest snapshot {id, name, res, status, mtime}. A few QuestAdded
+-- may fire at login as active quests stream in (the completed HISTORY is recorded silently -- no event), so
+-- log only the first few of those, then narrate every completion in full.
+local questAddedSeen = 0
+hafen.events.on("QuestAdded", function(q)
+  questAddedSeen = questAddedSeen + 1
+  if questAddedSeen <= 5 then
+    hafen.log(("QuestAdded: '%s' [%s] (%d)"):format(tostring(q.name), tostring(q.status), questAddedSeen))
+  end
+end)
+hafen.events.on("QuestDone", function(q)
+  hafen.log(("QuestDone: '%s' -> %s"):format(tostring(q.name), tostring(q.status)))
 end)
 
 -- 3a: WIDGET-CREATION INTERCEPTION (hafen.ui.onWidgetCreate). Observe the server's OWN UI as the client builds
@@ -734,7 +778,7 @@ end)
 -- sound, and ":hello echo <text...>" shows the args rejoined (quoting survives — :hello echo "a b" c -> a b c).
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest")
     return
   end
   local sub = args[1]
@@ -752,8 +796,10 @@ hafen.slash.register("hello", function(args)
     hafen.log((":hello echo -> %q"):format(table.concat(rest, " ")))
   elseif sub == "craft" then
     dumpCraft()                                  -- A8: dump the currently-open recipe (open one first)
+  elseif sub == "quest" then
+    dumpQuest()                                  -- A9: dump the selected quest + its objectives (select one first)
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest)")
       :format(#args, table.concat(args, " | ")))
   end
 end)
