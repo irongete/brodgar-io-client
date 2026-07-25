@@ -58,3 +58,7 @@ task — and are **not** the usage docs.
 - [phase-4e-menu-flower](phase-4e-menu-flower.md) — `hafen.act.menu` / `flower`
 - [phase-4f-item-verbs](phase-4f-item-verbs.md) — `hafen.act.item`
 - [phase-4g-per-subsystem-verbs](phase-4g-per-subsystem-verbs.md) — `speed.set` / `craft.make` / `actionbar.use` / `kin.*`
+
+**V-series — virtual entities (world ghosts) & the transform gizmo**
+
+- [v1-ghosts](v1-ghosts.md) — `hafen.ghost.new`/`list` + the handle (`:move`/`:pos`/`:res`/`:destroy`); the MapView client-gob seam

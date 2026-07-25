@@ -42,6 +42,7 @@ import haven.Music;
 import haven.OCache;
 import haven.Party;
 import haven.QuestWnd;
+import haven.ResDrawable;
 import haven.Resource;
 import haven.SAttrWnd;
 import haven.SkillWnd;
@@ -53,6 +54,7 @@ import haven.WItem;
 import haven.Widget;
 import haven.Window;
 import haven.WoundWnd;
+import haven.render.RenderTree;
 import haven.resutil.Curiosity;
 
 import org.luaj.vm2.Globals;
@@ -502,6 +504,7 @@ public final class AddonManager {
         teardownWidgetObservers(a);   // 3a: unregister widget-creation observers from the placement dispatch list
         teardownReplacers(a);         // 3c: stop the replacers matching (models un-hidden above, views destroyed above)
         teardownSlashCommands(a);     // A11: drop the addon's live slash handlers (Console dispatchers stay — C1)
+        teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
         a.subs.clear();
@@ -3025,6 +3028,36 @@ public final class AddonManager {
         });
         hafen.set("ui", uiT);
 
+        // hafen.ghost — CLIENT-ONLY world ghosts (spec 16-virtual-entities, V1). A ghost is a virtual prop
+        // rendered in the 3D world at arbitrary world coords: a Gob with NO server id, so it never reaches the
+        // server and grants no gameplay advantage — a visualization, like a HUD overlay (SAFE-tier, NOT gated;
+        // D-029). The motivating use is city/base planning: lay ghost buildings over the real terrain. new{...}
+        // spawns one and returns a bridge-owned handle (D-030); list([filter]) returns THIS addon's live ghosts
+        // (canonical filter: nil=all / a string matched against the ghost's res / a predicate over the handle).
+        // Ghosts are torn down on reload/disable/relogin (P2). Coords are WORLD (login-relative), like hafen.gob.pos.
+        LuaTable ghost = new LuaTable();
+        // hafen.ghost.new{res, x, y [, a]} — res = a client resource name (e.g. "gfx/terobjs/arch/logcabin");
+        // x,y = world coords; a = facing radians (optional, default 0). Returns a handle:
+        //   :move(x, y [, a])  -- reposition (+ optional facing)
+        //   :pos()             -- {x, y, a}
+        //   :res()             -- the resource name (string)
+        //   :destroy()         -- remove now (also automatic on reload/disable)
+        // The visual streams in a beat later (the resource resolves on a loader thread, dodging Loading — the
+        // Plob / hafen.sound precedent), so the handle works immediately while the prop appears shortly after.
+        // Returns nil only if there is no map view yet (not in the world). Look/rotation/tint land in V3, opt-in
+        // clickability + the GhostClicked event in V2.
+        ghost.set("new", new OneArgFunction() {
+            public LuaValue call(LuaValue opts) {
+                return newGhost(owner, opts);
+            }
+        });
+        ghost.set("list", new OneArgFunction() {
+            public LuaValue call(LuaValue filter) {
+                return ghostList(owner, filter);
+            }
+        });
+        hafen.set("ghost", ghost);
+
         // hafen.hook — intercept/alter client behaviour, not just observe it (spec 13-hooks-and-interception).
         // Two levels so far, both PRE-hooks (fn(ev) runs BEFORE the default; ev:preventDefault() cancels it):
         //   L1 hafen.hook.input(target, event, fn)  (Phase 2c) — the built-in zero-core-edit Widget.listen
@@ -4097,6 +4130,200 @@ public final class AddonManager {
         }
         widgetReplacers.removeAll(a.replacers);
         a.replacers.clear();
+    }
+
+    // ------------------------------------------------------------------ world ghosts (hafen.ghost, V1)
+
+    /**
+     * Spawn a client-only world ghost ({@code hafen.ghost.new{res, x, y [, a]}}, spec 16 / V1): validate the
+     * options, register a bridge-owned {@link LuaGhost} in the addon's owned-resource registry (P2), and
+     * <b>defer</b> the visual to a loader thread — {@code res.get()} throws {@code Loading} until the resource is
+     * cached, so, exactly like {@code MapView.Plob} and {@link #playSound}, {@code glob.loader.defer} re-runs the
+     * task when the resource lands, then builds the {@link Gob} + {@link ResDrawable} and adds it to the MapView
+     * {@code basic} scene ({@link MapView#addClientGob}). The handle is returned <b>immediately</b> and works while
+     * the prop streams in (a {@code :move} before the gob exists just updates the target the create applies). All
+     * publish/destroy handoff is guarded by the ghost's monitor so the loader-thread create never races a
+     * concurrent {@code :move}/{@code :destroy}. Returns {@code nil} if there is no map view yet (not in the world);
+     * throws a {@link LuaError} for a malformed table.
+     */
+    private static LuaValue newGhost(final Addon owner, LuaValue opts) {
+        if(!opts.istable())
+            throw new LuaError("hafen.ghost.new{res=..., x=..., y=...} expects an options table");
+        LuaValue resv = opts.get("res");
+        if(!resv.isstring())
+            throw new LuaError("hafen.ghost.new: 'res' must be a resource name string (e.g. \"gfx/terobjs/arch/logcabin\")");
+        LuaValue xv = opts.get("x"), yv = opts.get("y");
+        if(!xv.isnumber() || !yv.isnumber())
+            throw new LuaError("hafen.ghost.new: 'x' and 'y' must be numbers (world coordinates, like hafen.gob.pos)");
+        final MapView mv = view;
+        final Glob g = glob();
+        if((mv == null) || (g == null))
+            return LuaValue.NIL;                       // not in the world yet — no scene to add to
+        LuaValue av = opts.get("a");
+        final String resName = resv.tojstring();
+        // remote() = the game/server resource pool (terobjs, gobs, …), with local() as a fallback for
+        // client-bundled resources — the pool the engine itself uses for gob drawables (Session/Music/Widget).
+        // local() alone would only find the client jar, so a terobj like gfx/terobjs/arch/logcabin never resolves.
+        final Indir<Resource> resid = Resource.remote().load(resName);
+        final LuaGhost gh = new LuaGhost(owner, resid, resName,
+                                         new Coord2d(xv.todouble(), yv.todouble()),
+                                         av.isnumber() ? av.todouble() : 0.0);
+        owner.ghosts.add(gh);
+        LuaValue handle = ghostHandle(gh);
+        gh.handle = handle;
+        g.loader.defer(new Runnable() {
+            public void run() {
+                synchronized(gh) {
+                    if(gh.dead)
+                        return;                        // destroyed before we ran → nothing to build
+                }
+                Resource res;
+                try {
+                    res = resid.get();                 // Loading → the loader re-runs this task when it resolves
+                } catch(Loading l) {
+                    throw(l);
+                } catch(RuntimeException e) {
+                    UI u = ui;
+                    if(u != null)
+                        u.error(clampMsg("addon: ghost resource '" + resName + "' could not be loaded"));
+                    synchronized(gh) { gh.failed = true; }
+                    return;
+                }
+                // Build the gob + drawable OUTSIDE the ghost lock (no scene mutation yet), then publish atomically.
+                Coord2d rc0; double a0;
+                synchronized(gh) {
+                    if(gh.dead) return;
+                    rc0 = gh.rc; a0 = gh.a;
+                }
+                Gob gob = new Gob(g, rc0);
+                gob.a = a0;
+                gob.setattr(new ResDrawable(gob, res));   // res is cached now → no Loading here
+                synchronized(gh) {
+                    if(gh.dead) { gob.dispose(); return; }   // destroyed mid-build → discard (never added to scene)
+                    gob.move(gh.rc, gh.a);                   // apply any :move that landed while we were building
+                    gh.slot = mv.addClientGob(gob);          // the // addon: MapView seam (spec 16 §6); MapView now ticks it
+                    gh.gob = gob;
+                    gh.mv = mv;
+                }
+            }
+        }, null);
+        return handle;
+    }
+
+    /**
+     * The Lua handle for a {@link LuaGhost} (V1): {@code :move(x,y[,a])} / {@code :pos()} / {@code :res()} /
+     * {@code :destroy()}. The colon-call convention passes {@code self} as arg1, so {@code :move} reads arg2..4 and
+     * returns arg1 (the handle) for chaining. Every method is a clean no-op once the ghost is dead. A {@code :move}
+     * before the deferred create has published the gob updates the target the create will apply; afterwards it
+     * repositions the live gob (the render tree's {@code Placed.autotick} picks it up next frame).
+     */
+    private static LuaValue ghostHandle(final LuaGhost gh) {
+        LuaTable h = new LuaTable();
+        h.set("move", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue xv = a.arg(2), yv = a.arg(3), av = a.arg(4);
+                if(!xv.isnumber() || !yv.isnumber())
+                    throw new LuaError("ghost:move(x, y [, a]) expects world coordinates (numbers) — use a COLON call");
+                synchronized(gh) {
+                    if(!gh.dead) {
+                        gh.rc = new Coord2d(xv.todouble(), yv.todouble());
+                        if(av.isnumber())
+                            gh.a = av.todouble();
+                        if(gh.gob != null)
+                            gh.gob.move(gh.rc, gh.a);   // live gob → reposition now; else the deferred create applies it
+                    }
+                }
+                return a.arg1();
+            }
+        });
+        h.set("pos", new ZeroArgFunction() {
+            public LuaValue call() {
+                LuaTable t = new LuaTable();
+                synchronized(gh) {
+                    t.set("x", LuaValue.valueOf(gh.rc.x));
+                    t.set("y", LuaValue.valueOf(gh.rc.y));
+                    t.set("a", LuaValue.valueOf(gh.a));
+                }
+                return t;
+            }
+        });
+        h.set("res", new ZeroArgFunction() {
+            public LuaValue call() { return (gh.resName == null) ? LuaValue.NIL : LuaValue.valueOf(gh.resName); }
+        });
+        h.set("destroy", new VarArgFunction() {
+            public Varargs invoke(Varargs a) { destroyGhost(gh); return a.arg1(); }
+        });
+        return h;
+    }
+
+    /**
+     * {@code hafen.ghost.list([filter])} — this addon's live ghosts as an array of their (stable) handles.
+     * Canonical filter adapted to handles: {@code nil} = all; a <b>string</b> = substring match on the ghost's
+     * {@code res} name; a <b>function</b> = called with the ghost <i>handle</i> (so it can call {@code :pos()}
+     * etc.), truthy keeps it (errors drop it). Dead/failed ghosts are skipped.
+     */
+    private static LuaValue ghostList(Addon owner, LuaValue filter) {
+        LuaTable out = new LuaTable();
+        int i = 0;
+        for(LuaGhost gh : owner.ghosts) {              // copy-on-write: a filter fn may create/destroy a ghost
+            if(gh.dead || (gh.handle == null))
+                continue;
+            if(ghostMatches(filter, gh))
+                out.set(++i, gh.handle);
+        }
+        return out;
+    }
+
+    /** Does {@code gh} pass {@code filter}? nil→all; string→substring on {@code res}; function→called with the handle. */
+    private static boolean ghostMatches(LuaValue filter, LuaGhost gh) {
+        if((filter == null) || filter.isnil())
+            return true;
+        if(filter.isfunction()) {
+            try {
+                return filter.call(gh.handle).toboolean();
+            } catch(RuntimeException e) {   // LuaError is a RuntimeException
+                return false;
+            }
+        }
+        if(filter.isstring())
+            return (gh.resName != null) && gh.resName.contains(filter.tojstring());
+        return true;
+    }
+
+    /**
+     * Destroy one ghost now (its {@code :destroy()}, and teardown): flip {@link LuaGhost#dead} + hand off the
+     * slot/gob under the ghost's monitor (so a still-pending deferred create sees {@code dead} and discards its
+     * un-added gob instead of leaking it), then remove the scene slot ({@link MapView#removeClientGob}, which
+     * swallows {@code SlotRemoved} for an already-torn-down scene) and dispose the sprite — all OUTSIDE the ghost
+     * lock (no lock-ordering with the render tree's own lock). Idempotent.
+     */
+    private static void destroyGhost(LuaGhost gh) {
+        RenderTree.Slot slot; Gob gob; MapView mv;
+        synchronized(gh) {
+            if(gh.dead)
+                return;
+            gh.dead = true;
+            slot = gh.slot; gh.slot = null;
+            gob  = gh.gob;  gh.gob  = null;
+            mv   = gh.mv;   gh.mv   = null;
+        }
+        gh.owner.ghosts.remove(gh);
+        if(mv != null) {
+            mv.removeClientGob(gob, slot);            // drops it from the MapView tick list + removes the slot (swallows SlotRemoved)
+        } else if(slot != null) {
+            try { slot.remove(); } catch(RuntimeException e) { /* scene already gone (relog) */ }
+        }
+        if(gob != null) {
+            try { gob.dispose(); } catch(RuntimeException e) { /* best-effort: free the sprite */ }
+        }
+    }
+
+    /** Tear down every ghost this addon owns (reload/disable/relogin, P2): destroy each (slot removed + sprite freed). */
+    private static void teardownGhosts(Addon a) {
+        if(a.ghosts.isEmpty())
+            return;
+        for(LuaGhost gh : new ArrayList<LuaGhost>(a.ghosts))
+            destroyGhost(gh);          // removes each from a.ghosts as it goes (copy-on-write list)
     }
 
     // ------------------------------------------------------------------ global hotkeys (hafen.key, 2e-2)

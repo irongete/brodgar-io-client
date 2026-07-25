@@ -1649,6 +1649,14 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	Loader.Future<Plob> placing = this.placing;
 	if((placing != null) && placing.done())
 	    placing.get().gtick(g.out);
+	// addon: gtick the client-only ghost gobs (hafen.ghost.*) — not in OCache, like the Plob above.
+	for(Gob gob : clientGobs) {
+	    try {
+		gob.gtick(g.out);
+	    } catch(RuntimeException e) {
+		/* isolate one ghost's error from the frame */
+	    }
+	}
 	glob.map.sendreqs();
 	if((olftimer != 0) && (olftimer < Utils.rtime()))
 	    unflashol();
@@ -1730,8 +1738,18 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		ob.ctick(dt);
 	    }
 	}
+	// addon: ctick the client-only ghost gobs (hafen.ghost.*) — not in OCache, like the Plob above.
+	for(Gob gob : clientGobs) {
+	    try {
+		synchronized(gob) {
+		    gob.ctick(dt);
+		}
+	    } catch(RuntimeException e) {
+		/* isolate one ghost's error from the frame (Loading etc.) */
+	    }
+	}
     }
-    
+
     public void resize(Coord sz) {
 	super.resize(sz);
 	camera.resized();
@@ -1823,6 +1841,36 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
 	public String toString() {
 	    return("#<plob>");
+	}
+    }
+
+    // addon: V1 virtual entities (hafen.ghost.*) — CLIENT-ONLY Gobs in the 3D `basic` scene. addClientGob
+    //        does the exact operation Plob.place() does (`basic.add(placed)`), but `basic` (PView) and
+    //        Gob.placed live in package `haven`, so this centralizes the scene mutation behind one public
+    //        seam for `io.brodgar.addon` (spec 16 §6, option A — smallest, clearest, mirrors Plob). A ghost
+    //        has NO server id (Gob id -1 ⇒ virtual), so it is invisible to OCache/reads/server (N1/N2). It
+    //        is therefore ALSO not in OCache's tick/draw loop — so, exactly like the placement Plob (ctick'd
+    //        in tick(), gtick'd in draw()), MapView must ctick/gtick these gobs itself or the sprite never
+    //        prepares/animates and nothing renders. clientGobs holds them for that; the per-gob work is
+    //        error-isolated so one bad ghost never breaks the frame. Thread-safe: RenderTree slot add/remove
+    //        take the tree lock and the list is copy-on-write, so the bridge may add from a loader thread
+    //        (deferred resource-resolving create, like Plob) and remove from the UI thread.
+    private final java.util.Collection<Gob> clientGobs = new java.util.concurrent.CopyOnWriteArrayList<Gob>();
+
+    public RenderTree.Slot addClientGob(Gob gob) {
+	RenderTree.Slot slot = basic.add(gob.placed);
+	clientGobs.add(gob);
+	return(slot);
+    }
+    public void removeClientGob(Gob gob, RenderTree.Slot slot) {
+	if(gob != null)
+	    clientGobs.remove(gob);
+	if(slot != null) {
+	    try {
+		slot.remove();
+	    } catch(RenderTree.SlotRemoved e) {
+		/* already gone (e.g. the scene was torn down by a relog) — teardown is idempotent */
+	    }
 	}
     }
 

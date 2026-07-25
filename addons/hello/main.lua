@@ -4,6 +4,13 @@
 -- the separate, opt-in `walker` addon, which DECLARES "permissions": ["actions"] and is therefore disabled by
 -- default; enabling it in Options > AddOns raises a consent dialog (write-actions are a per-addon permission — no
 -- global switch).
+-- Built on V1: CLIENT-ONLY WORLD GHOSTS — hafen.ghost.new{res, x, y[, a]} places a virtual prop (a Gob with
+-- NO server id) in the 3D world; it never reaches the server and grants no advantage, so it is SAFE-tier, NOT
+-- gated (D-029) — a visualization, like a HUD overlay (the motivating use is city/base planning). It returns a
+-- bridge-owned handle with :move(x,y[,a]) / :pos() / :res() / :destroy(); hafen.ghost.list([filter]) returns this
+-- addon's live ghosts. Ghosts are torn down on reload/disable/relogin (P2). Here, at OnEnterWorld the harness
+-- spawns a log cabin a few tiles away, reads list()/pos(), moves it, and auto-destroys it after 8s (the V1
+-- regression); ':hello ghost' toggles a cabin at your position for manual inspection.
 -- Built on gap subsystem A7: MOVEMENT SPEED — hafen.speed reads the crawl/walk/run/sprint selector
 -- (get() -> current speed 0..3, max() -> highest currently-selectable, name([n]) -> display name); read-only
 -- here, since changing speed is the gated Phase-4 action tier. Built on gap subsystem A6: KIN / BUDDY ROSTER —
@@ -47,7 +54,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.34.0)")
+hafen.log("hello loaded (v0.35.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -500,6 +507,29 @@ hafen.events.on("OnEnterWorld", function()
   hafen.sound.play("sfx/msg")
 end)
 
+-- V1: CLIENT-ONLY WORLD GHOSTS (hafen.ghost). A ghost is a virtual prop rendered in the 3D world at world
+-- coords — a Gob with NO server id, so it never reaches the server and grants no advantage: SAFE-tier, NOT
+-- gated (D-029), a visualization like a HUD overlay. hafen.ghost.new{res,x,y[,a]} returns a bridge-owned handle
+-- (:move/:pos/:res/:destroy); hafen.ghost.list([filter]) lists this addon's live ghosts. The visual streams in a
+-- beat later (the resource resolves on a loader thread, dodging Loading), so the handle works immediately while
+-- the prop appears shortly after. This handler is the V1 REGRESSION (spawn at OnEnterWorld, destroy N s later):
+-- it spawns a log cabin ~3 tiles E of you, reads list()/pos(), :moves it 2 tiles N, then auto-destroys it after
+-- 8 s (watch the cabin appear beside you, jump north, then vanish — and :reload/disable would remove it too).
+hafen.events.on("OnEnterWorld", function()
+  local p = hafen.gob.pos("player")
+  if not p then hafen.log("V1: ghost demo skipped -- no player position yet"); return end
+  local g = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin", x = p.x + 33, y = p.y }   -- +3 tiles E (tile=11)
+  if not g then hafen.log("V1: hafen.ghost.new returned nil (no map view yet?)"); return end
+  local q = g:pos()
+  hafen.log(("V1: ghost spawned (%s) at %.0f,%.0f -- list=%d; moving it 2 tiles N, auto-destroy in 8s")
+    :format(tostring(g:res()), q.x, q.y, #hafen.ghost.list()))
+  g:move(p.x + 33, p.y + 22)                                     -- prove :move (2 tiles N); the prop follows
+  hafen.timer.after(8, function()
+    g:destroy()                                                  -- prove :destroy; teardown would also do this
+    hafen.log(("V1: ghost auto-destroyed -- list=%d"):format(#hafen.ghost.list()))
+  end)
+end)
+
 -- 1e: saved variables (hafen.store). Each name declared in the manifest is a persisted Lua table:
 --   persist -> per-character  (savedata/<genus>_<char>/hello.json)
 --   acct    -> account-wide   (savedata/account/hello.json)
@@ -874,9 +904,10 @@ end)
 -- refused with a clear error. The handle exposes :remove(). We demo sub-command dispatch off args[1]: bare :hello
 -- greets, ":hello toggle" flips the 2a window (a slash command driving live addon state), ":hello ping" plays a
 -- sound, and ":hello echo <text...>" shows the args rejoined (quoting survives — :hello echo "a b" c -> a b c).
+local demoGhost   -- V1: the handle of the manual :hello ghost demo while placed (nil = none); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost")
     return
   end
   local sub = args[1]
@@ -900,8 +931,22 @@ hafen.slash.register("hello", function(args)
     dumpWounds()                                 -- A9-2: dump the full wound tree (name/severity, indented)
   elseif sub == "fight" then
     dumpFight()                                  -- A10: dump the combat-school deck (by hotkey) + known maneuvers
+  elseif sub == "ghost" then
+    if demoGhost then                            -- V1: TOGGLE a client-only ghost cabin at your position
+      demoGhost:destroy(); demoGhost = nil
+      hafen.log((":hello ghost -> destroyed (list=%d)"):format(#hafen.ghost.list()))
+    else
+      local p = hafen.gob.pos("player")
+      if not p then hafen.log(":hello ghost -> no player position yet"); return end
+      demoGhost = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin", x = p.x, y = p.y }
+      if demoGhost then
+        hafen.log((":hello ghost -> log cabin ghost at you (%.0f,%.0f) -- :hello ghost again to remove"):format(p.x, p.y))
+      else
+        hafen.log(":hello ghost -> hafen.ghost.new returned nil (not in the world yet?)")
+      end
+    end
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost)")
       :format(#args, table.concat(args, " | ")))
   end
 end)
@@ -1064,5 +1109,6 @@ hafen.events.on("OnDisable", function()
     hafen.markers.remove(helloMarker)                   -- leaves 'Hello marker' pins on your persistent map DB
     helloMarker = nil
   end
+  if demoGhost then demoGhost:destroy(); demoGhost = nil end   -- V1: drop the manual ghost (teardown also does)
   hafen.log("OnDisable fired")
 end)

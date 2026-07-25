@@ -121,6 +121,17 @@ public final class Addon {
      * Copy-on-write: a firing command may {@code :remove()} itself.
      */
     public final List<LuaSlashCommand> slashCommands = new CopyOnWriteArrayList<LuaSlashCommand>();
+    /**
+     * Live client-only world ghosts owned by this addon ({@code hafen.ghost.new}, V1): each is a virtual
+     * {@link haven.Gob} (no server id) rendered in the MapView's {@code basic} scene via
+     * {@link haven.MapView#addClientGob} — a SAFE-tier visualization, never sent to the server (D-029). Unlike
+     * the hook lists there is <b>no</b> global dispatch/poll list: a ghost is a passive render node driven by the
+     * render tree's own tick, not the addon tick loop, so it lives only here. Teardown ({@link
+     * AddonManager#teardownGhosts}) destroys each — removes its scene slot + disposes the sprite — so a
+     * reload/disable/relogin leaks nothing, the same guarantee as windows and overlays. Copy-on-write: a firing
+     * callback may create or destroy a ghost.
+     */
+    public final List<LuaGhost> ghosts = new CopyOnWriteArrayList<LuaGhost>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per
