@@ -1,5 +1,14 @@
 # Phase 4b — AddOns-panel master switch + default-disabled for write addons (D-027)
 
+> **⚠️ SUPERSEDED IN PART by [D-028](../../specs/addons/decisions.md) (slice 4c).** The **global master
+> switch** described here — the "Allow addon actions (writes)" checkbox, the `addons.actions.enabled` config
+> flag / `addons/actions.enabled` pref, the `loadAll` master-switch load gate, and the `blocked: actions off`
+> status — was **removed**: write-actions became a **per-addon permission with no global switch** (a write
+> addon loads as soon as you enable it, and enabling raises a consent dialog). **Still current from this slice:**
+> the **default-disabled** policy for write addons (`scanAddonDefaults` / `applyActionsDefaults` +
+> `addons/actions.seen`) and the `[actions]` row marker. See
+> [phase-4c-enable-consent-dialog.md](phase-4c-enable-consent-dialog.md).
+
 > **Status:** ✅ Implemented; compile (`ant hafen-client` → BUILD SUCCESSFUL), **12 headless checks**
 > (`applyActionsDefaults` — the pure D-027 write-addon default policy: read addon ignored / new write addon
 > default-disabled + seen / mixed / a user-enabled write addon NOT re-disabled / a still-disabled one unchanged /

@@ -8,7 +8,6 @@ import haven.BuddyWnd;
 import haven.Buff;
 import haven.Bufflist;
 import haven.CharWnd;
-import haven.Config;
 import haven.Console;
 import haven.Coord;
 import haven.Coord2d;
@@ -260,26 +259,21 @@ public final class AddonManager {
     // surfaced in the AddOns panel and cleared on the next (re)load so the addon gets a fresh start.
     private static final Map<String, String> autoDisabledWarn = new ConcurrentHashMap<String, String>();
 
-    // -- write-actions permission (spec 12-security-and-permissions / D-010 / D-025 / D-027): the ONE gated surface.
-    // Every hafen.act.* verb (and the per-subsystem *(gated action)* verbs — speed.set, craft.make, actionbar.use,
-    // kin.* — arriving in later Phase-4 slices) DRIVES the character by sending a player-action wdgmsg — it acts
-    // on the user's behalf (moves them, uses items, interacts with the world), which is powerful, so a verb is
-    // granted only when BOTH hold (D-027, a permission model like app permissions):
-    //   1. the GLOBAL master switch is ON  — a persisted, panel-toggled pref (the AddOns panel's "Allow addon
-    //      actions (writes)" checkbox, slice 4b), defaulting to the haven-config.properties flag
-    //      addons.actions.enabled (default false; -Daddons.actions.enabled=true still seeds that default). This is
-    //      the USER's runtime choice, never the addon's. (4a read the config flag ONLY — with no runtime toggle
-    //      yet, a stray persisted pref could have stranded the switch ON with no UI to clear it; 4b's panel IS that
-    //      UI, so honoring a persisted pref is now safe.)
-    //   2. the calling ADDON declared the "actions" permission in its manifest ("permissions": ["actions"]).
-    // Either missing → requireActions throws a clear, distinct Lua error. The read/UI/event tiers are unaffected.
-    // Two D-027 consequences on the enabled set (handled in scanAddonDefaults + loadAll): a newly-discovered write
-    // addon defaults to DISABLED (opt-in per addon; a persisted "seen" set distinguishes it from one the user
-    // deliberately enabled), and while the master switch is OFF a write addon does not LOAD at all.
-    private static final Config.Variable<Boolean> CFG_ACTIONS = Config.Variable.propb("addons.actions.enabled", false);
-    private static final String PREF_ACTIONS = "addons/actions.enabled";      // master switch (persisted; panel-toggled)
-    private static final String PREF_ACTIONS_SEEN = "addons/actions.seen";    // write-addon ids we've applied the default to
-    private static volatile Set<String> writeAddonIds = new LinkedHashSet<String>();  // discovered addons that declare "actions"
+    // -- write-actions permission (spec 12-security-and-permissions / D-010 / D-025 / D-027; refined by D-028):
+    // the ONE gated surface. Every hafen.act.* verb (and the per-subsystem *(gated action)* verbs — speed.set,
+    // craft.make, actionbar.use, kin.* — arriving in later Phase-4 slices) DRIVES the character by sending a
+    // player-action wdgmsg — it acts on the user's behalf (moves them, uses items, interacts with the world),
+    // which is powerful, so it is a PER-ADDON permission granted to an addon that DECLARED "actions" in its
+    // manifest ("permissions": ["actions"]) — requireActions throws a guiding Lua error otherwise. The read/UI/
+    // event tiers are unaffected.
+    //   D-028: there is NO global master switch (D-027's was dropped). The action tier is ALWAYS available at the
+    //   system level; the user's control is entirely PER-ADDON: a write-declaring addon is DISABLED BY DEFAULT
+    //   (opt-in; a persisted "seen" set distinguishes a new one from one the user deliberately chose — handled in
+    //   scanAddonDefaults) and enabling it in the AddOns panel raises a CONSENT DIALOG (slice 4c). So a running
+    //   write addon is, by construction, one the user knowingly permitted — which is why requireActions need only
+    //   re-check the manifest declaration, with no runtime switch. It stays server-authoritative regardless: an
+    //   addon can only ever send what a player click could send.
+    private static final String PREF_ACTIONS_SEEN = "addons/actions.seen";    // write-addon ids we've applied the default-disable to
 
     private AddonManager() {
     }
@@ -287,42 +281,24 @@ public final class AddonManager {
     // ------------------------------------------------------------- write-actions permission
 
     /**
-     * The GLOBAL master switch — whether write-actions are allowed for the client at all (one half of D-027).
-     * A persisted, panel-toggled pref ({@link #setActionsEnabled}) whose default is the {@code addons.actions.enabled}
-     * config flag (default false), so the AddOns panel's "Allow addon actions (writes)" checkbox flips it at runtime.
+     * Whether {@code owner} may call an action verb: it DECLARED the {@code "actions"} permission (D-027; D-028 —
+     * per-addon only, no global switch). A running write addon is one the user already opted into — write addons
+     * are disabled by default and enabling one goes through the AddOns-panel consent dialog (slice 4c) — so the
+     * manifest declaration is the only per-verb check.
      */
-    public static boolean actionsEnabled() {
-        return Utils.getprefb(PREF_ACTIONS, CFG_ACTIONS.get());
-    }
-
-    /**
-     * Set the master switch (the AddOns panel checkbox, slice 4b). Persisted client-side; flags a reload as needed
-     * because write-declaring addons load/unload with it (D-027 — apply on reload, like the enabled set). Idempotent.
-     */
-    public static void setActionsEnabled(boolean on) {
-        if(on == actionsEnabled())
-            return;
-        Utils.setprefb(PREF_ACTIONS, on);
-        reloadNeeded = true;
-    }
-
-    /** Whether {@code owner} may call an action verb right now — master switch ON AND the addon declared it. */
     static boolean actionsGranted(Addon owner) {
-        return actionsEnabled() && (owner != null) && owner.manifest.usesActions();
+        return (owner != null) && owner.manifest.usesActions();
     }
 
     /**
-     * Gate an action verb (D-027): the calling addon must have DECLARED the "actions" permission (a manifest
-     * requirement — checked first, as it's the addon author's responsibility) AND the global master switch must
-     * be ON (the user's runtime choice). Throws a distinct, guiding Lua error for each failure.
+     * Gate an action verb (D-027; D-028): the calling addon must have DECLARED the {@code "actions"} permission in
+     * its manifest, or this throws a guiding Lua error. The user's consent is enforced at ENABLE time by the AddOns
+     * panel's consent dialog (a running write addon is already permitted), so there is no separate runtime switch.
      */
     private static void requireActions(Addon owner, String verb) {
         if((owner == null) || !owner.manifest.usesActions())
             throw new LuaError(verb + ": this addon did not declare the \"actions\" permission — add"
                 + " \"permissions\": [\"actions\"] to its manifest.json (D-027: write-actions must be declared).");
-        if(!actionsEnabled())
-            throw new LuaError(verb + ": the global write-actions permission is OFF. Turn on \"Allow addon actions"
-                + " (writes)\" in Options > AddOns to let addons act on your behalf.");
     }
 
     static {
@@ -472,8 +448,10 @@ public final class AddonManager {
             log("no addons/ directory");
             return;
         }
-        Set<String> disabled = disabledSet();   // D-006: honor the persisted enabled set (skip disabled)
-        boolean actions = actionsEnabled();     // D-027: a write addon does not load while the master switch is off
+        // D-006: honor the persisted enabled set (skip disabled). A write-declaring addon is disabled by default
+        // (D-027/D-028) until the user enables it through the AddOns-panel consent dialog (slice 4c); once enabled
+        // it loads like any other addon (there is no global actions switch to also satisfy — D-028).
+        Set<String> disabled = disabledSet();
         for(File sub : subs) {
             if(!new File(sub, "manifest.json").isFile())
                 continue;
@@ -483,10 +461,6 @@ public final class AddonManager {
             }
             try {
                 Manifest m = Manifest.load(sub.toPath());
-                if(!actions && m.usesActions()) {   // D-027: master switch OFF → a write-declaring addon does not load
-                    log("skipping write-addon '" + m.id + "' — the actions master switch is OFF (enable it in Options > AddOns)");
-                    continue;
-                }
                 Globals g = Sandbox.create();   // D-017 stdlib whitelist + D-018 instruction watchdog
                 Addon addon = new Addon(m, sub.toPath(), g);
                 installHafen(g, addon);
@@ -622,20 +596,18 @@ public final class AddonManager {
     }
 
     /**
-     * Scan {@link #addonDir()} and apply the D-027 write-addon default (disabled-by-default, opt-in per addon): a
-     * discovered addon that declares the {@code "actions"} permission and has NOT been seen before is added to the
-     * persisted disabled set (and to a persisted "seen" set so it is defaulted exactly once — a later scan then
-     * respects whatever the user has since chosen). Also refreshes {@link #writeAddonIds} (ALL discovered write
-     * addons) for the panel's status. Cheap disk I/O (a handful of small manifests); call on a (re)load / panel
-     * build, not per frame. The pure policy is {@link #applyActionsDefaults} (headless-testable).
+     * Scan {@link #addonDir()} and apply the write-addon default (disabled-by-default, opt-in per addon —
+     * D-027/D-028): a discovered addon that declares the {@code "actions"} permission and has NOT been seen before
+     * is added to the persisted disabled set (and to a persisted "seen" set so it is defaulted exactly once — a
+     * later scan then respects whatever the user has since chosen, i.e. the enable made through the consent
+     * dialog). Cheap disk I/O (a handful of small manifests); call on a (re)load / panel build, not per frame. The
+     * pure policy is {@link #applyActionsDefaults} (headless-testable).
      */
     private static void scanAddonDefaults() {
         File dir = addonDir();
         File[] subs = dir.listFiles(File::isDirectory);
-        if(subs == null) {
-            writeAddonIds = new LinkedHashSet<String>();
+        if(subs == null)
             return;
-        }
         Map<String, Boolean> declares = new LinkedHashMap<String, Boolean>();
         for(File sub : subs) {
             if(!new File(sub, "manifest.json").isFile())
@@ -650,7 +622,7 @@ public final class AddonManager {
         Set<String> seen = (seenL == null) ? new LinkedHashSet<String>() : new LinkedHashSet<String>(seenL);
         Set<String> disabled = disabledSet();
         int seenBefore = seen.size(), disBefore = disabled.size();   // applyActionsDefaults only ADDS to both
-        writeAddonIds = applyActionsDefaults(seen, disabled, declares);
+        applyActionsDefaults(seen, disabled, declares);
         if(seen.size() != seenBefore)
             Utils.setprefsl(PREF_ACTIONS_SEEN, seen);
         if(disabled.size() != disBefore)
@@ -658,12 +630,12 @@ public final class AddonManager {
     }
 
     /**
-     * The pure D-027 write-addon default policy (no I/O): for each entry in {@code declares} that is a write addon
-     * (value {@code true}) and NOT already in {@code seen}, mark it seen and add it to {@code disabled}
-     * (disabled-by-default — write addons are opt-in per addon). A write addon already in {@code seen} is left to
-     * the user's enable/disable choice; read addons are ignored entirely. {@code seen} and {@code disabled} are
-     * mutated in place (additions only). Returns the ids of ALL write addons in {@code declares} (the panel's
-     * status cache). Headless-testable.
+     * The pure write-addon default policy (no I/O — D-027/D-028): for each entry in {@code declares} that is a
+     * write addon (value {@code true}) and NOT already in {@code seen}, mark it seen and add it to {@code disabled}
+     * (disabled-by-default — write addons are opt-in per addon; enabling one goes through the consent dialog). A
+     * write addon already in {@code seen} is left to the user's enable/disable choice; read addons are ignored
+     * entirely. {@code seen} and {@code disabled} are mutated in place (additions only). Returns the ids of ALL
+     * write addons in {@code declares}. Headless-testable.
      */
     static Set<String> applyActionsDefaults(Set<String> seen, Set<String> disabled, Map<String, Boolean> declares) {
         Set<String> writeIds = new LinkedHashSet<String>();
@@ -795,8 +767,6 @@ public final class AddonManager {
             return (a.error == null) ? ("loaded v" + a.manifest.version) : ("error: " + a.error);
         if(!isEnabled(id))
             return "disabled";
-        if(!actionsEnabled() && writeAddonIds.contains(id))   // enabled but held back by the master switch (D-027)
-            return "blocked: actions off";
         return "not loaded";
     }
 
@@ -2718,13 +2688,14 @@ public final class AddonManager {
         });
         hafen.set("actionbar", actionbar);
 
-        // hafen.act.* — the GATED write-actions surface (spec 12 / D-010 / D-025 / D-027), the ONLY part of hafen.*
-        // that DRIVES the character: it sends player-action wdgmsgs to the server. Everything else observes; this
-        // acts. A verb runs only when BOTH the global master switch is ON and THIS addon declared the "actions"
-        // permission in its manifest (else requireActions throws a guiding error) — because it acts on the user's
-        // behalf, the user opts in and picks which addons may. It stays server-authoritative: an addon can only
-        // send what a player click could send.
-        //   enabled()   -> bool; is THIS addon allowed to act right now (master ON AND permission declared)? Reports
+        // hafen.act.* — the GATED write-actions surface (spec 12 / D-010 / D-025 / D-027; D-028), the ONLY part of
+        // hafen.* that DRIVES the character: it sends player-action wdgmsgs to the server. Everything else observes;
+        // this acts. A verb runs only when THIS addon declared the "actions" permission in its manifest (else
+        // requireActions throws a guiding error) — a PER-ADDON permission (D-028: no global master switch; the tier
+        // is always available at the system level). The user opts in per addon: a write addon is disabled by default
+        // and enabling it goes through the AddOns-panel consent dialog (slice 4c), so a running addon is one the user
+        // permitted. It stays server-authoritative: an addon can only send what a player click could send.
+        //   enabled()   -> bool; is THIS addon allowed to act (did it declare the "actions" permission)? Reports
         //                  WITHOUT throwing, so an addon can adapt (no pcall needed).
         //   moveTo(x,y) -> walk the character to a WORLD position (the same coords hafen.gob.pos returns). This is
         //                  exactly the MapView "click" a left-click on that ground spot sends; the screen coord it
@@ -5508,7 +5479,7 @@ public final class AddonManager {
     }
 
     // ---- actions tier (Phase 4: hafen.act) -------------------------------------------------------
-    // The GATED automation surface (gate: actionsEnabled / requireActions, above). Every verb is a
+    // The GATED automation surface (gate: requireActions / the declared per-addon permission, above). Every verb is a
     // Widget.wdgmsg from a bound widget — literally what a player click would send, so the client stays
     // server-authoritative (an addon can do only what a player could do; the permission is about user control,
     // not a client exploit — spec 12). moveTo sends the MapView "click" that a left-click on the ground sends:

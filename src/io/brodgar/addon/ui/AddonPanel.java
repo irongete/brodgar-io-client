@@ -22,9 +22,13 @@ import java.util.List;
  * {@link AddonManager} facade exactly as the voice panel drives {@code Voice}. Each row is one
  * discovered addon — an <b>enable/disable</b> checkbox (WoW "apply on reload": {@link
  * AddonManager#setEnabled}), name/version/author with the description as a tooltip, and a live status
- * (loaded / disabled / error / auto-disabled / blocked-by-the-master-switch) — plus the D-027
- * <b>"Allow addon actions (writes)"</b> master switch ({@link AddonManager#setActionsEnabled}), global
- * <b>Reload UI</b>, <b>Enable all</b>, and <b>Open addons folder</b> controls and a "changes pending" hint.
+ * (loaded / disabled / error / auto-disabled) — plus global <b>Reload UI</b>, <b>Enable all</b>, and
+ * <b>Open addons folder</b> controls and a "changes pending" hint.
+ *
+ * <p>Write-actions are a <b>per-addon</b> permission (D-027; D-028 — no global master switch): an addon
+ * that declares {@code "actions"} shows the {@code [actions]} row marker, defaults to disabled, and
+ * enabling it raises the {@link ActionsConsentWnd} consent dialog (via {@link #confirmEnableActions},
+ * slice 4c) — so it only ever runs after the user knowingly grants it.
  *
  * <p>It extends {@code OptWnd.Panel} (a non-static inner class) from this package via the qualified
  * {@code opt.super()} / {@code opt.new PButton(...)} forms; every widget it uses ({@link Scrollport},
@@ -38,22 +42,18 @@ public class AddonPanel extends OptWnd.Panel {
     private final Label hint;
     private final List<Row> rows = new ArrayList<Row>();
     private int builtGen = Integer.MIN_VALUE;
+    private ActionsConsentWnd consent;   // the live enable-time write-actions consent dialog (4c), or null/destroyed
 
     public AddonPanel(OptWnd opt, OptWnd.Panel back) {
         opt.super();
         Widget prev = add(new Label("AddOns"), 0, 0);
         prev = add(new Label("Enable or disable addons. Changes apply on reload."), prev.pos("bl").adds(0, 2));
-        // D-027 master switch (slice 4b): the ONE user control for the gated write-actions tier. When on, addons
-        // that declared the "actions" permission may act on the player's behalf; such addons are disabled by
-        // default and do not load at all while this is off. Applies on reload, like the per-addon checkboxes.
-        CheckBox actions = add(new CheckBox("Allow addon actions (writes)") {
-                { a = AddonManager.actionsEnabled(); }
-                public void set(boolean v) { AddonManager.setActionsEnabled(v); a = v; }
-            }, prev.pos("bl").adds(0, 8));
-        actions.settip("When ON, addons that declare the \"actions\" permission may act on your behalf — move" +
-            " your character, use items, interact with the world. OFF by default. Such an addon is disabled until" +
-            " you enable it, and turning this off stops it loading entirely. Applies on reload.", false);
-        list = add(new Scrollport(UI.scale(new Coord(360, 220))), actions.pos("bl").adds(0, 8));
+        // D-027/D-028: write-actions are a PER-ADDON permission (no global switch). An addon that declares
+        // "actions" carries the [actions] row marker, is disabled by default, and enabling it raises the consent
+        // dialog (confirmEnableActions / ActionsConsentWnd, slice 4c) — this line just points the user at that.
+        prev = add(new Label("An addon marked [actions] can act on your behalf; enabling one asks you to confirm."),
+            prev.pos("bl").adds(0, 2));
+        list = add(new Scrollport(UI.scale(new Coord(360, 220))), prev.pos("bl").adds(0, 8));
         hint = add(new Label(""), list.pos("bl").adds(0, 6));
         Button reload = add(new Button(UI.scale(120), "Reload UI", false).action(AddonManager::requestReload),
                             hint.pos("bl").adds(0, 8));
@@ -81,11 +81,33 @@ public class AddonPanel extends OptWnd.Panel {
         builtGen = AddonManager.reloadGen();
     }
 
-    /** Bulk-enable every discovered addon (applied on the next reload), then reflect the checkboxes. */
+    /**
+     * Bulk-enable every discovered addon (applied on the next reload), then reflect the checkboxes.
+     * D-027 (4c): write-declaring addons are <b>skipped</b> — they stay opt-in per addon behind the
+     * enable-time consent gate ({@link #confirmEnableActions}), so a bulk "Enable all" can never turn
+     * one on without the user knowingly consenting to it.
+     */
     private void enableAll() {
         for(AddonInfo ai : AddonManager.describeAddons())
-            AddonManager.setEnabled(ai.id, true);
+            if(!ai.declaresActions)
+                AddonManager.setEnabled(ai.id, true);
         rebuild();
+    }
+
+    /**
+     * D-027 (4c): the enable-time consent gate for a write-declaring addon. Pops an
+     * {@link ActionsConsentWnd} as a <b>top-level floating window</b> (a {@code ui.root} child, centered on
+     * screen and raised to the front — so it drags freely like any window, not clipped inside this panel) and
+     * enables the addon (persisted; applied on reload) + rebuilds the rows <b>only</b> if the user confirms.
+     * One dialog at a time: re-ticking while a consent is already open is a no-op. Because it is top-level, it
+     * is closed explicitly when this panel leaves the screen — see {@link #tick(double)}.
+     */
+    private void confirmEnableActions(String id, String name) {
+        if((consent != null) && (consent.parent != null))
+            return;
+        consent = ui.root.adda(new ActionsConsentWnd(name, () -> { AddonManager.setEnabled(id, true); rebuild(); }),
+                               ui.root.sz.div(2), 0.5, 0.5);
+        consent.raise();
     }
 
     public void tick(double dt) {
@@ -93,6 +115,12 @@ public class AddonPanel extends OptWnd.Panel {
         if(AddonManager.reloadGen() != builtGen)   // a :reload / Reload UI rebuilt the addon layer
             rebuild();
         hint.settext(AddonManager.reloadNeeded() ? "Changes pending - Reload UI to apply." : "");
+        // The consent dialog (4c) is a top-level ui.root window, so close it explicitly once this panel
+        // leaves the screen (switched away via Back, or Options hidden) — a floating dialog would otherwise
+        // linger with no context. This panel keeps ticking while hidden (invisible widgets still tick), and
+        // OptWnd is only hidden (never destroyed) on close, so this cleanup always runs.
+        if((consent != null) && (consent.parent != null) && !tvisible())
+            consent.destroy();
     }
 
     /** One addon row: an enable checkbox, the manifest metadata, and a live status label. */
@@ -103,9 +131,22 @@ public class AddonPanel extends OptWnd.Panel {
         Row(AddonInfo ai) {
             super(UI.scale(new Coord(360, 18)));
             final String rid = ai.id;
+            final boolean writes = ai.declaresActions;   // D-027: enabling this addon needs consent (4c)
+            final String aname = ai.name;
             add(new CheckBox("") {
                     { a = ai.enabled; }
-                    public void set(boolean v) { AddonManager.setEnabled(rid, v); a = v; }
+                    public void set(boolean v) {
+                        if(v && writes) {
+                            // Enabling a write-declaring addon: ask for consent first, and leave the box
+                            // unticked (a stays false) until the user confirms in the dialog — which then
+                            // enables it and rebuilds the rows. Disabling (v=false) and read-only addons
+                            // fall straight through with no prompt.
+                            confirmEnableActions(rid, aname);
+                        } else {
+                            AddonManager.setEnabled(rid, v);
+                            a = v;
+                        }
+                    }
                 }, UI.scale(new Coord(0, 1)));
             String meta = ai.name
                 + ((ai.version != null) ? ("  v" + ai.version) : "")

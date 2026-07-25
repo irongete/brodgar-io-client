@@ -71,8 +71,8 @@ public final class Manifest {
     static Manifest internal(String id) {
         List<String> none = Collections.emptyList();
         List<SavedVar> novars = Collections.emptyList();
-        // The engine-internal owner (the :lua REPL) is the trusted operator console → it holds every
-        // permission (still subject to the global master switch, like any addon — D-027).
+        // The engine-internal owner (the :lua REPL) is the trusted operator console → it declares every
+        // permission, so its hafen.act.* verbs are granted (D-027; D-028 — per-addon, no global switch).
         List<String> allperms = Collections.singletonList("actions");
         return new Manifest(id, id, "0", "brodgar", "engine-internal owner", 1, none, none, none, novars, allperms);
     }

@@ -1,8 +1,9 @@
 -- Example addon + standing REGRESSION HARNESS. It exercises the READ / UI / event tiers of hafen.* and re-runs
 -- them on every login, so one login re-checks every prior slice. It is READ-ONLY (declares no permissions), so it
--- always loads regardless of the write-actions master switch (D-027, slice 4b) — the gated WRITE tier (hafen.act:
--- moveTo, …) now lives in the separate, opt-in `walker` addon, which DECLARES "permissions": ["actions"] and is
--- therefore disabled by default and only loads once you turn on "Allow addon actions (writes)" in Options > AddOns.
+-- is default-enabled and needs no consent (D-027/D-028) — the gated WRITE tier (hafen.act: moveTo, …) now lives in
+-- the separate, opt-in `walker` addon, which DECLARES "permissions": ["actions"] and is therefore disabled by
+-- default; enabling it in Options > AddOns raises a consent dialog (write-actions are a per-addon permission — no
+-- global switch).
 -- Built on gap subsystem A7: MOVEMENT SPEED — hafen.speed reads the crawl/walk/run/sprint selector
 -- (get() -> current speed 0..3, max() -> highest currently-selectable, name([n]) -> display name); read-only
 -- here, since changing speed is the gated Phase-4 action tier. Built on gap subsystem A6: KIN / BUDDY ROSTER —
@@ -425,10 +426,11 @@ local function dumpFight()                        -- :hello fight -- the deck (b
   end
 end
 
--- PHASE 4a/4b: the gated WRITE-ACTIONS tier (hafen.act.moveTo, …) is exercised by the separate, opt-in `walker`
--- addon (see addons/walker/), NOT here. hello is the always-on READ-ONLY regression harness, so it must load on
--- every login regardless of the write-actions master switch — and a write-declaring addon does not load while that
--- switch is off (D-027). See docs/addons/phase-4b-actions-panel-default-disabled.md.
+-- PHASE 4a/4b/4c: the gated WRITE-ACTIONS tier (hafen.act.moveTo, …) is exercised by the separate, opt-in
+-- `walker` addon (see addons/walker/), NOT here. hello is the always-on READ-ONLY regression harness (declares no
+-- permissions), so it is default-enabled and needs no consent. A write-declaring addon is instead disabled by
+-- default and enabling it raises a consent dialog — write-actions are a PER-ADDON permission with no global switch
+-- (D-027/D-028). See docs/addons/phase-4c-enable-consent-dialog.md.
 
 -- 3b: WIDGET MODEL (hafen.ui.adopt). We adopt the MAIN INVENTORY as a model down in the onWidgetCreate observer
 -- (the 3a -> 3b flow: observe a widget's creation, then adopt it by desc.id). invModel is that handle (nil until

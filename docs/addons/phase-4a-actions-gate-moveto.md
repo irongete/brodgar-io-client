@@ -1,5 +1,12 @@
 # Phase 4a — Write-actions permission (D-027) + `hafen.act.moveTo`
 
+> **⚠️ SUPERSEDED IN PART by [D-028](../../specs/addons/decisions.md) (slice 4c).** The **global master
+> switch** half of the permission described here (the `addons.actions.enabled` config flag, `actionsEnabled()`,
+> and the `"…permission is OFF"` error) was **removed** — write-actions became a **per-addon permission with no
+> global switch**. **Still current:** the manifest **declaration** (`"permissions": ["actions"]`),
+> `requireActions` (now declaration-only), `actionsGranted`, and `hafen.act.moveTo`. See
+> [phase-4c-enable-consent-dialog.md](phase-4c-enable-consent-dialog.md).
+
 > **Status:** ✅ Implemented; compile (`ant hafen-client` → BUILD SUCCESSFUL), **24 headless checks**
 > (`moveClickCoord` coord-math incl. negative flooring; master-switch config-flag flip incl. default-OFF;
 > `Manifest.usesActions()` declaration parse; `actionsGranted(owner)` across null / declaring /
