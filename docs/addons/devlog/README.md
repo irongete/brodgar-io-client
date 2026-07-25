@@ -63,3 +63,4 @@ task — and are **not** the usage docs.
 
 - [v1-ghosts](v1-ghosts.md) — `hafen.ghost.new`/`list` + the handle (`:move`/`:pos`/`:res`/`:destroy`); the MapView client-gob seam
 - [v2-clickable-ghosts](v2-clickable-ghosts.md) — opt-in clickable ghosts (`clickable`/`g:clickable`/`onClick`) + the `GhostClicked` event; the `GhostGob.obstate` pick surface + the `Click.hit` consume-before-`wdgmsg` intercept
+- [v3-look-orientation](v3-look-orientation.md) — `:rotate`/`:setRes`/`:alpha`/`:tint`/`:show`/`:hide` + `new{a,sdt,alpha,tint}`; the `obstate` look states (`MixColor`/`BaseColor`+blend), the re-add-to-apply pattern, the deferred res-swap — zero core edit

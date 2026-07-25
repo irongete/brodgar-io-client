@@ -4,7 +4,7 @@
 -- the separate, opt-in `walker` addon, which DECLARES "permissions": ["actions"] and is therefore disabled by
 -- default; enabling it in Options > AddOns raises a consent dialog (write-actions are a per-addon permission — no
 -- global switch).
--- Built on V1+V2: CLIENT-ONLY WORLD GHOSTS — hafen.ghost.new{res, x, y[, a]} places a virtual prop (a Gob with
+-- Built on V1+V2+V3: CLIENT-ONLY WORLD GHOSTS — hafen.ghost.new{res, x, y[, a]} places a virtual prop (a Gob with
 -- NO server id) in the 3D world; it never reaches the server and grants no advantage, so it is SAFE-tier, NOT
 -- gated (D-029) — a visualization, like a HUD overlay (the motivating use is city/base planning). It returns a
 -- bridge-owned handle with :move(x,y[,a]) / :pos() / :res() / :clickable(bool) / :destroy(); hafen.ghost.list(
@@ -12,10 +12,12 @@
 -- CLICKABILITY — clickable=true (or :clickable(bool)) gives a ghost a pick surface; a click on it is detected
 -- client-side and CONSUMED before any server "click" (your character never walks/interacts — still SAFE-tier,
 -- D-032), firing the per-ghost onClick and the owner-scoped GhostClicked{ghost,button,x,y} event; a non-clickable
--- ghost is click-through. Here, at OnEnterWorld the harness spawns a NON-clickable log cabin a few tiles away
--- (click it and you walk there — click-through), reads list()/pos(), moves it, and auto-destroys it after 8s (the
--- V1 regression); ':hello ghost' toggles a CLICKABLE cabin at your position (click it: it logs onClick +
--- GhostClicked and you do NOT move — the V2 demo).
+-- ghost is click-through. V3 adds LOOK & ORIENTATION — new{...alpha=, tint=, a=, sdt=}, and the handle verbs
+-- :rotate(a) / :setRes(res[,sdt]) / :alpha(0..1) / :tint{r,g,b[,a]} / :show() / :hide(). Here, at OnEnterWorld the
+-- harness spawns a NON-clickable log cabin a few tiles away — ROTATED 45° and TRANSLUCENT (the V3 look) — reads
+-- list()/pos(), :moves it, then LIVE-SWAPS its resource + rotates it (V3), hides & re-shows it, and auto-destroys
+-- it after 8s (the V1+V3 regression); ':hello ghost' toggles a CLICKABLE, translucent cabin at your position whose
+-- onClick live-cycles :rotate + :alpha (V2 click driving V3 look; you do NOT move — still SAFE-tier).
 -- Built on gap subsystem A7: MOVEMENT SPEED — hafen.speed reads the crawl/walk/run/sprint selector
 -- (get() -> current speed 0..3, max() -> highest currently-selectable, name([n]) -> display name); read-only
 -- here, since changing speed is the gated Phase-4 action tier. Built on gap subsystem A6: KIN / BUDDY ROSTER —
@@ -59,7 +61,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.36.0)")
+hafen.log("hello loaded (v0.37.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -512,23 +514,37 @@ hafen.events.on("OnEnterWorld", function()
   hafen.sound.play("sfx/msg")
 end)
 
--- V1: CLIENT-ONLY WORLD GHOSTS (hafen.ghost). A ghost is a virtual prop rendered in the 3D world at world
+-- V1+V3: CLIENT-ONLY WORLD GHOSTS (hafen.ghost). A ghost is a virtual prop rendered in the 3D world at world
 -- coords — a Gob with NO server id, so it never reaches the server and grants no advantage: SAFE-tier, NOT
 -- gated (D-029), a visualization like a HUD overlay. hafen.ghost.new{res,x,y[,a]} returns a bridge-owned handle
--- (:move/:pos/:res/:destroy); hafen.ghost.list([filter]) lists this addon's live ghosts. The visual streams in a
--- beat later (the resource resolves on a loader thread, dodging Loading), so the handle works immediately while
--- the prop appears shortly after. This handler is the V1 REGRESSION (spawn at OnEnterWorld, destroy N s later):
--- it spawns a log cabin ~3 tiles E of you, reads list()/pos(), :moves it 2 tiles N, then auto-destroys it after
--- 8 s (watch the cabin appear beside you, jump north, then vanish — and :reload/disable would remove it too).
+-- (:move/:pos/:res/:destroy + V3 :rotate/:setRes/:alpha/:tint/:show/:hide); hafen.ghost.list([filter]) lists this
+-- addon's live ghosts. The visual streams in a beat later (the resource resolves on a loader thread, dodging
+-- Loading), so the handle works immediately while the prop appears shortly after. This handler is the V1+V3
+-- REGRESSION: it spawns a log cabin ~3 tiles E of you ROTATED 45° and TRANSLUCENT with a bluish tint (the V3
+-- "ghost" look — the DoD), reads list()/pos(), :moves it 2 tiles N (V1), then at +3s LIVE-SWAPS its resource and
+-- :rotates it (V3 res-swap DoD), at +5s :hide()s and +6s :show()s it, and auto-destroys it at +8s (watch the
+-- translucent rotated cabin appear, jump north, morph into another building, blink, then vanish — :reload/disable
+-- would remove it too).
 hafen.events.on("OnEnterWorld", function()
   local p = hafen.gob.pos("player")
   if not p then hafen.log("V1: ghost demo skipped -- no player position yet"); return end
-  local g = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin", x = p.x + 33, y = p.y }   -- +3 tiles E (tile=11)
+  local g = hafen.ghost.new{
+    res = "gfx/terobjs/arch/logcabin", x = p.x + 33, y = p.y,     -- +3 tiles E (tile=11)
+    a = math.pi / 4,                                              -- V3: rotated 45°
+    alpha = 0.5,                                                  -- V3: translucent "ghost" look (the DoD)
+    tint = { r = 120, g = 180, b = 255, a = 110 },                -- V3: bluish colour overlay
+  }
   if not g then hafen.log("V1: hafen.ghost.new returned nil (no map view yet?)"); return end
   local q = g:pos()
-  hafen.log(("V1: ghost spawned (%s) at %.0f,%.0f -- list=%d; moving it 2 tiles N, auto-destroy in 8s")
-    :format(tostring(g:res()), q.x, q.y, #hafen.ghost.list()))
+  hafen.log(("V1+V3: ghost spawned (%s) at %.0f,%.0f a=%.2f -- list=%d; translucent+rotated, :move 2 tiles N")
+    :format(tostring(g:res()), q.x, q.y, q.a, #hafen.ghost.list()))
   g:move(p.x + 33, p.y + 22)                                     -- prove :move (2 tiles N); the prop follows
+  hafen.timer.after(3, function()
+    g:setRes("gfx/terobjs/arch/timberhouse"):rotate(math.pi)     -- V3: live res-swap (DoD) + :rotate, chained
+    hafen.log(("V3: ghost res-swapped -> %s + rotated 180°"):format(tostring(g:res())))
+  end)
+  hafen.timer.after(5, function() g:hide(); hafen.log("V3: ghost :hide()") end)   -- V3: remove from scene
+  hafen.timer.after(6, function() g:show(); hafen.log("V3: ghost :show()") end)   -- V3: re-add
   hafen.timer.after(8, function()
     g:destroy()                                                  -- prove :destroy; teardown would also do this
     hafen.log(("V1: ghost auto-destroyed -- list=%d"):format(#hafen.ghost.list()))
@@ -955,16 +971,22 @@ hafen.slash.register("hello", function(args)
     else
       local p = hafen.gob.pos("player")
       if not p then hafen.log(":hello ghost -> no player position yet"); return end
-      demoGhost = hafen.ghost.new{                          -- V2: a CLICKABLE cabin — click it, you do NOT walk
+      local spin, faded = 0, false                           -- V3: per-spawn live-look state (closed over by onClick)
+      demoGhost = hafen.ghost.new{                            -- V2 clickable + V3 look: a translucent, tinted cabin
         res = "gfx/terobjs/arch/logcabin", x = p.x, y = p.y,
-        clickable = true,                                    -- opt-in pick surface (the V2 core)
-        onClick = function(g, button, x, y)                  -- fires on click (also via the GhostClicked event)
-          hafen.log((":hello ghost onClick -> button=%d at %.0f,%.0f -- the click was CONSUMED (no walk)")
-            :format(button, x, y))
+        alpha = 0.6,                                          -- V3: translucent
+        tint = { r = 255, g = 210, b = 120 },                -- V3: warm colour overlay
+        clickable = true,                                     -- opt-in pick surface (the V2 core)
+        onClick = function(g, button, x, y)                   -- fires on click (also via the GhostClicked event)
+          spin = spin + math.pi / 4                           -- V3: each click rotates 45°...
+          faded = not faded                                   -- ...and toggles opacity
+          g:rotate(spin):alpha(faded and 0.3 or 0.85)         -- chained V3 verbs, live on the clicked ghost
+          hafen.log((":hello ghost onClick -> button=%d -- CONSUMED (no walk); V3 live rotate a=%.2f alpha=%.2f")
+            :format(button, spin, faded and 0.3 or 0.85))
         end,
       }
       if demoGhost then
-        hafen.log((":hello ghost -> CLICKABLE log cabin at you (%.0f,%.0f) -- CLICK it (you won't move); :hello ghost again to remove"):format(p.x, p.y))
+        hafen.log((":hello ghost -> CLICKABLE translucent cabin at you (%.0f,%.0f) -- CLICK it (won't move; each click rotates + re-fades); :hello ghost again to remove"):format(p.x, p.y))
       else
         hafen.log(":hello ghost -> hafen.ghost.new returned nil (not in the world yet?)")
       end

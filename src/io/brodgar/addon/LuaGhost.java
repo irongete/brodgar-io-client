@@ -1,9 +1,12 @@
 package io.brodgar.addon;
 
+import java.awt.Color;
+
 import haven.Coord2d;
 import haven.Gob;
 import haven.Indir;
 import haven.MapView;
+import haven.MessageBuf;
 import haven.Resource;
 import haven.render.RenderTree;
 
@@ -21,9 +24,15 @@ import org.luaj.vm2.LuaValue;
  * <p><b>Handle, not a GobRef.</b> A ghost has no server id, so re-resolution is meaningless; it is addressed
  * by a bridge-owned <b>handle</b> (D-030), like a {@code hafen.ui.window}. The Lua handle
  * ({@link AddonManager#ghostHandle}) exposes {@code :move(x,y[,a])} / {@code :pos()} / {@code :destroy()} /
- * {@code :res()} (V1) and {@code :clickable(bool)} (V2 — opt-in pick-selectability; see {@link #clickable} /
- * {@link #onClick} and {@link GhostGob}). Rotation/look ({@code :rotate}/{@code :setRes}/{@code alpha}/
- * {@code tint}) land in V3.
+ * {@code :res()} (V1), {@code :clickable(bool)} (V2 — opt-in pick-selectability; see {@link #clickable} /
+ * {@link #onClick} and {@link GhostGob}), and the V3 look/orientation verbs {@code :rotate(a)} /
+ * {@code :setRes(res[,sdt])} / {@code :show()} / {@code :hide()} / {@code :alpha(a)} / {@code :tint(color)}.
+ *
+ * <p><b>Desired-state fields (V3).</b> {@link #alpha}, {@link #tint}, {@link #hidden}, and the current
+ * {@link #res}/{@link #resName}/{@link #sdt} are the ghost's <i>desired</i> state, guarded by {@code this}. They
+ * are applied to the {@link #gob} when it exists and, crucially, are read by the deferred create at publish time —
+ * so an {@code :alpha}/{@code :setRes}/{@code :hide} that lands <i>before</i> the prop streams in still takes
+ * effect. {@link #res}/{@link #resName}/{@link #sdt} are non-final because {@code :setRes} swaps the visual.
  *
  * <p><b>Deferred create (the {@code Plob} precedent).</b> Building the {@code ResDrawable} calls
  * {@code res.get()}, which throws {@code Loading} until the resource is cached — so, exactly like {@code Plob}
@@ -47,16 +56,20 @@ import org.luaj.vm2.LuaValue;
  */
 public final class LuaGhost {
     final Addon owner;
-    final Indir<Resource> res;     // the ghost's visual resource (client-local; resolved on a loader thread)
-    final String resName;          // the resource name, for :res(), the string filter, and error text
+    Indir<Resource> res;           // the ghost's visual resource (resolved on a loader thread); swapped by :setRes (V3)
+    String resName;                // the resource name, for :res(), the string filter, and error text; swapped by :setRes
+    MessageBuf sdt;                // V3: optional spawn-data bytes for the drawable (null ⇒ MessageBuf.nil); guarded by this
 
     Coord2d rc;                    // target/current world position (login-relative), guarded by this
     double  a;                     // target/current facing (radians), guarded by this
     boolean clickable;             // V2: opt-in pick-selectability (mirrored onto the GhostGob's flag); guarded by this
+    float   alpha = 1f;            // V3: desired opacity 0..1 (1 = opaque); mirrored onto the GhostGob; guarded by this
+    Color   tint;                  // V3: desired colour-overlay tint, or null; mirrored onto the GhostGob; guarded by this
+    boolean hidden;                // V3: :hide() removed the scene slot (gob kept); :show() re-adds it; guarded by this
     LuaValue onClick;              // V2: per-ghost click callback fn(g, button, x, y), or null; set at create, read-only after
 
     Gob gob;                       // the client-only Gob, or null until the deferred create publishes it
-    RenderTree.Slot slot;          // its scene slot, or null until added; removed on destroy/teardown
+    RenderTree.Slot slot;          // its scene slot, or null until added / while hidden; removed on destroy/teardown
     MapView mv;                    // the MapView the gob was added to (so destroy removes it from THAT tick list)
     boolean dead;                  // destroyed (or torn down): every op becomes a no-op, deferred create undoes
     boolean failed;                // the resource could not be resolved (bad name) — create abandoned

@@ -1,7 +1,8 @@
 # hafen.ghost — client-only world ghosts
 
 Place **virtual props in the 3D world** — "ghosts" rendered at arbitrary world coordinates, optionally
-**clickable** (V2). A ghost is **client-only**: it is a game object with **no server id**, so it is never
+**clickable** (V2) and with a **look & orientation** — facing, translucency and colour tint (V3). A ghost is
+**client-only**: it is a game object with **no server id**, so it is never
 sent to the server, the server never learns it exists, and it grants no gameplay advantage — it is a
 visualization, exactly like a HUD overlay. The motivating use is **city / base planning**: lay out ghost
 buildings over the real terrain and iterate.
@@ -17,7 +18,7 @@ reload / disable / relogin (the scene slot is removed and the sprite freed), lea
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.ghost.new{res, x, y [, a]}` | [ghost handle](#ghost-handle) \| nil | create a client-only prop; nil if not in the world yet |
+| `hafen.ghost.new{res, x, y [, a, sdt, alpha, tint, clickable, onClick]}` | [ghost handle](#ghost-handle) \| nil | create a client-only prop; nil if not in the world yet |
 | `hafen.ghost.list([filter])` | [ghost handle](#ghost-handle)`[]` | this addon's live ghosts |
 
 `new` options:
@@ -27,6 +28,9 @@ reload / disable / relogin (the scene slot is removed and the sprite freed), lea
 | `res` | string | — (required) | resource name — a game object, e.g. `"gfx/terobjs/arch/logcabin"` (resolved via the game resource pool, so any server or client resource works) |
 | `x`, `y` | number | — (required) | world coordinates (login-relative, the same as [`hafen.gob.pos`](gob.md)) |
 | `a` | number | `0` | facing, in radians |
+| `sdt` | byte array | — | spawn-data bytes (resource variant/state), e.g. `{0x01, 0x00}` — advanced, rarely needed (V3) |
+| `alpha` | number | `1` | opacity `0..1`; `< 1` gives the translucent "ghost" look (V3) — see [Look & orientation](#look--orientation-v3) |
+| `tint` | `{r, g, b [, a]}` | — | colour overlay, `0..255` (`a` = blend strength, default `255`) (V3) |
 | `clickable` | boolean | `false` | opt-in pick surface (V2) — see [Clickability](#clickability--the-ghostclicked-event-v2) |
 | `onClick` | function | — | `fn(g, button, x, y)` fired on click (V2); also delivered as the [`GhostClicked`](events.md#world-ghosts) event |
 
@@ -39,6 +43,11 @@ For `list`, `filter` is the canonical [filter](conventions.md#the-filter-argumen
 | Method | Description |
 |---|---|
 | `g:move(x, y [, a])` | reposition to world `x, y` (and optionally set facing `a`) |
+| `g:rotate(a)` | set facing to `a` radians, keeping position (V3) |
+| `g:setRes(res [, sdt])` | swap the visual to another resource (streams in like `new`); optional `sdt` bytes (V3) |
+| `g:alpha(a)` | set opacity `0..1` (`1` = opaque) (V3) — see [Look & orientation](#look--orientation-v3) |
+| `g:tint(color)` | set the colour overlay `{r, g, b [, a]}` (`0..255`), or `nil` to clear (V3) |
+| `g:show()` / `g:hide()` | add / remove the ghost from the 3D scene, keeping it (V3) |
 | `g:pos()` | `{x, y, a}` — current world position and facing |
 | `g:res()` | the resource name (string) |
 | `g:clickable(bool)` | toggle the pick surface (V2) — see [Clickability](#clickability--the-ghostclicked-event-v2) |
@@ -49,7 +58,8 @@ Every method returns the handle (except `:pos`/`:res`), so calls chain.
 ```lua
 local p = hafen.gob.pos("player")
 local g = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin", x = p.x, y = p.y }
-g:move(p.x + 33, p.y)          -- 3 tiles east (a tile is 11 world units)
+g:move(p.x + 33, p.y)                       -- 3 tiles east (a tile is 11 world units)
+g:setRes("gfx/terobjs/arch/timberhouse"):rotate(math.pi):alpha(0.5)  -- V3, chained
 print(#hafen.ghost.list())     -- 1
 g:destroy()
 ```
@@ -63,6 +73,41 @@ g:destroy()
 > To save a layout across sessions, anchor on **grid ids** via [`hafen.map.gridPos()`](map.md) and
 > re-resolve on load (the same rule [markers](markers.md) follow). See
 > [conventions](conventions.md#coordinates).
+
+## Look & orientation (V3)
+
+A ghost can be given a **facing**, a **translucent** appearance, and a **colour tint** — either at `new` or live
+via the handle. These are pure client-side render states on the virtual gob; they change only how it looks.
+
+```lua
+local g = hafen.ghost.new{
+  res = "gfx/terobjs/arch/logcabin", x = wx, y = wy,
+  a     = math.pi / 4,                        -- rotated 45°
+  alpha = 0.5,                                -- half-translucent — the "ghost" look
+  tint  = { r = 120, g = 180, b = 255 },      -- bluish overlay (a defaults to 255)
+}
+g:rotate(math.pi)                             -- face the other way (position kept)
+g:setRes("gfx/terobjs/arch/timberhouse")      -- morph into a different building
+g:alpha(1)                                    -- fully opaque again
+g:tint(nil)                                   -- clear the tint
+g:hide()                                      -- take it out of the scene...
+g:show()                                      -- ...and put it back
+```
+
+- **`alpha`** is opacity `0..1`: `1` is fully opaque (the default), and below `1` the prop becomes see-through —
+  the translucent "ghost" look. (A translucent 3D object does not self-occlude — you see its far faces through its
+  near ones, the usual hologram/x-ray appearance.)
+- **`tint`** is a colour overlay in `{r, g, b [, a]}`, `0..255` — the **same colour shape** as
+  [`hafen.markers`](markers.md) and the colours returned by [`hafen.party`](party.md)/[`hafen.kin`](kin.md). Its
+  `a` is the blend strength (how strongly the colour is mixed in), defaulting to `255`. It is a colour overlay
+  only, independent of `alpha`. `g:tint(nil)` clears it.
+- **`:setRes`** swaps the resource; like `new`, the new visual resolves on a loader thread and streams in a beat
+  later, so the call returns immediately.
+- **`:show`/`:hide`** remove and re-add the ghost from the 3D scene while keeping it alive (its handle, position,
+  look and clickability are all preserved) — cheaper than destroy + recreate when you just want to toggle it.
+
+All of these are safe to call before the prop has finished streaming in — the value you set is applied the moment
+it appears.
 
 ## Clickability & the `GhostClicked` event (V2)
 
@@ -96,6 +141,7 @@ a clickable ghost; `GhostClicked` reaches only *your* addon (a ghost is private 
 
 ## Coming next
 
-V1+V2 ship create / move / destroy and opt-in clickability. Later slices add: **look & orientation**
-(`:rotate`, `:setRes`, `alpha`/`tint`), grid-anchored **layouts**, and a **transform gizmo**
-(`hafen.ghost.gizmo`) that snaps exactly like placing a real building. These are not available yet.
+V1–V3 ship create / move / destroy, opt-in clickability, and look & orientation. Later slices add: uniform
+**scale** (`:scale`), grid-anchored **layouts** (saved via [`hafen.store`](store.md), with a dedicated `planner`
+example addon), and a **transform gizmo** (`hafen.ghost.gizmo`) that snaps exactly like placing a real building.
+These are not available yet.

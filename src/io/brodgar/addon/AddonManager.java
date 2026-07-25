@@ -34,6 +34,8 @@ import haven.Loading;
 import haven.Makewindow;
 import haven.MapFile;
 import haven.MapView;
+import haven.Message;
+import haven.MessageBuf;
 import haven.MCache;
 import haven.MenuGrid;
 import haven.MiniMap;
@@ -3036,12 +3038,20 @@ public final class AddonManager {
         // (canonical filter: nil=all / a string matched against the ghost's res / a predicate over the handle).
         // Ghosts are torn down on reload/disable/relogin (P2). Coords are WORLD (login-relative), like hafen.gob.pos.
         LuaTable ghost = new LuaTable();
-        // hafen.ghost.new{res, x, y [, a] [, clickable] [, onClick]} — res = a client resource name (e.g.
-        // "gfx/terobjs/arch/logcabin"); x,y = world coords; a = facing radians (optional, default 0).
+        // hafen.ghost.new{res, x, y [, a] [, sdt] [, alpha] [, tint] [, clickable] [, onClick]} — res = a resource
+        // name (e.g. "gfx/terobjs/arch/logcabin"); x,y = world coords; a = facing radians (optional, default 0).
+        //   sdt      = {bytes}        -- V3: optional spawn-data bytes (resource variant/state); rarely needed
+        //   alpha    = 0.5           -- V3: opacity 0..1 (default 1 = opaque); < 1 = the translucent "ghost" look
+        //   tint     = {r=,g=,b=[,a=]} -- V3: colour overlay 0..255 (a = blend strength, default 255)
         //   clickable = true         -- V2: opt-in pick-selectability (default false)
         //   onClick = fn(g,button,x,y) -- V2: fires on click (also via the GhostClicked event)
         // Returns a handle:
         //   :move(x, y [, a])  -- reposition (+ optional facing)
+        //   :rotate(a)         -- V3: set facing (radians), keeping position
+        //   :setRes(res[,sdt]) -- V3: swap the visual (streams in like new)
+        //   :alpha(a)          -- V3: opacity 0..1 (1 = opaque)
+        //   :tint(color|nil)   -- V3: colour overlay {r=,g=,b=[,a=]} (nil clears)
+        //   :show() / :hide()  -- V3: add / remove the scene slot (keeps the ghost)
         //   :pos()             -- {x, y, a}
         //   :res()             -- the resource name (string)
         //   :clickable(bool)   -- V2: toggle the pick surface
@@ -3050,7 +3060,7 @@ public final class AddonManager {
         // Plob / hafen.sound precedent), so the handle works immediately while the prop appears shortly after.
         // Returns nil only if there is no map view yet (not in the world). V2: a CLICK on a clickable ghost is
         // detected client-side and CONSUMED (no server contact ⇒ still SAFE-tier); it fires onClick + the
-        // owner-scoped GhostClicked{ghost,button,x,y} event. Look/rotation/tint land in V3.
+        // owner-scoped GhostClicked{ghost,button,x,y} event.
         ghost.set("new", new OneArgFunction() {
             public LuaValue call(LuaValue opts) {
                 return newGhost(owner, opts);
@@ -4175,6 +4185,9 @@ public final class AddonManager {
         final LuaGhost gh = new LuaGhost(owner, resid, resName,
                                          new Coord2d(xv.todouble(), yv.todouble()),
                                          av.isnumber() ? av.todouble() : 0.0);
+        gh.sdt = luaSdt(opts.get("sdt"));              // V3: optional spawn-data bytes (null ⇒ MessageBuf.nil)
+        gh.alpha = luaAlpha(opts.get("alpha"));        // V3: opacity 0..1 (default 1 = opaque)
+        gh.tint = luaTint(opts.get("tint"));           // V3: colour overlay {r=,g=,b=[,a=]}, or null
         gh.clickable = clickablev.toboolean();         // V2: nil/false → not clickable; true → clickable
         if(onclickv.isfunction())
             gh.onClick = onclickv;
@@ -4183,19 +4196,22 @@ public final class AddonManager {
         gh.handle = handle;
         g.loader.defer(new Runnable() {
             public void run() {
+                // Read the DESIRED res/sdt fresh each run so a :setRes that landed before we published is honoured
+                // (and so a Loading re-run picks up a swapped resource). Guarded by the ghost monitor.
+                Indir<Resource> res; Message sdt; String rnm;
                 synchronized(gh) {
                     if(gh.dead)
                         return;                        // destroyed before we ran → nothing to build
+                    res = gh.res; sdt = gh.sdt; rnm = gh.resName;
                 }
-                Resource res;
                 try {
-                    res = resid.get();                 // Loading → the loader re-runs this task when it resolves
+                    res.get();                         // Loading → the loader re-runs this task when it resolves
                 } catch(Loading l) {
                     throw(l);
                 } catch(RuntimeException e) {
                     UI u = ui;
                     if(u != null)
-                        u.error(clampMsg("addon: ghost resource '" + resName + "' could not be loaded"));
+                        u.error(clampMsg("addon: ghost resource '" + rnm + "' could not be loaded"));
                     synchronized(gh) { gh.failed = true; }
                     return;
                 }
@@ -4205,16 +4221,19 @@ public final class AddonManager {
                     if(gh.dead) return;
                     rc0 = gh.rc; a0 = gh.a;
                 }
-                GhostGob gob = new GhostGob(g, rc0);      // V2: a Gob subclass whose obstate can add a GobClick (pick surface)
+                GhostGob gob = new GhostGob(g, rc0);      // V2/V3: a Gob subclass whose obstate adds the click surface + look
                 gob.a = a0;
-                gob.setattr(new ResDrawable(gob, res));   // res is cached now → no Loading here
+                gob.setattr(new ResDrawable(gob, res, (sdt == null) ? MessageBuf.nil : sdt));  // res cached now → no Loading here
                 synchronized(gh) {
                     if(gh.dead) { gob.dispose(); return; }   // destroyed mid-build → discard (never added to scene)
                     gob.clickable = gh.clickable;            // V2: reflect opt-in clickability BEFORE the gob enters the scene
+                    gob.alpha = gh.alpha;                    // V3: reflect the desired look before the first scene add
+                    gob.tint = gh.tint;
                     gob.move(gh.rc, gh.a);                   // apply any :move that landed while we were building
-                    gh.slot = mv.addClientGob(gob);          // the // addon: MapView seam (spec 16 §6); MapView now ticks it
                     gh.gob = gob;
                     gh.mv = mv;
+                    if(!gh.hidden)                           // V3: a ghost hidden before it published stays out of the scene
+                        gh.slot = mv.addClientGob(gob);      // the // addon: MapView seam (spec 16 §6); MapView now ticks it
                 }
             }
         }, null);
@@ -4222,12 +4241,14 @@ public final class AddonManager {
     }
 
     /**
-     * The Lua handle for a {@link LuaGhost} (V1 + V2): {@code :move(x,y[,a])} / {@code :pos()} / {@code :res()} /
-     * {@code :clickable(bool)} / {@code :destroy()}. The colon-call convention passes {@code self} as arg1, so
-     * {@code :move} reads arg2..4 and returns arg1 (the handle) for chaining. Every method is a clean no-op once
-     * the ghost is dead. A {@code :move} before the deferred create has published the gob updates the target the
-     * create will apply; afterwards it repositions the live gob (the render tree's {@code Placed.autotick} picks it
-     * up next frame). {@code :clickable(true|false)} toggles the ghost's pick surface (V2, {@link #setGhostClickable}).
+     * The Lua handle for a {@link LuaGhost} (V1 + V2 + V3): {@code :move(x,y[,a])} / {@code :rotate(a)} /
+     * {@code :setRes(res[,sdt])} / {@code :alpha(a)} / {@code :tint(color)} / {@code :show()} / {@code :hide()} /
+     * {@code :pos()} / {@code :res()} / {@code :clickable(bool)} / {@code :destroy()}. The colon-call convention
+     * passes {@code self} as arg1, so {@code :move} reads arg2..4 and returns arg1 (the handle) for chaining. Every
+     * method is a clean no-op once the ghost is dead. A mutation before the deferred create has published the gob
+     * updates the desired-state the create will apply; afterwards it acts on the live gob (a reposition is picked up
+     * by the render tree's {@code Placed.autotick} next frame; a look/clickable change re-adds the scene slot so
+     * {@link GhostGob#obstate} runs fresh — {@link #refreshGhostScene}).
      */
     private static LuaValue ghostHandle(final LuaGhost gh) {
         LuaTable h = new LuaTable();
@@ -4247,6 +4268,54 @@ public final class AddonManager {
                 }
                 return a.arg1();
             }
+        });
+        h.set("rotate", new VarArgFunction() {          // V3: set facing (radians), keeping position — Gob.move(rc, a)
+            public Varargs invoke(Varargs a) {
+                LuaValue av = a.arg(2);
+                if(!av.isnumber())
+                    throw new LuaError("ghost:rotate(a) expects a facing angle in radians (number) — use a COLON call");
+                synchronized(gh) {
+                    if(!gh.dead) {
+                        gh.a = av.todouble();
+                        if(gh.gob != null)
+                            gh.gob.move(gh.rc, gh.a);
+                    }
+                }
+                return a.arg1();
+            }
+        });
+        h.set("setRes", new VarArgFunction() {          // V3: swap the visual (streams in like new)
+            public Varargs invoke(Varargs a) {
+                LuaValue resv = a.arg(2), sdtv = a.arg(3);
+                if(!resv.isstring())
+                    throw new LuaError("ghost:setRes(res [, sdt]) expects a resource name string — use a COLON call");
+                setGhostRes(gh, resv.tojstring(), luaSdt(sdtv));
+                return a.arg1();
+            }
+        });
+        h.set("alpha", new VarArgFunction() {           // V3: opacity 0..1 (1 = opaque)
+            public Varargs invoke(Varargs a) {
+                LuaValue av = a.arg(2);
+                if(!av.isnumber())
+                    throw new LuaError("ghost:alpha(a) expects a number 0..1 (1 = opaque) — use a COLON call");
+                setGhostAlpha(gh, clampAlpha(av.todouble()));
+                return a.arg1();
+            }
+        });
+        h.set("tint", new VarArgFunction() {            // V3: colour overlay {r=,g=,b=[,a=]}, or nil to clear
+            public Varargs invoke(Varargs a) {
+                LuaValue cv = a.arg(2);
+                if(!cv.isnil() && !cv.istable())
+                    throw new LuaError("ghost:tint(color) expects {r=,g=,b=[,a=]} (0..255) or nil — use a COLON call");
+                setGhostTint(gh, cv.isnil() ? null : luaColor(cv, null));
+                return a.arg1();
+            }
+        });
+        h.set("show", new VarArgFunction() {            // V3: (re)add the scene slot
+            public Varargs invoke(Varargs a) { showGhost(gh); return a.arg1(); }
+        });
+        h.set("hide", new VarArgFunction() {            // V3: remove the scene slot (keeps the ghost)
+            public Varargs invoke(Varargs a) { hideGhost(gh); return a.arg1(); }
         });
         h.set("pos", new ZeroArgFunction() {
             public LuaValue call() {
@@ -4347,11 +4416,10 @@ public final class AddonManager {
     /**
      * Toggle a ghost's pick surface ({@code g:clickable(bool)}, V2). The MapView click-list decides membership
      * <b>at slot-add time</b> — a later ancestor-state change does <i>not</i> re-run its {@code Clickable} filter —
-     * so a live ghost is toggled by removing and re-adding it to the scene, where {@link GhostGob#obstate} is
-     * applied fresh and reads the updated {@link GhostGob#clickable}. A ghost whose deferred create has not
-     * published its gob yet just records the desired state (the create applies it before the gob enters the scene,
-     * so it is tracked from the first frame). All under the ghost monitor, in the same ghost→tree lock order the
-     * deferred create uses (no new hazard); the gob is <b>not</b> disposed by the re-add. No-op when unchanged/dead.
+     * so a live ghost is toggled by removing and re-adding it to the scene ({@link #refreshGhostScene}), where
+     * {@link GhostGob#obstate} is applied fresh and reads the updated {@link GhostGob#clickable}. A ghost whose
+     * deferred create has not published its gob yet just records the desired state (the create applies it before
+     * the gob enters the scene). No-op when unchanged/dead.
      */
     private static void setGhostClickable(LuaGhost gh, boolean on) {
         synchronized(gh) {
@@ -4360,16 +4428,178 @@ public final class AddonManager {
             gh.clickable = on;
             if(gh.gob instanceof GhostGob)
                 ((GhostGob)gh.gob).clickable = on;     // read by obstate on the next scene (re)add
-            if((gh.gob != null) && (gh.mv != null)) {
+            refreshGhostScene(gh);
+        }
+    }
+
+    /**
+     * Set a ghost's opacity ({@code g:alpha(a)}, V3): {@code 1} = opaque (no extra render state), {@code < 1} =
+     * translucent. Like {@link #setGhostClickable}, the change is applied by re-adding the scene slot (obstate's
+     * output is not part of {@code GobState.equals}, so the normal update path won't re-apply it). No-op if
+     * unchanged/dead. Under the ghost monitor.
+     */
+    private static void setGhostAlpha(LuaGhost gh, float alpha) {
+        synchronized(gh) {
+            if(gh.dead || (gh.alpha == alpha))
+                return;
+            gh.alpha = alpha;
+            if(gh.gob instanceof GhostGob)
+                ((GhostGob)gh.gob).alpha = alpha;      // read by obstate on the next scene (re)add
+            refreshGhostScene(gh);
+        }
+    }
+
+    /**
+     * Set a ghost's colour-overlay tint ({@code g:tint(color)}, V3); {@code null} clears it. Applied by re-adding
+     * the scene slot, like {@link #setGhostAlpha}. Under the ghost monitor.
+     */
+    private static void setGhostTint(LuaGhost gh, java.awt.Color tint) {
+        synchronized(gh) {
+            if(gh.dead)
+                return;
+            gh.tint = tint;
+            if(gh.gob instanceof GhostGob)
+                ((GhostGob)gh.gob).tint = tint;        // read by obstate on the next scene (re)add
+            refreshGhostScene(gh);
+        }
+    }
+
+    /**
+     * Remove the ghost from the scene ({@code g:hide()}, V3) — drops the scene slot (so it stops rendering/ticking)
+     * but <b>keeps</b> the gob so {@code :show()} can re-add it. Marks {@link LuaGhost#hidden} so a hide that lands
+     * before the deferred create published keeps the prop out of the scene. No-op if already hidden/dead. Under the
+     * ghost monitor.
+     */
+    private static void hideGhost(LuaGhost gh) {
+        synchronized(gh) {
+            if(gh.dead || gh.hidden)
+                return;
+            gh.hidden = true;
+            if((gh.gob != null) && (gh.mv != null) && (gh.slot != null)) {
+                try { gh.mv.removeClientGob(gh.gob, gh.slot); }
+                catch(RuntimeException e) { /* scene gone (relog) — flag set, no scene op */ }
+                gh.slot = null;
+            }
+        }
+    }
+
+    /**
+     * (Re)add the ghost to the scene ({@code g:show()}, V3) — the inverse of {@link #hideGhost}. No-op if not
+     * hidden/dead. Under the ghost monitor.
+     */
+    private static void showGhost(LuaGhost gh) {
+        synchronized(gh) {
+            if(gh.dead || !gh.hidden)
+                return;
+            gh.hidden = false;
+            if((gh.gob != null) && (gh.mv != null) && (gh.slot == null)) {
                 try {
-                    gh.mv.removeClientGob(gh.gob, gh.slot); // remove + re-add so the click-list re-filters on the new state
                     gh.slot = gh.mv.addClientGob(gh.gob);
-                    gh.gob.move(gh.rc, gh.a);               // re-assert position/facing after the re-add
+                    gh.gob.move(gh.rc, gh.a);          // re-assert position/facing after the re-add
                 } catch(RuntimeException e) {
-                    /* the ghost's scene is gone (e.g. a REPL ghost toggled after a relog) — flag set, no scene op */
+                    /* scene gone (relog) — flag cleared, no scene op */
                 }
             }
         }
+    }
+
+    /**
+     * Swap a ghost's visual ({@code g:setRes(res[,sdt])}, V3). Records the new desired res/sdt (so a still-pending
+     * create uses them) and, if the gob is already live, <b>defers</b> building the new {@link ResDrawable} —
+     * {@code res.get()} throws {@code Loading} until cached, the same reason {@code new} defers — then {@code setattr}s
+     * it on the gob under {@code synchronized(gob)} (the exact lock the engine's own live res-swap {@code $cres.apply}
+     * holds; the gob's {@code slots} list is a plain {@code ArrayList} shared with the {@code ctick} path). A newer
+     * {@code :setRes} that swapped {@code gh.res} in the meantime wins — this task drops its stale drawable.
+     */
+    private static void setGhostRes(final LuaGhost gh, final String resName, final MessageBuf sdt) {
+        final Glob g = glob();
+        final Indir<Resource> rid = Resource.remote().load(resName);
+        boolean live;
+        synchronized(gh) {
+            if(gh.dead)
+                return;
+            gh.res = rid; gh.resName = resName; gh.sdt = sdt;
+            gh.failed = false;
+            live = (gh.gob != null);
+        }
+        if(!live || (g == null))
+            return;                                    // no live gob yet → the pending create will use the new res
+        g.loader.defer(new Runnable() {
+            public void run() {
+                Indir<Resource> res; Message sd; GhostGob gob; String nm;
+                synchronized(gh) {
+                    if(gh.dead)
+                        return;
+                    gob = (gh.gob instanceof GhostGob) ? (GhostGob)gh.gob : null;
+                    res = gh.res; sd = gh.sdt; nm = gh.resName;
+                }
+                if((gob == null) || (res != rid))
+                    return;                            // gob gone, or a newer :setRes superseded this one
+                try {
+                    res.get();                         // Loading → the loader re-runs when it resolves
+                } catch(Loading l) {
+                    throw(l);
+                } catch(RuntimeException e) {
+                    UI u = ui;
+                    if(u != null)
+                        u.error(clampMsg("addon: ghost resource '" + nm + "' could not be loaded"));
+                    return;                            // keep the old visual (non-fatal)
+                }
+                ResDrawable dr = new ResDrawable(gob, res, (sd == null) ? MessageBuf.nil : sd);  // built outside the lock
+                synchronized(gh) {
+                    if(gh.dead || (gh.gob != gob) || (gh.res != res)) { dr.dispose(); return; }
+                    synchronized(gob) {
+                        gob.setattr(dr);               // swaps the Drawable attrib; old sprite's slots removed, new added
+                    }
+                }
+            }
+        }, null);
+    }
+
+    /**
+     * Re-apply a live ghost's render state (clickable/alpha/tint) by removing and re-adding its scene slot so
+     * {@link GhostGob#obstate} runs fresh — needed because neither the click-list membership nor obstate's colour
+     * output propagates through the normal {@code Gob.updated()}/{@code updstate()} path. No-op if the gob is not
+     * currently in the scene (pending create / hidden) — obstate reads the updated fields when it is (re)added.
+     * <b>Caller must hold the ghost monitor</b> (same ghost→tree lock order the deferred create uses; no new hazard).
+     */
+    private static void refreshGhostScene(LuaGhost gh) {
+        if((gh.gob != null) && (gh.mv != null) && (gh.slot != null)) {
+            try {
+                gh.mv.removeClientGob(gh.gob, gh.slot);
+                gh.slot = gh.mv.addClientGob(gh.gob);
+                gh.gob.move(gh.rc, gh.a);              // re-assert position/facing after the re-add
+            } catch(RuntimeException e) {
+                /* the ghost's scene is gone (e.g. a REPL ghost changed after a relog) — fields set, no scene op */
+            }
+        }
+    }
+
+    /** Parse a ghost {@code alpha} option/arg → clamped 0..1; a non-number defaults to 1 (opaque). */
+    private static float luaAlpha(LuaValue v) {
+        return v.isnumber() ? clampAlpha(v.todouble()) : 1f;
+    }
+    private static float clampAlpha(double a) {
+        return (a < 0.0) ? 0f : ((a > 1.0) ? 1f : (float)a);
+    }
+
+    /** Parse a ghost {@code tint} option/arg → a {@link java.awt.Color}, or {@code null} for none (nil / not a table). */
+    private static java.awt.Color luaTint(LuaValue v) {
+        return (v == null) || !v.istable() ? null : luaColor(v, null);
+    }
+
+    /**
+     * Parse a ghost {@code sdt} option/arg → a {@link MessageBuf} of raw bytes, or {@code null} (⇒ {@code MessageBuf.nil})
+     * when omitted. Accepts a 1-based Lua array of byte values (0..255); a non-table is treated as "none".
+     */
+    private static MessageBuf luaSdt(LuaValue v) {
+        if((v == null) || !v.istable())
+            return null;
+        int n = v.length();
+        byte[] b = new byte[n];
+        for(int i = 0; i < n; i++)
+            b[i] = (byte)(v.get(i + 1).toint() & 0xff);
+        return new MessageBuf(b);
     }
 
     /**
