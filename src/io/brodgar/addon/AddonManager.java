@@ -2066,6 +2066,32 @@ public final class AddonManager {
                 }
             }
         });
+        // fromGridPos({gridId, x, y}) — the INVERSE of gridPos: resolve a saved grid-anchored position back to
+        // a login-relative WORLD coord in THIS session, or nil if that grid is not currently loaded here (the
+        // caller retries as the map streams in). Persist a layout by storing gridPos(...) verbatim and reloading
+        // through this — grid ids are the stable cross-session anchor, raw world coords are login-relative and do
+        // not survive a relog (the marker/ghost rule). Accepts the exact {gridId=<string>, x=, y=} table gridPos
+        // returns, so fromGridPos(gridPos(x,y)) round-trips to (x,y) whenever the grid is loaded.
+        map.set("fromGridPos", new OneArgFunction() {
+            public LuaValue call(LuaValue anchor) {
+                MCache mc = mcache();
+                if((mc == null) || !anchor.istable())
+                    return LuaValue.NIL;
+                LuaValue idv = anchor.get("gridId"), xv = anchor.get("x"), yv = anchor.get("y");
+                if(!idv.isstring() || !xv.isnumber() || !yv.isnumber())
+                    return LuaValue.NIL;
+                long id;
+                try {
+                    id = Long.parseLong(idv.tojstring());
+                } catch(NumberFormatException e) {   // gridId is not a valid 64-bit id string
+                    return LuaValue.NIL;
+                }
+                Coord2d ul = AddonWidgets.gridWorldUL(mc, id);   // that grid's current UL, or null if not loaded
+                if(ul == null)
+                    return LuaValue.NIL;
+                return xy(ul.x + xv.todouble(), ul.y + yv.todouble());
+            }
+        });
         // Pure coordinate conversions (no map data needed). worldToTile floors; tileToWorld returns the
         // tile's upper-left world corner; tileToGrid floor-divides into grid coords.
         map.set("worldToTile", new TwoArgFunction() {

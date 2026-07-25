@@ -1,0 +1,10 @@
+{
+  "name": "Planner",
+  "id": "planner",
+  "version": "0.1.0",
+  "author": "brodgar",
+  "description": "Example addon (V4): the LAYOUT + GRID-ANCHORED PERSISTENCE demo for client-only world ghosts (hafen.ghost). A small city/base planner — place translucent 'blueprint' ghosts over the real terrain, CLICK them to select (V2), rotate/remove them, and SAVE the layout so it reloads at the SAME spot after a relog. Ghosts are SAFE-tier (a Gob with no server id, D-029): nothing reaches the server, so this addon declares NO permissions and is default-enabled like 'hello'. Persistence is GRID-ANCHORED: world coords are login-relative, so each ghost is saved as hafen.map.gridPos(x,y) => {gridId, x, y} (a stable cross-session grid id + within-grid offset) and re-resolved on load with hafen.map.fromGridPos(anchor) (nil until that grid streams in — retried), the same rule map markers follow. Commands: ':planner place [name|res]' drops the current/named blueprint at your feet (clickable + saved); 'blueprint [name]' shows/sets it (bare = list the palette); 'list' shows the placed ghosts; 'select <n>' selects #n (or CLICK a ghost); 'rotate [deg]' turns the selected one (persisted); 'remove [n]' / 'clear' / 'save'. Kept SEPARATE from the read-only 'hello' regression harness as the dedicated V-series example (spec 16-virtual-entities, D-031).",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "saved_variables": ["layout"]
+}

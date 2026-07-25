@@ -37,4 +37,27 @@ public final class AddonWidgets {
     public static boolean buffDest(Buff b) {
         return (b != null) && b.dest;
     }
+
+    /**
+     * Resolve a stable grid id ({@link MCache.Grid#id} — the cross-session, cross-player map anchor) to the
+     * world coordinate of that grid's upper-left corner in the CURRENT session, or {@code null} if no loaded
+     * grid has that id. Backs {@code hafen.map.fromGridPos}, the inverse of {@code hafen.map.gridPos}: raw
+     * world coords are login-relative and cannot be persisted, so a saved layout anchors on grid ids plus a
+     * within-grid offset and re-resolves to login-relative world coords on load (the marker/ghost rule). The
+     * same {@code g.ul} basis {@code gridPos} subtracts is added back here, so the round-trip is exact.
+     *
+     * <p>The grid map is a {@code haven}-package field (audit B5), so the bridge reaches it through this one
+     * accessor rather than reflection (decision D-017). Pure read; tolerates a {@code null} cache; never throws.
+     */
+    public static Coord2d gridWorldUL(MCache mc, long id) {
+        if(mc == null)
+            return null;
+        synchronized(mc.grids) {
+            for(MCache.Grid g : mc.grids.values()) {
+                if((g.id == id) && !g.removed)
+                    return Coord2d.of(g.ul.x * MCache.tilesz.x, g.ul.y * MCache.tilesz.y);
+            }
+        }
+        return null;
+    }
 }

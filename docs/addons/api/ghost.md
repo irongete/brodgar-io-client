@@ -70,9 +70,10 @@ g:destroy()
 > before the prop is visible just sets where it will appear.
 
 > **Ghost coordinates are login-relative**, like all world coords — not shareable or persistent as-is.
-> To save a layout across sessions, anchor on **grid ids** via [`hafen.map.gridPos()`](map.md) and
-> re-resolve on load (the same rule [markers](markers.md) follow). See
-> [conventions](conventions.md#coordinates).
+> To save a layout across sessions, anchor on **grid ids** via [`hafen.map.gridPos()`](map.md) and re-resolve
+> on load with [`hafen.map.fromGridPos()`](map.md#saving-a-world-position-across-sessions) (the same rule
+> [markers](markers.md) follow). The [`planner`](../../../addons/planner) example addon does this for a whole
+> layout — see [conventions](conventions.md#coordinates).
 
 ## Look & orientation (V3)
 
@@ -139,9 +140,16 @@ a clickable ghost; `GhostClicked` reaches only *your* addon (a ghost is private 
 > A **non-clickable** ghost carries no pick surface and never wins a pick, so it is click-through — clicks
 > pass straight through it to the real object (or the ground) behind it, and ordinary play is unaffected.
 
+## Layouts & persistence (V4)
+
+Ghost coordinates are login-relative, so a **saved layout** anchors each ghost on a **grid id** and re-resolves it
+on load — see [`hafen.map.gridPos`](map.md) / [`hafen.map.fromGridPos`](map.md#saving-a-world-position-across-sessions).
+The [`planner`](../../../addons/planner) example addon is a small base planner built on exactly this: it places
+clickable blueprint ghosts, saves them grid-anchored via [`hafen.store`](store.md), and reloads them at the same
+physical spot after a relog (retrying as the map streams in). Use it as the reference for persisting your own ghosts.
+
 ## Coming next
 
-V1–V3 ship create / move / destroy, opt-in clickability, and look & orientation. Later slices add: uniform
-**scale** (`:scale`), grid-anchored **layouts** (saved via [`hafen.store`](store.md), with a dedicated `planner`
-example addon), and a **transform gizmo** (`hafen.ghost.gizmo`) that snaps exactly like placing a real building.
-These are not available yet.
+Still to come: uniform **scale** (`:scale`) and a **transform gizmo** (`hafen.ghost.gizmo`) — a bundled Lua library
+(shipping in `planner`) that drags a selected ghost on the ground and snaps exactly like placing a real building
+(the [`:placegrid`/`:placeangle`](map.md) settings). Not available yet (V5/V6).
