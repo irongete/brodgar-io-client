@@ -56,6 +56,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public double shake = 0.0;
     public static double plobpgran = Utils.getprefd("plobpgran", 8);
     public static double plobagran = Utils.getprefd("plobagran", 12);
+    public static boolean invcamx = Utils.getprefb("invcamx", false);
+    public static boolean invcamy = Utils.getprefb("invcamy", false);
     private static final Map<String, Class<? extends Camera>> camtypes = new HashMap<String, Class<? extends Camera>>();
     
     public interface Delayed {
@@ -89,7 +91,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	public boolean wheel(MouseWheelEvent ev) {
 	    return(false);
 	}
-	
+
+	/* Camera-axis inversion (Options -> Camera). Applied to the raw pixel
+	 * delta before it drives rotation/elevation, so every camera type shares
+	 * the same two toggles. */
+	protected float invdx(int dx) {return(invcamx ? -dx : dx);}
+	protected float invdy(int dy) {return(invcamy ? -dy : dy);}
+
 	public void resized() {
 	    float field = 0.5f;
 	    float aspect = ((float)sz.y) / ((float)sz.x);
@@ -133,7 +141,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 	
 	public void drag(Coord c) {
-	    tangl = anglorig + ((float)(c.x - dragorig.x) / 100.0f);
+	    tangl = anglorig + (invdx(c.x - dragorig.x) / 100.0f);
 	    tangl = tangl % ((float)Math.PI * 2.0f);
 	}
 
@@ -234,10 +242,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 	
 	public void drag(Coord c) {
-	    elev = elevorig - ((float)(c.y - dragorig.y) / 100.0f);
+	    elev = elevorig - (invdy(c.y - dragorig.y) / 100.0f);
 	    if(elev < 0.0f) elev = 0.0f;
 	    if(elev > (Math.PI / 2.0)) elev = (float)Math.PI / 2.0f;
-	    angl = anglorig + ((float)(c.x - dragorig.x) / 100.0f);
+	    angl = anglorig + (invdx(c.x - dragorig.x) / 100.0f);
 	    angl = angl % ((float)Math.PI * 2.0f);
 	}
 
@@ -293,10 +301,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 
 	public void drag(Coord c) {
-	    telev = elevorig - ((float)(c.y - dragorig.y) / 100.0f);
+	    telev = elevorig - (invdy(c.y - dragorig.y) / 100.0f);
 	    if(telev < 0.0f) telev = 0.0f;
 	    if(telev > (Math.PI / 2.0)) telev = (float)Math.PI / 2.0f;
-	    tangl = anglorig + ((float)(c.x - dragorig.x) / 100.0f);
+	    tangl = anglorig + (invdx(c.x - dragorig.x) / 100.0f);
 	}
 
 	public boolean wheel(MouseWheelEvent ev) {
@@ -353,7 +361,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 
 	public void drag(Coord c) {
-	    angl = anglorig + ((float)(c.x - dragorig.x) / 100.0f);
+	    angl = anglorig + (invdx(c.x - dragorig.x) / 100.0f);
 	    angl = angl % ((float)Math.PI * 2.0f);
 	}
 
@@ -433,7 +441,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 
 	public void drag(Coord c) {
-	    tangl = anglorig + ((float)(c.x - dragorig.x) / 100.0f);
+	    tangl = anglorig + (invdx(c.x - dragorig.x) / 100.0f);
 	}
 
 	public void release() {
