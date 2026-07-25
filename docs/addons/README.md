@@ -1,42 +1,43 @@
-# AddOns — Implementation & Usage Docs
+# AddOns
 
-This directory documents the AddOn system **as it is actually implemented**, feature by feature,
-built up **progressively** as each piece lands. It is the counterpart to the design spec:
+A WoW-style **Lua addon system** for the client. Addons install as folders of Lua files and extend the
+client through a stable `hafen.*` API — read the game state, react to events, draw custom UI, add
+hotkeys and console commands, and (with permission) drive the character.
 
-- **[`specs/addons/`](../../specs/addons/README.md)** — the *design* (the plan, decisions, audit).
-- **`docs/addons/`** (this folder) — the *implementation & usage* docs: what's built, how to use it.
+## Documentation
 
-## Working process
+- **[Getting started](getting-started.md)** — write your first addon: the manifest, the lifecycle, the
+  sandbox, saved variables, permissions, and the developer loop.
+- **[API reference](api/README.md)** — the complete `hafen.*` API, one page per section.
 
-- Each change (feature/phase) is **documented here individually before its commit**.
-- The **maintainer verifies everything before any commit** — the assistant prepares code + docs and
-  stops; it does not commit on its own.
+## Quick look
 
-## Index
+```lua
+-- addons/hello/main.lua
+hafen.events.on("OnEnterWorld", function()
+  hafen.log("hello from " .. (hafen.player.name() or "?"))
+end)
 
-| Doc | Status | What it covers |
-|---|---|---|
-| [phase-0-spike.md](phase-0-spike.md) | ✅ Implemented & verified | LuaJ engine spike, `:lua` REPL, `hafen.gob.pos` |
-| [phase-1a-loading.md](phase-1a-loading.md) | ✅ Implemented (in-game check pending) | Loading addons from disk: `manifest.json`, per-addon env, `hafen.log`, `:addons` |
-| [phase-1b-events-timers.md](phase-1b-events-timers.md) | ✅ Implemented (in-game check pending) | Tick pump, event bus (`hafen.events`: OnLoad/OnEnterWorld/OnUpdate/GobAdded/GobRemoved/OnDisable), timers (`hafen.timer`) |
-| [phase-1c-read-gobs.md](phase-1c-read-gobs.md) | ✅ Implemented & verified | Read API part 1: `hafen.gob.*` (per-gob accessor) + `hafen.world.*` (enumerate/nearest/within); full gob snapshots |
-| [phase-1c2-map-player-time-sound.md](phase-1c2-map-player-time-sound.md) | ✅ Implemented & verified | Read API part 2: `hafen.map.*`, `hafen.player.*`, `hafen.time.*`, `hafen.sound`/`hafen.music` |
-| [phase-1c3-items-char-party.md](phase-1c3-items-char-party.md) | ✅ Implemented & verified | Read API part 3: `hafen.items.*`, `hafen.char.*`, `hafen.party.*`; the `"partyN"` GobRef token |
-| [phase-1d1-vitals-widget-tree.md](phase-1d1-vitals-widget-tree.md) | ✅ Implemented & verified | Widget-tree read mechanism (Locator + Adapter + inbound-`uimsg` tap) + `hafen.player.vitals` + `VitalsChanged` |
-| [phase-1d2-buffs-food.md](phase-1d2-buffs-food.md) | ✅ Implemented (in-game check pending) | Widget-tree part 2: `hafen.buffs.*` (+ BuffAdded/Removed/Changed) + `hafen.char.food()` (+ FepChanged); per-tick `poll()` path |
-| [phase-1d3-study-skills.md](phase-1d3-study-skills.md) | ✅ Implemented & verified | Widget-tree part 3: `hafen.study.*` (slots/summary + StudyChanged) + `hafen.char.skills()`/`skill(name)` — zero core edit |
-| [phase-1d4-actionbar-equip.md](phase-1d4-actionbar-equip.md) | ✅ Implemented (in-game check pending) | Widget-tree part 4: `hafen.actionbar.slot(n)` (+ ActionbarChanged) + `EquipChanged` — zero core edit; completes Phase 1d |
-| [phase-1e-saved-variables.md](phase-1e-saved-variables.md) | ✅ Implemented (in-game check pending) | Saved variables: `hafen.store.<name>` + `flush()`, JSON under `savedata/` (per-char + account scope) — zero core edit |
-| [phase-1f1-sandbox.md](phase-1f1-sandbox.md) | ✅ Implemented & verified | Lua sandbox: strict env whitelist (no `io`/`luajava`/`require`/`load`/`debug`) + instruction hard-stop watchdog (D-017/D-018) — zero `haven` edit |
-| [a1-markers.md](a1-markers.md) | ✅ Implemented & verified | Gap subsystem A1: `hafen.markers` (list/nearest/add/remove) over the client-side map DB + `MarkersChanged` — zero `haven` edit |
-| [a4-skills-credos-lore.md](a4-skills-credos-lore.md) | ✅ Implemented & verified | Gap subsystem A4 (completion): `hafen.char.skillsAvailable()`/`credos()`/`experiences()` — buyable skills, credos, lore — zero `haven` edit |
-| [a2-radar.md](a2-radar.md) | ✅ Implemented & verified | Gap subsystem A2: `hafen.radar` (categories/setVisible/setNotify) over `GobIcon.Settings` — zero `haven` edit |
-| [a11-slash-commands.md](a11-slash-commands.md) | ✅ Implemented & verified | Gap subsystem A11: `hafen.slash.register` (WoW `/command`) via a single engine-lifetime `Console` dispatcher (C1) — zero `haven` edit |
-| [a6-kin.md](a6-kin.md) | ✅ Implemented & verified | Gap subsystem A6: `hafen.kin` (list/find) over the Kin window (`BuddyWnd`) + `KinChanged` — zero `haven` edit |
-| [a7-speed.md](a7-speed.md) | ✅ Implemented & verified | Gap subsystem A7: `hafen.speed` (get/max/name) over the `Speedget` selector; read-only (set = gated Phase 4) — zero `haven` edit |
-| [a8-craft.md](a8-craft.md) | ✅ Implemented & verified | Gap subsystem A8: `hafen.craft.current()` over the `Makewindow` recipe (inputs/outputs/qmod/tools); read-only (make = gated Phase 4) — zero `haven` edit |
-| [a9-1-quests.md](a9-1-quests.md) | ✅ Implemented & verified | Gap subsystem A9-1: `hafen.quests` (list/selected) over `QuestWnd` + `QuestAdded`/`QuestDone` — zero `haven` edit |
-| [a9-2-wounds.md](a9-2-wounds.md) | ✅ Implemented & verified | Gap subsystem A9-2: `hafen.wounds` (list/has) over `WoundWnd` + `WoundChanged`; completes A9 — zero `haven` edit |
-| [a10-fight.md](a10-fight.md) | ✅ Implemented (in-game check pending) | Gap subsystem A10: `hafen.fight` (maneuvers/deck/summary) over the `FightWnd` combat-school builder; read-only (edit/switch = gated Phase 4) — zero `haven` edit |
+hafen.key.bind("wave", "Ctrl+W", function()
+  hafen.log("nearby players: " .. hafen.world.count("gfx/borka/body"))
+end)
+```
 
-_(Grows as phases land — see [`specs/addons/15-implementation-plan.md`](../../specs/addons/15-implementation-plan.md) for the build order.)_
+## The API at a glance
+
+| Area | Sections |
+|---|---|
+| **World** | [`gob`](api/gob.md) · [`world`](api/world.md) · [`map`](api/map.md) · [`markers`](api/markers.md) · [`radar`](api/radar.md) |
+| **Character** | [`player`](api/player.md) · [`time`](api/time.md) · [`char`](api/char.md) · [`study`](api/char.md#hafenstudy) · [`party`](api/party.md) · [`buffs`](api/buffs.md) |
+| **Subsystems** | [`kin`](api/kin.md) · [`speed`](api/speed.md) · [`craft`](api/craft.md) · [`quests`](api/quests.md) · [`wounds`](api/wounds.md) · [`fight`](api/fight.md) · [`actionbar`](api/actionbar.md) |
+| **Acting** *(gated)* | [`act`](api/actions.md) |
+| **UI & input** | [`ui`](api/ui.md) · [`hook`](api/hooks.md) · [`key`](api/keys.md) |
+| **Infrastructure** | [`events`](api/events.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash` / `log`](api/console.md) · [`sound` / `music`](api/audio.md) |
+
+See [conventions](api/conventions.md), [data types](api/types.md), and the [event catalogue](api/events.md)
+for the cross-cutting rules.
+
+---
+
+_The [`devlog/`](devlog/) folder holds the original per-task development notes, kept for history. The
+docs above are the reference; the devlog is not._
