@@ -2,6 +2,7 @@ package io.brodgar.addon;
 
 import haven.Coord;
 import haven.GOut;
+import haven.render.Model;
 
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -88,6 +89,26 @@ final class LuaGOut {
                 LuaValue w = a.arg(6);
                 d.line(Coord.of(a.arg(2).toint(), a.arg(3).toint()),
                        Coord.of(a.arg(4).toint(), a.arg(5).toint()), w.isnil() ? 1.0 : w.todouble());
+                return NIL;
+            }
+        });
+        // g:poly(x1,y1, x2,y2, x3,y3, ...) — a FILLED convex polygon (>= 3 points) in the current colour, via a
+        // GPU triangle fan. Points are (x,y) pairs after self; fewer than 3 draws nothing. Used for the ghost
+        // gizmo's arrow-heads (V5b) — Unity-style filled triangles drawn on the HUD overlay — but generic for any
+        // addon. Coordinates go through the GOut translation (tx) exactly like g:line/g:frect, so a poly lines up
+        // with lines drawn on the same surface. Not clipped to the widget bounds (like GOut.fellipse); intended
+        // for full-screen overlay draw where there is nothing to clip against.
+        t.set("poly", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                GOut d = cur; if(d == null) return NIL;
+                int npt = (a.narg() - 1) / 2;                    // arg1 = self; then x,y pairs
+                if(npt < 3) return NIL;
+                float[] data = new float[npt * 2];
+                for(int i = 0; i < npt; i++) {
+                    data[i * 2]     = (float)(d.tx.x + a.arg(2 + (i * 2)).todouble());
+                    data[i * 2 + 1] = (float)(d.tx.y + a.arg(3 + (i * 2)).todouble());
+                }
+                d.drawp(Model.Mode.TRIANGLE_FAN, data);
                 return NIL;
             }
         });

@@ -158,8 +158,35 @@ using three primitives — [`hafen.hook.grab`](hooks.md#hafenhookgrab) (capture 
 `:planner grab`, and it follows the cursor snapped to the placegrid until you click to drop it. See
 [`hafen.hook.grab`](hooks.md#hafenhookgrab) for the drag pattern.
 
+## Transform gizmo (V5b)
+
+A **Unity-style transform gizmo** lets you drag a ghost **by its arrows**: red = world **X**, green = world **Y**,
+a yellow **centre** square for a free ground-plane move. Press an arrow and drag — the ghost moves **along that axis
+only** (the centre moves freely), snapped to the `:placegrid` (SHIFT = fine), and the **camera stays put**. The
+arrows are drawn with [`g:draw`](ui.md#the-g-draw-wrapper) as filled triangles and re-projected every frame, so
+they track the ghost and foreshorten with the camera — no game resource needed.
+
+Per [D-031](../../../specs/addons/decisions.md), the gizmo is a **bundled Lua library over the V5 primitives**
+([`hafen.ui.overlay`](ui.md#overlays) to draw, [`hafen.hook.input`](hooks.md#hafenhookinput) to pick a handle,
+[`hafen.hook.grab`](hooks.md#hafenhookgrab) + [`hafen.map.screenToWorld`](map.md#screen--world--placement-snapping-v5)
++ [`hafen.map.snapPlace`](map.md#screen--world--placement-snapping-v5) to drag) — **not** a built-in `hafen.*`
+function. It ships as [`planner/gizmo.lua`](../../../addons/planner/gizmo.lua); the shape is:
+
+```lua
+-- gizmo.lua installs one global: gizmo(target, opts) -> a gizmo handle.
+local gz = gizmo(myGhost, {                       -- target = anything with :pos() and :move(x,y[,a])
+  mode = "move",                                  -- V5b: "move" (rotate/scale = V6)
+  onCommit = function(p) --[[ p = {x,y,a} on release; re-anchor + persist here ]] end,
+})
+gz:setMode("move")     -- V6 will add "rotate"/"scale"/"all"
+gz:isDragging()        -- bool
+gz:detach()            -- remove the arrows + input hook + any active grab (idempotent); :destroy() is an alias
+```
+
+Try it live: in the [`planner`](../../../addons/planner) addon, `:planner place` a blueprint, click it to select, then
+`:planner gizmo` — and drag it by its arrows. (`:planner grab`, V5a, is the simpler drag-by-the-body move-mode.)
+
 ## Coming next
 
-Still to come: the 3D **arrow-handle gizmo** (`hafen.ghost.gizmo`) — a bundled Lua library over the V5 primitives that
-drags a selected ghost by clickable arrow handles with an axis constraint (V5b) — plus rotation snapping on the
-[`:placeangle`](map.md) and uniform **scale** (`:scale`) (V6).
+Still to come (V6): the gizmo's **rotate** ring (snapping on the [`:placeangle`](map.md)) and uniform **scale**
+(`g:scale`), plus polish — draw-on-top and constant screen-size handles.

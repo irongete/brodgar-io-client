@@ -18,7 +18,8 @@
 --   blueprint [name]  -- show / set the current blueprint (bare = list the palette)
 --   list              -- list placed ghosts (index, resource, grid id, resolved?)
 --   select <n>        -- select ghost #n (or just CLICK it in the world — V2)
---   grab              -- MOVE the selected ghost: it follows the cursor snapped to the placegrid; CLICK to drop (V5)
+--   gizmo             -- attach the Unity-style transform gizmo; DRAG the ghost BY ITS ARROWS (X/Y) or centre (V5b)
+--   grab              -- MOVE the selected ghost by the BODY: follows the cursor snapped to the placegrid (V5a)
 --   rotate [deg]      -- rotate the selected ghost (default +45 deg); the new facing persists
 --   remove [n]        -- remove the selected ghost (or #n)
 --   clear             -- remove every ghost + wipe the saved layout
@@ -29,10 +30,15 @@
 -- reused so it feels IDENTICAL to placing a building: each mouse move raycasts the ground under the cursor
 -- (hafen.map.screenToWorld) and snaps it to the client's :placegrid (hafen.map.snapPlace) -- tile centre by default,
 -- SHIFT = the fine sub-tile grid (D-033). The mouse is captured (hafen.hook.grab) so the CAMERA STAYS PUT while you
--- drag; a CLICK drops it (re-anchored to the new grid + persisted). This is the "drag the body" move-mode; the
--- 3D arrow-handle gizmo ("by its arrows") is V5b.
+-- drag; a CLICK drops it (re-anchored to the new grid + persisted). This is the "drag the body" move-mode.
+--
+-- V5b (gizmo / "by its arrows"): ":planner gizmo" attaches a Unity-style TRANSFORM GIZMO (gizmo.lua, a bundled Lua
+-- library over the V5a primitives -- D-031) to the selected ghost: RED = world-X, GREEN = world-Y arrows + a yellow
+-- free centre, drawn with g:draw() (NO game resources -- the arrow-heads are FILLED TRIANGLES via the new g:poly).
+-- Press an arrow to drag the ghost ALONG THAT AXIS (the centre = free), snapped to the :placegrid (SHIFT = fine),
+-- camera fixed. The arrows re-project each frame so they track the ghost + the camera. See gizmo.lua for the mechanism.
 
-hafen.log("planner loaded (v0.2.0) -- place blueprint ghosts + :planner grab to move them (placegrid-snapped), grid-anchored persistence")
+hafen.log("planner loaded (v0.3.0) -- blueprint ghosts + :planner gizmo (Unity-style, drag by its arrows) / grab, grid-anchored")
 
 -- The blueprint palette. Keys are short names for ':planner place <name>'; values are client resource paths.
 -- logcabin + timberhouse are verified to resolve in-game (V3); ':planner place <res-path>' also takes any raw path.
@@ -57,6 +63,12 @@ local blueprint = DEFAULT_BP
 local selected  = nil
 local retry     = nil   -- the re-resolve retry timer handle while ghosts are still streaming in (nil = idle)
 local drag      = nil   -- V5: the active move-drag { it, grab, pending }, or nil when not dragging
+local activeGizmo = nil -- V5b: the transform gizmo attached to the selected ghost (from gizmo.lua), or nil
+
+-- Detach the active gizmo, if any (idempotent). Called whenever its target (the selection) changes or goes away.
+local function detachGizmo()
+  if activeGizmo then activeGizmo:detach(); activeGizmo = nil end
+end
 
 local function shortRes(res) return (tostring(res):gsub("^.*/", "")) end
 
@@ -95,6 +107,7 @@ end
 -- Select a record (or nil to clear): de-highlight the old one, highlight the new one, and log it.
 local function selectItem(it)
   if selected == it then return end
+  detachGizmo()                      -- the gizmo was on the previous selection; drop it when selection changes
   local prev = selected
   selected = it
   if prev then applyLook(prev) end
@@ -173,6 +186,7 @@ end
 hafen.events.on("OnEnterWorld", function()
   if retry then retry:cancel(); retry = nil end            -- guard against a re-entry (relog/:reload re-fires this)
   if drag then commitDrag() end                            -- V5: never carry a half-finished drag across a relog
+  detachGizmo()                                            -- V5b: drop any gizmo before rebuilding the layout
   selected = nil
   items = {}
   blueprint = hafen.store.layout.blueprint or DEFAULT_BP
@@ -215,6 +229,7 @@ hafen.events.on("GhostClicked", function(ev)
 end)
 
 hafen.events.on("OnDisable", function()
+  detachGizmo()                                            -- V5b: (the bridge tears down the overlay/hooks too)
   hafen.log("planner: OnDisable -- ghosts torn down + layout flushed on teardown (grid-anchored, so a relog restores them)")
 end)
 
@@ -224,10 +239,12 @@ hafen.slash.register("planner", function(args)
   local sub = args[1] or "help"
 
   if (sub == "help") or (sub == "") then
-    hafen.log(":planner -> place | blueprint | list | select | grab | rotate | remove | clear | save")
+    hafen.log(":planner -> place | blueprint | list | select | gizmo | grab | rotate | remove | clear | save")
     hafen.log("   place [name|res] = drop the current/named blueprint at your feet (clickable + saved)")
     hafen.log("   blueprint [name] = show/set the blueprint (bare = list palette); list = show placed ghosts")
-    hafen.log("   select <n> = select #n (or CLICK a ghost); grab = MOVE it with the mouse (placegrid-snapped, CLICK to drop)")
+    hafen.log("   select <n> = select #n (or CLICK a ghost)")
+    hafen.log("   gizmo = attach the Unity-style transform gizmo; drag the ghost BY ITS ARROWS (X/Y axis) or centre (free). SHIFT=fine")
+    hafen.log("   grab = move it by the BODY with the mouse (placegrid-snapped, CLICK to drop) -- V5a")
     hafen.log("   rotate [deg] = turn the selected one; remove [n]; clear; save")
 
   elseif sub == "place" then
@@ -280,6 +297,7 @@ hafen.slash.register("planner", function(args)
     if drag then commitDrag(); return end                  -- toggle: a second :planner grab drops the current one
     if not selected then hafen.log(":planner grab -> nothing selected (click a ghost or :planner select <n>)"); return end
     if not selected.ghost then hafen.log(":planner grab -> that ghost has not streamed in yet; try again in a moment"); return end
+    detachGizmo()                                           -- V5b: the body-grab and the gizmo are mutually exclusive
     local it = selected
     drag = { it = it, pending = false }
     drag.grab = hafen.hook.grab{
@@ -303,6 +321,30 @@ hafen.slash.register("planner", function(args)
     hafen.log((":planner grab -> moving #%d: cursor drags it (placegrid=%s, SHIFT=fine); CLICK to drop. Camera stays put.")
       :format(indexOf(it), tostring(hafen.map.placeGrid())))
 
+  elseif sub == "gizmo" then
+    -- V5b: attach the Unity-style TRANSFORM GIZMO (gizmo.lua) to the selected ghost -- a toggle. Then DRAG the
+    -- ghost BY ITS ARROWS: the red arrow locks to world-X, the green to world-Y, the yellow centre is a free
+    -- ground-plane move. It snaps to the :placegrid (SHIFT = fine) and the camera stays put -- the V5b DoD.
+    if activeGizmo then detachGizmo(); hafen.log(":planner gizmo -> detached"); return end
+    if not selected then hafen.log(":planner gizmo -> nothing selected (click a ghost or :planner select <n>)"); return end
+    if not selected.ghost then hafen.log(":planner gizmo -> that ghost has not streamed in yet; try again in a moment"); return end
+    if drag then commitDrag() end                          -- exclusive with the V5a body-grab
+    local it = selected
+    activeGizmo = gizmo(it.ghost, {                         -- calls the constructor from gizmo.lua (loaded first)
+      -- On release: re-anchor the record to the grid it now sits on (the persistent id) + persist, exactly like
+      -- the V5a body-drag's commitDrag. Closed over the RECORD so a later reorder can't mis-target it.
+      onCommit = function(p)
+        if (it ~= selected) or (not it.ghost) then return end
+        local anchor = hafen.map.gridPos(p.x, p.y)
+        if anchor then it.anchor = anchor end
+        persist()
+        hafen.log((":planner gizmo -> dropped #%d at %.0f,%.0f (grid %s, persisted)")
+          :format(indexOf(it), p.x, p.y, it.anchor.gridId))
+      end,
+    })
+    hafen.log((":planner gizmo -> attached to #%d: drag the RED(X)/GREEN(Y) arrows or the yellow centre (free); SHIFT=fine; camera stays. ':planner gizmo' again to detach.")
+      :format(indexOf(it)))
+
   elseif sub == "rotate" then
     if not selected then hafen.log(":planner rotate -> nothing selected (click a ghost or :planner select <n>)"); return end
     local deg = tonumber(args[2]) or 45
@@ -319,13 +361,14 @@ hafen.slash.register("planner", function(args)
     end
     if not it then hafen.log(":planner remove [n] -> nothing selected and no index given"); return end
     local idx = indexOf(it)
+    if selected == it then selected = nil; detachGizmo() end  -- V5b: drop the gizmo before its target ghost dies
     if it.ghost then it.ghost:destroy() end
     table.remove(items, idx)
-    if selected == it then selected = nil end
     persist()
     hafen.log((":planner remove -> removed #%d %s (%d left)"):format(idx, shortRes(it.res), #items))
 
   elseif sub == "clear" then
+    detachGizmo()                                          -- V5b: drop the gizmo before its target ghost dies
     for _, it in ipairs(items) do if it.ghost then it.ghost:destroy() end end
     items = {}; selected = nil
     persist()

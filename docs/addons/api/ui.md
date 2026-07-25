@@ -132,6 +132,7 @@ point for a gob overlay). Methods are colon-calls.
 | `g:rect(x, y, w, h)` | one-pixel outline rectangle |
 | `g:frect(x, y, w, h)` | filled rectangle |
 | `g:line(x1, y1, x2, y2 [, width])` | a line (`width` default 1) |
+| `g:poly(x1, y1, x2, y2, x3, y3, ...)` | a **filled** convex polygon (≥ 3 points) in the current colour — e.g. a triangle |
 | `g:prect(cx, cy, radius, fraction)` | a clockwise pie/progress wedge (0..1) — for cooldowns/meters |
 | `g:color(r, g, b [, a])` | set the draw colour (0..255); `g:color()` resets to white |
 
