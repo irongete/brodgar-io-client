@@ -265,14 +265,21 @@ public final class AddonManager {
     // kin.* — arriving in later Phase-4 slices) DRIVES the character by sending a player-action wdgmsg — it acts
     // on the user's behalf (moves them, uses items, interacts with the world), which is powerful, so a verb is
     // granted only when BOTH hold (D-027, a permission model like app permissions):
-    //   1. the GLOBAL master switch is ON  — for now the haven-config.properties flag addons.actions.enabled
-    //      (default false); a config edit / -Daddons.actions.enabled=true enables it (restart to apply). Slice 4b
-    //      layers a persisted, panel-toggled pref on top so it can be flipped at runtime. (No runtime toggle yet:
-    //      that is exactly why the master switch reads the config flag ONLY here — a stray persisted pref must not
-    //      be able to strand the switch ON with no UI to turn it off.)
+    //   1. the GLOBAL master switch is ON  — a persisted, panel-toggled pref (the AddOns panel's "Allow addon
+    //      actions (writes)" checkbox, slice 4b), defaulting to the haven-config.properties flag
+    //      addons.actions.enabled (default false; -Daddons.actions.enabled=true still seeds that default). This is
+    //      the USER's runtime choice, never the addon's. (4a read the config flag ONLY — with no runtime toggle
+    //      yet, a stray persisted pref could have stranded the switch ON with no UI to clear it; 4b's panel IS that
+    //      UI, so honoring a persisted pref is now safe.)
     //   2. the calling ADDON declared the "actions" permission in its manifest ("permissions": ["actions"]).
     // Either missing → requireActions throws a clear, distinct Lua error. The read/UI/event tiers are unaffected.
+    // Two D-027 consequences on the enabled set (handled in scanAddonDefaults + loadAll): a newly-discovered write
+    // addon defaults to DISABLED (opt-in per addon; a persisted "seen" set distinguishes it from one the user
+    // deliberately enabled), and while the master switch is OFF a write addon does not LOAD at all.
     private static final Config.Variable<Boolean> CFG_ACTIONS = Config.Variable.propb("addons.actions.enabled", false);
+    private static final String PREF_ACTIONS = "addons/actions.enabled";      // master switch (persisted; panel-toggled)
+    private static final String PREF_ACTIONS_SEEN = "addons/actions.seen";    // write-addon ids we've applied the default to
+    private static volatile Set<String> writeAddonIds = new LinkedHashSet<String>();  // discovered addons that declare "actions"
 
     private AddonManager() {
     }
@@ -281,11 +288,22 @@ public final class AddonManager {
 
     /**
      * The GLOBAL master switch — whether write-actions are allowed for the client at all (one half of D-027).
-     * For now this is the {@code addons.actions.enabled} config flag (default false); slice 4b layers a persisted,
-     * panel-toggled pref on top so it can be flipped at runtime without a config edit + restart.
+     * A persisted, panel-toggled pref ({@link #setActionsEnabled}) whose default is the {@code addons.actions.enabled}
+     * config flag (default false), so the AddOns panel's "Allow addon actions (writes)" checkbox flips it at runtime.
      */
     public static boolean actionsEnabled() {
-        return CFG_ACTIONS.get();
+        return Utils.getprefb(PREF_ACTIONS, CFG_ACTIONS.get());
+    }
+
+    /**
+     * Set the master switch (the AddOns panel checkbox, slice 4b). Persisted client-side; flags a reload as needed
+     * because write-declaring addons load/unload with it (D-027 — apply on reload, like the enabled set). Idempotent.
+     */
+    public static void setActionsEnabled(boolean on) {
+        if(on == actionsEnabled())
+            return;
+        Utils.setprefb(PREF_ACTIONS, on);
+        reloadNeeded = true;
     }
 
     /** Whether {@code owner} may call an action verb right now — master switch ON AND the addon declared it. */
@@ -303,8 +321,8 @@ public final class AddonManager {
             throw new LuaError(verb + ": this addon did not declare the \"actions\" permission — add"
                 + " \"permissions\": [\"actions\"] to its manifest.json (D-027: write-actions must be declared).");
         if(!actionsEnabled())
-            throw new LuaError(verb + ": the global write-actions permission is OFF. Turn it on with"
-                + " addons.actions.enabled=true (a panel checkbox arrives in slice 4b) to let addons act on your behalf.");
+            throw new LuaError(verb + ": the global write-actions permission is OFF. Turn on \"Allow addon actions"
+                + " (writes)\" in Options > AddOns to let addons act on your behalf.");
     }
 
     static {
@@ -446,6 +464,7 @@ public final class AddonManager {
     private static void loadAll() {
         reloadNeeded = false;         // whatever is on disk now IS the applied enabled set
         autoDisabledWarn.clear();     // a (re)load gives every addon a fresh start (drop session warnings)
+        scanAddonDefaults();          // D-027: default-disable newly-discovered write addons; refresh the write-addon cache
         File dir = addonDir();
         log("addons dir: " + dir);
         File[] subs = dir.listFiles(File::isDirectory);
@@ -454,6 +473,7 @@ public final class AddonManager {
             return;
         }
         Set<String> disabled = disabledSet();   // D-006: honor the persisted enabled set (skip disabled)
+        boolean actions = actionsEnabled();     // D-027: a write addon does not load while the master switch is off
         for(File sub : subs) {
             if(!new File(sub, "manifest.json").isFile())
                 continue;
@@ -463,6 +483,10 @@ public final class AddonManager {
             }
             try {
                 Manifest m = Manifest.load(sub.toPath());
+                if(!actions && m.usesActions()) {   // D-027: master switch OFF → a write-declaring addon does not load
+                    log("skipping write-addon '" + m.id + "' — the actions master switch is OFF (enable it in Options > AddOns)");
+                    continue;
+                }
                 Globals g = Sandbox.create();   // D-017 stdlib whitelist + D-018 instruction watchdog
                 Addon addon = new Addon(m, sub.toPath(), g);
                 installHafen(g, addon);
@@ -597,6 +621,63 @@ public final class AddonManager {
         }
     }
 
+    /**
+     * Scan {@link #addonDir()} and apply the D-027 write-addon default (disabled-by-default, opt-in per addon): a
+     * discovered addon that declares the {@code "actions"} permission and has NOT been seen before is added to the
+     * persisted disabled set (and to a persisted "seen" set so it is defaulted exactly once — a later scan then
+     * respects whatever the user has since chosen). Also refreshes {@link #writeAddonIds} (ALL discovered write
+     * addons) for the panel's status. Cheap disk I/O (a handful of small manifests); call on a (re)load / panel
+     * build, not per frame. The pure policy is {@link #applyActionsDefaults} (headless-testable).
+     */
+    private static void scanAddonDefaults() {
+        File dir = addonDir();
+        File[] subs = dir.listFiles(File::isDirectory);
+        if(subs == null) {
+            writeAddonIds = new LinkedHashSet<String>();
+            return;
+        }
+        Map<String, Boolean> declares = new LinkedHashMap<String, Boolean>();
+        for(File sub : subs) {
+            if(!new File(sub, "manifest.json").isFile())
+                continue;
+            try {
+                declares.put(sub.getName(), Manifest.load(sub.toPath()).usesActions());
+            } catch(Exception e) {
+                /* a broken manifest surfaces as an error row elsewhere; no default to apply here */
+            }
+        }
+        List<String> seenL = Utils.getprefsl(PREF_ACTIONS_SEEN, new String[0]);
+        Set<String> seen = (seenL == null) ? new LinkedHashSet<String>() : new LinkedHashSet<String>(seenL);
+        Set<String> disabled = disabledSet();
+        int seenBefore = seen.size(), disBefore = disabled.size();   // applyActionsDefaults only ADDS to both
+        writeAddonIds = applyActionsDefaults(seen, disabled, declares);
+        if(seen.size() != seenBefore)
+            Utils.setprefsl(PREF_ACTIONS_SEEN, seen);
+        if(disabled.size() != disBefore)
+            Utils.setprefsl(PREF_DISABLED, disabled);
+    }
+
+    /**
+     * The pure D-027 write-addon default policy (no I/O): for each entry in {@code declares} that is a write addon
+     * (value {@code true}) and NOT already in {@code seen}, mark it seen and add it to {@code disabled}
+     * (disabled-by-default — write addons are opt-in per addon). A write addon already in {@code seen} is left to
+     * the user's enable/disable choice; read addons are ignored entirely. {@code seen} and {@code disabled} are
+     * mutated in place (additions only). Returns the ids of ALL write addons in {@code declares} (the panel's
+     * status cache). Headless-testable.
+     */
+    static Set<String> applyActionsDefaults(Set<String> seen, Set<String> disabled, Map<String, Boolean> declares) {
+        Set<String> writeIds = new LinkedHashSet<String>();
+        for(Map.Entry<String, Boolean> e : declares.entrySet()) {
+            if(!Boolean.TRUE.equals(e.getValue()))
+                continue;
+            String id = e.getKey();
+            writeIds.add(id);
+            if(seen.add(id))          // first time we've seen this addon AS a write addon → default it disabled
+                disabled.add(id);
+        }
+        return writeIds;
+    }
+
     /** The loaded addon with this id, or {@code null} if none is loaded (disabled, missing, or errored). */
     private static Addon findLoaded(String id) {
         for(Addon a : addons)
@@ -647,16 +728,18 @@ public final class AddonManager {
     public static final class AddonInfo {
         public final String id, name, version, author, description;
         public final int apiVersion;
-        public final boolean enabled;   // persisted enabled state (the checkbox) — NOT the live-loaded state
-        public final boolean loaded;    // currently running this session
-        public final String error;      // load/runtime error, or null
-        public final String warning;    // session warning (e.g. auto-disabled by the CPU watchdog), or null
+        public final boolean enabled;          // persisted enabled state (the checkbox) — NOT the live-loaded state
+        public final boolean loaded;           // currently running this session
+        public final boolean declaresActions;  // declares the "actions" write permission (D-027: default-disabled, master-gated)
+        public final String error;             // load/runtime error, or null
+        public final String warning;           // session warning (e.g. auto-disabled by the CPU watchdog), or null
 
         AddonInfo(String id, String name, String version, String author, String description,
-                  int apiVersion, boolean enabled, boolean loaded, String error, String warning) {
+                  int apiVersion, boolean enabled, boolean loaded, boolean declaresActions,
+                  String error, String warning) {
             this.id = id; this.name = name; this.version = version; this.author = author;
             this.description = description; this.apiVersion = apiVersion; this.enabled = enabled;
-            this.loaded = loaded; this.error = error; this.warning = warning;
+            this.loaded = loaded; this.declaresActions = declaresActions; this.error = error; this.warning = warning;
         }
     }
 
@@ -667,6 +750,7 @@ public final class AddonManager {
      * per frame — use {@link #liveStatus(String)} for the cheap per-frame status refresh.
      */
     public static List<AddonInfo> describeAddons() {
+        scanAddonDefaults();          // D-027: reflect the write-addon default (+ refresh the cache) for any new addon
         List<AddonInfo> out = new ArrayList<AddonInfo>();
         File dir = addonDir();
         File[] subs = dir.listFiles(File::isDirectory);
@@ -690,6 +774,7 @@ public final class AddonManager {
                 (m != null) ? m.apiVersion : 0,
                 !disabled.contains(id),
                 loaded != null,
+                (m != null) && m.usesActions(),
                 error,
                 autoDisabledWarn.get(id)));
         }
@@ -708,7 +793,11 @@ public final class AddonManager {
         Addon a = findLoaded(id);
         if(a != null)
             return (a.error == null) ? ("loaded v" + a.manifest.version) : ("error: " + a.error);
-        return isEnabled(id) ? "not loaded" : "disabled";
+        if(!isEnabled(id))
+            return "disabled";
+        if(!actionsEnabled() && writeAddonIds.contains(id))   // enabled but held back by the master switch (D-027)
+            return "blocked: actions off";
+        return "not loaded";
     }
 
     /** Whether the enabled set has changed since the last (re)load (a reload is pending to apply it). */

@@ -1,0 +1,10 @@
+{
+  "name": "Walker",
+  "id": "walker",
+  "version": "0.1.0",
+  "author": "brodgar",
+  "description": "Write-actions demo (Phase 4b) — a small, DORMANT, opt-in addon that DECLARES the 'actions' permission (hafen.act, the one part of hafen.* that DRIVES the character). Under D-027 it is therefore DISABLED BY DEFAULT when first discovered (write addons are opt-in per addon), and it does not load at all while the global master switch 'Allow addon actions (writes)' in Options > AddOns is off. Enable it, turn that switch on, and Reload UI: it logs at login that write-actions are GRANTED, and ':walker' deliberately walks you ~2 tiles south via hafen.act.moveTo. Turn the switch off and Reload UI and it stops loading entirely. Kept SEPARATE from the read-only 'hello' regression harness (which must load regardless of the switch).",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["actions"]
+}

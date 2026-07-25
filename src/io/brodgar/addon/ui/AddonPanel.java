@@ -22,8 +22,9 @@ import java.util.List;
  * {@link AddonManager} facade exactly as the voice panel drives {@code Voice}. Each row is one
  * discovered addon — an <b>enable/disable</b> checkbox (WoW "apply on reload": {@link
  * AddonManager#setEnabled}), name/version/author with the description as a tooltip, and a live status
- * (loaded / disabled / error / auto-disabled) — plus global <b>Reload UI</b>, <b>Enable all</b>, and
- * <b>Open addons folder</b> controls and a "changes pending" hint.
+ * (loaded / disabled / error / auto-disabled / blocked-by-the-master-switch) — plus the D-027
+ * <b>"Allow addon actions (writes)"</b> master switch ({@link AddonManager#setActionsEnabled}), global
+ * <b>Reload UI</b>, <b>Enable all</b>, and <b>Open addons folder</b> controls and a "changes pending" hint.
  *
  * <p>It extends {@code OptWnd.Panel} (a non-static inner class) from this package via the qualified
  * {@code opt.super()} / {@code opt.new PButton(...)} forms; every widget it uses ({@link Scrollport},
@@ -42,7 +43,17 @@ public class AddonPanel extends OptWnd.Panel {
         opt.super();
         Widget prev = add(new Label("AddOns"), 0, 0);
         prev = add(new Label("Enable or disable addons. Changes apply on reload."), prev.pos("bl").adds(0, 2));
-        list = add(new Scrollport(UI.scale(new Coord(360, 220))), prev.pos("bl").adds(0, 8));
+        // D-027 master switch (slice 4b): the ONE user control for the gated write-actions tier. When on, addons
+        // that declared the "actions" permission may act on the player's behalf; such addons are disabled by
+        // default and do not load at all while this is off. Applies on reload, like the per-addon checkboxes.
+        CheckBox actions = add(new CheckBox("Allow addon actions (writes)") {
+                { a = AddonManager.actionsEnabled(); }
+                public void set(boolean v) { AddonManager.setActionsEnabled(v); a = v; }
+            }, prev.pos("bl").adds(0, 8));
+        actions.settip("When ON, addons that declare the \"actions\" permission may act on your behalf — move" +
+            " your character, use items, interact with the world. OFF by default. Such an addon is disabled until" +
+            " you enable it, and turning this off stops it loading entirely. Applies on reload.", false);
+        list = add(new Scrollport(UI.scale(new Coord(360, 220))), actions.pos("bl").adds(0, 8));
         hint = add(new Label(""), list.pos("bl").adds(0, 6));
         Button reload = add(new Button(UI.scale(120), "Reload UI", false).action(AddonManager::requestReload),
                             hint.pos("bl").adds(0, 8));
@@ -98,7 +109,8 @@ public class AddonPanel extends OptWnd.Panel {
                 }, UI.scale(new Coord(0, 1)));
             String meta = ai.name
                 + ((ai.version != null) ? ("  v" + ai.version) : "")
-                + ((ai.author != null) ? ("  " + ai.author) : "");
+                + ((ai.author != null) ? ("  " + ai.author) : "")
+                + (ai.declaresActions ? "  [actions]" : "");   // D-027: this addon can drive the character (gated)
             Label nm = add(new Label(meta), UI.scale(new Coord(22, 3)));
             if(ai.description != null)
                 nm.settip(ai.description, false);

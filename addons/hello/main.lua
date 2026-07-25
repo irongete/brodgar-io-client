@@ -1,9 +1,8 @@
--- Example addon (Phase 4a): WRITE-ACTIONS PERMISSION — hafen.act is the ONE part of hafen.* that DRIVES the
--- character (sends player-action wdgmsgs; everything else only observes). It is GATED (D-027): a verb runs only
--- when the global master switch is ON *and* this addon DECLARED the permission ("permissions": ["actions"] in
--- manifest.json — hello does). Write-actions act on your behalf, so you opt in and choose which addons may. hello
--- only READS whether it's granted at login (hafen.act.enabled()); the moveTo(x,y) walk verb is exercised DELIBERATELY
--- via  :hello walk . Turn the master switch on with addons.actions.enabled=true and restart (a panel checkbox comes in 4b).
+-- Example addon + standing REGRESSION HARNESS. It exercises the READ / UI / event tiers of hafen.* and re-runs
+-- them on every login, so one login re-checks every prior slice. It is READ-ONLY (declares no permissions), so it
+-- always loads regardless of the write-actions master switch (D-027, slice 4b) — the gated WRITE tier (hafen.act:
+-- moveTo, …) now lives in the separate, opt-in `walker` addon, which DECLARES "permissions": ["actions"] and is
+-- therefore disabled by default and only loads once you turn on "Allow addon actions (writes)" in Options > AddOns.
 -- Built on gap subsystem A7: MOVEMENT SPEED — hafen.speed reads the crawl/walk/run/sprint selector
 -- (get() -> current speed 0..3, max() -> highest currently-selectable, name([n]) -> display name); read-only
 -- here, since changing speed is the gated Phase-4 action tier. Built on gap subsystem A6: KIN / BUDDY ROSTER —
@@ -47,7 +46,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.32.0)")
+hafen.log("hello loaded (v0.33.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -426,32 +425,10 @@ local function dumpFight()                        -- :hello fight -- the deck (b
   end
 end
 
--- PHASE 4a: WRITE-ACTIONS PERMISSION via hafen.act. This is the ONE part of hafen.* that DRIVES the character --
--- it sends player-action wdgmsgs to the server (everything else only observes). It is GATED (D-027): a verb runs
--- only when the global master switch is ON *and* this addon declared the permission ("permissions": ["actions"]
--- in our manifest.json). Either missing -> the verb THROWS a guiding error. Write-actions act on your behalf, so
--- you opt in and choose which addons may. enabled() reports whether we're granted right now WITHOUT throwing, so
--- hello only READS it at login (readActions below) -- it never moves your character on its own. moveTo(x,y) walks the
--- character to a WORLD position (the same coords hafen.gob.pos returns); try it DELIBERATELY with  :hello walk
--- (a small ~2-tile hop south), which no-ops with a hint while the permission isn't granted. (More verbs --
--- clickGob/useItemOn/place/select/menu/flower/item + speed.set/craft.make/actionbar.use/kin.* -- arrive in later
--- Phase-4 slices, all behind this same permission.)
-local function readActions(tag)
-  hafen.log(("[%s] actions: write-permission %s (master switch = addons.actions.enabled; lets addons act on your behalf)")
-    :format(tag, hafen.act.enabled() and "GRANTED" or "not granted"))
-end
-local function walkDemo()                          -- :hello walk -- a deliberate, opt-in moveTo demo (~2 tiles south)
-  if not hafen.act.enabled() then
-    hafen.log(":hello walk -> write-actions permission not granted. Turn the master switch on:"
-      .. " set addons.actions.enabled=true and restart (a panel checkbox comes in 4b).")
-    return
-  end
-  local p = hafen.gob.pos("player")
-  if not p then hafen.log(":hello walk -> no player position yet"); return end
-  local dx, dy = p.x, p.y + 22                      -- 22 world units ~ 2 tiles (tilesz = 11) to the south
-  hafen.act.moveTo(dx, dy)
-  hafen.log((":hello walk -> moveTo(%.1f, %.1f)  [~2 tiles south of you -- watch your character walk]"):format(dx, dy))
-end
+-- PHASE 4a/4b: the gated WRITE-ACTIONS tier (hafen.act.moveTo, …) is exercised by the separate, opt-in `walker`
+-- addon (see addons/walker/), NOT here. hello is the always-on READ-ONLY regression harness, so it must load on
+-- every login regardless of the write-actions master switch — and a write-declaring addon does not load while that
+-- switch is off (D-027). See docs/addons/phase-4b-actions-panel-default-disabled.md.
 
 -- 3b: WIDGET MODEL (hafen.ui.adopt). We adopt the MAIN INVENTORY as a model down in the onWidgetCreate observer
 -- (the 3a -> 3b flow: observe a widget's creation, then adopt it by desc.id). invModel is that handle (nil until
@@ -505,10 +482,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now"); readCraft("now"); readQuests("now"); readWounds("now"); readFight("now"); readActions("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now"); readCraft("now"); readQuests("now"); readWounds("now"); readFight("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s"); readWounds("+3s"); readFight("+3s"); readActions("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s"); readWounds("+3s"); readFight("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via Ctrl+B) and it logs") end
   end)
@@ -893,7 +870,7 @@ end)
 -- sound, and ":hello echo <text...>" shows the args rejoined (quoting survives — :hello echo "a b" c -> a b c).
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | walk")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight")
     return
   end
   local sub = args[1]
@@ -917,10 +894,8 @@ hafen.slash.register("hello", function(args)
     dumpWounds()                                 -- A9-2: dump the full wound tree (name/severity, indented)
   elseif sub == "fight" then
     dumpFight()                                  -- A10: dump the combat-school deck (by hotkey) + known maneuvers
-  elseif sub == "walk" then
-    walkDemo()                                   -- 4a: deliberately walk ~2 tiles south (gated: no-ops while off)
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | walk)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight)")
       :format(#args, table.concat(args, " | ")))
   end
 end)
