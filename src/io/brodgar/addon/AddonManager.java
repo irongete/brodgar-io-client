@@ -50,6 +50,7 @@ import haven.SAttrWnd;
 import haven.SkillWnd;
 import haven.Speaking;
 import haven.Speedget;
+import haven.TexI;
 import haven.UI;
 import haven.Utils;
 import haven.WItem;
@@ -73,7 +74,9 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 import java.awt.event.KeyEvent;
+import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -91,6 +94,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import javax.imageio.ImageIO;
 
 /**
  * The AddOn engine (see {@code specs/addons/04-engine.md}).
@@ -507,6 +512,7 @@ public final class AddonManager {
         teardownReplacers(a);         // 3c: stop the replacers matching (models un-hidden above, views destroyed above)
         teardownSlashCommands(a);     // A11: drop the addon's live slash handlers (Console dispatchers stay — C1)
         teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
+        teardownImages(a);            // R1: dispose custom images (frees each TexI's GL texture — no leak)
         teardownMouseGrabs(a);        // V5: release any active mouse-drag grab (drops the UI.Grab + unlinks the widget)
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
@@ -3155,6 +3161,28 @@ public final class AddonManager {
         });
         hafen.set("ghost", ghost);
 
+        // hafen.render — render CUSTOM assets that are NOT engine `.res` (spec 17-custom-rendering). The sibling of
+        // hafen.ghost (which places `.res` game models in the world): this is for the addon's OWN files. R1 ships the
+        // 2D-image loader; world sprites (R2) and glTF models (R3) join it later. Client-only ⇒ SAFE-tier, NOT gated
+        // (D-034), like a HUD overlay. A `.res` file is already a PNG under the hood (Resource.Image = new TexI(
+        // ImageIO.read(...))), so this just exposes that substrate directly, skipping the `.res` container.
+        LuaTable render = new LuaTable();
+        // hafen.render.image(path) — load a PNG (or any ImageIO-decodable image) from THIS addon's folder into a
+        // cached, bridge-owned handle. `path` is addon-relative (e.g. "icon.png", "img/sign.png"); absolute paths
+        // and ".." escapes are REJECTED (D-017 — an addon reads only its own assets). Repeated loads of the same
+        // path return the SAME handle (one TexI per (addon, path)). Call it from setup code (OnLoad/OnEnterWorld/a
+        // command), never inside a draw (v1 decodes synchronously). Returns a handle:
+        //   :size()     -- {w, h} in pixels
+        //   :dispose()  -- free the GPU texture now (also automatic on reload/disable/relogin, P2)
+        // Draw it inside any draw callback via the `g` wrapper: g:image(img, x, y[, w, h]) / g:aimage(img, x, y,
+        // ax, ay). A disposed/typo'd handle simply draws nothing (the draw verbs are forgiving).
+        render.set("image", new OneArgFunction() {
+            public LuaValue call(LuaValue path) {
+                return newImage(owner, path);
+            }
+        });
+        hafen.set("render", render);
+
         // hafen.hook — intercept/alter client behaviour, not just observe it (spec 13-hooks-and-interception).
         // Two levels so far, both PRE-hooks (fn(ev) runs BEFORE the default; ev:preventDefault() cancels it):
         //   L1 hafen.hook.input(target, event, fn)  (Phase 2c) — the built-in zero-core-edit Widget.listen
@@ -4599,6 +4627,107 @@ public final class AddonManager {
             return;
         for(LuaGhost gh : new ArrayList<LuaGhost>(a.ghosts))
             destroyGhost(gh);          // removes each from a.ghosts as it goes (copy-on-write list)
+    }
+
+    // ---- R1: custom images (hafen.render.image) --------------------------------------------------------------
+
+    /**
+     * Resolve an addon-relative asset path to a filesystem {@link Path} <b>inside</b> the addon's own folder,
+     * rejecting absolute paths and {@code ..} escapes (D-017 — an addon reads only its own assets). {@code ctx}
+     * names the caller in the error text. After {@code normalize()}, both an absolute path and a {@code ..} that
+     * climbs out of the folder fail the containment check (they no longer start with the folder), while an
+     * internal {@code a/../b} is allowed. Never returns a path outside {@link Addon#dir}.
+     */
+    private static Path resolveAddonAsset(Addon owner, String name, String ctx) {
+        if((name == null) || name.isEmpty())
+            throw new LuaError(ctx + ": path must be a non-empty string (addon-relative, e.g. \"icon.png\")");
+        Path base = owner.dir.toAbsolutePath().normalize();
+        Path p;
+        try {
+            p = base.resolve(name).normalize();
+        } catch(RuntimeException e) {                 // InvalidPathException — a malformed name
+            throw new LuaError(ctx + ": invalid path '" + name + "'");
+        }
+        if(!p.startsWith(base))                        // absolute, or a ".." that climbs out → rejected
+            throw new LuaError(ctx + ": path '" + name + "' escapes the addon folder (absolute paths and '..' are not allowed)");
+        return p;
+    }
+
+    /**
+     * {@code hafen.render.image(path)} (R1): load a PNG (or any {@code ImageIO}-decodable image) from the addon's
+     * own folder into a cached, bridge-owned {@link LuaImage} handle. Rejects a non-string / out-of-folder path
+     * (D-017); decodes <b>synchronously</b> on the UI thread (small local assets — spec 17 §3) via {@code ImageIO}
+     * → {@link TexI}; a repeated load of the same path returns the <b>same</b> handle (one {@code TexI} per
+     * {@code (addon, path)}). A decode failure raises a clear {@link LuaError}.
+     */
+    private static LuaValue newImage(Addon owner, LuaValue pathv) {
+        if(!pathv.isstring())
+            throw new LuaError("hafen.render.image(path) expects a string (an addon-relative file name, e.g. \"icon.png\")");
+        String name = pathv.tojstring();
+        for(LuaImage ex : owner.images) {              // cache: one handle per (addon, path)
+            if(!ex.dead && name.equals(ex.name) && (ex.handle != null))
+                return ex.handle;
+        }
+        Path p = resolveAddonAsset(owner, name, "hafen.render.image");
+        BufferedImage img;
+        try {
+            img = ImageIO.read(p.toFile());
+        } catch(IOException | RuntimeException e) {
+            throw new LuaError("hafen.render.image: could not read '" + name + "': " + e.getMessage());
+        }
+        if(img == null)
+            throw new LuaError("hafen.render.image: '" + name + "' is not a decodable image (PNG/JPG/GIF/BMP)");
+        LuaImage li = new LuaImage(owner, name, new TexI(img));
+        owner.images.add(li);
+        LuaValue handle = imageHandle(li);
+        li.handle = handle;
+        return handle;
+    }
+
+    /**
+     * The Lua handle for a {@link LuaImage} (R1): {@code :size()} → {@code {w,h}} and {@code :dispose()}. The
+     * table also carries the {@link LuaImage} as an <b>opaque userdata</b> (its {@link LuaImage#KEY} field) so
+     * {@code g:image}/{@code g:aimage} can {@link LuaImage#resolve} it back to the texture — facade-safe (no Java
+     * method is reachable from Lua; the userdata has no metatable and cannot be forged without {@code luajava}).
+     */
+    private static LuaValue imageHandle(final LuaImage li) {
+        LuaTable h = new LuaTable();
+        h.set(LuaImage.KEY, LuaValue.userdataOf(li));  // opaque backing ref for g:image / g:aimage
+        h.set("size", new ZeroArgFunction() {
+            public LuaValue call() {
+                LuaTable t = new LuaTable();
+                t.set("w", LuaValue.valueOf(li.sz.x));
+                t.set("h", LuaValue.valueOf(li.sz.y));
+                return t;
+            }
+        });
+        h.set("dispose", new VarArgFunction() {
+            public Varargs invoke(Varargs a) { disposeImage(li); return a.arg1(); }
+        });
+        return h;
+    }
+
+    /**
+     * Free one image now (its {@code :dispose()}, and teardown): flip {@link LuaImage#dead} (so an in-flight
+     * {@code g:image} on the draw thread no-ops instead of re-uploading the texture via {@code TexI.st()}), drop
+     * it from the addon's registry, and dispose the {@link TexI} (frees the GL texture). Idempotent.
+     */
+    private static void disposeImage(LuaImage li) {
+        if(li.dead)
+            return;
+        li.dead = true;
+        li.owner.images.remove(li);
+        try {
+            li.tex.dispose();
+        } catch(RuntimeException e) { /* best-effort: free the GL texture */ }
+    }
+
+    /** Dispose every image this addon owns (reload/disable/relogin, P2): frees each {@code TexI}'s GL texture. */
+    private static void teardownImages(Addon a) {
+        if(a.images.isEmpty())
+            return;
+        for(LuaImage li : new ArrayList<LuaImage>(a.images))
+            disposeImage(li);          // removes each from a.images as it goes (copy-on-write list)
     }
 
     /**

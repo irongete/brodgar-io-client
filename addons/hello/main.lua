@@ -61,7 +61,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.37.0)")
+hafen.log("hello loaded (v0.38.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -824,6 +824,20 @@ local moveHookSeen = 0      -- 2d: how many moves the action hook has observed w
 local vitalsFreeze = false  -- 2e: while true, the "set" message hook SWALLOWS meter updates -> the HUD vitals bars freeze (toggle: MIDDLE-click)
 local msgHookSeen = 0       -- 2e: how many meter "set" messages the hook has observed while OFF (for the "observed" log lines)
 
+-- R1: CUSTOM IMAGE (hafen.render.image). Load a PNG shipped in THIS addon's own folder (icon.png -- a small
+-- green "H" disc) into a bridge-owned TexI handle, then draw it below in the 2a window (native + scaled) and
+-- the 2b HUD overlay (anchored). This is a CLIENT-ONLY render asset, NOT an engine .res -- SAFE-tier, NOT
+-- gated (D-034), like an overlay. Paths are addon-relative and sandboxed (absolute / ".." are rejected, D-017).
+-- The handle exposes :size() -> {w,h} and :dispose(); it is disposed AUTOMATICALLY on :reload/disable (P2), so
+-- there is no GL leak (the Phase-R1 DoD). Loaded at OnLoad -> re-loaded on every reload (the env is rebuilt).
+local icon   -- the image handle (nil until loaded; a fresh reload rebuilds the env -> nil, re-loaded below)
+hafen.events.on("OnLoad", function()
+  icon = hafen.render.image("icon.png")
+  local s = icon:size()
+  hafen.log(("R1: loaded icon.png (%dx%d) -- drawn in the 2a window (native + scaled) and the 2b HUD overlay")
+    :format(s.w, s.h))
+end)
+
 local function drawPanel(g, w, h)
   g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()          -- translucent backdrop
   g:text(("clock %.0f"):format(hafen.time.clock() or 0), 6, 6)
@@ -853,6 +867,12 @@ local function drawPanel(g, w, h)
   g:color(vitalsFreeze and 90 or 150, vitalsFreeze and 210 or 150, vitalsFreeze and 235 or 150)
   g:text(("vitals-freeze %s (MMB)"):format(vitalsFreeze and "ON" or "OFF"), 6, 118)
   g:color()
+  -- R1: draw the custom image (hafen.render.image) two ways in the top-right, above the bars: native 32x32
+  -- and the same handle scaled to 16x16 (g:image with/without a w,h). A nil/disposed handle draws nothing.
+  if icon then
+    g:image(icon, w - 34, 2)                                      -- native size (32x32) in the top-right corner
+    g:image(icon, w - 52, 2, 16, 16)                             -- the SAME image scaled to 16x16, just left of it
+  end
   g:color(170, 170, 170); g:rect(0, 0, w, h); g:color()          -- 1px border
 end
 
@@ -1118,6 +1138,8 @@ local function drawHud(g, w, h)
   else g:color(120, 200, 120) end                                -- green: hooks observing only
   g:rect(x, 2, bw, 18); g:color()
   g:text(txt, x + 6, 4)
+  -- R1: an ANCHORED image (g:aimage) just LEFT of the readout box -- ax=1 (right edge at x-4), ay=0.5 (centred).
+  if icon then g:aimage(icon, x - 4, 11, 1.0, 0.5) end
   local cx, cy = math.floor(w / 2), math.floor(h / 2)            -- crosshair at the exact screen centre
   g:color(255, 90, 90, 200)
   g:line(cx - 8, cy, cx + 8, cy, 1); g:line(cx, cy - 8, cx, cy + 8, 1)

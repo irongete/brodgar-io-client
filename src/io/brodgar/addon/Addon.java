@@ -133,6 +133,16 @@ public final class Addon {
      */
     public final List<LuaGhost> ghosts = new CopyOnWriteArrayList<LuaGhost>();
     /**
+     * Live custom images owned by this addon ({@code hafen.render.image}, R1): each is a PNG decoded from the
+     * addon's own folder into a {@link haven.TexI} GPU texture — a client-only render asset that is NOT an
+     * engine {@code .res} (SAFE-tier, D-034). Like the hook lists there is no global dispatch/poll list; an
+     * image is a passive texture drawn on demand through the {@code g} wrapper, so it lives only here. Teardown
+     * ({@link AddonManager#teardownImages}) disposes each ({@code TexI.dispose()} frees the GL texture) so a
+     * reload/disable/relogin leaks no GPU resource — the same guarantee as windows, overlays, and ghosts.
+     * Copy-on-write: a firing callback may load or {@code :dispose()} an image.
+     */
+    public final List<LuaImage> images = new CopyOnWriteArrayList<LuaImage>();
+    /**
      * Live modal mouse-drag captures owned by this addon ({@code hafen.hook.grab}, V5): each is a
      * {@link LuaMouseGrab} widget on {@code ui.root} that forwards mouse move/up to Lua while capturing the drag
      * (the gizmo's drag primitive). Normally transient (one per active drag) and self-releasing on mouse-up;

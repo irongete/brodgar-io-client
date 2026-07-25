@@ -21,7 +21,8 @@ import org.luaj.vm2.lib.VarArgFunction;
  * parameters start at {@code arg(2)}; coercions are forgiving (a bad arg draws garbage rather than
  * throwing). Coordinates are the callback's local pixel space (widget-local for a widget, screen for a
  * HUD overlay, the gob's projected screen point for a gob overlay). Maps 1:1 to {@link GOut}. Image
- * drawing ({@code g:image}) needs resource/{@code Tex} resolution and is deferred to a later UI slice.
+ * drawing ({@code g:image}/{@code g:aimage}, R1) takes a {@code hafen.render.image} handle (a
+ * {@link LuaImage}) and blits its {@link haven.TexI}; a nil/typo/disposed image simply draws nothing.
  */
 final class LuaGOut {
     /** The live {@link GOut} during the current draw callback, else {@code null} (the wrapper is then inert). */
@@ -109,6 +110,37 @@ final class LuaGOut {
                     data[i * 2 + 1] = (float)(d.tx.y + a.arg(3 + (i * 2)).todouble());
                 }
                 d.drawp(Model.Mode.TRIANGLE_FAN, data);
+                return NIL;
+            }
+        });
+        // g:image(img, x, y)         — draw a hafen.render.image (R1) at its native size, top-left at (x, y).
+        // g:image(img, x, y, w, h)   — the same, scaled into a w×h box.
+        // `img` is the handle from hafen.render.image; a nil / wrong-type / disposed handle draws nothing (the
+        // resolve returns null / the dead guard skips it) — never throws, matching the forgiving g wrapper.
+        t.set("image", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                GOut d = cur; if(d == null) return NIL;
+                LuaImage img = LuaImage.resolve(a.arg(2));
+                if((img == null) || img.dead || (img.tex == null)) return NIL;
+                // colon call: arg1 = self, arg2 = img, arg3 = x, arg4 = y, arg5 = w, arg6 = h
+                Coord c = Coord.of(a.arg(3).toint(), a.arg(4).toint());
+                LuaValue wv = a.arg(5), hv = a.arg(6);
+                if(wv.isnumber() && hv.isnumber())
+                    d.image(img.tex, c, Coord.of(wv.toint(), hv.toint()));   // scaled → GOut.image(Tex,Coord,Coord)
+                else
+                    d.image(img.tex, c);                                     // native → GOut.image(Tex,Coord)
+                return NIL;
+            }
+        });
+        // g:aimage(img, x, y, ax, ay) — anchored image (ax/ay 0..1 = which point of the image sits at x,y),
+        // mirroring g:atext. Same forgiving nil/disposed handling as g:image.
+        t.set("aimage", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                GOut d = cur; if(d == null) return NIL;
+                LuaImage img = LuaImage.resolve(a.arg(2));
+                if((img == null) || img.dead || (img.tex == null)) return NIL;
+                d.aimage(img.tex, Coord.of(a.arg(3).toint(), a.arg(4).toint()),
+                         a.arg(5).todouble(), a.arg(6).todouble());          // → GOut.aimage(Tex,Coord,ax,ay)
                 return NIL;
             }
         });

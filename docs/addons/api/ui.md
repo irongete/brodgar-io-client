@@ -134,7 +134,10 @@ point for a gob overlay). Methods are colon-calls.
 | `g:line(x1, y1, x2, y2 [, width])` | a line (`width` default 1) |
 | `g:poly(x1, y1, x2, y2, x3, y3, ...)` | a **filled** convex polygon (≥ 3 points) in the current colour — e.g. a triangle |
 | `g:prect(cx, cy, radius, fraction)` | a clockwise pie/progress wedge (0..1) — for cooldowns/meters |
+| `g:image(img, x, y [, w, h])` | draw a [`hafen.render.image`](render.md) at native size (or scaled into `w × h`) |
+| `g:aimage(img, x, y, ax, ay)` | draw a [`hafen.render.image`](render.md) anchored; `ax`/`ay` 0..1 pick which point sits at `(x, y)` |
 | `g:color(r, g, b [, a])` | set the draw colour (0..255); `g:color()` resets to white |
 
 `g` is valid only during the draw callback — stashing it and drawing later does nothing (it goes
-inert). Image drawing is not yet available.
+inert). To draw your own PNG images (not engine `.res` art), load them with
+[`hafen.render.image`](render.md) and blit with `g:image`/`g:aimage` above.
