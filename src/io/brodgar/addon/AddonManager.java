@@ -35,6 +35,7 @@ import haven.Makewindow;
 import haven.MapFile;
 import haven.MapView;
 import haven.MCache;
+import haven.MenuGrid;
 import haven.MiniMap;
 import haven.Moving;
 import haven.Music;
@@ -2480,7 +2481,18 @@ public final class AddonManager {
         // order; filter is the canonical nil=all / name-substring / predicate. find(nameOrId) returns one
         // snapshot — a number matches by id, a string by exact (case-insensitive) name. Subscribe to
         // KinChanged (fired with the new list when a kin is added/removed, renamed/regrouped, or flips
-        // online/offline). Kin management (add/remove/rename) is the gated action tier (Phase 4).
+        // online/offline). The GATED write verbs (4g, requireActions) mutate the roster. add(secret) adds a kin
+        // by the other player's HEARTH SECRET — the Kin window's "Make kin by hearth secret / Add kin" field
+        // (wdgmsg("bypwd", secret)); the roster has no add-by-NAME message. remove(kin) and forget(kin) are the
+        // TWO STEPS of dropping a kin — the game's own "End kinship" then "Forget" (a state machine):
+        //   remove(kin)  = END KINSHIP (Buddy.endkin) — ends the kinship; the kin STAYS in the list, now merely
+        //                  memorized (un-kinned). This is the "End kinship" petal (shown while the kin is active).
+        //   forget(kin)  = FORGET (Buddy.forget) — drops a memorized kin from the list entirely. This is the
+        //                  "Forget" petal (shown once the kin is un-kinned). To fully remove an ACTIVE kin:
+        //                  remove(kin), then forget(kin) once it is memorized.
+        // Both send the same wdgmsg("rm", id); the SERVER advances the state (active → memorized → gone), exactly
+        // as clicking the two petals in turn does. rename(kin, name)=wdgmsg("nick"), setGroup(kin, group)=wdgmsg(
+        // "grp"). `kin` = a kin snapshot (from list/find), its id, or a name (exact, case-insensitive).
         LuaTable kin = new LuaTable();
         kin.set("list", new OneArgFunction() {
             public LuaValue call(LuaValue filter) {
@@ -2492,6 +2504,51 @@ public final class AddonManager {
                 return kinFind(key);
             }
         });
+        // add(secret) / remove(kin) / forget(kin) / rename(kin, name) / setGroup(kin, group) — the gated write
+        // verbs (4g). requireActions-gated (D-027/D-028); `kin` resolves via resolveKin (snapshot / id / name).
+        kin.set("add", new OneArgFunction() {
+            public LuaValue call(LuaValue secret) {
+                requireActions(owner, "hafen.kin.add");
+                if(!secret.isstring())
+                    throw new LuaError("hafen.kin.add(secret): secret must be a string (the other player's hearth secret)");
+                actKinAdd(secret.tojstring());              // wdgmsg("bypwd", secret) — the "Add kin" field
+                return LuaValue.NIL;
+            }
+        });
+        // remove(kin) = END KINSHIP (step 1): ends the kinship; the kin stays memorized in the list.
+        kin.set("remove", new OneArgFunction() {
+            public LuaValue call(LuaValue ref) {
+                requireActions(owner, "hafen.kin.remove");
+                requireKin(ref).endkin();                  // wrap (D-009): Buddy.endkin ("End kinship") → wdgmsg("rm", id)
+                return LuaValue.NIL;
+            }
+        });
+        // forget(kin) = FORGET (step 2): drops a memorized (un-kinned) kin from the list entirely.
+        kin.set("forget", new OneArgFunction() {
+            public LuaValue call(LuaValue ref) {
+                requireActions(owner, "hafen.kin.forget");
+                requireKin(ref).forget();                  // wrap (D-009): Buddy.forget ("Forget") → wdgmsg("rm", id)
+                return LuaValue.NIL;
+            }
+        });
+        kin.set("rename", new TwoArgFunction() {
+            public LuaValue call(LuaValue ref, LuaValue name) {
+                requireActions(owner, "hafen.kin.rename");
+                if(!name.isstring())
+                    throw new LuaError("hafen.kin.rename(kin, name): name must be a string");
+                requireKin(ref).chname(name.tojstring());   // wdgmsg("nick", id, name)
+                return LuaValue.NIL;
+            }
+        });
+        kin.set("setGroup", new TwoArgFunction() {
+            public LuaValue call(LuaValue ref, LuaValue group) {
+                requireActions(owner, "hafen.kin.setGroup");
+                if(!group.isnumber())
+                    throw new LuaError("hafen.kin.setGroup(kin, group): group must be a number (0..7)");
+                actKinSetGroup(ref, group.toint());
+                return LuaValue.NIL;
+            }
+        });
         hafen.set("kin", kin);
 
         // hafen.speed.* — movement speed (A7), read from the speed selector widget (Speedget: the four-way
@@ -2499,9 +2556,10 @@ public final class AddonManager {
         // (0=crawl 1=walk 2=run 3=sprint), or nil if the widget isn't up yet. max() returns the highest
         // speed currently SELECTABLE (0..3) — speeds 0..max() are available, higher ones are disabled (e.g.
         // sprint locked); nil if not up. name([n]) returns the display name of speed n (default = current;
-        // from the widget's own tooltips), or nil. Read-only here — speed.set (change speed) is the gated
-        // action tier (Phase 4). No SpeedChanged event: speed is read on demand (the classic use is a
-        // speed-toggle keybind that reads get() then sets), like the other read-only gap surfaces.
+        // from the widget's own tooltips), or nil. set(n) selects speed n (0..3) — the GATED write verb (4g,
+        // requireActions): it drives the client's own Speedget.set (wrap-not-reimplement, D-009 → wdgmsg("set",
+        // n)), exactly what clicking/hotkeying that speed does. No SpeedChanged event: speed is read on demand
+        // (the classic use is a speed-toggle keybind that reads get() then sets), like the other gap surfaces.
         LuaTable speed = new LuaTable();
         speed.set("get", new ZeroArgFunction() {
             public LuaValue call() {
@@ -2529,6 +2587,17 @@ public final class AddonManager {
                 return speedName(idx);
             }
         });
+        // set(n) — the gated write verb (4g): select movement speed n (0..3). requireActions-gated like every
+        // hafen.act.* verb (D-027/D-028): only an addon that declared "actions" may call it.
+        speed.set("set", new OneArgFunction() {
+            public LuaValue call(LuaValue n) {
+                requireActions(owner, "hafen.speed.set");
+                if(!n.isnumber())
+                    throw new LuaError("hafen.speed.set(n): n must be a number (0=crawl 1=walk 2=run 3=sprint)");
+                actSpeedSet(n.toint());
+                return LuaValue.NIL;
+            }
+        });
         hafen.set("speed", speed);
 
         // hafen.craft.* — crafting read (A8), off the crafting/recipe window (Makewindow: the widget the
@@ -2538,13 +2607,24 @@ public final class AddonManager {
         // snapshots {res, name, num, opt} (res = the DISPLAYED resource's stable name — the constraint
         // category when the recipe accepts one, else the concrete item; name = its tooltip; num = the
         // required/produced count, -1 = unspecified ≈ 1; opt = an optional ingredient / chance byproduct).
-        // qmod (quality-affecting inputs) and tools (required tools) are {res, name} arrays. Read-only —
-        // craft.make (actually craft the item) is the gated Phase-4 action tier; no CraftChanged event
-        // (read on demand, like A7 speed / A2 radar — a recipe changes only when the player opens/updates one).
+        // qmod (quality-affecting inputs) and tools (required tools) are {res, name} arrays. make([all]) is the
+        // GATED write verb (4g, requireActions): it presses the recipe's Craft button (all=false/absent → make
+        // one, wdgmsg("make", 0)) or Craft All (all=true → wdgmsg("make", 1)) — exactly the two buttons, so it
+        // CONSUMES the ingredients like a manual craft. No CraftChanged event (read on demand, like A7 speed /
+        // A2 radar — a recipe changes only when the player opens/updates one).
         LuaTable craft = new LuaTable();
         craft.set("current", new ZeroArgFunction() {
             public LuaValue call() {
                 return readCraft();
+            }
+        });
+        // make([all]) — the gated write verb (4g): craft the OPEN recipe (all → Craft All). requireActions-gated
+        // (D-027/D-028). all is a boolean (Lua truthiness: nil/false → one, anything else → all).
+        craft.set("make", new OneArgFunction() {
+            public LuaValue call(LuaValue all) {
+                requireActions(owner, "hafen.craft.make");
+                actCraftMake(all.toboolean());
+                return LuaValue.NIL;
             }
         });
         hafen.set("craft", craft);
@@ -2681,11 +2761,25 @@ public final class AddonManager {
         // occupied slot n (the RAW 0-based game index 0..143 — the same index action-bar USE will take in
         // Phase 4), or nil if empty; cooldown (0..1) is a pagina action's meter, present only for ability
         // slots (not seconds). Subscribe to ActionbarChanged{n} (fired per-tick when slot n's content
-        // changes — a set/clear/drag or its data resolving). Action-bar USE is the gated action tier (Phase 4).
+        // changes — a set/clear/drag or its data resolving). use(n [, mods]) is the GATED write verb (4g,
+        // requireActions): activate slot n (the same raw 0-based index slot(n) reads) — exactly a LEFT-click on
+        // that action-bar button (GameUI belt act → wdgmsg("belt", n, …)); mods is an optional modifier bitfield
+        // (0 default; Shift=1 Ctrl=2 Alt=4, matching hafen.key). A ground-targeted ability then enters targeting
+        // mode (as clicking the button does) — supply the target with the MapView verbs.
         LuaTable actionbar = new LuaTable();
         actionbar.set("slot", new OneArgFunction() {
             public LuaValue call(LuaValue n) {
                 return n.isnumber() ? actionbarSlot(n.toint()) : LuaValue.NIL;
+            }
+        });
+        // use(n [, mods]) — the gated write verb (4g): activate action-bar slot n. requireActions-gated (D-027/D-028).
+        actionbar.set("use", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                requireActions(owner, "hafen.actionbar.use");
+                if(!a.arg1().isnumber())
+                    throw new LuaError("hafen.actionbar.use(n): n must be a number (the raw 0-based slot index 0..143)");
+                actActionbarUse(a.arg1().toint(), a.arg(2).optint(0));
+                return LuaValue.NIL;
             }
         });
         hafen.set("actionbar", actionbar);
@@ -5352,6 +5446,26 @@ public final class AddonManager {
     }
 
     /**
+     * {@code hafen.actionbar.use} backing (4g, gated) — activate action-bar slot {@code n} (the raw 0-based
+     * index) with modifier bitfield {@code mods}. Drives the client's own belt {@code act(idx, Interaction)} —
+     * exactly what a LEFT-click on that button does ({@code GameUI.Belt.mousedown} b==1) → {@code wdgmsg("belt",
+     * n, …)} — so a ground-targeted ability enters targeting mode just as clicking it would. Wrap-not-reimplement
+     * (D-009). Throws for an out-of-range or empty slot, or before the HUD exists.
+     */
+    private static void actActionbarUse(int n, int mods) {
+        GameUI g = gui();
+        if(g == null)
+            throw new LuaError("hafen.actionbar.use: no game UI (not in the world yet)");
+        if((g.belt == null) || (n < 0) || (n >= g.belt.length))
+            throw new LuaError("hafen.actionbar.use(n): slot index out of range (0..143), got " + n);
+        if(g.belt[n] == null)
+            throw new LuaError("hafen.actionbar.use: slot " + n + " is empty (read hafen.actionbar.slot(n) first)");
+        if(g.beltwdg == null)
+            throw new LuaError("hafen.actionbar.use: no action-bar widget yet");
+        g.beltwdg.act(n, new MenuGrid.Interaction(1, mods));   // button 1 (left) — the on-screen slot click
+    }
+
+    /**
      * An action-bar slot snapshot: {@code res} (the icon resource — stable identity), {@code name} (the
      * action's display name for a pagina slot, else the resource tooltip), and {@code cooldown} (0..1,
      * present only for a pagina action carrying a meter — e.g. an ability recharging; not seconds). Every
@@ -5603,6 +5717,74 @@ public final class AddonManager {
                 return false;
         }
         return true;
+    }
+
+    // -- 4g: kin write verbs (hafen.kin.add/remove/forget/rename/setGroup) ---------------------------
+    // The gated kin-roster mutations. add(secret) adds a kin by the other player's HEARTH SECRET — the Kin
+    // window's "Add kin" field, BuddyWnd.wdgmsg("bypwd", secret) (no add-by-NAME message exists). The rest take a
+    // `kin` ref — a kin snapshot (from hafen.kin.list/find, read for its `id`), the id number directly, or a name
+    // string (exact, case-insensitive) — resolved to the LIVE BuddyWnd.Buddy, then driving the client's own Buddy
+    // method (wrap-not-reimplement, D-009). remove/forget are the TWO STEPS of dropping a kin (the game's "End
+    // kinship" then "Forget"): endkin() ends the kinship (the kin stays memorized), forget() drops the memorized
+    // kin from the list — both send wdgmsg("rm", id), and the SERVER advances active → memorized → gone (so a full
+    // removal of an active kin is remove() then forget()). rename→chname()=wdgmsg("nick"), setGroup→chgrp()=wdgmsg(
+    // "grp"). All run on the UI thread (addon callback / REPL / timer / slash command).
+
+    /** {@code hafen.kin.add} backing — add a kin by the other player's hearth secret, exactly what the Kin
+     *  window's "Add kin" button/field sends ({@code BuddyWnd.wdgmsg("bypwd", secret)}, {@link BuddyWnd} :504/:509).
+     *  The server validates the secret (a wrong/empty one just does nothing); we reject an empty string up front. */
+    private static void actKinAdd(String secret) {
+        if(secret.isEmpty())
+            throw new LuaError("hafen.kin.add(secret): secret must not be empty (the other player's hearth secret)");
+        BuddyWnd bw = buddywnd();
+        if(bw == null)
+            throw new LuaError("hafen.kin.add: no Kin window (not in the world yet)");
+        bw.wdgmsg("bypwd", secret);
+    }
+
+    /** Resolve a kin ref (snapshot table with {@code id} / id number / name string) to the live
+     *  {@link BuddyWnd.Buddy}, or {@code null} if no such kin; throws for a wrong argument TYPE or no window. */
+    private static BuddyWnd.Buddy resolveKin(LuaValue ref) {
+        BuddyWnd bw = buddywnd();
+        if(bw == null)
+            throw new LuaError("hafen.kin: no Kin window (not in the world yet)");
+        if(ref.istable()) {                            // a kin snapshot from hafen.kin.list/find → its id
+            LuaValue id = ref.get("id");
+            if(!id.isnumber())
+                throw new LuaError("hafen.kin: the kin table has no numeric 'id' field"
+                    + " (pass a kin from hafen.kin.list/find, its id, or a name)");
+            return bw.find(id.toint());
+        }
+        if(ref.isnumber())
+            return bw.find(ref.toint());
+        if(ref.isstring()) {
+            String needle = ref.tojstring();
+            for(BuddyWnd.Buddy b : bw)                  // iterator() copies under the BuddyWnd's own lock
+                if((b.name != null) && b.name.equalsIgnoreCase(needle))
+                    return b;
+            return null;
+        }
+        throw new LuaError("hafen.kin: kin must be a kin snapshot (a table), its id (a number), or a name (a string)");
+    }
+
+    /** {@link #resolveKin} but throws a guiding error when the ref resolves to no one on the roster. */
+    private static BuddyWnd.Buddy requireKin(LuaValue ref) {
+        BuddyWnd.Buddy b = resolveKin(ref);
+        if(b == null)
+            throw new LuaError("hafen.kin: no such kin (the ref did not match anyone on your roster)");
+        return b;
+    }
+
+    /** {@code hafen.kin.setGroup} backing — resolve the kin, validate group 0..7, then move it to that
+     *  group/colour. Resolve FIRST so that with no live window we fail with "no Kin window" before touching
+     *  {@link BuddyWnd#gc} (a static-field read that would force the resource-loading class init — headless-unsafe,
+     *  like A7's {@code Speedget.tips}); in-game the range is validated against the real palette length. */
+    private static void actKinSetGroup(LuaValue ref, int group) {
+        BuddyWnd.Buddy b = requireKin(ref);            // needs a live Kin window; instance-only, no BuddyWnd statics
+        if((group < 0) || (group >= BuddyWnd.gc.length))
+            throw new LuaError("hafen.kin.setGroup(kin, group): group must be 0.." + (BuddyWnd.gc.length - 1)
+                + " (the kin colour groups), got " + group);
+        b.chgrp(group);                                // wdgmsg("grp", id, group)
     }
 
     // ---- actions tier (Phase 4: hafen.act) -------------------------------------------------------
@@ -5920,6 +6102,21 @@ public final class AddonManager {
         return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t);
     }
 
+    /**
+     * {@code hafen.speed.set} backing (4g, gated) — select movement speed {@code n} (0..3) via the client's own
+     * {@link Speedget#set} (wrap-not-reimplement, D-009 → {@code wdgmsg("set", n)}). The server is authoritative
+     * on whether a speed is currently allowed (e.g. sprint may be locked); this only sends the request, exactly
+     * as clicking/hotkeying that speed would. Throws for out-of-range {@code n} or before the selector exists.
+     */
+    private static void actSpeedSet(int n) {
+        if((n < 0) || (n > 3))
+            throw new LuaError("hafen.speed.set(n): n must be 0..3 (0=crawl 1=walk 2=run 3=sprint), got " + n);
+        Speedget s = speedget();
+        if(s == null)
+            throw new LuaError("hafen.speed.set: no speed selector (not in the world yet)");
+        s.set(n);
+    }
+
     // ---- crafting (A8: hafen.craft) --------------------------------------------------------------
     // The crafting/recipe window is a Makewindow (@RName("make")) the server places under the HUD when
     // the player opens a recipe. It is wrapped in GameUI.makewnd (a private Window), so — like A7's speed
@@ -5943,6 +6140,19 @@ public final class AddonManager {
         for(Makewindow m : g.children(Makewindow.class))   // recursive subtree walk; take the first
             return m;
         return null;
+    }
+
+    /**
+     * {@code hafen.craft.make} backing (4g, gated) — press the open recipe's Craft button ({@code all=false} →
+     * {@code wdgmsg("make", 0)}, one item) or Craft All ({@code all=true} → {@code wdgmsg("make", 1)}), exactly
+     * what the two buttons send ({@link Makewindow} :147/:148). CONSUMES the ingredients like a manual craft.
+     * Throws when no crafting window is open.
+     */
+    private static void actCraftMake(boolean all) {
+        Makewindow mw = makewindow();
+        if(mw == null)
+            throw new LuaError("hafen.craft.make: no crafting window open (open a recipe first)");
+        mw.wdgmsg("make", all ? 1 : 0);
     }
 
     /** {@code hafen.craft.current()} — a snapshot of the open recipe, or {@code nil}. */

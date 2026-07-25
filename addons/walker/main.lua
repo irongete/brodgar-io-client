@@ -11,7 +11,9 @@
 -- Kept SEPARATE from the always-on read-only `hello` regression harness (which declares no permissions).
 --
 -- Slice 4d adds the rest of the MapView action verbs on top of moveTo (4a); slice 4e adds menu + flower;
--- slice 4f adds the ITEM verbs (hafen.act.item).
+-- slice 4f adds the ITEM verbs (hafen.act.item); slice 4g adds the PER-SUBSYSTEM gated verbs that live in
+-- their own namespace (not hafen.act.*): hafen.speed.set, hafen.craft.make, hafen.actionbar.use, and
+-- hafen.kin.add/remove/forget/rename/setGroup — all behind the SAME "actions" permission.
 -- Each is a DELIBERATE, opt-in trigger — a `:walker <sub>` command — so nothing acts unless you ask.
 -- Sub-commands:
 --   :walker walk        -- moveTo: walk ~2 tiles south  (the original 4a demo)
@@ -27,8 +29,15 @@
 --   :walker item [verb] -- item: act on your FIRST inventory item, addressed by its HANDLE (item.handle, from a
 --                          read). Default 'take' lifts it to your cursor (safe/reversible: click an empty slot to
 --                          undo). Pass a verb: take|drop|transfer|iact|itemact.
+--   :walker speed [n]   -- speed.set: select movement speed n=0..3 (crawl/walk/run/sprint; default 2=run). Reversible.
+--   :walker craft [all] -- craft.make: press Craft on the OPEN recipe (add 'all' for Craft All). CONSUMES ingredients!
+--   :walker bar <n>     -- actionbar.use: activate action-bar slot n (raw 0-based index; read hafen.actionbar.slot first)
+--   :walker kin add <secret>  -- kin.add: add a kin by the other player's HEARTH SECRET (wdgmsg 'bypwd')
+--   :walker kin <name> group <0..7>|rename <new>|remove|forget
+--                       -- kin.setGroup/rename a named kin (reversible), OR the two-step drop: remove = End
+--                          kinship (stays memorized), then forget = drop the memorized kin from the list
 
-hafen.log("walker loaded (v0.5.0) -- the write-actions demo (moveTo + the 4d MapView verbs + 4e menu/flower + 4f item verbs)")
+hafen.log("walker loaded (v0.6.0) -- write-actions demo (4d MapView verbs + 4e menu/flower + 4f item + 4g speed/craft/bar/kin)")
 
 -- At login, confirm we're granted (we only load once YOU enabled us, and we declared the permission).
 hafen.events.on("OnEnterWorld", function()
@@ -43,11 +52,16 @@ hafen.slash.register("walker", function(args)
   local sub = args[1] or "help"
 
   if sub == "help" then
-    hafen.log(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | item   (gated hafen.act verbs)")
+    hafen.log(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | item | speed | craft | bar | kin")
     hafen.log("   walk=moveTo  click=clickGob(right)  use=useItemOn  sel=select  place=place  raw=raw escape hatch")
     hafen.log("   menu=hafen.act.menu(path...)  e.g. ':walker menu lo cs' = log out to char select (reversible)")
     hafen.log("   flower=hafen.act.flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
     hafen.log("   item [verb]=hafen.act.item(firstInvItem, verb)  default take (lifts to cursor); take|drop|transfer|iact|itemact")
+    hafen.log("   -- 4g per-subsystem gated verbs (own namespace, same permission):")
+    hafen.log("   speed [n]=hafen.speed.set(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
+    hafen.log("   craft [all]=hafen.craft.make(all)  press Craft on the OPEN recipe (CONSUMES ingredients; 'all'=Craft All)")
+    hafen.log("   bar <n>=hafen.actionbar.use(n)  activate action-bar slot n (raw 0-based index)")
+    hafen.log("   kin add <secret> =add by hearth secret; kin <name> group/rename =setGroup/rename; remove =End kinship, forget =drop memorized kin")
     return
   end
 
@@ -139,6 +153,76 @@ hafen.slash.register("walker", function(args)
       :format(it.name or it.res or "?", tostring(it.handle), verb))
     if verb == "take" then
       hafen.log("   (take lifts the item onto your cursor -- left-click an empty inventory slot to put it back)")
+    end
+
+  -- 4g: per-subsystem gated verbs. These live in their OWN namespace (hafen.speed/craft/actionbar/kin), not
+  -- under hafen.act.*, but share the exact same "actions" permission gate (requireActions) as the verbs above.
+  elseif sub == "speed" then
+    -- speed.set(n): pick a movement speed 0..3. Fully reversible (just set another), so a safe default is fine.
+    local n = tonumber(args[2]) or 2                   -- default 2 = run
+    local before = hafen.speed.get()
+    hafen.speed.set(n)                                 -- gated; drives the client's own Speedget.set
+    hafen.log((":walker speed -> hafen.speed.set(%d) [%s]  (was %s; max selectable=%s)")
+      :format(n, hafen.speed.name(n) or "?", tostring(before), tostring(hafen.speed.max())))
+
+  elseif sub == "craft" then
+    -- craft.make([all]): press the OPEN recipe's Craft (or Craft All) button. This CONSUMES ingredients like a
+    -- manual craft, so open a recipe you actually want to make first. With none open the verb errors (caught below).
+    local all = (args[2] == "all")
+    local cur = hafen.craft.current()
+    if not cur then hafen.log(":walker craft -> no recipe window open (open one in the crafting menu first)"); return end
+    hafen.craft.make(all)                              -- gated; wdgmsg("make", all and 1 or 0)
+    hafen.log((":walker craft -> hafen.craft.make(%s) on '%s'  (%s -- ingredients consumed)")
+      :format(tostring(all), cur.recipe or "?", all and "Craft All" or "Craft one"))
+
+  elseif sub == "bar" then
+    -- actionbar.use(n): activate action-bar slot n (the RAW 0-based index, same as hafen.actionbar.slot(n)).
+    -- Require an explicit n -- there is no safe default (a slot could be food, a curio, an ability...).
+    local n = tonumber(args[2])
+    if not n then hafen.log(":walker bar <n> -> activate action-bar slot n (0-based). Read a slot: :lua actionbar.slot(0)"); return end
+    local s = hafen.actionbar.slot(n)
+    hafen.actionbar.use(n)                             -- gated; the belt "act" a left-click on the slot sends
+    hafen.log((":walker bar -> hafen.actionbar.use(%d)  [slot holds: %s]")
+      :format(n, s and (s.name or s.res or "?") or "empty"))
+
+  elseif sub == "kin" then
+    -- 4g kin verbs. 'add' takes a HEARTH SECRET (not a name): ':walker kin add <secret>'. The rest act on a
+    -- NAMED kin (resolve by exact name) + an explicit op -- these mutate your real roster. group/rename are
+    -- reversible. remove + forget are the TWO STEPS of dropping a kin (the game's "End kinship" then "Forget"):
+    -- remove ENDS THE KINSHIP (the kin stays memorized in your list), then forget DROPS the memorized kin.
+    -- Require the args explicitly (like ':walker menu' requires its tokens).
+    if args[2] == "add" then
+      local secret = args[3]
+      if not secret then hafen.log(":walker kin add <hearth-secret> -> add a kin by the other player's hearth secret"); return end
+      hafen.kin.add(secret)                             -- gated; wdgmsg("bypwd", secret) -- the "Add kin" field
+      hafen.log((":walker kin -> hafen.kin.add('%s')  (sent -- the server adds them if the secret is valid)"):format(secret))
+      return
+    end
+    local name, op = args[2], args[3]
+    if not name or not op then
+      hafen.log(":walker kin add <secret> | <name> group <0..7> | <name> rename <newname> | <name> remove | <name> forget")
+      return
+    end
+    local who = hafen.kin.find(name)                   -- read first: confirm the name resolves + show the id
+    if not who then hafen.log((":walker kin -> no kin named '%s' on your roster"):format(name)); return end
+    if op == "group" then
+      local grp = tonumber(args[4])
+      if not grp then hafen.log(":walker kin <name> group <0..7> -> a group number is required"); return end
+      hafen.kin.setGroup(name, grp)                    -- gated; wdgmsg("grp", id, grp) -- changes their colour (reversible)
+      hafen.log((":walker kin -> hafen.kin.setGroup('%s' [id %d], %d)  (was group %d)"):format(name, who.id, grp, who.group))
+    elseif op == "rename" then
+      local newname = args[4]
+      if not newname then hafen.log(":walker kin <name> rename <newname> -> a new name is required"); return end
+      hafen.kin.rename(name, newname)                  -- gated; wdgmsg("nick", id, newname) -- reversible (rename back)
+      hafen.log((":walker kin -> hafen.kin.rename('%s' [id %d], '%s')"):format(name, who.id, newname))
+    elseif op == "remove" then
+      hafen.kin.remove(name)                           -- gated; Buddy.endkin ("End kinship") -> wdgmsg("rm", id)
+      hafen.log((":walker kin -> hafen.kin.remove('%s' [id %d])  (END KINSHIP -- they stay MEMORIZED; ':walker kin %s forget' to drop them)"):format(name, who.id, name))
+    elseif op == "forget" then
+      hafen.kin.forget(name)                           -- gated; Buddy.forget ("Forget") -> wdgmsg("rm", id) -- drops a memorized kin
+      hafen.log((":walker kin -> hafen.kin.forget('%s' [id %d])  (FORGOTTEN -- re-add via hearth secret/right-click)"):format(name, who.id))
+    else
+      hafen.log((":walker kin -> unknown op '%s'  (group | rename | remove | forget)"):format(op))
     end
 
   else
