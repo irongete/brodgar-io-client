@@ -37,8 +37,14 @@
 -- free centre, drawn with g:draw() (NO game resources -- the arrow-heads are FILLED TRIANGLES via the new g:poly).
 -- Press an arrow to drag the ghost ALONG THAT AXIS (the centre = free), snapped to the :placegrid (SHIFT = fine),
 -- camera fixed. The arrows re-project each frame so they track the ghost + the camera. See gizmo.lua for the mechanism.
+--
+-- V6 (gizmo rotate + scale): the gizmo now also draws a cyan ROTATE ring (drag it -> the facing snaps to :placeangle,
+-- 45 deg default / SHIFT fine) + a magenta SCALE box (drag OUT/IN -> uniform scale, g:scale). ":planner gizmo" shows
+-- all three at once (mode "all"); ":planner gizmo move|rotate|scale" focuses one. The gizmo's onCommit now persists
+-- the new facing AND scale, and ":planner scale <s>" sets scale directly. Rotation/scale ride the SAME grid-anchored
+-- persistence, so a relog restores position + facing + scale. Full move/rotate/scale = the V6 DoD.
 
-hafen.log("planner loaded (v0.3.0) -- blueprint ghosts + :planner gizmo (Unity-style, drag by its arrows) / grab, grid-anchored")
+hafen.log("planner loaded (v0.4.0) -- blueprint ghosts + Unity gizmo (move/rotate/scale) + grab, grid-anchored")
 
 -- The blueprint palette. Keys are short names for ':planner place <name>'; values are client resource paths.
 -- logcabin + timberhouse are verified to resolve in-game (V3); ':planner place <res-path>' also takes any raw path.
@@ -55,7 +61,7 @@ local LOOK = {
   sel  = { alpha = 1.0, tint = { r = 255, g = 225, b = 110, a = 170 } },
 }
 
--- Runtime state. `items` is the single source of truth: each record = { res, a, anchor = {gridId, x, y}, ghost }.
+-- Runtime state. `items` is the single source of truth: each record = { res, a, scale, anchor = {gridId, x, y}, ghost }.
 -- `ghost` is the live handle (nil while its grid has not streamed in yet). `blueprint` is the current palette key,
 -- `selected` the selected record (or nil). Module-level, so a :reload starts clean and OnEnterWorld repopulates.
 local items     = {}
@@ -121,7 +127,7 @@ end
 -- closes over the RECORD, so it always selects the right one even after the list is reordered by a remove.
 local function spawn(it, wx, wy)
   it.ghost = hafen.ghost.new{
-    res = it.res, x = wx, y = wy, a = it.a,
+    res = it.res, x = wx, y = wy, a = it.a, scale = it.scale or 1,   -- V6: restore the saved scale on (re)spawn
     alpha = LOOK.idle.alpha, tint = LOOK.idle.tint,
     clickable = true,
     onClick = function(g, button) selectItem(it) end,
@@ -136,7 +142,7 @@ local function persist()
   local out = {}
   for i, it in ipairs(items) do
     out[i] = {
-      res = it.res, a = it.a,
+      res = it.res, a = it.a, scale = it.scale or 1,       -- V6: persist the uniform scale alongside the facing
       anchor = { gridId = it.anchor.gridId, x = it.anchor.x, y = it.anchor.y },
     }
   end
@@ -193,7 +199,7 @@ hafen.events.on("OnEnterWorld", function()
   for _, s in ipairs(hafen.store.layout.items or {}) do
     if s.res and s.anchor and s.anchor.gridId then          -- skip a malformed record rather than crash the load
       items[#items + 1] = {
-        res = s.res, a = s.a or 0,
+        res = s.res, a = s.a or 0, scale = s.scale or 1,     -- V6: restore the saved scale (default 1 for old layouts)
         anchor = { gridId = s.anchor.gridId, x = s.anchor.x or 0, y = s.anchor.y or 0 },
       }
     end
@@ -239,13 +245,13 @@ hafen.slash.register("planner", function(args)
   local sub = args[1] or "help"
 
   if (sub == "help") or (sub == "") then
-    hafen.log(":planner -> place | blueprint | list | select | gizmo | grab | rotate | remove | clear | save")
+    hafen.log(":planner -> place | blueprint | list | select | gizmo | grab | rotate | scale | remove | clear | save")
     hafen.log("   place [name|res] = drop the current/named blueprint at your feet (clickable + saved)")
     hafen.log("   blueprint [name] = show/set the blueprint (bare = list palette); list = show placed ghosts")
     hafen.log("   select <n> = select #n (or CLICK a ghost)")
-    hafen.log("   gizmo = attach the Unity-style transform gizmo; drag the ghost BY ITS ARROWS (X/Y axis) or centre (free). SHIFT=fine")
+    hafen.log("   gizmo [move|rotate|scale|all] = Unity gizmo: arrows=move, ring=rotate, box=scale. SHIFT=fine (bare = toggle, mode all)")
     hafen.log("   grab = move it by the BODY with the mouse (placegrid-snapped, CLICK to drop) -- V5a")
-    hafen.log("   rotate [deg] = turn the selected one; remove [n]; clear; save")
+    hafen.log("   rotate [deg] = turn it (persisted); scale <s> = uniform scale (1 = original); remove [n]; clear; save")
 
   elseif sub == "place" then
     local p = hafen.gob.pos("player")
@@ -257,7 +263,7 @@ hafen.slash.register("planner", function(args)
     end
     local anchor = hafen.map.gridPos(p.x, p.y)             -- {gridId, x, y} -- the persistent anchor
     if not anchor then hafen.log(":planner place -> no map grid loaded here yet; move a moment and retry"); return end
-    local it = { res = res, a = 0, anchor = anchor }
+    local it = { res = res, a = 0, scale = 1, anchor = anchor }
     items[#items + 1] = it
     spawn(it, p.x, p.y)
     persist()
@@ -322,28 +328,42 @@ hafen.slash.register("planner", function(args)
       :format(indexOf(it), tostring(hafen.map.placeGrid())))
 
   elseif sub == "gizmo" then
-    -- V5b: attach the Unity-style TRANSFORM GIZMO (gizmo.lua) to the selected ghost -- a toggle. Then DRAG the
-    -- ghost BY ITS ARROWS: the red arrow locks to world-X, the green to world-Y, the yellow centre is a free
-    -- ground-plane move. It snaps to the :placegrid (SHIFT = fine) and the camera stays put -- the V5b DoD.
-    if activeGizmo then detachGizmo(); hafen.log(":planner gizmo -> detached"); return end
+    -- V5b/V6: attach the Unity-style TRANSFORM GIZMO (gizmo.lua) to the selected ghost. DRAG the RED(X)/GREEN(Y)
+    -- arrows (or the yellow centre = free) to MOVE, the cyan RING to ROTATE (snaps to :placeangle, SHIFT=fine), the
+    -- magenta BOX out/in to SCALE. Snaps to the :placegrid/:placeangle (SHIFT=fine), camera stays -- the V6 DoD.
+    -- ":planner gizmo" with no arg toggles attach/detach (mode "all"); ":planner gizmo move|rotate|scale|all"
+    -- (re)attaches focused on that handle group.
+    local modeArg = args[2]
+    if modeArg and not ({ move = true, rotate = true, scale = true, all = true })[modeArg] then
+      hafen.log((":planner gizmo [mode] -> mode must be move|rotate|scale|all (got '%s')"):format(tostring(modeArg))); return
+    end
+    if activeGizmo and (not modeArg) then detachGizmo(); hafen.log(":planner gizmo -> detached"); return end
     if not selected then hafen.log(":planner gizmo -> nothing selected (click a ghost or :planner select <n>)"); return end
     if not selected.ghost then hafen.log(":planner gizmo -> that ghost has not streamed in yet; try again in a moment"); return end
     if drag then commitDrag() end                          -- exclusive with the V5a body-grab
     local it = selected
-    activeGizmo = gizmo(it.ghost, {                         -- calls the constructor from gizmo.lua (loaded first)
-      -- On release: re-anchor the record to the grid it now sits on (the persistent id) + persist, exactly like
-      -- the V5a body-drag's commitDrag. Closed over the RECORD so a later reorder can't mis-target it.
-      onCommit = function(p)
-        if (it ~= selected) or (not it.ghost) then return end
-        local anchor = hafen.map.gridPos(p.x, p.y)
-        if anchor then it.anchor = anchor end
-        persist()
-        hafen.log((":planner gizmo -> dropped #%d at %.0f,%.0f (grid %s, persisted)")
-          :format(indexOf(it), p.x, p.y, it.anchor.gridId))
-      end,
-    })
-    hafen.log((":planner gizmo -> attached to #%d: drag the RED(X)/GREEN(Y) arrows or the yellow centre (free); SHIFT=fine; camera stays. ':planner gizmo' again to detach.")
-      :format(indexOf(it)))
+    if activeGizmo then
+      activeGizmo:setMode(modeArg)                          -- already attached: just switch the handle group
+    else
+      activeGizmo = gizmo(it.ghost, {                       -- calls the constructor from gizmo.lua (loaded first)
+        mode = modeArg or "all",
+        -- On release: sync the record's facing + scale from the ghost (the gizmo may have rotated/scaled it), then
+        -- re-anchor to the grid it now sits on (the persistent id) + persist. Closed over the RECORD so a later
+        -- reorder can't mis-target it.
+        onCommit = function(p)
+          if (it ~= selected) or (not it.ghost) then return end
+          it.a = p.a or it.a                               -- V6: persist a gizmo rotate
+          it.scale = p.scale or it.scale                   -- V6: persist a gizmo scale
+          local anchor = hafen.map.gridPos(p.x, p.y)
+          if anchor then it.anchor = anchor end
+          persist()
+          hafen.log((":planner gizmo -> dropped #%d at %.0f,%.0f a=%.2f s=%.2f (grid %s, persisted)")
+            :format(indexOf(it), p.x, p.y, it.a, it.scale, it.anchor.gridId))
+        end,
+      })
+    end
+    hafen.log((":planner gizmo -> #%d mode=%s: drag arrows(move) / ring(rotate) / box(scale); SHIFT=fine; camera stays. ':planner gizmo' to detach.")
+      :format(indexOf(it), activeGizmo:mode()))
 
   elseif sub == "rotate" then
     if not selected then hafen.log(":planner rotate -> nothing selected (click a ghost or :planner select <n>)"); return end
@@ -352,6 +372,16 @@ hafen.slash.register("planner", function(args)
     if selected.ghost then selected.ghost:rotate(selected.a) end
     persist()
     hafen.log((":planner rotate -> #%d now a=%.2f rad (+%d deg, persisted)"):format(indexOf(selected), selected.a, deg))
+
+  elseif sub == "scale" then
+    -- V6: set the selected ghost's uniform scale directly (the gizmo scale box is the interactive way).
+    if not selected then hafen.log(":planner scale -> nothing selected (click a ghost or :planner select <n>)"); return end
+    local s = tonumber(args[2])
+    if not s then hafen.log(":planner scale <s> -> a number is required (1 = original size, e.g. 1.5 / 0.5)"); return end
+    selected.scale = s
+    if selected.ghost then selected.ghost:scale(s) end
+    persist()
+    hafen.log((":planner scale -> #%d now scale=%.2f (persisted)"):format(indexOf(selected), selected.scale))
 
   elseif sub == "remove" then
     local it = selected

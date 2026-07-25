@@ -25,10 +25,12 @@ import org.luaj.vm2.LuaValue;
  * by a bridge-owned <b>handle</b> (D-030), like a {@code hafen.ui.window}. The Lua handle
  * ({@link AddonManager#ghostHandle}) exposes {@code :move(x,y[,a])} / {@code :pos()} / {@code :destroy()} /
  * {@code :res()} (V1), {@code :clickable(bool)} (V2 — opt-in pick-selectability; see {@link #clickable} /
- * {@link #onClick} and {@link GhostGob}), and the V3 look/orientation verbs {@code :rotate(a)} /
- * {@code :setRes(res[,sdt])} / {@code :show()} / {@code :hide()} / {@code :alpha(a)} / {@code :tint(color)}.
+ * {@link #onClick} and {@link GhostGob}), the V3 look/orientation verbs {@code :rotate(a)} /
+ * {@code :setRes(res[,sdt])} / {@code :show()} / {@code :hide()} / {@code :alpha(a)} / {@code :tint(color)}, and
+ * the V6 {@code :scale(s)} (uniform scale). {@code :pos()} returns {@code {x,y,a,scale}} — the ghost's full
+ * client-side transform.
  *
- * <p><b>Desired-state fields (V3).</b> {@link #alpha}, {@link #tint}, {@link #hidden}, and the current
+ * <p><b>Desired-state fields (V3/V6).</b> {@link #alpha}, {@link #tint}, {@link #scale}, {@link #hidden}, and the current
  * {@link #res}/{@link #resName}/{@link #sdt} are the ghost's <i>desired</i> state, guarded by {@code this}. They
  * are applied to the {@link #gob} when it exists and, crucially, are read by the deferred create at publish time —
  * so an {@code :alpha}/{@code :setRes}/{@code :hide} that lands <i>before</i> the prop streams in still takes
@@ -65,6 +67,7 @@ public final class LuaGhost {
     boolean clickable;             // V2: opt-in pick-selectability (mirrored onto the GhostGob's flag); guarded by this
     float   alpha = 1f;            // V3: desired opacity 0..1 (1 = opaque); mirrored onto the GhostGob; guarded by this
     Color   tint;                  // V3: desired colour-overlay tint, or null; mirrored onto the GhostGob; guarded by this
+    float   scale = 1f;            // V6: desired uniform scale (1 = original size); mirrored onto the GhostGob; guarded by this
     boolean hidden;                // V3: :hide() removed the scene slot (gob kept); :show() re-adds it; guarded by this
     LuaValue onClick;              // V2: per-ghost click callback fn(g, button, x, y), or null; set at create, read-only after
 

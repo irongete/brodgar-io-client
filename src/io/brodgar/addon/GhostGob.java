@@ -8,6 +8,7 @@ import haven.Gob;
 import haven.render.BaseColor;
 import haven.render.BlendMode;
 import haven.render.FragColor;
+import haven.render.Location;
 import haven.render.MixColor;
 import haven.render.Pipe;
 import haven.render.States;
@@ -38,6 +39,13 @@ import haven.render.States;
  *       {@link FragColor#blend standard alpha blending} plus {@link States#maskdepth} (don't write depth) — the
  *       engine's own recipe for a translucent overlay (see the tile-grid overlay / drag-select rectangle in
  *       {@code MapView}). This is the see-through "ghost" look.</li>
+ *   <li><b>scale &ne; 1</b> (V6) → a uniform {@link Location#scale(float) scaling} {@code Location}. Because
+ *       {@code obstate} runs on the gob's <i>child</i> render slot — <b>below</b> the {@code Placed} slot that
+ *       applies the world translate ({@code "gobx"}) + facing rotation ({@code "gob"}) — the scale composes as
+ *       {@code T·R·S}, i.e. it scales the model <b>in place</b> around the gob's own origin (its feet), not the
+ *       world origin, and rotates/translates correctly on top. (A sprite that does
+ *       {@code Location.goback("gobx")}, e.g. {@code resutil.CSprite}, resets past both the facing and this
+ *       scale — such resources already ignore ghost rotation, so they ignore scale too.)</li>
  * </ul>
  *
  * <p><b>Toggling / applying a change.</b> The click-list decides membership <b>at slot-add time</b> and
@@ -66,6 +74,9 @@ public final class GhostGob extends Gob {
     /** V3: colour-overlay {@link MixColor} tint, or {@code null} for none (the colour's alpha is the blend strength). Read live by {@link #obstate}. */
     public volatile Color tint = null;
 
+    /** V6: uniform scale — {@code 1} = original size (no extra state); anything else is an in-place scaling {@link Location}. Read live by {@link #obstate}. */
+    public volatile float scale = 1f;
+
     public GhostGob(Glob glob, Coord2d c) {
         super(glob, c);   // id -1 ⇒ virtual (Gob.virtual): no server id, not in OCache, invisible to reads/server
     }
@@ -91,5 +102,8 @@ public final class GhostGob extends Gob {
             buf.prep(FragColor.blend(new BlendMode())); // standard SRC_ALPHA / INV_SRC_ALPHA blending
             buf.prep(States.maskdepth);             // don't write depth — the engine's translucent-overlay recipe
         }
+        float sc = this.scale;                      // V6: snapshot the volatile once
+        if(sc != 1f)
+            buf.prep(Location.scale(sc));           // uniform scale; composes under the gob's translate+rotate → local-origin scaling
     }
 }

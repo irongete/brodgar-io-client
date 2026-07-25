@@ -1,7 +1,8 @@
 # hafen.ghost — client-only world ghosts
 
 Place **virtual props in the 3D world** — "ghosts" rendered at arbitrary world coordinates, optionally
-**clickable** (V2) and with a **look & orientation** — facing, translucency and colour tint (V3). A ghost is
+**clickable** (V2), with a **look & orientation** — facing, translucency and colour tint (V3) — and a uniform
+**scale** (V6), and manipulable with a **[transform gizmo](#transform-gizmo-move--rotate--scale)**. A ghost is
 **client-only**: it is a game object with **no server id**, so it is never
 sent to the server, the server never learns it exists, and it grants no gameplay advantage — it is a
 visualization, exactly like a HUD overlay. The motivating use is **city / base planning**: lay out ghost
@@ -18,7 +19,7 @@ reload / disable / relogin (the scene slot is removed and the sprite freed), lea
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.ghost.new{res, x, y [, a, sdt, alpha, tint, clickable, onClick]}` | [ghost handle](#ghost-handle) \| nil | create a client-only prop; nil if not in the world yet |
+| `hafen.ghost.new{res, x, y [, a, sdt, alpha, tint, scale, clickable, onClick]}` | [ghost handle](#ghost-handle) \| nil | create a client-only prop; nil if not in the world yet |
 | `hafen.ghost.list([filter])` | [ghost handle](#ghost-handle)`[]` | this addon's live ghosts |
 
 `new` options:
@@ -31,6 +32,7 @@ reload / disable / relogin (the scene slot is removed and the sprite freed), lea
 | `sdt` | byte array | — | spawn-data bytes (resource variant/state), e.g. `{0x01, 0x00}` — advanced, rarely needed (V3) |
 | `alpha` | number | `1` | opacity `0..1`; `< 1` gives the translucent "ghost" look (V3) — see [Look & orientation](#look--orientation-v3) |
 | `tint` | `{r, g, b [, a]}` | — | colour overlay, `0..255` (`a` = blend strength, default `255`) (V3) |
+| `scale` | number | `1` | uniform scale — `1` is original size (V6); see [Scale](#scale-v6) |
 | `clickable` | boolean | `false` | opt-in pick surface (V2) — see [Clickability](#clickability--the-ghostclicked-event-v2) |
 | `onClick` | function | — | `fn(g, button, x, y)` fired on click (V2); also delivered as the [`GhostClicked`](events.md#world-ghosts) event |
 
@@ -47,8 +49,9 @@ For `list`, `filter` is the canonical [filter](conventions.md#the-filter-argumen
 | `g:setRes(res [, sdt])` | swap the visual to another resource (streams in like `new`); optional `sdt` bytes (V3) |
 | `g:alpha(a)` | set opacity `0..1` (`1` = opaque) (V3) — see [Look & orientation](#look--orientation-v3) |
 | `g:tint(color)` | set the colour overlay `{r, g, b [, a]}` (`0..255`), or `nil` to clear (V3) |
+| `g:scale(s)` | set the uniform scale (`1` = original size) (V6) — see [Scale](#scale-v6) |
 | `g:show()` / `g:hide()` | add / remove the ghost from the 3D scene, keeping it (V3) |
-| `g:pos()` | `{x, y, a}` — current world position and facing |
+| `g:pos()` | `{x, y, a, scale}` — the ghost's full client-side transform (position, facing, scale) |
 | `g:res()` | the resource name (string) |
 | `g:clickable(bool)` | toggle the pick surface (V2) — see [Clickability](#clickability--the-ghostclicked-event-v2) |
 | `g:destroy()` | remove it now (also automatic on reload/disable). Idempotent. |
@@ -110,6 +113,24 @@ g:show()                                      -- ...and put it back
 All of these are safe to call before the prop has finished streaming in — the value you set is applied the moment
 it appears.
 
+## Scale (V6)
+
+A ghost can be **uniformly scaled** — `scale = 1` is its original size, `> 1` grows it, `< 1` shrinks it:
+
+```lua
+local g = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin", x = wx, y = wy, scale = 1.5 }  -- 50% bigger
+g:scale(0.5)                                  -- ...now half size (live)
+local t = g:pos()                             -- { x, y, a, scale } — scale is part of the transform
+```
+
+- The scale is **in place** — the model grows/shrinks around its own footprint (its feet), keeping its position
+  and facing. Values are clamped to a sane positive range.
+- `g:pos()` returns the current `scale` alongside `x, y, a`, so a saved layout (or a
+  [gizmo](#transform-gizmo-move--rotate--scale)) can read and restore it.
+- Scale rides the same render path as `tint`/`alpha` (a client-only state on the virtual gob). A few special
+  resource types that reset their own transform (curio-style sprites that already ignore ghost rotation) will
+  ignore scale too — building/terobj props, the planner's use case, scale correctly.
+
 ## Clickability & the `GhostClicked` event (V2)
 
 A ghost is **opt-in clickable** — pass `clickable = true` to `new`, or call `g:clickable(true)` later (a
@@ -158,35 +179,44 @@ using three primitives — [`hafen.hook.grab`](hooks.md#hafenhookgrab) (capture 
 `:planner grab`, and it follows the cursor snapped to the placegrid until you click to drop it. See
 [`hafen.hook.grab`](hooks.md#hafenhookgrab) for the drag pattern.
 
-## Transform gizmo (V5b)
+## Transform gizmo (move / rotate / scale)
 
-A **Unity-style transform gizmo** lets you drag a ghost **by its arrows**: red = world **X**, green = world **Y**,
-a yellow **centre** square for a free ground-plane move. Press an arrow and drag — the ghost moves **along that axis
-only** (the centre moves freely), snapped to the `:placegrid` (SHIFT = fine), and the **camera stays put**. The
-arrows are drawn with [`g:draw`](ui.md#the-g-draw-wrapper) as filled triangles and re-projected every frame, so
-they track the ghost and foreshorten with the camera — no game resource needed.
+A **Unity-style transform gizmo** lets you move, rotate and scale a ghost by dragging on-screen handles:
 
-Per [D-031](../../../specs/addons/decisions.md), the gizmo is a **bundled Lua library over the V5 primitives**
-([`hafen.ui.overlay`](ui.md#overlays) to draw, [`hafen.hook.input`](hooks.md#hafenhookinput) to pick a handle,
-[`hafen.hook.grab`](hooks.md#hafenhookgrab) + [`hafen.map.screenToWorld`](map.md#screen--world--placement-snapping-v5)
-+ [`hafen.map.snapPlace`](map.md#screen--world--placement-snapping-v5) to drag) — **not** a built-in `hafen.*`
-function. It ships as [`planner/gizmo.lua`](../../../addons/planner/gizmo.lua); the shape is:
+- **Move** — red = world **X**, green = world **Y** axis arrows + a yellow **centre** square for a free
+  ground-plane move. Drag an arrow and the ghost moves **along that axis only** (the centre moves freely),
+  snapped to the `:placegrid` (SHIFT = fine).
+- **Rotate** (V6) — a cyan **ring** around the ghost. Drag it and the facing snaps to the `:placeangle`
+  (45° by default, SHIFT = the fine grid) — identical to rotating a real building.
+- **Scale** (V6) — a magenta **box** handle above the ring. Drag it **out** to grow / **in** to shrink
+  (uniform `g:scale`).
+
+The **camera stays put** while you drag. Handles are drawn with [`g:draw`](ui.md#the-g-draw-wrapper) on a HUD
+overlay — so they're always **on top** of the 3D scene — and the grab targets are a **constant screen size** at any
+zoom (only the axis shafts foreshorten with the camera, anchoring the arrows in the world). No game resource needed.
+
+Per [D-031](../../../specs/addons/decisions.md), the gizmo is a **bundled Lua library over the ghost/map/hook
+primitives** ([`hafen.ui.overlay`](ui.md#overlays) to draw, [`hafen.hook.input`](hooks.md#hafenhookinput) to pick a
+handle, [`hafen.hook.grab`](hooks.md#hafenhookgrab) + [`hafen.map.screenToWorld`](map.md#screen--world--placement-snapping-v5)
++ [`hafen.map.snapPlace`](map.md#screen--world--placement-snapping-v5) / [`hafen.map.snapAngle`](map.md#screen--world--placement-snapping-v5)
+to drag, and `g:move`/`g:rotate`/`g:scale` to apply) — **not** a built-in `hafen.*` function. It ships as
+[`planner/gizmo.lua`](../../../addons/planner/gizmo.lua); the shape is:
 
 ```lua
 -- gizmo.lua installs one global: gizmo(target, opts) -> a gizmo handle.
-local gz = gizmo(myGhost, {                       -- target = anything with :pos() and :move(x,y[,a])
-  mode = "move",                                  -- V5b: "move" (rotate/scale = V6)
-  onCommit = function(p) --[[ p = {x,y,a} on release; re-anchor + persist here ]] end,
+local gz = gizmo(myGhost, {                       -- target = anything with :pos()/:move (ideally :rotate/:scale too)
+  mode = "all",                                   -- "move" | "rotate" | "scale" | "all" (default "all")
+  onChange = function(t) --[[ t = {x,y,a,scale} during the drag ]] end,
+  onCommit = function(t) --[[ t = {x,y,a,scale} on release; re-anchor + persist here ]] end,
 })
-gz:setMode("move")     -- V6 will add "rotate"/"scale"/"all"
+gz:setMode("rotate")   -- switch which handles show
+gz:mode()              -- the current mode string
 gz:isDragging()        -- bool
-gz:detach()            -- remove the arrows + input hook + any active grab (idempotent); :destroy() is an alias
+gz:detach()            -- remove the handles + input hooks + any active grab (idempotent); :destroy() is an alias
 ```
 
 Try it live: in the [`planner`](../../../addons/planner) addon, `:planner place` a blueprint, click it to select, then
-`:planner gizmo` — and drag it by its arrows. (`:planner grab`, V5a, is the simpler drag-by-the-body move-mode.)
-
-## Coming next
-
-Still to come (V6): the gizmo's **rotate** ring (snapping on the [`:placeangle`](map.md)) and uniform **scale**
-(`g:scale`), plus polish — draw-on-top and constant screen-size handles.
+`:planner gizmo` — drag the arrows (move), the ring (rotate) or the box (scale). `:planner gizmo rotate|scale|move`
+focuses one handle group; `:planner scale <s>` and `:planner rotate <deg>` set them directly. The facing and scale
+persist with the layout, so a relog restores the full transform. (`:planner grab`, V5a, is the simpler
+drag-by-the-body move-mode.)

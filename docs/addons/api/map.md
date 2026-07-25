@@ -17,6 +17,8 @@ spot hasn't loaded yet.
 | `hafen.map.screenToWorld(sx, sy, fn)` | — (calls `fn`) | raycast the ground under a screen pixel; **async** (see below) |
 | `hafen.map.snapPlace(x, y [, fine])` | `{x, y}` | snap a world coord to the client's placement grid |
 | `hafen.map.placeGrid()` | number | the current `:placegrid` setting (sub-tile divisions; 0 = free) |
+| `hafen.map.snapAngle(a [, fine])` | number | snap a facing (radians) to the client's placement angle: 45° default, `:placeangle` grid with `fine` |
+| `hafen.map.placeAngle()` | number | the current `:placeangle` setting (the fine rotation divisions) |
 
 ```lua
 local t = hafen.map.tile(p.x, p.y)
@@ -53,6 +55,16 @@ building would.
 ```lua
 local s = hafen.map.snapPlace(w.x, w.y, mods.shift)   -- SHIFT = the fine grid, like real placement
 ghost:move(s.x, s.y)
+```
+
+**`snapAngle(a [, fine])`** (V6) is the rotation counterpart — it snaps a facing angle (radians) to the client's
+placement-angle grid: no `fine` → **45°** steps; `fine = true` → the finer `:placeangle` grid (`placeAngle()`
+divisions). It honours the live `:placeangle` just as `snapPlace` honours `:placegrid`, so a ghost rotate feels
+identical to rotating a real building. The result is normalized to `(-π, π]`.
+
+```lua
+local a = hafen.map.snapAngle(math.atan2(w.y - c.y, w.x - c.x), mods.shift)  -- point the ghost at the cursor, snapped
+ghost:rotate(a)
 ```
 
 ### Saving a world position across sessions

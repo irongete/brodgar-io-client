@@ -2154,6 +2154,25 @@ public final class AddonManager {
                 return LuaValue.valueOf(MapView.plobpgran);
             }
         });
+        // snapAngle(a [, fine]) — snap a facing angle (RADIANS) to the client's placement-ANGLE grid, so a gizmo
+        // rotate feels IDENTICAL to rotating a building (spec 16 §4.1, D-033): no fine -> 45° (π/4) steps; fine=true
+        // -> the finer :placeangle grid (π/MapView.plobagran). Returns the snapped angle in radians, normalized to
+        // (-π, π]. The absolute-angle analog of the client's (wheel-relative) StdPlace.rotate — see snapPlaceAngle;
+        // reads the live public plobagran so it always honours :placeangle.
+        map.set("snapAngle", new TwoArgFunction() {
+            public LuaValue call(LuaValue a, LuaValue fine) {
+                if(!a.isnumber())
+                    return LuaValue.NIL;
+                return LuaValue.valueOf(snapPlaceAngle(a.todouble(), fine.toboolean()));
+            }
+        });
+        // placeAngle() — the current :placeangle setting (MapView.plobagran, the FINE rotation divisions
+        // snapAngle(...,true) uses; default 12). The coarse 45° default is independent of it; this is the fine grain.
+        map.set("placeAngle", new ZeroArgFunction() {
+            public LuaValue call() {
+                return LuaValue.valueOf(MapView.plobagran);
+            }
+        });
         hafen.set("map", map);
 
         // hafen.markers.* — client-side map markers (A1), read/added/removed against the client's on-disk
@@ -3623,6 +3642,21 @@ public final class AddonManager {
         }
     }
 
+    /**
+     * {@code hafen.map.snapAngle} (V6): snap a facing angle (radians) to the client's placement-angle grid — the
+     * <b>absolute</b> analog of {@code MapView.StdPlace.rotate} (which is wheel-<i>relative</i>, so there is no
+     * verbatim engine code to share, unlike position's {@link haven.MapView#placeSnap}). Coarse (no {@code fine}) =
+     * 45° (π/4) steps; {@code fine} = the {@code :placeangle} grid (π/{@code MapView.plobagran}). Normalized to
+     * (-π, π] via {@link haven.Utils#cangle}. Reads the live public {@code MapView.plobagran} so it honours
+     * {@code :placeangle} with no drift — the §4.1 zero-{@code haven}-edit mirror.
+     */
+    private static double snapPlaceAngle(double a, boolean fine) {
+        double step = fine ? (Math.PI / MapView.plobagran) : (Math.PI / 4);
+        if(step <= 0)
+            return Utils.cangle(a);                 // guard a pathological :placeangle (console clamps it >= 2)
+        return Utils.cangle(Math.round(a / step) * step);
+    }
+
     /** A {@code {shift,ctrl,alt}} table from {@code UI.modflags()} bits — handed to the grab callbacks (no Lua bit ops). */
     static LuaTable modsTable(int mf) {
         LuaTable t = new LuaTable();
@@ -4330,6 +4364,7 @@ public final class AddonManager {
         gh.sdt = luaSdt(opts.get("sdt"));              // V3: optional spawn-data bytes (null ⇒ MessageBuf.nil)
         gh.alpha = luaAlpha(opts.get("alpha"));        // V3: opacity 0..1 (default 1 = opaque)
         gh.tint = luaTint(opts.get("tint"));           // V3: colour overlay {r=,g=,b=[,a=]}, or null
+        gh.scale = luaScale(opts.get("scale"));        // V6: uniform scale (default 1 = original size)
         gh.clickable = clickablev.toboolean();         // V2: nil/false → not clickable; true → clickable
         if(onclickv.isfunction())
             gh.onClick = onclickv;
@@ -4371,6 +4406,7 @@ public final class AddonManager {
                     gob.clickable = gh.clickable;            // V2: reflect opt-in clickability BEFORE the gob enters the scene
                     gob.alpha = gh.alpha;                    // V3: reflect the desired look before the first scene add
                     gob.tint = gh.tint;
+                    gob.scale = gh.scale;                    // V6: reflect the desired scale before the first scene add
                     gob.move(gh.rc, gh.a);                   // apply any :move that landed while we were building
                     gh.gob = gob;
                     gh.mv = mv;
@@ -4453,6 +4489,15 @@ public final class AddonManager {
                 return a.arg1();
             }
         });
+        h.set("scale", new VarArgFunction() {           // V6: uniform scale (1 = original size)
+            public Varargs invoke(Varargs a) {
+                LuaValue sv = a.arg(2);
+                if(!sv.isnumber())
+                    throw new LuaError("ghost:scale(s) expects a positive number (1 = original size) — use a COLON call");
+                setGhostScale(gh, clampScale(sv.todouble()));
+                return a.arg1();
+            }
+        });
         h.set("show", new VarArgFunction() {            // V3: (re)add the scene slot
             public Varargs invoke(Varargs a) { showGhost(gh); return a.arg1(); }
         });
@@ -4466,6 +4511,7 @@ public final class AddonManager {
                     t.set("x", LuaValue.valueOf(gh.rc.x));
                     t.set("y", LuaValue.valueOf(gh.rc.y));
                     t.set("a", LuaValue.valueOf(gh.a));
+                    t.set("scale", LuaValue.valueOf((double)gh.scale));   // V6: the ghost's full transform is {x,y,a,scale}
                 }
                 return t;
             }
@@ -4607,6 +4653,23 @@ public final class AddonManager {
     }
 
     /**
+     * Set a ghost's uniform scale ({@code g:scale(s)}, V6): {@code 1} = original size. Applied by re-adding the
+     * scene slot like {@link #setGhostAlpha} (obstate's scaling {@code Location} is not part of
+     * {@code GobState.equals}, so the normal update path won't re-apply it). No-op if unchanged/dead. Under the
+     * ghost monitor.
+     */
+    private static void setGhostScale(LuaGhost gh, float scale) {
+        synchronized(gh) {
+            if(gh.dead || (gh.scale == scale))
+                return;
+            gh.scale = scale;
+            if(gh.gob instanceof GhostGob)
+                ((GhostGob)gh.gob).scale = scale;      // read by obstate on the next scene (re)add
+            refreshGhostScene(gh);
+        }
+    }
+
+    /**
      * Remove the ghost from the scene ({@code g:hide()}, V3) — drops the scene slot (so it stops rendering/ticking)
      * but <b>keeps</b> the gob so {@code :show()} can re-add it. Marks {@link LuaGhost#hidden} so a hide that lands
      * before the deferred create published keeps the prop out of the scene. No-op if already hidden/dead. Under the
@@ -4723,6 +4786,14 @@ public final class AddonManager {
     }
     private static float clampAlpha(double a) {
         return (a < 0.0) ? 0f : ((a > 1.0) ? 1f : (float)a);
+    }
+
+    /** Parse a ghost {@code scale} option/arg → clamped positive (0.01..100); a non-number defaults to 1 (original size). */
+    private static float luaScale(LuaValue v) {
+        return v.isnumber() ? clampScale(v.todouble()) : 1f;
+    }
+    private static float clampScale(double s) {
+        return (s < 0.01) ? 0.01f : ((s > 100.0) ? 100f : (float)s);   // never 0/negative (would collapse/invert the mesh)
     }
 
     /** Parse a ghost {@code tint} option/arg → a {@link java.awt.Color}, or {@code null} for none (nil / not a table). */
