@@ -15,6 +15,7 @@ import haven.Coord3f;
 import haven.Drawable;
 import haven.Equipory;
 import haven.FightWnd;
+import haven.FlowerMenu;
 import haven.GameUI;
 import haven.GItem;
 import haven.Glob;
@@ -2781,6 +2782,34 @@ public final class AddonManager {
                 requireActions(owner, "hafen.act.raw");
                 actRaw(a);
                 return LuaValue.NIL;
+            }
+        });
+        // menu(path...) — invoke a menu/pagina action by its path tokens, via GameUI.act (the "act" wdgmsg
+        // the action-bar menu grid sends when you click through a pagina tree; the client itself uses it,
+        // e.g. act("lo","cs") = log out to character select). CAVEAT (coverage-gaps C3): paginae are
+        // server-fetched and their names are content-defined / localized / versioned — this is NOT a stable
+        // address space, and a path resolves only if that page is currently loaded. Some paths COMMIT real
+        // actions (e.g. "lo" logs out), so the addon supplies the tokens deliberately.
+        act.set("menu", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                requireActions(owner, "hafen.act.menu");
+                actMenu(a);
+                return LuaValue.NIL;
+            }
+        });
+        // flower(label) — select a petal of the OPEN radial context menu (FlowerMenu) by its label (the petal
+        // name, matched case-insensitively), driving the client's own FlowerMenu.choose (wrap-not-reimplement,
+        // D-009: reuses the client's selection, including its client-side petals). Returns true if a matching
+        // petal was chosen, false if no flower menu is open or no petal matched (never throws for those — an
+        // addon can just test the result). The classic use is automation: an addon right-clicks a target
+        // (clickGob button 3) and then auto-picks a petal — while a flower menu is open it grabs the mouse +
+        // keyboard, so a programmatic pick (from a timer / event) is the only way to select without a click.
+        act.set("flower", new OneArgFunction() {
+            public LuaValue call(LuaValue label) {
+                requireActions(owner, "hafen.act.flower");
+                if(!label.isstring())
+                    throw new LuaError("hafen.act.flower(label): label must be a string (a petal name)");
+                return LuaValue.valueOf(actFlower(label.tojstring()));
             }
         });
         hafen.set("act", act);
@@ -5688,6 +5717,79 @@ public final class AddonManager {
                 return hookTarget(tok);          // "mapview"/"gameui"/"root" → the live bound widget (reuse 2c)
         }
         return null;
+    }
+
+    // -- 4e: menu + flower verbs -----------------------------------------------------------------------
+    // menu goes through GameUI.act (the "act" wdgmsg by path — what the action-bar menu grid sends); flower
+    // through the OPEN FlowerMenu's own choose (wrap-not-reimplement, D-009 — reuses the client's petal
+    // selection, including its client-side petals). Both run on the UI thread (addon callback / REPL / timer),
+    // like the MapView verbs above, and locate their target by walking the live widget tree (gui() / the
+    // recursive children(FlowerMenu.class)). flower is non-throwing on "no menu / no match" (returns false).
+
+    /** Build the menu path {@code String[]} from the 1-based varargs; throws on an empty path or a non-string
+     *  token (numbers coerce to their string form, like a console token). Pure/testable. */
+    static String[] menuPath(Varargs a) {
+        int n = a.narg();
+        if(n < 1)
+            throw new LuaError("hafen.act.menu(path...): at least one path token is required");
+        String[] path = new String[n];
+        for(int i = 1; i <= n; i++) {
+            LuaValue v = a.arg(i);
+            if(!v.isstring())
+                throw new LuaError("hafen.act.menu(path...): every path token must be a string");
+            path[i - 1] = v.tojstring();
+        }
+        return path;
+    }
+
+    /** {@code hafen.act.menu} backing — send the "act" menu-path message via {@link GameUI#act(String...)}. */
+    private static void actMenu(Varargs a) {
+        GameUI g = gui();
+        if(g == null)
+            throw new LuaError("hafen.act.menu: no game UI (not in the world yet)");
+        g.act(menuPath(a));
+    }
+
+    /** The single OPEN radial context menu ({@link FlowerMenu}), or {@code null} if none is up. */
+    private static FlowerMenu openFlower() {
+        UI u = ui;
+        if((u == null) || (u.root == null))
+            return null;
+        for(FlowerMenu fm : u.root.children(FlowerMenu.class))   // recursive walk; only one is ever open (it grabs input)
+            return fm;
+        return null;
+    }
+
+    /** Index of the first petal name equal to {@code label} (case-insensitive), or {@code -1}. Pure/testable. */
+    static int flowerPetalIndex(String[] names, String label) {
+        if(names == null)
+            return -1;
+        for(int i = 0; i < names.length; i++) {
+            if((names[i] != null) && names[i].equalsIgnoreCase(label))
+                return i;
+        }
+        return -1;
+    }
+
+    /**
+     * {@code hafen.act.flower} backing — select the open flower menu's petal whose name equals {@code label}
+     * (case-insensitive), via the client's own {@link FlowerMenu#choose}. Returns whether a petal matched.
+     */
+    private static boolean actFlower(String label) {
+        FlowerMenu fm = openFlower();
+        if(fm == null)
+            return false;                        // no menu open
+        FlowerMenu.Petal[] opts = fm.opts;
+        if(opts == null)
+            return false;
+        String[] names = new String[opts.length];
+        for(int i = 0; i < opts.length; i++)
+            names[i] = (opts[i] == null) ? null : opts[i].name;
+        int idx = flowerPetalIndex(names, label);
+        if(idx < 0)
+            return false;                        // no petal matched
+        fm.choose(opts[idx]);                    // wrap-not-reimplement: the client's own petal selection
+        return true;
     }
 
     // ---- movement speed (A7: hafen.speed) --------------------------------------------------------
