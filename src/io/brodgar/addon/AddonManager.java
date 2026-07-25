@@ -14,6 +14,7 @@ import haven.Coord2d;
 import haven.Coord3f;
 import haven.Drawable;
 import haven.Equipory;
+import haven.FightWnd;
 import haven.GameUI;
 import haven.GItem;
 import haven.Glob;
@@ -2495,6 +2496,39 @@ public final class AddonManager {
             }
         });
         hafen.set("wounds", wounds);
+
+        // hafen.fight.* — combat schools / the maneuver deck builder (A10), read from the character
+        // sheet's "Martial Arts & Combat Schools" tab (FightWnd, @RName("fmg"), reached via CharWnd.fight —
+        // created hidden at login but live, so it reads without opening the window). This is the OUT-OF-COMBAT
+        // configuration editor (distinct from the in-combat hafen.combat.* view, which is Fightview/Fightsess
+        // with live cooldowns). maneuvers([filter]) returns every combat maneuver/attack you know as {res,
+        // name, avail (how many you can slot), used (how many you have slotted)}, filtered by the canonical
+        // nil=all / name-substring / predicate. deck() returns the current school's configured card LAYOUT —
+        // the filled key slots in order, each {slot (raw 0-based deck index), key (the hotkey label
+        // "1".."5"/"⇧1".."⇧5"), res, name, used}. summary() returns the scalars {maxact (the action-point
+        // budget cap), used (total points spent = sum of maneuvers' used), nact (deck size), nsave (number of
+        // saved-school slots), usesave (the active saved-school slot, 0-based)}, or nil before the tab exists.
+        // Read-only — editing a school / switching saved schools (load/save/use, drag cards, set counts) is
+        // the gated Phase-4 action tier; no FightChanged event (a school changes only on explicit player
+        // action, like A4 skills / A8 craft — read on demand). Saved-school NAMES are deferred (the private
+        // FightWnd.saves[] would need a haven-package accessor; usesave/nsave identify the active slot).
+        LuaTable fight = new LuaTable();
+        fight.set("maneuvers", new OneArgFunction() {
+            public LuaValue call(LuaValue filter) {
+                return fightManeuvers(filter);
+            }
+        });
+        fight.set("deck", new ZeroArgFunction() {
+            public LuaValue call() {
+                return fightDeck();
+            }
+        });
+        fight.set("summary", new ZeroArgFunction() {
+            public LuaValue call() {
+                return fightSummary();
+            }
+        });
+        hafen.set("fight", fight);
 
         // hafen.buffs.* — active buffs/debuffs (GameUI.buffs → Buff widgets), via the widget-tree
         // mechanism (1d-2). list() returns Buff snapshots {res,name,amount,cooldown,number}; amount/
@@ -5702,6 +5736,138 @@ public final class AddonManager {
                 return false;
         }
         return true;
+    }
+
+    // ---- combat schools (A10: hafen.fight) -------------------------------------------------------
+    // The combat-school / maneuver-deck builder is a FightWnd (@RName("fmg")) — the character sheet's
+    // "Martial Arts & Combat Schools" tab, held by the public CharWnd.fight field (created hidden at login
+    // but live, so it reads without opening the window, exactly like A9's quests/wounds). This is the
+    // OUT-OF-COMBAT configuration surface, distinct from the in-combat Fightview/Fightsess deck (which has
+    // live rtime cooldowns and is the separate hafen.combat.* view). It keeps three data structures:
+    //   • acts   — public List<Action>: every maneuver/attack you know. Each Action {res (public Indir<
+    //              Resource>), a (public int = how many you can slot), u (public int = how many slotted)}.
+    //   • order  — public final Action[]: the current school's card LAYOUT, index i → the maneuver bound to
+    //              key FightWnd.keys[i] ("1".."5","⇧1".."⇧5"); a null entry is an empty slot.
+    //   • saves[] + usesave/nsave/maxact — the saved schools (names in the PRIVATE saves[], so deferred) plus
+    //              the active slot (usesave), slot count (nsave) and the action-point budget cap (maxact).
+    // All the fields we read are public → zero haven edit (like A9/A8/A7/A6/A4/A2). Read-only; editing/
+    // switching schools (wdgmsg load/save/use, drag, set counts) is the gated Phase-4 tier.
+    //
+    // Threading: the FightWnd.uimsg handlers run on a Loader thread under synchronized(ui): "avail" REPLACES
+    // acts wholesale, "used"/"max" mutate act.u / maxact / order[] entries, and Actions.tick re-sorts acts on
+    // the UI thread. So — the marker discipline — we copy the acts list / order[] array and read the scalars
+    // under the ui monitor, then resolve resource names OUTSIDE the lock (res.get() may Loading). The public
+    // int reads (a/u/maxact/usesave) outside the lock are snapshot-atomic like A9-2's wound ints.
+
+    /** The Combat Schools window (the character sheet's "Martial Arts & Combat Schools" tab — created hidden
+     *  at login but live), or {@code null} before it exists. Via the public {@code CharWnd.fight} field. */
+    private static FightWnd fightwnd() {
+        CharWnd c = charwnd();
+        return (c == null) ? null : c.fight;
+    }
+
+    /** {@code hafen.fight.maneuvers([filter])} — every known combat maneuver/attack as {@code {res, name,
+     *  avail, used}} snapshots, filtered by the canonical nil=all / name-substring / predicate. */
+    private static LuaValue fightManeuvers(LuaValue filter) {
+        LuaTable out = new LuaTable();
+        FightWnd fw = fightwnd();
+        UI u = ui;
+        if((fw == null) || (u == null))
+            return out;
+        List<FightWnd.Action> acts = new ArrayList<FightWnd.Action>();
+        synchronized(u) {                          // acts is swapped wholesale off-thread (the "avail" uimsg)
+            acts.addAll(fw.acts);
+        }
+        int i = 0;
+        for(FightWnd.Action a : acts) {            // resolve names outside the lock (res.get() may Loading)
+            LuaValue snap = maneuverSnapshot(a);
+            if(matches(filter, snap))
+                out.set(++i, snap);
+        }
+        return out;
+    }
+
+    /** One maneuver as {@code {res, name, avail, used}}. {@code res}/{@code name} are Loading-guarded;
+     *  {@code avail} ({@code Action.a}) / {@code used} ({@code Action.u}) are plain public ints. */
+    private static LuaValue maneuverSnapshot(FightWnd.Action a) {
+        LuaTable t = new LuaTable();
+        String res = resIdent(a.res);
+        if(res != null)
+            t.set("res", LuaValue.valueOf(res));
+        String name = resTipName(a.res, res);
+        if(name != null)
+            t.set("name", LuaValue.valueOf(name));
+        t.set("avail", LuaValue.valueOf(a.a));
+        t.set("used", LuaValue.valueOf(a.u));
+        return t;
+    }
+
+    /** {@code hafen.fight.deck()} — the current school's configured card layout: the filled {@code order[]}
+     *  slots in key order, each {@code {slot, key, res, name, used}}. Empty deck slots are omitted. */
+    private static LuaValue fightDeck() {
+        LuaTable out = new LuaTable();
+        FightWnd fw = fightwnd();
+        UI u = ui;
+        if((fw == null) || (u == null))
+            return out;
+        FightWnd.Action[] order;
+        synchronized(u) {                          // order[] entries are reassigned off-thread (the "used" uimsg)
+            order = java.util.Arrays.copyOf(fw.order, fw.order.length);
+        }
+        int i = 0;
+        for(int slot = 0; slot < order.length; slot++) {
+            FightWnd.Action a = order[slot];
+            if(a == null)
+                continue;                          // an empty deck slot — omit (slot/key convey position)
+            LuaTable t = new LuaTable();
+            t.set("slot", LuaValue.valueOf(slot));
+            t.set("key", LuaValue.valueOf(deckKey(slot)));
+            String res = resIdent(a.res);          // resolved outside the lock (may Loading)
+            if(res != null)
+                t.set("res", LuaValue.valueOf(res));
+            String name = resTipName(a.res, res);
+            if(name != null)
+                t.set("name", LuaValue.valueOf(name));
+            t.set("used", LuaValue.valueOf(a.u));
+            out.set(++i, t);
+        }
+        return out;
+    }
+
+    /** The hotkey label for deck slot {@code slot} (the game's own {@code FightWnd.keys}: "1".."5",
+     *  "⇧1".."⇧5"), or a 1-based fallback if the deck is larger than the key table. */
+    private static String deckKey(int slot) {
+        String[] keys = FightWnd.keys;
+        if((keys != null) && (slot >= 0) && (slot < keys.length) && (keys[slot] != null))
+            return keys[slot];
+        return String.valueOf(slot + 1);
+    }
+
+    /** {@code hafen.fight.summary()} — the scalars {@code {maxact, used, nact, nsave, usesave}}, or
+     *  {@code nil} before the Combat Schools tab exists. {@code used} = the total action points spent
+     *  (sum of every maneuver's {@code u}), mirroring the window's own "Used: u/maxact" count. */
+    private static LuaValue fightSummary() {
+        FightWnd fw = fightwnd();
+        UI u = ui;
+        if((fw == null) || (u == null))
+            return LuaValue.NIL;
+        int maxact, usesave, nsave, nact, used;
+        synchronized(u) {                          // acts/order/maxact all mutate off-thread — read under the lock
+            maxact = fw.maxact;
+            usesave = fw.usesave;
+            nsave = fw.nsave;
+            nact = fw.order.length;
+            used = 0;
+            for(FightWnd.Action a : fw.acts)
+                used += a.u;
+        }
+        LuaTable t = new LuaTable();
+        t.set("maxact", LuaValue.valueOf(maxact));
+        t.set("used", LuaValue.valueOf(used));
+        t.set("nact", LuaValue.valueOf(nact));
+        t.set("nsave", LuaValue.valueOf(nsave));
+        t.set("usesave", LuaValue.valueOf(usesave));
+        return t;
     }
 
     // ---- markers (A1: hafen.markers) -------------------------------------------------------------

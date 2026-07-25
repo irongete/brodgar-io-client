@@ -34,5 +34,9 @@ built up **progressively** as each piece lands. It is the counterpart to the des
 | [a11-slash-commands.md](a11-slash-commands.md) | ✅ Implemented & verified | Gap subsystem A11: `hafen.slash.register` (WoW `/command`) via a single engine-lifetime `Console` dispatcher (C1) — zero `haven` edit |
 | [a6-kin.md](a6-kin.md) | ✅ Implemented & verified | Gap subsystem A6: `hafen.kin` (list/find) over the Kin window (`BuddyWnd`) + `KinChanged` — zero `haven` edit |
 | [a7-speed.md](a7-speed.md) | ✅ Implemented & verified | Gap subsystem A7: `hafen.speed` (get/max/name) over the `Speedget` selector; read-only (set = gated Phase 4) — zero `haven` edit |
+| [a8-craft.md](a8-craft.md) | ✅ Implemented & verified | Gap subsystem A8: `hafen.craft.current()` over the `Makewindow` recipe (inputs/outputs/qmod/tools); read-only (make = gated Phase 4) — zero `haven` edit |
+| [a9-1-quests.md](a9-1-quests.md) | ✅ Implemented & verified | Gap subsystem A9-1: `hafen.quests` (list/selected) over `QuestWnd` + `QuestAdded`/`QuestDone` — zero `haven` edit |
+| [a9-2-wounds.md](a9-2-wounds.md) | ✅ Implemented & verified | Gap subsystem A9-2: `hafen.wounds` (list/has) over `WoundWnd` + `WoundChanged`; completes A9 — zero `haven` edit |
+| [a10-fight.md](a10-fight.md) | ✅ Implemented (in-game check pending) | Gap subsystem A10: `hafen.fight` (maneuvers/deck/summary) over the `FightWnd` combat-school builder; read-only (edit/switch = gated Phase 4) — zero `haven` edit |
 
 _(Grows as phases land — see [`specs/addons/15-implementation-plan.md`](../../specs/addons/15-implementation-plan.md) for the build order.)_

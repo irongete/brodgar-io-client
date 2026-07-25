@@ -41,7 +41,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.30.0)")
+hafen.log("hello loaded (v0.31.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -383,6 +383,43 @@ local function dumpWounds()                       -- :hello wound -- the full wo
   end
 end
 
+-- A10: COMBAT SCHOOLS via hafen.fight. This is the OUT-OF-COMBAT maneuver-deck builder (the character sheet's
+-- "Martial Arts & Combat Schools" tab, FightWnd) -- distinct from the in-combat hafen.combat.* view (live
+-- cooldowns). maneuvers([filter]) returns every combat maneuver/attack you know as {res, name, avail (how many
+-- you can slot), used (how many you have slotted)}; deck() returns the current school's configured card LAYOUT
+-- as {slot (0-based deck index), key (the hotkey "1".."5"/"⇧1".."⇧5"), res, name, used} for the filled slots;
+-- summary() returns the scalars {maxact (the action-point budget cap), used (total spent), nact (deck size),
+-- nsave (saved-school slots), usesave (the active slot, 0-based)}, or nil before the tab exists. Like the rest
+-- of the character sheet it streams in a beat after enter-world, so read at now (often nil/empty) and +3s. hello
+-- is READ-ONLY -- editing a school / switching saved schools is the gated Phase-4 tier -- and there is NO
+-- FightChanged event (a school changes only on explicit action), so this is READ ON DEMAND: ':hello fight'
+-- dumps the full deck (by hotkey) + your known maneuvers.
+local function readFight(tag)
+  local s = hafen.fight.summary()
+  if not s then hafen.log(("[%s] fight: nil (combat-schools tab not up yet)"):format(tag)); return end
+  local man  = hafen.fight.maneuvers()
+  local deck = hafen.fight.deck()
+  hafen.log(("[%s] fight: %d maneuver(s), deck=%d/%d filled, used=%d/%d, school slot=%d/%d"):format(
+    tag, #man, #deck, s.nact, s.used, s.maxact, s.usesave, s.nsave))
+end
+local function dumpFight()                        -- :hello fight -- the deck (by hotkey) + known maneuvers
+  local s = hafen.fight.summary()
+  if not s then hafen.log(":hello fight -> combat-schools tab not up yet (enter the world first)"); return end
+  hafen.log((":hello fight -> used %d/%d action points, active school slot %d (of %d), deck size %d"):format(
+    s.used, s.maxact, s.usesave, s.nsave, s.nact))
+  local deck = hafen.fight.deck()
+  if #deck == 0 then hafen.log("  deck: (empty -- nothing slotted)") end
+  for _, d in ipairs(deck) do
+    hafen.log(("  [%s] %s x%d"):format(tostring(d.key), tostring(d.name or d.res), d.used or 0))
+  end
+  local man = hafen.fight.maneuvers()
+  hafen.log(("  known maneuvers: %d"):format(#man))
+  for i, m in ipairs(man) do
+    if i > 8 then hafen.log(("  ... and %d more"):format(#man - 8)); break end
+    hafen.log(("    %s (avail %d, used %d)"):format(tostring(m.name or m.res), m.avail or 0, m.used or 0))
+  end
+end
+
 -- 3b: WIDGET MODEL (hafen.ui.adopt). We adopt the MAIN INVENTORY as a model down in the onWidgetCreate observer
 -- (the 3a -> 3b flow: observe a widget's creation, then adopt it by desc.id). invModel is that handle (nil until
 -- the inventory is observed at login). readBags reads it: item count + first item (via model:items(), the same
@@ -435,10 +472,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now"); readCraft("now"); readQuests("now"); readWounds("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now"); readCraft("now"); readQuests("now"); readWounds("now"); readFight("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s"); readWounds("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s"); readWounds("+3s"); readFight("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via Ctrl+B) and it logs") end
   end)
@@ -823,7 +860,7 @@ end)
 -- sound, and ":hello echo <text...>" shows the args rejoined (quoting survives — :hello echo "a b" c -> a b c).
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight")
     return
   end
   local sub = args[1]
@@ -845,8 +882,10 @@ hafen.slash.register("hello", function(args)
     dumpQuest()                                  -- A9-1: dump the selected quest + its objectives (select one first)
   elseif sub == "wound" then
     dumpWounds()                                 -- A9-2: dump the full wound tree (name/severity, indented)
+  elseif sub == "fight" then
+    dumpFight()                                  -- A10: dump the combat-school deck (by hotkey) + known maneuvers
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight)")
       :format(#args, table.concat(args, " | ")))
   end
 end)
