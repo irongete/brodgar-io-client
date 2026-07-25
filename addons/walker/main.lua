@@ -10,7 +10,8 @@
 -- can only send what a player click could send; the permission exists so YOU control which addons act for you.
 -- Kept SEPARATE from the always-on read-only `hello` regression harness (which declares no permissions).
 --
--- Slice 4d adds the rest of the MapView action verbs on top of moveTo (4a); slice 4e adds menu + flower.
+-- Slice 4d adds the rest of the MapView action verbs on top of moveTo (4a); slice 4e adds menu + flower;
+-- slice 4f adds the ITEM verbs (hafen.act.item).
 -- Each is a DELIBERATE, opt-in trigger — a `:walker <sub>` command — so nothing acts unless you ask.
 -- Sub-commands:
 --   :walker walk        -- moveTo: walk ~2 tiles south  (the original 4a demo)
@@ -23,8 +24,11 @@
 --                          character select — reversible). Path tokens are content-defined, so YOU supply them.
 --   :walker flower <l>  -- flower: RIGHT-click the nearest object, then auto-select its petal named <l> after a
 --                          brief delay (a flower menu grabs input, so a timed pick is the only programmatic way).
+--   :walker item [verb] -- item: act on your FIRST inventory item, addressed by its HANDLE (item.handle, from a
+--                          read). Default 'take' lifts it to your cursor (safe/reversible: click an empty slot to
+--                          undo). Pass a verb: take|drop|transfer|iact|itemact.
 
-hafen.log("walker loaded (v0.4.0) -- the write-actions demo (moveTo + the 4d MapView verbs + 4e menu/flower)")
+hafen.log("walker loaded (v0.5.0) -- the write-actions demo (moveTo + the 4d MapView verbs + 4e menu/flower + 4f item verbs)")
 
 -- At login, confirm we're granted (we only load once YOU enabled us, and we declared the permission).
 hafen.events.on("OnEnterWorld", function()
@@ -39,10 +43,11 @@ hafen.slash.register("walker", function(args)
   local sub = args[1] or "help"
 
   if sub == "help" then
-    hafen.log(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower   (gated hafen.act verbs)")
+    hafen.log(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | item   (gated hafen.act verbs)")
     hafen.log("   walk=moveTo  click=clickGob(right)  use=useItemOn  sel=select  place=place  raw=raw escape hatch")
     hafen.log("   menu=hafen.act.menu(path...)  e.g. ':walker menu lo cs' = log out to char select (reversible)")
     hafen.log("   flower=hafen.act.flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
+    hafen.log("   item [verb]=hafen.act.item(firstInvItem, verb)  default take (lifts to cursor); take|drop|transfer|iact|itemact")
     return
   end
 
@@ -118,6 +123,23 @@ hafen.slash.register("walker", function(args)
       hafen.log((":walker flower -> hafen.act.flower('%s') => %s"):format(
         label, ok and "chosen" or "no such petal / no menu open (right-click gave a direct action, or retry)"))
     end)
+
+  elseif sub == "item" then
+    -- 4f: item verbs act on a LIVE item addressed by its HANDLE (item.handle = the item's server widget id),
+    -- which every item snapshot carries -- you get it from a READ (hafen.items.* / model:items()). The verb
+    -- re-resolves that handle to the live GItem each call (a stale/used item errors, like a GobRef) and sends
+    -- exactly the GItem.wdgmsg a click sends. Demo: act on the FIRST inventory item; default 'take' is the
+    -- safest + most visible (it lifts the item onto your cursor -- click an empty slot to put it back).
+    local verb = args[2] or "take"
+    local inv = hafen.items.inventory()                -- array of Item snapshots, each with a `handle`
+    local it = inv[1]
+    if not it then hafen.log(":walker item -> your inventory is empty (put something in it, then retry)"); return end
+    hafen.act.item(it, verb)                            -- gated; resolves it.handle -> the live GItem, sends `verb`
+    hafen.log((":walker item -> hafen.act.item('%s' [handle %s], '%s')")
+      :format(it.name or it.res or "?", tostring(it.handle), verb))
+    if verb == "take" then
+      hafen.log("   (take lifts the item onto your cursor -- left-click an empty inventory slot to put it back)")
+    end
 
   else
     hafen.log((":walker -> unknown sub-command '%s'  (try  :walker help)"):format(sub))

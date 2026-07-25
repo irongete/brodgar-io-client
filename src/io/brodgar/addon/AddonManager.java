@@ -2293,10 +2293,11 @@ public final class AddonManager {
         hafen.set("music", music);
 
         // hafen.items.* — inventory / equipment / cursor items as snapshots (the "Item" shape in
-        // api-reference.md). Items have no stable addon-visible id yet, so bulk reads return
-        // point-in-time snapshots carrying name/res/num/wear/pos; per-item live accessors wait for
-        // item handles (the UI phase). Reads walk the WItem children of the inventory/equipory widgets
-        // (both public) → zero core edit; item names/resources are Loading-guarded → nil while resolving.
+        // api-reference.md). Bulk reads return point-in-time snapshots carrying name/res/num/wear/pos plus a
+        // `handle` (the item's server widget id = the ItemRef the gated hafen.act.item(item, verb) verb takes to
+        // re-resolve + drive the live GItem — 4f; the only stable way to address an item, D-022). Reads walk the
+        // WItem children of the inventory/equipory widgets (both public) → zero core edit; item names/resources
+        // are Loading-guarded → nil while resolving.
         LuaTable items = new LuaTable();
         items.set("inventory", new ZeroArgFunction() {
             public LuaValue call() {
@@ -2810,6 +2811,29 @@ public final class AddonManager {
                 if(!label.isstring())
                     throw new LuaError("hafen.act.flower(label): label must be a string (a petal name)");
                 return LuaValue.valueOf(actFlower(label.tojstring()));
+            }
+        });
+        // item(item, verb [, n]) — the gated item verbs. `item` = an item you got from a READ: a snapshot from
+        // hafen.items.* (inventory/equipment/hand/find) or model:items(), OR its numeric `handle` field directly.
+        // The handle (the item's server widget id) re-resolves the LIVE GItem each call (a stale/used/moved item →
+        // a guiding error, like a GobRef that no longer resolves), then sends exactly the GItem.wdgmsg a click on
+        // the item sends (WItem.mousedown / iteminteract) — so the client stays server-authoritative. `verb`:
+        //   "take"     pick it up onto your cursor/hand (from a container, or unequip a worn item).
+        //   "drop"     drop it on the ground; `n` = how many of a stack (default -1 = the whole stack/item).
+        //   "transfer" move it to the linked container (an open container / your inventory); `n` as for drop.
+        //   "iact"     right-click / activate it (its default context action: eat, open, light, …).
+        //   "itemact"  apply the item on your cursor ONTO this item (e.g. pour a waterskin onto a plant).
+        // `n` is ignored for take/iact/itemact (no count). iact/itemact send no modifiers; for a MODIFIED item
+        // interaction use the escape hatch: hafen.act.raw(item.handle, "iact", {x=0,y=0}, mods).
+        act.set("item", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                requireActions(owner, "hafen.act.item");
+                LuaValue verb = a.arg(2);
+                if(!verb.isstring())
+                    throw new LuaError("hafen.act.item(item, verb): verb must be a string"
+                        + " (\"take\", \"drop\", \"transfer\", \"iact\" or \"itemact\")");
+                actItem(a.arg1(), verb.tojstring(), a.arg(3).optint(-1));
+                return LuaValue.NIL;
             }
         });
         hafen.set("act", act);
@@ -4956,6 +4980,12 @@ public final class AddonManager {
      * Every field is optional / Loading-guarded: {@code num == -1} and {@code meter == 0} are treated
      * as "absent" (matching the client's own convention). {@code quality}/{@code contents} are deferred
      * (content-defined value / container widgets).
+     *
+     * <p>{@code handle} is the item's <b>server widget id</b> ({@link GItem#wdgid()}): the stable, facade-safe
+     * {@code ItemRef} (principle P1 — just an int) that the gated {@code hafen.act.item(item, verb)} verb (4f)
+     * takes to re-resolve the live {@link GItem} and drive it. It is a live reference on an otherwise
+     * point-in-time snapshot (the other fields are a copy, like {@code hafen.gob.info}) — the only way to
+     * address an item, since items carry no other stable id (D-022: handle-only). Omitted for an unbound item.
      */
     private static LuaValue itemSnapshot(GItem it, LuaValue pos) {
         if(it == null)
@@ -4971,6 +5001,9 @@ public final class AddonManager {
             t.set("num", LuaValue.valueOf(it.num));
         if(it.meter > 0)
             t.set("wear", LuaValue.valueOf(it.meter));   // 0..100 %, only meaningful when > 0
+        int handle = it.wdgid();
+        if(handle >= 0)
+            t.set("handle", LuaValue.valueOf(handle));   // server widget id → the ItemRef hafen.act.item(item, verb) takes (4f)
         if((pos != null) && !pos.isnil())
             t.set("pos", pos);
         return t;
@@ -5790,6 +5823,75 @@ public final class AddonManager {
             return false;                        // no petal matched
         fm.choose(opts[idx]);                    // wrap-not-reimplement: the client's own petal selection
         return true;
+    }
+
+    // -- 4f: item verbs (hafen.act.item) ---------------------------------------------------------------
+    // The item half of the gated tier. Unlike the MapView verbs (which act on world coords) an item verb acts
+    // on a specific item, addressed by a HANDLE = the item's server widget id (GItem.wdgid(), carried on every
+    // item snapshot as `handle` — D-022: handle-only). We re-resolve the live GItem from that id each call
+    // (ui.getwidget(id); a stale/used/moved item no longer maps to a GItem → a guiding error, exactly like a
+    // GobRef that no longer resolves) and send the SAME GItem.wdgmsg the corresponding click sends
+    // (WItem.mousedown: take/drop/transfer/iact; WItem.iteminteract: itemact) — the client stays server-
+    // authoritative. The coord these messages carry is the intra-item grab point; Coord.z (the item's corner)
+    // is a faithful, deterministic substitute for a programmatic action. The arg BUILDER is pure/testable; the
+    // sender resolves the live GItem and wdgmsgs. Runs on the UI thread (addon callback / REPL / timer), like
+    // every act verb; a 2d "take"/… action-hook can still see it (it is a real wdgmsg).
+
+    /**
+     * The {@link GItem} {@code wdgmsg} args for an item {@code verb}, or {@code null} for an unknown verb.
+     * {@code n} is the stack count for {@code drop}/{@code transfer} ({@code -1} = the whole stack). The others
+     * carry no count: {@code take} is a bare grab; {@code iact}/{@code itemact} send modifiers {@code 0} (a
+     * modified interaction goes through {@code hafen.act.raw}). Pure/testable — the grab coord is a fixed corner.
+     */
+    static Object[] itemVerbArgs(String verb, int n) {
+        switch(verb) {
+            case "take":     return new Object[] {Coord.z};
+            case "drop":     return new Object[] {Coord.z, n};
+            case "transfer": return new Object[] {Coord.z, n};
+            case "iact":     return new Object[] {Coord.z, 0};   // mods 0 — plain right-click / activate
+            case "itemact":  return new Object[] {0};            // mods 0 — apply the held item onto this one
+            default:         return null;
+        }
+    }
+
+    /**
+     * Resolve an {@code ItemRef} to the live {@link GItem}: {@code item} is either a numeric handle (the item's
+     * server widget id) or an item snapshot table carrying a numeric {@code handle} field. Throws a guiding
+     * {@link LuaError} when it is neither (a programmer error), and returns {@code null} when the handle no
+     * longer maps to a live {@link GItem} (a stale/used item — the caller turns that into an action error).
+     */
+    private static GItem resolveItemHandle(LuaValue item) {
+        int id;
+        if(item.isnumber()) {
+            id = item.toint();
+        } else if(item.istable()) {
+            LuaValue h = item.get("handle");
+            if(!h.isnumber())
+                throw new LuaError("hafen.act.item: the item table has no numeric 'handle' field"
+                    + " (pass an item from hafen.items.* / model:items(), or its .handle)");
+            id = h.toint();
+        } else {
+            throw new LuaError("hafen.act.item(item, verb): item must be an item snapshot (a table) or a"
+                + " handle id (a number)");
+        }
+        UI u = ui;
+        if(u == null)
+            return null;
+        Widget w = u.getwidget(id);
+        return (w instanceof GItem) ? (GItem)w : null;
+    }
+
+    /** {@code hafen.act.item} backing — resolve the live {@link GItem} by its handle and send the verb's wdgmsg. */
+    private static void actItem(LuaValue item, String verb, int n) {
+        Object[] args = itemVerbArgs(verb, n);
+        if(args == null)
+            throw new LuaError("hafen.act.item(item, verb): verb must be one of \"take\", \"drop\","
+                + " \"transfer\", \"iact\", \"itemact\" (got \"" + verb + "\")");
+        GItem g = resolveItemHandle(item);
+        if(g == null)
+            throw new LuaError("hafen.act.item: the item did not resolve to a live item — its handle is stale"
+                + " (it was moved/used/consumed, or you are not in the world). Re-read hafen.items.* and retry.");
+        g.wdgmsg(verb, args);
     }
 
     // ---- movement speed (A7: hafen.speed) --------------------------------------------------------

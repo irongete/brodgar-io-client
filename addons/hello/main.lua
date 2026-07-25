@@ -47,7 +47,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.33.0)")
+hafen.log("hello loaded (v0.34.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -106,14 +106,18 @@ end
 -- 1c-3: read the inventory / equipment / cursor through hafen.items. Item NAMES come from resolved
 -- item info, which (like the inventory widget itself) can stream in a beat after enter-world, so this
 -- is read twice — immediately and after a short delay — the same pattern as the map reads above.
+-- 4f (read side): each Item snapshot now also carries a `handle` (the item's server widget id) — the
+-- ItemRef the gated hafen.act.item(item, verb) verb takes. hello is READ-ONLY, so it just OBSERVES the
+-- handle here (the write demo lives in the opt-in `walker` addon); a handle proves the 4f plumbing.
 local function readInv(tag)
-  local inv = hafen.items.inventory()   -- array of Item snapshots {name,res,num,wear,pos}
-  local eq = hafen.items.equipment()    -- array of Item snapshots {..., slot}
+  local inv = hafen.items.inventory()   -- array of Item snapshots {name,res,num,wear,pos,handle}
+  local eq = hafen.items.equipment()    -- array of Item snapshots {..., slot, handle}
   local hand = hafen.items.hand()       -- Item snapshot or nil (cursor item)
   local first = inv[1]
-  hafen.log(("[%s] inventory=%d item(s), first=%s x%s")
+  hafen.log(("[%s] inventory=%d item(s), first=%s x%s handle=%s")
     :format(tag, #inv, first and tostring(first.name or first.res) or "nil",
-            first and tostring(first.num or 1) or "-"))
+            first and tostring(first.num or 1) or "-",
+            first and tostring(first.handle) or "-"))
   hafen.log(("[%s] equipment=%d slot(s), hand=%s")
     :format(tag, #eq, hand and tostring(hand.name or hand.res) or "empty"))
 end
