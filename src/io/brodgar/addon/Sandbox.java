@@ -20,7 +20,7 @@ import org.luaj.vm2.lib.jse.JseOsLib;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 /**
- * The addon <b>Lua sandbox</b> (spec {@code 12-security-and-tos.md}, decisions D-017 + D-018).
+ * The addon <b>Lua sandbox</b> (spec {@code 12-security-and-permissions.md}, decisions D-017 + D-018).
  *
  * <p>Two protections, both aimed at <em>addon</em> code (not the operator):
  * <ul>

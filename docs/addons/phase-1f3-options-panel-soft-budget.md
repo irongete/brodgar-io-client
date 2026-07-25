@@ -6,7 +6,7 @@
 > + LuaJ parse of the new `hogtest` addon under the sandbox. The panel is in-game UI (D-004) and is
 > verified by the in-game DoD below. **In-game verification pending.**
 > **Design:** [specs/addons/10-options-panel.md](../../specs/addons/10-options-panel.md) (the panel),
-> [specs/addons/12-security-and-tos.md](../../specs/addons/12-security-and-tos.md) +
+> [specs/addons/12-security-and-permissions.md](../../specs/addons/12-security-and-permissions.md) +
 > [specs/addons/04-engine.md](../../specs/addons/04-engine.md) (the watchdog), decisions **D-004**
 > (in-game only), **D-006** (enable/disable = WoW apply-on-reload), **D-018** (watchdog: layer 1 = the
 > per-call instruction cap of 1f-1, **layer 2 = this soft per-tick budget**).

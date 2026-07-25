@@ -171,7 +171,7 @@ drag an action/item onto a hotbar slot (`ActionbarChanged`), or equip/unequip a 
 ## Limitations / deferred
 
 - **Action-bar *use* is Phase 4 (gated actions)** — this slice is read + change events only.
-  `hafen.actionbar.use(n)` → `wdgmsg("belt", n, …)` lands behind the botting/ToS flag.
+  `hafen.actionbar.use(n)` → `wdgmsg("belt", n, …)` lands behind the write-actions permission (Phase 4).
 - **`cooldown` is a `0..1` meter, not seconds** — same honesty rule as the non-existent buff-seconds
   timers and study countdown: the client has no seconds value, so the API does not invent one. `cooldown`
   is present only for pagina slots the server tagged with a meter.

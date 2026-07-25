@@ -18,6 +18,18 @@ public final class Manifest {
     public final List<String> files, dependencies, optionalDependencies;
     /** Saved-variable declarations (name + scope) the engine persists/restores — see {@link SavedVar}. */
     public final List<SavedVar> savedVariables;
+    /**
+     * Declared permissions (spec 12 / D-027) — capabilities the addon must ask for before the bridge grants
+     * them. Currently the only permission is {@code "actions"} (the gated write/automation tier, `hafen.act.*`
+     * + the per-subsystem gated verbs). An array so it can grow into finer categories later
+     * ({@code "actions.move"}, {@code "actions.items"}, …) without a format change.
+     */
+    public final List<String> permissions;
+
+    /** Whether this addon declared the {@code "actions"} (write/automation) permission — see D-027. */
+    public boolean usesActions() {
+        return permissions.contains("actions");
+    }
 
     /**
      * One {@code saved_variables} declaration: a global Lua table the engine persists to JSON and
@@ -37,7 +49,8 @@ public final class Manifest {
 
     private Manifest(String id, String name, String version, String author, String description,
                      int apiVersion, List<String> files, List<String> dependencies,
-                     List<String> optionalDependencies, List<SavedVar> savedVariables) {
+                     List<String> optionalDependencies, List<SavedVar> savedVariables,
+                     List<String> permissions) {
         this.id = id;
         this.name = name;
         this.version = version;
@@ -48,6 +61,7 @@ public final class Manifest {
         this.dependencies = dependencies;
         this.optionalDependencies = optionalDependencies;
         this.savedVariables = savedVariables;
+        this.permissions = permissions;
     }
 
     /**
@@ -57,7 +71,10 @@ public final class Manifest {
     static Manifest internal(String id) {
         List<String> none = Collections.emptyList();
         List<SavedVar> novars = Collections.emptyList();
-        return new Manifest(id, id, "0", "brodgar", "engine-internal owner", 1, none, none, none, novars);
+        // The engine-internal owner (the :lua REPL) is the trusted operator console → it holds every
+        // permission (still subject to the global master switch, like any addon — D-027).
+        List<String> allperms = Collections.singletonList("actions");
+        return new Manifest(id, id, "0", "brodgar", "engine-internal owner", 1, none, none, none, novars, allperms);
     }
 
     /** Read and validate {@code <dir>/manifest.json}. Throws with a clear message on any problem. */
@@ -84,7 +101,7 @@ public final class Manifest {
                             str(m, "version", false), str(m, "author", false),
                             str(m, "description", false), intv(m, "api_version", 1),
                             files, strlist(m, "dependencies"), strlist(m, "optional_dependencies"),
-                            savedvars(m));
+                            savedvars(m), strlist(m, "permissions"));
     }
 
     /**

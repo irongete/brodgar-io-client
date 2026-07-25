@@ -8,6 +8,7 @@ import haven.BuddyWnd;
 import haven.Buff;
 import haven.Bufflist;
 import haven.CharWnd;
+import haven.Config;
 import haven.Console;
 import haven.Coord;
 import haven.Coord2d;
@@ -259,7 +260,51 @@ public final class AddonManager {
     // surfaced in the AddOns panel and cleared on the next (re)load so the addon gets a fresh start.
     private static final Map<String, String> autoDisabledWarn = new ConcurrentHashMap<String, String>();
 
+    // -- write-actions permission (spec 12-security-and-permissions / D-010 / D-025 / D-027): the ONE gated surface.
+    // Every hafen.act.* verb (and the per-subsystem *(gated action)* verbs — speed.set, craft.make, actionbar.use,
+    // kin.* — arriving in later Phase-4 slices) DRIVES the character by sending a player-action wdgmsg — it acts
+    // on the user's behalf (moves them, uses items, interacts with the world), which is powerful, so a verb is
+    // granted only when BOTH hold (D-027, a permission model like app permissions):
+    //   1. the GLOBAL master switch is ON  — for now the haven-config.properties flag addons.actions.enabled
+    //      (default false); a config edit / -Daddons.actions.enabled=true enables it (restart to apply). Slice 4b
+    //      layers a persisted, panel-toggled pref on top so it can be flipped at runtime. (No runtime toggle yet:
+    //      that is exactly why the master switch reads the config flag ONLY here — a stray persisted pref must not
+    //      be able to strand the switch ON with no UI to turn it off.)
+    //   2. the calling ADDON declared the "actions" permission in its manifest ("permissions": ["actions"]).
+    // Either missing → requireActions throws a clear, distinct Lua error. The read/UI/event tiers are unaffected.
+    private static final Config.Variable<Boolean> CFG_ACTIONS = Config.Variable.propb("addons.actions.enabled", false);
+
     private AddonManager() {
+    }
+
+    // ------------------------------------------------------------- write-actions permission
+
+    /**
+     * The GLOBAL master switch — whether write-actions are allowed for the client at all (one half of D-027).
+     * For now this is the {@code addons.actions.enabled} config flag (default false); slice 4b layers a persisted,
+     * panel-toggled pref on top so it can be flipped at runtime without a config edit + restart.
+     */
+    public static boolean actionsEnabled() {
+        return CFG_ACTIONS.get();
+    }
+
+    /** Whether {@code owner} may call an action verb right now — master switch ON AND the addon declared it. */
+    static boolean actionsGranted(Addon owner) {
+        return actionsEnabled() && (owner != null) && owner.manifest.usesActions();
+    }
+
+    /**
+     * Gate an action verb (D-027): the calling addon must have DECLARED the "actions" permission (a manifest
+     * requirement — checked first, as it's the addon author's responsibility) AND the global master switch must
+     * be ON (the user's runtime choice). Throws a distinct, guiding Lua error for each failure.
+     */
+    private static void requireActions(Addon owner, String verb) {
+        if((owner == null) || !owner.manifest.usesActions())
+            throw new LuaError(verb + ": this addon did not declare the \"actions\" permission — add"
+                + " \"permissions\": [\"actions\"] to its manifest.json (D-027: write-actions must be declared).");
+        if(!actionsEnabled())
+            throw new LuaError(verb + ": the global write-actions permission is OFF. Turn it on with"
+                + " addons.actions.enabled=true (a panel checkbox arrives in slice 4b) to let addons act on your behalf.");
     }
 
     static {
@@ -2583,6 +2628,37 @@ public final class AddonManager {
             }
         });
         hafen.set("actionbar", actionbar);
+
+        // hafen.act.* — the GATED write-actions surface (spec 12 / D-010 / D-025 / D-027), the ONLY part of hafen.*
+        // that DRIVES the character: it sends player-action wdgmsgs to the server. Everything else observes; this
+        // acts. A verb runs only when BOTH the global master switch is ON and THIS addon declared the "actions"
+        // permission in its manifest (else requireActions throws a guiding error) — because it acts on the user's
+        // behalf, the user opts in and picks which addons may. It stays server-authoritative: an addon can only
+        // send what a player click could send.
+        //   enabled()   -> bool; is THIS addon allowed to act right now (master ON AND permission declared)? Reports
+        //                  WITHOUT throwing, so an addon can adapt (no pcall needed).
+        //   moveTo(x,y) -> walk the character to a WORLD position (the same coords hafen.gob.pos returns). This is
+        //                  exactly the MapView "click" a left-click on that ground spot sends; the screen coord it
+        //                  carries is a dummy (the current mouse pos), like MiniMap.mvclick when you click the
+        //                  minimap to walk. Off-screen destinations are fine (the server uses the world coord).
+        // Later Phase-4 slices add clickGob/useItemOn/place/select/menu/flower/item + the per-subsystem gated verbs
+        // (speed.set, craft.make, actionbar.use, kin.*); they all share this same gate (requireActions(owner, …)).
+        LuaTable act = new LuaTable();
+        act.set("enabled", new ZeroArgFunction() {
+            public LuaValue call() {
+                return LuaValue.valueOf(actionsGranted(owner));
+            }
+        });
+        act.set("moveTo", new TwoArgFunction() {
+            public LuaValue call(LuaValue x, LuaValue y) {
+                requireActions(owner, "hafen.act.moveTo");
+                if(!x.isnumber() || !y.isnumber())
+                    throw new LuaError("hafen.act.moveTo(x, y): x and y must be numbers (world coordinates)");
+                actMoveTo(x.todouble(), y.todouble());
+                return LuaValue.NIL;
+            }
+        });
+        hafen.set("act", act);
 
         // hafen.ui — custom client-side UI (spec 07, Phase 2a). window(opts) = a draggable, titled window;
         // widget(opts) = a bare rectangle (no chrome). opts: size={w,h}, pos={x,y}, parent="root"|"gameui",
@@ -5340,6 +5416,32 @@ public final class AddonManager {
                 return false;
         }
         return true;
+    }
+
+    // ---- actions tier (Phase 4: hafen.act) -------------------------------------------------------
+    // The GATED automation surface (gate: actionsEnabled / requireActions, above). Every verb is a
+    // Widget.wdgmsg from a bound widget — literally what a player click would send, so the client stays
+    // server-authoritative (an addon can do only what a player could do; the permission is about user control,
+    // not a client exploit — spec 12). moveTo sends the MapView "click" that a left-click on the ground sends:
+    // {pc (screen coord), mc (world coord floored to posres), button, mods}. For a PROGRAMMATIC move the
+    // destination is the world coord (2nd arg); the screen coord (pc) is a dummy — the current mouse position
+    // — exactly as MiniMap.mvclick does when you click the minimap to walk (MiniMap.java:1218), so an
+    // off-screen destination is fine. button 1 = walk; mods 0 = no modifier. Runs on the UI thread (addon
+    // callback / REPL); wdgmsg queues to the session, and any 2d "click" action-hook sees it (it is a real
+    // action) — the 2d re-entrancy guard prevents a hook-issued moveTo from looping.
+
+    /** The world "click" destination Coord for a move to world (x, y) — MapView floors world coords to posres. */
+    static Coord moveClickCoord(double x, double y) {
+        return new Coord2d(x, y).floor(OCache.posres);
+    }
+
+    /** {@code hafen.act.moveTo} backing — send the ground-"click" that walks the character to world (x, y). */
+    private static void actMoveTo(double x, double y) {
+        MapView m = view;
+        if(m == null)
+            throw new LuaError("hafen.act.moveTo: no map view (not in the world yet)");
+        Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;   // dummy screen coord (current mouse), like MiniMap.mvclick
+        m.wdgmsg("click", pc, moveClickCoord(x, y), 1, 0);
     }
 
     // ---- movement speed (A7: hafen.speed) --------------------------------------------------------

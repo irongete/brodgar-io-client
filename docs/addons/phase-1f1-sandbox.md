@@ -8,7 +8,7 @@
 > `withheld={io,require,load,loadfile,dofile,debug,luajava,package,os.execute}; safe-stdlib=true;
 > os.execute usable=false`, and `:lua while true do end` aborted with the `addon watchdog: instruction
 > budget exceeded` error (client kept running, no freeze).
-> **Design:** [specs/addons/12-security-and-tos.md](../../specs/addons/12-security-and-tos.md)
+> **Design:** [specs/addons/12-security-and-permissions.md](../../specs/addons/12-security-and-permissions.md)
 > (sandbox + threat model), [specs/addons/04-engine.md](../../specs/addons/04-engine.md)
 > (per-addon env, watchdog), decisions **D-017** (strict default sandbox) + **D-018** (watchdog:
 > instruction hard-stop + soft per-tick budget).

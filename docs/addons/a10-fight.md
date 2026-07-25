@@ -192,4 +192,5 @@ ant run
 
 A10 completes the **read** gap-subsystems (A1–A11 are all read surfaces now). What remains in the queue is the
 **gated actions tier** (Phase 4): `A3` (`hafen.actionbar.use`) folds into it, alongside `fight.use`/`speed.set`/
-`craft.make` and the item/movement verbs — behind the `addons.actions.enabled` flag + a botting/ToS warning.
+`craft.make` and the item/movement verbs — behind the write-actions permission (a global opt-in + a per-addon
+manifest declaration, D-027).
