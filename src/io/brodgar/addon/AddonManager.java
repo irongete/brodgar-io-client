@@ -507,6 +507,7 @@ public final class AddonManager {
         teardownReplacers(a);         // 3c: stop the replacers matching (models un-hidden above, views destroyed above)
         teardownSlashCommands(a);     // A11: drop the addon's live slash handlers (Console dispatchers stay — C1)
         teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
+        teardownMouseGrabs(a);        // V5: release any active mouse-drag grab (drops the UI.Grab + unlinks the widget)
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
         a.subs.clear();
@@ -2117,6 +2118,42 @@ public final class AddonManager {
                 return xy(gc.x, gc.y);
             }
         });
+        // screenToWorld(sx, sy, fn) — the RAYCAST INVERSE of hafen.player.worldToScreen (spec 16 §3, V5): fn({x,y})
+        // is called with the WORLD ground coord under game-window pixel (sx,sy), or fn(nil) if the pixel hit no
+        // terrain (sky/off-map). It is ASYNCHRONOUS by necessity — the engine reads the true terrain point from the
+        // GPU (MapView.Maptest, the same pass the client's own building placement uses), so a synchronous return
+        // would stall the UI thread on a GPU fence; instead the result arrives a frame later via fn (exactly the
+        // one-frame lag a placement ghost has). (sx,sy) are the same pixel space worldToScreen returns (top-left
+        // origin; for the standard fullscreen MapView these are screen pixels). Requires being in the world.
+        map.set("screenToWorld", new ThreeArgFunction() {
+            public LuaValue call(LuaValue sx, LuaValue sy, LuaValue fn) {
+                MapView m = view;
+                if((m == null) || !sx.isnumber() || !sy.isnumber() || !fn.isfunction())
+                    return LuaValue.NIL;
+                screenToWorld(owner, m, (int)Math.round(sx.todouble()), (int)Math.round(sy.todouble()), fn);
+                return LuaValue.NIL;   // async — the answer arrives through fn
+            }
+        });
+        // snapPlace(x, y [, fine]) — snap a WORLD coord to the client's PLACEMENT grid, IDENTICALLY to placing a
+        // building (spec 16 §4.1, D-033): no fine -> the tile centre; fine=true -> the sub-tile :placegrid
+        // (MapView.plobpgran divisions, or free when placegrid is 0). Returns {x,y}. Pure static math shared with
+        // the engine's StdPlace (MapView.placeSnap), so it always honours the live :placegrid; no map data needed.
+        map.set("snapPlace", new ThreeArgFunction() {
+            public LuaValue call(LuaValue x, LuaValue y, LuaValue fine) {
+                if(!x.isnumber() || !y.isnumber())
+                    return LuaValue.NIL;
+                int modflags = fine.toboolean() ? UI.MOD_SHIFT : 0;
+                Coord2d s = MapView.placeSnap(new Coord2d(x.todouble(), y.todouble()), modflags);
+                return xy(s.x, s.y);
+            }
+        });
+        // placeGrid() — the current :placegrid setting (MapView.plobpgran, the sub-tile divisions snapPlace(...,true)
+        // uses; default 8, 0 = free). Read it to label a gizmo / mirror the user's placement preference (V5).
+        map.set("placeGrid", new ZeroArgFunction() {
+            public LuaValue call() {
+                return LuaValue.valueOf(MapView.plobpgran);
+            }
+        });
         hafen.set("map", map);
 
         // hafen.markers.* — client-side map markers (A1), read/added/removed against the client's on-disk
@@ -3135,6 +3172,18 @@ public final class AddonManager {
                 return newMessageHook(owner, msg, fn);
             }
         });
+        //   grab{move=fn, up=fn}  (V5) — MODAL mouse-drag capture (spec 16 §2/§4, the gizmo's drag primitive). NOT a
+        //       pre-hook: it captures the mouse for a press-drag-release loop. move(x, y, mods) fires on every mouse
+        //       move (x,y = game-window pixels; mods = {shift,ctrl,alt}); up(x, y, button, mods) fires once on release,
+        //       then the grab auto-releases. While it is active the MapView neither pans nor clicks (the drag is
+        //       captured), so a gizmo drag leaves the camera put. Returns a handle { :release() } to end it early;
+        //       bridge-owned, so :reload/disable releases it too. Pair with hafen.map.screenToWorld (pixel->world) +
+        //       snapPlace (placegrid snapping). Returns nil if the UI is not up yet.
+        hook.set("grab", new OneArgFunction() {
+            public LuaValue call(LuaValue handlers) {
+                return newMouseGrab(owner, handlers);
+            }
+        });
         hafen.set("hook", hook);
 
         // hafen.key.bind(name, defaultKey, fn) — a remappable GLOBAL HOTKEY (spec 07 "Input"). `name` is the
@@ -3514,6 +3563,73 @@ public final class AddonManager {
             }
         }
         a.hooks.clear();
+    }
+
+    // ---------------------------------------------------------------- mouse grab + screen->world (hafen.hook.grab, V5)
+
+    /**
+     * {@code hafen.hook.grab{move=fn, up=fn}} (V5) — start a modal mouse-drag capture: a {@link LuaMouseGrab} widget
+     * on {@code ui.root} that forwards mouse move/up to Lua while the grab captures the drag (so the MapView neither
+     * pans nor clicks). Returns a handle {@code { :release() }}; bridge-owned for teardown. Nil if the UI is not up.
+     */
+    private static LuaValue newMouseGrab(final Addon owner, LuaValue handlers) {
+        if(!handlers.istable())
+            throw new LuaError("hafen.hook.grab{move=fn, up=fn} expects a handlers table");
+        UI u = ui;
+        if((u == null) || (u.root == null))
+            return LuaValue.NIL;                        // no UI yet
+        LuaValue mv = handlers.get("move"), up = handlers.get("up");
+        final LuaMouseGrab g = new LuaMouseGrab(owner, mv.isfunction() ? mv : null, up.isfunction() ? up : null);
+        owner.mouseGrabs.add(g);
+        u.root.add(g);                                  // add() synchronizes on ui; visible -> receives broadcast moves
+        g.arm(u);                                       // ui.grabmouse(this) — capture the terminating up wherever it lands
+        LuaTable handle = new LuaTable();
+        handle.set("release", new ZeroArgFunction() {
+            public LuaValue call() {
+                g.release();
+                return LuaValue.NIL;
+            }
+        });
+        return handle;
+    }
+
+    /** Release every active mouse grab this addon owns (teardown on reload/disable, P2). */
+    private static void teardownMouseGrabs(Addon a) {
+        for(LuaMouseGrab g : a.mouseGrabs)
+            g.release();               // drops the UI.Grab + marks dead; the widget unlinks on its next (or the last) tick
+        a.mouseGrabs.clear();
+    }
+
+    /**
+     * {@code hafen.map.screenToWorld} (V5): raycast the terrain under game-window pixel {@code (px,py)} via the
+     * engine's own {@link haven.MapView.Maptest} (the pass the client's building placement uses), then call {@code fn}
+     * with the world {@code {x,y}} (or nil for no terrain). Asynchronous: {@code Maptest.run()} submits a GPU readback
+     * and its callback fires later under {@code synchronized(ui)} (so {@link #callLua} is safe there, serialized with
+     * every other addon Lua — same as the V2 ghost-click dispatch). Errors installing the test are swallowed (nil).
+     */
+    private static void screenToWorld(final Addon owner, MapView mv, int px, int py, final LuaValue fn) {
+        final Coord pc = new Coord(px, py);
+        try {
+            mv.new Maptest(pc) {
+                protected void hit(Coord pc, Coord2d mc) {
+                    callLua(owner, fn, xy(mc.x, mc.y));
+                }
+                protected void nohit(Coord pc) {
+                    callLua(owner, fn, LuaValue.NIL);
+                }
+            }.run();
+        } catch(RuntimeException e) {
+            /* couldn't submit the readback (e.g. no render env yet) — the caller simply gets no callback */
+        }
+    }
+
+    /** A {@code {shift,ctrl,alt}} table from {@code UI.modflags()} bits — handed to the grab callbacks (no Lua bit ops). */
+    static LuaTable modsTable(int mf) {
+        LuaTable t = new LuaTable();
+        t.set("shift", LuaValue.valueOf((mf & UI.MOD_SHIFT) != 0));
+        t.set("ctrl",  LuaValue.valueOf((mf & UI.MOD_CTRL) != 0));
+        t.set("alt",   LuaValue.valueOf((mf & UI.MOD_META) != 0));   // MOD_META = Alt in this client (UI.setmods)
+        return t;
     }
 
     // ------------------------------------------------------------------ action hooks (hafen.hook, 2d)

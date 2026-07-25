@@ -1761,17 +1761,25 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	@Deprecated public default boolean rotate(Plob plob, int amount, int modflags) {return(false);}
     }
 
+    // addon: shared placement-snap math (spec 16-virtual-entities §4.1, D-033) — factored verbatim out of
+    //        StdPlace.adjust so the hafen.ghost gizmo (hafen.map.snapPlace) snaps client ghosts through the
+    //        EXACT same code the client uses to place a building, honouring the live :placegrid setting with no
+    //        drift. modflags = UI.MOD_* bits; SHIFT selects the sub-tile placegrid, otherwise the tile centre.
+    //        Pure + static (no MapView instance needed), so the bridge can reuse it directly.
+    public static Coord2d placeSnap(Coord2d mc, int modflags) {
+	if((modflags & UI.MOD_SHIFT) == 0)
+	    return(mc.floor(tilesz).mul(tilesz).add(tilesz.div(2)));      // no SHIFT -> tile centre
+	else if(plobpgran > 0)
+	    return(mc.div(tilesz).mul(plobpgran).roundf().div(plobpgran).mul(tilesz));  // SHIFT -> sub-tile placegrid
+	else
+	    return(mc);                                                  // SHIFT + placegrid 0 -> free
+    }
+
     public static class StdPlace implements PlobAdjust {
 	boolean freerot = false;
 
 	public void adjust(Plob plob, Coord pc, Coord2d mc, int modflags) {
-	    Coord2d nc;
-	    if((modflags & UI.MOD_SHIFT) == 0)
-		nc = mc.floor(tilesz).mul(tilesz).add(tilesz.div(2));
-	    else if(plobpgran > 0)
-		nc = mc.div(tilesz).mul(plobpgran).roundf().div(plobpgran).mul(tilesz);
-	    else
-		nc = mc;
+	    Coord2d nc = placeSnap(mc, modflags);   // addon: was inline; shared with the ghost gizmo (see MapView.placeSnap)
 	    Gob pl = plob.mv().player();
 	    if((pl != null) && !freerot)
 		plob.move(nc, Math.round(plob.rc.angle(pl.rc) / (Math.PI / 2)) * (Math.PI / 2));

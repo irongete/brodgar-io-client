@@ -132,6 +132,14 @@ public final class Addon {
      * callback may create or destroy a ghost.
      */
     public final List<LuaGhost> ghosts = new CopyOnWriteArrayList<LuaGhost>();
+    /**
+     * Live modal mouse-drag captures owned by this addon ({@code hafen.hook.grab}, V5): each is a
+     * {@link LuaMouseGrab} widget on {@code ui.root} that forwards mouse move/up to Lua while capturing the drag
+     * (the gizmo's drag primitive). Normally transient (one per active drag) and self-releasing on mouse-up;
+     * teardown ({@link AddonManager#teardownMouseGrabs}) releases any still-active grab so a {@code :reload}/disable
+     * mid-drag drops the {@code UI.Grab} and unlinks the widget, leaking nothing. Copy-on-write: releasing removes.
+     */
+    public final List<LuaMouseGrab> mouseGrabs = new CopyOnWriteArrayList<LuaMouseGrab>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per

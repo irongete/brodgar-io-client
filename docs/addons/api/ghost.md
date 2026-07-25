@@ -148,8 +148,18 @@ The [`planner`](../../../addons/planner) example addon is a small base planner b
 clickable blueprint ghosts, saves them grid-anchored via [`hafen.store`](store.md), and reloads them at the same
 physical spot after a relog (retrying as the map streams in). Use it as the reference for persisting your own ghosts.
 
+## Moving ghosts on the ground (V5)
+
+You can drag a ghost along the terrain, snapping **exactly like placing a real building** (the `:placegrid` setting),
+using three primitives — [`hafen.hook.grab`](hooks.md#hafenhookgrab) (capture the mouse; camera stays put),
+[`hafen.map.screenToWorld`](map.md#screen--world--placement-snapping-v5) (cursor pixel → ground coord), and
+[`hafen.map.snapPlace`](map.md#screen--world--placement-snapping-v5) (snap to the placegrid, SHIFT = fine) — then
+`ghost:move`. The [`planner`](../../../addons/planner) example addon wires these into a move-mode: select a ghost,
+`:planner grab`, and it follows the cursor snapped to the placegrid until you click to drop it. See
+[`hafen.hook.grab`](hooks.md#hafenhookgrab) for the drag pattern.
+
 ## Coming next
 
-Still to come: uniform **scale** (`:scale`) and a **transform gizmo** (`hafen.ghost.gizmo`) — a bundled Lua library
-(shipping in `planner`) that drags a selected ghost on the ground and snaps exactly like placing a real building
-(the [`:placegrid`/`:placeangle`](map.md) settings). Not available yet (V5/V6).
+Still to come: the 3D **arrow-handle gizmo** (`hafen.ghost.gizmo`) — a bundled Lua library over the V5 primitives that
+drags a selected ghost by clickable arrow handles with an axis constraint (V5b) — plus rotation snapping on the
+[`:placeangle`](map.md) and uniform **scale** (`:scale`) (V6).

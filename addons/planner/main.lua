@@ -18,13 +18,21 @@
 --   blueprint [name]  -- show / set the current blueprint (bare = list the palette)
 --   list              -- list placed ghosts (index, resource, grid id, resolved?)
 --   select <n>        -- select ghost #n (or just CLICK it in the world — V2)
+--   grab              -- MOVE the selected ghost: it follows the cursor snapped to the placegrid; CLICK to drop (V5)
 --   rotate [deg]      -- rotate the selected ghost (default +45 deg); the new facing persists
 --   remove [n]        -- remove the selected ghost (or #n)
 --   clear             -- remove every ghost + wipe the saved layout
 --   save              -- force a flush now (also autosaved + flushed on relog)
 -- DoD: place several, click to select, relog -> they reload at the same grid position (rotation preserved too).
+--
+-- V5 (grab / move): ":planner grab" starts a drag of the SELECTED ghost. The engine's own placement primitives are
+-- reused so it feels IDENTICAL to placing a building: each mouse move raycasts the ground under the cursor
+-- (hafen.map.screenToWorld) and snaps it to the client's :placegrid (hafen.map.snapPlace) -- tile centre by default,
+-- SHIFT = the fine sub-tile grid (D-033). The mouse is captured (hafen.hook.grab) so the CAMERA STAYS PUT while you
+-- drag; a CLICK drops it (re-anchored to the new grid + persisted). This is the "drag the body" move-mode; the
+-- 3D arrow-handle gizmo ("by its arrows") is V5b.
 
-hafen.log("planner loaded (v0.1.0) -- place blueprint ghosts, save a grid-anchored layout, relog to test persistence")
+hafen.log("planner loaded (v0.2.0) -- place blueprint ghosts + :planner grab to move them (placegrid-snapped), grid-anchored persistence")
 
 -- The blueprint palette. Keys are short names for ':planner place <name>'; values are client resource paths.
 -- logcabin + timberhouse are verified to resolve in-game (V3); ':planner place <res-path>' also takes any raw path.
@@ -34,10 +42,11 @@ local PALETTE = {
 }
 local DEFAULT_BP = "cabin"
 
--- Two looks so selection is visible: idle = bluish translucent blueprint; sel = brighter warm highlight.
+-- Two looks so selection is visible: idle = bluish tint; sel = brighter warm highlight. OPAQUE (alpha 1) so the
+-- blueprint ghosts read clearly against the terrain — the translucent look was too faint to see (maintainer note).
 local LOOK = {
-  idle = { alpha = 0.45, tint = { r = 120, g = 180, b = 255, a = 120 } },
-  sel  = { alpha = 0.85, tint = { r = 255, g = 225, b = 110, a = 170 } },
+  idle = { alpha = 1.0, tint = { r = 120, g = 180, b = 255, a = 120 } },
+  sel  = { alpha = 1.0, tint = { r = 255, g = 225, b = 110, a = 170 } },
 }
 
 -- Runtime state. `items` is the single source of truth: each record = { res, a, anchor = {gridId, x, y}, ghost }.
@@ -47,6 +56,7 @@ local items     = {}
 local blueprint = DEFAULT_BP
 local selected  = nil
 local retry     = nil   -- the re-resolve retry timer handle while ghosts are still streaming in (nil = idle)
+local drag      = nil   -- V5: the active move-drag { it, grab, pending }, or nil when not dragging
 
 local function shortRes(res) return (tostring(res):gsub("^.*/", "")) end
 
@@ -139,10 +149,30 @@ local function resolvePending()
   return pending
 end
 
+-- V5: end the active move-drag (drop the ghost where it is). Releases the mouse grab, re-anchors the record to the
+-- ghost's new grid position, and persists. Idempotent + safe to call with no active drag. The grab's own mouse-up
+-- also calls this; calling it again (e.g. a second ":planner grab") just stops the drag cleanly.
+local function commitDrag()
+  local d = drag
+  if not d then return end
+  drag = nil
+  if d.grab then d.grab:release() end                      -- idempotent (the up handler may have released already)
+  local it = d.it
+  if it and it.ghost then
+    local p = it.ghost:pos()                                -- {x,y,a} -- the snapped drop position
+    local anchor = hafen.map.gridPos(p.x, p.y)              -- re-anchor to the grid it now sits on (persistent id)
+    if anchor then it.anchor = anchor end
+    persist()
+    hafen.log((":planner grab -> dropped #%d at %.0f,%.0f (grid %s, persisted)")
+      :format(indexOf(it), p.x, p.y, it.anchor.gridId))
+  end
+end
+
 -- At login the per-char store is already restored (1e), so store.layout is ready here. Rebuild `items` from it and
 -- re-resolve each grid anchor to a world coord, retrying for a few seconds while the map around us streams in.
 hafen.events.on("OnEnterWorld", function()
   if retry then retry:cancel(); retry = nil end            -- guard against a re-entry (relog/:reload re-fires this)
+  if drag then commitDrag() end                            -- V5: never carry a half-finished drag across a relog
   selected = nil
   items = {}
   blueprint = hafen.store.layout.blueprint or DEFAULT_BP
@@ -194,10 +224,11 @@ hafen.slash.register("planner", function(args)
   local sub = args[1] or "help"
 
   if (sub == "help") or (sub == "") then
-    hafen.log(":planner -> place | blueprint | list | select | rotate | remove | clear | save")
+    hafen.log(":planner -> place | blueprint | list | select | grab | rotate | remove | clear | save")
     hafen.log("   place [name|res] = drop the current/named blueprint at your feet (clickable + saved)")
     hafen.log("   blueprint [name] = show/set the blueprint (bare = list palette); list = show placed ghosts")
-    hafen.log("   select <n> = select #n (or CLICK a ghost); rotate [deg] = turn the selected one; remove [n]; clear; save")
+    hafen.log("   select <n> = select #n (or CLICK a ghost); grab = MOVE it with the mouse (placegrid-snapped, CLICK to drop)")
+    hafen.log("   rotate [deg] = turn the selected one; remove [n]; clear; save")
 
   elseif sub == "place" then
     local p = hafen.gob.pos("player")
@@ -243,6 +274,34 @@ hafen.slash.register("planner", function(args)
     local n = tonumber(args[2])
     if not n or not items[n] then hafen.log(":planner select <n> -> a valid index is required (see :planner list)"); return end
     selectItem(items[n])
+
+  elseif sub == "grab" then
+    -- V5: move the selected ghost with the mouse, snapping like a real building placement (D-033).
+    if drag then commitDrag(); return end                  -- toggle: a second :planner grab drops the current one
+    if not selected then hafen.log(":planner grab -> nothing selected (click a ghost or :planner select <n>)"); return end
+    if not selected.ghost then hafen.log(":planner grab -> that ghost has not streamed in yet; try again in a moment"); return end
+    local it = selected
+    drag = { it = it, pending = false }
+    drag.grab = hafen.hook.grab{
+      -- Each mouse move: raycast the ground under the cursor (async) -> snap to the placegrid -> move the ghost.
+      -- `pending` coalesces so at most one raycast is in flight (one per frame, like the client's own placement).
+      move = function(sx, sy, mods)
+        if not drag or drag.pending then return end
+        drag.pending = true
+        local fine = mods.shift                            -- SHIFT = the fine sub-tile placegrid (D-033)
+        hafen.map.screenToWorld(sx, sy, function(w)
+          if not drag then return end                      -- released mid-flight
+          drag.pending = false
+          if not w then return end                         -- cursor hit no terrain (sky/off-map)
+          local s = hafen.map.snapPlace(w.x, w.y, fine)
+          if it.ghost then it.ghost:move(s.x, s.y, it.a) end   -- keep facing; :move is snapped
+        end)
+      end,
+      -- Mouse-up (the click that drops it): commit + persist + release.
+      up = function() commitDrag() end,
+    }
+    hafen.log((":planner grab -> moving #%d: cursor drags it (placegrid=%s, SHIFT=fine); CLICK to drop. Camera stays put.")
+      :format(indexOf(it), tostring(hafen.map.placeGrid())))
 
   elseif sub == "rotate" then
     if not selected then hafen.log(":planner rotate -> nothing selected (click a ghost or :planner select <n>)"); return end

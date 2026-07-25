@@ -14,6 +14,9 @@ spot hasn't loaded yet.
 | `hafen.map.worldToTile(x, y)` | `{x, y}` | world → tile coord (floors) |
 | `hafen.map.tileToWorld(tx, ty)` | `{x, y}` | tile coord → world (its upper-left corner) |
 | `hafen.map.tileToGrid(tx, ty)` | `{x, y}` | tile coord → grid coord |
+| `hafen.map.screenToWorld(sx, sy, fn)` | — (calls `fn`) | raycast the ground under a screen pixel; **async** (see below) |
+| `hafen.map.snapPlace(x, y [, fine])` | `{x, y}` | snap a world coord to the client's placement grid |
+| `hafen.map.placeGrid()` | number | the current `:placegrid` setting (sub-tile divisions; 0 = free) |
 
 ```lua
 local t = hafen.map.tile(p.x, p.y)
@@ -21,6 +24,35 @@ if t then hafen.log("standing on " .. (t.name or t.id)) end
 
 local gp = hafen.map.gridPos()          -- player's shareable position
 -- gp.gridId is a stable 64-bit id (a string); gp.x, gp.y are the 0..1099 within-grid offset
+```
+
+### Screen ↔ world & placement snapping (V5)
+
+The inverse of [`hafen.player.worldToScreen`](player.md) plus the client's own placement snapper — the primitives a
+[ghost](ghost.md) gizmo (or any drag-on-the-ground tool) is built from.
+
+**`screenToWorld(sx, sy, fn)` is asynchronous.** It reads the *true* terrain point from the GPU (the same pass the
+client uses to place a building), so the answer can't be returned inline — it arrives a frame later through `fn`:
+
+```lua
+hafen.map.screenToWorld(sx, sy, function(w)
+  if w then hafen.log(("ground under cursor: %.1f, %.1f"):format(w.x, w.y)) end
+  -- w is nil if the pixel hit no terrain (sky / off-map)
+end)
+```
+
+`(sx, sy)` are game-window pixels — the same space `worldToScreen` returns (for the standard fullscreen map view,
+screen pixels). During a drag, feed it the cursor coords from [`hafen.hook.grab`](hooks.md#hafenhookgrab) and coalesce
+(issue the next raycast only after the previous `fn` fired) so at most one is in flight per frame.
+
+**`snapPlace(x, y [, fine])`** snaps a world coord *exactly* like placing a building, honouring the live `:placegrid`
+setting: no `fine` → the tile centre; `fine = true` → the sub-tile placegrid (`placeGrid()` divisions, or free when
+that is 0). This is the same snapper the engine's own placement uses, so a ghost dropped through it lands where a real
+building would.
+
+```lua
+local s = hafen.map.snapPlace(w.x, w.y, mods.shift)   -- SHIFT = the fine grid, like real placement
+ghost:move(s.x, s.y)
 ```
 
 ### Saving a world position across sessions

@@ -9,6 +9,7 @@ cancels that default. Each returns a handle with `:remove()` (also auto-removed 
 | `hafen.hook.input(target, event, fn)` | widget input | a client widget's mouse input, before the widget handles it |
 | `hafen.hook.action(msg, fn)` | outbound action | a player action, before it is sent to the server |
 | `hafen.hook.message(msg, fn)` | inbound message | a server update, before the widget applies it |
+| `hafen.hook.grab{move, up}` | mouse capture | *(not a pre-hook)* capture the mouse for a press-drag-release loop |
 
 Register hooks in `OnEnterWorld` (an input target widget must exist by then). Handlers run on the UI
 thread — keep them light.
@@ -76,6 +77,41 @@ The inbound mirror of `action`: fires when a server update `msg` is about to be 
 hafen.hook.message("set", function(ev)
   if frozen and ev.target == "IMeter" then ev:preventDefault() end
 end)
+```
+
+## `hafen.hook.grab`
+
+`hafen.hook.grab{ move = fn, up = fn }` — **not a pre-hook**: it takes over the mouse for a
+press-drag-release loop (the drag primitive a [ghost](ghost.md) gizmo is built on). While a grab is
+active the map view neither pans nor clicks, so a drag leaves the **camera put**.
+
+| Handler | Fires | Arguments |
+|---|---|---|
+| `move` | on every mouse move | `(x, y, mods)` — game-window pixels + `mods = {shift, ctrl, alt}` |
+| `up` | once, on release (then auto-releases) | `(x, y, button, mods)` |
+
+Returns a handle `{ :release() }` to end the grab early (the `up` handler also releases automatically).
+Both handlers are optional. Pair it with [`hafen.map.screenToWorld`](map.md#screen--world--placement-snapping-v5)
+(pixel → world) and [`snapPlace`](map.md#screen--world--placement-snapping-v5) (placegrid snapping) to drag
+something along the ground:
+
+```lua
+-- move `ghost` with the mouse, snapped to the placegrid; click to drop:
+local pending = false
+local g = hafen.hook.grab{
+  move = function(sx, sy, mods)
+    if pending then return end                 -- coalesce: one raycast in flight at a time
+    pending = true
+    hafen.map.screenToWorld(sx, sy, function(w)
+      pending = false
+      if w then
+        local s = hafen.map.snapPlace(w.x, w.y, mods.shift)   -- SHIFT = fine grid
+        ghost:move(s.x, s.y)
+      end
+    end)
+  end,
+  up = function() hafen.log("dropped") end,    -- the grab auto-releases here
+}
 ```
 
 > Global hotkeys are not a hook level — see [`hafen.key`](keys.md).
