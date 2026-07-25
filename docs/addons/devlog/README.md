@@ -62,3 +62,4 @@ task — and are **not** the usage docs.
 **V-series — virtual entities (world ghosts) & the transform gizmo**
 
 - [v1-ghosts](v1-ghosts.md) — `hafen.ghost.new`/`list` + the handle (`:move`/`:pos`/`:res`/`:destroy`); the MapView client-gob seam
+- [v2-clickable-ghosts](v2-clickable-ghosts.md) — opt-in clickable ghosts (`clickable`/`g:clickable`/`onClick`) + the `GhostClicked` event; the `GhostGob.obstate` pick surface + the `Click.hit` consume-before-`wdgmsg` intercept

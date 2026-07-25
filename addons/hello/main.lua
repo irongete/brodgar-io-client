@@ -4,13 +4,18 @@
 -- the separate, opt-in `walker` addon, which DECLARES "permissions": ["actions"] and is therefore disabled by
 -- default; enabling it in Options > AddOns raises a consent dialog (write-actions are a per-addon permission — no
 -- global switch).
--- Built on V1: CLIENT-ONLY WORLD GHOSTS — hafen.ghost.new{res, x, y[, a]} places a virtual prop (a Gob with
+-- Built on V1+V2: CLIENT-ONLY WORLD GHOSTS — hafen.ghost.new{res, x, y[, a]} places a virtual prop (a Gob with
 -- NO server id) in the 3D world; it never reaches the server and grants no advantage, so it is SAFE-tier, NOT
 -- gated (D-029) — a visualization, like a HUD overlay (the motivating use is city/base planning). It returns a
--- bridge-owned handle with :move(x,y[,a]) / :pos() / :res() / :destroy(); hafen.ghost.list([filter]) returns this
--- addon's live ghosts. Ghosts are torn down on reload/disable/relogin (P2). Here, at OnEnterWorld the harness
--- spawns a log cabin a few tiles away, reads list()/pos(), moves it, and auto-destroys it after 8s (the V1
--- regression); ':hello ghost' toggles a cabin at your position for manual inspection.
+-- bridge-owned handle with :move(x,y[,a]) / :pos() / :res() / :clickable(bool) / :destroy(); hafen.ghost.list(
+-- [filter]) returns this addon's live ghosts. Ghosts are torn down on reload/disable/relogin (P2). V2 adds OPT-IN
+-- CLICKABILITY — clickable=true (or :clickable(bool)) gives a ghost a pick surface; a click on it is detected
+-- client-side and CONSUMED before any server "click" (your character never walks/interacts — still SAFE-tier,
+-- D-032), firing the per-ghost onClick and the owner-scoped GhostClicked{ghost,button,x,y} event; a non-clickable
+-- ghost is click-through. Here, at OnEnterWorld the harness spawns a NON-clickable log cabin a few tiles away
+-- (click it and you walk there — click-through), reads list()/pos(), moves it, and auto-destroys it after 8s (the
+-- V1 regression); ':hello ghost' toggles a CLICKABLE cabin at your position (click it: it logs onClick +
+-- GhostClicked and you do NOT move — the V2 demo).
 -- Built on gap subsystem A7: MOVEMENT SPEED — hafen.speed reads the crawl/walk/run/sprint selector
 -- (get() -> current speed 0..3, max() -> highest currently-selectable, name([n]) -> display name); read-only
 -- here, since changing speed is the gated Phase-4 action tier. Built on gap subsystem A6: KIN / BUDDY ROSTER —
@@ -54,7 +59,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.35.0)")
+hafen.log("hello loaded (v0.36.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -530,6 +535,18 @@ hafen.events.on("OnEnterWorld", function()
   end)
 end)
 
+-- V2: CLICKABLE GHOSTS + GhostClicked. A ghost is opt-in clickable (clickable=true at new, or g:clickable(bool)).
+-- A click on a clickable ghost is detected CLIENT-SIDE and CONSUMED before any server "click" — so your character
+-- never walks or interacts, and NOTHING reaches the server (still SAFE-tier, D-032). It fires the per-ghost
+-- onClick AND this owner-scoped GhostClicked event {ghost, button, x, y}. A NON-clickable ghost is click-through
+-- (normal play unaffected — e.g. the V1 auto-demo cabin above: clicking it walks you there). The ':hello ghost'
+-- cabin below is created CLICKABLE with its own onClick, so clicking it logs twice (its onClick + this event) and
+-- does NOT move you — that is the V2 DoD. ev.button: 1=left, 3=right; ev.x/ev.y = the clicked world point.
+hafen.events.on("GhostClicked", function(ev)
+  hafen.log((":GhostClicked -> button=%d at %.0f,%.0f (client-only detection; no server click was sent)")
+    :format(ev.button, ev.x, ev.y))
+end)
+
 -- 1e: saved variables (hafen.store). Each name declared in the manifest is a persisted Lua table:
 --   persist -> per-character  (savedata/<genus>_<char>/hello.json)
 --   acct    -> account-wide   (savedata/account/hello.json)
@@ -938,9 +955,16 @@ hafen.slash.register("hello", function(args)
     else
       local p = hafen.gob.pos("player")
       if not p then hafen.log(":hello ghost -> no player position yet"); return end
-      demoGhost = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin", x = p.x, y = p.y }
+      demoGhost = hafen.ghost.new{                          -- V2: a CLICKABLE cabin — click it, you do NOT walk
+        res = "gfx/terobjs/arch/logcabin", x = p.x, y = p.y,
+        clickable = true,                                    -- opt-in pick surface (the V2 core)
+        onClick = function(g, button, x, y)                  -- fires on click (also via the GhostClicked event)
+          hafen.log((":hello ghost onClick -> button=%d at %.0f,%.0f -- the click was CONSUMED (no walk)")
+            :format(button, x, y))
+        end,
+      }
       if demoGhost then
-        hafen.log((":hello ghost -> log cabin ghost at you (%.0f,%.0f) -- :hello ghost again to remove"):format(p.x, p.y))
+        hafen.log((":hello ghost -> CLICKABLE log cabin at you (%.0f,%.0f) -- CLICK it (you won't move); :hello ghost again to remove"):format(p.x, p.y))
       else
         hafen.log(":hello ghost -> hafen.ghost.new returned nil (not in the world yet?)")
       end

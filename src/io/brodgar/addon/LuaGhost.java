@@ -21,8 +21,9 @@ import org.luaj.vm2.LuaValue;
  * <p><b>Handle, not a GobRef.</b> A ghost has no server id, so re-resolution is meaningless; it is addressed
  * by a bridge-owned <b>handle</b> (D-030), like a {@code hafen.ui.window}. The Lua handle
  * ({@link AddonManager#ghostHandle}) exposes {@code :move(x,y[,a])} / {@code :pos()} / {@code :destroy()} /
- * {@code :res()} (V1). Rotation/look ({@code :rotate}/{@code :setRes}/{@code alpha}/{@code tint}) land in V3,
- * clickability + {@code GhostClicked} in V2.
+ * {@code :res()} (V1) and {@code :clickable(bool)} (V2 — opt-in pick-selectability; see {@link #clickable} /
+ * {@link #onClick} and {@link GhostGob}). Rotation/look ({@code :rotate}/{@code :setRes}/{@code alpha}/
+ * {@code tint}) land in V3.
  *
  * <p><b>Deferred create (the {@code Plob} precedent).</b> Building the {@code ResDrawable} calls
  * {@code res.get()}, which throws {@code Loading} until the resource is cached — so, exactly like {@code Plob}
@@ -51,6 +52,8 @@ public final class LuaGhost {
 
     Coord2d rc;                    // target/current world position (login-relative), guarded by this
     double  a;                     // target/current facing (radians), guarded by this
+    boolean clickable;             // V2: opt-in pick-selectability (mirrored onto the GhostGob's flag); guarded by this
+    LuaValue onClick;              // V2: per-ghost click callback fn(g, button, x, y), or null; set at create, read-only after
 
     Gob gob;                       // the client-only Gob, or null until the deferred create publishes it
     RenderTree.Slot slot;          // its scene slot, or null until added; removed on destroy/teardown

@@ -2063,6 +2063,16 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 	
 	protected void hit(Coord pc, Coord2d mc, ClickData inf) {
+	    // addon: V2 virtual entities (hafen.ghost.*) — a click that resolved to a CLICKABLE client ghost is
+	    //        dispatched to the addon and CONSUMED here, BEFORE wdgmsg (the same choke point the voice
+	    //        feature hooks below): the ghost is a virtual Gob with no server id, so a "click" send would be
+	    //        bogus, and client-only detection means no server contact ⇒ this stays SAFE-tier (D-032). Fast
+	    //        path: only a virtual gob can be a client ghost (real gobs are non-virtual), so nothing is asked
+	    //        of the addon layer for ordinary clicks; a non-clickable ghost carries no GobClick and never
+	    //        wins the pick, so normal game clicks fall straight through it.
+	    Gob cg = clickedgob(inf);
+	    if((cg != null) && cg.virtual && io.brodgar.addon.AddonManager.onGhostClick(cg, clickb, mc))
+		return;
 	    if(inf == null) io.brodgar.voice.Voice.onMove(MapView.this, mc);   // brodgar voice: report move intent
 	    VoiceTarget.note(clickedgob(inf), plgob);   // brodgar voice: remember clicked player for the radial menu
 	    Object[] args = {pc, mc.floor(posres), clickb, ui.modflags()};

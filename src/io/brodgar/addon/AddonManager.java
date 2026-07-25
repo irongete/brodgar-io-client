@@ -3036,16 +3036,21 @@ public final class AddonManager {
         // (canonical filter: nil=all / a string matched against the ghost's res / a predicate over the handle).
         // Ghosts are torn down on reload/disable/relogin (P2). Coords are WORLD (login-relative), like hafen.gob.pos.
         LuaTable ghost = new LuaTable();
-        // hafen.ghost.new{res, x, y [, a]} — res = a client resource name (e.g. "gfx/terobjs/arch/logcabin");
-        // x,y = world coords; a = facing radians (optional, default 0). Returns a handle:
+        // hafen.ghost.new{res, x, y [, a] [, clickable] [, onClick]} — res = a client resource name (e.g.
+        // "gfx/terobjs/arch/logcabin"); x,y = world coords; a = facing radians (optional, default 0).
+        //   clickable = true         -- V2: opt-in pick-selectability (default false)
+        //   onClick = fn(g,button,x,y) -- V2: fires on click (also via the GhostClicked event)
+        // Returns a handle:
         //   :move(x, y [, a])  -- reposition (+ optional facing)
         //   :pos()             -- {x, y, a}
         //   :res()             -- the resource name (string)
+        //   :clickable(bool)   -- V2: toggle the pick surface
         //   :destroy()         -- remove now (also automatic on reload/disable)
         // The visual streams in a beat later (the resource resolves on a loader thread, dodging Loading — the
         // Plob / hafen.sound precedent), so the handle works immediately while the prop appears shortly after.
-        // Returns nil only if there is no map view yet (not in the world). Look/rotation/tint land in V3, opt-in
-        // clickability + the GhostClicked event in V2.
+        // Returns nil only if there is no map view yet (not in the world). V2: a CLICK on a clickable ghost is
+        // detected client-side and CONSUMED (no server contact ⇒ still SAFE-tier); it fires onClick + the
+        // owner-scoped GhostClicked{ghost,button,x,y} event. Look/rotation/tint land in V3.
         ghost.set("new", new OneArgFunction() {
             public LuaValue call(LuaValue opts) {
                 return newGhost(owner, opts);
@@ -4160,6 +4165,8 @@ public final class AddonManager {
         if((mv == null) || (g == null))
             return LuaValue.NIL;                       // not in the world yet — no scene to add to
         LuaValue av = opts.get("a");
+        LuaValue clickablev = opts.get("clickable");   // V2: opt-in pick-selectability (default false)
+        LuaValue onclickv = opts.get("onClick");       // V2: per-ghost click callback fn(g, button, x, y)
         final String resName = resv.tojstring();
         // remote() = the game/server resource pool (terobjs, gobs, …), with local() as a fallback for
         // client-bundled resources — the pool the engine itself uses for gob drawables (Session/Music/Widget).
@@ -4168,6 +4175,9 @@ public final class AddonManager {
         final LuaGhost gh = new LuaGhost(owner, resid, resName,
                                          new Coord2d(xv.todouble(), yv.todouble()),
                                          av.isnumber() ? av.todouble() : 0.0);
+        gh.clickable = clickablev.toboolean();         // V2: nil/false → not clickable; true → clickable
+        if(onclickv.isfunction())
+            gh.onClick = onclickv;
         owner.ghosts.add(gh);
         LuaValue handle = ghostHandle(gh);
         gh.handle = handle;
@@ -4195,11 +4205,12 @@ public final class AddonManager {
                     if(gh.dead) return;
                     rc0 = gh.rc; a0 = gh.a;
                 }
-                Gob gob = new Gob(g, rc0);
+                GhostGob gob = new GhostGob(g, rc0);      // V2: a Gob subclass whose obstate can add a GobClick (pick surface)
                 gob.a = a0;
                 gob.setattr(new ResDrawable(gob, res));   // res is cached now → no Loading here
                 synchronized(gh) {
                     if(gh.dead) { gob.dispose(); return; }   // destroyed mid-build → discard (never added to scene)
+                    gob.clickable = gh.clickable;            // V2: reflect opt-in clickability BEFORE the gob enters the scene
                     gob.move(gh.rc, gh.a);                   // apply any :move that landed while we were building
                     gh.slot = mv.addClientGob(gob);          // the // addon: MapView seam (spec 16 §6); MapView now ticks it
                     gh.gob = gob;
@@ -4211,11 +4222,12 @@ public final class AddonManager {
     }
 
     /**
-     * The Lua handle for a {@link LuaGhost} (V1): {@code :move(x,y[,a])} / {@code :pos()} / {@code :res()} /
-     * {@code :destroy()}. The colon-call convention passes {@code self} as arg1, so {@code :move} reads arg2..4 and
-     * returns arg1 (the handle) for chaining. Every method is a clean no-op once the ghost is dead. A {@code :move}
-     * before the deferred create has published the gob updates the target the create will apply; afterwards it
-     * repositions the live gob (the render tree's {@code Placed.autotick} picks it up next frame).
+     * The Lua handle for a {@link LuaGhost} (V1 + V2): {@code :move(x,y[,a])} / {@code :pos()} / {@code :res()} /
+     * {@code :clickable(bool)} / {@code :destroy()}. The colon-call convention passes {@code self} as arg1, so
+     * {@code :move} reads arg2..4 and returns arg1 (the handle) for chaining. Every method is a clean no-op once
+     * the ghost is dead. A {@code :move} before the deferred create has published the gob updates the target the
+     * create will apply; afterwards it repositions the live gob (the render tree's {@code Placed.autotick} picks it
+     * up next frame). {@code :clickable(true|false)} toggles the ghost's pick surface (V2, {@link #setGhostClickable}).
      */
     private static LuaValue ghostHandle(final LuaGhost gh) {
         LuaTable h = new LuaTable();
@@ -4249,6 +4261,12 @@ public final class AddonManager {
         });
         h.set("res", new ZeroArgFunction() {
             public LuaValue call() { return (gh.resName == null) ? LuaValue.NIL : LuaValue.valueOf(gh.resName); }
+        });
+        h.set("clickable", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                setGhostClickable(gh, a.arg(2).toboolean());   // g:clickable(true|false); default (no arg) → false
+                return a.arg1();
+            }
         });
         h.set("destroy", new VarArgFunction() {
             public Varargs invoke(Varargs a) { destroyGhost(gh); return a.arg1(); }
@@ -4324,6 +4342,96 @@ public final class AddonManager {
             return;
         for(LuaGhost gh : new ArrayList<LuaGhost>(a.ghosts))
             destroyGhost(gh);          // removes each from a.ghosts as it goes (copy-on-write list)
+    }
+
+    /**
+     * Toggle a ghost's pick surface ({@code g:clickable(bool)}, V2). The MapView click-list decides membership
+     * <b>at slot-add time</b> — a later ancestor-state change does <i>not</i> re-run its {@code Clickable} filter —
+     * so a live ghost is toggled by removing and re-adding it to the scene, where {@link GhostGob#obstate} is
+     * applied fresh and reads the updated {@link GhostGob#clickable}. A ghost whose deferred create has not
+     * published its gob yet just records the desired state (the create applies it before the gob enters the scene,
+     * so it is tracked from the first frame). All under the ghost monitor, in the same ghost→tree lock order the
+     * deferred create uses (no new hazard); the gob is <b>not</b> disposed by the re-add. No-op when unchanged/dead.
+     */
+    private static void setGhostClickable(LuaGhost gh, boolean on) {
+        synchronized(gh) {
+            if(gh.dead || (gh.clickable == on))
+                return;
+            gh.clickable = on;
+            if(gh.gob instanceof GhostGob)
+                ((GhostGob)gh.gob).clickable = on;     // read by obstate on the next scene (re)add
+            if((gh.gob != null) && (gh.mv != null)) {
+                try {
+                    gh.mv.removeClientGob(gh.gob, gh.slot); // remove + re-add so the click-list re-filters on the new state
+                    gh.slot = gh.mv.addClientGob(gh.gob);
+                    gh.gob.move(gh.rc, gh.a);               // re-assert position/facing after the re-add
+                } catch(RuntimeException e) {
+                    /* the ghost's scene is gone (e.g. a REPL ghost toggled after a relog) — flag set, no scene op */
+                }
+            }
+        }
+    }
+
+    /**
+     * V2: {@code MapView.Click.hit} resolved a click to virtual gob {@code cg}, BEFORE its {@code wdgmsg("click",
+     * …)}. If {@code cg} is a <b>clickable</b> client ghost, fire {@code GhostClicked{ghost, button, x, y}} to the
+     * OWNING addon (a ghost is private to its addon — its handle must not leak cross-addon, so this is owner-scoped,
+     * not a global {@link #fire}) and its per-ghost {@code onClick(g, button, x, y)}, then return {@code true} so
+     * the caller CONSUMES the click — no {@code wdgmsg}, so nothing reaches the server (client-only ⇒ still
+     * SAFE-tier, D-032). Returns {@code false} for any non-ghost / non-clickable gob, so a normal click proceeds.
+     * {@code x, y} = the world coord the click resolved to (the ground point under the cursor). Reached under
+     * {@code synchronized(ui)} (like the L3 message hook), so {@link #callLua} is safe with no extra thread guard;
+     * the ghost lock is released before dispatch so a handler may re-entrantly {@code g:destroy()}/{@code :move()}
+     * the ghost.
+     */
+    public static boolean onGhostClick(Gob cg, int button, Coord2d mc) {
+        if(cg == null)
+            return false;
+        LuaGhost gh = findGhostByGob(cg);
+        if(gh == null)
+            return false;
+        LuaValue handle, onClick;
+        synchronized(gh) {
+            if(gh.dead || !gh.clickable)
+                return false;
+            handle  = gh.handle;
+            onClick = gh.onClick;
+        }
+        if(handle == null)
+            return false;
+        LuaValue bt = LuaValue.valueOf(button);
+        LuaValue xv = LuaValue.valueOf((mc == null) ? 0 : mc.x);
+        LuaValue yv = LuaValue.valueOf((mc == null) ? 0 : mc.y);
+        LuaTable ev = new LuaTable();
+        ev.set("ghost", handle);
+        ev.set("button", bt);
+        ev.set("x", xv);
+        ev.set("y", yv);
+        fireTo(gh.owner, "GhostClicked", ev);          // owner-scoped: a ghost belongs to exactly one addon
+        if((onClick != null) && onClick.isfunction())
+            callLua(gh.owner, onClick, handle, bt, xv, yv);
+        return true;                                   // consume — client-only detection, no server wdgmsg
+    }
+
+    /** Find the live ghost whose gob is {@code cg}, across all addons + the REPL owner (V2 click dispatch). */
+    private static LuaGhost findGhostByGob(Gob cg) {
+        for(Addon a : addons) {
+            LuaGhost gh = findGhostIn(a, cg);
+            if(gh != null)
+                return gh;
+        }
+        Addon c = consoleOwner;
+        return (c == null) ? null : findGhostIn(c, cg);
+    }
+
+    private static LuaGhost findGhostIn(Addon a, Gob cg) {
+        for(LuaGhost gh : a.ghosts) {
+            Gob g;
+            synchronized(gh) { g = gh.dead ? null : gh.gob; }
+            if(g == cg)
+                return gh;
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------ global hotkeys (hafen.key, 2e-2)

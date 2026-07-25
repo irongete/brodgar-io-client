@@ -73,6 +73,19 @@ Prefer these over scanning [`hafen.world.gobs`](world.md) every frame.
 | `QuestDone` | [`Quest`](types.md#quest--condition) | an active quest is completed or failed |
 | `MarkersChanged` | `{ count = number }` | a map marker is added or removed |
 
+### World ghosts
+
+| Event | Payload | Fires |
+|---|---|---|
+| `GhostClicked` | `{ ghost, button, x, y }` | a **clickable** [ghost](ghost.md) of *your* addon is clicked |
+
+`GhostClicked` is **owner-scoped** — it fires only to the addon that owns the clicked ghost (a ghost is
+private to its addon, so its handle never leaks to others), unlike the world/roster events above which
+broadcast to everyone. `ghost` = the [ghost handle](ghost.md#ghost-handle); `button` = 1 (left) / 3
+(right); `x, y` = the world point the click resolved to. The click is **consumed** (no server click, no
+character walk) — see [`hafen.ghost`](ghost.md#clickability--the-ghostclicked-event-v2). A ghost fires
+this only while [`clickable`](ghost.md); a non-clickable ghost is click-through and never fires it.
+
 > For `*Changed` list events (`StudyChanged`, `EquipChanged`, `KinChanged`, `WoundChanged`) the payload
 > is the **full new list**. Read the initial state once with the section's `list()`/`slots()` verb,
 > then listen for deltas.
