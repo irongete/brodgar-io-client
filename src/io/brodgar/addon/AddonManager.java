@@ -2701,8 +2701,11 @@ public final class AddonManager {
         //                  exactly the MapView "click" a left-click on that ground spot sends; the screen coord it
         //                  carries is a dummy (the current mouse pos), like MiniMap.mvclick when you click the
         //                  minimap to walk. Off-screen destinations are fine (the server uses the world coord).
-        // Later Phase-4 slices add clickGob/useItemOn/place/select/menu/flower/item + the per-subsystem gated verbs
-        // (speed.set, craft.make, actionbar.use, kin.*); they all share this same gate (requireActions(owner, …)).
+        //   clickGob/useItemOn/place/select (4d) -> the rest of the MapView action verbs; all send a Widget.wdgmsg
+        //                  from the MapView, sharing moveTo's coord encoding (world → Coord via moveClickCoord; the
+        //                  dummy pc). raw(target,msg,…) is the escape hatch (send any wdgmsg from a bound widget).
+        // Later Phase-4 slices add menu/flower/item + the per-subsystem gated verbs (speed.set, craft.make,
+        // actionbar.use, kin.*); they all share this same gate (requireActions(owner, …)).
         LuaTable act = new LuaTable();
         act.set("enabled", new ZeroArgFunction() {
             public LuaValue call() {
@@ -2715,6 +2718,68 @@ public final class AddonManager {
                 if(!x.isnumber() || !y.isnumber())
                     throw new LuaError("hafen.act.moveTo(x, y): x and y must be numbers (world coordinates)");
                 actMoveTo(x.todouble(), y.todouble());
+                return LuaValue.NIL;
+            }
+        });
+        // clickGob(ref [, button [, mods]]) — click a game object: exactly the MapView "click" that a
+        // left/right-click on that gob sends. ref = the SAME GobRef the read API takes (a gob id, "player"/
+        // "me", "partyN", or nil = you). button: 1 = left (default; select/interact), 3 = right (the context/
+        // flower-menu click). mods = a modifier bitfield (0 default; Shift=1 Ctrl=2 Alt=4, matching hafen.key).
+        // Sends the bare gob-click encoding {…, 0, gobid, gobrc, 0, -1} — a generic "click the whole object",
+        // faithful for world objects (trees/containers/…); a specific sub-mesh / composite body part is not
+        // targeted (deferred). Throws if the ref or map view is gone.
+        act.set("clickGob", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                requireActions(owner, "hafen.act.clickGob");
+                actClickGob(a.arg1(), a.arg(2).optint(1), a.arg(3).optint(0));
+                return LuaValue.NIL;
+            }
+        });
+        // useItemOn(x, y [, mods]) — use the item on your cursor on the GROUND at world (x, y): the MapView
+        // "itemact". With nothing on the cursor the server ignores it. mods optional (0 default).
+        act.set("useItemOn", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                requireActions(owner, "hafen.act.useItemOn");
+                if(!a.arg1().isnumber() || !a.arg(2).isnumber())
+                    throw new LuaError("hafen.act.useItemOn(x, y): x and y must be numbers (world coordinates)");
+                actUseItemOn(a.arg1().todouble(), a.arg(2).todouble(), a.arg(3).optint(0));
+                return LuaValue.NIL;
+            }
+        });
+        // place(x, y, angle [, button [, mods]]) — place the object currently on your cursor at world (x, y),
+        // rotated by `angle` RADIANS (the MapView "place"; the engine encodes angle as round(angle*32768/PI)).
+        // With nothing being placed the server ignores it. button 1 = confirm (default); mods 0 default.
+        act.set("place", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                requireActions(owner, "hafen.act.place");
+                if(!a.arg1().isnumber() || !a.arg(2).isnumber() || !a.arg(3).isnumber())
+                    throw new LuaError("hafen.act.place(x, y, angle): x, y and angle must be numbers");
+                actPlace(a.arg1().todouble(), a.arg(2).todouble(), a.arg(3).todouble(),
+                         a.arg(4).optint(1), a.arg(5).optint(0));
+                return LuaValue.NIL;
+            }
+        });
+        // select(x1, y1, x2, y2 [, mods]) — area-select the tile rectangle spanned by world corners
+        // (x1,y1)–(x2,y2): the MapView "sel" (world → tile via hafen.map.worldToTile). Drives tile-area tools.
+        act.set("select", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                requireActions(owner, "hafen.act.select");
+                if(!a.arg1().isnumber() || !a.arg(2).isnumber() || !a.arg(3).isnumber() || !a.arg(4).isnumber())
+                    throw new LuaError("hafen.act.select(x1, y1, x2, y2): all four must be numbers (world coordinates)");
+                actSelect(a.arg1().todouble(), a.arg(2).todouble(), a.arg(3).todouble(), a.arg(4).todouble(),
+                          a.arg(5).optint(0));
+                return LuaValue.NIL;
+            }
+        });
+        // raw(target, msg, ...) — the escape hatch: send an arbitrary wdgmsg from a BOUND widget. target = a
+        // server widget id (number; e.g. model:raw() from hafen.ui.adopt, or a 3a desc.id) or a token
+        // "mapview"/"gameui". The trailing args are marshalled exactly like the action/message hooks
+        // (a {x=,y=} table ↔ Coord; numbers/strings/bools direct). For power users — the typed verbs above
+        // cover the common cases; raw covers messages they don't.
+        act.set("raw", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                requireActions(owner, "hafen.act.raw");
+                actRaw(a);
                 return LuaValue.NIL;
             }
         });
@@ -5502,6 +5567,127 @@ public final class AddonManager {
             throw new LuaError("hafen.act.moveTo: no map view (not in the world yet)");
         Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;   // dummy screen coord (current mouse), like MiniMap.mvclick
         m.wdgmsg("click", pc, moveClickCoord(x, y), 1, 0);
+    }
+
+    // -- 4d: the rest of the MapView action verbs (clickGob / useItemOn / place / select) + raw --------------
+    // Each is the SAME kind of send as moveTo — a Widget.wdgmsg from the MapView, exactly what the matching
+    // mouse gesture produces (MapView.Click.hit / iteminteract / mousedown-place / Selector.mmouseup). They
+    // reuse moveTo's world→Coord encoding (moveClickCoord = Coord2d.floor(posres)) and its dummy screen coord
+    // (pc = the current mouse, meaningless for a programmatic action but part of the wire shape). The arg-array
+    // BUILDERS below are pure (no live state) so they are headless-testable; the act* SENDERS grab the live
+    // MapView, fill pc, and wdgmsg. All run on the UI thread (addon callback / REPL); wdgmsg queues to the
+    // session, and a 2d "click" action-hook sees a clickGob (it is a real "click") — the 2d re-entrancy guard
+    // stops a hook-issued verb from looping.
+
+    /**
+     * The full MapView {@code "click"} args for a generic click on the gob {@code (gobId, gobRc)} — the
+     * {@code {pc, mc, button, mods}} prefix extended with {@link haven.Gob.GobClick#clickargs}'
+     * {@code {0, gobid, gobrc, 0, -1}} (no overlay, no specific sub-mesh). {@code mc} = the gob's own floored
+     * position, as a click landing on its base would carry. Pure/testable.
+     */
+    static Object[] clickGobArgs(Coord pc, int button, int mods, int gobId, Coord gobRc) {
+        return new Object[] {pc, gobRc, button, mods, 0, gobId, gobRc, 0, -1};
+    }
+
+    /** {@code hafen.act.clickGob} backing — click the resolved gob (the ref = the read API's GobRef). */
+    private static void actClickGob(LuaValue ref, int button, int mods) {
+        MapView m = view;
+        if(m == null)
+            throw new LuaError("hafen.act.clickGob: no map view (not in the world yet)");
+        Gob g = resolve(ref);
+        if(g == null)
+            throw new LuaError("hafen.act.clickGob: no such gob (the ref did not resolve to a visible object)");
+        Coord2d rc;
+        synchronized(g) { rc = g.rc; }                   // OCache discipline: copy under the gob lock
+        if(rc == null)
+            throw new LuaError("hafen.act.clickGob: the gob has no position yet");
+        Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;
+        m.wdgmsg("click", clickGobArgs(pc, button, mods, (int)g.id, rc.floor(OCache.posres)));
+    }
+
+    /** The MapView {@code "itemact"} args (use held item on the ground at world x,y). Pure/testable. */
+    static Object[] itemactArgs(Coord pc, double x, double y, int mods) {
+        return new Object[] {pc, moveClickCoord(x, y), mods};
+    }
+
+    /** {@code hafen.act.useItemOn} backing — apply the cursor item to the ground at world (x, y). */
+    private static void actUseItemOn(double x, double y, int mods) {
+        MapView m = view;
+        if(m == null)
+            throw new LuaError("hafen.act.useItemOn: no map view (not in the world yet)");
+        Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;
+        m.wdgmsg("itemact", itemactArgs(pc, x, y, mods));
+    }
+
+    /** The MapView {@code "place"} angle encoding: radians → the server's {@code round(angle*32768/PI)}. Pure. */
+    static int placeAngle(double radians) {
+        return (int)Math.round(radians * 32768 / Math.PI);
+    }
+
+    /** The MapView {@code "place"} args ({@code {rc, angleInt, button, mods}}). Pure/testable. */
+    static Object[] placeArgs(double x, double y, double angle, int button, int mods) {
+        return new Object[] {moveClickCoord(x, y), placeAngle(angle), button, mods};
+    }
+
+    /** {@code hafen.act.place} backing — place the cursor object at world (x, y) rotated by {@code angle} rad. */
+    private static void actPlace(double x, double y, double angle, int button, int mods) {
+        MapView m = view;
+        if(m == null)
+            throw new LuaError("hafen.act.place: no map view (not in the world yet)");
+        m.wdgmsg("place", placeArgs(x, y, angle, button, mods));
+    }
+
+    /**
+     * The MapView {@code "sel"} args ({@code {tc1, tc2, mods}}) — world corners floored to TILE coords, the
+     * same conversion {@code hafen.map.worldToTile} exposes ({@code Coord2d.floor(MCache.tilesz)}). Pure/testable.
+     */
+    static Object[] selArgs(double x1, double y1, double x2, double y2, int mods) {
+        Coord tc1 = Coord2d.of(x1, y1).floor(MCache.tilesz);
+        Coord tc2 = Coord2d.of(x2, y2).floor(MCache.tilesz);
+        return new Object[] {tc1, tc2, mods};
+    }
+
+    /** {@code hafen.act.select} backing — area-select the tile rectangle between world corners. */
+    private static void actSelect(double x1, double y1, double x2, double y2, int mods) {
+        MapView m = view;
+        if(m == null)
+            throw new LuaError("hafen.act.select: no map view (not in the world yet)");
+        m.wdgmsg("sel", selArgs(x1, y1, x2, y2, mods));
+    }
+
+    /**
+     * {@code hafen.act.raw} backing — send an arbitrary wdgmsg from a bound widget. {@code a.arg1()} = the
+     * target (a numeric server widget id, or a "mapview"/"gameui"/"root" token); {@code a.arg(2)} = the message
+     * name; the rest are the message args (marshalled via {@link LuaMarshal#toJava}). "Bound widgets only" — a
+     * looked-up widget id and the core-widget tokens are all server-bound.
+     */
+    private static void actRaw(Varargs a) {
+        LuaValue msgv = a.arg(2);
+        if(!msgv.isstring())
+            throw new LuaError("hafen.act.raw(target, msg, ...): msg must be a string");
+        Widget w = rawTarget(a.arg1());
+        if(w == null)
+            throw new LuaError("hafen.act.raw: target did not resolve to a live widget"
+                + " (expected a bound widget id, \"mapview\", or \"gameui\")");
+        int n = a.narg();
+        Object[] args = new Object[Math.max(0, n - 2)];
+        for(int i = 3; i <= n; i++)
+            args[i - 3] = LuaMarshal.toJava(a.arg(i), "hafen.act.raw");
+        w.wdgmsg(msgv.tojstring(), args);
+    }
+
+    /** Resolve a {@code raw} target: a numeric server widget id ({@code UI.getwidget}), or a hook-style token. */
+    private static Widget rawTarget(LuaValue target) {
+        if(target.isnumber()) {
+            UI u = ui;
+            return (u == null) ? null : u.getwidget(target.toint());
+        }
+        if(target.isstring()) {
+            String tok = target.tojstring().toLowerCase();
+            if(isKnownTarget(tok))
+                return hookTarget(tok);          // "mapview"/"gameui"/"root" → the live bound widget (reuse 2c)
+        }
+        return null;
     }
 
     // ---- movement speed (A7: hafen.speed) --------------------------------------------------------
