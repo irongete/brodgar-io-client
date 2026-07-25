@@ -830,6 +830,26 @@ public class OptWnd extends Window {
 	}
     }
 
+    public class CameraPanel extends Panel {
+	public CameraPanel(Panel back) {
+	    Widget prev;
+	    prev = add(new Label("Camera axis inversion"), 0, 0);
+	    prev = add(new CheckBox("Invert horizontal axis (left/right)") {
+		    {a = MapView.invcamx;}
+		    public void set(boolean val) {Utils.setprefb("invcamx", MapView.invcamx = val); a = val;}
+		}, prev.pos("bl").adds(0, 10));
+	    prev.settip("Reverses the horizontal mouse-drag direction when rotating the camera.", true);
+	    prev = add(new CheckBox("Invert vertical axis (up/down)") {
+		    {a = MapView.invcamy;}
+		    public void set(boolean val) {Utils.setprefb("invcamy", MapView.invcamy = val); a = val;}
+		}, prev.pos("bl").adds(0, 8));
+	    prev.settip("Reverses the vertical mouse-drag direction when tilting the camera. " +
+			"Only affects cameras that support tilting (not the default ortho camera).", true);
+	    add(new PButton(UI.scale(200), "Back", 27, back), prev.pos("bl").adds(0, 30));
+	    pack();
+	}
+    }
+
     public OptWnd(boolean gopts) {
 	super(Coord.z, "Options", true);
 	main = add(new Panel());
@@ -840,6 +860,9 @@ public class OptWnd extends Window {
 	y = main.add(new PButton(UI.scale(200), "Video settings", 'v', () -> new VideoPanel(ui, main)), 0, y).pos("bl").adds(0, 5).y;
 	y = main.add(new PButton(UI.scale(200), "Audio settings", 'a', () -> new AudioPanel(ui, main)), 0, y).pos("bl").adds(0, 5).y;
 	y = main.add(new PButton(UI.scale(200), "Keybindings", 'k', () -> new BindingPanel(main)), 0, y).pos("bl").adds(0, 5).y;
+	y = main.add(new PButton(UI.scale(200), "Camera", 'm', () -> new CameraPanel(main)), 0, y).pos("bl").adds(0, 5).y;
+	// Extra gap so the Voice Chat Integration panel sits visually separated a bit below the core settings.
+	y += UI.scale(20);
 	y = main.add(new PButton(UI.scale(200), "Voice Chat Integration", 'c', () -> new VoiceChatPanel(main)), 0, y).pos("bl").adds(0, 5).y;
 	y += UI.scale(60);
 	if(gopts) {
