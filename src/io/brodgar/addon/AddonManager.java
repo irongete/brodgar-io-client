@@ -49,6 +49,7 @@ import haven.Utils;
 import haven.WItem;
 import haven.Widget;
 import haven.Window;
+import haven.WoundWnd;
 import haven.resutil.Curiosity;
 
 import org.luaj.vm2.Globals;
@@ -345,6 +346,7 @@ public final class AddonManager {
         treeAdapters.add(new EquipAdapter());    // equipment add/remove (per-tick poll)
         treeAdapters.add(new KinAdapter());      // kin/buddy roster add/remove/status (uimsg-driven)
         treeAdapters.add(new QuestAdapter());    // quest log add / complete (uimsg-driven)
+        treeAdapters.add(new WoundAdapter());    // wounds add / heal / severity change (per-tick poll)
 
         attachRoot(ui_);              // invisible per-frame tick widget (drives the engine)
         registerOcache(ui_);          // GobAdded/GobRemoved source (marshalled to the UI thread)
@@ -1449,6 +1451,39 @@ public final class AddonManager {
         return events;
     }
 
+    /**
+     * Wounds (A9-2) — the wounds under the character sheet's "Health &amp; Wounds" tab ({@link WoundWnd},
+     * reached via the public {@code CharWnd.wound} field). A wound being added / healed / worsening arrives
+     * as a {@code "wounds"} {@code uimsg}, but a wound's <b>severity</b> (its {@link WoundWnd.QuickInfo}
+     * magnitude) comes from resource-published {@code ItemInfo} that <b>streams in a beat after</b> the
+     * wound row (its {@code res.get()} still Loading on the first refresh) — exactly the {@link StudyAdapter}
+     * situation. So, like study/buffs, this is <b>poll-driven</b>: each tick it re-reads the full wound
+     * list and fires <b>{@code WoundChanged}</b> only when it differs from the cache (an add/heal, a
+     * severity resolving nil→value, or a wound getting worse) — the {@link #woundListEqual} change-detection,
+     * with {@code severity} in the key so a worsening fires it. While the wound tab is not up yet the poll
+     * is skipped (the cache is kept), so nothing fires before there is anything to read. Payload = the list
+     * (the {@code KinChanged} shape). Read the initial state with {@code list()}; listen for deltas after.
+     */
+    private static final class WoundAdapter implements TreeAdapter {
+        private LuaValue cache;   // last wound snapshot list (UI thread; change-detect)
+
+        public boolean interested(Widget w, String msg) {
+            return false;         // wound add/heal is a uimsg, but severity streams in a beat later — see poll()
+        }
+
+        public void refresh() {}
+
+        public void poll() {
+            if(woundwnd() == null)
+                return;           // Health & Wounds tab not up yet — keep the cache, fire nothing
+            LuaValue snap = woundList(LuaValue.NIL);
+            if(!woundListEqual(snap, cache)) {
+                cache = snap;
+                fire("WoundChanged", snap);
+            }
+        }
+    }
+
     /** The player's buff bar ({@link GameUI#buffs}), or {@code null} before the HUD is up. */
     private static Bufflist bufflist() {
         GameUI g = gui();
@@ -2429,6 +2464,37 @@ public final class AddonManager {
             }
         });
         hafen.set("quests", quests);
+
+        // hafen.wounds.* — the character's wounds (A9-2), read from the character sheet's "Health &
+        // Wounds" tab (WoundWnd, reached via CharWnd.wound — created hidden at login but live, so wounds
+        // read without ever opening the window). list([filter]) returns wound snapshots {id, name, res,
+        // severity, parentid, level}: wounds form a TREE (parentid = the parent wound's id, -1 = a root
+        // wound; level = the client's computed tree depth), and severity is the magnitude string the
+        // client shows beside the wound (the highest-priority QuickInfo — content-defined, usually the
+        // wound's number, NOT seconds; omitted while it Loads). filter is the canonical nil=all / name-
+        // substring / predicate. has(needle) tests whether any wound's name/res contains needle (like
+        // buffs.has). Subscribe to WoundChanged (the wound set or a severity changed; payload = the new
+        // list). Read-only — there is no wound action tier (wounds heal by playing / tending).
+        LuaTable wounds = new LuaTable();
+        wounds.set("list", new OneArgFunction() {
+            public LuaValue call(LuaValue filter) {
+                return woundList(filter);
+            }
+        });
+        wounds.set("has", new OneArgFunction() {
+            public LuaValue call(LuaValue q) {
+                if(!q.isstring())
+                    return LuaValue.FALSE;
+                String needle = q.tojstring();
+                for(WoundWnd.Wound w : copyWounds()) {
+                    String res = resIdent(w.res), name = woundName(w);
+                    if(((res != null) && res.contains(needle)) || ((name != null) && name.contains(needle)))
+                        return LuaValue.TRUE;
+                }
+                return LuaValue.FALSE;
+            }
+        });
+        hafen.set("wounds", wounds);
 
         // hafen.buffs.* — active buffs/debuffs (GameUI.buffs → Buff widgets), via the widget-tree
         // mechanism (1d-2). list() returns Buff snapshots {res,name,amount,cooldown,number}; amount/
@@ -5503,6 +5569,139 @@ public final class AddonManager {
         if(done == QuestWnd.Quest.QST_DONE) return "done";
         if(done == QuestWnd.Quest.QST_FAIL) return "failed";
         return "pending";
+    }
+
+    // ---- wounds (A9-2: hafen.wounds) -------------------------------------------------------------
+    // Wounds are a WoundWnd (@RName("wounds")) — the character sheet's "Health & Wounds" tab, held by the
+    // public CharWnd.wound field (created hidden at login but live, so wounds read without opening it). The
+    // window keeps a WoundList whose public List<Wound> is the flat set of wounds; the client renders it as
+    // a TREE (Wound.parentid links a complication to its parent wound, -1 = a root; Wound.level = the depth
+    // the WoundList's treesort computes for indentation). Each Wound carries {id, parentid (public final
+    // int), res (Indir<Resource>), level (public int)} and, from its resource-published ItemInfo, a display
+    // name (ItemInfo.Name) and a severity indicator (the highest-priority WoundWnd.QuickInfo's qstr() — the
+    // magnitude the client shows beside the wound; content-defined, usually a number, NOT seconds). All
+    // backings are public (WoundWnd.wounds, WoundList.wounds, Wound.id/parentid/res/level/info(),
+    // WoundWnd.QuickInfo.qstr/qprio) → zero haven edit, like A9-1/A8/A7/A6/A4/A2.
+    //
+    // Threading: the wound list is mutated on a Loader thread by WoundWnd.uimsg("wounds") (decwound adds /
+    // updates / removes) under synchronized(ui), and reassigned by WoundList.tick's treesort on the UI
+    // thread. So copyWounds() copies the list reference under the ui monitor (the marker "copy under the
+    // lock, snapshot outside it" discipline), then names/severity resolve outside it (res.get()/info() may
+    // Loading — guarded). WoundChanged is fired by the poll-driven WoundAdapter (severity streams in a beat
+    // after the wound row, like study's Curiosity info, so a per-tick snapshot diff catches it) — not a
+    // targeted uimsg, since a uimsg refresh would see severity still Loading and miss it.
+
+    /** The Health &amp; Wounds window (the character sheet's "Health & Wounds" tab — created hidden at login
+     *  but live), or {@code null} before it exists. Via the public {@code CharWnd.wound} field (no tree-walk). */
+    private static WoundWnd woundwnd() {
+        CharWnd c = charwnd();
+        return (c == null) ? null : c.wound;
+    }
+
+    /** The live wound list copied under the {@code ui} monitor (WoundWnd.uimsg mutates it off-thread), or
+     *  empty when the character sheet's wound tab isn't up yet. Snapshot the copies outside the lock. */
+    private static List<WoundWnd.Wound> copyWounds() {
+        List<WoundWnd.Wound> out = new ArrayList<WoundWnd.Wound>();
+        WoundWnd ww = woundwnd();
+        UI u = ui;
+        if((ww == null) || (u == null))
+            return out;
+        synchronized(u) {
+            out.addAll(ww.wounds.wounds);
+        }
+        return out;
+    }
+
+    /** {@code hafen.wounds.list([filter])} — every wound as {@code {id, name, res, severity, parentid,
+     *  level}} snapshots, filtered by the canonical nil=all / name-substring / predicate. */
+    private static LuaValue woundList(LuaValue filter) {
+        LuaTable out = new LuaTable();
+        int i = 0;
+        for(WoundWnd.Wound w : copyWounds()) {        // resolve names/severity outside the lock (may Loading)
+            LuaValue snap = woundSnapshot(w);
+            if(matches(filter, snap))
+                out.set(++i, snap);
+        }
+        return out;
+    }
+
+    /** One wound as {@code {id, name, res, severity, parentid, level}}. {@code name}/{@code res}/{@code
+     *  severity} are Loading-guarded (omitted while resolving); {@code id}/{@code parentid}/{@code level}
+     *  are plain public ints. */
+    private static LuaValue woundSnapshot(WoundWnd.Wound w) {
+        LuaTable t = new LuaTable();
+        t.set("id", LuaValue.valueOf(w.id));
+        String name = woundName(w);
+        if(name != null)
+            t.set("name", LuaValue.valueOf(name));
+        String res = resIdent(w.res);
+        if(res != null)
+            t.set("res", LuaValue.valueOf(res));
+        String sev = woundSeverity(w);
+        if(sev != null)
+            t.set("severity", LuaValue.valueOf(sev));
+        t.set("parentid", LuaValue.valueOf(w.parentid));
+        t.set("level", LuaValue.valueOf(w.level));
+        return t;
+    }
+
+    /** Display name of a wound: the resource tooltip, else the server-pushed {@code ItemInfo.Name}, else
+     *  {@code null} (Loading-guarded — like {@code buffName}). */
+    private static String woundName(WoundWnd.Wound w) {
+        String tip = resTipName(w.res, null);
+        if(tip != null)
+            return tip;
+        try {
+            ItemInfo.Name n = ItemInfo.find(ItemInfo.Name.class, w.info());
+            return ((n == null) || (n.str == null)) ? null : n.str.text;
+        } catch(RuntimeException e) {   // info() still Loading / no rawinfo yet
+            return null;
+        }
+    }
+
+    /**
+     * The severity indicator the client shows beside a wound — its highest-priority {@link
+     * WoundWnd.QuickInfo}'s {@code qstr()} (a content-defined string, usually the wound's magnitude
+     * number; <b>not</b> seconds), or {@code null} if the wound publishes none / is still Loading. Mirrors
+     * the client's own quick-info pick ({@code WoundWnd.WoundList.Item.getqdat}: the highest {@code qprio}).
+     */
+    private static String woundSeverity(WoundWnd.Wound w) {
+        try {
+            List<ItemInfo> info = w.info();           // may throw Loading
+            WoundWnd.QuickInfo best = null;
+            for(ItemInfo inf : info) {
+                if(inf instanceof WoundWnd.QuickInfo) {
+                    WoundWnd.QuickInfo qi = (WoundWnd.QuickInfo)inf;
+                    if((best == null) || (best.qprio() < qi.qprio()))
+                        best = qi;
+                }
+            }
+            return (best == null) ? null : best.qstr();   // qstr() itself may be null (no quick string)
+        } catch(RuntimeException e) {   // info() still Loading
+            return null;
+        }
+    }
+
+    /** Do two wound snapshot lists carry the same id/parentid/level/name/res/severity per entry? (change-
+     *  detection for {@code WoundChanged}, mirroring {@code kinListEqual}). */
+    private static boolean woundListEqual(LuaValue a, LuaValue b) {
+        if((a == null) || (b == null) || !a.istable() || !b.istable())
+            return a == b;
+        int n = a.length();
+        if(n != b.length())
+            return false;
+        for(int i = 1; i <= n; i++) {
+            LuaValue ea = a.get(i), eb = b.get(i);
+            if(ea.get("id").toint() != eb.get("id").toint())
+                return false;
+            if(ea.get("parentid").toint() != eb.get("parentid").toint())
+                return false;
+            if(ea.get("level").toint() != eb.get("level").toint())
+                return false;
+            if(!luaFieldEq(ea, eb, "name") || !luaFieldEq(ea, eb, "res") || !luaFieldEq(ea, eb, "severity"))
+                return false;
+        }
+        return true;
     }
 
     // ---- markers (A1: hafen.markers) -------------------------------------------------------------

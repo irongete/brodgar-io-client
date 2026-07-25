@@ -41,7 +41,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.29.0)")
+hafen.log("hello loaded (v0.30.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -355,6 +355,34 @@ local function dumpQuest()                       -- :hello quest -- the selected
   end
 end
 
+-- A9-2: WOUNDS via hafen.wounds. list([filter]) returns your wounds as {id, name, res, severity, parentid,
+-- level}: wounds form a TREE (parentid = the parent wound's id, -1 = a root wound; level = the client's
+-- computed depth for indentation), and severity is the magnitude the client shows beside the wound (a
+-- content-defined string, usually a number -- NOT seconds; nil while it resolves). has(needle) tests presence
+-- by a name/res substring (like buffs.has). filter is the canonical nil=all / name-substring / predicate. Like
+-- the rest of the character sheet the wound list streams in a beat after enter-world, so read at now (often 0)
+-- and +3s. hello is READ-ONLY (wounds heal by playing / tending -- there is no wound action tier); we
+-- subscribe to WoundChanged below, and ':hello wound' dumps the full wound tree on demand. Most characters
+-- have 0 wounds -- an empty read is normal; take a hit (or open Health & Wounds on a wounded char) to see one.
+local function readWounds(tag)
+  local list = hafen.wounds.list()
+  local first = list[1]
+  hafen.log(("[%s] wounds=%d, first=%s%s"):format(tag, #list,
+    first and tostring(first.name or first.res) or "none",
+    (first and first.severity) and (" sev=%s"):format(tostring(first.severity)) or ""))
+end
+local function dumpWounds()                       -- :hello wound -- the full wound tree (name/severity, indented)
+  local list = hafen.wounds.list()
+  if #list == 0 then hafen.log(":hello wound -> no wounds (nice)"); return end
+  hafen.log((":hello wound -> %d wound(s):"):format(#list))
+  for _, w in ipairs(list) do
+    hafen.log(("  %s%s%s [id=%s parent=%s]"):format(("  "):rep(w.level or 0),
+      tostring(w.name or w.res),
+      w.severity and (" (sev " .. tostring(w.severity) .. ")") or "",
+      tostring(w.id), tostring(w.parentid)))
+  end
+end
+
 -- 3b: WIDGET MODEL (hafen.ui.adopt). We adopt the MAIN INVENTORY as a model down in the onWidgetCreate observer
 -- (the 3a -> 3b flow: observe a widget's creation, then adopt it by desc.id). invModel is that handle (nil until
 -- the inventory is observed at login). readBags reads it: item count + first item (via model:items(), the same
@@ -407,10 +435,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now"); readCraft("now"); readQuests("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now"); readCraft("now"); readQuests("now"); readWounds("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s"); readWounds("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via Ctrl+B) and it logs") end
   end)
@@ -588,6 +616,23 @@ hafen.events.on("QuestAdded", function(q)
 end)
 hafen.events.on("QuestDone", function(q)
   hafen.log(("QuestDone: '%s' -> %s"):format(tostring(q.name), tostring(q.status)))
+end)
+
+-- A9-2: WoundChanged fires when the wound set changes -- a wound added, healed/removed, or its severity
+-- advancing (a wound getting worse), and as wounds/severity stream in a beat after enter-world. Payload = the
+-- new wound list (same shape as hafen.wounds.list()). This is the signal a wound-alert addon lives on. A few
+-- may fire at login as wounds resolve; log the first few (with the first wound's name/severity), then keep
+-- narrating the count on every later change.
+local woundsSeen = 0
+hafen.events.on("WoundChanged", function(list)
+  woundsSeen = woundsSeen + 1
+  if woundsSeen <= 5 then
+    local first = list[1]
+    hafen.log(("WoundChanged: %d wound(s)%s (%d)"):format(#list,
+      first and (", first=" .. tostring(first.name or first.res)
+        .. (first.severity and (" sev " .. tostring(first.severity)) or "")) or "",
+      woundsSeen))
+  end
 end)
 
 -- 3a: WIDGET-CREATION INTERCEPTION (hafen.ui.onWidgetCreate). Observe the server's OWN UI as the client builds
@@ -778,7 +823,7 @@ end)
 -- sound, and ":hello echo <text...>" shows the args rejoined (quoting survives — :hello echo "a b" c -> a b c).
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound")
     return
   end
   local sub = args[1]
@@ -797,9 +842,11 @@ hafen.slash.register("hello", function(args)
   elseif sub == "craft" then
     dumpCraft()                                  -- A8: dump the currently-open recipe (open one first)
   elseif sub == "quest" then
-    dumpQuest()                                  -- A9: dump the selected quest + its objectives (select one first)
+    dumpQuest()                                  -- A9-1: dump the selected quest + its objectives (select one first)
+  elseif sub == "wound" then
+    dumpWounds()                                 -- A9-2: dump the full wound tree (name/severity, indented)
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound)")
       :format(#args, table.concat(args, " | ")))
   end
 end)
