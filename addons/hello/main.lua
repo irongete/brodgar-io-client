@@ -61,7 +61,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.40.0)")
+hafen.log("hello loaded (v0.41.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -960,9 +960,10 @@ end)
 local demoGhost   -- V1: the handle of the manual :hello ghost demo while placed (nil = none); session-local
 local demoSprite  -- R2a: the handle of the manual :hello sprite demo while placed (nil = none); session-local
 local demoFollow  -- R2a anchor: the handle of the :hello follow demo (a sprite anchored to you); session-local
+local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-facing sprite); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | follow")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow")
     return
   end
   local sub = args[1]
@@ -1039,6 +1040,23 @@ hafen.slash.register("hello", function(args)
         end
       end)
     end
+  elseif sub == "billboard" then
+    -- R2b: CAMERA-FACING BILLBOARD SPRITE (hafen.render.sprite{billboard=true}). The SAME PNG, but drawn as a
+    -- screen-space blit at the projected world point, so it ALWAYS faces the camera and is a constant screen size
+    -- (rotate the camera / zoom -- it stays square-on and the same pixel size). Position + gizmo-move still apply
+    -- (world-rotate/scale do not: it's 2D). Same handle as a fixed sprite; :hello billboard again removes it.
+    if demoBill then
+      demoBill:destroy(); demoBill = nil
+      hafen.log(":hello billboard -> destroyed")
+    else
+      if not icon then hafen.log(":hello billboard -> icon.png not loaded yet (OnLoad)"); return end
+      local p = hafen.gob.pos("player")
+      if not p then hafen.log(":hello billboard -> no player position yet"); return end
+      demoBill = hafen.render.sprite{ image = icon, x = p.x, y = p.y, billboard = true, scale = 2 }  -- 2x native px, faces camera
+      if not demoBill then hafen.log(":hello billboard -> hafen.render.sprite returned nil (not in the world yet?)"); return end
+      hafen.log((":hello billboard -> icon.png standing at (%.0f,%.0f) FACING THE CAMERA (screen-sized) -- rotate the camera to see; :hello billboard again to remove")
+        :format(p.x, p.y))
+    end
   elseif sub == "follow" then
     -- R2a ANCHOR: a world sprite anchored to a gob that FOLLOWS it automatically, like a gob overlay (no polling).
     -- hafen.render.sprite{ follow = <gobref>, offset = {x=,y=,z=} } -> the sprite tracks the gob every frame; z = up,
@@ -1054,7 +1072,7 @@ hafen.slash.register("hello", function(args)
       hafen.log(":hello follow -> icon.png now FLOATS above your head and FOLLOWS you -- walk around; :hello follow again to remove")
     end
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | follow)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow)")
       :format(#args, table.concat(args, " | ")))
   end
 end)

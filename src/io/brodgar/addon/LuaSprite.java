@@ -29,14 +29,19 @@ import haven.Coord2d;
 public final class LuaSprite extends LuaWorldEntity {
     final LuaImage img;            // the texture source (bridge-owned by Addon.images; NOT disposed by the sprite)
     final String   imgName;        // the addon-relative image path, for :image() and the list string-filter
+    final boolean  billboard;      // R2b: true = camera-facing screen blit (LuaSpriteBillboard); false = fixed world quad (SpriteQuad)
 
-    LuaSprite(Addon owner, LuaImage img, Coord2d rc, double a) {
+    LuaSprite(Addon owner, LuaImage img, Coord2d rc, double a, boolean billboard) {
         super(owner, rc, a);
         this.img = img;
         this.imgName = img.name;
+        this.billboard = billboard;
     }
 
     void unregister() { owner.sprites.remove(this); }
 
     String visualName() { return imgName; }
+
+    String clickEvent() { return "SpriteClicked"; }   // R2b: the sprite analog of a ghost's GhostClicked
+    String clickKey()   { return "sprite"; }
 }

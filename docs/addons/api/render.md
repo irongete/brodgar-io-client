@@ -3,7 +3,7 @@
 Render **custom assets that ship with your addon** — not engine `.res` resources. This is the sibling of
 [`hafen.ghost`](ghost.md) (which places the game's own `.res` models in the world): `hafen.render` is for
 **your own files**. It loads **PNG images** and draws them on screen, and stands them **in the world** as fixed
-sprites; a camera-facing billboard form and custom 3D models (glTF) join it later on the same handle model.
+or camera-facing **sprites**; custom 3D models (glTF) join them later on the same handle model.
 
 > **Safe-tier — not gated.** A custom image is a client-side texture that never reaches the server and grants
 > no gameplay advantage, so it needs **no** `actions` permission — exactly like [`hafen.ui.overlay`](ui.md#overlays)
@@ -79,15 +79,20 @@ end)
 
 ## Standing an image in the world
 
-`hafen.render.sprite{…}` stands a PNG **upright in the 3D world** as a fixed textured quad — the non-`.res`
-sibling of a [ghost](ghost.md), built on the **same client-only world-entity core**. So it is a full transform
-handle (and [gizmo](ghost.md#transform-gizmo-move--rotate--scale)-compatible), and it is **safe-tier, not gated**
+`hafen.render.sprite{…}` stands a PNG **in the 3D world** — the non-`.res` sibling of a [ghost](ghost.md), built
+on the **same client-only world-entity core**. So it is a full transform handle (and
+[gizmo](ghost.md#transform-gizmo-move--rotate--scale)-compatible), and it is **safe-tier, not gated**
 ([D-034](../../../specs/addons/decisions.md)): a `Gob` with no server id, exactly like a ghost — nothing reaches
-the server.
+the server. Two forms, chosen by `billboard`:
+
+- **fixed** (`billboard = false`, default) — a textured **quad** standing **upright** in the world, facing `a`,
+  ~1 tile tall, drawn double-sided. It is true world geometry: world-rotate and world-scale apply.
+- **[billboard](#billboard-camera-facing)** (`billboard = true`) — a screen-space blit that always **faces the
+  camera** and is a constant screen size. Position and gizmo-move apply; world-rotate/scale do not.
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.render.sprite{image=, x, y [, a] [, scale] [, alpha] [, tint]}` | [sprite handle](#sprite-handle) | stand a PNG in the world at world coords `(x, y)`, facing `a` |
+| `hafen.render.sprite{image=, x, y [, a] [, scale] [, alpha] [, tint] [, billboard] [, clickable] [, onClick]}` | [sprite handle](#sprite-handle) | stand a PNG in the world at world coords `(x, y)`, facing `a` |
 
 Options:
 
@@ -95,18 +100,19 @@ Options:
 |---|---|---|
 | `image` | *(required)* | a [`hafen.render.image`](#loading-an-image) handle **or** an addon-relative path string (auto-loaded + cached) |
 | `x`, `y` | *(required¹)* | world coordinates, like [`hafen.gob.pos`](gob.md) |
-| `a` | `0` | facing angle in **radians** |
-| `scale` | `1` | uniform scale; the sprite stands **~1 tile tall at `scale = 1`** (width follows the image's aspect ratio) |
+| `a` | `0` | facing angle in **radians** (a billboard ignores it — it faces the camera) |
+| `scale` | `1` | uniform scale; a **fixed** sprite is ~1 tile tall at `1` (width follows the image aspect), a **billboard** is its native pixel size × `scale` |
 | `alpha` | `1` | opacity `0..1`; combines with the PNG's own transparency |
 | `tint` | *(none)* | colour overlay `{r=, g=, b=[, a=]}` `0..255` (`a` = blend strength) |
+| `billboard` | `false` | `false` = a fixed upright quad; `true` = a [camera-facing](#billboard-camera-facing) screen blit |
+| `clickable` | `false` | opt into the [click event](#clickability--the-spriteclicked-event) — **fixed sprites only** (a billboard has no world mesh, so it is never picked) |
+| `onClick` | *(none)* | `fn(s, button, x, y)` fired on click (also delivered as the [`SpriteClicked`](events.md#world-ghosts--sprites) event) |
 | `follow` | *(none)* | **anchor to a gob** — a gob id, `"player"`, or `"me"`: the sprite tracks it every frame (see [Anchoring](#anchoring-to-a-gob)) |
 | `offset` | *(none)* | fixed world offset `{x=, y=, z=}` from the followed gob (`z` = up) |
 
 ¹ `x`/`y` are optional when `follow` is given — the gob supplies the position.
 
-Returns `nil` if you are not in the world yet (no map view). The quad stands **fixed** in the world and faces
-`a`; it is drawn double-sided (visible from either side). *(A camera-facing **billboard** form — `billboard=true`
-— arrives in R2b.)*
+Returns `nil` if you are not in the world yet (no map view).
 
 ### Sprite handle
 
@@ -115,10 +121,11 @@ The same transform surface as a [ghost handle](ghost.md), with `:image()` in pla
 | Method | Description |
 |---|---|
 | `s:move(x, y [, a])` | reposition (world coords), optionally re-facing — **detaches** any `:follow` anchor |
-| `s:rotate(a)` | set facing (radians), keeping position |
-| `s:scale(k)` | uniform scale (`1` = ~1 tile tall) |
+| `s:rotate(a)` | set facing (radians), keeping position (a **billboard** faces the camera, so this has no visible effect) |
+| `s:scale(k)` | uniform scale (fixed: `1` = ~1 tile tall; billboard: screen-size multiplier) |
 | `s:alpha(a)` | opacity `0..1` |
 | `s:tint(color\|nil)` | colour overlay `{r=,g=,b=[,a=]}`; `nil` clears |
+| `s:clickable(bool)` | toggle the pick surface (**fixed sprites only** — see [Clickability](#clickability--the-spriteclicked-event)) |
 | `s:show()` / `s:hide()` | add / remove from the scene (keeps the sprite) |
 | `s:follow(gob [, {x=,y=,z=}])` | **anchor** to a gob and auto-follow it; `s:follow(nil)` detaches (see [Anchoring](#anchoring-to-a-gob)) |
 | `s:offset{x=, y=, z=}` | move it relative to the followed gob (keeps following) |
@@ -139,6 +146,50 @@ s:destroy()                          -- or just let reload/disable clean it up
 
 > **Gizmo.** A sprite is gizmo-transformable for free — it exposes the same `:move`/`:rotate`/`:scale` handle a
 > ghost does, and the [transform gizmo](ghost.md#transform-gizmo-move--rotate--scale) drives any such handle.
+
+### Billboard (camera-facing)
+
+Pass `billboard = true` for a sprite that **always faces the camera** and is a **constant screen size** — a
+screen-space blit anchored at the sprite's world point (rotate the camera or zoom and it stays square-on and the
+same number of pixels). It is the ergonomic, gob-anchored version of drawing an image at
+[`hafen.player.worldToScreen`](player.md) in a [`hafen.ui.overlay`](ui.md#overlays); it draws **on top** of the 3D
+scene (no depth occlusion).
+
+```lua
+local icon = hafen.render.image("icon.png")
+local p = hafen.gob.pos("player")
+local b = hafen.render.sprite{ image = icon, x = p.x, y = p.y, billboard = true, scale = 2 }  -- 2× native px, faces you
+-- b:move(x, y) still works (and the gizmo moves it); b:scale(k) resizes it on screen.
+```
+
+A billboard is drawn at the image's **native pixel size** (DPI-scaled like the HUD) × `scale`, bottom-centred on
+its world point (so it "stands" there; a `follow` `offset = {z=…}` floats it overhead). Because it is a flat 2D
+image, **`:rotate` and `:scale`-as-world-size do not apply** — `:rotate` is stored but has no visible effect, and
+`:scale` acts as a screen-size multiplier. `:alpha` and `:tint` work (opacity + a colour multiply). It has no
+world mesh, so it is **not** [clickable](#clickability--the-spriteclicked-event) (nothing to pick) — select it in
+an editor by other means (e.g. your own list, or the `planner` example addon's `:planner select`).
+
+### Clickability & the `SpriteClicked` event
+
+A **fixed** sprite can be made **clickable** (`clickable = true` at create, or `s:clickable(true)` later), exactly
+like a [ghost](ghost.md#clickability--the-ghostclicked-event-v2): it gains a pick surface, and a click on it is
+detected **client-side** and **consumed** before any server click — so you never walk/interact, and nothing
+reaches the server (still safe-tier). Both the per-sprite `onClick(s, button, x, y)` and the owner-scoped
+[`SpriteClicked`](events.md#world-ghosts--sprites) event fire; `SpriteClicked` reaches only *your* addon (a sprite
+is private to the addon that made it).
+
+```lua
+local s = hafen.render.sprite{
+  image = "icon.png", x = wx, y = wy,
+  clickable = true,
+  onClick = function(s, button, x, y)          -- 1 = left, 3 = right; x,y = clicked world point
+    hafen.log(("clicked my sprite (button %d)"):format(button))
+  end,
+}
+```
+
+> **Billboards are click-through.** A billboard has no world geometry, so it never wins a pick — `clickable`/
+> `onClick` on a billboard are harmless no-ops. Use a fixed sprite when you need click selection.
 
 ### Anchoring to a gob
 
@@ -175,7 +226,6 @@ The same handle model extends further (all on the shared world-entity core + the
 
 | Planned | What |
 |---|---|
-| `hafen.render.sprite{…, billboard=true}` | a PNG standing in the world that **faces the camera** (**R2b**) |
 | `hafen.render.model(path)` + `hafen.render.object{model=, …}` | a custom **glTF** 3D model placed in the world (**R3**) |
 
 See [17-custom-rendering.md](../../../specs/addons/17-custom-rendering.md) and

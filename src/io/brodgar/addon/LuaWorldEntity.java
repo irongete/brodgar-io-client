@@ -90,4 +90,16 @@ public abstract class LuaWorldEntity {
      * accessor.
      */
     abstract String visualName();
+
+    /**
+     * The owner-scoped event fired when this entity is clicked (V2 pick dispatch, {@link AddonManager#onGhostClick}):
+     * {@code "GhostClicked"} for a ghost, {@code "SpriteClicked"} for a sprite. Paired with {@link #clickKey()}.
+     */
+    abstract String clickEvent();
+
+    /**
+     * The {@code ev} field name under which the clicked entity's handle is delivered in its {@link #clickEvent()} —
+     * {@code "ghost"} for a ghost, {@code "sprite"} for a sprite (a ghost is a ghost, a sprite is a sprite).
+     */
+    abstract String clickKey();
 }

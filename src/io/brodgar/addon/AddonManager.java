@@ -3188,23 +3188,25 @@ public final class AddonManager {
                 return newImage(owner, path);
             }
         });
-        // hafen.render.sprite{image, x, y [, a] [, scale] [, alpha] [, tint] [, billboard]} — stand a custom PNG in
-        // the 3D world (spec 17 §5, R2). The non-`.res` sibling of hafen.ghost, on the SAME virtual-entity core +
-        // gizmo: a Gob with no server id, so it never reaches the server (SAFE-tier, NOT gated, D-034). image = a
-        // hafen.render.image handle OR an addon-relative path (auto-loaded + cached, D-017-sandboxed); x,y = world
-        // coords (like hafen.gob.pos); a = facing radians (default 0). Look/size options mirror a ghost:
-        //   scale = 2               -- V6-style uniform scale (default 1); the sprite is ~1 tile tall at scale 1
+        // hafen.render.sprite{image, x, y [, a] [, scale] [, alpha] [, tint] [, billboard] [, clickable] [, onClick]}
+        // — stand a custom PNG in the 3D world (spec 17 §5, R2). The non-`.res` sibling of hafen.ghost, on the SAME
+        // virtual-entity core + gizmo: a Gob with no server id, so it never reaches the server (SAFE-tier, NOT gated,
+        // D-034). image = a hafen.render.image handle OR an addon-relative path (auto-loaded + cached, D-017-sandboxed);
+        // x,y = world coords (like hafen.gob.pos); a = facing radians (default 0). Options:
+        //   scale = 2               -- uniform scale (default 1); fixed = ~1 tile tall, billboard = screen-size ×
         //   alpha = 0.5             -- opacity 0..1 (default 1); combines with the PNG's own transparency
         //   tint  = {r=,g=,b=[,a=]} -- colour overlay 0..255 (a = blend strength)
-        //   billboard = false       -- R2a ships the FIXED quad; billboard=true (camera-facing) arrives in R2b
+        //   billboard = false       -- false (default) = a FIXED upright quad (R2a); true = a CAMERA-FACING screen blit (R2b)
+        //   clickable = true        -- opt into the V2 pick (fixed sprites only; a billboard has no world mesh → never picked)
+        //   onClick = fn(s,btn,x,y) -- per-sprite click callback (also delivered as the owner-scoped SpriteClicked event)
         //   follow = gob            -- ANCHOR to a gob (id / "player" / "me"): the sprite tracks it every frame
         //   offset = {x=,y=,z=}     -- fixed world offset from the followed gob (z = up; e.g. {z=10} floats it overhead)
         // Returns a transform handle (gizmo-compatible), like a ghost but with :image() in place of :res():
-        //   :move(x,y[,a]) :rotate(a) :scale(s) :alpha(a) :tint(color|nil) :show() :hide() :pos() :image() :destroy()
+        //   :move(x,y[,a]) :rotate(a) :scale(s) :alpha(a) :tint(color|nil) :clickable(bool) :show() :hide() :pos() :image() :destroy()
         //   :follow(gob[, {x=,y=,z=}])  -- ANCHOR to a gob and auto-track it (like a gob overlay); :follow(nil) detaches
         //   :offset{x=,y=,z=}           -- move it relative to the followed gob (it keeps following); a plain :move detaches
-        // Returns nil only if there is no map view yet (not in the world). The quad is a resource-free SprDrawable on
-        // the shared core, so it stands FIXED and gets the full transform + look + gizmo for free (spec 17 §2).
+        // Returns nil only if there is no map view yet (not in the world). Both forms are resource-free visuals on the
+        // shared core, so they get the full transform + look + gizmo for free (a billboard ignores world-rotate/scale).
         render.set("sprite", new OneArgFunction() {
             public LuaValue call(LuaValue opts) {
                 return newSprite(owner, opts);
@@ -4824,16 +4826,20 @@ public final class AddonManager {
     // ---- R2: custom world sprites (hafen.render.sprite) --------------------------------------------------------
 
     /**
-     * {@code hafen.render.sprite{image, x, y [, a] [, scale] [, alpha] [, tint] [, billboard]}} (R2a): stand a
-     * custom PNG upright in the 3D world as a textured quad — the non-{@code .res} sibling of a ghost, on the same
-     * virtual-entity core (spec 17 §5). Validates the options, resolves the {@code image} (a {@code hafen.render.image}
-     * handle or an addon-relative path, auto-loaded + cached), builds a {@link GhostGob} + a resource-free
-     * {@link SprDrawable} quad ({@link SpriteQuad}) sized to the image aspect, and adds it to the MapView {@code basic}
-     * scene ({@link MapView#addClientGob}). Unlike a ghost the texture is already decoded, so there is NO {@code
-     * Loading} to dodge — the gob is built and published <b>synchronously</b> on the calling UI thread (the handle's
-     * gob is live before it is returned). Registered in the addon's owned-resource registry (P2). Returns {@code nil}
-     * if there is no map view (not in the world); throws a {@link LuaError} for a malformed table or a
-     * {@code billboard=true} request (that camera-facing form arrives in R2b).
+     * {@code hafen.render.sprite{image, x, y [, a] [, scale] [, alpha] [, tint] [, billboard] [, clickable] [, onClick]}}
+     * (R2): stand a custom PNG in the 3D world — the non-{@code .res} sibling of a ghost, on the same virtual-entity
+     * core (spec 17 §5). Validates the options, resolves the {@code image} (a {@code hafen.render.image} handle or an
+     * addon-relative path, auto-loaded + cached), builds a {@link GhostGob}, attaches the visual, and adds it to the
+     * MapView {@code basic} scene ({@link MapView#addClientGob}). The visual is the ONLY thing {@code billboard}
+     * selects: {@code false} (default) → a resource-free {@link SprDrawable} quad ({@link SpriteQuad}) standing
+     * upright, sized to the image aspect (R2a); {@code true} → a resource-free {@link LuaSpriteBillboard} camera-facing
+     * screen blit (R2b). Everything else — transform, look, {@code follow} anchor, gizmo — is shared. Unlike a ghost
+     * the texture is already decoded, so there is NO {@code Loading} to dodge — the gob is built and published
+     * <b>synchronously</b> on the calling UI thread (the handle's gob is live before it is returned). {@code clickable}
+     * (+ per-sprite {@code onClick}) opts a <b>fixed</b> sprite into the V2 pick dispatch (its quad renders into the
+     * clickmap); a <b>billboard</b> has no world mesh so it is never picked (the flag is a harmless no-op). Registered
+     * in the addon's owned-resource registry (P2). Returns {@code nil} if there is no map view (not in the world);
+     * throws a {@link LuaError} for a malformed table.
      */
     private static LuaValue newSprite(Addon owner, LuaValue opts) {
         if(!opts.istable())
@@ -4843,8 +4849,7 @@ public final class AddonManager {
         boolean hasFollow = !followv.isnil();
         if(!hasFollow && (!xv.isnumber() || !yv.isnumber()))   // x/y are the placement; when following, the gob supplies it
             throw new LuaError("hafen.render.sprite: 'x' and 'y' must be numbers (world coordinates, like hafen.gob.pos) — or pass follow=gob instead");
-        if(opts.get("billboard").toboolean())
-            throw new LuaError("hafen.render.sprite: billboard=true (camera-facing) is not implemented yet — it arrives in R2b; use the default fixed quad (billboard=false)");
+        boolean billboard = opts.get("billboard").toboolean();   // R2b: true = camera-facing screen blit; false = fixed world quad
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
@@ -4853,10 +4858,14 @@ public final class AddonManager {
         LuaValue av = opts.get("a");
         double a = av.isnumber() ? av.todouble() : 0.0;
         Coord2d rc = new Coord2d(xv.optdouble(0.0), yv.optdouble(0.0));   // 0,0 placeholder when following (the gob overrides)
-        LuaSprite sp = new LuaSprite(owner, img, rc, a);
+        LuaSprite sp = new LuaSprite(owner, img, rc, a, billboard);
         sp.alpha = luaAlpha(opts.get("alpha"));        // opacity 0..1 (default 1); combines with the PNG's own alpha
         sp.tint = luaTint(opts.get("tint"));           // colour overlay {r=,g=,b=[,a=]}, or null
-        sp.scale = luaScale(opts.get("scale"));        // uniform scale (default 1 = ~1 tile tall)
+        sp.scale = luaScale(opts.get("scale"));        // uniform scale (fixed quad: ~1 tile tall; billboard: screen-size ×)
+        sp.clickable = opts.get("clickable").toboolean();   // R2b: opt-in pick (fixed sprites only; a billboard has no world mesh → never picked)
+        LuaValue onclickv = opts.get("onClick");       // R2b: per-sprite click callback fn(s, button, x, y) — like a ghost
+        if(onclickv.isfunction())
+            sp.onClick = onclickv;
         if(hasFollow) {                                // ANCHOR: track a gob every frame (the gob-overlay analog)
             sp.followTgt = followTargetId(followv);
             sp.followOff = luaOffset(opts.get("offset"));   // {x=,y=,z=} world offset from the gob (default none)
@@ -4864,14 +4873,20 @@ public final class AddonManager {
         owner.sprites.add(sp);
         LuaValue handle = spriteHandle(sp);
         sp.handle = handle;
-        // Build the gob + quad OUTSIDE the sprite lock (no scene mutation yet), then publish atomically. No defer:
-        // the TexI is already decoded (R1), so nothing here throws Loading. Sprites are click-through in R2a, so the
-        // GhostGob's `clickable` stays false and no GobClick is prepped (the pick pass never returns them).
-        float[] wh = spriteWorldDims(img.sz);
+        // Build the gob + visual OUTSIDE the sprite lock (no scene mutation yet), then publish atomically. No defer:
+        // the TexI is already decoded (R1), so nothing here throws Loading. The visual is the ONLY thing that differs
+        // between a fixed quad (SpriteQuad, a resource-free SprDrawable) and a camera-facing billboard
+        // (LuaSpriteBillboard, a resource-free Drawable+Render2D) — the shared core supplies transform/look/gizmo.
         GhostGob gob = new GhostGob(g, rc);
         gob.a = a;
         gob.alpha = sp.alpha; gob.tint = sp.tint; gob.scale = sp.scale;   // reflect the look before the first scene add
-        gob.setattr(new SprDrawable(gob, SpriteQuad.mill(img.tex, wh[0], wh[1])));   // resource-free textured quad
+        gob.clickable = sp.clickable;                  // R2b: a fixed sprite's quad renders into the clickmap → V2-pickable (see onGhostClick)
+        if(billboard) {
+            gob.setattr(new LuaSpriteBillboard(gob, img));               // camera-facing screen blit (reads the look live each frame)
+        } else {
+            float[] wh = spriteWorldDims(img.sz);
+            gob.setattr(new SprDrawable(gob, SpriteQuad.mill(img.tex, wh[0], wh[1])));   // resource-free textured quad
+        }
         gob.move(rc, a);
         synchronized(sp) {
             if(sp.dead) { gob.dispose(); return handle; }   // destroyed mid-build (defensive; all UI-thread) → discard
@@ -4886,14 +4901,22 @@ public final class AddonManager {
 
     /**
      * The Lua handle for a {@link LuaSprite} (R2): the shared entity verbs ({@link #addEntityHandle}) plus the
-     * sprite's {@code :image()} identity accessor (its addon-relative path). No {@code :clickable}/{@code :setRes}
-     * in R2a — a sprite is a click-through fixed quad and its visual is fixed at create.
+     * sprite's {@code :image()} identity accessor (its addon-relative path) and {@code :clickable(bool)} (R2b — the
+     * V2 pick surface, mirroring a ghost). {@code :clickable} works on a <b>fixed</b> sprite (its quad renders into
+     * the clickmap); on a billboard it is a harmless no-op (no world mesh to pick). No {@code :setRes} — a sprite's
+     * visual (its image) is fixed at create.
      */
     private static LuaValue spriteHandle(final LuaSprite sp) {
         LuaTable h = new LuaTable();
         addEntityHandle(h, sp);
         h.set("image", new ZeroArgFunction() {
             public LuaValue call() { return (sp.imgName == null) ? LuaValue.NIL : LuaValue.valueOf(sp.imgName); }
+        });
+        h.set("clickable", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                setEntityClickable(sp, a.arg(2).toboolean());   // s:clickable(true|false); default (no arg) → false
+                return a.arg1();
+            }
         });
         return h;
     }
@@ -5252,28 +5275,30 @@ public final class AddonManager {
 
     /**
      * V2: {@code MapView.Click.hit} resolved a click to virtual gob {@code cg}, BEFORE its {@code wdgmsg("click",
-     * …)}. If {@code cg} is a <b>clickable</b> client ghost, fire {@code GhostClicked{ghost, button, x, y}} to the
-     * OWNING addon (a ghost is private to its addon — its handle must not leak cross-addon, so this is owner-scoped,
-     * not a global {@link #fire}) and its per-ghost {@code onClick(g, button, x, y)}, then return {@code true} so
-     * the caller CONSUMES the click — no {@code wdgmsg}, so nothing reaches the server (client-only ⇒ still
-     * SAFE-tier, D-032). Returns {@code false} for any non-ghost / non-clickable gob, so a normal click proceeds.
-     * {@code x, y} = the world coord the click resolved to (the ground point under the cursor). Reached under
-     * {@code synchronized(ui)} (like the L3 message hook), so {@link #callLua} is safe with no extra thread guard;
-     * the ghost lock is released before dispatch so a handler may re-entrantly {@code g:destroy()}/{@code :move()}
-     * the ghost.
+     * …)}. If {@code cg} is a <b>clickable</b> client world entity — a ghost <i>or</i> a fixed {@link LuaSprite}
+     * (R2b generalized the dispatch beyond ghosts) — fire its owner-scoped click event ({@code GhostClicked{ghost,
+     * …}} / {@code SpriteClicked{sprite, …}}, keyed by {@link LuaWorldEntity#clickEvent()}/{@link
+     * LuaWorldEntity#clickKey()}; owner-scoped because the handle is private to its addon, not a global {@link #fire})
+     * and its per-entity {@code onClick(handle, button, x, y)}, then return {@code true} so the caller CONSUMES the
+     * click — no {@code wdgmsg}, so nothing reaches the server (client-only ⇒ still SAFE-tier, D-032). Returns {@code
+     * false} for any non-entity / non-clickable gob, so a normal click proceeds. (A billboard sprite has no world
+     * mesh, so it never renders into the clickmap and never reaches here — only fixed sprites are pickable.) {@code x,
+     * y} = the world coord the click resolved to. Reached under {@code synchronized(ui)} (like the L3 message hook),
+     * so {@link #callLua} is safe with no extra thread guard; the entity lock is released before dispatch so a handler
+     * may re-entrantly {@code :destroy()}/{@code :move()} it.
      */
     public static boolean onGhostClick(Gob cg, int button, Coord2d mc) {
         if(cg == null)
             return false;
-        LuaGhost gh = findGhostByGob(cg);
-        if(gh == null)
+        LuaWorldEntity e = findEntityByGob(cg);
+        if(e == null)
             return false;
         LuaValue handle, onClick;
-        synchronized(gh) {
-            if(gh.dead || !gh.clickable)
+        synchronized(e) {
+            if(e.dead || !e.clickable)
                 return false;
-            handle  = gh.handle;
-            onClick = gh.onClick;
+            handle  = e.handle;
+            onClick = e.onClick;
         }
         if(handle == null)
             return false;
@@ -5281,33 +5306,39 @@ public final class AddonManager {
         LuaValue xv = LuaValue.valueOf((mc == null) ? 0 : mc.x);
         LuaValue yv = LuaValue.valueOf((mc == null) ? 0 : mc.y);
         LuaTable ev = new LuaTable();
-        ev.set("ghost", handle);
+        ev.set(e.clickKey(), handle);                  // "ghost" / "sprite" (constant per subclass; no lock needed)
         ev.set("button", bt);
         ev.set("x", xv);
         ev.set("y", yv);
-        fireTo(gh.owner, "GhostClicked", ev);          // owner-scoped: a ghost belongs to exactly one addon
+        fireTo(e.owner, e.clickEvent(), ev);           // owner-scoped: an entity belongs to exactly one addon
         if((onClick != null) && onClick.isfunction())
-            callLua(gh.owner, onClick, handle, bt, xv, yv);
+            callLua(e.owner, onClick, handle, bt, xv, yv);
         return true;                                   // consume — client-only detection, no server wdgmsg
     }
 
-    /** Find the live ghost whose gob is {@code cg}, across all addons + the REPL owner (V2 click dispatch). */
-    private static LuaGhost findGhostByGob(Gob cg) {
+    /** Find the live world entity (ghost or sprite) whose gob is {@code cg}, across all addons + the REPL owner (V2 click dispatch). */
+    private static LuaWorldEntity findEntityByGob(Gob cg) {
         for(Addon a : addons) {
-            LuaGhost gh = findGhostIn(a, cg);
-            if(gh != null)
-                return gh;
+            LuaWorldEntity e = findEntityIn(a, cg);
+            if(e != null)
+                return e;
         }
         Addon c = consoleOwner;
-        return (c == null) ? null : findGhostIn(c, cg);
+        return (c == null) ? null : findEntityIn(c, cg);
     }
 
-    private static LuaGhost findGhostIn(Addon a, Gob cg) {
+    private static LuaWorldEntity findEntityIn(Addon a, Gob cg) {
         for(LuaGhost gh : a.ghosts) {
             Gob g;
             synchronized(gh) { g = gh.dead ? null : gh.gob; }
             if(g == cg)
                 return gh;
+        }
+        for(LuaSprite sp : a.sprites) {
+            Gob g;
+            synchronized(sp) { g = sp.dead ? null : sp.gob; }
+            if(g == cg)
+                return sp;
         }
         return null;
     }

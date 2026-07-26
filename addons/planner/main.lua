@@ -14,10 +14,11 @@
 -- — we retry as the map loads). This is the same rule map markers follow (coverage-gaps C4).
 --
 -- COMMANDS (:planner <sub>):
---   place [name|res]  -- place the current (or named) blueprint at your feet; it is clickable + persisted
+--   place [name|res]  -- place the current (or named) blueprint GHOST at your feet; it is clickable + persisted
+--   sprite [billboard]-- place a custom-PNG SPRITE at your feet (R2b): fixed upright quad, or 'billboard' = camera-facing
 --   blueprint [name]  -- show / set the current blueprint (bare = list the palette)
---   list              -- list placed ghosts (index, resource, grid id, resolved?)
---   select <n>        -- select ghost #n (or just CLICK it in the world — V2)
+--   list              -- list placed entities (index, label, grid id, resolved?)
+--   select <n>        -- select entity #n (or CLICK a ghost / fixed sprite in the world — V2)
 --   gizmo             -- attach the Unity-style transform gizmo; DRAG the ghost BY ITS ARROWS (X/Y) or centre (V5b)
 --   grab              -- MOVE the selected ghost by the BODY: follows the cursor snapped to the placegrid (V5a)
 --   rotate [deg]      -- rotate the selected ghost (default +45 deg); the new facing persists
@@ -43,8 +44,16 @@
 -- all three at once (mode "all"); ":planner gizmo move|rotate|scale" focuses one. The gizmo's onCommit now persists
 -- the new facing AND scale, and ":planner scale <s>" sets scale directly. Rotation/scale ride the SAME grid-anchored
 -- persistence, so a relog restores position + facing + scale. Full move/rotate/scale = the V6 DoD.
+--
+-- R2b (custom-PNG sprites): the planner now places SPRITES too (hafen.render.sprite -- our own icon.png, NOT a .res
+-- model), on the SAME client-only world-entity core as a ghost (D-013). Because a sprite handle is identical to a
+-- ghost handle, selection, the gizmo, grab, and grid-anchored persistence are all KIND-AGNOSTIC -- one code path
+-- drives both. ":planner sprite" stands a FIXED upright quad (clickable, so a click selects it); ":planner sprite
+-- billboard" stands a CAMERA-FACING screen blit (always squares up to the camera, constant screen size -- it has no
+-- world mesh, so it is NOT clickable: select it with ":planner select <n>", then ":planner gizmo" to move it). Both
+-- persist grid-anchored, so a relog restores them alongside the ghosts. Records carry a `kind` ("ghost"/"sprite").
 
-hafen.log("planner loaded (v0.4.0) -- blueprint ghosts + Unity gizmo (move/rotate/scale) + grab, grid-anchored")
+hafen.log("planner loaded (v0.5.0) -- blueprint ghosts + custom-PNG sprites + Unity gizmo (move/rotate/scale) + grab, grid-anchored")
 
 -- The blueprint palette. Keys are short names for ':planner place <name>'; values are client resource paths.
 -- logcabin + timberhouse are verified to resolve in-game (V3); ':planner place <res-path>' also takes any raw path.
@@ -53,6 +62,10 @@ local PALETTE = {
   timber = "gfx/terobjs/arch/timberhouse",
 }
 local DEFAULT_BP = "cabin"
+
+-- R2b: the addon's own PNG used by ':planner sprite' -- a custom (non-.res) world sprite (hafen.render.sprite) on
+-- the SAME world-entity core as a ghost, so it selects + gizmos + persists identically. Ships in this addon's folder.
+local SPRITE_IMG = "icon.png"
 
 -- Two looks so selection is visible: idle = bluish tint; sel = brighter warm highlight. OPAQUE (alpha 1) so the
 -- blueprint ghosts read clearly against the terrain — the translucent look was too faint to see (maintainer note).
@@ -77,6 +90,13 @@ local function detachGizmo()
 end
 
 local function shortRes(res) return (tostring(res):gsub("^.*/", "")) end
+
+-- A short human label for a record in logs/lists: the .res leaf for a ghost, or the image (+ a "*" for a billboard)
+-- for a sprite. Kind-agnostic call sites use this instead of shortRes(it.res) so sprites read sensibly.
+local function recLabel(it)
+  if it.kind == "sprite" then return (it.billboard and "billboard " or "sprite ") .. tostring(it.img or SPRITE_IMG) end
+  return shortRes(it.res)
+end
 
 -- The palette names, sorted, as a "cabin/timber" string for help/usage text.
 local function paletteNames()
@@ -103,11 +123,18 @@ local function indexOf(it)
   return -1
 end
 
--- Apply the ghost's look for its current selection state (no-op while it has not streamed in yet).
+-- Apply the entity's look for its current selection state (no-op while it has not streamed in yet). A ghost gets
+-- the bluish/warm tint highlight; a sprite highlights by ALPHA only (a colour tint would recolour the PNG itself).
 local function applyLook(it)
-  if not it.ghost then return end
-  local look = (it == selected) and LOOK.sel or LOOK.idle
-  it.ghost:alpha(look.alpha):tint(look.tint)
+  local e = it.entity
+  if not e then return end
+  local sel = (it == selected)
+  if it.kind == "sprite" then
+    e:alpha(sel and 1.0 or 0.7)                            -- R2b: alpha-only highlight (works for both fixed + billboard)
+  else
+    local look = sel and LOOK.sel or LOOK.idle
+    e:alpha(look.alpha):tint(look.tint)
+  end
 end
 
 -- Select a record (or nil to clear): de-highlight the old one, highlight the new one, and log it.
@@ -119,30 +146,43 @@ local function selectItem(it)
   if prev then applyLook(prev) end
   if it then
     applyLook(it)
-    hafen.log((":planner selected #%d %s -- :planner rotate | remove"):format(indexOf(it), shortRes(it.res)))
+    hafen.log((":planner selected #%d %s -- :planner rotate | remove"):format(indexOf(it), recLabel(it)))
   end
 end
 
--- Create the live ghost for a record at world (wx, wy). It is CLICKABLE (V2) so a click selects it; the onClick
--- closes over the RECORD, so it always selects the right one even after the list is reordered by a remove.
+-- Create the live entity for a record at world (wx, wy) -- a hafen.ghost (a .res game model) OR a hafen.render.sprite
+-- (the addon's own PNG), on the SAME client-only world-entity core (D-013): both return the identical handle, so
+-- selection, the gizmo, grab, persistence, and teardown are all kind-agnostic below. A ghost and a FIXED sprite are
+-- CLICKABLE (V2) so a click selects them (the onClick closes over the RECORD, robust to list reorders); a BILLBOARD
+-- sprite has no world mesh so it is never picked -- select it with ':planner select <n>'.
 local function spawn(it, wx, wy)
-  it.ghost = hafen.ghost.new{
-    res = it.res, x = wx, y = wy, a = it.a, scale = it.scale or 1,   -- V6: restore the saved scale on (re)spawn
-    alpha = LOOK.idle.alpha, tint = LOOK.idle.tint,
-    clickable = true,
-    onClick = function(g, button) selectItem(it) end,
-  }
+  if it.kind == "sprite" then
+    it.entity = hafen.render.sprite{
+      image = it.img or SPRITE_IMG, x = wx, y = wy, a = it.a, scale = it.scale or 1,
+      billboard = it.billboard or false,
+      clickable = not it.billboard,                       -- fixed sprites are pickable; billboards are not
+      onClick = function(s, button) selectItem(it) end,
+    }
+  else
+    it.entity = hafen.ghost.new{
+      res = it.res, x = wx, y = wy, a = it.a, scale = it.scale or 1,   -- V6: restore the saved scale on (re)spawn
+      alpha = LOOK.idle.alpha, tint = LOOK.idle.tint,
+      clickable = true,
+      onClick = function(g, button) selectItem(it) end,
+    }
+  end
   applyLook(it)                                            -- keep the highlight if this record is the selected one
-  return it.ghost
+  return it.entity
 end
 
--- Write the layout to the per-char store (JSON). Only the serializable fields (res/a/anchor) are stored — the live
--- ghost handle stays out of it. Autosave + relog also flush; we flush on every edit so an unclean exit keeps it.
+-- Write the layout to the per-char store (JSON). Only the serializable fields (kind/res/img/billboard/a/scale/anchor)
+-- are stored — the live handle stays out of it. Autosave + relog also flush; we flush on every edit so an unclean exit keeps it.
 local function persist()
   local out = {}
   for i, it in ipairs(items) do
     out[i] = {
-      res = it.res, a = it.a, scale = it.scale or 1,       -- V6: persist the uniform scale alongside the facing
+      kind = it.kind or "ghost", res = it.res, img = it.img, billboard = it.billboard or false,   -- R2b: kind + sprite fields
+      a = it.a, scale = it.scale or 1,                     -- V6: persist the uniform scale alongside the facing
       anchor = { gridId = it.anchor.gridId, x = it.anchor.x, y = it.anchor.y },
     }
   end
@@ -156,7 +196,7 @@ end
 local function resolvePending()
   local pending = 0
   for _, it in ipairs(items) do
-    if not it.ghost then
+    if not it.entity then
       local w = hafen.map.fromGridPos(it.anchor)           -- {x,y} world, or nil if that grid is not loaded yet
       if w then
         spawn(it, w.x, w.y)
@@ -177,8 +217,8 @@ local function commitDrag()
   drag = nil
   if d.grab then d.grab:release() end                      -- idempotent (the up handler may have released already)
   local it = d.it
-  if it and it.ghost then
-    local p = it.ghost:pos()                                -- {x,y,a} -- the snapped drop position
+  if it and it.entity then
+    local p = it.entity:pos()                                -- {x,y,a} -- the snapped drop position
     local anchor = hafen.map.gridPos(p.x, p.y)              -- re-anchor to the grid it now sits on (persistent id)
     if anchor then it.anchor = anchor end
     persist()
@@ -197,9 +237,11 @@ hafen.events.on("OnEnterWorld", function()
   items = {}
   blueprint = hafen.store.layout.blueprint or DEFAULT_BP
   for _, s in ipairs(hafen.store.layout.items or {}) do
-    if s.res and s.anchor and s.anchor.gridId then          -- skip a malformed record rather than crash the load
+    local kind = s.kind or "ghost"                          -- R2b: default old (pre-sprite) layouts to ghosts
+    if s.anchor and s.anchor.gridId and ((kind == "sprite") or s.res) then   -- skip a malformed record rather than crash
       items[#items + 1] = {
-        res = s.res, a = s.a or 0, scale = s.scale or 1,     -- V6: restore the saved scale (default 1 for old layouts)
+        kind = kind, res = s.res, img = s.img or SPRITE_IMG, billboard = s.billboard or false,
+        a = s.a or 0, scale = s.scale or 1,                  -- V6: restore the saved scale (default 1 for old layouts)
         anchor = { gridId = s.anchor.gridId, x = s.anchor.x or 0, y = s.anchor.y or 0 },
       }
     end
@@ -218,7 +260,7 @@ hafen.events.on("OnEnterWorld", function()
       if (left == 0) or (tries >= 15) then
         if retry then retry:cancel(); retry = nil end
         local placed = 0
-        for _, it in ipairs(items) do if it.ghost then placed = placed + 1 end end
+        for _, it in ipairs(items) do if it.entity then placed = placed + 1 end end
         hafen.log(("planner: layout resolved -- %d/%d ghost(s) placed%s"):format(placed, #items,
           (left > 0) and (" (" .. left .. " out of loaded range -- kept for a closer login)") or ""))
       end
@@ -226,11 +268,15 @@ hafen.events.on("OnEnterWorld", function()
   end
 end)
 
--- V2: a click on a clickable ghost is detected CLIENT-SIDE and CONSUMED before any server click (no walk/interact,
--- nothing reaches the server -- still SAFE-tier). The per-ghost onClick above does the selecting; this owner-scoped
--- event just logs the world point, mirroring `hello` (both fire on the same click).
+-- V2/R2b: a click on a clickable ghost OR fixed sprite is detected CLIENT-SIDE and CONSUMED before any server click
+-- (no walk/interact, nothing reaches the server -- still SAFE-tier). The per-entity onClick above does the selecting;
+-- these owner-scoped events just log the world point, mirroring `hello` (both fire on the same click).
 hafen.events.on("GhostClicked", function(ev)
   hafen.log((":planner GhostClicked -> ghost at %.0f,%.0f (button %d) -- client-only, no server click sent")
+    :format(ev.x, ev.y, ev.button))
+end)
+hafen.events.on("SpriteClicked", function(ev)
+  hafen.log((":planner SpriteClicked -> sprite at %.0f,%.0f (button %d) -- client-only, no server click sent")
     :format(ev.x, ev.y, ev.button))
 end)
 
@@ -245,10 +291,11 @@ hafen.slash.register("planner", function(args)
   local sub = args[1] or "help"
 
   if (sub == "help") or (sub == "") then
-    hafen.log(":planner -> place | blueprint | list | select | gizmo | grab | rotate | scale | remove | clear | save")
-    hafen.log("   place [name|res] = drop the current/named blueprint at your feet (clickable + saved)")
-    hafen.log("   blueprint [name] = show/set the blueprint (bare = list palette); list = show placed ghosts")
-    hafen.log("   select <n> = select #n (or CLICK a ghost)")
+    hafen.log(":planner -> place | sprite | blueprint | list | select | gizmo | grab | rotate | scale | remove | clear | save")
+    hafen.log("   place [name|res] = drop the current/named blueprint GHOST at your feet (clickable + saved)")
+    hafen.log("   sprite [billboard] = drop a custom-PNG SPRITE at your feet (fixed, or 'billboard' = camera-facing) -- R2b")
+    hafen.log("   blueprint [name] = show/set the blueprint (bare = list palette); list = show placed entities")
+    hafen.log("   select <n> = select #n (or CLICK a ghost / fixed sprite)")
     hafen.log("   gizmo [move|rotate|scale|all] = Unity gizmo: arrows=move, ring=rotate, box=scale. SHIFT=fine (bare = toggle, mode all)")
     hafen.log("   grab = move it by the BODY with the mouse (placegrid-snapped, CLICK to drop) -- V5a")
     hafen.log("   rotate [deg] = turn it (persisted); scale <s> = uniform scale (1 = original); remove [n]; clear; save")
@@ -263,13 +310,35 @@ hafen.slash.register("planner", function(args)
     end
     local anchor = hafen.map.gridPos(p.x, p.y)             -- {gridId, x, y} -- the persistent anchor
     if not anchor then hafen.log(":planner place -> no map grid loaded here yet; move a moment and retry"); return end
-    local it = { res = res, a = 0, scale = 1, anchor = anchor }
+    local it = { kind = "ghost", res = res, a = 0, scale = 1, anchor = anchor }
     items[#items + 1] = it
     spawn(it, p.x, p.y)
     persist()
     selectItem(it)                                          -- auto-select the freshly placed ghost
     hafen.log((":planner place -> %s at grid %s (#%d, %d total) -- click to select; relog to test persistence")
       :format(shortRes(res), anchor.gridId, indexOf(it), #items))
+
+  elseif sub == "sprite" then
+    -- R2b: place a CUSTOM-PNG SPRITE (hafen.render.sprite) at your feet, on the SAME world-entity core as a ghost --
+    -- so it selects (fixed = click / billboard = ':planner select'), gizmos, and PERSISTS grid-anchored identically.
+    -- ':planner sprite' = a FIXED upright quad (clickable); ':planner sprite billboard' = a CAMERA-FACING screen blit.
+    local p = hafen.gob.pos("player")
+    if not p then hafen.log(":planner sprite -> no player position yet"); return end
+    local billboard = (args[2] == "billboard") or (args[2] == "bb")
+    if args[2] and not billboard then
+      hafen.log((":planner sprite [billboard] -> the only option is 'billboard' (camera-facing); got '%s'"):format(tostring(args[2]))); return
+    end
+    local anchor = hafen.map.gridPos(p.x, p.y)             -- {gridId, x, y} -- the persistent anchor (like a ghost)
+    if not anchor then hafen.log(":planner sprite -> no map grid loaded here yet; move a moment and retry"); return end
+    local it = { kind = "sprite", img = SPRITE_IMG, billboard = billboard, a = 0, scale = billboard and 2 or 3, anchor = anchor }
+    items[#items + 1] = it
+    if not spawn(it, p.x, p.y) then                        -- returns nil only if not in the world (no map view)
+      table.remove(items, indexOf(it)); hafen.log(":planner sprite -> could not create the sprite (not in the world yet?)"); return
+    end
+    persist()
+    selectItem(it)                                          -- auto-select it (a billboard can't be clicked -> pre-select)
+    hafen.log((":planner sprite -> %s %s at grid %s (#%d, %d total) -- :planner gizmo to move it; relog to test persistence")
+      :format(billboard and "billboard" or "fixed", SPRITE_IMG, anchor.gridId, indexOf(it), #items))
 
   elseif sub == "blueprint" then
     if not args[2] then
@@ -286,11 +355,11 @@ hafen.slash.register("planner", function(args)
     end
 
   elseif sub == "list" then
-    if #items == 0 then hafen.log(":planner list -> empty (':planner place' to add one)"); return end
-    hafen.log((":planner list -> %d ghost(s):"):format(#items))
+    if #items == 0 then hafen.log(":planner list -> empty (':planner place' / ':planner sprite' to add one)"); return end
+    hafen.log((":planner list -> %d entit%s:"):format(#items, (#items == 1) and "y" or "ies"))
     for i, it in ipairs(items) do
-      hafen.log(("   #%d %s  grid=%s  %s%s"):format(i, shortRes(it.res), it.anchor.gridId,
-        it.ghost and "placed" or "pending", (it == selected) and "  [selected]" or ""))
+      hafen.log(("   #%d %s  grid=%s  %s%s"):format(i, recLabel(it), it.anchor.gridId,
+        it.entity and "placed" or "pending", (it == selected) and "  [selected]" or ""))
     end
 
   elseif sub == "select" then
@@ -302,7 +371,7 @@ hafen.slash.register("planner", function(args)
     -- V5: move the selected ghost with the mouse, snapping like a real building placement (D-033).
     if drag then commitDrag(); return end                  -- toggle: a second :planner grab drops the current one
     if not selected then hafen.log(":planner grab -> nothing selected (click a ghost or :planner select <n>)"); return end
-    if not selected.ghost then hafen.log(":planner grab -> that ghost has not streamed in yet; try again in a moment"); return end
+    if not selected.entity then hafen.log(":planner grab -> that ghost has not streamed in yet; try again in a moment"); return end
     detachGizmo()                                           -- V5b: the body-grab and the gizmo are mutually exclusive
     local it = selected
     drag = { it = it, pending = false }
@@ -318,7 +387,7 @@ hafen.slash.register("planner", function(args)
           drag.pending = false
           if not w then return end                         -- cursor hit no terrain (sky/off-map)
           local s = hafen.map.snapPlace(w.x, w.y, fine)
-          if it.ghost then it.ghost:move(s.x, s.y, it.a) end   -- keep facing; :move is snapped
+          if it.entity then it.entity:move(s.x, s.y, it.a) end   -- keep facing; :move is snapped
         end)
       end,
       -- Mouse-up (the click that drops it): commit + persist + release.
@@ -339,19 +408,19 @@ hafen.slash.register("planner", function(args)
     end
     if activeGizmo and (not modeArg) then detachGizmo(); hafen.log(":planner gizmo -> detached"); return end
     if not selected then hafen.log(":planner gizmo -> nothing selected (click a ghost or :planner select <n>)"); return end
-    if not selected.ghost then hafen.log(":planner gizmo -> that ghost has not streamed in yet; try again in a moment"); return end
+    if not selected.entity then hafen.log(":planner gizmo -> that ghost has not streamed in yet; try again in a moment"); return end
     if drag then commitDrag() end                          -- exclusive with the V5a body-grab
     local it = selected
     if activeGizmo then
       activeGizmo:setMode(modeArg)                          -- already attached: just switch the handle group
     else
-      activeGizmo = gizmo(it.ghost, {                       -- calls the constructor from gizmo.lua (loaded first)
+      activeGizmo = gizmo(it.entity, {                       -- calls the constructor from gizmo.lua (loaded first)
         mode = modeArg or "all",
         -- On release: sync the record's facing + scale from the ghost (the gizmo may have rotated/scaled it), then
         -- re-anchor to the grid it now sits on (the persistent id) + persist. Closed over the RECORD so a later
         -- reorder can't mis-target it.
         onCommit = function(p)
-          if (it ~= selected) or (not it.ghost) then return end
+          if (it ~= selected) or (not it.entity) then return end
           it.a = p.a or it.a                               -- V6: persist a gizmo rotate
           it.scale = p.scale or it.scale                   -- V6: persist a gizmo scale
           local anchor = hafen.map.gridPos(p.x, p.y)
@@ -369,7 +438,7 @@ hafen.slash.register("planner", function(args)
     if not selected then hafen.log(":planner rotate -> nothing selected (click a ghost or :planner select <n>)"); return end
     local deg = tonumber(args[2]) or 45
     selected.a = (selected.a + math.rad(deg)) % (2 * math.pi)
-    if selected.ghost then selected.ghost:rotate(selected.a) end
+    if selected.entity then selected.entity:rotate(selected.a) end
     persist()
     hafen.log((":planner rotate -> #%d now a=%.2f rad (+%d deg, persisted)"):format(indexOf(selected), selected.a, deg))
 
@@ -379,7 +448,7 @@ hafen.slash.register("planner", function(args)
     local s = tonumber(args[2])
     if not s then hafen.log(":planner scale <s> -> a number is required (1 = original size, e.g. 1.5 / 0.5)"); return end
     selected.scale = s
-    if selected.ghost then selected.ghost:scale(s) end
+    if selected.entity then selected.entity:scale(s) end
     persist()
     hafen.log((":planner scale -> #%d now scale=%.2f (persisted)"):format(indexOf(selected), selected.scale))
 
@@ -392,14 +461,14 @@ hafen.slash.register("planner", function(args)
     if not it then hafen.log(":planner remove [n] -> nothing selected and no index given"); return end
     local idx = indexOf(it)
     if selected == it then selected = nil; detachGizmo() end  -- V5b: drop the gizmo before its target ghost dies
-    if it.ghost then it.ghost:destroy() end
+    if it.entity then it.entity:destroy() end
     table.remove(items, idx)
     persist()
-    hafen.log((":planner remove -> removed #%d %s (%d left)"):format(idx, shortRes(it.res), #items))
+    hafen.log((":planner remove -> removed #%d %s (%d left)"):format(idx, recLabel(it), #items))
 
   elseif sub == "clear" then
     detachGizmo()                                          -- V5b: drop the gizmo before its target ghost dies
-    for _, it in ipairs(items) do if it.ghost then it.ghost:destroy() end end
+    for _, it in ipairs(items) do if it.entity then it.entity:destroy() end end
     items = {}; selected = nil
     persist()
     hafen.log(":planner clear -> removed all ghosts + wiped the saved layout")

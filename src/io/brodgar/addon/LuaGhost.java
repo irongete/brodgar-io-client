@@ -46,4 +46,7 @@ public final class LuaGhost extends LuaWorldEntity {
     void unregister() { owner.ghosts.remove(this); }
 
     String visualName() { return resName; }
+
+    String clickEvent() { return "GhostClicked"; }   // V2: the owner-scoped click event (unchanged)
+    String clickKey()   { return "ghost"; }
 }
