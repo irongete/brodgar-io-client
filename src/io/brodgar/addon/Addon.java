@@ -133,6 +133,17 @@ public final class Addon {
      */
     public final List<LuaGhost> ghosts = new CopyOnWriteArrayList<LuaGhost>();
     /**
+     * Live client-only world sprites owned by this addon ({@code hafen.render.sprite}, R2): each is a custom PNG
+     * (an {@link #images} texture) standing in the 3D world as a {@link haven.Gob} with no server id — the
+     * non-{@code .res} sibling of a {@link #ghosts ghost}, on the same virtual-entity core (spec
+     * {@code 17-custom-rendering.md} §2, SAFE-tier, D-034). Like ghosts there is no global dispatch/poll list (a
+     * passive render node driven by the render tree's own tick); it lives only here. Teardown
+     * ({@link AddonManager#teardownSprites}) destroys each — removes its scene slot + disposes the quad geometry
+     * (the shared {@code TexI} is freed by {@link AddonManager#teardownImages}) — so a reload/disable/relogin
+     * leaks nothing. Copy-on-write: a firing callback may create or destroy a sprite.
+     */
+    public final List<LuaSprite> sprites = new CopyOnWriteArrayList<LuaSprite>();
+    /**
      * Live custom images owned by this addon ({@code hafen.render.image}, R1): each is a PNG decoded from the
      * addon's own folder into a {@link haven.TexI} GPU texture — a client-only render asset that is NOT an
      * engine {@code .res} (SAFE-tier, D-034). Like the hook lists there is no global dispatch/poll list; an

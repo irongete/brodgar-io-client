@@ -12,6 +12,7 @@ import haven.Console;
 import haven.Coord;
 import haven.Coord2d;
 import haven.Coord3f;
+import haven.Coord3f;
 import haven.Drawable;
 import haven.Equipory;
 import haven.FightWnd;
@@ -50,6 +51,7 @@ import haven.SAttrWnd;
 import haven.SkillWnd;
 import haven.Speaking;
 import haven.Speedget;
+import haven.SprDrawable;
 import haven.TexI;
 import haven.UI;
 import haven.Utils;
@@ -512,7 +514,8 @@ public final class AddonManager {
         teardownReplacers(a);         // 3c: stop the replacers matching (models un-hidden above, views destroyed above)
         teardownSlashCommands(a);     // A11: drop the addon's live slash handlers (Console dispatchers stay — C1)
         teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
-        teardownImages(a);            // R1: dispose custom images (frees each TexI's GL texture — no leak)
+        teardownSprites(a);           // R2: destroy client-only world sprites (remove the slot + free the quad geometry)
+        teardownImages(a);            // R1: dispose custom images (frees each TexI's GL texture — no leak; after sprites)
         teardownMouseGrabs(a);        // V5: release any active mouse-drag grab (drops the UI.Grab + unlinks the widget)
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
@@ -3133,14 +3136,18 @@ public final class AddonManager {
         //   tint     = {r=,g=,b=[,a=]} -- V3: colour overlay 0..255 (a = blend strength, default 255)
         //   clickable = true         -- V2: opt-in pick-selectability (default false)
         //   onClick = fn(g,button,x,y) -- V2: fires on click (also via the GhostClicked event)
+        //   follow = gob             -- ANCHOR to a gob (id / "player" / "me"): the ghost tracks it every frame
+        //   offset = {x=,y=,z=}      -- fixed world offset from the followed gob (z = up)
         // Returns a handle:
-        //   :move(x, y [, a])  -- reposition (+ optional facing)
+        //   :move(x, y [, a])  -- reposition (+ optional facing); DETACHES any :follow anchor
         //   :rotate(a)         -- V3: set facing (radians), keeping position
         //   :setRes(res[,sdt]) -- V3: swap the visual (streams in like new)
         //   :alpha(a)          -- V3: opacity 0..1 (1 = opaque)
         //   :tint(color|nil)   -- V3: colour overlay {r=,g=,b=[,a=]} (nil clears)
         //   :show() / :hide()  -- V3: add / remove the scene slot (keeps the ghost)
-        //   :pos()             -- {x, y, a}
+        //   :follow(gob[,{x=,y=,z=}]) -- ANCHOR to a gob and auto-track it (like a gob overlay); :follow(nil) detaches
+        //   :offset{x=,y=,z=}  -- move it relative to the followed gob (keeps following)
+        //   :pos()             -- {x, y, a, scale [, following]} (following = the anchored gob id, if any)
         //   :res()             -- the resource name (string)
         //   :clickable(bool)   -- V2: toggle the pick surface
         //   :destroy()         -- remove now (also automatic on reload/disable)
@@ -3179,6 +3186,28 @@ public final class AddonManager {
         render.set("image", new OneArgFunction() {
             public LuaValue call(LuaValue path) {
                 return newImage(owner, path);
+            }
+        });
+        // hafen.render.sprite{image, x, y [, a] [, scale] [, alpha] [, tint] [, billboard]} — stand a custom PNG in
+        // the 3D world (spec 17 §5, R2). The non-`.res` sibling of hafen.ghost, on the SAME virtual-entity core +
+        // gizmo: a Gob with no server id, so it never reaches the server (SAFE-tier, NOT gated, D-034). image = a
+        // hafen.render.image handle OR an addon-relative path (auto-loaded + cached, D-017-sandboxed); x,y = world
+        // coords (like hafen.gob.pos); a = facing radians (default 0). Look/size options mirror a ghost:
+        //   scale = 2               -- V6-style uniform scale (default 1); the sprite is ~1 tile tall at scale 1
+        //   alpha = 0.5             -- opacity 0..1 (default 1); combines with the PNG's own transparency
+        //   tint  = {r=,g=,b=[,a=]} -- colour overlay 0..255 (a = blend strength)
+        //   billboard = false       -- R2a ships the FIXED quad; billboard=true (camera-facing) arrives in R2b
+        //   follow = gob            -- ANCHOR to a gob (id / "player" / "me"): the sprite tracks it every frame
+        //   offset = {x=,y=,z=}     -- fixed world offset from the followed gob (z = up; e.g. {z=10} floats it overhead)
+        // Returns a transform handle (gizmo-compatible), like a ghost but with :image() in place of :res():
+        //   :move(x,y[,a]) :rotate(a) :scale(s) :alpha(a) :tint(color|nil) :show() :hide() :pos() :image() :destroy()
+        //   :follow(gob[, {x=,y=,z=}])  -- ANCHOR to a gob and auto-track it (like a gob overlay); :follow(nil) detaches
+        //   :offset{x=,y=,z=}           -- move it relative to the followed gob (it keeps following); a plain :move detaches
+        // Returns nil only if there is no map view yet (not in the world). The quad is a resource-free SprDrawable on
+        // the shared core, so it stands FIXED and gets the full transform + look + gizmo for free (spec 17 §2).
+        render.set("sprite", new OneArgFunction() {
+            public LuaValue call(LuaValue opts) {
+                return newSprite(owner, opts);
             }
         });
         hafen.set("render", render);
@@ -4393,6 +4422,11 @@ public final class AddonManager {
         gh.alpha = luaAlpha(opts.get("alpha"));        // V3: opacity 0..1 (default 1 = opaque)
         gh.tint = luaTint(opts.get("tint"));           // V3: colour overlay {r=,g=,b=[,a=]}, or null
         gh.scale = luaScale(opts.get("scale"));        // V6: uniform scale (default 1 = original size)
+        LuaValue gfollowv = opts.get("follow");        // ANCHOR: follow a gob (id / "player" / "me"), optional
+        if(!gfollowv.isnil()) {
+            gh.followTgt = followTargetId(gfollowv);
+            gh.followOff = luaOffset(opts.get("offset"));   // {x=,y=,z=} world offset from the gob (default none)
+        }
         gh.clickable = clickablev.toboolean();         // V2: nil/false → not clickable; true → clickable
         if(onclickv.isfunction())
             gh.onClick = onclickv;
@@ -4438,6 +4472,7 @@ public final class AddonManager {
                     gob.move(gh.rc, gh.a);                   // apply any :move that landed while we were building
                     gh.gob = gob;
                     gh.mv = mv;
+                    applyEntityFollow(gh, gob);              // ANCHOR: if follow= was given, start tracking the gob now
                     if(!gh.hidden)                           // V3: a ghost hidden before it published stays out of the scene
                         gh.slot = mv.addClientGob(gob);      // the // addon: MapView seam (spec 16 §6); MapView now ticks it
                 }
@@ -4447,29 +4482,31 @@ public final class AddonManager {
     }
 
     /**
-     * The Lua handle for a {@link LuaGhost} (V1 + V2 + V3): {@code :move(x,y[,a])} / {@code :rotate(a)} /
-     * {@code :setRes(res[,sdt])} / {@code :alpha(a)} / {@code :tint(color)} / {@code :show()} / {@code :hide()} /
-     * {@code :pos()} / {@code :res()} / {@code :clickable(bool)} / {@code :destroy()}. The colon-call convention
-     * passes {@code self} as arg1, so {@code :move} reads arg2..4 and returns arg1 (the handle) for chaining. Every
-     * method is a clean no-op once the ghost is dead. A mutation before the deferred create has published the gob
-     * updates the desired-state the create will apply; afterwards it acts on the live gob (a reposition is picked up
-     * by the render tree's {@code Placed.autotick} next frame; a look/clickable change re-adds the scene slot so
-     * {@link GhostGob#obstate} runs fresh — {@link #refreshGhostScene}).
+     * Install the handle verbs common to EVERY client-only world entity (a {@link LuaGhost} or {@link LuaSprite}) —
+     * {@code :move}/{@code :rotate}/{@code :alpha}/{@code :tint}/{@code :scale}/{@code :show}/{@code :hide}/
+     * {@code :pos}/{@code :destroy} — onto the handle table {@code h}, all closing over the shared
+     * {@link LuaWorldEntity} state + the {@code *Entity} scene helpers. Each subclass's handle builder
+     * ({@link #ghostHandle} / {@link #spriteHandle}) calls this and then adds its own identity/extra verbs
+     * ({@code :res}/{@code :setRes}/{@code :clickable} for a ghost, {@code :image} for a sprite). The colon-call
+     * convention passes {@code self} as arg1, so a verb reads arg2.. and returns arg1 (the handle) for chaining;
+     * every verb is a clean no-op once the entity is dead.
      */
-    private static LuaValue ghostHandle(final LuaGhost gh) {
-        LuaTable h = new LuaTable();
+    private static void addEntityHandle(LuaTable h, final LuaWorldEntity e) {
         h.set("move", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue xv = a.arg(2), yv = a.arg(3), av = a.arg(4);
                 if(!xv.isnumber() || !yv.isnumber())
-                    throw new LuaError("ghost:move(x, y [, a]) expects world coordinates (numbers) — use a COLON call");
-                synchronized(gh) {
-                    if(!gh.dead) {
-                        gh.rc = new Coord2d(xv.todouble(), yv.todouble());
+                    throw new LuaError(":move(x, y [, a]) expects world coordinates (numbers) — use a COLON call");
+                synchronized(e) {
+                    if(!e.dead) {
+                        e.followTgt = 0;             // a manual move takes control back from any :follow anchor
+                        e.rc = new Coord2d(xv.todouble(), yv.todouble());
                         if(av.isnumber())
-                            gh.a = av.todouble();
-                        if(gh.gob != null)
-                            gh.gob.move(gh.rc, gh.a);   // live gob → reposition now; else the deferred create applies it
+                            e.a = av.todouble();
+                        if(e.gob != null) {
+                            detachFollowAttr(e.gob);  // drop the FollowMoving so the manual position sticks
+                            e.gob.move(e.rc, e.a);   // live gob → reposition now; else the deferred create applies it
+                        }
                     }
                 }
                 return a.arg1();
@@ -4479,17 +4516,103 @@ public final class AddonManager {
             public Varargs invoke(Varargs a) {
                 LuaValue av = a.arg(2);
                 if(!av.isnumber())
-                    throw new LuaError("ghost:rotate(a) expects a facing angle in radians (number) — use a COLON call");
-                synchronized(gh) {
-                    if(!gh.dead) {
-                        gh.a = av.todouble();
-                        if(gh.gob != null)
-                            gh.gob.move(gh.rc, gh.a);
+                    throw new LuaError(":rotate(a) expects a facing angle in radians (number) — use a COLON call");
+                synchronized(e) {
+                    if(!e.dead) {
+                        e.a = av.todouble();
+                        if(e.gob != null)
+                            e.gob.move(e.rc, e.a);
                     }
                 }
                 return a.arg1();
             }
         });
+        h.set("alpha", new VarArgFunction() {           // V3: opacity 0..1 (1 = opaque)
+            public Varargs invoke(Varargs a) {
+                LuaValue av = a.arg(2);
+                if(!av.isnumber())
+                    throw new LuaError(":alpha(a) expects a number 0..1 (1 = opaque) — use a COLON call");
+                setEntityAlpha(e, clampAlpha(av.todouble()));
+                return a.arg1();
+            }
+        });
+        h.set("tint", new VarArgFunction() {            // V3: colour overlay {r=,g=,b=[,a=]}, or nil to clear
+            public Varargs invoke(Varargs a) {
+                LuaValue cv = a.arg(2);
+                if(!cv.isnil() && !cv.istable())
+                    throw new LuaError(":tint(color) expects {r=,g=,b=[,a=]} (0..255) or nil — use a COLON call");
+                setEntityTint(e, cv.isnil() ? null : luaColor(cv, null));
+                return a.arg1();
+            }
+        });
+        h.set("scale", new VarArgFunction() {           // V6: uniform scale (1 = original size)
+            public Varargs invoke(Varargs a) {
+                LuaValue sv = a.arg(2);
+                if(!sv.isnumber())
+                    throw new LuaError(":scale(s) expects a positive number (1 = original size) — use a COLON call");
+                setEntityScale(e, clampScale(sv.todouble()));
+                return a.arg1();
+            }
+        });
+        h.set("show", new VarArgFunction() {            // V3: (re)add the scene slot
+            public Varargs invoke(Varargs a) { showEntity(e); return a.arg1(); }
+        });
+        h.set("hide", new VarArgFunction() {            // V3: remove the scene slot (keeps the entity)
+            public Varargs invoke(Varargs a) { hideEntity(e); return a.arg1(); }
+        });
+        h.set("follow", new VarArgFunction() {          // ANCHOR: track a gob automatically (like a gob overlay)
+            public Varargs invoke(Varargs a) {
+                LuaValue ref = a.arg(2), offv = a.arg(3);
+                if(ref.isnil()) {                        // :follow(nil) → detach, hold current position
+                    setEntityFollow(e, 0, null);
+                } else {
+                    long tgt = followTargetId(ref);
+                    if(tgt == 0)
+                        throw new LuaError(":follow(gob [, {x=,y=,z=}]) — no such gob (pass a gob id, \"player\"/\"me\", or nil to detach)");
+                    setEntityFollow(e, tgt, luaOffset(offv));
+                }
+                return a.arg1();
+            }
+        });
+        h.set("offset", new VarArgFunction() {          // ANCHOR: the fixed world offset from the followed gob
+            public Varargs invoke(Varargs a) {
+                LuaValue ov = a.arg(2);
+                if(!ov.isnil() && !ov.istable())
+                    throw new LuaError(":offset{x=,y=,z=} expects a table of world-unit offsets (or nil to clear) — use a COLON call");
+                setEntityOffset(e, ov.isnil() ? null : luaOffset(ov));
+                return a.arg1();
+            }
+        });
+        h.set("pos", new ZeroArgFunction() {
+            public LuaValue call() {
+                LuaTable t = new LuaTable();
+                synchronized(e) {
+                    Coord2d rc = entityWorldPos(e);      // the LIVE position (the followed gob's, while anchored)
+                    t.set("x", LuaValue.valueOf(rc.x));
+                    t.set("y", LuaValue.valueOf(rc.y));
+                    t.set("a", LuaValue.valueOf(e.a));
+                    t.set("scale", LuaValue.valueOf((double)e.scale));   // V6: the full transform is {x,y,a,scale}
+                    if(e.followTgt != 0)
+                        t.set("following", LuaValue.valueOf((double)e.followTgt));   // the anchored gob id, if any
+                }
+                return t;
+            }
+        });
+        h.set("destroy", new VarArgFunction() {
+            public Varargs invoke(Varargs a) { destroyEntity(e); return a.arg1(); }
+        });
+    }
+
+    /**
+     * The Lua handle for a {@link LuaGhost} (V1 + V2 + V3): the shared entity verbs ({@link #addEntityHandle}) plus
+     * the ghost-only {@code :res()} / {@code :setRes(res[,sdt])} (V3, swap the {@code .res} model) and
+     * {@code :clickable(bool)} (V2 — pick-selectability, which needs the ghost-scoped V2 click dispatch). A
+     * mutation before the deferred create has published the gob updates the desired-state the create will apply;
+     * afterwards it acts on the live gob.
+     */
+    private static LuaValue ghostHandle(final LuaGhost gh) {
+        LuaTable h = new LuaTable();
+        addEntityHandle(h, gh);
         h.set("setRes", new VarArgFunction() {          // V3: swap the visual (streams in like new)
             public Varargs invoke(Varargs a) {
                 LuaValue resv = a.arg(2), sdtv = a.arg(3);
@@ -4499,62 +4622,14 @@ public final class AddonManager {
                 return a.arg1();
             }
         });
-        h.set("alpha", new VarArgFunction() {           // V3: opacity 0..1 (1 = opaque)
-            public Varargs invoke(Varargs a) {
-                LuaValue av = a.arg(2);
-                if(!av.isnumber())
-                    throw new LuaError("ghost:alpha(a) expects a number 0..1 (1 = opaque) — use a COLON call");
-                setGhostAlpha(gh, clampAlpha(av.todouble()));
-                return a.arg1();
-            }
-        });
-        h.set("tint", new VarArgFunction() {            // V3: colour overlay {r=,g=,b=[,a=]}, or nil to clear
-            public Varargs invoke(Varargs a) {
-                LuaValue cv = a.arg(2);
-                if(!cv.isnil() && !cv.istable())
-                    throw new LuaError("ghost:tint(color) expects {r=,g=,b=[,a=]} (0..255) or nil — use a COLON call");
-                setGhostTint(gh, cv.isnil() ? null : luaColor(cv, null));
-                return a.arg1();
-            }
-        });
-        h.set("scale", new VarArgFunction() {           // V6: uniform scale (1 = original size)
-            public Varargs invoke(Varargs a) {
-                LuaValue sv = a.arg(2);
-                if(!sv.isnumber())
-                    throw new LuaError("ghost:scale(s) expects a positive number (1 = original size) — use a COLON call");
-                setGhostScale(gh, clampScale(sv.todouble()));
-                return a.arg1();
-            }
-        });
-        h.set("show", new VarArgFunction() {            // V3: (re)add the scene slot
-            public Varargs invoke(Varargs a) { showGhost(gh); return a.arg1(); }
-        });
-        h.set("hide", new VarArgFunction() {            // V3: remove the scene slot (keeps the ghost)
-            public Varargs invoke(Varargs a) { hideGhost(gh); return a.arg1(); }
-        });
-        h.set("pos", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable t = new LuaTable();
-                synchronized(gh) {
-                    t.set("x", LuaValue.valueOf(gh.rc.x));
-                    t.set("y", LuaValue.valueOf(gh.rc.y));
-                    t.set("a", LuaValue.valueOf(gh.a));
-                    t.set("scale", LuaValue.valueOf((double)gh.scale));   // V6: the ghost's full transform is {x,y,a,scale}
-                }
-                return t;
-            }
-        });
         h.set("res", new ZeroArgFunction() {
             public LuaValue call() { return (gh.resName == null) ? LuaValue.NIL : LuaValue.valueOf(gh.resName); }
         });
         h.set("clickable", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                setGhostClickable(gh, a.arg(2).toboolean());   // g:clickable(true|false); default (no arg) → false
+                setEntityClickable(gh, a.arg(2).toboolean());   // g:clickable(true|false); default (no arg) → false
                 return a.arg1();
             }
-        });
-        h.set("destroy", new VarArgFunction() {
-            public Varargs invoke(Varargs a) { destroyGhost(gh); return a.arg1(); }
         });
         return h;
     }
@@ -4571,62 +4646,78 @@ public final class AddonManager {
         for(LuaGhost gh : owner.ghosts) {              // copy-on-write: a filter fn may create/destroy a ghost
             if(gh.dead || (gh.handle == null))
                 continue;
-            if(ghostMatches(filter, gh))
+            if(entityMatches(filter, gh))
                 out.set(++i, gh.handle);
         }
         return out;
     }
 
-    /** Does {@code gh} pass {@code filter}? nil→all; string→substring on {@code res}; function→called with the handle. */
-    private static boolean ghostMatches(LuaValue filter, LuaGhost gh) {
+    /**
+     * Does world entity {@code e} pass {@code filter}? The canonical filter adapted to handles: {@code nil} = all;
+     * a <b>string</b> = substring match on the entity's {@link LuaWorldEntity#visualName()} (a ghost's {@code res}
+     * name / a sprite's image path); a <b>function</b> = called with the entity <i>handle</i> (so it can call
+     * {@code :pos()} etc.), truthy keeps it (errors drop it). Shared by ghost and (future) sprite listings.
+     */
+    private static boolean entityMatches(LuaValue filter, LuaWorldEntity e) {
         if((filter == null) || filter.isnil())
             return true;
         if(filter.isfunction()) {
             try {
-                return filter.call(gh.handle).toboolean();
-            } catch(RuntimeException e) {   // LuaError is a RuntimeException
+                return filter.call(e.handle).toboolean();
+            } catch(RuntimeException ex) {   // LuaError is a RuntimeException
                 return false;
             }
         }
-        if(filter.isstring())
-            return (gh.resName != null) && gh.resName.contains(filter.tojstring());
+        if(filter.isstring()) {
+            String nm = e.visualName();
+            return (nm != null) && nm.contains(filter.tojstring());
+        }
         return true;
     }
 
     /**
-     * Destroy one ghost now (its {@code :destroy()}, and teardown): flip {@link LuaGhost#dead} + hand off the
-     * slot/gob under the ghost's monitor (so a still-pending deferred create sees {@code dead} and discards its
-     * un-added gob instead of leaking it), then remove the scene slot ({@link MapView#removeClientGob}, which
-     * swallows {@code SlotRemoved} for an already-torn-down scene) and dispose the sprite — all OUTSIDE the ghost
-     * lock (no lock-ordering with the render tree's own lock). Idempotent.
+     * Destroy one world entity now (its {@code :destroy()}, and teardown): flip {@link LuaWorldEntity#dead} + hand
+     * off the slot/gob under the entity's monitor (so a still-pending deferred create sees {@code dead} and discards
+     * its un-added gob instead of leaking it), then remove the scene slot ({@link MapView#removeClientGob}, which
+     * swallows {@code SlotRemoved} for an already-torn-down scene) and dispose the gob's visual — all OUTSIDE the
+     * entity lock (no lock-ordering with the render tree's own lock). {@link LuaWorldEntity#unregister()} drops it
+     * from its addon's registry (ghosts / sprites). Shared by ghosts and sprites. Idempotent.
      */
-    private static void destroyGhost(LuaGhost gh) {
+    private static void destroyEntity(LuaWorldEntity e) {
         RenderTree.Slot slot; Gob gob; MapView mv;
-        synchronized(gh) {
-            if(gh.dead)
+        synchronized(e) {
+            if(e.dead)
                 return;
-            gh.dead = true;
-            slot = gh.slot; gh.slot = null;
-            gob  = gh.gob;  gh.gob  = null;
-            mv   = gh.mv;   gh.mv   = null;
+            e.dead = true;
+            slot = e.slot; e.slot = null;
+            gob  = e.gob;  e.gob  = null;
+            mv   = e.mv;   e.mv   = null;
         }
-        gh.owner.ghosts.remove(gh);
+        e.unregister();
         if(mv != null) {
             mv.removeClientGob(gob, slot);            // drops it from the MapView tick list + removes the slot (swallows SlotRemoved)
         } else if(slot != null) {
-            try { slot.remove(); } catch(RuntimeException e) { /* scene already gone (relog) */ }
+            try { slot.remove(); } catch(RuntimeException ex) { /* scene already gone (relog) */ }
         }
         if(gob != null) {
-            try { gob.dispose(); } catch(RuntimeException e) { /* best-effort: free the sprite */ }
+            try { gob.dispose(); } catch(RuntimeException ex) { /* best-effort: free the visual */ }
         }
     }
 
-    /** Tear down every ghost this addon owns (reload/disable/relogin, P2): destroy each (slot removed + sprite freed). */
+    /** Tear down every ghost this addon owns (reload/disable/relogin, P2): destroy each (slot removed + visual freed). */
     private static void teardownGhosts(Addon a) {
         if(a.ghosts.isEmpty())
             return;
         for(LuaGhost gh : new ArrayList<LuaGhost>(a.ghosts))
-            destroyGhost(gh);          // removes each from a.ghosts as it goes (copy-on-write list)
+            destroyEntity(gh);          // removes each from a.ghosts as it goes (copy-on-write list)
+    }
+
+    /** Tear down every sprite this addon owns (reload/disable/relogin, P2): destroy each (slot removed + quad freed). */
+    private static void teardownSprites(Addon a) {
+        if(a.sprites.isEmpty())
+            return;
+        for(LuaSprite sp : new ArrayList<LuaSprite>(a.sprites))
+            destroyEntity(sp);          // removes each from a.sprites as it goes (copy-on-write list)
     }
 
     // ---- R1: custom images (hafen.render.image) --------------------------------------------------------------
@@ -4730,107 +4821,209 @@ public final class AddonManager {
             disposeImage(li);          // removes each from a.images as it goes (copy-on-write list)
     }
 
+    // ---- R2: custom world sprites (hafen.render.sprite) --------------------------------------------------------
+
     /**
-     * Toggle a ghost's pick surface ({@code g:clickable(bool)}, V2). The MapView click-list decides membership
-     * <b>at slot-add time</b> — a later ancestor-state change does <i>not</i> re-run its {@code Clickable} filter —
-     * so a live ghost is toggled by removing and re-adding it to the scene ({@link #refreshGhostScene}), where
-     * {@link GhostGob#obstate} is applied fresh and reads the updated {@link GhostGob#clickable}. A ghost whose
-     * deferred create has not published its gob yet just records the desired state (the create applies it before
-     * the gob enters the scene). No-op when unchanged/dead.
+     * {@code hafen.render.sprite{image, x, y [, a] [, scale] [, alpha] [, tint] [, billboard]}} (R2a): stand a
+     * custom PNG upright in the 3D world as a textured quad — the non-{@code .res} sibling of a ghost, on the same
+     * virtual-entity core (spec 17 §5). Validates the options, resolves the {@code image} (a {@code hafen.render.image}
+     * handle or an addon-relative path, auto-loaded + cached), builds a {@link GhostGob} + a resource-free
+     * {@link SprDrawable} quad ({@link SpriteQuad}) sized to the image aspect, and adds it to the MapView {@code basic}
+     * scene ({@link MapView#addClientGob}). Unlike a ghost the texture is already decoded, so there is NO {@code
+     * Loading} to dodge — the gob is built and published <b>synchronously</b> on the calling UI thread (the handle's
+     * gob is live before it is returned). Registered in the addon's owned-resource registry (P2). Returns {@code nil}
+     * if there is no map view (not in the world); throws a {@link LuaError} for a malformed table or a
+     * {@code billboard=true} request (that camera-facing form arrives in R2b).
      */
-    private static void setGhostClickable(LuaGhost gh, boolean on) {
-        synchronized(gh) {
-            if(gh.dead || (gh.clickable == on))
+    private static LuaValue newSprite(Addon owner, LuaValue opts) {
+        if(!opts.istable())
+            throw new LuaError("hafen.render.sprite{image=..., x=..., y=...} expects an options table");
+        LuaValue xv = opts.get("x"), yv = opts.get("y");
+        LuaValue followv = opts.get("follow");         // ANCHOR: follow a gob (id / "player" / "me"), optional
+        boolean hasFollow = !followv.isnil();
+        if(!hasFollow && (!xv.isnumber() || !yv.isnumber()))   // x/y are the placement; when following, the gob supplies it
+            throw new LuaError("hafen.render.sprite: 'x' and 'y' must be numbers (world coordinates, like hafen.gob.pos) — or pass follow=gob instead");
+        if(opts.get("billboard").toboolean())
+            throw new LuaError("hafen.render.sprite: billboard=true (camera-facing) is not implemented yet — it arrives in R2b; use the default fixed quad (billboard=false)");
+        final MapView mv = view;
+        final Glob g = glob();
+        if((mv == null) || (g == null))
+            return LuaValue.NIL;                       // not in the world yet — no scene to add to
+        LuaImage img = resolveSpriteImage(owner, opts.get("image"));   // AFTER the world check (don't load when not in world)
+        LuaValue av = opts.get("a");
+        double a = av.isnumber() ? av.todouble() : 0.0;
+        Coord2d rc = new Coord2d(xv.optdouble(0.0), yv.optdouble(0.0));   // 0,0 placeholder when following (the gob overrides)
+        LuaSprite sp = new LuaSprite(owner, img, rc, a);
+        sp.alpha = luaAlpha(opts.get("alpha"));        // opacity 0..1 (default 1); combines with the PNG's own alpha
+        sp.tint = luaTint(opts.get("tint"));           // colour overlay {r=,g=,b=[,a=]}, or null
+        sp.scale = luaScale(opts.get("scale"));        // uniform scale (default 1 = ~1 tile tall)
+        if(hasFollow) {                                // ANCHOR: track a gob every frame (the gob-overlay analog)
+            sp.followTgt = followTargetId(followv);
+            sp.followOff = luaOffset(opts.get("offset"));   // {x=,y=,z=} world offset from the gob (default none)
+        }
+        owner.sprites.add(sp);
+        LuaValue handle = spriteHandle(sp);
+        sp.handle = handle;
+        // Build the gob + quad OUTSIDE the sprite lock (no scene mutation yet), then publish atomically. No defer:
+        // the TexI is already decoded (R1), so nothing here throws Loading. Sprites are click-through in R2a, so the
+        // GhostGob's `clickable` stays false and no GobClick is prepped (the pick pass never returns them).
+        float[] wh = spriteWorldDims(img.sz);
+        GhostGob gob = new GhostGob(g, rc);
+        gob.a = a;
+        gob.alpha = sp.alpha; gob.tint = sp.tint; gob.scale = sp.scale;   // reflect the look before the first scene add
+        gob.setattr(new SprDrawable(gob, SpriteQuad.mill(img.tex, wh[0], wh[1])));   // resource-free textured quad
+        gob.move(rc, a);
+        synchronized(sp) {
+            if(sp.dead) { gob.dispose(); return handle; }   // destroyed mid-build (defensive; all UI-thread) → discard
+            sp.gob = gob;
+            sp.mv = mv;
+            applyEntityFollow(sp, gob);                 // ANCHOR: if follow= was given, start tracking the gob now
+            if(!sp.hidden)                              // a sprite hidden before it published stays out of the scene
+                sp.slot = mv.addClientGob(gob);         // the // addon: MapView seam (spec 16 §6); MapView now ticks it
+        }
+        return handle;
+    }
+
+    /**
+     * The Lua handle for a {@link LuaSprite} (R2): the shared entity verbs ({@link #addEntityHandle}) plus the
+     * sprite's {@code :image()} identity accessor (its addon-relative path). No {@code :clickable}/{@code :setRes}
+     * in R2a — a sprite is a click-through fixed quad and its visual is fixed at create.
+     */
+    private static LuaValue spriteHandle(final LuaSprite sp) {
+        LuaTable h = new LuaTable();
+        addEntityHandle(h, sp);
+        h.set("image", new ZeroArgFunction() {
+            public LuaValue call() { return (sp.imgName == null) ? LuaValue.NIL : LuaValue.valueOf(sp.imgName); }
+        });
+        return h;
+    }
+
+    /**
+     * Resolve the sprite {@code image=} option to a live {@link LuaImage}: a {@code hafen.render.image} handle (or
+     * its raw backing userdata), or an addon-relative <b>path</b> string (auto-loaded + cached from the addon's own
+     * folder, D-017-sandboxed, via {@link #newImage}). Throws a {@link LuaError} for anything else / a disposed image.
+     */
+    private static LuaImage resolveSpriteImage(Addon owner, LuaValue imgv) {
+        LuaImage li = imgv.isstring() ? LuaImage.resolve(newImage(owner, imgv))   // load+cache from the addon folder
+                                      : LuaImage.resolve(imgv);                    // a handle or its raw userdata
+        if((li == null) || li.dead)
+            throw new LuaError("hafen.render.sprite: 'image' must be a hafen.render.image handle or an addon-relative path string");
+        return li;
+    }
+
+    /**
+     * The world size {@code {w, h}} in map units of a fixed sprite, aspect-preserved from the image's pixel size:
+     * the height is one tile ({@link MCache#tilesz}) and the width follows the image aspect, so the sprite stands
+     * ~1 tile tall at {@code scale=1}; the uniform {@code :scale} (obstate) then adjusts both. A degenerate (zero)
+     * pixel dimension falls back to a square tile. Pure — headless-testable.
+     */
+    private static float[] spriteWorldDims(Coord isz) {
+        float base = (float)MCache.tilesz.y;               // ≈ 1 tile tall at scale 1
+        float w = ((isz != null) && (isz.x > 0) && (isz.y > 0)) ? base * ((float)isz.x / (float)isz.y) : base;
+        return new float[] { w, base };
+    }
+
+    /**
+     * Toggle an entity's pick surface ({@code g:clickable(bool)}, V2 — ghosts only in R2a). The MapView click-list
+     * decides membership <b>at slot-add time</b> — a later ancestor-state change does <i>not</i> re-run its
+     * {@code Clickable} filter — so a live entity is toggled by removing and re-adding it to the scene
+     * ({@link #refreshEntityScene}), where {@link GhostGob#obstate} is applied fresh and reads the updated
+     * {@link GhostGob#clickable}. An entity whose deferred create has not published its gob yet just records the
+     * desired state (the create applies it before the gob enters the scene). No-op when unchanged/dead.
+     */
+    private static void setEntityClickable(LuaWorldEntity e, boolean on) {
+        synchronized(e) {
+            if(e.dead || (e.clickable == on))
                 return;
-            gh.clickable = on;
-            if(gh.gob instanceof GhostGob)
-                ((GhostGob)gh.gob).clickable = on;     // read by obstate on the next scene (re)add
-            refreshGhostScene(gh);
+            e.clickable = on;
+            if(e.gob instanceof GhostGob)
+                ((GhostGob)e.gob).clickable = on;      // read by obstate on the next scene (re)add
+            refreshEntityScene(e);
         }
     }
 
     /**
-     * Set a ghost's opacity ({@code g:alpha(a)}, V3): {@code 1} = opaque (no extra render state), {@code < 1} =
-     * translucent. Like {@link #setGhostClickable}, the change is applied by re-adding the scene slot (obstate's
+     * Set an entity's opacity ({@code g:alpha(a)}, V3): {@code 1} = opaque (no extra render state), {@code < 1} =
+     * translucent. Like {@link #setEntityClickable}, the change is applied by re-adding the scene slot (obstate's
      * output is not part of {@code GobState.equals}, so the normal update path won't re-apply it). No-op if
-     * unchanged/dead. Under the ghost monitor.
+     * unchanged/dead. Under the entity monitor.
      */
-    private static void setGhostAlpha(LuaGhost gh, float alpha) {
-        synchronized(gh) {
-            if(gh.dead || (gh.alpha == alpha))
+    private static void setEntityAlpha(LuaWorldEntity e, float alpha) {
+        synchronized(e) {
+            if(e.dead || (e.alpha == alpha))
                 return;
-            gh.alpha = alpha;
-            if(gh.gob instanceof GhostGob)
-                ((GhostGob)gh.gob).alpha = alpha;      // read by obstate on the next scene (re)add
-            refreshGhostScene(gh);
+            e.alpha = alpha;
+            if(e.gob instanceof GhostGob)
+                ((GhostGob)e.gob).alpha = alpha;       // read by obstate on the next scene (re)add
+            refreshEntityScene(e);
         }
     }
 
     /**
-     * Set a ghost's colour-overlay tint ({@code g:tint(color)}, V3); {@code null} clears it. Applied by re-adding
-     * the scene slot, like {@link #setGhostAlpha}. Under the ghost monitor.
+     * Set an entity's colour-overlay tint ({@code g:tint(color)}, V3); {@code null} clears it. Applied by re-adding
+     * the scene slot, like {@link #setEntityAlpha}. Under the entity monitor.
      */
-    private static void setGhostTint(LuaGhost gh, java.awt.Color tint) {
-        synchronized(gh) {
-            if(gh.dead)
+    private static void setEntityTint(LuaWorldEntity e, java.awt.Color tint) {
+        synchronized(e) {
+            if(e.dead)
                 return;
-            gh.tint = tint;
-            if(gh.gob instanceof GhostGob)
-                ((GhostGob)gh.gob).tint = tint;        // read by obstate on the next scene (re)add
-            refreshGhostScene(gh);
+            e.tint = tint;
+            if(e.gob instanceof GhostGob)
+                ((GhostGob)e.gob).tint = tint;         // read by obstate on the next scene (re)add
+            refreshEntityScene(e);
         }
     }
 
     /**
-     * Set a ghost's uniform scale ({@code g:scale(s)}, V6): {@code 1} = original size. Applied by re-adding the
-     * scene slot like {@link #setGhostAlpha} (obstate's scaling {@code Location} is not part of
+     * Set an entity's uniform scale ({@code g:scale(s)}, V6): {@code 1} = original size. Applied by re-adding the
+     * scene slot like {@link #setEntityAlpha} (obstate's scaling {@code Location} is not part of
      * {@code GobState.equals}, so the normal update path won't re-apply it). No-op if unchanged/dead. Under the
-     * ghost monitor.
+     * entity monitor.
      */
-    private static void setGhostScale(LuaGhost gh, float scale) {
-        synchronized(gh) {
-            if(gh.dead || (gh.scale == scale))
+    private static void setEntityScale(LuaWorldEntity e, float scale) {
+        synchronized(e) {
+            if(e.dead || (e.scale == scale))
                 return;
-            gh.scale = scale;
-            if(gh.gob instanceof GhostGob)
-                ((GhostGob)gh.gob).scale = scale;      // read by obstate on the next scene (re)add
-            refreshGhostScene(gh);
+            e.scale = scale;
+            if(e.gob instanceof GhostGob)
+                ((GhostGob)e.gob).scale = scale;       // read by obstate on the next scene (re)add
+            refreshEntityScene(e);
         }
     }
 
     /**
-     * Remove the ghost from the scene ({@code g:hide()}, V3) — drops the scene slot (so it stops rendering/ticking)
-     * but <b>keeps</b> the gob so {@code :show()} can re-add it. Marks {@link LuaGhost#hidden} so a hide that lands
-     * before the deferred create published keeps the prop out of the scene. No-op if already hidden/dead. Under the
-     * ghost monitor.
+     * Remove the entity from the scene ({@code g:hide()}, V3) — drops the scene slot (so it stops rendering/ticking)
+     * but <b>keeps</b> the gob so {@code :show()} can re-add it. Marks {@link LuaWorldEntity#hidden} so a hide that
+     * lands before the deferred create published keeps the prop out of the scene. No-op if already hidden/dead.
+     * Under the entity monitor.
      */
-    private static void hideGhost(LuaGhost gh) {
-        synchronized(gh) {
-            if(gh.dead || gh.hidden)
+    private static void hideEntity(LuaWorldEntity e) {
+        synchronized(e) {
+            if(e.dead || e.hidden)
                 return;
-            gh.hidden = true;
-            if((gh.gob != null) && (gh.mv != null) && (gh.slot != null)) {
-                try { gh.mv.removeClientGob(gh.gob, gh.slot); }
-                catch(RuntimeException e) { /* scene gone (relog) — flag set, no scene op */ }
-                gh.slot = null;
+            e.hidden = true;
+            if((e.gob != null) && (e.mv != null) && (e.slot != null)) {
+                try { e.mv.removeClientGob(e.gob, e.slot); }
+                catch(RuntimeException ex) { /* scene gone (relog) — flag set, no scene op */ }
+                e.slot = null;
             }
         }
     }
 
     /**
-     * (Re)add the ghost to the scene ({@code g:show()}, V3) — the inverse of {@link #hideGhost}. No-op if not
-     * hidden/dead. Under the ghost monitor.
+     * (Re)add the entity to the scene ({@code g:show()}, V3) — the inverse of {@link #hideEntity}. No-op if not
+     * hidden/dead. Under the entity monitor.
      */
-    private static void showGhost(LuaGhost gh) {
-        synchronized(gh) {
-            if(gh.dead || !gh.hidden)
+    private static void showEntity(LuaWorldEntity e) {
+        synchronized(e) {
+            if(e.dead || !e.hidden)
                 return;
-            gh.hidden = false;
-            if((gh.gob != null) && (gh.mv != null) && (gh.slot == null)) {
+            e.hidden = false;
+            if((e.gob != null) && (e.mv != null) && (e.slot == null)) {
                 try {
-                    gh.slot = gh.mv.addClientGob(gh.gob);
-                    gh.gob.move(gh.rc, gh.a);          // re-assert position/facing after the re-add
-                } catch(RuntimeException e) {
+                    e.slot = e.mv.addClientGob(e.gob);
+                    e.gob.move(e.rc, e.a);             // re-assert position/facing after the re-add
+                } catch(RuntimeException ex) {
                     /* scene gone (relog) — flag cleared, no scene op */
                 }
             }
@@ -4891,22 +5084,135 @@ public final class AddonManager {
     }
 
     /**
-     * Re-apply a live ghost's render state (clickable/alpha/tint) by removing and re-adding its scene slot so
+     * Re-apply a live entity's render state (clickable/alpha/tint/scale) by removing and re-adding its scene slot so
      * {@link GhostGob#obstate} runs fresh — needed because neither the click-list membership nor obstate's colour
      * output propagates through the normal {@code Gob.updated()}/{@code updstate()} path. No-op if the gob is not
      * currently in the scene (pending create / hidden) — obstate reads the updated fields when it is (re)added.
-     * <b>Caller must hold the ghost monitor</b> (same ghost→tree lock order the deferred create uses; no new hazard).
+     * <b>Caller must hold the entity monitor</b> (same entity→tree lock order the deferred create uses; no new hazard).
      */
-    private static void refreshGhostScene(LuaGhost gh) {
-        if((gh.gob != null) && (gh.mv != null) && (gh.slot != null)) {
+    private static void refreshEntityScene(LuaWorldEntity e) {
+        if((e.gob != null) && (e.mv != null) && (e.slot != null)) {
             try {
-                gh.mv.removeClientGob(gh.gob, gh.slot);
-                gh.slot = gh.mv.addClientGob(gh.gob);
-                gh.gob.move(gh.rc, gh.a);              // re-assert position/facing after the re-add
-            } catch(RuntimeException e) {
-                /* the ghost's scene is gone (e.g. a REPL ghost changed after a relog) — fields set, no scene op */
+                e.mv.removeClientGob(e.gob, e.slot);
+                e.slot = e.mv.addClientGob(e.gob);
+                e.gob.move(e.rc, e.a);                 // re-assert position/facing after the re-add
+            } catch(RuntimeException ex) {
+                /* the entity's scene is gone (e.g. a REPL entity changed after a relog) — fields set, no scene op */
             }
         }
+    }
+
+    // ---- ANCHOR: follow a gob (hafen.render.sprite / hafen.ghost :follow) — the world-space gob-overlay analog ---
+
+    /**
+     * Anchor an entity to a target gob ({@code :follow(gob[, offset])}) or detach it ({@code tgt == 0}). While
+     * anchored, a {@link FollowMoving} on the gob makes the render tree place the entity at the target's live
+     * position + {@code off} <b>every frame</b> — no Lua polling (the {@code hafen.ui.gobOverlay} analog for a
+     * world entity). Detaching freezes it at the current followed position. Records the desired state so a
+     * still-pending (deferred ghost) create attaches it on publish ({@link #applyEntityFollow}). Under the entity
+     * monitor; the attrib attach/detach is done under {@code synchronized(gob)} (the lock the live res-swap uses).
+     */
+    private static void setEntityFollow(LuaWorldEntity e, long tgt, Coord3f off) {
+        synchronized(e) {
+            if(e.dead)
+                return;
+            e.followTgt = tgt;
+            e.followOff = off;
+            Gob gob = e.gob;
+            if(gob == null)
+                return;                                  // no live gob yet → the pending create applies the follow
+            synchronized(gob) {
+                if(tgt != 0) {
+                    gob.setattr(new FollowMoving(gob, tgt, off));   // start following — autotick picks it up next frame
+                } else {
+                    Moving m = gob.getattr(Moving.class);
+                    if(m instanceof FollowMoving) {                 // detach: freeze at the last followed point
+                        Coord3f cur;
+                        try { cur = gob.getc(); } catch(RuntimeException ex) { cur = null; }
+                        gob.delattr(Moving.class);
+                        if(cur != null)
+                            e.rc = new Coord2d(cur.x, cur.y);        // hold there (ground z re-derived at placement)
+                        gob.move(e.rc, e.a);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Update the fixed world offset of an anchored entity ({@code :offset{x=,y=,z=}}). Live on the
+     * {@link FollowMoving} (its {@code off} is {@code volatile}) → takes effect next frame with no re-attach; stored
+     * on the entity for a still-pending create too. This is the "move it relative to the gob while it keeps
+     * following" verb (a manual {@code :move} would instead detach). No-op if dead. Under the entity monitor.
+     */
+    private static void setEntityOffset(LuaWorldEntity e, Coord3f off) {
+        synchronized(e) {
+            if(e.dead)
+                return;
+            e.followOff = off;
+            if(e.gob != null) {
+                Moving m = e.gob.getattr(Moving.class);
+                if(m instanceof FollowMoving)
+                    ((FollowMoving)m).off = off;
+            }
+        }
+    }
+
+    /** Drop any {@link FollowMoving} from {@code gob} (a manual {@code :move} detaches the follow). Under {@code synchronized(gob)}. */
+    private static void detachFollowAttr(Gob gob) {
+        synchronized(gob) {
+            if(gob.getattr(Moving.class) instanceof FollowMoving)
+                gob.delattr(Moving.class);
+        }
+    }
+
+    /**
+     * Attach the {@link FollowMoving} at (deferred/immediate) create time when the entity is anchored — called by
+     * {@code newSprite}/{@code newGhost} once the gob is built (before it enters the scene), so a {@code :follow}
+     * that landed before the visual streamed in is honoured. Caller holds the entity monitor; the fresh gob is not
+     * yet published, so no {@code synchronized(gob)} is needed.
+     */
+    private static void applyEntityFollow(LuaWorldEntity e, Gob gob) {
+        if(e.followTgt != 0)
+            gob.setattr(new FollowMoving(gob, e.followTgt, e.followOff));
+    }
+
+    /**
+     * Resolve a {@code :follow} / {@code follow=} target to a gob id: a raw <b>number</b> is used as-is (the gob
+     * need not be loaded yet — {@link FollowMoving} re-resolves each frame), a token ({@code "player"}/{@code "me"}/
+     * {@code "partyN"}/an id string) goes through the read-API {@link #resolve}. Returns {@code 0} if unresolvable.
+     */
+    private static long followTargetId(LuaValue ref) {
+        if(ref.isnumber())
+            return (long)ref.todouble();
+        Gob g = resolve(ref);
+        return (g == null) ? 0L : g.id;
+    }
+
+    /** Parse a {@code {x=,y=,z=}} world-offset table → a {@link Coord3f} (missing components 0), or {@code null} (not a table). */
+    private static Coord3f luaOffset(LuaValue v) {
+        if((v == null) || !v.istable())
+            return null;
+        float x = (float)v.get("x").optdouble(0.0);
+        float y = (float)v.get("y").optdouble(0.0);
+        float z = (float)v.get("z").optdouble(0.0);
+        return new Coord3f(x, y, z);
+    }
+
+    /**
+     * The entity's LIVE world position (a {@link Coord2d}) for {@code :pos()}: while anchored, the followed gob's
+     * current position (+ offset) via {@code gob.getc()}; otherwise the entity's own {@code rc}. Caller holds the
+     * entity monitor.
+     */
+    private static Coord2d entityWorldPos(LuaWorldEntity e) {
+        if((e.followTgt != 0) && (e.gob != null)) {
+            try {
+                Coord3f c = e.gob.getc();
+                if(c != null)
+                    return new Coord2d(c.x, c.y);
+            } catch(RuntimeException ex) { /* placement still loading → fall back to rc */ }
+        }
+        return e.rc;
     }
 
     /** Parse a ghost {@code alpha} option/arg → clamped 0..1; a non-number defaults to 1 (opaque). */

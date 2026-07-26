@@ -52,7 +52,7 @@ import haven.render.States;
  * {@code GobState.equals} compares only the {@code SetupMod} mods (not {@code obstate}'s output), so neither a
  * {@link #clickable} flip nor a {@link #tint}/{@link #alpha} change propagates through the normal
  * {@code updated()}/{@code updstate()} path — {@link AddonManager} applies all three by removing and re-adding the
- * gob to the scene ({@code AddonManager.refreshGhostScene}), where {@code obstate} runs fresh and reads the
+ * gob to the scene ({@code AddonManager.refreshEntityScene}), where {@code obstate} runs fresh and reads the
  * current fields. {@code obstate} is evaluated at render-apply time, so every field here is read live.
  *
  * <p>The pick resolves in {@code MapView.Click.hit}; because {@code GobClick.gob} is this gob, the engine's own
@@ -63,7 +63,7 @@ import haven.render.States;
 public final class GhostGob extends Gob {
     /**
      * Whether this ghost currently has a pick surface. Read by {@link #obstate} at render-apply time (so a toggle
-     * takes effect on the next scene re-add — see {@link AddonManager#setGhostClickable}). {@code volatile} because
+     * takes effect on the next scene re-add — see {@link AddonManager#setEntityClickable}). {@code volatile} because
      * it is set on the UI/stdin thread and read on the render thread when the gob's state is (re)applied.
      */
     public volatile boolean clickable;

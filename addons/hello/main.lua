@@ -61,7 +61,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.38.0)")
+hafen.log("hello loaded (v0.40.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -958,9 +958,11 @@ end)
 -- greets, ":hello toggle" flips the 2a window (a slash command driving live addon state), ":hello ping" plays a
 -- sound, and ":hello echo <text...>" shows the args rejoined (quoting survives — :hello echo "a b" c -> a b c).
 local demoGhost   -- V1: the handle of the manual :hello ghost demo while placed (nil = none); session-local
+local demoSprite  -- R2a: the handle of the manual :hello sprite demo while placed (nil = none); session-local
+local demoFollow  -- R2a anchor: the handle of the :hello follow demo (a sprite anchored to you); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | follow")
     return
   end
   local sub = args[1]
@@ -1011,8 +1013,48 @@ hafen.slash.register("hello", function(args)
         hafen.log(":hello ghost -> hafen.ghost.new returned nil (not in the world yet?)")
       end
     end
+  elseif sub == "sprite" then
+    -- R2a: CLIENT-ONLY WORLD SPRITE (hafen.render.sprite). Stand our own PNG (the R1 icon.png handle) UPRIGHT in
+    -- the 3D world as a fixed textured quad -- the non-.res sibling of a ghost, on the SAME virtual-entity core:
+    -- a Gob with no server id, so it never reaches the server (SAFE-tier, NOT gated, D-034). It is a transform
+    -- handle like a ghost (:move/:rotate/:scale/:pos/:destroy), so 2s after placing we move + rotate + scale it to
+    -- prove the gizmo-compatible transform works live; :hello sprite again removes it. Torn down on reload/disable.
+    if demoSprite then
+      demoSprite:destroy(); demoSprite = nil
+      hafen.log(":hello sprite -> destroyed")
+    else
+      if not icon then hafen.log(":hello sprite -> icon.png not loaded yet (OnLoad)"); return end
+      local p = hafen.gob.pos("player")
+      if not p then hafen.log(":hello sprite -> no player position yet"); return end
+      demoSprite = hafen.render.sprite{ image = icon, x = p.x, y = p.y, scale = 3 }  -- ~3 tiles tall so it's clearly visible
+      if not demoSprite then hafen.log(":hello sprite -> hafen.render.sprite returned nil (not in the world yet?)"); return end
+      local pos = demoSprite:pos()
+      hafen.log((":hello sprite -> icon.png STANDING at (%.0f,%.0f) scale=%.0f -- transforms in 2s; :hello sprite again to remove")
+        :format(pos.x, pos.y, pos.scale))
+      local this = demoSprite                              -- capture, so a quick toggle-off/on doesn't transform the new one
+      hafen.timer.after(2.0, function()
+        if demoSprite == this then
+          this:move(p.x + 22, p.y):rotate(math.pi / 2):scale(4)   -- +2 tiles E, face 90°, grow x4 (chained handle verbs)
+          hafen.log(":hello sprite -> moved +2 tiles E, rotated 90 deg, scaled x4 (gizmo-compatible transform handle)")
+        end
+      end)
+    end
+  elseif sub == "follow" then
+    -- R2a ANCHOR: a world sprite anchored to a gob that FOLLOWS it automatically, like a gob overlay (no polling).
+    -- hafen.render.sprite{ follow = <gobref>, offset = {x=,y=,z=} } -> the sprite tracks the gob every frame; z = up,
+    -- so offset {z=18} floats it ~1.6 tiles above your head. It keeps its own facing/scale; :offset moves it relative
+    -- to the gob (keeps following) and a plain :move detaches. Here it anchors to YOU -- walk around and it follows.
+    if demoFollow then
+      demoFollow:destroy(); demoFollow = nil
+      hafen.log(":hello follow -> destroyed")
+    else
+      if not icon then hafen.log(":hello follow -> icon.png not loaded yet (OnLoad)"); return end
+      demoFollow = hafen.render.sprite{ image = icon, scale = 2, follow = "player", offset = { z = 18 } }
+      if not demoFollow then hafen.log(":hello follow -> hafen.render.sprite returned nil (not in the world yet?)"); return end
+      hafen.log(":hello follow -> icon.png now FLOATS above your head and FOLLOWS you -- walk around; :hello follow again to remove")
+    end
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | follow)")
       :format(#args, table.concat(args, " | ")))
   end
 end)

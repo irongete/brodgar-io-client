@@ -19,7 +19,7 @@ reload / disable / relogin (the scene slot is removed and the sprite freed), lea
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.ghost.new{res, x, y [, a, sdt, alpha, tint, scale, clickable, onClick]}` | [ghost handle](#ghost-handle) \| nil | create a client-only prop; nil if not in the world yet |
+| `hafen.ghost.new{res, x, y [, a, sdt, alpha, tint, scale, clickable, onClick, follow, offset]}` | [ghost handle](#ghost-handle) \| nil | create a client-only prop; nil if not in the world yet. `follow` = a gob to [anchor](#anchoring-to-a-gob) to |
 | `hafen.ghost.list([filter])` | [ghost handle](#ghost-handle)`[]` | this addon's live ghosts |
 
 `new` options:
@@ -51,12 +51,27 @@ For `list`, `filter` is the canonical [filter](conventions.md#the-filter-argumen
 | `g:tint(color)` | set the colour overlay `{r, g, b [, a]}` (`0..255`), or `nil` to clear (V3) |
 | `g:scale(s)` | set the uniform scale (`1` = original size) (V6) — see [Scale](#scale-v6) |
 | `g:show()` / `g:hide()` | add / remove the ghost from the 3D scene, keeping it (V3) |
-| `g:pos()` | `{x, y, a, scale}` — the ghost's full client-side transform (position, facing, scale) |
+| `g:follow(gob [, {x=,y=,z=}])` | **anchor** to a gob so it follows automatically; `g:follow(nil)` detaches — see [Anchoring](#anchoring-to-a-gob) |
+| `g:offset{x=, y=, z=}` | change the world offset from the followed gob (keeps following) |
+| `g:pos()` | `{x, y, a, scale}` (+ `following` = the anchored gob id, if any) — the ghost's live transform |
 | `g:res()` | the resource name (string) |
 | `g:clickable(bool)` | toggle the pick surface (V2) — see [Clickability](#clickability--the-ghostclicked-event-v2) |
 | `g:destroy()` | remove it now (also automatic on reload/disable). Idempotent. |
 
-Every method returns the handle (except `:pos`/`:res`), so calls chain.
+Every method returns the handle (except `:pos`/`:res`), so calls chain. A plain `g:move` **detaches** any follow.
+
+## Anchoring to a gob
+
+A ghost (like a [sprite](render.md#anchoring-to-a-gob)) can be **anchored to a gob** so it follows it every frame,
+with no per-tick code of your own — the world analog of a [`hafen.ui.gobOverlay`](ui.md#overlays). Pass a `follow`
+target (a gob id, `"player"`, or `"me"`) to `new`, or call `g:follow(gob)` later; an optional world `offset`
+`{x=, y=, z=}` (`z` = up) places it relative to the gob. It keeps its own facing/scale, `g:offset{…}` adjusts the
+offset while it keeps following, and a manual `g:move` detaches it.
+
+```lua
+local g = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin", follow = "me", offset = { z = 20 } }
+-- the cabin now floats over your head and follows you; g:follow(nil) drops it in place
+```
 
 ```lua
 local p = hafen.gob.pos("player")
