@@ -1,9 +1,9 @@
-# hafen.ui — windows, overlays, widget replacement
+# hafen.ui — windows, overlays, widget replacement, introspection
 
-Draw your own client-side UI, paint over the HUD and the 3D world, and observe/adopt/replace the
-client's own server widgets. Everything here is client-side and bridge-owned — it is torn down
-automatically on reload/disable. (Client-side UI cannot send actions to the server; that is
-[`hafen.act`](actions.md).)
+Draw your own client-side UI, paint over the HUD and the 3D world, observe/adopt/replace the client's
+own server widgets, and [walk any widget's tree](#introspecting-the-widget-tree). Everything here is
+client-side and bridge-owned — it is torn down automatically on reload/disable. (Client-side UI cannot
+send actions to the server; that is [`hafen.act`](actions.md).)
 
 ## Custom windows & widgets
 
@@ -122,6 +122,64 @@ restoring the stock UI.
 
 `opts` (all optional): `context` (`"main"` = the main inventory), `caption` (an exact window title),
 `match` (a predicate `match(desc)` over the [descriptor](#the-widget-descriptor)).
+
+## Introspecting the widget tree
+
+A generic, **read-only** way to walk *any* widget's children to arbitrary depth. Where `adopt`/`replace`
+(above) target one known widget and the [typed reads](char.md) expose a fixed set of surfaces, this lets you
+discover the structure of *any* open window from Lua — so you can build a pure-Lua adapter for a window
+(products/prices/buttons of a Barter Stand, a vendor, a container) without a new Java adapter per UI.
+
+| Function | Returns | Description |
+|---|---|---|
+| `hafen.ui.root()` | [WidgetNode](#widgetnode) \| nil | the top of the whole client tree — walk **down** to any open window |
+| `hafen.ui.node(id)` | [WidgetNode](#widgetnode) \| nil | a node for a server widget **id** (a `desc.id`, a `model:raw()`, another node's `:id()`); nil if it doesn't resolve |
+
+`model:node()` is sugar for `hafen.ui.node(model:raw())` on an [adopted model](#model-handle).
+
+### WidgetNode
+
+An opaque, **facade-safe** handle over one widget (no raw widget crosses into Lua). It is a **lazy
+handle**, not an owned resource — cheap to make and never registered, so a deep walk mints many nodes
+freely and there is nothing to tear down. Every accessor returns `nil`/empty once the widget is
+destroyed (the node detects it and lets go).
+
+| Method | Returns | Description |
+|---|---|---|
+| `:type()` | string | class name, e.g. `"Inventory"`, `"Label"`, `"Button"` (for an anonymous subclass — common in Hafen — the nearest named superclass) |
+| `:id()` | int \| nil | server widget id, or **nil if the widget is not server-bound** (client-only) |
+| `:children()` | array | child `WidgetNode`s in tree order (empty for a leaf) |
+| `:parent()` | WidgetNode \| nil | the parent node, or nil at the root |
+| `:pos()` | `{x=,y=}` | position within the parent (widget-local px) |
+| `:size()` | `{x=,y=}` | size |
+| `:visible()` | boolean | is it visible? |
+| `:text()` | string \| nil | best-effort text for text-bearing widgets (Label/Button/Window/TextEntry), else nil |
+| `:walk(fn)` | (self) | depth-first visit — `fn(node, depth)`; **return `false` to prune** that subtree |
+| `:same(other)` | boolean | true iff both handles wrap the **same live widget** (nil-safe) — the identity check |
+
+**`:id()` is the pivot for acting.** Reading the tree is ungated client-side data. To *act*, read a
+**server-bound** node's `:id()` and pass it to the gated [`hafen.act.raw(id, msg, …)`](actions.md) with
+the message a client-only button would have sent (learned from the upstream widget class) — a `wdgmsg`
+from an unbound (client-only, no `:id()`) node is dropped, so you never target the button itself, but
+its nearest server-bound ancestor.
+
+**`:same` is the identity primitive.** Each `node`/`children`/`walk` call mints a *fresh* handle, and
+client-only children have no `:id()` to compare — so `:same` is the only reliable "is this the same
+widget as before?" check. `:find`/`:collect` helpers are one-liners over `:walk` you keep in your own Lua.
+
+```lua
+-- dump an open window's full nested tree from the :lua REPL
+hafen.ui.root():walk(function(n, d)
+  hafen.log(string.rep("  ", d) .. n:type()
+    .. (n:id()   and (" #" .. n:id())            or "")
+    .. (n:text() and (" '" .. n:text() .. "'")   or ""))
+end)
+```
+
+**Limits.** Read-only (no mutating a widget's Java state — desyncs from the server); `:text()` is
+best-effort over a known type set (unknown → nil, never throws); the whole client tree is reachable via
+`root()`/`:parent()` (all client-side data — actions stay separately gated); which child is a price vs. a
+spacer is upstream-defined knowledge your Lua adapter supplies.
 
 ### Overlay / observer handles
 
