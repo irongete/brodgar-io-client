@@ -61,7 +61,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.47.0)")
+hafen.log("hello loaded (v0.48.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -844,6 +844,7 @@ local vitalsFreeze = false  -- 2e: while true, the "set" message hook SWALLOWS m
 local msgHookSeen = 0       -- 2e: how many meter "set" messages the hook has observed while OFF (for the "observed" log lines)
 local dropWidget            -- U1: the borderless drop-target widget handle (nil until created / after reload)
 local droppedRes           -- U1: the .res name of the last menu-grid action dropped on it (drawn via g:resource)
+local fontWin               -- F2: a small window rendered in the addon's OWN font (font=demoFont) + a $font mix line
 
 -- R1: CUSTOM IMAGE (hafen.render.image). Load a PNG shipped in THIS addon's own folder (icon.png -- a small
 -- green "H" disc) into a bridge-owned TexI handle, then draw it below in the 2a window (native + scaled) and
@@ -889,9 +890,11 @@ end)
 -- ':hello font' toggles the override; while ON it also stacks a SECOND override (mono) on top to prove LAST-WINS,
 -- then drops it back to the first. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
 local demoFont          -- the loaded FontHandle (nil until OnLoad; env rebuilt on reload -> nil, re-loaded below)
+local monoFont          -- F2: a second handle (built-in "mono") for the per-call { font = } demo in the F2 window
 local fontApplied = false   -- is our "default" override currently installed? (session-local; teardown reverts it)
 hafen.events.on("OnLoad", function()
   fontApplied = false                                   -- a reload rebuilt the env; the override was torn down (P2)
+  monoFont = hafen.font.load("mono", { size = 12 })     -- F2: a distinct font for the per-call g:text{font=} line
   local ok, ttf = pcall(hafen.font.load, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
   if ok and ttf then
     demoFont = ttf
@@ -1266,6 +1269,39 @@ hafen.events.on("OnEnterWorld", function()
     end,
   }
   hafen.log("U1: drop-target widget up -- open the menu grid, drag an action onto the box (icon draws via g:resource); Shift+click logs shift=true")
+
+  -- F2: OWN-WIDGET FONTS + $font MIXING. This window declares font = demoFont (the F1-loaded handle), so EVERY
+  -- g:text/g:atext inside it defaults to the addon's OWN font -- fully ISOLATED (no global override, nothing the
+  -- other addons or the stock UI can see). A per-call { font = h } / { color = {..} } overrides one line, and a
+  -- $font[family,sz]{...} tag mixes TWO fonts on ONE line (the F2 headline) -- it works because hafen.font.load
+  -- AWT-registered the family, so we just feed demoFont:family() to the existing rich-text tag (zero engine
+  -- markup change). SAFE-tier, client-only. Disabling/:reload leaves the stock UI untouched. See api/fonts.md.
+  if demoFont then
+    local fam = demoFont:family()
+    fontWin = hafen.ui.window{
+      title = "Hello F2 (fonts)",
+      size  = { 240, 118 },
+      pos   = { 290, 120 },
+      font  = demoFont,                                            -- the window's DEFAULT font for its g:text draws
+      onDraw = function(g, w, h)
+        g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()
+        -- 1) plain line -> uses the window's font= default (the addon's own font), no per-call opts:
+        g:text("This line uses the window font=", 6, 6)
+        -- 2) a $font mix on ONE line: the first run in demoFont via its family, the rest in the client sans:
+        g:text(("$font[%s,16]{Fancy} + $font[SansSerif,12]{plain} on one line"):format(fam), 6, 26)
+        -- 3) per-call font override (mono) + per-call colour, proving g:text(str,x,y,{font=,color=}):
+        g:text("per-call mono, coloured", 6, 52, { font = monoFont, color = { 120, 220, 255 } })
+        -- 4) rich colour/bold tags also work now that g:text renders through rich text:
+        g:text("$col[235,180,80]{$b{rich} tags} work too", 6, 74)
+        g:color(150, 150, 150); g:rect(0, 0, w, h); g:color()
+      end,
+      onClose = function() hafen.log("F2: font window closed (X) -- :reload to bring it back") end,
+    }
+    hafen.log(("F2: font window up -- rendered in font '%s'; one line mixes two fonts via $font (disable/:reload restores stock)")
+      :format(fam))
+  else
+    hafen.log("F2: demoFont not loaded (OnLoad) -- font window skipped")
+  end
 
   -- 2c: INPUT HOOK (hafen.hook.input, L1). Pre-hook MapView's mousedown through the engine's built-in
   -- Widget.listen seam (ZERO core edit): fn(ev) runs BEFORE MapView's own mousedown, at SCREEN coords, before

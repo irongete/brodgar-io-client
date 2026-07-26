@@ -5,10 +5,11 @@ Load a font into a **private handle** the addon holds, then either draw with it 
 your addon keeps; another addon cannot look it up (no name collisions, no coupling).
 
 > **Slice status.** **F1 (shipped):** `load` / `setFont` / `reset` / `scopes`, and the **`"default"`** scope
-> (the global fallback — most UI text). Applying a font to your **own** widgets/draw (`font=` on
-> `hafen.ui.window`/`widget`, `g:text{font=…}`) and the per-scope surfaces (`window.title`, `button`, `chat`, …)
-> arrive in later slices — the scope names are already listed by `scopes()`, they simply have no effect until
-> routed. See [`21-fonts.md`](../../../specs/addons/21-fonts.md) for the roadmap.
+> (the global fallback — most UI text). **F2 (shipped):** applying a font to your **own** drawing — `font=` on
+> `hafen.ui.window`/`widget`, `g:text`/`g:atext` with a `{font=…, color=…}` option, and a custom TTF in a
+> `$font[…]{…}` rich-text tag. The per-scope surfaces (`window.title`, `button`, `chat`, …) arrive in later
+> slices — the scope names are already listed by `scopes()`, they simply have no effect until routed. See
+> [`21-fonts.md`](../../../specs/addons/21-fonts.md) for the roadmap.
 
 Client-only and cosmetic (**safe-tier — not gated**), like a HUD overlay.
 
@@ -39,6 +40,52 @@ Returns an opaque **`FontHandle`** (no AWT font object crosses into Lua):
 | `h:derive(opts)` | `FontHandle` | a cheap variant with a different `size`/`aa`/`bold`/`italic`/`color`; never mutates `h`. |
 | `h:family()` | string | the AWT family name — feed it to a `$font[family, sz]{…}` tag for per-run mixing (F2). |
 | `h:size()` | number \| nil | the handle's logical px size (nil if unset). |
+
+## Draw with it — your own widgets (F2)
+
+Applying a font to your **own** drawing is **fully isolated**: it touches only your widgets' pixels, so there
+is no conflict and nothing to revert — the stock UI and every other addon are untouched.
+
+### `font =` on a window / widget — the default for its draws
+
+```lua
+local h = hafen.font.load("serif", { size = 12 })
+hafen.ui.window{ title = "Mine", size = {200, 120}, font = h, onDraw = function(g, w, h)
+  g:text("this text is in my font", 6, 6)   -- no per-call opts => uses the widget's font=
+end }
+hafen.ui.widget{ ..., font = h }             -- same, for a bare widget
+```
+
+`font =` sets the **default font** for every `g:text`/`g:atext` the widget draws that gives no per-call font.
+(It does **not** restyle the window's *title bar* — that is the `"window.title"` scope, F3.)
+
+### `g:text` / `g:atext` — a per-call `{font, color}` option
+
+```lua
+g:text(str, x, y [, { font = h, color = {r,g,b[,a]} }])
+g:atext(str, x, y, ax, ay [, { font = h, color = {r,g,b[,a]} }])
+```
+
+- **`font`** — a `FontHandle`; render this one call in that font (overrides the widget `font=` default for the
+  call). Omit ⇒ the widget default, else the client stock.
+- **`color`** — `{r,g,b[,a]}` (0–255); tint the glyphs (composes with `g:color` exactly like a `g:color` call
+  around it). Omit ⇒ white glyphs tinted by the current `g:color` (the stock behaviour — unchanged).
+
+Coordinates stay **positional** (`x, y`) — the same as every other `g:` call.
+
+### Mix fonts on one line — the `$font` rich-text tag
+
+`g:text`/`g:atext` interpret **rich-text markup**, so you can mix fonts (and styles/colours) inside a single
+string. Feed a handle's `h:family()` to the engine's existing `$font[family, size]{…}` tag:
+
+```lua
+g:text(("$font[%s,16]{Fancy} normal"):format(h:family()), 6, 6)   -- two fonts, one line
+g:text("$col[235,180,80]{$b{bold} orange} plain", 6, 26)          -- $col / $b / $i / $u / $size too
+```
+
+This works because `hafen.font.load` registers a loaded TTF's family into the JVM — **zero engine markup
+change**. Plain text with no `$` and no `font=` takes the exact stock render path (no behaviour change for
+existing addons); malformed markup falls back to drawing the literal string (it never throws).
 
 ## Restyle a global surface — owned overrides
 

@@ -5,9 +5,12 @@ import haven.GOut;
 import haven.Indir;
 import haven.Loading;
 import haven.Resource;
+import haven.RichText;
 import haven.Tex;
+import haven.Text;
 import haven.render.Model;
 
+import java.awt.Color;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.luaj.vm2.LuaTable;
@@ -45,8 +48,28 @@ final class LuaGOut {
         resCache.clear();
     }
 
+    /**
+     * The stock {@link RichText.Foundry} (F2): {@link Text#std}'s family/size, glyphs WHITE, {@code aa} off — used
+     * when a {@code g:text} string carries {@code $font}/markup but no explicit font handle, so a {@code $font[…]}
+     * tag still resolves. Built lazily (most draws never hit the rich path); {@link Text#std}'s font is already
+     * {@code UI.scale}d and never changes, so this needs no invalidation.
+     */
+    private static RichText.Foundry stockRich;
+    private static synchronized RichText.Foundry stockRich() {
+        if(stockRich == null)
+            stockRich = new RichText.Foundry(Text.std.font, Color.WHITE).aa(Text.std.aa);
+        return stockRich;
+    }
+
     /** The live {@link GOut} during the current draw callback, else {@code null} (the wrapper is then inert). */
     private GOut cur;
+    /**
+     * The widget's default font (F2), from {@code hafen.ui.window}/{@code widget}{@code {font=h}} — the base font
+     * for {@code g:text}/{@code g:atext} when a call gives no per-call {@code opts.font}. {@code null} for a widget
+     * with no {@code font=}, and always {@code null} for a HUD/gob overlay (they {@link #bind(GOut)} without one).
+     * Set per draw callback beside {@link #cur}.
+     */
+    private FontHandle defFont;
     /** The Lua {@code g} table of drawing primitives; built once, its closures read {@link #cur}. */
     private final LuaTable table;
 
@@ -54,34 +77,54 @@ final class LuaGOut {
         this.table = build();
     }
 
-    /** Bind the live {@code GOut} for one draw callback and return the {@code g} table to hand to Lua. */
+    /** Bind the live {@code GOut} for one draw callback (no widget default font) and return the {@code g} table. */
     LuaTable bind(GOut g) {
+        return bind(g, null);
+    }
+
+    /**
+     * Bind the live {@code GOut} for one draw callback with a widget default font ({@code null} = none) and return
+     * the {@code g} table to hand to Lua. The default font is the base for {@code g:text}/{@code g:atext} calls
+     * that pass no per-call {@code opts.font} (F2).
+     */
+    LuaTable bind(GOut g, FontHandle def) {
         this.cur = g;
+        this.defFont = def;
         return table;
     }
 
     /** Invalidate the wrapper after a draw callback (no stashing — see the class note). */
     void unbind() {
         this.cur = null;
+        this.defFont = null;
     }
 
     private LuaTable build() {
         LuaTable t = new LuaTable();
 
-        // g:text(str, x, y) — draw text at the top-left of (x, y), client font.
+        // g:text(str, x, y [, opts]) — draw text at the top-left of (x, y).
+        //   opts (all optional, F2): { font = h, color = {r,g,b[,a]} }.
+        //     font  = a hafen.font.load handle -> render str in THAT font (else the widget's font= default, else
+        //             the client stock). Own-widget drawing is isolated (no global state touched).
+        //     color = {r,g,b[,a]} 0..255 -> tint the glyphs that colour (like g:color around the call); omitted =>
+        //             white glyphs tinted by the current g:color (the stock behaviour).
+        //   str may carry RICH-TEXT MARKUP: $font[family,sz]{…} (feed h:family() to mix fonts on ONE line — the
+        //   F2 headline), $col[r,g,b,a]{…}, $b{…}/$i{…}/$u{…}, $size[sz]{…}. Plain text with no font=/markup takes
+        //   the exact stock path (zero change). Malformed markup falls back to the literal string (never throws).
         t.set("text", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                d.text(a.arg(2).tojstring(), Coord.of(a.arg(3).toint(), a.arg(4).toint()));
+                drawText(d, a.arg(2).tojstring(), a.arg(3).toint(), a.arg(4).toint(), 0.0, 0.0, a.arg(5));
                 return NIL;
             }
         });
-        // g:atext(str, x, y, ax, ay) — anchored text (ax/ay 0..1 = which point of the text sits at x,y).
+        // g:atext(str, x, y, ax, ay [, opts]) — anchored text (ax/ay 0..1 = which point of the text sits at x,y).
+        // opts is the same F2 table as g:text (font = h, color = {r,g,b[,a]}); markup works identically.
         t.set("atext", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                d.atext(a.arg(2).tojstring(), Coord.of(a.arg(3).toint(), a.arg(4).toint()),
-                        a.arg(5).todouble(), a.arg(6).todouble());
+                drawText(d, a.arg(2).tojstring(), a.arg(3).toint(), a.arg(4).toint(),
+                         a.arg(5).todouble(), a.arg(6).todouble(), a.arg(7));
                 return NIL;
             }
         });
@@ -214,6 +257,78 @@ final class LuaGOut {
             }
         });
         return t;
+    }
+
+    /**
+     * The shared implementation of {@code g:text}/{@code g:atext} (F2). Resolves the font (per-call
+     * {@code opts.font} &rarr; the widget {@link #defFont} default &rarr; stock) and an optional colour tint, then:
+     * <ul>
+     *   <li><b>fast path</b> — no font and no {@code $} markup: the exact stock render ({@link GOut#atext}), which
+     *       already routes through the F1 {@code "default"} provider — zero behaviour change for existing addons;</li>
+     *   <li><b>rich path</b> — a font handle or {@code $}-markup: render through a {@link RichText.Foundry} (the
+     *       handle's cached one, or {@link #stockRich()}), so {@code $font[family,sz]{…}} and the other rich tags
+     *       resolve. Glyphs are WHITE; the colour (or a bare {@code g:color}) tints on blit.</li>
+     * </ul>
+     * A colour {@code opts.color} (else the handle's load-time colour) is applied as a temporary draw colour around
+     * the blit (saved/restored) so it composes exactly like {@code g:color}. Malformed markup falls back to the
+     * literal string via the fast path — never throwing into the render thread (the forgiving {@code g} contract).
+     */
+    private void drawText(GOut d, String str, int x, int y, double ax, double ay, LuaValue opts) {
+        if(str == null)
+            return;
+        boolean hasOpts = (opts != null) && opts.istable();
+        FontHandle fh = hasOpts ? FontHandle.resolve(opts.get("font")) : null;
+        if(fh == null)
+            fh = defFont;
+        Color col = null;
+        if(hasOpts) {
+            LuaValue cv = opts.get("color");
+            if(cv.istable())
+                col = AddonManager.luaColor(cv, null);
+        }
+        if((col == null) && (fh != null))
+            col = fh.color;
+        Coord c = Coord.of(x, y);
+
+        boolean markup = str.indexOf('$') >= 0;
+        if((fh == null) && !markup) {                      // fast path: stock text, optional tint
+            blitText(d, null, str, c, ax, ay, col);
+            return;
+        }
+        RichText.Foundry f = (fh != null) ? fh.rich(Text.std.font.getSize()) : stockRich();
+        Text t;
+        try {
+            t = f.render(str, 0);                          // width 0 = single line, no wrap ($font/$col/… honoured)
+        } catch(RuntimeException e) {                      // malformed markup ($/{}/\) → draw it literally, never throw
+            blitText(d, null, str, c, ax, ay, col);
+            return;
+        }
+        Tex T = t.tex();
+        try {
+            blitText(d, T, null, c, ax, ay, col);
+        } finally {
+            T.dispose();                                   // matches GOut.atext's render→tex→blit→dispose lifecycle
+        }
+    }
+
+    /**
+     * Blit either a pre-rendered {@link Tex} ({@code tex != null}) or a stock-rendered string ({@code str}) at
+     * {@code c} with anchor {@code ax,ay}, under an optional colour tint ({@code col}) saved/restored around the
+     * draw. The stock-string branch is the untouched {@link GOut#atext} path (F1 default provider).
+     */
+    private static void blitText(GOut d, Tex tex, String str, Coord c, double ax, double ay, Color col) {
+        Color save = (col != null) ? d.getcolor() : null;
+        if(col != null)
+            d.chcolor(col);
+        try {
+            if(tex != null)
+                d.aimage(tex, c, ax, ay);
+            else
+                d.atext(str, c, ax, ay);
+        } finally {
+            if(save != null)
+                d.chcolor(save);
+        }
     }
 
     /**

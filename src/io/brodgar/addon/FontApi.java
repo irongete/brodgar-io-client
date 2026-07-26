@@ -33,8 +33,10 @@ import static io.brodgar.addon.AddonManager.*;
  *       / {@code reset(scope)} / {@code scopes()}, driving the {@code haven}-reachable {@link Fonts} provider.
  *       Each override is <b>owner-tagged</b> and reverted on the addon's teardown ({@link #teardownFonts}) —
  *       the owned-resource model (spec 05).</li>
- *   <li><b>Own-widget application</b> (F2): a {@code font=} option on {@code hafen.ui.window}/{@code widget} and
- *       the {@code g:text} draw wrapper — built later; F1 is the foundation.</li>
+ *   <li><b>Own-widget application</b> (F2, shipped): a {@code font=} option on {@code hafen.ui.window}/{@code
+ *       widget} ({@link LuaWidget}) and a per-call {@code {font,color}} on the {@code g:text}/{@code g:atext} draw
+ *       wrapper ({@link LuaGOut}) + a custom TTF in the {@code $font[…]} rich-text tag (family AWT-registered at
+ *       {@code load}). Isolated — touches only the addon's own pixels; no global state, nothing to revert.</li>
  * </ul>
  * The Lua handle is facade-safe (no AWT {@code Font} crosses into Lua, D-017): a widget/scope stores the handle,
  * the bridge {@link FontHandle#resolve}s it back. Not instantiable.

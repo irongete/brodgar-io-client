@@ -50,6 +50,7 @@ import org.luaj.vm2.Varargs;
 public final class LuaWidget extends Widget implements DropTarget {
     private final Addon owner;
     private final LuaValue onDraw, onTick, onClick, onMouseUp, onMouseMove, onWheel, onDrop;
+    private final FontHandle defaultFont;          // F2: opts.font — the default font for this widget's g:text draws
     private final LuaGOut gwrap = new LuaGOut();   // the shared GOut draw wrapper `g`, bound per draw
     private Widget root = this;     // the widget to destroy on kill(): the window chrome, or this
     private boolean dead;           // set on teardown so a late tick/draw callback is a no-op
@@ -64,6 +65,7 @@ public final class LuaWidget extends Widget implements DropTarget {
         this.onMouseMove = fn(opts, "onMouseMove");
         this.onWheel     = fn(opts, "onWheel");
         this.onDrop      = fn(opts, "onDrop");
+        this.defaultFont = FontHandle.resolve(opts.get("font"));   // F2: nil/typo/non-handle => null (stock font)
     }
 
     /** An optional callback from the opts table, or {@code null} if the key is absent / not a function. */
@@ -100,7 +102,7 @@ public final class LuaWidget extends Widget implements DropTarget {
 
     public void draw(GOut g) {
         if(!dead && (onDraw != null)) {
-            LuaTable gt = gwrap.bind(g);
+            LuaTable gt = gwrap.bind(g, defaultFont);   // F2: g:text with no per-call font uses this widget's font=
             try {
                 AddonManager.callLua(owner, onDraw, gt, LuaValue.valueOf(sz.x), LuaValue.valueOf(sz.y));
             } finally {

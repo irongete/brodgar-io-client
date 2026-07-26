@@ -1,7 +1,12 @@
 package io.brodgar.addon;
 
+import haven.RichText;
+import haven.UI;
+
 import java.awt.Color;
 import java.awt.Font;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.luaj.vm2.LuaValue;
 
@@ -36,6 +41,14 @@ public final class FontHandle {
     final Color   color;   // or null = inherit the surface's stock default colour
     LuaValue handle;       // the Lua handle table (set by FontApi.fontHandle)
 
+    // F2 own-widget drawing (g:text / hafen.ui.window|widget{font=h}): a cached RichText.Foundry per effective
+    // px, so the per-frame draw wrapper does not rebuild one each call. Rendering through RichText (not a plain
+    // Text.Foundry) is what makes a $font[family,sz]{…} tag work in an addon's own text (the family was
+    // AWT-registered at load). Glyphs are rasterised WHITE (defcol) so the GOut draw colour / a per-call colour
+    // still tints on blit — the foundries stay colour-agnostic and cache well. Guarded by `this` (built on the
+    // UI/render thread). Lazily allocated (an addon may never draw with its font).
+    private Map<Integer, RichText.Foundry> richCache;
+
     FontHandle(Font font, Integer size, Boolean aa, Color color) {
         this.font = font;
         this.size = size;
@@ -46,6 +59,26 @@ public final class FontHandle {
     /** The AWT family name — what {@code h:family()} returns and what a {@code $font[family,sz]{…}} tag resolves by (F2). */
     String family() {
         return font.getFamily();
+    }
+
+    /**
+     * A cached {@link RichText.Foundry} for own-widget drawing (F2) at this handle's effective px — its own
+     * {@code size} (UI-scaled) if set, else the caller's {@code stockPx}. The base font carries this handle's
+     * family + bold/italic; a {@code $font[…]} tag overrides per run because the family was AWT-registered at
+     * {@code load}. Glyphs render WHITE so the GOut draw colour tints on blit (see the field note); {@code aa}
+     * follows the handle (default off, matching {@link haven.Text#std}). Immutable handle &rarr; the cache is
+     * stable and small (typically one entry).
+     */
+    synchronized RichText.Foundry rich(int stockPx) {
+        int px = (size != null) ? Math.round(UI.scale((float)size.intValue())) : stockPx;
+        if(richCache == null)
+            richCache = new HashMap<Integer, RichText.Foundry>();
+        RichText.Foundry f = richCache.get(px);
+        if(f == null) {
+            f = new RichText.Foundry(font.deriveFont((float)px), Color.WHITE).aa((aa != null) && aa.booleanValue());
+            richCache.put(px, f);
+        }
+        return f;
     }
 
     /**

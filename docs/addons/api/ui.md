@@ -20,6 +20,7 @@ send actions to the server; that is [`hafen.act`](actions.md).)
 | `pos` | `{x, y}` | initial position |
 | `parent` | `"root"` \| `"gameui"` | where to attach (default `"root"`) |
 | `title` | string | window title (windows only) |
+| `font` | [`FontHandle`](fonts.md) | default font for this widget's `g:text`/`g:atext` draws (F2; not the title bar) |
 | `onDraw` | `fn(g, w, h)` | draw the content — see [the `g` wrapper](#the-g-draw-wrapper) |
 | `onTick` | `fn(dt)` | per-frame update; `dt` = seconds |
 | `onClick` | `fn(x, y, button, mods)` | mouse press; return truthy to consume it |
@@ -233,8 +234,8 @@ point for a gob overlay). Methods are colon-calls.
 
 | Method | Description |
 |---|---|
-| `g:text(str, x, y)` | draw text at the top-left of `(x, y)` |
-| `g:atext(str, x, y, ax, ay)` | anchored text; `ax`/`ay` 0..1 pick which point of the text sits at `(x, y)` |
+| `g:text(str, x, y [, {font, color}])` | draw text at the top-left of `(x, y)`; optional per-call font/colour (F2) |
+| `g:atext(str, x, y, ax, ay [, {font, color}])` | anchored text; `ax`/`ay` 0..1 pick which point of the text sits at `(x, y)` |
 | `g:rect(x, y, w, h)` | one-pixel outline rectangle |
 | `g:frect(x, y, w, h)` | filled rectangle |
 | `g:line(x1, y1, x2, y2 [, width])` | a line (`width` default 1) |
@@ -252,3 +253,9 @@ the action a widget received from [`onDrop`](#windows--widgets) — use `g:resou
 resource **asynchronously and caches** it, and is **`Loading`-guarded** (draws nothing until the texture is
 ready, then blits the resource's default image layer). It draws the **static icon only** — no live sprite /
 cooldown sweep. A bad name simply draws nothing.
+
+**Text fonts (F2).** `g:text`/`g:atext` take an optional trailing `{ font = h, color = {r,g,b[,a]} }` — render
+one call in a [loaded font](fonts.md) and/or tint it. A widget's `font =` option supplies the default when a
+call gives none. The string may also carry rich-text markup — `$font[family,sz]{…}` (mix fonts on one line via
+`h:family()`), `$col`, `$b`, `$i`, `$u`, `$size`. Plain text with no font/markup is unchanged. See
+[`hafen.font`](fonts.md#draw-with-it--your-own-widgets-f2).
