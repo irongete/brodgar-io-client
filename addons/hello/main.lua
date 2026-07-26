@@ -99,6 +99,25 @@ hafen.events.on("OnLoad", function()
     :format(table.concat(blocked, ","), tostring(safe), tostring(ranExec)))
 end)
 
+-- N1: self-check hafen.json (parse/encode) — the JSON serializer, ungated (pure CPU), independent of the
+-- network. Encode a mixed Lua table to compact JSON and parse it straight back, proving: the round-trip
+-- (objects, a numeric array, a boolean, a float), the null->nil caveat (a JSON null yields an ABSENT key,
+-- not a false value), integer cleanliness ({"n":5} -> 5, not 5.0), and that malformed input raises a
+-- pcall-able error instead of crashing the addon. Logged so one login re-verifies the serializer too.
+hafen.events.on("OnLoad", function()
+  local src = { iron = 5, name = "ore", frac = 2.5, nums = { 10, 20, 30 }, flag = true }
+  local enc = hafen.json.encode(src)
+  local back = hafen.json.parse(enc)
+  local roundtrip = (back.iron == 5) and (back.name == "ore") and (back.frac == 2.5)
+    and (#back.nums == 3) and (back.nums[2] == 20) and (back.flag == true)
+  local nul = hafen.json.parse('{"a":1,"b":null}')
+  local nullhole = (nul.a == 1) and (nul.b == nil)                 -- JSON null -> absent key
+  local intclean = tostring(hafen.json.parse('{"n":5}').n) == "5"   -- integer, not "5.0"
+  local okParse = pcall(function() return hafen.json.parse("{bad}") end)   -- malformed -> error
+  hafen.log(("json: roundtrip=%s null->nil=%s int-clean=%s malformed-caught=%s enc=%s")
+    :format(tostring(roundtrip), tostring(nullhole), tostring(intclean), tostring(not okParse), enc))
+end)
+
 -- 1c-2: read the map/projection data at the player's position and log it with a tag. The grid, terrain
 -- height, and camera for the current spot stream in shortly AFTER entering the world, so right at
 -- OnEnterWorld these may be nil (the reads are Loading-guarded); we call this again after a short delay

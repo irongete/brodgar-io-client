@@ -64,8 +64,6 @@ import haven.resutil.Curiosity;
 
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
-import org.luaj.vm2.LuaNumber;
-import org.luaj.vm2.LuaString;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -3342,6 +3340,38 @@ public final class AddonManager {
             }
         });
 
+        // hafen.json — parse/encode JSON (N1 / D-036). Ungated (pure CPU), independent of the network.
+        // parse(str) -> Lua value: objects -> string-keyed tables, arrays -> 1-based tables; a JSON null
+        // becomes nil (an absent key in an object, a hole in an array — the standard Lua-JSON trade-off);
+        // integral numbers come back as Lua ints. Malformed input, or input over the size/depth caps
+        // (-Dhaven.addon.json.maxlen / .maxdepth), throws a pcall-able LuaError. encode(value) -> compact
+        // JSON and is STRICT (a function/userdata/thread, a reference cycle, or a non-finite number throws)
+        // so the result is always valid JSON — unlike the REPL echo's forgiving Json.write.
+        LuaTable json = new LuaTable();
+        json.set("parse", new OneArgFunction() {
+            public LuaValue call(LuaValue str) {
+                if(!str.isstring())
+                    throw new LuaError("hafen.json.parse(str) expects a string");
+                String s = str.tojstring();
+                if(s.length() > Json.MAX_INPUT)
+                    throw new LuaError("hafen.json.parse: input too large (" + s.length()
+                        + " > " + Json.MAX_INPUT + " chars)");
+                Object parsed;
+                try {
+                    parsed = Json.parse(s, Json.DEFAULT_MAX_DEPTH);
+                } catch(RuntimeException e) {
+                    throw new LuaError(e.getMessage());  // "JSON: <msg> at offset <n>" -> pcall-able
+                }
+                return LuaMarshal.jsonToLua(parsed);
+            }
+        });
+        json.set("encode", new OneArgFunction() {
+            public LuaValue call(LuaValue v) {
+                return LuaValue.valueOf(Json.write(v, true));   // strict: non-serializable -> LuaError
+            }
+        });
+        hafen.set("json", json);
+
         // hafen.events.on(name, fn) -> handle; handle:off() unsubscribes.
         LuaTable events = new LuaTable();
         events.set("on", new TwoArgFunction() {
@@ -6085,7 +6115,7 @@ public final class AddonManager {
             LuaValue v = a.store.get(sv.name);
             wrap.set(sv.name, v.istable() ? v : new LuaTable());
         }
-        return any ? json(wrap) : null;
+        return any ? Json.write(wrap) : null;
     }
 
     /** Does the addon declare at least one saved variable of the given scope? */
@@ -6096,41 +6126,22 @@ public final class AddonManager {
         return false;
     }
 
-    /** Convert a parsed-JSON value ({@link Json} shapes) to a Lua value (arrays → 1-based tables). */
-    private static LuaValue jsonToLua(Object o) {
-        if(o == null)
-            return LuaValue.NIL;
-        if(o instanceof Boolean)
-            return LuaValue.valueOf(((Boolean)o).booleanValue());
-        if(o instanceof Number)
-            return LuaValue.valueOf(((Number)o).doubleValue());
-        if(o instanceof String)
-            return LuaValue.valueOf((String)o);
-        if((o instanceof Map) || (o instanceof List)) {
-            LuaTable t = new LuaTable();
-            fillTable(t, o);
-            return t;
-        }
-        return LuaValue.NIL;                            // unknown type → drop
-    }
-
     /**
-     * Fill a Lua table from a parsed-JSON object (string keys) or array (1-based). Anything else is a
-     * no-op (so a missing/scalar value leaves the table empty). JSON nulls are skipped.
+     * Fill a Lua table <b>in place</b> from a parsed-JSON object (string keys) or array (1-based),
+     * delegating each value to the canonical {@link LuaMarshal#jsonToLua} marshal (D-013). Filling in
+     * place (rather than replacing the table) preserves the addon's cached {@code hafen.store} table
+     * reference. Anything but a Map/List is a no-op (a missing/scalar value leaves the table empty).
      */
     private static void fillTable(LuaTable t, Object o) {
         if(o instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> m = (Map<String, Object>)o;
-            for(Map.Entry<String, Object> e : m.entrySet()) {
-                LuaValue v = jsonToLua(e.getValue());
-                if(!v.isnil())
-                    t.set(e.getKey(), v);
-            }
+            for(Map.Entry<String, Object> e : m.entrySet())
+                t.set(e.getKey(), LuaMarshal.jsonToLua(e.getValue()));   // null value → absent key
         } else if(o instanceof List) {
             int i = 1;
             for(Object e : (List<?>)o)
-                t.set(i++, jsonToLua(e));               // our writes never put null in an array (no holes)
+                t.set(i++, LuaMarshal.jsonToLua(e));    // our writes never put null in an array (no holes)
         }
     }
 
@@ -6241,7 +6252,7 @@ public final class AddonManager {
             Sandbox.arm(consoleOwner.env);   // watchdog the console too (e.g. a stray `while true do end`)
             LuaValue r = chunk.call();
             if(!r.isnil()) {
-                String out = "lua= " + json(r);
+                String out = "lua= " + Json.write(r);
                 System.out.println("[console] " + out);            // full result to the terminal...
                 if(u != null)
                     u.msg(clampMsg(out));                          // ...clamped in-game (a huge one-line result crashes the text renderer)
@@ -8551,99 +8562,7 @@ public final class AddonManager {
         }
     }
 
-    // -------------------------------------------------- compact JSON for the REPL (copy-friendly)
-
-    /** Serialize a Lua value to compact single-line JSON so console output is inspectable/copyable. */
-    private static String json(LuaValue v) {
-        StringBuilder sb = new StringBuilder();
-        json(v, sb, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()));
-        return sb.toString();
-    }
-
-    private static void json(LuaValue v, StringBuilder sb, java.util.Set<LuaValue> seen) {
-        if(v.isnil()) {
-            sb.append("null");
-        } else if(v.isboolean()) {
-            sb.append(v.toboolean() ? "true" : "false");
-        } else if(v instanceof LuaNumber) {
-            double d = v.todouble();
-            if(!Double.isFinite(d))
-                sb.append("null");                       // JSON has no NaN/Infinity
-            else if((d == Math.rint(d)) && (Math.abs(d) < 1e15))
-                sb.append(Long.toString((long)d));       // clean integers (no trailing .0)
-            else
-                sb.append(Double.toString(d));
-        } else if(v instanceof LuaString) {
-            jsonstr(v.tojstring(), sb);
-        } else if(v instanceof LuaTable) {
-            jsontab((LuaTable)v, sb, seen);
-        } else {
-            jsonstr(v.tojstring(), sb);                  // function/userdata/thread → quoted tostring
-        }
-    }
-
-    private static void jsontab(LuaTable t, StringBuilder sb, java.util.Set<LuaValue> seen) {
-        if(!seen.add(t)) {                               // break reference cycles
-            sb.append("\"<cycle>\"");
-            return;
-        }
-        try {
-            LuaValue[] keys = t.keys();
-            int len = t.length();
-            boolean array = (keys.length == len);
-            if(array) {
-                for(LuaValue k : keys) {
-                    if(!k.isint() || (k.toint() < 1) || (k.toint() > len)) {
-                        array = false;
-                        break;
-                    }
-                }
-            }
-            if(array) {
-                sb.append('[');
-                for(int i = 1; i <= len; i++) {
-                    if(i > 1)
-                        sb.append(',');
-                    json(t.get(i), sb, seen);
-                }
-                sb.append(']');
-            } else {
-                sb.append('{');
-                boolean first = true;
-                for(LuaValue k : keys) {
-                    if(!first)
-                        sb.append(',');
-                    first = false;
-                    jsonstr(k.tojstring(), sb);           // JSON keys are strings
-                    sb.append(':');
-                    json(t.get(k), sb, seen);
-                }
-                sb.append('}');
-            }
-        } finally {
-            seen.remove(t);
-        }
-    }
-
-    private static void jsonstr(String s, StringBuilder sb) {
-        sb.append('"');
-        for(int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch(c) {
-            case '"':  sb.append("\\\""); break;
-            case '\\': sb.append("\\\\"); break;
-            case '\n': sb.append("\\n"); break;
-            case '\r': sb.append("\\r"); break;
-            case '\t': sb.append("\\t"); break;
-            case '\b': sb.append("\\b"); break;
-            case '\f': sb.append("\\f"); break;
-            default:
-                if(c < 0x20)
-                    sb.append(String.format("\\u%04x", (int)c));
-                else
-                    sb.append(c);
-            }
-        }
-        sb.append('"');
-    }
+    // -------------------------------------------------- compact JSON
+    // The serializer moved to Json.write (N1/D-013): one canonical writer shared by the REPL echo,
+    // hafen.store persistence, and hafen.json.encode. See io.brodgar.addon.Json.
 }

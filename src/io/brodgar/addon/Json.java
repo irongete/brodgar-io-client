@@ -5,25 +5,58 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaNumber;
+import org.luaj.vm2.LuaString;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+
 /**
- * Minimal, dependency-free JSON reader (Phase 1: addon manifests and saved variables — see
- * {@code specs/addons/decisions.md} D-016). The compact JSON *writer* lives in
- * {@link AddonManager} (the {@code :lua} REPL); this is the matching reader.
+ * Minimal, dependency-free JSON <b>reader + writer</b> for the addon layer (D-016/D-013). The reader
+ * ({@link #parse}) backs manifests, saved variables, and {@code hafen.json.parse}; the writer
+ * ({@link #write}) backs the {@code :lua} REPL echo, {@code hafen.store} persistence, and
+ * {@code hafen.json.encode}. Reader and writer live together so there is <b>one canonical serializer</b>
+ * (no drift) — the shared-{@code LuaGOut}/{@code readEquipment}/{@code LuaMarshal} pattern. The writer
+ * moved here from {@code AddonManager} in task N1 (spec {@code 19-data-and-network.md} §2.3).
  *
- * <p>{@link #parse} returns plain Java values: {@link Map} (object, insertion-ordered),
- * {@link List} (array), {@link String}, {@link Double} (any number), {@link Boolean}, or
- * {@code null}. Malformed input throws a {@link RuntimeException} with an offset.
+ * <p><b>Reader.</b> {@link #parse} returns plain Java values: {@link Map} (object, insertion-ordered),
+ * {@link List} (array), {@link String}, {@link Double} (any number), {@link Boolean}, or {@code null}.
+ * Malformed input throws a {@link RuntimeException} with an offset. Because the grammar is recursive
+ * (object&rarr;value&rarr;object&hellip;), a hostile deeply-nested document could {@code StackOverflow};
+ * a <b>max-depth</b> guard ({@link #DEFAULT_MAX_DEPTH}, {@code -Dhaven.addon.json.maxdepth}) fails with a
+ * clear error first ({@link Json.parse(String,int)}). The <b>input-length</b> cap
+ * ({@code hafen.json.MAX_INPUT}, {@code -Dhaven.addon.json.maxlen}) is enforced by the {@code hafen.json}
+ * bridge before parsing.
+ *
+ * <p><b>Writer.</b> {@link #write(LuaValue)} is <i>forgiving</i> (a function/userdata/thread &rarr; a
+ * quoted {@code tostring}, a cycle &rarr; {@code "<cycle>"}) — the REPL/store behaviour; {@link
+ * #write(LuaValue,boolean) write(v,true)} is <i>strict</i> — those cases throw a {@link LuaError} so the
+ * public {@code hafen.json.encode} only ever yields valid JSON.
  */
 public final class Json {
-    private final String s;
-    private int i;
+    /** Input-length cap for {@code hafen.json.parse} (bytes of the string), {@code -Dhaven.addon.json.maxlen}. */
+    public static final int MAX_INPUT = (int)propLong("haven.addon.json.maxlen", 8L * 1024 * 1024);
+    /** Nesting-depth cap used by {@code hafen.json.parse} and the default {@link #parse(String)}. */
+    public static final int DEFAULT_MAX_DEPTH = (int)propLong("haven.addon.json.maxdepth", 256L);
 
-    private Json(String s) {
+    private final String s;
+    private final int maxDepth;
+    private int i;
+    private int depth;
+
+    private Json(String s, int maxDepth) {
         this.s = s;
+        this.maxDepth = maxDepth;
     }
 
+    /** Parse with the default depth cap ({@link #DEFAULT_MAX_DEPTH}) — used by manifests/saved vars. */
     public static Object parse(String text) {
-        Json j = new Json(text);
+        return parse(text, DEFAULT_MAX_DEPTH);
+    }
+
+    /** Parse, failing with a clear error past {@code maxDepth} levels of nesting (hostile-input guard). */
+    public static Object parse(String text, int maxDepth) {
+        Json j = new Json(text, maxDepth);
         j.ws();
         Object v = j.value();
         j.ws();
@@ -49,9 +82,10 @@ public final class Json {
     }
 
     private Map<String, Object> object() {
+        if(++depth > maxDepth) throw err("nesting too deep (> " + maxDepth + ")");
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         i++; ws();                                  // consume '{'
-        if(peek() == '}') { i++; return m; }
+        if(peek() == '}') { i++; depth--; return m; }
         while(true) {
             ws();
             if(peek() != '"') throw err("expected string key");
@@ -63,22 +97,23 @@ public final class Json {
             ws();
             char c = peek();
             if(c == ',') { i++; continue; }
-            if(c == '}') { i++; return m; }
+            if(c == '}') { i++; depth--; return m; }
             throw err("expected ',' or '}'");
         }
     }
 
     private List<Object> array() {
+        if(++depth > maxDepth) throw err("nesting too deep (> " + maxDepth + ")");
         List<Object> a = new ArrayList<Object>();
         i++; ws();                                  // consume '['
-        if(peek() == ']') { i++; return a; }
+        if(peek() == ']') { i++; depth--; return a; }
         while(true) {
             ws();
             a.add(value());
             ws();
             char c = peek();
             if(c == ',') { i++; continue; }
-            if(c == ']') { i++; return a; }
+            if(c == ']') { i++; depth--; return a; }
             throw err("expected ',' or ']'");
         }
     }
@@ -151,5 +186,127 @@ public final class Json {
 
     private RuntimeException err(String msg) {
         return new RuntimeException("JSON: " + msg + " at offset " + i);
+    }
+
+    private static long propLong(String name, long def) {
+        try {
+            String v = haven.Utils.getprop(name, null);
+            return (v == null) ? def : Long.parseLong(v.trim());
+        } catch(RuntimeException e) {
+            return def;
+        }
+    }
+
+    // -------------------------------------------------- writer (moved from AddonManager, N1/D-013)
+
+    /** Serialize a Lua value to compact single-line JSON, <b>forgiving</b> (REPL/store echo). */
+    public static String write(LuaValue v) {
+        return write(v, false);
+    }
+
+    /**
+     * Serialize a Lua value to compact single-line JSON. When {@code strict}, a non-serializable value
+     * (function/userdata/thread), a reference cycle, or a non-finite number throws a {@link LuaError}
+     * (so {@code hafen.json.encode} only emits valid JSON); when not strict, those degrade to a quoted
+     * {@code tostring} / {@code "<cycle>"} / {@code null} (the REPL's copy-friendly echo).
+     */
+    public static String write(LuaValue v, boolean strict) {
+        StringBuilder sb = new StringBuilder();
+        write(v, sb, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<LuaValue, Boolean>()), strict);
+        return sb.toString();
+    }
+
+    private static void write(LuaValue v, StringBuilder sb, java.util.Set<LuaValue> seen, boolean strict) {
+        if(v.isnil()) {
+            sb.append("null");
+        } else if(v.isboolean()) {
+            sb.append(v.toboolean() ? "true" : "false");
+        } else if(v instanceof LuaNumber) {
+            double d = v.todouble();
+            if(!Double.isFinite(d)) {
+                if(strict)
+                    throw new LuaError("hafen.json.encode: cannot encode a non-finite number");
+                sb.append("null");                       // JSON has no NaN/Infinity
+            } else if((d == Math.rint(d)) && (Math.abs(d) < 1e15)) {
+                sb.append(Long.toString((long)d));       // clean integers (no trailing .0)
+            } else {
+                sb.append(Double.toString(d));
+            }
+        } else if(v instanceof LuaString) {
+            writeStr(v.tojstring(), sb);
+        } else if(v instanceof LuaTable) {
+            writeTab((LuaTable)v, sb, seen, strict);
+        } else if(strict) {
+            throw new LuaError("hafen.json.encode: cannot encode a " + v.typename());
+        } else {
+            writeStr(v.tojstring(), sb);                 // function/userdata/thread → quoted tostring
+        }
+    }
+
+    private static void writeTab(LuaTable t, StringBuilder sb, java.util.Set<LuaValue> seen, boolean strict) {
+        if(!seen.add(t)) {                               // break reference cycles
+            if(strict)
+                throw new LuaError("hafen.json.encode: cannot encode a table cycle");
+            sb.append("\"<cycle>\"");
+            return;
+        }
+        try {
+            LuaValue[] keys = t.keys();
+            int len = t.length();
+            boolean array = (keys.length == len);
+            if(array) {
+                for(LuaValue k : keys) {
+                    if(!k.isint() || (k.toint() < 1) || (k.toint() > len)) {
+                        array = false;
+                        break;
+                    }
+                }
+            }
+            if(array) {
+                sb.append('[');
+                for(int i = 1; i <= len; i++) {
+                    if(i > 1)
+                        sb.append(',');
+                    write(t.get(i), sb, seen, strict);
+                }
+                sb.append(']');
+            } else {
+                sb.append('{');
+                boolean first = true;
+                for(LuaValue k : keys) {
+                    if(!first)
+                        sb.append(',');
+                    first = false;
+                    writeStr(k.tojstring(), sb);          // JSON keys are strings
+                    sb.append(':');
+                    write(t.get(k), sb, seen, strict);
+                }
+                sb.append('}');
+            }
+        } finally {
+            seen.remove(t);
+        }
+    }
+
+    private static void writeStr(String s, StringBuilder sb) {
+        sb.append('"');
+        for(int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch(c) {
+            case '"':  sb.append("\\\""); break;
+            case '\\': sb.append("\\\\"); break;
+            case '\n': sb.append("\\n"); break;
+            case '\r': sb.append("\\r"); break;
+            case '\t': sb.append("\\t"); break;
+            case '\b': sb.append("\\b"); break;
+            case '\f': sb.append("\\f"); break;
+            default:
+                if(c < 0x20)
+                    sb.append(String.format("\\u%04x", (int)c));
+                else
+                    sb.append(c);
+            }
+        }
+        sb.append('"');
     }
 }

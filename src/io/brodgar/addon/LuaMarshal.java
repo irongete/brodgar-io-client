@@ -2,6 +2,9 @@ package io.brodgar.addon;
 
 import haven.Coord;
 
+import java.util.List;
+import java.util.Map;
+
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaInteger;
 import org.luaj.vm2.LuaTable;
@@ -58,6 +61,47 @@ final class LuaMarshal {
             return t;
         }
         return LuaValue.userdataOf(o);                // opaque round-trip
+    }
+
+    /**
+     * Convert a parsed-JSON value ({@link Json#parse} shapes: {@link Map}/{@link List}/{@link String}/
+     * {@link Double}/{@link Boolean}/{@code null}) to a Lua value — the one canonical JSON&rarr;Lua
+     * marshal (D-013), shared by {@code hafen.store} restore and {@code hafen.json.parse}. Objects
+     * become string-keyed tables; arrays become 1-based tables; an integral number within Lua's int
+     * range is returned as an int (so {@code {"n":5}} &rarr; {@code 5}, not {@code 5.0}). A JSON
+     * {@code null} maps to {@code nil}: inside an object it yields an <b>absent key</b>, inside an array
+     * a <b>hole</b> (the index still advances) — {@code nil} cannot be a live table value in Lua, so this
+     * is the standard, documented Lua-JSON trade-off (no {@code json.null} sentinel).
+     */
+    static LuaValue jsonToLua(Object o) {
+        if(o == null)
+            return LuaValue.NIL;
+        if(o instanceof Boolean)
+            return LuaValue.valueOf(((Boolean)o).booleanValue());
+        if(o instanceof Number) {
+            double d = ((Number)o).doubleValue();
+            if((d == Math.rint(d)) && (d >= Integer.MIN_VALUE) && (d <= Integer.MAX_VALUE))
+                return LuaValue.valueOf((int)d);           // integral → Lua int (clean round-trip / value semantics)
+            return LuaValue.valueOf(d);
+        }
+        if(o instanceof String)
+            return LuaValue.valueOf((String)o);
+        if(o instanceof Map) {
+            LuaTable t = new LuaTable();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> m = (Map<String, Object>)o;
+            for(Map.Entry<String, Object> e : m.entrySet())
+                t.set(e.getKey(), jsonToLua(e.getValue()));  // null value → set(k, NIL) = absent key
+            return t;
+        }
+        if(o instanceof List) {
+            LuaTable t = new LuaTable();
+            int i = 1;
+            for(Object e : (List<?>)o)
+                t.set(i++, jsonToLua(e));                    // null → set(i, NIL) = a hole; index still advances
+            return t;
+        }
+        return LuaValue.NIL;                                  // unknown type → drop
     }
 
     /**
