@@ -5,6 +5,7 @@ import haven.CheckBox;
 import haven.Coord;
 import haven.Label;
 import haven.OptWnd;
+import haven.RichText;
 import haven.Scrollport;
 import haven.UI;
 import haven.Widget;
@@ -164,7 +165,11 @@ public class AddonPanel extends OptWnd.Panel {
                 tip.append("Network hosts: ").append(String.join(", ", ai.networkHosts));
             }
             if(tip.length() > 0)
-                nm.settip(tip.toString(), false);
+                // WRAP the tooltip: rich mode caps the wrap width at UI.scale(300). settip(_, false) renders it on
+                // ONE unwrapped line, so a long addon description becomes a texture wider than GL_MAX_TEXTURE_SIZE
+                // and the GL upload fails (GL_INVALID_VALUE 1281 -> crashes the render thread on hover). quote()
+                // escapes RichText's $ { } so the description stays literal (descriptions are full of { } [ ] tokens).
+                nm.settip(RichText.Parser.quote(tip.toString()), true);
             status = add(new Label(""), UI.scale(new Coord(200, 3)));
             this.id = rid;
             refresh();
