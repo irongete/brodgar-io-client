@@ -68,6 +68,7 @@ events are in [events](events.md).
 | [`hafen.timer`](timer.md) | schedule one-shot / repeating callbacks |
 | [`hafen.store`](store.md) | saved variables (persistent storage) |
 | [`hafen.json`](json.md) | parse / encode JSON |
+| [`hafen.http`](http.md) | external HTTP requests (gated by a `network` allowlist) |
 | [`hafen.slash`](console.md) | console (`:name`) commands |
 | [`hafen.log`](console.md#hafenlog--logging) | logging |
 

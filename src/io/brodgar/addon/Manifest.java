@@ -25,10 +25,47 @@ public final class Manifest {
      * ({@code "actions.move"}, {@code "actions.items"}, …) without a format change.
      */
     public final List<String> permissions;
+    /**
+     * The {@code network} block's host allowlist (N2a / D-037): the hosts this addon may reach via
+     * {@code hafen.http.*}. A capability-with-config gets its own manifest block (like {@code saved_variables}),
+     * not a bare {@code permissions[]} string, because the declaration IS the allowlist. Lower-cased; empty ⇒
+     * no {@code network} block ⇒ the addon has no network access. Entries may be an exact host or a
+     * {@code *.domain} sub-domain wildcard; the special token {@code "*"} (used only by the internal REPL owner)
+     * matches any host. See {@link #usesNetwork()} / {@link #hostAllowed(String)}.
+     */
+    public final List<String> network;
 
     /** Whether this addon declared the {@code "actions"} (write/automation) permission — see D-027. */
     public boolean usesActions() {
         return permissions.contains("actions");
+    }
+
+    /** Whether this addon declared a non-empty {@code network} block (grants gated {@code hafen.http}) — D-037. */
+    public boolean usesNetwork() {
+        return !network.isEmpty();
+    }
+
+    /**
+     * Whether {@code host} is permitted by this addon's {@code network} allowlist (D-037): a case-insensitive
+     * exact match, a {@code *.domain} wildcard (matching sub-domains, <b>not</b> the apex — {@code *.example.com}
+     * matches {@code a.example.com} but not {@code example.com}), or the internal-owner {@code "*"} allow-all.
+     */
+    public boolean hostAllowed(String host) {
+        if((host == null) || host.isEmpty())
+            return false;
+        String h = host.toLowerCase(java.util.Locale.ROOT);
+        for(String pat : network) {
+            if(pat.equals("*"))
+                return true;                                   // REPL / internal owner: any host
+            if(pat.startsWith("*.")) {
+                String suffix = pat.substring(1);              // ".example.com"
+                if(h.endsWith(suffix) && (h.length() > suffix.length()))
+                    return true;
+            } else if(pat.equals(h)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -50,7 +87,7 @@ public final class Manifest {
     private Manifest(String id, String name, String version, String author, String description,
                      int apiVersion, List<String> files, List<String> dependencies,
                      List<String> optionalDependencies, List<SavedVar> savedVariables,
-                     List<String> permissions) {
+                     List<String> permissions, List<String> network) {
         this.id = id;
         this.name = name;
         this.version = version;
@@ -62,6 +99,7 @@ public final class Manifest {
         this.optionalDependencies = optionalDependencies;
         this.savedVariables = savedVariables;
         this.permissions = permissions;
+        this.network = network;
     }
 
     /**
@@ -74,7 +112,9 @@ public final class Manifest {
         // The engine-internal owner (the :lua REPL) is the trusted operator console → it declares every
         // permission, so its hafen.act.* verbs are granted (D-027; D-028 — per-addon, no global switch).
         List<String> allperms = Collections.singletonList("actions");
-        return new Manifest(id, id, "0", "brodgar", "engine-internal owner", 1, none, none, none, novars, allperms);
+        // The REPL is the trusted operator console → allow-all network too (private IPs stay blocked).
+        List<String> allnet = Collections.singletonList("*");
+        return new Manifest(id, id, "0", "brodgar", "engine-internal owner", 1, none, none, none, novars, allperms, allnet);
     }
 
     /** Read and validate {@code <dir>/manifest.json}. Throws with a clear message on any problem. */
@@ -101,7 +141,35 @@ public final class Manifest {
                             str(m, "version", false), str(m, "author", false),
                             str(m, "description", false), intv(m, "api_version", 1),
                             files, strlist(m, "dependencies"), strlist(m, "optional_dependencies"),
-                            savedvars(m), strlist(m, "permissions"));
+                            savedvars(m), strlist(m, "permissions"), networkhosts(m));
+    }
+
+    /**
+     * Parse the {@code network} block (D-037): an object with a {@code hosts} array of allowlisted host
+     * patterns (exact or {@code *.domain}). Absent block ⇒ no network. Host patterns are lower-cased; the
+     * {@code "*"} allow-all is reserved for the internal owner and rejected here (a disk manifest must list
+     * concrete hosts, so a third-party addon cannot grant itself the whole internet).
+     */
+    private static List<String> networkhosts(Map<String, Object> m) {
+        List<String> out = new ArrayList<String>();
+        Object v = m.get("network");
+        if(v == null) return out;
+        if(!(v instanceof Map)) throw new IllegalArgumentException("'network' must be an object with a 'hosts' array");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> net = (Map<String, Object>)v;
+        Object h = net.get("hosts");
+        if(h == null) return out;
+        if(!(h instanceof List)) throw new IllegalArgumentException("'network.hosts' must be an array of host strings");
+        for(Object o : (List<?>)h) {
+            if(!(o instanceof String))
+                throw new IllegalArgumentException("'network.hosts' entries must be strings");
+            String host = ((String)o).trim().toLowerCase(java.util.Locale.ROOT);
+            if(host.isEmpty()) continue;
+            if(host.equals("*"))
+                throw new IllegalArgumentException("'network.hosts' may not contain \"*\" (list concrete hosts or *.domain)");
+            out.add(host);
+        }
+        return out;
     }
 
     /**

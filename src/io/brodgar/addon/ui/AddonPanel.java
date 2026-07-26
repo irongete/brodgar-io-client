@@ -151,10 +151,20 @@ public class AddonPanel extends OptWnd.Panel {
             String meta = ai.name
                 + ((ai.version != null) ? ("  v" + ai.version) : "")
                 + ((ai.author != null) ? ("  " + ai.author) : "")
-                + (ai.declaresActions ? "  [actions]" : "");   // D-027: this addon can drive the character (gated)
+                + (ai.declaresActions ? "  [actions]" : "")    // D-027: this addon can drive the character (gated)
+                + (ai.declaresNetwork() ? "  [net]" : "");     // D-037: this addon can reach the declared hosts
             Label nm = add(new Label(meta), UI.scale(new Coord(22, 3)));
+            // Tooltip: the description plus, for a network addon, exactly which hosts it may reach (§5.3) — the
+            // user sees the servers it talks to BEFORE enabling it.
+            StringBuilder tip = new StringBuilder();
             if(ai.description != null)
-                nm.settip(ai.description, false);
+                tip.append(ai.description);
+            if(ai.declaresNetwork()) {
+                if(tip.length() > 0) tip.append("\n\n");
+                tip.append("Network hosts: ").append(String.join(", ", ai.networkHosts));
+            }
+            if(tip.length() > 0)
+                nm.settip(tip.toString(), false);
             status = add(new Label(""), UI.scale(new Coord(200, 3)));
             this.id = rid;
             refresh();

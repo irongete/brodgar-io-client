@@ -183,6 +183,16 @@ public final class Addon {
      * mid-drag drops the {@code UI.Grab} and unlinks the widget, leaking nothing. Copy-on-write: releasing removes.
      */
     public final List<LuaMouseGrab> mouseGrabs = new CopyOnWriteArrayList<LuaMouseGrab>();
+    /**
+     * Live in-flight HTTP requests owned by this addon ({@code hafen.http.get}/{@code post}, N2a): each is a
+     * {@link LuaHttpRequest} submitted to {@link AddonManager}'s shared bounded pool, whose result is drained on
+     * the tick and delivered to the request's callback (the gob-delta async pattern). Bridge-owned like every
+     * other owned resource; teardown ({@link AddonManager#teardownRequests}) marks each dead so a
+     * {@code :reload}/disable/relogin cancels any in-flight request — its pool result is discarded on drain and
+     * the callback never fires (D-037 §3.3). Copy-on-write: the drain removes a completed request while a
+     * firing callback may start another.
+     */
+    public final List<LuaHttpRequest> requests = new CopyOnWriteArrayList<LuaHttpRequest>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per
