@@ -217,7 +217,7 @@
 
   <target name="deftgt" depends="jars, opt/panama, bin" />
 
-  <target name="run" depends="bin">
+  <target name="run" depends="deftgt">
     <condition property="jogl-exports">
       <javaversion atleast="16" />
     </condition>
