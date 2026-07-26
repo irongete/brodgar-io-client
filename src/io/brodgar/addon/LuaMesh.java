@@ -24,7 +24,7 @@ import org.luaj.vm2.LuaValue;
  * {@link haven.render.Model}s from it ({@link MeshSprite}). In R3b the mesh also owns the <b>shared base-colour
  * textures</b> ({@link #textures} — one {@link TexI} per referenced glTF image, decoded once and referenced by every
  * primitive/object that uses it): these are the first GPU state a mesh holds, so {@code :dispose()} / teardown
- * ({@link AddonManager#teardownMeshes}) now disposes each {@code TexI} in addition to marking it {@link #dead} (a
+ * ({@link RenderApi#teardownMeshes}) now disposes each {@code TexI} in addition to marking it {@link #dead} (a
  * later {@code render.object} on a disposed handle errors). Teardown order guarantees safety: {@code teardownObjects}
  * (frees each object's own {@code Model}s) runs <b>before</b> {@code teardownMeshes} (frees the shared textures), so a
  * live object never references a freed texture. (Consequently, unlike R3a, calling {@code mesh:dispose()} <b>while an

@@ -24,7 +24,7 @@ import org.luaj.vm2.LuaValue;
  *
  * <p><b>Ownership (P2).</b> Bridge-owned: it lives only in the addon's owned-resource registry
  * ({@link Addon#images}). {@code :dispose()} / {@code OnDisable} / {@code :reload} / relogin teardown
- * ({@link AddonManager#teardownImages}) frees its GPU texture ({@link TexI#dispose()}) and drops it from the
+ * ({@link RenderApi#teardownImages}) frees its GPU texture ({@link TexI#dispose()}) and drops it from the
  * registry, leaking no GL resource — the same guarantee as windows, overlays, and ghosts. The {@link #dead}
  * flag makes any later {@code g:image} a clean no-op, so a disposed image never resurrects its texture via
  * {@code TexI.st()}'s lazy re-upload.

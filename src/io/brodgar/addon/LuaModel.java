@@ -40,7 +40,7 @@ import java.util.Map;
  *
  * <p><b>Ownership (P2).</b> The model is bridge-owned: it lives in a flat global list (polled each tick by
  * {@link AddonManager#pollModels}) plus the addon's owned-resource registry ({@link Addon#models}). It is dropped
- * when the server destroys the widget or when the addon is reloaded/disabled; {@link AddonManager#teardownModels}
+ * when the server destroys the widget or when the addon is reloaded/disabled; {@link UiApi#teardownModels}
  * additionally <b>un-hides</b> a widget the addon had hidden, so disabling a UI-replacement addon restores the
  * stock window (spec 08). The {@link #alive} flag makes any late handle call or poll a no-op after that.
  *

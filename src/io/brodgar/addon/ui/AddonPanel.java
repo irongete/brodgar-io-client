@@ -9,8 +9,8 @@ import haven.Scrollport;
 import haven.UI;
 import haven.Widget;
 
-import io.brodgar.addon.AddonManager;
-import io.brodgar.addon.AddonManager.AddonInfo;
+import io.brodgar.addon.AddonRegistry;
+import io.brodgar.addon.AddonRegistry.AddonInfo;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +35,7 @@ import java.util.List;
  * {@link CheckBox}, {@link Button}, {@link Label}) is a public {@code haven} type. It holds <b>no</b>
  * listener or subscription — it polls the facade in {@link #tick(double)} — so there is nothing to leak
  * when it closes. Rows are rebuilt when a reload changes the addon set (watched via
- * {@link AddonManager#reloadGen()}); the per-row status is refreshed cheaply each frame.
+ * {@link AddonRegistry#reloadGen()}); the per-row status is refreshed cheaply each frame.
  */
 public class AddonPanel extends OptWnd.Panel {
     private final Scrollport list;
@@ -55,30 +55,30 @@ public class AddonPanel extends OptWnd.Panel {
             prev.pos("bl").adds(0, 2));
         list = add(new Scrollport(UI.scale(new Coord(360, 220))), prev.pos("bl").adds(0, 8));
         hint = add(new Label(""), list.pos("bl").adds(0, 6));
-        Button reload = add(new Button(UI.scale(120), "Reload UI", false).action(AddonManager::requestReload),
+        Button reload = add(new Button(UI.scale(120), "Reload UI", false).action(AddonRegistry::requestReload),
                             hint.pos("bl").adds(0, 8));
         add(new Button(UI.scale(110), "Enable all", false).action(this::enableAll), reload.pos("ur").adds(8, 0));
-        add(new Button(UI.scale(170), "Open addons folder", false).action(AddonManager::openAddonsFolder),
+        add(new Button(UI.scale(170), "Open addons folder", false).action(AddonRegistry::openAddonsFolder),
             reload.pos("ur").adds(8, 0).add(UI.scale(118), 0));
         add(opt.new PButton(UI.scale(200), "Back", 27, back), reload.pos("bl").adds(0, 8));
         rebuild();
         pack();
     }
 
-    /** (Re)build the row list from {@link AddonManager#describeAddons()} (reads manifests from disk). */
+    /** (Re)build the row list from {@link AddonRegistry#describeAddons()} (reads manifests from disk). */
     private void rebuild() {
         for(Row r : rows)
             r.destroy();
         rows.clear();
         int y = 0;
-        for(AddonInfo ai : AddonManager.describeAddons()) {
+        for(AddonInfo ai : AddonRegistry.describeAddons()) {
             Row r = list.cont.add(new Row(ai), new Coord(0, y));
             rows.add(r);
             y += r.sz.y + UI.scale(2);
         }
         if(rows.isEmpty())
             list.cont.add(new Label("No addons found."), new Coord(0, 0));
-        builtGen = AddonManager.reloadGen();
+        builtGen = AddonRegistry.reloadGen();
     }
 
     /**
@@ -88,9 +88,9 @@ public class AddonPanel extends OptWnd.Panel {
      * one on without the user knowingly consenting to it.
      */
     private void enableAll() {
-        for(AddonInfo ai : AddonManager.describeAddons())
+        for(AddonInfo ai : AddonRegistry.describeAddons())
             if(!ai.declaresActions)
-                AddonManager.setEnabled(ai.id, true);
+                AddonRegistry.setEnabled(ai.id, true);
         rebuild();
     }
 
@@ -105,16 +105,16 @@ public class AddonPanel extends OptWnd.Panel {
     private void confirmEnableActions(String id, String name) {
         if((consent != null) && (consent.parent != null))
             return;
-        consent = ui.root.adda(new ActionsConsentWnd(name, () -> { AddonManager.setEnabled(id, true); rebuild(); }),
+        consent = ui.root.adda(new ActionsConsentWnd(name, () -> { AddonRegistry.setEnabled(id, true); rebuild(); }),
                                ui.root.sz.div(2), 0.5, 0.5);
         consent.raise();
     }
 
     public void tick(double dt) {
         super.tick(dt);
-        if(AddonManager.reloadGen() != builtGen)   // a :reload / Reload UI rebuilt the addon layer
+        if(AddonRegistry.reloadGen() != builtGen)   // a :reload / Reload UI rebuilt the addon layer
             rebuild();
-        hint.settext(AddonManager.reloadNeeded() ? "Changes pending - Reload UI to apply." : "");
+        hint.settext(AddonRegistry.reloadNeeded() ? "Changes pending - Reload UI to apply." : "");
         // The consent dialog (4c) is a top-level ui.root window, so close it explicitly once this panel
         // leaves the screen (switched away via Back, or Options hidden) — a floating dialog would otherwise
         // linger with no context. This panel keeps ticking while hidden (invisible widgets still tick), and
@@ -143,7 +143,7 @@ public class AddonPanel extends OptWnd.Panel {
                             // fall straight through with no prompt.
                             confirmEnableActions(rid, aname);
                         } else {
-                            AddonManager.setEnabled(rid, v);
+                            AddonRegistry.setEnabled(rid, v);
                             a = v;
                         }
                     }
@@ -171,7 +171,7 @@ public class AddonPanel extends OptWnd.Panel {
         }
 
         private void refresh() {
-            status.settext(AddonManager.liveStatus(id));
+            status.settext(AddonRegistry.liveStatus(id));
         }
 
         public void tick(double dt) {

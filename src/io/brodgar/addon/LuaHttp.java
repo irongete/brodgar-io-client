@@ -20,9 +20,9 @@ import java.util.Set;
 
 /**
  * The blocking-I/O worker + security checks behind {@code hafen.http} (N2a, spec
- * {@code 19-data-and-network.md} §3–§5). Pure Java, no Lua/{@code haven} state — it runs on an
- * {@link AddonManager} pool thread, never the UI thread ({@link #perform}), so it can safely block on
- * DNS/connect/transfer. {@link AddonManager} owns the pool, the result queue, the tick drain, and the
+ * {@code 19-data-and-network.md} §3–§5). Pure Java, no Lua/{@code haven} state — it runs on a
+ * {@link HttpApi} pool thread, never the UI thread ({@link #perform}), so it can safely block on
+ * DNS/connect/transfer. {@link HttpApi} owns the pool, the result queue, the tick drain, and the
  * host-allowlist gate ({@code requireNetwork}); this class owns everything below the socket:
  * {@link HttpURLConnection}, the private/loopback-IP block, the resource caps, and header hygiene.
  *

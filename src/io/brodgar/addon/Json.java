@@ -197,7 +197,7 @@ public final class Json {
         }
     }
 
-    // -------------------------------------------------- writer (moved from AddonManager, N1/D-013)
+    // -------------------------------------------------- writer (N1/D-013)
 
     /** Serialize a Lua value to compact single-line JSON, <b>forgiving</b> (REPL/store echo). */
     public static String write(LuaValue v) {

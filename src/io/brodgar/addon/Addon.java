@@ -46,7 +46,7 @@ public final class Addon {
      * Live world-space gob overlays owned by this addon ({@code hafen.ui.gobOverlay}, Phase 2b): a
      * filter + draw callback painted over each matching gob (via a shared {@link LuaGobOverlay} attrib per
      * gob). Clearing this list stops the overlays immediately; the engine detaches the idle attribs once no
-     * addon wants gob overlays at all (see {@link AddonManager#teardown}).
+     * addon wants gob overlays at all (see {@link AddonRegistry#teardown}).
      */
     public final List<AddonManager.GobOverlay> gobOverlays = new CopyOnWriteArrayList<AddonManager.GobOverlay>();
     /**
@@ -138,8 +138,8 @@ public final class Addon {
      * non-{@code .res} sibling of a {@link #ghosts ghost}, on the same virtual-entity core (spec
      * {@code 17-custom-rendering.md} §2, SAFE-tier, D-034). Like ghosts there is no global dispatch/poll list (a
      * passive render node driven by the render tree's own tick); it lives only here. Teardown
-     * ({@link AddonManager#teardownSprites}) destroys each — removes its scene slot + disposes the quad geometry
-     * (the shared {@code TexI} is freed by {@link AddonManager#teardownImages}) — so a reload/disable/relogin
+     * ({@link RenderApi#teardownSprites}) destroys each — removes its scene slot + disposes the quad geometry
+     * (the shared {@code TexI} is freed by {@link RenderApi#teardownImages}) — so a reload/disable/relogin
      * leaks nothing. Copy-on-write: a firing callback may create or destroy a sprite.
      */
     public final List<LuaSprite> sprites = new CopyOnWriteArrayList<LuaSprite>();
@@ -148,7 +148,7 @@ public final class Addon {
      * addon's own folder into a {@link haven.TexI} GPU texture — a client-only render asset that is NOT an
      * engine {@code .res} (SAFE-tier, D-034). Like the hook lists there is no global dispatch/poll list; an
      * image is a passive texture drawn on demand through the {@code g} wrapper, so it lives only here. Teardown
-     * ({@link AddonManager#teardownImages}) disposes each ({@code TexI.dispose()} frees the GL texture) so a
+     * ({@link RenderApi#teardownImages}) disposes each ({@code TexI.dispose()} frees the GL texture) so a
      * reload/disable/relogin leaks no GPU resource — the same guarantee as windows, overlays, and ghosts.
      * Copy-on-write: a firing callback may load or {@code :dispose()} an image.
      */
@@ -159,7 +159,7 @@ public final class Addon {
      * {@link Gltf}) — a client-only render asset that is NOT an engine {@code .res} (SAFE-tier, D-034). Like
      * {@link #images} there is no global dispatch/poll list; a mesh is a passive geometry source that
      * {@link #objects} build engine {@code Model}s from on demand, so it lives only here. Teardown
-     * ({@link AddonManager#teardownMeshes}) marks each dead and drops it (frees the CPU geometry for GC; its
+     * ({@link RenderApi#teardownMeshes}) marks each dead and drops it (frees the CPU geometry for GC; its
      * per-object GPU {@code Model}s are freed with the objects) so a reload/disable/relogin leaks nothing.
      * Copy-on-write: a firing callback may load or {@code :dispose()} a model.
      */
@@ -170,8 +170,8 @@ public final class Addon {
      * mesh sibling of a {@link #sprites sprite} and a {@link #ghosts ghost}, on the same virtual-entity core (spec
      * {@code 18-custom-models-gltf.md}, SAFE-tier, D-034). Like ghosts/sprites there is no global dispatch/poll
      * list (a passive render node driven by the render tree's own tick); it lives only here. Teardown
-     * ({@link AddonManager#teardownObjects}) destroys each — removes its scene slot + disposes its engine
-     * {@code Model}s (the shared mesh is freed by {@link AddonManager#teardownMeshes}) — so a reload/disable/relogin
+     * ({@link RenderApi#teardownObjects}) destroys each — removes its scene slot + disposes its engine
+     * {@code Model}s (the shared mesh is freed by {@link RenderApi#teardownMeshes}) — so a reload/disable/relogin
      * leaks nothing. Copy-on-write: a firing callback may create or destroy an object.
      */
     public final List<LuaObject> objects = new CopyOnWriteArrayList<LuaObject>();
@@ -179,15 +179,15 @@ public final class Addon {
      * Live modal mouse-drag captures owned by this addon ({@code hafen.hook.grab}, V5): each is a
      * {@link LuaMouseGrab} widget on {@code ui.root} that forwards mouse move/up to Lua while capturing the drag
      * (the gizmo's drag primitive). Normally transient (one per active drag) and self-releasing on mouse-up;
-     * teardown ({@link AddonManager#teardownMouseGrabs}) releases any still-active grab so a {@code :reload}/disable
+     * teardown ({@link HookApi#teardownMouseGrabs}) releases any still-active grab so a {@code :reload}/disable
      * mid-drag drops the {@code UI.Grab} and unlinks the widget, leaking nothing. Copy-on-write: releasing removes.
      */
     public final List<LuaMouseGrab> mouseGrabs = new CopyOnWriteArrayList<LuaMouseGrab>();
     /**
      * Live in-flight HTTP requests owned by this addon ({@code hafen.http.get}/{@code post}, N2a): each is a
-     * {@link LuaHttpRequest} submitted to {@link AddonManager}'s shared bounded pool, whose result is drained on
+     * {@link LuaHttpRequest} submitted to {@link HttpApi}'s shared bounded pool, whose result is drained on
      * the tick and delivered to the request's callback (the gob-delta async pattern). Bridge-owned like every
-     * other owned resource; teardown ({@link AddonManager#teardownRequests}) marks each dead so a
+     * other owned resource; teardown ({@link HttpApi#teardownRequests}) marks each dead so a
      * {@code :reload}/disable/relogin cancels any in-flight request — its pool result is discarded on drain and
      * the callback never fires (D-037 §3.3). Copy-on-write: the drain removes a completed request while a
      * firing callback may start another.

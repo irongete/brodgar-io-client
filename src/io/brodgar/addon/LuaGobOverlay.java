@@ -21,7 +21,7 @@ import haven.render.RenderTree;
  *
  * <p>One instance is attached to each gob that matches at least one registered overlay filter (by
  * {@link AddonManager}'s throttled sweep). It carries <b>no addon-specific state</b>: on each draw it
- * projects the gob's anchor to the screen and hands off to {@link AddonManager#paintGobOverlays}, which
+ * projects the gob's anchor to the screen and hands off to {@link UiApi#paintGobOverlays}, which
  * re-checks every addon's filter for this gob and invokes the matching draw callbacks — so a single shared
  * attrib per gob serves all addons, and an addon whose overlay is removed simply stops being painted (the
  * idle attrib draws nothing; {@link AddonManager} detaches it once no addon wants gob overlays).
@@ -55,6 +55,6 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         } catch(RuntimeException e) {
             return;       // never throw into the render pass (mirrors the Loading-guarded reads)
         }
-        AddonManager.paintGobOverlays(gob, g, gwrap, sc);
+        UiApi.paintGobOverlays(gob, g, gwrap, sc);
     }
 }
