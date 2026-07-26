@@ -4962,12 +4962,15 @@ public final class AddonManager {
         // an addon (or the hello harness) to confirm a model loaded textured, and for logging.
         h.set("info", new ZeroArgFunction() {
             public LuaValue call() {
-                int textured = 0;
-                for(Gltf.Prim p : lm.mesh.prims)
+                int textured = 0, lit = 0;
+                for(Gltf.Prim p : lm.mesh.prims) {
                     if(p.textured()) textured++;
+                    if(p.nrm != null) lit++;                         // R3c: primitives shaded by the world lights
+                }
                 LuaTable t = new LuaTable();
                 t.set("prims", LuaValue.valueOf(lm.mesh.prims.size()));
                 t.set("textured", LuaValue.valueOf(textured));       // primitives with a base-colour texture
+                t.set("lit", LuaValue.valueOf(lit));                 // primitives with normals → Phong-lit (R3c)
                 t.set("textures", LuaValue.valueOf(lm.textures.length));   // distinct decoded texture images
                 t.set("verts", LuaValue.valueOf((double)lm.mesh.nvert));
                 t.set("tris", LuaValue.valueOf((double)lm.mesh.ntri));

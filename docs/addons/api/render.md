@@ -236,22 +236,26 @@ resolved relative to the model and re-checked against your folder. Loading is ca
 malformed file — or one using an **unsupported feature** — raises a clear error that **names** the feature (never
 a crash).
 
-> **The subset (R3a/R3b — static, textured, unlit).** Supported: `.glb`/`.gltf`, triangle meshes (`POSITION` +
+> **The subset (R3a/R3b/R3c — static, textured, lit).** Supported: `.glb`/`.gltf`, triangle meshes (`POSITION` +
 > indices), multiple nodes/meshes/primitives with **baked node transforms**, **multiple materials**, and — the
 > colour — a **`baseColorTexture`** (its image embedded via a `bufferView`, a `data:` URI, or an external PNG/JPG;
 > decoded once into a shared GPU texture) **×** the **`baseColorFactor`** multiply. Per-material **alpha mode**
-> (`OPAQUE` / `MASK` alpha-test / `BLEND` translucency) and **`doubleSided`** cull are honoured. Still drawn
-> **unlit** (no light math — texture × colour, deterministic and readable for props). **Not yet (R3c):** per-vertex
-> `NORMAL` / lighting, sRGB colour handling, emissive, per-texture sampler wrap/filter, a non-zero
-> `baseColorTexture.texCoord` (`TEXCOORD_1`). **Never:** skins, animation, morph targets, Draco/meshopt, sparse
-> accessors — a model using one fails with a named error.
+> (`OPAQUE` / `MASK` alpha-test / `BLEND` translucency) and **`doubleSided`** cull are honoured.
+> **Lit (R3c):** the parser bakes per-vertex **`NORMAL`s** (or computes smooth ones when the mesh has none) and each
+> material adds a Phong light state, so the model **shades with the world lights** like game geometry — not
+> fullbright. The base colour (texture × factor) is the albedo the light modulates; **`emissiveFactor`** areas glow
+> at full colour even in shadow. Reflectance uses the engine's neutral defaults (matte, no specular) — fidelity
+> *approximates* a PBR viewer, which is fine for props. sRGB needs no handling (the engine does not sRGB-convert
+> model textures). **Not yet:** `emissiveTexture`, per-texture sampler wrap/filter, a non-zero
+> `baseColorTexture.texCoord` (`TEXCOORD_1`), full PBR (metallic/roughness/occlusion). **Never:** skins, animation,
+> morph targets, Draco/meshopt, sparse accessors — a model using one fails with a named error.
 
 ### Model handle
 
 | Method | Description |
 |---|---|
 | `mdl:bounds()` | `{min={x,y,z}, max={x,y,z}, size={x,y,z}}` — the model's axis-aligned bounds in **world units** (after the basis conversion below) |
-| `mdl:info()` | `{prims, textured, textures, verts, tris}` — what the parser produced: primitive count, how many are textured, distinct decoded textures, and vertex/triangle totals |
+| `mdl:info()` | `{prims, textured, lit, textures, verts, tris}` — what the parser produced: primitive count, how many are textured, how many are **lit** (carry normals — R3c), distinct decoded textures, and vertex/triangle totals |
 | `mdl:dispose()` | drop the geometry **and its shared textures** now (also automatic on reload/disable/relogin) |
 
 > **Sizing tip.** glTF authored units vary wildly (a model may be 1 or 100 "units" tall). Read `mdl:bounds().size.z`

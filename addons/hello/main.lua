@@ -61,7 +61,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.43.0)")
+hafen.log("hello loaded (v0.44.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -843,15 +843,17 @@ end)
 -- render asset, NOT an engine .res -- SAFE-tier, NOT gated (D-034); paths are addon-relative + sandboxed (absolute
 -- / ".." rejected, D-017). The parser bakes the glTF (+Y up) into H&H model space (Z up; 1 glTF metre = 1 tile);
 -- R3b decodes TEXCOORD_0 + the baseColorTexture (embedded PNGs) into shared TexIs and builds one material per
--- primitive (texture x baseColorFactor, alpha mode, cull) -- still UNLIT (lighting is R3c). The handle exposes
--- :bounds() -> {min,max,size} world units, :info() -> {prims,textured,textures,verts,tris}, and :dispose() (also
--- automatic on reload/disable, P2). Stand it with hafen.render.object{model=cube, x=, y=}; ':hello object' places one.
+-- primitive (texture x baseColorFactor, alpha mode, cull). R3c adds LIGHTING: the parser bakes per-vertex NORMALs
+-- (or computes them when absent) and each material adds a Phong light state, so the model now SHADES with the world
+-- lights instead of drawing fullbright -- :info().lit counts the lit primitives. The handle exposes :bounds() ->
+-- {min,max,size} world units, :info() -> {prims,textured,lit,textures,verts,tris}, and :dispose() (also automatic
+-- on reload/disable, P2). Stand it with hafen.render.object{model=cube, x=, y=}; ':hello object' places one.
 local cube   -- the model handle (nil until loaded; a fresh reload rebuilds the env -> nil, re-loaded below)
 hafen.events.on("OnLoad", function()
   cube = hafen.render.model("tank.glb")
   local b, nfo = cube:bounds(), cube:info()
-  hafen.log(("R3b: loaded tank.glb -- %d prims (%d textured, %d textures), %d tris; baked size %.0f x %.0f x %.0f world units (~%.1f tiles tall); :hello object to place it")
-    :format(nfo.prims, nfo.textured, nfo.textures, nfo.tris, b.size.x, b.size.y, b.size.z, b.size.z / 11))
+  hafen.log(("R3c: loaded tank.glb -- %d prims (%d textured, %d LIT, %d textures), %d tris; baked size %.0f x %.0f x %.0f world units (~%.1f tiles tall); :hello object to place it (now shaded by the world lights)")
+    :format(nfo.prims, nfo.textured, nfo.lit, nfo.textures, nfo.tris, b.size.x, b.size.y, b.size.z, b.size.z / 11))
 end)
 
 local function drawPanel(g, w, h)
@@ -1109,7 +1111,7 @@ hafen.slash.register("hello", function(args)
       demoObject = hafen.render.object{ model = cube, x = p.x, y = p.y, scale = scale }
       if not demoObject then hafen.log(":hello object -> hafen.render.object returned nil (not in the world yet?)"); return end
       local pos = demoObject:pos()
-      hafen.log((":hello object -> tank.glb (textured) STANDING at (%.0f,%.0f) scale=%.3f -- transforms in 2s; :hello object again to remove")
+      hafen.log((":hello object -> tank.glb (textured + LIT/R3c) STANDING at (%.0f,%.0f) scale=%.3f -- shaded by the world lights (rotate/relocate it to see the shading change); transforms in 2s; :hello object again to remove")
         :format(pos.x, pos.y, pos.scale))
       local this = demoObject                             -- capture, so a quick toggle-off/on doesn't transform the new one
       hafen.timer.after(2.0, function()

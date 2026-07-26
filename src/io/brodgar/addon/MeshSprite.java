@@ -3,7 +3,9 @@ package io.brodgar.addon;
 import java.util.ArrayList;
 import java.util.List;
 
+import haven.FColor;
 import haven.GOut;
+import haven.Light;
 import haven.Material;
 import haven.Sprite;
 import haven.TexI;
@@ -38,8 +40,16 @@ import haven.render.VertexArray;
  *       texture-sample state {@link TexRender.TexDraw} (from the mesh's <b>shared</b> {@link TexI}) <b>×</b> a
  *       {@link BaseColor} of the {@code baseColorFactor}. Both {@code TexDraw} and {@code BaseColor} multiply into
  *       the fragment colour at the same priority, so the result is <b>{@code texture × baseColorFactor}</b> — the
- *       glTF base-colour semantics. Still <b>unlit</b> (no {@code NORMAL}/light math — that is R3c).</li>
+ *       glTF base-colour semantics (the albedo the lighting then modulates).</li>
  * </ul>
+ *
+ * <p><b>R3c = lit.</b> Each primitive carries baked, unit-length {@code NORMAL}s (from {@link Gltf}), fed to
+ * {@link Homo3D#normal}, and its material adds a {@link Light.PhongLight} state — so the engine's Phong shader
+ * multiplies the <b>world lights</b> (the ones the MapView scene applies to every gob) into the fragment and the
+ * model shades like world geometry instead of drawing fullbright. Reflectance uses the engine's neutral defaults
+ * (amb 0.2, dif 0.8, matte); the glTF {@code emissiveFactor} becomes the Phong {@code emi} term, so emissive areas
+ * glow at full colour even in shadow. sRGB is a no-op: the engine leaves {@code Texture.srgb} false for model
+ * textures, so our {@code TexI}s already match.
  * The glTF <b>alpha mode</b> picks how alpha is used: {@code OPAQUE} → none (alpha ignored); {@code MASK} → add
  * {@link TexRender.TexClip} (alpha-discard below the engine's fixed 0.5 cutoff, matching glTF's default {@code
  * alphaCutoff}); {@code BLEND} → {@link FragColor#blend standard alpha blending} + {@link States#maskdepth} (the
@@ -106,7 +116,8 @@ final class MeshSprite extends Sprite {
                 List<Model> models = new ArrayList<Model>();
                 for(Gltf.Prim p : mesh.prims) {
                     boolean textured = p.textured() && (texs != null) && (p.texImage < texs.length) && (texs[p.texImage] != null);
-                    Model model = buildModel(p, textured);
+                    boolean lit = p.nrm != null;             // R3c: every prim carries normals now, but keep the gate
+                    Model model = buildModel(p, textured, lit);
                     models.add(model);
 
                     List<Pipe.Op> states = new ArrayList<Pipe.Op>();
@@ -121,6 +132,18 @@ final class MeshSprite extends Sprite {
                     // untextured prim it IS the whole colour (the R3a flat-colour path).
                     float[] bc = p.baseColor;
                     states.add(new BaseColor(bc[0], bc[1], bc[2], bc[3]));
+                    // R3c lighting: a PhongLight material makes the Phong shader multiply the world lights (the ones
+                    // the MapView scene applies to every gob) into the fragment — so the model shades like world
+                    // geometry instead of drawing fullbright. Reflectance uses the engine's own neutral defaults
+                    // (amb 0.2, dif 0.8, no specular, shine 0 → matte), matching how a default-lit .res material reads;
+                    // the base colour (texture × factor) is the albedo the light modulates. emissiveFactor → emi, so
+                    // emissive areas glow at full colour even in shadow. Without normals we skip it (stays unlit).
+                    if(lit) {
+                        float[] e = p.emissive;
+                        states.add(new Light.PhongLight(true,
+                            Light.PhongLight.defamb, Light.PhongLight.defdif, Light.PhongLight.defspc,
+                            new FColor(e[0], e[1], e[2]), 0f));
+                    }
                     // alpha mode: MASK = alpha-test discard (needs the texture's alpha); BLEND = translucent blend.
                     if((p.alphaMode == Gltf.ALPHA_MASK) && (tr != null)) {
                         states.add(tr.clip);
@@ -151,34 +174,45 @@ final class MeshSprite extends Sprite {
     }
 
     /**
-     * Build the engine {@link Model} for a baked primitive. Textured → a {@code POSITION}(VEC3)+{@code TEXCOORD_0}
-     * (VEC2) interleaved {@link VertexArray} (stride 20); untextured → {@code POSITION}-only (stride 12). Indexed if
-     * the primitive has indices, else a sequential draw. Drawn as {@code TRIANGLES}.
+     * Build the engine {@link Model} for a baked primitive as one interleaved {@link VertexArray}. The layout is
+     * chosen per-primitive from the two flags: {@code POSITION}(VEC3, always) + {@code NORMAL}(VEC3, when {@code lit}
+     * — R3c) + {@code TEXCOORD_0}(VEC2, when {@code textured} — R3b), tightly packed in that order. So the stride is
+     * 12 (pos only), 20 (pos+uv), 24 (pos+normal), or 32 (pos+normal+uv) bytes. Indexed if the primitive has indices,
+     * else a sequential draw. Drawn as {@code TRIANGLES}.
      */
-    static Model buildModel(Gltf.Prim p, boolean textured) {
+    static Model buildModel(Gltf.Prim p, boolean textured, boolean lit) {
         float[] pos = p.pos;
+        float[] nr  = p.nrm;                                 // length == nvert*3 (guaranteed by Gltf.bakePrim) when lit
+        float[] uv  = p.tex;                                 // length == nvert*2 (guaranteed by Gltf.bakePrim) when textured
         int nvert = pos.length / 3;
-        VertexArray vao;
-        if(textured) {
-            float[] uv = p.tex;                              // length == nvert*2 (guaranteed by Gltf.bakePrim)
-            float[] vert = new float[nvert * 5];             // interleaved x,y,z,u,v
-            for(int i = 0; i < nvert; i++) {
-                vert[(i * 5)]     = pos[(i * 3)];
-                vert[(i * 5) + 1] = pos[(i * 3) + 1];
-                vert[(i * 5) + 2] = pos[(i * 3) + 2];
-                vert[(i * 5) + 3] = uv[(i * 2)];
-                float v = uv[(i * 2) + 1];
-                vert[(i * 5) + 4] = TEXV_FLIP ? (1f - v) : v;
+        int fpv = 3 + (lit ? 3 : 0) + (textured ? 2 : 0);    // floats per vertex
+        int stride = fpv * 4;                                // bytes per vertex
+        float[] vert = new float[nvert * fpv];
+        for(int i = 0; i < nvert; i++) {
+            int o = i * fpv;
+            vert[o]     = pos[(i * 3)];
+            vert[o + 1] = pos[(i * 3) + 1];
+            vert[o + 2] = pos[(i * 3) + 2];
+            int k = 3;
+            if(lit) {
+                vert[o + k]     = nr[(i * 3)];
+                vert[o + k + 1] = nr[(i * 3) + 1];
+                vert[o + k + 2] = nr[(i * 3) + 2];
+                k += 3;
             }
-            VertexArray.Layout fmt = new VertexArray.Layout(
-                new VertexArray.Layout.Input(Homo3D.vertex, new VectorFormat(3, NumberFormat.FLOAT32), 0, 0,  20),
-                new VertexArray.Layout.Input(Tex2D.texc,    new VectorFormat(2, NumberFormat.FLOAT32), 0, 12, 20));
-            vao = new VertexArray(fmt, new VertexArray.Buffer(vert.length * 4, DataBuffer.Usage.STATIC, DataBuffer.Filler.of(vert)));
-        } else {
-            VertexArray.Layout fmt = new VertexArray.Layout(
-                new VertexArray.Layout.Input(Homo3D.vertex, new VectorFormat(3, NumberFormat.FLOAT32), 0, 0, 12));
-            vao = new VertexArray(fmt, new VertexArray.Buffer(pos.length * 4, DataBuffer.Usage.STATIC, DataBuffer.Filler.of(pos)));
+            if(textured) {
+                vert[o + k]     = uv[(i * 2)];
+                float v = uv[(i * 2) + 1];
+                vert[o + k + 1] = TEXV_FLIP ? (1f - v) : v;
+            }
         }
+        List<VertexArray.Layout.Input> inputs = new ArrayList<VertexArray.Layout.Input>(3);
+        int off = 0;
+        inputs.add(new VertexArray.Layout.Input(Homo3D.vertex, new VectorFormat(3, NumberFormat.FLOAT32), 0, off, stride)); off += 12;
+        if(lit)      { inputs.add(new VertexArray.Layout.Input(Homo3D.normal, new VectorFormat(3, NumberFormat.FLOAT32), 0, off, stride)); off += 12; }
+        if(textured) { inputs.add(new VertexArray.Layout.Input(Tex2D.texc,    new VectorFormat(2, NumberFormat.FLOAT32), 0, off, stride)); off += 8; }
+        VertexArray.Layout fmt = new VertexArray.Layout(inputs.toArray(new VertexArray.Layout.Input[0]));
+        VertexArray vao = new VertexArray(fmt, new VertexArray.Buffer(vert.length * 4, DataBuffer.Usage.STATIC, DataBuffer.Filler.of(vert)));
         if(p.idx == null)
             return new Model(Model.Mode.TRIANGLES, vao, null, 0, nvert);
         return new Model(Model.Mode.TRIANGLES, vao, indices(p.idx, nvert), 0, p.idx.length);

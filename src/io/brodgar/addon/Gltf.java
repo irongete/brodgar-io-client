@@ -29,9 +29,13 @@ import haven.Matrix4f;
  *       external file — into {@link #images}, deduped per glTF image and decoded to a {@code TexI} by the caller,
  *       {@link LuaMesh}); per-material <b>alpha mode</b> ({@code OPAQUE}/{@code MASK}/{@code BLEND}) + {@code
  *       doubleSided} cull, exposed on each {@link Prim} for {@link MeshSprite} to turn into engine material states.</li>
- *   <li><b>Deferred to R3c:</b> {@code NORMAL} decode + engine lighting (still <b>unlit</b> here — texture &times;
- *       {@code baseColorFactor}, no light math), sRGB, emissive, per-texture sampler wrap/filter, a non-zero
- *       {@code baseColorTexture.texCoord} set ({@code TEXCOORD_1}).</li>
+ *   <li><b>In (R3c):</b> {@code NORMAL} decode (baked by the inverse-transpose of the {@code basis·node} matrix,
+ *       or computed smooth from the geometry when absent) + {@code emissiveFactor}, so {@link MeshSprite} can add
+ *       {@link haven.Light.PhongLight} and the model shades with the world lights (spec §4). sRGB baseColor is a
+ *       no-op: the engine does not sRGB-convert model textures ({@code Texture.srgb} is left {@code false}
+ *       everywhere in the load path), so our {@code TexI}s already match world geometry — see {@code r3c-lighting.md}.</li>
+ *   <li><b>Deferred (later):</b> {@code emissiveTexture}, per-texture sampler wrap/filter, a non-zero
+ *       {@code baseColorTexture.texCoord} set ({@code TEXCOORD_1}), full PBR (metallic/roughness/occlusion).</li>
  *   <li><b>Never:</b> skins/joints, morph targets, keyframe animation, Draco/meshopt, sparse accessors — a model
  *       using one fails with a clear, named error (spec §6), never a client crash.</li>
  * </ul>
@@ -94,6 +98,15 @@ public final class Gltf {
     public static final class Prim {
         /** Baked H&amp;H-local vertex positions, interleaved {@code x,y,z}; length = {@code nvert*3}. */
         public final float[] pos;
+        /**
+         * Baked, unit-length H&amp;H-local per-vertex normals, interleaved {@code x,y,z}; length = {@code nvert*3}
+         * (R3c). Never {@code null}: taken from the glTF {@code NORMAL} attribute (transformed by the
+         * <b>inverse-transpose</b> of the {@code basis·node} matrix so non-uniform node scale shears them correctly,
+         * then re-normalized), or, when the mesh carries no {@code NORMAL}, computed as smooth area-weighted normals
+         * from the baked triangle geometry. Feeds {@link haven.render.Homo3D#normal} so {@link MeshSprite} can add
+         * {@link haven.Light.PhongLight} and the model shades with the world lights instead of drawing fullbright.
+         */
+        public final float[] nrm;
         /** Triangle indices into {@link #pos}, or {@code null} for a non-indexed (sequential) primitive. */
         public final int[]   idx;
         /**
@@ -107,6 +120,12 @@ public final class Gltf {
         public final int     texImage;
         /** Flat base colour {@code {r,g,b,a}} 0..1 (glTF {@code baseColorFactor}; default opaque white). Multiplies the texture (or is the whole colour when untextured). */
         public final float[] baseColor;
+        /**
+         * glTF {@code emissiveFactor} {@code {r,g,b}} 0..1 (default black — non-emissive) (R3c). Fed to the
+         * {@link haven.Light.PhongLight} material's {@code emi} term, so emissive areas glow regardless of the
+         * world light (they read at their full colour in shadow). {@code emissiveTexture} is deferred.
+         */
+        public final float[] emissive;
         /** {@code true} if the source material set {@code doubleSided} → rendered with no face cull; else back-face culled (R3b). */
         public final boolean doubleSided;
         /** glTF material {@code alphaMode}: {@link Gltf#ALPHA_OPAQUE}/{@link Gltf#ALPHA_MASK}/{@link Gltf#ALPHA_BLEND} (R3b). */
@@ -114,12 +133,15 @@ public final class Gltf {
         /** {@code MASK} alpha-test threshold 0..1 (glTF {@code alphaCutoff}, default 0.5); unused for OPAQUE/BLEND (R3b). */
         public final float   alphaCutoff;
 
-        Prim(float[] pos, int[] idx, float[] tex, int texImage, float[] baseColor, boolean doubleSided, int alphaMode, float alphaCutoff) {
+        Prim(float[] pos, float[] nrm, int[] idx, float[] tex, int texImage, float[] baseColor, float[] emissive,
+             boolean doubleSided, int alphaMode, float alphaCutoff) {
             this.pos = pos;
+            this.nrm = nrm;
             this.idx = idx;
             this.tex = tex;
             this.texImage = texImage;
             this.baseColor = baseColor;
+            this.emissive = emissive;
             this.doubleSided = doubleSided;
             this.alphaMode = alphaMode;
             this.alphaCutoff = alphaCutoff;
@@ -356,8 +378,22 @@ public final class Gltf {
         Object indRef = prim.get("indices");
         if(indRef != null)
             idx = readIndices(intv(indRef, -1), accessors, bufferViews, bufBytes, name);
-        // material: baseColorFactor (colour multiply) + baseColorTexture + alphaMode/cull. Defaults = opaque white, single-sided.
+        // NORMAL (R3c): baked H&H-local, unit-length. Prefer the glTF attribute (transformed by the normal matrix =
+        // inverse-transpose of `fin`, so non-uniform node scale shears it correctly); else compute smooth normals from
+        // the baked triangle geometry. Never null → every primitive is lightable.
+        float[] nrm = null;
+        Object nrmRef = attrs.get("NORMAL");
+        if(nrmRef != null) {
+            float[] rawN = readVecs(intv(nrmRef, -1), 3, accessors, bufferViews, bufBytes, name);   // glTF-space normals
+            if(rawN.length == nvert * 3)
+                nrm = bakeNormals(rawN, fin);
+        }
+        if(nrm == null)
+            nrm = computeNormals(pos, idx);   // no/unusable NORMAL → smooth geometric normals (H&H-space)
+        // material: baseColorFactor (colour multiply) + baseColorTexture + alphaMode/cull + emissiveFactor (R3c).
+        // Defaults = opaque white, single-sided, non-emissive (black).
         float[] base = { 1f, 1f, 1f, 1f };
+        float[] emissive = { 0f, 0f, 0f };
         boolean dbl = false;
         int alphaMode = ALPHA_OPAQUE;
         float alphaCutoff = 0.5f;
@@ -370,6 +406,9 @@ public final class Gltf {
                 dbl = boolv(mat.get("doubleSided"), false);
                 alphaMode = alphaMode(mat.get("alphaMode"));
                 alphaCutoff = (float)dbl(mat.get("alphaCutoff"), 0.5);
+                List<Object> emi = asList(mat.get("emissiveFactor"));   // R3c: emissive glow (default black)
+                for(int i = 0; (i < 3) && (i < emi.size()); i++)
+                    emissive[i] = (float)dbl(emi.get(i), emissive[i]);
                 Map<String, Object> pbr = asMap(mat.get("pbrMetallicRoughness"));
                 if(pbr != null) {
                     List<Object> bcf = asList(pbr.get("baseColorFactor"));
@@ -402,7 +441,70 @@ public final class Gltf {
             if(tex == null)
                 texImage = -1;                             // textured material but no usable UVs → render untextured
         }
-        return new Prim(pos, idx, tex, texImage, base, dbl, alphaMode, alphaCutoff);
+        return new Prim(pos, nrm, idx, tex, texImage, base, emissive, dbl, alphaMode, alphaCutoff);
+    }
+
+    /**
+     * Bake glTF-space normals into H&amp;H-local space (R3c). Normals transform by the <b>inverse-transpose</b> of the
+     * upper-left 3&times;3 of {@code fin} (= {@code basis·node}) — {@code trim3(transpose(invert(fin)))} — so a
+     * non-uniform node scale shears the surface normal correctly (a plain vertex transform would skew it). Each is
+     * re-normalized; a degenerate (zero) normal falls back to H&amp;H up ({@code +Z}). For a pure rotation + uniform
+     * scale (the common case, and {@link #BASIS} itself) the inverse-transpose equals the rotation, so this reduces to
+     * the direct transform after normalization — but doing it properly costs one 4&times;4 invert per primitive.
+     */
+    private static float[] bakeNormals(float[] rawN, Matrix4f fin) {
+        Matrix4f nm = fin.invert().transpose();            // normal matrix; its upper 3x3 is the inverse-transpose of fin's
+        float[] out = new float[rawN.length];
+        for(int i = 0; i < rawN.length; i += 3) {
+            float x = rawN[i], y = rawN[i + 1], z = rawN[i + 2];
+            // mat3 · normal (column-major m: output row r = m[r] , m[r+4], m[r+8]); translation column ignored.
+            float ox = (nm.m[0] * x) + (nm.m[4] * y) + (nm.m[8]  * z);
+            float oy = (nm.m[1] * x) + (nm.m[5] * y) + (nm.m[9]  * z);
+            float oz = (nm.m[2] * x) + (nm.m[6] * y) + (nm.m[10] * z);
+            normInto(out, i, ox, oy, oz);
+        }
+        return out;
+    }
+
+    /**
+     * Smooth per-vertex normals from baked H&amp;H-local geometry (R3c fallback when the mesh has no {@code NORMAL}):
+     * accumulate each triangle's (un-normalized, so area-weighted) face normal into its three vertices, then normalize.
+     * The {@link #BASIS} is a proper rotation (det +1), so a triangle's baked winding still yields an outward normal
+     * consistent with front faces — the same reason back-face culling is correct.
+     */
+    private static float[] computeNormals(float[] pos, int[] idx) {
+        int nvert = pos.length / 3;
+        float[] acc = new float[pos.length];               // zero-initialized
+        int ntri = ((idx != null) ? idx.length : nvert) / 3;
+        for(int t = 0; t < ntri; t++) {
+            int a = (idx != null) ? idx[(t * 3)]     : (t * 3);
+            int b = (idx != null) ? idx[(t * 3) + 1] : (t * 3) + 1;
+            int c = (idx != null) ? idx[(t * 3) + 2] : (t * 3) + 2;
+            float ax = pos[a * 3], ay = pos[(a * 3) + 1], az = pos[(a * 3) + 2];
+            float e1x = pos[b * 3] - ax, e1y = pos[(b * 3) + 1] - ay, e1z = pos[(b * 3) + 2] - az;
+            float e2x = pos[c * 3] - ax, e2y = pos[(c * 3) + 1] - ay, e2z = pos[(c * 3) + 2] - az;
+            float fx = (e1y * e2z) - (e1z * e2y);          // e1 × e2 (area-weighted face normal)
+            float fy = (e1z * e2x) - (e1x * e2z);
+            float fz = (e1x * e2y) - (e1y * e2x);
+            for(int v : new int[] { a, b, c }) {
+                acc[v * 3]       += fx;
+                acc[(v * 3) + 1] += fy;
+                acc[(v * 3) + 2] += fz;
+            }
+        }
+        for(int i = 0; i < acc.length; i += 3)
+            normInto(acc, i, acc[i], acc[i + 1], acc[i + 2]);
+        return acc;
+    }
+
+    /** Write the unit-length {@code (x,y,z)} into {@code out[i..i+2]}; a zero-length vector falls back to H&amp;H up ({@code +Z}). */
+    private static void normInto(float[] out, int i, float x, float y, float z) {
+        float len = (float)Math.sqrt((x * x) + (y * y) + (z * z));
+        if(len > 1e-8f) {
+            out[i] = x / len; out[i + 1] = y / len; out[i + 2] = z / len;
+        } else {
+            out[i] = 0f; out[i + 1] = 0f; out[i + 2] = 1f;
+        }
     }
 
     /**
