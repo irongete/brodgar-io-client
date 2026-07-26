@@ -79,10 +79,11 @@ Prefer these over scanning [`hafen.world.gobs`](world.md) every frame.
 |---|---|---|
 | `GhostClicked` | `{ ghost, button, x, y }` | a **clickable** [ghost](ghost.md) of *your* addon is clicked |
 | `SpriteClicked` | `{ sprite, button, x, y }` | a **clickable** fixed [sprite](render.md#clickability--the-spriteclicked-event) of *your* addon is clicked |
+| `ObjectClicked` | `{ object, button, x, y }` | a **clickable** [glTF object](render.md#clickability--the-objectclicked-event) of *your* addon is clicked |
 
-Both are **owner-scoped** — they fire only to the addon that owns the clicked entity (a ghost/sprite is
-private to its addon, so its handle never leaks to others), unlike the world/roster events above which
-broadcast to everyone. `ghost`/`sprite` = the clicked [handle](render.md#sprite-handle); `button` = 1
+All three are **owner-scoped** — they fire only to the addon that owns the clicked entity (a ghost/sprite/object
+is private to its addon, so its handle never leaks to others), unlike the world/roster events above which
+broadcast to everyone. `ghost`/`sprite`/`object` = the clicked [handle](render.md#sprite-handle); `button` = 1
 (left) / 3 (right); `x, y` = the world point the click resolved to. The click is **consumed** (no server
 click, no character walk) — see [`hafen.ghost`](ghost.md#clickability--the-ghostclicked-event-v2) /
 [`hafen.render`](render.md#clickability--the-spriteclicked-event). An entity fires this only while

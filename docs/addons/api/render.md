@@ -2,8 +2,8 @@
 
 Render **custom assets that ship with your addon** — not engine `.res` resources. This is the sibling of
 [`hafen.ghost`](ghost.md) (which places the game's own `.res` models in the world): `hafen.render` is for
-**your own files**. It loads **PNG images** and draws them on screen, and stands them **in the world** as fixed
-or camera-facing **sprites**; custom 3D models (glTF) join them later on the same handle model.
+**your own files**. It loads **PNG images** and draws them on screen, stands them **in the world** as fixed
+or camera-facing **sprites**, and places custom **glTF 3D models** in the world — all on the same handle model.
 
 > **Safe-tier — not gated.** A custom image is a client-side texture that never reaches the server and grants
 > no gameplay advantage, so it needs **no** `actions` permission — exactly like [`hafen.ui.overlay`](ui.md#overlays)
@@ -219,14 +219,125 @@ if prey then
 end
 ```
 
-## Coming next
+## Loading a 3D model
 
-The same handle model extends further (all on the shared world-entity core + the
-[transform gizmo](ghost.md#transform-gizmo-move--rotate--scale)):
+`hafen.render.model(path)` loads a **glTF 2.0 static model** — your own `.glb` (single-file binary, **preferred**)
+or `.gltf` + buffers — into a cached, bridge-owned mesh handle, exactly like [`hafen.render.image`](#loading-an-image)
+loads a PNG. The parser is pure Java (no native deps), and the model is decoded **synchronously** on the calling
+thread, so call it from **setup code** (`OnLoad`/`OnEnterWorld`/a command), never inside a draw.
 
-| Planned | What |
+| Function | Returns | Description |
+|---|---|---|
+| `hafen.render.model(path)` | [model handle](#model-handle) | load a glTF model from your addon's folder into cached, bridge-owned geometry |
+
+`path` is **relative to your addon's own folder** (e.g. `"chair.glb"`, `"props/tree.glb"`); absolute paths and
+`..` escapes are rejected ([D-017](../../../specs/addons/decisions.md)). External `.gltf` buffer/texture files are
+resolved relative to the model and re-checked against your folder. Loading is cached (one parse per path). A
+malformed file — or one using an **unsupported feature** — raises a clear error that **names** the feature (never
+a crash).
+
+> **The subset (R3a/R3b — static, textured, unlit).** Supported: `.glb`/`.gltf`, triangle meshes (`POSITION` +
+> indices), multiple nodes/meshes/primitives with **baked node transforms**, **multiple materials**, and — the
+> colour — a **`baseColorTexture`** (its image embedded via a `bufferView`, a `data:` URI, or an external PNG/JPG;
+> decoded once into a shared GPU texture) **×** the **`baseColorFactor`** multiply. Per-material **alpha mode**
+> (`OPAQUE` / `MASK` alpha-test / `BLEND` translucency) and **`doubleSided`** cull are honoured. Still drawn
+> **unlit** (no light math — texture × colour, deterministic and readable for props). **Not yet (R3c):** per-vertex
+> `NORMAL` / lighting, sRGB colour handling, emissive, per-texture sampler wrap/filter, a non-zero
+> `baseColorTexture.texCoord` (`TEXCOORD_1`). **Never:** skins, animation, morph targets, Draco/meshopt, sparse
+> accessors — a model using one fails with a named error.
+
+### Model handle
+
+| Method | Description |
 |---|---|
-| `hafen.render.model(path)` + `hafen.render.object{model=, …}` | a custom **glTF** 3D model placed in the world (**R3**) |
+| `mdl:bounds()` | `{min={x,y,z}, max={x,y,z}, size={x,y,z}}` — the model's axis-aligned bounds in **world units** (after the basis conversion below) |
+| `mdl:info()` | `{prims, textured, textures, verts, tris}` — what the parser produced: primitive count, how many are textured, distinct decoded textures, and vertex/triangle totals |
+| `mdl:dispose()` | drop the geometry **and its shared textures** now (also automatic on reload/disable/relogin) |
+
+> **Sizing tip.** glTF authored units vary wildly (a model may be 1 or 100 "units" tall). Read `mdl:bounds().size.z`
+> and pick a `scale` so it stands the height you want — e.g. `scale = (2 * 11) / size.z` for ~2 tiles tall.
+
+## Standing a 3D model in the world
+
+`hafen.render.object{…}` stands a glTF model **in the 3D world** — the mesh sibling of a [sprite](#standing-an-image-in-the-world)
+and a [ghost](ghost.md), built on the **same client-only world-entity core**. So it is a full transform handle
+(and [gizmo](ghost.md#transform-gizmo-move--rotate--scale)-compatible), and it is **safe-tier, not gated**
+([D-034](../../../specs/addons/decisions.md)): a `Gob` with no server id — nothing reaches the server.
+
+| Function | Returns | Description |
+|---|---|---|
+| `hafen.render.object{model=, x, y [, a] [, scale] [, alpha] [, tint] [, clickable] [, onClick] [, follow] [, offset]}` | [object handle](#object-handle) | stand a glTF model in the world at world coords `(x, y)`, facing `a` |
+
+Options mirror [`hafen.render.sprite`](#standing-an-image-in-the-world), with `model` in place of `image`:
+
+| Option | Default | Meaning |
+|---|---|---|
+| `model` | *(required)* | a [`hafen.render.model`](#loading-a-3d-model) handle **or** an addon-relative path string (auto-loaded + cached) |
+| `x`, `y` | *(required¹)* | world coordinates, like [`hafen.gob.pos`](gob.md) |
+| `a` | `0` | facing angle in **radians** (rotates about the vertical) |
+| `scale` | `1` | uniform scale **on top of** the baked model→world size |
+| `alpha` | `1` | opacity `0..1` |
+| `tint` | *(none)* | colour overlay `{r=, g=, b=[, a=]}` `0..255` (`a` = blend strength) |
+| `clickable` | `false` | opt into the [click event](#clickability--the-objectclicked-event) (the mesh renders into the pick surface) |
+| `onClick` | *(none)* | `fn(o, button, x, y)` fired on click (also the owner-scoped [`ObjectClicked`](events.md#world-ghosts--sprites) event) |
+| `follow` | *(none)* | **anchor to a gob** — a gob id, `"player"`, or `"me"`: the object tracks it every frame |
+| `offset` | *(none)* | fixed world offset `{x=, y=, z=}` from the followed gob (`z` = up) |
+
+¹ `x`/`y` are optional when `follow` is given. Returns `nil` if you are not in the world yet (no map view).
+
+### Object handle
+
+The same transform surface as a [sprite](#sprite-handle)/[ghost](ghost.md) handle, with `:mesh()` in place of `:image()`:
+
+| Method | Description |
+|---|---|
+| `o:move(x, y [, a])` | reposition (world coords), optionally re-facing — **detaches** any `:follow` anchor |
+| `o:rotate(a)` | set facing (radians), keeping position |
+| `o:scale(k)` | uniform scale on top of the baked size |
+| `o:alpha(a)` | opacity `0..1` |
+| `o:tint(color\|nil)` | colour overlay `{r=,g=,b=[,a=]}`; `nil` clears |
+| `o:clickable(bool)` | toggle the pick surface (see [Clickability](#clickability--the-objectclicked-event)) |
+| `o:show()` / `o:hide()` | add / remove from the scene (keeps the object) |
+| `o:follow(gob [, {x=,y=,z=}])` | **anchor** to a gob and auto-follow it; `o:follow(nil)` detaches |
+| `o:offset{x=, y=, z=}` | move it relative to the followed gob (keeps following) |
+| `o:pos()` | `{x, y, a, scale}` (+ `following` = the anchored gob id, if any) |
+| `o:mesh()` | the addon-relative model path |
+| `o:destroy()` | remove now (also automatic on reload/disable/relogin) |
+
+The verbs **chain** (each returns the handle): `o:move(x, y):rotate(a):scale(2)`.
+
+```lua
+local mdl                                          -- upvalue
+hafen.events.on("OnLoad", function()
+  mdl = hafen.render.model("props/chair.glb")      -- load once from addons/<me>/props/chair.glb
+  local b = mdl:bounds()
+  hafen.log(("chair is %.1f tall (world units)"):format(b.size.z))
+end)
+
+-- later, in the world:
+local p = hafen.gob.pos("player")
+local o = hafen.render.object{ model = mdl, x = p.x, y = p.y, a = 0, scale = 1 }
+o:rotate(math.pi / 4):scale(1.5)                   -- face 45°, 1.5× — chained, gizmo-compatible
+-- ... o:destroy()  (or let reload/disable clean it up)
+```
+
+> **Coordinate system & size.** glTF is right-handed, **+Y up**, in **metres**; the client's world is **Z up** with
+> a tile-based scale. The loader bakes a fixed conversion once, so `+Y` (glTF up) becomes `+Z` (world up) and **1
+> glTF metre = 1 tile** (≈ 11 world units) at `scale = 1`. The glTF **origin maps to the gob position**, so author a
+> model with its **base at `Y = 0`** and it stands on the ground (like a ghost). Use `:scale` (or the gizmo) to
+> resize.
+
+### Clickability & the `ObjectClicked` event
+
+An object can be made **clickable** (`clickable = true` at create, or `o:clickable(true)` later), exactly like a
+[clickable sprite](#clickability--the-spriteclicked-event)/[ghost](ghost.md#clickability--the-ghostclicked-event-v2):
+its mesh gains a pick surface, and a click on it is detected **client-side** and **consumed** before any server
+click — so you never walk/interact, and nothing reaches the server (still safe-tier). Both the per-object
+`onClick(o, button, x, y)` and the owner-scoped [`ObjectClicked`](events.md#world-ghosts--sprites) event fire;
+`ObjectClicked` reaches only *your* addon.
+
+> **Gizmo.** An object is gizmo-transformable for free — same `:move`/`:rotate`/`:scale` handle a ghost/sprite
+> exposes, and the [transform gizmo](ghost.md#transform-gizmo-move--rotate--scale) drives any such handle.
 
 See [17-custom-rendering.md](../../../specs/addons/17-custom-rendering.md) and
 [18-custom-models-gltf.md](../../../specs/addons/18-custom-models-gltf.md) for the full design.

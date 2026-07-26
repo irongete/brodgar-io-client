@@ -61,7 +61,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.41.0)")
+hafen.log("hello loaded (v0.43.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -838,6 +838,22 @@ hafen.events.on("OnLoad", function()
     :format(s.w, s.h))
 end)
 
+-- R3a/R3b: CUSTOM 3D MODEL (hafen.render.model). Load a glTF .glb shipped in THIS addon's folder (tank.glb -- a
+-- real TEXTURED, MULTI-MATERIAL model) into a bridge-owned mesh handle. Like the R1 image it is a CLIENT-ONLY
+-- render asset, NOT an engine .res -- SAFE-tier, NOT gated (D-034); paths are addon-relative + sandboxed (absolute
+-- / ".." rejected, D-017). The parser bakes the glTF (+Y up) into H&H model space (Z up; 1 glTF metre = 1 tile);
+-- R3b decodes TEXCOORD_0 + the baseColorTexture (embedded PNGs) into shared TexIs and builds one material per
+-- primitive (texture x baseColorFactor, alpha mode, cull) -- still UNLIT (lighting is R3c). The handle exposes
+-- :bounds() -> {min,max,size} world units, :info() -> {prims,textured,textures,verts,tris}, and :dispose() (also
+-- automatic on reload/disable, P2). Stand it with hafen.render.object{model=cube, x=, y=}; ':hello object' places one.
+local cube   -- the model handle (nil until loaded; a fresh reload rebuilds the env -> nil, re-loaded below)
+hafen.events.on("OnLoad", function()
+  cube = hafen.render.model("tank.glb")
+  local b, nfo = cube:bounds(), cube:info()
+  hafen.log(("R3b: loaded tank.glb -- %d prims (%d textured, %d textures), %d tris; baked size %.0f x %.0f x %.0f world units (~%.1f tiles tall); :hello object to place it")
+    :format(nfo.prims, nfo.textured, nfo.textures, nfo.tris, b.size.x, b.size.y, b.size.z, b.size.z / 11))
+end)
+
 local function drawPanel(g, w, h)
   g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()          -- translucent backdrop
   g:text(("clock %.0f"):format(hafen.time.clock() or 0), 6, 6)
@@ -961,9 +977,10 @@ local demoGhost   -- V1: the handle of the manual :hello ghost demo while placed
 local demoSprite  -- R2a: the handle of the manual :hello sprite demo while placed (nil = none); session-local
 local demoFollow  -- R2a anchor: the handle of the :hello follow demo (a sprite anchored to you); session-local
 local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-facing sprite); session-local
+local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object")
     return
   end
   local sub = args[1]
@@ -1071,8 +1088,39 @@ hafen.slash.register("hello", function(args)
       if not demoFollow then hafen.log(":hello follow -> hafen.render.sprite returned nil (not in the world yet?)"); return end
       hafen.log(":hello follow -> icon.png now FLOATS above your head and FOLLOWS you -- walk around; :hello follow again to remove")
     end
+  elseif sub == "object" then
+    -- R3a/R3b: CLIENT-ONLY WORLD 3D MODEL (hafen.render.object). Stand our own glTF model (the tank.glb handle) in
+    -- the 3D world -- the mesh sibling of a sprite/ghost, on the SAME virtual-entity core: a Gob with no server id, so
+    -- it never reaches the server (SAFE-tier, NOT gated, D-034). R3b makes it render TEXTURED (its embedded PNGs) with
+    -- one material per primitive. It is a transform handle like a sprite (:move/:rotate/:scale/:pos/:destroy), so 2s
+    -- after placing we move + rotate + grow it to prove the gizmo-compatible transform works live on a MESH; :hello
+    -- object again removes it. Torn down on reload/disable. The scale is derived from :bounds() so ANY model (this
+    -- tank is authored in big units) stands ~2 tiles tall.
+    if demoObject then
+      demoObject:destroy(); demoObject = nil
+      hafen.log(":hello object -> destroyed")
+    else
+      if not cube then hafen.log(":hello object -> tank.glb not loaded yet (OnLoad)"); return end
+      local p = hafen.gob.pos("player")
+      if not p then hafen.log(":hello object -> no player position yet"); return end
+      local b = cube:bounds()
+      local tall = (b.size.z and b.size.z > 0.01) and b.size.z or 11       -- world-unit height
+      local scale = (2 * 11) / tall                       -- stand ~2 tiles tall regardless of the model's authored units
+      demoObject = hafen.render.object{ model = cube, x = p.x, y = p.y, scale = scale }
+      if not demoObject then hafen.log(":hello object -> hafen.render.object returned nil (not in the world yet?)"); return end
+      local pos = demoObject:pos()
+      hafen.log((":hello object -> tank.glb (textured) STANDING at (%.0f,%.0f) scale=%.3f -- transforms in 2s; :hello object again to remove")
+        :format(pos.x, pos.y, pos.scale))
+      local this = demoObject                             -- capture, so a quick toggle-off/on doesn't transform the new one
+      hafen.timer.after(2.0, function()
+        if demoObject == this then
+          this:move(p.x + 22, p.y):rotate(math.pi / 4):scale(scale * 1.5)   -- +2 tiles E, face 45 deg, grow x1.5 (chained handle verbs)
+          hafen.log(":hello object -> moved +2 tiles E, rotated 45 deg, grew x1.5 (gizmo-compatible transform handle on a mesh)")
+        end
+      end)
+    end
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object)")
       :format(#args, table.concat(args, " | ")))
   end
 end)

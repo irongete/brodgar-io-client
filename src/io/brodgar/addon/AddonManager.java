@@ -77,6 +77,7 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -515,7 +516,9 @@ public final class AddonManager {
         teardownSlashCommands(a);     // A11: drop the addon's live slash handlers (Console dispatchers stay — C1)
         teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
         teardownSprites(a);           // R2: destroy client-only world sprites (remove the slot + free the quad geometry)
+        teardownObjects(a);           // R3: destroy client-only world objects (remove the slot + free the glTF Models; before meshes)
         teardownImages(a);            // R1: dispose custom images (frees each TexI's GL texture — no leak; after sprites)
+        teardownMeshes(a);            // R3: drop custom models (frees the CPU geometry; after the objects that used them)
         teardownMouseGrabs(a);        // V5: release any active mouse-drag grab (drops the UI.Grab + unlinks the widget)
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
@@ -3212,6 +3215,42 @@ public final class AddonManager {
                 return newSprite(owner, opts);
             }
         });
+        // hafen.render.model(path) — load a glTF 2.0 STATIC model (.glb preferred, or .gltf + buffers) from THIS
+        // addon's folder into a cached, bridge-owned handle (spec 18-custom-models-gltf, R3). `path` is addon-relative
+        // and sandboxed (absolute / ".." rejected, D-017); repeated loads of the same path return the SAME handle. The
+        // mesh is parsed to baked, H&H-local geometry (Z up; 1 glTF metre = 1 tile) — POSITION + indices, multiple
+        // primitives/materials, TEXCOORD_0 + baseColorTexture (R3b: embedded/data-URI/external PNG-JPG, decoded to
+        // shared TexIs) × baseColorFactor, alpha modes OPAQUE/MASK/BLEND + doubleSided cull — UNLIT (normals/lighting
+        // are R3c). SAFE-tier, NOT gated (D-034). Returns:
+        //   :bounds()   -- {min={x,y,z}, max={x,y,z}, size={x,y,z}} in world units
+        //   :info()     -- {prims, textured, textures, verts, tris} (R3b: what the parser produced)
+        //   :dispose()  -- free the geometry + shared textures now (also automatic on reload/disable, P2)
+        // Stand it in the world with hafen.render.object{model=…}. A model using an unsupported feature (skins,
+        // animation, sparse accessors, …) raises a clear error naming it — never a crash.
+        render.set("model", new OneArgFunction() {
+            public LuaValue call(LuaValue path) {
+                return newMesh(owner, path);
+            }
+        });
+        // hafen.render.object{model, x, y [, a] [, scale] [, alpha] [, tint] [, clickable] [, onClick] [, follow]
+        // [, offset]} — stand a custom glTF MODEL in the 3D world (spec 18, R3). The mesh sibling of a sprite/ghost,
+        // on the SAME virtual-entity core + gizmo: a Gob with no server id (SAFE-tier, NOT gated, D-034). model = a
+        // hafen.render.model handle OR an addon-relative path (auto-loaded + cached, D-017-sandboxed); x,y = world
+        // coords (like hafen.gob.pos); a = facing radians (default 0). Options mirror hafen.render.sprite:
+        //   scale = 2               -- uniform scale (default 1) on top of the baked model→world size
+        //   alpha = 0.5             -- opacity 0..1 (default 1); tint = {r=,g=,b=[,a=]} colour overlay 0..255
+        //   clickable = true        -- opt into the V2 pick (the mesh renders into the clickmap) → ObjectClicked / onClick
+        //   follow = gob / offset = {x=,y=,z=}   -- anchor to a gob and track it every frame (like a sprite)
+        // Returns a transform handle (gizmo-compatible), like a sprite but with :mesh() in place of :image():
+        //   :move(x,y[,a]) :rotate(a) :scale(s) :alpha(a) :tint(color|nil) :clickable(bool) :show() :hide() :pos() :mesh() :destroy()
+        //   :follow(gob[, {x=,y=,z=}])  :offset{x=,y=,z=}
+        // Returns nil only if there is no map view yet (not in the world). The glTF origin maps to the gob position, so
+        // author a model with its base at Y=0 to stand on the ground.
+        render.set("object", new OneArgFunction() {
+            public LuaValue call(LuaValue opts) {
+                return newObject(owner, opts);
+            }
+        });
         hafen.set("render", render);
 
         // hafen.hook — intercept/alter client behaviour, not just observe it (spec 13-hooks-and-interception).
@@ -4823,6 +4862,265 @@ public final class AddonManager {
             disposeImage(li);          // removes each from a.images as it goes (copy-on-write list)
     }
 
+    // ---- R3: custom 3D models (hafen.render.model / hafen.render.object) ----------------------------------------
+
+    /**
+     * {@code hafen.render.model(path)} (R3a): load a glTF 2.0 <b>static</b> model ({@code .glb} preferred, or
+     * {@code .gltf} + buffers) from the addon's own folder into a cached, bridge-owned {@link LuaMesh} handle.
+     * Rejects a non-string / out-of-folder path (D-017); parses <b>synchronously</b> on the UI thread (small local
+     * assets — spec 17 §3) via {@link Gltf} into baked, H&amp;H-local geometry; a repeated load of the same path
+     * returns the <b>same</b> handle (one parse per {@code (addon, path)}). External {@code .gltf} buffer/image URIs
+     * are resolved <b>relative to the model file</b> and re-sandboxed to the addon folder. A parse failure (malformed
+     * data, or an unsupported feature named by {@link Gltf}) raises a clear {@link LuaError}.
+     */
+    private static LuaValue newMesh(Addon owner, LuaValue pathv) {
+        if(!pathv.isstring())
+            throw new LuaError("hafen.render.model(path) expects a string (an addon-relative file name, e.g. \"chair.glb\")");
+        String name = pathv.tojstring();
+        for(LuaMesh ex : owner.meshes) {               // cache: one parse per (addon, path)
+            if(!ex.dead && name.equals(ex.name) && (ex.handle != null))
+                return ex.handle;
+        }
+        Path p = resolveAddonAsset(owner, name, "hafen.render.model");
+        byte[] bytes;
+        try {
+            bytes = Files.readAllBytes(p);
+        } catch(IOException | RuntimeException e) {
+            throw new LuaError("hafen.render.model: could not read '" + name + "': " + e.getMessage());
+        }
+        final Path base = owner.dir.toAbsolutePath().normalize();
+        final Path parent = p.getParent();             // external URIs resolve relative to the model file...
+        Gltf.Loader loader = new Gltf.Loader() {
+            public byte[] read(String uri) throws Exception {
+                Path q = parent.resolve(uri).normalize();
+                if(!q.startsWith(base))                // ...but never escape the addon folder (D-017)
+                    throw new IOException("external asset '" + uri + "' escapes the addon folder");
+                return Files.readAllBytes(q);
+            }
+        };
+        Gltf mesh;
+        try {
+            mesh = Gltf.parse(bytes, name, loader);
+        } catch(RuntimeException e) {
+            throw new LuaError("hafen.render.model: " + e.getMessage());
+        }
+        TexI[] textures = buildMeshTextures(mesh, name);   // R3b: decode the shared base-colour textures (owned by the mesh)
+        LuaMesh lm = new LuaMesh(owner, name, mesh, textures);
+        owner.meshes.add(lm);
+        LuaValue handle = meshHandle(lm);
+        lm.handle = handle;
+        return handle;
+    }
+
+    /**
+     * Decode a parsed model's referenced texture image blobs ({@link Gltf#images}) into shared {@link TexI}s (R3b) —
+     * the same {@code ImageIO} → {@code TexI} substrate as {@code hafen.render.image}, but built with <b>no
+     * power-of-two rounding</b> ({@code new TexI(img, false)}) so glTF {@code [0,1]} UVs sample the whole image
+     * regardless of its dimensions (NPOT-safe). One {@code TexI} per glTF image (already deduped by {@link Gltf}); the
+     * {@link LuaMesh} owns them and frees them in {@link #disposeMesh}. A blob that fails to decode raises a clear
+     * {@link LuaError} naming the image (never a crash). Empty array for an untextured model.
+     */
+    private static TexI[] buildMeshTextures(Gltf mesh, String name) {
+        int n = mesh.images.size();
+        TexI[] out = new TexI[n];
+        for(int i = 0; i < n; i++) {
+            Gltf.Image im = mesh.images.get(i);
+            String kind = (im.mime != null) ? im.mime : "unknown type";
+            BufferedImage bi;
+            try {
+                bi = ImageIO.read(new ByteArrayInputStream(im.bytes));
+            } catch(IOException | RuntimeException e) {
+                throw new LuaError("hafen.render.model: could not decode texture image " + i + " (" + kind + ") in '" + name + "': " + e.getMessage());
+            }
+            if(bi == null)
+                throw new LuaError("hafen.render.model: texture image " + i + " (" + kind + ") in '" + name + "' is not a decodable image (PNG/JPG/GIF/BMP)");
+            out[i] = new TexI(bi, false);   // no POT rounding → [0,1] glTF UVs map to the full image (NPOT-safe)
+        }
+        return out;
+    }
+
+    /**
+     * The Lua handle for a {@link LuaMesh} (R3): {@code :bounds()} → {@code {min={x,y,z}, max={x,y,z},
+     * size={x,y,z}}} (world units) and {@code :dispose()}. The table also carries the {@link LuaMesh} as an
+     * <b>opaque userdata</b> ({@link LuaMesh#KEY}) so {@code hafen.render.object{model=…}} can {@link LuaMesh#resolve}
+     * it back to the parsed geometry — facade-safe (no Java method reachable from Lua; unforgeable without {@code luajava}).
+     */
+    private static LuaValue meshHandle(final LuaMesh lm) {
+        LuaTable h = new LuaTable();
+        h.set(LuaMesh.KEY, LuaValue.userdataOf(lm));   // opaque backing ref for hafen.render.object
+        h.set("bounds", new ZeroArgFunction() {
+            public LuaValue call() {
+                LuaTable t = new LuaTable();
+                t.set("min", vec3Table(lm.mesh.min));
+                t.set("max", vec3Table(lm.mesh.max));
+                t.set("size", vec3Table(new float[] {
+                    lm.mesh.max[0] - lm.mesh.min[0], lm.mesh.max[1] - lm.mesh.min[1], lm.mesh.max[2] - lm.mesh.min[2] }));
+                return t;
+            }
+        });
+        // :info() → a small summary of what the parser produced (R3b): primitive/texture/triangle counts. Useful for
+        // an addon (or the hello harness) to confirm a model loaded textured, and for logging.
+        h.set("info", new ZeroArgFunction() {
+            public LuaValue call() {
+                int textured = 0;
+                for(Gltf.Prim p : lm.mesh.prims)
+                    if(p.textured()) textured++;
+                LuaTable t = new LuaTable();
+                t.set("prims", LuaValue.valueOf(lm.mesh.prims.size()));
+                t.set("textured", LuaValue.valueOf(textured));       // primitives with a base-colour texture
+                t.set("textures", LuaValue.valueOf(lm.textures.length));   // distinct decoded texture images
+                t.set("verts", LuaValue.valueOf((double)lm.mesh.nvert));
+                t.set("tris", LuaValue.valueOf((double)lm.mesh.ntri));
+                return t;
+            }
+        });
+        h.set("dispose", new VarArgFunction() {
+            public Varargs invoke(Varargs a) { disposeMesh(lm); return a.arg1(); }
+        });
+        return h;
+    }
+
+    /** A {@code {x,y,z}} Lua table from a 3-float array (mesh bounds). */
+    private static LuaTable vec3Table(float[] v) {
+        LuaTable t = new LuaTable();
+        t.set("x", LuaValue.valueOf((double)v[0]));
+        t.set("y", LuaValue.valueOf((double)v[1]));
+        t.set("z", LuaValue.valueOf((double)v[2]));
+        return t;
+    }
+
+    /**
+     * Free one model now (its {@code :dispose()}, and teardown): flip {@link LuaMesh#dead} (so a later
+     * {@code render.object} refuses it), drop it from the addon's registry, and (R3b) dispose the mesh's <b>shared
+     * base-colour textures</b> (the first GPU state a mesh owns). Each {@link LuaObject} owns its own engine
+     * {@code Model}s (freed by {@code teardownObjects}, which runs first), so at teardown a live object never
+     * references a freed texture; a manual {@code mesh:dispose()} while an object still draws it does free the
+     * textures out from under it (dispose only when unused — see {@link LuaMesh}). Idempotent.
+     */
+    private static void disposeMesh(LuaMesh lm) {
+        if(lm.dead)
+            return;
+        lm.dead = true;
+        lm.owner.meshes.remove(lm);
+        for(TexI t : lm.textures) {                   // R3b: free the shared base-colour textures
+            if(t != null) {
+                try { t.dispose(); } catch(RuntimeException e) { /* best-effort: free the GL texture */ }
+            }
+        }
+    }
+
+    /** Dispose every model this addon owns (reload/disable/relogin, P2). Objects are torn down first ({@link #teardownObjects}). */
+    private static void teardownMeshes(Addon a) {
+        if(a.meshes.isEmpty())
+            return;
+        for(LuaMesh lm : new ArrayList<LuaMesh>(a.meshes))
+            disposeMesh(lm);           // removes each from a.meshes as it goes (copy-on-write list)
+    }
+
+    /**
+     * {@code hafen.render.object{model, x, y [, a] [, scale] [, alpha] [, tint] [, clickable] [, onClick] [, follow]
+     * [, offset]}} (R3a): stand a custom glTF model in the 3D world — the mesh sibling of a sprite/ghost, on the same
+     * virtual-entity core (spec 18 §3). Validates the options, resolves the {@code model} (a {@code hafen.render.model}
+     * handle or an addon-relative path, auto-loaded + cached), builds a {@link GhostGob}, attaches a {@link MeshSprite}
+     * ({@code SprDrawable}), and adds it to the MapView {@code basic} scene ({@link MapView#addClientGob}). Everything
+     * else — transform, look, {@code follow} anchor, {@code clickable}/{@code onClick}, gizmo — is shared with sprites.
+     * Because the geometry is already decoded ({@link Gltf}), there is NO {@code Loading} to dodge — the gob is built
+     * and published <b>synchronously</b> on the calling UI thread (mirrors {@link #newSprite}). Registered in the
+     * addon's owned-resource registry (P2). Returns {@code nil} if there is no map view (not in the world); throws a
+     * {@link LuaError} for a malformed table / a bad {@code model}.
+     */
+    private static LuaValue newObject(Addon owner, LuaValue opts) {
+        if(!opts.istable())
+            throw new LuaError("hafen.render.object{model=..., x=..., y=...} expects an options table");
+        LuaValue xv = opts.get("x"), yv = opts.get("y");
+        LuaValue followv = opts.get("follow");
+        boolean hasFollow = !followv.isnil();
+        if(!hasFollow && (!xv.isnumber() || !yv.isnumber()))
+            throw new LuaError("hafen.render.object: 'x' and 'y' must be numbers (world coordinates, like hafen.gob.pos) — or pass follow=gob instead");
+        final MapView mv = view;
+        final Glob g = glob();
+        if((mv == null) || (g == null))
+            return LuaValue.NIL;                       // not in the world yet — no scene to add to
+        LuaMesh mesh = resolveObjectMesh(owner, opts.get("model"));   // AFTER the world check (don't parse when not in world)
+        LuaValue av = opts.get("a");
+        double a = av.isnumber() ? av.todouble() : 0.0;
+        Coord2d rc = new Coord2d(xv.optdouble(0.0), yv.optdouble(0.0));   // 0,0 placeholder when following
+        LuaObject ob = new LuaObject(owner, mesh, rc, a);
+        ob.alpha = luaAlpha(opts.get("alpha"));
+        ob.tint = luaTint(opts.get("tint"));
+        ob.scale = luaScale(opts.get("scale"));        // uniform scale on top of the baked model→world size
+        ob.clickable = opts.get("clickable").toboolean();
+        LuaValue onclickv = opts.get("onClick");
+        if(onclickv.isfunction())
+            ob.onClick = onclickv;
+        if(hasFollow) {
+            ob.followTgt = followTargetId(followv);
+            ob.followOff = luaOffset(opts.get("offset"));
+        }
+        owner.objects.add(ob);
+        LuaValue handle = objectHandle(ob);
+        ob.handle = handle;
+        // Build the gob + visual, then publish atomically. No defer: the glTF geometry is already parsed (R3), so
+        // nothing here throws Loading. The MeshSprite adds one Model per primitive; the shared core supplies
+        // transform/look/gizmo, exactly like a sprite's quad.
+        GhostGob gob = new GhostGob(g, rc);
+        gob.a = a;
+        gob.alpha = ob.alpha; gob.tint = ob.tint; gob.scale = ob.scale;   // reflect the look before the first scene add
+        gob.clickable = ob.clickable;                  // a clickable object's mesh renders into the clickmap → V2-pickable
+        gob.setattr(new SprDrawable(gob, MeshSprite.mill(mesh)));    // resource-free glTF-model visual (R3b: shared textures + per-material states)
+        gob.move(rc, a);
+        synchronized(ob) {
+            if(ob.dead) { gob.dispose(); return handle; }   // destroyed mid-build (defensive; all UI-thread)
+            ob.gob = gob;
+            ob.mv = mv;
+            applyEntityFollow(ob, gob);                 // if follow= was given, start tracking the gob now
+            if(!ob.hidden)
+                ob.slot = mv.addClientGob(gob);         // the // addon: MapView seam (spec 16 §6); MapView now ticks it
+        }
+        return handle;
+    }
+
+    /**
+     * The Lua handle for a {@link LuaObject} (R3): the shared entity verbs ({@link #addEntityHandle}) plus the
+     * object's {@code :mesh()} identity accessor (its addon-relative model path) and {@code :clickable(bool)} (the
+     * V2 pick surface, mirroring a sprite/ghost). No {@code :setRes}/{@code :setModel} — an object's mesh is fixed at create (R3a).
+     */
+    private static LuaValue objectHandle(final LuaObject ob) {
+        LuaTable h = new LuaTable();
+        addEntityHandle(h, ob);
+        h.set("mesh", new ZeroArgFunction() {
+            public LuaValue call() { return (ob.meshName == null) ? LuaValue.NIL : LuaValue.valueOf(ob.meshName); }
+        });
+        h.set("clickable", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                setEntityClickable(ob, a.arg(2).toboolean());   // o:clickable(true|false); default (no arg) → false
+                return a.arg1();
+            }
+        });
+        return h;
+    }
+
+    /**
+     * Resolve the object {@code model=} option to a live {@link LuaMesh}: a {@code hafen.render.model} handle (or its
+     * raw backing userdata), or an addon-relative <b>path</b> string (auto-loaded + cached from the addon's own
+     * folder, D-017-sandboxed, via {@link #newMesh}). Throws a {@link LuaError} for anything else / a disposed model.
+     */
+    private static LuaMesh resolveObjectMesh(Addon owner, LuaValue modelv) {
+        LuaMesh lm = modelv.isstring() ? LuaMesh.resolve(newMesh(owner, modelv))   // load+cache from the addon folder
+                                       : LuaMesh.resolve(modelv);                   // a handle or its raw userdata
+        if((lm == null) || lm.dead)
+            throw new LuaError("hafen.render.object: 'model' must be a hafen.render.model handle or an addon-relative path string");
+        return lm;
+    }
+
+    /** Tear down every object this addon owns (reload/disable/relogin, P2): destroy each (slot removed + Models freed). */
+    private static void teardownObjects(Addon a) {
+        if(a.objects.isEmpty())
+            return;
+        for(LuaObject ob : new ArrayList<LuaObject>(a.objects))
+            destroyEntity(ob);          // removes each from a.objects as it goes (copy-on-write list)
+    }
+
     // ---- R2: custom world sprites (hafen.render.sprite) --------------------------------------------------------
 
     /**
@@ -5339,6 +5637,12 @@ public final class AddonManager {
             synchronized(sp) { g = sp.dead ? null : sp.gob; }
             if(g == cg)
                 return sp;
+        }
+        for(LuaObject ob : a.objects) {           // R3: a clickable glTF object is pickable too (its mesh is in the clickmap)
+            Gob g;
+            synchronized(ob) { g = ob.dead ? null : ob.gob; }
+            if(g == cg)
+                return ob;
         }
         return null;
     }

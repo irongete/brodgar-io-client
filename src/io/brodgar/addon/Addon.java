@@ -154,6 +154,28 @@ public final class Addon {
      */
     public final List<LuaImage> images = new CopyOnWriteArrayList<LuaImage>();
     /**
+     * Live custom 3D models owned by this addon ({@code hafen.render.model}, R3): each is a glTF mesh
+     * ({@code .glb}/{@code .gltf}) decoded from the addon's own folder into baked, H&amp;H-local geometry (a
+     * {@link Gltf}) — a client-only render asset that is NOT an engine {@code .res} (SAFE-tier, D-034). Like
+     * {@link #images} there is no global dispatch/poll list; a mesh is a passive geometry source that
+     * {@link #objects} build engine {@code Model}s from on demand, so it lives only here. Teardown
+     * ({@link AddonManager#teardownMeshes}) marks each dead and drops it (frees the CPU geometry for GC; its
+     * per-object GPU {@code Model}s are freed with the objects) so a reload/disable/relogin leaks nothing.
+     * Copy-on-write: a firing callback may load or {@code :dispose()} a model.
+     */
+    public final List<LuaMesh> meshes = new CopyOnWriteArrayList<LuaMesh>();
+    /**
+     * Live client-only world 3D objects owned by this addon ({@code hafen.render.object}, R3): each is a custom
+     * glTF model (a {@link #meshes} mesh) standing in the 3D world as a {@link haven.Gob} with no server id — the
+     * mesh sibling of a {@link #sprites sprite} and a {@link #ghosts ghost}, on the same virtual-entity core (spec
+     * {@code 18-custom-models-gltf.md}, SAFE-tier, D-034). Like ghosts/sprites there is no global dispatch/poll
+     * list (a passive render node driven by the render tree's own tick); it lives only here. Teardown
+     * ({@link AddonManager#teardownObjects}) destroys each — removes its scene slot + disposes its engine
+     * {@code Model}s (the shared mesh is freed by {@link AddonManager#teardownMeshes}) — so a reload/disable/relogin
+     * leaks nothing. Copy-on-write: a firing callback may create or destroy an object.
+     */
+    public final List<LuaObject> objects = new CopyOnWriteArrayList<LuaObject>();
+    /**
      * Live modal mouse-drag captures owned by this addon ({@code hafen.hook.grab}, V5): each is a
      * {@link LuaMouseGrab} widget on {@code ui.root} that forwards mouse move/up to Lua while capturing the drag
      * (the gizmo's drag primitive). Normally transient (one per active drag) and self-releasing on mouse-up;
