@@ -22,11 +22,23 @@ automatically on reload/disable. (Client-side UI cannot send actions to the serv
 | `title` | string | window title (windows only) |
 | `onDraw` | `fn(g, w, h)` | draw the content — see [the `g` wrapper](#the-g-draw-wrapper) |
 | `onTick` | `fn(dt)` | per-frame update; `dt` = seconds |
-| `onClick` | `fn(x, y, button)` | mouse press; return truthy to consume it |
-| `onMouseUp` | `fn(x, y, button)` | mouse release |
-| `onMouseMove` | `fn(x, y)` | mouse move over the widget |
-| `onWheel` | `fn(x, y, amount)` | mouse wheel |
+| `onClick` | `fn(x, y, button, mods)` | mouse press; return truthy to consume it |
+| `onMouseUp` | `fn(x, y, button, mods)` | mouse release |
+| `onMouseMove` | `fn(x, y, mods)` | mouse move over the widget |
+| `onWheel` | `fn(x, y, amount, mods)` | mouse wheel |
+| `onDrop` | `fn(x, y, drop)` | something was dropped on the widget; return truthy to consume it |
 | `onClose` | `fn()` | window close button (windows only) |
+
+- **`mods`** is the trailing `{shift, ctrl, alt}` boolean table (from `ui.modflags()`) on every mouse
+  callback — the modifier state **at press time** (e.g. branch Shift+drag vs. a plain click). Additive: a
+  handler that ignores the extra argument is unaffected. Same shape as [`hafen.hook.grab`](hooks.md)'s `mods`.
+- **`onDrop`** makes the widget a **drop target** for the client's own drag gesture: drag a menu-grid action
+  onto it and `onDrop(x, y, drop)` fires with widget-local pixels and a neutral descriptor
+  `drop = { kind = "pagina", res = "<resource name>" }`. `res` is a plain resource name (ungated); draw its
+  icon with [`g:resource`](#the-g-draw-wrapper), persist it via [`hafen.store`](store.md). `res` is present
+  only for resource-based actions — an id-only action carries `kind` alone (usable in-session, not reliably
+  persistable). *Firing* the dropped action is not part of `onDrop` (that needs the deferred menu-ability
+  primitive).
 
 ### Window / widget handle
 
@@ -136,8 +148,13 @@ point for a gob overlay). Methods are colon-calls.
 | `g:prect(cx, cy, radius, fraction)` | a clockwise pie/progress wedge (0..1) — for cooldowns/meters |
 | `g:image(img, x, y [, w, h])` | draw a [`hafen.render.image`](render.md) at native size (or scaled into `w × h`) |
 | `g:aimage(img, x, y, ax, ay)` | draw a [`hafen.render.image`](render.md) anchored; `ax`/`ay` 0..1 pick which point sits at `(x, y)` |
+| `g:resource(name, x, y [, w, h])` | draw an engine `.res` image **by name** at native size (or scaled into `w × h`) |
 | `g:color(r, g, b [, a])` | set the draw colour (0..255); `g:color()` resets to white |
 
 `g` is valid only during the draw callback — stashing it and drawing later does nothing (it goes
-inert). To draw your own PNG images (not engine `.res` art), load them with
-[`hafen.render.image`](render.md) and blit with `g:image`/`g:aimage` above.
+inert). To draw your own PNG images, load them with [`hafen.render.image`](render.md) and blit with
+`g:image`/`g:aimage`. To draw the **client's own `.res` art** (action icons, hud pieces) — e.g. the icon of
+the action a widget received from [`onDrop`](#windows--widgets) — use `g:resource(name, …)`. It resolves the
+resource **asynchronously and caches** it, and is **`Loading`-guarded** (draws nothing until the texture is
+ready, then blits the resource's default image layer). It draws the **static icon only** — no live sprite /
+cooldown sweep. A bad name simply draws nothing.

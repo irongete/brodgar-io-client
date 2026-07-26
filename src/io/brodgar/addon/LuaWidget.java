@@ -1,7 +1,11 @@
 package io.brodgar.addon;
 
 import haven.Coord;
+import haven.DropTarget;
 import haven.GOut;
+import haven.Indir;
+import haven.MenuGrid;
+import haven.Resource;
 import haven.Widget;
 
 import org.luaj.vm2.LuaTable;
@@ -29,10 +33,23 @@ import org.luaj.vm2.Varargs;
  * pixel space (top-left = {@code 0,0}); {@code onDraw(g, w, h)} gets the widget size. UI scaling
  * ({@code UI.scale}) is <b>not</b> applied in 2a — sizes and draw coords are raw pixels (a later slice may
  * add a scale option).
+ *
+ * <p><b>Drop target (D-038).</b> A LuaWidget {@link DropTarget implements DropTarget}, so the client's own
+ * drag gesture can drop a "thing" onto it: the engine walks the widget tree and calls {@link #dropthing}
+ * on the first target under the cursor. v1 delivers a menu-grid action ({@link MenuGrid.Pagina}) as the
+ * <b>neutral descriptor</b> {@code {kind="pagina", res="<name>"}} to the addon's {@code onDrop(x, y, drop)}
+ * callback (widget-local px); a truthy return consumes the drop. A resource name is plain data (already all
+ * over the read API), so this stays <b>ungated</b>; firing the dropped action is out of scope (the deferred
+ * menu-ability primitive).
+ *
+ * <p><b>Modifiers (D-040).</b> Each mouse callback carries a trailing {@code mods = {shift, ctrl, alt}}
+ * table (from {@code ui.modflags()}, via {@link AddonManager#modsTable}) so an addon can branch on the
+ * modifier state at press time (e.g. Shift+drag). Additive and back-compatible — a handler that ignores
+ * the extra argument is unaffected.
  */
-public final class LuaWidget extends Widget {
+public final class LuaWidget extends Widget implements DropTarget {
     private final Addon owner;
-    private final LuaValue onDraw, onTick, onClick, onMouseUp, onMouseMove, onWheel;
+    private final LuaValue onDraw, onTick, onClick, onMouseUp, onMouseMove, onWheel, onDrop;
     private final LuaGOut gwrap = new LuaGOut();   // the shared GOut draw wrapper `g`, bound per draw
     private Widget root = this;     // the widget to destroy on kill(): the window chrome, or this
     private boolean dead;           // set on teardown so a late tick/draw callback is a no-op
@@ -46,6 +63,7 @@ public final class LuaWidget extends Widget {
         this.onMouseUp   = fn(opts, "onMouseUp");
         this.onMouseMove = fn(opts, "onMouseMove");
         this.onWheel     = fn(opts, "onWheel");
+        this.onDrop      = fn(opts, "onDrop");
     }
 
     /** An optional callback from the opts table, or {@code null} if the key is absent / not a function. */
@@ -94,14 +112,14 @@ public final class LuaWidget extends Widget {
 
     public boolean mousedown(MouseDownEvent ev) {
         if(!dead && (onClick != null)
-           && AddonManager.callLua(owner, onClick, ci(ev.c.x), ci(ev.c.y), ci(ev.b)).arg1().toboolean())
+           && AddonManager.callLua(owner, onClick, ci(ev.c.x), ci(ev.c.y), ci(ev.b), mods()).arg1().toboolean())
             return true;   // a truthy return consumes the click (preventDefault)
         return super.mousedown(ev);
     }
 
     public boolean mouseup(MouseUpEvent ev) {
         if(!dead && (onMouseUp != null)
-           && AddonManager.callLua(owner, onMouseUp, ci(ev.c.x), ci(ev.c.y), ci(ev.b)).arg1().toboolean())
+           && AddonManager.callLua(owner, onMouseUp, ci(ev.c.x), ci(ev.c.y), ci(ev.b), mods()).arg1().toboolean())
             return true;
         return super.mouseup(ev);
     }
@@ -109,14 +127,69 @@ public final class LuaWidget extends Widget {
     public void mousemove(MouseMoveEvent ev) {
         super.mousemove(ev);
         if(!dead && (onMouseMove != null))
-            AddonManager.callLua(owner, onMouseMove, ci(ev.c.x), ci(ev.c.y));
+            AddonManager.callLua(owner, onMouseMove, ci(ev.c.x), ci(ev.c.y), mods());
     }
 
     public boolean mousewheel(MouseWheelEvent ev) {
         if(!dead && (onWheel != null)
-           && AddonManager.callLua(owner, onWheel, ci(ev.c.x), ci(ev.c.y), ci(ev.a)).arg1().toboolean())
+           && AddonManager.callLua(owner, onWheel, ci(ev.c.x), ci(ev.c.y), ci(ev.a), mods()).arg1().toboolean())
             return true;
         return super.mousewheel(ev);
+    }
+
+    // ---------------------------------------------------------------- drop target (D-038)
+
+    /**
+     * A "thing" was dropped over this widget (the engine's own drag-drop dispatch). {@code cc} is
+     * widget-local (the {@link DropTarget.Drop} event derives child-local coords as it propagates). v1
+     * delivers a menu-grid {@link MenuGrid.Pagina} as a neutral descriptor; a truthy Lua return consumes
+     * it. Any other kind of thing (e.g. an inventory item, a different path) returns {@code false} so the
+     * engine keeps looking for a handler.
+     */
+    public boolean dropthing(Coord cc, Object thing) {
+        if(dead || (onDrop == null))
+            return false;
+        LuaValue drop = dropDescriptor(thing);
+        if(drop == null)
+            return false;   // not a kind we deliver → let the engine dispatch it elsewhere
+        return AddonManager.callLua(owner, onDrop, ci(cc.x), ci(cc.y), drop).arg1().toboolean();
+    }
+
+    /**
+     * Build the neutral drop descriptor for {@code onDrop} (D-038), or {@code null} for a thing v1 does not
+     * deliver. A menu-grid action &rarr; {@code {kind="pagina", res="<name>"}}. The {@code res} is included
+     * only for a <b>resource-based</b> pagina (its {@code id} is the resource {@link Indir} itself) and only
+     * once resolved — an id-only pagina ({@code fl&2}) has no stable resource name, so it carries {@code kind}
+     * alone (usable in-session, not reliably persistable). Loading is swallowed (res absent until ready).
+     */
+    private static LuaValue dropDescriptor(Object thing) {
+        if(thing instanceof MenuGrid.Pagina) {
+            MenuGrid.Pagina pag = (MenuGrid.Pagina)thing;
+            LuaTable d = new LuaTable();
+            d.set("kind", LuaValue.valueOf("pagina"));
+            if(pag.id instanceof Indir) {          // resource-based (stable) vs. id-only (no stable res name)
+                String nm = resName(pag.res);
+                if(nm != null)
+                    d.set("res", LuaValue.valueOf(nm));
+            }
+            return d;
+        }
+        return null;
+    }
+
+    /** The resource name of an {@code Indir<Resource>}, or {@code null} (Loading / unresolved / null). */
+    private static String resName(Indir<Resource> res) {
+        try {
+            Resource r = (res == null) ? null : res.get();
+            return (r == null) ? null : r.name;
+        } catch(RuntimeException e) {   // Loading etc.
+            return null;
+        }
+    }
+
+    /** The {@code {shift,ctrl,alt}} modifier table at callback time (empty if no UI is attached yet). */
+    private LuaTable mods() {
+        return AddonManager.modsTable((ui != null) ? ui.modflags() : 0);
     }
 
     private static LuaValue ci(int v) {

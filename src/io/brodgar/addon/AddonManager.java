@@ -832,6 +832,7 @@ public final class AddonManager {
         for(int i = cur.size() - 1; i >= 0; i--)     // reverse load order
             teardown(cur.get(i));
         addons.clear();
+        LuaGOut.clearResourceCache();                // U1/D-039: drop the g:resource name cache on reload
         loadAll();                                   // re-scan disk + enabled set; re-run; fire OnLoad
         if(gui() != null) {                          // already in-world → re-init as a fresh login
             restorePerChar();                        // reload per-char saved vars (charScope still valid)

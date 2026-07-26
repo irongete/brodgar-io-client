@@ -2,7 +2,13 @@ package io.brodgar.addon;
 
 import haven.Coord;
 import haven.GOut;
+import haven.Indir;
+import haven.Loading;
+import haven.Resource;
+import haven.Tex;
 import haven.render.Model;
+
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -25,6 +31,20 @@ import org.luaj.vm2.lib.VarArgFunction;
  * {@link LuaImage}) and blits its {@link haven.TexI}; a nil/typo/disposed image simply draws nothing.
  */
 final class LuaGOut {
+    /**
+     * The engine-resource cache for {@code g:resource(name, ...)} (D-039): resource name &rarr; its
+     * {@link Indir}, so a per-frame draw does not re-issue the lookup. The referenced resources are the
+     * client's own global engine resources (shared via {@link Resource#remote()}, which caches them anyway),
+     * so this map holds only lightweight refs and leaks nothing; it is cleared on {@code :reload} for
+     * faithfulness (see {@link #clearResourceCache}).
+     */
+    private static final ConcurrentHashMap<String, Indir<Resource>> resCache = new ConcurrentHashMap<String, Indir<Resource>>();
+
+    /** Drop the {@code g:resource} name cache (called from a full {@code :reload}). */
+    static void clearResourceCache() {
+        resCache.clear();
+    }
+
     /** The live {@link GOut} during the current draw callback, else {@code null} (the wrapper is then inert). */
     private GOut cur;
     /** The Lua {@code g} table of drawing primitives; built once, its closures read {@link #cur}. */
@@ -132,6 +152,30 @@ final class LuaGOut {
                 return NIL;
             }
         });
+        // g:resource(name, x, y)         — draw an ENGINE .res image BY NAME at its native size, top-left at (x,y).
+        // g:resource(name, x, y, w, h)   — the same, scaled into a w×h box.
+        // The sibling of g:image: g:image draws the addon's OWN PNGs (hafen.render.image, R1), g:resource draws
+        // the client's own .res art (action icons, hud pieces) — e.g. the `res` a widget receives from onDrop
+        // (D-038). The name is resolved ASYNC + cached (one Indir per name) and the draw is Loading-GUARDED: it
+        // draws nothing until the texture is ready, then blits the default image layer (Resource.imgc) — the
+        // client's own idiom (cf. MenuGrid.draw swallowing Loading). A bad name / load error simply draws nothing
+        // (never throws into the render thread). Static only — no live sprite / cooldown sweep (D-039).
+        t.set("resource", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                GOut d = cur; if(d == null) return NIL;
+                String name = a.arg(2).tojstring();
+                if((name == null) || name.isEmpty()) return NIL;
+                Tex tex = resTex(name);
+                if(tex == null) return NIL;   // still Loading / failed → draw nothing this frame
+                Coord c = Coord.of(a.arg(3).toint(), a.arg(4).toint());
+                LuaValue wv = a.arg(5), hv = a.arg(6);
+                if(wv.isnumber() && hv.isnumber())
+                    d.image(tex, c, Coord.of(wv.toint(), hv.toint()));   // scaled
+                else
+                    d.image(tex, c);                                     // native
+                return NIL;
+            }
+        });
         // g:aimage(img, x, y, ax, ay) — anchored image (ax/ay 0..1 = which point of the image sits at x,y),
         // mirroring g:atext. Same forgiving nil/disposed handling as g:image.
         t.set("aimage", new VarArgFunction() {
@@ -170,5 +214,29 @@ final class LuaGOut {
             }
         });
         return t;
+    }
+
+    /**
+     * Resolve an engine resource's default image-layer texture by name for {@code g:resource}, async + cached
+     * + {@code Loading}-guarded (D-039): returns {@code null} until the resource is loaded (draw nothing this
+     * frame) or on any load failure (a bad name never throws into the render thread), else the layer's
+     * {@link Tex}. The {@link Indir} is cached by name (dedups the per-frame lookup); the {@code Tex} itself is
+     * cached by the engine's {@code Resource.Image}.
+     */
+    private static Tex resTex(String name) {
+        try {
+            Indir<Resource> ind = resCache.get(name);
+            if(ind == null) {
+                ind = Resource.remote().load(name);
+                resCache.put(name, ind);
+            }
+            Resource res = ind.get();               // throws Loading until ready
+            Resource.Image img = res.layer(Resource.imgc);
+            return (img == null) ? null : img.tex();
+        } catch(Loading l) {
+            return null;                            // still resolving → draw nothing this frame
+        } catch(RuntimeException e) {
+            return null;                            // bad name / load error → draw nothing, never throw
+        }
     }
 }

@@ -61,7 +61,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.44.0)")
+hafen.log("hello loaded (v0.46.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -842,6 +842,8 @@ local moveIntercept = false -- 2d: while true, the "click" action hook intercept
 local moveHookSeen = 0      -- 2d: how many moves the action hook has observed while OFF (for the "observed" log lines)
 local vitalsFreeze = false  -- 2e: while true, the "set" message hook SWALLOWS meter updates -> the HUD vitals bars freeze (toggle: MIDDLE-click)
 local msgHookSeen = 0       -- 2e: how many meter "set" messages the hook has observed while OFF (for the "observed" log lines)
+local dropWidget            -- U1: the borderless drop-target widget handle (nil until created / after reload)
+local droppedRes           -- U1: the .res name of the last menu-grid action dropped on it (drawn via g:resource)
 
 -- R1: CUSTOM IMAGE (hafen.render.image). Load a PNG shipped in THIS addon's own folder (icon.png -- a small
 -- green "H" disc) into a bridge-owned TexI handle, then draw it below in the 2a window (native + scaled) and
@@ -1172,6 +1174,48 @@ hafen.events.on("OnEnterWorld", function()
     onClose = function() hafen.log("panel closed (X) -- :reload to bring it back") end,
   }
   hafen.log("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, MMB=vitals-freeze, X=close, Ctrl+H=toggle")
+
+  -- U1: DROP TARGET + g:resource + mouse mods. A borderless custom widget (hafen.ui.widget) that is a
+  -- DROP TARGET for the client's own drag gesture (D-038): open the menu grid (bottom-right), drag an
+  -- action onto this box, and onDrop(x, y, drop) fires with drop = { kind="pagina", res="<name>" } (a
+  -- neutral descriptor -- a resource name, plain data, so this is UNGATED). We remember the res and DRAW
+  -- ITS ICON via g:resource(name, ...) -- the engine .res sibling of g:image (D-039), async + cached +
+  -- Loading-guarded. onClick logs the mods table (D-040): Shift+click the box and the log shows shift=true.
+  -- Bridge-owned (P2): :reload/disable destroys it. The DoD: drop an action -> icon renders + res logs;
+  -- Shift+click -> shift=true; :reload leaks nothing.
+  droppedRes = nil
+  dropWidget = hafen.ui.widget{
+    size = { 96, 96 },
+    pos  = { 80, 270 },
+    onDraw = function(g, w, h)
+      g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()        -- own slot background (invsq is not a .res)
+      g:color(150, 150, 170); g:rect(0, 0, w, h); g:color()
+      if droppedRes then
+        g:resource(droppedRes, 8, 8, w - 16, h - 32)               -- the dropped action's engine icon, scaled
+        g:atext("dropped", w / 2, h - 4, 0.5, 1.0)
+      else
+        g:atext("drag an", w / 2, h / 2 - 8, 0.5, 0.5)
+        g:atext("action here", w / 2, h / 2 + 6, 0.5, 0.5)
+      end
+    end,
+    onDrop = function(x, y, drop)
+      if drop.res then
+        droppedRes = drop.res
+        hafen.log(("U1: onDrop at %d,%d -> kind=%s res=%s (drawing its icon via g:resource)")
+          :format(x, y, tostring(drop.kind), tostring(drop.res)))
+      else
+        hafen.log(("U1: onDrop at %d,%d -> kind=%s (id-only pagina, no stable res -- not persistable)")
+          :format(x, y, tostring(drop.kind)))
+      end
+      return true                                                  -- truthy = consume the drop
+    end,
+    onClick = function(x, y, button, mods)
+      hafen.log(("U1: drop-widget click at %d,%d btn=%d mods={shift=%s,ctrl=%s,alt=%s}")
+        :format(x, y, button, tostring(mods.shift), tostring(mods.ctrl), tostring(mods.alt)))
+      return true
+    end,
+  }
+  hafen.log("U1: drop-target widget up -- open the menu grid, drag an action onto the box (icon draws via g:resource); Shift+click logs shift=true")
 
   -- 2c: INPUT HOOK (hafen.hook.input, L1). Pre-hook MapView's mousedown through the engine's built-in
   -- Widget.listen seam (ZERO core edit): fn(ev) runs BEFORE MapView's own mousedown, at SCREEN coords, before
