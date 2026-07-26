@@ -124,6 +124,7 @@ public final class AddonRegistry {
         RenderApi.teardownMeshes(a);            // R3: drop custom models (frees the CPU geometry; after the objects that used them)
         HookApi.teardownMouseGrabs(a);// V5: release any active mouse-drag grab (drops the UI.Grab + unlinks the widget)
         HttpApi.teardownRequests(a);  // N2a: cancel in-flight HTTP requests (result discarded on drain; no callback)
+        FontApi.teardownFonts(a);     // F1: revert this addon's font overrides on every scope (bumps gen -> stock foundry restored)
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
         a.subs.clear();

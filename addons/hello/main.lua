@@ -61,7 +61,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.46.0)")
+hafen.log("hello loaded (v0.47.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -877,6 +877,34 @@ hafen.events.on("OnLoad", function()
     :format(nfo.prims, nfo.textured, nfo.lit, nfo.textures, nfo.tris, b.size.x, b.size.y, b.size.z, b.size.z / 11))
 end)
 
+-- F1: PER-ADDON FONTS (hafen.font). hafen.font.load(source[,opts]) loads a font into a PRIVATE, per-addon handle
+-- (no shared registry, D-043): `source` is a built-in name ("sans"/"serif"/"mono"/"fraktur") OR an addon-relative
+-- .ttf/.otf path (sandboxed like the R1/R3 assets: absolute / ".." are rejected, D-017); `opts` = {size, aa, bold,
+-- italic, color}. The handle exposes :derive(opts) (a cheap variant), :family() (the AWT family, for a $font tag in
+-- F2) and :size() (its logical px). We prefer a bundled .ttf if one is present (drop any .ttf at addons/hello/fonts/
+-- demo.ttf to exercise the file-load + AWT-register path -- the DoD's "loads a TTF"); otherwise we fall back to the
+-- built-in "serif", which still proves the whole loop. Applying it to a GLOBAL surface is an OWNED override:
+-- hafen.font.setFont("default", h) restyles most UI text LIVE (the "default" scope cascades to Text.std / Text.render
+-- / every default Label), and it is reverted automatically on :reload/disable (the stock UI is always restorable).
+-- ':hello font' toggles the override; while ON it also stacks a SECOND override (mono) on top to prove LAST-WINS,
+-- then drops it back to the first. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
+local demoFont          -- the loaded FontHandle (nil until OnLoad; env rebuilt on reload -> nil, re-loaded below)
+local fontApplied = false   -- is our "default" override currently installed? (session-local; teardown reverts it)
+hafen.events.on("OnLoad", function()
+  fontApplied = false                                   -- a reload rebuilt the env; the override was torn down (P2)
+  local ok, ttf = pcall(hafen.font.load, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
+  if ok and ttf then
+    demoFont = ttf
+    hafen.log(("F1: loaded bundled font fonts/demo.ttf -- family '%s', size %s -- :hello font to flip the default font")
+      :format(demoFont:family(), tostring(demoFont:size() or "stock")))
+  else
+    demoFont = hafen.font.load("serif", { size = 11 })  -- ...else a built-in (no TTF shipped by default). size in logical px.
+    hafen.log(("F1: loaded built-in font 'serif' (size 11) -- family '%s'; drop a .ttf at addons/hello/fonts/demo.ttf to load a real TTF -- :hello font to flip the default font")
+      :format(demoFont:family()))
+  end
+  hafen.log("F1: hafen.font.scopes() = " .. table.concat(hafen.font.scopes(), ", "))
+end)
+
 local function drawPanel(g, w, h)
   g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()          -- translucent backdrop
   g:text(("clock %.0f"):format(hafen.time.clock() or 0), 6, 6)
@@ -1003,7 +1031,7 @@ local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-faci
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font")
     return
   end
   local sub = args[1]
@@ -1142,8 +1170,30 @@ hafen.slash.register("hello", function(args)
         end
       end)
     end
+  elseif sub == "font" then
+    -- F1: toggle a GLOBAL font override on the "default" scope + prove LAST-WINS. setFont installs THIS addon's
+    -- override (owner-tagged); it restyles most UI text live and is reverted automatically on :reload/disable.
+    if not demoFont then hafen.log(":hello font -> font not loaded yet (OnLoad)"); return end
+    if fontApplied then
+      hafen.font.reset("default")                       -- drop our override -> the stock font returns live
+      fontApplied = false
+      hafen.log(":hello font -> reset('default') -- stock font restored (also happens on :reload/disable)")
+    else
+      hafen.font.setFont("default", demoFont)           -- override #1 (serif/ttf)
+      -- LAST-WINS: stack a SECOND override (mono) on top of the same scope, then drop back to #1, to prove the
+      -- owner-tagged stack resolves most-recent-first (a real addon would only set one; this is the harness proof).
+      local mono = hafen.font.load("mono")
+      hafen.font.setFont("default", mono)               -- override #2 now wins (mono)
+      hafen.timer.after(3.0, function()
+        hafen.font.setFont("default", demoFont)          -- re-apply #1 -> it wins again (last-wins), back to serif/ttf
+        hafen.log(":hello font -> last-wins: was mono for 3s, now back to the first font")
+      end)
+      fontApplied = true
+      hafen.log((":hello font -> setFont('default', %s) -- most UI text should change; showing 'mono' for 3s first (last-wins), then '%s'; :hello font again to reset")
+        :format(demoFont:family(), demoFont:family()))
+    end
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font)")
       :format(#args, table.concat(args, " | ")))
   end
 end)

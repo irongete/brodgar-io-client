@@ -526,7 +526,7 @@ final class RenderApi {
      * climbs out of the folder fail the containment check (they no longer start with the folder), while an
      * internal {@code a/../b} is allowed. Never returns a path outside {@link Addon#dir}.
      */
-    private static Path resolveAddonAsset(Addon owner, String name, String ctx) {
+    static Path resolveAddonAsset(Addon owner, String name, String ctx) {
         if((name == null) || name.isEmpty())
             throw new LuaError(ctx + ": path must be a non-empty string (addon-relative, e.g. \"icon.png\")");
         Path base = owner.dir.toAbsolutePath().normalize();

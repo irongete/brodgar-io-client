@@ -876,6 +876,14 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // + hafen.slash (WoW-style :name console commands) — the interception + input tables.
         HookApi.install(hafen, owner);
 
+        // hafen.font — per-addon typography (F-series, D-043). load(source[,opts]) -> a PRIVATE FontHandle
+        // (a built-in "sans"/"serif"/"mono"/"fraktur", or a .ttf/.otf from THIS addon's folder — sandboxed,
+        // D-017; :derive/:family/:size). Apply it to a GLOBAL client surface with setFont(scope, h) — an
+        // OWNED override reverted on reload/disable (F1 routes the "default" scope: Text.std / Text.render /
+        // Label, which CASCADES to most UI text). scopes() lists the enumerated surfaces. No shared cross-addon
+        // registry: a handle is a value the addon holds. SAFE-tier (cosmetic, client-only — no server traffic).
+        FontApi.installFont(hafen, owner);
+
         hafen.set("log", new OneArgFunction() {
             public LuaValue call(LuaValue msg) {
                 log(owner, msg.isnil() ? "nil" : msg.tojstring());

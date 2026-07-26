@@ -357,11 +357,11 @@ public class Text implements Disposable {
     }
 	
     public static Line render(String text, Color c) {
-	return(std.render(text, c));
+	return(Fonts.foundry("default", std).render(text, c));   // addon: route the default consumers through the font provider (F1, D-043)
     }
-	
+
     public static Line renderf(Color c, String text, Object... args) {
-	return(std.render(String.format(text, args), c));
+	return(Fonts.foundry("default", std).render(String.format(text, args), c));   // addon: font provider (F1)
     }
 	
     public static Line render(String text) {

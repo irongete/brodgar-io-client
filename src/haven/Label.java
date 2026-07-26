@@ -29,10 +29,17 @@ package haven;
 import java.awt.Color;
 
 public class Label extends Widget {
-    public final Text.Foundry f;
+    public Text.Foundry f;   // addon: non-final so a default label can live-restyle when a font override moves (F1, D-043)
     public Text text;
     public String texts;
     public Color col = Color.WHITE;
+    // addon: live font scope (F1, D-043). A label built through the DEFAULT constructors follows the "default"
+    // scope, so a hafen.font.setFont("default", h) re-renders it live; a label built with an explicit foundry is
+    // fixed (fontscope == null). fontwrapw >= 0 selects renderwrap (a width-wrapped label); fontgen is the last
+    // provider generation this label rendered at (a cheap int compare in draw skips work when nothing changed).
+    private String fontscope = null;
+    private int fontwrapw = -1;
+    private int fontgen = -1;
 
     @RName("lbl")
     public static class $_ implements Factory {
@@ -59,15 +66,38 @@ public class Label extends Widget {
     }
 
     public Label(String text, int w) {
-	this(text, w, Text.std);
+	this(text, w, Fonts.foundry("default", Text.std));   // addon: the default follows the "default" font scope (F1)
+	this.fontscope = "default"; this.fontwrapw = w; this.fontgen = Fonts.gen();
     }
 
     public Label(String text) {
-	this(text, Text.std);
+	this(text, Fonts.foundry("default", Text.std));      // addon: the default follows the "default" font scope (F1)
+	this.fontscope = "default"; this.fontgen = Fonts.gen();
     }
 
     public void draw(GOut g) {
+	restyle();   // addon: re-render if a font override on this label's scope moved (F1, D-043)
 	g.image(text.tex(), Coord.z);
+    }
+
+    /* addon: live font re-style (F1, D-043). A default label follows the "default" scope; when
+     * hafen.font.setFont/reset bumps the provider generation the label re-resolves its foundry and re-renders
+     * (preserving its wrap width + colour). A no-op — one int compare — when nothing changed or for a fixed
+     * explicit-foundry label. */
+    private void restyle() {
+	if(fontscope == null)
+	    return;
+	int gen = Fonts.gen();
+	if(gen == fontgen)
+	    return;
+	fontgen = gen;
+	Text.Foundry nf = Fonts.foundry(fontscope, Text.std);
+	if(nf == f)
+	    return;
+	f = nf;
+	this.text.dispose();
+	this.text = (fontwrapw >= 0) ? f.renderwrap(texts, col, fontwrapw) : f.render(texts, col);
+	resize(this.text.sz());
     }
 
     public void settext(String text) {

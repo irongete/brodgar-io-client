@@ -193,6 +193,16 @@ public final class Addon {
      * firing callback may start another.
      */
     public final List<LuaHttpRequest> requests = new CopyOnWriteArrayList<LuaHttpRequest>();
+    /**
+     * Named client-surface font overrides this addon has installed ({@code hafen.font.setFont(scope, h)}, F-series):
+     * the {@code scope} names (e.g. {@code "default"}) it currently overrides in the {@link haven.Fonts} provider.
+     * Owner-tagged in the provider by <b>this</b> {@code Addon} instance (spec 05); teardown
+     * ({@link FontApi#teardownFonts}) removes them from every scope stack ({@code Fonts.removeOwner(this)} bumps the
+     * generation counter → routed sites revert to the stock foundry) and clears the list, so a reload/disable
+     * restores the stock UI. Copy-on-write for symmetry (font ops run on the UI thread; a {@code :reload} mid-op
+     * cannot happen).
+     */
+    public final List<String> fontOverrides = new CopyOnWriteArrayList<String>();
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per
