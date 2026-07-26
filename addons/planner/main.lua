@@ -16,6 +16,7 @@
 -- COMMANDS (:planner <sub>):
 --   place [name|res]  -- place the current (or named) blueprint GHOST at your feet; it is clickable + persisted
 --   sprite [billboard]-- place a custom-PNG SPRITE at your feet (R2b): fixed upright quad, or 'billboard' = camera-facing
+--   object            -- place a custom glTF MODEL (cube.glb) at your feet (R3b-2): clickable + gizmo-driven + persisted
 --   blueprint [name]  -- show / set the current blueprint (bare = list the palette)
 --   list              -- list placed entities (index, label, grid id, resolved?)
 --   select <n>        -- select entity #n (or CLICK a ghost / fixed sprite in the world — V2)
@@ -52,8 +53,16 @@
 -- billboard" stands a CAMERA-FACING screen blit (always squares up to the camera, constant screen size -- it has no
 -- world mesh, so it is NOT clickable: select it with ":planner select <n>", then ":planner gizmo" to move it). Both
 -- persist grid-anchored, so a relog restores them alongside the ghosts. Records carry a `kind` ("ghost"/"sprite").
+--
+-- R3b-2 (custom glTF models): the planner now also places 3D MODELS (hafen.render.object -- our own cube.glb, a glTF
+-- model, NOT a .res game model), on the SAME client-only world-entity core as a ghost/sprite (D-013). A model handle is
+-- the identical transform handle, so it rides the SAME kind-agnostic code path: ":planner object" stands the cube at
+-- your feet, CLICKABLE (its mesh is in the clickmap, so a click selects it), gizmo-driven, and grid-anchored persisted
+-- like everything else. Records now carry `kind` = "ghost" / "sprite" / "object" (+ a `model` path for an object, the
+-- analog of `img` for a sprite). ":hello object" (in the hello harness) proves the textured-model RENDER; this slice
+-- proves the EDITOR flow (select + gizmo + persist) on a mesh, completing R3's planner integration.
 
-hafen.log("planner loaded (v0.5.0) -- blueprint ghosts + custom-PNG sprites + Unity gizmo (move/rotate/scale) + grab, grid-anchored")
+hafen.log("planner loaded (v0.6.0) -- blueprint ghosts + custom-PNG sprites + glTF models + Unity gizmo (move/rotate/scale) + grab, grid-anchored")
 
 -- The blueprint palette. Keys are short names for ':planner place <name>'; values are client resource paths.
 -- logcabin + timberhouse are verified to resolve in-game (V3); ':planner place <res-path>' also takes any raw path.
@@ -66,6 +75,10 @@ local DEFAULT_BP = "cabin"
 -- R2b: the addon's own PNG used by ':planner sprite' -- a custom (non-.res) world sprite (hafen.render.sprite) on
 -- the SAME world-entity core as a ghost, so it selects + gizmos + persists identically. Ships in this addon's folder.
 local SPRITE_IMG = "icon.png"
+
+-- R3b-2: the addon's own glTF model used by ':planner object' -- a custom (non-.res) world model (hafen.render.object)
+-- on the SAME world-entity core, so it selects + gizmos + persists identically too. A tiny 1-tile cube; ships here.
+local OBJECT_MODEL = "cube.glb"
 
 -- Two looks so selection is visible: idle = bluish tint; sel = brighter warm highlight. OPAQUE (alpha 1) so the
 -- blueprint ghosts read clearly against the terrain — the translucent look was too faint to see (maintainer note).
@@ -95,6 +108,7 @@ local function shortRes(res) return (tostring(res):gsub("^.*/", "")) end
 -- for a sprite. Kind-agnostic call sites use this instead of shortRes(it.res) so sprites read sensibly.
 local function recLabel(it)
   if it.kind == "sprite" then return (it.billboard and "billboard " or "sprite ") .. tostring(it.img or SPRITE_IMG) end
+  if it.kind == "object" then return "object " .. tostring(it.model or OBJECT_MODEL) end
   return shortRes(it.res)
 end
 
@@ -129,8 +143,9 @@ local function applyLook(it)
   local e = it.entity
   if not e then return end
   local sel = (it == selected)
-  if it.kind == "sprite" then
-    e:alpha(sel and 1.0 or 0.7)                            -- R2b: alpha-only highlight (works for both fixed + billboard)
+  if it.kind == "sprite" or it.kind == "object" then
+    e:alpha(sel and 1.0 or 0.7)                            -- R2b/R3b-2: alpha-only highlight for a custom render asset
+                                                            -- (a colour tint would recolour the PNG / the model's texture)
   else
     local look = sel and LOOK.sel or LOOK.idle
     e:alpha(look.alpha):tint(look.tint)
@@ -150,11 +165,12 @@ local function selectItem(it)
   end
 end
 
--- Create the live entity for a record at world (wx, wy) -- a hafen.ghost (a .res game model) OR a hafen.render.sprite
--- (the addon's own PNG), on the SAME client-only world-entity core (D-013): both return the identical handle, so
--- selection, the gizmo, grab, persistence, and teardown are all kind-agnostic below. A ghost and a FIXED sprite are
--- CLICKABLE (V2) so a click selects them (the onClick closes over the RECORD, robust to list reorders); a BILLBOARD
--- sprite has no world mesh so it is never picked -- select it with ':planner select <n>'.
+-- Create the live entity for a record at world (wx, wy) -- a hafen.ghost (a .res game model), a hafen.render.sprite
+-- (the addon's own PNG), OR a hafen.render.object (the addon's own glTF model), all on the SAME client-only
+-- world-entity core (D-013): every one returns the identical handle, so selection, the gizmo, grab, persistence, and
+-- teardown are all kind-agnostic below. A ghost, a FIXED sprite, and an object are CLICKABLE (V2) so a click selects
+-- them (the onClick closes over the RECORD, robust to list reorders); a BILLBOARD sprite has no world mesh so it is
+-- never picked -- select it with ':planner select <n>'.
 local function spawn(it, wx, wy)
   if it.kind == "sprite" then
     it.entity = hafen.render.sprite{
@@ -162,6 +178,12 @@ local function spawn(it, wx, wy)
       billboard = it.billboard or false,
       clickable = not it.billboard,                       -- fixed sprites are pickable; billboards are not
       onClick = function(s, button) selectItem(it) end,
+    }
+  elseif it.kind == "object" then
+    it.entity = hafen.render.object{                      -- R3b-2: a custom glTF model on the same world-entity core
+      model = it.model or OBJECT_MODEL, x = wx, y = wy, a = it.a, scale = it.scale or 1,
+      clickable = true,                                   -- its mesh renders into the clickmap -> a click selects it
+      onClick = function(o, button) selectItem(it) end,
     }
   else
     it.entity = hafen.ghost.new{
@@ -175,13 +197,14 @@ local function spawn(it, wx, wy)
   return it.entity
 end
 
--- Write the layout to the per-char store (JSON). Only the serializable fields (kind/res/img/billboard/a/scale/anchor)
--- are stored — the live handle stays out of it. Autosave + relog also flush; we flush on every edit so an unclean exit keeps it.
+-- Write the layout to the per-char store (JSON). Only the serializable fields (kind/res/img/billboard/model/a/scale/
+-- anchor) are stored — the live handle stays out of it. Autosave + relog also flush; we flush on every edit so an unclean exit keeps it.
 local function persist()
   local out = {}
   for i, it in ipairs(items) do
     out[i] = {
       kind = it.kind or "ghost", res = it.res, img = it.img, billboard = it.billboard or false,   -- R2b: kind + sprite fields
+      model = it.model,                                    -- R3b-2: the glTF model path (nil for a ghost/sprite)
       a = it.a, scale = it.scale or 1,                     -- V6: persist the uniform scale alongside the facing
       anchor = { gridId = it.anchor.gridId, x = it.anchor.x, y = it.anchor.y },
     }
@@ -238,9 +261,10 @@ hafen.events.on("OnEnterWorld", function()
   blueprint = hafen.store.layout.blueprint or DEFAULT_BP
   for _, s in ipairs(hafen.store.layout.items or {}) do
     local kind = s.kind or "ghost"                          -- R2b: default old (pre-sprite) layouts to ghosts
-    if s.anchor and s.anchor.gridId and ((kind == "sprite") or s.res) then   -- skip a malformed record rather than crash
+    if s.anchor and s.anchor.gridId and ((kind == "sprite") or (kind == "object") or s.res) then   -- skip a malformed record rather than crash
       items[#items + 1] = {
         kind = kind, res = s.res, img = s.img or SPRITE_IMG, billboard = s.billboard or false,
+        model = s.model or OBJECT_MODEL,                     -- R3b-2: restore the glTF model path (default for other kinds)
         a = s.a or 0, scale = s.scale or 1,                  -- V6: restore the saved scale (default 1 for old layouts)
         anchor = { gridId = s.anchor.gridId, x = s.anchor.x or 0, y = s.anchor.y or 0 },
       }
@@ -279,6 +303,10 @@ hafen.events.on("SpriteClicked", function(ev)
   hafen.log((":planner SpriteClicked -> sprite at %.0f,%.0f (button %d) -- client-only, no server click sent")
     :format(ev.x, ev.y, ev.button))
 end)
+hafen.events.on("ObjectClicked", function(ev)
+  hafen.log((":planner ObjectClicked -> model at %.0f,%.0f (button %d) -- client-only, no server click sent")
+    :format(ev.x, ev.y, ev.button))
+end)
 
 hafen.events.on("OnDisable", function()
   detachGizmo()                                            -- V5b: (the bridge tears down the overlay/hooks too)
@@ -291,11 +319,12 @@ hafen.slash.register("planner", function(args)
   local sub = args[1] or "help"
 
   if (sub == "help") or (sub == "") then
-    hafen.log(":planner -> place | sprite | blueprint | list | select | gizmo | grab | rotate | scale | remove | clear | save")
+    hafen.log(":planner -> place | sprite | object | blueprint | list | select | gizmo | grab | rotate | scale | remove | clear | save")
     hafen.log("   place [name|res] = drop the current/named blueprint GHOST at your feet (clickable + saved)")
     hafen.log("   sprite [billboard] = drop a custom-PNG SPRITE at your feet (fixed, or 'billboard' = camera-facing) -- R2b")
+    hafen.log("   object = drop a custom glTF MODEL (cube.glb) at your feet (clickable + gizmo + saved) -- R3b-2")
     hafen.log("   blueprint [name] = show/set the blueprint (bare = list palette); list = show placed entities")
-    hafen.log("   select <n> = select #n (or CLICK a ghost / fixed sprite)")
+    hafen.log("   select <n> = select #n (or CLICK a ghost / fixed sprite / model)")
     hafen.log("   gizmo [move|rotate|scale|all] = Unity gizmo: arrows=move, ring=rotate, box=scale. SHIFT=fine (bare = toggle, mode all)")
     hafen.log("   grab = move it by the BODY with the mouse (placegrid-snapped, CLICK to drop) -- V5a")
     hafen.log("   rotate [deg] = turn it (persisted); scale <s> = uniform scale (1 = original); remove [n]; clear; save")
@@ -340,6 +369,24 @@ hafen.slash.register("planner", function(args)
     hafen.log((":planner sprite -> %s %s at grid %s (#%d, %d total) -- :planner gizmo to move it; relog to test persistence")
       :format(billboard and "billboard" or "fixed", SPRITE_IMG, anchor.gridId, indexOf(it), #items))
 
+  elseif sub == "object" then
+    -- R3b-2: place a CUSTOM glTF MODEL (hafen.render.object -- our own cube.glb, NOT a .res game model) at your feet,
+    -- on the SAME world-entity core as a ghost/sprite (D-013) -- so it selects, gizmos, and PERSISTS grid-anchored
+    -- identically. The model is CLICKABLE (its mesh renders into the clickmap), so a click selects it, like a ghost.
+    local p = hafen.gob.pos("player")
+    if not p then hafen.log(":planner object -> no player position yet"); return end
+    local anchor = hafen.map.gridPos(p.x, p.y)             -- {gridId, x, y} -- the persistent anchor (like a ghost)
+    if not anchor then hafen.log(":planner object -> no map grid loaded here yet; move a moment and retry"); return end
+    local it = { kind = "object", model = OBJECT_MODEL, a = 0, scale = 1, anchor = anchor }   -- cube.glb = ~1 tile at scale 1
+    items[#items + 1] = it
+    if not spawn(it, p.x, p.y) then                        -- returns nil only if not in the world (no map view)
+      table.remove(items, indexOf(it)); hafen.log(":planner object -> could not create the model (not in the world yet?)"); return
+    end
+    persist()
+    selectItem(it)                                          -- auto-select the freshly placed model
+    hafen.log((":planner object -> %s at grid %s (#%d, %d total) -- click to select; :planner gizmo to move it; relog to test persistence")
+      :format(OBJECT_MODEL, anchor.gridId, indexOf(it), #items))
+
   elseif sub == "blueprint" then
     if not args[2] then
       hafen.log((":planner blueprint -> current = %s (%s). palette: %s")
@@ -355,7 +402,7 @@ hafen.slash.register("planner", function(args)
     end
 
   elseif sub == "list" then
-    if #items == 0 then hafen.log(":planner list -> empty (':planner place' / ':planner sprite' to add one)"); return end
+    if #items == 0 then hafen.log(":planner list -> empty (':planner place' / ':planner sprite' / ':planner object' to add one)"); return end
     hafen.log((":planner list -> %d entit%s:"):format(#items, (#items == 1) and "y" or "ies"))
     for i, it in ipairs(items) do
       hafen.log(("   #%d %s  grid=%s  %s%s"):format(i, recLabel(it), it.anchor.gridId,

@@ -339,5 +339,10 @@ click — so you never walk/interact, and nothing reaches the server (still safe
 > **Gizmo.** An object is gizmo-transformable for free — same `:move`/`:rotate`/`:scale` handle a ghost/sprite
 > exposes, and the [transform gizmo](ghost.md#transform-gizmo-move--rotate--scale) drives any such handle.
 
+The `planner` example addon puts all of this together: **`:planner object`** stands a shipped `cube.glb`, and the
+same code path that handles its ghosts/sprites gives the model **click-select**, the **gizmo** (move/rotate/scale),
+and **grid-anchored persistence** (it reloads at the same spot after a relog) — the editor-flow counterpart to
+`:hello object`'s render demo.
+
 See [17-custom-rendering.md](../../../specs/addons/17-custom-rendering.md) and
 [18-custom-models-gltf.md](../../../specs/addons/18-custom-models-gltf.md) for the full design.
