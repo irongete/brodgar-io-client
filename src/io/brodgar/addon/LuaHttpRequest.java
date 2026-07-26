@@ -24,9 +24,9 @@ import org.luaj.vm2.LuaValue;
  */
 final class LuaHttpRequest {
     final Addon owner;
-    final String method;      // "GET" (N2a); "POST" arrives in N2b
+    final String method;      // "GET" or "POST" (N2b); the worker may demote it to GET across a redirect
     final String url;
-    final byte[] body;        // request body, or null (GET)
+    final byte[] body;        // request body, or null (GET / empty POST)
     final Map<String, String> headers;   // caller headers, already hygiene-filtered (may be empty)
     final int timeout;        // ms
     final LuaValue cb;        // function(res), or NIL

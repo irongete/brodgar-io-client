@@ -46,6 +46,8 @@ final class LuaHttp {
     static final int  MAX_INFLIGHT  = (int)propLong("haven.addon.http.inflight", 6L);
     /** Hard cap on a single addon's total pending (in-flight + queued) requests, {@code -Dhaven.addon.http.queuecap}. */
     static final int  QUEUE_CAP     = (int)propLong("haven.addon.http.queuecap", 64L);
+    /** Max redirect hops followed before aborting (N2b; §5.6), {@code -Dhaven.addon.http.maxredirects}. */
+    static final int  MAX_REDIRECTS = (int)propLong("haven.addon.http.maxredirects", 5L);
 
     /** A generic, non-identifying User-Agent (§5.5 — never the character/account). */
     static final String USER_AGENT = "brodgar-addon/1";
@@ -87,71 +89,141 @@ final class LuaHttp {
     }
 
     /**
-     * Run the request (blocking — pool thread only). The host allowlist was already enforced synchronously
-     * at call ({@code requireNetwork}); here we resolve the host and reject private/loopback/link-local
-     * addresses (§5.2), then perform the HTTP exchange with the caps applied. Any transport failure returns
-     * {@code Result.fail(...)} — never throws — so the drain can hand the addon {@code ok=false, error=...}.
+     * Run the request (blocking — pool thread only). The initial host's allowlist was already enforced
+     * synchronously at call ({@code requireNetwork}); here we (re-)validate every hop's host — allowlist +
+     * private/loopback/link-local IP block (§5.2) — then perform the HTTP exchange with the caps applied.
+     *
+     * <p><b>Redirects (N2b, §5.6).</b> We follow up to {@link #MAX_REDIRECTS} 3xx hops manually
+     * ({@code setInstanceFollowRedirects(false)} so the JDK never silently jumps for us), and each hop's
+     * {@code Location} host is <b>re-checked against the addon's allowlist and the private-IP block</b> — a
+     * redirect to a non-allowlisted or private host aborts, so redirects can never escape the declared hosts.
+     * Per HTTP semantics a 303 (and a 301/302 on a non-idempotent method) demotes to {@code GET} and drops the
+     * body; 307/308 preserve method + body.
+     *
+     * <p>Any transport failure returns {@code Result.fail(...)} — never throws — so the drain can hand the addon
+     * {@code ok=false, error=...}.
      */
     static Result perform(LuaHttpRequest r) {
-        HttpURLConnection c = null;
-        try {
-            URL u = new URL(r.url);
-            String host = u.getHost();
-            // §5.2 private/loopback block. Resolve once; note the documented resolve-then-connect DNS-rebinding
-            // gap (a later hardening pins the checked IP into the connection — §9). We check ALL resolved
-            // addresses so a host that returns both a public and a private A record can't sneak the private one.
-            InetAddress[] addrs;
+        String method = r.method;
+        byte[] body = r.body;
+        String url = r.url;
+        int hops = 0;
+        while(true) {
+            HttpURLConnection c = null;
             try {
-                addrs = InetAddress.getAllByName(host);
-            } catch(Exception e) {
-                return Result.fail("DNS resolution failed for " + host);
-            }
-            for(InetAddress a : addrs) {
-                if(isBlockedAddress(a))
-                    return Result.fail("host " + host + " resolves to a blocked address ("
-                        + a.getHostAddress() + "; private/loopback ranges are refused)");
-            }
-
-            c = (HttpURLConnection)u.openConnection();
-            c.setInstanceFollowRedirects(false);   // §5.6 v1: a 3xx is returned raw
-            c.setConnectTimeout(r.timeout);
-            c.setReadTimeout(r.timeout);
-            c.setUseCaches(false);
-            c.setRequestMethod(r.method);
-            c.setRequestProperty("User-Agent", USER_AGENT);
-            c.setRequestProperty("Accept-Encoding", "identity");   // no gzip: we buffer raw bytes (size cap)
-            if(r.headers != null) {
-                for(Map.Entry<String, String> e : r.headers.entrySet()) {
-                    if(headerAllowed(e.getKey()) && (e.getValue() != null))
-                        c.setRequestProperty(e.getKey(), e.getValue());
+                URL u;
+                try {
+                    u = new URL(url);
+                } catch(MalformedURLException e) {
+                    return Result.fail("malformed url: " + e.getMessage());
                 }
-            }
-            if(r.body != null) {
-                c.setDoOutput(true);
-                c.setFixedLengthStreamingMode(r.body.length);
-                OutputStream os = c.getOutputStream();
-                try { os.write(r.body); } finally { os.close(); }
-            }
+                // Per-hop host validation — allowlist (redirects can't escape it) + private/loopback block.
+                // We check ALL resolved addresses so a host with both a public and a private A record can't
+                // sneak the private one. (Documented resolve-then-connect DNS-rebinding gap — a later
+                // hardening pins the checked IP into the connection, §9.)
+                Result bad = validateHop(r, u, hops > 0);
+                if(bad != null)
+                    return bad;
 
-            int status = c.getResponseCode();   // performs the exchange
-            InputStream in = (status >= 400) ? c.getErrorStream() : c.getInputStream();
-            byte[] data = readCapped(in);       // throws TooLarge past MAX_SIZE
-            String bodyStr = new String(data, charsetOf(c));
-            return Result.ok(status, bodyStr, lowerHeaders(c));
-        } catch(TooLargeException e) {
-            return Result.fail("response too large (> " + MAX_SIZE + " bytes)");
-        } catch(SocketTimeoutException e) {
-            return Result.fail("timeout");
-        } catch(MalformedURLException e) {
-            return Result.fail("malformed url: " + e.getMessage());
-        } catch(IOException e) {
-            return Result.fail(e.getClass().getSimpleName() + ": " + e.getMessage());
-        } catch(RuntimeException e) {
-            return Result.fail(e.getClass().getSimpleName() + ": " + e.getMessage());
-        } finally {
-            if(c != null)
-                c.disconnect();
+                c = (HttpURLConnection)u.openConnection();
+                c.setInstanceFollowRedirects(false);   // we follow manually so every hop is re-validated
+                c.setConnectTimeout(r.timeout);
+                c.setReadTimeout(r.timeout);
+                c.setUseCaches(false);
+                c.setRequestMethod(method);
+                c.setRequestProperty("User-Agent", USER_AGENT);
+                c.setRequestProperty("Accept-Encoding", "identity");   // no gzip: we buffer raw bytes (size cap)
+                if(r.headers != null) {
+                    for(Map.Entry<String, String> e : r.headers.entrySet()) {
+                        if(headerAllowed(e.getKey()) && (e.getValue() != null))
+                            c.setRequestProperty(e.getKey(), e.getValue());
+                    }
+                }
+                if(body != null) {
+                    c.setDoOutput(true);
+                    c.setFixedLengthStreamingMode(body.length);
+                    OutputStream os = c.getOutputStream();
+                    try { os.write(body); } finally { os.close(); }
+                }
+
+                int status = c.getResponseCode();   // performs the exchange
+                if(isRedirect(status)) {
+                    String loc = c.getHeaderField("Location");
+                    if((loc != null) && !loc.isEmpty()) {
+                        if(++hops > MAX_REDIRECTS)
+                            return Result.fail("too many redirects (> " + MAX_REDIRECTS + ")");
+                        URL next;
+                        try {
+                            next = new URL(u, loc);   // resolve relative Location against the current URL
+                        } catch(MalformedURLException e) {
+                            return Result.fail("malformed redirect Location \"" + loc + "\": " + e.getMessage());
+                        }
+                        url = next.toString();
+                        // 303 See Other → GET; 301/302 on a body-bearing method → GET (browser convention);
+                        // 307/308 preserve the method + body.
+                        if((status == 303)
+                           || (((status == 301) || (status == 302)) && !method.equals("GET") && !method.equals("HEAD"))) {
+                            method = "GET";
+                            body = null;
+                        }
+                        continue;                     // finally disconnects c, then re-loop on the new url
+                    }
+                    // 3xx with no Location → nothing to follow; fall through and return it raw.
+                }
+                InputStream in = (status >= 400) ? c.getErrorStream() : c.getInputStream();
+                byte[] data = readCapped(in);       // throws TooLarge past MAX_SIZE
+                String bodyStr = new String(data, charsetOf(c));
+                return Result.ok(status, bodyStr, lowerHeaders(c));
+            } catch(TooLargeException e) {
+                return Result.fail("response too large (> " + MAX_SIZE + " bytes)");
+            } catch(SocketTimeoutException e) {
+                return Result.fail("timeout");
+            } catch(MalformedURLException e) {
+                return Result.fail("malformed url: " + e.getMessage());
+            } catch(IOException e) {
+                return Result.fail(e.getClass().getSimpleName() + ": " + e.getMessage());
+            } catch(RuntimeException e) {
+                return Result.fail(e.getClass().getSimpleName() + ": " + e.getMessage());
+            } finally {
+                if(c != null)
+                    c.disconnect();
+            }
         }
+    }
+
+    /** True for the 3xx statuses we follow (N2b): 301, 302, 303, 307, 308. */
+    private static boolean isRedirect(int status) {
+        return (status == 301) || (status == 302) || (status == 303) || (status == 307) || (status == 308);
+    }
+
+    /**
+     * Validate one hop before connecting: scheme must be http/https, the host must be in the addon's allowlist
+     * (enforced on <b>every</b> hop when {@code redirect} — so a redirect can't escape the declared hosts; the
+     * first hop was already gated at call, re-checked here as defense-in-depth), and no resolved address may be
+     * private/loopback/link-local (§5.2). Returns {@code null} when the hop is allowed, else the failure Result.
+     */
+    private static Result validateHop(LuaHttpRequest r, URL u, boolean redirect) {
+        String scheme = (u.getProtocol() == null) ? "" : u.getProtocol().toLowerCase(Locale.ROOT);
+        if(!scheme.equals("http") && !scheme.equals("https"))
+            return Result.fail("redirect to a non-http(s) url refused: " + u);
+        String host = u.getHost();
+        if((host == null) || host.isEmpty())
+            return Result.fail("redirect url has no host: " + u);
+        if(redirect && ((r.owner == null) || !r.owner.manifest.hostAllowed(host)))
+            return Result.fail("redirect to non-allowlisted host \"" + host
+                + "\" refused (D-037: redirects may not escape the network allowlist)");
+        InetAddress[] addrs;
+        try {
+            addrs = InetAddress.getAllByName(host);
+        } catch(Exception e) {
+            return Result.fail("DNS resolution failed for " + host);
+        }
+        for(InetAddress a : addrs) {
+            if(isBlockedAddress(a))
+                return Result.fail("host " + host + " resolves to a blocked address ("
+                    + a.getHostAddress() + "; private/loopback ranges are refused)");
+        }
+        return null;
     }
 
     /** Read a stream fully, aborting past {@link #MAX_SIZE}. {@code in} may be null (no body). */

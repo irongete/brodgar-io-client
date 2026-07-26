@@ -4,11 +4,10 @@ Fetch data from an external URL. `hafen.http` is **gated**: an addon may reach t
 **declares a `network` block** in its `manifest.json`, and only the **hosts it lists** — the declaration
 *is* the allowlist. Pair it with [`hafen.json`](json.md) to fetch and parse a JSON API.
 
-> **v1 (N2a) ships `get` only.** `post` (with request bodies and redirect-follow) arrives in N2b.
-
 | Member | Description |
 |---|---|
 | `hafen.http.get(url [, opts], cb)` | perform an HTTP GET; returns a request handle |
+| `hafen.http.post(url, body [, opts], cb)` | perform an HTTP POST with a body; returns a request handle |
 
 ```lua
 hafen.http.get("https://api.example.com/prices", function(res)
@@ -63,6 +62,33 @@ local req = hafen.http.get("https://api.example.com/slow",
 req:cancel()      -- the callback will NOT fire
 ```
 
+## `post(url, body [, opts], cb)`
+
+Same as `get`, plus a request **body**:
+
+- **`body`** — either a **string** (sent verbatim) or a **table** (auto-encoded to JSON with the same
+  serializer as [`hafen.json.encode`](json.md) and sent as `Content-Type: application/json`, unless you set
+  your own `Content-Type` in `opts.headers`). A non-serializable table (function/userdata value, cycle)
+  raises a Lua error at call. `nil` sends an empty POST.
+- **`opts`** / **`cb`** — exactly as `get` (headers, timeout; the `res` table).
+
+```lua
+-- POST a Lua table as JSON, read JSON back
+hafen.http.post("https://api.example.com/report",
+  { char = hafen.player.name(), lp = hafen.char.attrs().lp },        -- table → application/json
+  { headers = { Authorization = "Bearer " .. hafen.store.cfg.token } },
+  function(res)
+    if res.ok and res.status == 200 then
+      local reply = hafen.json.parse(res.body)
+      ...
+    end
+  end)
+
+-- or a raw string body with your own content type
+hafen.http.post("https://api.example.com/ingest", "a,b,c\n1,2,3",
+  { headers = { ["Content-Type"] = "text/csv" } }, function(res) ... end)
+```
+
 ## The `res` table
 
 | Field | When | Meaning |
@@ -103,7 +129,10 @@ end)
   the request fails with `ok=false, error="… blocked address …"`. This blocks LAN scanning / internal-
   service access from addon code.
 - **TLS is verified** (the JDK default trust store); certificate verification is never disabled.
-- **No redirects in v1** — a `3xx` is returned to you raw (`status` + the `location` header).
+- **Redirects are followed** (up to **5** hops), and **every hop is re-checked** against your allowlist and
+  the private-IP block — a `3xx` whose `Location` points at a host you did **not** declare (or a private IP)
+  aborts with `ok=false, error="… refused …"`. So a redirect can never take a request off your allowlist.
+  A `303` (and a `301`/`302` on a POST) is followed as a `GET` with the body dropped, per HTTP convention.
 - **A generic `User-Agent`** (`brodgar-addon/1`) is sent; nothing identifies your character or account.
   **No cookies, no shared session** — each request is stateless; any token is your own (from your
   [`hafen.store`](store.md)).

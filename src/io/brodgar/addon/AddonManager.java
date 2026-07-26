@@ -532,6 +532,40 @@ public final class AddonManager {
         return t;
     }
 
+    /**
+     * Build the POST request body bytes (N2b). {@code body} is a <b>string</b> (sent verbatim, UTF-8) or a
+     * <b>table</b> (encoded with the shared {@link Json#write(LuaValue, boolean) strict} serializer and, unless
+     * the addon set its own {@code Content-Type} in {@code opts.headers}, tagged {@code application/json}). A
+     * nil body sends an empty POST; any other type throws a guiding {@link LuaError}. {@code headers} may be
+     * mutated to add the JSON content type.
+     */
+    private static byte[] httpBody(LuaValue body, Map<String, String> headers, String verb) {
+        if((body == null) || body.isnil())
+            return new byte[0];                       // POST with no body
+        if(body.isstring())
+            return body.tojstring().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if(body.istable()) {
+            String json;
+            try {
+                json = Json.write(body, true);        // strict: non-serializable value / cycle → LuaError
+            } catch(LuaError e) {
+                throw new LuaError(verb + ": body table is not JSON-serializable (" + e.getMessage() + ")");
+            }
+            if(!hasContentType(headers))
+                headers.put("Content-Type", "application/json");
+            return json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        }
+        throw new LuaError(verb + ": body must be a string (sent verbatim) or a table (encoded as JSON)");
+    }
+
+    /** Whether {@code headers} already carries a {@code Content-Type} (case-insensitive) the addon set itself. */
+    private static boolean hasContentType(Map<String, String> headers) {
+        for(String k : headers.keySet())
+            if("content-type".equalsIgnoreCase(k))
+                return true;
+        return false;
+    }
+
     static {
         // Use the RAW console line (quotes intact) so string literals survive; args are pre-split
         // by Utils.splitwords, which strips quotes. Fall back to joined args if the raw line is absent.
@@ -3633,6 +3667,30 @@ public final class AddonManager {
                 Map<String, String> headers = httpHeaders(opts, "hafen.http.get");
                 int timeout = httpTimeout(opts);
                 return newHttpRequest(owner, "GET", url, null, headers, timeout, cb);
+            }
+        });
+        // post(url, body[, opts], cb) — send + read (N2b). body = a string (verbatim) or a table (→ JSON,
+        // application/json unless opts.headers sets its own Content-Type). Same gate/limits/res table as get;
+        // both verbs now follow up to 5 redirects, re-validating the allowlist + private-IP block per hop.
+        http.set("post", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                String url = a.checkjstring(1);
+                LuaValue body = a.arg(2);
+                LuaValue opts = LuaValue.NIL, cb = LuaValue.NIL;
+                if(a.arg(3).isfunction()) {                       // post(url, body, cb)
+                    cb = a.arg(3);
+                } else {                                          // post(url, body, opts, cb) / (url, body[, opts])
+                    opts = a.arg(3);
+                    cb = a.arg(4);
+                }
+                if(!cb.isnil() && !cb.isfunction())
+                    throw new LuaError("hafen.http.post: callback must be a function");
+                String host = httpHost(url, "hafen.http.post");
+                requireNetwork(owner, host, "hafen.http.post");
+                Map<String, String> headers = httpHeaders(opts, "hafen.http.post");
+                int timeout = httpTimeout(opts);
+                byte[] bytes = httpBody(body, headers, "hafen.http.post");
+                return newHttpRequest(owner, "POST", url, bytes, headers, timeout, cb);
             }
         });
         hafen.set("http", http);
