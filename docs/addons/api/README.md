@@ -53,7 +53,7 @@ events are in [events](events.md).
 
 | Section | Purpose |
 |---|---|
-| [`hafen.ui`](ui.md) | custom windows, overlays, replacing native widgets, and walking the widget tree |
+| [`hafen.ui`](ui.md) | custom windows, overlays, replacing native widgets, and walking + hit-testing the widget tree |
 | [`hafen.ghost`](ghost.md) | client-only world props ("ghosts") — base/city planning |
 | [`hafen.render`](render.md) | draw custom (non-`.res`) assets — the addon's own PNGs (on screen or in the world) and glTF 3D models |
 | [`hafen.hook`](hooks.md) | intercept & alter input / actions / server messages |

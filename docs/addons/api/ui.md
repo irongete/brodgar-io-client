@@ -134,6 +134,8 @@ discover the structure of *any* open window from Lua — so you can build a pure
 |---|---|---|
 | `hafen.ui.root()` | [WidgetNode](#widgetnode) \| nil | the top of the whole client tree — walk **down** to any open window |
 | `hafen.ui.node(id)` | [WidgetNode](#widgetnode) \| nil | a node for a server widget **id** (a `desc.id`, a `model:raw()`, another node's `:id()`); nil if it doesn't resolve |
+| `hafen.ui.mouse()` | `{x=,y=}` \| nil | the cursor in **root coords** |
+| `hafen.ui.at(x, y)` | [WidgetNode](#widgetnode) \| nil | the **deepest** widget under a root-coord point — exactly what a click would hit (see below) |
 
 `model:node()` is sugar for `hafen.ui.node(model:raw())` on an [adopted model](#model-handle).
 
@@ -156,6 +158,8 @@ destroyed (the node detects it and lets go).
 | `:text()` | string \| nil | best-effort text for text-bearing widgets (Label/Button/Window/TextEntry), else nil |
 | `:walk(fn)` | (self) | depth-first visit — `fn(node, depth)`; **return `false` to prune** that subtree |
 | `:same(other)` | boolean | true iff both handles wrap the **same live widget** (nil-safe) — the identity check |
+| `:at(coord)` | [WidgetNode](#widgetnode) \| nil | the deepest widget under a `{x=,y=}` **root-coord** point **within this subtree** |
+| `:rootpos()` | `{x=,y=}` \| nil | the node's top-left in **root coords** (with `:size()` = a rectangle to outline it) |
 
 **`:id()` is the pivot for acting.** Reading the tree is ungated client-side data. To *act*, read a
 **server-bound** node's `:id()` and pass it to the gated [`hafen.act.raw(id, msg, …)`](actions.md) with
@@ -180,6 +184,38 @@ end)
 best-effort over a known type set (unknown → nil, never throws); the whole client tree is reachable via
 `root()`/`:parent()` (all client-side data — actions stay separately gated); which child is a price vs. a
 spacer is upstream-defined knowledge your Lua adapter supplies.
+
+### Hit-testing — what is under the cursor (the WoW `/framestack` enabler)
+
+`hafen.ui.mouse()` + `hafen.ui.at(x, y)` find *what widget is under a point* — the piece W1's tree walk
+was missing. `at()` **mirrors the engine's own pointer dispatch**: it walks children topmost-first, skips
+invisible widgets, follows scroll offsets, and honours non-rectangular hit areas — so it returns exactly
+the widget a real click would hit (a naïve `pos..pos+size` rect test is *wrong* inside scrolled lists and
+for custom hit shapes). Walk `:parent()` up from the hit for the full stack; `:rootpos()` + `:size()` give
+the rectangle to outline it.
+
+```lua
+-- the /framestack core: the stack of widgets under the cursor, cheaply, every frame
+local last                                            -- the leaf we last built the stack for
+hafen.events.on("OnUpdate", function(dt)
+  local m    = hafen.ui.mouse()
+  local leaf = hafen.ui.at(m.x, m.y)                  -- deepest widget under the cursor (or nil)
+  -- GUARD: unchanged since last frame? bail — no walk, no rebuild (this is why :same exists)
+  if leaf and last and leaf:same(last) then return end
+  if not leaf and not last then return end
+  last = leaf                                          -- hover changed → rebuild once
+  local stack, n = {}, leaf
+  while n do stack[#stack + 1] = n; n = n:parent() end -- leaf → root
+  -- ... render `stack`; outline the leaf via leaf:rootpos() + leaf:size()
+end)
+```
+
+The efficiency guard is the point: `OnUpdate` fires every frame, but the expensive walk + relayout run
+**only when the hovered widget changes**. `:same` is what makes that possible — each `at()` mints a fresh
+handle and client-only leaves have no `:id()`, so reference identity is the only reliable compare. Reading
+the cursor + geometry is client-side data (**ungated**); acting on the resolved node still goes through the
+gated [`hafen.act.raw`](actions.md) on its `:id()`. The bundled **`widgetstack`** addon is a full
+`/framestack` clone built on exactly this.
 
 ### Overlay / observer handles
 

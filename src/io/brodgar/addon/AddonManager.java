@@ -3413,6 +3413,8 @@ public final class AddonManager {
         //   :walk(fn)        -- depth-first: fn(node, depth); return false to PRUNE the subtree
         //   :same(other)     -- true iff both handles wrap the SAME live widget (nil-safe; the identity primitive
         //                       W2's per-frame guard needs — fresh handles + no-:id() leaves rule out ==/:id())
+        //   :at(coord)       -- W2: the DEEPEST WidgetNode under a {x=,y=} root-coord point WITHIN this subtree, or nil
+        //   :rootpos()       -- W2: {x=,y=} the node's top-left in root coords (with :size() = a highlight box)
         // READ-ONLY: to ACT, read a server-bound node's :id() and pass it to the gated hafen.act.raw (D-025) — no
         // new action surface, no new gate (reading the tree is ungated client-side data).
         uiT.set("root", new ZeroArgFunction() {
@@ -3420,6 +3422,20 @@ public final class AddonManager {
         });
         uiT.set("node", new OneArgFunction() {
             public LuaValue call(LuaValue id) { return nodeById(owner, id); }
+        });
+        // hafen.ui.mouse() / hafen.ui.at(x,y) — W2 hit-testing, the WoW /framestack enabler (spec 20 §W2, D-042).
+        // mouse() = {x=,y=} the cursor in root coords (public UI.mc); at(x,y) = the DEEPEST WidgetNode under that
+        // root-coord point, or nil. at() MIRRORS the engine's own pointer dispatch (PointerEvent.propagation): it
+        // walks children topmost-first, skips !visible(), descends by xlate (so SCROLL offsets are honoured) +
+        // rect-intersect, and honours checkhit at the leaf (non-rectangular hit areas) — so it resolves EXACTLY the
+        // widget a real click would hit (a naive pos..pos+size rect test is wrong under scroll / custom hit shapes).
+        // Walk :parent() up from the hit for the full stack. Read-only, ungated (client-side data, never reaches the
+        // server); acting still goes through the gated hafen.act.raw on a server-bound :id().
+        uiT.set("mouse", new ZeroArgFunction() {
+            public LuaValue call() { return nodeMouse(); }
+        });
+        uiT.set("at", new TwoArgFunction() {
+            public LuaValue call(LuaValue x, LuaValue y) { return nodeAt(owner, x, y); }
         });
         hafen.set("ui", uiT);
 
@@ -4640,6 +4656,70 @@ public final class AddonManager {
     }
 
     /**
+     * {@code hafen.ui.mouse()} — the cursor position in root coords as {@code {x=,y=}} (spec 20, W2), read from the
+     * public {@link UI#mc}. Returns {@code nil} if there is no UI yet. Zero-cost — the engine keeps {@code mc}
+     * updated each pointer move; the {@code widgetstack} addon polls this on {@code OnUpdate} for hover.
+     */
+    private static LuaValue nodeMouse() {
+        UI u = ui;
+        if((u == null) || (u.mc == null))
+            return LuaValue.NIL;
+        return xyTable(u.mc);
+    }
+
+    /**
+     * {@code hafen.ui.at(x, y)} — the DEEPEST {@link LuaWidgetNode} under a root-coord point (spec 20, W2), or
+     * {@code nil}. Runs {@link #hitTest} from {@code ui.root} (the point is already in root-local coords), under the
+     * {@code ui} monitor so the walk never races tree mutation. Non-number args are a clear error, like
+     * {@code hafen.ui.node}.
+     */
+    private static LuaValue nodeAt(Addon owner, LuaValue xv, LuaValue yv) {
+        if(!xv.isnumber() || !yv.isnumber())
+            throw new LuaError("hafen.ui.at(x, y) expects numbers");
+        UI u = ui;
+        if((u == null) || (u.root == null))
+            return LuaValue.NIL;
+        Widget hit;
+        synchronized(u) { hit = hitTest(u.root, new Coord(xv.toint(), yv.toint())); }
+        return (hit == null) ? LuaValue.NIL : nodeHandle(owner, new LuaWidgetNode(hit));
+    }
+
+    /**
+     * The deepest widget under {@code c} (given in {@code from}'s local coords), for {@code hafen.ui.at} /
+     * {@code node:at} (spec 20, W2). It <b>mirrors the engine's own pointer dispatch</b>
+     * ({@link Widget.PointerEvent#propagation}, {@code Widget.java:981}): walk children {@code lchild → prev}
+     * (topmost-first — the last child draws on top), skip {@code !visible()}, descend by
+     * {@code from.xlate(child.c, true)} (so a scrolled {@code Scrollport} offsets correctly) + a rectangle
+     * intersect, and at the leaf honour {@link Widget#checkhit(Coord)} (so a non-rectangular hit area resolves as a
+     * real click would). Returns the deepest hit, {@code from} itself when the point is in its own hit area but no
+     * child claims it, or {@code null} when the point misses {@code from} entirely. Must be called under the
+     * {@code ui} monitor.
+     */
+    private static Widget hitTest(Widget from, Coord c) {
+        for(Widget wdg = from.lchild; wdg != null; wdg = wdg.prev) {
+            if(!wdg.visible())
+                continue;
+            Coord cc = from.xlate(wdg.c, true);
+            if((wdg.sz != null) && c.isect(cc, wdg.sz)) {
+                Widget hit = hitTest(wdg, c.sub(cc));
+                if(hit != null)
+                    return hit;
+            }
+        }
+        return from.checkhit(c) ? from : null;
+    }
+
+    /** Parse a Lua {@code {x=,y=}} table into a {@link Coord} (root coords for W2 hit-tests); a clear error otherwise. */
+    private static Coord coordArg(LuaValue v, String where) {
+        if(!v.istable())
+            throw new LuaError(where + " expects a {x=,y=} coord table");
+        LuaValue x = v.get("x"), y = v.get("y");
+        if(!x.isnumber() || !y.isnumber())
+            throw new LuaError(where + " expects a {x=,y=} coord table");
+        return new Coord(x.toint(), y.toint());
+    }
+
+    /**
      * Resolve a node's wrapped widget, checking liveness (spec 20, W1): a widget still attached to the tree is
      * live, one detached (destroyed → {@code parent} nulled) is stale. We test reachability via
      * {@link Widget#hasparent(Widget) hasparent(ui.root)} (O(depth), the {@code GobRef}-per-access discipline);
@@ -4801,6 +4881,29 @@ public final class AddonManager {
         h.set("same", new VarArgFunction() {
             public Varargs invoke(Varargs a) {                // node:same(other) → self=arg1, other=arg2
                 return LuaValue.valueOf(nodeSame(n, LuaWidgetNode.resolve(a.arg(2))));
+            }
+        });
+        h.set("rootpos", new ZeroArgFunction() {              // W2: node top-left in root coords ({x=,y=}), or nil
+            public LuaValue call() {
+                Widget w = nodeLive(n);
+                if(w == null)
+                    return LuaValue.NIL;
+                UI u = ui;
+                Coord rp;
+                synchronized(u) { rp = w.rootpos(); }
+                return (rp == null) ? LuaValue.NIL : xyTable(rp);
+            }
+        });
+        h.set("at", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {                // node:at(coord) → self=arg1, coord=arg2 (root coords)
+                Widget w = nodeLive(n);
+                if(w == null)
+                    return LuaValue.NIL;
+                Coord pt = coordArg(a.arg(2), "node:at(coord)");
+                UI u = ui;
+                Widget hit;
+                synchronized(u) { hit = hitTest(w, w.rootxlate(pt)); }
+                return (hit == null) ? LuaValue.NIL : nodeHandle(owner, new LuaWidgetNode(hit));
             }
         });
         return h;
