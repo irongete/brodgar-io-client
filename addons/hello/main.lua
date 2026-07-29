@@ -61,7 +61,7 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.48.0)")
+hafen.log("hello loaded (v0.49.0)")
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -892,8 +892,10 @@ end)
 local demoFont          -- the loaded FontHandle (nil until OnLoad; env rebuilt on reload -> nil, re-loaded below)
 local monoFont          -- F2: a second handle (built-in "mono") for the per-call { font = } demo in the F2 window
 local fontApplied = false   -- is our "default" override currently installed? (session-local; teardown reverts it)
+local titleApplied = false  -- F3: is our "window.title" override installed? (session-local; teardown reverts it)
 hafen.events.on("OnLoad", function()
   fontApplied = false                                   -- a reload rebuilt the env; the override was torn down (P2)
+  titleApplied = false                                  -- F3: likewise for the window.title override (P2)
   monoFont = hafen.font.load("mono", { size = 12 })     -- F2: a distinct font for the per-call g:text{font=} line
   local ok, ttf = pcall(hafen.font.load, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
   if ok and ttf then
@@ -1034,7 +1036,7 @@ local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-faci
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title")
     return
   end
   local sub = args[1]
@@ -1195,8 +1197,24 @@ hafen.slash.register("hello", function(args)
       hafen.log((":hello font -> setFont('default', %s) -- most UI text should change; showing 'mono' for 3s first (last-wins), then '%s'; :hello font again to reset")
         :format(demoFont:family(), demoFont:family()))
     end
+  elseif sub == "title" then
+    -- F3: toggle a font override on the "window.title" scope (WINDOW CAPTIONS only) -- INDEPENDENT of "default".
+    -- With ONLY "window.title" set, captions change but body text stays stock; with ONLY "default" set (:hello
+    -- font), the cascade restyles captions too until a "window.title" override refines them. Owner-tagged,
+    -- reverted automatically on :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
+    if not demoFont then hafen.log(":hello title -> font not loaded yet (OnLoad)"); return end
+    if titleApplied then
+      hafen.font.reset("window.title")                  -- drop our override -> stock window captions return live
+      titleApplied = false
+      hafen.log(":hello title -> reset('window.title') -- stock window captions restored (also on :reload/disable)")
+    else
+      hafen.font.setFont("window.title", demoFont:derive{ size = 15 })  -- caption size ~= the stock fraktur 15
+      titleApplied = true
+      hafen.log((":hello title -> setFont('window.title', %s) -- open/focus any window: its CAPTION font changes (body text stays stock unless :hello font); :hello title again to reset")
+        :format(demoFont:family()))
+    end
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title)")
       :format(#args, table.concat(args, " | ")))
   end
 end)

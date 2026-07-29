@@ -175,10 +175,22 @@ public class Window extends Widget {
     }
 
     public static class DefaultDeco extends DragDeco {
-	public static final Text.Forge cf =  new PUtils.BlurFurn(new PUtils.TexFurn(new Text.Foundry(Text.fraktur, 15).aa(true), ctex),
-								   UI.rscale(0.75), UI.rscale(1.0), new Color(96, 96, 0));
-	public static final Text.Forge ncf = new PUtils.BlurFurn(new PUtils.TexFurn(new Text.Foundry(Text.fraktur, 15).aa(true), ctex),
-								   UI.rscale(0.75), UI.rscale(1.0), Color.BLACK);
+	// addon: "window.title" font scope (F3, D-043). The stock title foundry, and the blur/tex furnaces built
+	// FROM it via the provider: Fonts.foundry("window.title", titlefnd) resolves an addon override (or, when
+	// none, the stock foundry, cascading through "default"). The furnaces are rebuilt lazily whenever
+	// Fonts.gen() moves, and each window's cached `cap` re-renders on the same check (see drawframe).
+	public static final Text.Foundry titlefnd = new Text.Foundry(Text.fraktur, 15).aa(true);
+	private static Text.Forge cf, ncf;
+	private static int fontgen = -1;
+	private static void checktitlefont() {
+	    int g = Fonts.gen();
+	    if((cf == null) || (fontgen != g)) {
+		Text.Foundry f = Fonts.foundry("window.title", titlefnd);
+		cf  = new PUtils.BlurFurn(new PUtils.TexFurn(f, ctex), UI.rscale(0.75), UI.rscale(1.0), new Color(96, 96, 0));
+		ncf = new PUtils.BlurFurn(new PUtils.TexFurn(f, ctex), UI.rscale(0.75), UI.rscale(1.0), Color.BLACK);
+		fontgen = g;
+	    }
+	}
 	public final boolean lg;
 	public final IButton cbtn;
 	public boolean dragsize, cfocus;
@@ -186,6 +198,7 @@ public class Window extends Widget {
 	public Coord cptl = Coord.z, cpsz = Coord.z;
 	public int cmw;
 	public Text cap = null;
+	private int capgen = -1;   // addon: Fonts.gen() at the last `cap` render — re-render the caption when the font override moves
 
 	public DefaultDeco(boolean lg) {
 	    this.lg = lg;
@@ -235,8 +248,11 @@ public class Window extends Widget {
 
 	protected void drawframe(GOut g) {
 	    Window wnd = (Window)parent;
-	    if((cap == null) || (cap.text != wnd.cap) || (cfocus != wnd.hasfocus)) {
+	    checktitlefont();          // addon: rebuild the title furnaces if the "window.title" font override moved
+	    int fg = Fonts.gen();      // addon:
+	    if((cap == null) || (cap.text != wnd.cap) || (cfocus != wnd.hasfocus) || (capgen != fg)) {  // addon: capgen -> re-render caption on a font change
 		cap = (wnd.cap == null) ? null : ((cfocus = wnd.hasfocus) ? cf : ncf).render(wnd.cap);
+		capgen = fg;           // addon:
 		cmw = (cap == null) ? 0 : cap.sz().x;
 		cmw = Math.max(cmw, this.sz.x / 4);
 		cptl = Coord.of(ca.ul.x, 0);

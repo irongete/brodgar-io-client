@@ -7,8 +7,9 @@ your addon keeps; another addon cannot look it up (no name collisions, no coupli
 > **Slice status.** **F1 (shipped):** `load` / `setFont` / `reset` / `scopes`, and the **`"default"`** scope
 > (the global fallback — most UI text). **F2 (shipped):** applying a font to your **own** drawing — `font=` on
 > `hafen.ui.window`/`widget`, `g:text`/`g:atext` with a `{font=…, color=…}` option, and a custom TTF in a
-> `$font[…]{…}` rich-text tag. The per-scope surfaces (`window.title`, `button`, `chat`, …) arrive in later
-> slices — the scope names are already listed by `scopes()`, they simply have no effect until routed. See
+> `$font[…]{…}` rich-text tag. **F3a (shipped):** the **`"window.title"`** scope (window captions) is now live.
+> The remaining per-scope surfaces (`button`, `chat`, …) arrive in later F3 slices — the scope names are already
+> listed by `scopes()`, they simply have no effect until routed. See
 > [`21-fonts.md`](../../../specs/addons/21-fonts.md) for the roadmap.
 
 Client-only and cosmetic (**safe-tier — not gated**), like a HUD overlay.
@@ -107,7 +108,7 @@ restorable. The change is **live** — most existing text re-renders on the spot
 | Scope | Client surface | Slice |
 |---|---|---|
 | `"default"` | global fallback — most UI text (`Text.std` / `Text.render` / default `Label`) | **F1 (live)** |
-| `"window.title"` | window captions | F3 |
+| `"window.title"` | window captions | **F3a (live)** |
 | `"button"` | button captions | F3 |
 | `"label"` | explicit non-default labels | F3 |
 | `"tooltip"` | tooltips | F3 |
