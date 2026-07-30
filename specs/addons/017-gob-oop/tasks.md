@@ -4,7 +4,7 @@
 > in the same session, or the client is unusable in between. 017.2 is spec-side text only (no code,
 > nothing to verify in-game) and is the only part safe to defer.
 
-- [ ] **017.1 — The hard cut: `LuaGob` + every consumer + the shipped docs**
+- [x] **017.1 — The hard cut: `LuaGob` + every consumer + the shipped docs**
   - `LuaGob.java`: id holder, per-addon intern cache (weak values + **`ReferenceQueue` drain**),
     per-addon metatable (`__index` methods, `__tostring`, `__name`), `resolve(LuaValue)`.
   - Methods: `:id() :exists() :info() :pos() :facing() :name() :health() :moving() :speed()

@@ -161,3 +161,13 @@
   up: the surface was routed fine, the demo target had nothing to show. A harness that picks a target automatically
   should **score candidates by what the feature can actually affect** (here: descendants reporting a `:text()`) and
   print the scores, so a null result is self-diagnosing.
+- **(017) A hard cut is ONE task or it is a broken client.** Deleting the flat `hafen.gob` table breaks every addon
+  the instant it lands, so "migrate Java first, addons/docs next" would have left the client unusable *between*
+  tasks. The split that does work is by **verifiability**: everything in-game-testable in one atomic task, and the
+  purely textual closure (decisions, superseded banners, the contract doc) in a second one that has nothing to
+  verify. Corollary for the harness: the checks that prove a *removal* (`hafen.gob.health == nil`,
+  `pcall(hafen.gob, "player") == false`) belong in `hello` alongside the ones that prove the new surface — the cut
+  is a feature and needs a regression test like any other.
+- **(017) `ant hafen-client` is incremental and WILL false-green when a symbol moves between files.** `rm -rf
+  build/classes` before believing a compile that deleted/relocated something as widely referenced as the central
+  gob resolver. Cheap, and the only way the "everything still compiles" claim means anything.

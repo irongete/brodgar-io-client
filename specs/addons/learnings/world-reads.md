@@ -71,3 +71,18 @@
   **no stable addon-visible id** to re-resolve by (unlike gobs), so the snapshot IS the canonical read
   (carries name/num/wear). Per-item live accessors wait for **item handles** (bridge-owned proxies over the
   live `GItem`, UI/replacement phase) — keeps D-013 "one canonical way".
+- **(017) An OOP gob handle must wrap the ID ONLY — that is what preserves D-012 freshness for free.** Every
+  method re-resolves through the one `getgob(long)` funnel, so a handle stashed in an upvalue tracks a moving gob
+  and answers `nil` the moment it despawns; and because it holds no `haven.Gob`, a stashed handle can never pin a
+  dead gob (or its `.res`/overlays) in memory — strictly better than `LuaWidgetNode`, which has to null its
+  `Widget` by hand. The old `resolve(LuaValue)` with its `"player"`/`"me"`/`"partyN"` token branches collapses
+  into that one funnel; the tokens' successors are `hafen.player():gob()` / `hafen.gob(m.id)`.
+- **(017) Retargeting the filter from snapshot to object makes the hot path CHEAPER, not dearer.** The old
+  `matches(filter, snap)` forced a full `gobSnapshot` per gob *just to test it*; `gobMatches(filter, owner, Gob)`
+  reads `gobName(g)` directly for a string filter and mints an (interned) handle only for a function filter. Same
+  for the per-frame gob-overlay pass. The discipline that must NOT be lost in the rewrite: copy the gob list under
+  `synchronized(oc)` (`allGobs()`), then filter **outside** the lock — a function filter re-enters Lua.
+- **(017) A per-addon payload cannot ride the shared `fire(...)` path.** With interning, `GobAdded`/`GobRemoved`
+  need *this addon's* handle for the id, so the fan-out builds one per owner. Gate it on "does this owner actually
+  subscribe?" first, or a busy spawn stream mints a handle for every addon that isn't listening. Accepted loss on
+  `GobRemoved`: the gob is already out of the OCache, so only `:id()` answers — index the name on `GobAdded`.

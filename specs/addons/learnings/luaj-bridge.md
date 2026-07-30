@@ -95,3 +95,26 @@
   it as `LuaValue.userdataOf(luaImage)` (the **same facade-safe pattern `LuaMarshal` uses** for hook args) is P1-clean:
   no metatable ⇒ no Java method reachable from Lua, and unforgeable ⇒ the sandbox omits `luajava`. `g:image` reads the
   handle-table's userdata field → casts → draws. Simpler than a registry (no counter, no map teardown; GC'd with the env).
+- **(017) LuaJ userdata DOES take a metatable, and that makes it the right OOP handle.** `LuaValue.userdataOf(obj,
+  mt)` + `mt.__index = <methods table>` gives real methods; verified in the 3.0.1 bytecode: `LuaUserdata.get(k)`
+  is `m_metatable != null ? gettable(this,k) : NIL`, and `set(k,v)` errors `"cannot set <k> for userdata"` unless
+  a `__newindex` handles it — so the object is **immutable from Lua for free**, which a LuaTable handle is not
+  (one addon function could scribble on an object every other one shares). `__tostring`/`__name` work; and
+  `tojstring()` is `String.valueOf(m_instance)`, so a plain Java `toString()` already yields a sane `tostring`.
+  Equality: `raweq` is `this == val || (same metatable && m_instance.equals(...))`, and `hashCode()` delegates to
+  the instance — so interned userdata is reliable both as `==` and as a **table key**.
+- **(017) A callable TABLE (`__call`), not a bare function, is what makes a hard cut visible from Lua.**
+  `hafen.gob = <function>` would make `hafen.gob.health` throw "attempt to index a function"; an empty
+  `LuaTable` with `mt.__call` makes `hafen.gob(id)` work AND `hafen.gob.health` read as plain `nil` — so the
+  removed flat API fails the way a *missing* field fails, and `if hafen.gob.health then` is a usable feature
+  probe. Note `__call` receives the table as arg1: real params start at `a.arg(2)`.
+- **(017) Interning Lua handles: `Map<K, WeakReference<LuaValue>>` + a `ReferenceQueue`, NEVER `WeakHashMap`.**
+  `WeakHashMap` is weak *keys* — the wrong axis; the handle is the value. The key + the dead `WeakReference`
+  survive collection, so without a **drain on every access** (`while((r = queue.poll()) != null)`) a per-tick
+  world sweep leaks tens of thousands of map entries per session. The `WeakReference` subclass must carry its
+  own key to unmap itself, and the drain must check `live.get(key) == thatRef` before removing (a fresh handle
+  may already have replaced it). Headless proof: 20 000 ids → `System.gc()` → one more access → 1 entry left.
+- **(017) The intern cache belongs on the `Addon`, never `static` on the hub.** Per-addon means no Lua value
+  crosses a sandbox boundary (D-017) and the cache dies whole with the env on `:reload`/disable — a static one
+  would outlive the reload (the C1 console-command trap in a new costume). The per-addon metatable falls out of
+  the same rule, and it is what keeps two envs' handles for the *same* id distinct.

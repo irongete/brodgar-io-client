@@ -225,15 +225,16 @@
 
 | File | Owns |
 |---|---|
-| `AddonManager` (hub, ~1.6k lines) | lifecycle (attach/init/tick), the `haven` seams (`onUimsg`/`onWdgmsg`/`onMessage`/`onGlobKey`/`onWidgetCreated`/`onWidgetPlaced`/`onGhostClick` — core edits call these by name; they delegate), the shared gob-read/engine substrate (`resolve`/`gobSnapshot`/`gui`/…), event bus + `callLua`, timers, the `:lua` REPL, `installHafen` |
+| `AddonManager` (hub, ~1.6k lines) | lifecycle (attach/init/tick), the `haven` seams (`onUimsg`/`onWdgmsg`/`onMessage`/`onGlobKey`/`onWidgetCreated`/`onWidgetPlaced`/`onGhostClick` — core edits call these by name; they delegate), the shared gob-read/engine substrate (`getgob`/`gobMatches`/`gobSnapshot`/`gui`/…), event bus + `callLua`, timers, the `:lua` REPL, `installHafen` |
 | `AddonRegistry` | discovery/loadAll, enabled set (+ D-027 defaults), `reload`, per-addon teardown, the AddOns-panel data API |
-| `WorldApi` | `hafen.gob/world/map/markers/radar/time/sound/music` |
+| `WorldApi` | `hafen.world/map/markers/radar/time/sound/music` (per-gob reads are `LuaGob`) |
 | `CharApi` | `hafen.player/char/items/study/party/kin/buffs/actionbar/quests/wounds/fight` + the `TreeAdapter`s |
 | `UiApi` | `hafen.ui` — windows/overlays, observe/adopt/replace, WidgetNode + hit-testing |
 | `HookApi` | `hafen.hook` (L1/L2/L3 + grab), `hafen.key`, `hafen.slash` |
 | `ActApi` | `hafen.act` (gated verbs) + `hafen.craft`/`hafen.speed` writes |
 | `RenderApi` | `hafen.ghost` + `hafen.render` (V/R-series entities) |
 | `StoreApi` / `HttpApi` / `FontApi` | `hafen.store` / `hafen.http` / `hafen.font` |
+| **`LuaGob`** | the `hafen.gob(id)` **Gob class** (D-044): id-only userdata + per-addon metatable/intern cache (D-045) |
 | Support classes | `Addon`, `Manifest`, `Json`, `Sandbox`, `AddonRoot`, `LuaMarshal`, `Lua*` (widget/hooks/entities/images/meshes/nodes/fonts), `GhostGob`, `Gltf`, `ui/AddonPanel`, `ui/ActionsConsentWnd` |
 
 Pattern: cluster files `import static AddonManager.*`; the seams stay in the hub as one-line
