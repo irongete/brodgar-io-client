@@ -14,7 +14,9 @@ your addon keeps; another addon cannot look it up (no name collisions, no coupli
 > default-`Label` routing left out) are now live. **F3e (shipped):** the **`"heading"`** scope — the embossed
 > section headings *inside* a window ("Base Attributes", "Lore & Skills", "Kin", …); a **new scope**, added to the
 > enum in this slice. **F3d (shipped):** the **`"menu"`**, **`"tooltip"`** and **`"chat"`** scopes — which
-> **completes the UI chrome**: every scope except F4's two world ones (`world.nick`, `world.speech`) is now live.
+> **completes the UI chrome**. **F4 (shipped):** the two **world** scopes — **`"world.speech"`** (speech bubbles)
+> and **`"world.nick"`** (floating kin names) — so **every scope in `scopes()` is now live**; only F5 (a
+> per-instance override on one widget) is left.
 > See [`21-fonts.md`](../../../specs/addons/21-fonts.md) for the roadmap.
 
 Client-only and cosmetic (**safe-tier — not gated**), like a HUD overlay.
@@ -121,8 +123,8 @@ restorable. The change is **live** — most existing text re-renders on the spot
 | `"menu"` | flower-menu petals + the action-menu keybind letters | **F3d (live)** |
 | `"chat"` | the chat window — messages, channel tabs, the typed line | **F3d (live)** |
 | `"textentry"` | text-entry fields (+ the console command line) | **F3c (live)** |
-| `"world.nick"` | floating player / kin names | F4 |
-| `"world.speech"` | speech bubbles | F4 |
+| `"world.nick"` | floating kin names over characters (kin-list members) | **F4 (live)** |
+| `"world.speech"` | speech bubbles over talking characters | **F4 (live)** |
 
 `"default"` is the broad hammer: it **cascades** to every routed surface that has no more-specific override — so
 `setFont("default", h)` changes everything in one call, while a per-scope override refines any one surface. The
@@ -235,6 +237,17 @@ re-measured, so the log re-flows correctly under a bigger font. URLs stay clicka
 link parser. The typed quick line belongs to this scope, not to `"textentry"`: it lives in the chat window and is
 built from the chat's own recipe. Minor caveat: the channel-tab **truncation width** was measured from the stock
 font once, so a much wider font can shorten a long channel name slightly early.
+
+**Notes on the world scopes (F4).** `"world.speech"` is the speech bubble that pops up over a character's head
+when they talk in area chat — your own included, so it is the easiest scope to check: say something and look. The
+bubble measures its frame around the text on every frame, so a large size is completely safe here (unlike a text
+field, whose height is fixed by its background texture); a bubble already on screen re-renders on its next frame.
+`"world.nick"` is the floating name drawn over characters on your **kin (buddy) list**, in their kin-group
+colour — the colour is per-render and stays untouched, only the font changes, and the label re-centres itself over
+the character at the new size. You need a **kin visible on screen** to observe it: with nobody on your list
+nearby there is no label to restyle. Any other world label composed by the same client mechanism (parts
+contributed by game resources alongside the kin name) follows `"world.nick"` too. Neither world scope follows a
+tooltip composition, and both fall back to the `"default"` cascade when unset, like every other scope.
 
 ### Conflict model (one intrinsic limit)
 

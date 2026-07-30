@@ -900,6 +900,8 @@ local headApplied = false   -- F3e: is our "heading" override installed? (sessio
 local menuApplied = false   -- F3d: is our "menu" override installed? (session-local; teardown reverts it)
 local tipApplied = false    -- F3d: is our "tooltip" override installed? (session-local; teardown reverts it)
 local chatApplied = false   -- F3d: is our "chat" override installed? (session-local; teardown reverts it)
+local speechApplied = false -- F4: is our "world.speech" override installed? (session-local; teardown reverts it)
+local nickApplied = false   -- F4: is our "world.nick" override installed? (session-local; teardown reverts it)
 hafen.events.on("OnLoad", function()
   fontApplied = false                                   -- a reload rebuilt the env; the override was torn down (P2)
   titleApplied = false                                  -- F3a: likewise for the window.title override (P2)
@@ -910,6 +912,8 @@ hafen.events.on("OnLoad", function()
   menuApplied = false                                   -- F3d: ...and for the menu override (P2)
   tipApplied = false                                    -- F3d: ...and for the tooltip override (P2)
   chatApplied = false                                   -- F3d: ...and for the chat override (P2)
+  speechApplied = false                                 -- F4: ...and for the world.speech override (P2)
+  nickApplied = false                                   -- F4: ...and for the world.nick override (P2)
   monoFont = hafen.font.load("mono", { size = 12 })     -- F2: a distinct font for the per-call g:text{font=} line
   local ok, ttf = pcall(hafen.font.load, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
   if ok and ttf then
@@ -1050,7 +1054,7 @@ local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-faci
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick")
     return
   end
   local sub = args[1]
@@ -1381,8 +1385,48 @@ hafen.slash.register("hello", function(args)
       hafen.log((":hello chat -> setFont('chat', %s) -- open the chat window (Ctrl+C): the message lines, the channel tabs and the line you type are in the new font; :hello chat again to reset")
         :format(h:family()))
     end
+  elseif sub == "speech" then
+    -- F4: toggle a font override on the "world.speech" scope = the SPEECH BUBBLES that pop up over a character's
+    -- head when someone talks in area chat (your own included -- just say something and watch your bubble). The
+    -- bubble measures its frame around the text every frame, so a bigger font simply gives a bigger bubble: this
+    -- is the one scope where a large size is completely safe. A bubble already on screen re-renders live (lazily,
+    -- only the visible ones). Independent of every other scope; with ONLY "default" set (:hello font) the cascade
+    -- restyles bubbles too, until a "world.speech" override refines them. Owner-tagged, reverted automatically on
+    -- :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
+    local h = (monoFont or demoFont)
+    if not h then hafen.log(":hello speech -> font not loaded yet (OnLoad)"); return end
+    if speechApplied then
+      hafen.font.reset("world.speech")                  -- drop our override -> stock bubble font returns live
+      speechApplied = false
+      hafen.log(":hello speech -> reset('world.speech') -- stock speech-bubble font restored (also on :reload/disable)")
+    else
+      hafen.font.setFont("world.speech", h:derive{ size = 16 })  -- mono 16 vs the stock sans 10 (clearly bigger)
+      speechApplied = true
+      hafen.log((":hello speech -> setFont('world.speech', %s) -- say something in area chat (Enter): the BUBBLE over your head is in the new font and its frame grows with it; :hello speech again to reset")
+        :format(h:family()))
+    end
+  elseif sub == "nick" then
+    -- F4: toggle a font override on the "world.nick" scope = the floating KIN NAMES drawn over the characters of
+    -- people on your kin (buddy) list, in their kin-group colour. Note you need a KIN VISIBLE ON SCREEN to see
+    -- this one -- no kin nearby, nothing to restyle. The label is composed by code that ships inside the game's
+    -- own resources, so the client re-composes it (and re-centres it over the character) when the override moves;
+    -- the name keeps its group colour. Independent of every other scope; with ONLY "default" set (:hello font) the
+    -- cascade restyles the names too, until a "world.nick" override refines them. Owner-tagged, reverted
+    -- automatically on :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
+    local h = (monoFont or demoFont)
+    if not h then hafen.log(":hello nick -> font not loaded yet (OnLoad)"); return end
+    if nickApplied then
+      hafen.font.reset("world.nick")                    -- drop our override -> stock kin names return live
+      nickApplied = false
+      hafen.log(":hello nick -> reset('world.nick') -- stock floating kin-name font restored (also on :reload/disable)")
+    else
+      hafen.font.setFont("world.nick", h:derive{ size = 16, bold = true })  -- mono bold 16 vs the stock sans bold 12
+      nickApplied = true
+      hafen.log((":hello nick -> setFont('world.nick', %s) -- look at a KIN standing nearby: the name floating over them is in the new font (its colour stays the kin-group colour); :hello nick again to reset")
+        :format(h:family()))
+    end
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick)")
       :format(#args, table.concat(args, " | ")))
   end
 end)

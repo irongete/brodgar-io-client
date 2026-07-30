@@ -35,18 +35,43 @@ public class Speaking extends GAttrib implements RenderTree.Node, PView.Render2D
     public static final int sx = UI.scale(5);
     public float zo;
     public Text text;
-	
+
+    /* addon: (F4, D-043) the "world.speech" font scope -- speech bubbles above characters. Stock renders the
+     * bubble text through the generic Text.render static, which F1 bound to the "default" scope; asking the
+     * provider for "world.speech" instead makes the bubbles refinable on their own while an unset scope still
+     * cascades to a "default" override. The rendered Text is cached (it is a texture), so the source string is
+     * kept and re-rendered when Fonts.gen() moves -- lazily, in draw(), i.e. only for bubbles on screen. The
+     * bubble frame is measured from text.sz() every frame, so it grows/shrinks with the font by itself. */
+    private String str;
+    private int fontgen = Fonts.gen();
+
+    private static Text.Foundry font() {
+	return(Fonts.foundry("world.speech", Text.std));
+    }
+
     public Speaking(Gob gob, float zo, String text) {
 	super(gob);
 	this.zo = zo;
-	this.text = Text.render(text, Color.BLACK);
+	this.str = text;                                 // addon: (F4) the recipe, for a re-render on a gen move
+	this.text = font().render(text, Color.BLACK);    // addon: (F4) was Text.render(...) = the "default" scope
     }
-	
+
     public void update(String text) {
-	this.text = Text.render(text, Color.BLACK);
+	this.str = text;                                 // addon: (F4)
+	this.text = font().render(text, Color.BLACK);    // addon: (F4)
     }
-	
+
+    /* addon: (F4) re-render this bubble when a font override moved the generation. */
+    private void checkfont() {
+	int gen = Fonts.gen();
+	if((fontgen != gen) && (str != null)) {
+	    fontgen = gen;
+	    this.text = font().render(str, Color.BLACK);
+	}
+    }
+
     public void draw(GOut g, Coord c) {
+	checkfont();   // addon: (F4)
 	Coord sz = text.sz();
 	sz.x = Math.max(sz.x, UI.scale(15));
 	Coord tl = c.sub(sx, sb.cisz().y + sz.y + svans.sz().y - sb.bb.sz().y);
