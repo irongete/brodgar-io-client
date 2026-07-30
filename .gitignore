@@ -5,9 +5,12 @@
 /local-boot.properties
 /build.properties
 *~
-/CLAUDE.md
-/.claude
 /archive
+
+# Claude Code — local-only files (settings.json, commands/, skills/ ARE committed)
+/.claude/settings.local.json
+/.claude/worktrees/
+/CLAUDE.local.md
 
 # Brodgar voice library jar — a build artifact of brodgar-io-voice-client, not source
 /lib/brodgar/*.jar

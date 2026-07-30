@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push)",
+      "Bash(git push:*)",
+      "Read(./archive/**)"
+    ],
+    "allow": [
+      "Bash(ant:*)"
+    ]
+  }
+}
