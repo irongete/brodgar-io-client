@@ -5,7 +5,7 @@
 > nesting + sibling isolation, instance-beats-scope-beats-default, the `gen()` frame stamp, `dynamic()` claiming
 > unroutable foundries, ownership/last-wins/teardown, size-aa-colour, **and a real `Label` restyling end-to-end
 > inside the frame**) + LuaJ parse of all 8 addon files. `hello` **v0.55.1** (`:hello node` — v0.55.0 picked a
-> text-less window on the first in-game run; see *Gotchas*). **In-game verified ✅.** *(Java engine change ⇒ `ant` rebuild + full
+> text-less window on the first in-game run; see *Gotchas*). **In-game verified ✅. Committed `b5c973df`.** *(Java engine change ⇒ `ant` rebuild + full
 > client restart.)*
 > **Design:** [specs/addons/21-fonts.md](../../../specs/addons/21-fonts.md) §F5, decision
 > **[D-043](../../../specs/addons/decisions.md)**; the node itself is
