@@ -75,7 +75,7 @@ Same as `get`, plus a request **body**:
 ```lua
 -- POST a Lua table as JSON, read JSON back
 hafen.http.post("https://api.example.com/report",
-  { char = hafen.player.name(), lp = hafen.char.attrs().lp },        -- table → application/json
+  { char = hafen.player():name(), lp = hafen.char.attrs().lp },        -- table → application/json
   { headers = { Authorization = "Bearer " .. hafen.store.cfg.token } },
   function(res)
     if res.ok and res.status == 200 then

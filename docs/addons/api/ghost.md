@@ -27,7 +27,7 @@ reload / disable / relogin (the scene slot is removed and the sprite freed), lea
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `res` | string | — (required) | resource name — a game object, e.g. `"gfx/terobjs/arch/logcabin"` (resolved via the game resource pool, so any server or client resource works) |
-| `x`, `y` | number | — (required) | world coordinates (login-relative, the same as [`hafen.gob.pos`](gob.md)) |
+| `x`, `y` | number | — (required) | world coordinates (login-relative, the same as [`gob:pos()`](gob.md)) |
 | `a` | number | `0` | facing, in radians |
 | `sdt` | byte array | — | spawn-data bytes (resource variant/state), e.g. `{0x01, 0x00}` — advanced, rarely needed (V3) |
 | `alpha` | number | `1` | opacity `0..1`; `< 1` gives the translucent "ghost" look (V3) — see [Look & orientation](#look--orientation-v3) |
@@ -64,17 +64,17 @@ Every method returns the handle (except `:pos`/`:res`), so calls chain. A plain 
 
 A ghost (like a [sprite](render.md#anchoring-to-a-gob)) can be **anchored to a gob** so it follows it every frame,
 with no per-tick code of your own — the world analog of a [`hafen.ui.gobOverlay`](ui.md#overlays). Pass a `follow`
-target (a gob id, `"player"`, or `"me"`) to `new`, or call `g:follow(gob)` later; an optional world `offset`
+target (a [Gob object](gob.md)) to `new`, or call `g:follow(gob)` later; an optional world `offset`
 `{x=, y=, z=}` (`z` = up) places it relative to the gob. It keeps its own facing/scale, `g:offset{…}` adjusts the
 offset while it keeps following, and a manual `g:move` detaches it.
 
 ```lua
-local g = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin", follow = "me", offset = { z = 20 } }
+local g = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin", follow = hafen.player():gob(), offset = { z = 20 } }
 -- the cabin now floats over your head and follows you; g:follow(nil) drops it in place
 ```
 
 ```lua
-local p = hafen.gob.pos("player")
+local p = hafen.player():gob():pos()
 local g = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin", x = p.x, y = p.y }
 g:move(p.x + 33, p.y)                       -- 3 tiles east (a tile is 11 world units)
 g:setRes("gfx/terobjs/arch/timberhouse"):rotate(math.pi):alpha(0.5)  -- V3, chained

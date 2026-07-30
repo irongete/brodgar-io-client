@@ -44,7 +44,6 @@ import haven.MiniMap;
 import haven.Moving;
 import haven.Music;
 import haven.OCache;
-import haven.Party;
 import haven.QuestWnd;
 import haven.ResDrawable;
 import haven.Resource;
@@ -116,7 +115,7 @@ import javax.imageio.ImageIO;
  */
 public final class AddonManager {
 
-    static volatile MapView view;           // live map view (for hafen.gob.pos) — pkg-private: shared hub state
+    static volatile MapView view;           // live map view (for gob:pos()) — pkg-private: shared hub state
     static volatile UI ui;                  // live UI (for output; set at RemoteUI.init) — pkg-private: shared hub state
     static final List<Addon> addons = new CopyOnWriteArrayList<Addon>();
     static Addon consoleOwner;      // the :lua REPL, as a resource owner (persists across sessions)
@@ -320,7 +319,7 @@ public final class AddonManager {
             // 1. Gob spawn/despawn captured on network/loader threads → dispatch on the UI thread.
             GobEvent ge;
             while((ge = gobEvents.poll()) != null)
-                fire(ge.added ? "GobAdded" : "GobRemoved", gobSnapshot(ge.gob));
+                fireGob(ge.added ? "GobAdded" : "GobRemoved", ge.gob.id);
 
             // 1a. HTTP results (N2a): a pool worker finished a request → deliver its res table to the addon's
             //     callback on the UI thread (armed + isolated, like every other event). A cancelled/torn-down
@@ -596,6 +595,32 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
             fireTo(c, event, args);
     }
 
+    /**
+     * Fire a gob event ({@code GobAdded}/{@code GobRemoved}) whose payload is a <b>Gob object</b> (D-044). Unlike
+     * {@link #fire} the payload cannot be shared: interning is per-addon (D-045), so each owner gets <i>its</i>
+     * handle for the id — minted only when that owner actually subscribes, so a busy spawn stream costs nothing
+     * for the addons that don't listen. On {@code GobRemoved} the gob is already gone, so only {@code :id()}
+     * answers — an addon that needs the name must have indexed it on {@code GobAdded}.
+     */
+    static void fireGob(String event, long id) {
+        for(Addon a : addons) {
+            if(hasSub(a, event))
+                fireTo(a, event, LuaGob.of(a, id));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, event))
+            fireTo(c, event, LuaGob.of(c, id));
+    }
+
+    /** Does {@code a} have a live subscription to {@code event}? (Gates minting a per-addon event payload.) */
+    private static boolean hasSub(Addon a, String event) {
+        for(Sub s : a.subs) {
+            if(s.alive && s.event.equals(event))
+                return true;
+        }
+        return false;
+    }
+
     /** Fire an event to a single owner's matching subscriptions. */
     static void fireTo(Addon a, String event, LuaValue... args) {
         for(Sub s : a.subs) {
@@ -636,16 +661,20 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
     static void installHafen(Globals g, final Addon owner) {
         LuaTable hafen = new LuaTable();
 
-        // hafen.gob.*(ref) — the canonical per-gob accessor. ref = gob id, "player"/"me", or nil
-        // (=player). Each call re-resolves the gob → always fresh; returns nil if it's gone. Unknown
-        // tokens ("target"/"partyN"/…) resolve to nil for now (added with their subsystems).
-        WorldApi.installGob(hafen, owner);
+        // hafen.gob(id) — the Gob CLASS (D-044): the factory mints an interned Gob OBJECT for an id and
+        // gob:pos()/:name()/:health()/… read it. A Gob wraps only the id, so every method re-resolves →
+        // always fresh, nil once the gob is gone (:id() still answers). Identity is by per-addon weak
+        // interning (D-045), so hafen.gob(id) == hafen.gob(id) and seen[gob] works. The flat
+        // hafen.gob.*(ref) table and the "player"/"me"/"partyN" GobRef tokens are GONE (hard cut, no
+        // shim, D-013): the player's gob is hafen.player():gob().
+        hafen.set("gob", LuaGob.factory(owner));
 
-        // hafen.world.* — enumerate gobs as snapshots. nearest/within measure from the player and skip
-        // the player's own gob. Prefer the GobAdded/GobRemoved events over per-frame scanning.
+        // hafen.world.* — enumerate gobs as Gob OBJECTS (count() is still a number). nearest/within measure
+        // from the player and skip the player's own gob; a function filter is called with a Gob, a string
+        // filter still matches its resource name. Prefer GobAdded/GobRemoved over per-frame scanning.
         WorldApi.installWorld(hafen, owner);
 
-        // hafen.map.* — terrain reads. Positional args are WORLD coords (matching hafen.gob.pos);
+        // hafen.map.* — terrain reads. Positional args are WORLD coords (matching gob:pos());
         // convert with worldToTile/tileToWorld/tileToGrid. Grid-backed reads swallow Loading (the map
         // for that spot isn't here yet) → nil. Grid ids are 64-bit → exposed as decimal STRINGS so the
         // persistent/shareable anchor round-trips exactly (Lua numbers are doubles; see gridPos).
@@ -660,7 +689,7 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // are SESSION-LOCAL, present only when the marker is in the player's current segment }. add()
         // creates a PLAYER marker and persists it; remove() takes a ref from list()/add(). The DB streams
         // in a beat after enter-world (nil/empty until then — read on a timer); MarkersChanged fires on any
-        // change. Coords are WORLD units (matching hafen.gob.pos/hafen.map), converted to the persistent
+        // change. Coords are WORLD units (matching gob:pos()/hafen.map), converted to the persistent
         // segment anchor at add time — there is no global position (anchor on grid ids / segment tc — C4).
         WorldApi.installMarkers(hafen, owner);
 
@@ -676,9 +705,11 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // HUD is up and grows as the character sees new icon types (read on demand — no *Changed event).
         WorldApi.installRadar(hafen, owner);
 
-        // hafen.player.* — only data with NO per-gob equivalent (position/health/moving/… of the player
-        // come from hafen.gob.*("player")). name() is the LOCAL character name (GameUI.chrid); other
-        // players' display names are not reliably available. worldToScreen is MAP-VIEW-relative pixels.
+        // hafen.player() — the Player object, purely the composition anchor for hafen.player():gob() (D-046):
+        // position/health/moving/… of the player come from that Gob, and Player deliberately forwards NOTHING
+        // (player:pos() alongside player:gob():pos() is exactly the dual style D-013 forbids). :gob() is nil
+        // before entering the world. :name() is the LOCAL character name (GameUI.chrid); other players' display
+        // names are not reliably available. :worldToScreen is MAP-VIEW-relative pixels.
         CharApi.installPlayer(hafen, owner);
 
         // hafen.time.* — game clock + astronomy. clock() is always available; the astronomy readers are
@@ -716,10 +747,10 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // when the slots change — an add/remove or study data resolving), not per frame.
         CharApi.installStudy(hafen, owner);
 
-        // hafen.party.* — the party roster (Glob.party). Members are ordered by Member.seq (the ordinal
-        // behind the "partyN" GobRef). A PartyMember is DERIVED: id=gobid, x,y=getc() (live gob pos if in
-        // view, else last-known), color={r,g,b,a}, leader=(member==party.leader). There is NO name field
-        // for party members (a client/protocol limitation).
+        // hafen.party.* — the party roster (Glob.party). Members are ordered by Member.seq. A PartyMember is
+        // DERIVED: id=gobid, x,y=getc() (live gob pos if in view, else last-known), color={r,g,b,a},
+        // leader=(member==party.leader). There is NO name field for party members (a client/protocol
+        // limitation). A member's gob is hafen.gob(m.id) until Party itself migrates to OOP.
         CharApi.installParty(hafen, owner);
 
         // hafen.kin.* — the kin/buddy roster (A6), read from the Kin window (GameUI.buddies, a BuddyWnd —
@@ -836,7 +867,7 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // permitted. It stays server-authoritative: an addon can only send what a player click could send.
         //   enabled()   -> bool; is THIS addon allowed to act (did it declare the "actions" permission)? Reports
         //                  WITHOUT throwing, so an addon can adapt (no pcall needed).
-        //   moveTo(x,y) -> walk the character to a WORLD position (the same coords hafen.gob.pos returns). This is
+        //   moveTo(x,y) -> walk the character to a WORLD position (the same coords gob:pos() returns). This is
         //                  exactly the MapView "click" a left-click on that ground spot sends; the screen coord it
         //                  carries is a dummy (the current mouse pos), like MiniMap.mvclick when you click the
         //                  minimap to walk. Off-screen destinations are fine (the server uses the world coord).
@@ -862,7 +893,7 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // D-029). The motivating use is city/base planning: lay ghost buildings over the real terrain. new{...}
         // spawns one and returns a bridge-owned handle (D-030); list([filter]) returns THIS addon's live ghosts
         // (canonical filter: nil=all / a string matched against the ghost's res / a predicate over the handle).
-        // Ghosts are torn down on reload/disable/relogin (P2). Coords are WORLD (login-relative), like hafen.gob.pos.
+        // Ghosts are torn down on reload/disable/relogin (P2). Coords are WORLD (login-relative), like gob:pos().
         RenderApi.installGhost(hafen, owner);
 
         // hafen.render — render CUSTOM assets that are NOT engine `.res` (spec 17-custom-rendering). The sibling of
@@ -1103,7 +1134,7 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         }
     }
 
-    // ------------------------------------------------------------- GobRef resolution + snapshots
+    // ------------------------------------------------------------- gob resolution + snapshots
 
     /** The player body resource — identity test for the {@code isplayer} snapshot field. */
     private static final String PLAYER_RES = "gfx/borka/body";
@@ -1258,7 +1289,12 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         }, null);
     }
 
-    private static Gob getgob(long id) {
+    /**
+     * The live {@link Gob} for an id, or {@code null} if it is not (or no longer) in the object cache — the one
+     * resolution point every {@link LuaGob} method funnels through (D-044 replaced the old GobRef
+     * {@code resolve(LuaValue)} and its {@code "player"}/{@code "me"}/{@code "partyN"} token branches with it).
+     */
+    static Gob getgob(long id) {
         OCache oc = oc();
         return (oc == null) ? null : oc.getgob(id);
     }
@@ -1268,37 +1304,9 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         return (m == null) ? null : m.player();
     }
 
-    /**
-     * Resolve a GobRef to a live {@link Gob}: {@code nil}/"player"/"me" = the player, {@code "partyN"}
-     * = the Nth party member by {@link Party.Member#seq} (nil if out of view), a number (or numeric
-     * string) = that gob id. Other unknown string tokens ("target"/"mouseover"/…) return {@code null}
-     * for now — they are wired up when their subsystems land. Never throws into Lua.
-     */
-    static Gob resolve(LuaValue ref) {
-        MapView m = view;
-        if(m == null)
-            return null;
-        try {
-            if((ref == null) || ref.isnil())
-                return m.player();
-            if(ref.isnumber())
-                return getgob((long)ref.todouble());
-            String s = ref.tojstring();
-            if(s.equals("player") || s.equals("me"))
-                return m.player();
-            if(s.startsWith("party")) {         // "partyN" → member N by seq (empty/non-numeric → NFE → nil)
-                Party.Member pm = CharApi.partyMemberByOrdinal(Integer.parseInt(s.substring(5)));
-                return (pm == null) ? null : getgob(pm.gobid);
-            }
-            return getgob(Long.parseLong(s));   // numeric string; unknown token → NumberFormatException
-        } catch(RuntimeException e) {
-            return null;
-        }
-    }
-
-    /** Resolve a GobRef to a live position (backs {@code hafen.gob.pos}). */
-    static Coord2d pos(LuaValue ref) {
-        Gob g = resolve(ref);
+    /** The player's live world position, or {@code null} before the player gob is up (no world / streaming). */
+    static Coord2d playerPos() {
+        Gob g = playerGob();
         if(g == null)
             return null;
         synchronized(g) {
@@ -1340,12 +1348,34 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         return true;
     }
 
-    /** Distance from {@code from} to a snapshot's {@code {x,y}}, or NaN if it has no position. */
-    static double distTo(LuaValue snap, Coord2d from) {
-        LuaValue x = snap.get("x"), y = snap.get("y");
-        if(!x.isnumber() || !y.isnumber())
-            return Double.NaN;
-        return from.dist(Coord2d.of(x.todouble(), y.todouble()));
+    /**
+     * Does gob {@code g} pass a {@code hafen.world.*} / {@code hafen.ui.gobOverlay} filter? {@code nil} → all;
+     * a <b>string</b> → substring match on the gob's resource name, evaluated Java-side (no snapshot is built);
+     * a <b>function</b> → called with the owner's interned {@link LuaGob} object, truthy keeps it (an error drops
+     * it). The caller must already be OUTSIDE the OCache lock — a function filter re-enters Lua.
+     */
+    static boolean gobMatches(LuaValue filter, Addon owner, Gob g) {
+        if((filter == null) || filter.isnil())
+            return true;
+        if(filter.isfunction()) {
+            try {
+                return filter.call(LuaGob.of(owner, g.id)).toboolean();
+            } catch(RuntimeException e) {   // LuaError is a RuntimeException
+                return false;
+            }
+        }
+        if(filter.isstring()) {
+            String name = gobName(g);
+            return (name != null) && name.contains(filter.tojstring());
+        }
+        return true;
+    }
+
+    /** Distance from {@code from} to a gob's live position, or NaN if it has none yet. */
+    static double distTo(Gob g, Coord2d from) {
+        Coord2d rc;
+        synchronized(g) { rc = g.rc; }
+        return (rc == null) ? Double.NaN : from.dist(rc);
     }
 
     // -- per-attribute readers (each Loading-guarded: resource-backed reads can throw before load) --
@@ -1383,8 +1413,14 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         }
     }
 
+    /** Is this gob a player body? (The {@code isplayer} snapshot field / {@code gob:isplayer()}.) */
+    static boolean gobIsPlayer(Gob g) {
+        String name = gobName(g);
+        return (name != null) && name.equals(PLAYER_RES);
+    }
+
     /** Best-effort active-overlay resource names ({@code Gob.ols}); unresolved ones are skipped. */
-    private static LuaTable overlayNames(Gob g) {
+    static LuaTable overlayNames(Gob g) {
         LuaTable out = new LuaTable();
         int i = 0;
         try {
@@ -1403,8 +1439,9 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
     }
 
     /**
-     * A full gob snapshot (the {@code Gob} shape in api-reference.md), used by {@code hafen.gob.info},
-     * {@code hafen.world.*}, and the {@code GobAdded}/{@code GobRemoved} payloads. Read on the UI
+     * A full gob snapshot (the {@code GobInfo} shape in api-reference.md) — since D-044 the ONE snapshot escape
+     * hatch, backing only {@code gob:info()} (for logging/serialising; {@code hafen.world.*} and the
+     * {@code GobAdded}/{@code GobRemoved} payloads now carry Gob objects). Read on the UI
      * thread under the gob lock; every field is optional and defensive against transient/{@code
      * Loading} state (a partial snapshot is fine while world data is still resolving).
      */

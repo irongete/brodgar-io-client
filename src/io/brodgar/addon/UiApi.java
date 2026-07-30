@@ -142,9 +142,10 @@ final class UiApi {
             }
         });
         // hafen.ui.gobOverlay(filter, fn) — label/mark game objects in the 3D view (the SpeakerIcon pattern).
-        // filter(gob)->truthy (or a substring matched against gob.name) selects gobs; fn(g, gob, sx, sy) draws
-        // at the gob's projected screen point (sx,sy = just above the head). gob is the same snapshot shape as
-        // hafen.gob.info. Returns a handle with :remove(); auto-removed on reload/disable (spec 07).
+        // filter(gob)->truthy (or a substring matched against the gob's resource name) selects gobs; fn(g, gob,
+        // sx, sy) draws at the gob's projected screen point (sx,sy = just above the head). gob is a live Gob
+        // OBJECT (D-044) — read it with gob:name()/gob:health()/… Returns a handle with :remove(); auto-removed
+        // on reload/disable (spec 07).
         uiT.set("gobOverlay", new TwoArgFunction() {
             public LuaValue call(LuaValue filter, LuaValue fn) {
                 return newGobOverlay(owner, filter, fn);
@@ -1215,7 +1216,7 @@ final class UiApi {
         for(Gob g : allGobs()) {
             if(g.getattr(LuaGobOverlay.class) != null)
                 continue;                       // already tracked (the draw pass re-checks filters)
-            if(!gobMatchesAny(gobSnapshot(g)))
+            if(!gobMatchesAny(g))
                 continue;
             try {
                 g.setattr(new LuaGobOverlay(g));
@@ -1227,37 +1228,37 @@ final class UiApi {
         }
     }
 
-    /** Does {@code snap} match any addon's active gob-overlay filter? (Used by the sweep.) */
-    private static boolean gobMatchesAny(LuaValue snap) {
+    /** Does {@code g} match any addon's active gob-overlay filter? (Used by the sweep.) */
+    private static boolean gobMatchesAny(Gob g) {
         for(Addon a : addons)
             for(GobOverlay o : a.gobOverlays)
-                if(o.active && gobFilterMatch(o, snap))
+                if(o.active && gobFilterMatch(o, g))
                     return true;
         return false;
     }
 
     /**
-     * Evaluate one gob overlay's filter against a gob snapshot. A string filter is a cheap Java substring
-     * match on the gob's name; a function filter is called through {@link #callLua} (watchdog-armed,
-     * error-isolated, CPU-accounted) — an error drops the match.
+     * Evaluate one gob overlay's filter against a gob. A string filter is a cheap Java substring match on the
+     * gob's resource name; a function filter is called with the owner's interned {@link LuaGob} object (D-044)
+     * through {@link #callLua} (watchdog-armed, error-isolated, CPU-accounted) — an error drops the match.
      */
-    private static boolean gobFilterMatch(GobOverlay o, LuaValue snap) {
+    private static boolean gobFilterMatch(GobOverlay o, Gob g) {
         LuaValue f = o.filter;
         if(f.isstring()) {
-            LuaValue name = snap.get("name");
-            return name.isstring() && name.tojstring().contains(f.tojstring());
+            String name = gobName(g);
+            return (name != null) && name.contains(f.tojstring());
         }
-        return callLua(o.owner, f, snap).arg1().toboolean();
+        return callLua(o.owner, f, LuaGob.of(o.owner, g.id)).arg1().toboolean();
     }
 
     /**
      * Paint every matching addon's gob overlay for one gob — called from {@link LuaGobOverlay#draw} with the
-     * gob's projected screen point {@code sc}. Builds the gob snapshot once (lazily, only if some addon has a
-     * gob overlay), re-checks each filter, and invokes the matching draw callbacks {@code draw(g, gob, sx, sy)}
-     * through {@link #callLua}. On the UI thread (inside the Render2D pass of {@code UI.draw}).
+     * gob's projected screen point {@code sc}. Re-checks each filter and invokes the matching draw callbacks
+     * {@code draw(g, gob, sx, sy)} through {@link #callLua}, where {@code gob} is that addon's interned
+     * {@link LuaGob} object (D-044) — so the callback reads the gob LIVE instead of from a per-frame snapshot.
+     * On the UI thread (inside the Render2D pass of {@code UI.draw}).
      */
     static void paintGobOverlays(Gob gob, GOut g, LuaGOut gwrap, Coord sc) {
-        LuaValue snap = null;
         LuaValue sx = LuaValue.valueOf(sc.x), sy = LuaValue.valueOf(sc.y);
         for(Addon a : addons) {
             if(a.gobOverlays.isEmpty())
@@ -1265,13 +1266,11 @@ final class UiApi {
             for(GobOverlay o : a.gobOverlays) {
                 if(!o.active)
                     continue;
-                if(snap == null)
-                    snap = gobSnapshot(gob);
-                if(!gobFilterMatch(o, snap))
+                if(!gobFilterMatch(o, gob))
                     continue;
                 LuaTable gt = gwrap.bind(g);
                 try {
-                    callLua(a, o.draw, gt, snap, sx, sy);
+                    callLua(a, o.draw, gt, LuaGob.of(a, gob.id), sx, sy);
                 } finally {
                     gwrap.unbind();
                 }

@@ -33,7 +33,7 @@ addons/
 hafen.log("my addon loaded")
 
 hafen.events.on("OnEnterWorld", function()
-  hafen.log("entered the world as " .. (hafen.player.name() or "?"))
+  hafen.log("entered the world as " .. (hafen.player():name() or "?"))
 end)
 ```
 
@@ -94,8 +94,9 @@ The bulk of the API is read access + events. A quick tour:
 
 ```lua
 -- read the world
-local nearby = hafen.world.within(20, "gfx/borka/body")   -- players within 20 units
-local pos    = hafen.gob.pos("player")
+local nearby = hafen.world.within(20, "gfx/borka/body")   -- players within 20 units (Gob objects)
+local me     = hafen.player():gob()                       -- your own Gob (nil before enter-world)
+local pos    = me and me:pos()
 
 -- react to changes
 hafen.events.on("VitalsChanged", function(v)
@@ -156,5 +157,5 @@ The client provides a developer loop:
 | `:addons enable\|disable <id>` | toggle an addon (applied on the next `:reload`) |
 | `:lua <expr>` | evaluate a Lua expression against the live API (results shown as JSON) |
 
-`:lua` is the fastest way to explore — e.g. `:lua hafen.player.vitals()` or
+`:lua` is the fastest way to explore — e.g. `:lua hafen.player():vitals()` or
 `:lua hafen.world.count("tree")`.

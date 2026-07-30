@@ -330,7 +330,8 @@ hafen.slash.register("planner", function(args)
     hafen.log("   rotate [deg] = turn it (persisted); scale <s> = uniform scale (1 = original); remove [n]; clear; save")
 
   elseif sub == "place" then
-    local p = hafen.gob.pos("player")
+    local me = hafen.player():gob()                        -- your character's Gob OBJECT (nil before enter-world)
+    local p = me and me:pos()
     if not p then hafen.log(":planner place -> no player position yet"); return end
     local res = resolveBlueprint(args[2])
     if not res then
@@ -351,7 +352,8 @@ hafen.slash.register("planner", function(args)
     -- R2b: place a CUSTOM-PNG SPRITE (hafen.render.sprite) at your feet, on the SAME world-entity core as a ghost --
     -- so it selects (fixed = click / billboard = ':planner select'), gizmos, and PERSISTS grid-anchored identically.
     -- ':planner sprite' = a FIXED upright quad (clickable); ':planner sprite billboard' = a CAMERA-FACING screen blit.
-    local p = hafen.gob.pos("player")
+    local me = hafen.player():gob()                        -- your character's Gob OBJECT (nil before enter-world)
+    local p = me and me:pos()
     if not p then hafen.log(":planner sprite -> no player position yet"); return end
     local billboard = (args[2] == "billboard") or (args[2] == "bb")
     if args[2] and not billboard then
@@ -373,7 +375,8 @@ hafen.slash.register("planner", function(args)
     -- R3b-2: place a CUSTOM glTF MODEL (hafen.render.object -- our own cube.glb, NOT a .res game model) at your feet,
     -- on the SAME world-entity core as a ghost/sprite (D-013) -- so it selects, gizmos, and PERSISTS grid-anchored
     -- identically. The model is CLICKABLE (its mesh renders into the clickmap), so a click selects it, like a ghost.
-    local p = hafen.gob.pos("player")
+    local me = hafen.player():gob()                        -- your character's Gob OBJECT (nil before enter-world)
+    local p = me and me:pos()
     if not p then hafen.log(":planner object -> no player position yet"); return end
     local anchor = hafen.map.gridPos(p.x, p.y)             -- {gridId, x, y} -- the persistent anchor (like a ghost)
     if not anchor then hafen.log(":planner object -> no map grid loaded here yet; move a moment and retry"); return end

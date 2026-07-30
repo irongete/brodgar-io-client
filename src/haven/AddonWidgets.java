@@ -22,7 +22,7 @@ public final class AddonWidgets {
 
     /**
      * The bar segments of a {@link LayerMeter} (the {@code protected meters} list), backing
-     * {@code hafen.player.vitals}. Each {@link LayerMeter.Meter} carries a fraction {@code a} (0..1)
+     * {@code hafen.player():vitals()}. Each {@link LayerMeter.Meter} carries a fraction {@code a} (0..1)
      * and a colour; a vital bar (hp/stamina/energy) has a single segment. Never {@code null}.
      */
     public static List<LayerMeter.Meter> meters(LayerMeter m) {

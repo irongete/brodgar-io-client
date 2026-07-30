@@ -5,32 +5,29 @@ Rules that apply across the whole `hafen.*` API. Read this once; every section p
 ## The `hafen` namespace
 
 Every function lives under a namespaced table — `hafen.<section>.<verb>(...)`. There are no flat
-globals. A section groups related verbs (`hafen.gob`, `hafen.map`, `hafen.items`, …); this reference
-has one page per section.
+globals. A section groups related verbs (`hafen.map`, `hafen.items`, …); this reference has one page
+per section.
 
 ```lua
-local pos = hafen.gob.pos("player")
-local n   = hafen.world.count("tree")
+local n = hafen.world.count("tree")
 hafen.log("hello")
 ```
 
 ## References — how you address things
 
 Functions take an explicit **reference** to the thing they act on (like WoW's `UnitHealth("player")`).
-References re-resolve on every call, so they are always fresh. There are three kinds.
+References re-resolve on every call, so they are always fresh.
 
-### GobRef — a game object
+### Gob — a game object
 
-A **gob id** (number) or a **token** (string). Used by `hafen.gob.*`, `hafen.world.*`,
-`hafen.act.clickGob`, and anywhere a single gob is addressed.
+A game object is an **object**: `hafen.gob(id)` (or anything [`hafen.world`](world.md) hands you) gives
+you a Gob whose methods read it live, and `hafen.player():gob()` is your own. Every method re-resolves
+the gob, so a handle you keep is always fresh and answers `nil` once the gob is gone. Anywhere a single
+gob is addressed — `hafen.act.clickGob`, `follow=` in [`hafen.render`](render.md) — you pass the Gob
+itself, never an id. See [gob.md](gob.md).
 
-| Reference | Resolves to |
-|---|---|
-| `nil` / `"player"` / `"me"` | your own character |
-| *(a number)* | the gob with that id |
-| `"party1"` … `"partyN"` | party member N, in `Member.seq` order |
-
-An unknown token or a gob that no longer exists resolves to `nil` (the accessor then returns `nil`).
+Gob is the only section that is object-oriented today; every other section is still a flat table of
+functions. That mix is deliberate and temporary — the rest follows.
 
 ### ItemRef — an inventory/equipment item
 
@@ -48,7 +45,7 @@ A **handle** returned by `hafen.ui.*` (or a widget id from
 ## Snapshots vs handles
 
 - **Snapshots** are plain Lua tables — point-in-time copies returned by the read APIs
-  (`hafen.gob.info`, `hafen.items.inventory`, `hafen.buffs.list`, …). They do **not** update; don't
+  (`gob:info()`, `hafen.items.inventory`, `hafen.buffs.list`, …). They do **not** update; don't
   cache them across ticks. Re-read to get fresh values. Every snapshot shape is documented in
   [types.md](types.md).
 - **Handles** are live, bridge-owned proxies with methods (`hafen.ui.window`, `hafen.timer.every`,
@@ -64,13 +61,15 @@ one optional **filter**, always in the same canonical form:
 |---|---|
 | `nil` (omitted) | everything |
 | a **string** | entries whose `name` contains the string (substring match) |
-| a **function** | entries for which `filter(snapshot)` returns truthy |
+| a **function** | entries for which `filter(entry)` returns truthy |
 
-Use the function form to match on any field other than `name` (e.g. `res`):
+Use the function form to match on any field other than `name`. The entry is a snapshot table for every
+section except [`hafen.world`](world.md), whose predicate receives a [Gob object](gob.md):
 
 ```lua
-hafen.world.gobs("rabbit")                       -- name contains "rabbit"
-hafen.world.gobs(function(g) return g.hp and g.hp < 1 end)  -- injured gobs
+hafen.world.gobs("rabbit")                                      -- name contains "rabbit"
+hafen.world.gobs(function(g) return (g:health() or 1) < 1 end)   -- injured gobs
+hafen.kin.list(function(k) return k.online end)                  -- a snapshot elsewhere
 ```
 
 ## Coordinates

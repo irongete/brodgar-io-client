@@ -33,12 +33,12 @@ The same `actions` permission also gates the per-subsystem write verbs in their 
 ## Movement & world
 
 ### `hafen.act.moveTo`
-`moveTo(x, y)` — walk to a **world** position (the same space [`hafen.gob.pos`](gob.md) returns).
+`moveTo(x, y)` — walk to a **world** position (the same space [`gob:pos()`](gob.md) returns).
 Off-screen destinations are fine.
 
 ### `hafen.act.clickGob`
-`clickGob(ref [, button [, mods]])` — click a game object, exactly the click a left/right-click on it
-sends. `ref` is a [GobRef](conventions.md#gobref--a-game-object). `button`: 1 = left (default), 3 =
+`clickGob(gob [, button [, mods]])` — click a game object, exactly the click a left/right-click on it
+sends. `gob` is a [Gob object](gob.md) (an id is not accepted). `button`: 1 = left (default), 3 =
 right (the context/flower-menu click).
 
 ### `hafen.act.useItemOn`
@@ -66,7 +66,7 @@ logs out to character select). Tokens are strings; at least one is required.
 ### `hafen.act.flower`
 `flower(label) -> bool` — select a petal of the open radial (flower) context menu by its `label`,
 matched case-insensitively. Returns `true` if a petal matched, `false` if no menu is open or nothing
-matched (it doesn't throw for those). Typically used after `clickGob(ref, 3)` to auto-pick from the menu.
+matched (it doesn't throw for those). Typically used after `clickGob(gob, 3)` to auto-pick from the menu.
 
 ## Items
 

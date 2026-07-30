@@ -4,10 +4,12 @@ The read APIs return plain Lua tables called **snapshots** — point-in-time cop
 with their type; a field marked *optional* is absent (Lua `nil`) when the underlying data isn't
 available yet or is still resolving, so guard for it. See [conventions](conventions.md#snapshots-vs-handles).
 
-## Gob
+## GobInfo
 
-A game object. From [`hafen.gob.info`](gob.md), [`hafen.world.*`](world.md), and the
-`GobAdded`/`GobRemoved` events.
+A game object's fields as one plain table — the snapshot [`gob:info()`](gob.md) returns. It is the
+escape hatch for logging/serialising; to *read* a gob, call its [methods](gob.md#methods), which are
+always fresh. ([`hafen.world.*`](world.md) and the `GobAdded`/`GobRemoved` events hand out Gob
+**objects**, not this table.)
 
 | Field | Type | Notes |
 |---|---|---|
@@ -24,7 +26,7 @@ A game object. From [`hafen.gob.info`](gob.md), [`hafen.world.*`](world.md), and
 | `overlays` | string[] | active overlay resource names (crop stage, fire, …); optional |
 
 > Other players' **display names** are not available (a client/protocol limitation). `name` is the
-> body resource. A name resolves only for the local player ([`hafen.player.name`](player.md)) or a kin
+> body resource. A name resolves only for the local player ([`hafen.player():name()`](player.md)) or a kin
 > ([`hafen.kin`](kin.md)).
 
 ## Item
@@ -55,7 +57,7 @@ raw base value vs computed/buffed value.
 
 ## Vitals
 
-From [`hafen.player.vitals`](player.md) and `VitalsChanged`. `{ hp, stamina, energy }`, each a bar
+From [`hafen.player():vitals()`](player.md) and `VitalsChanged`. `{ hp, stamina, energy }`, each a bar
 fraction 0..1. No absolute values exist.
 
 ## food

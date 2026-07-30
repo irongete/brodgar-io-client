@@ -69,14 +69,15 @@ local win = hafen.ui.window({
 | `hafen.ui.overlay(fn)` | [`{ :remove() }`](#overlay--observer-handles) | paint `fn(g, w, h)` on top of the HUD each frame (`w`,`h` = screen size) |
 | `hafen.ui.gobOverlay(filter, fn)` | [`{ :remove() }`](#overlay--observer-handles) | paint `fn(g, gob, sx, sy)` over each matching gob |
 
-For `gobOverlay`, `filter` is the canonical [filter](conventions.md#the-filter-argument) over the gob
-snapshot (a function or a name substring), `gob` is the [`Gob`](types.md#gob) snapshot, and `sx, sy` is
+For `gobOverlay`, `filter` is the canonical [filter](conventions.md#the-filter-argument) — a name
+substring, or a function receiving the [Gob](gob.md) — `gob` is that live Gob object, and `sx, sy` is
 its projected screen point (just above the head).
 
 ```lua
-hafen.ui.gobOverlay("gfx/borka/body", function(g, gob, sx, sy)
+hafen.ui.gobOverlay(function(gob) return gob:isplayer() end, function(g, gob, sx, sy)
   g:color(0, 255, 0)
-  g:atext("player", sx, sy, 0.5, 1)   -- centred just above the head
+  local label = (gob == hafen.player():gob()) and "you" or "player"
+  g:atext(label, sx, sy, 0.5, 1)      -- centred just above the head
 end)
 ```
 

@@ -15,7 +15,7 @@ hotkeys and console commands, and (with permission) drive the character.
 ```lua
 -- addons/hello/main.lua
 hafen.events.on("OnEnterWorld", function()
-  hafen.log("hello from " .. (hafen.player.name() or "?"))
+  hafen.log("hello from " .. (hafen.player():name() or "?"))
 end)
 
 hafen.key.bind("wave", "Ctrl+W", function()

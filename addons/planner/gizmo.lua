@@ -136,11 +136,12 @@ local function computeGeom(self)
   if not tgt then return nil end
   local p = tgt:pos()
   if not p then return nil end
-  local c = hafen.player.worldToScreen(p.x, p.y)
+  local pl = hafen.player()                     -- the Player object (D-046); worldToScreen is a method now
+  local c = pl:worldToScreen(p.x, p.y)
   if not c then return nil end
   local len = self.len
-  local xt = hafen.player.worldToScreen(p.x + len, p.y)
-  local yt = hafen.player.worldToScreen(p.x, p.y + len)
+  local xt = pl:worldToScreen(p.x + len, p.y)
+  local yt = pl:worldToScreen(p.x, p.y + len)
   return {
     wx = p.x, wy = p.y,                 -- the ghost's world position (the rotation pivot)
     cx = c.x, cy = c.y,

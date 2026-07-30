@@ -45,10 +45,13 @@ handlers cheap — they run on the UI thread every frame.
 
 | Event | Payload | Fires |
 |---|---|---|
-| `GobAdded` | [`Gob`](types.md#gob) | a game object enters the world/view |
-| `GobRemoved` | [`Gob`](types.md#gob) | a game object leaves |
+| `GobAdded` | [Gob](gob.md) | a game object enters the world/view |
+| `GobRemoved` | [Gob](gob.md) | a game object leaves |
 
 Prefer these over scanning [`hafen.world.gobs`](world.md) every frame.
+
+The payload is a live [Gob object](gob.md). On `GobRemoved` the gob is **already gone**, so only
+`gob:id()` answers there — if you need its name, index it on `GobAdded`.
 
 ### Character & status *(widget-tree backed)*
 

@@ -123,12 +123,13 @@ end)
 -- OnEnterWorld these may be nil (the reads are Loading-guarded); we call this again after a short delay
 -- to show them resolve. worldToTile is pure math and always works.
 local function readPlace(tag)
-  local p = hafen.gob.pos("player")
+  local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
+  local p = me and me:pos()
   if not p then return end
   local tile = hafen.map.tile(p.x, p.y)
   local gp = hafen.map.gridPos()               -- no args = player: the persistent grid anchor
   local t = hafen.map.worldToTile(p.x, p.y)
-  local s = hafen.player.worldToScreen(p.x, p.y)
+  local s = hafen.player():worldToScreen(p.x, p.y)
   hafen.log(("[%s] tile=%s height=%s worldToTile=%d,%d"):format(tag,
     tile and (tile.name or tile.id) or "nil", tostring(hafen.map.height(p.x, p.y)), t.x, t.y))
   hafen.log(("[%s] gridPos=%s worldToScreen=%s"):format(tag,
@@ -170,7 +171,7 @@ end
 -- through the widget-tree mechanism (the HUD meters). The meters stream in a beat after enter-world
 -- (like char/items), so the "now" pass is usually nil and "+3s" has the bars.
 local function readVitals(tag)
-  local v = hafen.player.vitals()
+  local v = hafen.player():vitals()
   if v then
     hafen.log(("[%s] vitals: hp=%s stamina=%s energy=%s"):format(tag,
       tostring(v.hp), tostring(v.stamina), tostring(v.energy)))
@@ -492,24 +493,64 @@ end
 hafen.events.on("OnEnterWorld", function()
   hafen.log("entered the world")
 
-  -- 1c-1: read the player through the canonical per-gob accessor. info() is a full snapshot. NB: hp is
-  -- nil for the player — GobHealth is object integrity, not the player's vitals (those land in 1d).
-  local me = hafen.gob.info("player")
+  -- 1c-1 / 017: read the player through the Gob CLASS (D-044). hafen.player():gob() is the composition
+  -- anchor (Player forwards nothing — D-046); every gob method re-resolves, so a handle is always fresh
+  -- and answers nil once the gob is gone. :info() is the one snapshot escape hatch. NB: :health() is nil
+  -- for the player — GobHealth is object integrity, not the player's vitals (those land in 1d).
+  local me = hafen.player():gob()
   if me then
-    hafen.log(("player gob: name=%s hp=%s at %.1f,%.1f")
-      :format(tostring(me.name), tostring(me.hp), me.x or 0, me.y or 0))
+    local p = me:pos()
+    hafen.log(("player gob: %s name=%s health=%s isplayer=%s at %.1f,%.1f (info().name=%s)")
+      :format(tostring(me), tostring(me:name()), tostring(me:health()), tostring(me:isplayer()),
+              p and p.x or 0, p and p.y or 0, tostring((me:info() or {}).name)))
+  else
+    hafen.log("017: hafen.player():gob() is nil -- the player gob isn't up yet")
   end
   hafen.log(("world has %d gob(s)"):format(hafen.world.count()))
-  local near = hafen.world.nearest()
+  local near = hafen.world.nearest(function(g) return not g:isplayer() end)   -- filter gets a Gob now
   if near then
-    hafen.log(("nearest gob: id=%s name=%s dist=%.1f")
-      :format(tostring(near.id), tostring(near.name), hafen.gob.distance(near.id)))
+    hafen.log(("nearest non-player gob: id=%s name=%s dist=%s moving=%s")
+      :format(tostring(near:id()), tostring(near:name()), tostring(near:distance()), tostring(near:moving())))
   end
 
-  -- 1c-2: player identity (data with no per-gob equivalent — the local character name).
-  hafen.log(("player: exists=%s id=%s name=%s")
-    :format(tostring(hafen.player.exists()), tostring(hafen.player.id()),
-            tostring(hafen.player.name())))
+  -- 1c-2: player identity (data with no per-gob equivalent — the local character name). exists()/id() are
+  -- GONE (D-046): hafen.player():gob() and gob:id() already answer both.
+  hafen.log(("player: name=%s gob=%s"):format(tostring(hafen.player():name()), tostring(me)))
+
+  -- 017 HARNESS: the invariants the hard cut has to keep true. Identity by per-addon weak interning
+  -- (D-045), freshness per method call (D-012 kept), and the flat table actually GONE (no shim, D-013).
+  if me then
+    local same = (hafen.gob(me:id()) == me)                       -- interning: one object per id per addon
+    local seen, uniq, sweep = {}, 0, 0
+    for _ = 1, 2 do                                              -- TWO sweeps must not double-count
+      local all = hafen.world.gobs()
+      sweep = #all
+      for i = 1, #all do
+        if not seen[all[i]] then seen[all[i]] = true; uniq = uniq + 1 end
+      end
+    end
+    local ghostId = 1                                            -- an id that (almost certainly) never existed
+    local okTok = pcall(function() return hafen.gob("player") end)
+    hafen.log(("017: identity hafen.gob(id)==player:gob() -> %s | seen[gob] de-dup -> %d unique over 2 sweeps of %d")
+      :format(tostring(same), uniq, sweep))
+    hafen.log(("017: hard cut -> hafen.gob.health=%s hafen.player.exists=%s hafen.gob('player') errors=%s | unloaded gob(%d): exists=%s pos=%s id=%d")
+      :format(tostring(hafen.gob.health), tostring(hafen.player.exists), tostring(not okTok),
+              ghostId, tostring(hafen.gob(ghostId):exists()), tostring(hafen.gob(ghostId):pos()),
+              hafen.gob(ghostId):id()))
+    -- Freshness: the SAME stashed handle, re-read 12s later. Walk in between -- the coords must change,
+    -- proving the object holds only the id and re-resolves (a snapshot would be frozen).
+    local p0 = me:pos()
+    hafen.timer.after(12, function()
+      local p1 = me:pos()
+      if p0 and p1 then
+        hafen.log(("017: stashed Gob freshness -> %.1f,%.1f => %.1f,%.1f (moved %.1f -- walk to see it change)")
+          :format(p0.x, p0.y, p1.x, p1.y, math.sqrt((p1.x - p0.x) ^ 2 + (p1.y - p0.y) ^ 2)))
+      else
+        hafen.log("017: stashed Gob freshness -> pos() is nil now (gob gone: methods go quiet, :id() still answers "
+          .. tostring(me:id()) .. ")")
+      end
+    end)
+  end
 
   -- 1c-2: time + astronomy (astronomy readers are nil until the first astro update).
   hafen.log(("time: clock=%.1f day=%s night=%s season=%s moon=%s")
@@ -545,7 +586,8 @@ end)
 -- translucent rotated cabin appear, jump north, morph into another building, blink, then vanish — :reload/disable
 -- would remove it too).
 hafen.events.on("OnEnterWorld", function()
-  local p = hafen.gob.pos("player")
+  local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
+  local p = me and me:pos()
   if not p then hafen.log("V1: ghost demo skipped -- no player position yet"); return end
   local g = hafen.ghost.new{
     res = "gfx/terobjs/arch/logcabin", x = p.x + 33, y = p.y,     -- +3 tiles E (tile=11)
@@ -593,7 +635,7 @@ end)
 hafen.events.on("OnEnterWorld", function()
   local s = hafen.store.persist
   s.logins = (s.logins or 0) + 1
-  s.name = hafen.player.name() or s.name          -- remember the character name across sessions
+  s.name = hafen.player():name() or s.name          -- remember the character name across sessions
   s.recent = s.recent or {}                        -- history array (round-trips as a JSON array)
   s.recent[#s.recent + 1] = ("login #%d"):format(s.logins)
   while #s.recent > 5 do table.remove(s.recent, 1) end
@@ -616,18 +658,26 @@ end)
 --   end
 -- end)
 
--- Count gob spawns; log only the first few so it does not flood. The GobAdded payload is a full
--- snapshot (same shape as hafen.gob.info), so we can log the gob's type name too.
-local spawned = 0
+-- Count gob spawns; log only the first few so it does not flood. Since 017 the payload is a Gob OBJECT
+-- (D-044), so we read the type name live off it. On GobRemoved the gob is ALREADY gone, so only :id()
+-- answers there — index the name on GobAdded if you need it later.
+local spawned, despawned = 0, 0
 hafen.events.on("GobAdded", function(g)
   spawned = spawned + 1
   if spawned <= 3 then
-    hafen.log(("GobAdded id=%s name=%s (%d so far)"):format(tostring(g.id), tostring(g.name), spawned))
+    hafen.log(("GobAdded %s name=%s (%d so far)"):format(tostring(g), tostring(g:name()), spawned))
+  end
+end)
+hafen.events.on("GobRemoved", function(g)
+  despawned = despawned + 1
+  if despawned <= 3 then                          -- name() is expected to be nil here — the gob is gone
+    hafen.log(("GobRemoved id=%d (name=%s -- nil is CORRECT, it already despawned) (%d so far)")
+      :format(g:id(), tostring(g:name()), despawned))
   end
 end)
 
 -- 1d-1: VitalsChanged fires when the server updates a vital bar (stamina drain, energy change,
--- taking damage) — the payload is the same {hp,stamina,energy} snapshot as hafen.player.vitals().
+-- taking damage) — the payload is the same {hp,stamina,energy} snapshot as hafen.player():vitals().
 -- Stamina/energy change often, so log only the first few to avoid flooding.
 local vitalsSeen = 0
 hafen.events.on("VitalsChanged", function(v)
@@ -935,7 +985,7 @@ local function drawPanel(g, w, h)
   g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()          -- translucent backdrop
   g:text(("clock %.0f"):format(hafen.time.clock() or 0), 6, 6)
   g:text(("clicks %d"):format(clicks), 6, 22)
-  local v = hafen.player.vitals()
+  local v = hafen.player():vitals()
   if v then                                                       -- draw hp/stamina/energy as 0..1 bars
     local bars = {{"hp", v.hp, 235, 80, 80}, {"stam", v.stamina, 235, 210, 70}, {"en", v.energy, 110, 170, 255}}
     for i = 1, #bars do
@@ -1029,7 +1079,8 @@ hafen.key.bind("marker", "Ctrl+Shift+M", function()
     hafen.log("A1: Ctrl+Shift+M -> removed the Hello marker")
     return
   end
-  local p = hafen.gob.pos("player")
+  local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
+  local p = me and me:pos()
   if not p then hafen.log("A1: Ctrl+Shift+M -> no player position yet"); return end
   helloMarker = hafen.markers.add("Hello marker", p.x, p.y, { color = { r = 80, g = 220, b = 90 }, onmap = true })
   if helloMarker then
@@ -1086,7 +1137,8 @@ hafen.slash.register("hello", function(args)
       demoGhost:destroy(); demoGhost = nil
       hafen.log((":hello ghost -> destroyed (list=%d)"):format(#hafen.ghost.list()))
     else
-      local p = hafen.gob.pos("player")
+      local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
+      local p = me and me:pos()
       if not p then hafen.log(":hello ghost -> no player position yet"); return end
       local spin, faded = 0, false                           -- V3: per-spawn live-look state (closed over by onClick)
       demoGhost = hafen.ghost.new{                            -- V2 clickable + V3 look: a translucent, tinted cabin
@@ -1119,7 +1171,8 @@ hafen.slash.register("hello", function(args)
       hafen.log(":hello sprite -> destroyed")
     else
       if not icon then hafen.log(":hello sprite -> icon.png not loaded yet (OnLoad)"); return end
-      local p = hafen.gob.pos("player")
+      local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
+      local p = me and me:pos()
       if not p then hafen.log(":hello sprite -> no player position yet"); return end
       demoSprite = hafen.render.sprite{ image = icon, x = p.x, y = p.y, scale = 3 }  -- ~3 tiles tall so it's clearly visible
       if not demoSprite then hafen.log(":hello sprite -> hafen.render.sprite returned nil (not in the world yet?)"); return end
@@ -1144,7 +1197,8 @@ hafen.slash.register("hello", function(args)
       hafen.log(":hello billboard -> destroyed")
     else
       if not icon then hafen.log(":hello billboard -> icon.png not loaded yet (OnLoad)"); return end
-      local p = hafen.gob.pos("player")
+      local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
+      local p = me and me:pos()
       if not p then hafen.log(":hello billboard -> no player position yet"); return end
       demoBill = hafen.render.sprite{ image = icon, x = p.x, y = p.y, billboard = true, scale = 2 }  -- 2x native px, faces camera
       if not demoBill then hafen.log(":hello billboard -> hafen.render.sprite returned nil (not in the world yet?)"); return end
@@ -1153,15 +1207,18 @@ hafen.slash.register("hello", function(args)
     end
   elseif sub == "follow" then
     -- R2a ANCHOR: a world sprite anchored to a gob that FOLLOWS it automatically, like a gob overlay (no polling).
-    -- hafen.render.sprite{ follow = <gobref>, offset = {x=,y=,z=} } -> the sprite tracks the gob every frame; z = up,
-    -- so offset {z=18} floats it ~1.6 tiles above your head. It keeps its own facing/scale; :offset moves it relative
-    -- to the gob (keeps following) and a plain :move detaches. Here it anchors to YOU -- walk around and it follows.
+    -- hafen.render.sprite{ follow = <Gob object>, offset = {x=,y=,z=} } -> the sprite tracks the gob every frame;
+    -- z = up, so offset {z=18} floats it ~1.6 tiles above your head. Since 017 `follow` takes the Gob OBJECT, not
+    -- an id or a token (D-044). It keeps its own facing/scale; :offset moves it relative to the gob (keeps
+    -- following) and a plain :move detaches. Here it anchors to YOU -- walk around and it follows.
     if demoFollow then
       demoFollow:destroy(); demoFollow = nil
       hafen.log(":hello follow -> destroyed")
     else
       if not icon then hafen.log(":hello follow -> icon.png not loaded yet (OnLoad)"); return end
-      demoFollow = hafen.render.sprite{ image = icon, scale = 2, follow = "player", offset = { z = 18 } }
+      local me = hafen.player():gob()
+      if not me then hafen.log(":hello follow -> no player gob yet"); return end
+      demoFollow = hafen.render.sprite{ image = icon, scale = 2, follow = me, offset = { z = 18 } }
       if not demoFollow then hafen.log(":hello follow -> hafen.render.sprite returned nil (not in the world yet?)"); return end
       hafen.log(":hello follow -> icon.png now FLOATS above your head and FOLLOWS you -- walk around; :hello follow again to remove")
     end
@@ -1178,7 +1235,8 @@ hafen.slash.register("hello", function(args)
       hafen.log(":hello object -> destroyed")
     else
       if not cube then hafen.log(":hello object -> tank.glb not loaded yet (OnLoad)"); return end
-      local p = hafen.gob.pos("player")
+      local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
+      local p = me and me:pos()
       if not p then hafen.log(":hello object -> no player position yet"); return end
       local b = cube:bounds()
       local tall = (b.size.z and b.size.z > 0.01) and b.size.z or 11       -- world-unit height
@@ -1690,14 +1748,14 @@ local function drawHud(g, w, h)
   g:color()
 end
 
--- 2b: WORLD-SPACE gob overlay (hafen.ui.gobOverlay). filter(gob) selects gobs (here: players — `isplayer`
--- is set on the snapshot when the base sprite is the borka body); draw(g, gob, sx, sy) paints at the gob's
--- projected screen point (just above the head). Your OWN gob always matches, so you will see at least your
--- own tag. The gob passed is the same snapshot shape as hafen.gob.info (no display-name field for players —
--- a client limitation — so we show the char name for self and "player" otherwise). Auto-removed on teardown.
+-- 2b: WORLD-SPACE gob overlay (hafen.ui.gobOverlay). filter(gob) selects gobs (here: players — :isplayer()
+-- is true when the base sprite is the borka body); draw(g, gob, sx, sy) paints at the gob's projected screen
+-- point (just above the head). Your OWN gob always matches, so you will see at least your own tag. Since 017
+-- the gob is a live Gob OBJECT (D-044), so the callbacks read it with methods — and self-identification is
+-- plain identity now: gob == hafen.player():gob() (interning, D-045), no id compare. There is no display-name
+-- field for other players (a client limitation), so we show the char name for self. Auto-removed on teardown.
 local function drawPlayerTag(g, gob, sx, sy)
-  local me = hafen.player.id()
-  local label = (me and gob.id == me) and (hafen.player.name() or "you") or "player"
+  local label = (gob == hafen.player():gob()) and (hafen.player():name() or "you") or "player"
   g:color(80, 220, 90); g:frect(sx - 3, sy - 3, 6, 6); g:color()   -- a marker dot at the anchor
   g:atext(label, sx, sy - 6, 0.5, 1.0)                             -- name centred just above the marker
 end
@@ -1707,7 +1765,7 @@ hafen.events.on("OnEnterWorld", function()
   if overlaysUp then return end                                   -- register the overlays once
   overlaysUp = true
   hafen.ui.overlay(drawHud)                                       -- returns a handle with :remove() (also auto)
-  hafen.ui.gobOverlay(function(gob) return gob.isplayer end, drawPlayerTag)
+  hafen.ui.gobOverlay(function(gob) return gob:isplayer() end, drawPlayerTag)
   hafen.log("2b: HUD overlay (top-centre + crosshair) + player gob-tags up -- :reload/disable removes them")
 end)
 

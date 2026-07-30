@@ -118,7 +118,7 @@ final class RenderApi {
         // — stand a custom PNG in the 3D world (spec 17 §5, R2). The non-`.res` sibling of hafen.ghost, on the SAME
         // virtual-entity core + gizmo: a Gob with no server id, so it never reaches the server (SAFE-tier, NOT gated,
         // D-034). image = a hafen.render.image handle OR an addon-relative path (auto-loaded + cached, D-017-sandboxed);
-        // x,y = world coords (like hafen.gob.pos); a = facing radians (default 0). Options:
+        // x,y = world coords (like gob:pos()); a = facing radians (default 0). Options:
         //   scale = 2               -- uniform scale (default 1); fixed = ~1 tile tall, billboard = screen-size ×
         //   alpha = 0.5             -- opacity 0..1 (default 1); combines with the PNG's own transparency
         //   tint  = {r=,g=,b=[,a=]} -- colour overlay 0..255 (a = blend strength)
@@ -159,7 +159,7 @@ final class RenderApi {
         // [, offset]} — stand a custom glTF MODEL in the 3D world (spec 18, R3). The mesh sibling of a sprite/ghost,
         // on the SAME virtual-entity core + gizmo: a Gob with no server id (SAFE-tier, NOT gated, D-034). model = a
         // hafen.render.model handle OR an addon-relative path (auto-loaded + cached, D-017-sandboxed); x,y = world
-        // coords (like hafen.gob.pos); a = facing radians (default 0). Options mirror hafen.render.sprite:
+        // coords (like gob:pos()); a = facing radians (default 0). Options mirror hafen.render.sprite:
         //   scale = 2               -- uniform scale (default 1) on top of the baked model→world size
         //   alpha = 0.5             -- opacity 0..1 (default 1); tint = {r=,g=,b=[,a=]} colour overlay 0..255
         //   clickable = true        -- opt into the V2 pick (the mesh renders into the clickmap) → ObjectClicked / onClick
@@ -199,7 +199,7 @@ final class RenderApi {
             throw new LuaError("hafen.ghost.new: 'res' must be a resource name string (e.g. \"gfx/terobjs/arch/logcabin\")");
         LuaValue xv = opts.get("x"), yv = opts.get("y");
         if(!xv.isnumber() || !yv.isnumber())
-            throw new LuaError("hafen.ghost.new: 'x' and 'y' must be numbers (world coordinates, like hafen.gob.pos)");
+            throw new LuaError("hafen.ghost.new: 'x' and 'y' must be numbers (world coordinates, like gob:pos())");
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
@@ -219,7 +219,7 @@ final class RenderApi {
         gh.alpha = luaAlpha(opts.get("alpha"));        // V3: opacity 0..1 (default 1 = opaque)
         gh.tint = luaTint(opts.get("tint"));           // V3: colour overlay {r=,g=,b=[,a=]}, or null
         gh.scale = luaScale(opts.get("scale"));        // V6: uniform scale (default 1 = original size)
-        LuaValue gfollowv = opts.get("follow");        // ANCHOR: follow a gob (id / "player" / "me"), optional
+        LuaValue gfollowv = opts.get("follow");        // ANCHOR: follow a gob (a Gob object), optional
         if(!gfollowv.isnil()) {
             gh.followTgt = followTargetId(gfollowv);
             gh.followOff = luaOffset(opts.get("offset"));   // {x=,y=,z=} world offset from the gob (default none)
@@ -363,10 +363,7 @@ final class RenderApi {
                 if(ref.isnil()) {                        // :follow(nil) → detach, hold current position
                     setEntityFollow(e, 0, null);
                 } else {
-                    long tgt = followTargetId(ref);
-                    if(tgt == 0)
-                        throw new LuaError(":follow(gob [, {x=,y=,z=}]) — no such gob (pass a gob id, \"player\"/\"me\", or nil to detach)");
-                    setEntityFollow(e, tgt, luaOffset(offv));
+                    setEntityFollow(e, followTargetId(ref), luaOffset(offv));
                 }
                 return a.arg1();
             }
@@ -795,7 +792,7 @@ final class RenderApi {
         LuaValue followv = opts.get("follow");
         boolean hasFollow = !followv.isnil();
         if(!hasFollow && (!xv.isnumber() || !yv.isnumber()))
-            throw new LuaError("hafen.render.object: 'x' and 'y' must be numbers (world coordinates, like hafen.gob.pos) — or pass follow=gob instead");
+            throw new LuaError("hafen.render.object: 'x' and 'y' must be numbers (world coordinates, like gob:pos()) — or pass follow=gob instead");
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
@@ -902,10 +899,10 @@ final class RenderApi {
         if(!opts.istable())
             throw new LuaError("hafen.render.sprite{image=..., x=..., y=...} expects an options table");
         LuaValue xv = opts.get("x"), yv = opts.get("y");
-        LuaValue followv = opts.get("follow");         // ANCHOR: follow a gob (id / "player" / "me"), optional
+        LuaValue followv = opts.get("follow");         // ANCHOR: follow a gob (a Gob object), optional
         boolean hasFollow = !followv.isnil();
         if(!hasFollow && (!xv.isnumber() || !yv.isnumber()))   // x/y are the placement; when following, the gob supplies it
-            throw new LuaError("hafen.render.sprite: 'x' and 'y' must be numbers (world coordinates, like hafen.gob.pos) — or pass follow=gob instead");
+            throw new LuaError("hafen.render.sprite: 'x' and 'y' must be numbers (world coordinates, like gob:pos()) — or pass follow=gob instead");
         boolean billboard = opts.get("billboard").toboolean();   // R2b: true = camera-facing screen blit; false = fixed world quad
         final MapView mv = view;
         final Glob g = glob();
@@ -1258,15 +1255,16 @@ final class RenderApi {
     }
 
     /**
-     * Resolve a {@code :follow} / {@code follow=} target to a gob id: a raw <b>number</b> is used as-is (the gob
-     * need not be loaded yet — {@link FollowMoving} re-resolves each frame), a token ({@code "player"}/{@code "me"}/
-     * {@code "partyN"}/an id string) goes through the read-API {@link #resolve}. Returns {@code 0} if unresolvable.
+     * Resolve a {@code :follow} / {@code follow=} target to a gob id: a read-API <b>Gob object</b> (D-044). The gob
+     * need not be loaded — {@link FollowMoving} re-resolves each frame, and {@code hafen.gob(id)} builds a handle
+     * for a gob that hasn't streamed in yet, so the pre-load anchor still works. Raw ids and the old GobRef tokens
+     * are refused (that would be the dual style D-013 forbids).
      */
     private static long followTargetId(LuaValue ref) {
-        if(ref.isnumber())
-            return (long)ref.todouble();
-        Gob g = resolve(ref);
-        return (g == null) ? 0L : g.id;
+        LuaGob h = LuaGob.resolve(ref);
+        if(h == null)
+            throw new LuaError("follow expects a Gob object (hafen.gob(id) / hafen.player():gob()) — raw ids and the \"player\"/\"me\"/\"partyN\" tokens are gone");
+        return h.id;
     }
 
     /** Parse a {@code {x=,y=,z=}} world-offset table → a {@link Coord3f} (missing components 0), or {@code null} (not a table). */

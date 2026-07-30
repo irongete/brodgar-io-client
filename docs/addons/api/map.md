@@ -1,7 +1,7 @@
 # hafen.map — terrain & coordinates
 
 Read the terrain and convert between coordinate spaces. Positional arguments are **world units**
-(the same space [`hafen.gob.pos`](gob.md) returns). Terrain reads return `nil` when the map for that
+(the same space [`gob:pos()`](gob.md) returns). Terrain reads return `nil` when the map for that
 spot hasn't loaded yet.
 
 | Function | Returns | Description |
@@ -30,7 +30,7 @@ local gp = hafen.map.gridPos()          -- player's shareable position
 
 ### Screen ↔ world & placement snapping (V5)
 
-The inverse of [`hafen.player.worldToScreen`](player.md) plus the client's own placement snapper — the primitives a
+The inverse of [`hafen.player():worldToScreen`](player.md) plus the client's own placement snapper — the primitives a
 [ghost](ghost.md) gizmo (or any drag-on-the-ground tool) is built from.
 
 **`screenToWorld(sx, sy, fn)` is asynchronous.** It reads the *true* terrain point from the GPU (the same pass the
@@ -89,6 +89,6 @@ addon does exactly this for a whole layout of [ghosts](ghost.md).
 > **Grid ids are strings.** A grid id is a 64-bit number and Lua numbers are doubles, so it is
 > returned as an exact decimal **string** — the only value safe to store and compare across sessions.
 >
-> **There is no global position.** Raw world coordinates (`hafen.gob.pos`) are session-local — they
+> **There is no global position.** Raw world coordinates (`gob:pos()`) are session-local — they
 > reset each login and aren't comparable across players. Use `hafen.map.gridPos()` for any position you
 > save or share. See [conventions](conventions.md#coordinates).

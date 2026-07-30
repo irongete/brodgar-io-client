@@ -7,14 +7,12 @@ import haven.Coord2d;
 import haven.GameUI;
 import haven.Glob;
 import haven.Gob;
-import haven.GobHealth;
 import haven.GobIcon;
 import haven.Loading;
 import haven.MapFile;
 import haven.MapView;
 import haven.MCache;
 import haven.MiniMap;
-import haven.Moving;
 import haven.Music;
 import haven.OCache;
 import haven.Resource;
@@ -40,131 +38,28 @@ import java.util.Map;
 import static io.brodgar.addon.AddonManager.*;
 
 /**
- * The world-read + map subsystem: {@code hafen.gob} / {@code world} (gob reads), {@code map} (grid/marker
- * geometry), {@code markers} (the MapFile marker DB + MarkersChanged poll), {@code radar} (GobIcon settings),
- * and {@code time} / {@code sound} / {@code music}. The low-level gob-read substrate
- * (getgob/resolve/gobSnapshot/allGobs/oc/mcache/astro) lives in {@link AddonManager}. The marker DB fields +
+ * The world-read + map subsystem: {@code hafen.world} (gob enumeration — the per-gob reads are the Gob class,
+ * {@link LuaGob}), {@code map} (grid/marker geometry), {@code markers} (the MapFile marker DB + MarkersChanged
+ * poll), {@code radar} (GobIcon settings), and {@code time} / {@code sound} / {@code music}. The low-level
+ * gob-read substrate (getgob/gobMatches/gobSnapshot/allGobs/oc/mcache/astro) lives in {@link AddonManager}. The marker DB fields +
  * poll live here; {@link AddonManager} calls {@link #pollMarkers} on the tick and {@link #resetMarkers} on init.
  */
 final class WorldApi {
     private WorldApi() {}
 
-    /** Build {@code hafen.gob} for {@code owner}. From installHafen. */
-    static void installGob(LuaTable hafen, final Addon owner) {
-        LuaTable gob = new LuaTable();
-        gob.set("exists", new OneArgFunction() {
-            public LuaValue call(LuaValue ref) {
-                return LuaValue.valueOf(resolve(ref) != null);
-            }
-        });
-        gob.set("info", new OneArgFunction() {
-            public LuaValue call(LuaValue ref) {
-                return gobSnapshot(resolve(ref));
-            }
-        });
-        gob.set("pos", new OneArgFunction() {
-            public LuaValue call(LuaValue ref) {
-                Coord2d rc = pos(ref);
-                if(rc == null)
-                    return LuaValue.NIL;
-                LuaTable t = new LuaTable();
-                t.set("x", LuaValue.valueOf(rc.x));
-                t.set("y", LuaValue.valueOf(rc.y));
-                return t;
-            }
-        });
-        gob.set("facing", new OneArgFunction() {
-            public LuaValue call(LuaValue ref) {
-                Gob g = resolve(ref);
-                if(g == null)
-                    return LuaValue.NIL;
-                synchronized(g) {
-                    return LuaValue.valueOf(g.a);
-                }
-            }
-        });
-        gob.set("name", new OneArgFunction() {
-            public LuaValue call(LuaValue ref) {
-                Gob g = resolve(ref);
-                String n = (g == null) ? null : gobName(g);
-                return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n);
-            }
-        });
-        gob.set("health", new OneArgFunction() {
-            public LuaValue call(LuaValue ref) {
-                Gob g = resolve(ref);
-                if(g == null)
-                    return LuaValue.NIL;
-                GobHealth h = g.getattr(GobHealth.class);
-                return (h == null) ? LuaValue.NIL : LuaValue.valueOf(h.hp);
-            }
-        });
-        gob.set("moving", new OneArgFunction() {
-            public LuaValue call(LuaValue ref) {
-                Gob g = resolve(ref);
-                if(g == null)
-                    return LuaValue.NIL;
-                return LuaValue.valueOf(g.getattr(Moving.class) != null);
-            }
-        });
-        gob.set("speed", new OneArgFunction() {
-            public LuaValue call(LuaValue ref) {
-                Gob g = resolve(ref);
-                if(g == null)
-                    return LuaValue.NIL;
-                Moving mv = g.getattr(Moving.class);
-                if(mv == null)
-                    return LuaValue.NIL;
-                try {
-                    return LuaValue.valueOf(mv.getv());
-                } catch(RuntimeException e) {
-                    return LuaValue.NIL;
-                }
-            }
-        });
-        gob.set("speech", new OneArgFunction() {
-            public LuaValue call(LuaValue ref) {
-                Gob g = resolve(ref);
-                String s = (g == null) ? null : gobSpeech(g);
-                return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s);
-            }
-        });
-        gob.set("icon", new OneArgFunction() {
-            public LuaValue call(LuaValue ref) {
-                Gob g = resolve(ref);
-                String s = (g == null) ? null : gobIcon(g);
-                return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s);
-            }
-        });
-        // distance(ref [, ref2]); ref2 defaults to "player".
-        gob.set("distance", new TwoArgFunction() {
-            public LuaValue call(LuaValue ref, LuaValue ref2) {
-                Gob a = resolve(ref);
-                Gob b = resolve(ref2.isnil() ? LuaValue.valueOf("player") : ref2);
-                if((a == null) || (b == null))
-                    return LuaValue.NIL;
-                Coord2d ra, rb;
-                synchronized(a) { ra = a.rc; }
-                synchronized(b) { rb = b.rc; }
-                if((ra == null) || (rb == null))
-                    return LuaValue.NIL;
-                return LuaValue.valueOf(ra.dist(rb));
-            }
-        });
-        hafen.set("gob", gob);
-    }
-
     /** Build {@code hafen.world} for {@code owner}. From installHafen. */
     static void installWorld(LuaTable hafen, final Addon owner) {
         LuaTable world = new LuaTable();
+        // gobs/nearest/within hand out Gob OBJECTS (D-044) — live handles, not snapshots; call :info() on one
+        // for the old snapshot table. The gob list is copied under the OCache lock by allGobs(); the filters are
+        // evaluated OUT here, because a function filter re-enters Lua (world-reads.md).
         world.set("gobs", new OneArgFunction() {
             public LuaValue call(LuaValue filter) {
                 LuaTable out = new LuaTable();
                 int i = 0;
                 for(Gob g : allGobs()) {
-                    LuaValue snap = gobSnapshot(g);
-                    if(matches(filter, snap))
-                        out.set(++i, snap);
+                    if(gobMatches(filter, owner, g))
+                        out.set(++i, LuaGob.of(owner, g.id));
                 }
                 return out;
             }
@@ -176,7 +71,7 @@ final class WorldApi {
                     return LuaValue.valueOf(all.size());
                 int n = 0;
                 for(Gob g : all)
-                    if(matches(filter, gobSnapshot(g)))
+                    if(gobMatches(filter, owner, g))
                         n++;
                 return LuaValue.valueOf(n);
             }
@@ -191,21 +86,20 @@ final class WorldApi {
                 if(prc == null)
                     return LuaValue.NIL;
                 long self = pl.id;
-                LuaValue best = LuaValue.NIL;
+                Gob best = null;
                 double bestd = Double.POSITIVE_INFINITY;
                 for(Gob g : allGobs()) {
                     if(g.id == self)
                         continue;
-                    LuaValue snap = gobSnapshot(g);
-                    if(!matches(filter, snap))
+                    if(!gobMatches(filter, owner, g))
                         continue;
-                    double d = distTo(snap, prc);
+                    double d = distTo(g, prc);
                     if(Double.isNaN(d) || (d >= bestd))
                         continue;
                     bestd = d;
-                    best = snap;
+                    best = g;
                 }
-                return best;
+                return (best == null) ? LuaValue.NIL : LuaGob.of(owner, best.id);
             }
         });
         world.set("within", new TwoArgFunction() {
@@ -224,13 +118,12 @@ final class WorldApi {
                 for(Gob g : allGobs()) {
                     if(g.id == self)
                         continue;
-                    LuaValue snap = gobSnapshot(g);
-                    if(!matches(filter, snap))
+                    if(!gobMatches(filter, owner, g))
                         continue;
-                    double d = distTo(snap, prc);
+                    double d = distTo(g, prc);
                     if(Double.isNaN(d) || (d > r))
                         continue;
-                    out.set(++i, snap);
+                    out.set(++i, LuaGob.of(owner, g.id));
                 }
                 return out;
             }
@@ -298,7 +191,7 @@ final class WorldApi {
                     return LuaValue.NIL;
                 Coord2d wc = (x.isnumber() && y.isnumber())
                     ? Coord2d.of(x.todouble(), y.todouble())
-                    : pos(LuaValue.NIL);   // player
+                    : playerPos();   // no args = the player
                 if(wc == null)
                     return LuaValue.NIL;
                 try {
@@ -364,7 +257,7 @@ final class WorldApi {
                 return xy(gc.x, gc.y);
             }
         });
-        // screenToWorld(sx, sy, fn) — the RAYCAST INVERSE of hafen.player.worldToScreen (spec 16 §3, V5): fn({x,y})
+        // screenToWorld(sx, sy, fn) — the RAYCAST INVERSE of hafen.player():worldToScreen (spec 16 §3, V5): fn({x,y})
         // is called with the WORLD ground coord under game-window pixel (sx,sy), or fn(nil) if the pixel hit no
         // terrain (sky/off-map). It is ASYNCHRONOUS by necessity — the engine reads the true terrain point from the
         // GPU (MapView.Maptest, the same pass the client's own building placement uses), so a synchronous return
@@ -652,7 +545,7 @@ final class WorldApi {
             file.lock.readLock().unlock();
         }
         MiniMap.Location sl = sessloc();
-        Coord2d prc = pos(LuaValue.NIL);   // player world pos (may be null before the player gob is up)
+        Coord2d prc = playerPos();   // player world pos (may be null before the player gob is up)
         for(MapFile.Marker m : copy)
             out.add(markerSnapshot(m, sl, prc));
         return out;

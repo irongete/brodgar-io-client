@@ -214,6 +214,24 @@ public final class Addon {
     public volatile boolean fontNodes = false;
 
     /**
+     * This addon's <b>Gob interning cache</b> ({@code hafen.gob(id)}, D-045): the weak-valued
+     * {@code id → Gob object} map (plus its {@link java.lang.ref.ReferenceQueue} and the per-addon metatable)
+     * that makes {@code hafen.gob(id) == hafen.gob(id)} and {@code seen[gob] = true} reliable. Deliberately
+     * <b>per-addon and not static</b>: no Lua value crosses a sandbox boundary (D-017), and the cache dies whole
+     * with this {@link Addon} on {@code :reload}/disable — a static one would outlive the reload (the C1 trap).
+     * Unlike the owned-resource lists there is nothing to tear down: the entries are weak and the handles hold
+     * no engine object (see {@link LuaGob}).
+     */
+    final LuaGob.Cache gobs = new LuaGob.Cache();
+
+    /**
+     * The single {@code hafen.player()} object for this addon ({@code Player} by composition, D-046) — built
+     * lazily by {@code CharApi.installPlayer} and cached so {@code hafen.player() == hafen.player()}. Per-addon
+     * for the same reason as {@link #gobs}.
+     */
+    LuaValue playerObj;
+
+    /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per
      * declared saved variable plus the {@code flush} function. Populated in
      * {@link AddonManager#installHafen}; the engine reads it on flush. {@code null} until installed.

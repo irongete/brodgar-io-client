@@ -40,6 +40,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.ThreeArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
@@ -177,7 +178,7 @@ final class CharApi {
 
     /**
      * A {@code {hp,stamina,energy}} snapshot (0..1) read live from the HUD's {@link IMeter} widgets in
-     * tree (= creation) order, or nil if none are up yet. Backs both {@code hafen.player.vitals} and
+     * tree (= creation) order, or nil if none are up yet. Backs both {@code hafen.player():vitals()} and
      * the {@code VitalsChanged} change-detection. Extra meters beyond the three vitals are ignored.
      */
     private static LuaValue readVitals() {
@@ -701,23 +702,30 @@ final class CharApi {
         return t;
     }
 
-    /** Build a char namespace for owner. From installHafen. */
+    /**
+     * Build {@code hafen.player} for {@code owner}. From installHafen. Since D-046 {@code hafen.player} is a
+     * <b>callable table</b> ({@code __call}, like {@code hafen.gob}) returning the addon's single <b>Player
+     * object</b>: {@code hafen.player():gob()} is the composition anchor for every per-gob read of the player
+     * (position/health/moving/facing/…). Player forwards <b>nothing</b> — a {@code player:pos()} living beside
+     * {@code player:gob():pos()} is exactly the dual style D-013 forbids — and {@code exists}/{@code id} are
+     * dropped: {@code player:gob()} (nil before entering the world) and {@code gob:id()} already answer both.
+     * The object is a per-addon singleton (cached on {@link Addon#playerObj}), so {@code hafen.player() ==
+     * hafen.player()}; it is userdata with a per-addon metatable, immutable from Lua, like a {@link LuaGob}.
+     */
     static void installPlayer(LuaTable hafen, final Addon owner) {
-        LuaTable player = new LuaTable();
-        player.set("exists", new ZeroArgFunction() {
-            public LuaValue call() {
+        LuaTable methods = new LuaTable();
+        // gob() — the player's Gob object, or nil before entering the world. hafen.gob(id) interning makes this
+        // the SAME object as hafen.gob(<player id>).
+        methods.set("gob", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
                 MapView m = view;
-                return LuaValue.valueOf((m != null) && (m.plgob >= 0));
+                if((m == null) || (m.plgob < 0))
+                    return LuaValue.NIL;
+                return LuaGob.of(owner, m.plgob);
             }
         });
-        player.set("id", new ZeroArgFunction() {
-            public LuaValue call() {
-                MapView m = view;
-                return ((m == null) || (m.plgob < 0)) ? LuaValue.NIL : LuaValue.valueOf((double)m.plgob);
-            }
-        });
-        player.set("name", new ZeroArgFunction() {
-            public LuaValue call() {
+        methods.set("name", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
                 GameUI g = gui();
                 return ((g == null) || (g.chrid == null)) ? LuaValue.NIL : LuaValue.valueOf(g.chrid);
             }
@@ -726,13 +734,13 @@ final class CharApi {
         // widget-tree mechanism (1d). Bar-fraction ONLY: no absolute values, no hunger (those don't
         // exist as client state — coverage-gaps B5). nil until the meters are up. Subscribe to
         // VitalsChanged for updates; the initial values arrive as widget-creation args, not a uimsg.
-        player.set("vitals", new ZeroArgFunction() {
-            public LuaValue call() {
+        methods.set("vitals", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
                 return readVitals();
             }
         });
-        player.set("worldToScreen", new TwoArgFunction() {
-            public LuaValue call(LuaValue x, LuaValue y) {
+        methods.set("worldToScreen", new ThreeArgFunction() {
+            public LuaValue call(LuaValue self, LuaValue x, LuaValue y) {
                 MapView m = view;
                 if((m == null) || !x.isnumber() || !y.isnumber())
                     return LuaValue.NIL;
@@ -744,7 +752,30 @@ final class CharApi {
                 }
             }
         });
+        final LuaTable pmt = new LuaTable();
+        pmt.set(LuaValue.INDEX, methods);
+        pmt.set("__name", LuaValue.valueOf("Player"));
+        pmt.set("__tostring", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf("Player");
+            }
+        });
+        LuaTable player = new LuaTable();
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.CALL, new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                if(owner.playerObj == null)
+                    owner.playerObj = LuaValue.userdataOf(new PlayerMark(), pmt);
+                return owner.playerObj;
+            }
+        });
+        player.setmetatable(mt);   // a callable table (not a bare function) so hafen.player.name reads as nil
         hafen.set("player", player);
+    }
+
+    /** The opaque instance behind a Player userdata (facade-safe: no Java object of the engine's crosses). */
+    private static final class PlayerMark {
+        public String toString() { return "Player"; }
     }
 
     /** Build a char namespace for owner. From installHafen. */
@@ -1182,7 +1213,7 @@ final class CharApi {
      * <p>{@code handle} is the item's <b>server widget id</b> ({@link GItem#wdgid()}): the stable, facade-safe
      * {@code ItemRef} (principle P1 — just an int) that the gated {@code hafen.act.item(item, verb)} verb (4f)
      * takes to re-resolve the live {@link GItem} and drive it. It is a live reference on an otherwise
-     * point-in-time snapshot (the other fields are a copy, like {@code hafen.gob.info}) — the only way to
+     * point-in-time snapshot (the other fields are a copy, like {@code gob:info()}) — the only way to
      * address an item, since items carry no other stable id (D-022: handle-only). Omitted for an unbound item.
      */
     static LuaValue itemSnapshot(GItem it, LuaValue pos) {
@@ -1660,9 +1691,10 @@ final class CharApi {
     }
 
     /**
-     * Party members ordered by {@link Party.Member#seq} (the ordinal behind the {@code "partyN"}
-     * GobRef). {@code party.memb} is replaced wholesale off-thread, so a {@code values()} copy is
-     * snapshot-safe (defensive catch for the rare in-flight swap).
+     * Party members ordered by {@link Party.Member#seq} (the roster order {@code hafen.party.list} hands out;
+     * the {@code "partyN"} GobRef it also used to back is gone with the hard cut — reach a member's gob with
+     * {@code hafen.gob(m.id)} until Party migrates to OOP). {@code party.memb} is replaced wholesale off-thread,
+     * so a {@code values()} copy is snapshot-safe (defensive catch for the rare in-flight swap).
      */
     private static List<Party.Member> partyMembers() {
         List<Party.Member> out = new ArrayList<Party.Member>();
@@ -1676,14 +1708,6 @@ final class CharApi {
         }
         out.sort((a, b) -> Integer.compare(a.seq, b.seq));
         return out;
-    }
-
-    /** The Nth party member (1-based, by seq order) for the {@code "partyN"} GobRef, or {@code null}. */
-    static Party.Member partyMemberByOrdinal(int n) {
-        if(n < 1)
-            return null;
-        List<Party.Member> ms = partyMembers();
-        return (n <= ms.size()) ? ms.get(n - 1) : null;
     }
 
     /** A PartyMember snapshot: id / x,y / color / leader (there is no name for party members). */

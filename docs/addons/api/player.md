@@ -1,20 +1,32 @@
-# hafen.player — local player data
+# hafen.player — the local player
 
-Data about the local character that has **no** per-gob equivalent. For the player's position, health,
-movement, etc., use [`hafen.gob.*("player")`](gob.md) instead.
-
-| Function | Returns | Description |
-|---|---|---|
-| `hafen.player.exists()` | bool | whether the player gob is in the world |
-| `hafen.player.id()` | number \| nil | the player's gob id (the `"player"` GobRef) |
-| `hafen.player.name()` | string \| nil | the local character's name |
-| `hafen.player.vitals()` | [`Vitals`](types.md#vitals) \| nil | hp/stamina/energy bar fractions (0..1) |
-| `hafen.player.worldToScreen(x, y)` | `{x, y}` \| nil | project a world point to a map-view screen pixel |
+`hafen.player()` returns the **Player object** for the local character. Its main job is being the
+anchor for your own [Gob](gob.md):
 
 ```lua
-local v = hafen.player.vitals()
+local me = hafen.player():gob()          -- nil until you are in the world
+if me then hafen.log(tostring(me:pos().x)) end
+```
+
+Player deliberately forwards **nothing** from the Gob: position, health, movement, facing and the rest
+are read on `hafen.player():gob()`, so there is exactly one way to reach each of them. What lives on
+Player is only what has no per-gob equivalent.
+
+| Method | Returns | Description |
+|---|---|---|
+| `hafen.player():gob()` | [Gob](gob.md) \| nil | your own game object; nil before you are in the world |
+| `hafen.player():name()` | string \| nil | the local character's name |
+| `hafen.player():vitals()` | [`Vitals`](types.md#vitals) \| nil | hp/stamina/energy bar fractions (0..1) |
+| `hafen.player():worldToScreen(x, y)` | `{x, y}` \| nil | project a world point to a map-view screen pixel |
+
+```lua
+local v = hafen.player():vitals()
 if v then hafen.log(string.format("hp %.0f%%  stamina %.0f%%", v.hp * 100, v.stamina * 100)) end
 ```
+
+`hafen.player()` always hands back the same object, and `hafen.player():gob()` is the same object as
+`hafen.gob(<your id>)` — so `gob == hafen.player():gob()` is how you tell "is this me?" apart from any
+other gob (no id comparison needed).
 
 > `vitals()` returns **bar fractions only** — there are no absolute hp/stamina/energy numbers, and no
 > hunger, in the client. Subscribe to [`VitalsChanged`](events.md#character--status-widget-tree-backed)
@@ -22,3 +34,5 @@ if v then hafen.log(string.format("hp %.0f%%  stamina %.0f%%", v.hp * 100, v.sta
 >
 > `worldToScreen` returns coordinates relative to the map view — handy inside a
 > [gob overlay](ui.md#overlays) or HUD overlay.
+>
+> There is no `exists()` and no `id()`: `hafen.player():gob()` (nil or not) and `gob:id()` answer both.

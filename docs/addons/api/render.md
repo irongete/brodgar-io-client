@@ -99,7 +99,7 @@ Options:
 | Option | Default | Meaning |
 |---|---|---|
 | `image` | *(required)* | a [`hafen.render.image`](#loading-an-image) handle **or** an addon-relative path string (auto-loaded + cached) |
-| `x`, `y` | *(required¹)* | world coordinates, like [`hafen.gob.pos`](gob.md) |
+| `x`, `y` | *(required¹)* | world coordinates, like [`gob:pos()`](gob.md) |
 | `a` | `0` | facing angle in **radians** (a billboard ignores it — it faces the camera) |
 | `scale` | `1` | uniform scale; a **fixed** sprite is ~1 tile tall at `1` (width follows the image aspect), a **billboard** is its native pixel size × `scale` |
 | `alpha` | `1` | opacity `0..1`; combines with the PNG's own transparency |
@@ -137,7 +137,7 @@ The verbs **chain** (each returns the handle): `s:move(x, y):rotate(a):scale(2)`
 
 ```lua
 local icon = hafen.render.image("icon.png")
-local p = hafen.gob.pos("player")
+local p = hafen.player():gob():pos()
 local s = hafen.render.sprite{ image = icon, x = p.x, y = p.y, scale = 3 }  -- ~3 tiles tall, at your feet
 s:rotate(math.pi / 2):alpha(0.8)     -- face 90°, slightly translucent
 -- ... later
@@ -152,12 +152,12 @@ s:destroy()                          -- or just let reload/disable clean it up
 Pass `billboard = true` for a sprite that **always faces the camera** and is a **constant screen size** — a
 screen-space blit anchored at the sprite's world point (rotate the camera or zoom and it stays square-on and the
 same number of pixels). It is the ergonomic, gob-anchored version of drawing an image at
-[`hafen.player.worldToScreen`](player.md) in a [`hafen.ui.overlay`](ui.md#overlays); it draws **on top** of the 3D
+[`hafen.player():worldToScreen`](player.md) in a [`hafen.ui.overlay`](ui.md#overlays); it draws **on top** of the 3D
 scene (no depth occlusion).
 
 ```lua
 local icon = hafen.render.image("icon.png")
-local p = hafen.gob.pos("player")
+local p = hafen.player():gob():pos()
 local b = hafen.render.sprite{ image = icon, x = p.x, y = p.y, billboard = true, scale = 2 }  -- 2× native px, faces you
 -- b:move(x, y) still works (and the gizmo moves it); b:scale(k) resizes it on screen.
 ```
@@ -194,8 +194,9 @@ local s = hafen.render.sprite{
 ### Anchoring to a gob
 
 A sprite can be **anchored to a gob** so it moves with it automatically, every frame, with no per-tick code of
-your own — the world-space analog of a [`hafen.ui.gobOverlay`](ui.md#overlays). Give a `follow` target (a gob id
-from a read like [`hafen.world.gobs`](world.md), or `"player"`/`"me"`) and an optional world `offset` (`z` is up,
+your own — the world-space analog of a [`hafen.ui.gobOverlay`](ui.md#overlays). Give a `follow` target (a
+[Gob object](gob.md) — `hafen.gob(id)`, `hafen.player():gob()`, or one from
+[`hafen.world.gobs`](world.md)) and an optional world `offset` (`z` is up,
 so `{z=10}` floats it above the target's head):
 
 | | |
@@ -212,9 +213,9 @@ re-resolved each frame, so it survives the gob unloading/reloading (it holds pos
 ```lua
 -- a marker that floats above a creature and follows it around
 local icon = hafen.render.image("marker.png")
-local prey = hafen.world.nearest(function(g) return (g.name or ""):find("rabbit") end)
+local prey = hafen.world.nearest(function(g) return (g:name() or ""):find("rabbit") end)
 if prey then
-  local s = hafen.render.sprite{ image = icon, scale = 1.5, follow = prey.id, offset = { z = 14 } }
+  local s = hafen.render.sprite{ image = icon, scale = 1.5, follow = prey, offset = { z = 14 } }
   -- s follows the rabbit; s:offset{ z = 20 } raises it; s:follow(nil) drops it in place; s:destroy() removes it
 end
 ```
@@ -277,7 +278,7 @@ Options mirror [`hafen.render.sprite`](#standing-an-image-in-the-world), with `m
 | Option | Default | Meaning |
 |---|---|---|
 | `model` | *(required)* | a [`hafen.render.model`](#loading-a-3d-model) handle **or** an addon-relative path string (auto-loaded + cached) |
-| `x`, `y` | *(required¹)* | world coordinates, like [`hafen.gob.pos`](gob.md) |
+| `x`, `y` | *(required¹)* | world coordinates, like [`gob:pos()`](gob.md) |
 | `a` | `0` | facing angle in **radians** (rotates about the vertical) |
 | `scale` | `1` | uniform scale **on top of** the baked model→world size |
 | `alpha` | `1` | opacity `0..1` |
@@ -319,7 +320,7 @@ hafen.events.on("OnLoad", function()
 end)
 
 -- later, in the world:
-local p = hafen.gob.pos("player")
+local p = hafen.player():gob():pos()
 local o = hafen.render.object{ model = mdl, x = p.x, y = p.y, a = 0, scale = 1 }
 o:rotate(math.pi / 4):scale(1.5)                   -- face 45°, 1.5× — chained, gizmo-compatible
 -- ... o:destroy()  (or let reload/disable clean it up)

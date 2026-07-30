@@ -79,7 +79,7 @@ end
 -- POST a Lua TABLE: hafen.http auto-encodes it to JSON (application/json) and sends it. httpbin.org/post
 -- echoes the request back, including the JSON it parsed under res.json -- so we round-trip our own body.
 local function doPost()
-  local payload = { char = hafen.player.name() or "unknown", lp = 42, tags = { "a", "b" } }
+  local payload = { char = hafen.player():name() or "unknown", lp = 42, tags = { "a", "b" } }
   hafen.log("netdemo: POST https://httpbin.org/post  body=" .. hafen.json.encode(payload))
   hafen.http.post("https://httpbin.org/post", payload, function(res)
     if not res.ok then

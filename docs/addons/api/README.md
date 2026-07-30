@@ -14,7 +14,7 @@ events are in [events](events.md).
 
 | Section | Purpose |
 |---|---|
-| [`hafen.gob`](gob.md) | game objects, addressed one at a time by reference |
+| [`hafen.gob`](gob.md) | game objects — `hafen.gob(id)` gives a Gob object you read with methods |
 | [`hafen.world`](world.md) | enumerate / scan game objects |
 | [`hafen.map`](map.md) | terrain reads and coordinate conversions |
 | [`hafen.markers`](markers.md) | map markers (read / add / remove) |

@@ -1,8 +1,8 @@
 # hafen.party — party roster
 
-Read the current party. Members are ordered by their party sequence — the same order behind the
-`"partyN"` [GobRef](conventions.md#gobref--a-game-object) token, so `hafen.gob.pos("party1")` reads
-the first member's position.
+Read the current party. Members are ordered by their party sequence. A member snapshot carries the
+member's gob `id`, so `hafen.gob(m.id)` gives you that member's [Gob](gob.md) — `:pos()` on it reads
+their live position (nil while they are out of view).
 
 | Function | Returns | Description |
 |---|---|---|

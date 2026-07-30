@@ -60,13 +60,14 @@ final class ActApi {
                 return LuaValue.NIL;
             }
         });
-        // clickGob(ref [, button [, mods]]) — click a game object: exactly the MapView "click" that a
-        // left/right-click on that gob sends. ref = the SAME GobRef the read API takes (a gob id, "player"/
-        // "me", "partyN", or nil = you). button: 1 = left (default; select/interact), 3 = right (the context/
+        // clickGob(gob [, button [, mods]]) — click a game object: exactly the MapView "click" that a
+        // left/right-click on that gob sends. gob = a Gob OBJECT from the read API (hafen.gob(id),
+        // hafen.world.nearest(...), hafen.player():gob()); raw ids and the old GobRef tokens are NOT accepted
+        // (D-044 — one canonical way). button: 1 = left (default; select/interact), 3 = right (the context/
         // flower-menu click). mods = a modifier bitfield (0 default; Shift=1 Ctrl=2 Alt=4, matching hafen.key).
         // Sends the bare gob-click encoding {…, 0, gobid, gobrc, 0, -1} — a generic "click the whole object",
         // faithful for world objects (trees/containers/…); a specific sub-mesh / composite body part is not
-        // targeted (deferred). Throws if the ref or map view is gone.
+        // targeted (deferred). Throws if the gob is out of view or the map view is gone.
         act.set("clickGob", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 AddonManager.requireActions(owner, "hafen.act.clickGob");
@@ -285,14 +286,17 @@ final class ActApi {
         return new Object[] {pc, gobRc, button, mods, 0, gobId, gobRc, 0, -1};
     }
 
-    /** {@code hafen.act.clickGob} backing — click the resolved gob (the ref = the read API's GobRef). */
+    /** {@code hafen.act.clickGob} backing — click the gob a read-API {@link LuaGob} object names (D-044). */
     private static void actClickGob(LuaValue ref, int button, int mods) {
         MapView m = AddonManager.view;
         if(m == null)
             throw new LuaError("hafen.act.clickGob: no map view (not in the world yet)");
-        Gob g = AddonManager.resolve(ref);
+        LuaGob h = LuaGob.resolve(ref);
+        if(h == null)
+            throw new LuaError("hafen.act.clickGob(gob [, button, mods]): expected a Gob object (hafen.gob(id) / hafen.world.nearest(...)) — raw ids and the old GobRef tokens are gone");
+        Gob g = AddonManager.getgob(h.id);
         if(g == null)
-            throw new LuaError("hafen.act.clickGob: no such gob (the ref did not resolve to a visible object)");
+            throw new LuaError("hafen.act.clickGob: no such gob (that Gob is not in view — check gob:exists())");
         Coord2d rc;
         synchronized(g) { rc = g.rc; }                   // OCache discipline: copy under the gob lock
         if(rc == null)

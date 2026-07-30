@@ -72,7 +72,8 @@ hafen.slash.register("walker", function(args)
     return
   end
 
-  local p = hafen.gob.pos("player")
+  local me = hafen.player():gob()                    -- the Gob OBJECT for your character (nil before enter-world)
+  local p = me and me:pos()
   if not p then hafen.log(":walker -> no player position yet"); return end
 
   if sub == "walk" then
@@ -80,10 +81,10 @@ hafen.slash.register("walker", function(args)
     hafen.log((":walker walk -> moveTo(%.1f, %.1f)  [~2 tiles south -- watch your character walk]"):format(p.x, p.y + SOUTH))
 
   elseif sub == "click" then
-    local g = hafen.world.nearest(function(o) return not o.isplayer end)   -- nearest non-player object
+    local g = hafen.world.nearest(function(g) return not g:isplayer() end)  -- nearest non-player Gob OBJECT
     if not g then hafen.log(":walker click -> no object nearby"); return end
-    hafen.act.clickGob(g.id, 3)                         -- button 3 = RIGHT-click => its context menu (safe/cancelable)
-    hafen.log((":walker click -> right-clicked %s (id %d) -- its context menu should open"):format(g.name or "?", g.id))
+    hafen.act.clickGob(g, 3)                            -- clickGob takes the Gob itself; 3 = RIGHT-click (safe/cancelable)
+    hafen.log((":walker click -> right-clicked %s (id %d) -- its context menu should open"):format(g:name() or "?", g:id()))
 
   elseif sub == "use" then
     hafen.act.useItemOn(p.x, p.y)                       -- apply the cursor item to the ground under you
@@ -128,10 +129,10 @@ hafen.slash.register("walker", function(args)
       hafen.log(":walker flower <label> -> right-clicks the nearest object, then auto-picks that petal (e.g. ':walker flower Harvest').")
       return
     end
-    local g = hafen.world.nearest(function(o) return not o.isplayer end)
+    local g = hafen.world.nearest(function(g) return not g:isplayer() end)
     if not g then hafen.log(":walker flower -> no object nearby"); return end
-    hafen.act.clickGob(g.id, 3)                         -- button 3 = RIGHT-click => opens its flower menu (after a round-trip)
-    hafen.log((":walker flower -> right-clicked %s (id %d); auto-picking petal '%s' in 0.5s..."):format(g.name or "?", g.id, label))
+    hafen.act.clickGob(g, 3)                            -- button 3 = RIGHT-click => opens its flower menu (after a round-trip)
+    hafen.log((":walker flower -> right-clicked %s (id %d); auto-picking petal '%s' in 0.5s..."):format(g:name() or "?", g:id(), label))
     hafen.timer.after(0.5, function()
       local ok = hafen.act.flower(label)               -- returns true iff a matching petal was selected
       hafen.log((":walker flower -> hafen.act.flower('%s') => %s"):format(
