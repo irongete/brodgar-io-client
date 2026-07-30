@@ -5,12 +5,10 @@
 > Append new decisions of this kind here.
 > Legend: ✅ Accepted - 🔄 Revisit later - ❌ Rejected - 💤 Superseded.
 
-### D-007 — Specification language is English ✅
-**Decision.** All `specs/addons/**` documents are written in English. (Conversational
-collaboration may be in Spanish.)
-**Rationale.** User preference.
-**Amended 2026-07-30.** The parenthetical no longer holds: **everything is English now** — the
-conversation too, not just the written artefacts. Maintainer preference.
+### D-007 — Everything is in English ✅
+**Decision.** English is the project's only language: the conversation, all `specs/**`
+documents, the docs, and the code and its comments.
+**Rationale.** Maintainer preference.
 
 ### D-026 — Gap design/build order ✅ (closes Q-014)
 Order: **widget-tree-read mechanism** ([14-widget-tree-reads.md](../design/14-widget-tree-reads.md), foundational)
