@@ -58,7 +58,7 @@ events are in [events](events.md).
 | [`hafen.render`](render.md) | draw custom (non-`.res`) assets — the addon's own PNGs (on screen or in the world) and glTF 3D models |
 | [`hafen.hook`](hooks.md) | intercept & alter input / actions / server messages |
 | [`hafen.key`](keys.md) | global hotkeys |
-| [`hafen.font`](fonts.md) | per-addon typography — load fonts, restyle client surfaces |
+| [`hafen.font`](fonts.md) | per-addon typography — load fonts, restyle client surfaces (or one single widget) |
 
 ### Audio & infrastructure
 

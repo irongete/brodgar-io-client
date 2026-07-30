@@ -203,6 +203,15 @@ public final class Addon {
      * cannot happen).
      */
     public final List<String> fontOverrides = new CopyOnWriteArrayList<String>();
+    /**
+     * Has this addon installed any <b>per-instance</b> font override ({@code node:setFont(h)}, F5)? Only a flag, not
+     * a list: the overrides are keyed by widget inside the {@link haven.Fonts} provider, whose registry holds its
+     * widget keys <b>weakly</b> — a list here would pin a closed window's widget tree in memory. Teardown
+     * ({@link FontApi#teardownFonts}) sweeps this addon's entries out of that registry with the same
+     * {@code Fonts.removeOwner(this)} call the named scopes use; this flag only tells it whether the sweep is
+     * needed at all (so an addon that never touched fonts costs no generation bump).
+     */
+    public volatile boolean fontNodes = false;
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per

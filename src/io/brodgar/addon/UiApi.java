@@ -800,7 +800,9 @@ final class UiApi {
 
     /**
      * Build the Lua handle for a {@link LuaWidgetNode} (spec 20, W1): {@code :type/:id/:children/:parent/:pos/
-     * :size/:visible/:text/:walk/:same}. Every accessor returns {@code nil}/empty once the node is stale (its
+     * :size/:visible/:text/:walk/:same} (+ W2's {@code :rootpos}/{@code :at} and F5's {@code :setFont}/
+     * {@code :resetFont} — the one <i>write</i> a node carries, and a purely cosmetic, owner-reverted one).
+     * Every accessor returns {@code nil}/empty once the node is stale (its
      * widget left the tree — {@link #nodeLive}). Facade-safe: the table carries the node as an opaque userdata
      * ({@link LuaWidgetNode#KEY}) for {@code :same}, but no raw {@code haven.Widget} crosses into Lua (P1/D-017).
      * {@code :children()}/{@code :parent()}/{@code :walk} mint FRESH handles (nodes are transient, not owned).
@@ -896,6 +898,24 @@ final class UiApi {
                 Coord rp;
                 synchronized(u) { rp = w.rootpos(); }
                 return (rp == null) ? LuaValue.NIL : xyTable(rp);
+            }
+        });
+        // F5 (spec 21): node:setFont(h) — restyle THIS widget and everything drawn inside it with a
+        // hafen.font.load handle, while its siblings keep the scope/"default" font (the top of the font resolution
+        // chain). Owner-tagged: reverted automatically on :reload/disable, and it dies with the widget (a closed
+        // window takes its override with it). Returns the node, so it chains.
+        h.set("setFont", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {                // node:setFont(h) → self=arg1, handle=arg2
+                FontApi.setNodeFont(owner, nodeLive(n), a.arg(2));
+                return a.arg1();
+            }
+        });
+        // F5: node:resetFont() — drop THIS addon's per-instance override on this widget (it falls back to the
+        // scope/"default" chain, or to another addon's override beneath). A no-op if there was none. Returns the node.
+        h.set("resetFont", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {                // node:resetFont() → self=arg1
+                FontApi.resetNodeFont(owner, nodeLive(n));
+                return a.arg1();
             }
         });
         h.set("at", new VarArgFunction() {

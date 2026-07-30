@@ -902,6 +902,8 @@ local tipApplied = false    -- F3d: is our "tooltip" override installed? (sessio
 local chatApplied = false   -- F3d: is our "chat" override installed? (session-local; teardown reverts it)
 local speechApplied = false -- F4: is our "world.speech" override installed? (session-local; teardown reverts it)
 local nickApplied = false   -- F4: is our "world.nick" override installed? (session-local; teardown reverts it)
+local nodeFontApplied = false -- F5: is our PER-INSTANCE override installed on one window? (teardown reverts it)
+local nodeFontTarget        -- F5: the WidgetNode we styled (a transient handle; nil once reset / after a reload)
 hafen.events.on("OnLoad", function()
   fontApplied = false                                   -- a reload rebuilt the env; the override was torn down (P2)
   titleApplied = false                                  -- F3a: likewise for the window.title override (P2)
@@ -914,6 +916,7 @@ hafen.events.on("OnLoad", function()
   chatApplied = false                                   -- F3d: ...and for the chat override (P2)
   speechApplied = false                                 -- F4: ...and for the world.speech override (P2)
   nickApplied = false                                   -- F4: ...and for the world.nick override (P2)
+  nodeFontApplied, nodeFontTarget = false, nil          -- F5: ...and for the per-instance (node:setFont) override (P2)
   monoFont = hafen.font.load("mono", { size = 12 })     -- F2: a distinct font for the per-call g:text{font=} line
   local ok, ttf = pcall(hafen.font.load, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
   if ok and ttf then
@@ -1425,8 +1428,60 @@ hafen.slash.register("hello", function(args)
       hafen.log((":hello nick -> setFont('world.nick', %s) -- look at a KIN standing nearby: the name floating over them is in the new font (its colour stays the kin-group colour); :hello nick again to reset")
         :format(h:family()))
     end
+  elseif sub == "node" then
+    -- F5: a PER-INSTANCE font override -- the last piece of the font system and the only one that is not a named
+    -- scope. node:setFont(h) restyles ONE native widget and everything drawn inside it (its title, its labels, its
+    -- button captions, even text drawn by the game's own resource code), while its SIBLINGS keep the scope/"default"
+    -- font: it sits at the TOP of the resolution chain (instance > scope > "default" > stock). The node comes from
+    -- the W1 widget-tree walk (hafen.ui.root():walk), so any widget in the client can be targeted -- here we pick
+    -- the FIRST open window and leave the rest stock, which is exactly the thing to look at. A window is
+    -- recognised as "has a caption AND has children" (a Label/Button/TextEntry has a caption but no children).
+    -- Owner-tagged like every other font override: reverted automatically on :reload/disable, and it dies with the
+    -- widget (close the window and the override goes with it). SAFE-tier (cosmetic, client-only). See api/fonts.md.
+    local h = (monoFont or demoFont)
+    if not h then hafen.log(":hello node -> font not loaded yet (OnLoad)"); return end
+    if nodeFontApplied then
+      if nodeFontTarget then nodeFontTarget:resetFont() end   -- a no-op if that window was closed meanwhile
+      nodeFontTarget, nodeFontApplied = nil, false
+      hafen.log(":hello node -> resetFont() -- that window is back to the stock/scope font (a :reload/disable reverts it too)")
+    else
+      local root = hafen.ui.root()
+      if not root then hafen.log(":hello node -> no UI yet (try in-world)"); return end
+      -- Collect the open captioned windows AND count the restylable text in each subtree. Picking "the first
+      -- window" is a trap: the Inventory/Equipment windows contain only WItem icons, so their ONLY text is the
+      -- caption -- styling one of those looks like the override reaches nothing but the title bar. So we score each
+      -- candidate by how many descendants report a :text() (labels, button captions, fields) and style the richest
+      -- one, reporting every score so it is obvious what was chosen and why.
+      local wins = {}
+      root:walk(function(n)
+        if n:visible() and n:text() and (#n:children() > 0) then
+          local texts = 0
+          -- :walk reuses the SAME handle for the node it was called on, so `c ~= n` excludes the window itself
+          n:walk(function(c) if (c ~= n) and c:visible() and c:text() then texts = texts + 1 end end)
+          wins[#wins + 1] = { node = n, name = n:text() or "?", texts = texts }
+        end
+      end)
+      if #wins == 0 then
+        hafen.log(":hello node -> no captioned window open. Open a TEXT-RICH window (the Character Sheet, or Options) plus any second one, then try again: only the richest restyles")
+        return
+      end
+      local best, report = 1, {}
+      for i, w in ipairs(wins) do
+        if w.texts > wins[best].texts then best = i end
+        report[#report + 1] = ("%s=%d"):format(w.name, w.texts)
+      end
+      if wins[best].texts == 0 then
+        hafen.log((":hello node -> the only open window(s) [%s] carry NO text but their caption (an Inventory holds item icons, not labels), so an override there would only show on the title bar. Open the CHARACTER SHEET (or Options) and try again")
+          :format(table.concat(report, ", ")))
+        return
+      end
+      wins[best].node:setFont(h:derive{ size = 13 })           -- mono 13 (bigger + a different family, so it is obvious)
+      nodeFontTarget, nodeFontApplied = wins[best].node, true
+      hafen.log((":hello node -> setFont on ONE widget: the '%s' window (%d text bits inside) is now in %s 13 -- caption, labels, list rows and button captions included; every OTHER open window stays stock. Candidates+text counts: [%s]. That is the per-instance override; :hello node again to reset")
+        :format(wins[best].name, wins[best].texts, h:family(), table.concat(report, ", ")))
+    end
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node)")
       :format(#args, table.concat(args, " | ")))
   end
 end)

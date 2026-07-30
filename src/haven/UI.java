@@ -384,7 +384,12 @@ public class UI {
     }
 
     public void draw(GOut g) {
-	root.draw(g);
+	/* addon: per-instance font override (F5, D-043) -- the root's own frame. Widget.draw opens one around every
+	 * CHILD it draws, which covers every widget in the tree except the root itself; this is what makes
+	 * hafen.ui.root():setFont(h) work instead of silently doing nothing. */
+	try(Fonts.Frame ff = Fonts.frame(root)) {
+	    root.draw(g);
+	}
 	synchronized(afterdraws) {
 	    for(AfterDraw ad : afterdraws)
 		ad.draw(g);

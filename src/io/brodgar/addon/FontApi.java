@@ -37,6 +37,10 @@ import static io.brodgar.addon.AddonManager.*;
  *       widget} ({@link LuaWidget}) and a per-call {@code {font,color}} on the {@code g:text}/{@code g:atext} draw
  *       wrapper ({@link LuaGOut}) + a custom TTF in the {@code $font[…]} rich-text tag (family AWT-registered at
  *       {@code load}). Isolated — touches only the addon's own pixels; no global state, nothing to revert.</li>
+ *   <li><b>Per-instance overrides</b> (F5): {@code node:setFont(h)} / {@code node:resetFont()} on any
+ *       {@link LuaWidgetNode} (spec 20) restyle <b>one</b> native widget and its subtree while its siblings keep the
+ *       scope/{@code "default"} font — the top of the resolution chain ({@link #setNodeFont}, built into the node
+ *       handle by {@link UiApi}). Owner-tagged and reverted on teardown like a scope override.</li>
  * </ul>
  * The Lua handle is facade-safe (no AWT {@code Font} crosses into Lua, D-017): a widget/scope stores the handle,
  * the bridge {@link FontHandle#resolve}s it back. Not instantiable.
@@ -217,6 +221,36 @@ final class FontApi {
         return LuaValue.NIL;
     }
 
+    // ------------------------------------------------------------------ per-instance overrides (F5, node:setFont)
+
+    /**
+     * {@code node:setFont(h)} (F5, spec 20 + 21): install {@code owner}'s <b>per-instance</b> font override on one
+     * live widget — it restyles that widget and everything drawn inside it, while its siblings keep the
+     * scope/{@code "default"} font (the top of the resolution chain). Owner-tagged and reverted on teardown exactly
+     * like a scope override; the provider keys it by widget identity with a <b>weak</b> key, so a window that closes
+     * takes its override with it. {@code w == null} = a stale node (its widget left the tree) → nothing to style,
+     * but the handle is still validated so a bad call is a clear error either way.
+     */
+    static void setNodeFont(Addon owner, haven.Widget w, LuaValue hv) {
+        FontHandle fh = FontHandle.resolve(hv);
+        if(fh == null)
+            throw new LuaError("node:setFont(h): h must be a hafen.font.load handle — use a COLON call");
+        if(w == null)
+            return;
+        Fonts.pushInstance(w, owner, fh.font, fh.size, fh.aa, fh.color);
+        owner.fontNodes = true;
+    }
+
+    /**
+     * {@code node:resetFont()} (F5): drop {@code owner}'s per-instance override on this widget — it falls back to
+     * whatever is beneath (another addon's per-instance override, else the scope/{@code "default"} chain, else
+     * stock). A no-op on a stale node or when this addon had no override there.
+     */
+    static void resetNodeFont(Addon owner, haven.Widget w) {
+        if(w != null)
+            Fonts.resetInstance(w, owner);
+    }
+
     private static String requireScope(LuaValue scopev, String ctx) {
         if(!scopev.isstring() || !Fonts.isScope(scopev.tojstring()))
             throw new LuaError(ctx + ": scope must be one of hafen.font.scopes() (e.g. \"default\")");
@@ -229,10 +263,11 @@ final class FontApi {
      * the stock foundry) and clear the owned list. Called from {@link AddonRegistry#teardown}.
      */
     static void teardownFonts(Addon a) {
-        if(a.fontOverrides.isEmpty())
+        if(a.fontOverrides.isEmpty() && !a.fontNodes)
             return;                       // never touched fonts → nothing to revert (avoids a needless gen bump)
-        Fonts.removeOwner(a);
+        Fonts.removeOwner(a);             // sweeps both the named scopes and the per-instance registry (F5)
         a.fontOverrides.clear();
+        a.fontNodes = false;
     }
 
     // ------------------------------------------------------------------ opt parsing

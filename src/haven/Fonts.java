@@ -30,9 +30,11 @@ import java.awt.Color;
 import java.awt.Font;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 // addon: font provider facade (F-series, D-043) — driven from io.brodgar.addon.FontApi.
 /**
@@ -45,9 +47,11 @@ import java.util.Map;
  * which drives this class ({@link #push}/{@link #reset}/{@link #removeOwner}) and reverts an addon's overrides on
  * teardown (owned-resource model, spec 05).
  *
- * <p><b>Resolution</b> is most-specific first: a scope's own override (top of its owner-tagged stack) &rarr; the
+ * <p><b>Resolution</b> is most-specific first: a <b>per-instance</b> override on the widget being drawn or one of
+ * its ancestors (F5, {@link #frame(Widget)}) &rarr; a scope's own override (top of its owner-tagged stack) &rarr; the
  * {@code "default"} override &rarr; the site's stock foundry. So {@code setFont("default", h)} cascades to every
- * routed surface that has no more-specific override, while a per-scope override refines any one surface.
+ * routed surface that has no more-specific override, a per-scope override refines any one surface, and
+ * {@code node:setFont(h)} refines one widget subtree.
  *
  * <p><b>Cost.</b> When no addon has installed <i>any</i> override (the overwhelmingly common case) {@link #foundry}
  * returns the stock foundry after a single {@code volatile} read — no lock, no allocation. Only once an override
@@ -107,6 +111,11 @@ public class Fonts {
         final Integer size;      // logical px (UI.scale is applied when a foundry is built), or null = use the site's stock size
         final Boolean aa;        // or null = inherit the site's stock antialias flag
         final Color  color;      // or null = inherit the site's stock default colour
+        // A per-Spec stamp mixed into gen() while this override is the active per-instance FRAME (F5). It is what
+        // makes a site's `gen != mygen` check fire for a widget CONSTRUCTED outside the frame and first drawn inside
+        // it (and vice versa) -- without it, a label created after the setFont would keep its stock font forever,
+        // since the global counter had not moved since its construction.
+        final int    stamp;
         // Lazily-built foundries, keyed by the STOCK foundry identity (one override may front several sites whose
         // stock size/aa/colour differ). Guarded by `this`.
         private final Map<Text.Foundry, Text.Foundry> cache = new IdentityHashMap<Text.Foundry, Text.Foundry>();
@@ -116,6 +125,7 @@ public class Fonts {
 
         Spec(Object owner, Font base, Integer size, Boolean aa, Color color) {
             this.owner = owner; this.base = base; this.size = size; this.aa = aa; this.color = color;
+            this.stamp = (++stampseq) * 0x9E3779B1;   // a distinct odd multiplier per Spec (built under Fonts.class)
         }
 
         synchronized Text.Foundry foundry(Text.Foundry stock) {
@@ -152,6 +162,7 @@ public class Fonts {
     private static final Map<String, List<Spec>> overrides = new LinkedHashMap<String, List<Spec>>();
     private static volatile int gen = 0;
     private static volatile boolean active = false;   // any override installed anywhere → foundry() takes the slow path
+    private static int stampseq = 0;                  // Spec.stamp source (guarded by `Fonts.class`)
 
     /**
      * The provider primitive a routed render site calls (F1: {@code "default"} consumers). Resolves the current
@@ -184,16 +195,22 @@ public class Fonts {
     }
 
     private static synchronized Style resolveStyle(String scope) {
-        Spec o = top(scope);
+        Spec o = frameTop();              // F5: a per-instance override outranks every scope
+        if(o != null)
+            return o;
+        o = top(scope);
         if((o == null) && !"default".equals(scope))
             o = top("default");           // cascade, exactly as in resolve()
         return o;
     }
 
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {
-        Spec o = top(scope);
-        if((o == null) && !"default".equals(scope))
-            o = top("default");           // cascade: an unset scope falls back to the "default" override
+        Spec o = frameTop();              // F5: a per-instance override outranks every scope
+        if(o == null) {
+            o = top(scope);
+            if((o == null) && !"default".equals(scope))
+                o = top("default");       // cascade: an unset scope falls back to the "default" override
+        }
         return (o == null) ? stock : o.foundry(stock);
     }
 
@@ -203,9 +220,128 @@ public class Fonts {
         return ((st == null) || st.isEmpty()) ? null : st.get(st.size() - 1);
     }
 
-    /** The current generation counter; bumped on every {@link #push}/{@link #reset}/{@link #removeOwner}. */
+    /**
+     * The current generation counter; bumped on every {@link #push}/{@link #reset}/{@link #removeOwner}. A routed
+     * site caches the value it last rendered at and rebuilds when it moves.
+     *
+     * <p>While a <b>per-instance frame</b> is active (F5 — the widget being drawn, or an ancestor, carries a
+     * {@code node:setFont} override) the reported generation additionally carries that override's
+     * {@link Spec#stamp}. That is what makes the very same {@code gen != mygen} check every routed site already
+     * performs also detect <i>where</i> it is being drawn: a widget built outside the frame (the common case — a
+     * label constructed long before, or one created inside an already-overridden window) sees a different
+     * generation on its first draw inside the frame, re-resolves, and picks the instance override up. It is stable
+     * across frames, so there is no per-frame rebuild.
+     */
     public static int gen() {
-        return gen;
+        Spec f = frameTop();
+        return (f == null) ? gen : (gen ^ f.stamp);
+    }
+
+    /* ---- PER-INSTANCE overrides (F5) ----------------------------------------------------------------------
+     *
+     * `node:setFont(h)` on a WidgetNode (spec 20) restyles ONE arbitrary native widget -- and everything drawn
+     * inside it -- while its siblings keep the scope/default font. It sits at the top of the resolution chain.
+     *
+     * The mechanism is dynamic, like F3d's composition scope, rather than a per-widget field: the UI draw pass
+     * already descends the tree parent-first, so the ONE place that knows "we are now inside widget W" is the
+     * child-draw loop (Widget.draw(GOut, boolean)). It opens a FRAME around each child that carries an override
+     * (`frame(Widget)`), the frame stays in force for the child's whole subtree -- a child with no override of its
+     * own simply inherits the enclosing one -- and every routed site resolves through it because resolve() consults
+     * frameTop() first. So no render site needs a second edit: every scope routed by F1..F4 is per-instance capable
+     * for free, and even text drawn by PUBLISHED resource code follows (via `dynamic()` below).
+     *
+     * The registry is keyed by widget IDENTITY and holds its keys WEAKLY (Widget overrides neither equals nor
+     * hashCode), so a destroyed window's override simply evaporates -- a stashed override can never pin a dead
+     * subtree, and there is nothing to clean up when a window closes.
+     */
+    private static final Map<Widget, List<Spec>> instances = new WeakHashMap<Widget, List<Spec>>();
+    private static volatile boolean instanced = false;      // any per-instance override anywhere → frame() looks up
+    private static final ThreadLocal<List<Spec>> frames = new ThreadLocal<List<Spec>>();
+
+    /**
+     * A per-instance font frame opened around one widget's draw (F5) — {@code close()} ends it. Not
+     * {@code AutoCloseable} itself so a caller needs no {@code catch}: it is meant to be used as
+     * {@code try(Fonts.Frame f = Fonts.frame(wdg)) {…}} in the widget draw loop.
+     */
+    public interface Frame extends AutoCloseable {
+        public void close();
+    }
+    /** The frame for a widget with no override of its own: pushes nothing, so an enclosing frame stays in force. */
+    private static final Frame NOFRAME = new Frame() {
+        public void close() {}
+    };
+    /** The frame for a widget that DOES carry an override: {@link #frame} pushed it, {@code close()} pops it. */
+    private static final Frame POPFRAME = new Frame() {
+        public void close() {
+            List<Spec> st = frames.get();
+            if((st != null) && !st.isEmpty())
+                st.remove(st.size() - 1);
+        }
+    };
+
+    /**
+     * Open the per-instance font frame for {@code wdg} (F5) — called by the widget draw loop around every child's
+     * {@code draw}, and by {@link UI#draw} around the root. Everything rendered until the returned {@link Frame} is
+     * closed (so {@code wdg} <i>and its whole subtree</i>) resolves through {@code wdg}'s override, if it has one;
+     * otherwise the enclosing frame (an overridden ancestor), if any, stays in force. <b>Always</b> use it in a
+     * {@code try}-with-resources. Free when no addon has installed a per-instance override (one {@code volatile}
+     * read → a shared no-op frame).
+     */
+    public static Frame frame(Widget wdg) {
+        if(!instanced)
+            return NOFRAME;                     // fast path: nobody uses per-instance overrides
+        Spec s = instanceTop(wdg);
+        if(s == null)
+            return NOFRAME;                     // no override on THIS widget → inherit the enclosing frame
+        List<Spec> st = frames.get();
+        if(st == null)
+            frames.set(st = new ArrayList<Spec>(4));
+        st.add(s);
+        return POPFRAME;
+    }
+
+    /** The top-of-stack per-instance override for {@code wdg}, or {@code null}. */
+    private static synchronized Spec instanceTop(Widget wdg) {
+        List<Spec> st = instances.get(wdg);
+        return ((st == null) || st.isEmpty()) ? null : st.get(st.size() - 1);
+    }
+
+    /** The innermost per-instance override in force on this thread right now, or {@code null}. */
+    private static Spec frameTop() {
+        if(!instanced)
+            return null;
+        List<Spec> st = frames.get();
+        return ((st == null) || st.isEmpty()) ? null : st.get(st.size() - 1);
+    }
+
+    /**
+     * Install {@code owner}'s per-instance override on {@code wdg} (its {@code node:setFont(h)}, F5). Same
+     * ownership rules as {@link #push}: one override per owner per widget, last applied wins, reverted on the
+     * addon's teardown. Bumps {@link #gen()} so the subtree re-renders.
+     */
+    public static synchronized void pushInstance(Widget wdg, Object owner, Font base, Integer size, Boolean aa, Color color) {
+        List<Spec> st = instances.get(wdg);
+        if(st == null)
+            instances.put(wdg, st = new ArrayList<Spec>());
+        removeOwnerFrom(st, owner);       // an addon owns at most one override per widget
+        st.add(new Spec(owner, base, size, aa, color));   // re-raise to the top (last applied wins)
+        active = true;
+        instanced = true;
+        gen++;
+    }
+
+    /**
+     * Drop {@code owner}'s per-instance override on {@code wdg} (its {@code node:resetFont()}, F5) — the widget
+     * falls back to the next owner beneath, or to the scope/default chain. Returns whether anything was removed.
+     */
+    public static synchronized boolean resetInstance(Widget wdg, Object owner) {
+        List<Spec> st = instances.get(wdg);
+        boolean rm = (st != null) && removeOwnerFrom(st, owner);
+        if(rm) {
+            prune();
+            gen++;
+        }
+        return rm;
     }
 
     /* ---- the dynamic COMPOSITION scope (F3d amendment) ----------------------------------------------------
@@ -262,12 +398,19 @@ public class Fonts {
      * <i>while a composition scope is active</i>, with itself as the stock (so it keeps its own size and colour).
      * Outside a composition {@code null} means "render exactly as before", which is what keeps this invisible to
      * the rest of the client.
+     *
+     * <p>A <b>per-instance frame</b> (F5) claims such a foundry too, and reports {@code "default"} for it: inside
+     * an overridden widget the resolution chain returns the instance override whatever scope is asked for, so this
+     * is how {@code node:setFont} reaches even the text a {@code .res}'s own code draws with its own private
+     * foundry, without a second mechanism.
      */
     public static String dynamic() {
         if(!active)
             return null;
         List<String> st = dynscope.get();
-        return ((st == null) || st.isEmpty()) ? null : st.get(st.size() - 1);
+        if((st != null) && !st.isEmpty())
+            return st.get(st.size() - 1);
+        return (frameTop() != null) ? "default" : null;   // addon: (F5) an instance frame claims unroutable foundries
     }
 
     /**
@@ -311,6 +454,8 @@ public class Fonts {
         boolean rm = false;
         for(List<Spec> st : overrides.values())
             rm |= removeOwnerFrom(st, owner);
+        for(List<Spec> st : instances.values())
+            rm |= removeOwnerFrom(st, owner);     // addon: (F5) its per-instance overrides go too
         if(rm) {
             prune();
             gen++;
@@ -328,12 +473,23 @@ public class Fonts {
         return rm;
     }
 
-    /** Recompute {@link #active} after a removal (drop empty stacks; clear the flag when nothing remains). */
+    /**
+     * Recompute {@link #active} / {@link #instanced} after a removal (and drop the emptied per-instance entries, so
+     * the widget is no longer looked up on every draw). Both flags clear when nothing remains anywhere, putting
+     * every routed site back on its zero-cost fast path.
+     */
     private static void prune() {
-        boolean any = false;
+        boolean any = false, inst = false;
         for(List<Spec> st : overrides.values())
             any |= !st.isEmpty();
-        active = any;
+        for(Iterator<List<Spec>> i = instances.values().iterator(); i.hasNext();) {
+            if(i.next().isEmpty())
+                i.remove();
+            else
+                inst = true;
+        }
+        active = any || inst;
+        instanced = inst;
     }
 
     /** The full scope enum ({@link #SCOPES}), for {@code hafen.font.scopes()} discovery. */

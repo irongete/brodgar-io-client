@@ -161,6 +161,8 @@ destroyed (the node detects it and lets go).
 | `:same(other)` | boolean | true iff both handles wrap the **same live widget** (nil-safe) — the identity check |
 | `:at(coord)` | [WidgetNode](#widgetnode) \| nil | the deepest widget under a `{x=,y=}` **root-coord** point **within this subtree** |
 | `:rootpos()` | `{x=,y=}` \| nil | the node's top-left in **root coords** (with `:size()` = a rectangle to outline it) |
+| `:setFont(h)` | (self) | restyle **this widget and its whole subtree** with a [font handle](fonts.md) — its siblings keep their font ([F5](fonts.md#restyle-one-widget--nodesetfont-f5)) |
+| `:resetFont()` | (self) | drop **your** per-instance override on this widget (it falls back to the scope/`"default"` font) |
 
 **`:id()` is the pivot for acting.** Reading the tree is ungated client-side data. To *act*, read a
 **server-bound** node's `:id()` and pass it to the gated [`hafen.act.raw(id, msg, …)`](actions.md) with
@@ -181,7 +183,8 @@ hafen.ui.root():walk(function(n, d)
 end)
 ```
 
-**Limits.** Read-only (no mutating a widget's Java state — desyncs from the server); `:text()` is
+**Limits.** Read-only apart from `:setFont`/`:resetFont` (no mutating a widget's Java state — desyncs from
+the server; a font is pure client-side pixels, owner-tagged and reverted on `:reload`); `:text()` is
 best-effort over a known type set (unknown → nil, never throws); the whole client tree is reachable via
 `root()`/`:parent()` (all client-side data — actions stay separately gated); which child is a price vs. a
 spacer is upstream-defined knowledge your Lua adapter supplies.
