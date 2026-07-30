@@ -5,9 +5,9 @@
 /local-boot.properties
 /build.properties
 *~
-/specs
 /CLAUDE.md
 /.claude
+/archive
 
 # Brodgar voice library jar — a build artifact of brodgar-io-voice-client, not source
 /lib/brodgar/*.jar
