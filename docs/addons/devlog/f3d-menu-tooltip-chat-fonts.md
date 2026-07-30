@@ -12,9 +12,8 @@
 > foundry-level resolution — a published tip holding its *own* foundry follows too, without recursing, and is
 > untouched outside a composition; 2 **constructor-render** checks for the info-list rebuild; 3 **no-Raw**
 > regression checks, see below) + LuaJ parse of all 7 addons.
-> `"menu"` and `"chat"` are **in-game verified ✅**; `"tooltip"` took **five passes** against in-game feedback
-> (see below) — the last one adopting the resource's own code locally (`doc/resource-code`) — and is **pending
-> re-verification**.
+> **In-game verified ✅** — `"menu"` and `"chat"` on the first pass, `"tooltip"` after **five** rounds of in-game
+> feedback (see below), the last of which adopts the resource's own code locally (`doc/resource-code`).
 > *(Java engine change ⇒ `ant` rebuild + full client restart.)*
 > **Design:** [specs/addons/21-fonts.md](../../../specs/addons/21-fonts.md) §F3, decision
 > **[D-043](../../../specs/addons/decisions.md)**. Builds on [f1-fonts](f1-fonts.md) (the provider),
