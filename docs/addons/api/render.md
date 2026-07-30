@@ -7,7 +7,7 @@ or camera-facing **sprites**, and places custom **glTF 3D models** in the world 
 
 > **Safe-tier — not gated.** A custom image is a client-side texture that never reaches the server and grants
 > no gameplay advantage, so it needs **no** `actions` permission — exactly like [`hafen.ui.overlay`](ui.md#overlays)
-> or a [ghost](ghost.md). ([D-034](../../../specs/addons/decisions.md).)
+> or a [ghost](ghost.md). ([D-034](../../../specs/addons/decisions/rendering.md).)
 
 Under the hood a `.res` file is *already* a PNG the client wraps in a GPU texture; `hafen.render` just exposes
 that substrate directly, skipping the `.res` container. Everything here is **bridge-owned**: every image your
@@ -20,7 +20,7 @@ addon loads is disposed automatically on reload / disable / relogin, so it never
 | `hafen.render.image(path)` | [image handle](#image-handle) | load a PNG from your addon's folder into a cached, bridge-owned texture |
 
 `path` is **relative to your addon's own folder** (e.g. `"icon.png"`, `"img/sign.png"`). Absolute paths and
-`..` escapes are **rejected** — an addon reads only its own assets ([D-017](../../../specs/addons/decisions.md)).
+`..` escapes are **rejected** — an addon reads only its own assets ([D-017](../../../specs/addons/decisions/security-sandbox.md)).
 PNG (with alpha) is the recommended format; anything `ImageIO` decodes (JPG/GIF/BMP) also works.
 
 Loading is **cached**: repeated `hafen.render.image` of the same path returns the **same handle** (one texture
@@ -82,7 +82,7 @@ end)
 `hafen.render.sprite{…}` stands a PNG **in the 3D world** — the non-`.res` sibling of a [ghost](ghost.md), built
 on the **same client-only world-entity core**. So it is a full transform handle (and
 [gizmo](ghost.md#transform-gizmo-move--rotate--scale)-compatible), and it is **safe-tier, not gated**
-([D-034](../../../specs/addons/decisions.md)): a `Gob` with no server id, exactly like a ghost — nothing reaches
+([D-034](../../../specs/addons/decisions/rendering.md)): a `Gob` with no server id, exactly like a ghost — nothing reaches
 the server. Two forms, chosen by `billboard`:
 
 - **fixed** (`billboard = false`, default) — a textured **quad** standing **upright** in the world, facing `a`,
@@ -231,7 +231,7 @@ thread, so call it from **setup code** (`OnLoad`/`OnEnterWorld`/a command), neve
 | `hafen.render.model(path)` | [model handle](#model-handle) | load a glTF model from your addon's folder into cached, bridge-owned geometry |
 
 `path` is **relative to your addon's own folder** (e.g. `"chair.glb"`, `"props/tree.glb"`); absolute paths and
-`..` escapes are rejected ([D-017](../../../specs/addons/decisions.md)). External `.gltf` buffer/texture files are
+`..` escapes are rejected ([D-017](../../../specs/addons/decisions/security-sandbox.md)). External `.gltf` buffer/texture files are
 resolved relative to the model and re-checked against your folder. Loading is cached (one parse per path). A
 malformed file — or one using an **unsupported feature** — raises a clear error that **names** the feature (never
 a crash).
@@ -266,7 +266,7 @@ a crash).
 `hafen.render.object{…}` stands a glTF model **in the 3D world** — the mesh sibling of a [sprite](#standing-an-image-in-the-world)
 and a [ghost](ghost.md), built on the **same client-only world-entity core**. So it is a full transform handle
 (and [gizmo](ghost.md#transform-gizmo-move--rotate--scale)-compatible), and it is **safe-tier, not gated**
-([D-034](../../../specs/addons/decisions.md)): a `Gob` with no server id — nothing reaches the server.
+([D-034](../../../specs/addons/decisions/rendering.md)): a `Gob` with no server id — nothing reaches the server.
 
 | Function | Returns | Description |
 |---|---|---|

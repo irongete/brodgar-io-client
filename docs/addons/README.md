@@ -37,8 +37,3 @@ end)
 
 See [conventions](api/conventions.md), [data types](api/types.md), and the [event catalogue](api/events.md)
 for the cross-cutting rules.
-
----
-
-_The [`devlog/`](devlog/) folder holds the original per-task development notes, kept for history. The
-docs above are the reference; the devlog is not._

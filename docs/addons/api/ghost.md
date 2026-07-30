@@ -210,7 +210,7 @@ The **camera stays put** while you drag. Handles are drawn with [`g:draw`](ui.md
 overlay — so they're always **on top** of the 3D scene — and the grab targets are a **constant screen size** at any
 zoom (only the axis shafts foreshorten with the camera, anchoring the arrows in the world). No game resource needed.
 
-Per [D-031](../../../specs/addons/decisions.md), the gizmo is a **bundled Lua library over the ghost/map/hook
+Per [D-031](../../../specs/addons/decisions/virtual-entities.md), the gizmo is a **bundled Lua library over the ghost/map/hook
 primitives** ([`hafen.ui.overlay`](ui.md#overlays) to draw, [`hafen.hook.input`](hooks.md#hafenhookinput) to pick a
 handle, [`hafen.hook.grab`](hooks.md#hafenhookgrab) + [`hafen.map.screenToWorld`](map.md#screen--world--placement-snapping-v5)
 + [`hafen.map.snapPlace`](map.md#screen--world--placement-snapping-v5) / [`hafen.map.snapAngle`](map.md#screen--world--placement-snapping-v5)
