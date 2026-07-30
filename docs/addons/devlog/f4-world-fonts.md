@@ -4,7 +4,7 @@
 > `ant bin`, **45 headless checks** in nine groups (provider resolution for both scopes, both routed site twins,
 > the `rendertext` composition growing/reverting with an override, and the composition-scope isolation) + a
 > **local-copy takeover check** against the real `ui/obj/buddy` v4 on `brodgar.io` + LuaJ parse of all 8 addon
-> files. `hello` **v0.54.0** (`:hello speech` / `:hello nick`). **In-game verified ✅.** *(Java engine change ⇒
+> files. `hello` **v0.54.0** (`:hello speech` / `:hello nick`). **In-game verified ✅. Committed `acc1bb3c`.** *(Java engine change ⇒
 > `ant` rebuild + full client restart.)*
 > **Design:** [specs/addons/21-fonts.md](../../../specs/addons/21-fonts.md) §F4, decision
 > **[D-043](../../../specs/addons/decisions.md)**. Builds on [f1-fonts](f1-fonts.md) (provider + `gen` +
