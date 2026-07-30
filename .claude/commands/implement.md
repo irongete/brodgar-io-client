@@ -19,7 +19,7 @@ be in flight in different areas at once, so every invocation names its own.
 3. **Read `specs/<area>/AREA.md`.** It declares the build check, verification procedure, test
    harness, design rules and commit paths. Everything area-specific comes from there — this
    command never assumes them.
-4. **Open your reply with `[área: <area>]`** so the maintainer always sees which area is in play.
+4. **Open your reply with `[area: <area>]`** so the maintainer always sees which area is in play.
 
 ## Common rules (non-negotiable)
 
@@ -27,7 +27,7 @@ be in flight in different areas at once, so every invocation names its own.
   round. The whole task (code, docs, specs and the area's own trees) is committed by `/end`,
   once the maintainer's verification passes.
 - `specs/`, `docs/`, `src/` and the area's own trees all live in the project repo.
-- Converse in **Spanish**; files and code in **English**.
+- **Everything in English** — the conversation, the files, the code and its comments.
 - Respect the area's rebuild/restart rules as stated in `AREA.md`.
 - **Read NOTHING outside what this command lists**, unless a task/spec lists it or the
   maintainer names it explicitly. **`/archive` is NEVER read.**

@@ -21,7 +21,7 @@ be in flight in different areas at once, so every invocation names its own.
    test harness, design rules and commit paths for this area. Everything area-specific comes
    from there — this command never assumes them. Below, "the docs tier", "the build check",
    "the harness" mean whatever `AREA.md` says.
-5. **Open your reply with `[área: <area>]`** so the maintainer always sees which area is in play.
+5. **Open your reply with `[area: <area>]`** so the maintainer always sees which area is in play.
 
 ## Common rules (non-negotiable)
 
@@ -30,7 +30,7 @@ be in flight in different areas at once, so every invocation names its own.
   something to fix. The specs reach the repo with the feature's first `/end`, which commits
   the whole task at once. Only `git commit` here if the maintainer explicitly asks.
 - `specs/`, `docs/`, `src/` and the area's own trees all live in the project repo.
-- Converse in **Spanish**; files and code in **English**.
+- **Everything in English** — the conversation, the files, the code and its comments.
 - Respect the area's rebuild/restart rules as stated in `AREA.md`.
 - **Read NOTHING outside what this command lists**, unless a task/spec lists it or the
   maintainer names it explicitly. **`/archive` is NEVER read.**

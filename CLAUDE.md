@@ -19,7 +19,7 @@ Customized Haven & Hearth ("Hafen") client, a fork of `dolda2000/hafen-client`. 
 - **`specs/`, `docs/`, `src/` and the area's own trees all live in the project repo** and ride the
   same `/end` commit. A feature's specs (written by `/plan`) land with the first `/end` of that
   feature. Nothing is ever pushed. **`/archive` is a frozen backup — NEVER read it.**
-- Converse in **Spanish**; write docs, specs, and code comments in **English**.
+- **Everything in English** — the conversation, the docs, the specs, and code comments.
 - API design: **one canonical way** per operation (no dual styles); **namespaced `hafen.*`**;
   reference-based accessors (`hafen.gob.health(ref)`).
 - Core edits to `haven` stay minimal and **centralized**, tagged `// addon:`. Invasiveness is
@@ -44,7 +44,7 @@ Each command states exactly what to read — read nothing else.
 Each area owns a `specs/<area>/AREA.md` manifest — docs tier, build check, verification, test
 harness, design rules, commit paths — and everything area-specific comes from there.
 **The area is always stated explicitly** — `/plan <area> <desc>`, `/implement <area> [NNN.X]`,
-`/end <area> [note]` — and each command echoes `[área: <name>]` first. There is no "current
+`/end <area> [note]` — and each command echoes `[area: <name>]` first. There is no "current
 area" state: several features can be in flight in different areas at once, so nothing is ever
 assumed. If a command cannot tell which area it is, it stops and asks. A new area is scaffolded
 from `specs/_area-template/`.
