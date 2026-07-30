@@ -8,15 +8,15 @@ Customized Haven & Hearth ("Hafen") client, a fork of `dolda2000/hafen-client`. 
 
 - **NEVER `git push`.** Everything stays **local**. Pushing is forbidden unless the maintainer
   explicitly asks.
-- **NEVER commit on your own.** The maintainer verifies everything **in-game** before every commit.
-  Prepare code + docs, compile/verify, then **STOP and report**. Run `git commit` **only** when the
-  maintainer explicitly says so.
+- **The ONLY self-driven commit is `/end`'s**, and it lands the whole task at once — code, docs,
+  addons and specs — **after** the maintainer's in-game verification. `/plan` and `/implement`
+  commit nothing; outside `/end`, run `git commit` only when the maintainer explicitly says so.
 - **Documentation is ONE tier:** the user-facing **API reference** in **`docs/addons/api/*.md`**
   (+ its `api/README.md` index and the top `docs/addons/README.md` "API at a glance" table when a
   new section first ships). There are no per-task narrative notes.
-- **`specs/` is committed in the project repo** (the design + working state). `/plan` (after
-  spec approval) and `/end` (on task close) make **specs-only** commits (`git commit -- specs`);
-  code/docs commits remain the maintainer's. Nothing is ever pushed. **`docs/addons/` IS committed.** **`/archive` is a frozen backup — NEVER read it.**
+- **`specs/`, `docs/addons/`, `src/` and `addons/` all live in the project repo** and ride the
+  same `/end` commit. A feature's specs (written by `/plan`) land with the first `/end` of that
+  feature. Nothing is ever pushed. **`/archive` is a frozen backup — NEVER read it.**
 - Converse in **Spanish**; write docs, specs, and code comments in **English**.
 - API design: **one canonical way** per operation (no dual styles); **namespaced `hafen.*`**;
   reference-based accessors (`hafen.gob.health(ref)`).
@@ -34,8 +34,9 @@ Verify with `ant hafen-client` → `BUILD SUCCESSFUL`, then stop for the maintai
 
 ## How to continue the AddOn work
 
-**The cycle is `/plan <feature>` → `/implement` (one task, stop for in-game verification) →
-`/end` (document + close).** Each command states exactly what to read — read nothing else.
+**The cycle is `/plan <feature>` (design, review, no commit) → `/implement` (one task; iterate with
+the maintainer until it passes in-game) → `/end` (document, close and commit everything).**
+Each command states exactly what to read — read nothing else.
 Key paths: `specs/addons/STATE.md` (what works + the active feature), `ROADMAP.md` (future work),
 `FEATURES.md` (one line per `NNN-` feature folder), `DECISIONS.md` (→ `decisions/`),
 `API-REFERENCE.md` (the `hafen.*` contract), `specs/codebase-map.md` (client-wide `file:line` map),

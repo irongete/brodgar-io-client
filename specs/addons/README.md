@@ -1,9 +1,10 @@
 # specs/addons — the AddOn system's working folder
 
 **Workflow:** `/plan <feature>` → creates the next `NNN-<feature>/` (spec → *approval* →
-plan/tasks) · `/implement [NNN.X]` → executes ONE task, leaves `HANDOFF.md`, stops for the
-maintainer's in-game test · `/end [note]` → documents (docs/addons/api/ only), checks the
-task off, updates state, and makes a specs-only commit (as does `/plan` after approval). Never push, never commit; the maintainer commits after verifying.
+plan/tasks), no commit · `/implement [NNN.X]` → executes ONE task, leaves `HANDOFF.md`, then
+iterates with the maintainer through the in-game test/fix rounds, no commit · `/end [note]` →
+documents (docs/addons/api/ only), checks the task off, updates state, and makes THE task
+commit: code, docs, addons and specs together. Never push.
 
 | File | What it is |
 |---|---|

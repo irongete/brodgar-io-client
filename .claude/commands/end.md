@@ -7,10 +7,10 @@ Usage:
 ## Common rules (non-negotiable)
 
 - **NEVER `git push`.** Everything stays local.
-- **Code/docs commits are the maintainer's** (after in-game verification). The ONE commit
-  this command makes is step 6 — a **specs-only** commit (`git commit -- specs`), nothing
-  else staged with it.
-- `specs/` and `docs/` are both committed in the project repo.
+- **This command makes THE task's commit** (step 6): code, docs, addons and specs in ONE
+  commit. Running `/end` IS the approval — the maintainer only runs it after verifying
+  in-game, so do not ask for permission again.
+- `specs/`, `docs/`, `src/` and `addons/` all live in the project repo.
 - Converse in **Spanish**; files and code in **English**.
 - Java (engine) changes require `ant` rebuild + a full client restart (no hot-reload);
   only Lua addon files reload live (`:reload`).
@@ -35,9 +35,13 @@ Usage:
    `specs/codebase-map.md` (and `specs/addons/API-REFERENCE.md` if the shipped surface
    differs from the contract) · delete `HANDOFF.md`.
 5. **If it was the last task:** mark the feature DONE in `FEATURES.md` with its one-line
-   summary, reflect it in `STATE.md`, and remind the maintainer of the final code+docs
-   commit. The `NNN-` folder STAYS where it is (folders are never archived).
-6. **Commit the specs changes — always the LAST step**, scoped to `specs/` only so the
-   maintainer's pending code/docs changes are untouched:
-   `git add specs && git commit -m "end NNN.X — <task title>" -- specs`.
-   No approval needed — this is the workspace bookkeeping commit.
+   summary and reflect it in `STATE.md`. The `NNN-` folder STAYS where it is (folders are
+   never archived).
+6. **Commit the whole task — always the LAST step.** First run `git status --short` and
+   report anything that is NOT part of this task; never sweep a stray file into the
+   commit. Then stage the task's paths — normally all four, `-A` so new files are included
+   — and make ONE commit:
+   `git add -A src docs addons specs && git commit -m "NNN.X: <task title>"`
+   Add any other path the task genuinely touched (e.g. `build.xml`). This lands the code,
+   the docs, the addon changes and the specs together — including the feature's spec/plan/
+   tasks if this is its first `/end`. No approval needed, and never push.
