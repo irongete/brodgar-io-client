@@ -8,8 +8,9 @@ Plan ONE feature of the AddOn system as a new `specs/addons/NNN-<feature>/` fold
 ## Common rules (non-negotiable)
 
 - **NEVER `git push`.** Everything stays local.
-- **Code/docs commits are the maintainer's.** The ONE commit this command makes is step 5 —
-  a **specs-only** commit (`git commit -- specs`), nothing else staged with it.
+- **Code/docs commits are the maintainer's.** The ONE commit this command may make is step 6 —
+  a **specs-only** commit (`git commit -- specs`), nothing else staged with it, and **only
+  after the maintainer explicitly says "commit"**. Never commit automatically.
 - `specs/` and `docs/` are both committed in the project repo.
 - Converse in **Spanish**; files and code in **English**.
 - Java (engine) changes require `ant` rebuild + a full client restart (no hot-reload);
@@ -45,6 +46,10 @@ Plan ONE feature of the AddOn system as a new `specs/addons/NNN-<feature>/` fold
    `FEATURES.md`, and remove it from `ROADMAP.md` if it came from there.
 4. **STOP after spec.md** and ask for the maintainer's approval. With the OK, write
    plan.md and tasks.md. /plan does not implement.
-5. **Commit the new feature — the LAST step, only after the approval + plan/tasks**, scoped
-   to `specs/` only: `git add specs && git commit -m "plan NNN-<feature>" -- specs`
+5. **STOP again for review — do NOT commit.** Report the files written (spec.md, plan.md,
+   tasks.md + the STATE/FEATURES/ROADMAP updates) and ask whether to commit or to revise.
+   The maintainer reviews everything and may request changes to spec.md, plan.md or
+   tasks.md; apply them and ask again. Stay in this review loop as long as needed.
+6. **Commit ONLY when the maintainer explicitly asks for it** — the LAST step, scoped to
+   `specs/` only: `git add specs && git commit -m "plan NNN-<feature>" -- specs`
    (covers the new folder + the STATE/FEATURES/ROADMAP updates). Then stop.
