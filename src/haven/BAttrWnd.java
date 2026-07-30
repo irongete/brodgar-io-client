@@ -470,9 +470,15 @@ public class BAttrWnd extends Widget {
 	}
 
 	private Tex rtip = null;
+	private int rtipgen = -1;   // addon: Fonts.gen() at the last rtip render (F3d)
 	public Object tooltip(Coord c, Widget prev) {
+	    if((rtip != null) && (rtipgen != Fonts.gen())) {   // addon: re-render on a "tooltip" font change (F3d)
+		rtip.dispose();
+		rtip = null;
+	    }
 	    if(rtip == null) {
-		rtip = RichText.render(String.format("%s: %.1f\u2030\nFood efficacy: %d%%", lbl, glut * 1000, Math.round(gmod * 100)), -1).tex();
+		rtip = Widget.tipfoundry().render(String.format("%s: %.1f\u2030\nFood efficacy: %d%%", lbl, glut * 1000, Math.round(gmod * 100)), -1).tex();   // addon: the "tooltip" scope (F3d)
+		rtipgen = Fonts.gen();   // addon:
 	    }
 	    return(rtip);
 	}

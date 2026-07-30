@@ -733,7 +733,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	Zergwnd() {
 	    super(Coord.z, "Kith & Kin", true);
 	    kin = add(new TButton("kin"));
-	    kin.tooltip = Text.render("Kin");
+	    kin.settip("Kin");   // addon: was a pre-rendered Text -- settip follows the "tooltip" scope live (F3d)
 	}
 
 	private void repack() {
@@ -1765,7 +1765,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    adda(new IButton("gfx/hud/hb-btn-chat", "", "-d", "-h") {
 		    Tex glow;
 		    {
-			this.tooltip = RichText.render("Chat ($col[255,255,0]{Ctrl+C})", 0);
+			settip("Chat ($col[255,255,0]{Ctrl+C})", true);   // addon: was a pre-rendered RichText -- settip is live (F3d)
 			glow = new TexI(PUtils.rasterimg(PUtils.blurmask(up.getRaster(), UI.scale(2), UI.scale(2), Color.WHITE)));
 		    }
 

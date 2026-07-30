@@ -78,7 +78,12 @@ public class WItem extends Widget implements DTarget {
     private double hoverstart;
     private ItemTip shorttip = null, longtip = null;
     private List<ItemInfo> ttinfo = null;
+    private int ttfontgen = -1;   // addon: Fonts.gen() at the last tooltip compose (F3d)
     public Object tooltip(Coord c, Widget prev) {
+	if(ttfontgen != Fonts.gen()) {   // addon: a "tooltip" override moved -> re-compose the item tip (F3d)
+	    ttfontgen = Fonts.gen();
+	    shorttip = longtip = null;
+	}
 	double now = Utils.rtime();
 	if(prev == this) {
 	} else if(prev instanceof WItem) {

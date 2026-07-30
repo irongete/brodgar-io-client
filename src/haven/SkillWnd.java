@@ -85,9 +85,14 @@ public class SkillWnd extends Widget {
 	}
 
 	private Text tooltip = null;
+	private int ttfontgen = -1;   // addon: Fonts.gen() at the last render (F3d)
 	public Text tooltip() {
+	    if(ttfontgen != Fonts.gen()) {   // addon: re-render on a "tooltip" font change (F3d)
+		ttfontgen = Fonts.gen();
+		tooltip = null;
+	    }
 	    if(tooltip == null)
-		tooltip = Text.render(res.get().flayer(Resource.tooltip).t);
+		tooltip = Fonts.foundry("tooltip", Text.std).render(res.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d)
 	    return(tooltip);
 	}
     }
@@ -116,9 +121,14 @@ public class SkillWnd extends Widget {
 	}
 
 	private Text tooltip = null;
+	private int ttfontgen = -1;   // addon: Fonts.gen() at the last render (F3d)
 	public Text tooltip() {
+	    if(ttfontgen != Fonts.gen()) {   // addon: re-render on a "tooltip" font change (F3d)
+		ttfontgen = Fonts.gen();
+		tooltip = null;
+	    }
 	    if(tooltip == null)
-		tooltip = Text.render(res.get().flayer(Resource.tooltip).t);
+		tooltip = Fonts.foundry("tooltip", Text.std).render(res.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d)
 	    return(tooltip);
 	}
     }
@@ -147,9 +157,14 @@ public class SkillWnd extends Widget {
 	}
 
 	private Text tooltip = null;
+	private int ttfontgen = -1;   // addon: Fonts.gen() at the last render (F3d)
 	public Text tooltip() {
+	    if(ttfontgen != Fonts.gen()) {   // addon: re-render on a "tooltip" font change (F3d)
+		ttfontgen = Fonts.gen();
+		tooltip = null;
+	    }
 	    if(tooltip == null)
-		tooltip = Text.render(res.get().flayer(Resource.tooltip).t);
+		tooltip = Fonts.foundry("tooltip", Text.std).render(res.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d)
 	    return(tooltip);
 	}
     }
@@ -245,7 +260,7 @@ public class SkillWnd extends Widget {
 	    CredoImg(Credo cr) {
 		super(crtex(cr));
 		this.cr = cr;
-		this.tooltip = Text.render(cr.res.get().flayer(Resource.tooltip).t);
+		settip(cr.res.get().flayer(Resource.tooltip).t);   // addon: was a pre-rendered Text -- settip follows the "tooltip" scope live (F3d)
 	    }
 
 	    public void draw(GOut g) {

@@ -196,7 +196,15 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	hoverset = false;
     }
 
+    /* addon: (F3d) a Tip may render its text in its constructor -- published `.res` code does -- so a font
+     * change has to rebuild the info list; ItemInfo.buildinfo() runs inside the "tooltip" scope. */
+    private int fontgen = -1;   // addon:
     public List<ItemInfo> info() {
+	if(fontgen != Fonts.gen()) {   // addon: (F3d)
+	    fontgen = Fonts.gen();
+	    if(rawinfo != null)   // addon: ...but only once the item's `tt` has actually arrived
+		this.info = null;
+	}
 	if(this.info == null) {
 	    List<ItemInfo> info = ItemInfo.buildinfo(this, rawinfo);
 	    addcontinfo(info);

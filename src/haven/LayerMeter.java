@@ -79,7 +79,15 @@ public abstract class LayerMeter extends Widget implements ItemInfo.Owner {
 	.add(Session.class, wdg -> wdg.ui.sess);
     public <T> T context(Class<T> cl) {return(ctxr.context(cl, this));}
 
+    /* addon: (F3d) a Tip may render its text in its constructor -- published `.res` code does -- so a font
+     * change has to rebuild the info list; ItemInfo.buildinfo() runs inside the "tooltip" scope. */
+    private int fontgen = -1;   // addon:
     public List<ItemInfo> info() {
+	if(fontgen != Fonts.gen()) {   // addon: (F3d)
+	    fontgen = Fonts.gen();
+	    if(rawinfo != null)   // addon: ...but only once the meter's `tt` has arrived
+		info = null;
+	}
 	if(info == null)
 	    info = ItemInfo.buildinfo(this, rawinfo);
 	return(info);
@@ -87,12 +95,18 @@ public abstract class LayerMeter extends Widget implements ItemInfo.Owner {
 
     private double hoverstart;
     private Tex shorttip, longtip;
+    private int ttfontgen = -1;   // addon: Fonts.gen() at the last tooltip compose (F3d)
     public Object tooltip(Coord c, Widget prev) {
 	if(rawinfo == null)
 	    return(super.tooltip(c, prev));
 	double now = Utils.rtime();
 	if(prev != this)
 	    hoverstart = now;
+	if(ttfontgen != Fonts.gen()) {   // addon: a "tooltip" override moved -> re-compose the tip (F3d)
+	    ttfontgen = Fonts.gen();
+	    if(shorttip != null) {shorttip.dispose(); shorttip = null;}
+	    if(longtip != null) {longtip.dispose(); longtip = null;}
+	}
 	if(now - hoverstart < 1.0) {
 	    if(shorttip == null)
 		shorttip = new TexI(ItemInfo.shorttip(info()));

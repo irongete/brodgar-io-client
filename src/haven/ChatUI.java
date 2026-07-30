@@ -42,6 +42,40 @@ import java.text.AttributedCharacterIterator.Attribute;
 public class ChatUI extends Widget {
     public static final RichText.Foundry fnd = new RichText.Foundry(new ChatParser(TextAttribute.FONT, Text.dfont.deriveFont(UI.scale(12f)), TextAttribute.FOREGROUND, Color.BLACK)).aa(true);
     public static final Text.Foundry qfnd = new Text.Foundry(Text.dfont, 12, new java.awt.Color(192, 255, 192));
+    /* addon: "chat" font scope (F3d, D-043). `fnd`/`qfnd` above stay STOCK; the chat window renders through the
+     * provider-resolved twins below, rebuilt lazily whenever Fonts.gen() moves (and each cached line/message is
+     * dropped on the same check, so a restyle is live).
+     *
+     * The message foundry is a RichText.Foundry built over a ChatParser (it turns URLs into clickable parts), and
+     * RichText.Foundry.derive() would drop that subclass -- so instead of deriving we ask the provider for the
+     * resolved SCALARS (Fonts.style) and rebuild a fresh ChatParser foundry with the same recipe stock uses,
+     * keeping TextAttribute.FONT (what stock itself passes) so nothing about the chat markup changes. `fndstock` is
+     * the font stock bakes in, and exists so the provider can inherit the stock SIZE when the override carries
+     * none; `fndcol` likewise for the default (local-message) colour. */
+    private static final Font fndstock = Text.dfont.deriveFont(UI.scale(12f));
+    private static final Color fndcol = Color.BLACK;
+    private static RichText.Foundry bfnd;
+    private static Text.Foundry bqfnd;
+    private static int fontgen = -1;
+    private static void checkfont() {
+	int g = Fonts.gen();
+	if((bfnd == null) || (fontgen != g)) {
+	    Fonts.Style st = Fonts.style("chat");
+	    if(st == null) {
+		bfnd = fnd;
+	    } else {
+		bfnd = new RichText.Foundry(new ChatParser(TextAttribute.FONT, st.font(fndstock),
+							   TextAttribute.FOREGROUND, st.color(fndcol)))
+		    .aa(st.aa(fnd.aa));
+	    }
+	    bqfnd = Fonts.foundry("chat", qfnd);
+	    fontgen = g;
+	}
+    }
+    /** addon: the current message foundry for the {@code "chat"} scope (an override, else stock {@link #fnd}). */
+    public static RichText.Foundry fnd() {checkfont(); return(bfnd);}
+    /** addon: the current quick-line foundry for the {@code "chat"} scope (an override, else stock {@link #qfnd}). */
+    public static Text.Foundry qfnd() {checkfont(); return(bqfnd);}
     public static final int selw = UI.scale(130);
     public static final Coord marg = UI.scale(new Coord(9, 9));
     public static final Color[] urgcols = new Color[] {
@@ -229,7 +263,17 @@ public class ChatUI extends Widget {
 		}
 	    }
 
+	    private int fontgen = Fonts.gen();   // addon: Fonts.gen() at the last render (F3d)
 	    public boolean update() {
+		/* addon: a "chat" font override moved -> drop this message's rendered line so the next draw
+		 * re-renders it through the provider. Only VISIBLE messages are update()d, so a restyle costs
+		 * nothing for the scrollback until it is scrolled into view. The `true` return makes the channel
+		 * re-run updyseq(), since the new font may change the message's height. */
+		if(fontgen != Fonts.gen()) {
+		    fontgen = Fonts.gen();
+		    invalidate();
+		    return(true);
+		}
 		if((data == null) || msg.valid(data))
 		    return(false);
 		invalidate();
@@ -258,9 +302,9 @@ public class ChatUI extends Widget {
 
 	    public Indir<Text> render(int w) {
 		if(col == null)
-		    return(() -> fnd.render(RichText.Parser.quote(text), w));
+		    return(() -> fnd().render(RichText.Parser.quote(text), w));   // addon: the "chat" scope (F3d)
 		else
-		    return(() -> fnd.render(RichText.Parser.quote(text), w, TextAttribute.FOREGROUND, col));
+		    return(() -> fnd().render(RichText.Parser.quote(text), w, TextAttribute.FOREGROUND, col));   // addon: (F3d)
 	    }
 	}
 
@@ -872,7 +916,7 @@ public class ChatUI extends Widget {
 		}
 
 		public Text get() {
-		    return(fnd.render(RichText.Parser.quote(String.format("%s: %s", nm, text)), w, TextAttribute.FOREGROUND, col));
+		    return(fnd().render(RichText.Parser.quote(String.format("%s: %s", nm, text)), w, TextAttribute.FOREGROUND, col));   // addon: (F3d)
 		}
 	    }
 
@@ -1138,6 +1182,18 @@ public class ChatUI extends Widget {
     private class Selector extends Widget {
 	public final BufferedImage ctex = Resource.loadimg("gfx/hud/chantex");
 	public final Text.Foundry tf = new Text.Foundry(Text.serif.deriveFont(Font.BOLD, UI.scale(12))).aa(true);
+	// addon: the channel tabs down the side of the chat window follow the "chat" scope too (F3d) -- `tf` stays
+	// stock (the ellw/maxnmw layout constants below are measured from it), each tab re-renders on a gen move.
+	private Text.Foundry btf;
+	private int tfgen = -1;
+	private Text.Foundry tfont() {
+	    int g = Fonts.gen();
+	    if((btf == null) || (tfgen != g)) {
+		btf = Fonts.foundry("chat", tf);
+		tfgen = g;
+	    }
+	    return(btf);
+	}
 	public final Color[] uc = {
 	    new Color(80, 40, 0),
 	    new Color(0, 128, 255),
@@ -1158,7 +1214,7 @@ public class ChatUI extends Widget {
 	}
 
 	public Text nmrender(String name, Color col) {
-	    return(namedeco(name, tf.render(name).img, col));
+	    return(namedeco(name, tfont().render(name).img, col));   // addon: the "chat" scope (F3d)
 	}
 
 	public int chidx(Channel chan) {
@@ -1190,14 +1246,21 @@ public class ChatUI extends Widget {
 		this.chan = chan;
 	    }
 
+	    private int fontgen = -1;   // addon: Fonts.gen() at the last rname render (F3d)
 	    public Text rname() {
 		String name = chan.name();
 		int urg = chan.urgency;
+		int fgen = Fonts.gen();
+		if((rname != null) && (fontgen != fgen)) {   // addon: re-render on a "chat" font change (F3d)
+		    rname.dispose();
+		    rname = null;
+		}
+		fontgen = fgen;   // addon:
 		if((rname == null) || !rname.text.equals(name) || (urgency != urg)) {
-		    Text.Line raw = tf.render(name);
+		    Text.Line raw = tfont().render(name);   // addon: the "chat" scope (F3d)
 		    if(raw.sz().x > maxnmw) {
 			int len = raw.charat(maxnmw - ellw);
-			raw = tf.render(name.substring(0, len) + "...");
+			raw = tfont().render(name.substring(0, len) + "...");   // addon:
 		    }
 		    BufferedImage img = raw.img;
 		    rname = namedeco(name, img, uc[urgency = urg]);
@@ -1397,19 +1460,22 @@ public class ChatUI extends Widget {
 	private Notification(Channel chan, Channel.Message msg) {
 	    this.chan = chan;
 	    this.msg = msg;
-	    this.chnm = fnd.render(chan.name(), 0, TextAttribute.FOREGROUND, Color.WHITE);
+	    this.chnm = fnd().render(chan.name(), 0, TextAttribute.FOREGROUND, Color.WHITE);   // addon: the "chat" scope (F3d)
 	    this.rmsg = msg.render(sz.x - selw).get();
 	}
     }
 
     private Text.Line rqline = null;
     private int rqpre;
+    private int rqgen = -1;   // addon: Fonts.gen() at the last rqline render (F3d)
     public void drawsmall(GOut g, Coord br, int h) {
 	Coord c;
 	if(qline != null) {
-	    if((rqline == null) || !qline.buf.lneq(rqline.text)) {
+	    // addon: re-render the typed quick line when a "chat" font override moves (F3d)
+	    if((rqline == null) || !qline.buf.lneq(rqline.text) || (rqgen != Fonts.gen())) {
+		rqgen = Fonts.gen();   // addon:
 		String pre = String.format("%s> ", qline.chan.name());
-		rqline = qfnd.render(pre + qline.buf.line());
+		rqline = qfnd().render(pre + qline.buf.line());   // addon: the "chat" scope (F3d)
 		rqpre = pre.length();
 	    }
 	    int point = qline.buf.point(), mark = qline.buf.mark();

@@ -118,7 +118,7 @@ public class Makewindow extends Widget {
 	    BufferedImage img = ItemInfo.longtip(info);
 	    Resource.Pagina pg = item.res.get().layer(Resource.pagina);
 	    if(pg != null)
-		img = ItemInfo.catimgs(0, img, RichText.render("\n" + pg.text, 200).img);
+		img = ItemInfo.catimgs(0, img, Widget.tipfoundry().render("\n" + pg.text, 200).img);   // addon: the "tooltip" scope (F3d)
 	    return(new SpecTip(info, img));
 	}
 
@@ -301,7 +301,12 @@ public class Makewindow extends Widget {
 
 	private double hoverstart;
 	Object stip, ltip;
+	private int ttfontgen = -1;   // addon: Fonts.gen() at the last tooltip compose (F3d)
 	public Object tooltip(Coord c, Widget prev) {
+	    if(ttfontgen != Fonts.gen()) {   // addon: a "tooltip" override moved -> re-compose the spec tip (F3d)
+		ttfontgen = Fonts.gen();
+		stip = ltip = null;
+	    }
 	    double now = Utils.rtime();
 	    if(prev == this) {
 	    } else if(prev instanceof SpecWidget) {

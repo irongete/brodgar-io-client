@@ -823,7 +823,49 @@ public class RichText extends Text {
 	    return(sz);
 	}
 
+	/* addon: (F3d, D-043) the RichText twin of Text.Foundry.resolved(): a rich foundry built by code we cannot
+	 * route -- published tip code inside a .res keeping its own -- follows the provider while a composition scope
+	 * is active, deriving FAMILY+SIZE off itself (so its own markup keeps working and its other default
+	 * attributes are inherited). A no-op outside a composition, and `noresolve` stops the derived one recursing. */
+	boolean noresolve = false;
+	private Foundry rfnd = null;
+	private int rgen = -1;
+	private Foundry resolved() {
+	    if(noresolve)
+		return(this);
+	    String sc = Fonts.dynamic();
+	    if(sc == null)
+		return(this);
+	    int g = Fonts.gen();
+	    if((rfnd == null) || (rgen != g) || !sc.equals(rscope)) {
+		Fonts.Style st = Fonts.style(sc);
+		if(st == null) {
+		    rfnd = this;
+		} else {
+		    Font f = st.font(parserfont());
+		    rfnd = derive(TextAttribute.FAMILY, f.getFamily(), TextAttribute.SIZE, f.getSize2D()).aa(st.aa(aa));
+		    rfnd.noresolve = true;
+		}
+		rgen = g;
+		rscope = sc;
+	    }
+	    return(rfnd);
+	}
+	private String rscope = null;
+	/** addon: the font this foundry's default attributes describe, for the provider to inherit its SIZE from. */
+	private Font parserfont() {
+	    Object f = parser.defattrs.get(TextAttribute.FONT);
+	    if(f instanceof Font)
+		return((Font)f);
+	    Object fam = parser.defattrs.get(TextAttribute.FAMILY), sz = parser.defattrs.get(TextAttribute.SIZE);
+	    Font base = new Font((fam instanceof String) ? (String)fam : "SansSerif", Font.PLAIN, 1);
+	    return(base.deriveFont((sz instanceof Number) ? ((Number)sz).floatValue() : UI.scale(10f)));
+	}
+
 	public RichText render(Document doc, int width) {
+	    Foundry rf = resolved();   // addon: (F3d)
+	    if(rf != this)
+		return(rf.render(doc, width));
 	    Part fp = parser.parse(doc.text, doc.attrs);
 	    fp.prepare(rs);
 	    fp = layout(fp, width);
@@ -852,12 +894,44 @@ public class RichText extends Text {
 	}
     }
     
+    /* addon: the provider-resolved twin of `stdf`, per font scope (F3d, D-043). A RichText.Foundry is built from
+     * AWT text attributes rather than a (Font, Color) pair, so it cannot come from Fonts.foundry(); it asks the
+     * provider for the resolved SCALARS (Fonts.style) and derives itself, overriding FAMILY + SIZE and NOT
+     * TextAttribute.FONT -- with a FONT attribute present AWT ignores FAMILY/SIZE/WEIGHT/POSTURE, which would kill
+     * the very markup rich text exists for ($b/$i/$size). Deriving also inherits stdf's default attributes,
+     * notably IMAGESRC, which a pagina's $img needs. `stdf` itself stays stock, and when nothing overrides the
+     * scope this returns the IDENTICAL stock object. Cached per scope, rebuilt lazily when Fonts.gen() moves. */
+    private static final Font stdfont = new Font("SansSerif", Font.PLAIN, 1).deriveFont(UI.scale(10f));
+    private static final Map<String, Foundry> sfnd = new HashMap<String, Foundry>();
+    private static int sfndgen = -1;
+    public static synchronized Foundry foundry(String scope) {
+	int g = Fonts.gen();
+	if(sfndgen != g) {
+	    sfnd.clear();
+	    sfndgen = g;
+	}
+	Foundry f = sfnd.get(scope);
+	if(f == null) {
+	    Fonts.Style st = Fonts.style(scope);
+	    if(st == null) {
+		f = stdf;
+	    } else {
+		Font fo = st.font(stdfont);
+		f = stdf.derive(TextAttribute.FAMILY, fo.getFamily(), TextAttribute.SIZE, fo.getSize2D())
+		    .aa(st.aa(stdf.aa));
+		f.noresolve = true;   // already provider-resolved -- must not resolve itself again
+	    }
+	    sfnd.put(scope, f);
+	}
+	return(f);
+    }
+
     public static RichText render(Document doc, int width) {
-	return(stdf.render(doc, width));
+	return(foundry(Fonts.scope()).render(doc, width));   // addon: the font provider; Fonts.scope() = the dynamic composition scope, else "default" (F3d)
     }
 
     public static RichText render(String text, int width, Object... extra) {
-	return(stdf.render(text, width, extra));
+	return(foundry(Fonts.scope()).render(text, width, extra));   // addon: (F3d)
     }
     
     public static void main(String[] args) throws Exception {

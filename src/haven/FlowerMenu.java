@@ -34,6 +34,21 @@ public class FlowerMenu extends Widget {
     public static final Color pink = new Color(255, 0, 128);
     public static final Color ptc = Color.YELLOW;
     public static final Text.Foundry ptf = new Text.Foundry(Text.dfont, 12);
+    // addon: "menu" font scope (F3d, D-043). `ptf` above stays the STOCK foundry; every petal caption goes through
+    // the provider instead: Fonts.foundry("menu", ptf) resolves an addon override, or -- when none -- the stock
+    // foundry, cascading through "default". Rebuilt lazily whenever Fonts.gen() moves; each open petal re-renders
+    // (and re-sizes around its own centre) on the same check (see Petal.draw).
+    private static Text.Foundry bptf;
+    private static int fontgen = -1;
+    /** addon: the current foundry for the {@code "menu"} scope (an override, else stock {@link #ptf}). */
+    public static Text.Foundry ptfont() {
+	int g = Fonts.gen();
+	if((bptf == null) || (fontgen != g)) {
+	    bptf = Fonts.foundry("menu", ptf);
+	    fontgen = g;
+	}
+	return(bptf);
+    }
     public static final IBox pbox = Window.wbox;
     public static final Tex pbg = Window.bg;
     public static final int ph = UI.scale(30), ppl = 8;
@@ -56,13 +71,27 @@ public class FlowerMenu extends Widget {
 	public int num;
 	public long voiceMuteGob = -1;   // brodgar voice: >=0 marks a client-side Mute/Unmute petal
 	private Text text;
+	private int textgen = -1;   // addon: Fonts.gen() at the last caption render (F3d)
 	private double a = 1;
 
 	public Petal(String name) {
 	    super(Coord.z);
 	    this.name = name;
-	    text = ptf.render(name, ptc);
+	    render();               // addon: was `text = ptf.render(name, ptc)` -- now through the "menu" provider
+	}
+
+	/* addon: (re)render this petal's caption through the "menu" scope provider and re-size around its own
+	 * CENTRE -- a petal is positioned centre-first (move(Coord)/move(a, r)), and after the opening animation
+	 * finishes nothing re-places it, so growing it from the top-left would visibly shift it off its ring. */
+	private void render() {
+	    Coord mid = (text == null) ? null : c.add(sz.div(2));
+	    if(text != null)
+		text.dispose();
+	    text = ptfont().render(name, ptc);
+	    textgen = Fonts.gen();
 	    resize(text.sz().x + UI.scale(25), ph);
+	    if(mid != null)
+		this.c = mid.sub(sz.div(2));
 	}
 
 	public void move(Coord c) {
@@ -74,6 +103,8 @@ public class FlowerMenu extends Widget {
 	}
 
 	public void draw(GOut g) {
+	    if(textgen != Fonts.gen())   // addon: re-render the caption when the "menu" font override moves (F3d)
+		render();
 	    g.chcolor(new Color(255, 255, 255, (int)(255 * a)));
 	    g.image(pbg, new Coord(3, 3), new Coord(3, 3), sz.add(new Coord(-6, -6)), UI.scale(pbg.sz()));
 	    pbox.draw(g, Coord.z, sz);

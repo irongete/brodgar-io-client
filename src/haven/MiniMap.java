@@ -257,7 +257,12 @@ public class MiniMap extends Widget {
 	}
 
 	private List<ItemInfo> info = null;
+	private int fontgen = -1;   // addon: (F3d) rebuild so constructor-rendered tips follow a font change
 	public List<ItemInfo> info() {
+	    if(fontgen != Fonts.gen()) {   // addon:
+		fontgen = Fonts.gen();
+		info = null;
+	    }
 	    if(info == null) {
 		Object[] raw = icon().info(this);
 		info = ItemInfo.buildinfo(this, raw);
@@ -576,12 +581,14 @@ public class MiniMap extends Widget {
 	}
 
 	private int tseq = -1;
+	private int ttfontgen = -1;   // addon: Fonts.gen() at the last compose (F3d)
 	private BufferedImage tooltip = null;
 	public BufferedImage tooltip() {
 	    MarkerIcon minf = mm.markers.get(m);
-	    if((tooltip == null) || (minf.iseq != tseq)) {
+	    if((tooltip == null) || (minf.iseq != tseq) || (ttfontgen != Fonts.gen())) {   // addon: re-compose on a "tooltip" font change (F3d)
 		tooltip = ItemInfo.longtip(minf.info());
 		tseq = minf.iseq;
+		ttfontgen = Fonts.gen();   // addon:
 	    }
 	    return(tooltip);
 	}
@@ -1158,6 +1165,7 @@ public class MiniMap extends Widget {
     private String lasttname = null;
     private Object lastobjid = null;
     private Tex lasttip = null;
+    private int lasttipgen = -1;   // addon: Fonts.gen() at the last hover-tip compose (F3d)
     public Object tooltip(Coord c, Widget prev) {
 	DisplayGrid grid = gridat(c);
 	String tname = null;
@@ -1188,7 +1196,7 @@ public class MiniMap extends Widget {
 	    if(icon != null) {
 		if(icon.icon != null) {
 		    objid = icon.icon;
-		    objtip = () -> Text.render(icon.icon.name()).img;
+		    objtip = () -> Fonts.foundry("tooltip", Text.std).render(icon.icon.name(), Text.white).img;   // addon: the "tooltip" scope (F3d)
 		}
 	    } else if(mark != null) {
 		objid = mark;
@@ -1196,10 +1204,11 @@ public class MiniMap extends Widget {
 	    }
 	}
 	if((tname != null) || (objid != null)) {
-	    if((tname != lasttname) || (objid != lastobjid)) {
+	    if((tname != lasttname) || (objid != lastobjid) || (lasttipgen != Fonts.gen())) {   // addon: (F3d)
+		lasttipgen = Fonts.gen();   // addon:
 		BufferedImage tip = ItemInfo.catimgs(0,
 		    (objid == null) ? null : objtip.get(),
-		    (tname == null) ? null : RichText.render("Terrain: $col[255,255,128]{" + RichText.Parser.quote(tname) + "}", 0).img);
+		    (tname == null) ? null : Widget.tipfoundry().render("Terrain: $col[255,255,128]{" + RichText.Parser.quote(tname) + "}", 0).img);   // addon: (F3d)
 		lasttip = new TexI(tip);
 		lasttname = tname; lastobjid = objid;
 	    }

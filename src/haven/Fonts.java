@@ -82,8 +82,26 @@ public class Fonts {
         "world.speech",   // F4  — speech bubbles
     };
 
+    /**
+     * The resolved style for a scope, for render sites whose font is <b>not</b> a {@link Text.Foundry} — F3d's
+     * {@link RichText.Foundry} sites (the chat foundry, the menu-grid tooltip foundry), which are built from AWT
+     * text attributes and, in chat's case, from a {@code Parser} subclass a generic {@code derive} would drop. Such
+     * a site asks {@link Fonts#style(String)} for its scope: {@code null} means <i>nothing overrides this</i> (keep
+     * the stock foundry, identity intact), otherwise it composes its own foundry from the three resolved scalars,
+     * each of which falls back to the value the site passes in. The same per-stock caching as
+     * {@link Fonts#foundry(String, Text.Foundry)} applies, so a site may call this every frame.
+     */
+    public interface Style {
+        /** The font to render with, at the size the override asks for — or, when it carries none, {@code stock}'s size. */
+        Font font(Font stock);
+        /** The override's default colour, or {@code stock} when it carries none. */
+        Color color(Color stock);
+        /** The override's antialias flag, or {@code stock} when it carries none. */
+        boolean aa(boolean stock);
+    }
+
     /** One installed override: an addon's chosen font for a scope, tagged with its owner. Immutable once pushed. */
-    private static final class Spec {
+    private static final class Spec implements Style {
         final Object owner;      // the owning io.brodgar.addon.Addon (compared by identity only)
         final Font   base;       // the AWT font, with bold/italic already baked in (size applied per-site)
         final Integer size;      // logical px (UI.scale is applied when a foundry is built), or null = use the site's stock size
@@ -92,6 +110,9 @@ public class Fonts {
         // Lazily-built foundries, keyed by the STOCK foundry identity (one override may front several sites whose
         // stock size/aa/colour differ). Guarded by `this`.
         private final Map<Text.Foundry, Text.Foundry> cache = new IdentityHashMap<Text.Foundry, Text.Foundry>();
+        // Likewise for the raw fonts handed out through Style.font(Font) (F3d's RichText sites), keyed by the
+        // STOCK font identity so each site keeps its own size. Guarded by `this`.
+        private final Map<Font, Font> fcache = new IdentityHashMap<Font, Font>();
 
         Spec(Object owner, Font base, Integer size, Boolean aa, Color color) {
             this.owner = owner; this.base = base; this.size = size; this.aa = aa; this.color = color;
@@ -107,9 +128,24 @@ public class Fonts {
             Color col = (color != null) ? color : stock.defcol;
             boolean a = (aa != null) ? aa.booleanValue() : stock.aa;
             Text.Foundry made = new Text.Foundry(f, col).aa(a);   // (Font, Color) ctor does NOT re-scale — px is final
+            made.noresolve = true;   // a provider-built foundry must not resolve itself again (would recurse)
             cache.put(stock, made);
             return made;
         }
+
+        public synchronized Font font(Font stock) {
+            Font c = fcache.get(stock);
+            if(c != null)
+                return c;
+            float px = (size != null) ? UI.scale((float)size.intValue())
+                                      : stock.getSize2D();   // the stock font is already UI.scale'd
+            Font made = base.deriveFont(px);
+            fcache.put(stock, made);
+            return made;
+        }
+
+        public Color color(Color stock)  {return((color != null) ? color : stock);}
+        public boolean aa(boolean stock) {return((aa != null) ? aa.booleanValue() : stock);}
     }
 
     // scope -> owner-tagged override stack (last = top = current). Guarded by `Fonts.class`.
@@ -134,6 +170,26 @@ public class Fonts {
         return foundry(scope, Text.std);
     }
 
+    /**
+     * The resolved {@link Style} for {@code scope}, or {@code null} when <b>no</b> override applies (neither the
+     * scope's own nor the {@code "default"} cascade) — the primitive for render sites whose foundry is not a
+     * {@link Text.Foundry} (F3d: {@link RichText.Foundry} chat / tooltip sites). A {@code null} return is the
+     * site's cue to keep its stock foundry untouched (identity preserved), exactly like
+     * {@link #foundry(String, Text.Foundry)} returning the stock it was given.
+     */
+    public static Style style(String scope) {
+        if(!active)
+            return null;                  // fast path: no override anywhere
+        return resolveStyle(scope);
+    }
+
+    private static synchronized Style resolveStyle(String scope) {
+        Spec o = top(scope);
+        if((o == null) && !"default".equals(scope))
+            o = top("default");           // cascade, exactly as in resolve()
+        return o;
+    }
+
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {
         Spec o = top(scope);
         if((o == null) && !"default".equals(scope))
@@ -150,6 +206,68 @@ public class Fonts {
     /** The current generation counter; bumped on every {@link #push}/{@link #reset}/{@link #removeOwner}. */
     public static int gen() {
         return gen;
+    }
+
+    /* ---- the dynamic COMPOSITION scope (F3d amendment) ----------------------------------------------------
+     *
+     * Some client text is rendered by code we cannot route: the ItemInfo tooltips are composed partly by
+     * PUBLISHED CODE that ships inside the resources themselves (e.g. `ui/tt/q/qbuff`, which draws the
+     * "Quality: 31.7" row), and it renders through the generic {@link Text#render(String, Color)} /
+     * {@link RichText#render(Document, int)} statics -- which F1 bound to the {@code "default"} scope. A
+     * per-scope override could therefore never reach it.
+     *
+     * The answer is a scope that is dynamic rather than lexical: the composer ({@code ItemInfo.longtip} and
+     * friends) declares "everything rendered from here down is tooltip text" by entering the scope, and the
+     * generic statics ask {@link #scope()} instead of hard-coding {@code "default"}. Published code needs no
+     * cooperation and stays untouched; text rendered anywhere else is unaffected. The stack is per-thread
+     * (composition happens on the UI thread, but a ThreadLocal makes that an assumption we do not depend on)
+     * and is only ever consulted when an override actually exists.
+     */
+    private static final ThreadLocal<List<String>> dynscope = new ThreadLocal<List<String>>();
+
+    /**
+     * Declare that text rendered from here until the matching {@link #exit()} belongs to {@code scope} — so the
+     * generic {@code Text.render}/{@code RichText.render} statics resolve it instead of {@code "default"}.
+     * <b>Always</b> pair it in a {@code try/finally}. Nests.
+     */
+    public static void enter(String scope) {
+        List<String> st = dynscope.get();
+        if(st == null)
+            dynscope.set(st = new ArrayList<String>(4));
+        st.add(scope);
+    }
+
+    /** Leave the innermost {@link #enter(String)} scope. */
+    public static void exit() {
+        List<String> st = dynscope.get();
+        if((st != null) && !st.isEmpty())
+            st.remove(st.size() - 1);
+    }
+
+    /**
+     * The scope the generic statics should resolve right now: the innermost {@link #enter(String)} scope, else
+     * {@code "default"}. Cheap — a {@code volatile} read while no addon has installed any override.
+     */
+    public static String scope() {
+        if(!active)
+            return "default";
+        List<String> st = dynscope.get();
+        return ((st == null) || st.isEmpty()) ? "default" : st.get(st.size() - 1);
+    }
+
+    /**
+     * The innermost {@link #enter(String)} scope, or {@code null} when there is none (or when no override exists
+     * at all). This is the form a <b>foundry</b> asks for: a {@link Text.Foundry} built by code we cannot route —
+     * published tip code inside a {@code .res} keeps its own private foundry — resolves through the provider
+     * <i>while a composition scope is active</i>, with itself as the stock (so it keeps its own size and colour).
+     * Outside a composition {@code null} means "render exactly as before", which is what keeps this invisible to
+     * the rest of the client.
+     */
+    public static String dynamic() {
+        if(!active)
+            return null;
+        List<String> st = dynscope.get();
+        return ((st == null) || st.isEmpty()) ? null : st.get(st.size() - 1);
     }
 
     /**

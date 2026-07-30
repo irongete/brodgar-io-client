@@ -67,7 +67,15 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
 	.add(Session.class, wdg -> wdg.ui.sess);
     public <T> T context(Class<T> cl) {return(ctxr.context(cl, this));}
 
+    /* addon: (F3d) a Tip may render its text in its constructor -- published `.res` code does -- so a font
+     * change has to rebuild the info list; ItemInfo.buildinfo() runs inside the "tooltip" scope. */
+    private int fontgen = -1;   // addon:
     public List<ItemInfo> info() {
+	if(fontgen != Fonts.gen()) {   // addon: (F3d)
+	    fontgen = Fonts.gen();
+	    if(rawinfo != null)   // addon: ...but only once the buff's `tt` has arrived
+		info = null;
+	}
 	if(info == null) {
 	    info = ItemInfo.buildinfo(this, rawinfo);
 	    Resource.Pagina pag = res.get().layer(Resource.pagina);
@@ -130,10 +138,19 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
 	if(rawinfo != null)
 	    return(ItemInfo.shorttip(info()));
 	String ret = res.get().flayer(Resource.tooltip).t;
-	return(Text.render(ret).img);
+	return(Fonts.foundry("tooltip", Text.std).render(ret, Text.white).img);   // addon: the "tooltip" scope (F3d)
     }
 
     private BufferedImage longtip() {
+	Fonts.enter("tooltip");   // addon: composition scope (F3d)
+	try {
+	    return(longtip0());
+	} finally {
+	    Fonts.exit();   // addon:
+	}
+    }
+
+    private BufferedImage longtip0() {   // addon: the stock body (F3d)
 	BufferedImage img;
 	if(rawinfo != null) {
 	    img = ItemInfo.longtip(info());
@@ -141,7 +158,7 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
 	    img = shorttip();
 	    Resource.Pagina pag = res.get().layer(Resource.pagina);
 	    if(pag != null)
-		img = ItemInfo.catimgs(0, img, RichText.render("\n" + pag.text, textw).img);
+		img = ItemInfo.catimgs(0, img, Widget.tipfoundry().render("\n" + pag.text, textw).img);   // addon: the "tooltip" scope (F3d)
 	}
 	return(img);
     }
@@ -149,10 +166,16 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
     private double hoverstart;
     private Tex shorttip, longtip;
     private List<ItemInfo> ttinfo = null;
+    private int ttfontgen = -1;   // addon: Fonts.gen() at the last tooltip compose (F3d)
     public Object tooltip(Coord c, Widget prev) {
 	double now = Utils.rtime();
 	if(prev != this)
 	    hoverstart = now;
+	if(ttfontgen != Fonts.gen()) {   // addon: a "tooltip" override moved -> re-compose the tip (F3d)
+	    ttfontgen = Fonts.gen();
+	    if(shorttip != null) {shorttip.dispose(); shorttip = null;}
+	    if(longtip != null) {longtip.dispose(); longtip = null;}
+	}
 	if(now - hoverstart < 1.0) {
 	    if(shorttip == null)
 		shorttip = new TexI(shorttip());

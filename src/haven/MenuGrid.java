@@ -40,6 +40,32 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
     public final static Tex bg = Inventory.invsq;
     public final static Coord bgsz = Inventory.sqsz;
     public final static RichText.Foundry ttfnd = new RichText.Foundry(TextAttribute.FAMILY, "SansSerif", TextAttribute.SIZE, UI.scale(10f));
+    /* addon: "tooltip" font scope (F3d, D-043). An action button's tooltip is rich text, so `ttfnd` is a
+     * RichText.Foundry, not a Text.Foundry -- it asks the provider for the resolved SCALARS (Fonts.style) and
+     * derives itself, keeping FAMILY+SIZE rather than TextAttribute.FONT so the markup rendertt() emits ($b, $col)
+     * still applies over the override. `ttstock` is the same font the stock foundry describes by attribute, and
+     * exists only so the provider can inherit the stock SIZE when the override carries none. `ttfnd` itself stays
+     * stock; the twin is rebuilt lazily whenever Fonts.gen() moves (the tooltip image is re-rendered on hover
+     * anyway, and curtt is dropped on the same check -- see tooltip(Coord, Widget)). */
+    private final static Font ttstock = new Font("SansSerif", Font.PLAIN, 1).deriveFont(UI.scale(10f));
+    private static RichText.Foundry bttfnd;
+    private static int ttfndgen = -1;
+    /** addon: the current tooltip foundry for the {@code "tooltip"} scope (an override, else stock {@link #ttfnd}). */
+    public static RichText.Foundry ttfont() {
+	int g = Fonts.gen();
+	if((bttfnd == null) || (ttfndgen != g)) {
+	    Fonts.Style st = Fonts.style("tooltip");
+	    if(st == null) {
+		bttfnd = ttfnd;
+	    } else {
+		Font f = st.font(ttstock);
+		bttfnd = ttfnd.derive(TextAttribute.FAMILY, f.getFamily(), TextAttribute.SIZE, f.getSize2D())
+		    .aa(st.aa(ttfnd.aa));
+	    }
+	    ttfndgen = g;
+	}
+	return(bttfnd);
+    }
     private static Coord gsz = new Coord(4, 4);
     public final Set<Pagina> paginae = new HashSet<Pagina>();
     public Pagina cur;
@@ -257,22 +283,51 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 	}
 
 	public static final Text.Foundry keyfnd = new Text.Foundry(Text.sans.deriveFont(Font.BOLD), 10);
+	// addon: "menu" font scope (F3d) -- the keybind letter the action menu paints over a button (Alt/showkeys).
+	// `keyfnd` stays stock; the twin follows Fonts.foundry("menu", keyfnd), rebuilt when Fonts.gen() moves.
+	private static Text.Foundry bkeyfnd;
+	private static int keyfndgen = -1;
+	/** addon: the current keybind-letter foundry for the {@code "menu"} scope (an override, else stock {@link #keyfnd}). */
+	public static Text.Foundry keyfont() {
+	    int g = Fonts.gen();
+	    if((bkeyfnd == null) || (keyfndgen != g)) {
+		bkeyfnd = Fonts.foundry("menu", keyfnd);
+		keyfndgen = g;
+	    }
+	    return(bkeyfnd);
+	}
 	private Tex keyrend = null;
 	private boolean haskeyrend = false;
+	private int keygen = -1;   // addon: Fonts.gen() at the last keyrend render (F3d)
 	public Tex keyrend() {
+	    int g = Fonts.gen();
+	    if(haskeyrend && (keygen != g)) {   // addon: re-render the letter when the "menu" override moves (F3d)
+		if(keyrend != null)
+		    keyrend.dispose();
+		keyrend = null;
+		haskeyrend = false;
+	    }
 	    if(!haskeyrend) {
 		char vkey = bindchr(bind.key());
 		if(vkey != 0)
-		    keyrend = new TexI(Utils.outline2(keyfnd.render(Character.toString(vkey), Color.WHITE).img, Color.BLACK));
+		    keyrend = new TexI(Utils.outline2(keyfont().render(Character.toString(vkey), Color.WHITE).img, Color.BLACK));
 		else
 		    keyrend = null;
 		haskeyrend = true;
+		keygen = g;   // addon:
 	    }
 	    return(keyrend);
 	}
 
 	private List<ItemInfo> info = null;
+	/* addon: (F3d) a Tip may render its text in its CONSTRUCTOR -- published `.res` tip code does -- so a
+	 * font change rebuilds the list; buildinfo() runs inside the "tooltip" composition scope. */
+	private int fontgen = -1;
 	public List<ItemInfo> info() {
+	    if(fontgen != Fonts.gen()) {   // addon:
+		fontgen = Fonts.gen();
+		info = null;
+	    }
 	    if(info == null) {
 		info = ItemInfo.buildinfo(this, pag.rawinfo);
 		Resource.Pagina pg = res.layer(Resource.pagina);
@@ -291,6 +346,15 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 	public Resource getres() {return(res);}
 
 	public BufferedImage rendertt(boolean withpg) {
+	    Fonts.enter("tooltip");   // addon: composition scope (F3d) -- published tip code renders through the statics
+	    try {
+		return(rendertt0(withpg));
+	    } finally {
+		Fonts.exit();   // addon:
+	    }
+	}
+
+	private BufferedImage rendertt0(boolean withpg) {   // addon: the stock body (F3d)
 	    String tt = name();
 	    KeyMatch key = bind.key();
 	    int pos = -1;
@@ -301,7 +365,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 		tt = tt.substring(0, pos) + "$b{$col[255,128,0]{" + tt.charAt(pos) + "}}" + tt.substring(pos + 1);
 	    else if(key != KeyMatch.nil)
 		tt += " [$b{$col[255,128,0]{" + key.name() + "}}]";
-	    BufferedImage ret = ttfnd.render(tt, UI.scale(300)).img;
+	    BufferedImage ret = ttfont().render(tt, UI.scale(300)).img;   // addon: the "tooltip" scope (F3d)
 	    if(withpg) {
 		List<ItemInfo> info = info();
 		info.removeIf(el -> el instanceof ItemInfo.Name);
@@ -503,6 +567,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
     private PagButton curttp = null;
     private boolean curttl = false;
     private Tex curtt = null;
+    private int curttgen = -1;   // addon: Fonts.gen() at the last curtt render (F3d)
     private double hoverstart;
     public Object tooltip(Coord c, Widget prev) {
 	PagButton pag = bhit(c);
@@ -511,6 +576,10 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 	    if(prev != this)
 		hoverstart = now;
 	    boolean ttl = (now - hoverstart) > 0.5;
+	    if(curttgen != Fonts.gen()) {   // addon: a "tooltip" font override moved -> re-render the hovered tip (F3d)
+		curttgen = Fonts.gen();
+		curttp = null;
+	    }
 	    if((pag != curttp) || (ttl != curttl)) {
 		BufferedImage ti = pag.rendertt(ttl);
 		curtt = (ti == null) ? null : new TexI(ti);

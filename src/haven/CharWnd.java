@@ -396,12 +396,14 @@ public class CharWnd extends Window {
 
 	private List<ItemInfo> tipinfo;
 	private Tex tipimg = null;
+	private int tipfontgen = -1;   // addon: Fonts.gen() at the last tooltip compose (F3d)
 	public Object tooltip(Coord c, Widget prev) {
 	    List<ItemInfo> info = info();
-	    if((tipimg != null) && (info != tipinfo)) {
+	    if((tipimg != null) && ((info != tipinfo) || (tipfontgen != Fonts.gen()))) {   // addon: re-compose on a "tooltip" font change (F3d)
 		tipimg.dispose();
 		tipimg = null;
 	    }
+	    tipfontgen = Fonts.gen();   // addon:
 	    if(tipimg == null) {
 		try {
 		    if(info.isEmpty())

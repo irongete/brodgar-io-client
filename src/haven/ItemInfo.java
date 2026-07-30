@@ -161,40 +161,76 @@ public abstract class ItemInfo {
 	public int order() {return(100);}
     }
 
+    /* addon: the "tooltip" font scope (F3d, D-043). ItemInfo is the client's tooltip ENGINE -- longtip/shorttip
+     * compose every item, buff, meter, craft-spec, minimap-object, character-attribute and action-menu tooltip out
+     * of these Tips -- so the plain-text ones render through Fonts.foundry("tooltip", Text.std) (an override, else
+     * stock Text.std, cascading through "default") and the rich ones through Widget.tipfoundry(). Each Tip that
+     * cached its rendering at construction now remembers the source string and re-renders when Fonts.gen() moves;
+     * the widgets that cache the composed tooltip IMAGE re-compose on the same check (WItem, Buff, LayerMeter,
+     * Makewindow, MiniMap, CharWnd, MenuGrid). */
+    private static Text.Foundry tipfnd() {
+	return(Fonts.foundry("tooltip", Text.std));
+    }
+
     public static class AdHoc extends Tip {
-	public final Text str;
+	public Text str;               // addon: non-final -- re-rendered on a "tooltip" font change
+	private final String rtext;    // addon: the recipe
+	private int fontgen;           // addon: Fonts.gen() at the last render
 
 	public AdHoc(Owner owner, String str) {
 	    super(owner);
-	    this.str = Text.render(str);
+	    this.rtext = str;
+	    this.str = tipfnd().render(str);   // addon: was Text.render(str)
+	    this.fontgen = Fonts.gen();        // addon:
 	}
 
 	public BufferedImage tipimg() {
+	    if(fontgen != Fonts.gen()) {       // addon: re-render when the "tooltip" override moves (F3d)
+		fontgen = Fonts.gen();
+		str = tipfnd().render(rtext);
+	    }
 	    return(str.img);
 	}
     }
 
     public static class Name extends Tip {
-	public final Text str;
+	public Text str;               // addon: non-final -- re-rendered on a "tooltip" font change
+	private final String rtext;    // addon: the recipe; null = the caller supplied a rendered Text (left alone)
+	private int fontgen;           // addon: Fonts.gen() at the last render
 
 	public Name(Owner owner, Text str) {
 	    super(owner);
 	    this.str = str;
+	    this.rtext = null;         // addon: caller-supplied face -- not ours to restyle (as in Button, F3b)
+	    this.fontgen = Fonts.gen();
 	}
 
 	public Name(Owner owner, String str) {
-	    this(owner, Text.render(str));
+	    super(owner);
+	    this.rtext = str;                  // addon: remember the recipe...
+	    this.str = tipfnd().render(str);   // addon: ...and render through the provider (was Text.render(str))
+	    this.fontgen = Fonts.gen();
 	}
 
 	public BufferedImage tipimg() {
+	    checkfont();   // addon:
 	    return(str.img);
+	}
+
+	/* addon: re-render this name when the "tooltip" override moves (F3d). Also called from shortvar()'s tip, so
+	 * the short (name-only) variant follows too. */
+	private void checkfont() {
+	    if((rtext != null) && (fontgen != Fonts.gen())) {
+		fontgen = Fonts.gen();
+		str = tipfnd().render(rtext);
+	    }
 	}
 
 	public int order() {return(0);}
 
 	public Tip shortvar() {
 	    return(new Tip(owner) {
-		    public BufferedImage tipimg() {return(str.img);}
+		    public BufferedImage tipimg() {checkfont(); return(str.img);}   // addon: (F3d)
 		    public int order() {return(0);}
 		});
 	}
@@ -241,7 +277,7 @@ public abstract class ItemInfo {
 	}
 
 	public BufferedImage tipimg(int w) {
-	    return(RichText.render(doc, w).img);
+	    return(Widget.tipfoundry().render(doc, w).img);   // addon: the "tooltip" scope (F3d)
 	}
 
 	public void layout(Layout l) {
@@ -255,7 +291,9 @@ public abstract class ItemInfo {
 
     public static class Contents extends Tip {
 	public final List<ItemInfo> sub;
-	private static final Text.Line ch = Text.render("Contents:");
+	// addon: was a class-init `static final Text.Line` -- baked at class load, it could never follow an override
+	// (the F3e lesson), so it is rendered per tooltip now (only when you hover a container).
+	private static Text.Line ch() {return(tipfnd().render("Contents:"));}
 	
 	public Contents(Owner owner, List<ItemInfo> sub) {
 	    super(owner);
@@ -266,7 +304,7 @@ public abstract class ItemInfo {
 	    BufferedImage stip = longtip(sub);
 	    BufferedImage img = TexI.mkbuf(Coord.of(stip.getWidth(), stip.getHeight()).add(UI.scale(10, 15)));
 	    Graphics g = img.getGraphics();
-	    g.drawImage(ch.img, 0, 0, null);
+	    g.drawImage(ch().img, 0, 0, null);   // addon: (F3d)
 	    g.drawImage(stip, UI.scale(10), UI.scale(15), null);
 	    g.dispose();
 	    return(img);
@@ -324,31 +362,47 @@ public abstract class ItemInfo {
 	return(ret);
     }
 
+    /* addon: composing a tooltip is declared to the font provider (F3d, D-043), so that text rendered from here
+     * down through the generic Text.render / RichText.render statics resolves the "tooltip" scope instead of
+     * "default". That is the ONLY way to reach the rows drawn by PUBLISHED CODE -- classes that ship inside the
+     * resources themselves (`ui/tt/q/qbuff` draws "Quality: 31.7", `ui/tt/wear`, `ui/tt/attrmod`, ...) and render
+     * through those statics; we cannot edit them, and they need no cooperation. Text rendered outside a
+     * composition is unaffected. */
     public static BufferedImage longtip(List<ItemInfo> info) {
 	if(info.isEmpty())
 	    return(null);
-	Layout l = new Layout(info.get(0).owner);
-	for(ItemInfo ii : info) {
-	    if(ii instanceof Tip) {
-		Tip tip = (Tip)ii;
-		l.add(tip);
+	Fonts.enter("tooltip");   // addon:
+	try {
+	    Layout l = new Layout(info.get(0).owner);
+	    for(ItemInfo ii : info) {
+		if(ii instanceof Tip) {
+		    Tip tip = (Tip)ii;
+		    l.add(tip);
+		}
 	    }
+	    if(l.tips.size() < 1)
+		return(null);
+	    return(l.render());
+	} finally {
+	    Fonts.exit();   // addon:
 	}
-	if(l.tips.size() < 1)
-	    return(null);
-	return(l.render());
     }
 
     public static BufferedImage shorttip(List<ItemInfo> info) {
-	List<ItemInfo> sinfo = new ArrayList<>();
-	for(ItemInfo ii : info) {
-	    if(ii instanceof Tip) {
-		Tip tip = ((Tip)ii).shortvar();
-		if(tip != null)
-		    sinfo.add(tip);
+	Fonts.enter("tooltip");   // addon: shortvar() itself may render (F3d) -- longtip() enters again, it nests
+	try {
+	    List<ItemInfo> sinfo = new ArrayList<>();
+	    for(ItemInfo ii : info) {
+		if(ii instanceof Tip) {
+		    Tip tip = ((Tip)ii).shortvar();
+		    if(tip != null)
+			sinfo.add(tip);
+		}
 	    }
+	    return(longtip(sinfo));
+	} finally {
+	    Fonts.exit();   // addon:
 	}
-	return(longtip(sinfo));
     }
 
     public static <T> T find(Class<T> cl, List<ItemInfo> il) {
@@ -360,6 +414,20 @@ public abstract class ItemInfo {
     }
 
     public static List<ItemInfo> buildinfo(Owner owner, Raw raw) {
+	Fonts.enter("tooltip");   // addon: a Tip (ours or published) may render its text in its CONSTRUCTOR (F3d)
+	try {
+	return(buildinfo0(owner, raw));
+	} finally {
+	    Fonts.exit();   // addon:
+	}
+    }
+
+    private static List<ItemInfo> buildinfo0(Owner owner, Raw raw) {   // addon: the stock body (F3d)
+	/* addon: an item whose `tt` message has not arrived yet has no Raw at all. Stock never reached this method in
+	 * that state (its callers keep an EMPTY list until the message lands, never a null one), but a font-change
+	 * rebuild can, so tolerate it instead of NPEing on raw.data. */
+	if((raw == null) || (raw.data == null))
+	    return(new ArrayList<ItemInfo>());
 	List<ItemInfo> ret = new ArrayList<ItemInfo>();
 	Resource.Resolver rr = owner.context(Resource.Resolver.class);
 	for(Object o : raw.data) {

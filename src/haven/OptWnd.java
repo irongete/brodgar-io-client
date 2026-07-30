@@ -624,9 +624,13 @@ public class OptWnd extends Window {
 	}
     }
 
-    private static final Text kbtt = RichText.render("$col[255,255,0]{Escape}: Cancel input\n" +
-						     "$col[255,255,0]{Backspace}: Revert to default\n" +
-						     "$col[255,255,0]{Delete}: Disable keybinding", 0);
+    // addon: was a class-init `static final Text` -- baked at class load, it could never follow a font override
+    // (the F3e lesson), so it renders per use through the "tooltip" scope now (F3d, D-043).
+    private static Text kbtt() {
+	return(Widget.tipfoundry().render("$col[255,255,0]{Escape}: Cancel input\n" +
+					  "$col[255,255,0]{Backspace}: Revert to default\n" +
+					  "$col[255,255,0]{Delete}: Disable keybinding", 0));
+    }
     public class BindingPanel extends Panel {
 	private int addbtn(Widget cont, String nm, KeyBinding cmd, int y) {
 	    return(cont.addhl(new Coord(0, y), cont.sz.x,
@@ -728,7 +732,7 @@ public class OptWnd extends Window {
 	    }
 
 	    public Object tooltip(Coord c, Widget prev) {
-		return(kbtt.tex());
+		return(kbtt().tex());   // addon: (F3d)
 	    }
 	}
     }

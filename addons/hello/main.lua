@@ -897,6 +897,9 @@ local btnApplied = false    -- F3b: is our "button" override installed? (session
 local entryApplied = false  -- F3c: is our "textentry" override installed? (session-local; teardown reverts it)
 local labelApplied = false  -- F3c: is our "label" override installed? (session-local; teardown reverts it)
 local headApplied = false   -- F3e: is our "heading" override installed? (session-local; teardown reverts it)
+local menuApplied = false   -- F3d: is our "menu" override installed? (session-local; teardown reverts it)
+local tipApplied = false    -- F3d: is our "tooltip" override installed? (session-local; teardown reverts it)
+local chatApplied = false   -- F3d: is our "chat" override installed? (session-local; teardown reverts it)
 hafen.events.on("OnLoad", function()
   fontApplied = false                                   -- a reload rebuilt the env; the override was torn down (P2)
   titleApplied = false                                  -- F3a: likewise for the window.title override (P2)
@@ -904,6 +907,9 @@ hafen.events.on("OnLoad", function()
   entryApplied = false                                  -- F3c: ...and for the textentry override (P2)
   labelApplied = false                                  -- F3c: ...and for the label override (P2)
   headApplied = false                                   -- F3e: ...and for the heading override (P2)
+  menuApplied = false                                   -- F3d: ...and for the menu override (P2)
+  tipApplied = false                                    -- F3d: ...and for the tooltip override (P2)
+  chatApplied = false                                   -- F3d: ...and for the chat override (P2)
   monoFont = hafen.font.load("mono", { size = 12 })     -- F2: a distinct font for the per-call g:text{font=} line
   local ok, ttf = pcall(hafen.font.load, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
   if ok and ttf then
@@ -1044,7 +1050,7 @@ local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-faci
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat")
     return
   end
   local sub = args[1]
@@ -1313,8 +1319,70 @@ hafen.slash.register("hello", function(args)
       hafen.log((":hello heading -> setFont('heading', %s) -- open the character sheet: 'Base Attributes' / 'Food Satiations' / 'Abilities' change (titles + body text stay stock); :hello heading again to reset")
         :format(h:family()))
     end
+  elseif sub == "menu" then
+    -- F3d: toggle a font override on the "menu" scope = the client's ACTION MENUS. Two surfaces: the petal
+    -- captions of a flower menu (right-click a tree/the ground and the ring of options that opens) and the
+    -- keybind letter the action-menu grid paints over its buttons (hold the show-keys modifier over the menu
+    -- grid). A petal re-renders AND re-sizes around its own centre when the override moves, so a menu that is
+    -- already open changes live; the size is capped by nothing here, so a big size is fine on a petal (unlike a
+    -- text field). Independent of every other scope; with ONLY "default" set (:hello font) the cascade restyles
+    -- menus too, until a "menu" override refines them. Owner-tagged, reverted on :reload/disable. SAFE-tier.
+    local h = (monoFont or demoFont)
+    if not h then hafen.log(":hello menu -> font not loaded yet (OnLoad)"); return end
+    if menuApplied then
+      hafen.font.reset("menu")                          -- drop our override -> stock petal captions return live
+      menuApplied = false
+      hafen.log(":hello menu -> reset('menu') -- stock flower-menu font restored (also on :reload/disable)")
+    else
+      hafen.font.setFont("menu", h:derive{ size = 14 })  -- mono 14 vs the stock sans 12 (visibly different + bigger)
+      menuApplied = true
+      hafen.log((":hello menu -> setFont('menu', %s) -- right-click something: the PETAL captions are in the new font (and a petal already open re-sizes around its centre); :hello menu again to reset")
+        :format(h:family()))
+    end
+  elseif sub == "tip" then
+    -- F3d: toggle a font override on the "tooltip" scope = every TOOLTIP the client pops up. The bulk of it is the
+    -- client's tooltip ENGINE (ItemInfo), which composes the tip of an INVENTORY ITEM, a buff, a vitals meter, a
+    -- craft recipe input/output, a minimap marker/object, a character-sheet attribute row and an action-menu icon
+    -- -- so hover an item in your inventory and you see it immediately. On top of that: plain string tips
+    -- (rendered at display time, so the tip already under the cursor changes), a widget's rich settip() tip with
+    -- its "Keyboard shortcut: ..." tail, resource pagina descriptions, and the food/curiosity/terrain/keybind
+    -- tips. Markup inside a tooltip ($b, $col, $img) keeps working over the override, because the provider swaps
+    -- the FAMILY+SIZE and not the whole font attribute. Independent of every other scope. Owner-tagged, reverted
+    -- automatically on :reload/disable. SAFE-tier (cosmetic, client-only).
+    -- NOTE: a tooltip sizes its own box around its text, so a bigger size is safe here -- unlike a text field.
+    local h = (monoFont or demoFont)
+    if not h then hafen.log(":hello tip -> font not loaded yet (OnLoad)"); return end
+    if tipApplied then
+      hafen.font.reset("tooltip")                       -- drop our override -> stock tooltips return live
+      tipApplied = false
+      hafen.log(":hello tip -> reset('tooltip') -- stock tooltip font restored (also on :reload/disable)")
+    else
+      hafen.font.setFont("tooltip", h:derive{ size = 13 })   -- mono 13 vs the stock sans 10 (bigger + different)
+      tipApplied = true
+      hafen.log((":hello tip -> setFont('tooltip', %s) -- hover an INVENTORY ITEM (or a buff / a vitals bar / a craft input / an action-menu icon / a HUD button): the tooltip is in the new font, and it changes while you keep hovering; :hello tip again to reset")
+        :format(h:family()))
+    end
+  elseif sub == "chat" then
+    -- F3d: toggle a font override on the "chat" scope = the whole CHAT window: every message line (area/party/
+    -- private/system), the channel tabs down its left side, and the quick-line you type into. Only the messages
+    -- currently VISIBLE re-render (the scrollback re-renders as you scroll it into view), and a message's height
+    -- is re-measured, so the log re-flows correctly with a bigger font. URLs stay clickable -- the override keeps
+    -- the chat's own link parser. Independent of every other scope; with ONLY "default" set (:hello font) the
+    -- cascade restyles chat too, until a "chat" override refines it. Owner-tagged, reverted on :reload/disable.
+    local h = (monoFont or demoFont)
+    if not h then hafen.log(":hello chat -> font not loaded yet (OnLoad)"); return end
+    if chatApplied then
+      hafen.font.reset("chat")                          -- drop our override -> stock chat font returns live
+      chatApplied = false
+      hafen.log(":hello chat -> reset('chat') -- stock chat font restored (also on :reload/disable)")
+    else
+      hafen.font.setFont("chat", h:derive{ size = 13 })  -- mono 13 vs the stock sans 12
+      chatApplied = true
+      hafen.log((":hello chat -> setFont('chat', %s) -- open the chat window (Ctrl+C): the message lines, the channel tabs and the line you type are in the new font; :hello chat again to reset")
+        :format(h:family()))
+    end
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat)")
       :format(#args, table.concat(args, " | ")))
   end
 end)

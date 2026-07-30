@@ -62,6 +62,27 @@ public class Equipory extends Widget implements DTarget {
     };
     public static final Tex[] ebgs = new Tex[ecoords.length];
     public static final Text[] etts = new Text[ecoords.length];
+    // addon: the slot names above are a class-init static array, so they could never follow a font override (the
+    // F3e lesson). `ettstr` keeps the strings and etttip(sl) re-renders through the "tooltip" scope when
+    // Fonts.gen() moves (F3d, D-043); `etts` itself stays the stock render.
+    private static final String[] ettstr = new String[ecoords.length];
+    private static final Text[] betts = new Text[ecoords.length];
+    private static int ettgen = -1;
+    private static Text etttip(int sl) {
+	int g = Fonts.gen();
+	if(ettgen != g) {
+	    for(int i = 0; i < betts.length; i++)
+		betts[i] = null;
+	    ettgen = g;
+	}
+	if(betts[sl] == null) {
+	    if(ettstr[sl] == null)
+		return(etts[sl]);
+	    Text.Foundry f = Fonts.foundry("tooltip", Text.std);
+	    betts[sl] = (f == Text.std) ? etts[sl] : f.render(ettstr[sl], Text.white);
+	}
+	return(betts[sl]);
+    }
     static Coord isz;
     static {
 	isz = new Coord();
@@ -76,7 +97,8 @@ public class Equipory extends Widget implements DTarget {
 	    Resource.Image img = bgres.layer(Resource.imgc);
 	    if(img != null) {
 		ebgs[i] = img.tex();
-		etts[i] = Text.render(bgres.flayer(Resource.tooltip).t);
+		ettstr[i] = bgres.flayer(Resource.tooltip).t;   // addon: remember the recipe (F3d)
+		etts[i] = Text.render(ettstr[i]);
 	    }
 	}
     }
@@ -197,7 +219,7 @@ public class Equipory extends Widget implements DTarget {
     public Object tooltip(Coord c, Widget prev) {
 	int sl = epat(c);
 	if(sl >= 0)
-	    return(etts[sl]);
+	    return(etttip(sl));   // addon: the "tooltip" scope (F3d)
 	return(null);
     }
 

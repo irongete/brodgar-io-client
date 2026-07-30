@@ -157,7 +157,27 @@ public class Text implements Disposable {
 	    return(this);
 	}
 
+	/* addon: (F3d, D-043) resolution for a foundry we cannot route. Some client text is drawn by PUBLISHED CODE --
+	 * Java classes that ship inside the game resources (the `ui/tt/*` tooltip rows) -- and some of it keeps its OWN
+	 * private foundry, which neither a provider call site nor a routed static can reach. While a composition scope
+	 * is active (Fonts.enter, e.g. around ItemInfo.longtip) such a foundry resolves through the provider with
+	 * ITSELF as the stock, so an override applies while its own size/colour/aa are preserved. Outside a composition
+	 * Fonts.dynamic() is null and this is a no-op -- which is what keeps the rest of the client unchanged.
+	 * `noresolve` marks the provider's own product, so resolution cannot recurse. */
+	boolean noresolve = false;
+	private Foundry resolved() {
+	    if(noresolve)
+		return(this);
+	    String sc = Fonts.dynamic();
+	    if(sc == null)
+		return(this);
+	    return(Fonts.foundry(sc, this));
+	}
+
 	public int height() {
+	    Foundry f = resolved();   // addon: (F3d)
+	    if(f != this)
+		return(f.height());
 	    /* XXX? The only font which seems to have leading > 0 is
 	     * the Moderne Fraktur font, for which the leading is
 	     * necessary to get the full ascent of some glyphs.
@@ -170,10 +190,16 @@ public class Text implements Disposable {
 	}
 
 	public Coord strsize(String text) {
+	    Foundry f = resolved();   // addon: (F3d)
+	    if(f != this)
+		return(f.strsize(text));
 	    return(new Coord(m.stringWidth(text), height()));
 	}
                 
 	public Text renderwrap(String text, Color c, int width) {
+	    Foundry f = resolved();   // addon: (F3d)
+	    if(f != this)
+		return(f.renderwrap(text, c, width));
 	    if(wfnd == null)
 		wfnd = new RichText.Foundry(font, defcol);
 	    wfnd.aa = aa;
@@ -188,6 +214,9 @@ public class Text implements Disposable {
 	}
                 
 	public Line render(String text, Color c) {
+	    Foundry f = resolved();   // addon: (F3d) -- the colour stays the CALLER's, so colour-coded rows keep theirs
+	    if(f != this)
+		return(f.render(text, c));
 	    Coord sz = strsize(text);
 	    if(sz.x < 1)
 		sz = sz.add(1, 0);
@@ -357,11 +386,11 @@ public class Text implements Disposable {
     }
 	
     public static Line render(String text, Color c) {
-	return(Fonts.foundry("default", std).render(text, c));   // addon: route the default consumers through the font provider (F1, D-043)
+	return(Fonts.foundry(Fonts.scope(), std).render(text, c));   // addon: the font provider (F1); Fonts.scope() = the dynamic composition scope, else "default" (F3d)
     }
 
     public static Line renderf(Color c, String text, Object... args) {
-	return(Fonts.foundry("default", std).render(String.format(text, args), c));   // addon: font provider (F1)
+	return(Fonts.foundry(Fonts.scope(), std).render(String.format(text, args), c));   // addon: font provider (F1) + composition scope (F3d)
     }
 	
     public static Line render(String text) {

@@ -1794,12 +1794,22 @@ public class Widget {
 	    });
     }
 
+    /* addon: the rich-tooltip foundry for the {@code "tooltip"} font scope (F3d, D-043). Both tooltip flavours a
+     * widget hands out (a resource pagina tip and the settip()-backed KeyboundTip) render rich text, so they take
+     * the provider-resolved twin of RichText.stdf; the twin itself lives in RichText.foundry(scope) (it is the same
+     * machinery the RichText.render statics need). Returns the IDENTICAL stock foundry when nothing overrides the
+     * scope, so a no-addon client renders byte-for-byte stock; each tip drops its cached Tex on a Fonts.gen() move. */
+    public static RichText.Foundry tipfoundry() {
+	return(RichText.foundry("tooltip"));
+    }
+
     public static class PaginaTip implements Indir<Tex> {
 	public final String title;
 	public final Indir<Resource> res;
 	public final boolean tiptitle;
 	private Tex rend;
 	private boolean hasrend = false;
+	private int fontgen = -1;   // addon: Fonts.gen() at the last render (F3d)
 
 	public PaginaTip(Indir<Resource> res, String title) {
 	    this.res = res;
@@ -1818,6 +1828,14 @@ public class Widget {
 	}
 
 	public Tex get() {
+	    int fgen = Fonts.gen();
+	    if(hasrend && (fontgen != fgen)) {   // addon: re-render when the "tooltip" font override moves (F3d)
+		if(rend != null)
+		    rend.dispose();
+		rend = null;
+		hasrend = false;
+	    }
+	    fontgen = fgen;   // addon:
 	    if(!hasrend) {
 		render: {
 		    try {
@@ -1838,7 +1856,7 @@ public class Widget {
 			    else
 				text = title + "\n\n" + pag.text;
 			}
-			rend = RichText.render(text, UI.scale(300)).tex();
+			rend = tipfoundry().render(text, UI.scale(300)).tex();   // addon: the "tooltip" scope (F3d)
 		    } catch(Loading l) {
 			return(null);
 		    }
@@ -1855,6 +1873,7 @@ public class Widget {
 	private Tex rend = null;
 	private boolean hrend = false;
 	private KeyMatch rkey = null;
+	private int fontgen = -1;   // addon: Fonts.gen() at the last render (F3d)
 
 	public KeyboundTip(String base, boolean rich) {
 	    this.base = base;
@@ -1871,6 +1890,13 @@ public class Widget {
 
 	public Tex get() {
 	    KeyMatch key = (kb_gkey == null) ? null : kb_gkey.key();
+	    int fgen = Fonts.gen();
+	    if(hrend && (fontgen != fgen)) {   // addon: re-render when the "tooltip" font override moves (F3d)
+		if(rend != null)
+		    rend.dispose();
+		hrend = false;
+	    }
+	    fontgen = fgen;   // addon:
 	    if(!hrend || (rkey != key)) {
 		String tip;
 		int w = 0;
@@ -1891,7 +1917,7 @@ public class Widget {
 		    else
 			tip = String.format("Keyboard shortcut: $col[255,255,0]{%s}", RichText.Parser.quote(key.name()));
 		}
-		rend = (tip == null) ? null : RichText.render(tip, w).tex();
+		rend = (tip == null) ? null : tipfoundry().render(tip, w).tex();   // addon: the "tooltip" scope (F3d)
 		hrend = true;
 		rkey = key;
 	    }

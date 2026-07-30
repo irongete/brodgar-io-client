@@ -13,9 +13,9 @@ your addon keeps; another addon cannot look it up (no name collisions, no coupli
 > character-sheet attribute rows, skill/lore/quest/wound list items, and the explicit-foundry labels F1's
 > default-`Label` routing left out) are now live. **F3e (shipped):** the **`"heading"`** scope — the embossed
 > section headings *inside* a window ("Base Attributes", "Lore & Skills", "Kin", …); a **new scope**, added to the
-> enum in this slice. The remaining per-scope surfaces (`tooltip`, `menu`, `chat`) arrive in F3d — the scope names
-> are already listed by `scopes()`, they simply have no effect until routed. See
-> [`21-fonts.md`](../../../specs/addons/21-fonts.md) for the roadmap.
+> enum in this slice. **F3d (shipped):** the **`"menu"`**, **`"tooltip"`** and **`"chat"`** scopes — which
+> **completes the UI chrome**: every scope except F4's two world ones (`world.nick`, `world.speech`) is now live.
+> See [`21-fonts.md`](../../../specs/addons/21-fonts.md) for the roadmap.
 
 Client-only and cosmetic (**safe-tier — not gated**), like a HUD overlay.
 
@@ -112,14 +112,14 @@ restorable. The change is **live** — most existing text re-renders on the spot
 
 | Scope | Client surface | Slice |
 |---|---|---|
-| `"default"` | global fallback — most UI text (`Text.std` / `Text.render` / default `Label`) | **F1 (live)** |
+| `"default"` | global fallback — most UI text (`Text.std` / `Text.render` / `RichText.render` / default `Label`) | **F1 (live)** |
 | `"window.title"` | window captions | **F3a (live)** |
 | `"heading"` | in-window section headings (embossed fraktur) | **F3e (live)** |
 | `"button"` | button captions | **F3b (live)** |
 | `"label"` | body text — attribute rows, list items, explicit-foundry labels | **F3c (live)** |
-| `"tooltip"` | tooltips | F3d |
-| `"menu"` | flower / context menus | F3d |
-| `"chat"` | chat text | F3d |
+| `"tooltip"` | every tooltip — items, buffs, meters, craft, minimap, action menu, `settip`, pagina, food/study | **F3d (live)** |
+| `"menu"` | flower-menu petals + the action-menu keybind letters | **F3d (live)** |
+| `"chat"` | the chat window — messages, channel tabs, the typed line | **F3d (live)** |
 | `"textentry"` | text-entry fields (+ the console command line) | **F3c (live)** |
 | `"world.nick"` | floating player / kin names | F4 |
 | `"world.speech"` | speech bubbles | F4 |
@@ -184,6 +184,57 @@ heights** were computed from the stock font at construction, so taller glyphs cl
 its text while its container does not re-lay-out around it. Deliberately *not* in this scope: a caller-supplied
 pre-rendered `Text` (e.g. the italic "Unused save" placeholder) and text a widget rasterizes into its own face —
 those are not body text.
+
+**Notes on `"tooltip"` (F3d).** Every tooltip the client pops up. The bulk of it is the client's tooltip
+**engine** (`ItemInfo`), which composes the tip of an **inventory item**, a **buff**, a **vitals bar**, a **craft**
+recipe input/output, a **minimap** marker or object, a **character-sheet attribute row** and an **action-menu**
+icon — hovering an inventory item is the quickest way to see the override. On top of that:
+
+| Surface | Where you see it |
+|---|---|
+| Plain string tips | rendered at *display* time, so even the tip already under your cursor re-renders |
+| `settip` tips | any widget's own tooltip, including its `Keyboard shortcut: …` tail |
+| Resource pagina tips | the long action / item descriptions |
+| Food & study tips | food event points / satiations, curiosity study times — the tooltips you read most |
+| Terrain, minimap, keybind help, combat action tips | the remaining engine-side tips |
+| Equipment empty-slot names, skill / credo list tips | pre-rendered at construction, re-rendered on the change |
+| Quality / wear / armour / gilding / attribute rows | drawn by code that ships **inside the game resources** — reached anyway (see below) |
+| Gilding chance / `Gildable (6/6)` | same, and with their own private font — also reached, keeping their own size |
+
+Markup inside a tooltip keeps working over your override (`$b`, `$col`, `$img`, …): the override swaps the font
+**family + size** rather than the whole font attribute, precisely so the client's own markup still applies. Each
+cached tooltip image is re-composed lazily, the next time you hover it, so a mass restyle never stalls a frame. A
+tooltip sizes its box around its text, so an explicit `size=` is **safe** here (unlike a text field or a list row).
+
+Some tooltip rows — the `Quality:` line, `Wear`, `Armor class`, `Gilding`, `Gildable (6/6)`, the `+5` attribute
+rows — are drawn by code the **server ships inside the game resources**, not by the client. `"tooltip"` reaches
+them anyway: while the client composes a tooltip, that whole composition is *declared* to be tooltip text, so any
+text rendered inside it follows the scope — even from code that knows nothing about the font system, and even when
+that code picked its own font (those rows keep their own **size**, so a small italic line stays small and italic in
+your family). Nothing outside a tooltip composition is affected. One nuance: with no `size=` the point size is
+preserved exactly, but ascent/descent are per-family metrics, so a family swap can still move a row by a pixel.
+
+**One row needed more than that.** A resource-shipped class that rasterises text into a `static` field **when the
+class loads** cannot be restyled afterwards from any font system — the JVM never re-runs a static initialiser. That
+was the **`Gilding:`** heading (`ui/tt/slots-alt`), so the client now carries a **local copy of that resource's code**
+(the engine's own `doc/resource-code` mechanism: `get-code` + `@FromResource`, version-matched) which renders the
+heading on demand instead. Nothing to do on the addon side — it simply follows like every other row. The one caveat
+is upstream: if the game ships a new version of that resource, the local copy steps aside (a line in the client log)
+and the heading returns to stock until the copy is refreshed.
+
+**Notes on `"menu"` (F3d).** Two surfaces: the **petal captions** of a flower menu (the ring of options a
+right-click opens) and the **keybind letters** the action-menu grid paints over its buttons. A petal re-renders
+*and* re-sizes around its own centre when the override moves, so a menu that is already open restyles in place
+without drifting off its ring — and, like a tooltip, a petal sizes itself around its caption, so a bigger `size=`
+is safe.
+
+**Notes on `"chat"` (F3d).** The whole chat window: every **message** line (area / party / private / system), the
+**channel tabs** down its side, and the **quick line** you type over the map. Only the messages currently
+**visible** re-render (the scrollback re-renders as you scroll it into view), and each message's height is
+re-measured, so the log re-flows correctly under a bigger font. URLs stay clickable — the override keeps chat's own
+link parser. The typed quick line belongs to this scope, not to `"textentry"`: it lives in the chat window and is
+built from the chat's own recipe. Minor caveat: the channel-tab **truncation width** was measured from the stock
+font once, so a much wider font can shorten a long channel name slightly early.
 
 ### Conflict model (one intrinsic limit)
 

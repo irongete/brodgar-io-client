@@ -174,6 +174,7 @@ public class Fightsess extends Widget {
     private static final Coord usec2 = UI.scale(new Coord(65, 67));
     private Indir<Resource> lastact1 = null, lastact2 = null;
     private Text lastacttip1 = null, lastacttip2 = null;
+    private int lastactgen = -1;   // addon: Fonts.gen() at the last last-action tip render (F3d)
     private Effect curtgtfx;
     public void draw(GOut g) {
 	updatepos();
@@ -277,6 +278,7 @@ public class Fightsess extends Widget {
 
     private Widget prevtt = null;
     private Text acttip = null;
+    private int acttipgen = -1;   // addon: Fonts.gen() at the last acttip render (F3d)
     public static final String[] keytips = {"1", "2", "3", "4", "5", "Shift+1", "Shift+2", "Shift+3", "Shift+4", "Shift+5"};
     public Object tooltip(Coord c, Widget prev) {
 	for(Buff buff : fv.buffs.children(Buff.class)) {
@@ -312,8 +314,10 @@ public class Fightsess extends Widget {
 		    String tip = act.get().flayer(Resource.tooltip).t;
 		    if(kb_acts[i].key() != KeyMatch.nil)
 			tip += " ($b{$col[255,128,0]{" + kb_acts[i].key().name() + "}})";
-		    if((acttip == null) || !acttip.text.equals(tip))
-			acttip = RichText.render(tip, -1);
+		    if((acttip == null) || !acttip.text.equals(tip) || (acttipgen != Fonts.gen())) {   // addon: (F3d)
+			acttipgen = Fonts.gen();   // addon:
+			acttip = Widget.tipfoundry().render(tip, -1);   // addon: the "tooltip" scope (F3d)
+		    }
 		    return(acttip);
 		}
 	    }
@@ -324,8 +328,11 @@ public class Fightsess extends Widget {
 		Coord usesz = lastact.get().flayer(Resource.imgc).sz;
 		Coord lac = pcc.add(usec1);
 		if(c.isect(lac.sub(usesz.div(2)), usesz)) {
-		    if(lastacttip1 == null)
-			lastacttip1 = Text.render(lastact.get().flayer(Resource.tooltip).t);
+		    if((lastacttip1 == null) || (lastactgen != Fonts.gen())) {   // addon: (F3d)
+			lastactgen = Fonts.gen();   // addon:
+			lastacttip1 = lastacttip2 = null;
+			lastacttip1 = Fonts.foundry("tooltip", Text.std).render(lastact.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d)
+		    }
 		    return(lastacttip1);
 		}
 	    }
@@ -336,8 +343,11 @@ public class Fightsess extends Widget {
 		Coord usesz = lastact.get().flayer(Resource.imgc).sz;
 		Coord lac = pcc.add(usec2);
 		if(c.isect(lac.sub(usesz.div(2)), usesz)) {
-		    if(lastacttip2 == null)
-			lastacttip2 = Text.render(lastact.get().flayer(Resource.tooltip).t);
+		    if((lastacttip2 == null) || (lastactgen != Fonts.gen())) {   // addon: (F3d)
+			lastactgen = Fonts.gen();   // addon:
+			lastacttip1 = null;
+			lastacttip2 = Fonts.foundry("tooltip", Text.std).render(lastact.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d)
+		    }
 		    return(lastacttip2);
 		}
 	    }

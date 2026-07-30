@@ -109,12 +109,19 @@ public abstract class UILoop implements Console.Directory {
     private Object prevtooltip = null;
     private Indir<Tex> prevtooltex = null;
     private Disposable freetooltex = null;
+    private int tipfontgen = -1;   // addon: Fonts.gen() at the last String-tooltip render (F3d)
     private void drawtooltip(UI ui, GOut g) {
 	Object tooltip;
 	synchronized(ui) {
 	    tooltip = ui.tooltip(ui.mc);
 	}
 	Indir<Tex> tt = null;
+	// addon: a "tooltip" font override moved (F3d, D-043) -> drop the cached render of the SAME tooltip object.
+	int fontgen = Fonts.gen();
+	if(fontgen != tipfontgen) {
+	    tipfontgen = fontgen;
+	    prevtooltip = null;
+	}
 	if(Utils.eq(tooltip, prevtooltip)) {
 	    tt = prevtooltex;
 	} else {
@@ -138,7 +145,8 @@ public abstract class UILoop implements Console.Directory {
 		    tt = c;
 		} else if(tooltip instanceof String) {
 		    if(((String)tooltip).length() > 0) {
-			Tex r = new TexI(Text.render((String)tooltip).img, false);
+			// addon: the "tooltip" scope (F3d) -- was Text.render(...), i.e. the "default" scope.
+			Tex r = new TexI(Fonts.foundry("tooltip", Text.std).render((String)tooltip, Text.white).img, false);
 			tt = () -> r;
 			free = r;
 		    }
