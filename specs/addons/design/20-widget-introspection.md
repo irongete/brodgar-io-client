@@ -5,7 +5,7 @@
 > `/framestack` enabler ([D-042](../decisions/widgets-ui.md)).
 > **Related:** [08-widget-replacement.md](08-widget-replacement.md) (adopt/replace — the wrap model),
 > [14-widget-tree-reads.md](14-widget-tree-reads.md) (typed adapters — the other half),
-> [DECISIONS.md](../DECISIONS.md) ([D-041](../decisions/widgets-ui.md)/[D-042](../decisions/widgets-ui.md)), [API-REFERENCE.md](../API-REFERENCE.md),
+> [DECISIONS.md](../DECISIONS.md) ([D-041](../decisions/widgets-ui.md)/[D-042](../decisions/widgets-ui.md)), [the API reference](../../../docs/addons/api/README.md),
 > [07-ui-and-drawing.md](07-ui-and-drawing.md)
 
 ## The problem this solves
@@ -107,7 +107,7 @@ method** — upstream churn breaks that one switch, not addons; an unknown type 
 ### Acting on a node — reuse the existing gated tier (no new action surface)
 
 This series is **read-only**. To *act*, read the node's `:id()` and pass it to the existing gated
-[`hafen.act.raw(id, msg, …)`](../API-REFERENCE.md) ([D-025](../decisions/actions-permissions.md)):
+[`hafen.act.raw(id, msg, …)`](../the API reference (docs/addons/api/)) ([D-025](../decisions/actions-permissions.md)):
 
 ```lua
 local win  = hafen.ui.root():find(function(n) return n:type() == "Window" and n:text() == "Barter Stand" end)

@@ -1,7 +1,7 @@
 # Widget-Tree Reads (the GameUI-bound data)
 
 > **Status:** 🟡 Draft · **Spec:** AddOns · **Foundational (build first, [D-026](../decisions/process.md))**
-> **Related:** [01-architecture.md](01-architecture.md) (B1), [coverage-gaps.md](../ROADMAP.md) (B1/C2), [13-hooks-and-interception.md](13-hooks-and-interception.md), [API-REFERENCE.md](../API-REFERENCE.md)
+> **Related:** [01-architecture.md](01-architecture.md) (B1), [coverage-gaps.md](../ROADMAP.md) (B1/C2), [13-hooks-and-interception.md](13-hooks-and-interception.md), [the API reference](../../../docs/addons/api/README.md)
 
 ## The problem this solves
 
@@ -66,7 +66,7 @@ add/`cdestroy` → buff events; `BAttrWnd feps.update` → `FepChanged`; `GameUI
 action bar; `belt[]` is set on a **deferred** loader task, so diffed per-tick) → `ActionbarChanged`.
 
 ## What it powers (API)
-These `API-REFERENCE.md` surfaces are backed by this mechanism (they carry a "widget-tree" note):
+These the API reference (`docs/addons/api/`) surfaces are backed by this mechanism (they carry a "widget-tree" note):
 - `hafen.player.vitals()` (VitalsAdapter) · `hafen.buffs.*` (BuffsAdapter) ·
   `hafen.char.food()`/`hafen.study.*`/`hafen.char.skill()` (Fep/Study/Skills) ·
   `hafen.actionbar.*` (ActionbarAdapter) · `hafen.items.equipment()` (EquipAdapter).

@@ -4,7 +4,7 @@
 > **Related:** [18-custom-models-gltf.md](18-custom-models-gltf.md) (the 3D-model deep-dive),
 > [16-virtual-entities.md](16-virtual-entities.md) (the shared world-entity core), [07-ui-and-drawing.md](07-ui-and-drawing.md),
 > [02-filesystem-and-build.md](02-filesystem-and-build.md), [DECISIONS.md](../DECISIONS.md) (D-034, D-035 — **ratified 2026-07-26**),
-> [../../codebase-map.md](../../codebase-map.md) (R-series seams), [API-REFERENCE.md](../API-REFERENCE.md)
+> [../../codebase-map.md](../../codebase-map.md) (R-series seams), [the API reference](../../../docs/addons/api/README.md)
 
 A namespace for rendering **custom assets that are NOT engine `.res`** — PNG images (on screen and in the world)
 and custom 3D models (**glTF**). `hafen.ghost` stays exactly as it is (place `.res` **game models** in the world);

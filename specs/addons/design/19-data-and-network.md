@@ -5,7 +5,7 @@
 > [12-security-and-permissions.md](12-security-and-permissions.md) (the sandbox + the "actions" permission model
 > this mirrors), [03-addon-format.md](03-addon-format.md) (the manifest), [09-events-catalog.md](09-events-catalog.md)
 > (the tick-drained callback pattern reused here), [../../codebase-map.md](../../codebase-map.md) (N-series seams),
-> [API-REFERENCE.md](../API-REFERENCE.md) (`hafen.json` / `hafen.http`)
+> [the API reference](../../../docs/addons/api/README.md) (`hafen.json` / `hafen.http`)
 
 Two sibling namespaces that let an addon **fetch data from an external URL** and **parse/produce JSON**. This is
 the capability the maintainer asked for (2026-07-26): *"algo como `hafen.utils.request("…")` y

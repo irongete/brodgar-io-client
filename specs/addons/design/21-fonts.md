@@ -8,7 +8,7 @@
 > **Related:** [07-ui-and-drawing.md](07-ui-and-drawing.md) (the draw wrapper + `LuaWidget`),
 > [20-widget-introspection.md](20-widget-introspection.md) (the `WidgetNode` F5 reuses),
 > [05-lifecycle-and-reload.md](05-lifecycle-and-reload.md) (owned-resource teardown), [../../codebase-map.md](../../codebase-map.md),
-> [API-REFERENCE.md](../API-REFERENCE.md)
+> [the API reference](../../../docs/addons/api/README.md)
 
 ## The problem this solves
 

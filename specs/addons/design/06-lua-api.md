@@ -1,10 +1,10 @@
 # Lua API (the `hafen.*` SDK) — overview
 
-> **Status:** 🟠 Outline — this is the conceptual overview; the authoritative function list is [API-REFERENCE.md](../API-REFERENCE.md)
-> **Related:** [API-REFERENCE.md](../API-REFERENCE.md), [07-ui-and-drawing.md](07-ui-and-drawing.md), [08-widget-replacement.md](08-widget-replacement.md), [09-events-catalog.md](09-events-catalog.md)
+> **Status:** 🟠 Outline — this is the conceptual overview; the authoritative function list is [the API reference](../../../docs/addons/api/README.md)
+> **Related:** [the API reference](../../../docs/addons/api/README.md), [07-ui-and-drawing.md](07-ui-and-drawing.md), [08-widget-replacement.md](08-widget-replacement.md), [09-events-catalog.md](09-events-catalog.md)
 
 > **➡ The detailed, categorized function contract (every executable `hafen.*` function with its
-> Java backing) lives in [API-REFERENCE.md](../API-REFERENCE.md).** This document is the conceptual
+> Java backing) lives in [the API reference](../../../docs/addons/api/README.md).** This document is the conceptual
 > overview: what each namespace is and which `haven.*` mechanism it maps to.
 
 This is the **stable facade** addons target ([P1](01-architecture.md)). It maps to `haven.*`
@@ -24,7 +24,7 @@ Conventions:
 Backed by [`Glob.oc`](src/haven/OCache.java) / [`Glob.map`](src/haven/MCache.java).
 
 ```lua
--- NOTE: per-gob reads now live under hafen.gob.*(ref); see API-REFERENCE.md (D-012/D-013).
+-- NOTE: per-gob reads now live under hafen.gob.*(ref); see the API reference (docs/addons/api/) (D-012/D-013).
 hafen.world.gobs(filter)            -- array of gob snapshots (bulk scan)
 hafen.gob.info(ref)                 -- one gob snapshot by ref (id or "player"/"target"/"partyN")
 hafen.world.nearest(filter)         -- closest gob matching filter (fn or name-substring)

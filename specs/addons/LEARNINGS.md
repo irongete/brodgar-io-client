@@ -21,4 +21,5 @@
 - [network-data.md](learnings/network-data.md) — `hafen.json`, `hafen.http` (async, allowlist, redirects), hostile-input caps.
 - [fonts.md](learnings/fonts.md) — font provider/scopes, per-site routing patterns, text caches + invalidation, RichText.
 - [testing-tooling.md](learnings/testing-tooling.md) — headless test patterns (`<clinit>` traps, prefs isolation, reflection), jshell, MSYS/Windows, build/encoding.
+- [client-limits.md](learnings/client-limits.md) — what the client/protocol CANNOT give (other players' names, absolute vitals, typed quality, buff seconds) — check before promising a surface.
 - [process-method.md](learnings/process-method.md) — task splitting, harness/demo design (`hello` rules), API-design judgement calls, decision-process lessons.

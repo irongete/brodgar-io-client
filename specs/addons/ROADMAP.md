@@ -37,7 +37,7 @@ restores the retired GobRef tokens as `hafen.target():gob()` and `hafen.party()[
 then the combat target's gob is unreachable — an accepted regression); and then the **final
 demolition**, which migrates whatever namespaces remain and deletes the transitional markers 017
 plants (the `design/06-lua-api.md` banner, the `(SUPERSEDED by D-044)` headers, and the
-"Gob is OOP, the rest is flat" paragraph in `API-REFERENCE.md`).
+"Gob is the only OO section, the rest is flat" paragraph in `docs/addons/api/conventions.md`).
 
 ## Minor client subsystems (the old audit's "A12" tier) — design on demand (`specs/codebase/`)
 No design doc yet; each would get one when picked up: **Screenshooter** (programmatic screenshot),

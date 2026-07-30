@@ -1,10 +1,11 @@
 # specs/addons — the AddOn system's working folder
 
-**Workflow:** `/plan <feature>` → creates the next `NNN-<feature>/` (spec → *approval* →
-plan/tasks), no commit · `/implement [NNN.X]` → executes ONE task, leaves `HANDOFF.md`, then
-iterates with the maintainer through the in-game test/fix rounds, no commit · `/end [note]` →
-documents (docs/addons/api/ only), checks the task off, updates state, and makes THE task
-commit: code, docs, addons and specs together. Never push.
+**Workflow** (the area — `addons` — is always the first token): `/plan addons <feature>` →
+creates the next `NNN-<feature>/` (spec → *approval* → plan/tasks), no commit ·
+`/implement addons [NNN.X]` → executes ONE task, leaves `HANDOFF.md`, then iterates with the
+maintainer through the in-game test/fix rounds, no commit · `/end addons [note]` → documents
+(docs/addons/api/ only), checks the task off, updates state, and makes THE task commit: code,
+docs, addons and specs together. Never push.
 
 | File | What it is |
 |---|---|
@@ -14,9 +15,12 @@ commit: code, docs, addons and specs together. Never push.
 | `NNN-<feature>/` | spec.md / plan.md / tasks.md per feature (closed ones opened on demand) |
 | `DECISIONS.md` | index of `decisions/*.md` (full entries split by category, like learnings) |
 | `LEARNINGS.md` | index of `learnings/*.md` (append-only; grep, never read whole) |
-| `API-REFERENCE.md` | the designed `hafen.*` contract (`docs/addons/api/` = what is built) |
+| `AREA.md` | the area manifest: docs tier, build check, verification, harness, commit paths |
 | `GLOSSARY.md` | terms |
-| `../codebase-map.md` | client-wide `file:line` map (+ `../codebase/` per-subsystem detail) |
+| `../codebase-map.md` | index of `../codebase/<subsystem>.md` (the `file:line` anchors) |
+
+> The `hafen.*` contract is **`docs/addons/api/`** — the shipped reference IS the contract; there
+> is no second, "designed" copy in `specs/`.
 | `_template/` | spec/plan/tasks templates (limits 80/100/60 — ceilings) |
 | `design/` | the closed design docs (below) |
 

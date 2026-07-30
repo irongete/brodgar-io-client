@@ -4,7 +4,7 @@
 > [D-029](../decisions/virtual-entities.md)…[D-033](../decisions/virtual-entities.md) all resolved; **namespace = `hafen.ghost.*`**. Ready to
 > build — delivered as [011-virtual-entities](../011-virtual-entities/tasks.md) (V1..V6).
 > **Spec:** AddOns · **Related:** [07-ui-and-drawing.md](07-ui-and-drawing.md) (overlays),
-> [00-vision-scope.md](00-vision-scope.md) (N1/N2), [API-REFERENCE.md](../API-REFERENCE.md),
+> [00-vision-scope.md](00-vision-scope.md) (N1/N2), [the API reference](../../../docs/addons/api/README.md),
 > [../../codebase-map.md](../../codebase-map.md)
 
 The capability that lets an addon place **client-only virtual objects in the 3D world** — "ghosts":
@@ -22,7 +22,7 @@ This is a **new capability** beyond the original goals G1–G10; it is designed 
 - **N1 preserved (server-authoritative).** A ghost is **client-only**: it is never sent to the
   server (no `wdgmsg`), the server never learns it exists, and it grants **no** gameplay advantage —
   it is a visualization, exactly like a HUD overlay. Committing a *real* build is still the gated
-  `hafen.act.place` ([API-REFERENCE.md](../API-REFERENCE.md)); ghosts do **not** touch that path.
+  `hafen.act.place` ([the API reference](../../../docs/addons/api/README.md)); ghosts do **not** touch that path.
 - **N2 preserved (MapView not replaced).** Ghosts **overlay on** the 3D view by adding render nodes
   to its scene — they do not re-skin or replace `MapView`. The vision doc already allows exactly this
   ("Addons overlay on it", [07-ui-and-drawing.md:94](specs/addons/07-ui-and-drawing.md:94)).
