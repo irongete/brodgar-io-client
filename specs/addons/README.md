@@ -1,9 +1,9 @@
-# specs/addons — the AddOn system's working folder (LOCAL, gitignored)
+# specs/addons — the AddOn system's working folder
 
 **Workflow:** `/plan <feature>` → creates the next `NNN-<feature>/` (spec → *approval* →
 plan/tasks) · `/implement [NNN.X]` → executes ONE task, leaves `HANDOFF.md`, stops for the
 maintainer's in-game test · `/end [note]` → documents (docs/addons/api/ only), checks the
-task off, updates state, and commits `specs/`'s own inner git repo (remote-less backup). Never push, never commit; the maintainer commits after verifying.
+task off, updates state, and makes a specs-only commit (as does `/plan` after approval). Never push, never commit; the maintainer commits after verifying.
 
 | File | What it is |
 |---|---|
