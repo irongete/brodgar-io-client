@@ -31,7 +31,23 @@ import java.util.*;
 import static haven.PUtils.*;
 
 public abstract class GridList<T> extends Widget {
-    public static final Text.Furnace dcatf = new BlurFurn(new TexFurn(new Text.Foundry(Text.fraktur, 18).aa(true), Window.ctex), 2, 1, new Color(96, 48, 0));
+    // addon: the smaller in-window heading furnace (group captions). Same "heading" scope as CharWnd.catf, with
+    // its own stock size (fraktur 18) -- the provider keeps a per-stock foundry, so one override fronts both and
+    // each keeps its own size (F3e, D-043). `dcatf` itself stays stock.
+    public static final Text.Foundry dcatfnd = new Text.Foundry(Text.fraktur, 18).aa(true);
+    public static final Text.Furnace dcatf = new BlurFurn(new TexFurn(dcatfnd, Window.ctex), 2, 1, new Color(96, 48, 0));
+    private static Text.Furnace bdcatf;
+    private static int fontgen = -1;
+    /** addon: the current group-heading furnace ({@code "heading"} scope, else stock {@link #dcatf}). */
+    public static Text.Furnace dcatfont() {
+	int g = Fonts.gen();
+	if((bdcatf == null) || (fontgen != g)) {
+	    Text.Foundry f = Fonts.foundry("heading", dcatfnd);
+	    bdcatf = (f == dcatfnd) ? dcatf : new BlurFurn(new TexFurn(f, Window.ctex), 2, 1, new Color(96, 48, 0));
+	    fontgen = g;
+	}
+	return(bdcatf);
+    }
     public final Text.Furnace catf;
     public final Scrollbar sb;
     public T sel = null;
@@ -58,9 +74,19 @@ public abstract class GridList<T> extends Widget {
 	    GridList.this.update();
 	}
 
+	private int rnamegen = -1;   // addon: Fonts.gen() at the last rname render (F3e)
 	public Text rname() {
-	    if(rname == null)
-		rname = catf.render(name);
+	    /* addon: re-render this group's caption when a "heading" override moves. A list built on the default
+	     * furnace follows the scope; one given an explicit furnace keeps it (like an explicit-foundry Label). */
+	    int gen = Fonts.gen();
+	    if((rname != null) && (rnamegen != gen)) {
+		rname.dispose();
+		rname = null;
+	    }
+	    if(rname == null) {
+		rname = ((catf == dcatf) ? dcatfont() : catf).render(name);   // addon: was `catf.render(name)`
+		rnamegen = gen;
+	    }
 	    return(rname);
 	}
     }

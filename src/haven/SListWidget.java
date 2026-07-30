@@ -75,11 +75,13 @@ public abstract class SListWidget<I, W extends Widget> extends Widget {
 
 	protected abstract String text();
 	protected int margin() {return(-1);}
-	protected Text.Forge foundry() {return(CharWnd.attrf);}
+	protected Text.Forge foundry() {return(CharWnd.attrfont());}   // addon: the "label" font scope (F3c, D-043)
 	protected boolean valid(String text) {return(true);}
 
 	private Text.Slug text = null;
+	private int fontgen = -1;    // addon: Fonts.gen() at the last render
 	protected void drawtext(GOut g) {
+	    dropfont();   // addon: re-render this item when a "label" font override moves (F3c)
 	    try {
 		if((this.text == null) || !valid(text.text)) {
 		    String text = text();
@@ -106,6 +108,20 @@ public abstract class SListWidget<I, W extends Widget> extends Widget {
 	public void dispose() {
 	    super.dispose();
 	    invalidate();
+	}
+
+	/* addon: drop only the cached TEXT when the "label" font override moved (F3c, D-043) -- the next drawtext
+	 * re-renders it through the provider. Kept separate from invalidate() so a font change does not throw away
+	 * anything else a subclass caches. */
+	private void dropfont() {
+	    int gen = Fonts.gen();
+	    if(gen == fontgen)
+		return;
+	    fontgen = gen;
+	    if(text != null) {
+		text.dispose();
+		text = null;
+	    }
 	}
 
 	public void invalidate() {
@@ -139,7 +155,7 @@ public abstract class SListWidget<I, W extends Widget> extends Widget {
 	protected abstract BufferedImage img();
 	protected abstract String text();
 	protected int margin() {return(0);}
-	protected Text.Forge foundry() {return(CharWnd.attrf);}
+	protected Text.Forge foundry() {return(CharWnd.attrfont());}   // addon: the "label" font scope (F3c, D-043)
 	protected boolean valid(String text) {return(true);}
 	protected PUtils.Convolution filter() {return(GobIcon.filter);}
 
@@ -169,7 +185,9 @@ public abstract class SListWidget<I, W extends Widget> extends Widget {
 	}
 
 	private Text.Slug text = null;
+	private int fontgen = -1;    // addon: Fonts.gen() at the last render
 	protected void drawtext(GOut g) {
+	    dropfont();   // addon: re-render this item when a "label" font override moves (F3c)
 	    int tx = sz.y + UI.scale(5);
 	    try {
 		if((this.text == null) || !valid(text.text)) {
@@ -196,6 +214,19 @@ public abstract class SListWidget<I, W extends Widget> extends Widget {
 	public void dispose() {
 	    super.dispose();
 	    invalidate();
+	}
+
+	/* addon: drop only the cached TEXT when the "label" font override moved (F3c, D-043) -- the icon is
+	 * unaffected by a font change, so it is deliberately NOT re-convolved here (unlike invalidate()). */
+	private void dropfont() {
+	    int gen = Fonts.gen();
+	    if(gen == fontgen)
+		return;
+	    fontgen = gen;
+	    if(text != null) {
+		text.dispose();
+		text = null;
+	    }
 	}
 
 	public void invalidate() {

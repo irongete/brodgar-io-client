@@ -31,9 +31,25 @@ import java.awt.event.KeyEvent;
 
 public abstract class ConsoleHost extends Widget implements Console.Host, ReadLine.Owner {
     public static Text.Foundry cmdfoundry = new Text.Foundry(Text.mono, 12, new java.awt.Color(245, 222, 179));
+    // addon: "textentry" font scope (F3c, D-043) -- the console command line is the other ReadLine-backed entry
+    // surface, so it follows the same scope as TextEntry. `cmdfoundry` stays the stock foundry; drawcmd() renders
+    // through Fonts.foundry("textentry", cmdfoundry) (an override, else stock, cascading through "default") and
+    // drops its cached line when Fonts.gen() moves.
+    private static Text.Foundry cfnd = null;
+    private static int fontgen = -1;
+    /** addon: the current foundry for the command line ({@code "textentry"} scope, else stock {@link #cmdfoundry}). */
+    static Text.Foundry cmdfont() {
+	int g = Fonts.gen();
+	if((cfnd == null) || (fontgen != g)) {
+	    cfnd = Fonts.foundry("textentry", cmdfoundry);
+	    fontgen = g;
+	}
+	return(cfnd);
+    }
     public ReadLine cmdline = null;
     private Text.Line cmdtext = null;
     private String cmdtextf = null;
+    private int cmdgen = -1;    // addon: Fonts.gen() at the last cmdtext render
     private List<String> history = new ArrayList<String>();
     private int hpos = history.size();
     private String hcurrent;
@@ -98,8 +114,10 @@ public abstract class ConsoleHost extends Widget implements Console.Host, ReadLi
     
     public void drawcmd(GOut g, Coord c) {
 	if(cmdline != null) {
-	    if((cmdtext == null) || !cmdline.lneq(cmdtextf))
-		cmdtext = cmdfoundry.render(":" + (cmdtextf = cmdline.line()));
+	    if((cmdtext == null) || !cmdline.lneq(cmdtextf) || (cmdgen != Fonts.gen())) {   // addon: re-render on a font change (F3c)
+		cmdtext = cmdfont().render(":" + (cmdtextf = cmdline.line()));   // addon: was `cmdfoundry.render(...)`
+		cmdgen = Fonts.gen();   // addon:
+	    }
 	    int point = cmdline.point(), mark = cmdline.mark();
 	    int px = cmdtext.advance(point + 1);
 	    if(mark >= 0) {

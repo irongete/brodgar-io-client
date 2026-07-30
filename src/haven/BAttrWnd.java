@@ -48,17 +48,22 @@ public class BAttrWnd extends Widget {
     }
 
     public static class Attr extends CharWnd.AttrWdg {
-	public final Text rnm;
+	public Text rnm;   // addon: non-final so the row can live-restyle on a "label" font change (F3c, D-043)
 	public final Tex img;
 	public final Color bg;
 	private double lvlt = 0.0;
 	private Text ct;
 	private int cbv = -1, ccv = -1;
+	// addon: the attribute name + its cached value render through the "label" scope (F3c, D-043); `rnms` keeps
+	// the name so it can be re-rendered, `fontgen` is the last generation this row rendered at.
+	private String rnms;
+	private int fontgen = -1;
 
 	private Attr(Glob glob, String attr, Color bg) {
 	    super(Coord.of(attrw, attrf.height() + UI.scale(2)), glob, attr);
 	    Resource res = Loading.waitfor(this.attr.res());
-	    this.rnm = attrf.render(res.flayer(Resource.tooltip).t);
+	    this.rnm = CharWnd.attrfont().render(rnms = res.flayer(Resource.tooltip).t);   // addon: was `attrf.render(...)`
+	    this.fontgen = Fonts.gen();   // addon:
 	    this.img = new TexI(convolve(res.flayer(Resource.imgc).img, new Coord(this.sz.y, this.sz.y), iconfilter));
 	    this.bg = bg;
 	}
@@ -72,13 +77,29 @@ public class BAttrWnd extends Widget {
 		} else if(ccv < cbv) {
 		    c = debuff;
 		}
-		ct = attrf.render(Integer.toString(ccv), c);
+		ct = CharWnd.attrfont().render(Integer.toString(ccv), c);   // addon: was `attrf.render(...)`
 	    }
 	    if((lvlt > 0.0) && ((lvlt -= dt) < 0))
 		lvlt = 0.0;
 	}
 
+	/* addon: re-render this row when a "label" font override moves (F3c, D-043). The name is re-rendered from
+	 * the remembered string; the value re-renders on the next tick (clearing `ccv` forces it, colour included).
+	 * The row's HEIGHT stays the stock one -- it was fixed at construction from `attrf.height()`. */
+	private void checkfont() {
+	    int gen = Fonts.gen();
+	    if(gen == fontgen)
+		return;
+	    fontgen = gen;
+	    if(rnms != null) {
+		rnm.dispose();
+		rnm = CharWnd.attrfont().render(rnms);
+	    }
+	    ccv = -1;
+	}
+
 	public void draw(GOut g) {
+	    checkfont();   // addon: (F3c)
 	    if(lvlt != 0.0)
 		g.chcolor(Utils.blendcol(bg, new Color(128, 255, 128, 128), lvlt));
 	    else
@@ -459,7 +480,7 @@ public class BAttrWnd extends Widget {
 
     public BAttrWnd(Glob glob) {
 	Widget prev;
-	prev = add(CharWnd.settip(new Img(catf.render("Base Attributes").tex()), "gfx/hud/chr/tips/base"), Coord.z);
+	prev = add(CharWnd.settip(CharWnd.heading("Base Attributes"), "gfx/hud/chr/tips/base"), Coord.z);
 	attrs = new ArrayList<>();
 	Attr aw;
 	attrs.add(aw = add(new Attr(glob, "str", every), prev.pos("bl").adds(5, 0).add(wbox.btloff())));
@@ -472,14 +493,14 @@ public class BAttrWnd extends Widget {
 	attrs.add(aw = add(new Attr(glob, "wil", other), aw.pos("bl")));
 	attrs.add(aw = add(new Attr(glob, "psy", every), aw.pos("bl")));
 	prev = Frame.around(this, attrs);
-	prev = add(CharWnd.settip(new Img(catf.render("Food Event Points").tex()), "gfx/hud/chr/tips/fep"), prev.pos("bl").x(0).adds(0, 10));
+	prev = add(CharWnd.settip(CharWnd.heading("Food Event Points"), "gfx/hud/chr/tips/fep"), prev.pos("bl").x(0).adds(0, 10));
 	feps = add(new FoodMeter(), prev.pos("bl").adds(5, 2));
 
 	int ah = attrs.get(attrs.size() - 1).pos("bl").y - attrs.get(0).pos("ul").y;
-	prev = add(CharWnd.settip(new Img(catf.render("Food Satiations").tex()), "gfx/hud/chr/tips/constip"), width, 0);
+	prev = add(CharWnd.settip(CharWnd.heading("Food Satiations"), "gfx/hud/chr/tips/constip"), width, 0);
 	cons = add(new Constipations(Coord.of(attrw, ah)), prev.pos("bl").adds(5, 0).add(wbox.btloff()));
 	prev = Frame.around(this, Collections.singletonList(cons));
-	prev = add(CharWnd.settip(new Img(catf.render("Hunger Level").tex()), "gfx/hud/chr/tips/hunger"), prev.pos("bl").x(width).adds(0, 10));
+	prev = add(CharWnd.settip(CharWnd.heading("Hunger Level"), "gfx/hud/chr/tips/hunger"), prev.pos("bl").x(width).adds(0, 10));
 	glut = add(new GlutMeter(), prev.pos("bl").adds(5, 2));
 	pack();
     }

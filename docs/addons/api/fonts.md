@@ -8,9 +8,13 @@ your addon keeps; another addon cannot look it up (no name collisions, no coupli
 > (the global fallback — most UI text). **F2 (shipped):** applying a font to your **own** drawing — `font=` on
 > `hafen.ui.window`/`widget`, `g:text`/`g:atext` with a `{font=…, color=…}` option, and a custom TTF in a
 > `$font[…]{…}` rich-text tag. **F3a (shipped):** the **`"window.title"`** scope (window captions).
-> **F3b (shipped):** the **`"button"`** scope (button captions) is now live. The remaining per-scope surfaces
-> (`label`, `tooltip`, `menu`, `chat`, `textentry`) arrive in later F3 slices — the scope names are already
-> listed by `scopes()`, they simply have no effect until routed. See
+> **F3b (shipped):** the **`"button"`** scope (button captions). **F3c (shipped):** the **`"textentry"`** scope
+> (every text-input field + the console command line) and the **`"label"`** scope (the client's **body text** —
+> character-sheet attribute rows, skill/lore/quest/wound list items, and the explicit-foundry labels F1's
+> default-`Label` routing left out) are now live. **F3e (shipped):** the **`"heading"`** scope — the embossed
+> section headings *inside* a window ("Base Attributes", "Lore & Skills", "Kin", …); a **new scope**, added to the
+> enum in this slice. The remaining per-scope surfaces (`tooltip`, `menu`, `chat`) arrive in F3d — the scope names
+> are already listed by `scopes()`, they simply have no effect until routed. See
 > [`21-fonts.md`](../../../specs/addons/21-fonts.md) for the roadmap.
 
 Client-only and cosmetic (**safe-tier — not gated**), like a HUD overlay.
@@ -110,12 +114,13 @@ restorable. The change is **live** — most existing text re-renders on the spot
 |---|---|---|
 | `"default"` | global fallback — most UI text (`Text.std` / `Text.render` / default `Label`) | **F1 (live)** |
 | `"window.title"` | window captions | **F3a (live)** |
+| `"heading"` | in-window section headings (embossed fraktur) | **F3e (live)** |
 | `"button"` | button captions | **F3b (live)** |
-| `"label"` | explicit non-default labels | F3 |
-| `"tooltip"` | tooltips | F3 |
-| `"menu"` | flower / context menus | F3 |
-| `"chat"` | chat text | F3 |
-| `"textentry"` | text-entry fields | F3 |
+| `"label"` | body text — attribute rows, list items, explicit-foundry labels | **F3c (live)** |
+| `"tooltip"` | tooltips | F3d |
+| `"menu"` | flower / context menus | F3d |
+| `"chat"` | chat text | F3d |
+| `"textentry"` | text-entry fields (+ the console command line) | **F3c (live)** |
 | `"world.nick"` | floating player / kin names | F4 |
 | `"world.speech"` | speech bubbles | F4 |
 
@@ -140,6 +145,45 @@ you want the change to be visible. Two surfaces are deliberately *not* in this
 scope: a button whose face was supplied by the client as a ready-made image or pre-rendered text (icon buttons
 like `IButton`, and the character-selection list entries), and button-shaped widgets that are not buttons at all
 (checkboxes, radio labels) — those are not button captions and keep their own foundry.
+
+**Notes on `"textentry"` (F3c).** It covers **both** of the client's text-input surfaces: every editable field
+(the chat input, search boxes, the login name/password fields, name-a-save fields, …) **and** the console
+command line — the `:` prompt, so `:lua` and your own [`hafen.slash`](slash.md) commands are typed in your font
+too. Each field drops its cached line when the override moves, so the change is live on the next frame, and
+selection/caret positions follow the new glyph advances automatically. **Geometry caveat:** a field's *height*
+comes from its background texture, not from the font — a much larger size is drawn but vertically clipped. Stay
+near the stock **serif 12** (the command line's stock is **mono 12**, wheat-coloured, and an override with no
+explicit colour inherits that per-site colour) unless you want the clipping.
+
+**Notes on `"heading"` (F3e).** The big embossed fraktur captions **inside** a window — "Base Attributes",
+"Food Satiations", "Abilities", "Study Report", "Lore & Skills", "Entries", "Quest Log", "Health & Wounds",
+"Martial Arts & Combat Schools", "Kin", the credo group captions ("Pursuing" / "Credos Available" / "Credos
+Acquired"), a village name, and the quest-completed banner. Deliberately **its own scope**: a heading is neither
+the window's title bar (`"window.title"`) nor body text (`"label"`), so you can restyle one without the others.
+Two stock sizes ride this scope — 25 px window headings and 18 px group captions — and an override with no `size=`
+keeps each of them, so nothing around a heading moves. Headings are an embossed **furnace** baked into an image, so
+the client rebuilds the furnace and re-renders each **visible** heading on the frame after the override moves: keep
+a window open while toggling and you see it change.
+
+**Notes on `"label"` (F3c).** This is the client's **body text**: everything it renders with its own hand-picked
+foundry, which until F3c was frozen at whatever font it was constructed with. F1 had already routed the *default*
+labels through `"default"`; `"label"` covers the rest:
+
+| Surface | Where you see it |
+|---|---|
+| Attribute rows (name + value) | character sheet — **Base** and **Study** tabs |
+| List items (text + icon rows) | **Skills & Lore**, **Quests**, **Wounds**, combat maneuvers, radar icon settings |
+| Menu-search results | the search box results list |
+| Explicit-foundry labels | credo `Level:`/`Quest:` lines, wound quality, the combat-schools counter, the login screen, village name |
+
+Each site re-renders **lazily, on the next frame it draws** (so a mass restyle never stalls a frame) and keeps its
+own colour; labels also keep their **wrap width**. Because an override **inherits each site's stock size** unless
+you pass `size=`, `setFont("label", h)` swaps the *family* everywhere while an 18 px row stays 18 px — the safe way
+to restyle body text without moving layouts. **Two geometry caveats if you do pass `size=`:** list/attribute **row
+heights** were computed from the stock font at construction, so taller glyphs clip; and a `Label` resizes itself to
+its text while its container does not re-lay-out around it. Deliberately *not* in this scope: a caller-supplied
+pre-rendered `Text` (e.g. the italic "Unused save" placeholder) and text a widget rasterizes into its own face —
+those are not body text.
 
 ### Conflict model (one intrinsic limit)
 

@@ -33,11 +33,15 @@ public class Label extends Widget {
     public Text text;
     public String texts;
     public Color col = Color.WHITE;
-    // addon: live font scope (F1, D-043). A label built through the DEFAULT constructors follows the "default"
-    // scope, so a hafen.font.setFont("default", h) re-renders it live; a label built with an explicit foundry is
-    // fixed (fontscope == null). fontwrapw >= 0 selects renderwrap (a width-wrapped label); fontgen is the last
-    // provider generation this label rendered at (a cheap int compare in draw skips work when nothing changed).
+    // addon: live font scope (F1 + F3c, D-043). A label built through the DEFAULT constructors follows the
+    // "default" scope; a label built with an EXPLICIT foundry follows the "label" scope (F3c) with that foundry as
+    // its stock -- so an override on "label" refines only those, while setFont("default", h) still cascades to
+    // both. Either way a hafen.font.setFont/reset re-renders the label live. fontstock is the site's own foundry
+    // (the fallback handed to the provider), fontwrapw >= 0 selects renderwrap (a width-wrapped label), and
+    // fontgen is the last provider generation this label rendered at (a cheap int compare in draw skips work when
+    // nothing changed).
     private String fontscope = null;
+    private Text.Foundry fontstock = null;
     private int fontwrapw = -1;
     private int fontgen = -1;
 
@@ -52,27 +56,33 @@ public class Label extends Widget {
     }
 
     public Label(String text, int w, Text.Foundry f) {
-	super(Coord.z);
-	this.f = f;
-	this.text = f.renderwrap(texts = text, this.col, w);
-	resize(this.text.sz());
+	this(text, w, f, "label");        // addon: an explicit-foundry label follows the "label" font scope (F3c)
     }
 
     public Label(String text, Text.Foundry f) {
-	super(Coord.z);
-	this.f = f;
-	this.text = f.render(texts = text, this.col);
-	resize(this.text.sz());
+	this(text, -1, f, "label");       // addon: an explicit-foundry label follows the "label" font scope (F3c)
     }
 
     public Label(String text, int w) {
-	this(text, w, Fonts.foundry("default", Text.std));   // addon: the default follows the "default" font scope (F1)
-	this.fontscope = "default"; this.fontwrapw = w; this.fontgen = Fonts.gen();
+	this(text, w, Text.std, "default");    // addon: the default follows the "default" font scope (F1)
     }
 
     public Label(String text) {
-	this(text, Fonts.foundry("default", Text.std));      // addon: the default follows the "default" font scope (F1)
-	this.fontscope = "default"; this.fontgen = Fonts.gen();
+	this(text, -1, Text.std, "default");   // addon: the default follows the "default" font scope (F1)
+    }
+
+    /* addon: the common constructor (F1/F3c, D-043). Resolves `stock` through the font provider for `scope` and
+     * remembers both, so restyle() can re-render this label live when an override on that scope is installed or
+     * dropped. `w` < 0 = an unwrapped label. */
+    private Label(String text, int w, Text.Foundry stock, String scope) {
+	super(Coord.z);
+	this.fontscope = scope;
+	this.fontstock = stock;
+	this.fontwrapw = w;
+	this.fontgen = Fonts.gen();
+	this.f = Fonts.foundry(scope, stock);
+	this.text = (w >= 0) ? f.renderwrap(texts = text, this.col, w) : f.render(texts = text, this.col);
+	resize(this.text.sz());
     }
 
     public void draw(GOut g) {
@@ -80,10 +90,10 @@ public class Label extends Widget {
 	g.image(text.tex(), Coord.z);
     }
 
-    /* addon: live font re-style (F1, D-043). A default label follows the "default" scope; when
+    /* addon: live font re-style (F1 + F3c, D-043). A default label follows the "default" scope, an
+     * explicit-foundry one the "label" scope (with its own foundry as the stock fallback); when
      * hafen.font.setFont/reset bumps the provider generation the label re-resolves its foundry and re-renders
-     * (preserving its wrap width + colour). A no-op — one int compare — when nothing changed or for a fixed
-     * explicit-foundry label. */
+     * (preserving its wrap width + colour). A no-op — one int compare — when nothing changed. */
     private void restyle() {
 	if(fontscope == null)
 	    return;
@@ -91,7 +101,7 @@ public class Label extends Widget {
 	if(gen == fontgen)
 	    return;
 	fontgen = gen;
-	Text.Foundry nf = Fonts.foundry(fontscope, Text.std);
+	Text.Foundry nf = Fonts.foundry(fontscope, fontstock);
 	if(nf == f)
 	    return;
 	f = nf;

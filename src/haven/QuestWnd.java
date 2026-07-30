@@ -84,8 +84,8 @@ public class QuestWnd extends Widget {
 	    }
 	}
 
-	private static final Tex qcmp = catf.render("Quest completed").tex();
-	private static final Tex qfail = failf.render("Quest failed").tex();
+	// addon: the popup's heading + banner render through the "heading" scope provider (F3e, D-043); they
+	// used to be class-init `static final Tex`, which can never follow a font override.
 	public void done(GameUI parent) {
 	    parent.add(new Widget() {
 		    double a = 0.0;
@@ -112,9 +112,10 @@ public class QuestWnd extends Widget {
 		    public void tick(double dt) {
 			if(img == null) {
 			    try {
-				title = (done == QST_DONE?catf:failf).render(title()).tex();
+				title = (done == QST_DONE ? CharWnd.catfont() : CharWnd.failfont()).render(title()).tex();   // addon: the "heading" font scope (F3e, D-043)
 				img = res.get().flayer(Resource.imgc).tex();
-				msg = (done == QST_DONE)?qcmp:qfail;
+				msg = (done == QST_DONE) ? CharWnd.catfont().render("Quest completed").tex()
+						 : CharWnd.failfont().render("Quest failed").tex();   // addon: the "heading" font scope (F3e, D-043)
 				/*
 				resize(new Coord(Math.max(img.sz().x + 25 + title.sz().x, msg.sz().x),
 						 Math.max(img.sz().y, title.sz().y) + 25 + msg.sz().y));
@@ -635,7 +636,7 @@ public class QuestWnd extends Widget {
     public QuestWnd() {
 	Widget prev;
 
-	prev = add(CharWnd.settip(new Img(catf.render("Quest Log").tex()), "gfx/hud/chr/tips/quests"), new Coord(0, 0));
+	prev = add(CharWnd.settip(CharWnd.heading("Quest Log"), "gfx/hud/chr/tips/quests"), new Coord(0, 0));
 	questbox = add(new Widget(new Coord(attrw, height)) {
 		public void draw(GOut g) {
 		    g.chcolor(0, 0, 0, 128);

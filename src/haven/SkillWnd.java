@@ -215,9 +215,9 @@ public class SkillWnd extends Widget {
 
 	public CredoGrid(Coord sz) {
 	    super(sz);
-	    pcrc = new Img(GridList.dcatf.render("Pursuing").tex());
-	    ncrc = new Img(GridList.dcatf.render("Credos Available").tex());
-	    ccrc = new Img(GridList.dcatf.render("Credos Acquired").tex());
+	    pcrc = new CharWnd.Heading("Pursuing", GridList::dcatfont);   // addon: the "heading" font scope (F3e, D-043)
+	    ncrc = new CharWnd.Heading("Credos Available", GridList::dcatfont);
+	    ccrc = new CharWnd.Heading("Credos Acquired", GridList::dcatfont);
 	    pbtn = new Button(btnw, "Pursue", false) {
 		    public void click() {
 			if(sel != null)
@@ -404,12 +404,12 @@ public class SkillWnd extends Widget {
     public SkillWnd() {
 	Widget prev;
 
-	prev = add(CharWnd.settip(new Img(catf.render("Lore & Skills").tex()), "gfx/hud/chr/tips/skills"), Coord.z);
+	prev = add(CharWnd.settip(CharWnd.heading("Lore & Skills"), "gfx/hud/chr/tips/skills"), Coord.z);
 	RichTextBox info = add(new RichTextBox(new Coord(attrw, height), ifnd, null), prev.pos("bl").adds(5, 0).add(wbox.btloff()));
 	info.bg = new Color(0, 0, 0, 128);
 	Frame.around(this, Collections.singletonList(info));
 
-	prev = add(new Img(catf.render("Entries").tex()), width, 0);
+	prev = add(CharWnd.heading("Entries"), width, 0);   // addon: the "heading" font scope (F3e, D-043)
 	Tabs lists = new Tabs(prev.pos("bl").adds(5, 0), new Coord(attrw + wbox.bisz().x, 0), this);
 	int gh = UI.scale(241);
 	Tabs.Tab sktab = lists.add();

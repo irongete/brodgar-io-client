@@ -592,7 +592,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
 	    public Category(String id, String name) {
 		this.id = id;
-		cap = add(new Img(CharWnd.catf.render(name).tex()));
+		cap = add(CharWnd.heading(name));   // addon: the "heading" font scope (F3e, D-043)
 	    }
 
 	    public class Selector extends SDropBox<Polity, Widget> {

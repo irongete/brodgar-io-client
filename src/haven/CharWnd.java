@@ -39,9 +39,101 @@ public class CharWnd extends Window {
     public static final RichText.Foundry ifnd = new RichText.Foundry(RichText.IMAGESRC, RichText.ImageSource.legacy,
 								     java.awt.font.TextAttribute.FAMILY, "SansSerif",
 								     java.awt.font.TextAttribute.SIZE, UI.scale(9)).aa(true);
-    public static final Text.Furnace catf = new BlurFurn(new TexFurn(new Text.Foundry(Text.fraktur, 25).aa(true), Window.ctex), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
-    public static final Text.Furnace failf = new BlurFurn(new TexFurn(new Text.Foundry(Text.fraktur, 25).aa(true), Resource.loadimg("gfx/hud/fontred")), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
+    // addon: the STOCK foundry behind the section-heading furnaces, extracted so it can be handed to the font
+    // provider as the fallback for the "heading" scope (F3e, D-043). Same recipe as before (fraktur 25, aa).
+    public static final Text.Foundry capfnd = new Text.Foundry(Text.fraktur, 25).aa(true);
+    private static final BufferedImage failtex = Resource.loadimg("gfx/hud/fontred");   // addon: loaded once (was inline)
+    public static final Text.Furnace catf = new BlurFurn(new TexFurn(capfnd, Window.ctex), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
+    public static final Text.Furnace failf = new BlurFurn(new TexFurn(capfnd, failtex), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
+    /* addon: "heading" font scope (F3e, D-043). `catf`/`failf` above stay the STOCK furnaces (they are
+     * `public static final` and other code may still use them directly); every section heading the client renders
+     * goes through these provider-resolved twins instead. A heading is a Text.FURNACE (an embossed blur over a
+     * texture), so -- exactly like F3a's window captions -- the furnace itself is rebuilt over the resolved
+     * foundry whenever Fonts.gen() moves, with a stock-identity fast path that reuses the stock furnaces when no
+     * addon has overridden anything. Headings are baked into an Img's Tex at window build time, so
+     * {@link Heading} remembers its string and re-renders on the same check. */
+    private static Text.Furnace bcatf, bfailf;
+    private static int capgen = -1;
+    private static void checkcapfont() {
+	int g = Fonts.gen();
+	if((bcatf == null) || (capgen != g)) {
+	    Text.Foundry f = Fonts.foundry("heading", capfnd);
+	    bcatf  = (f == capfnd) ? catf  : new BlurFurn(new TexFurn(f, Window.ctex), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
+	    bfailf = (f == capfnd) ? failf : new BlurFurn(new TexFurn(f, failtex),     UI.scale(3), UI.scale(2), new Color(96, 48, 0));
+	    capgen = g;
+	}
+    }
+    /** addon: the current furnace for section headings ({@code "heading"} scope, else stock {@link #catf}). */
+    public static Text.Furnace catfont() {checkcapfont(); return(bcatf);}
+    /** addon: the failed-heading variant ({@code "heading"} scope, else stock {@link #failf}). */
+    public static Text.Furnace failfont() {checkcapfont(); return(bfailf);}
+
+    /* addon: a section heading (F3e, D-043). Stock code baked headings straight into an `Img`:
+     *   add(new Img(catf.render("Base Attributes").tex()), ...)
+     * which throws the String away, so the heading could never be re-rendered. This Img subclass remembers its
+     * text and which furnace supplier it draws with, and re-renders its Tex when the "heading" override moves --
+     * the Img/Heading analog of F3b's recorded button-caption recipe. Use {@link #heading} instead of
+     * `new Img(catf.render(…).tex())`. */
+    public static class Heading extends Img {
+	private final String text;
+	private final Supplier<Text.Furnace> fnd;
+	private Tex cur;
+	private int fontgen;
+
+	public Heading(String text, Supplier<Text.Furnace> fnd) {
+	    this(text, fnd, fnd.get().render(text).tex());
+	}
+
+	private Heading(String text, Supplier<Text.Furnace> fnd, Tex tex) {
+	    super(tex);
+	    this.text = text; this.fnd = fnd; this.cur = tex;
+	    this.fontgen = Fonts.gen();
+	}
+
+	public void draw(GOut g) {
+	    int gen = Fonts.gen();
+	    if(gen != fontgen) {
+		fontgen = gen;
+		Tex old = cur;
+		setimg(cur = fnd.get().render(text).tex());
+		if(old != null)
+		    old.dispose();
+	    }
+	    super.draw(g);
+	}
+
+	public void dispose() {
+	    super.dispose();
+	    if(cur != null) {
+		cur.dispose();
+		cur = null;
+	    }
+	}
+    }
+
+    /** addon: a section heading in the client's heading font, restyled live by the {@code "heading"} scope (F3e). */
+    public static Heading heading(String text) {
+	return(new Heading(text, CharWnd::catfont));
+    }
     public static final Text.Foundry attrf = new Text.Foundry(Text.fraktur.deriveFont((float)Math.floor(UI.scale(18.0)))).aa(true);
+    // addon: "label" font scope (F3c, D-043). `attrf` above stays the STOCK foundry -- it is `public static final`
+    // (so it can never be re-derived) and its `height()` fixes row geometry all over the character sheet. The
+    // client's shared BODY-TEXT surface -- the attribute rows, the skill/lore/quest/wound list items, the search
+    // and icon-settings lists -- renders through this provider-resolved twin instead: Fonts.foundry("label", attrf)
+    // resolves an addon override, or the stock foundry when none is set, cascading through "default". Rebuilt
+    // lazily whenever Fonts.gen() moves; each consuming site drops its cached Text on the same check. Rows keep
+    // their stock HEIGHT (a size override can therefore clip -- see docs/addons/api/fonts.md).
+    private static Text.Foundry battrf;
+    private static int attrfgen = -1;
+    /** addon: the current foundry for the shared character-sheet body text ({@code "label"} scope, else {@link #attrf}). */
+    public static Text.Foundry attrfont() {
+	int g = Fonts.gen();
+	if((battrf == null) || (attrfgen != g)) {
+	    battrf = Fonts.foundry("label", attrf);
+	    attrfgen = g;
+	}
+	return(battrf);
+    }
     public static final PUtils.Convolution iconfilter = new PUtils.Lanczos(3);
     public static final int attrw = BAttrWnd.FoodMeter.frame.sz().x - wbox.bisz().x;
     public static final Color debuff = new Color(255, 128, 128);

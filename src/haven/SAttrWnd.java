@@ -46,19 +46,24 @@ public class SAttrWnd extends Widget {
     }
 
     public class SAttr extends CharWnd.AttrWdg {
-	public final Text rnm;
+	public Text rnm;   // addon: non-final so the row can live-restyle on a "label" font change (F3c, D-043)
 	public final Tex img;
 	public final Color bg;
 	public int tbv, cost;
 	private final IButton add, sub;
 	private Text ct;
 	private int cbv, ccv;
+	// addon: the attribute name + its cached value render through the "label" scope (F3c, D-043); `rnms` keeps
+	// the name so it can be re-rendered, `fontgen` is the last generation this row rendered at.
+	private String rnms;
+	private int fontgen = -1;
 
 	private SAttr(Glob glob, String attr, Color bg) {
 	    super(Coord.of(attrw, attrf.height() + UI.scale(2)), glob, attr);
 	    Resource res = Loading.waitfor(this.attr.res());
 	    this.img = new TexI(convolve(res.flayer(Resource.imgc).img, new Coord(this.sz.y, this.sz.y), iconfilter));
-	    this.rnm = attrf.render(res.flayer(Resource.tooltip).t);
+	    this.rnm = CharWnd.attrfont().render(rnms = res.flayer(Resource.tooltip).t);   // addon: the "label" scope (F3c)
+	    this.fontgen = Fonts.gen();   // addon:
 	    this.bg = bg;
 	    add = adda(new IButton("gfx/hud/buttons/add", "u", "d", "h").action(() -> adj(1)),
 		       sz.x - UI.scale(5), sz.y / 2, 1, 0.5);
@@ -82,12 +87,28 @@ public class SAttrWnd extends Widget {
 		}
 		if(tbv > 0)
 		    c = tbuff;
-		ct = attrf.render(Integer.toString(ccv + tbv), c);
+		ct = CharWnd.attrfont().render(Integer.toString(ccv + tbv), c);   // addon: was `attrf.render(...)`
 		updcost();
 	    }
 	}
 
+	/* addon: re-render this row when a "label" font override moves (F3c, D-043). The name is re-rendered from
+	 * the remembered string; the value re-renders on the next tick (clearing `ccv` forces it, colour included).
+	 * The row's HEIGHT stays the stock one -- it was fixed at construction from `attrf.height()`. */
+	private void checkfont() {
+	    int gen = Fonts.gen();
+	    if(gen == fontgen)
+		return;
+	    fontgen = gen;
+	    if(rnms != null) {
+		rnm.dispose();
+		rnm = CharWnd.attrfont().render(rnms);
+	    }
+	    ccv = -1;   // never a real comp value -> the next tick always re-renders `ct`
+	}
+
 	public void draw(GOut g) {
+	    checkfont();   // addon: (F3c)
 	    g.chcolor(bg);
 	    g.frect(Coord.z, sz);
 	    g.chcolor();
@@ -198,7 +219,7 @@ public class SAttrWnd extends Widget {
 
     public SAttrWnd(Glob glob) {
 	Widget prev;
-	prev = add(CharWnd.settip(new Img(catf.render("Abilities").tex()), "gfx/hud/chr/tips/sattr"), Coord.z);
+	prev = add(CharWnd.settip(CharWnd.heading("Abilities"), "gfx/hud/chr/tips/sattr"), Coord.z);
 	attrs = new ArrayList<>();
 	SAttr aw;
 	attrs.add(aw = add(new SAttr(glob, "unarmed", every), prev.pos("bl").adds(5, 0).add(wbox.btloff())));
@@ -216,7 +237,7 @@ public class SAttrWnd extends Widget {
 	attrs.add(aw = add(new SAttr(glob, "lore", every), aw.pos("bl")));
 	Widget lframe = Frame.around(this, attrs);
 
-	prev = add(CharWnd.settip(new Img(catf.render("Study Report").tex()), "gfx/hud/chr/tips/study"), width, 0);
+	prev = add(CharWnd.settip(CharWnd.heading("Study Report"), "gfx/hud/chr/tips/study"), width, 0);
 	studyc = prev.pos("bl").adds(5, 0);
 	Widget bframe = adda(new Frame(new Coord(attrw, UI.scale(105)), true), prev.pos("bl").adds(5, 0).x, lframe.pos("br").y, 0.0, 1.0);
 	int rx = bframe.pos("iur").subs(10, 0).x;

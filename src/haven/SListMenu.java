@@ -178,7 +178,7 @@ public abstract class SListMenu<I, W extends Widget> extends Widget {
 	    super(sz, fnd.height());
 	    this.fnd = fnd;
 	}
-	public TextMenu(Coord sz) {this(sz, bigf);}
+	public TextMenu(Coord sz) {this(sz, CharWnd.attrfont());}   // addon: the "label" font scope (F3c, D-043)
 
 	protected abstract String nameof(I item);
 
@@ -191,7 +191,7 @@ public abstract class SListMenu<I, W extends Widget> extends Widget {
     }
 
     public static <I> SListMenu<I, Widget> of(Coord sz, Text.Foundry fnd, List<? extends I> items, Function<? super I, String> nmf, Consumer<? super I> action, Runnable cancel) {
-	return(new TextMenu<I>(sz, (fnd == null) ? bigf : fnd) {
+	return(new TextMenu<I>(sz, (fnd == null) ? CharWnd.attrfont() : fnd) {
 		protected String nameof(I item) {return(nmf.apply(item));}
 		protected List<? extends I> items() {return(items);}
 		protected void choice(I item) {
@@ -233,7 +233,7 @@ public abstract class SListMenu<I, W extends Widget> extends Widget {
 	    super(sz, fnd.height());
 	    this.fnd = fnd;
 	}
-	public IconMenu(Coord sz) {this(sz, bigf);}
+	public IconMenu(Coord sz) {this(sz, CharWnd.attrfont());}   // addon: the "label" font scope (F3c, D-043)
 
 	protected abstract String nameof(I item);
 	protected abstract BufferedImage iconof(I item);
@@ -248,7 +248,7 @@ public abstract class SListMenu<I, W extends Widget> extends Widget {
     }
 
     public static <I> SListMenu<I, Widget> of(Coord sz, Text.Foundry fnd, List<? extends I> items, Function<? super I, String> nmf, Function<? super I, BufferedImage> imgf, Consumer<? super I> action, Runnable cancel) {
-	return(new IconMenu<I>(sz, (fnd == null) ? bigf : fnd) {
+	return(new IconMenu<I>(sz, (fnd == null) ? CharWnd.attrfont() : fnd) {
 		protected String nameof(I item) {return(nmf.apply(item));}
 		protected BufferedImage iconof(I item) {return(imgf.apply(item));}
 		protected List<? extends I> items() {return(items);}

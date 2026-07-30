@@ -71,6 +71,7 @@ public class Fonts {
     public static final String[] SCOPES = {
         "default",        // F1  — global fallback (Text.std / Text.render / Label default)
         "window.title",   // F3  — window captions (Window.DefaultDeco)
+        "heading",        // F3e — in-window section headings (CharWnd.catf/failf, GridList.dcatf)
         "button",         // F3  — button captions
         "label",          // F3  — explicit non-default labels
         "tooltip",        // F3  — tooltips

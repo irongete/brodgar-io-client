@@ -33,6 +33,23 @@ public class TextEntry extends Widget implements ReadLine.Owner {
     public static final Color defcol = new Color(255, 205, 109), dirtycol = new Color(255, 232, 209);
     public static final Color selcol = new Color(24, 80, 192);
     public static final Text.Foundry fnd = new Text.Foundry(Text.serif, 12).aa(true);
+    // addon: "textentry" font scope (F3c, D-043). `fnd` above stays the STOCK foundry (other code may still use
+    // it directly); the text a TextEntry renders itself goes through the provider instead:
+    // Fonts.foundry("textentry", fnd) resolves an addon override, or -- when none -- the stock foundry, cascading
+    // through "default". The resolved foundry is rebuilt lazily whenever Fonts.gen() moves, and each entry drops
+    // its cached Text.Line on the same check (see draw(GOut)), so a live setFont restyles every field on screen.
+    private static Text.Foundry efnd = null;
+    private static int fontgen = -1;
+    /** addon: the current foundry for the {@code "textentry"} scope (an override, else stock {@link #fnd}). */
+    static Text.Foundry tfont() {
+	int g = Fonts.gen();
+	if((efnd == null) || (fontgen != g)) {
+	    efnd = Fonts.foundry("textentry", fnd);
+	    fontgen = g;
+	}
+	return(efnd);
+    }
+    private int tcgen = -1;    // addon: Fonts.gen() at the last tcache render
     public static final Tex lcap = Resource.loadtex("gfx/hud/text/l");
     public static final Tex rcap = Resource.loadtex("gfx/hud/text/r");
     public static final Tex mext = Resource.loadtex("gfx/hud/text/m");
@@ -113,9 +130,13 @@ public class TextEntry extends Widget implements ReadLine.Owner {
     }
 
     public void draw(GOut g) {
+	if((this.tcache != null) && (tcgen != Fonts.gen()))   // addon: the "textentry" override moved -- re-render (F3c)
+	    redraw();
 	Text.Line tcache = this.tcache;
-	if(tcache == null)
-	    this.tcache = tcache = fnd.render(dtext(), (dshow && dirty) ? dirtycol : defcol);
+	if(tcache == null) {
+	    this.tcache = tcache = tfont().render(dtext(), (dshow && dirty) ? dirtycol : defcol);   // addon: was `fnd.render(...)`
+	    this.tcgen = Fonts.gen();   // addon:
+	}
 	int point = buf.point(), mark = buf.mark();
 	g.image(mext, Coord.z, sz);
 	if(mark >= 0) {

@@ -63,7 +63,7 @@ public abstract class MenuSearch extends Window {
 				protected BufferedImage img() {return(item.btn.img());}
 				protected String text() {return(el.btn.name());}
 				protected int margin() {return(0);}
-				protected Text.Foundry foundry() {return(elf);}
+				protected Text.Foundry foundry() {return(CharWnd.attrfont());}   // addon: the "label" font scope (F3c, D-043)
 			    }, Coord.z);
 		    }
 

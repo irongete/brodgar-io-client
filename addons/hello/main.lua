@@ -894,10 +894,16 @@ local monoFont          -- F2: a second handle (built-in "mono") for the per-cal
 local fontApplied = false   -- is our "default" override currently installed? (session-local; teardown reverts it)
 local titleApplied = false  -- F3a: is our "window.title" override installed? (session-local; teardown reverts it)
 local btnApplied = false    -- F3b: is our "button" override installed? (session-local; teardown reverts it)
+local entryApplied = false  -- F3c: is our "textentry" override installed? (session-local; teardown reverts it)
+local labelApplied = false  -- F3c: is our "label" override installed? (session-local; teardown reverts it)
+local headApplied = false   -- F3e: is our "heading" override installed? (session-local; teardown reverts it)
 hafen.events.on("OnLoad", function()
   fontApplied = false                                   -- a reload rebuilt the env; the override was torn down (P2)
   titleApplied = false                                  -- F3a: likewise for the window.title override (P2)
   btnApplied = false                                    -- F3b: ...and for the button override (P2)
+  entryApplied = false                                  -- F3c: ...and for the textentry override (P2)
+  labelApplied = false                                  -- F3c: ...and for the label override (P2)
+  headApplied = false                                   -- F3e: ...and for the heading override (P2)
   monoFont = hafen.font.load("mono", { size = 12 })     -- F2: a distinct font for the per-call g:text{font=} line
   local ok, ttf = pcall(hafen.font.load, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
   if ok and ttf then
@@ -1038,7 +1044,7 @@ local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-faci
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading")
     return
   end
   local sub = args[1]
@@ -1237,8 +1243,78 @@ hafen.slash.register("hello", function(args)
       hafen.log((":hello button -> setFont('button', %s) -- open the Options window: its BUTTON captions change (titles/body stay stock unless :hello title / :hello font); :hello button again to reset")
         :format(h:family()))
     end
+  elseif sub == "entry" then
+    -- F3c: toggle a font override on the "textentry" scope (TEXT-INPUT FIELDS only) -- independent of "default",
+    -- "window.title" and "button". It covers both ReadLine-backed entry surfaces: every TextEntry field (the chat
+    -- input, search boxes, the login name field, ...) AND the console command line (the ':' prompt you are typing
+    -- this command into). Each field drops its cached line when the override moves, so the change is LIVE: type
+    -- into any field and the glyphs are already the new font. With ONLY "textentry" set, titles/buttons/body stay
+    -- stock; with ONLY "default" set (:hello font), the cascade restyles fields too, until a "textentry" override
+    -- refines them. Owner-tagged, reverted automatically on :reload/disable. SAFE-tier (cosmetic, client-only).
+    -- NOTE: an entry field's HEIGHT is fixed by its background texture, so keep the size near the stock 12 or tall
+    -- glyphs will be clipped -- that is a client-geometry fact, not an API limit. See docs/addons/api/fonts.md.
+    local h = (monoFont or demoFont)
+    if not h then hafen.log(":hello entry -> font not loaded yet (OnLoad)"); return end
+    if entryApplied then
+      hafen.font.reset("textentry")                     -- drop our override -> stock entry font returns live
+      entryApplied = false
+      hafen.log(":hello entry -> reset('textentry') -- stock text-field font restored (also on :reload/disable)")
+    else
+      hafen.font.setFont("textentry", h:derive{ size = 12 })   -- mono 12 vs the stock serif 12 (visibly different)
+      entryApplied = true
+      hafen.log((":hello entry -> setFont('textentry', %s) -- click any text field (or this console line) and type: the glyphs change; :hello entry again to reset")
+        :format(h:family()))
+    end
+  elseif sub == "label" then
+    -- F3c: toggle a font override on the "label" scope = the client's BODY TEXT. F1 already routed the DEFAULT
+    -- labels through the "default" scope; this covers the other half -- the surfaces the client renders with its
+    -- own hand-picked foundry, which until now were frozen: the CHARACTER SHEET's attribute rows (base + study),
+    -- every skill / lore / quest / wound / maneuver LIST ITEM, the menu-search results, the radar icon-settings
+    -- list, and the few Labels built with an explicit foundry (credo Level/Quest lines, wound quality, the
+    -- combat-schools counter, the login screen). Each site re-resolves its foundry and re-renders on the next
+    -- frame it draws (lazily, per visible row), keeping its own colour. The override inherits each site's STOCK
+    -- SIZE unless we pass one, so families swap without moving layouts. With ONLY "label" set, titles/buttons/
+    -- fields stay stock; with ONLY "default" set (:hello font), the cascade restyles body text too, until a
+    -- "label" override refines it. Owner-tagged, reverted automatically on :reload/disable. SAFE-tier.
+    -- NOTE: we deliberately pass NO size here -- rows keep the HEIGHT they were built with (from the stock
+    -- font), so a bigger size would clip; the family swap is the safe, observable demo. See api/fonts.md.
+    local h = (monoFont or demoFont)
+    if not h then hafen.log(":hello label -> font not loaded yet (OnLoad)"); return end
+    if labelApplied then
+      hafen.font.reset("label")                         -- drop our override -> stock label font returns live
+      labelApplied = false
+      hafen.log(":hello label -> reset('label') -- stock explicit-foundry labels restored (also on :reload/disable)")
+    else
+      hafen.font.setFont("label", h)                    -- no size -> every routed label keeps its own stock size
+      labelApplied = true
+      hafen.log((":hello label -> setFont('label', %s) -- open the character sheet (attribute rows) or Skills & Lore / Quests / Wounds (list items): the BODY TEXT changes family but keeps its sizes; :hello label again to reset")
+        :format(h:family()))
+    end
+  elseif sub == "heading" then
+    -- F3e: toggle a font override on the "heading" scope = the client's in-window SECTION HEADINGS, the big
+    -- embossed fraktur captions inside a window: "Base Attributes", "Food Satiations", "Abilities", "Study
+    -- Report", "Lore & Skills", "Entries", "Quest Log", "Health & Wounds", "Martial Arts & Combat Schools",
+    -- "Kin", the credo group captions ("Pursuing"/"Credos Available"/"Credos Acquired") and a village name. They
+    -- are NOT window titles (that is "window.title") and NOT body text (that is "label") -- their own scope, so
+    -- you can restyle them independently. A heading is an embossed FURNACE baked into an image, so the client
+    -- rebuilds the furnace and re-renders each visible heading when the override moves -- keep the window open
+    -- while toggling and watch it change. Owner-tagged, reverted automatically on :reload/disable. SAFE-tier.
+    -- NOTE: no size passed -- each heading keeps its own stock size (the big ones are 25px, the credo group
+    -- captions 18px), so the layout around them does not move. See docs/addons/api/fonts.md.
+    local h = (monoFont or demoFont)
+    if not h then hafen.log(":hello heading -> font not loaded yet (OnLoad)"); return end
+    if headApplied then
+      hafen.font.reset("heading")                       -- drop our override -> stock headings return live
+      headApplied = false
+      hafen.log(":hello heading -> reset('heading') -- stock section headings restored (also on :reload/disable)")
+    else
+      hafen.font.setFont("heading", h)                  -- no size -> every heading keeps its own
+      headApplied = true
+      hafen.log((":hello heading -> setFont('heading', %s) -- open the character sheet: 'Base Attributes' / 'Food Satiations' / 'Abilities' change (titles + body text stay stock); :hello heading again to reset")
+        :format(h:family()))
+    end
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading)")
       :format(#args, table.concat(args, " | ")))
   end
 end)
