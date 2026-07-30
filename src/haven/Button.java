@@ -50,6 +50,32 @@ public class Button extends SIWidget {
     public Runnable action = null;
     static Text.Foundry tf = new Text.Foundry(Text.serif.deriveFont(Font.BOLD, UI.scale(12f))).aa(true);
     static Text.Furnace nf = new PUtils.BlurFurn(new PUtils.TexFurn(tf, Window.ctex), UI.rscale(0.75), UI.rscale(0.75), new Color(80, 40, 0));
+    // addon: "button" font scope (F3b, D-043). `tf`/`nf` above stay the STOCK foundry/furnace (Charlist.df still
+    // derives from `tf`); every caption Button renders itself goes through the provider instead:
+    // Fonts.foundry("button", tf) resolves an addon override, or -- when none -- the stock foundry, cascading
+    // through "default". The pair is rebuilt lazily whenever Fonts.gen() moves, and each button re-renders its
+    // caption (and re-rasterizes its `cont`) on the same check (see draw(GOut)/render()).
+    private static Text.Foundry btf;
+    private static Text.Furnace bnf;
+    private static int fontgen = -1;
+    private static void checkfont() {
+	int g = Fonts.gen();
+	if((btf == null) || (fontgen != g)) {
+	    btf = Fonts.foundry("button", tf);
+	    bnf = (btf == tf) ? nf : new PUtils.BlurFurn(new PUtils.TexFurn(btf, Window.ctex), UI.rscale(0.75), UI.rscale(0.75), new Color(80, 40, 0));
+	    fontgen = g;
+	}
+    }
+    /** addon: the current foundry for the {@code "button"} scope (an override, else stock {@link #tf}). */
+    static Text.Foundry tfont() {checkfont(); return(btf);}
+    /** addon: the current blur furnace for the {@code "button"} scope (an override, else stock {@link #nf}). */
+    static Text.Furnace nfont() {checkfont(); return(bnf);}
+    // addon: how THIS button's caption was rendered, so it can be re-rendered when the override moves.
+    // `rtext` null = the caption came from the caller as a Text/BufferedImage (not ours to restyle).
+    private String rtext = null;
+    private Color rcol = null;    // non-null -> the plain tfont() path (change(text, col)); null -> the nfont() blur
+    private int rwrap = 0;        // >0 -> the renderwrap path (wrapped())
+    private int contgen = -1;     // Fonts.gen() at the last caption render
     private boolean a = false, dis = false;
     private UI.Grab d = null;
 	
@@ -70,7 +96,10 @@ public class Button extends SIWidget {
     }
 	
     public static Button wrapped(int w, String text) {
-	Button ret = new Button(w, tf.renderwrap(text, w - margin));
+	Button ret = new Button(w, largep(w));   // addon: render below, so the caption can be restyled ("button" scope)
+	ret.rtext = text;
+	ret.rwrap = w - margin;
+	ret.render();
 	return(ret);
     }
         
@@ -85,9 +114,21 @@ public class Button extends SIWidget {
 
     public Button(int w, String text, boolean lg, Runnable action) {
 	this(w, lg);
-	this.text = nf.render(text);
-	this.cont = this.text.img;
+	this.rtext = text;   // addon: remember the caption so it can be re-rendered on a "button" font change
+	render();            // addon: was `this.text = nf.render(text)` -- now through the provider
 	this.action = action;
+    }
+
+    // addon: (re)render this button's own caption through the "button" scope provider.
+    private void render() {
+	if(rwrap > 0)
+	    this.text = tfont().renderwrap(rtext, rwrap);
+	else if(rcol != null)
+	    this.text = tfont().render(rtext, rcol);
+	else
+	    this.text = nfont().render(rtext);
+	this.cont = this.text.img;
+	this.contgen = Fonts.gen();
     }
 
     public Button(int w, String text, boolean lg) {
@@ -144,15 +185,24 @@ public class Button extends SIWidget {
     }
 	
     public void change(String text, Color col) {
-	this.text = tf.render(text, col);
-	this.cont = this.text.img;
+	this.rtext = text; this.rcol = col; this.rwrap = 0;   // addon:
+	render();                                            // addon: was `tf.render(text, col)`
 	redraw();
     }
-    
+
     public void change(String text) {
-	this.text = nf.render(text);
-	this.cont = this.text.img;
+	this.rtext = text; this.rcol = null; this.rwrap = 0;  // addon:
+	render();                                            // addon: was `nf.render(text)`
 	redraw();
+    }
+
+    // addon: re-render the caption when the "button" font override moves (Fonts.gen()), then rasterize as usual.
+    public void draw(GOut g) {
+	if((rtext != null) && (contgen != Fonts.gen())) {
+	    render();
+	    redraw();
+	}
+	super.draw(g);
     }
 
     public void disable(boolean dis) {

@@ -7,8 +7,9 @@ your addon keeps; another addon cannot look it up (no name collisions, no coupli
 > **Slice status.** **F1 (shipped):** `load` / `setFont` / `reset` / `scopes`, and the **`"default"`** scope
 > (the global fallback — most UI text). **F2 (shipped):** applying a font to your **own** drawing — `font=` on
 > `hafen.ui.window`/`widget`, `g:text`/`g:atext` with a `{font=…, color=…}` option, and a custom TTF in a
-> `$font[…]{…}` rich-text tag. **F3a (shipped):** the **`"window.title"`** scope (window captions) is now live.
-> The remaining per-scope surfaces (`button`, `chat`, …) arrive in later F3 slices — the scope names are already
+> `$font[…]{…}` rich-text tag. **F3a (shipped):** the **`"window.title"`** scope (window captions).
+> **F3b (shipped):** the **`"button"`** scope (button captions) is now live. The remaining per-scope surfaces
+> (`label`, `tooltip`, `menu`, `chat`, `textentry`) arrive in later F3 slices — the scope names are already
 > listed by `scopes()`, they simply have no effect until routed. See
 > [`21-fonts.md`](../../../specs/addons/21-fonts.md) for the roadmap.
 
@@ -109,7 +110,7 @@ restorable. The change is **live** — most existing text re-renders on the spot
 |---|---|---|
 | `"default"` | global fallback — most UI text (`Text.std` / `Text.render` / default `Label`) | **F1 (live)** |
 | `"window.title"` | window captions | **F3a (live)** |
-| `"button"` | button captions | F3 |
+| `"button"` | button captions | **F3b (live)** |
 | `"label"` | explicit non-default labels | F3 |
 | `"tooltip"` | tooltips | F3 |
 | `"menu"` | flower / context menus | F3 |
@@ -121,6 +122,24 @@ restorable. The change is **live** — most existing text re-renders on the spot
 `"default"` is the broad hammer: it **cascades** to every routed surface that has no more-specific override — so
 `setFont("default", h)` changes everything in one call, while a per-scope override refines any one surface. The
 resolution order is **most-specific first**: per-instance (F5) → scope override → `"default"` override → stock.
+
+```lua
+hafen.font.setFont("default", h)             -- everything routed (incl. captions + button captions)
+hafen.font.setFont("button",  h2)            -- ...but buttons now use h2 (a refinement over the cascade)
+hafen.font.reset("button")                   -- buttons fall back to the "default" cascade again
+```
+
+**Notes on `"button"` (F3b).** It covers the captions of the client's standard buttons — the Options window, the
+character-sheet / craft / build buttons, tab buttons, key-bind buttons, `wrapped` (multi-line) buttons, and any
+caption a button changes at runtime (e.g. a key-bind button showing `Click element...`). Buttons rasterize their
+caption into an image, so each **visible** button re-renders itself on the frame after the override moves —
+open a window with buttons while toggling and you see it live. **Tip:** the stock button caption font is
+**bold serif 12** (each scope has its own stock — `"window.title"` is fraktur), so overriding `"button"` with a
+serif handle at size 12 is installed correctly yet looks like nothing happened; pick a contrasting family when
+you want the change to be visible. Two surfaces are deliberately *not* in this
+scope: a button whose face was supplied by the client as a ready-made image or pre-rendered text (icon buttons
+like `IButton`, and the character-selection list entries), and button-shaped widgets that are not buttons at all
+(checkboxes, radio labels) — those are not button captions and keep their own foundry.
 
 ### Conflict model (one intrinsic limit)
 

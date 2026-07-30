@@ -892,10 +892,12 @@ end)
 local demoFont          -- the loaded FontHandle (nil until OnLoad; env rebuilt on reload -> nil, re-loaded below)
 local monoFont          -- F2: a second handle (built-in "mono") for the per-call { font = } demo in the F2 window
 local fontApplied = false   -- is our "default" override currently installed? (session-local; teardown reverts it)
-local titleApplied = false  -- F3: is our "window.title" override installed? (session-local; teardown reverts it)
+local titleApplied = false  -- F3a: is our "window.title" override installed? (session-local; teardown reverts it)
+local btnApplied = false    -- F3b: is our "button" override installed? (session-local; teardown reverts it)
 hafen.events.on("OnLoad", function()
   fontApplied = false                                   -- a reload rebuilt the env; the override was torn down (P2)
-  titleApplied = false                                  -- F3: likewise for the window.title override (P2)
+  titleApplied = false                                  -- F3a: likewise for the window.title override (P2)
+  btnApplied = false                                    -- F3b: ...and for the button override (P2)
   monoFont = hafen.font.load("mono", { size = 12 })     -- F2: a distinct font for the per-call g:text{font=} line
   local ok, ttf = pcall(hafen.font.load, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
   if ok and ttf then
@@ -1036,7 +1038,7 @@ local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-faci
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button")
     return
   end
   local sub = args[1]
@@ -1213,8 +1215,30 @@ hafen.slash.register("hello", function(args)
       hafen.log((":hello title -> setFont('window.title', %s) -- open/focus any window: its CAPTION font changes (body text stays stock unless :hello font); :hello title again to reset")
         :format(demoFont:family()))
     end
+  elseif sub == "button" then
+    -- F3b: toggle a font override on the "button" scope (BUTTON CAPTIONS only) -- independent of "default" and of
+    -- "window.title". Buttons rasterize their caption into an image, so the client re-renders each visible button
+    -- when the override moves: open the Options window (or any window with buttons) and watch the captions change
+    -- LIVE. With ONLY "button" set, window titles and body text stay stock; with ONLY "default" set (:hello font),
+    -- the cascade restyles button captions too, until a "button" override refines them. Owner-tagged, reverted
+    -- automatically on :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
+    -- NOTE (harness gotcha): the STOCK button caption font is *bold serif 12*, so overriding "button" with a
+    -- serif handle is a no-op TO THE EYE even though the override is installed. We deliberately pick a visibly
+    -- different family (mono) so the DoD is observable; the size stays 12 to keep the captions inside the buttons.
+    local h = (monoFont or demoFont)
+    if not h then hafen.log(":hello button -> font not loaded yet (OnLoad)"); return end
+    if btnApplied then
+      hafen.font.reset("button")                        -- drop our override -> stock button captions return live
+      btnApplied = false
+      hafen.log(":hello button -> reset('button') -- stock button captions restored (also on :reload/disable)")
+    else
+      hafen.font.setFont("button", h:derive{ size = 12, bold = true })  -- mono bold 12 vs the stock serif bold 12
+      btnApplied = true
+      hafen.log((":hello button -> setFont('button', %s) -- open the Options window: its BUTTON captions change (titles/body stay stock unless :hello title / :hello font); :hello button again to reset")
+        :format(h:family()))
+    end
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button)")
       :format(#args, table.concat(args, " | ")))
   end
 end)
