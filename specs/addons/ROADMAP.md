@@ -30,6 +30,15 @@ Deferred from 2b: per-overlay **anchor/offset** and a per-gob match cache for th
 sweep. Possible R-series follow-ons (animated glTF was explicitly out of the static-subset scope,
 [design/18-custom-models-gltf.md](design/18-custom-models-gltf.md)).
 
+## Finish the OOP migration (the exit path opened by 017-gob-oop) — [017-gob-oop/](017-gob-oop/)
+`017` migrates **only** Gob and leaves the rest flat *on purpose*; that coexistence is debt with a
+deadline, not a resting state. Two follow-ons close it: **Fight + Party to OOP**, which is what
+restores the retired GobRef tokens as `hafen.target():gob()` and `hafen.party()[1]:gob()` (until
+then the combat target's gob is unreachable — an accepted regression); and then the **final
+demolition**, which migrates whatever namespaces remain and deletes the transitional markers 017
+plants (the `design/06-lua-api.md` banner, the `(SUPERSEDED by D-044)` headers, and the
+"Gob is OOP, the rest is flat" paragraph in `API-REFERENCE.md`).
+
 ## Minor client subsystems (the old audit's "A12" tier) — design on demand (`specs/codebase/`)
 No design doc yet; each would get one when picked up: **Screenshooter** (programmatic screenshot),
 **custom cursors** (`UI.Cursor`/`CursorQuery` — Lua widgets can't answer a `CursorQuery`),

@@ -3,7 +3,8 @@
 > Maintained by REPLACING (max 60 lines, never accumulate). One line per subsystem.
 > Branch `feature/addons`. Detail per feature: its `NNN-` folder; history: git + LEARNINGS.md.
 
-**Active feature:** none — all migrated work is DONE; next work starts from ROADMAP.md via `/plan`.
+**Active feature:** `017-gob-oop` — migrate the Gob surface from the flat `hafen.gob.*(ref)` accessor
+to an OOP class (`hafen.gob(id)` + `gob:health()`), hard cut, every other namespace stays flat.
 
 ## Engine & runtime
 - **Engine**: LuaJ embedded (`src/io/brodgar/addon/`); per-addon sandboxed envs (D-017), instruction

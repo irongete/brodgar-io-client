@@ -20,3 +20,4 @@
 - 014-ui-extensions — DONE — widget onDrop + g:resource + mouse mods (D-038/39/40) (design/07) — task 014.1
 - 015-widget-introspection — DONE — WidgetNode tree walk + engine-true hit-testing; widgetstack framestack/inspector (design/20) — tasks 015.1..015.2
 - 016-fonts — DONE — hafen.font: handles, own-drawing, all 11 scopes (chrome + world) + per-instance node:setFont (design/21, D-043) — tasks 016.1..016.9
+- 017-gob-oop — ACTIVE — Gob flat accessor → OOP class (`hafen.gob(id)`, `gob:health()`), interned identity, `hafen.player():gob()`, hard cut (D-044/045/046) — tasks 017.1..017.2
