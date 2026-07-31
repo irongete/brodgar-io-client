@@ -2,7 +2,7 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**Active:** `021-actionbar-oop` — **021.1–021.2 DONE** (LuaSlot + hard cut; `ActionbarChanged` = a Slot); next 021.3 (docs + `hello`). Prior: `020-kin-oop` **DONE** (020.1–020.3: hard cut, Kin ↔ Gob, `KinChanged` = `Kin[]`); ROADMAP's OOP migration continues. (`019-profiling` **DONE**, 019.1–019.8.)
+**Active:** none — `021-actionbar-oop` **DONE** (021.1–021.3: LuaSlot + hard cut, `ActionbarChanged` = a Slot, docs + `hello` contract check). Prior: `020-kin-oop` **DONE** (020.1–020.3: hard cut, Kin ↔ Gob, `KinChanged` = `Kin[]`), `019-profiling` **DONE** (019.1–019.8). **Next:** ROADMAP's OOP migration continues (party/fight/… still flat).
 
 ## Engine & runtime
 - **Engine**: LuaJ embedded (`src/io/brodgar/addon/`); per-addon sandboxed envs (D-017), instruction watchdog + soft
@@ -25,7 +25,7 @@
   `world.gobs`+`g:kin()` = the many-case). **Actionbar (OOP, D-057, 021.1)**: CALLABLE-ONLY — `hafen.actionbar(n)` =
   the Slot at the raw 0-based game index (0..143, OOB throws), `hafen.actionbar()` = the **1-based** array of all 144
   (same interned objects, `#`=144); `slot:index/:empty/:res/:name/:cooldown/:info` + gated `:use([mods])` → self; flat
-  `.slot/.use` GONE; `ActionbarChanged` = the changed **Slot** (`fireSlot`, `hasSub`-gated, 021.2). **Map** `map.*`: tile/height/grid/gridPos + conversions, grid ids = exact decimal strings.
+  `.slot/.use` GONE; `ActionbarChanged` = the changed **Slot** (`fireSlot`, `hasSub`-gated, 021.2; `hello` re-checks the contract each login, 021.3). **Map** `map.*`: tile/height/grid/gridPos + conversions, grid ids = exact decimal strings.
   **Player/char**: `hafen.player()` → Player object (`:gob()/:name()/:vitals()/:worldToScreen()`, D-046); `char.*`
   (attrs/food/skills/lp/weight), `time/party/buffs/study.*`, `items.*`. **Gap subsystems** (A1–A11)
   `markers/radar/kin/speed/craft/quests/wounds/fight` — widget-tree adapters. Windows/widgets (`ui.window`/`widget`) +

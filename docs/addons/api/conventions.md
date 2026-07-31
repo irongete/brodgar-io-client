@@ -33,8 +33,16 @@ roster (a plain array of `Kin`), `hafen.kin(idOrName)` is one of them. Like a Go
 roster on every call, so a handle you keep tracks renames, regroups and online/offline flips, and
 `hafen.kin(7) == hafen.kin(7)`. `gob:kin()` and `kin:gob()` cross between the two. See [kin.md](kin.md).
 
-Gob and Kin are the sections that are object-oriented today; every other section is still a flat table
-of functions. That mix is deliberate and temporary — the rest follows.
+### Slot — an action-bar slot
+
+An action-bar slot is an **object** as well, and `hafen.actionbar` is *callable* on the same pattern —
+`hafen.actionbar()` is all 144 slots (a 1-based array of `Slot`), `hafen.actionbar(n)` is the one at the
+**raw 0-based game index**. A `Slot` wraps only that index and re-reads the bar every call, so a stashed
+one goes `:empty()` the moment the slot is cleared, and `hafen.actionbar(0) == hafen.actionbar(0)`.
+`slot:index()` gives the game index back from an array position. See [actionbar.md](actionbar.md).
+
+Gob, Kin and Slot are the sections that are object-oriented today; every other section is still a flat
+table of functions. That mix is deliberate and temporary — the rest follows.
 
 ### ItemRef — an inventory/equipment item
 
@@ -108,7 +116,7 @@ client, and the sandbox's instruction watchdog will abort a runaway one.
 ## Gating — the `actions` permission
 
 Everything in the API **observes** except one section: [`hafen.act`](actions.md) (and the per-subsystem
-write verbs `hafen.speed.set`, `hafen.craft.make`, `hafen.actionbar.use`, and the kin verbs
+write verbs `hafen.speed.set`, `hafen.craft.make`, `slot:use`, and the kin verbs
 `hafen.kin():add` / `kin:rename`/`setGroup`/`endkin`/`forget`), which **drive the character** by sending
 actions to the server.
 

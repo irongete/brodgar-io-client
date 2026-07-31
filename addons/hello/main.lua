@@ -284,18 +284,34 @@ end
 -- The hotbar streams in a beat after enter-world like the rest of the HUD, so scan at now (often empty)
 -- and +3s (populated).
 local function readActionbar(tag)
+  local bar = hafen.actionbar()
   local occupied, first = 0, nil
-  for _, slot in ipairs(hafen.actionbar()) do
+  for _, slot in ipairs(bar) do
     if not slot:empty() then
       occupied = occupied + 1
       if not first then first = slot end
     end
   end
   local cd = first and first:cooldown()
-  hafen.log(("[%s] actionbar=%d slot(s), first[%s]=%s%s"):format(tag, occupied,
+  hafen.log(("[%s] actionbar=%d/%d slot(s), first[%s]=%s%s"):format(tag, occupied, #bar,
     first and tostring(first:index()) or "-",
     first and tostring(first:name() or first:res()) or "none",
     cd and (" cd=%.2f"):format(cd) or ""))
+  -- 021.3: the OOP contract itself, once per login (on the +3s scan, when the bar has streamed in) —
+  -- interning (the array hands back the SAME objects
+  -- hafen.actionbar(n) does, and position 1 is game index 0), :info() as the snapshot escape hatch, the
+  -- bounds check, and the hard cut (the flat .slot/.use fields are gone, so they read as plain nil).
+  if tag == "+3s" then
+    local info = first and first:info()
+    local ok = pcall(function() return hafen.actionbar(144) end)   -- 144 is one past the last index
+    local flat = hafen.actionbar                              -- the namespace is callable-ONLY: no fields
+    hafen.log(("[%s] actionbar OOP: interned=%s zeroBased=%s info=%s oobThrows=%s flatGone=%s"):format(tag,
+      tostring(bar[1] == hafen.actionbar(0)),
+      tostring(bar[1]:index() == 0),
+      info and tostring(info.res or info.name) or "none",
+      tostring(not ok),
+      tostring((flat.slot == nil) and (flat.use == nil))))
+  end
 end
 
 -- A1: map markers via hafen.markers. list()/nearest() read the client's on-disk map DB; each snapshot is

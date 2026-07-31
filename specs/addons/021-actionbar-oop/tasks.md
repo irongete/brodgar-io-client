@@ -41,7 +41,16 @@ verify the hard cut (flat API is gone).
 
 **In-game verification:** subscribe to `ActionbarChanged`, verify it receives Slot objects
 
-## 021.3 — Documentation + hello addon + verification
+## 021.3 — Documentation + hello addon + verification — [x] DONE (2026-08-01)
+> Shipped as specified. `events.md` / `api/README.md` / `README.md` needed nothing (021.1–021.2 had
+> already corrected them), so the doc work was `actionbar.md` (rewritten on the `kin.md` template),
+> `types.md` (`ActionbarSlot` now from `slot:info()`), a new **Slot** reference section in
+> `conventions.md`, and the `slot:use` cross-refs in `actions.md` / `getting-started.md`. `hello`'s
+> `readActionbar` gained a one-line OOP-contract check at `+3s` (interning · `[1]:index()==0` ·
+> `:info()` · OOB throws · flat fields gone) — reading those fields through a local so the
+> `hafen\.actionbar\.` grep stays at zero; the `manifest.json` blurb was rewritten too (it matches the
+> same grep). The gated `:use()` demo stays in `walker` (`:walker bar <n>`), which is the write addon.
+
 **Goal:** Update the user-facing API surface, extend the regression harness, full end-to-end test.
 
 **Scope:**

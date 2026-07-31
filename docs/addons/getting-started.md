@@ -147,7 +147,7 @@ the addon must declare it and the user must opt in.
 A write-declaring addon is **disabled by default**; enabling it (Options → AddOns) prompts a consent
 dialog. Once enabled, [`hafen.act`](api/actions.md) and the per-subsystem write verbs
 ([`hafen.speed.set`](api/speed.md), [`hafen.craft.make`](api/craft.md),
-[`hafen.actionbar.use`](api/actionbar.md), [the kin write verbs](api/kin.md)) work.
+[`slot:use`](api/actionbar.md), [the kin write verbs](api/kin.md)) work.
 `hafen.act.enabled()` tells you whether you're allowed, without throwing.
 
 ## Developing

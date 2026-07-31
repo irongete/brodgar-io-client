@@ -179,9 +179,9 @@ From [`hafen.fight.*`](fight.md).
 
 ## ActionbarSlot
 
-From [`hafen.actionbar.slot`](actionbar.md) and `ActionbarChanged`.
+From [`slot:info()`](actionbar.md#read) — the snapshot escape hatch; `nil` for an empty slot.
 `{ res = string?, name = string?, cooldown = number? }` — `cooldown` (0..1) is present only for an
-ability slot with a meter; **not** seconds.
+ability slot with a meter; **not** seconds. The live reads are `slot:res()/:name()/:cooldown()`.
 
 ## Marker
 

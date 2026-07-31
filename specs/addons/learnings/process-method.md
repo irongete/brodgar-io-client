@@ -189,3 +189,10 @@
   (`scale`) — it cannot be shown to work in the same session anyway; and never remap a key the user might
   own, since the client enforces one-key-one-action and `set` silently unbinds the previous holder — pick a
   candidate `list()` reports as free, and skip the demo rather than steal one.
+- **(021.3) A hard-cut proof in `hello` must not trip the hard-cut grep.** The natural regression line for a
+  deleted flat API is `hafen.actionbar.slot == nil` — which is literally the pattern the task's own check
+  (`grep -rn "hafen\.actionbar\." src/ docs/ addons/` must return zero) is looking for, so the harness itself
+  becomes the only hit. Read the fields through a local instead (`local flat = hafen.actionbar; flat.slot == nil`):
+  the assertion still proves the fields are gone, and the grep stays honest. Same trap for any future
+  `hafen.<ns>.<field>` cut. Related: the manifest `description` blurb is prose that ALSO matches these greps —
+  it has to be rewritten with the API, not just `main.lua`.
