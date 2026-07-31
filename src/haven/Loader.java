@@ -247,4 +247,13 @@ public class Loader {
 	    return(String.format("%d+%d %d/%d", queue.size(), loading.size(), busy.get(), pool.size()));
 	}
     }
+
+    /* addon: the same four numbers stats() formats, as numbers (spec 019, task 019.3). One call under one
+     * lock so the four are mutually consistent, which four separate getters would not be. Snapshot-time
+     * only -- the allocation is paid when an addon asks, never per frame. */
+    public int[] statcounts() {
+	synchronized(queue) {
+	    return(new int[] {queue.size(), loading.size(), busy.get(), pool.size()});
+	}
+    }
 }

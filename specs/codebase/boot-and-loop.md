@@ -37,7 +37,8 @@
 | The phase names | `CPUProfile.phase(prof, …)` in [`Frame.tick`](src/haven/UILoop.java:433): `dwait`, `stick`, `utick`, `draw`, `swap`, `wait`, `aux` |
 | Ring / part arithmetic (`f()`/`t()`/`d()`/`sub()`, `last()`, `copy()`) | [`Profile`](src/haven/Profile.java:34) |
 | Scoped CPU sections (the `ProfilerMarker` primitive) | [`CPUProfile.set(Part)`](src/haven/CPUProfile.java:104) / `phase` / `end`; the `Current` ThreadLocal is `null` when off, so `begin` returns immediately |
-| The HUD text (`:stats on`) | [`UILoop.statlines`](src/haven/UILoop.java:233), drawn at ~:291 |
+| The HUD text (`:stats on`) | [`UILoop.statlines`](src/haven/UILoop.java:233), drawn at ~:291 — the one place that computes `framealloc` (an EWMA from `prevfree`), so that number **only advances while the HUD is drawn**; also the only reader of `Loader.stats()`/`Defer.gstats()`/`Resource.qdepth()`/`numloaded()`/`GLEnvironment.memstats()`/`MapView.stats()` |
+| Async pool internals (the `Async:` line) | [`Loader.stats`](src/haven/Loader.java:245) = `queue.size()+loading.size() busy/pool`, [`Defer.stats`](src/haven/Defer.java:314) = `queue busy/pool`; both under `synchronized(queue)`. Fork adds `statcounts()` / `Defer.gstatcounts()` returning the group as an `int[]` **under that one lock** (per-field getters would be mutually inconsistent) |
 | The live tree windows | [`Profwnd`](src/haven/Profwnd.java:31) |
 | **Master switch (fork)** | [`io.brodgar.prof.Prof.arm`](src/io/brodgar/prof/Prof.java) writes the hot-path field, the pref **and** `UILoop.profile`; `:profile` routes through it (D-049) |
 | **End-of-frame hook (fork)** | [`UILoop.framedone`](src/haven/UILoop.java:416) — after `updstats(f)`; hands `uprof.last()`, `rprof.last()`, `f.gprof` + `fps`/`uidle`/`framelag` to `Prof.frame` (019.2) |

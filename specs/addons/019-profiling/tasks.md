@@ -30,7 +30,7 @@
       with profiling off, `:frame()` is empty and `:history()` returns nothing. Toggling on gives a
       valid frame from the **second** frame onward (arming is next-frame — expected, not a bug).
 
-- [ ] **019.3 — System + graphics counters (pull-only, answer even when off).**
+- [x] **019.3 — System + graphics counters (pull-only, answer even when off).**
       `:memory()`, `:net()`, `:loader()`, `:render()`. The work is `// addon:` **structured getters
       beside the existing `stats()` strings** — `Connection.Stats` (private `ptx`/`prx`/`btx`/`brx`/
       `pretx`/`prerx`/`prorx`/`srtt`/`rttv`), `InstanceList` (`nuinst`/`nbatches`/`ninst`/`ninvalid`/

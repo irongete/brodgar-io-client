@@ -60,6 +60,13 @@ public abstract class PView extends Widget {
 	basic();
     }
 
+    /* addon: read access to the two render objects MapView.stats() already formats into its HUD line
+     * (spec 019, task 019.3). The fields stay protected -- these hand out the objects the profiler asks
+     * numbers of (InstanceList.nbatches(), DrawList.drawslots()), never a way to drive them. Either may
+     * be null before the first draw has built the environment-bound lists. */
+    public InstanceList instancer() {return(instancer);}
+    public DrawList drawlist()      {return(back);}
+
     public static class WidgetContext extends RenderContext {
 	private final PView wdg;
 

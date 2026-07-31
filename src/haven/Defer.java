@@ -321,4 +321,16 @@ public class Defer extends ThreadGroup {
     public static String gstats() {
 	return(getgroup().stats());
     }
+
+    /* addon: the same three numbers stats() formats, as numbers (spec 019, task 019.3) -- one call under
+     * one lock, so they are mutually consistent. Snapshot-time only. */
+    public int[] statcounts() {
+	synchronized(queue) {
+	    return(new int[] {queue.size(), busy.get(), pool.size()});
+	}
+    }
+
+    public static int[] gstatcounts() {
+	return(getgroup().statcounts());
+    }
 }

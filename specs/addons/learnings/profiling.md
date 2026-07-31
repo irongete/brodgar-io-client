@@ -35,3 +35,33 @@
   its constructor, so the frame during which the switch flips has no tree and the first sample lands on the
   *second* frame. Off (and for that one frame) the Lua verbs answer an **empty table**, never `nil`, so addon
   code never needs a branch.
+- **(019.3) Every counter the `:stats on` HUD shows already exists — only the formatting is new.** `Connection.Stats`,
+  `Loader`, `Defer`, `InstanceList`, `RenderTree`, `GLDrawList`, `GLEnvironment` each keep private counters and a
+  `stats()`/`memstats()` method that bakes them into an abbreviated string. Adding a structured getter *beside* the
+  string (never touching it) is the whole job: no new counting, nothing to arm, one source of truth with the HUD, and
+  the acceptance test writes itself — compare item by item with `:stats on`.
+- **(019.3) Return a consistent counter GROUP in one call, under the one lock the class already takes.**
+  `Loader.statcounts()` / `Defer.statcounts()` return `int[]{queue, loading, busy, pool}` inside the same
+  `synchronized(queue)` that `stats()` uses. Four separate getters would let a caller see a queue that emptied
+  between reads as "queued 0, busy 0" while the work is still in flight. The array allocation is snapshot-time
+  (when an addon asks), never per frame.
+- **(019.3) `MapView`'s render objects live on `PView`, not `MapView`.** `instancer` (an `InstanceList`) and `back`
+  (the `DrawList`) are `protected` fields of `PView` — the accessors go there (`PView.instancer()`/`drawlist()`),
+  and both can be **null** before the first draw builds the environment-bound lists. The scene tree is `mv.tree`
+  (`RenderTree.nleaves()/nslots()`).
+- **(019.3) `DrawList` is an interface — give the count a default, and make "cannot count" negative.**
+  `drawslots()` defaults to `-1` on the interface and only `GLDrawList` overrides it (`btsubsize(root)`). The Lua
+  layer turns the negative into an **absent key**, which is the D-050 rule applied to a capability gap rather than
+  a timing one; a `0` would read as "no draw calls this frame".
+- **(019.3) `GLEnvironment.MemStats` is package-private, so hand out pool NAMES, not the enum.**
+  `mempools()` returns the lowercased enum names as `String[]` and `memobjects(i)`/`membytes(i)` index by ordinal —
+  which is exactly the shape a Lua table keyed `indices`/`vertices`/`textures`/`vaos`/`fbos` wants. Guard the whole
+  block on `env instanceof GLEnvironment`: a non-GL environment gets no `vram`/`programs` keys at all.
+- **(019.3) `UILoop.framealloc` is an EWMA advanced only by `statlines()`, i.e. only while `:stats on` is drawn.**
+  Making it `private static volatile` + a reader keeps one source of truth with the HUD's `Mem:` line, at the price
+  of the value being **absent** until the HUD has run once. That price is the right one: computing the estimate on
+  the frame loop would put a `Runtime.freeMemory()` call on every frame whether profiling is armed or not.
+- **(019.3) `Connection.Stats.srtt`/`rttv` are in SECONDS** (the HUD multiplies by 1000). Convert at the Lua
+  boundary — the rest of the profiling surface reports time in **ms**, and mixing units inside one handle is the
+  kind of thing nobody re-reads the docs for. Name the resend counters for what they mean, not what the HUD letters
+  say: `pretx`→`resentTx`, `prerx`→`resentRx` (received twice), `prorx`→`reorderedRx` (out of order).

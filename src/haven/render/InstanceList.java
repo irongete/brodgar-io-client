@@ -878,6 +878,16 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 	/* XXXRENDER */
     }
 
+    /* addon: structured getters beside stats() (spec 019, task 019.3) -- the batching effectiveness
+     * counters the list already maintains, as numbers instead of the "%,d+%,d(%,d) %d %d" the HUD shows.
+     * No new counting and no behaviour change, so they answer with profiling off. They are written on the
+     * render side and may be one frame stale, which is what a per-frame counter is worth anyway. */
+    public int nuinst()   {return(nuinst);}     // slots drawn on their own (un-instanced)
+    public int nbatches() {return(nbatches);}   // instanced batches
+    public int ninst()    {return(ninst);}      // total instances across those batches
+    public int ninvalid() {return(ninvalid);}   // slots whose instancing is pending revalidation
+    public int nbypass()  {return(nbypass);}    // slots that cannot be instanced at all
+
     public String stats() {
 	return(String.format("%,d+%,d(%,d) %d %d", nuinst, nbatches, ninst, ninvalid, nbypass));
     }

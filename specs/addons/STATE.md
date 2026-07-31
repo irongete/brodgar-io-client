@@ -2,9 +2,8 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**Active:** `019-profiling` — `hafen.client:profiling()` (frame/CPU/GPU, memory, graphics counters, net, loader,
-per-addon cost, Lua scopes, per-widget cost, named render passes) + the Options **Client** panel. **019.1–019.2
-DONE** (panel + master switch; frame ring + `:frame()`/`:history()`/`:reset()`); 019.3..019.8 pending.
+**Active:** `019-profiling` — `hafen.client:profiling()` (frame/CPU/GPU, counters, per-addon cost, Lua scopes,
+per-widget cost, named render passes) + the Options **Client** panel. **019.1–019.3 DONE**; 019.4..019.8 pending.
 
 ## Engine & runtime
 - **Engine**: LuaJ embedded (`src/io/brodgar/addon/`); per-addon sandboxed envs (D-017), instruction watchdog
@@ -19,8 +18,8 @@ DONE** (panel + master switch; frame ring + `:frame()`/`:history()`/`:reset()`);
 
 ## Read API (`hafen.*`)
 - **Gobs (OOP, D-044/045)**: `hafen.gob(id)` → an interned Gob object (`gob:pos/name/health/facing/moving/speed/
-  speech/icon/overlays/isplayer/distance/exists/id/info`); the flat `gob.*(ref)` table and the `"player"`/
-  `"partyN"` tokens are GONE. `world.*` hands out Gobs; every other namespace stays flat (transitional).
+  speech/icon/overlays/isplayer/distance/exists/id/info`); the flat `gob.*(ref)` table and the `"player"`/`"partyN"`
+  tokens are GONE. `world.*` hands out Gobs; every other namespace stays flat.
 - **Map** `map.*`: tile/height/grid/gridPos + coord conversions; grid ids = exact decimal strings.
 - **Player/char**: `hafen.player()` → Player object (`:gob()/:name()/:vitals()/:worldToScreen()`, D-046 — no
   forwarded methods); `char.*` (attrs/food/skills/lp/weight), `time/party/buffs/study.*`, `actionbar.slot`, `items.*`.
@@ -32,11 +31,13 @@ DONE** (panel + master switch; frame ring + `:frame()`/`:history()`/`:reset()`);
   panel, over the stores OptWnd writes; arity is the verb (`opt:name()` reads, `opt:name(v)` writes + chains).
   `keybindings` = `register(name, fn)` (UNBOUND, D-047) + `get/set/list/unregister`, keybind-panel integrated;
   `hafen.key` GONE (018.2); slash `hafen.slash.register`.
-- **Profiling** (019.1–019.2): Options ▸ **Client** ▸ "Enable profiling" = `options():client():profiling()` =
+- **Profiling** (019.1–019.3): Options ▸ **Client** ▸ "Enable profiling" = `options():client():profiling()` =
   `:profile on` — ONE switch (`prof.Prof.arm`, D-049), next-frame; client engines live in sibling packages
   (`io.brodgar.prof`/`ui`), handles stay in `addon` (D-048). `hafen.client:profiling()` → `:frame()` (fps/ms/
   idle/latency, `phases` + `render` groups, `ui`/`addons` roll-ups, late `gpuMs`+`gpuFrameno`), `:history(n)`
   (600-frame ring, oldest→newest), `:reset()` — snapshot tables, absent key = not measured, off ⇒ `{}` (D-050).
+  Plus the **pull-only counters** `:memory()/:net()/:loader()/:render()` (D-051) — getters beside the client's own
+  `stats()` strings: no new counting, they answer with profiling **off** and match `:stats on` field by field.
 - Hooks: `hook.input` (L1 pre-widget), `hook.action` (L2 outbound `UI.wdgmsg`), `hook.message` (L3 inbound).
 - Widget interception/replacement: `ui.onWidgetCreate`, `ui.adopt` (model handle), `ui.replace` (bags replaces
   the native inventory, restores on disable); `widgetstack` = the `/framestack` analog.
@@ -56,5 +57,4 @@ DONE** (panel + master switch; frame ring + `:frame()`/`:history()`/`:reset()`);
 
 ## Example addons (regression harness)
 - `hello` (grows with every feature — one login re-checks everything), `hogtest` (CPU watchdog), `bags` (inventory),
-  `planner` (ghosts + gizmo), `widgetstack` (framestack), `netdemo` (http/json), `walker` (gated writes),
-  `optionstest` (options, 018.4); 019.8 adds `profiler` (dormant).
+  `planner` (ghosts), `widgetstack`, `netdemo` (http/json), `walker` (writes), `optionstest`; 019.8 adds `profiler`.

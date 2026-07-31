@@ -156,3 +156,27 @@ that has *arrived*, with `gpuFrameno` saying which frame it belongs to — it tr
 frames by construction.
 **See.** [D-049](architecture-api.md), [D-018](security-sandbox.md), [019-profiling](../019-profiling/spec.md),
 [boot-and-loop.md](../../codebase/boot-and-loop.md).
+
+### D-051 — The profiling COUNTERS are pull-only and answer while disarmed ✅ (maintainer, 2026-07-31)
+**Decision.** `hafen.client:profiling()` holds two kinds of verb, and they obey different rules.
+`:frame()`/`:history()` are *frame sampling* — armed only, fed by the end-of-frame handoff ([D-049](architecture-api.md)).
+`:memory()`, `:net()`, `:loader()` and `:render()` (019.3) are **pull-only counters**: they answer whether
+profiling is on or not, they arm nothing, and they add **no counting whatsoever**. Every number in them is one
+the client already maintains and then throws away into a `:stats on` format string; the work is exposing it as
+a **structured getter beside the existing `stats()` method**, which is left byte-for-byte untouched. Where a
+counter group must be internally consistent (`Loader`, `Defer`), the getter returns all of it under **one lock,
+in one call** (`int[] statcounts()`), never one getter per field.
+**Rationale.** These are the numbers an addon most wants at 1 Hz from a HUD, and gating them behind the master
+switch would force a user to pay the frame-sampling cost to read a counter that is free. Formatting-only means
+there is exactly **one source of truth** with the HUD — the acceptance test is literally "compare item by item
+with `:stats on`" — and no way for the fork to drift from upstream's accounting. Per-field getters would let a
+consumer see a queue that emptied between two reads as "queued 0, busy 0" with the work still in flight.
+**Consequences.** The fork's `haven` edits for this tier are additive one-liners tagged `// addon:`, no
+behaviour change and nothing to unwind. Reads are inherently a little stale (render counters ~1 frame, net
+counters ~1 packet) — documented, not synchronised. Absent-key-means-not-measured ([D-050](architecture-api.md))
+carries over wholesale: no session ⇒ `:net()` is empty, no `MapView` ⇒ no scene keys, non-GL environment ⇒ no
+`vram`/`programs`. `allocPerFrame` stays the client's **own** EWMA (one source of truth with the `Mem:` line)
+and is therefore absent until `:stats on` has computed it — putting it on the frame loop would mean a
+`freeMemory()` every frame, armed or not, which is the always-on cost 019 exists to avoid.
+**See.** [D-049](architecture-api.md), [D-050](architecture-api.md), [019-profiling](../019-profiling/spec.md),
+[world-3d.md](../../codebase/world-3d.md), [network.md](../../codebase/network.md).

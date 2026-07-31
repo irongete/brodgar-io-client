@@ -214,6 +214,21 @@ public class Connection implements Transport {
 	    return(String.format(fmt, n, apfx[pi]));
 	}
 
+	/* addon: structured getters beside toString() (spec 019, task 019.3) -- the same counters the
+	 * connection already maintains, as numbers instead of an abbreviated string. No new counting, no
+	 * behaviour change, nothing to arm: these answer with profiling off. They are written on the
+	 * connection worker and read on the UI thread, so a read may be one packet stale -- documented, and
+	 * cheaper than synchronising a path nobody needs to be exact. */
+	public long ptx()    {return(ptx);}     // packets sent
+	public long prx()    {return(prx);}     // packets received
+	public long btx()    {return(btx);}     // bytes sent
+	public long brx()    {return(brx);}     // bytes received
+	public long pretx()  {return(pretx);}   // packets re-sent      (the HUD's TX "R")
+	public long prerx()  {return(prerx);}   // packets re-received  (the HUD's RX "R")
+	public long prorx()  {return(prorx);}   // packets out of order (the HUD's RX "O")
+	public double srtt() {return(srtt);}    // smoothed round-trip time, SECONDS
+	public double rttv() {return(rttv);}    // its standard deviation, SECONDS
+
 	public String toString() {
 	    StringBuilder buf = new StringBuilder();
 	    buf.append(String.format("RTT %.2f\u00b1%.2f ms", srtt * 1000, rttv * 1000));

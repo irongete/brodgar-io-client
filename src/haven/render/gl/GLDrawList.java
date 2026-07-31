@@ -1090,6 +1090,12 @@ public class GLDrawList implements DrawList {
 	return(String.format("%,d", btsubsize(root)));
     }
 
+    /* addon: the number stats() formats, as a number (spec 019, task 019.3) -- the draw-slot count, which
+     * is as close to "draw calls this frame" as the tree gets. Already counted; nothing new. */
+    public int drawslots() {
+	return(btsubsize(root));
+    }
+
     public String toString() {
 	return(String.format("#<gl-drawlist %s>%s", env, (desc == null) ? "" : " (" + desc + ")"));
     }

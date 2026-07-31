@@ -32,5 +32,9 @@ public interface DrawList extends RenderList<Rendered>, Disposable {
     public void draw(Render out);
 
     public default String stats() {return("");}
+    /* addon: the draw-slot count as a number, beside the stats() string (spec 019, task 019.3). Negative
+     * means "this implementation does not count them" -- the profiler leaves the key out rather than
+     * reporting a 0 that would read as "no draw calls". */
+    public default int drawslots() {return(-1);}
     public default DrawList desc(Object desc) {return(this);}
 }

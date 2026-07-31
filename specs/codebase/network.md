@@ -24,3 +24,11 @@
 | Flower petal select | [`FlowerMenu.choose`](src/haven/FlowerMenu.java:278) (`wdgmsg("cl", num)`) |
 | Item take/drop/transfer/iact/itemact | [`WItem`](src/haven/WItem.java:171) |
 | Server → widget update | [`Widget.uimsg`](src/haven/Widget.java:677), dispatched via [`UI.uimsg`](src/haven/UI.java:702) |
+
+## Connection counters (the `Connection:` HUD line)
+
+| What | Where |
+|---|---|
+| The counter block | [`Connection.Stats`](src/haven/Connection.java:43) — `ptx`/`prx` (packets), `btx`/`brx` (bytes), `pretx` (re-sent), `prerx` (received twice), `prorx` (out of order), `srtt`/`rttv` (**seconds**); all `private`, formatted by [`toString()`](src/haven/Connection.java:232) |
+| Fork accessors | `// addon:` getters beside `toString()` at [:217](src/haven/Connection.java:217) — no new counting; written on the **Connection worker**, so a UI-thread read may be one packet stale |
+| Reaching it from the UI | `ui.sess.conn` is a `Transport`; `instanceof Connection` before the cast — there is none at the login screen |

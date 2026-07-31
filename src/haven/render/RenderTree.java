@@ -921,4 +921,8 @@ public class RenderTree implements RenderList.Adapter, Disposable {
     public String stats() {
 	return(String.format("%,d L / %,d N", nleaves, nslots));
     }
+
+    /* addon: the two numbers stats() formats, as numbers (spec 019, task 019.3) -- scene-tree size. */
+    public int nleaves() {return(nleaves);}
+    public int nslots()  {return(nslots);}
 }

@@ -1015,6 +1015,21 @@ public abstract class GLEnvironment implements Environment {
     public int numprogs() {return(nprog);}
     public Caps caps() {return(caps);}
 
+    /* addon: structured getters beside memstats() (spec 019, task 019.3) -- the per-pool VRAM accounting
+     * the environment already keeps, as numbers instead of the "I 1,234 (56) / V ..." the HUD shows. The
+     * MemStats enum itself stays package-private; the profiler gets the pool names as lowercase strings,
+     * which is what it would key a Lua table by anyway. No new counting, no behaviour change. */
+    public static String[] mempools() {
+	MemStats[] sta = MemStats.values();
+	String[] ret = new String[sta.length];
+	for(int i = 0; i < sta.length; i++)
+	    ret[i] = sta[i].name().toLowerCase();
+	return(ret);
+    }
+
+    public int memobjects(int pool) {return(stats_obj[pool]);}
+    public long membytes(int pool)  {return(stats_mem[pool]);}
+
     public String memstats() {
 	StringBuilder buf = new StringBuilder();
 	MemStats[] sta = MemStats.values();

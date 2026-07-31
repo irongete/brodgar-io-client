@@ -229,8 +229,7 @@ Hotkeys are torn down with your addon on reload or disable — you do not need t
 ## `profiling()`
 
 `hafen.client:profiling()` is the read surface over the client's frame profiler — the same per-frame
-CPU and GPU trees the `Profwnd` windows draw, not a second profiler. It answers only while the switch
-above (Options ▸ Client ▸ Enable profiling) is on.
+CPU and GPU trees the `Profwnd` windows draw, not a second profiler.
 
 ```lua
 local p = hafen.client:profiling()
@@ -241,13 +240,22 @@ hafen.log(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)", f.fps, f.ms, f
 
 | Method | Returns | Description |
 |---|---|---|
-| `frame()` | table | the frame that just finished |
-| `history(n)` | array of tables | the last `n` frames, **oldest first**; `n` omitted = everything held |
+| `frame()` | table | the frame that just finished — **armed only** |
+| `history(n)` | array of tables | the last `n` frames, **oldest first**; `n` omitted = everything held — **armed only** |
 | `reset()` | the handle | drop the history and start measuring afresh (chains) |
+| `memory()` | table | JVM heap, per-frame allocation, GC totals — **always answers** |
+| `net()` | table | packet/byte counters and round-trip time — **always answers** |
+| `loader()` | table | async queue depths (UI loader, `Defer` pool, resources) — **always answers** |
+| `render()` | table | graphics counters: draw slots, batching, tree size, VRAM — **always answers** |
 
 The handle is a stateless proxy — keep it in a variable forever, it never goes stale. What the read
 verbs answer are plain **snapshot tables**, not handles: frozen numbers with nothing to re-resolve, so
 walking 600 samples for a frame graph is 600 table lookups, not 600 bridge calls.
+
+**Two kinds of verb.** `frame()`/`history()` are *frame sampling*: they exist only while the switch
+above (Options ▸ Client ▸ Enable profiling) is on. The four **counters** below are *pull-only* — every
+number in them is one the client already maintains for its own `:stats on` HUD, so they answer whether
+profiling is armed or not, and reading them costs nothing when it is not.
 
 **Every duration is in milliseconds.**
 
@@ -299,6 +307,78 @@ for i, f in ipairs(h) do
 end
 ```
 
+### The counters
+
+`memory()`, `net()`, `loader()` and `render()` are **pull-only**: they read counters the client keeps
+anyway and formats into the `:stats on` HUD, so they answer with profiling off, cost nothing while you
+are not asking, and always agree with the HUD field by field. Nothing here is sampled over time — each
+call is the value right now.
+
+#### `memory()`
+
+**Sizes are in bytes** (this is the one place the surface is not in milliseconds).
+
+| Key | Description |
+|---|---|
+| `heapUsed` / `heapFree` / `heapTotal` / `heapMax` | the JVM heap, as `Runtime` reports it |
+| `allocPerFrame` | the client's own smoothed per-frame allocation estimate |
+| `gcCount` / `gcMs` | collections and time spent collecting, **cumulative since client start** |
+
+`gcCount`/`gcMs` only mean something as a **delta between two reads** — take one, wait, take another.
+`allocPerFrame` is the estimate behind the HUD's `Mem:` line, and the client only advances it while that
+HUD is drawn, so the key is **absent** until it has been computed at least once. Measuring it every frame
+instead would put a heap read on the frame loop whether profiling is armed or not.
+
+#### `net()`
+
+Empty while there is no connection (the login screen). **`rtt`/`rttVar` are in milliseconds.**
+
+| Key | Description |
+|---|---|
+| `packetsTx` / `packetsRx` / `bytesTx` / `bytesRx` | the traffic counters, cumulative for the session |
+| `resentTx` / `resentRx` | packets re-sent / received twice (the HUD's `R`) |
+| `reorderedRx` | packets that arrived out of order (the HUD's `O`) |
+| `rtt` / `rttVar` | smoothed round-trip time and its deviation |
+
+These are written on the connection worker, so a read may be one packet behind. That is by design —
+exactness here would mean locking a path nothing needs to be exact on.
+
+#### `loader()`
+
+| Key | Description |
+|---|---|
+| `queued` / `loading` / `busy` / `poolSize` | the UI resource loader (the HUD's `Async:` line) |
+| `defer` | the shared background pool: `{queued=, busy=, poolSize=}` |
+| `resQueue` / `resLoaded` | resource fetch queue depth and resources resolved so far |
+
+The four loader numbers are taken under one lock, so they are mutually consistent — a queue that just
+emptied never shows up as "queued 0, busy 0" with the work still in flight.
+
+#### `render()`
+
+Describes the **3D scene**, so everything but `stateSlots` is absent before the world is up.
+
+| Key | Description |
+|---|---|
+| `drawSlots` | draw slots this frame — as close to "draw calls" as the render tree gets |
+| `uniqueInstances` / `batches` / `instances` | the batching split: un-instanced slots, instanced batches, instances in them |
+| `invalid` / `bypass` | slots pending revalidation / that cannot be instanced at all |
+| `treeLeaves` / `treeNodes` | scene-tree size |
+| `programs` | shader programs the GL environment holds |
+| `vram` | per-pool VRAM, keyed `indices`/`vertices`/`textures`/`vaos`/`fbos`, each `{objects=, bytes=}` |
+| `stateSlots` | render-state slots in use (process-wide, not per scene) |
+
+`programs` and `vram` need a GL environment and are absent on any other backend. The counters are
+written on the render side and may be one frame stale.
+
+```lua
+local r = hafen.client:profiling():render()
+if r.drawSlots then
+  hafen.log(string.format("%d slots, %d batches, %.1f MB textures",
+                          r.drawSlots, r.batches, r.vram.textures.bytes / 1048576))
+end
+```
+
 ### When profiling is off
 
 `frame()` and `history()` return an **empty table**, never `nil` — no branch needed in addon code:
@@ -308,4 +388,9 @@ for _, f in ipairs(p:history(60)) do … end          -- simply does nothing whi
 ```
 
 The first valid sample arrives on the **second** frame after arming (arming is next-frame, as above), so
-a freshly armed profiler answers empty for one frame. `reset()` empties the ring the same way.
+a freshly armed profiler answers empty for one frame. `reset()` empties the ring the same way. The four
+counters are unaffected — they answer the same numbers armed or not.
+
+**An absent key means "not measured", never zero** — everywhere in this surface. No connection, no
+`net()` keys; no world yet, no scene keys in `render()`; a `0` would read as "measured, and it is zero".
+Check with `if r.drawSlots then …`, not `> 0`.

@@ -33,3 +33,18 @@
 | **Resource-free `Drawable`** | [`SprDrawable(Gob, Sprite.Mill)`](src/haven/SprDrawable.java:35), [`getres()==null`](src/haven/SprDrawable.java:63) (`Mill` resolves the owner cycle); same [`Drawable`](src/haven/Drawable.java:31) attr slot as `ResDrawable` |
 | **Lighting** | material state = [`Light.PhongLight`](src/haven/Light.java:145) (frag; ctor takes emi/amb/dif/spc/shine; `defamb/defdif/defspc` neutral defaults) → the [`Phong`](src/haven/render/Phong.java:35) shader multiplies the scene's [`Lighting.lights`](src/haven/render/Lighting.java:38)/[`Light.LightList`](src/haven/Light.java:81) (applied at the PView scene root — [`PView.lights`](src/haven/PView.java:40)) into the fragment. Normals need the **inverse-transpose** of `basis·node` ([`Matrix4f.invert`](src/haven/Matrix4f.java:175)/[`transpose`](src/haven/Matrix4f.java:149)/[`trim3`](src/haven/Matrix4f.java:159)). **sRGB = no-op** ([`Texture.srgb`](src/haven/render/Texture.java:38) left `false`, like all game textures) |
 | glTF → geometry | per primitive → a `Model` (POSITION→[`Homo3D.vertex`](src/haven/render/Homo3D.java:41), NORMAL→[`Homo3D.normal`](src/haven/render/Homo3D.java:42) [VEC3 `"normal"`, shaded to eye space as `mat3(cam)·mat3(wxf)·objn`], TEXCOORD_0→[`Tex2D.texc`](src/haven/render/Tex2D.java:36), indices via `Model.Indices`); baseColor `TexI.st()` + `BaseColor` factor → `Material.apply` |
+
+## Scene counters (what the `:stats on` HUD reads)
+
+| What | Where |
+|---|---|
+| The scene's render objects (**on `PView`, not `MapView`**) | [`PView.instancer`](src/haven/PView.java:47) (an `InstanceList`) + [`PView.back`](src/haven/PView.java:48) (the `DrawList`) — `protected`, **null before the first draw** builds the env-bound lists; fork accessors [`instancer()`/`drawlist()`](src/haven/PView.java:63) (`// addon:`) |
+| Scene tree size | [`RenderTree.stats`](src/haven/render/RenderTree.java:921) over `nleaves`/`nslots`; fork getters [`nleaves()/nslots()`](src/haven/render/RenderTree.java:926) |
+| Batching effectiveness | [`InstanceList.stats`](src/haven/render/InstanceList.java:889) over `nuinst`+`nbatches`(`ninst`) `ninvalid` `nbypass`; fork getters at [:881](src/haven/render/InstanceList.java:881). Written on the render side ⇒ a read may be **one frame stale** |
+| Draw slots ("draw calls") | [`DrawList.stats`](src/haven/render/DrawList.java:34) is an interface default; the real count is [`GLDrawList.btsubsize(root)`](src/haven/render/gl/GLDrawList.java:1089). Fork: `DrawList.drawslots()` defaults **`-1`** = "does not count", overridden in [`GLDrawList`](src/haven/render/gl/GLDrawList.java:1093) |
+| VRAM pools + shader programs | [`GLEnvironment.memstats`](src/haven/render/gl/GLEnvironment.java:1032) over `stats_obj`/`stats_mem` indexed by the **package-private** `MemStats` enum, and [`numprogs()`](src/haven/render/gl/GLEnvironment.java:1015); fork exposes the pool **names** as `String[] mempools()` + `memobjects(i)`/`membytes(i)` at [:1018](src/haven/render/gl/GLEnvironment.java:1018) |
+| Render-state slots (process-wide) | [`State.Slot.numslots()`](src/haven/render/State.java) |
+
+**Gotcha.** Everything above except `State.Slot.numslots()` needs a live scene: `ui.root.findchild(MapView.class)`
+is null before the world loads, `instancer`/`back` are null before the first draw, and a non-`GLEnvironment`
+backend has no VRAM or program counts at all. Report an **absent** value, never a `0`.

@@ -229,7 +229,17 @@ public abstract class UILoop implements Console.Directory {
 	lastcursor = curs;
     }
 
-    private long prevfree = 0, framealloc = 0;
+    private long prevfree = 0;
+    /* addon: static, and readable, so hafen.client:profiling():memory() can report the client's OWN
+     * per-frame allocation estimate rather than computing a second one (spec 019, task 019.3). There is
+     * one UI loop per process, so static costs nothing in accuracy. It stays an EWMA maintained by
+     * statlines() below, which means it only advances while the stats HUD is being drawn -- the profiler
+     * reports it as an ABSENT key, not a 0, until the client has actually computed it. Moving the
+     * estimate onto the frame loop instead would put a freeMemory() call on every frame, armed or not,
+     * which is exactly the always-on cost 019 exists to avoid. */
+    private static volatile long framealloc = 0;
+    public static long framealloc() {return(framealloc);}
+
     protected void statlines(Collection<String> buf, UI ui) {
 	buf.add(String.format("FPS: %d (%d%% idle, latency %.2f ms)", fps, (int)(uidle * 100.0), framelag * 1000));
 	Runtime rt = Runtime.getRuntime();
