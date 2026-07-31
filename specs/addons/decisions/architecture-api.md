@@ -311,3 +311,33 @@ with `widgets` 61% of it (657 probes/frame), against a 5% budget and a 2% target
 **See.** [D-049](architecture-api.md), [D-051](architecture-api.md), [D-052](architecture-api.md),
 [D-053](architecture-api.md), [D-054](architecture-api.md), [019-profiling](../019-profiling/spec.md),
 [profiling.md](../learnings/profiling.md), [boot-and-loop.md](../../codebase/boot-and-loop.md).
+
+### D-056 — Arity is the verb on the namespace: `hafen.x()` is the collection, `hafen.x(key)` is the entity ✅ (maintainer, 2026-07-31)
+**Decision.** A namespace that is at once a **collection** and a set of **addressable entities** becomes a
+single **callable table** whose argument count picks the meaning: `hafen.kin()` returns the roster (a plain
+array of Kin objects in the window's own sort order, carrying `:find`/`:list`/`:add` on a shared metatable
+so `#` and `ipairs` stay exact), and `hafen.kin(idOrName)` returns one interned Kin — a **number** matching
+by id and a **string** by exact case-insensitive name, tested `isnumber()` first. The entity's own verbs,
+gated ones included, hang off the object and return **self** so they chain
+(`hafen.kin("Bob"):setGroup(3):rename("Bobby")`). The flat `hafen.kin.*` table is deleted outright
+([D-013](architecture-api.md)); indexing the namespace reads as plain `nil`, which is what makes the hard
+cut visible from Lua. The mechanism is [D-044](../017-gob-oop/plan.md)/[D-045](../017-gob-oop/plan.md)
+verbatim: userdata + a per-addon metatable, and a per-`Addon` weak-valued intern cache with a drained
+`ReferenceQueue`.
+**Rationale.** 017 established `hafen.gob(id)` as a callable namespace but had no collection to express;
+kin has both, and inventing a second entry point (`hafen.kin.roster()`, or a handle you must `:list()`)
+would have re-introduced the dual style [D-013](architecture-api.md) forbids. Arity costs nothing to
+learn, keeps one name per subsystem, and makes `hafen.kin()[1]` the idiom the ROADMAP already commits to
+for `hafen.party()[1]:gob()`. `isnumber()` must be tested first because **LuaJ's `isstring()` is true for
+numbers** — the reverse order silently resolves `hafen.kin(42)` as the *name* `"42"`.
+**Consequences.** This is now the shape every remaining OOP migration follows (party, fight, markers…).
+Two asymmetries are deliberate and documented: `hafen.kin(<unknown id>)` still mints an object (its
+`:exists()` is `false`, so a stashed handle survives a kin leaving and rejoining the roster), while
+`hafen.kin("<unknown name>")` and `roster:find` answer `nil` — a name that matches nobody has no id to
+wrap. And the **array is a snapshot at call time while the objects in it are live**: a kin added after the
+call is not in that array, but every Kin inside it keeps tracking renames, regroups and online flips
+([D-012](architecture-api.md)). A function filter passed to `roster:list` receives a **Kin object**, not a
+snapshot table — the `hafen.world` shape, now no longer unique to it.
+**See.** [D-012](architecture-api.md), [D-013](architecture-api.md), [D-017](security-sandbox.md),
+[D-027](actions-permissions.md), [020-kin-oop](../020-kin-oop/spec.md),
+[017-gob-oop](../017-gob-oop/spec.md), [luaj-bridge.md](../learnings/luaj-bridge.md).

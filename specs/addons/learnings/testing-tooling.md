@@ -204,3 +204,15 @@
   "cannot find symbol: class VoiceListener" from `Voice.java`/`OptWnd.java`. `git status` looking clean says
   nothing about it. `git worktree add <scratchpad>/<name> <commit>` + copy the jar + `ant hafen-client`, then
   `git worktree remove` when done so no stale entry is left in the repo.
+- **A whole Lua-facing NAMESPACE can be pre-checked headlessly, and a null `GameUI` is the useful
+  fixture** (020.1, extends the throwaway-in-scratchpad pattern above). `JsePlatform.standardGlobals()` +
+  `new Addon(Manifest.internal("x"), Paths.get("."), env)` is enough to install one namespace's factory
+  (`LuaKin.factory(owner)`) and drive it from real Lua source — no client, no HUD. `Manifest.internal`
+  grants ALL permissions, so the **gated** verbs run too and their `requireActions` path is exercised.
+  With no `GameUI` every widget lookup returns `null`, which is not a limitation but the point: it is
+  exactly the "not in the world yet" branch of every method, so one run verifies arity dispatch,
+  interning (`==` and as a table key), userdata immutability, the empty-collection path, and the exact
+  TEXT of every guiding error — the things that are tedious to re-check in-game. What it cannot see is
+  anything needing live data (freshness after a real change, the write actually reaching the server), so
+  the in-game list shrinks to those. Put the harness class in the same package under the scratchpad and
+  `javac -cp build/classes;<luaj jar>` it: package-private constructors then work with no reflection.

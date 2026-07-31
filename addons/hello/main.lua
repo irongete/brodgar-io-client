@@ -21,8 +21,9 @@
 -- Built on gap subsystem A7: MOVEMENT SPEED — hafen.speed reads the crawl/walk/run/sprint selector
 -- (get() -> current speed 0..3, max() -> highest currently-selectable, name([n]) -> display name); read-only
 -- here, since changing speed is the gated Phase-4 action tier. Built on gap subsystem A6: KIN / BUDDY ROSTER —
--- hafen.kin reads the Kin window (list([filter]) -> {id,name,group,color,online}, find(nameOrId)) and fires
--- KinChanged when a kin is added/removed or flips online/offline. Built on gap subsystem A2: RADAR / MINIMAP ICONS — hafen.radar reads the character's gob-icon
+-- hafen.kin reads the Kin window and is CALLABLE-ONLY (020-kin-oop): hafen.kin() is the roster (an array of
+-- interned Kin objects, plus :find/:list/:add), hafen.kin(idOrName) is one Kin (:id/:name/:group/:color/
+-- :online/:exists/:info); it fires KinChanged when a kin is added/removed or flips online/offline. Built on gap subsystem A2: RADAR / MINIMAP ICONS — hafen.radar reads the character's gob-icon
 -- registry (categories() -> {name,res,show,notify} per category) and can flip a category's show (draw it on
 -- the minimap) or notify (sound + msg when one appears) flag over every match of a filter
 -- (setVisible/setNotify(filter,on); filter = nil=all / name substring / predicate). It IS the same registry
@@ -331,22 +332,34 @@ local function readRadar(tag)
     first and (" [show=%s notify=%s]"):format(tostring(first.show), tostring(first.notify)) or ""))
 end
 
--- A6: KIN / BUDDY ROSTER via hafen.kin. list([filter]) returns your kin as {id, name, group (0..7),
--- color={r,g,b,a} (the group's colour), online (bool)}; filter is the canonical nil=all / name-substring /
--- predicate. find(nameOrId) returns one entry (number = by id, string = exact case-insensitive name). Like
--- the rest of the HUD the Kin list streams in a beat after enter-world, so read at now (often 0) and +3s.
--- hello is READ-ONLY here (kin add/remove/rename is the gated Phase-4 action tier). We also demo find() on
--- the first listed kin's name, and count how many are currently online.
+-- A6: KIN / BUDDY ROSTER via hafen.kin -- now OOP (020-kin-oop), and the arity IS the verb: hafen.kin() is
+-- the ROSTER (a plain array of Kin objects in Kin-window sort order -- #roster / roster[1] / ipairs -- plus
+-- :find(nameOrId), :list([filter]) and the gated :add(secret)), while hafen.kin(idOrName) is ONE Kin object
+-- (a number = by id and always an object, a string = an exact case-insensitive name or nil). A Kin reads with
+-- :id/:name/:group/:color/:online/:exists and :info() (the old flat KinEntry snapshot, the escape hatch).
+-- The old FLAT table (list/find/add/remove/forget/rename/setGroup as fields) is GONE (hard cut, D-013):
+-- indexing the namespace now reads as plain nil.
+-- Kin objects are INTERNED per addon, so hafen.kin(id) == hafen.kin(id) and roster[n] is literally the same
+-- object as hafen.kin(<that id>) -- we assert both below. Like the rest of the HUD the Kin list streams in a
+-- beat after enter-world, so read at now (often 0) and +3s. hello is READ-ONLY here (the write verbs are the
+-- gated action tier -- ':walker kin' exercises those).
 local function readKin(tag)
-  local kin = hafen.kin.list()
-  local online = 0
-  for _, k in ipairs(kin) do if k.online then online = online + 1 end end
-  local first = kin[1]
-  local found = first and hafen.kin.find(first.name)     -- round-trip find() by name
-  hafen.log(("[%s] kin=%d (%d online), first=%s%s, find(name)->%s"):format(tag, #kin, online,
-    first and tostring(first.name) or "none",
-    first and (" [group=%d online=%s]"):format(first.group, tostring(first.online)) or "",
-    found and tostring(found.name) or "nil"))
+  local roster = hafen.kin()
+  local online = #roster:list(function(k) return k:online() end)   -- a FUNCTION filter receives a Kin object
+  local first = roster[1]
+  local found = first and roster:find(first:name())                -- round-trip :find() by name
+  hafen.log(("[%s] kin=%d (%d online), first=%s%s, find(name)->%s"):format(tag, #roster, online,
+    first and tostring(first:name()) or "none",
+    first and (" [group=%d online=%s color=%s]"):format(first:group(), tostring(first:online()),
+      first:color() and "yes" or "nil") or "",
+    found and tostring(found:name()) or "nil"))
+  if first then
+    -- The OOP invariants, checked live: interning by id, :find() landing on that SAME object, an unknown
+    -- name resolving to nil, and :info() still handing back the flat snapshot shape.
+    hafen.log(("[%s] kin oop: intern=%s find==roster[1]=%s noSuchName=%s info.name=%s"):format(tag,
+      tostring(hafen.kin(first:id()) == first), tostring(found == first),
+      tostring(hafen.kin("NoSuchName")), tostring((first:info() or {}).name)))
+  end
 end
 
 -- A7: MOVEMENT SPEED via hafen.speed. get() returns the CURRENT speed as 0..3 (0=crawl 1=walk 2=run 3=sprint)
@@ -791,8 +804,9 @@ hafen.events.on("MarkersChanged", function(ev)
 end)
 
 -- A6: KinChanged fires when the roster changes — a kin added/removed, renamed/regrouped, or (the one a
--- kin-alert addon most wants) an online/offline flip. Payload is the new kin list (the same shape as
--- hafen.kin.list()). A few fire at login as the roster streams in; log the first few, then keep our own
+-- kin-alert addon most wants) an online/offline flip. Payload is still the flat {id,name,group,color,online}
+-- list here -- it becomes a Kin[] in 020.3, and this block moves with it. A few fire at login as the roster
+-- streams in; log the first few, then keep our own
 -- last-online set so we can name WHO just came online/offline on every later change.
 local kinSeen = 0
 local kinOnline = {}          -- name -> true while we believe them online (so we can report transitions)

@@ -428,7 +428,7 @@ final class CharApi {
         }
 
         public void refresh() {
-            LuaValue snap = kinList(LuaValue.NIL);
+            LuaValue snap = kinSnapshotList();
             if(!kinListEqual(snap, cache)) {
                 cache = snap;
                 fire("KinChanged", snap);
@@ -953,65 +953,16 @@ final class CharApi {
         hafen.set("party", party);
     }
 
-    /** Build a char namespace for owner. From installHafen. */
+    /**
+     * Install {@code hafen.kin} for owner. From installHafen. The whole surface is the <b>callable table</b>
+     * {@link LuaKin#factory} builds (spec {@code 020-kin-oop}): {@code hafen.kin()} is the roster,
+     * {@code hafen.kin(idOrName)} a {@link LuaKin Kin} object, and the flat {@code hafen.kin.list/find/add/
+     * remove/forget/rename/setGroup} table is GONE (hard cut, D-013) — {@code hafen.kin.list} reads as
+     * {@code nil}. Only the kin-side plumbing the event adapter still needs ({@link #buddywnd},
+     * {@link #kinSnapshot}, {@link #kinListEqual}) stays here.
+     */
     static void installKin(LuaTable hafen, final Addon owner) {
-        LuaTable kin = new LuaTable();
-        kin.set("list", new OneArgFunction() {
-            public LuaValue call(LuaValue filter) {
-                return kinList(filter);
-            }
-        });
-        kin.set("find", new OneArgFunction() {
-            public LuaValue call(LuaValue key) {
-                return kinFind(key);
-            }
-        });
-        // add(secret) / remove(kin) / forget(kin) / rename(kin, name) / setGroup(kin, group) — the gated write
-        // verbs (4g). requireActions-gated (D-027/D-028); `kin` resolves via resolveKin (snapshot / id / name).
-        kin.set("add", new OneArgFunction() {
-            public LuaValue call(LuaValue secret) {
-                requireActions(owner, "hafen.kin.add");
-                if(!secret.isstring())
-                    throw new LuaError("hafen.kin.add(secret): secret must be a string (the other player's hearth secret)");
-                actKinAdd(secret.tojstring());              // wdgmsg("bypwd", secret) — the "Add kin" field
-                return LuaValue.NIL;
-            }
-        });
-        // remove(kin) = END KINSHIP (step 1): ends the kinship; the kin stays memorized in the list.
-        kin.set("remove", new OneArgFunction() {
-            public LuaValue call(LuaValue ref) {
-                requireActions(owner, "hafen.kin.remove");
-                requireKin(ref).endkin();                  // wrap (D-009): Buddy.endkin ("End kinship") → wdgmsg("rm", id)
-                return LuaValue.NIL;
-            }
-        });
-        // forget(kin) = FORGET (step 2): drops a memorized (un-kinned) kin from the list entirely.
-        kin.set("forget", new OneArgFunction() {
-            public LuaValue call(LuaValue ref) {
-                requireActions(owner, "hafen.kin.forget");
-                requireKin(ref).forget();                  // wrap (D-009): Buddy.forget ("Forget") → wdgmsg("rm", id)
-                return LuaValue.NIL;
-            }
-        });
-        kin.set("rename", new TwoArgFunction() {
-            public LuaValue call(LuaValue ref, LuaValue name) {
-                requireActions(owner, "hafen.kin.rename");
-                if(!name.isstring())
-                    throw new LuaError("hafen.kin.rename(kin, name): name must be a string");
-                requireKin(ref).chname(name.tojstring());   // wdgmsg("nick", id, name)
-                return LuaValue.NIL;
-            }
-        });
-        kin.set("setGroup", new TwoArgFunction() {
-            public LuaValue call(LuaValue ref, LuaValue group) {
-                requireActions(owner, "hafen.kin.setGroup");
-                if(!group.isnumber())
-                    throw new LuaError("hafen.kin.setGroup(kin, group): group must be a number (0..7)");
-                actKinSetGroup(ref, group.toint());
-                return LuaValue.NIL;
-            }
-        });
-        hafen.set("kin", kin);
+        hafen.set("kin", LuaKin.factory(owner));
     }
 
     /** Build a char namespace for owner. From installHafen. */
@@ -1736,15 +1687,22 @@ final class CharApi {
     // All our reads run on the UI thread (addon tick / REPL). online is a tri-state internally (1 online,
     // 0 offline, -1 hearth-secret-only) that we expose as a boolean (online == 1) — the common "is this
     // kin online" question; the group index maps to a fixed colour palette (BuddyWnd.gc).
+    //
+    // Since 020-kin-oop the Lua-facing surface is OOP and lives in LuaKin (hafen.kin() = the roster,
+    // hafen.kin(idOrName) = an interned Kin object, gated verbs on the object). What stays HERE is the
+    // plumbing LuaKin and the KinAdapter share: the buddywnd() resolve funnel, the kinSnapshot() escape
+    // hatch (kin:info()) and the snapshot diff that drives KinChanged.
 
-    /** The Kin/buddy window ({@link GameUI#buddies}), or {@code null} before the HUD/Kin window exists. */
-    private static BuddyWnd buddywnd() {
+    /** The Kin/buddy window ({@link GameUI#buddies}), or {@code null} before the HUD/Kin window exists.
+     *  The one resolve funnel: {@link LuaKin} re-reads every Kin object through it, every call (D-012). */
+    static BuddyWnd buddywnd() {
         GameUI g = gui();
         return (g == null) ? null : g.buddies;
     }
 
-    /** A kin snapshot: {@code {id, name, group, color={r,g,b,a}, online(bool)}}. */
-    private static LuaValue kinSnapshot(BuddyWnd.Buddy b) {
+    /** A kin snapshot: {@code {id, name, group, color={r,g,b,a}, online(bool)}} — {@code kin:info()}'s
+     *  answer (the one snapshot escape hatch) and the change-detection input below. */
+    static LuaValue kinSnapshot(BuddyWnd.Buddy b) {
         if(b == null)
             return LuaValue.NIL;
         LuaTable t = new LuaTable();
@@ -1758,36 +1716,17 @@ final class CharApi {
         return t;
     }
 
-    /** Kin snapshots in the window's current sort order, passing the canonical {@code matches} filter. */
-    private static LuaValue kinList(LuaValue filter) {
+    /** The whole roster as snapshots, in the window's current sort order — the {@link KinAdapter}'s
+     *  change-detection input (never a Lua-facing list any more: Lua sees Kin objects, {@link LuaKin}). */
+    private static LuaValue kinSnapshotList() {
         LuaTable out = new LuaTable();
         BuddyWnd bw = buddywnd();
         if(bw == null)
             return out;
         int i = 0;
-        for(BuddyWnd.Buddy b : bw) {               // iterator() copies under the BuddyWnd's own lock
-            LuaValue snap = kinSnapshot(b);
-            if(matches(filter, snap))
-                out.set(++i, snap);
-        }
+        for(BuddyWnd.Buddy b : bw)                 // iterator() copies under the BuddyWnd's own lock
+            out.set(++i, kinSnapshot(b));
         return out;
-    }
-
-    /** One kin snapshot: a number matches by id, a string by exact (case-insensitive) name; else nil. */
-    private static LuaValue kinFind(LuaValue key) {
-        BuddyWnd bw = buddywnd();
-        if(bw == null)
-            return LuaValue.NIL;
-        if(key.isnumber())
-            return kinSnapshot(bw.find(key.toint()));
-        if(key.isstring()) {
-            String needle = key.tojstring();
-            for(BuddyWnd.Buddy b : bw) {
-                if((b.name != null) && b.name.equalsIgnoreCase(needle))
-                    return kinSnapshot(b);
-            }
-        }
-        return LuaValue.NIL;
     }
 
     /** Do two kin snapshot lists carry the same id/name/group/online per entry? (change-detection.) */
@@ -1809,74 +1748,6 @@ final class CharApi {
                 return false;
         }
         return true;
-    }
-
-    // -- 4g: kin write verbs (hafen.kin.add/remove/forget/rename/setGroup) ---------------------------
-    // The gated kin-roster mutations. add(secret) adds a kin by the other player's HEARTH SECRET — the Kin
-    // window's "Add kin" field, BuddyWnd.wdgmsg("bypwd", secret) (no add-by-NAME message exists). The rest take a
-    // `kin` ref — a kin snapshot (from hafen.kin.list/find, read for its `id`), the id number directly, or a name
-    // string (exact, case-insensitive) — resolved to the LIVE BuddyWnd.Buddy, then driving the client's own Buddy
-    // method (wrap-not-reimplement, D-009). remove/forget are the TWO STEPS of dropping a kin (the game's "End
-    // kinship" then "Forget"): endkin() ends the kinship (the kin stays memorized), forget() drops the memorized
-    // kin from the list — both send wdgmsg("rm", id), and the SERVER advances active → memorized → gone (so a full
-    // removal of an active kin is remove() then forget()). rename→chname()=wdgmsg("nick"), setGroup→chgrp()=wdgmsg(
-    // "grp"). All run on the UI thread (addon callback / REPL / timer / slash command).
-
-    /** {@code hafen.kin.add} backing — add a kin by the other player's hearth secret, exactly what the Kin
-     *  window's "Add kin" button/field sends ({@code BuddyWnd.wdgmsg("bypwd", secret)}, {@link BuddyWnd} :504/:509).
-     *  The server validates the secret (a wrong/empty one just does nothing); we reject an empty string up front. */
-    private static void actKinAdd(String secret) {
-        if(secret.isEmpty())
-            throw new LuaError("hafen.kin.add(secret): secret must not be empty (the other player's hearth secret)");
-        BuddyWnd bw = buddywnd();
-        if(bw == null)
-            throw new LuaError("hafen.kin.add: no Kin window (not in the world yet)");
-        bw.wdgmsg("bypwd", secret);
-    }
-
-    /** Resolve a kin ref (snapshot table with {@code id} / id number / name string) to the live
-     *  {@link BuddyWnd.Buddy}, or {@code null} if no such kin; throws for a wrong argument TYPE or no window. */
-    private static BuddyWnd.Buddy resolveKin(LuaValue ref) {
-        BuddyWnd bw = buddywnd();
-        if(bw == null)
-            throw new LuaError("hafen.kin: no Kin window (not in the world yet)");
-        if(ref.istable()) {                            // a kin snapshot from hafen.kin.list/find → its id
-            LuaValue id = ref.get("id");
-            if(!id.isnumber())
-                throw new LuaError("hafen.kin: the kin table has no numeric 'id' field"
-                    + " (pass a kin from hafen.kin.list/find, its id, or a name)");
-            return bw.find(id.toint());
-        }
-        if(ref.isnumber())
-            return bw.find(ref.toint());
-        if(ref.isstring()) {
-            String needle = ref.tojstring();
-            for(BuddyWnd.Buddy b : bw)                  // iterator() copies under the BuddyWnd's own lock
-                if((b.name != null) && b.name.equalsIgnoreCase(needle))
-                    return b;
-            return null;
-        }
-        throw new LuaError("hafen.kin: kin must be a kin snapshot (a table), its id (a number), or a name (a string)");
-    }
-
-    /** {@link #resolveKin} but throws a guiding error when the ref resolves to no one on the roster. */
-    private static BuddyWnd.Buddy requireKin(LuaValue ref) {
-        BuddyWnd.Buddy b = resolveKin(ref);
-        if(b == null)
-            throw new LuaError("hafen.kin: no such kin (the ref did not match anyone on your roster)");
-        return b;
-    }
-
-    /** {@code hafen.kin.setGroup} backing — resolve the kin, validate group 0..7, then move it to that
-     *  group/colour. Resolve FIRST so that with no live window we fail with "no Kin window" before touching
-     *  {@link BuddyWnd#gc} (a static-field read that would force the resource-loading class init — headless-unsafe,
-     *  like A7's {@code Speedget.tips}); in-game the range is validated against the real palette length. */
-    private static void actKinSetGroup(LuaValue ref, int group) {
-        BuddyWnd.Buddy b = requireKin(ref);            // needs a live Kin window; instance-only, no BuddyWnd statics
-        if((group < 0) || (group >= BuddyWnd.gc.length))
-            throw new LuaError("hafen.kin.setGroup(kin, group): group must be 0.." + (BuddyWnd.gc.length - 1)
-                + " (the kin colour groups), got " + group);
-        b.chgrp(group);                                // wdgmsg("grp", id, group)
     }
 
     // ---- quest log (A9: hafen.quests) ------------------------------------------------------------

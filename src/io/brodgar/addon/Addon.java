@@ -225,6 +225,16 @@ public final class Addon {
     final LuaGob.Cache gobs = new LuaGob.Cache();
 
     /**
+     * This addon's <b>Kin interning cache</b> ({@code hafen.kin(idOrName)}, spec {@code 020-kin-oop}): the
+     * weak-valued {@code buddy id → Kin object} map, its {@link java.lang.ref.ReferenceQueue}, and the two
+     * per-addon metatables (the Kin one and the roster's). Same contract as {@link #gobs} — per-addon so no
+     * Lua value crosses a sandbox boundary (D-017) and the whole cache dies with this {@link Addon} on
+     * {@code :reload}/disable; nothing to tear down (weak entries, and a handle holds only an int id). It
+     * carries the {@link Addon} because the gated Kin verbs check the {@code actions} permission against it.
+     */
+    final LuaKin.Cache kins = new LuaKin.Cache(this);
+
+    /**
      * The single {@code hafen.player()} object for this addon ({@code Player} by composition, D-046) — built
      * lazily by {@code CharApi.installPlayer} and cached so {@code hafen.player() == hafen.player()}. Per-addon
      * for the same reason as {@link #gobs}.

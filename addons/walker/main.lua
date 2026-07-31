@@ -13,7 +13,8 @@
 -- Slice 4d adds the rest of the MapView action verbs on top of moveTo (4a); slice 4e adds menu + flower;
 -- slice 4f adds the ITEM verbs (hafen.act.item); slice 4g adds the PER-SUBSYSTEM gated verbs that live in
 -- their own namespace (not hafen.act.*): hafen.speed.set, hafen.craft.make, hafen.actionbar.use, and
--- hafen.kin.add/remove/forget/rename/setGroup — all behind the SAME "actions" permission.
+-- the kin verbs on the Kin object (hafen.kin():add(secret) and kin:rename/:setGroup/:endkin/:forget)
+-- — all behind the SAME "actions" permission.
 -- Each is a DELIBERATE, opt-in trigger — a `:walker <sub>` command — so nothing acts unless you ask.
 -- Sub-commands:
 --   :walker walk        -- moveTo: walk ~2 tiles south  (the original 4a demo)
@@ -32,9 +33,9 @@
 --   :walker speed [n]   -- speed.set: select movement speed n=0..3 (crawl/walk/run/sprint; default 2=run). Reversible.
 --   :walker craft [all] -- craft.make: press Craft on the OPEN recipe (add 'all' for Craft All). CONSUMES ingredients!
 --   :walker bar <n>     -- actionbar.use: activate action-bar slot n (raw 0-based index; read hafen.actionbar.slot first)
---   :walker kin add <secret>  -- kin.add: add a kin by the other player's HEARTH SECRET (wdgmsg 'bypwd')
---   :walker kin <name> group <0..7>|rename <new>|remove|forget
---                       -- kin.setGroup/rename a named kin (reversible), OR the two-step drop: remove = End
+--   :walker kin add <secret>  -- hafen.kin():add: add a kin by the other player's HEARTH SECRET (wdgmsg 'bypwd')
+--   :walker kin <name> group <0..7>|rename <new>|endkin|forget
+--                       -- kin:setGroup/:rename a named kin (reversible), OR the two-step drop: endkin = End
 --                          kinship (stays memorized), then forget = drop the memorized kin from the list
 
 hafen.log("walker loaded (v0.6.0) -- write-actions demo (4d MapView verbs + 4e menu/flower + 4f item + 4g speed/craft/bar/kin)")
@@ -61,7 +62,7 @@ hafen.slash.register("walker", function(args)
     hafen.log("   speed [n]=hafen.speed.set(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
     hafen.log("   craft [all]=hafen.craft.make(all)  press Craft on the OPEN recipe (CONSUMES ingredients; 'all'=Craft All)")
     hafen.log("   bar <n>=hafen.actionbar.use(n)  activate action-bar slot n (raw 0-based index)")
-    hafen.log("   kin add <secret> =add by hearth secret; kin <name> group/rename =setGroup/rename; remove =End kinship, forget =drop memorized kin")
+    hafen.log("   kin add <secret> =add by hearth secret; kin <name> group/rename =kin:setGroup/:rename; endkin =End kinship, forget =drop memorized kin")
     return
   end
 
@@ -187,43 +188,49 @@ hafen.slash.register("walker", function(args)
       :format(n, s and (s.name or s.res or "?") or "empty"))
 
   elseif sub == "kin" then
-    -- 4g kin verbs. 'add' takes a HEARTH SECRET (not a name): ':walker kin add <secret>'. The rest act on a
-    -- NAMED kin (resolve by exact name) + an explicit op -- these mutate your real roster. group/rename are
-    -- reversible. remove + forget are the TWO STEPS of dropping a kin (the game's "End kinship" then "Forget"):
-    -- remove ENDS THE KINSHIP (the kin stays memorized in your list), then forget DROPS the memorized kin.
-    -- Require the args explicitly (like ':walker menu' requires its tokens).
+    -- 4g kin verbs, now on the Kin OBJECT (020-kin-oop): hafen.kin() is the roster (with the gated
+    -- :add(secret)) and hafen.kin(name) is one Kin, whose gated verbs are :rename/:setGroup/:endkin/:forget
+    -- and each returns SELF, so they chain. 'add' takes a HEARTH SECRET (not a name): ':walker kin add
+    -- <secret>'. The rest act on a NAMED kin (exact name) + an explicit op -- these mutate your real roster.
+    -- group/rename are reversible. endkin + forget are the TWO STEPS of dropping a kin (the game's "End
+    -- kinship" then "Forget"): endkin ENDS THE KINSHIP (the kin stays memorized in your list), then forget
+    -- DROPS the memorized kin. Require the args explicitly (like ':walker menu' requires its tokens).
     if args[2] == "add" then
       local secret = args[3]
       if not secret then hafen.log(":walker kin add <hearth-secret> -> add a kin by the other player's hearth secret"); return end
-      hafen.kin.add(secret)                             -- gated; wdgmsg("bypwd", secret) -- the "Add kin" field
-      hafen.log((":walker kin -> hafen.kin.add('%s')  (sent -- the server adds them if the secret is valid)"):format(secret))
+      hafen.kin():add(secret)                           -- gated; wdgmsg("bypwd", secret) -- the "Add kin" field
+      hafen.log((":walker kin -> hafen.kin():add('%s')  (sent -- the server adds them if the secret is valid)"):format(secret))
       return
     end
     local name, op = args[2], args[3]
     if not name or not op then
-      hafen.log(":walker kin add <secret> | <name> group <0..7> | <name> rename <newname> | <name> remove | <name> forget")
+      hafen.log(":walker kin add <secret> | <name> group <0..7> | <name> rename <newname> | <name> endkin | <name> forget")
       return
     end
-    local who = hafen.kin.find(name)                   -- read first: confirm the name resolves + show the id
+    local who = hafen.kin(name)                        -- read first: confirm the name resolves + show the id
     if not who then hafen.log((":walker kin -> no kin named '%s' on your roster"):format(name)); return end
     if op == "group" then
       local grp = tonumber(args[4])
       if not grp then hafen.log(":walker kin <name> group <0..7> -> a group number is required"); return end
-      hafen.kin.setGroup(name, grp)                    -- gated; wdgmsg("grp", id, grp) -- changes their colour (reversible)
-      hafen.log((":walker kin -> hafen.kin.setGroup('%s' [id %d], %d)  (was group %d)"):format(name, who.id, grp, who.group))
+      -- The server takes 0..254, but the client only DRAWS 8 kin colours -- stay in 0..7 in-game.
+      local was = who:group()
+      who:setGroup(grp)                                -- gated; wdgmsg("grp", id, grp) -- their colour (reversible)
+      hafen.log((":walker kin -> hafen.kin('%s' [id %d]):setGroup(%d)  (was group %d, now %d)")
+        :format(name, who:id(), grp, was, who:group()))   -- re-read: the SAME object already tracks the change
     elseif op == "rename" then
       local newname = args[4]
       if not newname then hafen.log(":walker kin <name> rename <newname> -> a new name is required"); return end
-      hafen.kin.rename(name, newname)                  -- gated; wdgmsg("nick", id, newname) -- reversible (rename back)
-      hafen.log((":walker kin -> hafen.kin.rename('%s' [id %d], '%s')"):format(name, who.id, newname))
-    elseif op == "remove" then
-      hafen.kin.remove(name)                           -- gated; Buddy.endkin ("End kinship") -> wdgmsg("rm", id)
-      hafen.log((":walker kin -> hafen.kin.remove('%s' [id %d])  (END KINSHIP -- they stay MEMORIZED; ':walker kin %s forget' to drop them)"):format(name, who.id, name))
+      who:rename(newname)                              -- gated; wdgmsg("nick", id, newname) -- reversible (rename back)
+      hafen.log((":walker kin -> hafen.kin('%s' [id %d]):rename('%s')"):format(name, who:id(), newname))
+    elseif op == "endkin" then
+      who:endkin()                                     -- gated; Buddy.endkin ("End kinship") -> wdgmsg("rm", id)
+      hafen.log((":walker kin -> hafen.kin('%s' [id %d]):endkin()  (END KINSHIP -- they stay MEMORIZED; ':walker kin %s forget' to drop them)"):format(name, who:id(), name))
     elseif op == "forget" then
-      hafen.kin.forget(name)                           -- gated; Buddy.forget ("Forget") -> wdgmsg("rm", id) -- drops a memorized kin
-      hafen.log((":walker kin -> hafen.kin.forget('%s' [id %d])  (FORGOTTEN -- re-add via hearth secret/right-click)"):format(name, who.id))
+      local id = who:id()                              -- read the id BEFORE they leave the roster
+      who:forget()                                     -- gated; Buddy.forget ("Forget") -> wdgmsg("rm", id) -- drops a memorized kin
+      hafen.log((":walker kin -> hafen.kin('%s' [id %d]):forget()  (FORGOTTEN -- re-add via hearth secret/right-click)"):format(name, id))
     else
-      hafen.log((":walker kin -> unknown op '%s'  (group | rename | remove | forget)"):format(op))
+      hafen.log((":walker kin -> unknown op '%s'  (group | rename | endkin | forget)"):format(op))
     end
 
   else
