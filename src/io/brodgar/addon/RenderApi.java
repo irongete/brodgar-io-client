@@ -1367,7 +1367,7 @@ final class RenderApi {
         ev.set("y", yv);
         fireTo(e.owner, e.clickEvent(), ev);           // owner-scoped: an entity belongs to exactly one addon
         if((onClick != null) && onClick.isfunction())
-            callLua(e.owner, onClick, handle, bt, xv, yv);
+            callLua(e.owner, Addon.C_HOOK, onClick, handle, bt, xv, yv);
         return true;                                   // consume — client-only detection, no server wdgmsg
     }
 

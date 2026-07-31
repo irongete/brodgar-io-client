@@ -63,6 +63,7 @@ import haven.Window;
 import haven.WoundWnd;
 import haven.render.RenderTree;
 import haven.resutil.Curiosity;
+import io.brodgar.prof.Prof;
 
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
@@ -237,8 +238,9 @@ public final class AddonManager {
      */
     public static synchronized void init(UI ui_) {
         ui = ui_;
-        io.brodgar.prof.Prof.init();  // 019.1: restore the persisted profiling switch (once per JVM)
-        io.brodgar.prof.Prof.addonCost(AddonManager::luaNanosThisFrame);   // 019.2: the addons roll-up source
+        Prof.init();  // 019.1: restore the persisted profiling switch (once per JVM)
+        Prof.addonCost(AddonManager::luaNanosThisFrame);   // 019.2: the addons roll-up source
+        Prof.addonReset(AddonManager::resetProfiling);     // 019.4: p:reset()/arming clears the per-addon rows too
         for(Addon a : addons)         // fire OnDisable + flush saved vars + drop owned resources
             AddonRegistry.teardown(a);              // (flushes with the OLD charScope, still set from the last session)
         addons.clear();
@@ -315,8 +317,23 @@ public final class AddonManager {
             // Soft CPU-budget accounting (D-018 layer 2): zero every addon's per-tick Lua time before any
             // handler runs this tick; callLua accumulates into it, enforceSoftBudget() evaluates it at the
             // end. (Skipped on a reload tick, which returns above — its OnLoad/OnEnterWorld are one-offs.)
-            for(Addon a : addons)
+            // 019.4: this instant is also where the PREVIOUS frame closes — tickLuaNanos accrues through the
+            // tick and the draw callbacks that follow it, so right here it holds exactly one whole frame.
+            // profRoll() moves it into the addon's "last completed frame" figures before it is cleared, which
+            // is why p:addons() never shows a half-accumulated frame and its total matches p:frame().addons.
+            boolean prof = Prof.on;
+            for(int i = 0, n = addons.size(); i < n; i++) {
+                Addon a = addons.get(i);
+                if(prof)
+                    a.profRoll();
                 a.tickLuaNanos = 0L;
+            }
+            Addon co = consoleOwner;
+            if(co != null) {                 // the REPL is not an addon (no watchdog), but its Lua time is
+                if(prof)                     // real frame cost and it owns the scopes of a :lua snippet
+                    co.profRoll();
+                co.tickLuaNanos = 0L;
+            }
 
             // 1. Gob spawn/despawn captured on network/loader threads → dispatch on the UI thread.
             GobEvent ge;
@@ -402,14 +419,38 @@ public final class AddonManager {
      * each tick and accrues through the tick AND the draw callbacks that follow it, so at end-of-frame it
      * holds exactly this frame's cost. Read by {@code Prof} on the UI thread, through the supplier registered
      * in {@link #init} (the profiling engine must not depend on the addon system). Indexed rather than
-     * for-each: no iterator allocation on a per-frame path. 019.4 replaces this single total with per-addon,
-     * per-category accumulators.
+     * for-each: no iterator allocation on a per-frame path. 019.4 keeps this as the roll-up and adds the
+     * per-addon breakdown behind it ({@link #profOwners}), reading the same {@code tickLuaNanos} so the
+     * {@code total} row of {@code p:addons()} and the {@code addons} figure of {@code p:frame()} can never
+     * disagree — including the {@code :lua} REPL, whose Lua time is frame cost like any other even though the
+     * watchdog exempts it.
      */
     static long luaNanosThisFrame() {
         long sum = 0;
         for(int i = 0, n = addons.size(); i < n; i++)
             sum += addons.get(i).tickLuaNanos;
+        Addon c = consoleOwner;
+        if(c != null)
+            sum += c.tickLuaNanos;
         return sum;
+    }
+
+    /**
+     * Every Lua owner {@code p:addons()} reports a row for: the loaded addons plus the {@code :lua} REPL
+     * (which owns the scopes of a console snippet). Built on demand, at snapshot time only — never per frame.
+     */
+    static List<Addon> profOwners() {
+        List<Addon> out = new ArrayList<Addon>(addons);
+        Addon c = consoleOwner;
+        if(c != null)
+            out.add(c);
+        return out;
+    }
+
+    /** Clear every per-addon profiling figure — registered with {@code Prof}, so arming and {@code p:reset()} hit it. */
+    static void resetProfiling() {
+        for(Addon a : profOwners())
+            a.profReset();
     }
 
     /**
@@ -465,7 +506,7 @@ public final class AddonManager {
                 continue;
             }
             if(clock >= t.due) {
-                callLua(a, t.fn);
+                callLua(a, Addon.C_TIMER, t.fn);
                 if(t.interval > 0) {
                     t.due += t.interval;                     // repeating: reschedule (fires once/tick)
                 } else {
@@ -648,7 +689,7 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
                 continue;
             }
             if(s.event.equals(event))
-                callLua(a, s.fn, args);
+                callLua(a, Addon.C_EVENT, s.fn, args);
         }
     }
 
@@ -659,19 +700,46 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
      * Package-visible so {@link LuaWidget} (same package) routes its draw/tick/mouse callbacks through the
      * one watchdog-armed, CPU-accounted choke point.
      */
-    static Varargs callLua(Addon owner, LuaValue fn, LuaValue... args) {
+    static Varargs callLua(Addon owner, int cat, LuaValue fn, LuaValue... args) {
         long t0 = System.nanoTime();
         try {
             Sandbox.arm(owner.env);   // reset the watchdog's instruction budget for this callback (D-018)
             return fn.invoke((args.length == 0) ? LuaValue.NONE : LuaValue.varargsOf(args));
         } catch(LuaError e) {
             log(owner, "handler error: " + e.getMessage());
+            trace(e.getCause());
         } catch(RuntimeException e) {
             log(owner, "handler error: " + e);
+            trace(e);
         } finally {
-            owner.tickLuaNanos += System.nanoTime() - t0;   // soft per-tick CPU-budget accounting (D-018 layer 2)
+            long d = System.nanoTime() - t0;
+            owner.tickLuaNanos += d;   // soft per-tick CPU-budget accounting (D-018 layer 2)
+            // 019.4: the SAME measurement, split by what the addon was doing. Deliberately an addition
+            // inside this finally and not a second timer: tickLuaNanos above must stay byte-for-byte what
+            // it was, or the watchdog would start auto-disabling at a different point. When profiling is
+            // off this is one branch on a static field.
+            if(io.brodgar.prof.Prof.on) {
+                owner.catNanos[cat] += d;
+                owner.catCalls[cat]++;
+            }
         }
         return LuaValue.NIL;
+    }
+
+    /**
+     * Print the Java stack behind a handler error to <b>stdout only</b> (never to chat). A Lua error carries
+     * its own file:line and needs nothing more, but when the failure is a Java exception thrown inside a
+     * bridge call, the Lua message says only where the addon <i>called in</i> — the engine-side site, which is
+     * the one that matters, was being discarded. Errors stay isolated exactly as before; this only stops
+     * throwing away the evidence.
+     *
+     * <p>{@link Loading} is excluded: in this client "the resource isn't here yet" is <b>control flow</b>, not a
+     * fault — it is thrown routinely while the map and resources stream in, and a stack for each one buries the
+     * real errors it exists to surface. The one-line handler message still names it.
+     */
+    private static void trace(Throwable t) {
+        if((t != null) && !(t instanceof LuaError) && !(t instanceof Loading))
+            t.printStackTrace();
     }
 
     // ------------------------------------------------------------- the hafen facade

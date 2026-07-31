@@ -1109,7 +1109,7 @@ local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-faci
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof")
     return
   end
   local sub = args[1]
@@ -1539,8 +1539,51 @@ hafen.slash.register("hello", function(args)
       hafen.log((":hello node -> setFont on ONE widget: the '%s' window (%d text bits inside) is now in %s 13 -- caption, labels, list rows and button captions included; every OTHER open window stays stock. Candidates+text counts: [%s]. That is the per-instance override; :hello node again to reset")
         :format(wins[best].name, wins[best].texts, h:family(), table.concat(report, ", ")))
     end
+  elseif sub == "prof" then
+    -- 019.4: PER-ADDON COST + CUSTOM SCOPES. p:measure(name, fn) brackets a section of OUR code with a named
+    -- marker and charges it to THIS addon -- the ProfilerMarker equivalent. Names are per-addon, so another
+    -- addon's "scan-gobs" is a different scope, and the whole map dies with us on :reload/disable.
+    -- Both p:measure and p:scope run the wrapped code whether profiling is armed or not, so instrumentation
+    -- left in a shipped addon costs nothing with the checkbox off -- which is also why this prints an empty
+    -- table then: p:addons() is armed-only (Options > Client > Enable profiling).
+    local p = hafen.client:profiling()
+    local n = p:measure("scan-gobs", function()          -- the wrapper form: cannot forget to finish
+      local c = 0
+      for _, g in ipairs(hafen.world.gobs()) do if g:name() then c = c + 1 end end
+      return c
+    end)
+    local s = p:scope("spin")                            -- the explicit form: begin/finish around a section
+    s:begin()
+    local acc = 0
+    for i = 1, 200000 do acc = acc + i end
+    s:finish()
+    hafen.log((":hello prof -> measured a %d-gob scan + a %d-iteration spin; the numbers land NEXT frame (they are"
+      .. " charged when the frame closes), so the row is dumped on a short timer -- by then the scopes' per-frame"
+      .. " ms is back to 0 and their cost shows in peak/avg"):format(n or 0, acc > 0 and 200000 or 0))
+    hafen.timer.after(0.5, function()
+      local rows = p:addons()
+      if not rows[1] then
+        hafen.log(":hello prof -> p:addons() is empty: profiling is OFF (tick Options > Client > Enable profiling)")
+        return
+      end
+      for _, r in ipairs(rows) do                        -- sorted most expensive first
+        local sc = {}
+        for scopeName, e in pairs(r.scopes) do
+          -- ms/calls are THIS frame, and this dump runs half a second after the work -- so the frame being
+          -- reported ran no scope at all and both read 0. The measured cost is in peak/avg, which are rolling.
+          sc[#sc + 1] = ("%s=%.3fms/%d now, peak %.3fms, avg %.3fms"):format(scopeName, e.ms, e.calls, e.msPeak, e.msAvg)
+        end
+        hafen.log(("  %-12s ms=%.3f avg=%.3f peak=%.3f share=%.1f%%  calls{ev=%d,tm=%d,dr=%d,hk=%d,wg=%d}%s")
+          :format(r.id, r.ms, r.msAvg, r.msPeak, (r.share or 0) * 100,
+                  r.calls.events, r.calls.timers, r.calls.draw, r.calls.hooks, r.calls.widgets,
+                  (#sc > 0) and ("  scopes{" .. table.concat(sc, ", ") .. "}") or ""))
+      end
+      local f = p:frame()
+      hafen.log(("  total=%.3fms (%.1f%% of the frame) -- p:frame().addons=%.3fms, the SAME accounting")
+        :format(rows.total.ms, (rows.total.share or 0) * 100, f.addons or 0))
+    end)
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof)")
       :format(#args, table.concat(args, " | ")))
   end
 end)

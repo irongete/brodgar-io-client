@@ -118,3 +118,18 @@
   crosses a sandbox boundary (D-017) and the cache dies whole with the env on `:reload`/disable — a static one
   would outlive the reload (the C1 console-command trap in a new costume). The per-addon metatable falls out of
   the same rule, and it is what keeps two envs' handles for the *same* id distinct.
+- **(019.4) NEVER name a captured local `name` inside an anonymous `VarArgFunction` — LuaJ's `LibFunction`
+  declares `protected String name`.** An inherited field **shadows an enclosing method's local** of the same
+  name, so `create(owner, final String name)` + `new VarArgFunction() { … begin(owner, name) … }` silently reads
+  LuaJ's null field, not the captured value. It compiles, it runs, and it registers under a `null` key; the
+  crash surfaces far away and unrecognisably (`LuaString.valueOf` → `NPE: String.toCharArray() because
+  <parameter1> is null`) in whatever later walks that map. Cost: a whole test round. Rename the parameter (`nm`)
+  — or declare a **local** `String name = a.arg(2).checkjstring()` *inside* the body, which shadows the field
+  and is what every other bridge closure in the package happens to do, which is why only this one was bitten.
+  Same trap for `opcode` (also `LibFunction`). Note the asymmetry that misleads you while debugging: a name
+  passed as a **method argument** (`measure(owner, name, fn)`) is fine — only closure bodies read the field.
+- **(019.4) `callLua` swallowed the Java stack of an engine-side exception; print it (to stdout) or debug blind.**
+  A `LuaError` carries file:line and needs nothing more, but when a bridge call throws a Java exception the Lua
+  message names only where the addon *called in*. Print `e.getCause()`'s stack — but **exclude `haven.Loading`**:
+  in this client "the resource isn't here yet" is control flow, thrown constantly while the map streams in, and
+  a stack per occurrence buries the log the print exists to clarify. One line in `catch`, one `instanceof` guard.

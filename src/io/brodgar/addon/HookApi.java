@@ -610,7 +610,7 @@ final class HookApi {
             return false;                            // fast path: no addon hotkeys anywhere
         for(LuaKeyBind kb : keyBinds) {              // copy-on-write: a hotkey may :remove() itself here
             if(kb.alive && kb.matches(ev)) {
-                AddonManager.callLua(kb.owner, kb.fn);
+                AddonManager.callLua(kb.owner, Addon.C_HOOK, kb.fn);
                 return true;                         // consume: the addon bound this key
             }
         }

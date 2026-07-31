@@ -242,6 +242,9 @@ hafen.log(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)", f.fps, f.ms, f
 |---|---|---|
 | `frame()` | table | the frame that just finished — **armed only** |
 | `history(n)` | array of tables | the last `n` frames, **oldest first**; `n` omitted = everything held — **armed only** |
+| `addons()` | array of tables | what each addon's Lua cost, most expensive first, plus `total` — **armed only** |
+| `scope(name)` | a scope handle | a named marker you bracket your own code with |
+| `measure(name, fn, ...)` | whatever `fn` returns | run `fn` inside the scope `name` |
 | `reset()` | the handle | drop the history and start measuring afresh (chains) |
 | `memory()` | table | JVM heap, per-frame allocation, GC totals — **always answers** |
 | `net()` | table | packet/byte counters and round-trip time — **always answers** |
@@ -252,10 +255,11 @@ The handle is a stateless proxy — keep it in a variable forever, it never goes
 verbs answer are plain **snapshot tables**, not handles: frozen numbers with nothing to re-resolve, so
 walking 600 samples for a frame graph is 600 table lookups, not 600 bridge calls.
 
-**Two kinds of verb.** `frame()`/`history()` are *frame sampling*: they exist only while the switch
-above (Options ▸ Client ▸ Enable profiling) is on. The four **counters** below are *pull-only* — every
-number in them is one the client already maintains for its own `:stats on` HUD, so they answer whether
-profiling is armed or not, and reading them costs nothing when it is not.
+**Two kinds of verb.** `frame()`/`history()`/`addons()` are *frame sampling*: they exist only while the
+switch above (Options ▸ Client ▸ Enable profiling) is on. The four **counters** below are *pull-only* —
+every number in them is one the client already maintains for its own `:stats on` HUD, so they answer
+whether profiling is armed or not, and reading them costs nothing when it is not. `scope()`/`measure()`
+sit across both: they are always callable and always run your code, and only *record* while armed.
 
 **Every duration is in milliseconds.**
 
@@ -379,17 +383,91 @@ if r.drawSlots then
 end
 ```
 
+### `addons()`
+
+One row per Lua owner — every loaded addon, plus `(console)` for the `:lua` REPL — for the **last
+completed frame**, sorted most expensive first. The top row is the answer to "who is costing me frames".
+
+| Key | Description |
+|---|---|
+| `id` | the addon's manifest id |
+| `ms` | its Lua time in the last completed frame |
+| `msAvg` / `msPeak` | mean and worst frame since the switch was armed (or since `reset()`) |
+| `share` | `ms` as a fraction of that frame — absent until a frame has been sampled |
+| `calls` | how many calls, by category: `events`, `timers`, `draw`, `hooks`, `widgets` |
+| `cost` | the same split in milliseconds |
+| `scopes` | this addon's named scopes, keyed by name — see below |
+
+The array is followed by a **`total`** key (`{ms=, share=}`) that is the *same number* `frame().addons`
+reports: both read the accounting the addon CPU watchdog already keeps, so the two views can never
+disagree. Iterate the rows with `ipairs` — `total` is not part of the array.
+
+```lua
+local rows = hafen.client:profiling():addons()
+for _, r in ipairs(rows) do
+  hafen.log(string.format("%-12s %.2f ms (%.0f%%)  draw=%d events=%d",
+                          r.id, r.ms, (r.share or 0) * 100, r.calls.draw, r.calls.events))
+end
+```
+
+**Categories describe what your Lua was doing**, not where it lives: `draw` is overlay and widget paint
+callbacks, `widgets` the rest of a custom widget's life (tick, mouse, drop), `hooks` input/action/message
+hooks, hotkeys and slash commands, `events` the event bus and async callbacks, `timers` timer callbacks.
+
+> A callback that calls back into the engine, which calls your Lua again, is charged to **both** brackets
+> — the same way the watchdog has always charged it. So `cost` can add up to slightly more than `ms` on a
+> re-entrant frame. `ms` is the number to trust.
+
+### Custom scopes
+
+`scope(name)` and `measure(name, fn, ...)` are the `ProfilerMarker` equivalent: name a section of *your*
+code and see what it costs, in your own row of `addons()`.
+
+```lua
+local p = hafen.client:profiling()
+
+p:measure("scan-gobs", function()                  -- the wrapper form: cannot forget to finish
+  for _, g in ipairs(hafen.world.gobs()) do … end
+end)
+
+local s = p:scope("rebuild")                       -- the explicit form, for a section you cannot wrap
+s:begin()
+rebuildIndex()
+s:finish()
+```
+
+| Verb | Description |
+|---|---|
+| `s:begin()` / `s:finish()` | bracket a section (both chain) |
+| `s:name()` | the scope's name |
+| `p:measure(name, fn, ...)` | run `fn(...)` inside the scope and return whatever it returns |
+
+Names are **per addon**: two addons may both use `"update"` without colliding, and a scope map dies with
+its addon on `:reload`/disable — nothing to clean up. Each scope appears in that addon's `addons()` row
+as `{ms=, msAvg=, msPeak=, calls=}`.
+
+`ms` and `calls` are **this-frame** figures, so a scope that ran a moment ago reads 0 — its cost lives in
+`msPeak`/`msAvg`. Read `ms` per frame (from an `OnUpdate`, say); read `msPeak` for "how bad does this get".
+
+**Leave the instrumentation in.** With profiling off, `begin`/`finish` return on a single field check and
+`measure` calls `fn` directly — nothing is allocated and nothing is recorded, so a shipped addon pays
+effectively nothing for scopes it is not being profiled on. `measure` runs `fn` either way, and closes
+the scope even if `fn` errors. Only the outermost `begin`/`finish` pair of a recursive section counts, an
+unmatched `finish()` is ignored, and a scope left open by an erroring handler closes at end of frame.
+
 ### When profiling is off
 
-`frame()` and `history()` return an **empty table**, never `nil` — no branch needed in addon code:
+`frame()`, `history()` and `addons()` return an **empty table**, never `nil` — no branch needed in addon
+code:
 
 ```lua
 for _, f in ipairs(p:history(60)) do … end          -- simply does nothing while off
 ```
 
 The first valid sample arrives on the **second** frame after arming (arming is next-frame, as above), so
-a freshly armed profiler answers empty for one frame. `reset()` empties the ring the same way. The four
-counters are unaffected — they answer the same numbers armed or not.
+a freshly armed profiler answers empty for one frame. `reset()` empties the ring and every per-addon and
+per-scope figure the same way, as does arming the switch. The four counters are unaffected — they answer
+the same numbers armed or not, and `scope()`/`measure()` still run your code (see above).
 
 **An absent key means "not measured", never zero** — everywhere in this surface. No connection, no
 `net()` keys; no world yet, no scene keys in `render()`; a `0` would read as "measured, and it is zero".

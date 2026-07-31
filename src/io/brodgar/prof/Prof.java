@@ -137,6 +137,18 @@ public final class Prof {
         addonNanos = src;
     }
 
+    /**
+     * The addon layer's own "drop everything" hook (019.4), registered the same way and for the same reason:
+     * the per-addon rows and named scopes are profiling state, so they must clear whenever the ring does —
+     * on {@code p:reset()} and on every arming — without this package knowing what an addon is.
+     */
+    private static volatile Runnable addonResetter = null;
+
+    /** Register the per-addon reset hook (from {@code AddonManager.init}). */
+    public static void addonReset(Runnable r) {
+        addonResetter = r;
+    }
+
     /* GPU frames arrive late: a small FIFO of (slot, frame number, the still-pending frame). Held as the
      * Profile.Part supertype -- all the fold ever asks a GPU frame is d(), and that keeps this queue
      * exercisable without a GL context. */
@@ -253,6 +265,9 @@ public final class Prof {
         Arrays.fill(rph, 0); Arrays.fill(rrp, 0);
         Arrays.fill(pgf, null);
         phead = ptail = 0;
+        Runnable r = addonResetter;
+        if(r != null)
+            r.run();                    // 019.4: the per-addon rows and scopes are part of "everything"
     }
 
     // --------------------------------------------------------------------- reading the ring

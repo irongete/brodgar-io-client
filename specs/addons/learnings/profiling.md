@@ -65,3 +65,15 @@
   boundary — the rest of the profiling surface reports time in **ms**, and mixing units inside one handle is the
   kind of thing nobody re-reads the docs for. Name the resend counters for what they mean, not what the HUD letters
   say: `pretx`→`resentTx`, `prerx`→`resentRx` (received twice), `prorx`→`reorderedRx` (out of order).
+- **(019.4) Close the addon frame where `tickLuaNanos` is ALREADY whole — the top of the next tick.**
+  It accrues through the tick *and* the draw callbacks after it, so end-of-tick is too early and end-of-frame
+  needs a second hook; the instant before `AddonManager.tick` zeroes it, it holds exactly one frame. Snapshot
+  there (`profRoll()`) and `p:addons().total` is *identically* `p:frame().addons` with no reconciliation — both
+  read one number. Corollary for demos: a reader running later (a timer, an `OnUpdate` a few frames on) sees the
+  **next** frame's row, where nothing happened — per-frame `ms`/`calls` read 0 and the cost is in `msPeak`/
+  `msAvg`. A dump on a 0.5 s timer showing `scopes{spin=0.0ms/0}` is correct, not a bug; print peak/avg too.
+- **(019.4) Splitting an existing measurement beats adding one — and keep the original byte-for-byte.**
+  The category split rides inside `callLua`'s existing `finally`, so the D-018 watchdog sees an unchanged
+  `tickLuaNanos` and `hogtest` still trips on the identical message and tick count (the regression to check
+  after ANY edit to that path). Make the category argument **mandatory**: a defaulted overload means the next
+  call site silently lands in the wrong bucket, and there is nothing to grep for afterwards.

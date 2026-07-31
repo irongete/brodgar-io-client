@@ -35,7 +35,7 @@ public final class OptionsHandle {
         // setting, and that one does live in the tree, at options():client():profiling().
         client.set("profiling", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return ProfHandle.create();
+                return ProfHandle.create(owner);   // per-owner: p:scope()/p:measure() charge the CALLING addon
             }
         });
         hafen.set("client", client);

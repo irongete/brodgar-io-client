@@ -214,7 +214,7 @@ final class HttpApi {
             req.dead = true;                      // one-shot: completed
             owner.requests.remove(req);
             if(!req.cb.isnil())
-                AddonManager.callLua(owner, req.cb, httpResTable(hc.result));   // armed + isolated in callLua
+                AddonManager.callLua(owner, Addon.C_EVENT, req.cb, httpResTable(hc.result));   // armed + isolated in callLua
             maybeStartHttp(owner);                // a slot freed → launch any queued request
         }
     }

@@ -56,7 +56,7 @@ public final class LuaMouseGrab extends Widget {
     public void mousemove(MouseMoveEvent ev) {
         if(!alive || (onMove == null))
             return;
-        AddonManager.callLua(owner, onMove, LuaValue.valueOf(ev.c.x), LuaValue.valueOf(ev.c.y), AddonManager.modsTable(mods()));
+        AddonManager.callLua(owner, Addon.C_HOOK, onMove, LuaValue.valueOf(ev.c.x), LuaValue.valueOf(ev.c.y), AddonManager.modsTable(mods()));
     }
 
     /** Grabbed up → Lua {@code onUp(x, y, button, mods)}, then auto-release. Consumes it (drag over). */
@@ -65,7 +65,7 @@ public final class LuaMouseGrab extends Widget {
             return true;
         LuaValue up = onUp;
         if(up != null)
-            AddonManager.callLua(owner, up, LuaValue.valueOf(ev.c.x), LuaValue.valueOf(ev.c.y),
+            AddonManager.callLua(owner, Addon.C_HOOK, up, LuaValue.valueOf(ev.c.x), LuaValue.valueOf(ev.c.y),
                                  LuaValue.valueOf(ev.b), AddonManager.modsTable(mods()));
         release();
         return true;

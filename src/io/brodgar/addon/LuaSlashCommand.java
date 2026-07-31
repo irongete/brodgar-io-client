@@ -49,6 +49,6 @@ public final class LuaSlashCommand {
         LuaTable args = new LuaTable();
         for(int i = 1; i < words.length; i++)        // words[0] is the command name — hand the addon only the args
             args.set(i, LuaValue.valueOf(words[i]));
-        AddonManager.callLua(owner, fn, args);
+        AddonManager.callLua(owner, Addon.C_HOOK, fn, args);
     }
 }

@@ -69,7 +69,7 @@ public final class LuaInputHook implements EventHandler<Widget.Event> {
                 return LuaValue.NIL;
             }
         });
-        AddonManager.callLua(owner, fn, t);
+        AddonManager.callLua(owner, Addon.C_HOOK, fn, t);
         return consume[0];
     }
 }

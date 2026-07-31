@@ -97,14 +97,14 @@ public final class LuaWidget extends Widget implements DropTarget {
     public void tick(double dt) {
         super.tick(dt);
         if(!dead && (onTick != null))
-            AddonManager.callLua(owner, onTick, LuaValue.valueOf(dt));
+            AddonManager.callLua(owner, Addon.C_WIDGET, onTick, LuaValue.valueOf(dt));
     }
 
     public void draw(GOut g) {
         if(!dead && (onDraw != null)) {
             LuaTable gt = gwrap.bind(g, defaultFont);   // F2: g:text with no per-call font uses this widget's font=
             try {
-                AddonManager.callLua(owner, onDraw, gt, LuaValue.valueOf(sz.x), LuaValue.valueOf(sz.y));
+                AddonManager.callLua(owner, Addon.C_DRAW, onDraw, gt, LuaValue.valueOf(sz.x), LuaValue.valueOf(sz.y));
             } finally {
                 gwrap.unbind();   // invalidate the wrapper outside the callback (no stashing)
             }
@@ -114,14 +114,14 @@ public final class LuaWidget extends Widget implements DropTarget {
 
     public boolean mousedown(MouseDownEvent ev) {
         if(!dead && (onClick != null)
-           && AddonManager.callLua(owner, onClick, ci(ev.c.x), ci(ev.c.y), ci(ev.b), mods()).arg1().toboolean())
+           && AddonManager.callLua(owner, Addon.C_WIDGET, onClick, ci(ev.c.x), ci(ev.c.y), ci(ev.b), mods()).arg1().toboolean())
             return true;   // a truthy return consumes the click (preventDefault)
         return super.mousedown(ev);
     }
 
     public boolean mouseup(MouseUpEvent ev) {
         if(!dead && (onMouseUp != null)
-           && AddonManager.callLua(owner, onMouseUp, ci(ev.c.x), ci(ev.c.y), ci(ev.b), mods()).arg1().toboolean())
+           && AddonManager.callLua(owner, Addon.C_WIDGET, onMouseUp, ci(ev.c.x), ci(ev.c.y), ci(ev.b), mods()).arg1().toboolean())
             return true;
         return super.mouseup(ev);
     }
@@ -129,12 +129,12 @@ public final class LuaWidget extends Widget implements DropTarget {
     public void mousemove(MouseMoveEvent ev) {
         super.mousemove(ev);
         if(!dead && (onMouseMove != null))
-            AddonManager.callLua(owner, onMouseMove, ci(ev.c.x), ci(ev.c.y), mods());
+            AddonManager.callLua(owner, Addon.C_WIDGET, onMouseMove, ci(ev.c.x), ci(ev.c.y), mods());
     }
 
     public boolean mousewheel(MouseWheelEvent ev) {
         if(!dead && (onWheel != null)
-           && AddonManager.callLua(owner, onWheel, ci(ev.c.x), ci(ev.c.y), ci(ev.a), mods()).arg1().toboolean())
+           && AddonManager.callLua(owner, Addon.C_WIDGET, onWheel, ci(ev.c.x), ci(ev.c.y), ci(ev.a), mods()).arg1().toboolean())
             return true;
         return super.mousewheel(ev);
     }
@@ -154,7 +154,7 @@ public final class LuaWidget extends Widget implements DropTarget {
         LuaValue drop = dropDescriptor(thing);
         if(drop == null)
             return false;   // not a kind we deliver → let the engine dispatch it elsewhere
-        return AddonManager.callLua(owner, onDrop, ci(cc.x), ci(cc.y), drop).arg1().toboolean();
+        return AddonManager.callLua(owner, Addon.C_WIDGET, onDrop, ci(cc.x), ci(cc.y), drop).arg1().toboolean();
     }
 
     /**

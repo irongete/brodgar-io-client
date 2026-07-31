@@ -748,10 +748,10 @@ final class WorldApi {
         try {
             mv.new Maptest(pc) {
                 protected void hit(Coord pc, Coord2d mc) {
-                    callLua(owner, fn, xy(mc.x, mc.y));
+                    callLua(owner, Addon.C_EVENT, fn, xy(mc.x, mc.y));
                 }
                 protected void nohit(Coord pc) {
-                    callLua(owner, fn, LuaValue.NIL);
+                    callLua(owner, Addon.C_EVENT, fn, LuaValue.NIL);
                 }
             }.run();
         } catch(RuntimeException e) {

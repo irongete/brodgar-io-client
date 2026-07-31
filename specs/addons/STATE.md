@@ -3,7 +3,7 @@
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
 **Active:** `019-profiling` — `hafen.client:profiling()` (frame/CPU/GPU, counters, per-addon cost, Lua scopes,
-per-widget cost, named render passes) + the Options **Client** panel. **019.1–019.3 DONE**; 019.4..019.8 pending.
+per-widget cost, named render passes) + the Options **Client** panel. **019.1–019.4 DONE**; 019.5..019.8 pending.
 
 ## Engine & runtime
 - **Engine**: LuaJ embedded (`src/io/brodgar/addon/`); per-addon sandboxed envs (D-017), instruction watchdog
@@ -38,6 +38,9 @@ per-widget cost, named render passes) + the Options **Client** panel. **019.1–
   (600-frame ring, oldest→newest), `:reset()` — snapshot tables, absent key = not measured, off ⇒ `{}` (D-050).
   Plus the **pull-only counters** `:memory()/:net()/:loader()/:render()` (D-051) — getters beside the client's own
   `stats()` strings: no new counting, they answer with profiling **off** and match `:stats on` field by field.
+  019.4: `:addons()` (per-addon ms/avg/peak/share + `calls`/`cost` by category, `total` == `:frame().addons`) and
+  `:scope(name)`/`:measure(name,fn)` — the D-018 watchdog's OWN measurement split by a mandatory `callLua`
+  category, never re-timed, so `hogtest` still trips identically (D-052); scopes are per-addon, die with `:reload`.
 - Hooks: `hook.input` (L1 pre-widget), `hook.action` (L2 outbound `UI.wdgmsg`), `hook.message` (L3 inbound).
 - Widget interception/replacement: `ui.onWidgetCreate`, `ui.adopt` (model handle), `ui.replace` (bags replaces
   the native inventory, restores on disable); `widgetstack` = the `/framestack` analog.

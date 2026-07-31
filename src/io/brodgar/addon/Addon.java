@@ -250,6 +250,101 @@ public final class Addon {
     public long tickLuaNanos;
     public int  overBudgetStrikes;
 
+    // ------------------------------------------------------------- per-addon profiling (spec 019, 019.4)
+
+    /**
+     * The call categories {@link AddonManager#callLua} splits its accounting by — what the addon's Lua time
+     * was spent <b>doing</b>, which the single {@code tickLuaNanos} total cannot say. Every call site passes
+     * one; the argument is mandatory precisely so a new one cannot be added without choosing.
+     */
+    public static final int C_EVENT = 0, C_TIMER = 1, C_DRAW = 2, C_HOOK = 3, C_WIDGET = 4;
+    /** The category names, in {@link #C_EVENT}… order — the keys of the {@code calls}/{@code cost} tables. */
+    public static final String[] CATS = {"events", "timers", "draw", "hooks", "widgets"};
+
+    /* Current frame, written by callLua only while armed. tickLuaNanos above stays byte-for-byte what it
+     * was: the D-018 watchdog must keep auto-disabling at exactly the same point, so the split is an
+     * ADDITION inside the same finally, never a replacement. */
+    final long[] catNanos = new long[CATS.length];
+    final int[] catCalls = new int[CATS.length];
+
+    /* The last COMPLETED frame, plus the rolling figures, snapshotted by profRoll() at the top of the next
+     * tick — the same instant tickLuaNanos is zeroed, so the row and :frame()'s addons roll-up read one
+     * number. A Lua reader always sees a whole frame, never a half-accumulated one. */
+    long profNanos, profPeakNanos, profSumNanos;
+    int profFrames;
+    final long[] profCat = new long[CATS.length];
+    final int[] profCalls = new int[CATS.length];
+
+    /**
+     * This addon's named profiling scopes ({@code p:scope(name)} / {@code p:measure(name, fn)}) — the
+     * {@code ProfilerMarker} equivalent, keyed by name. Per-addon, so two addons may both use
+     * {@code "update"} without colliding, and so the whole map dies with this {@link Addon} on
+     * {@code :reload}/disable — there is nothing to tear down. UI thread only (like every Lua call);
+     * insertion-ordered so a profiler window lists scopes the way the addon declared them.
+     */
+    final java.util.Map<String, Scope> scopes = new java.util.LinkedHashMap<String, Scope>();
+
+    /** One named scope's accounting. Same shape as the addon row: this frame, rolling average, peak. */
+    static final class Scope {
+        final String name;
+        long nanos, peakNanos, sumNanos;      // nanos = current frame
+        int calls, frames;
+        long lastNanos;
+        int lastCalls;
+        int depth;                            // re-entrancy: only the outermost begin/finish pair counts
+        long t0;
+
+        Scope(String name) {this.name = name;}
+    }
+
+    /** Get (or create) this addon's scope by name. Created lazily, so an off-state {@code p:scope()} costs nothing. */
+    Scope scope(String name) {
+        Scope s = scopes.get(name);
+        if(s == null)
+            scopes.put(name, s = new Scope(name));
+        return s;
+    }
+
+    /**
+     * Close the frame: move this frame's accounting into the "last completed frame" fields and start the
+     * next one at zero. Called from {@link AddonManager#tick(double)} immediately before
+     * {@code tickLuaNanos} is zeroed, which is exactly the point at which that field holds the whole of the
+     * previous frame (it accrues through the tick <b>and</b> the draw callbacks that follow it).
+     */
+    void profRoll() {
+        profNanos = tickLuaNanos;
+        profSumNanos += tickLuaNanos;
+        profFrames++;
+        if(tickLuaNanos > profPeakNanos)
+            profPeakNanos = tickLuaNanos;
+        for(int i = 0; i < CATS.length; i++) {
+            profCat[i] = catNanos[i];   catNanos[i] = 0;
+            profCalls[i] = catCalls[i]; catCalls[i] = 0;
+        }
+        for(Scope s : scopes.values()) {
+            s.lastNanos = s.nanos;
+            s.lastCalls = s.calls;
+            s.sumNanos += s.nanos;
+            s.frames++;
+            if(s.nanos > s.peakNanos)
+                s.peakNanos = s.nanos;
+            s.nanos = 0;
+            s.calls = 0;
+            s.depth = 0;   // a scope left open by an erroring handler recovers here instead of never closing
+        }
+    }
+
+    /** Drop every profiling figure ({@code p:reset()} and every arming of the switch). */
+    void profReset() {
+        profNanos = profPeakNanos = profSumNanos = 0;
+        profFrames = 0;
+        for(int i = 0; i < CATS.length; i++) {
+            catNanos[i] = profCat[i] = 0;
+            catCalls[i] = profCalls[i] = 0;
+        }
+        scopes.clear();
+    }
+
     Addon(Manifest manifest, Path dir, Globals env) {
         this.manifest = manifest;
         this.dir = dir;

@@ -45,7 +45,7 @@
            `src/haven/render/gl/GLDrawList.java` (~:1089), `src/haven/render/gl/GLEnvironment.java`
            (~:171, ~:1018), `src/haven/MapView.java` (~:956-970, ~:1398) -->
 
-- [ ] **019.4 — Per-addon accounting + custom scopes.**
+- [x] **019.4 — Per-addon accounting + custom scopes.**
       Category argument on `callLua` (events / timers / draw / hooks / widgets) at every call site;
       per-addon `long[]` accumulators + call counts, added **inside the existing `finally`** so
       `tickLuaNanos` stays byte-for-byte what the D-018 watchdog reads; `:addons()` with per-addon

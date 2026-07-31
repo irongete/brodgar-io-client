@@ -84,6 +84,6 @@ public final class LuaActionHook {
                 return LuaValue.NIL;
             }
         });
-        AddonManager.callLua(owner, fn, ev);
+        AddonManager.callLua(owner, Addon.C_HOOK, fn, ev);
     }
 }

@@ -57,6 +57,6 @@ public final class LuaWidgetObserver {
      * idiomatic way ({@code if desc.caption then ... end}).
      */
     void invoke(int id, String type, String place, String caption, String parentType) {
-        AddonManager.callLua(owner, fn, AddonManager.descTable(id, type, place, caption, parentType));
+        AddonManager.callLua(owner, Addon.C_HOOK, fn, AddonManager.descTable(id, type, place, caption, parentType));
     }
 }

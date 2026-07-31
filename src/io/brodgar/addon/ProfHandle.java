@@ -49,18 +49,22 @@ import java.util.List;
  * beside those strings rather than re-counting anything, so there is one source of truth with the HUD and
  * no cost when disarmed. The frame surface above is the opposite: it exists only while armed.
  *
- * <p>Task 019.2 ships {@code :frame()}, {@code :history(n)} and {@code :reset()}; 019.3 the four counters.
- * {@code :addons()}, {@code :scope()}, {@code :widgets()}, {@code :passes()}, {@code :gl()} and
- * {@code :overhead()} land in 019.4+ on this same handle.
+ * <p>Task 019.2 ships {@code :frame()}, {@code :history(n)} and {@code :reset()}; 019.3 the four counters;
+ * 019.4 {@code :addons()} plus {@code :scope()}/{@code :measure()}. {@code :widgets()}, {@code :passes()},
+ * {@code :gl()} and {@code :overhead()} land in 019.5+ on this same handle.
  */
 public final class ProfHandle {
     private ProfHandle() {}
 
-    /** Create the profiling handle ({@code hafen.client:profiling()}). */
-    static LuaValue create() {
+    /**
+     * Create the profiling handle ({@code hafen.client:profiling()}). Per-owner, because {@code :scope()} and
+     * {@code :measure()} (019.4) charge their time to the addon that asked — the same reason the options tree
+     * is built per addon.
+     */
+    static LuaValue create(Addon owner) {
         LuaTable p = new LuaTable();
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(p));
+        mt.set(LuaValue.INDEX, methods(p, owner));
         mt.set("__name", LuaValue.valueOf("Profiling"));
         mt.set("__tostring", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -71,7 +75,7 @@ public final class ProfHandle {
         return p;
     }
 
-    private static LuaTable methods(final LuaValue handle) {
+    private static LuaTable methods(final LuaValue handle, final Addon owner) {
         LuaTable m = new LuaTable();
 
         // p:frame() -- the frame that just finished, in milliseconds throughout. Empty when profiling is off
@@ -181,6 +185,35 @@ public final class ProfHandle {
         m.set("render", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 return render();
+            }
+        });
+
+        // --------------------------------------------------------------- per-addon cost + scopes (019.4)
+
+        // p:addons() -- one row per Lua owner (every loaded addon, plus the :lua REPL, which owns the scopes
+        // of a console snippet), sorted most expensive first, plus a `total` row. Empty when profiling is off.
+        m.set("addons", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return addons();
+            }
+        });
+
+        // p:scope(name) -- a named marker owned by the CALLING addon; s:begin()/s:finish() bracket a section
+        // and the time lands under that addon's row in p:addons(). Names are per-addon, so two addons may
+        // both use "update". Both verbs are no-ops when profiling is off.
+        m.set("scope", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {   // colon call: arg(1) is the handle
+                return ProfScope.create(owner, a.arg(2).checkjstring());
+            }
+        });
+
+        // p:measure(name, fn, ...) -- the wrapper form of the above: runs fn (armed or not) and returns what
+        // it returns, with the scope closed even if fn errors.
+        m.set("measure", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                String name = a.arg(2).checkjstring();
+                LuaValue fn = a.arg(3).checkfunction();
+                return ProfScope.measure(owner, name, fn, a.subargs(4));
             }
         });
 
@@ -342,6 +375,89 @@ public final class ProfHandle {
                 t.set("drawSlots", LuaValue.valueOf(ds));
         }
         return t;
+    }
+
+    // ------------------------------------------------------------------------- per-addon cost (019.4)
+
+    /**
+     * {@code p:addons()} — what each addon's Lua actually cost, for the last <b>completed</b> frame.
+     *
+     * <p>One row per Lua owner: {@code id}, {@code ms} (that frame), {@code msAvg} and {@code msPeak} (since
+     * the switch was armed or {@code p:reset()} called), {@code share} of the frame, {@code calls} (the call
+     * count by category: {@code events}/{@code timers}/{@code draw}/{@code hooks}/{@code widgets}),
+     * {@code cost} (the same split in ms) and {@code scopes} (the addon's named markers, keyed by name). Rows
+     * are sorted most expensive first, so the top of the list is the answer to "who is costing me frames".
+     *
+     * <p>{@code total} closes the loop with the frame surface: it is the <b>same</b> number
+     * {@code p:frame().addons} reports, read from the same {@code tickLuaNanos} accounting the D-018 watchdog
+     * uses — there is no second measurement of addon cost anywhere in the client.
+     *
+     * <p>Two things the numbers mean literally. A <b>nested</b> Lua call (an addon callback that calls back
+     * into the engine, which calls Lua again) is charged to both brackets, exactly as the watchdog has always
+     * charged it — the categories inherit that, so {@code cost} can sum slightly above {@code ms} on
+     * re-entrant frames. And the {@code (console)} row is the {@code :lua} REPL: it is not an addon and the
+     * watchdog exempts it, but its Lua time is frame cost like any other, so it is a row and it is in the
+     * total.
+     */
+    private static LuaTable addons() {
+        LuaTable out = new LuaTable();
+        if(!Prof.armed())
+            return out;
+        double frameMs = 0;
+        int n = Prof.count();
+        if(n > 0)
+            frameMs = Prof.ms(Prof.slot(n - 1));
+        List<Addon> owners = AddonManager.profOwners();
+        // Sorted at snapshot time, never on the frame path — and by the frame's own cost, so arming a runaway
+        // addon puts it straight at the top of the table a profiler window draws.
+        owners.sort((x, y) -> Long.compare(y.profNanos, x.profNanos));
+        long total = 0;
+        for(int i = 0; i < owners.size(); i++) {
+            Addon a = owners.get(i);
+            total += a.profNanos;
+            out.set(i + 1, row(a, frameMs));
+        }
+        LuaTable t = new LuaTable();
+        t.set("ms", LuaValue.valueOf(ms(total)));
+        if(frameMs > 0)
+            t.set("share", LuaValue.valueOf(ms(total) / frameMs));
+        out.set("total", t);
+        return out;
+    }
+
+    /** One addon's row. */
+    private static LuaTable row(Addon a, double frameMs) {
+        LuaTable r = new LuaTable();
+        r.set("id", LuaValue.valueOf((a.manifest != null) ? a.manifest.id : "?"));
+        double cur = ms(a.profNanos);
+        r.set("ms", LuaValue.valueOf(cur));
+        r.set("msAvg", LuaValue.valueOf((a.profFrames > 0) ? (ms(a.profSumNanos) / a.profFrames) : 0));
+        r.set("msPeak", LuaValue.valueOf(ms(a.profPeakNanos)));
+        if(frameMs > 0)
+            r.set("share", LuaValue.valueOf(cur / frameMs));
+        LuaTable calls = new LuaTable(), cost = new LuaTable();
+        for(int i = 0; i < Addon.CATS.length; i++) {
+            calls.set(Addon.CATS[i], LuaValue.valueOf(a.profCalls[i]));
+            cost.set(Addon.CATS[i], LuaValue.valueOf(ms(a.profCat[i])));
+        }
+        r.set("calls", calls);
+        r.set("cost", cost);
+        LuaTable scopes = new LuaTable();
+        for(Addon.Scope s : a.scopes.values()) {
+            LuaTable e = new LuaTable();
+            e.set("ms", LuaValue.valueOf(ms(s.lastNanos)));
+            e.set("msAvg", LuaValue.valueOf((s.frames > 0) ? (ms(s.sumNanos) / s.frames) : 0));
+            e.set("msPeak", LuaValue.valueOf(ms(s.peakNanos)));
+            e.set("calls", LuaValue.valueOf(s.lastCalls));
+            scopes.set(s.name, e);
+        }
+        r.set("scopes", scopes);
+        return r;
+    }
+
+    /** Nanoseconds to milliseconds — the unit this whole surface reports time in. */
+    private static double ms(long nanos) {
+        return nanos * 1e-6;
     }
 
     /** The UI-thread phase breakdown of one ring slot, ms — the parts {@code UILoop} names in {@code uprof}. */

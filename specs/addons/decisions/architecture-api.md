@@ -180,3 +180,31 @@ and is therefore absent until `:stats on` has computed it — putting it on the 
 `freeMemory()` every frame, armed or not, which is the always-on cost 019 exists to avoid.
 **See.** [D-049](architecture-api.md), [D-050](architecture-api.md), [019-profiling](../019-profiling/spec.md),
 [world-3d.md](../../codebase/world-3d.md), [network.md](../../codebase/network.md).
+
+### D-052 — Per-addon cost is the WATCHDOG's measurement, split — never a second timer ✅ (maintainer, 2026-07-31)
+**Decision.** `p:addons()` (019.4) reports what each addon's Lua cost by reading the accounting
+`AddonManager.callLua` has always kept for the D-018 soft budget, not by measuring anything a second time.
+`owner.tickLuaNanos += delta` stays **byte-for-byte what it was**; the split is an *addition* inside the same
+`finally` — `if(Prof.on) { owner.catNanos[cat] += delta; owner.catCalls[cat]++; }` — behind a mandatory
+**category** argument (`events`/`timers`/`draw`/`hooks`/`widgets`) that every call site must choose. The frame
+*closes* at the top of the next tick, the instant `tickLuaNanos` already holds one whole frame and is about to
+be zeroed: `profRoll()` moves it into the row's "last completed frame" figures there and nowhere else. Custom
+**scopes** (`p:scope(name)` / `p:measure(name, fn)`) live in a per-addon map on the `Addon`; their handles are
+real (not a shared no-op) even while disarmed, and the `Scope` record is created lazily on the first armed
+`begin()`.
+**Rationale.** A second timer around the same Lua call would double the probe cost on the hottest bridge path
+*and* give two numbers for one thing — the outcome a profiler exists to prevent. Keeping `tickLuaNanos`
+untouched is not tidiness: it is what guarantees the watchdog auto-disables at exactly the same point as before
+019 (verified — `hogtest` trips on the identical message and tick count). Rolling at the next tick rather than
+at end-of-frame is what makes `p:addons().total` *identically* `p:frame().addons` with no reconciliation code.
+Live scope handles follow the rest of `hafen.*`, where a stashed handle never goes stale — a no-op singleton
+would silently stay dead for a handle taken before the checkbox was ticked.
+**Consequences.** A category is mandatory, so a new `callLua` site cannot be added without classifying it (a
+default would quietly land in the wrong bucket forever). Nested Lua (a callback that re-enters the bridge) is
+charged to **both** brackets, exactly as the watchdog has always charged it, so `cost` can sum slightly above
+`ms` on a re-entrant frame — `ms` is the number to trust, and this is documented in the surface. The `:lua`
+REPL gets a `(console)` row and joins the frame roll-up (its Lua time is real frame cost); the watchdog still
+exempts it. Scope `ms`/`calls` are this-frame figures, so a reader a few frames later sees 0 and must read
+`msPeak`/`msAvg` — the demo in `hello` prints both for that reason.
+**See.** [D-018](security-sandbox.md), [D-049](architecture-api.md), [D-050](architecture-api.md),
+[019-profiling](../019-profiling/spec.md), [luaj-bridge.md](../learnings/luaj-bridge.md).

@@ -302,7 +302,7 @@ final class UiApi {
             final LuaValue onClose = oc.isfunction() ? oc : null;
             win.reqclose(() -> {                      // the chrome close button: fire onClose, then destroy
                 if(onClose != null)
-                    callLua(owner, onClose);
+                    callLua(owner, Addon.C_WIDGET, onClose);
                 content.kill();
                 owner.widgets.remove(content);
             });
@@ -561,7 +561,7 @@ final class UiApi {
                 models.remove(m);
                 m.owner.models.remove(m);
                 if(m.onDestroy != null)
-                    callLua(m.owner, m.onDestroy);
+                    callLua(m.owner, Addon.C_WIDGET, m.onDestroy);
                 if(m.fromReplace != null)     // 3c: the view dies with the native widget (spec 08); notify the replacer
                     m.fromReplace.active.remove(m);
                 destroyReplaceView(m);
@@ -582,7 +582,7 @@ final class UiApi {
                 LuaValue snap = CharApi.itemSnapshot(w.item, cellPos(w));
                 m.items.put(w, snap);
                 if(m.onItemAdded != null)
-                    callLua(m.owner, m.onItemAdded, snap);
+                    callLua(m.owner, Addon.C_WIDGET, m.onItemAdded, snap);
             }
         }
         for(Iterator<Map.Entry<WItem, LuaValue>> it = m.items.entrySet().iterator(); it.hasNext();) {
@@ -591,7 +591,7 @@ final class UiApi {
                 LuaValue snap = e.getValue();
                 it.remove();
                 if(m.onItemRemoved != null)
-                    callLua(m.owner, m.onItemRemoved, snap);
+                    callLua(m.owner, Addon.C_WIDGET, m.onItemRemoved, snap);
             }
         }
     }
@@ -945,7 +945,7 @@ final class UiApi {
         Widget w = nodeLive(n);
         if(w == null)
             return;
-        LuaValue r = callLua(owner, fn, handle, LuaValue.valueOf(depth)).arg1();
+        LuaValue r = callLua(owner, Addon.C_WIDGET, fn, handle, LuaValue.valueOf(depth)).arg1();
         if(r.isboolean() && !r.toboolean())       // fn returned false → prune this subtree
             return;
         UI u = ui;
@@ -1050,7 +1050,7 @@ final class UiApi {
         if((r.caption != null) && !r.caption.equals(caption))
             return false;
         if((r.matchFn != null)
-           && !callLua(r.owner, r.matchFn, descTable(id, type, place, caption, parentType)).arg1().toboolean())
+           && !callLua(r.owner, Addon.C_HOOK, r.matchFn, descTable(id, type, place, caption, parentType)).arg1().toboolean())
             return false;
         return true;
     }
@@ -1079,7 +1079,7 @@ final class UiApi {
         r.owner.models.add(m);
         r.handled.add(Integer.valueOf(id));
         r.active.add(m);
-        LuaValue view = callLua(r.owner, r.builderFn, modelHandle(m)).arg1();   // fn(model) -> the addon's view handle
+        LuaValue view = callLua(r.owner, Addon.C_WIDGET, r.builderFn, modelHandle(m)).arg1();   // fn(model) -> the addon's view handle
         m.replaceView = ((view != null) && view.istable()) ? view : null;
     }
 
@@ -1142,7 +1142,7 @@ final class UiApi {
         if((m.replaceView != null) && m.replaceView.istable()) {
             LuaValue d = m.replaceView.get("destroy");
             if(d.isfunction())
-                callLua(m.owner, d);
+                callLua(m.owner, Addon.C_WIDGET, d);
         }
         m.replaceView = null;
     }
@@ -1191,7 +1191,7 @@ final class UiApi {
             for(Addon a : addons) {
                 for(HudOverlay o : a.hudOverlays) {
                     if(o.active)
-                        callLua(a, o.fn, gt, w, h);
+                        callLua(a, Addon.C_DRAW, o.fn, gt, w, h);
                 }
             }
         } finally {
@@ -1248,7 +1248,7 @@ final class UiApi {
             String name = gobName(g);
             return (name != null) && name.contains(f.tojstring());
         }
-        return callLua(o.owner, f, LuaGob.of(o.owner, g.id)).arg1().toboolean();
+        return callLua(o.owner, Addon.C_DRAW, f, LuaGob.of(o.owner, g.id)).arg1().toboolean();
     }
 
     /**
@@ -1270,7 +1270,7 @@ final class UiApi {
                     continue;
                 LuaTable gt = gwrap.bind(g);
                 try {
-                    callLua(a, o.draw, gt, LuaGob.of(a, gob.id), sx, sy);
+                    callLua(a, Addon.C_DRAW, o.draw, gt, LuaGob.of(a, gob.id), sx, sy);
                 } finally {
                     gwrap.unbind();
                 }
