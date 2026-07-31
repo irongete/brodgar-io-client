@@ -224,7 +224,29 @@
     <condition property="jogl-access">
       <javaversion atleast="24" />
     </condition>
+    <!-- addon: GC tuning. The client allocates ~11 MB per frame (measured with 019's profiler), so the
+	 default collector on the default max heap (a quarter of physical RAM) collects rarely and LONG:
+	 a ~70 ms stop-the-world pause every ~2 s, felt as a stutter and visible as one red bar in the
+	 profiler's frame graph. A FIXED, pre-committed heap plus generational ZGC does not reduce the
+	 garbage, it removes the stall (ZGC collects concurrently, sub-millisecond pauses). Cost: `heap`
+	 is committed at startup, so launching takes a moment longer and the process reserves that RSS.
+	 Override with -Dheap=8g on the command line, or a `heap=` line in build.properties. -->
+    <property name="heap" value="4g" />
+    <condition property="zgc">
+      <javaversion atleast="21" />
+    </condition>
+    <condition property="zgc-generational">   <!-- opt-in on 21-23; the default (and obsolete flag) from 24 -->
+      <and>
+	<javaversion atleast="21" />
+	<not><javaversion atleast="24" /></not>
+      </and>
+    </condition>
     <java jar="bin/hafen.jar" fork="true">
+      <jvmarg value="-Xms${heap}" />
+      <jvmarg value="-Xmx${heap}" />
+      <jvmarg value="-XX:+AlwaysPreTouch" />
+      <jvmarg if:set="zgc" value="-XX:+UseZGC" />
+      <jvmarg if:set="zgc-generational" value="-XX:+ZGenerational" />
       <sysproperty key="sun.java2d.uiScale.enabled" value="false" />
       <sysproperty key="java.net.preferIPv6Addresses" value="system" />
       <jvmarg if:set="jogl-exports" value="--add-exports=java.base/java.lang=ALL-UNNAMED" />
