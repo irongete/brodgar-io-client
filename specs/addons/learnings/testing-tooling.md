@@ -191,3 +191,10 @@
   hard case (a label created AFTER the override) that the `Spec.stamp` exists for. Cheaper than another in-game round
   trip, and it stays in the suite.
 
+- **(018.4) Addon Lua has a real compile check — use the bundled LuaJ jar.**
+  `java -cp lib/brodgar/luaj-jse-3.0.1.jar luac -p addons/<id>/main.lua` parses the chunk with the *same*
+  compiler the client runs and exits non-zero with the line number on a syntax error (verify the check
+  itself once with a deliberately broken file — a silent exit 0 proves nothing). It writes `luac.out` in the
+  cwd, so `rm -f luac.out` after. This catches the whole class of typos that would otherwise cost a client
+  restart, and it is the only pre-check available for a Lua-only task where `ant hafen-client` compiles
+  nothing new.

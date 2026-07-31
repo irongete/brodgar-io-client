@@ -21,4 +21,4 @@
 - 015-widget-introspection — DONE — WidgetNode tree walk + engine-true hit-testing; widgetstack framestack/inspector (design/20) — tasks 015.1..015.2
 - 016-fonts — DONE — hafen.font: handles, own-drawing, all 11 scopes (chrome + world) + per-instance node:setFont (design/21, D-043) — tasks 016.1..016.9
 - 017-gob-oop — DONE — Gob flat accessor → OOP class (`hafen.gob(id)`, `gob:health()`), interned identity, `hafen.player():gob()`, hard cut (D-044/045/046) — tasks 017.1..017.2
-- 018-client-options — ACTIVE — hafen.client:options() for reading/writing OptWnd settings (interface, video, audio, camera) + keybindings, retiring hafen.key (D-047) — tasks 018.1..018.4
+- 018-client-options — DONE — hafen.client:options(): read/write the Options-window settings (interface, video, audio, camera) with arity-as-verb chainable accessors + the unified keybindings registry; hafen.key retired, addon hotkeys start unbound (D-047); optionstest harness — tasks 018.1..018.4

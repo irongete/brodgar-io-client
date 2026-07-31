@@ -78,7 +78,8 @@ Options that require a restart (e.g., `uiscale`) are **documented** in the API b
 
 ### Testing harness
 
-`addons/hello` addon exercises:
+A dedicated `addons/optionstest` ("Brodgar.io Options Test") addon — `hello` is already too large to absorb
+another whole feature demo — exercises:
 - Read interface scale, position/angle granularity
 - Set a new scale and log the old/new values
 - Read video shadows and toggle them
@@ -95,7 +96,7 @@ Options that require a restart (e.g., `uiscale`) are **documented** in the API b
 - `src/io/brodgar/addon/lua/CameraOptions.java` — camera subsystem
 - `src/io/brodgar/addon/lua/KeybindingsOptions.java` — keybindings subsystem (replaces hafen.key.bind)
 - `docs/addons/api/client.md` — API reference (interface/video/audio/camera/keybindings subsections)
-- `addons/hello/addons/hello/client-options.lua` — example addon code
+- `addons/optionstest/manifest.json` + `addons/optionstest/main.lua` — the dedicated example addon
 
 **Modify:**
 - `src/io/brodgar/addon/LuaVM.java` — wire `hafen.client.options` to OptionsHandle factory; **remove** `hafen.key.bind` registration

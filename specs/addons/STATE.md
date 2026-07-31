@@ -2,8 +2,7 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**Active:** `018-client-options` — 018.1 + 018.2 + 018.3 DONE (verified; `docs/addons/api/client.md` is the
-`hafen.client` reference and both catalogs list it). Next 018.4 — extend the `hello` harness.
+**Active:** none — `018-client-options` is DONE (018.1..018.4, verified). Next feature comes from `ROADMAP.md`.
 
 ## Engine & runtime
 - **Engine**: LuaJ embedded (`src/io/brodgar/addon/`); per-addon sandboxed envs (D-017), instruction watchdog
@@ -58,4 +57,5 @@
 
 ## Example addons (regression harness)
 - `hello` (grows with every feature — one login re-checks everything), `hogtest` (CPU watchdog), `bags`
-  (inventory replacement), `planner` (ghost layouts + gizmo), `widgetstack` (framestack).
+  (inventory replacement), `planner` (ghosts + gizmo), `widgetstack` (framestack), `netdemo` (http/json),
+  `walker` (gated writes), `optionstest` (options end-to-end — `hello` was too big to absorb it, 018.4).

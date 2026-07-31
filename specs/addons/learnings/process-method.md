@@ -171,3 +171,16 @@
 - **(017) `ant hafen-client` is incremental and WILL false-green when a symbol moves between files.** `rm -rf
   build/classes` before believing a compile that deleted/relocated something as widely referenced as the central
   gob resolver. Cheap, and the only way the "everything still compiles" claim means anything.
+- **(018.4) `hello` is the standing regression harness, NOT the home of every demo.** By 018 its manifest
+  description alone is a wall of text and `main.lua` is 1785 lines — the maintainer's call was to give
+  `hafen.client:options()` its own addon (`optionstest`, "Brodgar.io Options Test"). The split that works:
+  `hello` keeps the *cheap, always-on* proof that a surface still exists (its four hotkeys already exercise
+  `options:keybindings():register`), while a *deliberate, sub-command-driven* exploration of a whole
+  namespace gets a dedicated addon. `AREA.md` already sanctioned this ("propose a dedicated example addon");
+  the trigger to actually use it is when the demo needs more than a handful of lines at load time.
+- **(018.4) A harness that WRITES the user's settings must round-trip every value.** read → write → read back
+  → restore, all four logged on one line, so the demo proves the write stuck *and* leaves nothing changed.
+  Two corollaries that only show up once you write real prefs: never demo the option a restart gates
+  (`scale`) — it cannot be shown to work in the same session anyway; and never remap a key the user might
+  own, since the client enforces one-key-one-action and `set` silently unbinds the previous holder — pick a
+  candidate `list()` reports as free, and skip the demo rather than steal one.

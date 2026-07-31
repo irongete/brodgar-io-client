@@ -89,35 +89,45 @@ Write the user-facing API docs in `docs/addons/api/client.md`, update the catalo
 
 ---
 
-## 018.4 — Test harness: addons/hello addon exercises the full API
-Extend `addons/hello` to read and write options, demonstrating the API end-to-end, including keybindings.
+## 018.4 — Test harness: a dedicated "Brodgar.io Options Test" addon ✅ DONE (2026-07-31)
+Exercise `hafen.client:options()` end-to-end — interface / video / audio / camera / keybindings — in a **new,
+dedicated addon**, `addons/optionstest/`.
+
+**Maintainer decision (2026-07-31):** `hello` is already too large to keep absorbing whole feature
+demos, so this one does **not** fold into it. `AREA.md` explicitly allows a dedicated example addon
+when a feature does not fold in cleanly; this is that case. `hello` is left untouched — it keeps
+covering hotkey *registration* (its four hotkeys already run through `options:keybindings()`), so the
+standing regression on the keybindings path is not lost.
 
 **Context:**
-- File: `addons/hello/addons/hello/init.lua` (main entry point)
-- Or create: `addons/hello/addons/hello/client-options.lua` (new module, imported by init)
-- Study existing addon code for event-driven patterns (OnLoad, OnUpdate, etc.)
+- Create: `addons/optionstest/manifest.json` (`id` MUST equal the folder name; `name` is the
+  Options ▸ Keybindings section header) + `addons/optionstest/main.lua`
+- Model: `addons/netdemo/main.lua` — small, slash-command-driven, one demo per sub-command
+- API contract: `docs/addons/api/client.md`
 
 **Deliverables:**
-- ✓ `addons/hello/addons/hello/client-options.lua` — module with code that:
-  - Logs current interface scale on load
-  - Reads and logs video shadows setting
-  - Toggles camera horizontal inversion and logs result
-  - Chains reads: `options:interface():scale()` + `options:audio():masterVolume()` in one line
-  - Registers a test hotkey: `options:keybindings():register("hello-test", function() ... end)`
-  - Lists all keybindings: `options:keybindings():list()`
-  - Reads and logs a built-in hotkey: `options:keybindings():get("inv")`
-  - Exercises error handling (if a setting doesn't exist, graceful fallback)
-- ✓ Import in `init.lua` (or execute directly if embedded)
-- ✓ Minimal example: max 30 lines
-- ✓ No external dependencies
+- ✓ `addons/optionstest/` — read-only-by-default addon (declares no permissions, so it needs no consent)
+- ✓ Reads every subsystem at `OnLoad` (login screen — video/audio legitimately read `nil` there) and
+  again at `OnEnterWorld`, proving the "before the client is up" rule from the docs
+- ✓ Writes are **non-destructive round-trips**: read → write a different value → read back → restore the
+  original, logging all three, so the maintainer's real settings survive the test. `scale` is never
+  written (restart-gated)
+- ✓ Chaining demo: several setters in one statement (`:posGran(v):angGran(v)`)
+- ✓ Keybindings: `register`, `get` (own + a built-in like `inv`), `set`, `list`, `unregister`
+- ✓ Error handling: `pcall`s an invalid write (`scale(-1)`, `lightingMode("fancy")`, `set` on an unknown
+  name) and logs that each failed loudly instead of silently doing nothing
+- ✓ A registered hotkey that starts UNBOUND (D-047); the manifest advertises a *suggested* key
+- ✓ No external dependencies; `ant hafen-client` still builds
 
 **Verification (by maintainer in-game):**
-- Launch the client with `hello` addon enabled
-- Run `:reload` to hot-reload the addon layer
-- Check addon console (or chat debug) for logged output showing read values, keybinding list, and "hello-test" hotkey registration
-- Change an option in OptWnd (e.g., scale to 1.2, toggle camera inversion), reload, verify the addon reads the new value
-- Verify the registered "hello-test" hotkey is in the keybindings list
-- Regression: verify other `hello` addon features (existing gob/world/UI tests) still pass
+- Launch the client: the addon appears in the AddOns panel, enabled, and logs its `OnLoad` read
+  (video/audio `nil` on the login screen); at login the `OnEnterWorld` dump shows real values
+- `:opttest` sub-commands: `dump`, `write`, `chain`, `keys`, `error` — each logs as described
+- After `:opttest write`, open Options and confirm every touched setting is back to its original value
+- Options ▸ Keybindings shows a **Brodgar.io Options Test** section, initially unassigned; assign a key,
+  confirm the hotkey fires and survives `:reload`
+- Change an option in Options (e.g. camera inversion), then `:opttest dump` → the new value is read
+- Regression: `hello` and the other addons still load and behave as before
 
 ---
 

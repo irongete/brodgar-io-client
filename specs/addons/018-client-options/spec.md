@@ -38,7 +38,8 @@ hafen.client:options():keybindings():list()
 6. ✓ Writes persist to the client's preference store (same as GUI edits)
 7. ✓ Changes requiring a restart are documented (e.g., interface scale)
 8. ✓ Full API reference documented in `docs/addons/api/client.md`
-9. ✓ `addons/hello` addon exercises the full API (interface/video/audio/camera/keybindings)
+9. ✓ A dedicated `addons/optionstest` ("Brodgar.io Options Test") addon exercises the full API
+   (interface/video/audio/camera/keybindings) — `hello` is not extended for this feature
 10. ✓ `hafen.key.bind()` is retired; all keybinding functionality moves under `options:keybindings()`
 
 ## Out of Scope
