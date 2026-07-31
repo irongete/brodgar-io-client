@@ -61,7 +61,7 @@
            soft-budget sweep ~:398-412), `src/io/brodgar/addon/Addon.java` (~:244),
            `src/io/brodgar/addon/Sandbox.java` (SOFT_BUDGET_NANOS / SOFT_STRIKE_LIMIT) -->
 
-- [ ] **019.5 — Per-widget cost.**
+- [x] **019.5 — Per-widget cost.**
       The `// addon:` `long[] prof` field on `Widget` (lazily allocated, only while armed) plus the
       tick/draw probes; **inclusive** nanos in the array, **self** nanos via the stack-local
       child-sum subtraction in the traversal; per-type roll-up and the `top` list computed at

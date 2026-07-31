@@ -208,3 +208,34 @@ exempts it. Scope `ms`/`calls` are this-frame figures, so a reader a few frames 
 `msPeak`/`msAvg` — the demo in `hello` prints both for that reason.
 **See.** [D-018](security-sandbox.md), [D-049](architecture-api.md), [D-050](architecture-api.md),
 [019-profiling](../019-profiling/spec.md), [luaj-bridge.md](../learnings/luaj-bridge.md).
+
+### D-053 — Per-widget cost is a FIELD on `Widget`, self-clearing by frame stamp ✅ (maintainer, 2026-07-31)
+**Decision.** `p:widgets()` (019.5) is backed by one `// addon:` field on `Widget` — `public long[] prof`,
+lazily allocated and only while armed — holding **inclusive** nanos for tick and draw plus the **sum of the
+children's inclusive** time. Self time is `inclusive - children`, derived at snapshot time, never measured.
+The array carries `Prof.gen` (a frame counter advanced once per armed frame in `Prof.frame`) in slot 0 and
+**zeroes itself on the first write of a new frame**: there is no sweep and no registry of live widgets. The
+probes sit at the two traversal seams and nowhere else — `Widget.draw(GOut,boolean)`'s child loop, and
+`Widget.TickEvent.dispatch`, which carries the running child sum as a field saved/restored around each
+recursion — plus one bracket in `UI.draw` for the root, the only widget no parent can time. Per-type
+roll-up, the `top` list, class names and owner attribution (via `LuaWidget`) all happen in the Lua read verb.
+The **budget gate the task carried was not triggered**: the field stayed, so `:widgets()` ships full per-widget
+detail rather than the type-level fallback.
+**Rationale.** `Widget` is the client's most-instantiated class and the probe runs for every widget, every
+tick and every draw. An `IdentityHashMap<Widget,long[]>` — the obvious alternative — is a hash lookup per
+widget per frame, which is precisely what makes the naive version unaffordable at the ~530 widgets a logged-in
+client holds; a field is one reference, `null` and untouched while disarmed. Measuring inclusive and deriving
+self is the standard single-thread trick and costs one extra `long` per stack frame instead of a second
+measurement pass. Frame-stamping rather than sweeping is what makes "a closed window's rows disappear" free:
+finding the widgets to clear would cost more than the whole probe.
+**Consequences.** Off-state cost is one `Prof.on` read per parent per frame in `Widget.draw` and one per
+`TickEvent.dispatch` — 019.7 measures it for real. The sums **reconcile exactly**: every non-root widget's
+inclusive time appears once positively in its own row and once negatively in its parent's child sum, so the
+self times telescope to the root's inclusive (verified in-game: 4.5821 ms of rows against 4.5821 ms of root).
+`tickMs` is the tick traversal **only** — `gtick`, the hover query and resize live in the `utick` phase but are
+not per widget — so the tree total sits a little under that phase; documented rather than papered over. A
+widget not ticked or drawn in the current or previous frame is **absent**, not zero (the [D-050](#) rule again).
+`top` is capped at 20 rows, so an addon widget too cheap to rank is visible only in its `byType` row.
+**See.** [D-011](architecture-api.md), [D-049](architecture-api.md), [D-050](architecture-api.md),
+[D-052](architecture-api.md), [019-profiling](../019-profiling/spec.md),
+[widgets.md](../../codebase/widgets.md), [profiling.md](../learnings/profiling.md).

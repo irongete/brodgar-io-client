@@ -57,7 +57,7 @@ events are in [events](events.md).
 | [`hafen.ghost`](ghost.md) | client-only world props ("ghosts") — base/city planning |
 | [`hafen.render`](render.md) | draw custom (non-`.res`) assets — the addon's own PNGs (on screen or in the world) and glTF 3D models |
 | [`hafen.hook`](hooks.md) | intercept & alter input / actions / server messages |
-| [`hafen.client`](client.md) | client settings (interface / video / audio / camera / client), hotkeys, the frame profiler, its counters, per-addon cost and your own named scopes |
+| [`hafen.client`](client.md) | client settings (interface / video / audio / camera / client), hotkeys, the frame profiler, its counters, per-addon and per-widget cost, and your own named scopes |
 | [`hafen.font`](fonts.md) | per-addon typography — load fonts, restyle client surfaces (or one single widget) |
 
 ### Audio & infrastructure

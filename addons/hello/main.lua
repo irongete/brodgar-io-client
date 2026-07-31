@@ -1109,7 +1109,7 @@ local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-faci
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof | widgets")
     return
   end
   local sub = args[1]
@@ -1582,8 +1582,45 @@ hafen.slash.register("hello", function(args)
       hafen.log(("  total=%.3fms (%.1f%% of the frame) -- p:frame().addons=%.3fms, the SAME accounting")
         :format(rows.total.ms, (rows.total.share or 0) * 100, f.addons or 0))
     end)
+  elseif sub == "widgets" then
+    -- 019.5: PER-WIDGET COST. p:frame() says the widget tree cost `utick` + `draw` ms; this says WHO. Every
+    -- widget is timed by its PARENT, around the call that ticks/draws its whole subtree -- so tickMs/drawMs
+    -- are INCLUSIVE of children and selfMs is that minus them. A container with one expensive child therefore
+    -- shows a big inclusive and a near-zero self, and only the child is blamed. total is the root's inclusive
+    -- tick+draw, and the self times of every row sum to it: the breakdown reconciles, it is not indicative.
+    local p = hafen.client:profiling()
+    local w = p:widgets()
+    if not w.byType then
+      hafen.log(":hello widgets -> p:widgets() is empty: profiling is OFF (tick Options > Client > Enable profiling)")
+      return
+    end
+    local tot = w.total or {}
+    hafen.log((":hello widgets -> the whole widget tree cost %.3fms last frame (tick %.3f + draw %.3f) over %d"
+      .. " live widgets; heaviest TYPES first, self time (children subtracted):")
+      :format(tot.ms or 0, tot.tickMs or 0, tot.drawMs or 0, tot.count or 0))
+    local sumself = 0
+    for i, r in ipairs(w.byType) do
+      sumself = sumself + r.selfMs
+      if i <= 8 then
+        hafen.log(("  %-24s x%-3d self=%.3fms (tick %.3f + draw %.3f)   inclusive=%.3fms")
+          :format(r.type, r.count, r.selfMs, r.tickSelfMs, r.drawSelfMs, r.tickMs + r.drawMs))
+      end
+    end
+    hafen.log(("  ... %d types in all, their self times summing to %.3fms vs the root's inclusive %.3fms")
+      :format(#w.byType, sumself, tot.ms or 0))
+    -- The heaviest individual widgets, and the owner link: a widget an ADDON put in the tree carries the
+    -- addon's id, so the same cost shows up itemised here and rolled up in that addon's p:addons() row --
+    -- two views of one measurement, not two measurements. hello's own panel is a `LuaWidget`.
+    local mine = {}
+    for _, r in ipairs(w.top) do
+      if r.owner then mine[#mine + 1] = ("%s owned by '%s' self=%.3fms"):format(r.type, r.owner, r.selfMs) end
+    end
+    local t1 = w.top[1]
+    hafen.log(("  heaviest single widget: %s (self=%.3fms%s)  |  addon-owned in the top list: %s")
+      :format(t1 and t1.type or "-", t1 and t1.selfMs or 0, (t1 and t1.id) and (", server id " .. t1.id) or "",
+              (#mine > 0) and table.concat(mine, ", ") or "none this frame (look for the LuaWidget row above)"))
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets)")
       :format(#args, table.concat(args, " | ")))
   end
 end)

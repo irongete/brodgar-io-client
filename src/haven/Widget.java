@@ -50,6 +50,42 @@ public class Widget {
     public KeyBinding kb_gkey;
     static Map<String, Factory> types = new TreeMap<String, Factory>();
 
+    /* addon: per-widget cost (spec 019, task 019.5) -- the one hot-path field this feature adds to the
+     * client's most-instantiated class.
+     *
+     * Why a field and not a map. The probe runs for every widget, every tick and every draw; an
+     * IdentityHashMap<Widget,long[]> would be a hash lookup per widget per frame, which is exactly what makes
+     * the obvious version unaffordable at the hundreds of widgets a loaded UI holds. A field is one reference
+     * per widget, null and untouched while profiling is off, allocated on the first probe after arming.
+     *
+     * What is in it. Nanoseconds, INCLUSIVE of children ({@link #PR_TICK}/{@link #PR_DRAW}) plus the sum of
+     * the children's own inclusive time ({@link #PR_TICKCH}/{@link #PR_DRAWCH}) -- the standard single-thread
+     * trick: the traversal keeps a running child sum and stores it, so SELF time is `incl - child` computed at
+     * snapshot time and costs one extra long per stack frame rather than a second measurement pass.
+     *
+     * When it is cleared. Never swept: {@link #PR_GEN} carries Prof.gen at the last write and the array zeroes
+     * itself on the first write of a new frame (see profadd). A widget that stops being drawn simply goes
+     * stale and reads as zero -- there is no list of live widgets to walk, and building one per frame would
+     * cost more than the whole probe. */
+    public long[] prof = null;
+
+    /** addon: slot indices into {@link #prof} (019.5). */
+    public static final int PR_GEN = 0, PR_TICK = 1, PR_TICKCH = 2, PR_DRAW = 3, PR_DRAWCH = 4, PR_N = 5;
+
+    /** addon: add {@code d} nanos to slot {@code i}, rolling the array over at a frame boundary (019.5).
+     *  Only ever called from a probe that has already read {@code Prof.on}. */
+    public void profadd(int i, long d) {
+	long[] p = this.prof;
+	if(p == null)
+	    p = this.prof = new long[PR_N];
+	long g = io.brodgar.prof.Prof.gen;
+	if(p[PR_GEN] != g) {
+	    p[PR_GEN] = g;
+	    p[PR_TICK] = p[PR_TICKCH] = p[PR_DRAW] = p[PR_DRAWCH] = 0;
+	}
+	p[i] += d;
+    }
+
     @dolda.jglob.Discoverable
     @Target(ElementType.TYPE)
     @Retention(RetentionPolicy.RUNTIME)
@@ -771,10 +807,19 @@ public class Widget {
     public void draw(GOut g, boolean strict) {
 	Widget next;
 		
+	/* addon: per-widget draw cost (spec 019, task 019.5). This loop is the draw traversal, so it is the one
+	 * place that can time a child's WHOLE subtree without a second pass: the bracket around wdg.draw(g2) is
+	 * that child's inclusive draw, and their sum is this widget's child time, which makes our own self time
+	 * (measured by OUR parent, one level up) a subtraction at snapshot time. Off: one volatile read per
+	 * parent per frame and nothing else -- deliberately hoisted out of the loop. */
+	boolean pon = io.brodgar.prof.Prof.on;
+	long csum = 0;
+
 	for(Widget wdg = child; wdg != null; wdg = next) {
 	    next = wdg.next;
 	    if(!wdg.visible)
 		continue;
+	    long pt0 = pon ? System.nanoTime() : 0;   // addon:
 	    try(CPUProfile.Current prof = CPUProfile.begin(wdg)) {
 		Coord cc = xlate(wdg.c, true);
 		GOut g2;
@@ -790,9 +835,16 @@ public class Widget {
 		    wdg.draw(g2);
 		}
 	    }
+	    if(pon) {   // addon:
+		long d = System.nanoTime() - pt0;
+		wdg.profadd(PR_DRAW, d);
+		csum += d;
+	    }
 	}
+	if(pon && (csum > 0))   // addon: what our own draw spent on children, for the self-time subtraction
+	    profadd(PR_DRAWCH, csum);
     }
-    
+
     public void draw(GOut g) {
 	draw(g, true);
     }
@@ -914,12 +966,32 @@ public class Widget {
 	    return(true);
 	}
 
+	/* addon: the running sum of the CURRENT widget's children's inclusive tick time (spec 019, task 019.5).
+	 * A field on the event rather than a parameter, saved and restored around each dispatch -- that is the
+	 * "stack-local child sum" the plan calls for, and it works here because the tick traversal is strictly
+	 * depth-first on one thread. */
+	private long csum;
+
 	public boolean dispatch(Widget w) {
 	    boolean pv = visible;
 	    try {
 		if(!w.visible)
 		    visible = false;
-		return(super.dispatch(w));
+		/* addon: per-widget tick cost (019.5). Event.dispatch is the tick traversal's one recursion
+		 * point, so bracketing it gives w's INCLUSIVE tick, and the child sum we collect while it runs
+		 * gives w's child time -- both stored, self computed at snapshot time. Off: one branch. */
+		if(!io.brodgar.prof.Prof.on)
+		    return(super.dispatch(w));
+		long t0 = System.nanoTime(), pc = csum;
+		csum = 0;
+		try {
+		    return(super.dispatch(w));
+		} finally {
+		    long d = System.nanoTime() - t0;
+		    w.profadd(PR_TICK, d);
+		    w.profadd(PR_TICKCH, csum);
+		    csum = pc + d;          // ... and w's own inclusive time is our PARENT's child time
+		}
 	    } finally {
 		visible = pv;
 	    }

@@ -77,3 +77,28 @@
   `tickLuaNanos` and `hogtest` still trips on the identical message and tick count (the regression to check
   after ANY edit to that path). Make the category argument **mandatory**: a defaulted overload means the next
   call site silently lands in the wrong bucket, and there is nothing to grep for afterwards.
+- **(019.5) The widget tree has exactly TWO traversal seams — probe those, not the widgets.**
+  Draw recurses through `Widget.draw(GOut,boolean)`'s child loop; tick recurses through
+  `Widget.Event.dispatch` (which `TickEvent` overrides), and *every* widget goes through them, including
+  ones that override `tick`/`draw` without calling `super`. Bracketing the two loops gives each child's
+  **inclusive** subtree time for free. The one widget neither seam covers is the **root** — its parent is
+  `UI.draw`/`UI.dispatch`, not a widget — and it is exactly the total everything reconciles against, so
+  `UI.draw` needs its own bracket or the whole-tree number is missing.
+- **(019.5) Measure inclusive, derive self — and the sums then telescope exactly.** Store each widget's
+  inclusive time *and* the sum of its children's inclusive time; `self = incl - child` at snapshot time.
+  Because every non-root widget's inclusive time appears once positively (its own row) and once negatively
+  (its parent's child sum), the self times sum to the root's inclusive **to the last digit** — the in-game
+  check printed 4.5821 ms of rows against 4.5821 ms of root. That equality is the acceptance test for the
+  probe placement: a missing seam shows up as a gap, not as a rounding difference.
+- **(019.5) Frame-stamp the accumulator instead of sweeping it.** There is no registry of live widgets and
+  building one per frame would cost more than the probe. Put a frame counter in slot 0 of the `long[]` and
+  zero the array on the first write of a new frame; the read verb then ignores anything older than the
+  previous frame. A closed window's rows disappear for free, and no teardown path has to remember anything.
+- **(019.5) `utick` is bigger than the tick tree, and `draw` is much bigger than the draw tree.** `utick`
+  also holds `gtick`, the hover query and resize; the `draw` phase holds the entire 3D scene, of which the
+  `MapView` widget row is only the submission share (~0.3–0.5 ms against a multi-ms phase). Say so in the
+  docs: a user who expects the per-widget table to add up to the phase will report a bug that is not one.
+- **(019.5) The self/inclusive split is what makes the table readable.** Leaves show `self == inclusive`
+  (`LuaWidget`, `WItem`), containers do not (`DefaultDeco` 0.1633 self vs 0.1711 inclusive) — that contrast
+  is also the quickest sanity check that the child subtraction is landing on the right widgets. And
+  `AddonRoot` reading `tick 0.13 / draw 0.0` is correct, not a gap: it is ticked but never drawn.

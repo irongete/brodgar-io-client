@@ -116,6 +116,31 @@ public final class Prof {
     private static int cursor = 0;    // the next slot to write
     private static int filled = 0;    // samples written since the last reset, clamped to CAP
 
+    /**
+     * The frame stamp the <b>per-widget</b> accumulators carry (019.5). {@code Widget.prof} is a plain
+     * {@code long[]} with no owner to sweep it — there is no list of live widgets and building one per frame
+     * would cost more than the probe — so each array carries the frame it was last written in and zeroes
+     * itself on the first write of a new one. That makes the whole per-widget tier a stamp compare plus an
+     * add, and it makes a widget that stopped being drawn simply age out of {@code p:widgets()} instead of
+     * needing to be found and cleared.
+     *
+     * <p>Advanced once per armed frame, in {@link #frame}. Starts at 1 so a freshly allocated (all-zero)
+     * array is always stale on its first write, and is bumped by {@link #reset()} so every stale widget
+     * total is dropped along with the ring.
+     */
+    public static volatile long gen = 1;
+
+    /**
+     * Whether a per-widget stamp still describes a live measurement (019.5): the frame in progress, or the one
+     * that just finished. A snapshot may be taken at any point in a frame — from a tick callback, before the
+     * widget has been drawn again — so both stamps are current; anything older belongs to a widget that has
+     * not been ticked or drawn since, and reads as zero rather than as a stale cost.
+     */
+    public static boolean fresh(long stamp) {
+        long g = gen;
+        return (stamp == g) || (stamp == g - 1);
+    }
+
     /** Scratch for the percentile sort. Snapshot-time only, UI thread only — never allocated per frame. */
     private static final double[] sortbuf = new double[CAP];
 
@@ -172,7 +197,10 @@ public final class Prof {
      */
     public static void frame(long fno, double t, Profile.Part uframe, Profile.Part rframe,
                              Profile.Part gframe, int fps, double idle, double latency) {
-        if(!on || (uframe == null))
+        if(!on)
+            return;
+        gen++;              // 019.5: the per-widget accumulators roll over on the first write of the new frame
+        if(uframe == null)
             return;
         drainGpu();
 
@@ -258,6 +286,7 @@ public final class Prof {
     /** Drop every sample and every pending GPU frame ({@code p:reset()}, and every arming). */
     public static synchronized void reset() {
         cursor = filled = 0;
+        gen++;                          // 019.5: every per-widget total still carrying the old stamp is now stale
         lfps = 0;
         lidle = llatency = 0;
         Arrays.fill(rfno, 0L);

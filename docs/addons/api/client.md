@@ -243,6 +243,7 @@ hafen.log(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)", f.fps, f.ms, f
 | `frame()` | table | the frame that just finished — **armed only** |
 | `history(n)` | array of tables | the last `n` frames, **oldest first**; `n` omitted = everything held — **armed only** |
 | `addons()` | array of tables | what each addon's Lua cost, most expensive first, plus `total` — **armed only** |
+| `widgets()` | table | where the UI's frame time went, per widget type and per widget — **armed only** |
 | `scope(name)` | a scope handle | a named marker you bracket your own code with |
 | `measure(name, fn, ...)` | whatever `fn` returns | run `fn` inside the scope `name` |
 | `reset()` | the handle | drop the history and start measuring afresh (chains) |
@@ -255,7 +256,7 @@ The handle is a stateless proxy — keep it in a variable forever, it never goes
 verbs answer are plain **snapshot tables**, not handles: frozen numbers with nothing to re-resolve, so
 walking 600 samples for a frame graph is 600 table lookups, not 600 bridge calls.
 
-**Two kinds of verb.** `frame()`/`history()`/`addons()` are *frame sampling*: they exist only while the
+**Two kinds of verb.** `frame()`/`history()`/`addons()`/`widgets()` are *frame sampling*: they exist only while the
 switch above (Options ▸ Client ▸ Enable profiling) is on. The four **counters** below are *pull-only* —
 every number in them is one the client already maintains for its own `:stats on` HUD, so they answer
 whether profiling is armed or not, and reading them costs nothing when it is not. `scope()`/`measure()`
@@ -455,9 +456,57 @@ effectively nothing for scopes it is not being profiled on. `measure` runs `fn` 
 the scope even if `fn` errors. Only the outermost `begin`/`finish` pair of a recursive section counts, an
 unmatched `finish()` is ignored, and a scope left open by an erroring handler closes at end of frame.
 
+### `widgets()`
+
+`frame()` says the widget tree cost `utick` + `draw` milliseconds. `widgets()` says **who**.
+
+```lua
+local w = hafen.client:profiling():widgets()
+for _, r in ipairs(w.byType) do
+  hafen.log(string.format("%-20s x%d  self %.2f ms", r.type, r.count, r.selfMs))
+end
+```
+
+| Key | Description |
+|---|---|
+| `byType` | one row per widget class, **sorted by self time** — the answer to "what is my UI spending on" |
+| `top` | the 20 heaviest individual widgets, same sort |
+| `total` | the whole tree: `tickMs`, `drawMs`, `ms`, and `count` (widgets with a live measurement) |
+
+A `byType` row:
+
+| Key | Description |
+|---|---|
+| `type` | the widget class name (an anonymous subclass reports the class it extends) |
+| `count` | how many of them were measured |
+| `tickMs` / `drawMs` | time **inclusive** of children |
+| `tickSelfMs` / `drawSelfMs` / `selfMs` | the same **exclusive** of children; `selfMs` is the sum of the two |
+
+A `top` row carries `type`, `selfMs`, `tickMs`, `drawMs`, plus `id` when the widget is bound to a server
+id and `owner` when an **addon** put it in the tree (its manifest id).
+
+**Inclusive vs self.** A widget is timed by its *parent*, around the call that ticks or draws its entire
+subtree — that is `tickMs`/`drawMs`. Self time is that minus the sum of its children's inclusive time. So
+a container holding one expensive child shows a large `tickMs` and a near-zero `tickSelfMs`, and only the
+child is blamed. Every row's `selfMs` sums to `total.ms`, which is the root widget's inclusive tick+draw:
+the breakdown **reconciles**, it is not indicative.
+
+**Which frame.** The last one in which each widget was ticked or drawn — the frame in progress, or the one
+just finished. A widget not touched since (a window you closed, a hidden tab) simply **drops out** of the
+tables rather than reporting a cost it no longer has, which is also why `total.count` shrinks when you
+close a window.
+
+**`owner` is the link to `addons()`.** An addon's own widgets are itemised here *and* rolled into that
+addon's `addons()` row — two views of one measurement, not two measurements.
+
+> **What is not in it.** `tickMs` is the tick traversal only. The `utick` phase in `frame()` also covers
+> `gtick`, the hover query and any resize, so the tree's tick total sits a little under that phase. And the
+> `draw` phase covers the whole 3D scene, of which the `MapView` row is only the widget-side share — the
+> scene's own breakdown is what the named render passes are for.
+
 ### When profiling is off
 
-`frame()`, `history()` and `addons()` return an **empty table**, never `nil` — no branch needed in addon
+`frame()`, `history()`, `addons()` and `widgets()` return an **empty table**, never `nil` — no branch needed in addon
 code:
 
 ```lua
@@ -465,8 +514,8 @@ for _, f in ipairs(p:history(60)) do … end          -- simply does nothing whi
 ```
 
 The first valid sample arrives on the **second** frame after arming (arming is next-frame, as above), so
-a freshly armed profiler answers empty for one frame. `reset()` empties the ring and every per-addon and
-per-scope figure the same way, as does arming the switch. The four counters are unaffected — they answer
+a freshly armed profiler answers empty for one frame. `reset()` empties the ring and every per-addon,
+per-scope and per-widget figure the same way, as does arming the switch. The four counters are unaffected — they answer
 the same numbers armed or not, and `scope()`/`measure()` still run your code (see above).
 
 **An absent key means "not measured", never zero** — everywhere in this surface. No connection, no

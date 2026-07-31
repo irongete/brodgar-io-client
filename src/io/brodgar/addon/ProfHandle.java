@@ -6,6 +6,7 @@ import haven.MapView;
 import haven.Resource;
 import haven.UI;
 import haven.UILoop;
+import haven.Widget;
 import haven.render.DrawList;
 import haven.render.Environment;
 import haven.render.InstanceList;
@@ -19,7 +20,10 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * {@code hafen.client:profiling()} (spec 019-profiling) — the addon-facing read surface over {@link Prof}, the
@@ -50,8 +54,8 @@ import java.util.List;
  * no cost when disarmed. The frame surface above is the opposite: it exists only while armed.
  *
  * <p>Task 019.2 ships {@code :frame()}, {@code :history(n)} and {@code :reset()}; 019.3 the four counters;
- * 019.4 {@code :addons()} plus {@code :scope()}/{@code :measure()}. {@code :widgets()}, {@code :passes()},
- * {@code :gl()} and {@code :overhead()} land in 019.5+ on this same handle.
+ * 019.4 {@code :addons()} plus {@code :scope()}/{@code :measure()}; 019.5 {@code :widgets()}.
+ * {@code :passes()}, {@code :gl()} and {@code :overhead()} land in 019.6+ on this same handle.
  */
 public final class ProfHandle {
     private ProfHandle() {}
@@ -214,6 +218,16 @@ public final class ProfHandle {
                 String name = a.arg(2).checkjstring();
                 LuaValue fn = a.arg(3).checkfunction();
                 return ProfScope.measure(owner, name, fn, a.subargs(4));
+            }
+        });
+
+        // --------------------------------------------------------------- per-widget cost (019.5)
+
+        // p:widgets() -- where the UI's own frame time went, per widget type and per widget. Armed-only:
+        // unlike the counters above, nothing counts widget time unless the switch is on.
+        m.set("widgets", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return widgets();
             }
         });
 
@@ -458,6 +472,157 @@ public final class ProfHandle {
     /** Nanoseconds to milliseconds — the unit this whole surface reports time in. */
     private static double ms(long nanos) {
         return nanos * 1e-6;
+    }
+
+    // ------------------------------------------------------------------------- per-widget cost (019.5)
+
+    /** How many individual widgets {@code p:widgets().top} lists — a table to read, not the whole tree. */
+    private static final int TOPN = 20;
+
+    /**
+     * {@code p:widgets()} — the UI half of the frame, broken down. {@code utick} and {@code draw} in
+     * {@code p:frame()} say <b>how much</b> the widget tree cost; this says <b>who</b>.
+     *
+     * <p>{@code byType} is one row per widget class ({@code type}, {@code count}, {@code tickMs} and
+     * {@code drawMs} <b>inclusive</b> of children, {@code tickSelfMs}/{@code drawSelfMs}/{@code selfMs}
+     * exclusive of them), sorted by self time — the top of that list is the answer to "what is my UI
+     * spending its frame on". {@code top} is the heaviest individual widgets by self time, each with its
+     * server-side {@code id} when it has one and its {@code owner} addon when an addon put it there.
+     * {@code total} is the <b>root</b> widget's inclusive tick and draw, i.e. the whole tree: the self
+     * times of every row sum to it, which is what makes the breakdown reconcilable rather than indicative.
+     *
+     * <p><b>Inclusive vs self.</b> Inclusive time is measured by a widget's parent, around the call that
+     * draws or ticks its entire subtree; self time is that minus the sum of its children's inclusive time.
+     * A container with an expensive child therefore shows a large {@code tickMs} and a near-zero
+     * {@code tickSelfMs}, and only the child is blamed.
+     *
+     * <p><b>Which frame.</b> The last one in which the widget was ticked or drawn — the frame in progress
+     * or the one just finished. Widgets not touched since (a closed window that is still in the tree, a
+     * hidden tab) age out and are simply absent, rather than reporting a cost they no longer have.
+     *
+     * <p><b>What is not in it.</b> {@code tickMs} is the tick traversal only. The {@code utick} phase in
+     * {@code p:frame()} also covers {@code gtick} (the render-thread hand-off), the hover query and any
+     * resize, so the tree's tick total is a little under that phase by design — timing {@code gtick} per
+     * widget would double the probe count to attribute a pass that does almost nothing per widget. Likewise
+     * the {@code draw} phase covers the whole 3D scene, of which the {@code MapView} row is the widget-side
+     * share; the scene's own breakdown is what the named passes of 019.6 are for.
+     *
+     * <p>Empty when profiling is off, and empty before the first armed frame has drawn.
+     */
+    private static LuaTable widgets() {
+        LuaTable out = new LuaTable();
+        UI u = AddonManager.ui;
+        if(!Prof.armed() || (u == null) || (u.root == null))
+            return out;
+        Map<String, double[]> types = new HashMap<String, double[]>();
+        List<Object[]> top = new ArrayList<Object[]>();
+        walk(u.root, types, top);
+        if(types.isEmpty())
+            return out;
+
+        // byType, sorted by self time -- at snapshot time, never on the frame path.
+        List<Map.Entry<String, double[]>> rows = new ArrayList<Map.Entry<String, double[]>>(types.entrySet());
+        rows.sort((x, y) -> Double.compare(y.getValue()[T_TSELF] + y.getValue()[T_DSELF],
+                                           x.getValue()[T_TSELF] + x.getValue()[T_DSELF]));
+        LuaTable bt = new LuaTable();
+        for(int i = 0; i < rows.size(); i++) {
+            double[] v = rows.get(i).getValue();
+            LuaTable r = new LuaTable();
+            r.set("type", LuaValue.valueOf(rows.get(i).getKey()));
+            r.set("count", LuaValue.valueOf((int)v[T_COUNT]));
+            r.set("tickMs", LuaValue.valueOf(v[T_TICK]));
+            r.set("drawMs", LuaValue.valueOf(v[T_DRAW]));
+            r.set("tickSelfMs", LuaValue.valueOf(v[T_TSELF]));
+            r.set("drawSelfMs", LuaValue.valueOf(v[T_DSELF]));
+            r.set("selfMs", LuaValue.valueOf(v[T_TSELF] + v[T_DSELF]));
+            bt.set(i + 1, r);
+        }
+        out.set("byType", bt);
+
+        top.sort((x, y) -> Double.compare((Double)y[2], (Double)x[2]));
+        LuaTable tp = new LuaTable();
+        for(int i = 0, n = Math.min(TOPN, top.size()); i < n; i++) {
+            Object[] e = top.get(i);
+            Widget w = (Widget)e[1];
+            LuaTable r = new LuaTable();
+            r.set("type", LuaValue.valueOf((String)e[0]));
+            r.set("selfMs", LuaValue.valueOf((Double)e[2]));
+            r.set("tickMs", LuaValue.valueOf((Double)e[3]));
+            r.set("drawMs", LuaValue.valueOf((Double)e[4]));
+            int id = u.widgetid(w);
+            if(id >= 0)                     // absent, not -1: most widgets are client-side and have no server id
+                r.set("id", LuaValue.valueOf(id));
+            String own = owner(w);
+            if(own != null)
+                r.set("owner", LuaValue.valueOf(own));
+            tp.set(i + 1, r);
+        }
+        out.set("top", tp);
+
+        // The whole tree: the ROOT's inclusive tick and draw. Every row's self time sums to this.
+        LuaTable t = new LuaTable();
+        long[] rp = u.root.prof;
+        if((rp != null) && Prof.fresh(rp[Widget.PR_GEN])) {
+            t.set("tickMs", LuaValue.valueOf(ms(rp[Widget.PR_TICK])));
+            t.set("drawMs", LuaValue.valueOf(ms(rp[Widget.PR_DRAW])));
+            t.set("ms", LuaValue.valueOf(ms(rp[Widget.PR_TICK] + rp[Widget.PR_DRAW])));
+        }
+        t.set("count", LuaValue.valueOf(top.size()));
+        out.set("total", t);
+        return out;
+    }
+
+    /* Indices into the per-type accumulator. A double[] rather than a class: this is snapshot-time scratch,
+     * one array per widget TYPE, and it never outlives the call. */
+    private static final int T_COUNT = 0, T_TICK = 1, T_DRAW = 2, T_TSELF = 3, T_DSELF = 4, T_N = 5;
+
+    /**
+     * Walk the widget tree, folding every widget with a live measurement into its type row and into the
+     * candidate list for {@code top}. Depth-first, on the UI thread, at snapshot time only — the hot path
+     * never touches a map or a class name.
+     */
+    private static void walk(Widget w, Map<String, double[]> types, List<Object[]> top) {
+        long[] p = w.prof;
+        if((p != null) && Prof.fresh(p[Widget.PR_GEN])) {
+            double tick = ms(p[Widget.PR_TICK]), draw = ms(p[Widget.PR_DRAW]);
+            // Self can come out marginally negative when a child's bracket straddles a clock hiccup; a
+            // negative cost is not a thing, so it clamps rather than propagating into the type totals.
+            double tself = Math.max(0, ms(p[Widget.PR_TICK] - p[Widget.PR_TICKCH]));
+            double dself = Math.max(0, ms(p[Widget.PR_DRAW] - p[Widget.PR_DRAWCH]));
+            String ty = typename(w);
+            double[] r = types.get(ty);
+            if(r == null)
+                types.put(ty, r = new double[T_N]);
+            r[T_COUNT]++;
+            r[T_TICK] += tick;   r[T_DRAW] += draw;
+            r[T_TSELF] += tself; r[T_DSELF] += dself;
+            top.add(new Object[] {ty, w, tself + dself, tick, draw});
+        }
+        for(Widget c = w.child; c != null; c = c.next)
+            walk(c, types, top);
+    }
+
+    /** The type name a row is keyed by — the simple class name, with anonymous classes named by their base. */
+    private static String typename(Widget w) {
+        Class<?> c = w.getClass();
+        String n = c.getSimpleName();
+        while(n.isEmpty() && (c.getSuperclass() != null)) {   // an anonymous subclass: report what it IS
+            c = c.getSuperclass();
+            n = c.getSimpleName();
+        }
+        return n.isEmpty() ? w.getClass().getName() : n;
+    }
+
+    /**
+     * The addon that put this widget in the tree, or {@code null} for a client widget. {@link LuaWidget} is
+     * the only widget that knows — which is exactly the link that makes {@code :widgets()} and
+     * {@code :addons()} two views of the same cost rather than two measurements of it.
+     */
+    private static String owner(Widget w) {
+        if(!(w instanceof LuaWidget))
+            return null;
+        Addon a = ((LuaWidget)w).profOwner();
+        return ((a != null) && (a.manifest != null)) ? a.manifest.id : null;
     }
 
     /** The UI-thread phase breakdown of one ring slot, ms — the parts {@code UILoop} names in {@code uprof}. */

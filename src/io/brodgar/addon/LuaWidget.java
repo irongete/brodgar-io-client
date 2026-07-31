@@ -68,6 +68,16 @@ public final class LuaWidget extends Widget implements DropTarget {
         this.defaultFont = FontHandle.resolve(opts.get("font"));   // F2: nil/typo/non-handle => null (stock font)
     }
 
+    /**
+     * The addon this widget belongs to — the owner attribution behind {@code p:widgets()} (019.5). A LuaWidget
+     * is the only widget in the tree that knows which addon put it there, which is what lets the same cost
+     * appear itemised in {@code :widgets()} and rolled up in that addon's {@code :addons()} row instead of the
+     * two views competing.
+     */
+    Addon profOwner() {
+        return owner;
+    }
+
     /** An optional callback from the opts table, or {@code null} if the key is absent / not a function. */
     private static LuaValue fn(LuaValue opts, String key) {
         LuaValue v = opts.get(key);

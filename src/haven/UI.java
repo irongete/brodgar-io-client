@@ -387,9 +387,17 @@ public class UI {
 	/* addon: per-instance font override (F5, D-043) -- the root's own frame. Widget.draw opens one around every
 	 * CHILD it draws, which covers every widget in the tree except the root itself; this is what makes
 	 * hafen.ui.root():setFont(h) work instead of silently doing nothing. */
+	/* addon: the ROOT's own inclusive draw (spec 019, task 019.5). Widget.draw's child loop times every
+	 * widget in the tree except the one it starts from, so without this the root -- and therefore the
+	 * whole-UI total p:widgets() reconciles against -- would be the only missing row. Two nanoTime calls
+	 * per frame when armed, one branch when not. */
+	boolean pon = io.brodgar.prof.Prof.on;
+	long pt0 = pon ? System.nanoTime() : 0;
 	try(Fonts.Frame ff = Fonts.frame(root)) {
 	    root.draw(g);
 	}
+	if(pon)   // addon:
+	    root.profadd(Widget.PR_DRAW, System.nanoTime() - pt0);
 	synchronized(afterdraws) {
 	    for(AfterDraw ad : afterdraws)
 		ad.draw(g);

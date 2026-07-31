@@ -20,6 +20,26 @@
 | 2D drawing context | [`GOut`](src/haven/GOut.java) (image/text/rect/line/prect/chcolor) |
 | Modal mouse capture (drag) | [`UI.grabmouse(Widget)`](src/haven/UI.java:575) / [`UI.grab`](src/haven/UI.java:538) |
 
+## Tick & draw traversal (the two recursion seams)
+
+| What | Where |
+|---|---|
+| **Tick root** | [`UI.tick`](src/haven/UI.java:371) → `dispatch(root, new Widget.TickEvent(delta))` → [`UI.dispatch`](src/haven/UI.java:617) → `ev.dispatch(to)` |
+| **Tick recursion point (the ONE seam)** | [`Widget.Event.dispatch`](src/haven/Widget.java:844) — `handle(this)` then `propagate(w)`; [`TickEvent.dispatch`](src/haven/Widget.java:917) overrides it to carry `visible` |
+| Tick descent / leaf call | [`TickEvent.propagation`](src/haven/Widget.java:909) walks `from.child`→`next`; [`shandle`](src/haven/Widget.java:928) calls `w.tick(ev)` |
+| **Draw root** | [`UI.draw`](src/haven/UI.java:386) → `root.draw(g)` (direct — **not** through a dispatch), then `afterdraws` |
+| **Draw recursion point (the ONE seam)** | [`Widget.draw(GOut,boolean)`](src/haven/Widget.java:771) child loop — `xlate`+`reclip(l)`, `CPUProfile.begin(wdg)`, `Fonts.frame(wdg)`, `wdg.draw(g2)` |
+| `gtick` (render hand-off) | [`UI.gtick`](src/haven/UI.java:382) → [`GTickEvent`](src/haven/Widget.java:936) — a **separate** pass, inside the same `utick` phase |
+| Frame phases around them | [`UILoop.Frame.tick`](src/haven/UILoop.java:459) (`dwait`/`stick`/`utick`), [`display`](src/haven/UILoop.java:480) (`draw`) |
+| Per-widget cost probe (fork) | `// addon:` `Widget.prof` + `profadd` ([`Widget`](src/haven/Widget.java:53)), the two seams above, and the root bracket in `UI.draw` |
+
+**Gotchas.** Draw iterates `child`→`next` (bottom-first) while hit-testing iterates `lchild`→`prev`
+(topmost-first) — opposite orders, both correct. `draw` skips `!visible` children; **tick does not** — an
+invisible widget is still ticked, with `TickEvent.visible` turned off for its subtree. The root is reached by
+neither seam (its "parent" is `UI`), so anything measured or wrapped per widget misses it unless `UI.draw` /
+`UI.dispatch` is handled separately. `TickEvent.shandle` tolerates a widget removing itself mid-tick, which is
+why the loop caches `next` before dispatching.
+
 ## Introspection & hit-testing (read-only walk)
 
 | What | Where |
