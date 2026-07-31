@@ -198,3 +198,9 @@
   cwd, so `rm -f luac.out` after. This catches the whole class of typos that would otherwise cost a client
   restart, and it is the only pre-check available for a Lua-only task where `ant hafen-client` compiles
   nothing new.
+- **(019.7) A `git worktree` of an older commit will not build: some jars are not in git.** Building a
+  pre-feature client to A/B against needs `lib/brodgar/brodgar-voice-all.jar` copied in by hand — it is
+  untracked, so the worktree gets only what `ant get-luaj` fetches, and the build dies with a wall of
+  "cannot find symbol: class VoiceListener" from `Voice.java`/`OptWnd.java`. `git status` looking clean says
+  nothing about it. `git worktree add <scratchpad>/<name> <commit>` + copy the jar + `ant hafen-client`, then
+  `git worktree remove` when done so no stale entry is left in the repo.

@@ -12,6 +12,7 @@ import haven.render.Environment;
 import haven.render.InstanceList;
 import haven.render.State;
 import haven.render.gl.GLEnvironment;
+import io.brodgar.prof.Overhead;
 import io.brodgar.prof.Prof;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -245,6 +246,16 @@ public final class ProfHandle {
         m.set("gl", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 return gl();
+            }
+        });
+
+        // --------------------------------------------------------------- what profiling itself costs (019.7)
+
+        // p:overhead() -- the cost of being profiled, per tier, so the "no more than 5% of frame time"
+        // budget is enforceable rather than aspirational. Armed-only: off, there is nothing to account for.
+        m.set("overhead", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return overhead();
             }
         });
 
@@ -713,6 +724,117 @@ public final class ProfHandle {
         t.set("vertices", LuaValue.valueOf((double)Prof.glVerts(s)));
         t.set("triangles", LuaValue.valueOf((double)Prof.glTris(s)));
         t.set("frameno", LuaValue.valueOf((double)Prof.frameno(s)));
+        return t;
+    }
+
+    // ------------------------------------------------------------------- what profiling costs (019.7)
+
+    /** The budget 019 holds itself to: armed overhead no more than this share of frame time. */
+    private static final double BUDGET = 0.05;
+
+    /**
+     * {@code p:overhead()} — what having profiling armed costs, as ms per frame and as a share of the frame,
+     * <b>attributed per tier</b>. This is the number 019's second guarantee is judged against: armed overhead
+     * ≤5% of frame time, target ≤2%, and a tier that cannot meet it ships behind its own checkbox rather than
+     * dragging the feature down. Without the per-tier split that rule could not be applied, because the tier
+     * to move could not be identified.
+     *
+     * <p>Everything is a <b>mean per frame</b> over the samples since the switch was armed (or
+     * {@code p:reset()} called) — a per-frame figure would be noise at this scale.
+     *
+     * <table>
+     *   <tr><th>Key</th><th>What it is</th></tr>
+     *   <tr><td>{@code aggregatorMs}</td><td>the end-of-frame fold, <b>timed directly</b> — exact</td></tr>
+     *   <tr><td>{@code gpuQueryMs}</td><td>the GL timestamp queries the named passes insert, timed directly</td></tr>
+     *   <tr><td>{@code probeMs}</td><td>the <b>modelled</b> probe cost: hits × the per-hit cost calibrated when
+     *       the switch armed</td></tr>
+     *   <tr><td>{@code measuredMs}</td><td>the <b>measured</b> probe cost: the median paired armed-vs-control
+     *       delta. Absent until enough control periods exist. May be <b>≤ 0</b>, which means the cost is
+     *       under the comparison's noise floor, not that profiling made the client faster</td></tr>
+     *   <tr><td>{@code measuredSpreadMs}</td><td>that comparison's noise floor (the interquartile spread of
+     *       the per-period deltas) — what says whether {@code measuredMs} resolved anything</td></tr>
+     *   <tr><td>{@code totalMs} / {@code shareOfFrame}</td><td>the budget number: the aggregator plus whichever
+     *       of the two above is authoritative</td></tr>
+     *   <tr><td>{@code method}</td><td>{@code "control"} when the measurement resolved a positive cost,
+     *       {@code "model"} otherwise — i.e. whether {@code totalMs} is measured or calibrated</td></tr>
+     *   <tr><td>{@code periods} / {@code periodsNeeded}</td><td>paired control periods collected, and how many
+     *       more the measurement wants</td></tr>
+     *   <tr><td>{@code budget} / {@code withinBudget}</td><td>the 5% ceiling and whether this run is inside it</td></tr>
+     *   <tr><td>{@code tiers}</td><td>one row per tier, keyed by name — see below</td></tr>
+     * </table>
+     *
+     * <p><b>Control frames.</b> One frame in 64 runs with every probe of this feature disarmed while the client
+     * keeps profiling itself exactly as before. Each period yields one delta — the median <b>work</b> time
+     * (frame time minus the {@code wait} and {@code dwait} phases; under vsync or a frame cap the total is
+     * pinned to the cap and would show no delta at all) of its armed frames minus its control frame — and the
+     * median of those deltas is a measured overhead at essentially zero marginal cost. It catches what the
+     * model cannot: cache effects, JIT deopt, GPU query stalls. It is also frequently <b>unable to resolve
+     * anything</b>, because the cost it is looking for is a fraction of a percent of a spiky frame time —
+     * hence {@code measuredSpreadMs}, and hence the fall back to the model rather than to a zero.
+     *
+     * <p><b>Tiers.</b> {@code frame} (the fold), {@code addons} (the {@code callLua} category split),
+     * {@code widgets} (the per-widget brackets), {@code passes} (the named-pass seams and their GL queries)
+     * and {@code gl} (the submission counters) — five, one per independently armable probe set. Each row is
+     * {@code {name=, ms=, share=, modelledMs=, method=}} plus {@code hits} (probe hits per frame) for the
+     * modelled ones. {@code frame} is exact; the rest are modelled, and once the measured total exists they
+     * are scaled to it in the modelled proportion, so the rows always add up to {@code totalMs}. Both figures
+     * are reported, so nothing is hidden behind the scaling.
+     *
+     * <p><b>The modelled number errs high.</b> The calibration loops run cold, on the frame the checkbox is
+     * ticked, while the real probes run inside methods HotSpot has compiled and inlined for the whole session.
+     * That is the right direction for a budget, and it is superseded by the measurement as soon as there are
+     * enough control frames — about 64 × 8 frames, roughly ten seconds at 60 fps.
+     *
+     * <p>Empty when profiling is off.
+     */
+    private static LuaTable overhead() {
+        LuaTable t = new LuaTable();
+        if(!Prof.armed())
+            return t;
+        double agg = Overhead.aggregatorMs(), total = Overhead.totalMs();
+        t.set("aggregatorMs", LuaValue.valueOf(agg));
+        t.set("gpuQueryMs", LuaValue.valueOf(Overhead.gpuQueryMs()));
+        t.set("probeMs", LuaValue.valueOf(Overhead.probeMs()));
+        boolean meas = Overhead.measured();
+        if(Overhead.sampled()) {        // absent, not 0, until the control periods have something to say
+            t.set("measuredMs", LuaValue.valueOf(Overhead.measuredMs()));
+            t.set("measuredSpreadMs", LuaValue.valueOf(Overhead.measuredSpreadMs()));
+            t.set("measuredErrorMs", LuaValue.valueOf(Overhead.measuredErrorMs()));
+        }
+        t.set("totalMs", LuaValue.valueOf(total));
+        t.set("method", LuaValue.valueOf(meas ? "control" : "model"));
+        t.set("armedFrames", LuaValue.valueOf((double)Overhead.armedFrames()));
+        t.set("controlFrames", LuaValue.valueOf((double)Overhead.ctlFrames()));
+        t.set("periods", LuaValue.valueOf(Overhead.periods()));
+        t.set("periodsNeeded", LuaValue.valueOf(Overhead.periodsNeeded()));
+        double frameMs = Prof.msAvg();
+        t.set("budget", LuaValue.valueOf(BUDGET));
+        if(frameMs > 0) {
+            double share = total / frameMs;
+            t.set("frameMs", LuaValue.valueOf(frameMs));
+            t.set("shareOfFrame", LuaValue.valueOf(share));
+            t.set("withinBudget", LuaValue.valueOf(share <= BUDGET));
+        }
+        LuaTable tiers = new LuaTable();
+        for(int i = 0; i < Overhead.TIERS.length; i++) {
+            LuaTable r = new LuaTable();
+            double ms = Overhead.tierMs(i);
+            r.set("name", LuaValue.valueOf(Overhead.TIERS[i]));
+            r.set("ms", LuaValue.valueOf(ms));
+            r.set("modelledMs", LuaValue.valueOf(Overhead.modelMs(i)));
+            if(frameMs > 0)
+                r.set("share", LuaValue.valueOf(ms / frameMs));
+            double hits = Overhead.hits(i);
+            if(hits >= 0) {             // the fold is timed, not counted: it has no hit count to report
+                r.set("hits", LuaValue.valueOf(hits));
+                r.set("method", LuaValue.valueOf(meas ? "control" : "model"));
+            } else {
+                r.set("method", LuaValue.valueOf("direct"));
+            }
+            tiers.set(Overhead.TIERS[i], r);
+            tiers.set(i + 1, r);        // keyed AND ordered: a table to index, a list to draw in order
+        }
+        t.set("tiers", tiers);
         return t;
     }
 

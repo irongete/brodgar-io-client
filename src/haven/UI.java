@@ -396,8 +396,10 @@ public class UI {
 	try(Fonts.Frame ff = Fonts.frame(root)) {
 	    root.draw(g);
 	}
-	if(pon)   // addon:
+	if(pon) {   // addon:
+	    io.brodgar.prof.Overhead.hWidget++;   // addon: one probe bracket (spec 019, task 019.7)
 	    root.profadd(Widget.PR_DRAW, System.nanoTime() - pt0);
+	}
 	synchronized(afterdraws) {
 	    for(AfterDraw ad : afterdraws)
 		ad.draw(g);

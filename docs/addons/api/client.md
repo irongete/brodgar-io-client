@@ -246,6 +246,7 @@ hafen.log(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)", f.fps, f.ms, f
 | `widgets()` | table | where the UI's frame time went, per widget type and per widget — **armed only** |
 | `passes()` | array of tables | the named render passes, CPU and GPU time side by side — **armed only** |
 | `gl()` | table | what the client handed the driver: draw calls, program binds, vertices, triangles — **armed only** |
+| `overhead()` | table | what profiling itself costs, per tier — **armed only** |
 | `scope(name)` | a scope handle | a named marker you bracket your own code with |
 | `measure(name, fn, ...)` | whatever `fn` returns | run `fn` inside the scope `name` |
 | `reset()` | the handle | drop the history and start measuring afresh (chains) |
@@ -258,7 +259,7 @@ The handle is a stateless proxy — keep it in a variable forever, it never goes
 verbs answer are plain **snapshot tables**, not handles: frozen numbers with nothing to re-resolve, so
 walking 600 samples for a frame graph is 600 table lookups, not 600 bridge calls.
 
-**Two kinds of verb.** `frame()`/`history()`/`addons()`/`widgets()`/`passes()`/`gl()` are *frame sampling*: they exist only while the
+**Two kinds of verb.** `frame()`/`history()`/`addons()`/`widgets()`/`passes()`/`gl()`/`overhead()` are *frame sampling*: they exist only while the
 switch above (Options ▸ Client ▸ Enable profiling) is on. The four **counters** below are *pull-only* —
 every number in them is one the client already maintains for its own `:stats on` HUD, so they answer
 whether profiling is armed or not, and reading them costs nothing when it is not. `scope()`/`measure()`
@@ -565,9 +566,68 @@ not; nothing counts *these*, so they are new counting and they sit behind the sw
 `programBinds` against `drawCalls` is the batching story: the draw list is sorted by program, so binds far
 below calls means the sort is doing its job.
 
+### `overhead()`
+
+What profiling itself costs — per **tier**, so a tier that gets too expensive can be identified and disabled
+rather than dragging the whole feature down. The promise is that armed overhead stays under **5%** of frame
+time (target 2%); this is where you check it.
+
+```lua
+local o = hafen.client:profiling():overhead()
+hafen.log(string.format("profiling costs %.4f ms/frame = %.2f%% (%s)",
+                        o.totalMs, o.shareOfFrame * 100, o.method))
+for _, r in ipairs(o.tiers) do
+  hafen.log(string.format("  %-8s %.4f ms", r.name, r.ms))
+end
+```
+
+Every figure is a **mean per frame** since the switch was armed (or `reset()` called) — a single frame's
+figure would be noise at this scale.
+
+| Key | Description |
+|---|---|
+| `totalMs` / `shareOfFrame` | the budget number: ms per frame, and as a fraction of the frame |
+| `budget` / `withinBudget` | the 5% ceiling, and whether this run is inside it |
+| `method` | `"control"` if `totalMs` was measured, `"model"` if calibrated — see below |
+| `aggregatorMs` | the end-of-frame fold, **timed directly** — exact |
+| `gpuQueryMs` | the GL timestamp queries the named passes insert, timed directly |
+| `probeMs` | the **modelled** probe cost: hits × a per-hit cost calibrated when the switch armed |
+| `measuredMs` / `measuredErrorMs` | the **measured** probe cost and its error bar (absent until enough samples) |
+| `measuredSpreadMs` | the comparison's noise floor |
+| `frameMs` | mean frame time, what the share is taken against |
+| `armedFrames` / `controlFrames` / `periods` / `periodsNeeded` | how much evidence there is so far |
+| `tiers` | one row per tier — both keyed by name and ordered as a list |
+
+Each tier row is `{name=, ms=, share=, modelledMs=, method=}`, plus `hits` (probe hits per frame) on the
+modelled ones:
+
+| Tier | Probes |
+|---|---|
+| `frame` | the end-of-frame fold — the only tier that is timed rather than modelled |
+| `addons` | the per-addon category split behind `addons()` |
+| `widgets` | the per-widget tick/draw brackets behind `widgets()` |
+| `passes` | the named-pass seams and their GL timestamp queries |
+| `gl` | the submission counters behind `gl()` |
+
+**Two numbers, cross-checking each other.** The *modelled* one counts probe hits and multiplies by a per-hit
+cost measured once when the switch armed; it is available immediately and errs **high**, because the
+calibration loops run cold while the real probes run JIT-compiled. The *measured* one comes from **control
+frames**: one frame in 64 runs with every probe disarmed, and each period contributes one delta — the median
+**work** time of its armed frames minus its control frame. (Work, not frame time: under vsync or a frame cap
+the total is pinned to the cap and would never move.) `method` tells you which one `totalMs` used.
+
+> **`measuredMs` ≤ 0 is the normal outcome, and does not mean profiling made the client faster.** It means
+> the cost is under the comparison's own noise floor — frame work time is spiky and the cost being hunted is
+> a fraction of a percent of it. The measurement only takes over when it clears `measuredErrorMs`; otherwise
+> the model has the say, because a model that at least counted the probes beats a random number. For a
+> feature whose whole claim is that it costs almost nothing, an unresolvable measurement is success.
+
+Once the measurement *is* authoritative, the tiers are scaled to it in the modelled proportion, so the rows
+always sum to `totalMs`. `modelledMs` is reported alongside, so nothing hides behind the scaling.
+
 ### When profiling is off
 
-`frame()`, `history()`, `addons()`, `widgets()`, `passes()` and `gl()` return an **empty table**, never `nil` — no branch needed in addon
+`frame()`, `history()`, `addons()`, `widgets()`, `passes()`, `gl()` and `overhead()` return an **empty table**, never `nil` — no branch needed in addon
 code:
 
 ```lua

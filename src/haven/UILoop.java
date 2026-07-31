@@ -441,7 +441,9 @@ public abstract class UILoop implements Console.Directory {
 	// render-thread frame; it closes a frame late by design) and this frame's gprof frame, whose GL
 	// timestamps come back through fences several frames later and are folded in by frame number.
 	// fps/uidle/framelag are passed as arguments rather than made visible: nothing else may write them.
-	if(io.brodgar.prof.Prof.on && (f.prof != null))
+	// 019.7: the guard is the MASTER switch, not the per-frame one -- a control frame runs with the probes
+	// disarmed but must still hand its work time over, since that comparison is the measured overhead.
+	if(io.brodgar.prof.Prof.sampling && (f.prof != null))
 	    io.brodgar.prof.Prof.frame(f.frameno, f.ftime, uprof.last(), rprof.last(), f.gprof, fps, uidle, framelag);
     }
 
@@ -493,7 +495,12 @@ public abstract class UILoop implements Console.Directory {
 	    // handed to Passes, which hangs shadow/scene/ui2d UNDER it -- so the pass timestamps nest inside the
 	    // client's own tree instead of splitting its tick/draw/swap sequence, and Profwnd shows exactly what
 	    // it did with three extra rows. Disarmed, this is a null argument and one branch in Passes.frame.
-	    io.brodgar.prof.Passes.frame((gprof != null) ? gprof.part(out, "draw") : null);
+	    // 019.7: the "draw" part is the CLIENT's own and is created exactly as it always was -- withholding
+	    // it on a control frame would leave the client's GPU tree missing a part, which is Profwnd's data,
+	    // not ours. It is only kept FROM Passes on a control frame, so the pass tier's own timestamp queries
+	    // are the thing absent from the control and therefore the thing it measures.
+	    GPUProfile.Part gdraw = (gprof != null) ? gprof.part(out, "draw") : null;
+	    io.brodgar.prof.Passes.frame(io.brodgar.prof.Prof.on ? gdraw : null);
 	    loop.display(ui, out);
 	}
 
@@ -596,6 +603,11 @@ public abstract class UILoop implements Console.Directory {
 		    }
 		    Debug.cycle(ui.modflags());
 
+		    // addon: open the frame for the profiler (spec 019, task 019.7). This is where the
+		    // control-frame decision has to be made: everything the probes hang off is created in the
+		    // Frame constructor below, so a flip any later would leave the frame half-armed. Off, it is
+		    // one read of a static volatile boolean.
+		    io.brodgar.prof.Prof.begin();
 		    Frame curframe = frame(ui, buf, prevframe);
 		    prevframe = null;
 		    curframe.run();

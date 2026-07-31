@@ -39,13 +39,18 @@ public final class GlCount {
     /** This frame's counts so far, zeroed by the end-of-frame fold in {@link Prof#frame}. */
     public static long draws, progBinds, verts, tris;
 
+    /* Overhead.hGl below counts the probe HITS, not the draw calls (spec 019, task 019.7): one hit is one
+     * accumulate this feature added, which is what the modelled per-hit cost is calibrated against. */
+
     /** One immediate program bind ({@code Applier}). */
     public static void progBind() {
+        Overhead.hGl++;
         progBinds++;
     }
 
     /** One immediate draw call of {@code mod} ({@code GLRender.draw}). */
     public static void draw(Model mod) {
+        Overhead.hGl++;
         draws++;
         verts += verts(mod);
         tris += tris(mod);
@@ -53,6 +58,9 @@ public final class GlCount {
 
     /** A whole draw-list dispatch, folded in one add ({@code GLDrawList.draw}). */
     public static void drawlist(int ndraws, int nbinds, long nverts, long ntris) {
+        // The fold itself is one hit, but the caller's walk did an accumulate PER SLOT to produce these
+        // sums -- so the tier is charged for those too, or it would report the draw list as free (019.7).
+        Overhead.hGl += ndraws + 1;
         draws += ndraws;
         progBinds += nbinds;
         verts += nverts;

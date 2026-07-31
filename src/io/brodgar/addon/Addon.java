@@ -311,12 +311,18 @@ public final class Addon {
      * {@code tickLuaNanos} is zeroed, which is exactly the point at which that field holds the whole of the
      * previous frame (it accrues through the tick <b>and</b> the draw callbacks that follow it).
      */
-    void profRoll() {
+    void profRoll(boolean probed) {
         profNanos = tickLuaNanos;
         profSumNanos += tickLuaNanos;
         profFrames++;
         if(tickLuaNanos > profPeakNanos)
             profPeakNanos = tickLuaNanos;
+        // 019.7: a CONTROL frame ran with the category probes disarmed, so catNanos/catCalls and the scopes
+        // are all zero for it -- while tickLuaNanos above is not, because the D-018 watchdog measures it
+        // whether we are profiling or not. Rolling zeroes in would make one row in 64 read as "this addon
+        // did nothing", so the split simply holds its last measured frame across a control frame.
+        if(!probed)
+            return;
         for(int i = 0; i < CATS.length; i++) {
             profCat[i] = catNanos[i];   catNanos[i] = 0;
             profCalls[i] = catCalls[i]; catCalls[i] = 0;

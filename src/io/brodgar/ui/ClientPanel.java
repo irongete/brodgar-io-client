@@ -29,11 +29,11 @@ public class ClientPanel extends OptWnd.Panel {
         opt.super();
         Widget prev = add(new Label("Client"), 0, 0);
         prev = add(new CheckBox("Enable profiling") {
-                {a = Prof.on;}
+                {a = Prof.armed();}
                 public void set(boolean val) {Prof.arm(val); a = val;}
                 public void tick(double dt) {
                     super.tick(dt);
-                    a = Prof.on;   // follow a write from Lua (or anywhere else) while the panel is open
+                    a = Prof.armed();   // follow a write from Lua (or anywhere else) while the panel is open
                 }
             }, prev.pos("bl").adds(0, 10));
         prev.settip("Arms the client's profiler: frame, CPU, GPU, addon and widget timings, readable from an"

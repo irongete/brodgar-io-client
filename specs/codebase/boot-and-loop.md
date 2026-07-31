@@ -42,6 +42,7 @@
 | The live tree windows | [`Profwnd`](src/haven/Profwnd.java:31) |
 | **Master switch (fork)** | [`io.brodgar.prof.Prof.arm`](src/io/brodgar/prof/Prof.java) writes the hot-path field, the pref **and** `UILoop.profile`; `:profile` routes through it (D-049) |
 | **End-of-frame hook (fork)** | [`UILoop.framedone`](src/haven/UILoop.java:416) — after `updstats(f)`; hands `uprof.last()`, `rprof.last()`, `f.gprof` + `fps`/`uidle`/`framelag` to `Prof.frame` (019.2) |
+| **The frame loop itself / start-of-frame hook (fork)** | [`UILoop.run`](src/haven/UILoop.java:588) — the `while(true)` that does `frame(ui, buf, prevframe)` → `run()` → `fin()` → `framedone()`. `io.brodgar.prof.Prof.begin()` sits immediately **before** the `Frame` is built ([:610](src/haven/UILoop.java:610)): every per-frame arming decision must be made there, because everything the probes hang off (the profile objects, the pass tree's parent part) is created in the `Frame` constructor (019.7) |
 | Where a frame's parts finish / frame identity | [`Frame.fin`](src/haven/UILoop.java:481) (the GL fence sets `framelag`), `f.frameno`/`f.ftime` ([:439](src/haven/UILoop.java:439)) |
 | The FPS/idle math the HUD shows | [`UILoop.updstats`](src/haven/UILoop.java:398) — `fps`, `uidle` (fraction 0..1), `framelag` (**seconds**), all `private` |
 | Render-thread parts | `rprof` parts `tick`/`draw`/`swap`/`finish`; `rprof.last()` is the last **completed** frame, ~1 behind the UI frame |
@@ -53,7 +54,10 @@ during which you flip it has no tree. (c) GPU parts arrive **late** (GL fences),
 several frames after its CPU time — fold by frame number, never by position, and never read a GPU number off the
 **newest** frame (it is precisely the one still in flight). (d) `fps`/`uidle`/`framelag` are **private** to
 `UILoop`: pass them out, do not widen the fields. (e) A part name is **not unique within a frame** — `dwait` is
-entered twice (tick + syncwait), so any fold over `Part.sub()` must `+=`.
+entered twice (tick + syncwait), so any fold over `Part.sub()` must `+=`. (f) `framedone` runs **after**
+[`CPUProfile.end(prof)`](src/haven/UILoop.java:527) closed the frame in `Frame.fin`, so work done in the
+end-of-frame hook lands in **no phase at all** — it is invisible to `uprof`, to `:stats on` and to any
+frame-time comparison, while still delaying the next frame. Time it directly or it does not exist (019.7).
 
 ## Threading & locks
 

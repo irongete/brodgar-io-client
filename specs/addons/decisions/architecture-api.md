@@ -276,3 +276,38 @@ of scope permanently. A pass left open would leave a query that never completes 
 **See.** [D-011](architecture-api.md), [D-050](architecture-api.md), [D-051](architecture-api.md),
 [D-053](architecture-api.md), [019-profiling](../019-profiling/spec.md),
 [world-3d.md](../../codebase/world-3d.md), [profiling.md](../learnings/profiling.md).
+
+### D-055 — Profiling's own cost is measured by control frames, modelled per tier, and the model wins when the measurement cannot resolve ✅ (maintainer, 2026-07-31)
+**Decision.** `p:overhead()` (019.7) accounts for what profiling costs in three non-overlapping layers.
+(a) The end-of-frame fold is **timed directly** — one `nanoTime` pair in `Prof.frame` — because it is the
+only place this feature does real work; it runs in `framedone`, *after* `CPUProfile.end` closed the frame,
+so no control frame could ever see it. (b) Every probe bumps a counter it was touching anyway, and the
+per-hit cost is **calibrated once** at arm time in two shapes (`unitBracket` = a `nanoTime` pair, `unitAccum`
+= an accumulate inside an existing bracket). (c) The last frame of every 64 is a **control frame**: probes
+disarmed, `UILoop.profile` left set, so what it removes is exactly *our* instrumentation. The switch is
+therefore split in two — `Prof.sampling` (the master, what the checkbox and `armed()` show) and `Prof.on`
+(per-frame, what every probe reads). Cost is attributed to **five** tiers — `frame`, `addons`, `widgets`,
+`passes`, `gl` — one per independently armable probe set.
+**Rationale.** The ≤5% budget of the spec is only enforceable if a failing tier can be *identified*, so
+per-tier attribution is not a nicety. Timing each probe would roughly double the cost being reported, hence
+counting plus calibration. And the model alone is not enough: it cannot see cache effects, JIT deopt or GPU
+query stalls, which is what the control frames are for. Control frames compare **work** time (frame ms minus
+`wait` and `dwait`), because under vsync or a frame cap the total is pinned to the cap and the client absorbs
+extra cost by idling less — the total would show a delta of zero no matter what the probes cost.
+**Consequences.** The estimator is **paired and median-based**: each period yields one delta (median armed
+work of that period minus its control frame) and the reported figure is the median of those. The first
+implementation used two running means and reported the overhead as **−1.05 ms** on a live session — frame
+work time is spiky and the signal is a fraction of a percent of it. It must also clear its own error bar
+(`spread/√n`) before superseding the model; a median at +0.004 ms with a ±0.13 ms bar has measured nothing,
+and letting it drive the total would swap a rough number for a random one. So **`measuredMs ≤ 0` is the
+normal, expected outcome** and does not mean profiling made the client faster — the model then has the say,
+and both figures are reported so the fallback is never silent. Verified on synthetic spiky data: a planted
+0 ms reads unresolved, 0.5 ms → +0.536, 2.0 ms → +2.18, tiers summing exactly to the total. Two smaller
+consequences of the per-frame switch: a control frame writes **no ring slot** and does not bump `Prof.gen`
+(a frame graph with a hole every 64 samples is worse than one 1/64 sparser, and per-widget totals would
+otherwise age out), and `Addon.profRoll` takes a `probed` flag so the category split holds its last measured
+frame rather than rolling in a row of zeroes. Measured in-game: **0.038 ms of a 7.05 ms frame = 0.54%**,
+with `widgets` 61% of it (657 probes/frame), against a 5% budget and a 2% target.
+**See.** [D-049](architecture-api.md), [D-051](architecture-api.md), [D-052](architecture-api.md),
+[D-053](architecture-api.md), [D-054](architecture-api.md), [019-profiling](../019-profiling/spec.md),
+[profiling.md](../learnings/profiling.md), [boot-and-loop.md](../../codebase/boot-and-loop.md).

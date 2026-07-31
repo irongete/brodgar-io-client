@@ -133,3 +133,35 @@
   `GLRender.draw` and `Applier`'s two `GLProgram.apply` sites for the immediate path. Precompute per-slot
   vertex/triangle counts at compile time so the frame walk is an add, and hoist `Prof.on` into a local so the
   disarmed cost is one branch per frame rather than per slot.
+- **(019.7) Two running means will not measure a sub-percent overhead — pair and take medians.** Comparing
+  the mean work time of armed frames against control frames reported the overhead as **−1.05 ms** on a live
+  session: frame work time is spiky (GC, a resource landing, a window opening) and the signal is a fraction
+  of a percent of it, so the answer was pure drift between two samples 63:1 apart in count. What works: one
+  delta **per period** (median work of that period's armed frames minus its control frame), and the median of
+  those deltas. Pairing inside a period kills drift, the medians kill spikes. Verified on synthetic spiky
+  data — planted 0 ms reads unresolved, 0.5 ms → +0.536, 2.0 ms → +2.18.
+- **(019.7) A measurement must clear its own error bar before it beats a model.** A median at +0.004 ms with
+  a ±0.13 ms bar has measured nothing; letting it supersede the calibrated model replaces a rough number with
+  a random one. Gate on `median > spread/√n`, report both, and say which one the total used. For a feature
+  whose claim is that it costs almost nothing, "unresolvable" is the expected outcome, not a failure.
+- **(019.7) Compare WORK time, not frame time — a frame cap hides everything.** Under vsync or an fps limit
+  the client absorbs extra cost by idling less, so total frame time is pinned to the cap and shows a delta of
+  zero no matter what the probes cost. Subtract the `wait` and `dwait` phases. The same trap bites the manual
+  A/B: at a 144 fps cap, the pre-019 build, 019-off and 019-on **all** read 144 — and the idle share drifted
+  ±6 points between runs with 019-**on** measuring *less* work than 019-off, which is impossible and so is
+  proof that run-to-run noise (~0.9 ms) dwarfs the effect (0.038 ms). Uncap the framerate before A/B-ing FPS.
+- **(019.7) A calibration loop cannot resolve an accumulate.** `arr[c] += d; cnt[c]++` over a few indices is
+  something HotSpot keeps in registers, so the loop measures at or below an empty one and the unit calibrates
+  to **zero** — which silently makes that tier read as *free* and gives it zero weight when a measured total
+  is attributed. Floor the unit (1 ns) and document it. A `nanoTime` pair calibrates fine (~36 ns) and errs
+  high, because the calibration runs cold while the real probes run JIT-compiled — the right direction.
+- **(019.7) Do not withhold the client's OWN instrumentation from a control frame.** `gprof.part(out,"draw")`
+  looks like part of the 019.6 pass code but predates it: skipping it left the client's GPU tree missing its
+  `draw` part 1 frame in 64, i.e. corrupting `Profwnd`'s data to measure ours. Create the client's part
+  always; withhold only the *parent handle* the fork's passes hang from. Check with `git diff <pre-feature>`
+  before assuming a line at a seam you edited is yours.
+- **(019.7) Splitting a hot switch in two is cheaper than it looks, but every reader must be re-triaged.**
+  `Prof.on` became per-frame (false on a control frame) and `Prof.sampling` the master. Every probe wants
+  `on`; the checkbox, the Lua `armed()` reads and the end-of-frame handoff want `sampling` — a probe reading
+  `sampling` would defeat the control frame, and a UI reader reading `on` would flicker at 1/64. Grep every
+  use before flipping the meaning of an existing field.

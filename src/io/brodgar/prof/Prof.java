@@ -57,10 +57,25 @@ public final class Prof {
     private static final String PREF = "profiling";
 
     /**
-     * The master switch every probe reads. Written only by {@link #arm(boolean)}, on the UI thread; volatile so
-     * the render thread's probes see the flip on the frame after it happens.
+     * The switch every probe reads: <b>are the probes armed for the frame in progress</b>. Written by
+     * {@link #arm(boolean)} and, once per frame, by {@link #begin()}; volatile so the render thread's probes
+     * see the flip on the frame after it happens.
+     *
+     * <p><b>Why this is not the same field as {@link #sampling}</b> (019.7). One frame in
+     * {@link Overhead#PERIOD} is a <b>control frame</b>: profiling stays armed, but every probe this feature
+     * adds is disarmed for that one frame, so comparing the mean work time of armed frames against control
+     * frames is a <b>measured</b> overhead rather than a modelled one. That is what {@code :overhead()}
+     * reports as {@code method="control"}, and it is the evidence behind 019's ≤5% budget. So {@code on} is
+     * per-frame and {@code sampling} is the master switch; anything asking "is profiling turned on" wants
+     * {@link #armed()}, and only a probe wants this field.
      */
     public static volatile boolean on = false;
+
+    /**
+     * The master switch — what the checkbox, {@code :profile} and {@code options():client():profiling()} all
+     * show. True for the whole session between arm and disarm, including control frames.
+     */
+    public static volatile boolean sampling = false;
 
     private static boolean inited = false;
 
@@ -81,14 +96,41 @@ public final class Prof {
      * that one place. Idempotent, and safe to call before the UI exists.
      */
     public static void arm(boolean v) {
-        Utils.setprefb(PREF, on = v);   // pref and switch in one statement: they cannot drift apart
+        Utils.setprefb(PREF, sampling = v);   // pref and switch in one statement: they cannot drift apart
+        on = v;                         // 019.7: the probes follow the master switch until begin() says otherwise
         UILoop.profile.set(v);          // the client's own uprof/rprof/gprof frames — one switch, not two
+        if(v)
+            Overhead.calibrate();       // 019.7: the one-shot probe calibration, on the frame the box is ticked
         reset();                        // 019.2: a session starts empty, and disarming leaves nothing stale
     }
 
     /** The current state of the master switch (the reader for the panel and for {@code options():client()}). */
     public static boolean armed() {
-        return on;
+        return sampling;
+    }
+
+    /* 019.7: the control-frame phase. Advanced once per frame by begin(); the LAST frame of each period is
+     * the control frame, so the first one lands a full period after arming -- by which point the ring has
+     * filled and the JIT has seen the armed probes, which is what makes the comparison worth making. */
+    private static int ctlphase = 0;
+    /** Whether the frame in progress is a control frame (probes disarmed, work time still sampled). */
+    private static boolean control = false;
+
+    /**
+     * Open a frame, from {@code UILoop.run} <b>before</b> the frame is constructed (019.7). Decides whether
+     * this one is armed or is the period's control frame, and that decision must be made here: everything the
+     * probes hang off — {@code UILoop.Frame}'s profile objects, the pass tree's parent part — is created in
+     * the frame's constructor, so a flip anywhere later would leave the frame half-armed.
+     *
+     * <p>Disarmed, this is one read of a static volatile boolean and a return.
+     */
+    public static void begin() {
+        if(!sampling) {
+            control = false;
+            return;
+        }
+        control = ((ctlphase = (ctlphase + 1) % Overhead.PERIOD) == 0);
+        on = !control;
     }
 
     // --------------------------------------------------------------------- the frame ring
@@ -208,8 +250,48 @@ public final class Prof {
      */
     public static void frame(long fno, double t, Profile.Part uframe, Profile.Part rframe,
                              Profile.Part gframe, int fps, double idle, double latency) {
+        // 019.7: a control frame ran with every probe disarmed. It contributes its WORK time to the
+        // comparison and nothing else -- no ring slot (a frame graph with a hole in it every 64 samples
+        // would be a worse surface than one that is 1/64 sparser), and no gen++ (the per-widget totals from
+        // the last armed frame stay fresh across it rather than ageing out for one frame in 64).
+        if(control) {
+            Overhead.controlFrame(workMs(uframe));
+            return;
+        }
         if(!on)
             return;
+        long a0 = System.nanoTime();
+        fold(fno, t, uframe, rframe, gframe, fps, idle, latency);
+        // The aggregator's own cost, timed directly (019.7). This runs in framedone, AFTER CPUProfile.end
+        // closed the frame, so it is outside every phase the client measures and no control frame could ever
+        // see it -- it is still real cost, since it delays the next frame, which is why it is measured on its
+        // own and added to the total rather than left to the control comparison.
+        Overhead.armedFrame(System.nanoTime() - a0, workMs(uframe));
+    }
+
+    /**
+     * The frame's CPU <b>work</b> time, ms: total minus the two idle phases. This is what the control-frame
+     * comparison is over, and it has to be: under vsync or a frame cap the total is pinned to the cap and the
+     * client absorbs any extra cost by waiting less, so armed and control frames would show the same total no
+     * matter what the probes cost. Work time is what actually moves.
+     */
+    private static double workMs(Profile.Part uframe) {
+        if(uframe == null)
+            return 0;
+        double idle = 0;
+        List<Profile.Part> sub = uframe.sub();
+        for(int i = 0, n = sub.size(); i < n; i++) {
+            Profile.Part p = sub.get(i);
+            int k = index(PHASES, p.nm);
+            if((k == P_WAIT) || (k == P_DWAIT))
+                idle += ms(p.d());
+        }
+        return Math.max(0, ms(uframe.d()) - idle);
+    }
+
+    /** The per-frame fold proper — everything {@link #frame} times as the {@code frame} tier's cost. */
+    private static void fold(long fno, double t, Profile.Part uframe, Profile.Part rframe,
+                             Profile.Part gframe, int fps, double idle, double latency) {
         gen++;              // 019.5: the per-widget accumulators roll over on the first write of the new frame
         if(uframe == null)
             return;
@@ -353,6 +435,8 @@ public final class Prof {
         GlCount.draws = GlCount.progBinds = GlCount.verts = GlCount.tris = 0;
         Arrays.fill(pgf, null);
         phead = ptail = 0;
+        ctlphase = 0;                   // 019.7: the control comparison restarts with the ring it measures
+        Overhead.reset();
         Runnable r = addonResetter;
         if(r != null)
             r.run();                    // 019.4: the per-addon rows and scopes are part of "everything"

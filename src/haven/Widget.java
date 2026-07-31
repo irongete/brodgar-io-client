@@ -837,6 +837,7 @@ public class Widget {
 	    }
 	    if(pon) {   // addon:
 		long d = System.nanoTime() - pt0;
+		io.brodgar.prof.Overhead.hWidget++;   // addon: one probe bracket (spec 019, task 019.7)
 		wdg.profadd(PR_DRAW, d);
 		csum += d;
 	    }
@@ -988,6 +989,7 @@ public class Widget {
 		    return(super.dispatch(w));
 		} finally {
 		    long d = System.nanoTime() - t0;
+		    io.brodgar.prof.Overhead.hWidget++;   // addon: one probe bracket (spec 019, task 019.7)
 		    w.profadd(PR_TICK, d);
 		    w.profadd(PR_TICKCH, csum);
 		    csum = pc + d;          // ... and w's own inclusive time is our PARENT's child time

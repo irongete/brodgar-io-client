@@ -91,7 +91,7 @@
            (update ~:240), `src/haven/MapView.java` (updsmap ~:978-1029), `src/haven/UILoop.java`
            (display ~:280, Frame ~:433-490) -->
 
-- [ ] **019.7 — Overhead accounting + the cost proof (the gate).**
+- [x] **019.7 — Overhead accounting + the cost proof (the gate).**
       The directly-timed aggregator (one `nanoTime` pair per frame), the one-shot probe calibration
       at arm time, the 1-in-64 **control frames**, and `:overhead()` reporting aggregator / probe /
       GPU-query / total as ms and as a share of frame, with `method` saying whether the number is
@@ -104,6 +104,17 @@
       — must be within the ≤5% budget (target ≤2%). If a tier blows the budget, it moves behind its
       own checkbox in the Client panel and that becomes a recorded decision rather than a silent
       regression.
+      **VERIFIED (maintainer, 2026-07-31).** In-game: **0.038 ms of a 7.05 ms frame = 0.54%** against
+      a 5% budget and a 2% target — `widgets` 61% of it (657 probes/frame), then `frame` 0.007,
+      `passes` 0.007, `gl` 0.001, `addons` 0.00002. No tier is near needing its own checkbox, so the
+      enforcement rule did not fire. `method=model`: the control frames measured −0.073 ± 0.100 ms
+      (spread 0.64), i.e. the cost is an order of magnitude under what they can resolve — the
+      expected outcome, and the model has the say. **The FPS A/B could not discriminate**: at the
+      maintainer's 144 fps cap the pre-019 build, 019-off and 019-on all read 144, and idle drifted
+      ±6 points between runs with 019-**on** measuring *less* work than 019-off — run-to-run noise
+      (~0.9 ms) dwarfs the effect (0.038 ms). Both independent methods therefore agree the cost is
+      below their noise floor. `hogtest` still auto-disables at the same point (D-018 unchanged);
+      `Profwnd` shows its `draw` part on every frame. Recorded as [D-055](../decisions/architecture-api.md).
 
 - [ ] **019.8 — `addons/profiler` + docs.**
       The "Brodgar.io Profiler" addon: a window (behind a hotkey, **dormant** by default per the

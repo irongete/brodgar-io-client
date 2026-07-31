@@ -85,9 +85,16 @@ public final class Passes {
     public static void begin(Render out, int p) {
         if(!Prof.on || open[p])
             return;
+        Overhead.hPass++;   // 019.7: one probe bracket, for the modelled pass-tier cost
         GPUProfile.Part par = (depth > 0) ? gpart[stack[depth - 1]] : gparent;
-        if(par != null)
+        if(par != null) {
+            // 019.7: the GL timestamp query is the expensive half of this tier and the one the spec names
+            // (gpuQueryMs), so it is timed DIRECTLY rather than modelled -- six queries a frame is few enough
+            // that a nanoTime pair around each is noise, and it makes the number exact instead of calibrated.
+            long q0 = System.nanoTime();
             gpart[p] = par.part(out, NAMES[p]);
+            Overhead.query(System.nanoTime() - q0);
+        }
         open[p] = true;
         childs[p] = 0;
         stack[depth++] = p;
@@ -98,6 +105,7 @@ public final class Passes {
     public static void end(Render out, int p) {
         if(!open[p])
             return;
+        Overhead.hPass++;   // 019.7
         long d = System.nanoTime() - start[p];
         open[p] = false;
         if((depth > 0) && (stack[depth - 1] == p))
@@ -107,7 +115,9 @@ public final class Passes {
             childs[stack[depth - 1]] += d;
         GPUProfile.Part gp = gpart[p];
         if(gp != null) {
+            long q0 = System.nanoTime();   // 019.7: the closing timestamp query, timed like the opening one
             gp.fin(out);
+            Overhead.query(System.nanoTime() - q0);
             gpart[p] = null;
         }
     }

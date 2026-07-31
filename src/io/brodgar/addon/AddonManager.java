@@ -321,17 +321,22 @@ public final class AddonManager {
             // tick and the draw callbacks that follow it, so right here it holds exactly one whole frame.
             // profRoll() moves it into the addon's "last completed frame" figures before it is cleared, which
             // is why p:addons() never shows a half-accumulated frame and its total matches p:frame().addons.
-            boolean prof = Prof.on;
+            // 019.7: `armed` is the MASTER switch, so the ms figures keep rolling across a control frame;
+            // `probed` describes the frame being CLOSED (this tick opens the next one), so the category and
+            // scope split — which a control frame does not measure — holds its last measured value instead
+            // of rolling a row of zeroes in one frame out of every Overhead.PERIOD.
+            boolean armed = Prof.armed(), probed = prevProbed;
+            prevProbed = Prof.on;
             for(int i = 0, n = addons.size(); i < n; i++) {
                 Addon a = addons.get(i);
-                if(prof)
-                    a.profRoll();
+                if(armed)
+                    a.profRoll(probed);
                 a.tickLuaNanos = 0L;
             }
             Addon co = consoleOwner;
             if(co != null) {                 // the REPL is not an addon (no watchdog), but its Lua time is
-                if(prof)                     // real frame cost and it owns the scopes of a :lua snippet
-                    co.profRoll();
+                if(armed)                    // real frame cost and it owns the scopes of a :lua snippet
+                    co.profRoll(probed);
                 co.tickLuaNanos = 0L;
             }
 
@@ -449,9 +454,16 @@ public final class AddonManager {
 
     /** Clear every per-addon profiling figure — registered with {@code Prof}, so arming and {@code p:reset()} hit it. */
     static void resetProfiling() {
+        prevProbed = false;   // 019.7: nothing measured yet, so the next roll has no split to carry over
         for(Addon a : profOwners())
             a.profReset();
     }
+
+    /**
+     * Whether the frame the next {@link #tick} closes was one the category probes were armed for (019.7) —
+     * false on a control frame. Written at the top of every tick, read one tick later, UI thread only.
+     */
+    private static boolean prevProbed = false;
 
     /**
      * Enforce the soft per-tick CPU budget (D-018 layer 2 / spec 12). Each addon accrued its total Lua
@@ -721,6 +733,7 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
             if(io.brodgar.prof.Prof.on) {
                 owner.catNanos[cat] += d;
                 owner.catCalls[cat]++;
+                io.brodgar.prof.Overhead.hAddon++;   // 019.7: one probe hit, for the modelled addon-tier cost
             }
         }
         return LuaValue.NIL;

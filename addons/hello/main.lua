@@ -1652,8 +1652,52 @@ hafen.slash.register("hello", function(args)
     hafen.log(("  p:gl() frame #%d: %d draw calls, %d program binds, %s vertices, %s triangles")
       :format(g.frameno, g.drawCalls, g.programBinds,
               ("%d"):format(g.vertices), ("%d"):format(g.triangles)))
+  elseif sub == "overhead" then
+    -- 019.7: WHAT PROFILING ITSELF COSTS, per tier. 019 promises armed overhead of no more than 5% of frame
+    -- time (target 2%), and that promise is only enforceable if the cost is known AND attributed: a tier
+    -- that misses the budget moves behind its own checkbox, which needs the tier to be identifiable.
+    -- Every figure is a MEAN PER FRAME since the switch was armed (or p:reset()).
+    -- Two numbers, cross-checking each other:
+    --   * modelled  -- probe hits x a per-hit cost calibrated once when the switch armed. Available at once,
+    --                  and errs HIGH (the calibration loops run cold; the real probes run JIT-compiled).
+    --   * measured  -- one frame in 64 runs with every probe DISARMED (a "control frame"); each period gives
+    --                  one delta (median armed WORK time minus the control frame's), and the median of those
+    --                  is the overhead, actually measured. `method` says which of the two totalMs is.
+    -- Work time, not frame time: under vsync the frame total is pinned to the cap and would never move.
+    -- measuredMs <= 0 is the NORMAL outcome here and does not mean profiling made the client faster: it
+    -- means the cost is under measuredSpreadMs, the comparison's own noise floor. The model then has the
+    -- say -- it at least knows how many probes ran -- and the measurement is printed anyway.
+    local p = hafen.client:profiling()
+    local o = p:overhead()
+    if not o.totalMs then
+      hafen.log(":hello overhead -> p:overhead() is empty: profiling is OFF (tick Options > Client > Enable"
+        .. " profiling)")
+      return
+    end
+    hafen.log((":hello overhead -> %.4fms/frame of a %.2fms frame = %.2f%% (budget %.0f%%: %s), method=%s")
+      :format(o.totalMs, o.frameMs or 0, (o.shareOfFrame or 0) * 100, o.budget * 100,
+              (o.withinBudget == false) and "OVER" or "ok", o.method))
+    hafen.log(("  aggregator=%.4fms (timed)  gpuQuery=%.4fms (timed)  probes=%.4fms (modelled)")
+      :format(o.aggregatorMs, o.gpuQueryMs, o.probeMs))
+    if o.measuredMs then
+      hafen.log(("  control frames measure %+.4f +/- %.4f ms/frame (spread %.4f) -> %s")
+        :format(o.measuredMs, o.measuredErrorMs, o.measuredSpreadMs,
+                (o.method == "control") and "resolved, and it has the say"
+                  or "inside its own error bar: too cheap to measure, so the model has the say"))
+    end
+    for _, r in ipairs(o.tiers) do
+      hafen.log(("  %-8s %.4fms  (%.2f%% of frame, modelled %.4fms, %s%s)")
+        :format(r.name, r.ms, (r.share or 0) * 100, r.modelledMs, r.method,
+                r.hits and (", %.0f probe hits/frame"):format(r.hits) or ""))
+    end
+    hafen.log(("  %d armed frames, %d control frames, %d paired periods%s")
+      :format(o.armedFrames, o.controlFrames, o.periods,
+              (o.periodsNeeded > 0)
+                and (" -- %d more period(s) before the measurement counts, ~%.0fs")
+                    :format(o.periodsNeeded, o.periodsNeeded * 64 * (o.frameMs or 16) / 1000)
+                or ""))
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets | passes)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets | passes | overhead)")
       :format(#args, table.concat(args, " | ")))
   end
 end)
