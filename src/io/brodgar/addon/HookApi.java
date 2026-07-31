@@ -524,7 +524,7 @@ final class HookApi {
 
     // ================================================================= global hotkeys (hafen.key, 2e-2)
 
-    private static LuaValue newKeyBind(final Addon owner, LuaValue name, LuaValue defaultKey, LuaValue fn) {
+    static LuaValue newKeyBind(final Addon owner, LuaValue name, LuaValue defaultKey, LuaValue fn) {
         if(!name.isstring() || !fn.isfunction())
             throw new LuaError("hafen.key.bind(name, defaultKey, fn) expects (string, string|nil, function)");
         String nm = name.tojstring();
@@ -568,7 +568,7 @@ final class HookApi {
      * character resolves via {@link KeyMatch#forchar}. {@code "None"}/empty → {@link KeyMatch#nil}. Modifier
      * matching is exact (no mods → the bare key only). Returns {@code null} if it cannot be parsed.
      */
-    private static KeyMatch parseKeyMatch(String desc) {
+    static KeyMatch parseKeyMatch(String desc) {
         if(desc == null)
             return null;
         String s = desc.trim();
@@ -603,6 +603,18 @@ final class HookApi {
         h.alive = false;
         keyBinds.remove(h);
         owner.keybinds.remove(h);
+    }
+
+    /**
+     * Drop every hotkey {@code owner} registered under {@code name} (the body of
+     * {@code keybindings:unregister(name)}). Silent when the addon has no such hotkey — unregistering twice, or
+     * naming a client binding the addon does not own, is a no-op rather than an error.
+     */
+    static void removeKeyBindsNamed(Addon owner, String name) {
+        for(LuaKeyBind h : owner.keybinds) {          // copy-on-write: safe to remove while iterating
+            if(h.name.equals(name))
+                removeKeyBind(owner, h);
+        }
     }
 
     /**

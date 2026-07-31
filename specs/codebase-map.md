@@ -15,7 +15,7 @@
 | [widgets.md](codebase/widgets.md) | `Widget`/`UI` tree, `@RName` registry, server→create/place seams, `GameUI.addchild`, `GOut`, introspection + hit-testing, drops and modifier flags |
 | [network.md](codebase/network.md) | `Session`/`Connection`, `uimsg` in / `wdgmsg` out, and the full action channel (map clicks, menu acts, item verbs, flower petals) |
 | [state.md](codebase/state.md) | Where game state lives: `Glob`, `OCache`/`Gob`, `MCache`, player, inventory/`GItem`/`ItemInfo`, `CharWnd` attrs, party, time/astronomy |
-| [services.md](codebase/services.md) | Console, keybindings, `Resource` (+ code adoption), prefs, audio, chat, combat, buffs, kin, vitals, FEP/hunger, study, skills, crafting |
+| [services.md](codebase/services.md) | Console, keybindings, `Resource` (+ code adoption), prefs + Options/`GSettings`, audio, chat, combat, buffs, kin, vitals, FEP/hunger, study, skills, crafting |
 | [world-3d.md](codebase/world-3d.md) | `MapView` scene, client-only gobs, placement/snapping, pick pass + click intercept, `TexI`/`Material`/`TexRender`, billboards, world quads, Phong lighting, glTF geometry |
 | [text-and-fonts.md](codebase/text-and-fonts.md) | `Text.Foundry` and every named surface that bakes one, `RichText` `$font`, DPI scaling, custom TTF loading |
 | [addon-engine.md](codebase/addon-engine.md) | *(area `addons`)* `src/io/brodgar/addon/` file layout, the `haven` seams it owns, extension points, and the voice-feature integration template |

@@ -8,7 +8,7 @@
 > new category file is created.
 
 - [filesystem-build](decisions/filesystem-build.md) — addon/savedata dirs, jars via ant, JSON formats, saved-data scopes (D-001, D-002, D-003, D-014, D-015, D-016, D-023)
-- [architecture-api](decisions/architecture-api.md) — engine layout, invasiveness (D-011), one canonical way, hafen.* namespacing, refs/handles (D-008, D-011, D-012, D-013, D-020, D-022)
+- [architecture-api](decisions/architecture-api.md) — engine layout, invasiveness (D-011), one canonical way, hafen.* namespacing, refs/handles, addon hotkeys unbound by default (D-047) (D-008, D-011, D-012, D-013, D-020, D-022, D-047)
 - [lifecycle](decisions/lifecycle.md) — in-game management, Reload UI, WoW enable/disable, load order (D-004, D-005, D-006, D-019)
 - [security-sandbox](decisions/security-sandbox.md) — strict sandbox, two-layer watchdog (D-017, D-018)
 - [widgets-ui](decisions/widgets-ui.md) — wrap-not-reimplement, hook priority, replacement descriptor, drops/g:resource/mods, WidgetNode + hit-testing (D-009, D-021, D-024, D-038, D-039, D-040, D-041, D-042)

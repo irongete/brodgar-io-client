@@ -181,3 +181,24 @@
   revert/disable don't steal, and `KeyBinding.get` (load) bypasses `set` so there's no load-time cascade.
   Headless-testable with an isolated `-Dhaven.prefspec` node (no UI needed — `KeyBinding.set`/`get`/`key` are
   pure prefs + `KeyMatch`). 9/9.
+
+- **`KeyBinding` keeps two keys, and only one of them is the user's.** `defkey` is the fallback supplied at
+  `KeyBinding.get(id, defkey)` (mandatory — a null `defkey` throws NPE, [KeyBinding.java:94](src/haven/KeyBinding.java:94));
+  `key` is the user's remap, persisted under `keybind/<id>`. `key()` returns `key != null ? key : defkey`. So an
+  addon cannot fake a default by calling `set()` at load: that writes the **user** slot and would clobber a real
+  remap on every login. This asymmetry is why addon hotkeys register unbound ([D-047](../decisions/architecture-api.md)).
+- **A default key cannot steal, but it can lose silently.** The exclusivity pass lives in `KeyBinding.set`, so
+  creating a binding with a default never unbinds anyone. The flip side: if the default collides with a client
+  binding, `AddonRoot` is an **early child of `ui.root` and therefore walked LAST** by the `GlobKeyEvent` tree
+  walk, so the client's binding matches and consumes first and the addon's handler simply never runs — no error,
+  no warning. Between two addons, `HookApi.dispatchKey` iterates in registration order and the first match
+  consumes, so the second addon is equally invisible. Prefer unbound + explicit assignment over a silent no-op.
+- **`sameKey` compares *effective* keys, defaults included.** `KeyBinding.set`'s unbind pass tests against
+  `other.key()`, which falls back to `defkey` — so assigning a key that merely equals another binding's *default*
+  still clears that other binding. Any future plan that turns hardcoded keys into `KeyBinding`s (e.g. the belt's
+  1–0) must reckon with this against `Fightsess.kb_acts`, whose defaults are 1–5 / Shift+1–5.
+- **The keybind panel is a hand-written list, not a registry walk.** `OptWnd.BindingPanel` enumerates
+  `KeyBinding` statics line by line ([OptWnd.java:641](src/haven/OptWnd.java:641)); the only dynamic part is the
+  addon section fed by `AddonManager.describeKeyBinds`. A binding that exists in the registry but has no
+  `addbtn` line is simply invisible — and a key handled by raw `ev.code` in a `globtype` override is not in the
+  registry at all, so `KeyBinding.all()` will not see it either.

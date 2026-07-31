@@ -114,6 +114,15 @@ public class KeyBinding {
 	}
     }
 
+    // addon: a snapshot of the whole registry, for hafen.client:options():keybindings():list(). The map is
+    // private and lazily populated (a binding exists only once its owning class has been loaded), so a copy
+    // taken under the monitor is the only safe way to enumerate what is currently bound.
+    public static Collection<KeyBinding> all() {
+	synchronized(bindings) {
+	    return(new ArrayList<>(bindings.values()));
+	}
+    }
+
     public static interface Bindable {
 	public KeyBinding getbinding(Coord cc);
 

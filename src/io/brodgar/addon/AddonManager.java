@@ -907,6 +907,12 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // + hafen.slash (WoW-style :name console commands) — the interception + input tables.
         HookApi.install(hafen, owner);
 
+        // hafen.client — the client's own settings (spec 018). hafen.client:options() hands back the five
+        // Options-window subsystems (interface/video/audio/camera/keybindings) over the SAME stores the GUI
+        // edits (Utils.pref*, GSettings via ui.setgprefs, the audio roots, the KeyBinding registry), so a
+        // write from Lua and a write from OptWnd are indistinguishable.
+        OptionsHandle.install(hafen, owner);
+
         // hafen.font — per-addon typography (F-series, D-043). load(source[,opts]) -> a PRIVATE FontHandle
         // (a built-in "sans"/"serif"/"mono"/"fraktur", or a .ttf/.otf from THIS addon's folder — sandboxed,
         // D-017; :derive/:family/:size). Apply it to a GLOBAL client surface with setFont(scope, h) — an

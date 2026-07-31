@@ -1,13 +1,13 @@
 # Subsystem: cross-cutting client services
 
-> Console, keybindings, resources, prefs, audio, chat, combat, buffs, kin, vitals, FEP, study,
-> skills, crafting. Line numbers are indicative; the **class + field/method name is the stable
-> anchor**. Max 60 lines.
+> Console, keybindings, resources, prefs + the Options window (`GSettings`), audio, chat, combat,
+> buffs, kin, vitals, FEP, study, skills, crafting. Line numbers are indicative; the **class +
+> field/method name is the stable anchor**. Max 60 lines.
 
 | Service | Where |
 |---|---|
 | Console commands (register only; no unregister) | [`Console.setscmd`](src/haven/Console.java:54), `Directory` (:47); input via [`ConsoleHost`](src/haven/ConsoleHost.java) / `GameUI` `:` line |
-| Keybinding registry (remappable, persisted) | [`KeyBinding.get`](src/haven/KeyBinding.java:57), `Bindable` (:81) |
+| Keybinding registry (remappable, persisted) | [`KeyBinding.get`](src/haven/KeyBinding.java:93) (id → binding, process-global), `set` (:45), `key()` (:89), `all()` (fork addition), `Bindable` (:117); stored as `keybind/<id>` |
 | Resource system (classpath / local dir / server) | [`Resource`](src/haven/Resource.java): `local()` (:845), `remote()` (:866), `FileSource`/`JarSource` (~:318/:368); local dir via `haven.resdir`/`HAFEN_RESDIR` (:44) |
 | Resource-code adoption | `java -cp bin/hafen.jar haven.Resource get-code <res>` + [`@FromResource`](src/haven/FromResource.java) (name+version must match — [`ResClassLoader.loadClass`](src/haven/Resource.java:1552)); `haven.Resource find-updates src` checks the pins |
 | Jar-relative path resolution | [`Utils.srcpath`](src/haven/Utils.java:122) |
@@ -23,3 +23,32 @@
 | Study / curiosity | [`CharWnd.sattr`](src/haven/CharWnd.java:54) ([`SAttrWnd`](src/haven/SAttrWnd.java)) → `children(StudyInfo.class)` → [`StudyInfo.study`](src/haven/SAttrWnd.java:141) (`children(GItem.class)`) + totals `texp`/`tw`/`tenc`; per item [`resutil.Curiosity`](src/haven/resutil/Curiosity.java:36) `exp`/`mw`/`enc`/`time` (public). `time` = **total** (no countdown) |
 | Skills | [`CharWnd.skill`](src/haven/CharWnd.java:55) ([`SkillWnd`](src/haven/SkillWnd.java)) → `skg.csk`/`nsk` ([`GridList.Group.items`](src/haven/GridList.java:44), swapped off-thread) → [`Skill.nm`/`res`](src/haven/SkillWnd.java:60); credos `credos.ccr`/`ncr`/`pcr`, experiences `exps.seen.items` (deferred) |
 | Crafting | [`Makewindow`](src/haven/Makewindow.java:37) (`@RName("make")`), wrapped in private [`GameUI.makewnd`](src/haven/GameUI.java:52) at [`place="craft"`](src/haven/GameUI.java:977) → locate via `children(Makewindow.class)`. Public: `rcpnm`, `inputs`([`Input`](src/haven/Makewindow.java:331))/`outputs`([`SpecWidget`](src/haven/Makewindow.java:260)) → [`Spec`](src/haven/Makewindow.java:59) (`item`/`constraint` [`ResData.res`](src/haven/ResData.java:32), `num`, `opt()`), `qmod`/`tools` (`List<Indir<Resource>>`). `inputs`/`outputs`/`qmod` swapped wholesale off-thread (`inpop`/`opop`/`qmod` uimsg); `tools` **in-place** `add` (`tool` uimsg) → copy under `synchronized(ui)`. Make: `wdgmsg("make",0\|1)` |
+
+## Options / Preferences (what OptWnd actually writes)
+
+**Two disjoint stores.** Most settings are plain prefs — [`Utils.getpref*`/`setpref*`](src/haven/Utils.java:408)
+(`java.util.prefs`, string-keyed, written immediately). Graphics settings are **not**: they live in
+[`GSettings`](src/haven/GSettings.java:34), a render `State` value object.
+
+| Setting group | Backing |
+|---|---|
+| Panels (read these for the authoritative write) | [`VideoPanel`](src/haven/OptWnd.java:98), [`AudioPanel`](src/haven/OptWnd.java:392), [`InterfacePanel`](src/haven/OptWnd.java:547), [`BindingPanel`](src/haven/OptWnd.java:634), [`CameraPanel`](src/haven/OptWnd.java:845) (fork) |
+| Video | `GSettings` **named fields**, not constants: `lshadow` (:167), `vsync` (:173), `hz`/`bghz` (:193/:196), `rscale` (:199), `lightmode` (:221), `maxlights` (:224) |
+| UI scale | pref `uiscale` (restart to take effect) |
+| Placement granularity | [`MapView.plobpgran`](src/haven/MapView.java:57) / `plobagran` (:58) statics + like-named prefs |
+| Camera inversion | [`MapView.invcamx`](src/haven/MapView.java:59) / `invcamy` (:60) statics + like-named prefs; consumed by `Camera.invdx`/`invdy` (:98) |
+| Audio master / buffer | [`Audio.Root.volume()`](src/haven/Audio.java:614) (persists `sfxvol`), `bufsize()` (:623, **in samples** @44100 Hz, persists `audiobuf`) |
+| Audio channels | [`ActAudio.Root`](src/haven/ActAudio.java:170) `.aui`/`.pos`/`.amb` → [`RootChannel.setvolume`](src/haven/ActAudio.java:131) + public `volume` field |
+
+**Gotchas that cost time.**
+- **`GSettings` is immutable.** `update()` ([:284](src/haven/GSettings.java:284)) returns a **new** `GSettings`;
+  nothing changes until you publish it with [`UI.setgprefs`](src/haven/UI.java:99). Read via `ui.gprefs.<field>.val`.
+  There are no `GSettings.SHADOWS`-style constants — the settings are instance fields with short wire names
+  (`"sdw"`, `"rscale"`, `"lighting"`…).
+- **`lightmode` is `simple` / `zoned`** (the `LightMode` enum), *not* "global".
+- **A pref-only write is a no-op until restart** for anything mirrored in a static. `OptWnd` always writes both
+  in one statement — `Utils.setprefb("invcamx", MapView.invcamx = val)` — and so must any other writer.
+- **`plobagran` is a divisor, not degrees**: the panel displays `180 / plobagran`.
+- **The keybind panel lists bindings by hand** ([`BindingPanel`](src/haven/OptWnd.java:634)) — a registered
+  binding with no `addbtn` line is invisible, and keys handled by raw `ev.code` in a `globtype` override (e.g.
+  the belt's 1–0 in `GameUI.NKeyBelt`) are not in the registry at all.

@@ -60,3 +60,28 @@ pollution, is discoverable, and sandboxes cleanly. Terseness comes from the toke
 Tokens: `"player"`, `"party1".."partyN"` (ordered by `Member.seq`), `"target"` (combat only).
 `"mouseover"` **deferred** (needs hover hit-test tracking — a later phase). Items are addressed
 **by handle only** (no `(container,slot)` alternative), honoring [D-013](architecture-api.md).
+
+### D-047 — Addon hotkeys register UNBOUND; the user owns key assignment ✅ (maintainer, 2026-07-31)
+**Decision.** `hafen.client:options():keybindings():register(name, fn)` takes **no default key**. An addon
+names an *action*; the key is assigned by the user in Options ▸ Keybindings, where the addon's bindings already
+appear in their own per-addon section. Registration passes [`KeyMatch.nil`](src/haven/KeyMatch.java) to
+[`KeyBinding.get`](src/haven/KeyBinding.java:93) — the same "unbound until assigned" state the client's own
+`ol-claim` ships with. A user's assignment persists under `keybind/addon/<addonid>/<name>` and survives
+`:reload`, since `KeyBinding.get` returns the process-global binding and restores the stored key.
+**Rationale.** Three independent reasons converge. (a) It is the **WoW model** this project emulates: addon
+bindings appear in the Key Bindings panel unbound. (b) It is the only rule consistent with the **one-key-one-
+action exclusivity** this fork added to [`KeyBinding.set`](src/haven/KeyBinding.java:45) — an addon shipping a
+default would be asserting a claim the exclusivity rule is designed to arbitrate between *user* choices.
+(c) An addon-chosen default **could not win a collision anyway**: registration goes through `KeyBinding.get`,
+which never runs `set`'s unbind pass, so a default can never steal a key; and because
+[`AddonRoot`](src/io/brodgar/addon/AddonRoot.java:38) is an early child of `ui.root` it is walked **last**, so
+the client's binding matches first and the addon's hotkey would be **silently dead** — the worst failure mode,
+invisible and unexplainable to the user. Unbound-by-default converts that silent dead key into an explicit,
+visible "not assigned yet".
+**Consequences.** `register` is 2-arg, matching the original spec; no addon ships a working hotkey out of the
+box, so `bags`/`hello`/`widgetstack` need a one-time assignment after the 018.2 port and should advertise a
+*suggested* key in their docs rather than claim one. `set(name, key)` remains available but writes the **user
+override**, so an addon must not call it at load to fake a default — that would overwrite the user's own remap
+on every login, which is precisely what `defkey` exists to prevent.
+**See.** [D-013](architecture-api.md) (one canonical way), [018-client-options](../018-client-options/spec.md),
+[hooks-hotkeys.md](../learnings/hooks-hotkeys.md) (dispatch order + registry mechanics).
