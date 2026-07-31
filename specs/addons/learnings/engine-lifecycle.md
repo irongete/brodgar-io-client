@@ -176,3 +176,13 @@
 - **(F4) When adopting, look for the invalidation the original author already wrote.** `Info` had a `dirty()` that
   disposes the composed `Tex`; the whole slice was *calling* it on a `Fonts.gen()` move. Adding a second
   invalidation path would have been strictly worse.
+- **(020.2) An adopted class READ as an attrib needs a name-based fallback, or a version bump goes silently
+  blind.** `gob:kin()` reads the `ui/obj/buddy` `GAttrib` via `getattr(Buddy.class)`. If the server ships v5,
+  the `@FromResource(version=4)` pin stops matching, [`ResClassLoader.loadClass`](src/haven/Resource.java:1556)
+  drops our copy, and the resource's own class — **same FQN, different `Class`** — is installed instead: the
+  `getattr` then answers `null` for *every* gob, and nothing warns at the read site. The fix is cheap: on a
+  miss, scan `Gob.attr`'s values for a class whose `getName()` matches and read the field reflectively, so a
+  bump degrades to *slow*, never to *wrong*. **Rule: adoption used for an EDIT fails loudly (the warn + the
+  edit disappears); adoption used to READ a value fails silently — pay for a fallback, or at least an
+  assertion.** (`Gob.attr` is package-private, so the fallback is `getDeclaredField("attr")` +
+  `setAccessible`; latch it off on `NoSuchFieldException` rather than retrying per gob.)

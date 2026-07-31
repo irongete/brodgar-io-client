@@ -43,12 +43,45 @@ call it on that); the rest are called on a `Kin`.
 | `kin:color()` | [`Color`](types.md#color) \| nil | the group's palette colour — **`nil` for a group ≥ 8** (the client has 8 colours; the group is the identity, the colour is presentation) |
 | `kin:online()` | boolean \| nil | is the kin online right now |
 | `kin:exists()` | boolean | is this id still on your roster |
+| `kin:gob()` | [`Gob`](gob.md) \| nil | the kin's gob in the world (their body if it is loaded), or `nil` — see below |
 | `kin:info()` | [`KinEntry`](types.md#kinentry) \| nil | a plain-table **snapshot** — the escape hatch for logging/serialising |
 
 Every reader answers `nil` once the kin is off the roster (`:id()` and `:exists()` excepted).
 
 Subscribe to [`KinChanged`](events.md#roster-quests-markers) to react to a kin being added, removed,
 renamed, regrouped, or flipping online/offline.
+
+### Kin ↔ Gob
+
+A kin standing in front of you is both a roster entry and a [game object](gob.md), and you can go either
+way between them:
+
+```lua
+local k = hafen.kin("Bob")
+local g = k and k:gob()
+if g then
+  hafen.log(string.format("Bob is %.1f away", g:distance()))
+  hafen.log(tostring(g:kin() == k))                      -- true: the same interned Kin
+end
+```
+
+The link is **server-side** — the game marks a kinned player's gob with their buddy id — so neither
+direction guesses from a name. `gob:kin()` is a single attribute read; `kin:gob()` scans the loaded
+objects, which is fine on demand but not something to run for every kin on every frame.
+
+> **`nil` is ambiguous, both ways.** `kin:gob()` is `nil` for a kin who is offline, out of view, or
+> whose gob has not streamed in yet — you cannot tell which. `gob:kin()` is `nil` for a gob that is not
+> one of your kin *and* for one that is not a player at all.
+
+> **A kin marks more than one gob.** Their **hearth fire** carries the mark too — that is how it shows
+> their name in their kin colour — so `gob:kin()` answers on it as well, and an *offline* kin whose
+> hearth fire is in view still has a `kin:gob()`. `kin:gob()` prefers their **body** whenever it is
+> loaded, so it answers "where is this kin" rather than whichever gob the object cache listed first.
+> To get *every* gob marked as theirs, filter the world by the inverse:
+
+```lua
+local mine = hafen.world.gobs(function(g) return g:kin() == k end)
+```
 
 ## Write *(gated — requires the `actions` permission)*
 

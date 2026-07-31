@@ -2,9 +2,8 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**Active:** `020-kin-oop` — the kin roster to OOP (ROADMAP's "Finish the OOP migration"). **020.1 DONE**
-(namespace hard cut); next 020.2 (Kin ↔ Gob both ways), 020.3 (`KinChanged` payload + close-out).
-(`019-profiling` **DONE**, 019.1–019.8.)
+**Active:** `020-kin-oop` — the kin roster to OOP (ROADMAP's "Finish the OOP migration"). **020.1–020.2 DONE**
+(hard cut; Kin ↔ Gob both ways); next 020.3 (`KinChanged` payload). (`019-profiling` **DONE**, 019.1–019.8.)
 
 ## Engine & runtime
 - **Engine**: LuaJ embedded (`src/io/brodgar/addon/`); per-addon sandboxed envs (D-017), instruction watchdog +
@@ -21,12 +20,13 @@
   tokens are GONE. `world.*` hands out Gobs. **Kin (OOP, D-056, 020.1)**: `hafen.kin` is CALLABLE-ONLY —
   `hafen.kin()` = the roster of interned Kin (+`:find/:list/:add`), `hafen.kin(idOrName)` = one Kin (`:id/:name/
   :group/:color/:online/:exists/:info`; gated `:rename/:setGroup(0..254)/:endkin/:forget` chain on self); the flat
-  `kin.*` table is GONE. Every other namespace stays flat. **Map** `map.*`: tile/height/grid/gridPos + conversions,
+  `kin.*` table is GONE. **Kin ↔ Gob (020.2)**: `gob:kin()` = the `ui/obj/buddy` attrib (+ name-based fallback on a
+  pin bump), `kin:gob()` = an `OCache` sweep **preferring the body** (hearth fires are marked too — `world.gobs` +
+  `g:kin()` is the many-case). Flat elsewhere. **Map** `map.*`: tile/height/grid/gridPos + conversions,
   grid ids = exact decimal strings. **Player/char**: `hafen.player()` → Player object (`:gob()/:name()/:vitals()/
   :worldToScreen()`, D-046); `char.*` (attrs/food/skills/lp/weight), `time/party/buffs/study.*`, `actionbar.slot`,
   `items.*`. **Gap subsystems** (A1–A11) `markers/radar/kin/speed/craft/quests/wounds/fight` — widget-tree
-  adapters. Windows/widgets (`ui.window`/`widget`) +
-  `LuaGOut` draw wrapper; overlays `ui.overlay`/`ui.gobOverlay`.
+  adapters. Windows/widgets (`ui.window`/`widget`) + `LuaGOut` draw wrapper; overlays `ui.overlay`/`ui.gobOverlay`.
 - **Client options** `hafen.client:options()` → `interface/video/audio/camera/client/keybindings`, one per OptWnd
   panel, over the stores OptWnd writes; arity is the verb (`opt:name()` reads, `opt:name(v)` writes + chains).
   `keybindings` = `register(name, fn)` (UNBOUND, D-047) + `get/set/list/unregister`, keybind-panel integrated;

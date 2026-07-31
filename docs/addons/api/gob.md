@@ -46,6 +46,7 @@ appearing/leaving use the `GobAdded`/`GobRemoved` [events](events.md#world) (who
 | `gob:icon()` | string \| nil | minimap icon/category name |
 | `gob:overlays()` | string[] \| nil | active overlay resource names |
 | `gob:isplayer()` | bool \| nil | whether it is a player body |
+| `gob:kin()` | [`Kin`](kin.md) \| nil | the kin standing here, if this gob is one of your kin |
 | `gob:distance([other])` | number \| nil | world distance to `other` (a Gob); defaults to the player |
 | `gob:info()` | [`GobInfo`](types.md#gobinfo) \| nil | everything above as one plain snapshot table |
 
@@ -65,6 +66,23 @@ if tree then
   hafen.log(string.format("%s is %.1f away", tree:name(), tree:distance()))
 end
 ```
+
+## Kin
+
+`gob:kin()` answers the [`Kin`](kin.md) this gob belongs to, and `kin:gob()` goes back the other way:
+
+```lua
+local g = hafen.world.nearest(function(g) return g:isplayer() end)
+local k = g and g:kin()
+hafen.log(k and ("that is " .. k:name()) or "nobody you know")
+```
+
+The link is **server-side**: the game marks a kinned player's gob for you, so `gob:kin()` is a single
+attribute read and never guesses from a name. `nil` means "no kin here", and it is **ambiguous** — the
+player may not be on your roster, or the gob may simply not be a player. Note that a kin's **hearth
+fire** is marked as theirs too, so `gob:kin()` answers on that as well. Going the other way,
+`kin:gob()` scans the loaded objects and prefers the kin's body — see
+[Kin ↔ Gob](kin.md#kin--gob).
 
 ## Identity
 

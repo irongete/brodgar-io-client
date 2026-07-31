@@ -95,6 +95,16 @@
   the encoding; exposing `online == 1` as a **bool** answers the 95% question ("is this kin online") cleanly. When
   a low-value distinction (the `-1` state, `Buddy.seen`/`notes`) would complicate the common path, expose the
   ergonomic form and **document the deferred nuance** rather than leaking the internal encoding.
+- **(020.2) A kin marks MORE THAN ONE gob — their hearth fire carries the buddy attrib too.** The Kin↔Gob link
+  is server-side: the `ui/obj/buddy` `GAttrib` (`Buddy.id`) is stamped on the gobs that belong to a kin, and
+  that is **not just their body** — a kin's hearth fire (`gfx/terobjs/pow`) has it, which is how it draws their
+  name in their kin colour. Found in testing: with no kin online, `kin:gob()` still answered — with a hearth
+  fire. So a naive "first gob carrying this id" sweep lets the **`OCache` iteration order** pick the answer
+  once body and hearth fire are both in view. `kin:gob()` therefore prefers `isplayer()` and falls back to any
+  marked gob; the many-case is the inverse relation
+  (`hafen.world.gobs(function(g) return g:kin() == k end)` — 2 near an online kin). **General rule: before
+  shipping an X→Y lookup as singular, check the cardinality on the LIVE data — if the engine's mapping is
+  1→N, either define which one wins or expose the list; do not let cache order decide.**
 - **A8 — widget lists: check swap-vs-mutate before copying, and "copy under `ui`, snapshot outside".** When a
   read walks a widget's `List` fields, don't assume they're all the same to copy. In `Makewindow`, `inputs`/
   `outputs`/`qmod` are **reassigned wholesale** by their uimsgs (`this.inputs = wdgs`) — grabbing the reference

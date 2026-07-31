@@ -1,6 +1,9 @@
 package io.brodgar.addon;
 
 import haven.BuddyWnd;
+import haven.GAttrib;
+import haven.Gob;
+import haven.res.ui.obj.buddy.Buddy;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -13,6 +16,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -212,6 +216,35 @@ public final class LuaKin {
                 return (b == null) ? LuaValue.NIL : LuaValue.valueOf(b.online == 1);
             }
         });
+        // gob() — the sweeping half of the Kin <-> Gob link (020.2). The buddy id lives ON the gob (the
+        // server's `ui/obj/buddy` attrib), not the other way round, so there is nothing to look up: we scan
+        // the object cache for the gob carrying THIS id. nil is AMBIGUOUS on purpose — offline, out of view,
+        // or simply not streamed in yet; see the docs. No index is kept (spec's Out of scope): the attrib is
+        // set and cleared by the server outside GobAdded/GobRemoved, so a lifecycle-driven cache would go
+        // silently wrong, and being merely slow beats being wrong.
+        //
+        // MORE THAN ONE gob can carry the mark: a kin's HEARTH FIRE has it too (that is how it draws their
+        // name in their kin colour), so with both in view the raw sweep order would decide the answer. We
+        // therefore PREFER THE PLAYER BODY — "where is this kin" is the question :gob() answers — and only
+        // fall back to another marked gob (typically the hearth fire of a kin who is offline) when no body
+        // is loaded. For ALL of them, filter the world by the inverse instead:
+        //   hafen.world.gobs(function(g) return g:kin() == k end)
+        m.set("gob", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                int id = handle(self, "gob").id;
+                Gob other = null;
+                for(Gob g : AddonManager.allGobs()) {   // copied under the OCache lock
+                    Integer bid = buddyId(g);
+                    if((bid == null) || (bid.intValue() != id))
+                        continue;
+                    if(AddonManager.gobIsPlayer(g))
+                        return LuaGob.of(owner, g.id);
+                    if(other == null)
+                        other = g;
+                }
+                return (other == null) ? LuaValue.NIL : LuaGob.of(owner, other.id);
+            }
+        });
         // -- gated writes (D-027/D-028): drive the client's own Buddy methods (D-009), return self ------
         m.set("rename", new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue name) {
@@ -286,6 +319,74 @@ public final class LuaKin {
         if(b == null)
             throw new LuaError("kin:" + method + "(): no such kin — id " + id + " is not on your roster");
         return b;
+    }
+
+    // ---- the Kin <-> Gob link ---------------------------------------------------------------------
+
+    /**
+     * The buddy id the server has marked {@code g} with, or {@code null} when the gob carries no
+     * {@code ui/obj/buddy} attrib — <b>the</b> primitive behind both {@code gob:kin()} and {@code kin:gob()}.
+     * Server-authoritative: the client never infers kinship from a gob, it is told.
+     *
+     * <p><b>Why the fallback.</b> The fast path is one {@code getattr} against our adopted local copy of the
+     * resource's class ({@link Buddy}, pinned {@code @FromResource(name="ui/obj/buddy", version=4)}). If the
+     * server ever ships v5 the pin stops matching, the local class is no longer installed
+     * ({@code Resource.java:1556} drops it) and the <i>resource's own</i> class is loaded instead — a
+     * different {@link Class} with the same name, so {@code getattr(Buddy.class)} would answer {@code null}
+     * for every gob and {@code gob:kin()} would go <b>silently blind</b>. So a miss falls back to scanning
+     * the gob's attribs BY CLASS NAME and reading {@code id} reflectively: a version bump degrades this to
+     * slow, never to wrong.
+     */
+    static Integer buddyId(Gob g) {
+        if(g == null)
+            return null;
+        Buddy b = g.getattr(Buddy.class);
+        if(b != null)
+            return Integer.valueOf(b.id);
+        return byname(g);
+    }
+
+    /** The fully-qualified name every {@code ui/obj/buddy} class has, whichever loader produced it. */
+    private static final String BUDDYCL = "haven.res.ui.obj.buddy.Buddy";
+    /** {@code Gob.attr} (package-private) and the {@code id} field of each foreign Buddy class seen. */
+    private static Field attrf;
+    private static boolean reflectok = true;
+    private static final Map<Class<?>, Field> idfs = new HashMap<Class<?>, Field>();
+
+    /** {@link #buddyId}'s fallback: find the attrib whose class is <i>named</i> Buddy and read its id. */
+    private static synchronized Integer byname(Gob g) {
+        if(!reflectok)
+            return null;
+        try {
+            if(attrf == null) {
+                attrf = Gob.class.getDeclaredField("attr");
+                attrf.setAccessible(true);
+            }
+            @SuppressWarnings("unchecked")
+            Map<Class<? extends GAttrib>, GAttrib> attr = (Map<Class<? extends GAttrib>, GAttrib>)attrf.get(g);
+            if(attr == null)
+                return null;
+            for(GAttrib a : attr.values()) {
+                if((a == null) || !a.getClass().getName().equals(BUDDYCL))
+                    continue;
+                Field idf = idfs.get(a.getClass());
+                if(idf == null) {
+                    idf = a.getClass().getDeclaredField("id");
+                    idf.setAccessible(true);
+                    idfs.put(a.getClass(), idf);
+                }
+                return Integer.valueOf(idf.getInt(a));
+            }
+            return null;
+        } catch(NoSuchFieldException e) {        // the engine moved: stop paying for the attempt
+            reflectok = false;
+            return null;
+        } catch(RuntimeException e) {            // ConcurrentModification, access denied, …
+            return null;
+        } catch(IllegalAccessException e) {
+            reflectok = false;
+            return null;
+        }
     }
 
     // ---- the roster ------------------------------------------------------------------------------

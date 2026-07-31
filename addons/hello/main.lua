@@ -23,7 +23,8 @@
 -- here, since changing speed is the gated Phase-4 action tier. Built on gap subsystem A6: KIN / BUDDY ROSTER —
 -- hafen.kin reads the Kin window and is CALLABLE-ONLY (020-kin-oop): hafen.kin() is the roster (an array of
 -- interned Kin objects, plus :find/:list/:add), hafen.kin(idOrName) is one Kin (:id/:name/:group/:color/
--- :online/:exists/:info); it fires KinChanged when a kin is added/removed or flips online/offline. Built on gap subsystem A2: RADAR / MINIMAP ICONS — hafen.radar reads the character's gob-icon
+-- :online/:exists/:gob/:info, with gob:kin() as :gob()'s inverse); it fires KinChanged when a kin is
+-- added/removed or flips online/offline. Built on gap subsystem A2: RADAR / MINIMAP ICONS — hafen.radar reads the character's gob-icon
 -- registry (categories() -> {name,res,show,notify} per category) and can flip a category's show (draw it on
 -- the minimap) or notify (sound + msg when one appears) flag over every match of a filter
 -- (setVisible/setNotify(filter,on); filter = nil=all / name substring / predicate). It IS the same registry
@@ -336,7 +337,8 @@ end
 -- the ROSTER (a plain array of Kin objects in Kin-window sort order -- #roster / roster[1] / ipairs -- plus
 -- :find(nameOrId), :list([filter]) and the gated :add(secret)), while hafen.kin(idOrName) is ONE Kin object
 -- (a number = by id and always an object, a string = an exact case-insensitive name or nil). A Kin reads with
--- :id/:name/:group/:color/:online/:exists and :info() (the old flat KinEntry snapshot, the escape hatch).
+-- :id/:name/:group/:color/:online/:exists, :gob() (the kin's game object, or nil when not in view) and
+-- :info() (the old flat KinEntry snapshot, the escape hatch). gob:kin() is :gob()'s inverse.
 -- The old FLAT table (list/find/add/remove/forget/rename/setGroup as fields) is GONE (hard cut, D-013):
 -- indexing the namespace now reads as plain nil.
 -- Kin objects are INTERNED per addon, so hafen.kin(id) == hafen.kin(id) and roster[n] is literally the same
@@ -360,6 +362,24 @@ local function readKin(tag)
       tostring(hafen.kin(first:id()) == first), tostring(found == first),
       tostring(hafen.kin("NoSuchName")), tostring((first:info() or {}).name)))
   end
+  -- KIN <-> GOB, both ways (020.2). The link is SERVER-side: the game marks a kinned player's gob with
+  -- their buddy id, so gob:kin() is one attribute read and kin:gob() is the reverse lookup (a sweep of
+  -- the loaded objects). Both are nil when there is nothing to link -- kin:gob() for a kin who is
+  -- offline / out of view / not streamed in, gob:kin() for anyone not on your roster (or not a player
+  -- at all) -- and that nil is ambiguous by design. A kin marks MORE than their body: their hearth fire
+  -- carries the mark too (that is how it draws their name in their kin colour), so an OFFLINE kin whose
+  -- hearth fire is in view still resolves -- to 'gfx/terobjs/pow', not a body. :gob() prefers the body
+  -- when it is loaded; for every gob marked as theirs, filter the world by the inverse
+  -- (hafen.world.gobs(function(g) return g:kin() == k end)). The round-trip below proves both
+  -- directions agree on the SAME interned objects.
+  local other = hafen.world.nearest(function(g) return g:isplayer() end)
+  local okin = other and other:kin()
+  local fgob = first and first:gob()
+  hafen.log(("[%s] kin<->gob: nearest player -> kin=%s%s | roster[1]:gob()=%s%s"):format(tag,
+    okin and tostring(okin:name()) or "nil",
+    okin and (" (interned=%s)"):format(tostring(okin == hafen.kin(okin:id()))) or "",
+    fgob and tostring(fgob:name()) or "nil",
+    fgob and (" (g:kin()==roster[1]: %s)"):format(tostring(fgob:kin() == first)) or ""))
 end
 
 -- A7: MOVEMENT SPEED via hafen.speed. get() returns the CURRENT speed as 0..3 (0=crawl 1=walk 2=run 3=sprint)

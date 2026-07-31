@@ -12,7 +12,7 @@
       regroup in the Kin window, `hafen.kin.list == nil`, walker's gated verbs, `setGroup(255)`
       and `(-1)` error. **Do not test 8..254 in-game** — the client's palette still crashes on it.
 
-- [ ] 020.2 — **Kin ↔ Gob, both directions.** `gob:kin()` = read the `ui/obj/buddy` attrib off the
+- [x] 020.2 — **Kin ↔ Gob, both directions.** `gob:kin()` = read the `ui/obj/buddy` attrib off the
       gob (with the class-name fallback for a `@FromResource` version bump) → interned Kin;
       `kin:gob()` = `OCache` sweep for that buddy id → interned Gob. Both nil when unlinked. Docs:
       `gob.md` + the `kin.md` section; `hello` prints, for the nearest player gob, its kin or nil.

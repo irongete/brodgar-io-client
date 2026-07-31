@@ -88,11 +88,17 @@ public final class LuaGob {
     /**
      * One addon's Gob interning cache and metatable (its {@link Addon#gobs}). Weak values + a
      * {@link ReferenceQueue} drained on every access; the metatable and methods table are built once, lazily.
+     * Holds its {@link Addon} because {@code gob:kin()} has to mint the <b>owner's</b> interned Kin (020.2).
      */
     static final class Cache {
+        private final Addon owner;
         private final Map<Long, Ref> live = new HashMap<Long, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
+
+        Cache(Addon owner) {
+            this.owner = owner;
+        }
 
         /** The interned handle for {@code id} — a cache hit, or a freshly minted (and inserted) one. */
         synchronized LuaValue of(long id) {
@@ -122,7 +128,7 @@ public final class LuaGob {
 
         private LuaValue meta() {
             if(mt == null)
-                mt = buildMeta();
+                mt = buildMeta(owner);
             return mt;
         }
     }
@@ -140,9 +146,9 @@ public final class LuaGob {
     // ---- the metatable ---------------------------------------------------------------------------
 
     /** The per-addon metatable: {@code __index} = the methods table, plus {@code __tostring}/{@code __name}. */
-    private static LuaValue buildMeta() {
+    private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods());
+        mt.set(LuaValue.INDEX, methods(owner));
         mt.set("__name", LuaValue.valueOf("Gob"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -158,7 +164,7 @@ public final class LuaGob {
      * handle tracks a moving gob and goes quiet when it despawns (D-012's freshness, kept). {@code :id()} is the
      * exception: it answers from the handle alone, so it still works inside a {@code GobRemoved} handler.
      */
-    private static LuaTable methods() {
+    private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         m.set("id", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -267,6 +273,16 @@ public final class LuaGob {
                 Gob g = gob(self, "isplayer");
                 // nil only when the gob is GONE; a gob whose name hasn't resolved yet is simply not a player.
                 return (g == null) ? LuaValue.NIL : LuaValue.valueOf(AddonManager.gobIsPlayer(g));
+            }
+        });
+        // kin() — the O(1) half of the Kin <-> Gob link (020.2): the SERVER marks a kinned player's gob with
+        // the `ui/obj/buddy` attrib, which carries the buddy id, so this is a single attribute read. nil is
+        // AMBIGUOUS on purpose: not on your roster / the gob is gone / it is not a player at all.
+        m.set("kin", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Gob g = gob(self, "kin");
+                Integer bid = LuaKin.buddyId(g);
+                return (bid == null) ? LuaValue.NIL : LuaKin.of(owner, bid.intValue());
             }
         });
         // distance([other]) — world distance to another Gob; `other` defaults to the player.

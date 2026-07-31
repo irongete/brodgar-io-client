@@ -9,6 +9,8 @@
 | Object cache (gobs) | [`OCache`](src/haven/OCache.java:35): iterate (:164), `getgob` (:199), `callback`/`uncallback` (:75/:79) |
 | Game object | [`Gob`](src/haven/Gob.java:33): `id` (:38), `rc` (:34), `a` (:35), `getattr` (:611), `getc` (:584) |
 | Gob attributes | [`GAttrib`](src/haven/GAttrib.java): `Drawable.getres()`, [`Moving`](src/haven/Moving.java), [`GobHealth.hp`](src/haven/GobHealth.java:35), [`GobIcon`](src/haven/GobIcon.java), [`Speaking`](src/haven/Speaking.java) |
+| Gob attrib map | [`Gob.attr`](src/haven/Gob.java:41) is **package-private** (reflection from outside `haven`); keyed by [`attrclass`](src/haven/Gob.java:602) = the subclass directly under `GAttrib`, so `getattr(C)` only matches that exact key — a same-named class from another loader misses (see `learnings/engine-lifecycle.md`, 020.2) |
+| Kin mark on a gob | [`res/ui/obj/buddy/Buddy`](src/haven/res/ui/obj/buddy/Buddy.java:16) (`@FromResource` v4): public `id` = the [`BuddyWnd.Buddy`](src/haven/BuddyWnd.java:87) id. Server-stamped on **every** gob of that kin — body **and** hearth fire (`gfx/terobjs/pow`) |
 | Map / terrain | [`MCache`](src/haven/MCache.java:36): `gettile` (:929), `tilesetr` (:1107), `getcz` (:948), `getgrid` (:909); `tilesz`/`cmaps` (:37/:39) |
 | Player id / gob / camera | [`MapView.plgob`](src/haven/MapView.java:45), `player()` (:1133), `getcc()` (:1137), `camera` (:51) |
 | Inventory / items | [`GameUI.maininv`](src/haven/GameUI.java:54), [`Inventory.wmap`](src/haven/Inventory.java:38), [`GItem`](src/haven/GItem.java) (`res`, `num` :39, `meter` :39, `info()` :199) |

@@ -222,7 +222,7 @@ public final class Addon {
      * Unlike the owned-resource lists there is nothing to tear down: the entries are weak and the handles hold
      * no engine object (see {@link LuaGob}).
      */
-    final LuaGob.Cache gobs = new LuaGob.Cache();
+    final LuaGob.Cache gobs = new LuaGob.Cache(this);
 
     /**
      * This addon's <b>Kin interning cache</b> ({@code hafen.kin(idOrName)}, spec {@code 020-kin-oop}): the
