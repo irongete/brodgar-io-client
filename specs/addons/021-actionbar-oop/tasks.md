@@ -23,7 +23,13 @@ verify the hard cut (flat API is gone).
 
 **In-game verification:** in-game `:lua` REPL — index access, interning, empty slots read as true
 
-## 021.2 — AddonManager + ActionbarChanged event
+## 021.2 — AddonManager + ActionbarChanged event — [x] DONE (2026-08-01)
+> Shipped as specified. `fireSlot(int)` mirrors `fireKin` exactly — `hasSub` gate first, then one
+> interned `LuaSlot.of(owner, n)` per subscribing owner. The payload is the Slot **alone** (no index
+> beside it): `slot:index()` already carries the raw game index (D-057). `addons/hello`'s handler was
+> moved over in this task rather than 021.3, since the old one would break on the new payload; the
+> `events.md` row + prose were corrected here too, the rest of the docs stay for 021.3.
+
 **Goal:** Wire the event firing to pass Slot objects instead of raw indices, gated by `hasSub`.
 
 **Scope:**

@@ -338,9 +338,13 @@ final class CharApi {
      * common (resource/pagina) cases the slot array is mutated on a <b>deferred loader task</b> that runs
      * after the message is dispatched — so a synchronous refresh-on-uimsg would race the write. Hence this
      * is <b>poll-driven</b> (like buffs/study): each tick it diffs the occupied slots against a per-index
-     * cache and fires {@code ActionbarChanged{n}} on a set/clear/change (or a slot's data resolving).
+     * cache and fires {@code ActionbarChanged} on a set/clear/change (or a slot's data resolving).
      * Change-detection ignores {@code cooldown} (a live meter that would otherwise fire every frame while
      * an ability cools down); {@code hafen.actionbar(n)} still reads it live.
+     *
+     * <p>The snapshots are the diff's <i>input only</i>: what reaches Lua is a per-addon <b>Slot object</b> for
+     * the changed slot ({@link AddonManager#fireSlot}, 021.2), so a handler reads the payload with the same
+     * methods as {@code hafen.actionbar(n)} and can key a table by it.
      */
     private static final class ActionbarAdapter implements TreeAdapter {
         // slot index -> last snapshot, occupied slots only. UI-thread-only; reset per session by
@@ -364,13 +368,13 @@ final class CharApi {
                 if(s == null) {
                     if(prev != null) {                        // occupied -> empty (cleared)
                         cache.remove(n);
-                        fire("ActionbarChanged", LuaValue.valueOf(n));
+                        fireSlot(n);
                     }
                 } else {
                     LuaValue snap = actionbarSnapshot(s);
                     if((prev == null) || !actionbarEqual(snap, prev)) {   // empty->occupied or content changed
                         cache.put(n, snap);
-                        fire("ActionbarChanged", LuaValue.valueOf(n));
+                        fireSlot(n);
                     }
                 }
             }

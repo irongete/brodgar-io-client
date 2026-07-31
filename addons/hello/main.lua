@@ -788,17 +788,18 @@ hafen.events.on("StudyChanged", function(slots)
   end
 end)
 
--- 1d-4: ActionbarChanged{n} fires when action-bar slot n changes — slots stream in at login (a burst, one
--- per occupied slot) and then on any set/clear/drag. Action-bar changes are user-driven (not per-frame),
--- so — unlike vitals/gobs — we log EVERY one (with a running ordinal) to make it easy to verify live:
--- put an item/action on a slot or clear one and you should see a line each time. The payload is the slot
--- index; read it back to show its new content.
+-- 1d-4: ActionbarChanged{slot} fires when an action-bar slot changes — slots stream in at login (a burst,
+-- one per occupied slot) and then on any set/clear/drag. Action-bar changes are user-driven (not
+-- per-frame), so — unlike vitals/gobs — we log EVERY one (with a running ordinal) to make it easy to
+-- verify live: put an item/action on a slot or clear one and you should see a line each time. The payload
+-- is the Slot OBJECT itself (021.2) — same interned object as hafen.actionbar(n), reading live.
 local actionbarSeen = 0
-hafen.events.on("ActionbarChanged", function(n)
+hafen.events.on("ActionbarChanged", function(slot)
   actionbarSeen = actionbarSeen + 1
-  local slot = hafen.actionbar(n)                    -- 021: the payload index -> the Slot object
-  hafen.log(("ActionbarChanged: slot %s -> %s (%d)"):format(tostring(n),
-    (not slot:empty()) and tostring(slot:name() or slot:res()) or "empty", actionbarSeen))
+  local same = (slot == hafen.actionbar(slot:index()))   -- interning: the payload IS hafen.actionbar(n)
+  hafen.log(("ActionbarChanged: slot %d -> %s (interned=%s) (%d)"):format(slot:index(),
+    (not slot:empty()) and tostring(slot:name() or slot:res()) or "empty",
+    tostring(same), actionbarSeen))
 end)
 
 -- 1d-4: EquipChanged fires when worn equipment changes (equip/unequip) — the payload is the same array

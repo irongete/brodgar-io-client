@@ -703,6 +703,27 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
             fireTo(c, "KinChanged", kinPayload(c, ids));
     }
 
+    /**
+     * Fire {@code ActionbarChanged} whose payload is a single <b>Slot object</b> (021.2) — the slot that just
+     * changed. Same shape as {@link #fireGob}/{@link #fireKin}: interning is per-addon (D-045) so the payload
+     * cannot be shared, and it is minted only for an owner that actually subscribes — the belt is polled every
+     * tick and a login sets all 144 slots in a burst, so the {@code hasSub} gate is what keeps that free for the
+     * addons that don't listen.
+     *
+     * <p>Change <i>detection</i> stays in {@code CharApi}'s actionbar adapter (the per-index snapshot diff,
+     * cooldown excluded); the index arrives already diffed. The Slot re-reads live, so a handler that stashes it
+     * keeps tracking that slot — including going {@code :empty()} when it is cleared again.
+     */
+    static void fireSlot(int index) {
+        for(Addon a : addons) {
+            if(hasSub(a, "ActionbarChanged"))
+                fireTo(a, "ActionbarChanged", LuaSlot.of(a, index));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, "ActionbarChanged"))
+            fireTo(c, "ActionbarChanged", LuaSlot.of(c, index));
+    }
+
     /** One owner's {@code KinChanged} payload: its own interned Kin objects, in roster order. */
     private static LuaValue kinPayload(Addon owner, int[] ids) {
         LuaTable t = new LuaTable();
@@ -979,8 +1000,8 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // hafen.actionbar() the 1-based array of all 144 (the iteration view — same interned objects, and
         // slot:index() is the game index). Reads on the object, live per call: :res()/:name()/:cooldown()
         // (0..1, a pagina action's meter — ability slots only, NOT seconds)/:empty()/:info() (the old flat
-        // snapshot). Subscribe to ActionbarChanged{n} (fired per-tick when slot n's content changes — a
-        // set/clear/drag or its data resolving). slot:use([mods]) is the GATED write verb (4g,
+        // snapshot). Subscribe to ActionbarChanged{slot} (fired per-tick when a slot's content changes — a
+        // set/clear/drag or its data resolving; the payload is that Slot). slot:use([mods]) is the GATED write verb (4g,
         // requireActions) — exactly a LEFT-click on that action-bar button (GameUI belt act →
         // wdgmsg("belt", n, …)); mods is an optional modifier bitfield (0 default; Shift=1 Ctrl=2 Alt=4,
         // matching the keybind syntax). A ground-targeted ability then enters targeting mode (as clicking

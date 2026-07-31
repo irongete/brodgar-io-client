@@ -11,7 +11,7 @@ reading or using. `use` is **gated** — it requires the [`actions` permission](
 | `hafen.actionbar.slot(n)` | [`ActionbarSlot`](types.md#actionbarslot) \| nil | the content of slot `n`, or nil if empty |
 
 Subscribe to [`ActionbarChanged`](events.md#character--status-widget-tree-backed) — payload is the
-slot index `n` — to react to a slot being set, cleared, or changed.
+changed `Slot` object — to react to a slot being set, cleared, or changed.
 
 ```lua
 local s = hafen.actionbar.slot(0)

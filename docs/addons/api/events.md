@@ -64,7 +64,7 @@ The payload is a live [Gob object](gob.md). On `GobRemoved` the gob is **already
 | `FepChanged` | [`food`](types.md#food) | FEP or hunger changes |
 | `StudyChanged` | [`StudySlot`](types.md#studyslot)`[]` | the study slots change (add/remove/resolve) |
 | `EquipChanged` | [`Item`](types.md#item)`[]` | worn equipment changes |
-| `ActionbarChanged` | `n` (number) | action-bar slot `n` is set/cleared/changed |
+| `ActionbarChanged` | [`Slot`](actionbar.md) | an action-bar slot is set/cleared/changed |
 | `WoundChanged` | [`Wound`](types.md#wound)`[]` | a wound is added/healed or its severity changes |
 
 ### Roster, quests, markers
@@ -82,6 +82,12 @@ key a table by one. It tells you *that* the roster changed, not *what* changed: 
 last state if you want to name who just came online — key it **by the `Kin` itself**, not by `:name()`,
 so a rename doesn't read as one kin leaving and another arriving. `kin:info()` is there when you want a
 plain-table [snapshot](types.md#kinentry) instead.
+
+`ActionbarChanged` hands you the **changed slot** as a live [`Slot` object](actionbar.md) — the same interned
+object `hafen.actionbar(n)` returns, so `payload == hafen.actionbar(payload:index())` and you can key a table
+by one. `slot:index()` is the raw 0-based game index. It fires on a set/clear/drag or when a slot's data
+resolves — not on `:cooldown()` ticking, which would fire every frame; read the cooldown live off the object.
+At login the occupied slots stream in as a burst, one fire each.
 
 ### World ghosts & sprites
 
