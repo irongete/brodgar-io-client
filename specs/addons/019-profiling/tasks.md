@@ -116,7 +116,7 @@
       below their noise floor. `hogtest` still auto-disables at the same point (D-018 unchanged);
       `Profwnd` shows its `draw` part on every frame. Recorded as [D-055](../decisions/architecture-api.md).
 
-- [ ] **019.8 — `addons/profiler` + docs.**
+- [x] **019.8 — `addons/profiler` + docs.**
       The "Brodgar.io Profiler" addon: a window (behind a hotkey, **dormant** by default per the
       `hogtest`/`bags` rule) drawing the frame graph over the history ring, the phase breakdown, the
       pass table (CPU vs GPU), the widget table, the addon cost table sorted by cost, and the scope
@@ -128,3 +128,17 @@
       a routine `hello` regression login with profiling **off** is completely undisturbed —
       `hello`, `optionstest`, `bags`, `planner`, `widgetstack`, `netdemo`, `walker` all behave as
       before, off and on.
+      **VERIFIED (maintainer, 2026-07-31).** Shipped as **v0.2.0** after three rounds. Round 1: the six-tab
+      window (FRAME with the frame graph, PASSES, WIDGETS, ADDONS, COUNTERS, OVERHEAD), dormant behind
+      `toggle`/`:profiler`, self-instrumented with `p:measure` so its own `draw`/`graph` scopes show in its
+      own ADDONS row. Round 2, from the first screenshots: **LuaJ 3.0.1's `string.format` ignores the
+      precision of `%f` and the width of `%s`** — every number printed as a raw double and no column aligned;
+      fixed with hand-rolled rounding/padding here **and** in `addons/hello`'s 019 dumps (v0.50.0), window
+      620 → 700 px. Round 3, maintainer's asks: **PAUSE + a scrubbable timeline** (the ring is the recording —
+      click a bar or step `[<]`/`[>]` to read any frame's ms/GPU/addons/phases; CLEAR = `p:reset()`) and a
+      **column-spec table renderer** (header and rows share one spec, rule + stripes + right-aligned numbers).
+      The tool then earned itself: it diagnosed a ~70 ms hitch every ~2 s as a **GC pause** (all of it in
+      `utick`, `draw`/GPU untouched, heap sawtoothing 600↔1800 MB) — a JVM-flag matter, with the client's
+      ~11 MB/frame allocation rate recorded in `learnings/profiling.md` and ROADMAP'd as its own feature.
+      Cost of the open window (~5.6 ms/frame, all of it `g:text` re-rasterising) is **measured and attributed
+      to the addon itself**, not hidden; accepted, with the text-handle option ROADMAP'd.

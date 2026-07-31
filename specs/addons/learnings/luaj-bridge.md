@@ -133,3 +133,11 @@
   message names only where the addon *called in*. Print `e.getCause()`'s stack — but **exclude `haven.Loading`**:
   in this client "the resource isn't here yet" is control flow, thrown constantly while the map streams in, and
   a stack per occurrence buries the log the print exists to clarify. One line in `catch`, one `instanceof` guard.
+- **(019.8) LuaJ 3.0.1's `string.format` is NOT C's: `%f`/`%g`/`%e` ignore the PRECISION and `%s` ignores the
+  WIDTH.** `("%.2f"):format(10.8521999…)` returns `10.852199999987988` (the raw double, i.e. `tostring`), and
+  `("%-16s"):format(x)` pads nothing; only `%d` honours a width (`%5d` → `"    7"`). So every formatted number
+  an addon shows is unreadable and every space-padded column is misaligned — and it looks like a *font* problem
+  in a window, which is where the hour goes. Round by hand (`math.floor(v*10^d+0.5)`, re-attaching the trailing
+  zeros `tostring` drops) and pad by hand (`string.rep(" ", n-#s)`, which is exact in a mono font). Verify
+  format assumptions against the shipped jar, not against Lua's manual: `java -cp lib/brodgar/luaj-jse-3.0.1.jar
+  lua <script>` is a 5-second check. Bitten in `addons/profiler` AND retroactively in `addons/hello`'s 019 dumps.

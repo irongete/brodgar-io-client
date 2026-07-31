@@ -165,3 +165,16 @@
   `on`; the checkbox, the Lua `armed()` reads and the end-of-frame handoff want `sampling` — a probe reading
   `sampling` would defeat the control frame, and a UI reader reading `on` would flicker at 1/64. Grep every
   use before flipping the meaning of an existing field.
+- **(019.8) A periodic frame spike is a GC pause until proven otherwise, and this surface can prove it in two
+  minutes.** A ~70 ms hitch every ~2 s at 100+ fps: `p:history()` scrubbed to the spike showed the whole cost in
+  **`utick` (64 ms vs 0.97 normal)** with `draw` and `gpuMs` unchanged — i.e. a stalled thread, not work — and
+  `p:memory()` in the COUNTERS tab showed the heap sawtoothing 600 MB → 1800 MB → collect, in lockstep. Order of
+  elimination: which phase (a stall lands in one and leaves the others untouched) → `gcCount`/`gcMs` deltas →
+  heap sawtooth. Then the lever is the JVM, not the client: the default G1 with the default max heap (a quarter
+  of RAM — 16 GB here) collects rarely and long; a **fixed** small heap (`-Xms4g -Xmx4g -XX:+AlwaysPreTouch`)
+  or ZGC removes the stall without touching a line of code. It does NOT remove the cause: the client's own
+  `allocPerFrame` estimate read **~11 MB/frame**, and reading the widget layer accounts for well under 1 MB of
+  it (see `specs/codebase/widgets.md`) — so any allocation work must be MEASURED first, per phase/widget/addon,
+  the way time already is. `com.sun.management.ThreadMXBean.getThreadAllocatedBytes()` is a TLAB counter read
+  (~20 ns) and fits the seams 019 already brackets: that is the shape of the follow-up feature, not a renderer
+  rewrite guessed at from a code read.

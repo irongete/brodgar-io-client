@@ -170,3 +170,12 @@
   `if leaf and last and leaf:same(last) then return end` — each `at()` mints a fresh handle and client-only leaves
   have no `:id()`, so reference identity (`:same`) is the *only* reliable "unchanged since last frame?" test. Design
   the cheap per-frame primitive (`at`) alongside the identity primitive (`:same`) that lets callers throttle it.
+- **(019.8) `g:text` is the expensive call in an addon window — by ~50x over geometry — because it re-rasterises
+  a texture EVERY frame.** [`LuaGOut.drawText`](src/io/brodgar/addon/LuaGOut.java:298) ends in
+  render→`tex()`→blit→`dispose()` (the stock path, [`GOut.atext`](src/haven/GOut.java:212), is the same minus the
+  markup parse), so a line of text costs an AWT layout + raster + a GL texture create/upload/delete per frame,
+  ~0.28 ms. The profiler addon measured its own draw and proved the split: **360 graph primitives = 0.11 ms vs
+  ~20 text lines = 5.6 ms**. Budget an immediate-mode window by its *line count*, not its pixel count; the
+  client's own UI dodges this entirely because a `Label` builds its `Text` once and keeps it. The fix, if ever
+  wanted, is a text HANDLE the addon holds (what `Label` does) rather than an invisible cache — a cache keyed by
+  the string misses on every frame whose digits changed, which in a profiler is all of them.

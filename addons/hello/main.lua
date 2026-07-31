@@ -62,7 +62,30 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.49.0)")
+hafen.log("hello loaded (v0.50.0)")
+
+-- LuaJ 3.0.1's string.format is NOT C's: it ignores the PRECISION of %f/%g/%e ("%.3f" prints
+-- 10.852199999987988, the raw double) and the WIDTH of %s ("%-12s" pads nothing); only %d honours a
+-- width. So any number meant to be read as "0.031 ms" has to be rounded and padded by hand. `fx` rounds
+-- to d decimals and keeps the trailing zeros tostring() drops; `padr` left-aligns into n columns.
+-- (Used by the 019 profiling dumps below; the older dumps in this file still print raw doubles.)
+local function fx(v, d)
+  if v == nil then return "--" end
+  d = d or 2
+  local neg = v < 0
+  if neg then v = -v end
+  local m = 10 ^ d
+  local n = math.floor(v * m + 0.5)
+  local i = math.floor(n / m)
+  local f = tostring(math.floor(n - i * m))
+  while #f < d do f = "0" .. f end
+  return (neg and "-" or "") .. tostring(i) .. ((d > 0) and ("." .. f) or "")
+end
+
+local function padr(s, n)
+  s = tostring(s)
+  return (#s >= n) and s or (s .. string.rep(" ", n - #s))
+end
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
 -- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
@@ -1571,16 +1594,17 @@ hafen.slash.register("hello", function(args)
         for scopeName, e in pairs(r.scopes) do
           -- ms/calls are THIS frame, and this dump runs half a second after the work -- so the frame being
           -- reported ran no scope at all and both read 0. The measured cost is in peak/avg, which are rolling.
-          sc[#sc + 1] = ("%s=%.3fms/%d now, peak %.3fms, avg %.3fms"):format(scopeName, e.ms, e.calls, e.msPeak, e.msAvg)
+          sc[#sc + 1] = ("%s=%sms/%d now, peak %sms, avg %sms")
+            :format(scopeName, fx(e.ms, 3), e.calls, fx(e.msPeak, 3), fx(e.msAvg, 3))
         end
-        hafen.log(("  %-12s ms=%.3f avg=%.3f peak=%.3f share=%.1f%%  calls{ev=%d,tm=%d,dr=%d,hk=%d,wg=%d}%s")
-          :format(r.id, r.ms, r.msAvg, r.msPeak, (r.share or 0) * 100,
+        hafen.log(("  %s ms=%s avg=%s peak=%s share=%s%%  calls{ev=%d,tm=%d,dr=%d,hk=%d,wg=%d}%s")
+          :format(padr(r.id, 12), fx(r.ms, 3), fx(r.msAvg, 3), fx(r.msPeak, 3), fx((r.share or 0) * 100, 1),
                   r.calls.events, r.calls.timers, r.calls.draw, r.calls.hooks, r.calls.widgets,
                   (#sc > 0) and ("  scopes{" .. table.concat(sc, ", ") .. "}") or ""))
       end
       local f = p:frame()
-      hafen.log(("  total=%.3fms (%.1f%% of the frame) -- p:frame().addons=%.3fms, the SAME accounting")
-        :format(rows.total.ms, (rows.total.share or 0) * 100, f.addons or 0))
+      hafen.log(("  total=%sms (%s%% of the frame) -- p:frame().addons=%sms, the SAME accounting")
+        :format(fx(rows.total.ms, 3), fx((rows.total.share or 0) * 100, 1), fx(f.addons or 0, 3)))
     end)
   elseif sub == "widgets" then
     -- 019.5: PER-WIDGET COST. p:frame() says the widget tree cost `utick` + `draw` ms; this says WHO. Every
@@ -1595,29 +1619,30 @@ hafen.slash.register("hello", function(args)
       return
     end
     local tot = w.total or {}
-    hafen.log((":hello widgets -> the whole widget tree cost %.3fms last frame (tick %.3f + draw %.3f) over %d"
+    hafen.log((":hello widgets -> the whole widget tree cost %sms last frame (tick %s + draw %s) over %d"
       .. " live widgets; heaviest TYPES first, self time (children subtracted):")
-      :format(tot.ms or 0, tot.tickMs or 0, tot.drawMs or 0, tot.count or 0))
+      :format(fx(tot.ms or 0, 3), fx(tot.tickMs or 0, 3), fx(tot.drawMs or 0, 3), tot.count or 0))
     local sumself = 0
     for i, r in ipairs(w.byType) do
       sumself = sumself + r.selfMs
       if i <= 8 then
-        hafen.log(("  %-24s x%-3d self=%.3fms (tick %.3f + draw %.3f)   inclusive=%.3fms")
-          :format(r.type, r.count, r.selfMs, r.tickSelfMs, r.drawSelfMs, r.tickMs + r.drawMs))
+        hafen.log(("  %s x%s self=%sms (tick %s + draw %s)   inclusive=%sms")
+          :format(padr(r.type, 24), padr(r.count, 3), fx(r.selfMs, 3), fx(r.tickSelfMs, 3),
+                  fx(r.drawSelfMs, 3), fx(r.tickMs + r.drawMs, 3)))
       end
     end
-    hafen.log(("  ... %d types in all, their self times summing to %.3fms vs the root's inclusive %.3fms")
-      :format(#w.byType, sumself, tot.ms or 0))
+    hafen.log(("  ... %d types in all, their self times summing to %sms vs the root's inclusive %sms")
+      :format(#w.byType, fx(sumself, 3), fx(tot.ms or 0, 3)))
     -- The heaviest individual widgets, and the owner link: a widget an ADDON put in the tree carries the
     -- addon's id, so the same cost shows up itemised here and rolled up in that addon's p:addons() row --
     -- two views of one measurement, not two measurements. hello's own panel is a `LuaWidget`.
     local mine = {}
     for _, r in ipairs(w.top) do
-      if r.owner then mine[#mine + 1] = ("%s owned by '%s' self=%.3fms"):format(r.type, r.owner, r.selfMs) end
+      if r.owner then mine[#mine + 1] = ("%s owned by '%s' self=%sms"):format(r.type, r.owner, fx(r.selfMs, 3)) end
     end
     local t1 = w.top[1]
-    hafen.log(("  heaviest single widget: %s (self=%.3fms%s)  |  addon-owned in the top list: %s")
-      :format(t1 and t1.type or "-", t1 and t1.selfMs or 0, (t1 and t1.id) and (", server id " .. t1.id) or "",
+    hafen.log(("  heaviest single widget: %s (self=%sms%s)  |  addon-owned in the top list: %s")
+      :format(t1 and t1.type or "-", fx(t1 and t1.selfMs or 0, 3), (t1 and t1.id) and (", server id " .. t1.id) or "",
               (#mine > 0) and table.concat(mine, ", ") or "none this frame (look for the LuaWidget row above)"))
   elseif sub == "passes" then
     -- 019.6: NAMED RENDER PASSES + the armed-only GL counters. p:frame() says the frame cost N ms on the CPU
@@ -1636,15 +1661,16 @@ hafen.slash.register("hello", function(args)
     end
     local sum = 0
     for _, r in ipairs(ps) do sum = sum + r.gpuMs end
-    hafen.log((":hello passes -> frame #%d cost %.3fms on the CPU / %.3fms on the GPU; the named passes:")
-      :format(ps.frameno, ps.ms, ps.gpuMs))
+    hafen.log((":hello passes -> frame #%d cost %sms on the CPU / %sms on the GPU; the named passes:")
+      :format(ps.frameno, fx(ps.ms, 3), fx(ps.gpuMs, 3)))
     for _, r in ipairs(ps) do
-      hafen.log(("  %-8s cpu=%.3fms  gpu=%.3fms  (%.1f%% of the GPU frame)")
-        :format(r.name, r.cpuMs, r.gpuMs, ps.gpuMs > 0 and (r.gpuMs / ps.gpuMs * 100) or 0))
+      hafen.log(("  %s cpu=%sms  gpu=%sms  (%s%% of the GPU frame)")
+        :format(padr(r.name, 8), fx(r.cpuMs, 3), fx(r.gpuMs, 3),
+                fx((ps.gpuMs > 0) and (r.gpuMs / ps.gpuMs * 100) or 0, 1)))
     end
-    hafen.log(("  the three sum to %.3fms of the %.3fms GPU frame -- turn Video > Shadows OFF and the"
+    hafen.log(("  the three sum to %sms of the %sms GPU frame -- turn Video > Shadows OFF and the"
       .. " `shadow` row falls to zero and the GPU frame drops by about what it was reporting")
-      :format(sum, ps.gpuMs))
+      :format(fx(sum, 3), fx(ps.gpuMs, 3)))
     -- The armed-only submission counters: unlike p:render(), which exposes numbers the client already keeps
     -- (so it answers with profiling off), NOTHING counts these -- they are new counting behind the switch.
     -- programBinds far below drawCalls is the draw list's program sort doing its job.
@@ -1674,27 +1700,28 @@ hafen.slash.register("hello", function(args)
         .. " profiling)")
       return
     end
-    hafen.log((":hello overhead -> %.4fms/frame of a %.2fms frame = %.2f%% (budget %.0f%%: %s), method=%s")
-      :format(o.totalMs, o.frameMs or 0, (o.shareOfFrame or 0) * 100, o.budget * 100,
-              (o.withinBudget == false) and "OVER" or "ok", o.method))
-    hafen.log(("  aggregator=%.4fms (timed)  gpuQuery=%.4fms (timed)  probes=%.4fms (modelled)")
-      :format(o.aggregatorMs, o.gpuQueryMs, o.probeMs))
+    hafen.log((":hello overhead -> %sms/frame of a %sms frame = %s%% (budget %s%%: %s), method=%s")
+      :format(fx(o.totalMs, 4), fx(o.frameMs or 0, 2), fx((o.shareOfFrame or 0) * 100, 2),
+              fx(o.budget * 100, 0), (o.withinBudget == false) and "OVER" or "ok", o.method))
+    hafen.log(("  aggregator=%sms (timed)  gpuQuery=%sms (timed)  probes=%sms (modelled)")
+      :format(fx(o.aggregatorMs, 4), fx(o.gpuQueryMs, 4), fx(o.probeMs, 4)))
     if o.measuredMs then
-      hafen.log(("  control frames measure %+.4f +/- %.4f ms/frame (spread %.4f) -> %s")
-        :format(o.measuredMs, o.measuredErrorMs, o.measuredSpreadMs,
+      hafen.log(("  control frames measure %s +/- %s ms/frame (spread %s) -> %s")
+        :format(((o.measuredMs >= 0) and "+" or "") .. fx(o.measuredMs, 4), fx(o.measuredErrorMs, 4),
+                fx(o.measuredSpreadMs, 4),
                 (o.method == "control") and "resolved, and it has the say"
                   or "inside its own error bar: too cheap to measure, so the model has the say"))
     end
     for _, r in ipairs(o.tiers) do
-      hafen.log(("  %-8s %.4fms  (%.2f%% of frame, modelled %.4fms, %s%s)")
-        :format(r.name, r.ms, (r.share or 0) * 100, r.modelledMs, r.method,
-                r.hits and (", %.0f probe hits/frame"):format(r.hits) or ""))
+      hafen.log(("  %s %sms  (%s%% of frame, modelled %sms, %s%s)")
+        :format(padr(r.name, 8), fx(r.ms, 4), fx((r.share or 0) * 100, 2), fx(r.modelledMs, 4), r.method,
+                r.hits and (", %s probe hits/frame"):format(fx(r.hits, 0)) or ""))
     end
     hafen.log(("  %d armed frames, %d control frames, %d paired periods%s")
       :format(o.armedFrames, o.controlFrames, o.periods,
               (o.periodsNeeded > 0)
-                and (" -- %d more period(s) before the measurement counts, ~%.0fs")
-                    :format(o.periodsNeeded, o.periodsNeeded * 64 * (o.frameMs or 16) / 1000)
+                and (" -- %d more period(s) before the measurement counts, ~%ss")
+                    :format(o.periodsNeeded, fx(o.periodsNeeded * 64 * (o.frameMs or 16) / 1000, 0))
                 or ""))
   else
     hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets | passes | overhead)")

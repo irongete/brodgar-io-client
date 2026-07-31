@@ -56,3 +56,23 @@ not just Lua), **`Gltf`** + its mesh primitives (`MeshSprite`, `SpriteQuad`), an
 handle staying, or is it addon machinery wearing a generic name? Constraints: zero behaviour change, zero
 `docs/addons/api/` edits, `addon` itself stays **flat** (16 package-private classes), and anything that must
 widen to `public` purely to survive the move is evidence against that move.
+
+## Text rendering cost for addon-drawn UI — [016-fonts/](016-fonts/), `LuaGOut`
+019.8 measured it: `g:text` re-rasterises a texture **every frame** (render→tex→blit→dispose,
+[`LuaGOut.drawText`](src/io/brodgar/addon/LuaGOut.java:298)), ~0.28 ms per line, which is ~50x the cost of
+geometry — the profiler window's own data: 360 primitives = 0.11 ms vs ~20 text lines = 5.6 ms. Every
+text-drawing addon pays it. Two shapes were weighed and **neither is decided**: an engine-side LRU cache keyed
+by (string, font, markup) — invisible, but it misses on exactly the strings a live readout changes every frame,
+and it brings a cap/eviction/invalidation policy plus the first hidden state in the `g` wrapper; or an explicit
+**text handle** the addon builds once and blits (what a client `Label` does), which removes the policy entirely
+because only the addon knows what is static. Whichever wins needs a spec, a measured before/after, and it
+touches every addon's draw path.
+
+## Allocation profiling — the natural 019 follow-up — [019-profiling/](019-profiling/)
+019 answers "who costs TIME". Nothing answers "who costs GARBAGE", and the client's own `allocPerFrame`
+estimate reads **~11 MB/frame** — a GC sawtooth that stalls a frame every ~2 s (diagnosed with 019 itself, see
+`learnings/profiling.md`). Reading the widget layer accounts for well under 1 MB of it, so the rest must be
+measured, not guessed. `com.sun.management.ThreadMXBean.getThreadAllocatedBytes()` is a TLAB counter read
+(~20 ns) and brackets **the seams 019 already brackets** — per phase, per widget, per addon, per pass — so this
+is `p:frame().allocBytes` + an `allocBytes` column in the existing tables, not a new subsystem. Prerequisite for
+any renderer work, and it pays the `haven/render/gl` coverage toll (`BGL`, `GLDrawList`, `BufPipe`) on the way.

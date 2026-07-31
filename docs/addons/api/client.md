@@ -238,6 +238,13 @@ local f = p:frame()
 hafen.log(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)", f.fps, f.ms, f.ui, f.addons))
 ```
 
+The bundled **`profiler`** addon ("Brodgar.io Profiler") is a full worked example of everything below: a
+six-tab window — frame graph and phases, render passes and GL counters, per-widget cost, per-addon cost
+with scopes, the pull-only counters, and the overhead accounting. It is **dormant** (nothing is read or
+drawn until you open it with its `toggle` hotkey or `:profiler`), which is the shape any profiling addon
+should have. It also shows what `history()` is *for*: pausing freezes the snapshots and turns the graph
+into a timeline you scrub frame by frame — the ring is the recording.
+
 | Method | Returns | Description |
 |---|---|---|
 | `frame()` | table | the frame that just finished — **armed only** |

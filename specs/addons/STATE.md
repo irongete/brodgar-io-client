@@ -2,8 +2,8 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**Active:** `019-profiling` — `hafen.client:profiling()` (frame/CPU/GPU, counters, per-addon, per-widget and
-per-pass cost, Lua scopes, its own overhead) + the Options **Client** panel. **019.1–019.7 DONE**; 019.8 pending.
+**Active:** none — `019-profiling` **DONE** (019.1–019.8). Next: `ROADMAP.md` (allocation profiling and addon
+text-render cost are the two blocks 019 spawned).
 
 ## Engine & runtime
 - **Engine**: LuaJ embedded (`src/io/brodgar/addon/`); per-addon sandboxed envs (D-017), instruction watchdog +
@@ -27,7 +27,7 @@ per-pass cost, Lua scopes, its own overhead) + the Options **Client** panel. **0
   panel, over the stores OptWnd writes; arity is the verb (`opt:name()` reads, `opt:name(v)` writes + chains).
   `keybindings` = `register(name, fn)` (UNBOUND, D-047) + `get/set/list/unregister`, keybind-panel integrated;
   `hafen.key` GONE (018.2); slash `hafen.slash.register`.
-- **Profiling** (019.1–019.7, detail in `019-profiling/`): Options ▸ **Client** ▸ "Enable profiling" =
+- **Profiling** (019, detail in `019-profiling/`): Options ▸ **Client** ▸ "Enable profiling" =
   `options():client():profiling()` = `:profile on` — ONE switch (`prof.Prof.arm`, D-049), next-frame; engine in
   `io.brodgar.prof`/`ui`, handles in `addon` (D-048). `hafen.client:profiling()` → `:frame()`/`:history(n)`
   (600-frame ring)/`:reset()`; snapshot tables, absent key = not measured, off ⇒ `{}` (D-050). **Pull-only
@@ -36,12 +36,14 @@ per-pass cost, Lua scopes, its own overhead) + the Options **Client** panel. **0
   split by a mandatory `callLua` category, never re-timed, so `hogtest` trips identically (D-052). `:widgets()` =
   ONE `// addon:` `long[] prof` on `Widget`, inclusive nanos at the traversal seams + the `UI.draw` root, self
   derived at snapshot time, self-clearing by frame stamp, `LuaWidget` owner (D-053). `:passes()` = a FIXED
-  `shadow`/`scene`/`ui2d`, CPU+GPU, parts nested UNDER the frame's `draw` (beside would truncate it), SELF time
-  so they stay disjoint; `:gl()` = the only ARMED-ONLY counters (D-054); shadows off ⇒ `shadow` 0, GPU frame
-  −1.06 ms. `:overhead()` = what profiling costs over **five tiers** (frame/addons/widgets/passes/gl): fold
-  timed directly, probes modelled from an arm-time calibration, 1-in-64
-  **control frames** (`Prof.sampling` = master, `Prof.on` = per-frame) measuring the total — paired/median,
-  believed only when it clears its error bar, else the model wins (D-055). **0.54% of frame.**
+  `shadow`/`scene`/`ui2d`, CPU+GPU, nested UNDER the frame's `draw` (beside would truncate it), SELF time so they
+  stay disjoint; `:gl()` = the only ARMED-ONLY counters (D-054); shadows off ⇒ `shadow` 0, GPU −1.06 ms.
+  `:overhead()` = the cost over **five tiers** (frame/addons/widgets/passes/gl): fold timed directly, probes
+  modelled from an arm-time calibration, 1-in-64 **control frames** (`Prof.sampling` = master, `Prof.on` =
+  per-frame) measuring the total, believed only when it clears its error bar (D-055). **0.54% of frame.**
+  **`profiler` addon** (019.8): six tabs, dormant, PAUSE freezes every snapshot and makes the graph a scrubbable
+  timeline (CLEAR = `reset`). It exposed **LuaJ's `string.format` ignoring `%f` precision + `%s` width**
+  (`learnings/luaj-bridge`) and diagnosed the client's GC hitch (`learnings/profiling`).
 - Hooks: `hook.input` (L1 pre-widget), `hook.action` (L2 outbound `UI.wdgmsg`), `hook.message` (L3 inbound).
   Interception/replacement: `ui.onWidgetCreate`, `ui.adopt` (model handle), `ui.replace` (bags replaces the native
   inventory, restores on disable), `widgetstack` = `/framestack`. Introspection: `ui.root()/node(id)` WidgetNode
@@ -52,7 +54,7 @@ per-pass cost, Lua scopes, its own overhead) + the Options **Client** panel. **0
   (actionbar.use, speed.set, kin.*, craft.make…). Per-addon permission + enable-time consent dialog, NO global
   switch (D-027/D-028); write addons default-disabled. **Example addons (regression harness)**: `hello` (grows
   with every feature — one login re-checks everything), `hogtest` (watchdog), `bags`, `planner` (ghosts),
-  `widgetstack`, `netdemo`, `walker` (writes), `optionstest`; 019.8 adds `profiler`.
+  `widgetstack`, `netdemo`, `walker` (writes), `optionstest`, `profiler` (019.8, dormant).
 - **Ghosts** `hafen.ghost`: client-only virtual gobs (D-029..D-033) — clickable, oriented, grid-anchored layouts,
   transform gizmo. **Render** `hafen.render`: image (screen), sprite (fixed + billboard world quads), glTF 2.0
   static models — textures, materials, lighting (D-034/D-035). **Data/net**: `hafen.json` (D-036); `hafen.http`
