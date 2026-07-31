@@ -1025,8 +1025,18 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     private void drawsmap(Render out) {
-	if(smap != null)
-	    smap.update(out, slist);
+	// addon: the "shadow" named pass (spec 019, task 019.6) -- smap.update is the ENTIRE shadow render in
+	// one call, which is what makes "what do shadows cost me" answerable as a number. With shadows off
+	// there is no shadow map and the pass is never opened, so its row falls to zero along with the GPU
+	// frame time -- the headline check of this task.
+	if(smap != null) {
+	    io.brodgar.prof.Passes.begin(out, io.brodgar.prof.Passes.SHADOW);
+	    try {
+		smap.update(out, slist);
+	    } finally {
+		io.brodgar.prof.Passes.end(out, io.brodgar.prof.Passes.SHADOW);
+	    }
+	}
     }
 
     public DirLight amblight = null;
@@ -1641,7 +1651,16 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     protected void maindraw(Render out) {
 	drawsmap(out);
-	super.maindraw(out);
+	// addon: the "scene" named pass (spec 019, task 019.6) -- PView.maindraw dispatches the 3D draw list,
+	// i.e. the world itself. The rest of PView.draw (the framebuffer resolve, the 2D overlay list) is not
+	// in it: this pass is the scene, and naming a boundary is only worth a GL timestamp query when the
+	// boundary means something.
+	io.brodgar.prof.Passes.begin(out, io.brodgar.prof.Passes.SCENE);
+	try {
+	    super.maindraw(out);
+	} finally {
+	    io.brodgar.prof.Passes.end(out, io.brodgar.prof.Passes.SCENE);
+	}
     }
 
     private Loading camload = null, lastload = null;

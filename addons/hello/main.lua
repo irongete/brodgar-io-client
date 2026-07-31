@@ -1109,7 +1109,7 @@ local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-faci
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof | widgets")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof | widgets | passes")
     return
   end
   local sub = args[1]
@@ -1619,8 +1619,41 @@ hafen.slash.register("hello", function(args)
     hafen.log(("  heaviest single widget: %s (self=%.3fms%s)  |  addon-owned in the top list: %s")
       :format(t1 and t1.type or "-", t1 and t1.selfMs or 0, (t1 and t1.id) and (", server id " .. t1.id) or "",
               (#mine > 0) and table.concat(mine, ", ") or "none this frame (look for the LuaWidget row above)"))
+  elseif sub == "passes" then
+    -- 019.6: NAMED RENDER PASSES + the armed-only GL counters. p:frame() says the frame cost N ms on the CPU
+    -- and M ms on the GPU; this says WHERE the GPU time went, over a fixed, curated list of named sections
+    -- with CPU and GPU side by side. The list is short on purpose: every boundary is a real GL timestamp
+    -- query, so passes are curated, never swept per draw call.
+    -- The rows are DISJOINT: `shadow` and `scene` run inside the widget draw (the MapView is a widget), so
+    -- each row is SELF time -- its span minus the passes nested in it -- exactly like p:widgets(). That is
+    -- why `ui2d` means the 2D UI and why the three sum to less than the frame instead of double-counting.
+    local p = hafen.client:profiling()
+    local ps = p:passes()
+    if not ps[1] then
+      hafen.log(":hello passes -> p:passes() is empty: profiling is OFF (tick Options > Client > Enable"
+        .. " profiling), or no frame's GL timestamps have come back yet -- they arrive several frames late")
+      return
+    end
+    local sum = 0
+    for _, r in ipairs(ps) do sum = sum + r.gpuMs end
+    hafen.log((":hello passes -> frame #%d cost %.3fms on the CPU / %.3fms on the GPU; the named passes:")
+      :format(ps.frameno, ps.ms, ps.gpuMs))
+    for _, r in ipairs(ps) do
+      hafen.log(("  %-8s cpu=%.3fms  gpu=%.3fms  (%.1f%% of the GPU frame)")
+        :format(r.name, r.cpuMs, r.gpuMs, ps.gpuMs > 0 and (r.gpuMs / ps.gpuMs * 100) or 0))
+    end
+    hafen.log(("  the three sum to %.3fms of the %.3fms GPU frame -- turn Video > Shadows OFF and the"
+      .. " `shadow` row falls to zero and the GPU frame drops by about what it was reporting")
+      :format(sum, ps.gpuMs))
+    -- The armed-only submission counters: unlike p:render(), which exposes numbers the client already keeps
+    -- (so it answers with profiling off), NOTHING counts these -- they are new counting behind the switch.
+    -- programBinds far below drawCalls is the draw list's program sort doing its job.
+    local g = p:gl()
+    hafen.log(("  p:gl() frame #%d: %d draw calls, %d program binds, %s vertices, %s triangles")
+      :format(g.frameno, g.drawCalls, g.programBinds,
+              ("%d"):format(g.vertices), ("%d"):format(g.triangles)))
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets | passes)")
       :format(#args, table.concat(args, " | ")))
   end
 end)

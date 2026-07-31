@@ -231,6 +231,23 @@ public final class ProfHandle {
             }
         });
 
+        // --------------------------------------------------------------- named passes + GL counters (019.6)
+
+        // p:passes() -- the curated render passes with CPU and GPU time side by side. Armed-only.
+        m.set("passes", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return passes();
+            }
+        });
+
+        // p:gl() -- the submission counters that need genuinely NEW counting: draw calls, program binds,
+        // vertices and triangles per frame. Armed-only, unlike the pull-only counters above.
+        m.set("gl", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return gl();
+            }
+        });
+
         // p:reset() -- drop the ring and start measuring afresh. Chains, like every other write in hafen.*.
         m.set("reset", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -623,6 +640,80 @@ public final class ProfHandle {
             return null;
         Addon a = ((LuaWidget)w).profOwner();
         return ((a != null) && (a.manifest != null)) ? a.manifest.id : null;
+    }
+
+    // ------------------------------------------------------------------- named passes + GL counters (019.6)
+
+    /**
+     * {@code p:passes()} — a fixed, short, curated list of named sections of the frame with <b>CPU and GPU
+     * time side by side</b>: {@code shadow} (the whole shadow-map render), {@code scene} (the 3D draw list)
+     * and {@code ui2d} (the widget tree). One row per pass, in that order, each {@code {name=, cpuMs=,
+     * gpuMs=}}, plus {@code frameno} saying which frame they describe.
+     *
+     * <p><b>Which frame, and why not the newest.</b> A pass's GPU column is a GL timestamp query and comes
+     * back through fences several frames after its CPU column, so this reports the newest frame whose
+     * timestamps have <b>resolved</b> — the same rule, and for the same reason, as {@code gpuMs} in
+     * {@code p:frame()}. Both columns come from that one frame, so a row is internally consistent.
+     *
+     * <p><b>The passes are disjoint.</b> {@code shadow} and {@code scene} run <b>inside</b> the widget draw
+     * (the {@code MapView} is a widget), so each row reports <b>self</b> time — its own span minus the passes
+     * nested in it — exactly the inclusive/self split {@code p:widgets()} uses. {@code ui2d} is therefore what
+     * the 2D UI cost, and the three sum to less than the frame rather than double-counting the scene.
+     *
+     * <p><b>The check this exists for:</b> turn Video → Shadows off and the {@code shadow} row falls to zero
+     * while the GPU frame time drops by about what it had been reporting. That is "what do shadows cost me"
+     * as a number.
+     *
+     * <p>The list is fixed on purpose: every boundary is a real GL timestamp query, which is not free and can
+     * stall the pipeline if overused. Per-draw-call GPU attribution is out of scope and always will be.
+     * Empty when profiling is off.
+     */
+    private static LuaTable passes() {
+        LuaTable out = new LuaTable();
+        if(!Prof.armed())
+            return out;
+        int s = Prof.passSlot();
+        if(s < 0)
+            return out;                 // armed, but no frame's timestamps have come back yet
+        for(int i = 0; i < Prof.PASSES.length; i++) {
+            LuaTable r = new LuaTable();
+            r.set("name", LuaValue.valueOf(Prof.PASSES[i]));
+            r.set("cpuMs", LuaValue.valueOf(Prof.passCpu(s, i)));
+            r.set("gpuMs", LuaValue.valueOf(Prof.passGpu(s, i)));
+            out.set(i + 1, r);
+        }
+        out.set("frameno", LuaValue.valueOf((double)Prof.frameno(s)));
+        out.set("gpuMs", LuaValue.valueOf(Prof.gpuMs(s)));   // the whole frame, to measure the rows against
+        out.set("ms", LuaValue.valueOf(Prof.ms(s)));
+        return out;
+    }
+
+    /**
+     * {@code p:gl()} — what the client actually handed the driver last frame: {@code drawCalls},
+     * {@code programBinds}, {@code vertices} and {@code triangles}.
+     *
+     * <p>These four are the only counters in 019 that are <b>armed-only</b>. Everything in {@code p:render()}
+     * is a number the client already keeps and merely formats into a HUD string, so it answers with profiling
+     * off; nothing counts these, so they are new counting and they sit behind the master switch like every
+     * other new probe. They are counted at the two per-frame submission seams — the draw-list walk and the
+     * immediate path — not inside the render thread's replay loop, which no client should pay for.
+     *
+     * <p>{@code programBinds} against {@code drawCalls} is the batching story: the draw list is sorted by
+     * program, so binds far below calls means the sort is working. Point and line geometry contributes to
+     * {@code vertices} but not to {@code triangles}. Empty when profiling is off.
+     */
+    private static LuaTable gl() {
+        LuaTable t = new LuaTable();
+        int n = Prof.count();
+        if(!Prof.armed() || (n == 0))
+            return t;
+        int s = Prof.slot(n - 1);
+        t.set("drawCalls", LuaValue.valueOf((double)Prof.glDraws(s)));
+        t.set("programBinds", LuaValue.valueOf((double)Prof.glProgBinds(s)));
+        t.set("vertices", LuaValue.valueOf((double)Prof.glVerts(s)));
+        t.set("triangles", LuaValue.valueOf((double)Prof.glTris(s)));
+        t.set("frameno", LuaValue.valueOf((double)Prof.frameno(s)));
+        return t;
     }
 
     /** The UI-thread phase breakdown of one ring slot, ms — the parts {@code UILoop} names in {@code uprof}. */

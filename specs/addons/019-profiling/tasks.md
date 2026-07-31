@@ -76,7 +76,7 @@
       <!-- extra context: `src/haven/Widget.java` (tick ~:748, the child traversal), `src/haven/UI.java`
            (tick ~:371, draw ~:386), `src/io/brodgar/addon/LuaWidget.java` (owner attribution) -->
 
-- [ ] **019.6 — Named render passes + armed GL counters.**
+- [x] **019.6 — Named render passes + armed GL counters.**
       A fixed, short pass list via `GPUProfile.part(out, nm)` with CPU and GPU time side by side:
       `shadow` (wrapping `smap.update(out, slist)` in `MapView.updsmap`), `scene` (the MapView draw
       boundary), `ui2d` (the `UI.draw` boundary in `UILoop.display`). Plus the armed-only counters

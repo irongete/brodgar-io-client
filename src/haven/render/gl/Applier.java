@@ -258,6 +258,7 @@ public class Applier {
 	this.shash = shash;
 	if(prog != this.prog) {
 	    GLProgram.apply(gl, this.prog, prog);
+	    if(io.brodgar.prof.Prof.on) io.brodgar.prof.GlCount.progBind();   // addon: p:gl() (spec 019, 019.6)
 	    setprog(prog);
 	}
 	for(int i = 0; i < un; i++)
@@ -321,6 +322,7 @@ public class Applier {
 	}
 	if(this.prog != that.prog) {
 	    GLProgram.apply(gl, this.prog, that.prog);
+	    if(io.brodgar.prof.Prof.on) io.brodgar.prof.GlCount.progBind();   // addon: p:gl() (spec 019, 019.6)
 	    this.shash = that.shash;
 	    setprog(that.prog);
 	}

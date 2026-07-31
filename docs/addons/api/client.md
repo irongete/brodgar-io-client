@@ -244,6 +244,8 @@ hafen.log(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)", f.fps, f.ms, f
 | `history(n)` | array of tables | the last `n` frames, **oldest first**; `n` omitted = everything held — **armed only** |
 | `addons()` | array of tables | what each addon's Lua cost, most expensive first, plus `total` — **armed only** |
 | `widgets()` | table | where the UI's frame time went, per widget type and per widget — **armed only** |
+| `passes()` | array of tables | the named render passes, CPU and GPU time side by side — **armed only** |
+| `gl()` | table | what the client handed the driver: draw calls, program binds, vertices, triangles — **armed only** |
 | `scope(name)` | a scope handle | a named marker you bracket your own code with |
 | `measure(name, fn, ...)` | whatever `fn` returns | run `fn` inside the scope `name` |
 | `reset()` | the handle | drop the history and start measuring afresh (chains) |
@@ -256,7 +258,7 @@ The handle is a stateless proxy — keep it in a variable forever, it never goes
 verbs answer are plain **snapshot tables**, not handles: frozen numbers with nothing to re-resolve, so
 walking 600 samples for a frame graph is 600 table lookups, not 600 bridge calls.
 
-**Two kinds of verb.** `frame()`/`history()`/`addons()`/`widgets()` are *frame sampling*: they exist only while the
+**Two kinds of verb.** `frame()`/`history()`/`addons()`/`widgets()`/`passes()`/`gl()` are *frame sampling*: they exist only while the
 switch above (Options ▸ Client ▸ Enable profiling) is on. The four **counters** below are *pull-only* —
 every number in them is one the client already maintains for its own `:stats on` HUD, so they answer
 whether profiling is armed or not, and reading them costs nothing when it is not. `scope()`/`measure()`
@@ -504,9 +506,68 @@ addon's `addons()` row — two views of one measurement, not two measurements.
 > `draw` phase covers the whole 3D scene, of which the `MapView` row is only the widget-side share — the
 > scene's own breakdown is what the named render passes are for.
 
+### `passes()`
+
+`frame()` says the frame cost so many milliseconds on the GPU. `passes()` says **where they went**, over a
+fixed list of named sections with **CPU and GPU time side by side**.
+
+```lua
+for _, r in ipairs(hafen.client:profiling():passes()) do
+  hafen.log(string.format("%-8s cpu %.2f ms  gpu %.2f ms", r.name, r.cpuMs, r.gpuMs))
+end
+```
+
+| Pass | What it covers |
+|---|---|
+| `shadow` | the entire shadow-map render |
+| `scene` | the 3D draw list — the world itself |
+| `ui2d` | the widget tree |
+
+Each row is `{name=, cpuMs=, gpuMs=}`, always in that order. The table also carries `frameno`, and `ms` /
+`gpuMs` for the whole frame so you can measure the rows against it.
+
+**The rows are disjoint.** `shadow` and `scene` run *inside* the widget draw — the `MapView` is a widget — so
+each pass reports **self** time: its own span minus the passes nested in it, the same inclusive/self split
+`widgets()` uses. That is why `ui2d` means the *2D* UI and why the three sum to less than the frame instead
+of counting the scene twice.
+
+**CPU and GPU measure different things here.** The CPU column is the time spent *recording* the GL commands,
+so `shadow` and `scene` are typically a few hundredths of a millisecond while `ui2d` is milliseconds of real
+widget work. The GPU column is when the driver actually did it.
+
+**Which frame.** The newest one whose GL timestamps have come **back** — same rule as `gpuMs` in `frame()`,
+and for the same reason. Both columns describe that one frame, so a row is internally consistent. Empty
+until the first frame resolves.
+
+**What shadows cost you.** Turn Video ▸ Shadows off: the `shadow` row falls to zero *and* `scene` drops too,
+because the world's shaders stop sampling the shadow map. Both savings are real and the split tells you
+which is which — that decomposition is the whole point of naming passes.
+
+> **The list is fixed, and stays fixed.** Every boundary is a real GL timestamp query, which is not free and
+> can stall the pipeline if overused. Per-draw-call or per-material GPU attribution is not something this
+> API will grow; that is RenderDoc/Nsight territory.
+
+### `gl()`
+
+What the client actually handed the driver last frame.
+
+| Key | Description |
+|---|---|
+| `drawCalls` | draw calls submitted |
+| `programBinds` | shader-program switches |
+| `vertices` / `triangles` | geometry submitted (point and line geometry counts vertices, not triangles) |
+| `frameno` | the frame these describe |
+
+These four are the only counters in this surface that are **armed only**. Everything in `render()` below is
+a number the client already keeps and merely formats into its HUD, so it answers whether profiling is on or
+not; nothing counts *these*, so they are new counting and they sit behind the switch.
+
+`programBinds` against `drawCalls` is the batching story: the draw list is sorted by program, so binds far
+below calls means the sort is doing its job.
+
 ### When profiling is off
 
-`frame()`, `history()`, `addons()` and `widgets()` return an **empty table**, never `nil` — no branch needed in addon
+`frame()`, `history()`, `addons()`, `widgets()`, `passes()` and `gl()` return an **empty table**, never `nil` — no branch needed in addon
 code:
 
 ```lua

@@ -296,7 +296,16 @@ public abstract class UILoop implements Console.Directory {
 	buf.clear(base, FragColor.fragcol, FColor.BLACK);
 	GOut g = new GOut(buf, base, wnd.sz());
 	synchronized(ui) {
-	    ui.draw(g);
+	    // addon: the "ui2d" named pass (spec 019, task 019.6). It brackets the WHOLE widget draw, of which
+	    // the 3D scene is a part (the MapView is a widget) -- so shadow/scene nest inside it and are
+	    // subtracted out at snapshot time, leaving ui2d meaning what its name says. try/finally because a
+	    // pass left open would leave a GL timestamp query that never completes, stalling every later frame.
+	    io.brodgar.prof.Passes.begin(buf, io.brodgar.prof.Passes.UI2D);
+	    try {
+		ui.draw(g);
+	    } finally {
+		io.brodgar.prof.Passes.end(buf, io.brodgar.prof.Passes.UI2D);
+	    }
 	}
 	if(dbtext.get())
 	    drawstats(ui, g, buf);
@@ -480,7 +489,11 @@ public abstract class UILoop implements Console.Directory {
 	protected void display() {
 	    CPUProfile.phase(prof, "draw");
 	    if(rprofc != null) rprofc.new Part("draw", out);
-	    if(gprof  != null) gprof.part(out, "draw");
+	    // addon: the named-pass tier (spec 019, task 019.6). The frame's "draw" GPU part is now CAPTURED and
+	    // handed to Passes, which hangs shadow/scene/ui2d UNDER it -- so the pass timestamps nest inside the
+	    // client's own tree instead of splitting its tick/draw/swap sequence, and Profwnd shows exactly what
+	    // it did with three extra rows. Disarmed, this is a null argument and one branch in Passes.frame.
+	    io.brodgar.prof.Passes.frame((gprof != null) ? gprof.part(out, "draw") : null);
 	    loop.display(ui, out);
 	}
 

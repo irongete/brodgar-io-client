@@ -171,6 +171,10 @@ public class GLRender implements Render, Disposable {
     }
 
     public void draw(Pipe pipe, Model data) {
+	// addon: p:gl() (spec 019, task 019.6) -- the IMMEDIATE submission path: every 2D blit and every
+	// ephemeral model. The batched path is counted per draw slot in GLDrawList.draw; between them these
+	// two seams are every draw call the client makes in a frame.
+	if(io.brodgar.prof.Prof.on) io.brodgar.prof.GlCount.draw(data);
 	state.apply(this.gl, pipe);
 	if(GLVertexArray.ephemeralp(data)) {
 	    Disposable indo = null;

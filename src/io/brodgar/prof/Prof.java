@@ -116,6 +116,17 @@ public final class Prof {
     private static int cursor = 0;    // the next slot to write
     private static int filled = 0;    // samples written since the last reset, clamped to CAP
 
+    /** The named render passes, in report order (019.6) — {@link Passes#NAMES}, re-exported for the ring. */
+    public static final String[] PASSES = Passes.NAMES;
+    private static final int NPS = PASSES.length;
+    private static final double[] rpcpu = new double[CAP * NPS];   // exclusive CPU ms per pass
+    private static final double[] rpgpu = new double[CAP * NPS];   // exclusive GPU ms per pass — written LATE
+    /* The armed-only GL submission counters (019.6), snapshotted off GlCount and zeroed once per frame. */
+    private static final long[] rgldraw = new long[CAP];
+    private static final long[] rglprog = new long[CAP];
+    private static final long[] rglvert = new long[CAP];
+    private static final long[] rgltri = new long[CAP];
+
     /**
      * The frame stamp the <b>per-widget</b> accumulators carry (019.5). {@code Widget.prof} is a plain
      * {@code long[]} with no owner to sweep it — there is no list of live widgets and building one per frame
@@ -238,6 +249,19 @@ public final class Prof {
         LongSupplier src = addonNanos;
         raddon[s] = (src == null) ? 0 : (src.getAsLong() * 1e-6);
 
+        // 019.6: the named passes' CPU side is measured directly at their seams (the GPU side arrives late and
+        // is folded by frame number below), and the GL submission counters are read and zeroed here -- one
+        // place, once a frame, so nothing downstream has to know when a frame started.
+        int qb = s * NPS;
+        for(int i = 0; i < NPS; i++) {
+            rpcpu[qb + i] = Passes.cpuMs(i);
+            rpgpu[qb + i] = 0;
+        }
+        rgldraw[s] = GlCount.draws;   GlCount.draws = 0;
+        rglprog[s] = GlCount.progBinds; GlCount.progBinds = 0;
+        rglvert[s] = GlCount.verts;   GlCount.verts = 0;
+        rgltri[s]  = GlCount.tris;    GlCount.tris = 0;
+
         if(gframe != null) {
             int nt = (ptail + 1) % PENDING;
             if(nt == phead)                       // full: the oldest pending GPU frame is the one to lose
@@ -261,11 +285,42 @@ public final class Prof {
             if(d <= 0)
                 return;                            // still in flight — and they complete in order
             int s = pgslot[phead];
-            if(rfno[s] == pgfno[phead])            // the ring may have wrapped past this slot
+            if(rfno[s] == pgfno[phead]) {          // the ring may have wrapped past this slot
                 rgpu[s] = ms(d);
+                foldPasses(f, s);                  // 019.6: the named passes ride the same late arrival
+            }
             pgf[phead] = null;
             phead = (phead + 1) % PENDING;
         }
+    }
+
+    /**
+     * Fold a resolved GPU frame's named passes into its ring slot (019.6). The passes hang under the frame's
+     * own {@code draw} part rather than beside it, so this is a walk of the whole little tree — a handful of
+     * parts, once per frame, only while armed. Each pass reports <b>self</b> time: its span minus the passes
+     * nested inside it ({@code shadow} and {@code scene} run inside the widget draw, because the
+     * {@code MapView} is a widget), which is what keeps the three disjoint and their sum under the frame.
+     */
+    private static void foldPasses(Profile.Part p, int slot) {
+        List<Profile.Part> sub = p.sub();
+        for(int i = 0, n = sub.size(); i < n; i++) {
+            Profile.Part c = sub.get(i);
+            int k = index(PASSES, c.nm);
+            if(k >= 0)
+                rpgpu[(slot * NPS) + k] = ms(c.d() - passSum(c));
+            foldPasses(c, slot);
+        }
+    }
+
+    /** The time of the passes nested directly inside {@code p}, skipping any un-named parts in between. */
+    private static double passSum(Profile.Part p) {
+        double s = 0;
+        List<Profile.Part> sub = p.sub();
+        for(int i = 0, n = sub.size(); i < n; i++) {
+            Profile.Part c = sub.get(i);
+            s += (index(PASSES, c.nm) >= 0) ? Math.max(0, c.d()) : passSum(c);
+        }
+        return s;
     }
 
     /** Seconds to milliseconds, with an unfinished part (t still 0, so d() is negative) clamped to zero. */
@@ -292,6 +347,10 @@ public final class Prof {
         Arrays.fill(rfno, 0L);
         Arrays.fill(rt, 0); Arrays.fill(rms, 0); Arrays.fill(rgpu, 0); Arrays.fill(raddon, 0);
         Arrays.fill(rph, 0); Arrays.fill(rrp, 0);
+        Arrays.fill(rpcpu, 0); Arrays.fill(rpgpu, 0);
+        Arrays.fill(rgldraw, 0L); Arrays.fill(rglprog, 0L);
+        Arrays.fill(rglvert, 0L); Arrays.fill(rgltri, 0L);
+        GlCount.draws = GlCount.progBinds = GlCount.verts = GlCount.tris = 0;
         Arrays.fill(pgf, null);
         phead = ptail = 0;
         Runnable r = addonResetter;
@@ -320,6 +379,32 @@ public final class Prof {
     public static double phase(int s, int p)  {return rph[(s * NPH) + p];}
     /** The render-thread phase {@code p} ({@link #RPHASES}) of slot {@code s}, ms. */
     public static double rphase(int s, int p) {return rrp[(s * NRP) + p];}
+    /** Named pass {@code p} ({@link #PASSES}) of slot {@code s}: exclusive CPU ms. */
+    public static double passCpu(int s, int p) {return rpcpu[(s * NPS) + p];}
+    /** Named pass {@code p} of slot {@code s}: exclusive GPU ms, 0 while its timestamps are still in flight. */
+    public static double passGpu(int s, int p) {return rpgpu[(s * NPS) + p];}
+
+    public static long glDraws(int s)     {return rgldraw[s];}
+    public static long glProgBinds(int s) {return rglprog[s];}
+    public static long glVerts(int s)     {return rglvert[s];}
+    public static long glTris(int s)      {return rgltri[s];}
+
+    /**
+     * The newest slot whose named passes have actually come back, or {@code -1} while none has (019.6). Like
+     * {@link #gpuSlot()}, and for the same reason: the GPU column of a pass arrives through fences several
+     * frames after the CPU column, so {@code p:passes()} reports the newest <b>resolved</b> frame and says
+     * which one it is, instead of a fresh frame with an empty GPU side.
+     */
+    public static int passSlot() {
+        for(int i = filled - 1; i >= 0; i--) {
+            int s = slot(i), b = s * NPS;
+            for(int k = 0; k < NPS; k++) {
+                if(rpgpu[b + k] > 0)
+                    return s;
+            }
+        }
+        return -1;
+    }
 
     /**
      * The newest slot whose GPU time has actually come back, or {@code -1} while none has. GL timestamp results

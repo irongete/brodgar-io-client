@@ -239,3 +239,40 @@ widget not ticked or drawn in the current or previous frame is **absent**, not z
 **See.** [D-011](architecture-api.md), [D-049](architecture-api.md), [D-050](architecture-api.md),
 [D-052](architecture-api.md), [019-profiling](../019-profiling/spec.md),
 [widgets.md](../../codebase/widgets.md), [profiling.md](../learnings/profiling.md).
+
+### D-054 — Named render passes nest under the client's own `draw` part, and report SELF time ✅ (maintainer, 2026-07-31)
+**Decision.** `p:passes()` (019.6) ships a **fixed, curated** list of three named sections —
+`shadow` (`MapView.drawsmap` → the whole `smap.update` call), `scene` (`MapView.maindraw` →
+`PView.maindraw`, the 3D draw list) and `ui2d` (`ui.draw(g)` in `UILoop.display`) — each with CPU and
+GPU time side by side. Two shape decisions inside that: (a) their `GPUProfile` parts hang **under** the
+frame's own `draw` part (captured in `UILoop.Frame.display` and handed to `io.brodgar.prof.Passes`),
+not beside it; (b) each pass reports **self** time — its span minus the passes nested inside it —
+the same inclusive/self split [D-053](architecture-api.md) uses for widgets. Every seam brackets its
+pass in `try`/`finally`. Alongside them, `p:gl()` adds the only **armed-only** counters in the feature
+(draw calls, program binds, vertices, triangles), counted at the two per-frame *dispatch* seams —
+`GLDrawList.draw`'s slot walk and `GLRender.draw`/`Applier` — with per-slot vertex and triangle counts
+computed once at slot-compile time.
+**Rationale.** `GPUProfile.Part.part()` closes the previous sibling when it opens the next, so hanging
+a pass beside `tick`/`draw`/`swap` would have **truncated the client's own `draw` part** and changed
+what `Profwnd` and `:profile on` show — the one thing 019 must not do. Nesting adds three rows and
+disturbs nothing. Self time is forced by the same nesting in the *code*: `shadow` and `scene` run
+inside the widget draw because the `MapView` **is** a widget, so inclusive rows would double-count the
+scene and sum above the frame. Subtracting makes `ui2d` mean what its name says and makes the three
+disjoint. The counters are armed-only because — unlike everything in `p:render()` ([D-051](architecture-api.md))
+— nothing counts them today; counting inside `BufferBGL`'s replay would be exact but paid by every
+client, armed or not.
+**Consequences.** Verified in-game: shadows on → `shadow` 0.273 / `scene` 2.077 / `ui2d` 0.613 ms of a
+3.172 ms GPU frame (93 %); shadows off → `shadow` **0.000**, frame 2.110 ms. The frame falls by 1.06 ms,
+**more** than `shadow` reported, and correctly so: 0.27 ms is the shadow-map render (the depth-only
+second geometry pass — 1387 → 887 draw calls), the other ~0.76 ms is `scene`, whose shaders stop
+sampling the shadow map. Naming the passes is what makes that decomposable. The CPU and GPU columns
+measure different things — CPU is command *recording*, so `shadow`/`scene` are ~0.04 ms while `ui2d` is
+milliseconds of real widget work. `passes()` reports the newest frame whose timestamps **resolved**
+(the [D-050](architecture-api.md) late-arrival rule again), so both columns describe one frame. The list
+stays fixed forever: every boundary is a real GL timestamp query, and per-draw-call attribution is out
+of scope permanently. A pass left open would leave a query that never completes and
+`GPUProfile.check()` drains **in order**, so it would stall every later frame's timing — hence the
+`try`/`finally` at every seam.
+**See.** [D-011](architecture-api.md), [D-050](architecture-api.md), [D-051](architecture-api.md),
+[D-053](architecture-api.md), [019-profiling](../019-profiling/spec.md),
+[world-3d.md](../../codebase/world-3d.md), [profiling.md](../learnings/profiling.md).

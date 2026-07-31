@@ -48,3 +48,18 @@
 **Gotcha.** Everything above except `State.Slot.numslots()` needs a live scene: `ui.root.findchild(MapView.class)`
 is null before the world loads, `instancer`/`back` are null before the first draw, and a non-`GLEnvironment`
 backend has no VRAM or program counts at all. Report an **absent** value, never a `0`.
+
+## GL submission: where a frame's draw calls actually happen
+
+| What | Where |
+|---|---|
+| The 3D scene draw boundary | [`PView.draw`](src/haven/PView.java:327) → `instancer.commit(out)` then [`maindraw(out)`](src/haven/PView.java:319) = `back.draw(out)`, the draw-list dispatch; `resolve(g)` + `list2d.draw(g)` follow it. [`MapView.maindraw`](src/haven/MapView.java:1642) prepends [`drawsmap`](src/haven/MapView.java:1027) → `smap.update(out, slist)` — **the entire shadow render in one call** |
+| Batched submission (per frame) | [`GLDrawList.draw(Render)`](src/haven/render/gl/GLDrawList.java:941) walks the sorted `DrawSlot` list on the **UI/dispatch** thread: `gl.bglCallList(cur.compiled)` per slot = **one draw call each**, and a program bind wherever `cur.prog` changes (the list is sorted by program, so binds ≪ calls means the sort works) |
+| Slot **compile** (rare, not per frame) | [`GLDrawList.SlotRender.draw(Pipe,Model)`](src/haven/render/gl/GLDrawList.java:848), from the [`DrawSlot` ctor](src/haven/render/gl/GLDrawList.java:336) — the only place the `Model` is in hand; [`glupdate`](src/haven/render/gl/GLDrawList.java:265) bakes `GLProgram.apply` + settings into `compiled`. Fork: `DrawSlot.nverts/ntris` are computed **here**, once |
+| Immediate submission | [`GLRender.draw(Pipe,Model)`](src/haven/render/gl/GLRender.java:173) — every 2D blit and ephemeral model, `state.apply` then `glDrawArrays`/`glDrawElements`(`Instanced`) |
+| Immediate program binds | [`Applier.apply2`](src/haven/render/gl/Applier.java:259) and [`apply(BGL,Applier)`](src/haven/render/gl/Applier.java:322) — the two `GLProgram.apply` sites that run per frame |
+| Geometry per model | [`Model`](src/haven/render/Model.java:33): `mode` ([`Mode`](src/haven/render/Model.java:41)), `n` (vertices, or **indices** when `ind != null`), `ninst`. Triangles = `n/3` (TRIANGLES) or `n-2` (STRIP/FAN), × `ninst`; POINTS/LINES contribute none |
+
+**Gotcha.** The GL calls are *written* at slot-compile time and *replayed* by `BufferBGL` on the render thread —
+neither is a per-frame count. Instrument the two **dispatch** seams above (`GLDrawList.draw`, `GLRender.draw`);
+the replay loop is far too hot to touch.

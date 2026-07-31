@@ -102,3 +102,34 @@
   (`LuaWidget`, `WItem`), containers do not (`DefaultDeco` 0.1633 self vs 0.1711 inclusive) — that contrast
   is also the quickest sanity check that the child subtraction is landing on the right widgets. And
   `AddonRoot` reading `tick 0.13 / draw 0.0` is correct, not a gap: it is ticked but never drawn.
+- **(019.6) `GPUProfile.Part.part()` CLOSES the previous sibling — so a new pass must nest, never sit beside.**
+  Opening a part emits one timestamp that both starts the new part *and* finishes the chain of the parent's
+  previous child. Adding `shadow`/`scene`/`ui2d` as siblings of the frame's `tick`/`draw`/`swap` would
+  therefore have truncated `draw` and changed what `Profwnd` shows. Capture the frame's `draw` part in
+  `UILoop.Frame.display` and hang the passes under **it**: the client's tree is untouched and gains three
+  nested rows. `Part.fin(out)` is the explicit close (safe to leave a gap after it — a later sibling's
+  `tfin()` on an already-`fin` part is a no-op).
+- **(019.6) A pass left open stalls EVERY later frame's GPU timing.** `GPUProfile.check()` drains `waiting`
+  in order and returns on the first part that is not `done`, so one unclosed part blocks the queue forever —
+  no more `gpuMs`, no more passes, silently. Bracket every seam in `try`/`finally`; guard `begin` against
+  double-open and `end` against a close with no open.
+- **(019.6) Nesting in the CODE forces self time in the REPORT.** `shadow` and `scene` run inside the widget
+  draw because the `MapView` *is* a widget, so inclusive rows would count the scene twice and sum above the
+  frame. Subtracting the nested passes (the D-053 trick again, applied to a part tree instead of a widget
+  tree) is what makes `ui2d` mean the 2D UI and the three rows disjoint — verified at 2.962 ms of rows
+  against a 3.172 ms GPU frame.
+- **(019.6) "What do shadows cost" is TWO costs, and only naming passes separates them.** Shadows off →
+  `shadow` 0.273 → 0 ms, but the GPU frame drops 1.06 ms: the rest is `scene` (2.077 → 1.317), whose shaders
+  stop sampling the shadow map. Draw calls halve too (1387 → 887) — the shadow map is a full depth-only
+  second pass over the geometry. Expect the frame delta to exceed the pass row; that is the answer being
+  decomposed, not a discrepancy.
+- **(019.6) The CPU and GPU columns of a pass measure different things.** CPU is the time spent *recording*
+  GL commands, so `shadow`/`scene` read ~0.04 ms while `ui2d` reads ~3 ms of real widget work; the GPU column
+  is when the driver did it. Say so in the docs or the CPU column reads as a bug.
+- **(019.6) Count GL submissions at the per-frame DISPATCH seams, not where the GL calls are written.**
+  `GLDrawList.SlotRender.draw` and `GLProgram.apply` run at slot *compile* time (rarely), and `BufferBGL`'s
+  replay is the render thread's innermost loop (too hot). The per-frame truth is `GLDrawList.draw`'s walk of
+  the sorted slot list — one draw call per slot, one program bind wherever `slot.prog` changes — plus
+  `GLRender.draw` and `Applier`'s two `GLProgram.apply` sites for the immediate path. Precompute per-slot
+  vertex/triangle counts at compile time so the frame walk is an add, and hoist `Prof.on` into a local so the
+  disarmed cost is one branch per frame rather than per slot.

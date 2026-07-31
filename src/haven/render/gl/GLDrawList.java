@@ -239,6 +239,7 @@ public class GLDrawList implements DrawList {
 	BufferBGL compiled, main;
 	Rendered.Order gorder;
 	final Pipe ordersrc;
+	int nverts, ntris;	// addon: what this slot submits, for p:gl() (spec 019, task 019.6)
 	private volatile boolean disposed = false;
 
 	private GLProgram progfor(Slot<? extends Rendered> sl) {
@@ -867,6 +868,11 @@ public class GLDrawList implements DrawList {
 			ebo = (GLBuffer)ro;
 		}
 		slot.settings[idx_vao] = getvao(vao, ebo);
+		// addon: p:gl() (spec 019, task 019.6) -- the geometry this slot submits, computed ONCE here
+		// where the model is in hand (slot compilation, not the frame path) so the per-frame walk in
+		// draw() below is an add rather than a model inspection. Two ints per slot, armed or not.
+		slot.nverts = io.brodgar.prof.GlCount.verts(mod);
+		slot.ntris = io.brodgar.prof.GlCount.tris(mod);
 		if(mod.ind == null) {
 		    if(mod.ninst == 1)
 			gl.glDrawArrays(GLRender.glmode(mod.mode), mod.f, mod.n);
@@ -966,13 +972,30 @@ public class GLDrawList implements DrawList {
 	    if(g.state.prog() != first.prog)
 		throw(new ProgramMismatchException(g.state.prog(), first.prog));
 	    BGL gl = g.gl();
+	    // addon: p:gl() (spec 019, task 019.6). This walk IS the frame's batched submission: one draw call
+	    // per slot, and a program bind wherever the program changes -- which the list is sorted by, so the
+	    // bind count is the batching working. Hoisted into a local so the disarmed cost is one branch per
+	    // frame rather than per slot, and folded into GlCount in a single add at the end.
+	    boolean prof = io.brodgar.prof.Prof.on;
+	    int ndraw = 0, nbind = 0; long nvert = 0, ntri = 0; GLProgram lastprog = null;
 	    for(DrawSlot cur = first; cur != null; last = cur, cur = cur.next()) {
 		if(GLEnvironment.debuglog) {
 		    if((last == null) || (last.gorder != cur.gorder))
 			g.marker("order: " + String.valueOf(cur.gorder));
 		}
+		if(prof) {
+		    ndraw++;
+		    nvert += cur.nverts;
+		    ntri += cur.ntris;
+		    if(cur.prog != lastprog) {
+			nbind++;
+			lastprog = cur.prog;
+		    }
+		}
 		gl.bglCallList(cur.compiled);
 	    }
+	    if(prof)
+		io.brodgar.prof.GlCount.drawlist(ndraw, nbind, nvert, ntri);
 	    settingbuf.put(gl);
 	    g.state.assume(last.bk.state());
 	    g.state.apply(null, VaoState.slot, ((VaoSetting)last.settings[idx_vao]).st);
