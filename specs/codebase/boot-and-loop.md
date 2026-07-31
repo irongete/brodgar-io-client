@@ -26,6 +26,28 @@
 | Draw + one-shot after-draws | [`UI.draw`](src/haven/UI.java:386) (afterdraws cleared at [:391](src/haven/UI.java:391)) |
 | Register a one-shot overlay | [`UI.drawafter`](src/haven/UI.java:365) |
 
+## Profiling & stats (the client's own)
+
+| What | Where |
+|---|---|
+| The two switches: `:stats on\|off` and `:profile on\|off` | [`UILoop.dbtext`](src/haven/UILoop.java:39) / [`UILoop.profile`](src/haven/UILoop.java:40) — `Config.Variable<Boolean>`, set by the console commands (~:603) |
+| Per-frame CPU trees (UI + render thread) | [`UILoop.uprof`/`rprof`](src/haven/UILoop.java:43) — [`CPUProfile`](src/haven/CPUProfile.java), 300-frame ring |
+| GPU frame time (GL timestamp queries) | [`UILoop.gprof`](src/haven/UILoop.java:44) — [`GPUProfile.part(Render, nm)`](src/haven/GPUProfile.java:64) inserts a named query |
+| **Where a frame decides to profile at all** | [`UILoop.Frame` ctor](src/haven/UILoop.java:502) — reads `profile.get()` **once**, per frame |
+| The phase names | `CPUProfile.phase(prof, …)` in [`Frame.tick`](src/haven/UILoop.java:433): `dwait`, `stick`, `utick`, `draw`, `swap`, `wait`, `aux` |
+| Ring / part arithmetic (`f()`/`t()`/`d()`/`sub()`, `last()`, `copy()`) | [`Profile`](src/haven/Profile.java:34) |
+| Scoped CPU sections (the `ProfilerMarker` primitive) | [`CPUProfile.set(Part)`](src/haven/CPUProfile.java:104) / `phase` / `end`; the `Current` ThreadLocal is `null` when off, so `begin` returns immediately |
+| The HUD text (`:stats on`) | [`UILoop.statlines`](src/haven/UILoop.java:233), drawn at ~:291 |
+| The live tree windows | [`Profwnd`](src/haven/Profwnd.java:31) |
+| **Master switch (fork)** | [`io.brodgar.prof.Prof.arm`](src/io/brodgar/prof/Prof.java) writes the hot-path field, the pref **and** `UILoop.profile`; `:profile` routes through it (D-049) |
+
+**Gotchas.** (a) `:profile on` builds the trees but **opens nothing** — the `Profwnd` windows appear only when
+you then press the **backtick** key, and only while the flag is set ([`RootWidget.globtype`](src/haven/RootWidget.java:57)).
+(b) Because the `Frame` constructor samples the flag, **arming takes effect on the next frame** — the frame
+during which you flip it has no tree. (c) GPU parts arrive **late** (GL fences), so frame X's GPU time may land
+several frames after its CPU time — fold by frame number, never by position. (d) `fps`/`uidle`/`framelag` are
+**private** to `UILoop`: pass them out, do not widen the fields.
+
 ## Threading & locks
 
 | Concern | Rule / where |

@@ -604,7 +604,10 @@ public abstract class UILoop implements Console.Directory {
 	    dbtext.set(Utils.parsebool(args[1]));
 	});
 	cmdmap.put("profile", (cons, args) -> {
-	    profile.set(Utils.parsebool(args[1]));
+	    // addon: one switch, not two (spec 019, task 019.1) — Prof.arm sets `profile` as well as the
+	    // addon-side master switch and the pref, so :profile, the Options "Client" checkbox and
+	    // hafen.client:options():client():profiling() can never show different states.
+	    io.brodgar.prof.Prof.arm(Utils.parsebool(args[1]));
 	});
 	cmdmap.put("renderer", new Console.Command() {
 	    public void run(Console cons, String[] args) {

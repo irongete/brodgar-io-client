@@ -45,3 +45,14 @@ No design doc yet; each would get one when picked up: **Screenshooter** (program
 **`GSettings`** (read/write client graphics settings), **`Polity`** (village/realm), **`NewsFeed`**,
 **`Cal`** (calendar), **`DynresWindow`** (server-published custom windows — a special replacement
 case), **`Partyview`** (the on-screen party HUD, distinct from the `Glob.party` roster we read).
+
+## Package layout: finish the tier-3 split (opened by D-048) — [decisions/architecture-api.md](decisions/architecture-api.md)
+019.1 established the rule — `io.brodgar.addon` is the addon *system* + its Lua bridge, and a **client**
+capability with an addon consumer gets its own sibling package (`prof`, `ui`, like `voice`) with only its
+handle left behind. It moved `Prof` and `ClientPanel` because they were new and cheap; the standing
+candidates were **not** touched and want their own feature: **`Json`** (used by `Manifest` and `StoreApi`,
+not just Lua), **`Gltf`** + its mesh primitives (`MeshSprite`, `SpriteQuad`), and possibly
+**`GhostGob`/`FollowMoving`**. Per candidate the question is the same: does the engine move out with the
+handle staying, or is it addon machinery wearing a generic name? Constraints: zero behaviour change, zero
+`docs/addons/api/` edits, `addon` itself stays **flat** (16 package-private classes), and anything that must
+widen to `public` purely to survive the move is evidence against that move.

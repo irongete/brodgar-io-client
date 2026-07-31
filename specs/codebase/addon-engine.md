@@ -17,7 +17,15 @@
 | `RenderApi` | `hafen.ghost` + `hafen.render` (world entities) |
 | `StoreApi` / `HttpApi` / `FontApi` | `hafen.store` / `hafen.http` / `hafen.font` |
 | **`LuaGob`** | the `hafen.gob(id)` Gob class (D-044): id-only userdata + per-addon metatable/intern cache (D-045) |
+| `OptionsHandle` + `*Options` | `hafen.client:options()` — one subsystem per OptWnd panel (`interface`/`video`/`audio`/`camera`/`client`/`keybindings`), read/write by arity via `OptionsMethod` |
 | Support classes | `Addon`, `Manifest`, `Json`, `Sandbox`, `AddonRoot`, `LuaMarshal`, `Lua*` (widget/hooks/entities/images/meshes/nodes/fonts/GOut/WorldEntity), `GhostGob`, `SpriteQuad`, `FollowMoving`, `Gltf`, `ui/AddonPanel`, `ui/ActionsConsentWnd` |
+
+**Sibling packages under `io.brodgar` (D-048).** This package is the addon *system* + its Lua bridge; a
+**client** capability that merely has an addon consumer lives on its own and leaves only its handle here:
+`io.brodgar.voice` (`Voice`), `io.brodgar.prof` (`Prof` — the profiling master switch, whose callers are
+`UILoop`/`Widget`/`MapView`/GL; handle = `ClientOptions`), `io.brodgar.ui` (`ClientPanel`, a *client* Options
+panel — the addon-manager panels stay in `addon/ui/`). Keep `addon` itself **flat**: 16 of its top-level
+classes are package-private, and subpackages would force them public.
 
 Pattern: cluster files `import static AddonManager.*`; the seams stay in the hub as one-line
 delegates so `haven` core edits never move. `haven.Fonts` + `haven.AddonWidgets` are the two

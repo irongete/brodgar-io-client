@@ -237,6 +237,7 @@ public final class AddonManager {
      */
     public static synchronized void init(UI ui_) {
         ui = ui_;
+        io.brodgar.prof.Prof.init();  // 019.1: restore the persisted profiling switch (once per JVM)
         for(Addon a : addons)         // fire OnDisable + flush saved vars + drop owned resources
             AddonRegistry.teardown(a);              // (flushes with the OLD charScope, still set from the last session)
         addons.clear();

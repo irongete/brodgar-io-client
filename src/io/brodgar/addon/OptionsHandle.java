@@ -7,8 +7,9 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 /**
  * {@code hafen.client} and the Options handle behind {@code hafen.client:options()} (spec 018-client-options).
- * The handle groups the five settings subsystems the client's Options window edits — {@code interface()},
- * {@code video()}, {@code audio()}, {@code camera()}, {@code keybindings()} — each returning its own handle
+ * The handle groups the settings subsystems the client's Options window edits — {@code interface()},
+ * {@code video()}, {@code audio()}, {@code camera()}, {@code client()}, {@code keybindings()} — one per OptWnd
+ * panel, each returning its own handle
  * whose methods are read/write in one name: {@code scale()} reads, {@code scale(1.2)} writes and returns the
  * subsystem back, so writes chain.
  *
@@ -32,7 +33,7 @@ public final class OptionsHandle {
         hafen.set("client", client);
     }
 
-    /** A fresh Options handle for {@code owner}: the five subsystem accessors. */
+    /** A fresh Options handle for {@code owner}: one accessor per Options panel. */
     static LuaValue create(final Addon owner) {
         LuaTable opts = new LuaTable();
         opts.set("interface", new VarArgFunction() {
@@ -53,6 +54,11 @@ public final class OptionsHandle {
         opts.set("camera", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 return CameraOptions.create();
+            }
+        });
+        opts.set("client", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return ClientOptions.create();
             }
         });
         opts.set("keybindings", new VarArgFunction() {

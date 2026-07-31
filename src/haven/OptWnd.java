@@ -878,6 +878,8 @@ public class OptWnd extends Window {
 	y = main.add(new PButton(UI.scale(200), "Voice Chat Integration", 'c', () -> new VoiceChatPanel(main)), 0, y).pos("bl").adds(0, 5).y;
 	// addon: AddOns manager panel (spec 10 / 1f-3) — the whole panel lives in io.brodgar.addon.ui.
 	y = main.add(new PButton(UI.scale(200), "AddOns", 'd', () -> new io.brodgar.addon.ui.AddonPanel(OptWnd.this, main)), 0, y).pos("bl").adds(0, 5).y;
+	// addon: client-wide toggles (spec 019, task 019.1) — today just the profiling master switch.
+	y = main.add(new PButton(UI.scale(200), "Client", 'l', () -> new io.brodgar.ui.ClientPanel(OptWnd.this, main)), 0, y).pos("bl").adds(0, 5).y;
 	y += UI.scale(60);
 	if(gopts) {
 	    if((SteamStore.steamsvc.get() != null) && (Steam.get() != null)) {

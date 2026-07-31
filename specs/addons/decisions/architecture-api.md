@@ -87,3 +87,48 @@ Lua handle** (`:key()` / `:remove()`): the keybindings handle already answers bo
 so keeping it would have been a second canonical way ([D-013](architecture-api.md)).
 **See.** [D-013](architecture-api.md) (one canonical way), [018-client-options](../018-client-options/spec.md),
 [hooks-hotkeys.md](../learnings/hooks-hotkeys.md) (dispatch order + registry mechanics).
+
+### D-048 — `io.brodgar.addon` holds the addon system, not every class an addon can reach ✅ (maintainer, 2026-07-31)
+**Decision.** The package a class lives in is decided by **who its clients are**, not by who can call it from
+Lua. `io.brodgar.addon` holds (a) the addon *system* — [`AddonManager`](src/io/brodgar/addon/AddonManager.java),
+`AddonRegistry`, `Addon`, `Sandbox`, `Manifest`, `AddonRoot` — and (b) the *Lua bridge*: the `*Api` classes,
+every `Lua*` handle, the `*Options` subsystems and `OptionsMethod`. A **client capability** that merely happens
+to have an addon consumer gets its own sibling package under `io.brodgar`, with only its Lua handle left behind
+in `addon`. 019.1 applies this for the first time: the profiling engine is
+[`io.brodgar.prof.Prof`](src/io/brodgar/prof/Prof.java), the Options panel is
+[`io.brodgar.ui.ClientPanel`](src/io/brodgar/ui/ClientPanel.java), and only
+[`ClientOptions`](src/io/brodgar/addon/ClientOptions.java) — and later `ProfHandle`/`ProfScope` — stays in
+`addon`. `io.brodgar.voice` was already this shape; the rule just names it.
+**Rationale.** `Prof`'s consumers are `UILoop`, `Widget`, `MapView` and the GL layer: 019 would have made the
+hottest classes in `haven` depend on a package called "addon" for something that profiles the *client* and works
+with no addon loaded. The seam is clean because it is real — **the engine is a client feature, the handle is the
+addon surface** — and it is cheapest to cut while a class is new: `Prof` moved with three call sites, where after
+019.7 it would have been five classes and dozens of probes.
+**Consequences.** `Prof.init()` had to widen to `public` — crossing a package boundary always costs some
+visibility, and that cost is the test of whether a move is real. The **flat** layout of `addon` itself stays:
+16 of its top-level classes are package-private, so splitting the bridge into subpackages would force them all
+public — worse encapsulation, not better. Existing tier-3 candidates (`Json`, `Gltf` + its mesh primitives,
+`GhostGob`/`FollowMoving`) are **not** moved here; they are a separate refactor feature, planned on its own.
+**See.** [D-011](architecture-api.md) (invasiveness), [D-008](architecture-api.md) (engine layout),
+[019-profiling](../019-profiling/spec.md), [ROADMAP.md](../ROADMAP.md) (the tier-3 refactor).
+
+### D-049 — Profiling is ONE switch: the checkbox, `:profile` and Lua all arm the client's own profiler ✅ (maintainer, 2026-07-31)
+**Decision.** [`Prof.arm(boolean)`](src/io/brodgar/prof/Prof.java) is the single writer of the profiling state,
+and it writes three things in one place: the hot-path field `Prof.on`, the `"profiling"` preference
+(`Utils.setprefb`) and [`UILoop.profile`](src/haven/UILoop.java:40) — the client's own flag that makes it build
+`uprof`/`rprof`/`gprof` frames. The Options ▸ Client checkbox, `hafen.client:options():client():profiling(v)`
+and the console `:profile on|off` all route through it, so no two of them can ever disagree. The console command
+was rewired for this ([D-013](architecture-api.md): one canonical way); the side effect is that `:profile` now
+persists the pref, which it did not before.
+**Rationale.** 019 reads the client's *existing* frame trees rather than building a parallel profiler, so a
+second switch would mean a state where Lua thinks profiling is on while the trees are not being built — the
+worst failure mode for a profiler is disagreeing with itself. Writing the field and the pref in one statement
+follows what `OptWnd` already does for `MapView.invcamx`; a pref-only write would be a no-op until restart, and
+a field-only write would not survive one. `Prof.on` is a plain `static volatile boolean`, deliberately not a
+`Config.Variable` — a probe must cost one branch the JIT can hoist, not a deref plus an unbox.
+**Consequences.** Arming is **next-frame**: `UILoop.Frame` decides in its constructor whether to build profile
+objects, so the frame during which the switch flips has no tree — documented in the API reference, not a bug.
+The pref is restored once per JVM from `AddonManager.init` (session init), since the panel is in-game only
+([D-004](lifecycle.md)) and everything 019 profiles is the in-game frame loop.
+**See.** [D-013](architecture-api.md), [019-profiling](../019-profiling/spec.md),
+[boot-and-loop.md](../../codebase/boot-and-loop.md) (the profiling machinery).

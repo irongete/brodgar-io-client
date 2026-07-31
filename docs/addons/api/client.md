@@ -1,7 +1,7 @@
 # hafen.client — client settings & hotkeys
 
 `hafen.client:options()` opens the settings the client's **Options window** edits, plus the hotkey
-registry. Five subsystems hang off it:
+registry. One subsystem per Options panel:
 
 ```lua
 local opts = hafen.client:options()
@@ -10,6 +10,7 @@ opts:interface()      -- UI scale, fine-placement granularity
 opts:video()          -- shadows, render scale, vsync, framerate, lighting
 opts:audio()          -- volumes and output latency
 opts:camera()         -- camera drag inversion
+opts:client()         -- client-wide toggles (profiling)
 opts:keybindings()    -- register / inspect / remap hotkeys
 ```
 
@@ -104,10 +105,38 @@ To *play* sounds, see [`hafen.sound` / `hafen.music`](audio.md) — this subsyst
 
 Both apply live, on the very next drag.
 
+## `client()`
+
+Client-wide toggles — the Options ▸ **Client** panel.
+
+| Method | Type | Description |
+|---|---|---|
+| `profiling()` / `profiling(b)` | bool | arm the client's profiler |
+
+**Profiling is the client's own profiler, not a second one.** Arming it is exactly what the console's
+`:profile on` does — it makes the client build its per-frame CPU and GPU trees (the ones `Profwnd`
+displays), which is what any profiling read surface is built on. One switch: the checkbox, `:profile`
+and this option always agree, and the state is persisted like every other option.
+
+It defaults **off** and should stay off unless you are measuring something. Off it costs nothing; on it
+is a live instrumentation of every frame.
+
+```lua
+local c = hafen.client:options():client()
+
+if not c:profiling() then c:profiling(true) end
+```
+
+A write moves an **open** panel's checkbox immediately — the panel re-reads the switch every frame, so
+there is nothing to refresh.
+
+> Arming takes effect on the **next** frame: the client decides at the start of each frame whether to
+> build its profile trees, so the frame during which you flip the switch has none. This is expected.
+
 ## Before the client is up
 
 `video()` and `audio()` read **`nil`** until the client's UI exists (their backing systems are built
-with it), and a write in that window is ignored. `interface()` and `camera()` always answer. In practice
+with it), and a write in that window is ignored. `interface()`, `camera()` and `client()` always answer. In practice
 this only matters if you touch options at load time on the login screen — guard the value, or do it from
 `OnEnterWorld` ([events](events.md)):
 
