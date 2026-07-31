@@ -973,16 +973,18 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // BuffChanged (add/remove detected per-tick; content changes on the buff's "ch"/"tt" uimsg).
         CharApi.installBuffs(hafen, owner);
 
-        // hafen.actionbar.* — the action bar / hotbar (the engine calls it the "belt": GameUI.belt, a
-        // BeltSlot[144]), via the widget-tree mechanism (1d-4). slot(n) returns {res,name,cooldown} for the
-        // occupied slot n (the RAW 0-based game index 0..143 — the same index action-bar USE will take in
-        // Phase 4), or nil if empty; cooldown (0..1) is a pagina action's meter, present only for ability
-        // slots (not seconds). Subscribe to ActionbarChanged{n} (fired per-tick when slot n's content
-        // changes — a set/clear/drag or its data resolving). use(n [, mods]) is the GATED write verb (4g,
-        // requireActions): activate slot n (the same raw 0-based index slot(n) reads) — exactly a LEFT-click on
-        // that action-bar button (GameUI belt act → wdgmsg("belt", n, …)); mods is an optional modifier bitfield
-        // (0 default; Shift=1 Ctrl=2 Alt=4, matching the keybind syntax). A ground-targeted ability then enters targeting
-        // mode (as clicking the button does) — supply the target with the MapView verbs.
+        // hafen.actionbar — the action bar / hotbar (the engine calls it the "belt": GameUI.belt, a
+        // BeltSlot[144]), via the widget-tree mechanism (1d-4), CALLABLE-ONLY since 021-actionbar-oop:
+        // hafen.actionbar(n) is the Slot at the RAW 0-based game index 0..143 (out of range throws),
+        // hafen.actionbar() the 1-based array of all 144 (the iteration view — same interned objects, and
+        // slot:index() is the game index). Reads on the object, live per call: :res()/:name()/:cooldown()
+        // (0..1, a pagina action's meter — ability slots only, NOT seconds)/:empty()/:info() (the old flat
+        // snapshot). Subscribe to ActionbarChanged{n} (fired per-tick when slot n's content changes — a
+        // set/clear/drag or its data resolving). slot:use([mods]) is the GATED write verb (4g,
+        // requireActions) — exactly a LEFT-click on that action-bar button (GameUI belt act →
+        // wdgmsg("belt", n, …)); mods is an optional modifier bitfield (0 default; Shift=1 Ctrl=2 Alt=4,
+        // matching the keybind syntax). A ground-targeted ability then enters targeting mode (as clicking
+        // the button does) — supply the target with the MapView verbs.
         CharApi.installActionbar(hafen, owner);
 
         // hafen.act.* — the GATED write-actions surface (spec 12 / D-010 / D-025 / D-027; D-028), the ONLY part of

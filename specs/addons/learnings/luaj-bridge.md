@@ -141,3 +141,16 @@
   zeros `tostring` drops) and pad by hand (`string.rep(" ", n-#s)`, which is exact in a mono font). Verify
   format assumptions against the shipped jar, not against Lua's manual: `java -cp lib/brodgar/luaj-jse-3.0.1.jar
   lua <script>` is a 5-second check. Bitten in `addons/profiler` AND retroactively in `addons/hello`'s 019 dumps.
+- **(021.1) A LuaTable keyed from 0 lies about its length, and `__len` will not save you.** Key `0` lands in the
+  **hash** part, so a "dense 0..143" array answers `#t == 143` and `ipairs` starts at 1 — slot 0 is silently
+  skipped by every idiomatic loop. LuaJ 3.0.1's `LuaTable.len()` returns the raw array length **without
+  consulting the metatable**, so a `__len` metamethod (legal in 5.2+) is simply ignored for tables; only
+  userdata gets it. So an engine-side 0-based index CANNOT be the Lua array key: expose the array 1-based and
+  put the real index on the element (`slot:index()`, [D-057](../decisions/architecture-api.md)). Cheap to
+  confirm before designing around it — a 15-line `Globals` harness with `assert(#t == 144)` and an `ipairs`
+  count runs headless off `lib/brodgar/luaj-jse-3.0.1.jar` in seconds, no client, no login.
+- **(021.1) `LuaValue.userdataOf` interning gives table-key identity for free — including across two entry
+  points.** Because `hafen.actionbar()` fills its array from the same per-`Addon` weak-valued cache
+  `hafen.actionbar(n)` uses, `hafen.actionbar()[1] == hafen.actionbar(0)` is true without any `__eq`
+  metamethod, and `seen[slot] = true` works. Worth asserting in the same headless harness: an accidental
+  fresh `userdataOf` per call passes every read test and fails only where an addon dedupes.

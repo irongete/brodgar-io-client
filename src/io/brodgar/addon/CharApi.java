@@ -21,7 +21,6 @@ import haven.ItemInfo;
 import haven.LayerMeter;
 import haven.Loading;
 import haven.MapView;
-import haven.MenuGrid;
 import haven.Party;
 import haven.QuestWnd;
 import haven.Resource;
@@ -341,7 +340,7 @@ final class CharApi {
      * is <b>poll-driven</b> (like buffs/study): each tick it diffs the occupied slots against a per-index
      * cache and fires {@code ActionbarChanged{n}} on a set/clear/change (or a slot's data resolving).
      * Change-detection ignores {@code cooldown} (a live meter that would otherwise fire every frame while
-     * an ability cools down); {@code hafen.actionbar.slot(n)} still reads it live.
+     * an ability cools down); {@code hafen.actionbar(n)} still reads it live.
      */
     private static final class ActionbarAdapter implements TreeAdapter {
         // slot index -> last snapshot, occupied slots only. UI-thread-only; reset per session by
@@ -1069,25 +1068,14 @@ final class CharApi {
         hafen.set("buffs", buffs);
     }
 
-    /** Build a char namespace for owner. From installHafen. */
+    /**
+     * Build a char namespace for owner. From installHafen. {@code hafen.actionbar} is CALLABLE-ONLY
+     * (spec {@code 021-actionbar-oop}): {@code hafen.actionbar(n)} is one {@link LuaSlot}, {@code
+     * hafen.actionbar()} all 144 of them — the flat {@code .slot(n)}/{@code .use(n)} fields are gone
+     * (D-013's hard cut), and the reads/verb live on the Slot object itself.
+     */
     static void installActionbar(LuaTable hafen, final Addon owner) {
-        LuaTable actionbar = new LuaTable();
-        actionbar.set("slot", new OneArgFunction() {
-            public LuaValue call(LuaValue n) {
-                return n.isnumber() ? actionbarSlot(n.toint()) : LuaValue.NIL;
-            }
-        });
-        // use(n [, mods]) — the gated write verb (4g): activate action-bar slot n. requireActions-gated (D-027/D-028).
-        actionbar.set("use", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                requireActions(owner, "hafen.actionbar.use");
-                if(!a.arg1().isnumber())
-                    throw new LuaError("hafen.actionbar.use(n): n must be a number (the raw 0-based slot index 0..143)");
-                actActionbarUse(a.arg1().toint(), a.arg(2).optint(0));
-                return LuaValue.NIL;
-            }
-        });
-        hafen.set("actionbar", actionbar);
+        hafen.set("actionbar", LuaSlot.factory(owner));
     }
 
     // ------------------------------------------------------------- items / char / party reads
@@ -1497,45 +1485,16 @@ final class CharApi {
     // are named actionbar* but read the engine's belt[] array; the two names denote the same thing.
 
     /**
-     * Read action-bar slot {@code n} into a snapshot, or nil for an out-of-range or empty slot. Slots are
-     * the <b>raw 0-based game index</b> (0..143 — the same index the server uses and that action-bar
-     * <i>use</i> will take in Phase 4), NOT a 1-based Lua position: the slot index is the game's index
-     * everywhere (one canonical way).
-     */
-    private static LuaValue actionbarSlot(int n) {
-        GameUI g = gui();
-        if((g == null) || (g.belt == null) || (n < 0) || (n >= g.belt.length))
-            return LuaValue.NIL;
-        return actionbarSnapshot(g.belt[n]);
-    }
-
-    /**
-     * {@code hafen.actionbar.use} backing (4g, gated) — activate action-bar slot {@code n} (the raw 0-based
-     * index) with modifier bitfield {@code mods}. Drives the client's own belt {@code act(idx, Interaction)} —
-     * exactly what a LEFT-click on that button does ({@code GameUI.Belt.mousedown} b==1) → {@code wdgmsg("belt",
-     * n, …)} — so a ground-targeted ability enters targeting mode just as clicking it would. Wrap-not-reimplement
-     * (D-009). Throws for an out-of-range or empty slot, or before the HUD exists.
-     */
-    private static void actActionbarUse(int n, int mods) {
-        GameUI g = gui();
-        if(g == null)
-            throw new LuaError("hafen.actionbar.use: no game UI (not in the world yet)");
-        if((g.belt == null) || (n < 0) || (n >= g.belt.length))
-            throw new LuaError("hafen.actionbar.use(n): slot index out of range (0..143), got " + n);
-        if(g.belt[n] == null)
-            throw new LuaError("hafen.actionbar.use: slot " + n + " is empty (read hafen.actionbar.slot(n) first)");
-        if(g.beltwdg == null)
-            throw new LuaError("hafen.actionbar.use: no action-bar widget yet");
-        g.beltwdg.act(n, new MenuGrid.Interaction(1, mods));   // button 1 (left) — the on-screen slot click
-    }
-
-    /**
      * An action-bar slot snapshot: {@code res} (the icon resource — stable identity), {@code name} (the
      * action's display name for a pagina slot, else the resource tooltip), and {@code cooldown} (0..1,
      * present only for a pagina action carrying a meter — e.g. an ability recharging; not seconds). Every
      * field is optional / Loading-guarded, so a slot resolving surfaces as a partial-then-full snapshot.
+     *
+     * <p>Two consumers: {@code slot:info()} — the one snapshot escape hatch on a {@link LuaSlot} — and the
+     * {@link ActionbarAdapter}'s change detection. The per-field readers below back the Slot's
+     * {@code :res()}/{@code :name()}/{@code :cooldown()}, which is why they are package-visible.
      */
-    private static LuaValue actionbarSnapshot(GameUI.BeltSlot s) {
+    static LuaValue actionbarSnapshot(GameUI.BeltSlot s) {
         if(s == null)
             return LuaValue.NIL;
         LuaTable t = new LuaTable();
@@ -1553,7 +1512,7 @@ final class CharApi {
 
     /** The icon {@link Resource} behind an action-bar slot (a {@code ResBeltSlot} item or a
      *  {@code PagBeltSlot} action), or {@code null} (Loading-guarded). */
-    private static Resource actionbarResObj(GameUI.BeltSlot s) {
+    static Resource actionbarResObj(GameUI.BeltSlot s) {
         try {
             if(s instanceof GameUI.ResBeltSlot)
                 return ((GameUI.ResBeltSlot)s).getres();
@@ -1565,7 +1524,7 @@ final class CharApi {
     }
 
     /** Display name of an action-bar slot: the pagina action's name, else the resource tooltip, else nil. */
-    private static String actionbarName(GameUI.BeltSlot s, Resource r) {
+    static String actionbarName(GameUI.BeltSlot s, Resource r) {
         if(s instanceof GameUI.PagBeltSlot) {
             try {
                 return ((GameUI.PagBeltSlot)s).pag.button().name();
@@ -1584,7 +1543,7 @@ final class CharApi {
     }
 
     /** Cooldown/meter fraction (0..1) of a pagina action-bar slot, or {@code null} (none / Loading). */
-    private static Double actionbarCooldown(GameUI.BeltSlot s) {
+    static Double actionbarCooldown(GameUI.BeltSlot s) {
         if(s instanceof GameUI.PagBeltSlot) {
             try {
                 return ((GameUI.PagBeltSlot)s).pag.button().meter.get();   // AttrCache swallows Loading -> null

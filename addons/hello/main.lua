@@ -277,24 +277,25 @@ local function readLore(tag)
     lore[1] and (" score=%s"):format(tostring(lore[1].score)) or ""))
 end
 
--- 1d-4: action bar / hotbar slots (the engine calls it the "belt"). slot(n) takes the RAW 0-based game
--- index (0..143 — the same index action-bar USE will take in Phase 4), returning {res,name,cooldown} for
--- an occupied slot or nil for an empty one. cooldown (0..1) appears only on ability slots (not seconds).
+-- 1d-4 + 021: action bar / hotbar slots (the engine calls it the "belt"), now OOP. hafen.actionbar(n) is
+-- the Slot at the RAW 0-based game index (0..143 — the same index :use takes); hafen.actionbar() is the
+-- iteration view, a 1-based array of all 144 Slots, so slot:index() is what gives the game index back.
+-- Reads live per call: :empty()/:res()/:name()/:cooldown() (0..1 on ability slots only, not seconds).
 -- The hotbar streams in a beat after enter-world like the rest of the HUD, so scan at now (often empty)
 -- and +3s (populated).
 local function readActionbar(tag)
-  local occupied, first, firstn = 0, nil, nil
-  for n = 0, 143 do
-    local s = hafen.actionbar.slot(n)
-    if s then
+  local occupied, first = 0, nil
+  for _, slot in ipairs(hafen.actionbar()) do
+    if not slot:empty() then
       occupied = occupied + 1
-      if not first then first, firstn = s, n end
+      if not first then first = slot end
     end
   end
+  local cd = first and first:cooldown()
   hafen.log(("[%s] actionbar=%d slot(s), first[%s]=%s%s"):format(tag, occupied,
-    firstn and tostring(firstn) or "-",
-    first and tostring(first.name or first.res) or "none",
-    (first and first.cooldown) and (" cd=%.2f"):format(first.cooldown) or ""))
+    first and tostring(first:index()) or "-",
+    first and tostring(first:name() or first:res()) or "none",
+    cd and (" cd=%.2f"):format(cd) or ""))
 end
 
 -- A1: map markers via hafen.markers. list()/nearest() read the client's on-disk map DB; each snapshot is
@@ -795,9 +796,9 @@ end)
 local actionbarSeen = 0
 hafen.events.on("ActionbarChanged", function(n)
   actionbarSeen = actionbarSeen + 1
-  local s = hafen.actionbar.slot(n)
+  local slot = hafen.actionbar(n)                    -- 021: the payload index -> the Slot object
   hafen.log(("ActionbarChanged: slot %s -> %s (%d)"):format(tostring(n),
-    s and tostring(s.name or s.res) or "empty", actionbarSeen))
+    (not slot:empty()) and tostring(slot:name() or slot:res()) or "empty", actionbarSeen))
 end)
 
 -- 1d-4: EquipChanged fires when worn equipment changes (equip/unequip) — the payload is the same array

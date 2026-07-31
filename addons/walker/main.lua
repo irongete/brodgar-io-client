@@ -12,7 +12,7 @@
 --
 -- Slice 4d adds the rest of the MapView action verbs on top of moveTo (4a); slice 4e adds menu + flower;
 -- slice 4f adds the ITEM verbs (hafen.act.item); slice 4g adds the PER-SUBSYSTEM gated verbs that live in
--- their own namespace (not hafen.act.*): hafen.speed.set, hafen.craft.make, hafen.actionbar.use, and
+-- their own namespace (not hafen.act.*): hafen.speed.set, hafen.craft.make, the Slot's :use, and
 -- the kin verbs on the Kin object (hafen.kin():add(secret) and kin:rename/:setGroup/:endkin/:forget)
 -- — all behind the SAME "actions" permission.
 -- Each is a DELIBERATE, opt-in trigger — a `:walker <sub>` command — so nothing acts unless you ask.
@@ -32,7 +32,7 @@
 --                          undo). Pass a verb: take|drop|transfer|iact|itemact.
 --   :walker speed [n]   -- speed.set: select movement speed n=0..3 (crawl/walk/run/sprint; default 2=run). Reversible.
 --   :walker craft [all] -- craft.make: press Craft on the OPEN recipe (add 'all' for Craft All). CONSUMES ingredients!
---   :walker bar <n>     -- actionbar.use: activate action-bar slot n (raw 0-based index; read hafen.actionbar.slot first)
+--   :walker bar <n>     -- slot:use: activate action-bar slot n (raw 0-based index; read hafen.actionbar(n) first)
 --   :walker kin add <secret>  -- hafen.kin():add: add a kin by the other player's HEARTH SECRET (wdgmsg 'bypwd')
 --   :walker kin <name> group <0..7>|rename <new>|endkin|forget
 --                       -- kin:setGroup/:rename a named kin (reversible), OR the two-step drop: endkin = End
@@ -61,7 +61,7 @@ hafen.slash.register("walker", function(args)
     hafen.log("   -- 4g per-subsystem gated verbs (own namespace, same permission):")
     hafen.log("   speed [n]=hafen.speed.set(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
     hafen.log("   craft [all]=hafen.craft.make(all)  press Craft on the OPEN recipe (CONSUMES ingredients; 'all'=Craft All)")
-    hafen.log("   bar <n>=hafen.actionbar.use(n)  activate action-bar slot n (raw 0-based index)")
+    hafen.log("   bar <n>=hafen.actionbar(n):use()  activate action-bar slot n (raw 0-based index)")
     hafen.log("   kin add <secret> =add by hearth secret; kin <name> group/rename =kin:setGroup/:rename; endkin =End kinship, forget =drop memorized kin")
     return
   end
@@ -157,7 +157,8 @@ hafen.slash.register("walker", function(args)
       hafen.log("   (take lifts the item onto your cursor -- left-click an empty inventory slot to put it back)")
     end
 
-  -- 4g: per-subsystem gated verbs. These live in their OWN namespace (hafen.speed/craft/actionbar/kin), not
+  -- 4g: per-subsystem gated verbs. These live in their OWN namespace (hafen.speed/craft/actionbar/kin) — on the
+  -- OBJECT itself where the subsystem is OOP (a Slot, a Kin) — not
   -- under hafen.act.*, but share the exact same "actions" permission gate (requireActions) as the verbs above.
   elseif sub == "speed" then
     -- speed.set(n): pick a movement speed 0..3. Fully reversible (just set another), so a safe default is fine.
@@ -178,14 +179,14 @@ hafen.slash.register("walker", function(args)
       :format(tostring(all), cur.recipe or "?", all and "Craft All" or "Craft one"))
 
   elseif sub == "bar" then
-    -- actionbar.use(n): activate action-bar slot n (the RAW 0-based index, same as hafen.actionbar.slot(n)).
+    -- slot:use(): activate action-bar slot n (the RAW 0-based index hafen.actionbar(n) takes).
     -- Require an explicit n -- there is no safe default (a slot could be food, a curio, an ability...).
     local n = tonumber(args[2])
-    if not n then hafen.log(":walker bar <n> -> activate action-bar slot n (0-based). Read a slot: :lua actionbar.slot(0)"); return end
-    local s = hafen.actionbar.slot(n)
-    hafen.actionbar.use(n)                             -- gated; the belt "act" a left-click on the slot sends
-    hafen.log((":walker bar -> hafen.actionbar.use(%d)  [slot holds: %s]")
-      :format(n, s and (s.name or s.res or "?") or "empty"))
+    if not n then hafen.log(":walker bar <n> -> activate action-bar slot n (0-based). Read a slot: :lua hafen.actionbar(0):info()"); return end
+    local slot = hafen.actionbar(n)                    -- throws if n is outside 0..143
+    local held = (not slot:empty()) and (slot:name() or slot:res() or "?") or "empty"
+    slot:use()                                         -- gated; the belt "act" a left-click on the slot sends
+    hafen.log((":walker bar -> hafen.actionbar(%d):use()  [slot holds: %s]"):format(n, held))
 
   elseif sub == "kin" then
     -- 4g kin verbs, now on the Kin OBJECT (020-kin-oop): hafen.kin() is the roster (with the gated

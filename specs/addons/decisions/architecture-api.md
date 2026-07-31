@@ -341,3 +341,26 @@ snapshot table — the `hafen.world` shape, now no longer unique to it.
 **See.** [D-012](architecture-api.md), [D-013](architecture-api.md), [D-017](security-sandbox.md),
 [D-027](actions-permissions.md), [020-kin-oop](../020-kin-oop/spec.md),
 [017-gob-oop](../017-gob-oop/spec.md), [luaj-bridge.md](../learnings/luaj-bridge.md).
+
+### D-057 — A fixed-index collection's iteration view is 1-based, and the entity carries its own key ✅ (maintainer, 2026-08-01)
+**Decision.** When [D-056](architecture-api.md)'s callable namespace wraps a **fixed-index** collection — the
+action bar, whose slots ARE their 0..143 game index — `hafen.actionbar(n)` stays the **one** way to address a
+slot (bounds-checked: out of range throws, unlike `hafen.kin(<unknown id>)`), and `hafen.actionbar()` is only
+the **iteration view**: a plain **1-based** array of all 144 slots, no metatable, no `:find`/`:list`. Its
+position is a position, not an index — it hands back the very same interned objects, so
+`hafen.actionbar()[1] == hafen.actionbar(0)`. The entity therefore carries its own key: `slot:index()`
+answers the 0-based game index from the handle alone, so nothing ever reconstructs it from `i - 1`.
+**Rationale.** The obvious alternative — key the array 0..143 so `[n]` *is* the game index — cannot work in
+LuaJ: key `0` lands in the hash part, so `#` reads 143, `ipairs` silently skips slot 0, and `__len` is not
+consulted for tables (see [luaj-bridge.md](../learnings/luaj-bridge.md)). Every addon would then have to know
+to write `for n = 0, 143` and the length would lie. The maintainer's objection settled which side gives:
+two ways to *address* a slot would be the dual style [D-013](architecture-api.md) forbids, but a collection
+you can walk is not a second address — `hafen.kin()` already established the array-as-view. So the array
+became 1-based (`#` = 144, `ipairs` exact) and the index moved onto the object, where it cannot drift.
+**Consequences.** The rule generalises to every remaining fixed-index migration (party slots, equipment
+slots): **address 0-based through the namespace, iterate 1-based, ask the object for its key.** A method
+beyond the spec's list (`:index()`) is the price, and it is what keeps the two numbering schemes from ever
+being confused in addon code. `hafen.actionbar()` builds 144 interned objects per call — cheap (a bounded
+map, weak values) and worth it for a dense, never-sparse array.
+**See.** [D-013](architecture-api.md), [D-044/D-045](../017-gob-oop/plan.md), [D-056](architecture-api.md),
+[021-actionbar-oop](../021-actionbar-oop/spec.md), [luaj-bridge.md](../learnings/luaj-bridge.md).
