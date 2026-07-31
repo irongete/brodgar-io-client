@@ -124,7 +124,7 @@ A bare name is per-character; `{"name": ..., "scope": "account"}` is shared acro
 ## Custom UI & hotkeys
 
 Draw your own windows and overlays with [`hafen.ui`](api/ui.md), declare hotkeys with
-`hafen.client:options():keybindings()`, and add console commands with [`hafen.slash`](api/console.md):
+[`hafen.client:options():keybindings()`](api/client.md#keybindings), and add console commands with [`hafen.slash`](api/console.md):
 
 ```lua
 hafen.client:options():keybindings():register("panic", function() hafen.log("panic!") end)

@@ -2,8 +2,8 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**Active:** `018-client-options` — 018.1 + 018.2 DONE (verified). Next 018.3 (write `docs/addons/api/client.md`;
-the `hafen.key` doc removal already landed with 018.2), 018.4 harness.
+**Active:** `018-client-options` — 018.1 + 018.2 + 018.3 DONE (verified; `docs/addons/api/client.md` is the
+`hafen.client` reference and both catalogs list it). Next 018.4 — extend the `hello` harness.
 
 ## Engine & runtime
 - **Engine**: LuaJ embedded (`src/io/brodgar/addon/`); per-addon sandboxed envs (D-017), instruction watchdog

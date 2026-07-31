@@ -52,7 +52,7 @@ no transition period** — delete `hafen.key` outright and port its consumers in
 
 ---
 
-## 018.3 — Documentation: API reference + codebase coverage
+## 018.3 — Documentation: API reference + codebase coverage ✅ DONE (2026-07-31)
 Write the user-facing API docs in `docs/addons/api/client.md`, update the catalog, extend the codebase map, and remove `hafen.key` references entirely. **Documentation reflects the current state only — no "before/after" notes or deprecated-style markers.**
 
 **Context:**
