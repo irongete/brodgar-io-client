@@ -18,7 +18,7 @@
            `src/io/brodgar/addon/ui/AddonPanel.java`, `src/io/brodgar/addon/CameraOptions.java`
            (the simplest OptionsMethod subsystem to copy) -->
 
-- [ ] **019.2 — Prof core + frame sampling.**
+- [x] **019.2 — Prof core + frame sampling.**
       The `// addon:` end-of-frame handoff in `UILoop` (finished `uprof`/`rprof`/`gprof` parts plus
       `fps`/`uidle`/`framelag`, passed as arguments — do not widen the private fields); the
       preallocated primitive ring (~600 frames, no per-frame allocation); the fold (walk the frame

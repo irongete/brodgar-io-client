@@ -2,9 +2,9 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**Active:** `019-profiling` — `hafen.client:profiling()` (frame/CPU/GPU, memory, graphics counters, net,
-loader, per-addon cost, Lua scopes, per-widget cost, named render passes) + the Options **Client** panel.
-**019.1 DONE** (panel + master switch, no data surface yet); 019.2..019.8 pending.
+**Active:** `019-profiling` — `hafen.client:profiling()` (frame/CPU/GPU, memory, graphics counters, net, loader,
+per-addon cost, Lua scopes, per-widget cost, named render passes) + the Options **Client** panel. **019.1–019.2
+DONE** (panel + master switch; frame ring + `:frame()`/`:history()`/`:reset()`); 019.3..019.8 pending.
 
 ## Engine & runtime
 - **Engine**: LuaJ embedded (`src/io/brodgar/addon/`); per-addon sandboxed envs (D-017), instruction watchdog
@@ -23,9 +23,8 @@ loader, per-addon cost, Lua scopes, per-widget cost, named render passes) + the 
   `"partyN"` tokens are GONE. `world.*` hands out Gobs; every other namespace stays flat (transitional).
 - **Map** `map.*`: tile/height/grid/gridPos + coord conversions; grid ids = exact decimal strings.
 - **Player/char**: `hafen.player()` → Player object (`:gob()/:name()/:vitals()/:worldToScreen()`, D-046 — no
-  forwarded methods); `char.*` (attrs/food/skills/lp/weight), `time/party/buffs/study.*`, `actionbar.slot`,
-  `items.*` — snapshots.
-- **Gap subsystems** (A1–A11) `markers/radar/kin/speed/craft/quests/wounds/fight` — widget-tree adapters, UI-thread marshalled.
+  forwarded methods); `char.*` (attrs/food/skills/lp/weight), `time/party/buffs/study.*`, `actionbar.slot`, `items.*`.
+- **Gap subsystems** (A1–A11) `markers/radar/kin/speed/craft/quests/wounds/fight` — widget-tree adapters, marshalled.
 
 ## UI (`hafen.ui`), hooks, input
 - Windows/widgets (`ui.window`/`widget`) + `LuaGOut` draw wrapper; overlays: `ui.overlay` / `ui.gobOverlay`.
@@ -33,9 +32,11 @@ loader, per-addon cost, Lua scopes, per-widget cost, named render passes) + the 
   panel, over the stores OptWnd writes; arity is the verb (`opt:name()` reads, `opt:name(v)` writes + chains).
   `keybindings` = `register(name, fn)` (UNBOUND, D-047) + `get/set/list/unregister`, keybind-panel integrated;
   `hafen.key` GONE (018.2); slash `hafen.slash.register`.
-- **Profiling switch** (019.1): Options ▸ **Client** ▸ "Enable profiling" = `options():client():profiling()` =
-  `:profile on` — ONE switch (`prof.Prof.arm`: field + pref + `UILoop.profile`, D-049), next-frame, no data
-  surface yet. D-048: client engines get sibling packages (`io.brodgar.prof`/`ui`), handles stay in `addon`.
+- **Profiling** (019.1–019.2): Options ▸ **Client** ▸ "Enable profiling" = `options():client():profiling()` =
+  `:profile on` — ONE switch (`prof.Prof.arm`, D-049), next-frame; client engines live in sibling packages
+  (`io.brodgar.prof`/`ui`), handles stay in `addon` (D-048). `hafen.client:profiling()` → `:frame()` (fps/ms/
+  idle/latency, `phases` + `render` groups, `ui`/`addons` roll-ups, late `gpuMs`+`gpuFrameno`), `:history(n)`
+  (600-frame ring, oldest→newest), `:reset()` — snapshot tables, absent key = not measured, off ⇒ `{}` (D-050).
 - Hooks: `hook.input` (L1 pre-widget), `hook.action` (L2 outbound `UI.wdgmsg`), `hook.message` (L3 inbound).
 - Widget interception/replacement: `ui.onWidgetCreate`, `ui.adopt` (model handle), `ui.replace` (bags replaces
   the native inventory, restores on disable); `widgetstack` = the `/framestack` analog.
@@ -43,18 +44,17 @@ loader, per-addon cost, Lua scopes, per-widget cost, named render passes) + the 
 
 ## Actions (gated write tier)
 - `hafen.act.*`: moveTo/clickGob(gob)/useItemOn/place/select/raw, menu/flower, item verbs + per-subsystem
-  verbs (actionbar.use, speed.set, kin.*, craft.make…). Per-addon permission + enable-time consent dialog,
-  NO global switch (D-027/D-028); write addons default-disabled.
+  verbs (actionbar.use, speed.set, kin.*, craft.make…). Per-addon permission + enable-time consent dialog, NO
+  global switch (D-027/D-028); write addons default-disabled.
 
 ## Virtual entities, rendering, data, fonts
 - **Ghosts** `hafen.ghost`: client-only virtual gobs (D-029..D-033) — clickable, oriented, grid-anchored
   layouts, transform gizmo. **Render** `hafen.render`: image (screen), sprite (fixed + billboard world quads),
   glTF 2.0 static models — textures, materials, lighting (D-034/D-035).
 - **Data/net**: `hafen.json` (D-036); `hafen.http` async get/post, manifest `network` allowlist (D-037).
-- **Fonts** `hafen.font` (D-043): per-addon handles; all 11 scopes (chrome + world) + own-widget /
-  per-instance `node:setFont`.
+- **Fonts** `hafen.font` (D-043): per-addon handles; all 11 scopes (chrome + world) + own-widget/per-instance `node:setFont`.
 
 ## Example addons (regression harness)
-- `hello` (grows with every feature — one login re-checks everything), `hogtest` (CPU watchdog), `bags`
-  (inventory), `planner` (ghosts + gizmo), `widgetstack` (framestack), `netdemo` (http/json), `walker`
-  (gated writes), `optionstest` (options, 018.4); 019.8 adds `profiler` (dormant).
+- `hello` (grows with every feature — one login re-checks everything), `hogtest` (CPU watchdog), `bags` (inventory),
+  `planner` (ghosts + gizmo), `widgetstack` (framestack), `netdemo` (http/json), `walker` (gated writes),
+  `optionstest` (options, 018.4); 019.8 adds `profiler` (dormant).

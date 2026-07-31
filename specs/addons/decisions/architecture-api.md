@@ -132,3 +132,27 @@ The pref is restored once per JVM from `AddonManager.init` (session init), since
 ([D-004](lifecycle.md)) and everything 019 profiles is the in-game frame loop.
 **See.** [D-013](architecture-api.md), [019-profiling](../019-profiling/spec.md),
 [boot-and-loop.md](../../codebase/boot-and-loop.md) (the profiling machinery).
+
+### D-050 — A profiling read is a snapshot TABLE, and an absent key means "not measured" ✅ (maintainer, 2026-07-31)
+**Decision.** `hafen.client:profiling()` is a handle with verbs (`:reset()`, later `:scope()`/`:measure()`), but
+everything its read verbs answer is a plain Lua **table** — a frozen measurement, no identity, no write path
+(the snapshot-vs-handle split `docs/addons/api/conventions.md` already ships, the same way `gob:pos()` answers a
+value). Inside those tables, **a quantity that was not measured is an absent key, never a `0`**: `frame()` has
+no `scene` until the named render passes of 019.6 give the 3D scene a boundary, and `gpuMs`/`gpuFrameno` are
+absent until the first GL timestamp comes back — in `history`, an unresolved frame simply has no `gpuMs`.
+Alongside it: the phase breakdown uses the client's **own** part names (`dwait/stick/utick/draw/aux/wait`, plus
+the render thread's `tick/draw/swap/finish` as a second table), and `addons` is the D-018 `tickLuaNanos`
+accounting **read**, not re-measured, through a `LongSupplier` `AddonManager` registers — so `io.brodgar.prof`
+still does not depend on the addon system.
+**Rationale.** The one loop this feature exists to keep cheap is the consumer's: drawing a 600-sample frame
+graph is 600 table lookups as tables and 600 bridge invocations as objects, for no capability gained. A `0` for
+an unmeasured quantity is actively worse than nothing — it renders as "free" in exactly the graph the profiler
+is for, and it is indistinguishable from a real idle frame. Re-timing what the client already names would give
+two sources of truth that drift apart; the price is that the `render` group **lags ~1 frame** (that profile
+closes a frame on the next frame's fence), which is documented rather than corrected.
+**Consequences.** Consumers test `if f.gpuMs then` rather than `> 0`. Off, the read verbs answer an **empty
+table**, not `nil`, so addon code needs no branch at all. The GPU number `frame()` reports is the newest one
+that has *arrived*, with `gpuFrameno` saying which frame it belongs to — it trails `frameno` by a handful of
+frames by construction.
+**See.** [D-049](architecture-api.md), [D-018](security-sandbox.md), [019-profiling](../019-profiling/spec.md),
+[boot-and-loop.md](../../codebase/boot-and-loop.md).

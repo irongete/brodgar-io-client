@@ -416,6 +416,14 @@ public abstract class UILoop implements Console.Directory {
 
     protected void framedone(Frame f) {
 	updstats(f);
+	// addon: the end-of-frame handoff to the profiling ring (spec 019, task 019.2). Off, this is one
+	// read of a static volatile boolean and nothing else. On, it hands over the frame parts the client
+	// has ALREADY built -- uprof (this frame, finished by Frame.fin above), rprof (the last completed
+	// render-thread frame; it closes a frame late by design) and this frame's gprof frame, whose GL
+	// timestamps come back through fences several frames later and are folded in by frame number.
+	// fps/uidle/framelag are passed as arguments rather than made visible: nothing else may write them.
+	if(io.brodgar.prof.Prof.on && (f.prof != null))
+	    io.brodgar.prof.Prof.frame(f.frameno, f.ftime, uprof.last(), rprof.last(), f.gprof, fps, uidle, framelag);
     }
 
     public static class Frame {

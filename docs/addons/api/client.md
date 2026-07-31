@@ -1,7 +1,7 @@
-# hafen.client — client settings & hotkeys
+# hafen.client — client settings, hotkeys & profiling
 
 `hafen.client:options()` opens the settings the client's **Options window** edits, plus the hotkey
-registry. One subsystem per Options panel:
+registry; `hafen.client:profiling()` reads the client's frame profiler. One subsystem per Options panel:
 
 ```lua
 local opts = hafen.client:options()
@@ -133,6 +133,8 @@ there is nothing to refresh.
 > Arming takes effect on the **next** frame: the client decides at the start of each frame whether to
 > build its profile trees, so the frame during which you flip the switch has none. This is expected.
 
+What the armed profiler measures is read through [`hafen.client:profiling()`](#profiling) below.
+
 ## Before the client is up
 
 `video()` and `audio()` read **`nil`** until the client's UI exists (their backing systems are built
@@ -223,3 +225,87 @@ Hotkeys are torn down with your addon on reload or disable — you do not need t
 > Global hotkeys are not an input hook: they run through the client's binding registry, after the
 > client's own bindings. To intercept raw keys and mouse input before any widget sees them, use
 > [`hafen.hook`](hooks.md).
+
+## `profiling()`
+
+`hafen.client:profiling()` is the read surface over the client's frame profiler — the same per-frame
+CPU and GPU trees the `Profwnd` windows draw, not a second profiler. It answers only while the switch
+above (Options ▸ Client ▸ Enable profiling) is on.
+
+```lua
+local p = hafen.client:profiling()
+
+local f = p:frame()
+hafen.log(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)", f.fps, f.ms, f.ui, f.addons))
+```
+
+| Method | Returns | Description |
+|---|---|---|
+| `frame()` | table | the frame that just finished |
+| `history(n)` | array of tables | the last `n` frames, **oldest first**; `n` omitted = everything held |
+| `reset()` | the handle | drop the history and start measuring afresh (chains) |
+
+The handle is a stateless proxy — keep it in a variable forever, it never goes stale. What the read
+verbs answer are plain **snapshot tables**, not handles: frozen numbers with nothing to re-resolve, so
+walking 600 samples for a frame graph is 600 table lookups, not 600 bridge calls.
+
+**Every duration is in milliseconds.**
+
+### `frame()`
+
+| Key | Type | Description |
+|---|---|---|
+| `frameno` | number | the client's frame counter |
+| `t` | number | frame timestamp, seconds since client start |
+| `fps` | number | frames per second, as the `:stats` HUD computes it |
+| `ms` | number | this frame's total UI-thread time |
+| `msAvg` / `msMin` / `msMax` / `msP95` | number | frame time over the whole history ring |
+| `idle` | number | share of the last second spent waiting, `0.0`..`1.0` |
+| `latency` | number | UI-thread → GPU-fence lag |
+| `gpuMs` | number | GPU time — see below |
+| `gpuFrameno` | number | which frame `gpuMs` belongs to |
+| `phases` | table | the UI thread's own phase breakdown |
+| `render` | table | the render thread's phase breakdown |
+| `ui` | number | widget-tree cost this frame (`utick` + `draw`) |
+| `addons` | number | Lua time charged to addons this frame |
+
+`phases` carries the client's own phase names — `dwait`, `stick`, `utick`, `draw`, `aux`, `wait` — so
+the numbers line up with `Profwnd` field by field. `render` is the render thread's group (`tick`,
+`draw`, `swap`, `finish`) and **lags by about one frame**: that profile closes a frame on the next
+frame's fence, and the API reports what the client measured rather than re-timing it.
+
+`addons` is the same accounting the addon CPU watchdog uses, read rather than re-measured.
+
+> **GPU time arrives late.** GL timestamps come back through fences several frames after the frame they
+> belong to, so the frame that just finished essentially never has one yet. `frame()` reports the newest
+> frame whose GPU time *has* landed and tells you which one that is in `gpuFrameno` — expect it to trail
+> `frameno` by a handful of frames. Until the first one lands, **both keys are absent**.
+
+**An absent key means "not measured", never zero.** That is why there is no `scene` key: the 3D scene
+has no timing boundary of its own yet (it gets one with the named render passes), and a `0` would read
+as "free". Check with `if f.gpuMs then …` rather than comparing against 0.
+
+### `history(n)`
+
+The ring holds about **600 frames** (~10 s at 60 fps); a larger `n` is clamped to what is held, and is
+not an error. Each entry carries `frameno`, `t`, `ms`, `addons`, `phases`, and `gpuMs` **only if** that
+frame's GPU time resolved — so a frame graph skips the unresolved ones instead of drawing them as a dip
+to zero.
+
+```lua
+local h = hafen.client:profiling():history(120)     -- the last ~2 seconds, oldest first
+for i, f in ipairs(h) do
+  drawBar(i, f.ms, f.gpuMs)                         -- f.gpuMs may be nil
+end
+```
+
+### When profiling is off
+
+`frame()` and `history()` return an **empty table**, never `nil` — no branch needed in addon code:
+
+```lua
+for _, f in ipairs(p:history(60)) do … end          -- simply does nothing while off
+```
+
+The first valid sample arrives on the **second** frame after arming (arming is next-frame, as above), so
+a freshly armed profiler answers empty for one frame. `reset()` empties the ring the same way.

@@ -30,6 +30,14 @@ public final class OptionsHandle {
                 return create(owner);
             }
         });
+        // hafen.client:profiling() — the profiling READ surface (spec 019). It hangs directly off hafen.client,
+        // not off options(): options() is settings, and a measurement is data. The switch that arms it is the
+        // setting, and that one does live in the tree, at options():client():profiling().
+        client.set("profiling", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return ProfHandle.create();
+            }
+        });
         hafen.set("client", client);
     }
 

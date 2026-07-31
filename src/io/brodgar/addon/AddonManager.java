@@ -238,6 +238,7 @@ public final class AddonManager {
     public static synchronized void init(UI ui_) {
         ui = ui_;
         io.brodgar.prof.Prof.init();  // 019.1: restore the persisted profiling switch (once per JVM)
+        io.brodgar.prof.Prof.addonCost(AddonManager::luaNanosThisFrame);   // 019.2: the addons roll-up source
         for(Addon a : addons)         // fire OnDisable + flush saved vars + drop owned resources
             AddonRegistry.teardown(a);              // (flushes with the OLD charScope, still set from the last session)
         addons.clear();
@@ -392,6 +393,23 @@ public final class AddonManager {
         } catch(RuntimeException e) {
             log("tick error: " + e);
         }
+    }
+
+    /**
+     * Total Lua CPU time (ns) charged to addons during the current frame — the {@code addons} roll-up in
+     * {@code p:frame()} (spec 019, task 019.2). This is the D-018 accounting {@link #callLua} already keeps,
+     * read a second time rather than measured a second time: {@code tickLuaNanos} is zeroed at the top of
+     * each tick and accrues through the tick AND the draw callbacks that follow it, so at end-of-frame it
+     * holds exactly this frame's cost. Read by {@code Prof} on the UI thread, through the supplier registered
+     * in {@link #init} (the profiling engine must not depend on the addon system). Indexed rather than
+     * for-each: no iterator allocation on a per-frame path. 019.4 replaces this single total with per-addon,
+     * per-category accumulators.
+     */
+    static long luaNanosThisFrame() {
+        long sum = 0;
+        for(int i = 0, n = addons.size(); i < n; i++)
+            sum += addons.get(i).tickLuaNanos;
+        return sum;
     }
 
     /**

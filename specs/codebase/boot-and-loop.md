@@ -40,13 +40,19 @@
 | The HUD text (`:stats on`) | [`UILoop.statlines`](src/haven/UILoop.java:233), drawn at ~:291 |
 | The live tree windows | [`Profwnd`](src/haven/Profwnd.java:31) |
 | **Master switch (fork)** | [`io.brodgar.prof.Prof.arm`](src/io/brodgar/prof/Prof.java) writes the hot-path field, the pref **and** `UILoop.profile`; `:profile` routes through it (D-049) |
+| **End-of-frame hook (fork)** | [`UILoop.framedone`](src/haven/UILoop.java:416) — after `updstats(f)`; hands `uprof.last()`, `rprof.last()`, `f.gprof` + `fps`/`uidle`/`framelag` to `Prof.frame` (019.2) |
+| Where a frame's parts finish / frame identity | [`Frame.fin`](src/haven/UILoop.java:481) (the GL fence sets `framelag`), `f.frameno`/`f.ftime` ([:439](src/haven/UILoop.java:439)) |
+| The FPS/idle math the HUD shows | [`UILoop.updstats`](src/haven/UILoop.java:398) — `fps`, `uidle` (fraction 0..1), `framelag` (**seconds**), all `private` |
+| Render-thread parts | `rprof` parts `tick`/`draw`/`swap`/`finish`; `rprof.last()` is the last **completed** frame, ~1 behind the UI frame |
 
 **Gotchas.** (a) `:profile on` builds the trees but **opens nothing** — the `Profwnd` windows appear only when
 you then press the **backtick** key, and only while the flag is set ([`RootWidget.globtype`](src/haven/RootWidget.java:57)).
 (b) Because the `Frame` constructor samples the flag, **arming takes effect on the next frame** — the frame
 during which you flip it has no tree. (c) GPU parts arrive **late** (GL fences), so frame X's GPU time may land
-several frames after its CPU time — fold by frame number, never by position. (d) `fps`/`uidle`/`framelag` are
-**private** to `UILoop`: pass them out, do not widen the fields.
+several frames after its CPU time — fold by frame number, never by position, and never read a GPU number off the
+**newest** frame (it is precisely the one still in flight). (d) `fps`/`uidle`/`framelag` are **private** to
+`UILoop`: pass them out, do not widen the fields. (e) A part name is **not unique within a frame** — `dwait` is
+entered twice (tick + syncwait), so any fold over `Part.sub()` must `+=`.
 
 ## Threading & locks
 

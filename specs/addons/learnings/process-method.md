@@ -171,6 +171,11 @@
 - **(017) `ant hafen-client` is incremental and WILL false-green when a symbol moves between files.** `rm -rf
   build/classes` before believing a compile that deleted/relocated something as widely referenced as the central
   gob resolver. Cheap, and the only way the "everything still compiles" claim means anything.
+  **(019.2) It false-greens on a *signature change* too, not just on a symbol moving.** Changing a parameter
+  type of `Prof.frame` after a clean build left `UILoop.class` untouched (its source had not changed), still
+  calling the old descriptor — `BUILD SUCCESSFUL`, then `NoSuchMethodError` the moment the call ran in game, one
+  wasted restart. Rule: **any change to an existing method's signature ⇒ `rm -rf build/classes` + `ant bin`**,
+  and confirm with `javap -p` that the call site and the definition print the same descriptor.
 - **(018.4) `hello` is the standing regression harness, NOT the home of every demo.** By 018 its manifest
   description alone is a wall of text and `main.lua` is 1785 lines — the maintainer's call was to give
   `hafen.client:options()` its own addon (`optionstest`, "Brodgar.io Options Test"). The split that works:
