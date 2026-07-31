@@ -25,7 +25,7 @@ Implement the five LuaBridge subclasses that back the Lua API. Each class reads/
 
 ---
 
-## 018.2 — Retire `hafen.key` and port its three consumers
+## 018.2 — Retire `hafen.key` and port its three consumers ✅ DONE (2026-07-31)
 **The Lua wiring landed in 018.1** — `hafen.client:options()` is installed by `AddonManager`, all five
 subsystems proxy to Java, setters chain, and the REPL verification passed. What remains is the hard cut.
 
@@ -38,7 +38,8 @@ no transition period** — delete `hafen.key` outright and port its consumers in
 - Consumers to port: `addons/bags`, `addons/hello`, `addons/widgetstack` (grep `hafen.key.bind`)
 
 **Deliverables:**
-- ✓ **Remove** the `hafen.key` table from `HookApi.install` — the namespace stops existing
+- ✓ **Remove** the `hafen.key` table from `HookApi.install` — the namespace stops existing (`newKeyBind` also lost
+  its default-key argument and its per-bind Lua handle: `get`/`unregister` already answer by name, D-013)
 - ✓ Port all three addons to `hafen.client:options():keybindings():register(name, fn)`
 - ✓ **Their hotkeys now start UNBOUND** (D-047): each addon's README/docs advertises a *suggested* key
   instead of claiming one, and the maintainer assigns keys once in Options ▸ Keybindings
@@ -66,8 +67,11 @@ Write the user-facing API docs in `docs/addons/api/client.md`, update the catalo
   - Example code: read scale, write scale, chain multiple setters; register hotkey, read/write bindings
   - Note which options require a restart (uiscale) and which apply live
   - Keybindings examples: `register("my-hotkey", fn)`, `get("inv")`, `set()`, `list()`, `unregister()`
-- ✓ `docs/addons/api/README.md` — add `client.md` to the catalog; **fully remove** `key.md` entry (no "deprecated" marker)
-- ✓ `docs/addons/README.md` — add `hafen.client` to the "API at a glance" table (brief 1-liner); **fully remove** `hafen.key` line
+- ✓ `docs/addons/api/README.md` — add `client.md` to the catalog; ~~**fully remove** `key.md` entry~~ **done in 018.2**
+  (`api/keys.md` deleted, and `hafen.key` stripped from `hooks.md`, `getting-started.md`, both READMEs and the
+  standing `specs/addons/design/` set — retiring the namespace included its prose)
+- ✓ `docs/addons/README.md` — add `hafen.client` to the "API at a glance" table (brief 1-liner); ~~**fully remove**
+  `hafen.key` line~~ **done in 018.2**
 - ~~`specs/codebase/services.md` — "Options / Preferences" section~~ **already done in 018.1** (paid as that
   task's coverage toll: the two pref stores, the `GSettings`-is-immutable trap, `lightmode` values, the
   live-field+pref double write, and the hand-written keybind panel)

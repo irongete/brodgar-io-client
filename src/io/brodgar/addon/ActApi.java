@@ -64,7 +64,7 @@ final class ActApi {
         // left/right-click on that gob sends. gob = a Gob OBJECT from the read API (hafen.gob(id),
         // hafen.world.nearest(...), hafen.player():gob()); raw ids and the old GobRef tokens are NOT accepted
         // (D-044 — one canonical way). button: 1 = left (default; select/interact), 3 = right (the context/
-        // flower-menu click). mods = a modifier bitfield (0 default; Shift=1 Ctrl=2 Alt=4, matching hafen.key).
+        // flower-menu click). mods = a modifier bitfield (0 default; Shift=1 Ctrl=2 Alt=4, matching the keybind syntax).
         // Sends the bare gob-click encoding {…, 0, gobid, gobrc, 0, -1} — a generic "click the whole object",
         // faithful for world objects (trees/containers/…); a specific sub-mesh / composite body part is not
         // targeted (deferred). Throws if the gob is out of view or the map view is gone.

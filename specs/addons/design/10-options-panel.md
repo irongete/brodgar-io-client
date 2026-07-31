@@ -84,7 +84,7 @@ account-wide.
 
 ## Interactions with keybindings
 
-Addon hotkeys registered via `hafen.key.bind` appear in the client's existing **keybind panel**
+Addon hotkeys registered via `keybindings:register` appear in the client's existing **keybind panel**
 automatically (they use [`KeyBinding.get`](src/haven/KeyBinding.java)). The AddOns panel does not
 duplicate keybind editing; it may link to it.
 

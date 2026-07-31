@@ -123,13 +123,17 @@ A bare name is per-character; `{"name": ..., "scope": "account"}` is shared acro
 
 ## Custom UI & hotkeys
 
-Draw your own windows and overlays with [`hafen.ui`](api/ui.md), bind hotkeys with
-[`hafen.key`](api/keys.md), and add console commands with [`hafen.slash`](api/console.md):
+Draw your own windows and overlays with [`hafen.ui`](api/ui.md), declare hotkeys with
+`hafen.client:options():keybindings()`, and add console commands with [`hafen.slash`](api/console.md):
 
 ```lua
-hafen.key.bind("panic", "F9", function() hafen.log("panic!") end)
+hafen.client:options():keybindings():register("panic", function() hafen.log("panic!") end)
 hafen.slash.register("myaddon", function(args) hafen.log("hi " .. (args[1] or "")) end)
 ```
+
+An addon hotkey starts **unbound**: you name the action, the user assigns the key under
+**Options ▸ Keybindings**, in a section named after your addon. Advertise a *suggested* key in your
+README rather than claiming one.
 
 ## Actions & permissions
 

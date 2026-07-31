@@ -127,7 +127,7 @@ hafen.ui.gobOverlay(
   `onMouseMove(x, y, mods)`, `onWheel(x, y, amount, mods)`. Additive/back-compatible; mirrors the `mods` that
   [`hafen.hook.grab`](13-hooks-and-interception.md) already delivers, so the addon can branch at **press time**
   (e.g. Shift+drag to move a bar).
-- **Global hotkeys:** `hafen.key.bind` over [`KeyBinding`](src/haven/KeyBinding.java) — remappable
+- **Global hotkeys:** `hafen.client:options():keybindings():register` over [`KeyBinding`](src/haven/KeyBinding.java) — remappable
   and shown in the client's keybind panel; handlers are addon-owned.
 
 ## Custom assets (resources)

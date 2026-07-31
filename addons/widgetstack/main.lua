@@ -19,7 +19,8 @@
 -- THE INSPECTOR: the stack rows are CLICKABLE -- click one and a new "Inspector" window opens with that
 -- widget's type/id/pos/size/rootpos/visible/text + its parent link + its child list. Inside an inspector,
 -- click a child (to descend) or the parent link (to ascend) to open a further inspector window. Freeze the
--- stack first (Ctrl+Shift+F) so it holds still while you move the mouse into the window to click a row.
+-- stack first (the "freeze" hotkey) so it holds still while you move the mouse into the window to click a row.
+-- That hotkey starts UNBOUND: assign it under Options > Keybindings > Widgetstack (suggested: Ctrl+Shift+F).
 
 hafen.log("widgetstack loaded (v0.2.0)")
 
@@ -31,7 +32,7 @@ local hoverPos            -- { x=, y= } the hovered leaf's top-left in root coor
 local hoverSize           -- { x=, y= } its size
 local rebuilds = 0        -- how many times we rebuilt the stack (proves the :same guard: it should NOT
                           -- climb while the cursor sits still)
-local frozen = false      -- Ctrl+Shift+F: hold the stack still so you can mouse into the window to read it
+local frozen = false      -- the "freeze" hotkey: hold the stack still so you can mouse into the window to read it
 
 local STACK_Y0, LINE = 22, 14   -- first stack row y + row height (shared by draw + click hit-test)
 
@@ -191,7 +192,7 @@ local function drawStack(g, w, h)
     end
   end
   g:color(150, 150, 120)
-  g:text("click a row to inspect (Ctrl+Shift+F freezes)", 6, h - 16)
+  g:text("click a row to inspect (the freeze hotkey holds it)", 6, h - 16)
   g:color(120, 120, 120); g:rect(0, 0, w, h); g:color()            -- 1px border
 end
 
@@ -224,7 +225,7 @@ hafen.events.on("OnEnterWorld", function()
       onClick = stackClick,
       onClose = function() hafen.log("widgetstack: window closed (X) -- :widgetstack to bring it back") end,
     }
-    hafen.log("widgetstack: window up -- hover the UI; click a row to inspect; :widgetstack toggles it, Ctrl+Shift+F freezes it")
+    hafen.log("widgetstack: window up -- hover the UI; click a row to inspect; :widgetstack toggles it, the freeze hotkey holds it")
   end
   if not overlay then
     overlay = hafen.ui.overlay(drawOutline)
@@ -239,9 +240,11 @@ hafen.slash.register("widgetstack", function(args)
   hafen.log((":widgetstack -> window %s"):format(show and "shown" or "hidden"))
 end)
 
--- Ctrl+Shift+F -- freeze/unfreeze the stack so you can move the mouse INTO the window to read + click it
--- without the stack changing under you. Persisted + remappable via the client keybind panel (hafen.key.bind).
-hafen.key.bind("freeze", "Ctrl+Shift+F", function()
+-- "freeze" -- freeze/unfreeze the stack so you can move the mouse INTO the window to read + click it without
+-- the stack changing under you. Declared through hafen.client:options():keybindings():register(name, fn); it
+-- starts UNBOUND (D-047) -- assign it in Options > Keybindings > Widgetstack (suggested: Ctrl+Shift+F), where
+-- the choice is persisted exactly like a built-in binding.
+hafen.client:options():keybindings():register("freeze", function()
   frozen = not frozen
   hafen.log((":widgetstack freeze %s"):format(frozen and "ON" or "OFF"))
 end)

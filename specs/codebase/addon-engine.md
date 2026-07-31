@@ -12,7 +12,7 @@
 | `WorldApi` | `hafen.world/map/markers/radar/time/sound/music` (per-gob reads are `LuaGob`) |
 | `CharApi` | `hafen.player/char/items/study/party/kin/buffs/actionbar/quests/wounds/fight` + the `TreeAdapter`s |
 | `UiApi` | `hafen.ui` — windows/overlays, observe/adopt/replace, WidgetNode + hit-testing |
-| `HookApi` | `hafen.hook` (L1/L2/L3 + grab), `hafen.key`, `hafen.slash` |
+| `HookApi` | `hafen.hook` (L1/L2/L3 + grab), `hafen.slash`; owns the hotkey registry behind `hafen.client:options():keybindings()` |
 | `ActApi` | `hafen.act` (gated verbs) + `hafen.craft`/`hafen.speed` writes |
 | `RenderApi` | `hafen.ghost` + `hafen.render` (world entities) |
 | `StoreApi` / `HttpApi` / `FontApi` | `hafen.store` / `hafen.http` / `hafen.font` |

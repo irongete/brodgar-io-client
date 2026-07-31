@@ -31,7 +31,8 @@ import org.luaj.vm2.lib.ZeroArgFunction;
  *   <li><b>L3 message hooks</b> ({@code hafen.hook.message}) — the inbound {@code UI.uimsg} choke point ({@link #dispatchMessage});</li>
  *   <li><b>mouse grab</b> ({@code hafen.hook.grab}) — a modal drag capture (V5, the gizmo primitive);</li>
  *   <li><b>slash commands</b> ({@code hafen.slash}) — WoW-style {@code :name} console commands (A11);</li>
- *   <li><b>global hotkeys</b> ({@code hafen.key.bind}) — remappable keys over the {@link KeyBinding} registry ({@link #dispatchKey}).</li>
+ *   <li><b>global hotkeys</b> ({@code hafen.client:options():keybindings()}) — remappable keys over the
+ *       {@link KeyBinding} registry ({@link #dispatchKey}); the Lua surface is {@link KeybindingsOptions}.</li>
  * </ul>
  *
  * <p>The engine seams stay in {@link AddonManager} (the {@code haven} core calls them by name —
@@ -90,7 +91,7 @@ final class HookApi {
         KEYCODES.put("RIGHT",     KeyEvent.VK_RIGHT);
     }
 
-    /** Build {@code hafen.hook} / {@code hafen.key} / {@code hafen.slash} for {@code owner}. From {@code installHafen}. */
+    /** Build {@code hafen.hook} / {@code hafen.slash} for {@code owner}. From {@code installHafen}. */
     static void install(LuaTable hafen, final Addon owner) {
         LuaTable hook = new LuaTable();
         hook.set("input", new ThreeArgFunction() {
@@ -114,14 +115,6 @@ final class HookApi {
             }
         });
         hafen.set("hook", hook);
-
-        LuaTable key = new LuaTable();
-        key.set("bind", new ThreeArgFunction() {
-            public LuaValue call(LuaValue name, LuaValue defaultKey, LuaValue fn) {
-                return newKeyBind(owner, name, defaultKey, fn);
-            }
-        });
-        hafen.set("key", key);
 
         LuaTable slash = new LuaTable();
         slash.set("register", new TwoArgFunction() {
@@ -522,43 +515,19 @@ final class HookApi {
         return false;
     }
 
-    // ================================================================= global hotkeys (hafen.key, 2e-2)
+    // ============================================ global hotkeys (hafen.client:options():keybindings(), 2e-2)
 
-    static LuaValue newKeyBind(final Addon owner, LuaValue name, LuaValue defaultKey, LuaValue fn) {
-        if(!name.isstring() || !fn.isfunction())
-            throw new LuaError("hafen.key.bind(name, defaultKey, fn) expects (string, string|nil, function)");
-        String nm = name.tojstring();
-        KeyMatch def;
-        if(defaultKey.isnil()) {
-            def = KeyMatch.nil;                       // unbound by default; user assigns it in the keybind panel
-        } else if(defaultKey.isstring()) {
-            def = parseKeyMatch(defaultKey.tojstring());
-            if(def == null)
-                throw new LuaError("hafen.key.bind: cannot parse key '" + defaultKey.tojstring()
-                                   + "' (examples: \"F5\", \"Ctrl+M\", \"Shift+Alt+Left\", \"None\")");
-        } else {
-            throw new LuaError("hafen.key.bind: defaultKey must be a string like \"Ctrl+M\" or nil");
-        }
+    /**
+     * Declare one addon hotkey — the body of {@code keybindings:register(name, fn)}. The binding starts
+     * <b>unbound</b> (D-047): the addon names an action, the user assigns the key in Options ▸ Keybindings.
+     */
+    static void newKeyBind(final Addon owner, String name, LuaValue fn) {
         // KeyBinding.get() is a process-global registry: it returns the SAME binding across reloads/sessions, so
-        // a user's re-map (persisted in the client prefs) survives; the default is used only when first created.
-        KeyBinding kbnd = KeyBinding.get("addon/" + owner.manifest.id + "/" + nm, def);
-        final LuaKeyBind h = new LuaKeyBind(owner, nm, kbnd, fn);
+        // a user's assignment (persisted in the client prefs) survives; KeyMatch.nil applies only on first create.
+        KeyBinding kbnd = KeyBinding.get("addon/" + owner.manifest.id + "/" + name, KeyMatch.nil);
+        LuaKeyBind h = new LuaKeyBind(owner, name, kbnd, fn);
         keyBinds.add(h);
         owner.keybinds.add(h);
-        LuaTable handle = new LuaTable();
-        handle.set("remove", new ZeroArgFunction() {
-            public LuaValue call() {
-                removeKeyBind(owner, h);
-                return LuaValue.NIL;
-            }
-        });
-        handle.set("key", new ZeroArgFunction() {     // the current key's display name (e.g. "Ctrl+M" / "None")
-            public LuaValue call() {
-                KeyMatch km = h.binding.key();
-                return (km == null) ? LuaValue.NIL : LuaValue.valueOf(km.name());
-            }
-        });
-        return handle;
     }
 
     /**
@@ -598,7 +567,7 @@ final class HookApi {
         return null;                                  // unknown multi-character key name
     }
 
-    /** Remove one hotkey: stop it firing + drop it from the global dispatch list (the handle's {@code :remove()}). */
+    /** Remove one hotkey: stop it firing + drop it from the global dispatch list. */
     private static void removeKeyBind(Addon owner, LuaKeyBind h) {
         h.alive = false;
         keyBinds.remove(h);
@@ -632,8 +601,8 @@ final class HookApi {
 
     /**
      * The global-hotkey dispatch (spec 07 "Input" / Phase 2e-2) — the body behind {@link AddonManager#onGlobKey},
-     * called from {@link AddonRoot#globtype}. Runs the handler of the first registered {@code hafen.key.bind}
-     * whose current key matches and returns whether the key was <b>consumed</b>. The addon-root is walked last,
+     * called from {@link AddonRoot#globtype}. Runs the handler of the first addon hotkey
+     * ({@code keybindings:register}) whose current key matches and returns whether the key was <b>consumed</b>. The addon-root is walked last,
      * so a client binding on the same key wins — an addon hotkey is the fallback, never a hijack.
      */
     static boolean dispatchKey(Widget.GlobKeyEvent ev) {

@@ -28,7 +28,7 @@ public final class AddonRoot extends Widget {
     }
 
     /**
-     * Global-hotkey seam ({@code hafen.key.bind}, Phase 2e-2). {@link haven.UI#keydown} fires a
+     * Global-hotkey seam ({@code keybindings:register}, Phase 2e-2). {@link haven.UI#keydown} fires a
      * {@link haven.Widget.GlobKeyEvent} — only after an unconsumed focused {@code KeyDownEvent}, so hotkeys never
      * fire while a text field has focus — and that event walks the widget tree calling {@code globtype} on every
      * widget. This invisible root is an early child of {@code ui.root}, hence walked <b>last</b>, so a client

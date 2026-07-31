@@ -13,7 +13,7 @@
 │  LUA API — the "SDK", a STABLE FACADE (Lua tables)                  │
 │    hafen.world · hafen.player · hafen.items · hafen.char            │
 │    hafen.act · hafen.ui · hafen.events · hafen.timer                │
-│    hafen.store · hafen.log · hafen.key                              │
+│    hafen.store · hafen.log · hafen.client                           │
 ├───────────────────────────────────────────────────────────────────┤
 │  BRIDGE (Java, io.brodgar.addon.api.*)                              │
 │    thin wrappers over haven.* · LuaJ coercion · thread marshalling  │

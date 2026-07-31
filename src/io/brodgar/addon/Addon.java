@@ -74,7 +74,7 @@ public final class Addon {
      */
     public final List<LuaMessageHook> messageHooks = new CopyOnWriteArrayList<LuaMessageHook>();
     /**
-     * Live global hotkeys owned by this addon ({@code hafen.key.bind}, Phase 2e-2): each pairs a client
+     * Live global hotkeys owned by this addon ({@code keybindings:register}, Phase 2e-2): each pairs a client
      * {@link haven.KeyBinding} with a Lua handler, dispatched from {@link AddonRoot#globtype} via the engine's
      * {@code GlobKeyEvent} seam. Teardown marks each dead and drops it from {@link AddonManager}'s global
      * dispatch list (principle P2) — like an action/message hook there is no widget to deafen. The

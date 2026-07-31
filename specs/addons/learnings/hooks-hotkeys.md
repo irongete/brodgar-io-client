@@ -202,3 +202,13 @@
   addon section fed by `AddonManager.describeKeyBinds`. A binding that exists in the registry but has no
   `addbtn` line is simply invisible — and a key handled by raw `ev.code` in a `globtype` override is not in the
   registry at all, so `KeyBinding.all()` will not see it either.
+- **Retiring a namespace is mostly *prose* work (018.2).** Deleting `hafen.key` cost 4 lines of Java (drop the
+  table from `HookApi.install`, simplify `newKeyBind` to `(owner, name, fn)` now that no default key exists) and
+  ~40 lines of comments, docs, manifest descriptions and example logs across `src`, `docs`, `addons/*` and the
+  standing `specs/addons/design/` set. `grep -rn "<namespace>"` over **all four** trees is the real definition of
+  done — the compiler catches none of it, and a manifest `description` that still promises `Ctrl+B` is a user-
+  visible lie the moment hotkeys become unbound-by-default.
+- **A per-object handle is a second canonical way.** `hafen.key.bind` returned `{ :key(), :remove() }`; the
+  keybindings handle already answers both by name (`get(name)`, `unregister(name)`), so the port dropped the
+  handle rather than re-creating it (D-013). Consumers that logged `handle:key()` now log
+  `keys:get(name) or "unassigned, suggested <key>"` — which is also the honest reading once D-047 applies.

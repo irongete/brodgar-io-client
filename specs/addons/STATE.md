@@ -2,8 +2,8 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**Active:** `018-client-options` — 018.1 DONE (verified). Next 018.2 (delete `hafen.key`, port its 3 addons),
-018.3 docs, 018.4 harness.
+**Active:** `018-client-options` — 018.1 + 018.2 DONE (verified). Next 018.3 (write `docs/addons/api/client.md`;
+the `hafen.key` doc removal already landed with 018.2), 018.4 harness.
 
 ## Engine & runtime
 - **Engine**: LuaJ embedded (`src/io/brodgar/addon/`); per-addon sandboxed envs (D-017), instruction watchdog
@@ -30,7 +30,8 @@
 ## UI (`hafen.ui`), hooks, input
 - Custom windows/widgets (`ui.window`/`widget`) + `LuaGOut` draw wrapper (text/rect/image/resource…).
 - HUD overlays (`ui.overlay`) + world gob overlays (`ui.gobOverlay`).
-- Hotkeys `hafen.key.bind` (018.2 deletes it) + keybind-panel integration; slash cmds `hafen.slash.register`.
+- Hotkeys: `options:keybindings():register(name, fn)` (starts UNBOUND, D-047) + keybind-panel integration; the
+  `hafen.key` namespace is GONE (018.2); slash cmds `hafen.slash.register`.
 - **Client options** `hafen.client:options()` → `interface/video/audio/camera/keybindings`; arity is the verb
   (`opt:name()` reads, `opt:name(v)` writes + returns the handle, so writes chain). Same stores OptWnd writes
   (`Utils.pref*`, `GSettings` via `ui.setgprefs`, `Audio`/`ActAudio`, MapView statics); `keybindings` =

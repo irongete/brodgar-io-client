@@ -10,10 +10,9 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 /**
  * Keybindings options subsystem (spec 018-client-options, task 018.1) — the unified hotkey surface under
- * {@code hafen.client:options():keybindings()}. It is the successor of {@code hafen.key.bind}: registration
- * still goes through {@link HookApi}, so the dispatch path ({@link AddonRoot#globtype}), the per-addon
- * teardown ({@link Addon#keybinds}) and the client keybind panel are all unchanged — what moved is only the
- * Lua-facing name.
+ * {@code hafen.client:options():keybindings()}. Registration goes through {@link HookApi}, which owns the
+ * dispatch path ({@link AddonRoot#globtype}), the per-addon teardown ({@link Addon#keybinds}) and the client
+ * keybind panel's data.
  *
  * <p><b>Addon hotkeys start unbound.</b> {@code register} takes no default key: an addon names an action and
  * the user assigns the key in the client's keybind panel, matching WoW and the one-key-one-action exclusivity
@@ -66,7 +65,7 @@ public final class KeybindingsOptions {
                 if(!name.isstring() || !fn.isfunction())
                     throw new LuaError("keybindings:register(name, fn) expects (string, function)"
                                        + " — a hotkey starts unbound; the user assigns the key in Options > Keybindings");
-                HookApi.newKeyBind(owner, name, LuaValue.NIL, fn);
+                HookApi.newKeyBind(owner, name.tojstring(), fn);
                 return handle;
             }
         });

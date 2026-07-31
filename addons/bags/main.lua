@@ -4,9 +4,10 @@
 -- reimplement" (D-009). The real inventory stays server-bound (so model:items() keeps reading its live items),
 -- just hidden; disabling/reloading the addon — or toggling off — restores the stock window (the Phase-3 DoD).
 --
--- It is DORMANT until you press the hotkey, so it never disturbs a normal login / the `hello` regression harness:
---   * Press Ctrl+Shift+I  -> REPLACE: the native inventory hides, a custom "Bags" window draws your real items.
---   * Press it again       -> RESTORE: the native inventory comes back, the custom window is destroyed.
+-- It is DORMANT until you press its hotkey, so it never disturbs a normal login / the `hello` regression harness.
+-- The hotkey starts UNBOUND: assign "toggle" under Options > Keybindings > Bags (suggested: Ctrl+Shift+I). Then:
+--   * Press it            -> REPLACE: the native inventory hides, a custom "Bags" window draws your real items.
+--   * Press it again      -> RESTORE: the native inventory comes back, the custom window is destroyed.
 --   * Or disable/`:reload` while replaced -> the native inventory is restored on teardown (no leak).
 -- Because replace SCANS for an already-open target at registration, pressing the key in-world finds your open
 -- inventory immediately (the :reload case the 3a->3b observer path could not re-catch).
@@ -14,7 +15,7 @@
 -- Item MOVING (take/transfer/drop) is an outbound gameplay action -> the gated Phase-4 actions tier (hafen.act),
 -- so this view is READ-ONLY: it draws the real items and logs the one you click. `hafen` is the API facade.
 
-hafen.log("bags loaded (v0.1.0) -- press Ctrl+Shift+I in-world to replace the inventory (remappable in Options > Keybindings)")
+hafen.log("bags loaded (v0.1.0) -- assign the 'toggle' hotkey in Options > Keybindings > Bags, then press it in-world")
 
 local CELL = 34             -- px per inventory cell in the custom view
 local replaceHandle         -- non-nil while we are replacing (nil = native inventory showing)
@@ -66,7 +67,7 @@ local function buildBagsView(m)
         g:color()
       end
       g:color(180, 200, 160)
-      g:text(("%d item(s) -- native inventory hidden (Ctrl+Shift+I restores)"):format(#items), 4, h - 15)
+      g:text(("%d item(s) -- native inventory hidden (toggle key restores)"):format(#items), 4, h - 15)
       g:color()
       g:color(150, 150, 150); g:rect(0, 0, w, h); g:color()             -- outer border
     end,
@@ -87,7 +88,7 @@ local function buildBagsView(m)
       return true                                                       -- truthy = consume
     end,
     onClose = function()
-      hafen.log("bags: view closed (X) -- native inventory restored; press Ctrl+Shift+I to replace again")
+      hafen.log("bags: view closed (X) -- native inventory restored; press the toggle key to replace again")
       stopReplace()                                                   -- X also restores the native inventory
     end,
   }
@@ -96,9 +97,11 @@ end
 -- The toggle hotkey. hafen.ui.replace("inv", {context="main"}, fn) targets the MAIN inventory (GameUI.maininv, the
 -- unambiguous public reference) and, at registration, SCANS the live tree for it — so pressing this while your
 -- inventory is open replaces it right away. handle:remove() stops replacing AND restores the native inventory
--- (destroying our view). Bound unbound-of-any-client-key Ctrl+Shift+I; a "Bags" section appears in the keybind
--- panel (2e-3), where it is remappable. If nothing gets replaced, the inventory just is not open yet.
-local toggle = hafen.key.bind("toggle", "Ctrl+Shift+I", function()
+-- (destroying our view). The hotkey is declared through hafen.client:options():keybindings():register(name, fn)
+-- and starts UNBOUND (D-047): a "Bags" section appears in the keybind panel (2e-3) where YOU assign the key —
+-- Ctrl+Shift+I is merely the suggestion. If nothing gets replaced, the inventory just is not open yet.
+local keys = hafen.client:options():keybindings()
+keys:register("toggle", function()
   if replaceHandle then
     stopReplace()
     hafen.log("bags: RESTORED the native inventory")
@@ -108,11 +111,14 @@ local toggle = hafen.key.bind("toggle", "Ctrl+Shift+I", function()
     if model then
       hafen.log("bags: REPLACED the native inventory with the custom view (drag it; click an item to log it)")
     else
-      hafen.log("bags: no open inventory to replace yet -- open it (Tab) then press Ctrl+Shift+I again")
+      hafen.log("bags: no open inventory to replace yet -- open it (Tab) then press the toggle key again")
     end
   end
 end)
-hafen.log(("bags: toggle bound to %s (remappable under Options > Keybindings > Bags)"):format(toggle:key()))
+-- keybindings:get(name) resolves THIS addon's binding first (addon/bags/toggle), so the log always reports the
+-- key the user actually assigned -- nil until they do.
+hafen.log(("bags: toggle hotkey = %s (assign it under Options > Keybindings > Bags; suggested Ctrl+Shift+I)")
+  :format(keys:get("toggle") or "unassigned"))
 
 hafen.events.on("OnDisable", function()
   hafen.log("bags: OnDisable -- native inventory restored + custom view destroyed on teardown")

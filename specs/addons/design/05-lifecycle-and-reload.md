@@ -79,7 +79,7 @@ a per-addon **owned-resource registry**. Teardown walks it and releases each kin
 | Gob spawn/despawn observers | [`OCache.callback`](src/haven/OCache.java:75) | [`OCache.uncallback`](src/haven/OCache.java:79) |
 | Event subscriptions | `hafen.events.on` | removed from the event bus (engine-owned) |
 | Timers | `hafen.timer` | cleared (engine-owned) |
-| Keybinding handlers | `hafen.key.bind` | handler mapping cleared (the `KeyBinding` singleton persists by id — like WoW keybinds — only the handler resets) |
+| Keybinding handlers | `keybindings:register` | handler mapping cleared (the `KeyBinding` singleton persists by id — like WoW keybinds — only the handler resets) |
 | Lua environment | engine | dropped for GC |
 
 **Not touched on reload:**

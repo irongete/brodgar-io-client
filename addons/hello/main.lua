@@ -33,19 +33,20 @@
 -- ADDS a persistent PLAYER marker at a WORLD position (add(name,x,y[,opts])) and REMOVES it (remove(ref)); the
 -- global MarkersChanged event fires when the marker set changes. A marker's PERSISTENT anchor is seg+tc (it
 -- survives a relog — there is no global position, coverage-gaps C4); the x,y/dist are session-local (present
--- only while the marker is in your current segment). Ctrl+Shift+M drops (and, pressed again, removes) a "Hello
+-- only while the marker is in your current segment). The 'marker' hotkey drops (and, pressed again, removes) a "Hello
 -- marker" at your position — watch it appear on the map (M) and the corner minimap. add() writes the shared
 -- on-disk DB so it persists, but hello removes its own demo marker on disable/reload so the regression harness
 -- never pollutes your map. Built on Phase 3b WIDGET MODELS — hafen.ui.adopt(id) adopts a live SERVER widget (by the desc.id a 3a
 -- onWidgetCreate observer hands out) as a hidden MODEL you can hide/show, read items() from, and get lifecycle
 -- events on (onItemAdded/onItemRemoved/onDestroy) — "wrap, don't reimplement" (D-009). Here we adopt the MAIN
--- INVENTORY: Ctrl+B hides/shows its grid while it stays live, and :reload/disable un-hides it (the 3b DoD). Item
+-- INVENTORY: the 'bags' hotkey hides/shows its grid while it stays live, and :reload/disable un-hides it (3b DoD). Item
 -- MUTATING verbs (take/drop/transfer/use) are NOT here — they are gameplay actions (the gated Phase-4 tier).
 -- Built on 3a WIDGET-CREATION INTERCEPTION — hafen.ui.onWidgetCreate(fn) observes the server's OWN UI as the
 -- client builds it (fn(desc) runs per server widget; desc = {id,type,place,caption,parentType}). It also demonstrates GLOBAL HOTKEYS —
--- hafen.key.bind(name, defaultKey, fn) binds a remappable, persisted hotkey (over the client's KeyBinding
--- registry) that fires when no widget consumed the keypress first; here Ctrl+H toggles the custom window, plus
--- an unbound "ping". Because this addon registers hotkeys, a "Hello" section appears under Options > Keybindings.
+-- hafen.client:options():keybindings():register(name, fn) declares a remappable, persisted hotkey (over the
+-- client's KeyBinding registry) that fires when no widget consumed the keypress first; here 'toggle' shows/hides
+-- the custom window, plus 'ping'. Addon hotkeys start UNBOUND: this addon's "Hello" section under
+-- Options > Keybindings is where you assign the keys.
 -- On top of the THREE hook levels — 2c hafen.hook.input (L1:
 -- intercept a widget's raw input BEFORE its own handler), 2d hafen.hook.action (L2: intercept the OUTBOUND
 -- action a widget sends to the server, arguments already RESOLVED — e.g. a move's destination world coord),
@@ -275,7 +276,7 @@ end
 -- {id, name, type ("player"|"system"), seg, tc={x,y} (the persistent anchor), color|icon, and — when the
 -- marker is in your current segment — x,y (world) + dist (from you)}. The DB streams in a beat after
 -- enter-world (like the rest of the HUD), so read at now (often 0) and +3s. Most markers a character has are
--- SYSTEM markers the server pushed (quest/tracked pins); a fresh spot may have none until you add one (Ctrl+Shift+M).
+-- SYSTEM markers the server pushed (quest/tracked pins); a fresh spot may have none until you add one ('marker' key).
 local function readMarkers(tag)
   local list = hafen.markers.list()
   local near = hafen.markers.nearest()
@@ -567,7 +568,7 @@ hafen.events.on("OnEnterWorld", function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
     readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s"); readWounds("+3s"); readFight("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
-    if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via Ctrl+B) and it logs") end
+    if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via the 'bags' key) and it logs") end
   end)
 
   -- 1c-2: an audible confirmation ping (a client-bundled sound), proving hafen.sound.play works.
@@ -843,7 +844,7 @@ hafen.ui.onWidgetCreate(function(desc)
   end
 
   -- 3b: when the MAIN inventory ({type="inv", place="inv", parentType="GameUI"}) is built, ADOPT it as a model
-  -- (hafen.ui.adopt(desc.id)) -- the observe -> adopt handoff. We hold the model to hide/show its grid (Ctrl+B)
+  -- (hafen.ui.adopt(desc.id)) -- the observe -> adopt handoff. We hold the model to hide/show its grid ('bags')
   -- and to receive item add/remove events. onDestroy fires if the server ever destroys it (it won't for the main
   -- backpack, but a container/cupboard model would). NB: :reload does NOT recreate the existing inventory, so the
   -- freshly-registered observer won't re-fire for it -- re-adoption after :reload waits for a relog (or 3c's
@@ -851,7 +852,7 @@ hafen.ui.onWidgetCreate(function(desc)
   if desc.type == "inv" and desc.place == "inv" and desc.parentType == "GameUI" and not invModel then
     invModel = hafen.ui.adopt(desc.id)
     if invModel then
-      hafen.log(("3b: adopted main inventory (id=%s) -- Ctrl+B hides/shows its grid; it stays live while hidden")
+      hafen.log(("3b: adopted main inventory (id=%s) -- the 'bags' hotkey hides/shows its grid; it stays live while hidden")
         :format(tostring(desc.id)))
       invModel:onItemAdded(function(item)
         itemsAdded = itemsAdded + 1
@@ -1019,75 +1020,75 @@ local function drawPanel(g, w, h)
   g:color(170, 170, 170); g:rect(0, 0, w, h); g:color()          -- 1px border
 end
 
--- 2e-2: GLOBAL HOTKEY (hafen.key.bind). Bind a remappable, persisted hotkey over the client's KeyBinding
--- registry (namespaced addon/hello/toggle) — Ctrl+H toggles this window's visibility, the WoW "show/hide my
--- panel" pattern. Unlike the input/action/message hooks below, a hotkey needs NO live target, so it is bound
--- here in the FILE BODY (it simply does nothing until you are in-world and the window exists). It fires ONLY
--- when no focused widget consumed the keypress first (a focused text field consumes all ORDINARY typing, so a
--- hotkey on a plainly-typed key is naturally suppressed while typing) and no client binding owns Ctrl+H (addon
--- hotkeys are the fallback, walked after the client's — never a hijack). Exactly the engine's own global-hotkey
--- behaviour (Ctrl+H behaves like the client's Ctrl-bindings). The key is user-remappable in the client's
--- keybind options; the handle exposes :key() (the current key's display name) and :remove(). Bridge-owned:
--- :reload or disabling the addon removes it (the KeyBinding entry itself is kept, so a user's re-map survives).
--- Pass nil or "None" as the default for unbound-by-default. Accepts "F5", "Ctrl+M", "Shift+Alt+Left", a bare
--- letter/digit, etc.
-local toggleKey = hafen.key.bind("toggle", "Ctrl+H", function()
-  if not panel then hafen.log("2e-2: Ctrl+H pressed, but the window is not up yet"); return end
+-- 2e-2: GLOBAL HOTKEYS (hafen.client:options():keybindings()). register(name, fn) declares a remappable,
+-- persisted hotkey over the client's KeyBinding registry (namespaced addon/hello/<name>) — "toggle" flips this
+-- window's visibility, the WoW "show/hide my panel" pattern. An addon hotkey starts UNBOUND (D-047): the addon
+-- names the ACTION, you assign the KEY in Options > Keybindings > Hello (suggested here: Ctrl+H). Unlike the
+-- input/action/message hooks below, a hotkey needs NO live target, so it is registered here in the FILE BODY
+-- (it simply does nothing until you are in-world and the window exists). It fires ONLY when no focused widget
+-- consumed the keypress first (a focused text field consumes all ORDINARY typing, so a hotkey on a plainly-typed
+-- key is naturally suppressed while typing) and no client binding owns the same key (addon hotkeys are the
+-- fallback, walked after the client's — never a hijack). Bridge-owned: :reload or disabling the addon removes
+-- the handler (the KeyBinding entry itself is kept, so your assignment survives). get(name) reads the current
+-- key's display name ("Ctrl+H") or nil while unassigned; set(name, key) accepts "F5", "Ctrl+M",
+-- "Shift+Alt+Left", a bare letter/digit, or "None"; unregister(name) drops one of this addon's hotkeys.
+local keys = hafen.client:options():keybindings()
+keys:register("toggle", function()
+  if not panel then hafen.log("2e-2: 'toggle' pressed, but the window is not up yet"); return end
   local show = not panel:visible()                                -- flip the current (settled/animating) state
   if show then panel:show() else panel:hide() end
-  hafen.log(("2e-2: Ctrl+H -> window %s"):format(show and "shown" or "hidden"))
+  hafen.log(("2e-2: 'toggle' -> window %s"):format(show and "shown" or "hidden"))
 end)
-hafen.log(("2e-2: global hotkey bound (%s toggles the window) -- remappable in the keybind options")
-  :format(toggleKey:key()))
+hafen.log(("2e-2: global hotkey 'toggle' registered (key = %s) -- assign/remap it in Options > Keybindings > Hello")
+  :format(keys:get("toggle") or "unassigned, suggested Ctrl+H"))
 
--- 2e-3: a SECOND hotkey, UNBOUND by default (nil). Because this addon registered a hotkey, a "Hello"
--- section now appears in Options > Keybindings (WoW-style) listing BOTH "toggle" (Ctrl+H) and this "ping".
--- "ping" starts as None, so it does nothing until you ASSIGN it a key there — demonstrating the panel's
--- assign-from-scratch flow and the per-addon grouping. Once bound it plays a sound on press, and the choice
--- persists across restarts exactly like every built-in keybinding.
-hafen.key.bind("ping", nil, function()
+-- 2e-3: a SECOND hotkey, "ping". Because this addon registered hotkeys, a "Hello" section appears in
+-- Options > Keybindings (WoW-style) listing every one of them. They all start as None, so nothing fires until
+-- you ASSIGN keys there — demonstrating the panel's assign-from-scratch flow and the per-addon grouping. Once
+-- bound this one plays a sound on press, and the choice persists across restarts like every built-in keybinding.
+keys:register("ping", function()
   hafen.sound.play("sfx/msg")
   hafen.log("2e-3: ping hotkey fired (assigned in Options > Keybindings > Hello)")
 end)
 
--- 3b: a THIRD hotkey (Ctrl+B, "bags") toggling the ADOPTED inventory model's visibility -- hide()/show() a real
--- server widget while it stays live. Open your inventory (Tab), press Ctrl+B: the item grid HIDES (the model is
+-- 3b: a THIRD hotkey ("bags", suggested Ctrl+B) toggling the ADOPTED inventory model's visibility -- hide()/show()
+-- a real server widget while it stays live. Open your inventory (Tab), press it: the item grid HIDES (the model is
 -- still bound, so items() and the add/remove events keep working -- drop something in and 3b still logs it);
 -- press again: it SHOWS. Disabling hello or :reload UN-HIDES it automatically (teardown restores the stock UI) --
--- the Phase-3b DoD. This adds a third row to the "Hello" keybind section (2e-3 grouping). If Ctrl+B is already a
--- client binding the client wins (addon hotkeys are the fallback) -- just re-map "bags" in Options > Keybindings.
-hafen.key.bind("bags", "Ctrl+B", function()
+-- the Phase-3b DoD. This adds a third row to the "Hello" keybind section (2e-3 grouping). If you assign a key a
+-- client binding already owns, the client wins (addon hotkeys are the fallback) -- pick another one.
+keys:register("bags", function()
   if not invModel then
-    hafen.log("3b: Ctrl+B -- inventory not adopted yet (relog to re-adopt; 3c will re-find an open window)")
+    hafen.log("3b: 'bags' -- inventory not adopted yet (relog to re-adopt; 3c will re-find an open window)")
     return
   end
   if invModel:visible() then invModel:hide() else invModel:show() end
-  hafen.log(("3b: Ctrl+B -> inventory grid %s (%d item(s) still live via the model)")
+  hafen.log(("3b: 'bags' -> inventory grid %s (%d item(s) still live via the model)")
     :format(invModel:visible() and "shown" or "hidden", #invModel:items()))
 end)
 
--- A1: a FOURTH hotkey (Ctrl+Shift+M, "marker") — a TOGGLE that drops a persistent "Hello marker" at your
+-- A1: a FOURTH hotkey ("marker", suggested Ctrl+Shift+M) — a TOGGLE that drops a persistent "Hello marker" at your
 -- current position (hafen.markers.add at your gob's world coord), or removes it if already placed
 -- (hafen.markers.remove). Watch it appear on the map (M) and the corner minimap. add() writes the shared
 -- on-disk map DB, so it PERSISTS — but hello removes its own marker on disable/reload (see OnDisable) so the
 -- regression harness never pollutes your map. Adds a fourth row to the "Hello" keybind section (2e-3 grouping).
 local helloMarker   -- the ref of the demo marker while placed (nil = not placed); session-local
-hafen.key.bind("marker", "Ctrl+Shift+M", function()
+keys:register("marker", function()
   if helloMarker then
     hafen.markers.remove(helloMarker)
     helloMarker = nil
-    hafen.log("A1: Ctrl+Shift+M -> removed the Hello marker")
+    hafen.log("A1: 'marker' -> removed the Hello marker")
     return
   end
   local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
   local p = me and me:pos()
-  if not p then hafen.log("A1: Ctrl+Shift+M -> no player position yet"); return end
+  if not p then hafen.log("A1: 'marker' -> no player position yet"); return end
   helloMarker = hafen.markers.add("Hello marker", p.x, p.y, { color = { r = 80, g = 220, b = 90 }, onmap = true })
   if helloMarker then
-    hafen.log(("A1: Ctrl+Shift+M -> dropped 'Hello marker' at %.0f,%.0f (ref %s) -- press again to remove")
+    hafen.log(("A1: 'marker' -> dropped 'Hello marker' at %.0f,%.0f (ref %s) -- press again to remove")
       :format(p.x, p.y, tostring(helloMarker)))
   else
-    hafen.log("A1: Ctrl+Shift+M -> could not add marker (map/session location not up yet)")
+    hafen.log("A1: 'marker' -> could not add marker (map/session location not up yet)")
   end
 end)
 
@@ -1569,7 +1570,7 @@ hafen.events.on("OnEnterWorld", function()
     end,
     onClose = function() hafen.log("panel closed (X) -- :reload to bring it back") end,
   }
-  hafen.log("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, MMB=vitals-freeze, X=close, Ctrl+H=toggle")
+  hafen.log("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, MMB=vitals-freeze, X=close, 'toggle' key=show/hide")
 
   -- U1: DROP TARGET + g:resource + mouse mods. A borderless custom widget (hafen.ui.widget) that is a
   -- DROP TARGET for the client's own drag gesture (D-038): open the menu grid (bottom-right), drag an

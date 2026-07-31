@@ -18,7 +18,7 @@ hafen.events.on("OnEnterWorld", function()
   hafen.log("hello from " .. (hafen.player():name() or "?"))
 end)
 
-hafen.key.bind("wave", "Ctrl+W", function()
+hafen.client:options():keybindings():register("wave", function()
   hafen.log("nearby players: " .. hafen.world.count("gfx/borka/body"))
 end)
 ```
@@ -31,7 +31,7 @@ end)
 | **Character** | [`player`](api/player.md) · [`time`](api/time.md) · [`char`](api/char.md) · [`study`](api/char.md#hafenstudy) · [`party`](api/party.md) · [`buffs`](api/buffs.md) |
 | **Subsystems** | [`kin`](api/kin.md) · [`speed`](api/speed.md) · [`craft`](api/craft.md) · [`quests`](api/quests.md) · [`wounds`](api/wounds.md) · [`fight`](api/fight.md) · [`actionbar`](api/actionbar.md) |
 | **Acting** *(gated)* | [`act`](api/actions.md) |
-| **UI & input** | [`ui`](api/ui.md) · [`ghost`](api/ghost.md) · [`render`](api/render.md) · [`hook`](api/hooks.md) · [`key`](api/keys.md) · [`font`](api/fonts.md) |
+| **UI & input** | [`ui`](api/ui.md) · [`ghost`](api/ghost.md) · [`render`](api/render.md) · [`hook`](api/hooks.md) · [`font`](api/fonts.md) |
 | **Data & network** | [`json`](api/json.md) · [`http`](api/http.md) *(gated)* |
 | **Infrastructure** | [`events`](api/events.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash` / `log`](api/console.md) · [`sound` / `music`](api/audio.md) |
 

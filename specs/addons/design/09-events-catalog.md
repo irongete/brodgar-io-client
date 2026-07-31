@@ -29,7 +29,7 @@ teardown). All handlers run on the UI thread; network-thread sources are marshal
 | `WidgetCreated` | `{id,type,context}` | [`UI.NewWidget`](src/haven/UI.java:433) / `GameUI.addchild` | one-liner (shared with widget-replacement) |
 | `WidgetMessage` | `{id,name,args}` | generic tap in [`UI.wdgmsg`](src/haven/UI.java:665) / `ui.uimsg` | one-liner (power users) |
 | `CombatStart`/`CombatEnd` | opponent info | [`Fightview`](src/haven/Fightview.java) create/destroy | one-liner |
-| `Keybind:<id>` | mods | [`KeyBinding`](src/haven/KeyBinding.java) via `hafen.key.bind` | **none** |
+| `Keybind:<id>` | mods | [`KeyBinding`](src/haven/KeyBinding.java) via `keybindings:register` | **none** |
 
 "Core edit?" — **none** means the source is a public callback/registry the engine can attach to
 without editing `haven`. "One-liner" means a single `Addons.fire(...)` call added at a choke

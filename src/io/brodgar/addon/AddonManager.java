@@ -519,7 +519,7 @@ public final class AddonManager {
      * The global-hotkey seam (spec 07 "Input" / Phase 2e-2) — called from {@link AddonRoot#globtype} for every
      * {@link Widget.GlobKeyEvent}. {@link UI#keydown} fires that event only after an unconsumed focused
      * {@code KeyDownEvent}, so a hotkey never fires while a text field has focus; the event then walks the whole
-     * widget tree calling {@code globtype}. Runs the handler of the first registered {@code hafen.key.bind}
+     * widget tree calling {@code globtype}. Runs the handler of the first addon hotkey ({@code keybindings:register})
      * whose current key matches and returns whether the key was <b>consumed</b> ({@code true} stops the
      * GlobKeyEvent walk). The addon-root is an early child of {@code ui.root}, hence walked <b>last</b>, so a
      * client binding on the same key is matched first — an addon hotkey is the fallback, never a hijack.
@@ -854,7 +854,7 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // changes — a set/clear/drag or its data resolving). use(n [, mods]) is the GATED write verb (4g,
         // requireActions): activate slot n (the same raw 0-based index slot(n) reads) — exactly a LEFT-click on
         // that action-bar button (GameUI belt act → wdgmsg("belt", n, …)); mods is an optional modifier bitfield
-        // (0 default; Shift=1 Ctrl=2 Alt=4, matching hafen.key). A ground-targeted ability then enters targeting
+        // (0 default; Shift=1 Ctrl=2 Alt=4, matching the keybind syntax). A ground-targeted ability then enters targeting
         // mode (as clicking the button does) — supply the target with the MapView verbs.
         CharApi.installActionbar(hafen, owner);
 
@@ -903,8 +903,8 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // ImageIO.read(...))), so this just exposes that substrate directly, skipping the `.res` container.
         RenderApi.installRender(hafen, owner);
 
-        // hafen.hook (L1 input / L2 action / L3 message / V5 grab) + hafen.key (remappable global hotkeys)
-        // + hafen.slash (WoW-style :name console commands) — the interception + input tables.
+        // hafen.hook (L1 input / L2 action / L3 message / V5 grab) + hafen.slash (WoW-style :name console
+        // commands) — the interception + input tables. Global hotkeys live under hafen.client:options():keybindings().
         HookApi.install(hafen, owner);
 
         // hafen.client — the client's own settings (spec 018). hafen.client:options() hands back the five

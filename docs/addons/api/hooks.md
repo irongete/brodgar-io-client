@@ -114,4 +114,4 @@ local g = hafen.hook.grab{
 }
 ```
 
-> Global hotkeys are not a hook level — see [`hafen.key`](keys.md).
+> Global hotkeys are not a hook level — see `hafen.client:options():keybindings()`.

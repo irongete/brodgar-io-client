@@ -82,6 +82,8 @@ visible "not assigned yet".
 box, so `bags`/`hello`/`widgetstack` need a one-time assignment after the 018.2 port and should advertise a
 *suggested* key in their docs rather than claim one. `set(name, key)` remains available but writes the **user
 override**, so an addon must not call it at load to fake a default — that would overwrite the user's own remap
-on every login, which is precisely what `defkey` exists to prevent.
+on every login, which is precisely what `defkey` exists to prevent. The 018.2 port also **dropped the per-bind
+Lua handle** (`:key()` / `:remove()`): the keybindings handle already answers both by name (`get`/`unregister`),
+so keeping it would have been a second canonical way ([D-013](architecture-api.md)).
 **See.** [D-013](architecture-api.md) (one canonical way), [018-client-options](../018-client-options/spec.md),
 [hooks-hotkeys.md](../learnings/hooks-hotkeys.md) (dispatch order + registry mechanics).

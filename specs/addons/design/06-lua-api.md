@@ -148,11 +148,12 @@ hafen.log(msg)                          -- info to console + per-addon log
 hafen.log.warn(msg) / hafen.log.error(msg)
 ```
 
-## `hafen.key` — hotkeys
+## `hafen.client:options():keybindings()` — hotkeys
 Backed by [`KeyBinding`](src/haven/KeyBinding.java) (remappable, persisted, appears in the client
 keybind panel).
 ```lua
-hafen.key.bind(id, defaultKey, fn)      -- id namespaced as "addon/<addonid>/<name>"
+keybindings:register(name, fn)          -- id namespaced as "addon/<addonid>/<name>"; starts UNBOUND (D-047)
+keybindings:get(name) / :set(name, key) / :unregister(name) / :list()
 ```
 Handlers are addon-owned and cleared on teardown; the `KeyBinding` singleton persists by id.
 
@@ -171,7 +172,7 @@ Handlers are addon-owned and cleared on teardown; the `KeyBinding` singleton per
 | `hafen.events` | synthesized bus + `OCache.callback`, chat, etc. |
 | `hafen.timer` | tick pump |
 | `hafen.store` | JSON under `savedata/` |
-| `hafen.key` | `KeyBinding` |
+| `hafen.client` | `Utils.pref*`, `GSettings`, `Audio`, `KeyBinding` |
 
 > This document is an outline. Each namespace will get finalized signatures, return-shape
 > tables, and examples before implementation. Open items are marked TBD inline.
