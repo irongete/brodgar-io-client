@@ -105,6 +105,16 @@
   (`hafen.world.gobs(function(g) return g:kin() == k end)` — 2 near an online kin). **General rule: before
   shipping an X→Y lookup as singular, check the cardinality on the LIVE data — if the engine's mapping is
   1→N, either define which one wins or expose the list; do not let cache order decide.**
+- **(020.3) Turning a whole-list event payload into OBJECTS also fixes the consumer's identity problem.**
+  `KinChanged` says only *that* the roster changed, so every consumer keeps its own last-state map and diffs
+  it — and with the old flat `{id,name,…}` payload the obvious key was the **name**, which a rename silently
+  breaks: `hello` reported the renamed kin as one going offline and another coming online. Keying by the
+  **interned Kin object** makes the map track identity, not presentation, for free. Payload construction
+  mirrors `fireGob` exactly: `int[]` ids in, per-owner array minted only behind `hasSub` (interning is
+  per-addon, so the payload can never be shared), and the ids come from the **already-diffed** snapshot so
+  change detection stays the `kinListEqual` diff and nothing re-reads `BuddyWnd` for the event. **General
+  rule: when a section goes OOP, its events go with it in the same feature — a flat payload beside an object
+  API is the dual style D-013 forbids, and the object payload is usually the more correct one anyway.**
 - **A8 — widget lists: check swap-vs-mutate before copying, and "copy under `ui`, snapshot outside".** When a
   read walks a widget's `List` fields, don't assume they're all the same to copy. In `Makewindow`, `inputs`/
   `outputs`/`qmod` are **reassigned wholesale** by their uimsgs (`this.inputs = wdgs`) — grabbing the reference

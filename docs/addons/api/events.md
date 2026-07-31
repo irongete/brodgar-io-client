@@ -71,10 +71,17 @@ The payload is a live [Gob object](gob.md). On `GobRemoved` the gob is **already
 
 | Event | Payload | Fires |
 |---|---|---|
-| `KinChanged` | [`KinEntry`](types.md#kinentry)`[]` | a kin is added/removed/edited or flips online/offline |
+| `KinChanged` | [`Kin`](kin.md)`[]` | a kin is added/removed/edited or flips online/offline |
 | `QuestAdded` | [`Quest`](types.md#quest--condition) | a new active quest appears |
 | `QuestDone` | [`Quest`](types.md#quest--condition) | an active quest is completed or failed |
 | `MarkersChanged` | `{ count = number }` | a map marker is added or removed |
+
+`KinChanged` hands you the **whole roster** as live [`Kin` objects](kin.md), in Kin-window sort order —
+the same interned objects `hafen.kin()` returns, so `payload[1] == hafen.kin(payload[1]:id())` and you can
+key a table by one. It tells you *that* the roster changed, not *what* changed: keep your own map of the
+last state if you want to name who just came online — key it **by the `Kin` itself**, not by `:name()`,
+so a rename doesn't read as one kin leaving and another arriving. `kin:info()` is there when you want a
+plain-table [snapshot](types.md#kinentry) instead.
 
 ### World ghosts & sprites
 

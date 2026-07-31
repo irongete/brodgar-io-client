@@ -26,8 +26,15 @@ the gob, so a handle you keep is always fresh and answers `nil` once the gob is 
 gob is addressed — `hafen.act.clickGob`, `follow=` in [`hafen.render`](render.md) — you pass the Gob
 itself, never an id. See [gob.md](gob.md).
 
-Gob is the only section that is object-oriented today; every other section is still a flat table of
-functions. That mix is deliberate and temporary — the rest follows.
+### Kin — a roster entry
+
+A kin is an **object** too: `hafen.kin` is *callable*, and the arity is the verb — `hafen.kin()` is the
+roster (a plain array of `Kin`), `hafen.kin(idOrName)` is one of them. Like a Gob, a `Kin` re-reads the
+roster on every call, so a handle you keep tracks renames, regroups and online/offline flips, and
+`hafen.kin(7) == hafen.kin(7)`. `gob:kin()` and `kin:gob()` cross between the two. See [kin.md](kin.md).
+
+Gob and Kin are the sections that are object-oriented today; every other section is still a flat table
+of functions. That mix is deliberate and temporary — the rest follows.
 
 ### ItemRef — an inventory/equipment item
 
@@ -53,7 +60,7 @@ A **handle** returned by `hafen.ui.*` (or a widget id from
 
 ## The `filter` argument
 
-Enumerating verbs (`hafen.world.gobs`, `hafen.markers.list`, `hafen.kin.list`,
+Enumerating verbs (`hafen.world.gobs`, `hafen.markers.list`, `hafen.kin():list`,
 `hafen.radar.categories`, `hafen.quests.list`, `hafen.wounds.list`, `hafen.fight.maneuvers`, …) take
 one optional **filter**, always in the same canonical form:
 
@@ -63,13 +70,15 @@ one optional **filter**, always in the same canonical form:
 | a **string** | entries whose `name` contains the string (substring match) |
 | a **function** | entries for which `filter(entry)` returns truthy |
 
-Use the function form to match on any field other than `name`. The entry is a snapshot table for every
-section except [`hafen.world`](world.md), whose predicate receives a [Gob object](gob.md):
+Use the function form to match on any field other than `name`. The entry is a snapshot table in the flat
+sections, and an **object** in the sections that are object-oriented — [`hafen.world`](world.md) hands the
+predicate a [Gob](gob.md), [`hafen.kin`](kin.md) a `Kin`:
 
 ```lua
-hafen.world.gobs("rabbit")                                      -- name contains "rabbit"
-hafen.world.gobs(function(g) return (g:health() or 1) < 1 end)   -- injured gobs
-hafen.kin.list(function(k) return k.online end)                  -- a snapshot elsewhere
+hafen.world.gobs("rabbit")                                       -- name contains "rabbit"
+hafen.world.gobs(function(g) return (g:health() or 1) < 1 end)   -- injured gobs (a Gob object)
+hafen.kin():list(function(k) return k:online() end)              -- online kin (a Kin object)
+hafen.markers.list(function(m) return m.type == "player" end)    -- a snapshot elsewhere
 ```
 
 ## Coordinates
@@ -99,8 +108,9 @@ client, and the sandbox's instruction watchdog will abort a runaway one.
 ## Gating — the `actions` permission
 
 Everything in the API **observes** except one section: [`hafen.act`](actions.md) (and the per-subsystem
-write verbs `hafen.speed.set`, `hafen.craft.make`, `hafen.actionbar.use`, `hafen.kin.add`/`remove`/
-`forget`/`rename`/`setGroup`), which **drive the character** by sending actions to the server.
+write verbs `hafen.speed.set`, `hafen.craft.make`, `hafen.actionbar.use`, and the kin verbs
+`hafen.kin():add` / `kin:rename`/`setGroup`/`endkin`/`forget`), which **drive the character** by sending
+actions to the server.
 
 A write verb runs only if the addon **declared** `"permissions": ["actions"]` in its manifest and the
 user enabled the addon (write addons are disabled by default; enabling one raises a consent dialog).

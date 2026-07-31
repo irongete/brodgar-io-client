@@ -2,8 +2,7 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**Active:** `020-kin-oop` — the kin roster to OOP (ROADMAP's "Finish the OOP migration"). **020.1–020.2 DONE**
-(hard cut; Kin ↔ Gob both ways); next 020.3 (`KinChanged` payload). (`019-profiling` **DONE**, 019.1–019.8.)
+**Active:** none — `020-kin-oop` **DONE** (020.1–020.3: hard cut, Kin ↔ Gob, `KinChanged` = `Kin[]`); ROADMAP's OOP migration continues. (`019-profiling` **DONE**, 019.1–019.8.)
 
 ## Engine & runtime
 - **Engine**: LuaJ embedded (`src/io/brodgar/addon/`); per-addon sandboxed envs (D-017), instruction watchdog +
@@ -20,9 +19,10 @@
   tokens are GONE. `world.*` hands out Gobs. **Kin (OOP, D-056, 020.1)**: `hafen.kin` is CALLABLE-ONLY —
   `hafen.kin()` = the roster of interned Kin (+`:find/:list/:add`), `hafen.kin(idOrName)` = one Kin (`:id/:name/
   :group/:color/:online/:exists/:info`; gated `:rename/:setGroup(0..254)/:endkin/:forget` chain on self); the flat
-  `kin.*` table is GONE. **Kin ↔ Gob (020.2)**: `gob:kin()` = the `ui/obj/buddy` attrib (+ name-based fallback on a
-  pin bump), `kin:gob()` = an `OCache` sweep **preferring the body** (hearth fires are marked too — `world.gobs` +
-  `g:kin()` is the many-case). Flat elsewhere. **Map** `map.*`: tile/height/grid/gridPos + conversions,
+  `kin.*` table is GONE; `KinChanged` = a per-addon `Kin[]` (`fireKin`, `hasSub`-gated, 020.3). **Kin ↔ Gob
+  (020.2)**: `gob:kin()` = the `ui/obj/buddy` attrib (+ name fallback on a pin bump), `kin:gob()` = an `OCache`
+  sweep **preferring the body** (hearth fires are marked too — `world.gobs`+`g:kin()` = the many-case). Flat
+  elsewhere. **Map** `map.*`: tile/height/grid/gridPos + conversions,
   grid ids = exact decimal strings. **Player/char**: `hafen.player()` → Player object (`:gob()/:name()/:vitals()/
   :worldToScreen()`, D-046); `char.*` (attrs/food/skills/lp/weight), `time/party/buffs/study.*`, `actionbar.slot`,
   `items.*`. **Gap subsystems** (A1–A11) `markers/radar/kin/speed/craft/quests/wounds/fight` — widget-tree

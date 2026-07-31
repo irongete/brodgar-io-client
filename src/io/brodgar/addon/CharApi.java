@@ -415,9 +415,13 @@ final class CharApi {
      * "rm"}), edited ({@code "upd"}: nick/group) or an online-status flip ({@code "chst"}) — so unlike
      * the buff/study adapters (whose add/remove is a widget create, invisible to the tap) this is
      * <b>uimsg-driven</b>: {@link #interested} flags those four messages, and {@link #refresh} re-reads
-     * the snapshot list and fires {@code KinChanged} (with the new list) when it actually differs.
+     * the snapshot list and fires {@code KinChanged} when it actually differs.
      * Change-detection is a snapshot diff, NOT {@code BuddyWnd.serial} — {@code serial} does not bump on
      * {@code "chst"} (an online/offline flip), which a kin-alert addon most wants to hear.
+     *
+     * <p>The snapshots are the diff's <i>input only</i>: what reaches Lua is a per-addon array of <b>Kin
+     * objects</b> ({@link AddonManager#fireKin}, 020.3), so a handler reads the payload with the same
+     * methods as {@code hafen.kin()} and can key a table by an entry.
      */
     private static final class KinAdapter implements TreeAdapter {
         private LuaValue cache = LuaValue.NIL;   // last kin snapshot list (UI thread; change-detect)
@@ -431,7 +435,7 @@ final class CharApi {
             LuaValue snap = kinSnapshotList();
             if(!kinListEqual(snap, cache)) {
                 cache = snap;
-                fire("KinChanged", snap);
+                fireKin(kinIds(snap));
             }
         }
     }
@@ -956,10 +960,11 @@ final class CharApi {
     /**
      * Install {@code hafen.kin} for owner. From installHafen. The whole surface is the <b>callable table</b>
      * {@link LuaKin#factory} builds (spec {@code 020-kin-oop}): {@code hafen.kin()} is the roster,
-     * {@code hafen.kin(idOrName)} a {@link LuaKin Kin} object, and the flat {@code hafen.kin.list/find/add/
-     * remove/forget/rename/setGroup} table is GONE (hard cut, D-013) — {@code hafen.kin.list} reads as
-     * {@code nil}. Only the kin-side plumbing the event adapter still needs ({@link #buddywnd},
-     * {@link #kinSnapshot}, {@link #kinListEqual}) stays here.
+     * {@code hafen.kin(idOrName)} a {@link LuaKin Kin} object, and the flat table of fields
+     * ({@code list}/{@code find}/{@code add}/{@code remove}/{@code forget}/{@code rename}/{@code setGroup})
+     * is GONE (hard cut, D-013) — indexing the namespace reads as plain {@code nil}. Only the kin-side
+     * plumbing the event adapter still needs ({@link #buddywnd}, {@link #kinSnapshot}, {@link #kinListEqual},
+     * {@link #kinIds}) stays here.
      */
     static void installKin(LuaTable hafen, final Addon owner) {
         hafen.set("kin", LuaKin.factory(owner));
@@ -1727,6 +1732,16 @@ final class CharApi {
         for(BuddyWnd.Buddy b : bw)                 // iterator() copies under the BuddyWnd's own lock
             out.set(++i, kinSnapshot(b));
         return out;
+    }
+
+    /** The buddy ids of a snapshot list, in roster order — what {@link AddonManager#fireKin} mints the
+     *  per-addon {@code KinChanged} payload from (the snapshots themselves never reach Lua as an event). */
+    private static int[] kinIds(LuaValue list) {
+        int n = list.length();
+        int[] ids = new int[n];
+        for(int i = 0; i < n; i++)
+            ids[i] = list.get(i + 1).get("id").toint();
+        return ids;
     }
 
     /** Do two kin snapshot lists carry the same id/name/group/online per entry? (change-detection.) */

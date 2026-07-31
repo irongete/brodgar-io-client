@@ -124,14 +124,15 @@ From [`hafen.buffs.list`](buffs.md) and `BuffAdded`/`BuffRemoved`/`BuffChanged`.
 
 ## KinEntry
 
-From [`hafen.kin.list`](kin.md)/`find` and `KinChanged`.
+From [`kin:info()`](kin.md#read) — the one snapshot escape hatch. The roster and `KinChanged` hand you
+live [`Kin` objects](kin.md), not this table.
 
 | Field | Type | Notes |
 |---|---|---|
 | `id` | number | kin id |
 | `name` | string | kin name/nick; optional |
-| `group` | number | colour group 0..7 |
-| `color` | [Color](#color) | the group's colour; optional |
+| `group` | number | the kin's group, 0..254 |
+| `color` | [Color](#color) | the group's colour; **absent for a group ≥ 8** (the client draws 8 colours) |
 | `online` | bool | whether the kin is online |
 
 ## Quest / Condition

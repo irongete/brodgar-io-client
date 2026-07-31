@@ -684,6 +684,33 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
             fireTo(c, event, LuaGob.of(c, id));
     }
 
+    /**
+     * Fire {@code KinChanged} whose payload is an array of <b>Kin objects</b> (020.3), the roster in the Kin
+     * window's sort order. Same shape as {@link #fireGob}: interning is per-addon (D-045) so the payload cannot
+     * be shared, and the array is minted only for an owner that actually subscribes — a login, where the roster
+     * streams in entry by entry, costs nothing for the addons that don't listen.
+     *
+     * <p>Change <i>detection</i> is unchanged and stays in {@code CharApi}'s kin adapter: the snapshot diff, NOT
+     * {@code BuddyWnd.serial} (which does not bump on an online/offline flip). The ids arrive already diffed.
+     */
+    static void fireKin(int[] ids) {
+        for(Addon a : addons) {
+            if(hasSub(a, "KinChanged"))
+                fireTo(a, "KinChanged", kinPayload(a, ids));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, "KinChanged"))
+            fireTo(c, "KinChanged", kinPayload(c, ids));
+    }
+
+    /** One owner's {@code KinChanged} payload: its own interned Kin objects, in roster order. */
+    private static LuaValue kinPayload(Addon owner, int[] ids) {
+        LuaTable t = new LuaTable();
+        for(int i = 0; i < ids.length; i++)
+            t.set(i + 1, LuaKin.of(owner, ids[i]));
+        return t;
+    }
+
     /** Does {@code a} have a live subscription to {@code event}? (Gates minting a per-addon event payload.) */
     private static boolean hasSub(Addon a, String event) {
         for(Sub s : a.subs) {
@@ -853,24 +880,24 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // limitation). A member's gob is hafen.gob(m.id) until Party itself migrates to OOP.
         CharApi.installParty(hafen, owner);
 
-        // hafen.kin.* — the kin/buddy roster (A6), read from the Kin window (GameUI.buddies, a BuddyWnd —
-        // the same list the in-client Kin tab shows). list([filter]) returns kin snapshots {id, name,
-        // group (0..7), color={r,g,b,a} (the group's colour), online (bool)} in the window's current sort
-        // order; filter is the canonical nil=all / name-substring / predicate. find(nameOrId) returns one
-        // snapshot — a number matches by id, a string by exact (case-insensitive) name. Subscribe to
-        // KinChanged (fired with the new list when a kin is added/removed, renamed/regrouped, or flips
-        // online/offline). The GATED write verbs (4g, requireActions) mutate the roster. add(secret) adds a kin
-        // by the other player's HEARTH SECRET — the Kin window's "Make kin by hearth secret / Add kin" field
-        // (wdgmsg("bypwd", secret)); the roster has no add-by-NAME message. remove(kin) and forget(kin) are the
-        // TWO STEPS of dropping a kin — the game's own "End kinship" then "Forget" (a state machine):
-        //   remove(kin)  = END KINSHIP (Buddy.endkin) — ends the kinship; the kin STAYS in the list, now merely
-        //                  memorized (un-kinned). This is the "End kinship" petal (shown while the kin is active).
-        //   forget(kin)  = FORGET (Buddy.forget) — drops a memorized kin from the list entirely. This is the
-        //                  "Forget" petal (shown once the kin is un-kinned). To fully remove an ACTIVE kin:
-        //                  remove(kin), then forget(kin) once it is memorized.
+        // hafen.kin — the kin/buddy roster (A6), read from the Kin window (GameUI.buddies, a BuddyWnd — the
+        // same list the in-client Kin tab shows). CALLABLE-ONLY since 020-kin-oop (D-013's hard cut: the flat
+        // table of fields is gone, indexing the namespace reads as plain nil). Arity is the verb: hafen.kin()
+        // = the roster, a fresh array of interned Kin objects in the window's sort order (plus :find(nameOrId)
+        // / :list([filter]) / the gated :add(secret) on its metatable); hafen.kin(id) / hafen.kin(name) = one
+        // Kin. A Kin wraps only the buddy id and re-resolves through buddywnd().find(id) every call (D-012), so
+        // it tracks renames/regroups/online flips; see LuaKin. Subscribe to KinChanged (a Kin[] payload, minted
+        // per subscribing addon by fireKin) for a kin added/removed, renamed/regrouped, or flipping
+        // online/offline. The GATED verbs (requireActions) drive BuddyWnd.Buddy's own methods (D-009):
+        //   roster:add(secret) — kinning needs the other player's HEARTH SECRET (wdgmsg("bypwd", secret), the
+        //                  Kin window's "Add kin" field); there is no add-by-NAME message.
+        //   kin:endkin()   = END KINSHIP (Buddy.endkin) — ends the kinship; the kin STAYS in the list, now
+        //                  merely memorized (un-kinned). The "End kinship" petal, shown while the kin is active.
+        //   kin:forget()   = FORGET (Buddy.forget) — drops a memorized kin from the list entirely. The "Forget"
+        //                  petal, shown once un-kinned. To fully remove an ACTIVE kin: endkin(), then forget().
         // Both send the same wdgmsg("rm", id); the SERVER advances the state (active → memorized → gone), exactly
-        // as clicking the two petals in turn does. rename(kin, name)=wdgmsg("nick"), setGroup(kin, group)=wdgmsg(
-        // "grp"). `kin` = a kin snapshot (from list/find), its id, or a name (exact, case-insensitive).
+        // as clicking the two petals in turn does. kin:rename(name)=wdgmsg("nick"), kin:setGroup(g)=wdgmsg("grp")
+        // with g validated 0..254 (the range the SERVER accepts; the client only draws 8 colours).
         CharApi.installKin(hafen, owner);
 
         // hafen.speed.* — movement speed (A7), read from the speed selector widget (Speedget: the four-way

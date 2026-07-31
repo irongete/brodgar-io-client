@@ -23,8 +23,8 @@
 -- here, since changing speed is the gated Phase-4 action tier. Built on gap subsystem A6: KIN / BUDDY ROSTER —
 -- hafen.kin reads the Kin window and is CALLABLE-ONLY (020-kin-oop): hafen.kin() is the roster (an array of
 -- interned Kin objects, plus :find/:list/:add), hafen.kin(idOrName) is one Kin (:id/:name/:group/:color/
--- :online/:exists/:gob/:info, with gob:kin() as :gob()'s inverse); it fires KinChanged when a kin is
--- added/removed or flips online/offline. Built on gap subsystem A2: RADAR / MINIMAP ICONS — hafen.radar reads the character's gob-icon
+-- :online/:exists/:gob/:info, with gob:kin() as :gob()'s inverse); it fires KinChanged -- the whole roster
+-- as Kin objects -- when a kin is added/removed, renamed/regrouped or flips online/offline. Built on gap subsystem A2: RADAR / MINIMAP ICONS — hafen.radar reads the character's gob-icon
 -- registry (categories() -> {name,res,show,notify} per category) and can flip a category's show (draw it on
 -- the minimap) or notify (sound + msg when one appears) flag over every match of a filter
 -- (setVisible/setNotify(filter,on); filter = nil=all / name substring / predicate). It IS the same registry
@@ -824,25 +824,31 @@ hafen.events.on("MarkersChanged", function(ev)
 end)
 
 -- A6: KinChanged fires when the roster changes — a kin added/removed, renamed/regrouped, or (the one a
--- kin-alert addon most wants) an online/offline flip. Payload is still the flat {id,name,group,color,online}
--- list here -- it becomes a Kin[] in 020.3, and this block moves with it. A few fire at login as the roster
--- streams in; log the first few, then keep our own
--- last-online set so we can name WHO just came online/offline on every later change.
+-- kin-alert addon most wants) an online/offline flip. Since 020.3 the payload is the whole roster as
+-- Kin OBJECTS (not the old flat snapshot list), in Kin-window sort order and interned like everywhere
+-- else -- so payload[n] is literally the same object as hafen.kin(<that id>), and a Kin works as a TABLE
+-- KEY. We use that here: kinOnline is keyed BY THE OBJECT, which survives a rename (the old block keyed
+-- by name and would have reported a renamed kin as one going offline and another coming online).
+-- The event says the roster CHANGED, never what changed, so keeping our own last-state map is the way to
+-- name who flipped. A few fire at login as the roster streams in; log the first few of those.
 local kinSeen = 0
-local kinOnline = {}          -- name -> true while we believe them online (so we can report transitions)
-hafen.events.on("KinChanged", function(list)
+local kinOnline = {}          -- Kin object -> true while we believe them online (so we can report transitions)
+hafen.events.on("KinChanged", function(roster)
   kinSeen = kinSeen + 1
   local now = {}
-  for _, k in ipairs(list) do
-    if k.name then                                   -- names are always present, but keying a table by nil errors
-      now[k.name] = k.online or false
-      if k.online and not kinOnline[k.name] then hafen.log(("KinChanged: %s came ONLINE"):format(k.name)) end
-      if (not k.online) and kinOnline[k.name] then hafen.log(("KinChanged: %s went offline"):format(k.name)) end
-    end
+  for _, k in ipairs(roster) do
+    local on = k:online() or false
+    now[k] = on                                      -- the Kin object itself as the key (interning makes it stable)
+    if on and not kinOnline[k] then hafen.log(("KinChanged: %s came ONLINE"):format(tostring(k:name()))) end
+    if (not on) and kinOnline[k] then hafen.log(("KinChanged: %s went offline"):format(tostring(k:name()))) end
   end
   kinOnline = now
   if kinSeen <= 5 then
-    hafen.log(("KinChanged: %d kin (%d)"):format(#list, kinSeen))
+    local first = roster[1]
+    -- ...and the payload objects ARE the interned ones: first == hafen.kin(first:id()) must be true.
+    hafen.log(("KinChanged: %d kin (%d)%s"):format(#roster, kinSeen,
+      first and (" first=%s interned=%s"):format(tostring(first:name()),
+        tostring(first == hafen.kin(first:id()))) or ""))
   end
 end)
 

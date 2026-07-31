@@ -20,7 +20,7 @@
       `g:kin() == hafen.kin()[n]`; offline/out of view → `:gob()` nil; a non-kin gob → `g:kin()` nil.
       <!-- extra context: `src/haven/Resource.java` (the `ResClassLoader` override check, ~1556) -->
 
-- [ ] 020.3 — **`KinChanged` payload + close-out.** `fireKin` beside `fireGob`: per-addon `Kin[]`,
+- [x] 020.3 — **`KinChanged` payload + close-out.** `fireKin` beside `fireGob`: per-addon `Kin[]`,
       minted only for owners with a live subscription (`hasSub`); change detection stays the
       `kinListEqual` snapshot diff. Finish the docs cross-refs (`types.md`, `conventions.md`,
       `actions.md`, `events.md`, `README.md`) and prove the hard cut by grep.

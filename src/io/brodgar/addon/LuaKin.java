@@ -21,7 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * A <b>Kin object</b> — the OOP successor of the flat {@code hafen.kin.*} table (spec {@code 020-kin-oop}),
+ * A <b>Kin object</b> — the OOP successor of the flat kin table (spec {@code 020-kin-oop}),
  * built on exactly the {@link LuaGob} mechanism 017 established. <b>Arity is the verb on the namespace
  * itself</b>: {@code hafen.kin()} is the roster, {@code hafen.kin(idOrName)} is one Kin.
  *
@@ -499,8 +499,9 @@ public final class LuaKin {
 
     /**
      * {@code hafen.kin} itself: a <b>callable table</b> ({@code __call}) with arity dispatch, so
-     * {@code hafen.kin()} / {@code hafen.kin(idOrName)} work while {@code hafen.kin.list} reads as plain
-     * {@code nil} — the hard cut (D-013) is visible from Lua, exactly as {@code hafen.gob} did it (D-044).
+     * {@code hafen.kin()} / {@code hafen.kin(idOrName)} work while indexing it (the old {@code list} field and
+     * friends) reads as plain {@code nil} — the hard cut (D-013) is visible from Lua, exactly as
+     * {@code hafen.gob} did it (D-044).
      */
     static LuaValue factory(final Addon owner) {
         LuaTable kin = new LuaTable();
