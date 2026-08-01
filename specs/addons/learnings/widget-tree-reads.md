@@ -217,3 +217,23 @@
   in after it appears — `:res()`/`:value()`/`:color()` answer `nil` rather than erroring, and only
   `:exists()` always answers. Same reason `Widget.destroy` unlinks without clearing `bg` or the segment
   list, so a removed meter keeps reading with `:exists()` false (the `LuaBuff` property).
+- **(027.2) The whole change key is the segment array — one comparison covers both `uimsg`s.**
+  `LuaMeter.segments(m)` is what `MeterAdapter` caches and diffs, not `snapshot()`: `:value()` and
+  `:color()` ARE the first segment, so the same array comparison catches a `"set"` and a `"col"`
+  push, and a multi-segment bar whose later segments move is a real change too. `:res()` is
+  deliberately out of the key (a resource leaving `Loading` renames nothing — it would fire a
+  spurious `MeterChanged` a beat after every add) and so is `:index()` (layout, not state).
+  Verified in-game: standing still is silent, moving fires on `stam`/`nrj` only, one line per
+  server push.
+- **(027.2) Engine order is refresh→poll, so a brand-new meter surfaces as ONE `MeterAdded`.**
+  `CharApi` runs the uimsg-driven refresh before the per-tick poll, and the poll seeds the cache
+  with the meter's CURRENT segments at the moment it fires `MeterAdded`. A bar that arrives and is
+  filled in the same tick therefore never produces `MeterChanged`-then-`MeterAdded` (the payload
+  already carries the values); the seed-on-add is what buys that, not the ordering alone.
+- **(027.2) An event payload can be younger than its resource — `:res()` may be nil AT FIRE TIME.**
+  Mounting fires `MeterAdded` for two bars and the first one's `bg` is still `Loading` when the
+  event goes out, so a handler printing `tostring(m)` gets `Meter(?)` and `m:res()` is `nil` — then
+  the SAME object answers a beat later, because the handle re-reads the widget on every call
+  (027.1's `Loading` guard). This is the expected behaviour of a handle-not-snapshot API and must
+  be a docs line: name-match a meter on a later tick (or in `MeterChanged`), never inside the
+  `MeterAdded` handler.

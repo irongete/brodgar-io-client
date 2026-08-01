@@ -15,7 +15,7 @@
       returns the *same object* as the array entry, `hafen.player():vitals` is nil, a still-`Loading`
       meter answers `:value()` and nil `:res()` without erroring.
 
-- [ ] **027.2 — the adapter and its three events.** `VitalsAdapter` → `MeterAdapter`:
+- [x] **027.2 — the adapter and its three events.** `VitalsAdapter` → `MeterAdapter`:
       `interested` = `IMeter` + `"set"`/`"col"`; `refresh` re-reads the cached meters and fires
       `MeterChanged` on a real value-or-colour change; `poll` diffs the HUD meter list per tick and
       fires `MeterAdded` / `MeterRemoved` (`BuffsAdapter`'s shape — fire the removal *before* dropping
@@ -30,7 +30,9 @@
       forms, the entity table, "the res names are server-published — here are the ones this server
       shows today, and `:res()` is how you list them", the three events, `:info()` as the escape
       hatch, and the standing "no absolute numbers, no hunger — see `hafen.char.food`" note moved here
-      from `player.md`); rows in `api/README.md` + `docs/addons/README.md`; `player.md` loses
+      from `player.md`; **plus the 027.2 gotcha: a `MeterAdded` payload can still be `Loading` at fire
+      time — `:res()` is nil and `tostring` reads `Meter(?)`, the same object answers a beat later, so
+      name-match on a later tick, never inside the `MeterAdded` handler**); rows in `api/README.md` + `docs/addons/README.md`; `player.md` loses
       `vitals()`, `types.md` loses `Vitals`, `events.md` swaps one row for three, `conventions.md` /
       `hooks.md` / `getting-started.md` lose their vitals mentions. `hello`: `readVitals` becomes the
       once-per-login `hafen.meter` contract check (list, lookup hit/miss, identity, the number-key and

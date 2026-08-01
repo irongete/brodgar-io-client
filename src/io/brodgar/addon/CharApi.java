@@ -90,7 +90,7 @@ final class CharApi {
     static void resetSession() {
         treeDirty.clear();
         treeAdapters.clear();
-        treeAdapters.add(new VitalsAdapter());
+        treeAdapters.add(new MeterAdapter());
         treeAdapters.add(new BuffsAdapter());
         treeAdapters.add(new FepAdapter());
         treeAdapters.add(new StudyAdapter());
@@ -150,18 +150,94 @@ final class CharApi {
      * this adapter's business. The old positional {@code hp}/{@code stamina}/{@code energy} snapshot and its
      * {@code VitalsChanged} event are GONE with that spec's hard cut.
      *
-     * <p><b>027.1 fires nothing yet</b> — the {@code interested} recognizer is kept so the dirty-flag path
-     * stays wired while 027.2 turns this into the {@code MeterAdapter} that fires {@code MeterAdded} /
-     * {@code MeterRemoved} (poll) and {@code MeterChanged} (this refresh, on a real value-or-colour change).
+     * <p>Two paths, exactly the {@link BuffsAdapter} split. A meter appearing / being destroyed is a widget
+     * create/{@code cdestroy} on the HUD's meter slot, NOT a {@code uimsg}, so it is detected by <b>poll</b>
+     * (diffing {@link LuaMeter#hud()} each tick against a cache keyed by widget identity) and fires
+     * {@code MeterAdded} / {@code MeterRemoved}. The bar CONTENT is pushed by the server as a targeted
+     * {@code "set"} (values) or {@code "col"} (colours) {@code uimsg}, so <b>refresh</b> re-reads the cached
+     * meters and fires {@code MeterChanged} — colour is in the key because it is now in the read surface
+     * ({@code meter:color()}), which the old {@code vitalsEqual} deliberately ignored.
+     *
+     * <p>All three carry the <b>Meter object</b> ({@link AddonManager#fireMeter}), so a handler reads the payload
+     * with the same methods as {@code hafen.meter()}. The per-meter snapshot stays, purely as the diff KEY: an
+     * interned object compares by identity and so cannot detect a content change (the 025.2 lesson). It is never
+     * handed to Lua — {@code meter:info()} is that, on demand.
      */
-    private static final class VitalsAdapter implements TreeAdapter {
+    private static final class MeterAdapter implements TreeAdapter {
+        // Live HUD meter -> its last segment snapshot (the change-detection key, NOT a payload). UI-thread-only
+        // (poll + refresh); reset per session by re-instantiation in resetSession(). IdentityHashMap: IMeter
+        // widgets are keyed by object identity, like the buffs.
+        private final Map<IMeter, LuaValue> cache = new IdentityHashMap<IMeter, LuaValue>();
+
         public boolean interested(Widget w, String msg) {
             return (w instanceof IMeter) && ("set".equals(msg) || "col".equals(msg));
         }
 
         public void refresh() {
-            /* 027.2: re-read the cached meters and fire MeterChanged on a real change. */
+            for(Map.Entry<IMeter, LuaValue> e : cache.entrySet()) {
+                LuaValue snap = LuaMeter.segments(e.getKey());
+                if(!meterEqual(snap, e.getValue())) {
+                    e.setValue(snap);
+                    fireMeter("MeterChanged", e.getKey());
+                }
+            }
         }
+
+        public void poll() {
+            List<IMeter> hud = LuaMeter.hud();
+            for(IMeter m : hud) {                         // additions (unseen meters)
+                if(!cache.containsKey(m)) {
+                    cache.put(m, LuaMeter.segments(m));
+                    fireMeter("MeterAdded", m);
+                }
+            }
+            for(Iterator<Map.Entry<IMeter, LuaValue>> it = cache.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<IMeter, LuaValue> e = it.next();   // removals (no longer in the HUD slot)
+                if(!contains(hud, e.getKey())) {
+                    // The widget is unlinked, not cleared: the payload still answers :res()/:value()/… and now
+                    // reports :exists() false. Fire BEFORE dropping the entry — the map holds nothing the
+                    // payload needs, but the order keeps "the meter the adapter just dropped" literal.
+                    fireMeter("MeterRemoved", e.getKey());
+                    it.remove();
+                }
+            }
+        }
+
+        /** Identity membership (an {@link IMeter} is compared as a widget, never by equals). */
+        private static boolean contains(List<IMeter> hud, IMeter m) {
+            for(IMeter c : hud) {
+                if(c == m)
+                    return true;
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Do two meter segment arrays carry the same values and colours? (for change-detection.) The segment list is
+     * the whole change key: {@code :value()}/{@code :color()} are its first entry, so comparing it covers both
+     * the {@code "set"} and the {@code "col"} update in one pass — and a multi-segment bar whose later segments
+     * move is a real change too. {@code :res()} is NOT in the key: a resource resolving out of {@code Loading}
+     * renames nothing, and {@code :index()} is layout, not state.
+     */
+    private static boolean meterEqual(LuaValue a, LuaValue b) {
+        if((a == null) || (b == null) || !a.istable() || !b.istable())
+            return false;
+        int n = a.length();
+        if(n != b.length())
+            return false;
+        for(int i = 1; i <= n; i++) {
+            LuaValue sa = a.get(i), sb = b.get(i);
+            if(!luaFieldEq(sa, sb, "value"))
+                return false;
+            LuaValue ca = sa.get("color"), cb = sb.get("color");
+            if(ca.isnil() != cb.isnil())
+                return false;
+            if(!ca.isnil() && !(luaFieldEq(ca, cb, "r") && luaFieldEq(ca, cb, "g")
+                                && luaFieldEq(ca, cb, "b") && luaFieldEq(ca, cb, "a")))
+                return false;
+        }
+        return true;
     }
 
     /**

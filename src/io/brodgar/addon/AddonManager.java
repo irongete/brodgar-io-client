@@ -747,6 +747,29 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
             fireTo(c, event, LuaBuff.of(c, b));
     }
 
+    /**
+     * Fire a meter event ({@code MeterAdded}/{@code MeterRemoved}/{@code MeterChanged}) whose payload is a
+     * single <b>Meter object</b> (027.2) — the HUD bar that just appeared, went away or changed. Same shape as
+     * {@link #fireGob}/{@link #fireKin}/{@link #fireSlot}/{@link #fireBuff}: interning is per-addon (D-045) so
+     * the payload cannot be shared, and it is minted only for an owner that actually subscribes — the meters are
+     * polled every tick and a login brings the whole slot up in one burst, so the {@code hasSub} gate is what
+     * keeps that free for the addons that don't listen.
+     *
+     * <p>Change <i>detection</i> stays in {@code CharApi}'s meter adapter (the per-meter segment diff, value AND
+     * colour); the widget arrives already diffed. The Meter re-reads live, so a handler that stashes one keeps
+     * tracking that bar. On {@code MeterRemoved} the widget is unlinked but NOT cleared, so the payload still
+     * answers {@code :res()}/{@code :value()}/… and reports {@code :exists()} false.
+     */
+    static void fireMeter(String event, IMeter m) {
+        for(Addon a : addons) {
+            if(hasSub(a, event))
+                fireTo(a, event, LuaMeter.of(a, m));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, event))
+            fireTo(c, event, LuaMeter.of(c, m));
+    }
+
     /** One owner's {@code KinChanged} payload: its own interned Kin objects, in roster order. */
     private static LuaValue kinPayload(Addon owner, int[] ids) {
         LuaTable t = new LuaTable();
@@ -1047,8 +1070,11 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // position)/:value() (the first segment, 0..1 — what vitals() used to return)/:color() ({r,g,b,a}
         // 0..255)/:segments() (the whole multi-segment bar)/:exists()/:info() (the snapshot). A destroyed meter
         // still READS — Widget.destroy() does not clear it — but reports :exists() false. The bars stream in a
-        // beat after enter-world, so hafen.meter() is legitimately empty for a moment.
-        // (027.2 adds MeterAdded/MeterRemoved/MeterChanged; hafen.player():vitals() and VitalsChanged are GONE.)
+        // beat after enter-world, so hafen.meter() is legitimately empty for a moment. Subscribe to
+        // MeterAdded/MeterRemoved (the bars streaming in / a meter being destroyed, detected per-tick) and
+        // MeterChanged (the server's "set"/"col" uimsg, fired only on a real value-OR-colour change) — all
+        // three carry the Meter OBJECT (fireMeter), so MeterAdded is the honest "the bars are up" signal.
+        // (hafen.player():vitals() and VitalsChanged are GONE.)
         CharApi.installMeters(hafen, owner);
 
         // hafen.actionbar — the action bar / hotbar (the engine calls it the "belt": GameUI.belt, a
