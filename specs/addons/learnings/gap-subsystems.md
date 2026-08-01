@@ -164,3 +164,22 @@
   action bar (raw 0..143, not 1-based Lua). Surfacing `slot` now (alongside the human `key` label) means the
   Phase-4 action verb takes exactly what the read handed out — no re-derivation, no 0-vs-1 mismatch — the "one
   canonical index" discipline paying forward from read to action.
+- **A12 — the collection a client keeps is not always the collection the API must hand out (`MenuGrid.paginae`).**
+  `paginae` holds only the *granted* entries; the **categories they hang under** live solely in the private `pmap`
+  intern table and are reached through `Pagina.parent()`. Enumerating `paginae` alone would have made `:parent()`
+  return a handle that fails `:exists()`, `cat:children()` unreachable and `:roots()` empty. The fix is the client's
+  own answer: build the **parent closure** (what `MenuGrid.cons` walks) and treat *that* as the catalogue. Before
+  fixing a collection as "the" collection, check whether the widget that renders it walks further than the field.
+- **A12 — a res-keyed handle over a `Loading`-heavy surface reads SHORT, not wrong.** Every pagina read
+  (`res()`/`button()`/`parent()`/`act()`) can throw `Loading`, so a catalogue built right at `OnEnterWorld` is
+  partial and self-heals within a second. Guarding each read to `nil` and *dropping* unresolved entries keeps the
+  invariant "no `Loading` escapes into Lua" while making the surface eventually complete — but the docs and the
+  harness must say the count is not stable at login, or the first regression check writes down a wrong number.
+- **A12 — sort by the widget's own comparator, then break ties on the identity key.** `PagButton.sortkey()` is what
+  `MenuGrid.updlayout` uses, so reusing it makes the API order match what the player sees; it is `Loading`-fragile,
+  so fall back to the resource name, and break ties on the resource name too — otherwise the order of equal keys is
+  a `HashSet` iteration order and the "same" call returns a different array between frames.
+- **A12 — restate four private lines rather than buy a core edit.** `PagButton.bindchr` (the letter painted under
+  Alt) is private; re-deriving it from `bind.key()` (`modmatch != 0` ⇒ no letter, `chr` else a 1-char `keyname`) is
+  four lines in the addon layer against one `// addon:` edit on a hot client class. Invasiveness is allowed (D-011)
+  but it must buy something — a copied accessor is not something.

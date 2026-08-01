@@ -1,8 +1,8 @@
 # Subsystem: cross-cutting client services
 
 > Console, keybindings, resources, prefs + the Options window (`GSettings`), audio, chat, combat,
-> buffs, kin, vitals, FEP, study, skills, crafting. Line numbers are indicative; the **class +
-> field/method name is the stable anchor**. Max 60 lines.
+> buffs, kin, vitals, FEP, study, skills, crafting, the action menu. Line numbers are indicative;
+> the **class + field/method name is the stable anchor**. Max 70 lines.
 
 | Service | Where |
 |---|---|
@@ -24,6 +24,7 @@
 | Study / curiosity | [`CharWnd.sattr`](src/haven/CharWnd.java:54) ([`SAttrWnd`](src/haven/SAttrWnd.java)) → `children(StudyInfo.class)` → [`StudyInfo.study`](src/haven/SAttrWnd.java:141) (`children(GItem.class)`) + totals `texp`/`tw`/`tenc`; per item [`resutil.Curiosity`](src/haven/resutil/Curiosity.java:36) `exp`/`mw`/`enc`/`time` (public). `time` = **total** (no countdown) |
 | Skills | [`CharWnd.skill`](src/haven/CharWnd.java:55) ([`SkillWnd`](src/haven/SkillWnd.java)) → `skg.csk`/`nsk` ([`GridList.Group.items`](src/haven/GridList.java:44), swapped off-thread) → [`Skill.nm`/`res`](src/haven/SkillWnd.java:60); credos `credos.ccr`/`ncr`/`pcr`, experiences `exps.seen.items` (deferred) |
 | Action bar / belt | State: [`GameUI.belt`](src/haven/GameUI.java:68) (`BeltSlot[144]`, dense) + `beltwdg` (:69, [`Belt`](src/haven/GameUI.java:171)); activate = [`Belt.act`](src/haven/GameUI.java:176) (`wdgmsg("belt", n, …)`). **Mutate**: assign = [`Belt.dropthing`](src/haven/GameUI.java:224) `wdgmsg("setbelt", n, "res", pag.res().name)` (or `"pag", pag.id` — session-local id), clear = right-click [`Belt.mousedown`](src/haven/GameUI.java:207) `wdgmsg("setbelt", n)`. The server ECHOES back: [`uimsg "setbelt"`](src/haven/GameUI.java:1367) / `"setbelt2"` (:1381) fill `belt[n]` via `loader.defer` → **the write is async and a bad res name is silently dropped** |
+| Action menu (paginae) | [`GameUI.menu`](src/haven/GameUI.java:44) → [`MenuGrid`](src/haven/MenuGrid.java): [`paginae`](src/haven/MenuGrid.java:70) (`HashSet<Pagina>`, mutated on the UI thread **under its own monitor** — leaf entries only), intern table [`pmap`](src/haven/MenuGrid.java:73) (private `CacheMap`, WEAK) + [`paginafor`](src/haven/MenuGrid.java:425); [`Pagina`](src/haven/MenuGrid.java:89) `id`/`res`/`anew` (>0 = new discovery), `res()`, `parent()`, `button()`; [`PagButton`](src/haven/MenuGrid.java:154) `name()`, `act()` ([`Resource.AButton`](src/haven/Resource.java:1333): `.ad` = the action path, `.parent`), tooltip = `res.layer(`[`Resource.Pagina`](src/haven/Resource.java:1322)`).text`, `bind` ([`KeyBinding.key()`](src/haven/KeyBinding.java:89) → [`KeyMatch`](src/haven/KeyMatch.java) `.chr`/`.keyname`/`.modmatch`), [`sortkey()`](src/haven/MenuGrid.java:270), [`use(Interaction)`](src/haven/MenuGrid.java:195); layout closure [`cons`](src/haven/MenuGrid.java:445) → [`updlayout`](src/haven/MenuGrid.java:492) |
 | Crafting | [`Makewindow`](src/haven/Makewindow.java:37) (`@RName("make")`), wrapped in private [`GameUI.makewnd`](src/haven/GameUI.java:52) at [`place="craft"`](src/haven/GameUI.java:977) → locate via `children(Makewindow.class)`. Public: `rcpnm`, `inputs`([`Input`](src/haven/Makewindow.java:331))/`outputs`([`SpecWidget`](src/haven/Makewindow.java:260)) → [`Spec`](src/haven/Makewindow.java:59) (`item`/`constraint` [`ResData.res`](src/haven/ResData.java:32), `num`, `opt()`), `qmod`/`tools` (`List<Indir<Resource>>`). `inputs`/`outputs`/`qmod` swapped wholesale off-thread (`inpop`/`opop`/`qmod` uimsg); `tools` **in-place** `add` (`tool` uimsg) → copy under `synchronized(ui)`. Make: `wdgmsg("make",0\|1)` |
 
 ## Options / Preferences (what OptWnd actually writes)
@@ -51,6 +52,15 @@
 - **A pref-only write is a no-op until restart** for anything mirrored in a static. `OptWnd` always writes both
   in one statement — `Utils.setprefb("invcamx", MapView.invcamx = val)` — and so must any other writer.
 - **`plobagran` is a divisor, not degrees**: the panel displays `180 / plobagran`.
+- **`MenuGrid.paginae` is NOT the whole menu.** It holds only the entries the server granted; the **categories
+  they hang under** exist solely in the private `pmap`, reached through `Pagina.parent()`. Anything enumerating
+  the menu must walk the parent closure (what `cons` does) or it gets no categories and no roots.
+- **Everything on a pagina can throw `Loading`** — `res()`, `button()`, `parent()`, `act()`. Right after login the
+  set is therefore *short* and fills in sub-second. Never resolve while holding the `paginae` monitor: `res.get()`
+  can block on the loader. Copy under the monitor, resolve outside.
+- **`PagButton.use(Interaction)` ignores `Interaction.modflags`** — it reads `ui.modflags()` live and branches
+  `"act"`-by-path vs `"use"`-by-id internally (the only route to an id-only pagina). `MenuGrid.use(btn,…)` is the
+  *widget's* click handler instead: for a category it flips the visible page and resets grid state.
 - **The keybind panel lists bindings by hand** ([`BindingPanel`](src/haven/OptWnd.java:634)) — a registered
   binding with no `addbtn` line is invisible, and keys handled by raw `ev.code` in a `globtype` override (e.g.
   the belt's 1–0 in `GameUI.NKeyBelt`) are not in the registry at all.

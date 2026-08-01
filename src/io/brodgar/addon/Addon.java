@@ -246,6 +246,16 @@ public final class Addon {
     final LuaSlot.Cache slots = new LuaSlot.Cache(this);
 
     /**
+     * This addon's <b>action-menu Pagina interning cache</b> ({@code hafen.menugrid(key)}, spec
+     * {@code 023-menugrid-oop}): the weak-valued {@code resource name → Pagina object} map, its
+     * {@link java.lang.ref.ReferenceQueue} and the two per-addon metatables (the Pagina one and the
+     * catalogue's). Same contract as {@link #gobs}, {@link #kins} and {@link #slots} — per-addon so no Lua
+     * value crosses a sandbox boundary (D-017) and the whole cache dies with this {@link Addon} on
+     * {@code :reload}/disable; nothing to tear down (weak entries, and a handle holds only the resource name).
+     */
+    final LuaPagina.Cache paginae = new LuaPagina.Cache(this);
+
+    /**
      * The single {@code hafen.player()} object for this addon ({@code Player} by composition, D-046) — built
      * lazily by {@code CharApi.installPlayer} and cached so {@code hafen.player() == hafen.player()}. Per-addon
      * for the same reason as {@link #gobs}.

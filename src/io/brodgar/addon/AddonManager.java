@@ -817,6 +817,15 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // shim, D-013): the player's gob is hafen.player():gob().
         hafen.set("gob", LuaGob.factory(owner));
 
+        // hafen.menugrid(key) — the ACTION MENU (the 4x4 "scm" grid) as Pagina OBJECTS: the catalogue of
+        // everything this character can do, in the grid's own order and category tree. Arity is the verb:
+        // hafen.menugrid() is the whole catalogue (with :find/:roots/:list), hafen.menugrid(key) one entry.
+        // The key is always a STRING and splits by SHAPE — a "/" makes it a resource name (the identity),
+        // anything else a display name (a search convenience, not unique) — and a miss is plain nil. There is
+        // no addressing by position: the catalogue grows on every discovery. Resource-backed reads are
+        // Loading-guarded, so a scan right at OnEnterWorld may be short and fills in sub-second.
+        hafen.set("menugrid", LuaPagina.factory(owner));
+
         // hafen.world.* — enumerate gobs as Gob OBJECTS (count() is still a number). nearest/within measure
         // from the player and skip the player's own gob; a function filter is called with a Gob, a string
         // filter still matches its resource name. Prefer GobAdded/GobRemoved over per-frame scanning.
