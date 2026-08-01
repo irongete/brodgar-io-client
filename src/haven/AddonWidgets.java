@@ -31,7 +31,7 @@ public final class AddonWidgets {
 
     /**
      * Whether a {@link Buff} is fading out after a server-side removal (the {@code protected dest}
-     * flag). The bridge treats a {@code dest} buff as already gone, so {@code hafen.buffs.list} omits
+     * flag). The bridge treats a {@code dest} buff as already gone, so {@code hafen.buff()} omits
      * it and {@code BuffRemoved} fires at removal time rather than 0.35s later when the fade finishes.
      */
     public static boolean buffDest(Buff b) {

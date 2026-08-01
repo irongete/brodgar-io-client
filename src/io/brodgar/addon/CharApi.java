@@ -234,6 +234,9 @@ final class CharApi {
      * <b>refresh</b> re-reads the cached buffs and fires {@code BuffChanged}. Fires {@code BuffAdded}/
      * {@code BuffRemoved}/{@code BuffChanged} with the {@code Buff} snapshot. A buff fading out after a
      * server removal ({@code Buff.dest}) is treated as already gone (excluded), so removal is timely.
+     *
+     * <p>The reads themselves live on {@link LuaBuff} since {@code 025-buffs-oop} (the entity owns them);
+     * only change <i>detection</i> — the per-buff snapshot diff — is this adapter's business.
      */
     private static final class BuffsAdapter implements TreeAdapter {
         // Active buff -> its last snapshot. UI-thread-only (poll + refresh); reset per session by
@@ -246,7 +249,7 @@ final class CharApi {
 
         public void refresh() {
             for(Map.Entry<Buff, LuaValue> e : cache.entrySet()) {
-                LuaValue snap = buffSnapshot(e.getKey());
+                LuaValue snap = LuaBuff.snapshot(e.getKey());
                 if(!buffEqual(snap, e.getValue())) {
                     e.setValue(snap);
                     fire("BuffChanged", snap);
@@ -255,17 +258,10 @@ final class CharApi {
         }
 
         public void poll() {
-            Bufflist bl = bufflist();
-            Set<Buff> active = new LinkedHashSet<Buff>();
-            if(bl != null) {
-                for(Buff b : bl.children(Buff.class)) {
-                    if(!AddonWidgets.buffDest(b))
-                        active.add(b);
-                }
-            }
+            Set<Buff> active = new LinkedHashSet<Buff>(LuaBuff.actives());
             for(Buff b : active) {                        // additions (unseen buffs)
                 if(!cache.containsKey(b)) {
-                    LuaValue snap = buffSnapshot(b);
+                    LuaValue snap = LuaBuff.snapshot(b);
                     cache.put(b, snap);
                     fire("BuffAdded", snap);
                 }
@@ -555,74 +551,8 @@ final class CharApi {
         }
     }
 
-    /** The player's buff bar ({@link GameUI#buffs}), or {@code null} before the HUD is up. */
-    private static Bufflist bufflist() {
-        GameUI g = gui();
-        return (g == null) ? null : g.buffs;
-    }
-
-    /** Resource name (stable identity) of a buff, or {@code null} (Loading-guarded). */
-    private static String buffRes(Buff b) {
-        try {
-            Resource r = b.res.get();
-            return (r == null) ? null : r.name;
-        } catch(RuntimeException e) {   // Loading etc.
-            return null;
-        }
-    }
-
-    /** Display name of a buff: the resource tooltip, else a server-pushed Name info, else nil. */
-    private static String buffName(Buff b) {
-        try {
-            Resource r = b.res.get();
-            if(r != null) {
-                Resource.Tooltip tt = r.layer(Resource.tooltip);
-                if((tt != null) && (tt.t != null))
-                    return tt.t;
-            }
-        } catch(RuntimeException e) {   // Loading etc.
-        }
-        try {
-            ItemInfo.Name n = ItemInfo.find(ItemInfo.Name.class, b.info());
-            return ((n == null) || (n.str == null)) ? null : n.str.text;
-        } catch(RuntimeException e) {   // info() still Loading / no rawinfo yet
-            return null;
-        }
-    }
-
-    /**
-     * A Buff snapshot (the {@code Buff} shape in api-reference.md): {@code res}/{@code name} (stable),
-     * plus {@code amount}/{@code cooldown}/{@code number} which come from resource-published
-     * {@link ItemInfo} over {@link Buff#info} and are 0..1 fractions / an integer, content-dependent
-     * and often absent. All Loading-guarded — a partial snapshot (res only) is fine while the buff
-     * resource/tooltip is still resolving; the rest arrives on the next {@code "tt"} update.
-     */
-    private static LuaValue buffSnapshot(Buff b) {
-        if(b == null)
-            return LuaValue.NIL;
-        LuaTable t = new LuaTable();
-        String res = buffRes(b);
-        if(res != null)
-            t.set("res", LuaValue.valueOf(res));
-        String name = buffName(b);
-        if(name != null)
-            t.set("name", LuaValue.valueOf(name));
-        try {
-            List<ItemInfo> info = b.info();   // may throw Loading
-            Buff.AMeterInfo am = ItemInfo.find(Buff.AMeterInfo.class, info);
-            if(am != null)
-                t.set("amount", LuaValue.valueOf(am.ameter()));
-            GItem.MeterInfo mi = ItemInfo.find(GItem.MeterInfo.class, info);
-            if(mi != null)
-                t.set("cooldown", LuaValue.valueOf(mi.meter()));
-            GItem.NumberInfo ni = ItemInfo.find(GItem.NumberInfo.class, info);
-            if(ni != null)
-                t.set("number", LuaValue.valueOf(ni.itemnum()));
-        } catch(RuntimeException e) {
-            /* info still Loading — res/name may already be set; the rest arrives on a later update */
-        }
-        return t;
-    }
+    /* The buff READS (bufflist/res/name/amount/cooldown/number + the snapshot) moved onto LuaBuff with
+     * 025-buffs-oop — the entity owns them. What stays here is change DETECTION, below. */
 
     /** Do two buff snapshots carry the same res/name/amount/cooldown/number? (for change-detection.) */
     private static boolean buffEqual(LuaValue a, LuaValue b) {
@@ -1034,42 +964,14 @@ final class CharApi {
         hafen.set("fight", fight);
     }
 
-    /** Build a char namespace for owner. From installHafen. */
+    /**
+     * Build the buff namespace for owner. From installHafen. {@code hafen.buff} is CALLABLE-ONLY (spec
+     * {@code 025-buffs-oop}): {@code hafen.buff()} is the active buffs, {@code hafen.buff(needle)} the first
+     * whose res or name contains it — the flat {@code hafen.buffs.list()}/{@code has()} is gone (D-013's
+     * hard cut), and the reads live on the {@link LuaBuff} object itself.
+     */
     static void installBuffs(LuaTable hafen, final Addon owner) {
-        LuaTable buffs = new LuaTable();
-        buffs.set("list", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable out = new LuaTable();
-                Bufflist bl = bufflist();
-                if(bl == null)
-                    return out;
-                int i = 0;
-                for(Buff b : bl.children(Buff.class)) {
-                    if(!AddonWidgets.buffDest(b))
-                        out.set(++i, buffSnapshot(b));
-                }
-                return out;
-            }
-        });
-        buffs.set("has", new OneArgFunction() {
-            public LuaValue call(LuaValue q) {
-                if(!q.isstring())
-                    return LuaValue.FALSE;
-                String needle = q.tojstring();
-                Bufflist bl = bufflist();
-                if(bl == null)
-                    return LuaValue.FALSE;
-                for(Buff b : bl.children(Buff.class)) {
-                    if(AddonWidgets.buffDest(b))
-                        continue;
-                    String res = buffRes(b), name = buffName(b);
-                    if(((res != null) && res.contains(needle)) || ((name != null) && name.contains(needle)))
-                        return LuaValue.TRUE;
-                }
-                return LuaValue.FALSE;
-            }
-        });
-        hafen.set("buffs", buffs);
+        hafen.set("buff", LuaBuff.factory(owner));
     }
 
     /**

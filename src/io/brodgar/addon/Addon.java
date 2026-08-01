@@ -268,6 +268,17 @@ public final class Addon {
     final LuaSound.Cache sounds = new LuaSound.Cache(this);
 
     /**
+     * This addon's <b>Buff interning cache</b> ({@code hafen.buff(needle)}, spec {@code 025-buffs-oop}): the
+     * weak-valued {@code Buff widget → Buff object} map, its {@link java.lang.ref.ReferenceQueue} and the
+     * per-addon metatable. Same contract as {@link #gobs}, {@link #kins}, {@link #slots}, {@link #paginae}
+     * and {@link #sounds} — per-addon so no Lua value crosses a sandbox boundary (D-017) and the whole cache
+     * dies with this {@link Addon} on {@code :reload}/disable. The <b>key is the widget's identity</b> (a
+     * res name is neither unique nor stable under a {@code "ch"} update), which makes it the one cache in
+     * the series with strong keys — bounded only because every access drains the queue; see {@link LuaBuff}.
+     */
+    final LuaBuff.Cache buffs = new LuaBuff.Cache(this);
+
+    /**
      * The single {@code hafen.player()} object for this addon ({@code Player} by composition, D-046) — built
      * lazily by {@code CharApi.installPlayer} and cached so {@code hafen.player() == hafen.player()}. Per-addon
      * for the same reason as {@link #gobs}.

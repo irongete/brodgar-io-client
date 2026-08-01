@@ -1001,10 +1001,14 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // FightWnd.saves[] would need a haven-package accessor; usesave/nsave identify the active slot).
         CharApi.installFight(hafen, owner);
 
-        // hafen.buffs.* — active buffs/debuffs (GameUI.buffs → Buff widgets), via the widget-tree
-        // mechanism (1d-2). list() returns Buff snapshots {res,name,amount,cooldown,number}; amount/
-        // cooldown/number are 0..1 fractions / an integer from resource-published ItemInfo (often nil,
-        // NOT seconds). A buff fading out after removal is omitted. Subscribe to BuffAdded/BuffRemoved/
+        // hafen.buff — active buffs/debuffs (GameUI.buffs → Buff widgets), via the widget-tree mechanism
+        // (1d-2), CALLABLE-ONLY since 025-buffs-oop: hafen.buff() is the active buffs as a 1-based array of
+        // Buff objects in bar order, hafen.buff(needle) the FIRST one whose res or name contains that
+        // substring (the old has(), now handing back the object; nil on a miss). Reads on the object, live
+        // per call: :res()/:name()/:amount()/:cooldown() (0..1 fractions from resource-published ItemInfo,
+        // often nil, NOT seconds)/:number()/:exists()/:info() (the old flat snapshot). A buff fading out
+        // after removal is excluded (:exists() false) but still READS — Widget.destroy() does not clear it —
+        // which is what makes a stashed BuffRemoved payload useful. Subscribe to BuffAdded/BuffRemoved/
         // BuffChanged (add/remove detected per-tick; content changes on the buff's "ch"/"tt" uimsg).
         CharApi.installBuffs(hafen, owner);
 

@@ -162,3 +162,10 @@
   **Rule: interned userdata is an identity, not a record.** If a section needs per-entity state that outlives a
   Lua reference, hang it off the owner keyed by the intern key — and it comes with a bonus, since that map is
   exactly what the collection form (`hafen.sound()`) and the teardown sweep both need to walk.
+- **(025.1) Inside an anonymous `LuaFunction`, a bare static call can bind to a `LuaValue` method.**
+  `LuaFunction` inherits `name()` from `LuaValue`, so a helper `static String name(Buff b)` on the
+  enclosing class is SHADOWED inside `new VarArgFunction() { ... }` — `name(b)` does not compile against
+  the intended overload (or worse, quietly resolves to something else when arities line up). Write it
+  fully qualified (`LuaBuff.name(b)`) at those call sites and leave a comment saying why, since it looks
+  like gratuitous qualification. The same trap waits for any helper named `type`/`len`/`get`/`call`/
+  `tostring` — the `LuaValue` surface is wide, so prefer distinct helper names when adding new ones.

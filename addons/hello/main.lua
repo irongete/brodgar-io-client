@@ -219,15 +219,17 @@ local function readVitals(tag)
   end
 end
 
--- 1d-2: active buffs/debuffs. Each is a snapshot {res,name,amount,cooldown,number} — amount/cooldown
--- are 0..1 fractions (NOT seconds) and often nil. The buff bar streams in a beat after enter-world,
--- so like vitals this is read at now + a delay. Most characters carry a buff or two at login.
+-- 1d-2: active buffs/debuffs, OOP since 025-buffs-oop. hafen.buff() is the 1-based array of Buff
+-- objects in bar order and hafen.buff(needle) the first whose res or name contains it; the reads live
+-- on the object (:res/:name/:amount/:cooldown/:number/:exists/:info) and amount/cooldown are 0..1
+-- fractions (NOT seconds), often nil. The buff bar streams in a beat after enter-world, so like vitals
+-- this is read at now + a delay. Most characters carry a buff or two at login.
 local function readBuffs(tag)
-  local list = hafen.buffs.list()
+  local list = hafen.buff()
   local first = list[1]
   hafen.log(("[%s] buffs=%d, first=%s%s"):format(tag, #list,
-    first and tostring(first.name or first.res) or "none",
-    (first and first.cooldown) and (" cd=%.2f"):format(first.cooldown) or ""))
+    first and tostring(first:name() or first:res()) or "none",
+    (first and first:cooldown()) and (" cd=%.2f"):format(first:cooldown()) or ""))
 end
 
 -- 1d-2: FEP + hunger via the character sheet. food() = { fep={cap,total,entries={{res,name,amount}}},

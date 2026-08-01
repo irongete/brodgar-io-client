@@ -160,3 +160,19 @@
   `ActionbarChanged`/`EquipChanged` — consistent with buffs/study/vitals streaming. `hello` reads at now
   (empty) + `+3s` (populated) and throttles the event logs. **Phase 1d is now complete** (all
   widget-tree read surfaces: vitals, buffs, FEP/food, study, skills, action bar, equipment).
+- **(025.1) A removed buff is still a child for 0.35 s — `Buff.dest` is the only "gone" signal.**
+  `Buff.reqdestroy` does not destroy: it sets the `protected dest` flag and starts a 0.35 s fade
+  `NormAnim` that calls `destroy()` at the end (`src/haven/Buff.java:190`). So `Bufflist.children(Buff.class)`
+  keeps handing out the buff for ~21 frames after the server removed it. Every scan filters on
+  `AddonWidgets.buffDest(b)` — the one `// addon:` accessor for that non-public flag — and there is
+  exactly ONE scan (`LuaBuff.actives()`) shared by `hafen.buff()` and the `BuffsAdapter` poll, so the
+  list form and the events can never disagree about what is up. `:exists()` is that same predicate,
+  which is why a Buff handed to a `BuffRemoved` handler still answers `:res()/:name()` (the widget object
+  is merely unlinked) but says `:exists()` → false.
+- **(025.1) Buff identity is the WIDGET, never the resource name.** The same res can be up twice
+  (two stacks of the same debuff are two `Buff` children), and `Bufflist` child order is arrival order
+  from `GameUI.addchild "buff"` — not sorted, not stable across a re-add. So the intern cache is an
+  `IdentityHashMap<Buff, Ref>` (weak values + `ReferenceQueue`, drained on every access), unlike
+  `LuaSound`'s name-keyed one. The needle lookup `hafen.buff("poison")` is therefore a *search
+  convenience* over that array (first match wins), not an address — the same shape/role split as
+  `hafen.menugrid(displayName)`.
