@@ -880,10 +880,13 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // loaded resource never throws Loading into Lua. Client-bundled names resolve locally ("sfx/msg").
         hafen.set("sound", LuaSound.factory(owner));
 
-        // hafen.music.play(resname, loop) — background music (a content resource; interrupts current
-        // music). A nil/empty resname STOPS playback. Music.play takes a lazy Indir and resolves on its
-        // own player thread, so no defer is needed here.
-        WorldApi.installMusic(hafen, owner);
+        // hafen.music is DELIBERATELY ABSENT (024.3, maintainer 2026-08-01). haven.Music is the client's MIDI
+        // player, driven by exactly one thing — RootWidget's "bgm" server message — and this server never
+        // sends it: there is no MIDI content, so the whole subsystem is dead weight and an API over it would
+        // answer nil forever. What players actually hear as "music" is an ActAudio.Ambience loop on the `amb`
+        // channel (published by world resources, governed by Options > Audio > "Ambient volume"), which is a
+        // render-tree node with a lifetime, NOT a clip handle — its own feature if ever wanted, and explicitly
+        // out of scope here. The audio section is hafen.sound and nothing else.
 
         // hafen.items.* — inventory / equipment / cursor items as snapshots (the "Item" shape in
         // api-reference.md). Bulk reads return point-in-time snapshots carrying name/res/num/wear/pos plus a

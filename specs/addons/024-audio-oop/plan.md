@@ -21,41 +21,30 @@ What the handle changes, mechanically:
 - **`hafen.sound()`** = the addon's Sounds that still have a live CS, through that same prune; fed
   by a per-`Addon` registry of Sounds with pending or live clips. **Teardown**: disable/`:reload`
   walks it and stops everything, like the addon's widgets and timers.
-- **Music** is a separate subsystem, not a mixer client: `Music.Player` is a `HackThread` running a
-  `javax.sound.midi` `Sequencer` into a `Synthesizer` it opens itself
-  ([Music.java:45](src/haven/Music.java:45)) — nothing reaches `Audio`/`ActAudio`, so there is no
-  `CS` to wrap and the Audio panel misses it. Play/stop stay `Music.play(Indir, loop)` /
-  `Music.play(null, false)` (no defer — it resolves on its own thread).
-- **Music volume ⇒ one `// addon:` block in `haven/Music.java`** (D-011): a static level +
-  `volume(double)` applied to the live `Player`'s synth and re-applied in `Player.run` after
-  `synth.open()`, as the **Universal SysEx master volume** (`F0 7F 7F 04 01 lsb msb F7` to
-  `synth.getReceiver()`), *not* per-channel CC7 — sequences carry their own CC7 and stomp it.
-  The same block exposes the player's state (`playing()` + the current `Indir<Resource>`, whose
-  name is public on [`Resource.Named`](src/haven/Resource.java:66) — no `.get()`, no `Loading`),
-  so `hafen.music()` interns the Track for whatever is really playing.
+- **Music: CUT (maintainer, 2026-08-01)** — see the revision note in `spec.md`. The Track, its
+  `// addon:` volume seam and D-058 were built and then removed once in-game testing showed
+  `haven.Music` has no content on this server. Everything below about `LuaMusic.java` and
+  `haven/Music.java` is **superseded**; `haven/Music.java` is pristine.
 
-`hafen.sound.play` / `hafen.music.play` are deleted outright (D-013 hard cut); indexing the
-namespace reads as plain `nil`.
+`hafen.sound.play` is deleted outright (D-013 hard cut) and `hafen.music` is absent altogether;
+indexing either reads as plain `nil`.
 
 ## Files to create / modify
 
 - **create** `src/io/brodgar/addon/LuaSound.java` — the Sound userdata: intern cache, CS registry,
   `:res/:play/:stop/:playing/:info`, per-`Addon` teardown hook.
-- **create** `src/io/brodgar/addon/LuaMusic.java` — the Track userdata over the `Music` statics.
-- **modify** `src/haven/Music.java` — the one `// addon:` block: master-volume level + `volume()`,
-  re-applied in `Player.run`, and the two state readers `hafen.music()` needs.
-- **modify** `src/io/brodgar/addon/WorldApi.java` — `installSound`/`installMusic` become the two
-  callable namespaces (or move out entirely if the file's audio share stops paying rent).
+- **modify** `src/io/brodgar/addon/WorldApi.java` — `installSound` becomes the callable namespace and
+  `installMusic` is deleted outright; the file's audio share stops paying rent and moves out.
 - **modify** `src/io/brodgar/addon/AddonManager.java` — `playSound` folds into `LuaSound` (no other
   caller); wire the disable/reload sweep next to the existing per-addon teardown.
 - **modify** `addons/hello/main.lua` — 3 existing `hafen.sound.play` call sites + the new exercise.
 - **modify** `docs/addons/api/audio.md` (rewrite), `api/README.md`, `docs/addons/README.md` (glance
   row), `api/ghost.md:86` + `api/client.md:97` (they name `hafen.sound.play`).
 - **modify** `specs/codebase/services.md` — the audio rows (coverage toll: `Mixer.stop/playing`,
-  `RootChannel.remove/mixer()`, the lazy-drain rule, `Music` = MIDI + the new seam).
-- **modify** `specs/addons/decisions/architecture-api.md` — **D-058** (a singleton's `hafen.x()`
-  answers the one entity or `nil`), **D-059** (playback parameters are call arguments, not entity
-  state) and **D-060** (`:exists()` is for entities with a lifetime).
+  `RootChannel.remove/mixer()`, the lazy-drain rule, the three channels aui/pos/amb, and `Music` = MIDI with no content here).
+- **modify** `specs/addons/decisions/architecture-api.md` — **D-059** (playback parameters are call
+  arguments, not entity state) and **D-060** (`:exists()` is for entities with a lifetime). **D-058
+  is dropped** — it existed only for the singleton music player.
 - **modify** `specs/addons/learnings/engine-lifecycle.md` — the mixer's lazy drain, the
   stop-before-resolve race, and whatever the MIDI work teaches.
 

@@ -364,3 +364,29 @@ being confused in addon code. `hafen.actionbar()` builds 144 interned objects pe
 map, weak values) and worth it for a dense, never-sparse array.
 **See.** [D-013](architecture-api.md), [D-044/D-045](../017-gob-oop/plan.md), [D-056](architecture-api.md),
 [021-actionbar-oop](../021-actionbar-oop/spec.md), [luaj-bridge.md](../learnings/luaj-bridge.md).
+
+### D-058 — Verify a subsystem has *content* before designing an API over it: there is no `hafen.music` ✅ (maintainer, 2026-08-01)
+**Decision.** The audio feature is `hafen.sound` **alone**. The planned Track section — `hafen.music(name)`
+with `:play([volume],[loop])/:stop/:playing/:volume(v)`, `hafen.music()` for the singleton player, and the
+`// addon:` master-volume/state seam in `haven/Music.java` — was built to spec in 024.3 and then **removed
+whole**: `LuaMusic.java` deleted, `Addon.tracks` dropped, `haven/Music.java` reverted to pristine, leaving
+**zero core edits** in the feature. `hafen.music` is deliberately absent (not flattened, not stubbed), and
+`haven.Music` is left entirely alone. This number takes the slot the *dropped* singleton-player decision was
+going to occupy; nothing in the API is a singleton yet.
+**Rationale.** Not design — **content**. `haven.Music` is a MIDI player (`javax.sound.midi`,
+[`Music.play`](../../../src/haven/Music.java:138)) driven by exactly one caller: `RootWidget`'s `"bgm"`
+server message ([RootWidget.java:134](../../../src/haven/RootWidget.java:134)). This server never sends it —
+**132,777 cached resource files hold zero `midi` layers**, against 36 `audio` ones, all sfx. What the
+maintainer hears as music is an [`ActAudio.Ambience`](../../../src/haven/ActAudio.java:248) loop on the
+**`amb`** channel, published by world resources and governed by Options ▸ Audio ▸ "Ambient volume" — the
+same path as the crickets. The code was correct and the API shape was right; it sat over a dead path, and
+**an API over a subsystem with no content answers `nil` forever**. Only an in-game test could show it: the
+class exists, compiles, and its javadoc reads like a working feature.
+**Consequences.** The rule for every remaining migration: before specifying a surface, prove the subsystem
+is *reached* on this server — grep the resource cache for the layer type, and find the caller that would
+feed it — not merely that the client class exists. Ambient audio is a `RenderTree.Node` with a lifetime, not
+a clip handle; if it is ever wanted it is **its own feature** (`hafen.ambience`), designed against
+`ActAudio.Ambience.Glob`, not retrofitted into `hafen.sound`. `docs/addons/api/audio.md` states the absence
+and the reason so nobody re-proposes it.
+**See.** [D-011](architecture-api.md), [D-013](architecture-api.md), [024-audio-oop](../024-audio-oop/spec.md),
+[process-method.md](../learnings/process-method.md), [services.md](../../codebase/services.md).

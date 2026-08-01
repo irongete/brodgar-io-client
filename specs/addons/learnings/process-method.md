@@ -206,3 +206,18 @@
   taken (it is the *font*-scope demo), so the menu-grid tree dump became `:hello actions`. Grep the existing
   dispatch before naming a sub-command — silently shadowing an old one breaks a prior feature's regression
   and nothing errors.
+- **(024.3) Verify a subsystem has CONTENT before designing an API over it.** The music section was specced,
+  built, compiled and javadoc'd — and played nothing, because `haven.Music` is MIDI and this server sends
+  **zero** `midi` layers (132,777 cached resource files, 36 `audio` ones, all sfx). Its single entry point is
+  `RootWidget`'s `"bgm"` uimsg, which never arrives. Nothing in the code review could have caught it: the
+  class exists, the call path is correct, the handle is well-shaped. The check that would have: **grep the
+  resource cache for the layer type the subsystem consumes, and find the caller that feeds it** —
+  "the client class exists" is not "the server uses it". Corollary: when the maintainer says a feature
+  *is* audible, find which path actually produces it before assuming it is the one you are wrapping — the
+  "music" here is [`ActAudio.Ambience`](../../codebase/services.md) on the `amb` channel, a render-tree node
+  with a lifetime, not a clip handle. See [D-058](../decisions/architecture-api.md).
+- **(024.3) A cut is a task outcome, not a failure to hide.** Removing the section cleanly meant reverting the
+  core edit with `git checkout` (the whole diff was ours — the feature ended with ZERO `// addon:` edits),
+  deleting the class, *and* revising the spec/plan/tasks in place with the evidence, so the folder reads as
+  the decision rather than as an abandoned branch. The absence then has to be asserted by the harness
+  (`hafen.music == nil`) like any other hard cut, or it silently comes back.

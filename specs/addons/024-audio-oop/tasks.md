@@ -19,26 +19,26 @@
       <!-- extra context: `specs/addons/learnings/threading.md` (loader vs UI thread on the CS
            list); the per-addon teardown path in `AddonManager` (widgets/timers already do this) -->
 
-- [ ] 024.3 — **Music: the Track, its volume, and the one core edit.** The `// addon:` block in
-      `haven/Music.java` — a master-volume level applied to the live synth as Universal SysEx and
-      re-applied in `Player.run`, plus the two state readers — then `hafen.music(name)` → an
-      interned Track (`:res/:play([volume],[loop])/:stop/:playing/:volume(v)/:info`) and
-      `hafen.music()` → whatever is really playing (client- and server-started music included) or
-      `nil`; `:volume()` on a Track that is not playing errors; refuse to play while the `bgmen`
-      pref is off. Hard-cut `hafen.music.play`. **Rebuild + full client restart** (core edit).
-      Verify in-game: plays/loops/stops, `:play(0.3,…)` is quieter, `hafen.music():volume(1)`
-      raises it without restarting, `hafen.music()` catches the client's own login music.
-      <!-- extra context: `src/haven/Music.java` in full (MIDI Sequencer/Synthesizer, the private
-           Player and its exit race); `haven/Resource.java` `Named.name` -->
+- [x] 024.3 — **CUT: there is no music section.** Built as specified (Track userdata + the `// addon:`
+      master-volume/state seam in `haven/Music.java`), then **removed whole at the maintainer's call,
+      2026-08-01**, once in-game testing showed `haven.Music` never plays: it is MIDI, driven only by
+      `RootWidget`'s `"bgm"` server message, which this server never sends (zero `midi` layers in
+      132,777 cached resource files). The "music" players hear is `ActAudio.Ambience` on the `amb`
+      channel — Options ▸ Audio ▸ "Ambient volume", the same path as the crickets — which the spec
+      puts out of scope. `LuaMusic.java` deleted, `Addon.tracks` and the `hafen.music` wiring removed,
+      `haven/Music.java` reverted to pristine. Reasoning + evidence: the revision note in `spec.md`.
 
-- [ ] 024.4 — **Docs, harness, decisions, tolls.** Rewrite `docs/addons/api/audio.md` (both
-      sections, volume-first `:play`, the auto-silence rule, and the fact that music is MIDI and
-      untouched by the Audio panel's volumes) + the `api/README.md` and `README.md` rows + the two
-      stale `hafen.sound.play` references in `ghost.md`/`client.md`; extend `hello` to exercise the
-      whole surface each login (ping via the new form, a printed contract check that both flat
-      tables are gone, the live-set count); write **D-058** (singleton ⇒ entity-or-`nil`), **D-059**
-      (playback parameters are call arguments, not entity state — and where a long-lived player
-      makes a live setter honest) and **D-060** (`:exists()` belongs to entities with a lifetime,
-      not to name-keyed handles) into `decisions/architecture-api.md`; pay the coverage toll on
-      `specs/codebase/services.md`'s audio rows (the mixer's lazy drain, `Music` = MIDI + the new
-      seam) and append the build's learnings. Verify: one login re-checks every prior feature.
+- [ ] 024.4 — **Docs, harness, decisions, tolls.** Rewrite `docs/addons/api/audio.md` as a
+      **sound-only** page (volume-first `:play`, the auto-silence rule) + the `api/README.md` and
+      `README.md` rows + the two stale `hafen.sound.play` references in `ghost.md`/`client.md`; the
+      page must also state plainly that **there is no `hafen.music`** and why (`haven.Music` = MIDI
+      with no content on this server; ambient music is `ActAudio.Ambience` on the `amb` channel, its
+      own feature if ever wanted). Extend `hello` to exercise the whole surface each login (ping via
+      the new form, a printed contract check that `hafen.sound.play` AND `hafen.music` are both gone,
+      the live-set count); write **D-059** (playback parameters are call arguments, not entity state)
+      and **D-060** (`:exists()` belongs to entities with a lifetime, not to name-keyed handles) into
+      `decisions/architecture-api.md` — the *singleton-player* decision is dropped with the music
+      section and **D-058 is already taken** by 024.3's cut (verify a subsystem has content before
+      designing an API over it). The `services.md` audio toll and 024.3's learnings were **paid at
+      024.3's close**; only sound-specific learnings from 024.1/024.2 remain to append.
+      Verify: one login re-checks every prior feature.

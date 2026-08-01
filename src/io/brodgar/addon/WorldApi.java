@@ -13,7 +13,6 @@ import haven.MapFile;
 import haven.MapView;
 import haven.MCache;
 import haven.MiniMap;
-import haven.Music;
 import haven.OCache;
 import haven.Resource;
 import haven.UI;
@@ -40,7 +39,7 @@ import static io.brodgar.addon.AddonManager.*;
 /**
  * The world-read + map subsystem: {@code hafen.world} (gob enumeration — the per-gob reads are the Gob class,
  * {@link LuaGob}), {@code map} (grid/marker geometry), {@code markers} (the MapFile marker DB + MarkersChanged
- * poll), {@code radar} (GobIcon settings), and {@code time} / {@code sound} / {@code music}. The low-level
+ * poll), {@code radar} (GobIcon settings) and {@code time}. The low-level
  * gob-read substrate (getgob/gobMatches/gobSnapshot/allGobs/oc/mcache/astro) lives in {@link AddonManager}. The marker DB fields +
  * poll live here; {@link AddonManager} calls {@link #pollMarkers} on the tick and {@link #resetMarkers} on init.
  */
@@ -429,22 +428,6 @@ final class WorldApi {
             }
         });
         hafen.set("time", time);
-    }
-
-    /** Build {@code hafen.music} for {@code owner}. From installHafen. */
-    static void installMusic(LuaTable hafen, final Addon owner) {
-        LuaTable music = new LuaTable();
-        music.set("play", new TwoArgFunction() {
-            public LuaValue call(LuaValue resname, LuaValue loop) {
-                if(!resname.isstring() || resname.tojstring().isEmpty()) {
-                    Music.play(null, false);            // stop
-                } else {
-                    Music.play(Resource.remote().load(resname.tojstring()), loop.optboolean(false));
-                }
-                return LuaValue.NIL;
-            }
-        });
-        hafen.set("music", music);
     }
 
     /** Session init: drop the per-session marker-ref maps + re-prime MarkersChanged (from AddonManager.init). */
