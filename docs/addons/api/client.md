@@ -262,15 +262,17 @@ into a timeline you scrub frame by frame — the ring is the recording.
 | `net()` | table | packet/byte counters and round-trip time — **always answers** |
 | `loader()` | table | async queue depths (UI loader, `Defer` pool, resources) — **always answers** |
 | `render()` | table | graphics counters: draw slots, batching, tree size, VRAM — **always answers** |
+| `textcache()` | table | the rendered-text cache behind `g:text`/`g:atext`: entries, bytes, hits, misses — **always answers** |
 
 The handle is a stateless proxy — keep it in a variable forever, it never goes stale. What the read
 verbs answer are plain **snapshot tables**, not handles: frozen numbers with nothing to re-resolve, so
 walking 600 samples for a frame graph is 600 table lookups, not 600 bridge calls.
 
 **Two kinds of verb.** `frame()`/`history()`/`addons()`/`widgets()`/`passes()`/`gl()`/`overhead()` are *frame sampling*: they exist only while the
-switch above (Options ▸ Client ▸ Enable profiling) is on. The four **counters** below are *pull-only* —
-every number in them is one the client already maintains for its own `:stats on` HUD, so they answer
-whether profiling is armed or not, and reading them costs nothing when it is not. `scope()`/`measure()`
+switch above (Options ▸ Client ▸ Enable profiling) is on. The five **counters** below are *pull-only* —
+every number in them is one the client already keeps for its own reasons (the first four for the `:stats on`
+HUD, `textcache()` because the cache counts hits and bytes in order to bound itself), so they answer whether
+profiling is armed or not, and reading them costs nothing when it is not. `scope()`/`measure()`
 sit across both: they are always callable and always run your code, and only *record* while armed.
 
 **Every duration is in milliseconds.**
@@ -325,10 +327,11 @@ end
 
 ### The counters
 
-`memory()`, `net()`, `loader()` and `render()` are **pull-only**: they read counters the client keeps
-anyway and formats into the `:stats on` HUD, so they answer with profiling off, cost nothing while you
-are not asking, and always agree with the HUD field by field. Nothing here is sampled over time — each
-call is the value right now.
+`memory()`, `net()`, `loader()`, `render()` and `textcache()` are **pull-only**: they read counters the
+client keeps anyway, so they answer with profiling off and cost nothing while you are not asking. The first
+four are the numbers the `:stats on` HUD formats, and always agree with it field by field. Nothing here is
+sampled over time — each call is the value right now (`textcache()`'s hit/miss/eviction totals being the one
+running tally, cumulative since the addon loaded).
 
 #### `memory()`
 
@@ -393,6 +396,38 @@ if r.drawSlots then
   hafen.log(string.format("%d slots, %d batches, %.1f MB textures",
                           r.drawSlots, r.batches, r.vram.textures.bytes / 1048576))
 end
+```
+
+#### `textcache()`
+
+The rendered-text cache that [`g:text`/`g:atext`](ui.md#text-is-cached-across-frames) draw through. The cache
+is **per addon**, so the top level is **your own**; `total` sums every Lua owner.
+
+| Key | Description |
+|---|---|
+| `entries` / `bytes` | cached strings held right now, and the GL texture bytes they occupy |
+| `hits` / `misses` / `evictions` | lookups served from the cache / rasterised / dropped to stay within the caps |
+| `hitRate` | `hits / (hits + misses)`, `0.0`..`1.0` — **absent** until something has been looked up |
+| `maxEntries` / `maxBytes` | the two caps the cache is bounded by (an entry count says nothing without its ceiling) |
+| `total` | the same five figures summed over every Lua owner, plus `owners` = how many were summed |
+
+`hits`/`misses`/`evictions` are **cumulative since the addon loaded** — a `:reload` builds a fresh cache and a
+fresh count, and `reset()` deliberately does not touch them (it owns the frame ring, not a cache's own
+bookkeeping). `entries`/`bytes` are the live state.
+
+**How to read a miss.** A miss is not a fault: it is a string that had never been drawn in that font, and it
+costs exactly what every text draw cost before the cache existed. A line whose text changes every frame misses
+every frame and always will — that is the budgeting rule the [`hafen.ui`](ui.md#text-is-cached-across-frames)
+page states. Likewise a permanently-full, permanently-evicting cache is not a problem: `evictions` climbing
+while `hitRate` stays high means the volatile strings are aging out and the static ones are being reused.
+
+`total` is also the **leak check**: disable every addon (or `:reload`) and `total.bytes` goes to ~0, because
+teardown drops each cache and disposes its textures.
+
+```lua
+local c = hafen.client:profiling():textcache()
+hafen.log(string.format("%d entries / %.2f MiB, %.1f%% hit rate (%d evictions)",
+                        c.entries, c.bytes / 1048576, (c.hitRate or 0) * 100, c.evictions))
 ```
 
 ### `addons()`
@@ -644,8 +679,9 @@ for _, f in ipairs(p:history(60)) do … end          -- simply does nothing whi
 
 The first valid sample arrives on the **second** frame after arming (arming is next-frame, as above), so
 a freshly armed profiler answers empty for one frame. `reset()` empties the ring and every per-addon,
-per-scope and per-widget figure the same way, as does arming the switch. The four counters are unaffected — they answer
-the same numbers armed or not, and `scope()`/`measure()` still run your code (see above).
+per-scope and per-widget figure the same way, as does arming the switch. The five counters are unaffected — they answer
+the same numbers armed or not, and `reset()` deliberately leaves `textcache()`'s tallies alone (it owns the frame
+ring, not a cache's own bookkeeping). `scope()`/`measure()` still run your code (see above).
 
 **An absent key means "not measured", never zero** — everywhere in this surface. No connection, no
 `net()` keys; no world yet, no scene keys in `render()`; a `0` would read as "measured, and it is zero".

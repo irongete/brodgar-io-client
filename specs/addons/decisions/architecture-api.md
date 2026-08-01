@@ -444,3 +444,28 @@ calls the thing and what the value means *here* — a name borrowed from another
 promise the API may not be able to keep.
 **See.** [D-013](architecture-api.md), [D-056](architecture-api.md), [D-057](architecture-api.md),
 [025-buffs-oop](../025-buffs-oop/spec.md), [widget-tree-reads.md](../learnings/widget-tree-reads.md).
+
+### D-062 — performance goes behind the existing surface as a cache, not in front of it as a handle ✅ (maintainer, 2026-08-01)
+**Decision.** `g:text`/`g:atext` were re-rasterising a texture per line per frame (~0.28 ms, 019.8). The fix is
+an **invisible, per-addon, bounded cache** of the rendered `Text` inside `LuaGOut` — zero API change, zero addon
+edit, zero core edit — and **not** the explicit text handle (`hafen.render.text` + a blit) the ROADMAP had
+weighed against it. The handle is discarded, not deferred.
+**Rationale.** The ROADMAP framed the two as rivals on the volatile case, where a content-keyed cache misses
+every frame. They **tie** there: a handle must re-rasterise on `t:set` for exactly the same reason. Everywhere
+else the cache wins outright — it fixes every addon already written, including ones nobody will revisit, where
+a handle only helps code rewritten to use it. And the asymmetry that decides it is reversibility: a cache is an
+implementation detail that can be retuned, bounded differently or removed, while a handle is **permanent public
+contract** with a lifetime, a teardown story and a second way to draw text (D-013: one canonical way).
+Measured, the invisible version recovered the whole enabled-vs-disabled cost (130 → 220–240 FPS, 88.8% hits).
+**Consequences.** The addon layer now **owns GPU textures across frames**, which the immediate-mode design had
+never done: eviction, teardown and the `:reload` sweep must each dispose, and the fast path had to stop calling
+`GOut.atext` (whose last line is a `dispose`) so there is exactly one lifecycle and one disposer. Being
+invisible, the cache must be **observable instead of documented-away**: `p:textcache()` (D-051, pull-only)
+exists so an addon author can see hits, misses, bytes and the caps, and the docs state plainly that a string
+which changes every frame is re-rasterised every frame — a hidden optimisation you cannot measure is a hidden
+performance cliff. Read forward: when a performance problem can be solved *behind* an existing surface, that
+beats a new surface even when the new surface is theoretically faster on some workload — the cache is
+removable, the contract is not.
+**See.** [D-013](architecture-api.md), [D-039](widgets-ui.md), [D-050](architecture-api.md),
+[D-051](architecture-api.md), [026-text-cache](../026-text-cache/spec.md),
+[ui-widgets.md](../learnings/ui-widgets.md).

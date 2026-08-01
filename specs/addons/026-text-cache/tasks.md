@@ -25,7 +25,7 @@
       <!-- extra context: `src/io/brodgar/prof/Prof.java`, `src/io/brodgar/addon/ProfHandle.java`,
            `019-profiling/` (the pull-only counter shape + D-050/D-051) -->
 
-- [ ] 026.3 — **Close it.** `docs/addons/api/ui.md`: `g:text`/`g:atext` gain the "cached across
+- [x] 026.3 — **Close it.** `docs/addons/api/ui.md`: `g:text`/`g:atext` gain the "cached across
       frames, invalidated when a font override moves" behaviour note — including the honest line that
       a string which changes every frame is re-rasterised every frame, so budget a live readout by
       how often its *text* changes, not by how many lines it has. `client.md` gets the `:textcache()`

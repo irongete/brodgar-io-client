@@ -179,3 +179,39 @@
   client's own UI dodges this entirely because a `Label` builds its `Text` once and keeps it. The fix, if ever
   wanted, is a text HANDLE the addon holds (what `Label` does) rather than an invisible cache — a cache keyed by
   the string misses on every frame whose digits changed, which in a profiler is all of them.
+- **(026) The invisible cache WON, and the 019.8 prediction above was wrong on its own terms.** The entry
+  above proposed a text HANDLE over "an invisible cache" because a cache "misses on every frame whose digits
+  changed". True — and irrelevant: on exactly those volatile strings a handle must re-rasterise too (`t:set`
+  costs what `Text.render` costs), so the two TIE on the case that was supposed to decide it, and the cache
+  wins everything else by needing no addon edit and no permanent contract. Shipped as a per-addon LRU of the
+  rendered `Text` in [`LuaGOut.Cache`](src/io/brodgar/addon/LuaGOut.java), keyed
+  `(string, FontHandle identity, Fonts.gen())`, bounded 512 entries / 8 MiB, evicting with `dispose()`.
+  Measured with `hello` alone, ~35 s after login: **62844 hits + 7893 misses = 88.8%**, and in-game FPS went
+  **130 → 220–240** against a 220 addon-disabled baseline, i.e. the whole enabled-vs-disabled delta was text
+  rasterisation. The 88.8% is a *permanently full, permanently evicting* cache (7381 evictions) and that is
+  the design working: the misses are one never-before-seen string per frame, which no cache can help.
+  Independent re-measure of the thing being cached: a stress toggle drawing 32 fresh strings a frame took 240
+  → 80 FPS = **0.26 ms a line**, against 019.8's 0.28 ms measured a different way.
+- **(026) A generation counter is only a "clear" signal if it is frame-global — `Fonts.gen()` is not.** The
+  plan copied `Label`'s `fontgen` compare (one int, moved ⇒ drop everything). Wrong here: while a per-instance
+  font frame is open (F5, `node:setFont`, inside `Widget.draw`'s child loop) `gen()` XORs that override's stamp
+  in, so it differs BETWEEN DRAW SITES WITHIN ONE FRAME — a widget inside the frame vs. a HUD overlay outside
+  it. Clear-on-move would have cleared the cache on every alternation: strictly worse than no cache. Putting
+  `gen()` IN THE KEY costs the same one int per draw, is correct under F5, and still invalidates an
+  install/move/reset for free (fresh keys; the stale generation's entries fall out of the LRU). Before treating
+  a generation as a clear, check whether it can change *within* a frame.
+- **(026) Cap tuning: a cap that can never bind is decoration, and a cap below one frame's working set is
+  worse than no cache.** A full cache of ordinary HUD text measured 512 entries / 7.91 MiB = ~15.8 KiB an entry
+  (a ~256×16 raster rounded to powers of two), so the provisional 16 MiB byte cap could never be reached before
+  the 512-entry one — it bounded nothing. It came down to 8 MiB, where the two caps meet at the measured
+  average width, so narrow text is bounded by count and wide text by bytes (which is the point of having two).
+  The entry cap did NOT come down to the ~40-line working set: a cap below one frame's distinct strings evicts
+  every entry before its next use and pays eviction + dispose ON TOP OF the rasterisation it failed to save.
+  Headroom above the working set is what keeps a text-heavy addon off that cliff; the byte cap prices it.
+- **(026) Once you cache a `Tex`, you must be its ONLY disposer.** The pre-026 paths disposed every texture the
+  same frame (`GOut.atext` and the rich path both), so the fast path had to STOP calling `GOut.atext` — a
+  private `render(str, fh)` does that method's own three lines minus the `dispose()`. `TexI.dispose()` drops the
+  `ColorTex` and `st()` would silently re-upload it, so a double-free does not crash: it shows up as a slow GPU
+  leak. The three drop sites (LRU eviction, `AddonRegistry.teardown`, the `:reload` sweep of the `:lua` REPL,
+  which is not an addon and never gets teardown) are the whole ownership surface, and `total.bytes` returning
+  to 0 with every addon disabled is the check that proves it.

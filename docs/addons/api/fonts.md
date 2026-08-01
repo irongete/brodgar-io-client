@@ -82,6 +82,12 @@ g:atext(str, x, y, ax, ay [, { font = h, color = {r,g,b[,a]} }])
 
 Coordinates stay **positional** (`x, y`) — the same as every other `g:` call.
 
+> **The rendered text is cached** (per addon, keyed by the string *and* the handle), so redrawing the same
+> string in the same font every frame rasterises it once. **`color` is not part of the key** — it is a tint over
+> the same raster, so one string in two colours is one cache entry and animating a colour is free. Installing,
+> moving or resetting an override (below, and F5) invalidates on the next frame. See
+> [text is cached across frames](ui.md#text-is-cached-across-frames).
+
 ### Mix fonts on one line — the `$font` rich-text tag
 
 `g:text`/`g:atext` interpret **rich-text markup**, so you can mix fonts (and styles/colours) inside a single
@@ -316,5 +322,9 @@ end)
 ## See also
 
 - [`hafen.ui`](ui.md) — the `font=` widget option + the `g:text` draw wrapper take a handle (F2), and a
-  [`WidgetNode`](ui.md#widgetnode) carries `:setFont`/`:resetFont` (F5).
+  [`WidgetNode`](ui.md#widgetnode) carries `:setFont`/`:resetFont` (F5). Drawn text is
+  [cached across frames](ui.md#text-is-cached-across-frames) per `(string, handle)`; an override change
+  invalidates it on the next frame.
+- [`hafen.client`](client.md#textcache) — `profiling():textcache()` reports that cache: entries, texture bytes,
+  hit rate.
 - [conventions](conventions.md) — owned resources & teardown, the safe-tier vs gated split.

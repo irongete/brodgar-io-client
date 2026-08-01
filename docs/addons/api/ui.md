@@ -263,3 +263,29 @@ one call in a [loaded font](fonts.md) and/or tint it. A widget's `font =` option
 call gives none. The string may also carry rich-text markup — `$font[family,sz]{…}` (mix fonts on one line via
 `h:family()`), `$col`, `$b`, `$i`, `$u`, `$size`. Plain text with no font/markup is unchanged. See
 [`hafen.font`](fonts.md#draw-with-it--your-own-widgets-f2).
+
+### Text is cached across frames
+
+Rasterising a line of text costs roughly **50x what the geometry calls cost** — a font layout, a glyph raster
+and a GPU texture upload. `g:text`/`g:atext` therefore **keep the rendered text and reuse it**, so drawing the
+same string in the same font every frame rasterises it *once*. You do not opt in and there is nothing to hold:
+the cache is per addon, invisible, and dropped (with its textures) when you `:reload` or disable.
+
+What that means when you write a draw callback:
+
+- **The cache key is the string + the font.** Same text, same font ⇒ a hit, however many draw sites or frames
+  apart. **Colour is not in the key** — it is applied as a tint over the same raster, so drawing one string in
+  two colours in one frame is *one* entry, and animating a colour costs nothing.
+- **A string that changes every frame is re-rasterised every frame.** A clock, an FPS readout or a coordinate
+  line whose digits move can never hit, and a miss costs exactly what every draw cost before the cache existed.
+  **Budget a live readout by how often its *text* changes, not by how many lines it has** — `"HP: 100/100"`
+  redrawn 60 times is free; `"HP: 100/100 (12.483 s)"` is 60 rasterisations.
+- **Font overrides still take effect immediately.** The key carries the font generation, so installing, moving
+  or resetting a font (`hafen.font.setFont`, [`node:setFont`](#widgetnode)) restyles on the next frame — the old
+  entries simply stop being looked up and age out.
+- **It is bounded, not a leak.** An LRU of at most **512 entries / 8 MiB** of texture; the least recently used
+  entries are evicted and their textures disposed. An addon that draws thousands of distinct strings settles at
+  the cap instead of growing.
+
+`hafen.client:profiling():textcache()` reports what your addon's cache is holding and its hit rate — see
+[the counters](client.md#textcache). Rich-text markup is cached on the same terms as plain text.
