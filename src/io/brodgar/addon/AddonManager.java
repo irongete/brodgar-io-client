@@ -873,10 +873,12 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // nil until the first "astro" update lands (Glob.ast is nil before then).
         WorldApi.installTime(hafen, owner);
 
-        // hafen.sound.play(resname) — fire a client sound. The resource resolves OFF the UI thread
-        // (loader.defer, mirroring GobIcon.resnotif) so a not-yet-loaded resource never throws Loading
-        // into Lua. Client-bundled names resolve locally (e.g. "sfx/msg", "sfx/error").
-        WorldApi.installSound(hafen, owner);
+        // hafen.sound(name) — a CALLABLE-ONLY namespace (D-056) over one interned Sound object per resource
+        // name: :res() / :play([volume]) -> self / :info(). The flat hafen.sound.play is GONE (D-013 hard cut,
+        // 024.1). Volume is an ARGUMENT of the play, never entity state — the Sound is interned and shared.
+        // The resource resolves OFF the UI thread (loader.defer, mirroring GobIcon.resnotif) so a not-yet-
+        // loaded resource never throws Loading into Lua. Client-bundled names resolve locally ("sfx/msg").
+        hafen.set("sound", LuaSound.factory(owner));
 
         // hafen.music.play(resname, loop) — background music (a content resource; interrupts current
         // music). A nil/empty resname STOPS playback. Music.play takes a lazy Indir and resolves on its
@@ -1425,33 +1427,6 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         t.set("b", LuaValue.valueOf(c.getBlue()));
         t.set("a", LuaValue.valueOf(c.getAlpha()));
         return t;
-    }
-
-    /**
-     * Play a client sound by resource name without blocking the UI thread: resolve the resource on a
-     * loader thread ({@code Loading} re-runs the task), then hand the clip to {@link UI#sfx}. Mirrors
-     * {@code GobIcon.resnotif}. Non-{@code Loading} resolve failures are reported and swallowed.
-     */
-    static void playSound(final String name) {
-        final Glob g = glob();
-        final UI u = ui;
-        if((g == null) || (u == null))
-            return;
-        final Indir<Resource> resid = Resource.local().load(name);
-        g.loader.defer(new Runnable() {
-            public void run() {
-                Resource res;
-                try {
-                    res = resid.get();               // Loading → the loader re-runs this task
-                } catch(Loading l) {
-                    throw(l);
-                } catch(RuntimeException e) {
-                    u.error("addon: could not play " + name);
-                    return;
-                }
-                u.sfx(Audio.fromres(res));
-            }
-        }, null);
     }
 
     /**

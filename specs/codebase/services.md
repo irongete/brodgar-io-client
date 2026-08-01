@@ -13,7 +13,7 @@
 | Jar-relative path resolution | [`Utils.srcpath`](src/haven/Utils.java:122) |
 | Local data dir (%APPDATA%) | [`Config.localdir`](src/haven/Config.java:100) |
 | Preferences (base client only) | [`Utils.getpref/setpref`](src/haven/Utils.java:408), `prefs()` (:389) |
-| Audio / sfx | play: [`UI.sfx`](src/haven/UI.java:931) → [`Audio.fromres`](src/haven/Audio.java:585); music: [`Music.play`](src/haven/Music.java:138); volume `Audio.Root.volume()` |
+| Audio / sfx | play: [`UI.sfx`](src/haven/UI.java:967) (→ `audio.aui.add`) → [`Audio.fromres`](src/haven/Audio.java:585); music: [`Music.play`](src/haven/Music.java:138); volume `Audio.Root.volume()`. **Per-clip volume** = wrap the `CS` in [`Audio.VolAdjust(cs, vol)`](src/haven/Audio.java:366) (`vol`/`bal` are public mutable fields, so it also adjusts a clip already playing) — `UI.sfx` takes any `Audio.CS`, so a wrapper goes in transparently |
 | Chat | send: [`ChatUI.EntryChannel.send`](src/haven/ChatUI.java:814) (`wdgmsg("msg",text)`); read: `Channel.rmsgs` [:124](src/haven/ChatUI.java:124), append [:275](src/haven/ChatUI.java:275); `Message.time` (epoch sec) [:131](src/haven/ChatUI.java:131); channels `Channel` [:123](src/haven/ChatUI.java:123)/`sel` [:53](src/haven/ChatUI.java:53) |
 | Combat | [`Fightview`](src/haven/Fightview.java): `lsrel` [:41](src/haven/Fightview.java:41), `current` [:47](src/haven/Fightview.java:47), `Relation.gobid/ip/oip` [:54](src/haven/Fightview.java:54)/[:57](src/haven/Fightview.java:57); deck [`Fightsess.actions`](src/haven/Fightsess.java:46); `GameUI.fv` [:48](src/haven/GameUI.java:48) |
 | Buffs | [`GameUI.buffs`](src/haven/GameUI.java:71) → `children(Buff.class)`; [`Buff.res`](src/haven/Buff.java:42), [`Buff.info()`](src/haven/Buff.java:70) |

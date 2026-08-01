@@ -727,8 +727,8 @@ hafen.events.on("OnEnterWorld", function()
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via the 'bags' key) and it logs") end
   end)
 
-  -- 1c-2: an audible confirmation ping (a client-bundled sound), proving hafen.sound.play works.
-  hafen.sound.play("sfx/msg")
+  -- 1c-2: an audible confirmation ping (a client-bundled sound), proving hafen.sound(name):play() works.
+  hafen.sound("sfx/msg"):play()
 end)
 
 -- V1+V3: CLIENT-ONLY WORLD GHOSTS (hafen.ghost). A ghost is a virtual prop rendered in the 3D world at world
@@ -1211,7 +1211,7 @@ hafen.log(("2e-2: global hotkey 'toggle' registered (key = %s) -- assign/remap i
 -- you ASSIGN keys there — demonstrating the panel's assign-from-scratch flow and the per-addon grouping. Once
 -- bound this one plays a sound on press, and the choice persists across restarts like every built-in keybinding.
 keys:register("ping", function()
-  hafen.sound.play("sfx/msg")
+  hafen.sound("sfx/msg"):play()
   hafen.log("2e-3: ping hotkey fired (assigned in Options > Keybindings > Hello)")
 end)
 
@@ -1283,7 +1283,7 @@ hafen.slash.register("hello", function(args)
     if show then panel:show() else panel:hide() end
     hafen.log((":hello toggle -> window %s"):format(show and "shown" or "hidden"))
   elseif sub == "ping" then
-    hafen.sound.play("sfx/msg")
+    hafen.sound("sfx/msg"):play()
     hafen.log(":hello ping -> played sfx/msg")
   elseif sub == "echo" then
     local rest = {}

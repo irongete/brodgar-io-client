@@ -256,6 +256,17 @@ public final class Addon {
     final LuaPagina.Cache paginae = new LuaPagina.Cache(this);
 
     /**
+     * This addon's <b>Sound interning cache</b> ({@code hafen.sound(name)}, spec {@code 024-audio-oop}): the
+     * weak-valued {@code resource name → Sound object} map, its {@link java.lang.ref.ReferenceQueue} and the
+     * per-addon metatable. Same contract as {@link #gobs}, {@link #kins}, {@link #slots} and {@link #paginae}
+     * — per-addon so no Lua value crosses a sandbox boundary (D-017) and the whole cache dies with this
+     * {@link Addon} on {@code :reload}/disable. Unbounded in principle (any name is a key), which is why the
+     * values are weak; a handle holds only the resource name, so there is nothing to tear down (the clips a
+     * Sound has started get their own teardown in 024.2).
+     */
+    final LuaSound.Cache sounds = new LuaSound.Cache(this);
+
+    /**
      * The single {@code hafen.player()} object for this addon ({@code Player} by composition, D-046) — built
      * lazily by {@code CharApi.installPlayer} and cached so {@code hafen.player() == hafen.player()}. Per-addon
      * for the same reason as {@link #gobs}.

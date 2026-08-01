@@ -431,19 +431,6 @@ final class WorldApi {
         hafen.set("time", time);
     }
 
-    /** Build {@code hafen.sound} for {@code owner}. From installHafen. */
-    static void installSound(LuaTable hafen, final Addon owner) {
-        LuaTable sound = new LuaTable();
-        sound.set("play", new OneArgFunction() {
-            public LuaValue call(LuaValue resname) {
-                if(resname.isstring())
-                    playSound(resname.tojstring());
-                return LuaValue.NIL;
-            }
-        });
-        hafen.set("sound", sound);
-    }
-
     /** Build {@code hafen.music} for {@code owner}. From installHafen. */
     static void installMusic(LuaTable hafen, final Addon owner) {
         LuaTable music = new LuaTable();

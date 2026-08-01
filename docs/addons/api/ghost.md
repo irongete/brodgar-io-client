@@ -83,7 +83,7 @@ g:destroy()
 ```
 
 > **The prop appears a beat after `new`.** The resource resolves on a loader thread (dodging the engine's
-> `Loading` state, the same way [`hafen.sound.play`](audio.md) does), so `new` returns a working handle
+> `Loading` state, the same way [`hafen.sound(name):play()`](audio.md) does), so `new` returns a working handle
 > immediately while the visual streams in shortly after. Every handle method works meanwhile — a `:move`
 > before the prop is visible just sets where it will appear.
 

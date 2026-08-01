@@ -26,7 +26,7 @@ import haven.Resource;
  *
  * <p><b>Deferred create (the {@code Plob} precedent).</b> Building the {@code ResDrawable} calls
  * {@code res.get()}, which throws {@code Loading} until the resource is cached — so, exactly like {@code Plob}
- * and {@code hafen.sound.play}, the create is handed to {@code glob.loader.defer}: the loader re-runs the task
+ * and {@code hafen.sound(name):play()}, the create is handed to {@code glob.loader.defer}: the loader re-runs the task
  * when the resource lands, then constructs the gob + {@code addClientGob}s it. The {@link #gob}/{@link #slot}
  * (inherited) stay {@code null} until that completes; the handle methods work meanwhile off the desired
  * transform. (A {@link LuaSprite}, by contrast, has an already-decoded {@code TexI} and so creates synchronously.)

@@ -183,7 +183,7 @@ final class RenderApi {
      * Spawn a client-only world ghost ({@code hafen.ghost.new{res, x, y [, a]}}, spec 16 / V1): validate the
      * options, register a bridge-owned {@link LuaGhost} in the addon's owned-resource registry (P2), and
      * <b>defer</b> the visual to a loader thread — {@code res.get()} throws {@code Loading} until the resource is
-     * cached, so, exactly like {@code MapView.Plob} and {@link #playSound}, {@code glob.loader.defer} re-runs the
+     * cached, so, exactly like {@code MapView.Plob} and {@link LuaSound}, {@code glob.loader.defer} re-runs the
      * task when the resource lands, then builds the {@link Gob} + {@link ResDrawable} and adds it to the MapView
      * {@code basic} scene ({@link MapView#addClientGob}). The handle is returned <b>immediately</b> and works while
      * the prop streams in (a {@code :move} before the gob exists just updates the target the create applies). All
