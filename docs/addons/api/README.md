@@ -24,12 +24,13 @@ events are in [events](events.md).
 
 | Section | Purpose |
 |---|---|
-| [`hafen.player`](player.md) | local player data, including vitals |
+| [`hafen.player`](player.md) | local player data — the anchor for your own Gob |
 | [`hafen.time`](time.md) | game clock & astronomy |
 | [`hafen.char`](char.md) | attributes, LP, food, skills, credos, lore |
 | [`hafen.study`](char.md#hafenstudy) | curiosities being studied |
 | [`hafen.party`](party.md) | party roster |
 | [`hafen.buff`](buffs.md) | buffs — `hafen.buff()` is the bar, `hafen.buff(needle)` is one of them |
+| [`hafen.meter`](meters.md) | the HUD meter bars — health, stamina, energy and whatever else the server puts there |
 
 ### Character-sheet subsystems
 

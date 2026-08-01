@@ -26,7 +26,7 @@
       **no idle spam**; a stashed `MeterRemoved` payload still reads and answers `:exists()` false; an
       addon that subscribes to nothing costs nothing (the gate).
 
-- [ ] **027.3 — docs, harness, coverage toll, close.** New `docs/addons/api/meters.md` (the two call
+- [x] **027.3 — docs, harness, coverage toll, close.** New `docs/addons/api/meters.md` (the two call
       forms, the entity table, "the res names are server-published — here are the ones this server
       shows today, and `:res()` is how you list them", the three events, `:info()` as the escape
       hatch, and the standing "no absolute numbers, no hunger — see `hafen.char.food`" note moved here

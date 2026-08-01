@@ -58,7 +58,7 @@
 -- inside the Lua SANDBOX (D-017 strict env + D-018 instruction watchdog) over 1e hafen.store (saved
 -- variables), 1d-4 actionbar/equip, 1d-3 study/skills (+ A4: the full Lore & Skills window — buyable skills,
 -- credos, and experiences/lore via hafen.char.skillsAvailable/credos/experiences), 1d-2 buffs + FEP/food,
--- 1d-1 vitals, the 1c items/char/party reads, the gob/world/map/player/time/sound reads, the 1b event bus,
+-- 1d-1 the HUD meters, the 1c items/char/party reads, the gob/world/map/player/time/sound reads, the 1b event bus,
 -- and timers, and can be
 -- RELOADED from disk without a relog (:reload, D-005) and enabled/disabled (:addons, D-006). `hafen` is the API
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
@@ -212,14 +212,39 @@ end
 -- triple -- a meter is identified by its SERVER-published bg resource name, which is why this logs
 -- :res() for every bar: that is how you read the real names off a live client. The meters stream in a
 -- beat after enter-world (like char/items), so the "now" pass is usually empty and "+3s" has the bars.
--- (027.1 interim: the full contract check + the three events land with 027.3.)
 local function readMeters(tag)
   local list = hafen.meter()
   hafen.log(("[%s] meters=%d"):format(tag, #list))
   for i = 1, #list do
     local m = list[i]
-    hafen.log(("[%s]   [%d] res=%s value=%s segments=%d"):format(tag, i,
-      tostring(m:res()), tostring(m:value()), #m:segments()))
+    hafen.log(("[%s]   [%d] res=%s value=%s color=%s segments=%d"):format(tag, i,
+      tostring(m:res()), tostring(m:value()),
+      m:color() and ("%d,%d,%d"):format(m:color().r, m:color().g, m:color().b) or "nil",
+      #m:segments()))
+  end
+  -- 027.3: the OOP contract itself, once per login (on the +3s scan, when the bars have streamed in) --
+  -- the needle lookup landing on the SAME interned object the array holds, a miss being plain nil, a
+  -- NUMBER key and the EMPTY string both erroring, :index()/:exists() answering for a live bar, :info()
+  -- as the snapshot escape hatch, and the hard cut (D-013): hafen.player():vitals() is gone ENTIRELY.
+  if tag == "+3s" then
+    local first = list[1]
+    local okNum = pcall(function() return hafen.meter(1) end)
+    local okEmpty = pcall(function() return hafen.meter("") end)
+    -- The needle is the TAIL of the first bar's own server-published res, so the lookup must land back on
+    -- it (the scan is HUD order and this IS entry 1). res() can still be nil for a beat, hence the guard;
+    -- an ASCII tail is also why we slice the res instead of typing a name (one real name is non-ASCII).
+    local res = first and first:res()
+    local byNeedle = res and hafen.meter(res:match("[^/]+$") or res)
+    local info = first and first:info()
+    hafen.log(("[%s] meter oop: interned=%s miss=%s numErrors=%s emptyErrors=%s index=%s exists=%s info={res=%s value=%s segs=%d} vitalsGone=%s"):format(tag,
+      res and tostring(byNeedle == first) or "n/a (no meter res yet)",
+      tostring(hafen.meter("NoSuchMeterHere")),
+      tostring(not okNum), tostring(not okEmpty),
+      first and tostring(first:index()) or "n/a",
+      first and tostring(first:exists()) or "n/a",
+      info and tostring(info.res) or "n/a", info and tostring(info.value) or "n/a",
+      info and #info.segments or 0,
+      tostring(hafen.player().vitals == nil)))
   end
 end
 
@@ -229,7 +254,7 @@ end
 -- -- the old buffs.has() predicate, now handing back the object. The reads live on the object
 -- (:res/:name/:amount/:duration/:number/:exists/:info) and amount/duration are 0..1 fractions (NOT
 -- seconds -- :duration() is the share of the buff's run still left, the radial meter), often nil -- a brand-new buff is routinely res-only for a beat. The buff bar streams in after
--- enter-world, so like vitals this is read at now + a delay; most characters carry a buff or two at login.
+-- enter-world, so like the meters this is read at now + a delay; most characters carry a buff or two at login.
 local function readBuffs(tag)
   local list = hafen.buff()
   local first = list[1]
@@ -716,7 +741,7 @@ hafen.events.on("OnEnterWorld", function()
   -- 1c-1 / 017: read the player through the Gob CLASS (D-044). hafen.player():gob() is the composition
   -- anchor (Player forwards nothing — D-046); every gob method re-resolves, so a handle is always fresh
   -- and answers nil once the gob is gone. :info() is the one snapshot escape hatch. NB: :health() is nil
-  -- for the player — GobHealth is object integrity, not the player's vitals (those land in 1d).
+  -- for the player — GobHealth is object integrity, not the player's HUD meters (those land in 1d).
   local me = hafen.player():gob()
   if me then
     local p = me:pos()
@@ -898,15 +923,32 @@ hafen.events.on("GobRemoved", function(g)
   end
 end)
 
--- 1d-1: VitalsChanged fires when the server updates a vital bar (stamina drain, energy change,
--- taking damage) — the payload is the same {hp,stamina,energy} snapshot as hafen.player():vitals().
--- Stamina/energy change often, so log only the first few to avoid flooding.
-local vitalsSeen = 0
-hafen.events.on("VitalsChanged", function(v)
-  vitalsSeen = vitalsSeen + 1
-  if vitalsSeen <= 5 then
-    hafen.log(("VitalsChanged: hp=%s stamina=%s energy=%s (%d)"):format(
-      tostring(v.hp), tostring(v.stamina), tostring(v.energy), vitalsSeen))
+-- 1d-1: the three meter events (027.2), all carrying the Meter OBJECT itself. The bars stream in a beat
+-- after enter-world, so MeterAdded fires once per bar at login (and two MORE when you mount a horse,
+-- which the old positional vitals triple could never see); MeterRemoved fires when one goes away --
+-- the object still READS there, with :exists() false. MeterChanged fires only on a REAL change (the
+-- whole segment array is diffed, so a pure recolour counts too), which is often for stamina/energy, so
+-- log only the first few of it. NOTE the 027.2 gotcha, deliberately visible here: a MeterAdded payload
+-- can be younger than its resource -- :res() is nil AT FIRE TIME (tostring is "Meter(?)") and the SAME
+-- object answers a beat later, so never name-match inside the MeterAdded handler.
+local metersSeen, meterChanges = 0, 0
+hafen.events.on("MeterAdded", function(m)
+  metersSeen = metersSeen + 1
+  if metersSeen <= 8 then
+    hafen.log(("MeterAdded: %s (res=%s -- nil here is NORMAL, it is still loading) value=%s (%d)")
+      :format(tostring(m), tostring(m:res()), tostring(m:value()), metersSeen))
+  end
+end)
+hafen.events.on("MeterRemoved", function(m)
+  hafen.log(("MeterRemoved: %s (value=%s still readable, exists=%s)")
+    :format(tostring(m), tostring(m:value()), tostring(m:exists())))
+end)
+hafen.events.on("MeterChanged", function(m)
+  meterChanges = meterChanges + 1
+  if meterChanges <= 5 then
+    local c = m:color()
+    hafen.log(("MeterChanged: %s value=%s color=%s (%d)"):format(tostring(m), tostring(m:value()),
+      c and ("%d,%d,%d"):format(c.r, c.g, c.b) or "nil", meterChanges))
   end
 end)
 
@@ -955,7 +997,7 @@ end)
 
 -- 1d-4: ActionbarChanged{slot} fires when an action-bar slot changes — slots stream in at login (a burst,
 -- one per occupied slot) and then on any set/clear/drag. Action-bar changes are user-driven (not
--- per-frame), so — unlike vitals/gobs — we log EVERY one (with a running ordinal) to make it easy to
+-- per-frame), so — unlike the meters/gobs — we log EVERY one (with a running ordinal) to make it easy to
 -- verify live: put an item/action on a slot or clear one and you should see a line each time. The payload
 -- is the Slot OBJECT itself (021.2) — same interned object as hafen.actionbar(n), reading live.
 local actionbarSeen = 0
@@ -1121,7 +1163,7 @@ local mapLock = false -- 2c: while true, the MapView mousedown hook cancels map 
 local mapDowns = 0    -- 2c: how many map mousedowns the hook has seen (for the "observed" log lines)
 local moveIntercept = false -- 2d: while true, the "click" action hook intercepts moves and re-sends them (toggle: RIGHT-click)
 local moveHookSeen = 0      -- 2d: how many moves the action hook has observed while OFF (for the "observed" log lines)
-local vitalsFreeze = false  -- 2e: while true, the "set" message hook SWALLOWS meter updates -> the HUD vitals bars freeze (toggle: MIDDLE-click)
+local meterFreeze = false  -- 2e: while true, the "set" message hook SWALLOWS meter updates -> the HUD meter bars freeze (toggle: MIDDLE-click)
 local msgHookSeen = 0       -- 2e: how many meter "set" messages the hook has observed while OFF (for the "observed" log lines)
 local dropWidget            -- U1: the borderless drop-target widget handle (nil until created / after reload)
 local droppedRes           -- U1: the .res name of the last menu-grid action dropped on it (drawn via g:resource)
@@ -1218,7 +1260,7 @@ local function drawPanel(g, w, h)
   g:text(("clicks %d"):format(clicks), 6, 22)
   -- 1d-1: EVERY HUD meter, drawn in its OWN colour (027-meters-oop) -- not a hard-coded hp/stam/en
   -- triple read by position. The label is the tail of the server-published res name, and the bar takes
-  -- meter:color(), which is state the old vitals snapshot never exposed.
+  -- meter:color(), which is state the old flat vitals snapshot never exposed.
   local meters = hafen.meter()
   if #meters > 0 then
     for i = 1, #meters do
@@ -1232,18 +1274,20 @@ local function drawPanel(g, w, h)
   else
     g:text("meters loading...", 6, 42)
   end
+  -- The three hook-state lines are anchored to the BOTTOM of the window: the meter block above them grows
+  -- and shrinks (mounting adds two bars), so a fixed y would collide with it.
   -- 2c: map-lock state (LEFT-click the window to toggle; red = map clicks are being cancelled by the L1 hook)
   g:color(mapLock and 235 or 150, mapLock and 90 or 150, 90)
-  g:text(("map-lock %s (LMB)"):format(mapLock and "ON" or "OFF"), 6, 90)
+  g:text(("map-lock %s (LMB)"):format(mapLock and "ON" or "OFF"), 6, h - 46)
   g:color()
   -- 2d: move-intercept state (RIGHT-click the window to toggle; orange = moves are intercepted + re-sent by L2)
   g:color(moveIntercept and 245 or 150, moveIntercept and 160 or 150, moveIntercept and 60 or 150)
-  g:text(("move-hook %s (RMB)"):format(moveIntercept and "ON" or "OFF"), 6, 104)
+  g:text(("move-hook %s (RMB)"):format(moveIntercept and "ON" or "OFF"), 6, h - 32)
   g:color()
-  -- 2e: vitals-freeze state (MIDDLE-click the window to toggle; cyan = the L3 message hook is swallowing meter
-  -- updates, so the hp/stamina/energy bars above — and the real HUD meters — freeze until toggled off)
-  g:color(vitalsFreeze and 90 or 150, vitalsFreeze and 210 or 150, vitalsFreeze and 235 or 150)
-  g:text(("vitals-freeze %s (MMB)"):format(vitalsFreeze and "ON" or "OFF"), 6, 118)
+  -- 2e: meter-freeze state (MIDDLE-click the window to toggle; cyan = the L3 message hook is swallowing the
+  -- meter updates, so the bars above — and the real HUD meters — freeze until toggled off)
+  g:color(meterFreeze and 90 or 150, meterFreeze and 210 or 150, meterFreeze and 235 or 150)
+  g:text(("meter-freeze %s (MMB)"):format(meterFreeze and "ON" or "OFF"), 6, h - 18)
   g:color()
   -- R1: draw the custom image (hafen.render.image) two ways in the top-right, above the bars: native 32x32
   -- and the same handle scaled to 16x16 (g:image with/without a w,h). A nil/disposed handle draws nothing.
@@ -1661,7 +1705,7 @@ hafen.slash.register("hello", function(args)
     end
   elseif sub == "tip" then
     -- F3d: toggle a font override on the "tooltip" scope = every TOOLTIP the client pops up. The bulk of it is the
-    -- client's tooltip ENGINE (ItemInfo), which composes the tip of an INVENTORY ITEM, a buff, a vitals meter, a
+    -- client's tooltip ENGINE (ItemInfo), which composes the tip of an INVENTORY ITEM, a buff, a HUD meter, a
     -- craft recipe input/output, a minimap marker/object, a character-sheet attribute row and an action-menu icon
     -- -- so hover an item in your inventory and you see it immediately. On top of that: plain string tips
     -- (rendered at display time, so the tip already under the cursor changes), a widget's rich settip() tip with
@@ -1679,7 +1723,7 @@ hafen.slash.register("hello", function(args)
     else
       hafen.font.setFont("tooltip", h:derive{ size = 13 })   -- mono 13 vs the stock sans 10 (bigger + different)
       tipApplied = true
-      hafen.log((":hello tip -> setFont('tooltip', %s) -- hover an INVENTORY ITEM (or a buff / a vitals bar / a craft input / an action-menu icon / a HUD button): the tooltip is in the new font, and it changes while you keep hovering; :hello tip again to reset")
+      hafen.log((":hello tip -> setFont('tooltip', %s) -- hover an INVENTORY ITEM (or a buff / a HUD meter / a craft input / an action-menu icon / a HUD button): the tooltip is in the new font, and it changes while you keep hovering; :hello tip again to reset")
         :format(h:family()))
     end
   elseif sub == "chat" then
@@ -1999,7 +2043,7 @@ hafen.events.on("OnEnterWorld", function()
   if panel then return end                                        -- defensive: create the window once
   panel = hafen.ui.window{
     title   = "Hello 3a",
-    size    = { 190, 136 },
+    size    = { 190, 166 },                                        -- 027.3: room for 5 meter rows (mounted) above the bottom-anchored hook lines
     pos     = { 80, 120 },
     onDraw  = drawPanel,
     onClick = function(x, y, button)
@@ -2008,8 +2052,8 @@ hafen.events.on("OnEnterWorld", function()
         moveIntercept = not moveIntercept
         hafen.log(("panel RMB #%d -> move-intercept %s"):format(clicks, moveIntercept and "ON" or "OFF"))
       elseif button == 2 then                                     -- MIDDLE-click -> 2e: toggle the message hook
-        vitalsFreeze = not vitalsFreeze
-        hafen.log(("panel MMB #%d -> vitals-freeze %s"):format(clicks, vitalsFreeze and "ON" or "OFF"))
+        meterFreeze = not meterFreeze
+        hafen.log(("panel MMB #%d -> meter-freeze %s"):format(clicks, meterFreeze and "ON" or "OFF"))
       else                                                        -- LEFT/other -> 2c: toggle the input hook
         mapLock = not mapLock
         hafen.log(("panel click #%d at %d,%d (button %d) -> map-lock %s")
@@ -2019,7 +2063,7 @@ hafen.events.on("OnEnterWorld", function()
     end,
     onClose = function() hafen.log("panel closed (X) -- :reload to bring it back") end,
   }
-  hafen.log("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, MMB=vitals-freeze, X=close, 'toggle' key=show/hide")
+  hafen.log("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, MMB=meter-freeze, X=close, 'toggle' key=show/hide")
 
   -- U1: DROP TARGET + g:resource + mouse mods. A borderless custom widget (hafen.ui.widget) that is a
   -- DROP TARGET for the client's own drag gesture (D-038): open the menu grid (bottom-right), drag an
@@ -2145,17 +2189,17 @@ hafen.events.on("OnEnterWorld", function()
 
   -- 2e: MESSAGE HOOK (hafen.hook.message, L3). Intercept an INBOUND server update at the UI.uimsg choke point,
   -- BEFORE the target widget applies it -- the mirror of 2d's outbound L2. We hook the "set" message and scope it
-  -- to the HUD vitals meters (ev.target == "IMeter"; "set" is what LayerMeter uses to update a bar). MIDDLE-click
-  -- the window to arm vitals-freeze. While ON, ev:preventDefault() SWALLOWS the meter update, so it never reaches
-  -- the widget: the hp/stamina/energy bars -- both in this window and the REAL HUD meters -- FREEZE (and no
-  -- VitalsChanged fires, since nothing changed). Toggle it off and the next update thaws them -- fully reversible,
-  -- purely cosmetic (the server still knows your real vitals). While OFF we only observe-log the first few meter
+  -- to the HUD meter bars (ev.target == "IMeter"; "set" is what LayerMeter uses to update a bar). MIDDLE-click
+  -- the window to arm meter-freeze. While ON, ev:preventDefault() SWALLOWS the meter update, so it never reaches
+  -- the widget: the bars -- both in this window and the REAL HUD meters -- FREEZE (and no
+  -- MeterChanged fires, since nothing changed). Toggle it off and the next update thaws them -- fully reversible,
+  -- purely cosmetic (the server still knows your real values). While OFF we only observe-log the first few meter
   -- "set" messages, proving L3 sees inbound traffic. ev.args is a 1-based snapshot (ev:rewrite(t) could apply new
   -- args instead -- not used here). NB: this handler runs on a Loader thread under the UI lock, so keep it light.
   -- The handle is bridge-owned (:reload/disable removes the hook -- no leak).
   hafen.hook.message("set", function(ev)
-    if ev.target ~= "IMeter" then return end                     -- only the HUD vitals/stat meters, not every "set"
-    if vitalsFreeze then
+    if ev.target ~= "IMeter" then return end                     -- only the HUD meter bars, not every "set"       
+    if meterFreeze then
       ev:preventDefault()                                        -- swallow it -> the meter never updates (bar freezes)
     elseif msgHookSeen < 3 then
       msgHookSeen = msgHookSeen + 1
@@ -2163,7 +2207,7 @@ hafen.events.on("OnEnterWorld", function()
         :format(ev.target, #ev.args, msgHookSeen))
     end
   end)
-  hafen.log("2e: IMeter 'set' message hook installed -- MIDDLE-click the window to freeze the vitals bars")
+  hafen.log("2e: IMeter 'set' message hook installed -- MIDDLE-click the window to freeze the HUD meter bars")
 end)
 
 -- 2b: HUD OVERLAY (hafen.ui.overlay). Paint on top of the HUD WITHOUT owning a widget — fn(g, w, h) runs
@@ -2190,15 +2234,15 @@ local stressPool, stressAt = nil, 0
 local function drawHud(g, w, h)
   -- 2c/2d/2e: surface the hook states here too, so the input+action+message hooks have clear on-HUD feedback
   -- (border turns red while map-lock cancels clicks, orange while move-intercept re-sends moves, cyan while
-  -- vitals-freeze swallows meter updates).
+  -- meter-freeze swallows meter updates).
   local txt = ("2b HUD  gobs=%d  map-lock=%s  move=%s  freeze=%s"):format(
-    gobCount, mapLock and "ON" or "OFF", moveIntercept and "ON" or "OFF", vitalsFreeze and "ON" or "OFF")
+    gobCount, mapLock and "ON" or "OFF", moveIntercept and "ON" or "OFF", meterFreeze and "ON" or "OFF")
   local bw = 340
   local x = math.floor(w / 2 - bw / 2)
   g:color(0, 0, 0, 140); g:frect(x, 2, bw, 18); g:color()        -- translucent backdrop
   if mapLock then g:color(235, 90, 90)                           -- red: L1 cancelling map clicks
   elseif moveIntercept then g:color(245, 160, 60)                -- orange: L2 intercepting + re-sending moves
-  elseif vitalsFreeze then g:color(90, 210, 235)                 -- cyan: L3 swallowing meter updates
+  elseif meterFreeze then g:color(90, 210, 235)                 -- cyan: L3 swallowing meter updates
   else g:color(120, 200, 120) end                                -- green: hooks observing only
   g:rect(x, 2, bw, 18); g:color()
   g:text(txt, x + 6, 4)

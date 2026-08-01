@@ -103,7 +103,7 @@ otherwise. `hafen.map` converts between world, tile, and grid space.
 
 A read returns `nil` (or an empty table for list verbs) when the data isn't available yet — before the
 world loads, before a HUD widget streams in, or while a resource is still resolving. Reads never throw
-a `Loading` error into Lua; the bridge swallows it. Much character-sheet data (vitals, food, skills,
+a `Loading` error into Lua; the bridge swallows it. Much character-sheet data (meters, food, skills,
 quests, wounds, …) streams in a beat *after* `OnEnterWorld` — read it on a short timer or subscribe to
 the matching [event](events.md).
 

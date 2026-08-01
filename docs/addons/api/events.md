@@ -57,7 +57,9 @@ The payload is a live [Gob object](gob.md). On `GobRemoved` the gob is **already
 
 | Event | Payload | Fires |
 |---|---|---|
-| `VitalsChanged` | [`Vitals`](types.md#vitals) | an hp/stamina/energy bar changes |
+| `MeterAdded` | [`Meter`](meters.md) | a HUD meter bar appears |
+| `MeterRemoved` | [`Meter`](meters.md) | a HUD meter bar goes away — the object still reads, `:exists()` is false |
+| `MeterChanged` | [`Meter`](meters.md) | a HUD meter bar's value or colour changes |
 | `BuffAdded` | [`Buff`](buffs.md) | a buff appears |
 | `BuffRemoved` | [`Buff`](buffs.md) | a buff goes away — the object still reads, `:exists()` is false |
 | `BuffChanged` | [`Buff`](buffs.md) | a buff's content updates |

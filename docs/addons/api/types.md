@@ -55,11 +55,6 @@ From [`hafen.map.tile`](map.md). `{ id = number, name = string? }` — tileset i
 A character attribute. From [`hafen.char.attr`](char.md)/`attrs`. `{ base = number, comp = number }` —
 raw base value vs computed/buffed value.
 
-## Vitals
-
-From [`hafen.player():vitals()`](player.md) and `VitalsChanged`. `{ hp, stamina, energy }`, each a bar
-fraction 0..1. No absolute values exist.
-
 ## food
 
 From [`hafen.char.food`](char.md) and `FepChanged`.

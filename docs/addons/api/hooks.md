@@ -73,7 +73,7 @@ The inbound mirror of `action`: fires when a server update `msg` is about to be 
 `preventDefault` wins over `rewrite` if both are called.
 
 ```lua
--- freeze the vitals bars by swallowing meter updates:
+-- freeze the HUD meter bars by swallowing their updates (see hafen.meter):
 hafen.hook.message("set", function(ev)
   if frozen and ev.target == "IMeter" then ev:preventDefault() end
 end)

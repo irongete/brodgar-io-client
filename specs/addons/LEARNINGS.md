@@ -10,7 +10,7 @@
 - [engine-lifecycle.md](learnings/engine-lifecycle.md) — loading/manifest, tick pump, reload, enabled set, saved-vars store, console/log, `OnEnterWorld` timing + data-streaming races, adopting published resource code.
 - [luaj-bridge.md](learnings/luaj-bridge.md) — LuaJ quirks (coercion, `isstring`, userdata), sandbox + watchdog, bridge calling conventions, marshalling.
 - [world-reads.md](learnings/world-reads.md) — Glob-backed reads: gobs, map/grids/**positioning** (no global coord), items, char, party.
-- [widget-tree-reads.md](learnings/widget-tree-reads.md) — the adapter mechanism (uimsg tap vs per-tick poll) and its surfaces: vitals, buffs, FEP, study, skills, actionbar, equip.
+- [widget-tree-reads.md](learnings/widget-tree-reads.md) — the adapter mechanism (uimsg tap vs per-tick poll) and its surfaces: the HUD meters, buffs, FEP, study, skills, actionbar, equip.
 - [ui-widgets.md](learnings/ui-widgets.md) — custom windows/widgets, `LuaGOut`, HUD/gob overlays, drops, widget internals (`add` vs `addchild`), W-series introspection/hit-testing.
 - [widget-replacement.md](learnings/widget-replacement.md) — `onWidgetCreate`/`adopt`/`replace` (3a–3c): descriptors, scans, restore-on-remove.
 - [hooks-hotkeys.md](learnings/hooks-hotkeys.md) — input/action/message hooks (L1/L2/L3), `Widget.listen`, `UI.wdgmsg`/`uimsg` taps, global hotkeys, `KeyBinding`/keybind panel.

@@ -469,3 +469,24 @@ removable, the contract is not.
 **See.** [D-013](architecture-api.md), [D-039](widgets-ui.md), [D-050](architecture-api.md),
 [D-051](architecture-api.md), [026-text-cache](../026-text-cache/spec.md),
 [ui-widgets.md](../learnings/ui-widgets.md).
+
+### D-063 — an entity's key is what the engine publishes about it, not what the genre calls it ✅ (maintainer, 2026-08-01)
+**Decision.** `hafen.meter(needle)` searches the meter's **`IMeter.bg` resource name**, a string the *server*
+publishes, and the docs quote the names as **observed on this server** while naming `:res()` as the way to
+re-derive them on any other. There is no client-side alias map (`"hp"`/`"stamina"`/`"energy"` → res), and no
+fixed vitals triple: `hafen.meter()` is every bar in the `place == "meter"` slot, however many that is.
+**Rationale.** The old `hafen.player():vitals()` hard-coded the first three meters as hp/stamina/energy **by
+tree position** — a client-side guess about content the client does not own. It was silently lossy: mounting
+adds two more bars (`häst`, `mount`), which the triple could never see, and any future bar would be dropped
+the same way. An alias map would have kept the same assumption behind a friendlier spelling and broken on the
+same day. Searching the published name is the only key that survives the server changing its mind — and one of
+the real names being non-ASCII is the proof that these strings are content, not API.
+**Consequences.** `"hp"` is **not a key this code knows**: it is a substring that happens to identify a bar
+here, so the docs must (and do) teach the discovery step — `:res()` on a live client — instead of publishing a
+dictionary that would read as contract. The lookup is therefore a substring match with no trimming and no
+normalisation, and the docs advise an ASCII needle. The sibling of D-061 one level up: D-061 is about the
+API's *vocabulary*, this is about an entity's *identity*. Read forward: when the engine already publishes an
+identifier, expose the search over it — shipping your own names for someone else's data is a promise you
+cannot keep.
+**See.** [D-013](architecture-api.md), [D-056](architecture-api.md), [D-061](architecture-api.md),
+[027-meters-oop](../027-meters-oop/spec.md), [widget-tree-reads.md](../learnings/widget-tree-reads.md).

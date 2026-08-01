@@ -76,7 +76,7 @@ hafen.events.on("OnUpdate", function(dt)
 end)
 ```
 
-Much character data (vitals, food, skills, quests, …) streams in a beat *after* `OnEnterWorld`. Read it
+Much character data (HUD meters, food, skills, quests, …) streams in a beat *after* `OnEnterWorld`. Read it
 on a short [timer](api/timer.md) or subscribe to the matching `*Changed` event rather than reading it
 immediately on enter-world.
 
@@ -99,8 +99,8 @@ local me     = hafen.player():gob()                       -- your own Gob (nil b
 local pos    = me and me:pos()
 
 -- react to changes
-hafen.events.on("VitalsChanged", function(v)
-  if v.hp < 0.3 then hafen.log("low health!") end
+hafen.events.on("MeterChanged", function(m)
+  if m:res() == "gfx/hud/meter/hp" and (m:value() or 1) < 0.3 then hafen.log("low health!") end
 end)
 ```
 
@@ -161,5 +161,5 @@ The client provides a developer loop:
 | `:addons enable\|disable <id>` | toggle an addon (applied on the next `:reload`) |
 | `:lua <expr>` | evaluate a Lua expression against the live API (results shown as JSON) |
 
-`:lua` is the fastest way to explore — e.g. `:lua hafen.player():vitals()` or
+`:lua` is the fastest way to explore — e.g. `:lua hafen.meter("hp"):value()` or
 `:lua hafen.world.count("tree")`.

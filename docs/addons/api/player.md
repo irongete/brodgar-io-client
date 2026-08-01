@@ -16,21 +16,14 @@ Player is only what has no per-gob equivalent.
 |---|---|---|
 | `hafen.player():gob()` | [Gob](gob.md) \| nil | your own game object; nil before you are in the world |
 | `hafen.player():name()` | string \| nil | the local character's name |
-| `hafen.player():vitals()` | [`Vitals`](types.md#vitals) \| nil | hp/stamina/energy bar fractions (0..1) |
 | `hafen.player():worldToScreen(x, y)` | `{x, y}` \| nil | project a world point to a map-view screen pixel |
-
-```lua
-local v = hafen.player():vitals()
-if v then hafen.log(string.format("hp %.0f%%  stamina %.0f%%", v.hp * 100, v.stamina * 100)) end
-```
 
 `hafen.player()` always hands back the same object, and `hafen.player():gob()` is the same object as
 `hafen.gob(<your id>)` — so `gob == hafen.player():gob()` is how you tell "is this me?" apart from any
 other gob (no id comparison needed).
 
-> `vitals()` returns **bar fractions only** — there are no absolute hp/stamina/energy numbers, and no
-> hunger, in the client. Subscribe to [`VitalsChanged`](events.md#character--status-widget-tree-backed)
-> for updates; `vitals()` is `nil` until the meters stream in a beat after `OnEnterWorld`.
+> The hp/stamina/energy bars are **not** here: they are a HUD slot the server fills, not per-player
+> state, so they live in their own section — [`hafen.meter`](meters.md).
 >
 > `worldToScreen` returns coordinates relative to the map view — handy inside a
 > [gob overlay](ui.md#overlays) or HUD overlay.

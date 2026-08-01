@@ -196,7 +196,7 @@ pre-rendered `Text` (e.g. the italic "Unused save" placeholder) and text a widge
 those are not body text.
 
 **Notes on `"tooltip"` (F3d).** Every tooltip the client pops up. The bulk of it is the client's tooltip
-**engine** (`ItemInfo`), which composes the tip of an **inventory item**, a **buff**, a **vitals bar**, a **craft**
+**engine** (`ItemInfo`), which composes the tip of an **inventory item**, a **buff**, a **HUD meter**, a **craft**
 recipe input/output, a **minimap** marker or object, a **character-sheet attribute row** and an **action-menu**
 icon — hovering an inventory item is the quickest way to see the override. On top of that:
 
