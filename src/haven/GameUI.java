@@ -46,7 +46,10 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public GobIcon.Settings iconconf;
     public MiniMap mmap;
     public Fightview fv;
-    private List<Widget> meters = new LinkedList<Widget>();
+    /* addon: package-private (was private) so AddonWidgets.hudMeters can read the HUD meter list --
+     * the engine's own ordered "these are the meters" truth, maintained at the `place == "meter"` seam
+     * below and on removal in cdestroy. Backs hafen.meter() (spec 027-meters-oop). */
+    List<Widget> meters = new LinkedList<Widget>();   // addon:
     private Text lastmsg;
     private double msgtime;
     private Window invwnd, equwnd, makewnd, srchwnd, iconwnd;

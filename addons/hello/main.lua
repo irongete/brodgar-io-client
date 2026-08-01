@@ -206,16 +206,20 @@ local function readChar(tag)
   hafen.log(("[%s] party: %d member(s)"):format(tag, #hafen.party.members()))
 end
 
--- 1d-1: player vitals — hp/stamina/energy as 0..1 bar fractions (no absolute numbers exist). Read
--- through the widget-tree mechanism (the HUD meters). The meters stream in a beat after enter-world
--- (like char/items), so the "now" pass is usually nil and "+3s" has the bars.
-local function readVitals(tag)
-  local v = hafen.player():vitals()
-  if v then
-    hafen.log(("[%s] vitals: hp=%s stamina=%s energy=%s"):format(tag,
-      tostring(v.hp), tostring(v.stamina), tostring(v.energy)))
-  else
-    hafen.log(("[%s] vitals: nil (meters not up yet)"):format(tag))
+-- 1d-1: the HUD meter bars, OOP since 027-meters-oop (hafen.player():vitals() is GONE). hafen.meter is
+-- CALLABLE-ONLY (D-056): hafen.meter() is the 1-based array of Meter objects in HUD order and
+-- hafen.meter(needle) the FIRST whose res name contains that substring. There is no hp/stamina/energy
+-- triple -- a meter is identified by its SERVER-published bg resource name, which is why this logs
+-- :res() for every bar: that is how you read the real names off a live client. The meters stream in a
+-- beat after enter-world (like char/items), so the "now" pass is usually empty and "+3s" has the bars.
+-- (027.1 interim: the full contract check + the three events land with 027.3.)
+local function readMeters(tag)
+  local list = hafen.meter()
+  hafen.log(("[%s] meters=%d"):format(tag, #list))
+  for i = 1, #list do
+    local m = list[i]
+    hafen.log(("[%s]   [%d] res=%s value=%s segments=%d"):format(tag, i,
+      tostring(m:res()), tostring(m:value()), #m:segments()))
   end
 end
 
@@ -777,10 +781,10 @@ hafen.events.on("OnEnterWorld", function()
   -- 1c-2/1c-3: map, projection, item and char/party reads — now (often still loading/streaming) and
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
-  readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
+  readPlace("now"); readInv("now"); readChar("now"); readMeters("now")
   readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readMenu("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now"); readCraft("now"); readQuests("now"); readWounds("now"); readFight("now")
   hafen.timer.after(3, function()
-    readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
+    readPlace("+3s"); readInv("+3s"); readChar("+3s"); readMeters("+3s")
     readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readMenu("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s"); readWounds("+3s"); readFight("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via the 'bags' key) and it logs") end
@@ -1212,17 +1216,21 @@ local function drawPanel(g, w, h)
   g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()          -- translucent backdrop
   g:text(("clock %.0f"):format(hafen.time.clock() or 0), 6, 6)
   g:text(("clicks %d"):format(clicks), 6, 22)
-  local v = hafen.player():vitals()
-  if v then                                                       -- draw hp/stamina/energy as 0..1 bars
-    local bars = {{"hp", v.hp, 235, 80, 80}, {"stam", v.stamina, 235, 210, 70}, {"en", v.energy, 110, 170, 255}}
-    for i = 1, #bars do
-      local b, y = bars[i], 42 + (i - 1) * 15
-      g:text(b[1], 6, y)
+  -- 1d-1: EVERY HUD meter, drawn in its OWN colour (027-meters-oop) -- not a hard-coded hp/stam/en
+  -- triple read by position. The label is the tail of the server-published res name, and the bar takes
+  -- meter:color(), which is state the old vitals snapshot never exposed.
+  local meters = hafen.meter()
+  if #meters > 0 then
+    for i = 1, #meters do
+      local m, y = meters[i], 42 + (i - 1) * 15
+      local res, c = m:res(), m:color()
+      g:text((res and res:match("[^/]+$") or "?"):sub(1, 6), 6, y)
       g:color(60, 60, 60); g:frect(44, y + 2, 110, 9); g:color()
-      g:color(b[3], b[4], b[5]); g:frect(44, y + 2, math.floor(110 * (b[2] or 0)), 9); g:color()
+      if c then g:color(c.r, c.g, c.b) end
+      g:frect(44, y + 2, math.floor(110 * (m:value() or 0)), 9); g:color()
     end
   else
-    g:text("vitals loading...", 6, 42)
+    g:text("meters loading...", 6, 42)
   end
   -- 2c: map-lock state (LEFT-click the window to toggle; red = map clicks are being cancelled by the L1 hook)
   g:color(mapLock and 235 or 150, mapLock and 90 or 150, 90)

@@ -279,6 +279,17 @@ public final class Addon {
     final LuaBuff.Cache buffs = new LuaBuff.Cache(this);
 
     /**
+     * This addon's <b>Meter interning cache</b> ({@code hafen.meter(needle)}, spec {@code 027-meters-oop}): the
+     * weak-valued {@code IMeter widget → Meter object} map, its {@link java.lang.ref.ReferenceQueue} and the
+     * per-addon metatable. Same contract as {@link #gobs}, {@link #kins}, {@link #slots}, {@link #paginae},
+     * {@link #sounds} and {@link #buffs} — per-addon so no Lua value crosses a sandbox boundary (D-017) and the
+     * whole cache dies with this {@link Addon} on {@code :reload}/disable. Like {@link #buffs} the <b>key is the
+     * widget's identity</b> (the meter's res name is server-published and not guaranteed unique across the HUD
+     * slot), so the keys are strong — bounded only because every access drains the queue; see {@link LuaMeter}.
+     */
+    final LuaMeter.Cache meters = new LuaMeter.Cache(this);
+
+    /**
      * This addon's <b>rendered-text cache</b> ({@code g:text}/{@code g:atext}, spec {@code 026-text-cache}): the
      * bounded LRU of {@code (string, font handle, Fonts.gen()) → the rendered Text + its Tex}, so an immediate-mode
      * draw stops re-rasterising and re-uploading the same line every frame. Per-addon like every other cache here

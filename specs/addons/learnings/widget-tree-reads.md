@@ -190,3 +190,30 @@
   cache (the `Buff` widget is unlinked, not cleared, so it reads fine after `it.remove()`), but
   firing first keeps the payload literally "the entry the adapter is dropping" and leaves no window
   where a handler re-entering the API would see a map the event has not been announced from.
+- **(027.1) A positional read of the HUD meters was silently lossy — the bars are a LIST, not a
+  triple.** The retired `VITAL_KEYS = {hp, stamina, energy}` zipped the first three `IMeter`s against
+  three fixed names. Mount a horse and the server adds two more bars (`gfx/hud/meter/häst`, `.../mount`);
+  the old surface could not see them at all, and any server that reorders or inserts a bar would have
+  mislabelled the lot. `hafen.meter()` is the whole list in HUD order and `hafen.meter(needle)` searches
+  the **server-published** `IMeter.bg` resource name, so the client ships no alias dictionary. Two
+  consequences for the docs: the name list is *observed on this server today*, not contract
+  (`027-meters-oop/observed-res-names.md`), and one of the real names is non-ASCII — advise an ASCII
+  substring (`"st"`, `"mount"`) over an accented Lua string literal.
+- **(027.1) Use `GameUI.meters`, not a `children(IMeter.class)` DFS.** The engine keeps its own ordered
+  list of what sits in the `place == "meter"` HUD slot (appended at `GameUI.java:1014`, removed in
+  `cdestroy` at `:1151`). A DFS would walk the whole HUD in tree order — an artefact, not layout order —
+  and would also collect any `IMeter` living somewhere else. The field was `private`, so it cost ONE
+  `// addon:` core edit (`private` → package-private; same-package `AddonWidgets` cannot reach a private
+  field), and `AddonWidgets.hudMeters(GameUI)` filters the `List<Widget>` to `IMeter` rather than casting.
+  That one predicate is the single scan behind `hafen.meter()`, the needle lookup, `:index()`, `:exists()`
+  and (027.2) the adapter poll — the `LuaBuff.actives()` shape, so they can never disagree.
+- **(027.1) A meter's colour is state, not decoration.** `LayerMeter` takes a `"col"` uimsg alongside
+  `"set"`, so the server recolours a bar on its own (and the type is genuinely multi-segment — the old
+  single-fraction snapshot threw the rest away). Hence `:color()` and `:segments()` are first-class reads
+  and the 027.2 adapter must diff colour too, or a pure recolour would never fire `MeterChanged`.
+  Colours go out as `AddonManager.color` → `{r,g,b,a}` 0..255, the same shape `kin:color()` already uses.
+- **(027.1) Every meter read is `Loading`-guarded and may answer nil.** `IMeter.bg.get()` throws until
+  the resource is cached, so a brand-new meter is routinely nameless for a beat and its segments stream
+  in after it appears — `:res()`/`:value()`/`:color()` answer `nil` rather than erroring, and only
+  `:exists()` always answers. Same reason `Widget.destroy` unlinks without clearing `bg` or the segment
+  list, so a removed meter keeps reading with `:exists()` false (the `LuaBuff` property).

@@ -257,7 +257,7 @@ public final class AddonManager {
 
         UiApi.resetSession();         // 2b/3a/3b/3c: reset overlay sweep + per-session widget registries
         WorldApi.resetMarkers();      // A1: drop per-session marker maps + re-prime MarkersChanged
-        CharApi.resetSession();       // reset vitals cache + re-register the change-detection adapters
+        CharApi.resetSession();       // re-register the change-detection adapters
 
         attachRoot(ui_);              // invisible per-frame tick widget (drives the engine)
         registerOcache(ui_);          // GobAdded/GobRemoved source (marshalled to the UI thread)
@@ -1036,6 +1036,20 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // BuffChanged (add/remove detected per-tick; content changes on the buff's "ch"/"tt" uimsg) — since
         // 025.2 all three carry the Buff OBJECT (fireBuff), not a snapshot table.
         CharApi.installBuffs(hafen, owner);
+
+        // hafen.meter — the HUD's meter bars (GameUI's `place == "meter"` slot → IMeter widgets), via the
+        // widget-tree mechanism (1d-1), CALLABLE-ONLY since 027-meters-oop: hafen.meter() is EVERY HUD meter
+        // as a 1-based array of Meter objects in HUD order, hafen.meter(needle) the FIRST one whose res name
+        // contains that substring (nil on a miss). There is no hp/stamina/energy triple: the slot takes any
+        // number of meters and a meter is identified by its SERVER-published bg resource name, so "hp" is a
+        // substring that happens to hit a bar on this server, not a key the code knows — :res() is how to list
+        // the real ones off a live client. Reads on the object, live per call: :res()/:index() (1-based HUD
+        // position)/:value() (the first segment, 0..1 — what vitals() used to return)/:color() ({r,g,b,a}
+        // 0..255)/:segments() (the whole multi-segment bar)/:exists()/:info() (the snapshot). A destroyed meter
+        // still READS — Widget.destroy() does not clear it — but reports :exists() false. The bars stream in a
+        // beat after enter-world, so hafen.meter() is legitimately empty for a moment.
+        // (027.2 adds MeterAdded/MeterRemoved/MeterChanged; hafen.player():vitals() and VitalsChanged are GONE.)
+        CharApi.installMeters(hafen, owner);
 
         // hafen.actionbar — the action bar / hotbar (the engine calls it the "belt": GameUI.belt, a
         // BeltSlot[144]), via the widget-tree mechanism (1d-4), CALLABLE-ONLY since 021-actionbar-oop:

@@ -22,11 +22,33 @@ public final class AddonWidgets {
 
     /**
      * The bar segments of a {@link LayerMeter} (the {@code protected meters} list), backing
-     * {@code hafen.player():vitals()}. Each {@link LayerMeter.Meter} carries a fraction {@code a} (0..1)
-     * and a colour; a vital bar (hp/stamina/energy) has a single segment. Never {@code null}.
+     * {@code meter:value()}/{@code :color()}/{@code :segments()}. Each {@link LayerMeter.Meter} carries a
+     * fraction {@code a} (0..1) and a colour; a vital bar has a single segment, but the type is genuinely
+     * multi-segment. Never {@code null}.
      */
     public static List<LayerMeter.Meter> meters(LayerMeter m) {
         return (m == null) ? java.util.Collections.<LayerMeter.Meter>emptyList() : m.meters;
+    }
+
+    /**
+     * The HUD's meter bars, in HUD (layout) order — the {@link GameUI} {@code meters} list itself, filtered
+     * to {@link IMeter}. Backs {@code hafen.meter()} (spec {@code 027-meters-oop}).
+     *
+     * <p>This is the engine's <i>own</i> ordered record of what sits in the {@code place == "meter"} HUD
+     * slot (appended there, removed in {@code cdestroy}), which is why it is preferred over a
+     * {@code gui.children(IMeter.class)} walk: that would be a DFS over the whole HUD in tree order, and
+     * would also collect any {@link IMeter} placed somewhere else. The list is {@code List<Widget>}, so it
+     * is filtered rather than cast. A fresh list; never {@code null}.
+     */
+    public static List<IMeter> hudMeters(GameUI g) {
+        List<IMeter> out = new java.util.ArrayList<IMeter>();
+        if(g != null) {
+            for(Widget w : g.meters) {
+                if(w instanceof IMeter)
+                    out.add((IMeter)w);
+            }
+        }
+        return out;
     }
 
     /**
