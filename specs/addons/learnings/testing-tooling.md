@@ -216,3 +216,13 @@
   anything needing live data (freshness after a real change, the write actually reaching the server), so
   the in-game list shrinks to those. Put the harness class in the same package under the scratchpad and
   `javac -cp build/classes;<luaj jar>` it: package-private constructors then work with no reflection.
+- **The console blips on its own: never A/B audio with a `:lua` line that returns a value.** `eval` prints the
+  result with [`UI.msg(String)`](src/haven/UI.java:869) → [`InfoMessage`](src/haven/UI.java:823), whose `defsfx`
+  is `sfx/msg`. So `:lua sound:play():stop()` — which returns the Sound — plays the *console's* blip even when
+  the addon's clip was correctly cancelled, and it reads exactly like the bug you are hunting. It cost a full
+  verification round on 024.2. Use the statement form (`:lua local s = sound:play():stop()`), which returns
+  nothing and prints nothing; or check the terminal, where the trace, not the ear, is authoritative.
+- **When a verification contradicts the code, instrument before re-reading the code.** Four temporary
+  `System.out.println` lines (play / stop / silence / resolve, each with `Thread.currentThread().getName()`)
+  answered in ONE round what two passes of re-reasoning had got wrong — and the answer was that the engine was
+  right and the *test* was lying. Print the thread name: for anything deferred, the ordering IS the diagnosis.

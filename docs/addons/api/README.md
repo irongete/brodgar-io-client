@@ -65,7 +65,7 @@ events are in [events](events.md).
 
 | Section | Purpose |
 |---|---|
-| [`hafen.sound` / `hafen.music`](audio.md) | play sound effects and music |
+| [`hafen.sound` / `hafen.music`](audio.md) | play sound effects (stop them, ask what is still playing) and music |
 | [`hafen.events`](events.md) | subscribe to events |
 | [`hafen.timer`](timer.md) | schedule one-shot / repeating callbacks |
 | [`hafen.store`](store.md) | saved variables (persistent storage) |

@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.ActAudio;
 import haven.Audio;
 import haven.Glob;
 import haven.Indir;
@@ -17,7 +18,11 @@ import org.luaj.vm2.lib.VarArgFunction;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -56,12 +61,31 @@ import java.util.Map;
  * {@code :reload}.
  *
  * <p><b>Ungated</b> (no {@code requireActions}): playback is client-local and sends nothing to the server.
+ *
+ * <p><b>What is playing (024.2) lives in the {@link Cache}, not in the handle.</b> The clips a name has in the
+ * air are keyed by that <i>name</i> in the owning addon's {@link Live} map, so every handle for {@code "sfx/x"}
+ * — the interned one, or a fresh one minted after Lua dropped it and the weak cache dropped its entry — talks
+ * to the same playback state. {@code :stop()} and {@code :playing()} are pure engine surface (no core edit):
+ * {@code ActAudio.RootChannel.remove(cs)} stops, {@code mixer().playing(cs)} tests. There is no end-of-clip
+ * callback and none is needed — {@code Audio.Mixer.get} drops a drained clip <b>lazily</b>, so asking is also
+ * how a Sound prunes its own list. {@code hafen.sound()} (no argument) is that prune across the whole map: the
+ * addon's still-playing Sounds, and only the addon's — the client's own blips share the {@code aui} channel but
+ * are not ours to enumerate or stop.
+ *
+ * <p><b>Teardown</b> ({@link #teardownSounds}, from {@code AddonRegistry.teardown} + the {@code :reload} sweep
+ * of the REPL): a disabled addon making noise is a bug, so everything it left in the air is stopped. And
+ * because {@code :play()} returns <i>before</i> the loader has produced the clip, stopping also has to cancel a
+ * play still in flight — a per-name generation stamp the deferred task re-checks, or {@code :play():stop()}
+ * would still blip.
  */
 public final class LuaSound {
+    /** The addon this handle belongs to — its {@link Addon#sounds} cache owns the playback state. */
+    private final Addon owner;
     /** The resource name this Sound addresses — the whole state of a handle. */
     public final String res;
 
-    private LuaSound(String res) {
+    private LuaSound(Addon owner, String res) {
+        this.owner = owner;
         this.res = res;
     }
 
@@ -95,6 +119,13 @@ public final class LuaSound {
         private final Addon owner;
         private final Map<String, Ref> live = new HashMap<String, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
+        /**
+         * The addon's <b>playback state</b>, keyed by resource name — the clips in the air plus the plays still
+         * resolving. Deliberately here and not on the handle: the handles are weak, so a Sound Lua has dropped
+         * (or re-fetched) must not lose track of what it started. Insertion-ordered, so {@code hafen.sound()}
+         * lists in the order the addon started them; entries are dropped as they drain.
+         */
+        private final Map<String, Live> sounding = new LinkedHashMap<String, Live>();
         private LuaValue mt;
 
         Cache(Addon owner) {
@@ -111,9 +142,59 @@ public final class LuaSound {
                     return v;
                 live.remove(res);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaSound(res), meta());
+            LuaValue v = LuaValue.userdataOf(new LuaSound(owner, res), meta());
             live.put(res, new Ref(v, res, dead));
             return v;
+        }
+
+        /** This name's playback state, created on the first {@code :play()} of it. */
+        synchronized Live sounding(String res) {
+            Live l = sounding.get(res);
+            if(l == null)
+                sounding.put(res, l = new Live());
+            return l;
+        }
+
+        /** Is this name still sounding (or still resolving)? Prunes what the mixer has drained. */
+        synchronized boolean playing(String res) {
+            Live l = sounding.get(res);
+            if(l == null)
+                return false;
+            if(prune(l))
+                return true;
+            sounding.remove(res);
+            return false;
+        }
+
+        /** Stop everything this name has in the air, and cancel any play of it still resolving. */
+        synchronized void stop(String res) {
+            Live l = sounding.remove(res);
+            if(l != null)
+                silence(l);
+        }
+
+        /**
+         * {@code hafen.sound()}: the addon's still-playing Sounds as a 1-based array, pruning as it goes — so
+         * the same call that counts them is the call that drains the drained ones.
+         */
+        synchronized LuaValue array() {
+            LuaTable t = new LuaTable();
+            int n = 0;
+            for(Iterator<Map.Entry<String, Live>> i = sounding.entrySet().iterator(); i.hasNext();) {
+                Map.Entry<String, Live> e = i.next();
+                if(prune(e.getValue()))
+                    t.set(++n, of(e.getKey()));
+                else
+                    i.remove();
+            }
+            return t;
+        }
+
+        /** Teardown: silence everything this addon left in the air (disable / {@code :reload}). */
+        synchronized void stopAll() {
+            for(Live l : sounding.values())
+                silence(l);
+            sounding.clear();
         }
 
         /** Drop the map entries whose handle Lua has released (the key + dead ref would leak otherwise). */
@@ -141,6 +222,69 @@ public final class LuaSound {
             super(v, q);
             this.key = key;
         }
+    }
+
+    // ---- what one name has in the air --------------------------------------------------------------
+
+    /**
+     * One resource name's live playback, shared by every handle for that name in one addon. {@link #clips} are
+     * the {@link Audio.CS} streams handed to the mixer (appended from a <b>loader</b> thread, read and cleared
+     * from the <b>UI</b> thread — hence the object's own monitor, never a Lua-side lock);
+     * {@link #pending} counts the plays the loader has not resolved yet, so {@code :playing()} is true from the
+     * instant {@code :play()} returns; {@link #gen} is bumped by every stop, which is how a play still in flight
+     * is cancelled rather than blipping after the fact.
+     */
+    private static final class Live {
+        final List<Audio.CS> clips = new ArrayList<Audio.CS>();
+        int pending;
+        int gen;
+    }
+
+    /**
+     * Drop the clips the mixer has already drained ({@code Audio.Mixer.get} removes a finished clip lazily, so
+     * asking IS the prune), and answer whether anything of this name is still sounding or still resolving.
+     */
+    private static boolean prune(Live l) {
+        UI u = AddonManager.ui;
+        ActAudio.Root au = (u == null) ? null : u.audio;
+        synchronized(l) {
+            if(au == null) {                    // no session: the mixer that held them is gone with it
+                l.clips.clear();
+                return false;
+            }
+            for(Iterator<Audio.CS> i = l.clips.iterator(); i.hasNext();) {
+                if(!au.aui.mixer().playing(i.next()))
+                    i.remove();
+            }
+            return (l.pending > 0) || !l.clips.isEmpty();
+        }
+    }
+
+    /**
+     * Cut this name's live clips out of the {@code aui} channel and cancel anything still resolving.
+     *
+     * <p>The removal happens <b>inside</b> the monitor, exactly like the deferred play's hand-off to
+     * {@code UI.sfx}: releasing it in between would reopen the very window the generation stamp exists to
+     * close — a play that has registered its clip but not yet reached the mixer would be "stopped" first and
+     * started after. (Lock order is always {@code Live} → the channel/mixer, never the other way.)
+     */
+    private static void silence(Live l) {
+        UI u = AddonManager.ui;
+        synchronized(l) {
+            l.gen++;            // a deferred play stamped with the old generation now drops its clip
+            l.pending = 0;
+            if(u != null) {
+                for(int i = 0; i < l.clips.size(); i++)
+                    u.audio.aui.remove(l.clips.get(i));
+            }
+            l.clips.clear();
+        }
+    }
+
+    /** Teardown (disable / {@code :reload}): silence everything this addon left playing. */
+    static void teardownSounds(Addon a) {
+        if(a != null)
+            a.sounds.stopAll();
     }
 
     // ---- the Sound metatable -----------------------------------------------------------------------
@@ -171,8 +315,10 @@ public final class LuaSound {
         // info() — the one SNAPSHOT escape hatch, for logging/serialising.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
+                LuaSound h = handle(self, "info");
                 LuaTable t = new LuaTable();
-                t.set("res", LuaValue.valueOf(handle(self, "info").res));
+                t.set("res", LuaValue.valueOf(h.res));
+                t.set("playing", LuaValue.valueOf(h.owner.sounds.playing(h.res)));
                 return t;
             }
         });
@@ -184,8 +330,26 @@ public final class LuaSound {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 LuaSound h = handle(self, "play");
-                play(h.res, volume(a.arg(2), "sound:play"));
+                play(h.owner, h.res, volume(a.arg(2), "sound:play"));
                 return self;
+            }
+        });
+        // stop() — cut every clip of this name THIS addon has in the air (and cancel a play still resolving,
+        // so :play():stop() never blips), return SELF so it chains. Never touches another addon's clips or the
+        // client's own blips, which share the same aui channel. Silent when nothing is playing.
+        m.set("stop", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSound h = handle(self, "stop");
+                h.owner.sounds.stop(h.res);
+                return self;
+            }
+        });
+        // playing() — is a clip of this name still sounding (or still resolving)? The mixer drops a drained
+        // clip lazily, so this call is also the prune: ask it and the finished ones stop being counted.
+        m.set("playing", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSound h = handle(self, "playing");
+                return LuaValue.valueOf(h.owner.sounds.playing(h.res));
             }
         });
         return m;
@@ -224,28 +388,49 @@ public final class LuaSound {
      * 1, then hand the clip to {@link UI#sfx}. Mirrors {@code GobIcon.resnotif}. Non-{@code Loading} resolve
      * failures (a bogus name) are reported to the client's error line and swallowed — never a Lua error.
      * A no-op before the UI/session exists.
+     *
+     * <p>The resulting clip is <b>registered on the owner's {@link Live} state for this name</b> before it goes
+     * to the mixer, which is what makes {@code :stop()}/{@code :playing()}/{@code hafen.sound()} possible at
+     * all. Because the resolve lands later, the play carries the {@link Live#gen} it started under: a
+     * {@code :stop()} in between bumps that stamp and the clip is dropped instead of blipping (024.2).
      */
-    private static void play(final String name, final double vol) {
+    private static void play(final Addon owner, final String name, final double vol) {
         final Glob g = AddonManager.glob();
         final UI u = AddonManager.ui;
         if((g == null) || (u == null))
             return;
+        final Live live = owner.sounds.sounding(name);
+        final int gen;
+        synchronized(live) {
+            live.pending++;         // :playing() is true from the instant :play() returns, not from the resolve
+            gen = live.gen;
+        }
         final Indir<Resource> resid = Resource.local().load(name);
         g.loader.defer(new Runnable() {
             public void run() {
-                Resource res;
+                Audio.CS cs;
                 try {
-                    res = resid.get();               // Loading → the loader re-runs this task
+                    cs = Audio.fromres(resid.get());   // Loading → the loader re-runs this task (pending stands)
                 } catch(Loading l) {
                     throw(l);
                 } catch(RuntimeException e) {
+                    synchronized(live) {
+                        if(live.gen == gen)            // a stop already zeroed pending — do not go negative
+                            live.pending--;
+                    }
                     u.error("addon: could not play " + name);
                     return;
                 }
-                Audio.CS cs = Audio.fromres(res);
                 if(vol != 1.0)
                     cs = new Audio.VolAdjust(cs, vol);
-                u.sfx(cs);
+                synchronized(live) {
+                    if(live.gen != gen)                // stopped while we resolved: never blip (pending zeroed)
+                        return;
+                    live.pending--;
+                    live.clips.add(cs);
+                    u.sfx(cs);      // INSIDE the monitor: registering and starting must be one step, or a
+                                    // :stop() landing between them removes a clip the mixer has not got yet
+                }
             }
         }, null);
     }
@@ -256,7 +441,8 @@ public final class LuaSound {
      * {@code hafen.sound} itself: a <b>callable table</b> ({@code __call}) taking the resource name, so the old
      * flat {@code hafen.sound.play(name)} reads as plain {@code nil} — the hard cut (D-013) is visible from
      * Lua, exactly as {@code hafen.gob} (D-044), {@code hafen.actionbar} (D-057) and {@code hafen.menugrid}
-     * did it. ({@code hafen.sound()} — this addon's still-playing Sounds — arrives with 024.2.)
+     * did it. <b>Arity is the verb</b> (D-056): {@code hafen.sound(name)} is one Sound, {@code hafen.sound()}
+     * is the array of <i>this addon's</i> still-playing Sounds (024.2) — an empty table when it has none.
      */
     static LuaValue factory(final Addon owner) {
         LuaTable sound = new LuaTable();
@@ -264,6 +450,8 @@ public final class LuaSound {
         mt.set(LuaValue.CALL, new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue key = a.arg(2);        // arg1 = the callable table itself
+                if(key.isnil())                 // hafen.sound() — the addon's own live clips, pruned as we look
+                    return owner.sounds.array();
                 if(key.isnumber())              // BEFORE isstring(): in LuaJ a number IS a string
                     throw new LuaError("hafen.sound(name): the key is a RESOURCE NAME string (e.g."
                         + " \"sfx/msg\"), not a number");

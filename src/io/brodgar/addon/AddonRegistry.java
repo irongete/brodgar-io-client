@@ -125,6 +125,7 @@ public final class AddonRegistry {
         HookApi.teardownMouseGrabs(a);// V5: release any active mouse-drag grab (drops the UI.Grab + unlinks the widget)
         HttpApi.teardownRequests(a);  // N2a: cancel in-flight HTTP requests (result discarded on drain; no callback)
         FontApi.teardownFonts(a);     // F1: revert this addon's font overrides on every scope (bumps gen -> stock foundry restored)
+        LuaSound.teardownSounds(a);   // 024.2: silence anything the addon left in the air (a disabled addon making noise is a bug)
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
         a.subs.clear();
@@ -185,6 +186,7 @@ public final class AddonRegistry {
             teardown(cur.get(i));
         addons.clear();
         LuaGOut.clearResourceCache();                // U1/D-039: drop the g:resource name cache on reload
+        LuaSound.teardownSounds(AddonManager.consoleOwner);  // 024.2: the REPL survives a reload, its clips do not
         loadAll();                                   // re-scan disk + enabled set; re-run; fire OnLoad
         if(gui() != null) {                          // already in-world → re-init as a fresh login
             StoreApi.restorePerChar();                        // reload per-char saved vars (charScope still valid)

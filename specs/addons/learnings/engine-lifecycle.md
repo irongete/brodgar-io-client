@@ -186,3 +186,22 @@
   edit disappears); adoption used to READ a value fails silently — pay for a fallback, or at least an
   assertion.** (`Gob.attr` is package-private, so the fallback is `getDeclaredField("attr")` +
   `setAccessible`; latch it off on `NoSuchFieldException` rather than retrying per gob.)
+- **A one-shot clip has no end-of-clip signal — only a lazy drain.** [`Audio.Mixer.get`](src/haven/Audio.java:68)
+  removes a `CS` the frame its `get()` returns `< 0`; there is no callback and no `done()` flag. So "is my sound
+  still playing" IS `Mixer.playing(cs)`, and the same call is the prune: a per-addon record of started clips
+  cannot grow, because every read of it drops what has drained. Design the read as the sweep and there is no
+  bookkeeping to keep honest. (Stop/test are fully public — `ActAudio.RootChannel.remove(cs)` / `mixer()` — so
+  the whole 024.2 surface needed **zero** core edits.)
+- **A deferred start must be cancellable, and "cancelled" is not enough — the start has to be ATOMIC with the
+  registration.** `sound:play()` resolves on a loader thread, so `:play():stop()` has to cancel a play still in
+  flight: a per-key generation stamp the deferred task re-checks does that. But the first draft still leaked
+  sound in theory, because the task registered the clip, released the monitor, and only *then* handed it to
+  `UI.sfx` — a `:stop()` landing in that window "stops" a clip the mixer has not received yet, and the play
+  lands right after. Register + start under ONE monitor (lock order: the per-key state → the channel/mixer,
+  never the reverse) and the window is gone. **Rule: for any deferred acquire, the stamp check, the registration
+  and the hand-off to the engine are one critical section.**
+- **The `:lua` REPL is not an addon and never gets `AddonRegistry.teardown`** — `consoleOwner` deliberately
+  outlives sessions and reloads. Any per-addon teardown that is a *user-visible promise* ("a `:reload` silences
+  what the addon left playing") must therefore be swept for the REPL explicitly in `reload()`, or the rule has a
+  silent exception exactly where the maintainer tests it. (`UiApi.resetSession` already had this shape for the
+  console's models/replacers — follow it rather than inventing a second pattern.)

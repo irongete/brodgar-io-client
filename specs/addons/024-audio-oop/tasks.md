@@ -9,7 +9,7 @@
       Verify in-game: the login ping still blips, `hafen.sound("sfx/msg") == hafen.sound("sfx/msg")`,
       `hafen.sound.play` is `nil`, `:play(0.2)` is quieter, a bogus name is silent.
 
-- [ ] 024.2 — **Stop, playing, the live set and teardown.** Register each started `Audio.CS` on its
+- [x] 024.2 — **Stop, playing, the live set and teardown.** Register each started `Audio.CS` on its
       Sound; `:stop()` → self (`ui.audio.aui.remove` + cancel a play still pending in the loader),
       `:playing()` (`aui.mixer().playing`, pruning drained clips), `hafen.sound()` → the array of
       the addon's still-playing Sounds, and the disable/`:reload` sweep that silences them all.

@@ -1265,7 +1265,7 @@ end)
 -- handles :hello". Reserved engine names (lua / addons / reload) and names a client command already owns are
 -- refused with a clear error. The handle exposes :remove(). We demo sub-command dispatch off args[1]: bare :hello
 -- greets, ":hello toggle" flips the 2a window (a slash command driving live addon state), ":hello ping" plays a
--- sound, and ":hello echo <text...>" shows the args rejoined (quoting survives — :hello echo "a b" c -> a b c).
+-- sound, ":hello sound" toggles a long clip through the 024.2 live set, and ":hello echo <text...>" shows the args rejoined (quoting survives — :hello echo "a b" c -> a b c).
 local demoGhost   -- V1: the handle of the manual :hello ghost demo while placed (nil = none); session-local
 local demoSprite  -- R2a: the handle of the manual :hello sprite demo while placed (nil = none); session-local
 local demoFollow  -- R2a anchor: the handle of the :hello follow demo (a sprite anchored to you); session-local
@@ -1273,7 +1273,7 @@ local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-faci
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof | widgets | passes")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof | widgets | passes")
     return
   end
   local sub = args[1]
@@ -1285,6 +1285,20 @@ hafen.slash.register("hello", function(args)
   elseif sub == "ping" then
     hafen.sound("sfx/msg"):play()
     hafen.log(":hello ping -> played sfx/msg")
+  elseif sub == "sound" then
+    -- 024.2: the live set. A TOGGLE over the addon's OWN clips: hafen.sound() (no argument) is the array of
+    -- the Sounds THIS addon still has in the air -- pruned as you ask, so it drops back to 0 by itself when a
+    -- clip ends. Anything left playing is silenced for us on disable/:reload (try it: start it, then :reload).
+    local live = hafen.sound()
+    if #live > 0 then
+      for i = 1, #live do live[i]:stop() end                 -- :stop() cuts it mid-clip, and chains on self
+      hafen.log((":hello sound -> stopped %d live sound(s); now #hafen.sound()=%d"):format(#live, #hafen.sound()))
+    else
+      local bell = hafen.sound("sfx/hud/mmap/bell3")         -- a long-ish client-bundled clip
+      bell:play(0.6)                                          -- volume is the FIRST argument of the play call
+      hafen.log((":hello sound -> playing %s at 0.6 (playing=%s, #hafen.sound()=%d) -- :hello sound again to stop")
+        :format(bell:res(), tostring(bell:playing()), #hafen.sound()))
+    end
   elseif sub == "echo" then
     local rest = {}
     for i = 2, #args do rest[#rest + 1] = args[i] end

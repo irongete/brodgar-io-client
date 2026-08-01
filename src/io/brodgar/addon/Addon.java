@@ -261,8 +261,9 @@ public final class Addon {
      * per-addon metatable. Same contract as {@link #gobs}, {@link #kins}, {@link #slots} and {@link #paginae}
      * — per-addon so no Lua value crosses a sandbox boundary (D-017) and the whole cache dies with this
      * {@link Addon} on {@code :reload}/disable. Unbounded in principle (any name is a key), which is why the
-     * values are weak; a handle holds only the resource name, so there is nothing to tear down (the clips a
-     * Sound has started get their own teardown in 024.2).
+     * values are weak; a handle holds only the resource name. The cache also owns this addon's <b>playback
+     * state</b> — the clips each name has in the air, keyed by name rather than by handle precisely because
+     * the handles are weak (024.2) — which {@link LuaSound#teardownSounds} silences on {@code :reload}/disable.
      */
     final LuaSound.Cache sounds = new LuaSound.Cache(this);
 

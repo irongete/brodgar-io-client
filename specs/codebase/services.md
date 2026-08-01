@@ -42,6 +42,7 @@
 | Camera inversion | [`MapView.invcamx`](src/haven/MapView.java:59) / `invcamy` (:60) statics + like-named prefs; consumed by `Camera.invdx`/`invdy` (:98) |
 | Audio master / buffer | [`Audio.Root.volume()`](src/haven/Audio.java:614) (persists `sfxvol`), `bufsize()` (:623, **in samples** @44100 Hz, persists `audiobuf`) |
 | Audio channels | [`ActAudio.Root`](src/haven/ActAudio.java:170) `.aui`/`.pos`/`.amb` → [`RootChannel.setvolume`](src/haven/ActAudio.java:131) + public `volume` field |
+| Stop / is-it-playing a clip | all public, no core edit: [`RootChannel.remove(cs)`](src/haven/ActAudio.java:158) (→ `Mixer.stop`, identity match on the very `CS` you added) and [`RootChannel.mixer()`](src/haven/ActAudio.java:117) → [`Mixer.playing(cs)`](src/haven/Audio.java:125) / `size` / `current` / `clear` |
 
 **Gotchas that cost time.**
 - **`GSettings` is immutable.** `update()` ([:284](src/haven/GSettings.java:284)) returns a **new** `GSettings`;
@@ -61,6 +62,12 @@
 - **`PagButton.use(Interaction)` ignores `Interaction.modflags`** — it reads `ui.modflags()` live and branches
   `"act"`-by-path vs `"use"`-by-id internally (the only route to an id-only pagina). `MenuGrid.use(btn,…)` is the
   *widget's* click handler instead: for a category it flips the visible page and resets grid state.
+- **A finished clip is dropped LAZILY, by the mixer thread** — [`Audio.Mixer.get`](src/haven/Audio.java:68) removes
+  a `CS` the moment its `get()` returns `< 0`, and that is the *only* end-of-clip signal: there is no callback and
+  no `CS.done()`. So `Mixer.playing(cs)` is how you find out, and asking is also how the list drains.
+- **`UI.msg(String)` blips.** It builds an [`InfoMessage`](src/haven/UI.java:823), whose `defsfx` is `sfx/msg`, so
+  every console line that prints a value plays a sound — mistake it for your own clip and you will debug a
+  non-bug (`:lua` returning a value is enough; use the statement form when testing audio).
 - **The keybind panel lists bindings by hand** ([`BindingPanel`](src/haven/OptWnd.java:634)) — a registered
   binding with no `addbtn` line is invisible, and keys handled by raw `ev.code` in a `globtype` override (e.g.
   the belt's 1–0 in `GameUI.NKeyBelt`) are not in the registry at all.
