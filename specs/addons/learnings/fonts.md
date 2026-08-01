@@ -226,3 +226,15 @@
   every alternation and be strictly worse than no cache. Making the generation a **component of the key** costs the
   same single `int` per draw, is correct under F5 for free, and lets the stale generation's entries fall out of the
   LRU on their own. Rule of thumb: a generation counter that carries *context* can be keyed on, never cleared on.
+- **(026.2) A cache cap below one frame's distinct strings is strictly WORSE than no cache — size the entry cap by
+  the cliff, not by the working set.** Measured, `LuaGOut`'s cache sits permanently full (512/512) while the actual
+  working set is ~40 lines a frame: the rest are dead one-shot strings. Cutting the cap to the working set would
+  save VRAM and barely move the hit rate — but any cap under the *distinct strings drawn in a single frame* evicts
+  every entry before its next use, and then pays eviction + `dispose` **on top of** the rasterisation it failed to
+  save. The headroom is the guard against that cliff; a **byte** cap is what bounds its cost. Corollary: two caps
+  only earn their keep when they are set to meet at the measured average entry size (here ~15.8 KiB — a ~256×16
+  raster rounded to powers of two), so narrow text is bounded by count and wide text by bytes. The provisional
+  16 MiB could never bind before 512 entries: it was decoration until it was measured and halved.
+- **(026.2) A permanently-evicting cache at 88.8% hit rate is the feature working, not a shortfall.** The misses are
+  one string per frame that never existed before; no cache helps those. Report `hitRate` next to `evictions` so the
+  reading is interpretable — and make it **absent, not 0**, before the first lookup (D-050).

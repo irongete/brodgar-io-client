@@ -56,6 +56,30 @@ one label). Eviction disposes. Both caps are constants in one place, tuned once 
   HANDLE… rather than an invisible cache"; append the outcome and why the handle lost
 - `specs/addons/DECISIONS.md` + `decisions/` — the "cache, not handle" decision
 
+## Measured (026.2) — and the caps that came out of it
+
+`:hello textcache`, `hello` alone, ~35 s in the world after login:
+
+    512 entries / 7.91 MiB held · 62844 hits + 7893 misses = 88.8% hit rate · 7381 evictions
+
+- **~15.8 KiB per entry** (7.91 MiB / 512) — a ~256×16 raster rounded up to powers of two. The provisional
+  **16 MiB byte cap could therefore never bind before the 512-entry one**: it was decoration, not a bound.
+  It comes down to **8 MiB**, where the two caps meet at the measured average width, so narrow text is bounded
+  by count and wide text by bytes. That is the point of having two.
+- **`MAXENTRIES` stays 512.** The cache is permanently *full*, but not because the working set is 512: the
+  static sites are ~40 lines a frame and the rest are dead strings from the deliberately volatile line, never
+  looked up again. Cutting the cap to the working set would save VRAM and change the hit rate by almost
+  nothing — but a cap *below* one frame's distinct strings evicts every entry before its next use and pays
+  eviction + dispose **on top of** the rasterisation it failed to save, i.e. strictly worse than no cache.
+  512 keeps a text-heavy addon clear of that cliff; the byte cap bounds what the headroom can cost.
+- **88.8% hit rate with a permanently-evicting cache** is the feature working as designed, not a shortfall:
+  the misses are one string per frame that has never existed before, and no cache can do anything about those.
+
+**The stress toggle independently re-measured the cost 026 exists to kill.** `:hello textcache stress` adds 32
+fresh rasterisations per frame and takes the client from 240 to 80 FPS:
+`(1/80 − 1/240) s / 32` = **0.26 ms per line**, against 019.8's 0.28 ms measured a different way. The two
+agree, which is the strongest evidence available that the thing being cached is the thing that cost the frames.
+
 ## Risks & gotchas
 
 - **The win is workload-dependent, and one addon gains ~nothing.** The 019.8 learning is blunt: *"a

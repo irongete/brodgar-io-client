@@ -15,7 +15,7 @@
       repeatedly and disable every addon: no visual drift, no growth. `hello` needs no edit for this
       task — it already draws all of these, so it is the regression by simply existing.
 
-- [ ] 026.2 — **Make it measurable.** `hafen.client:profiling():textcache()` → entries, texture bytes,
+- [x] 026.2 — **Make it measurable.** `hafen.client:profiling():textcache()` → entries, texture bytes,
       hits, misses, evictions (pull-only, must answer with profiling OFF — D-051). Then *use* it:
       tune the two caps with real numbers and record them in plan.md.
       **Verify in-game:** `:hello textcache` prints the table; the static HUD lines show a high hit

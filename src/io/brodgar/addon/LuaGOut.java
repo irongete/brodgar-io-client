@@ -85,15 +85,36 @@ final class LuaGOut {
      * entries fall out of the LRU. (`:hello node` is exactly this case, so it is not hypothetical.)
      */
     static final class Cache {
-        /* Provisional caps -- 026.2 tunes them with real numbers, and they live here so that is a one-line edit. */
-        private static final int  MAXENTRIES = 512;
-        private static final long MAXBYTES   = 16L << 20;   // 16 MiB of GL texture
+        /*
+         * The caps, TUNED IN 026.2 against a measured full cache (see plan.md). Both must be able to bind: a
+         * cache of many tiny labels should hit MAXENTRIES first, one of few wide lines MAXBYTES first.
+         *
+         * The measurement: a full cache of ordinary HUD text is 512 entries / 7.91 MiB, i.e. ~15.8 KiB an
+         * entry (a ~256x16 texture rounded up to powers of two). At that width the provisional 16 MiB could
+         * NEVER be reached before the entry cap -- it was decoration rather than a bound -- so it comes down
+         * to 8 MiB, where the two caps meet almost exactly at the measured average width. Narrow text is then
+         * bounded by count, wide text by bytes, which is the whole reason for having two.
+         *
+         * MAXENTRIES STAYS at 512, deliberately above the working set it needs to hold (hello's is ~40 lines a
+         * frame; the 512 it fills to are overwhelmingly dead strings from the deliberately volatile line, which
+         * are never looked up again). Headroom is not waste here: a cap BELOW one frame's distinct strings
+         * would evict every entry before its next use, paying eviction and dispose on top of the rasterisation
+         * it failed to save -- strictly worse than no cache. 512 keeps a text-heavy addon well clear of that
+         * cliff, and the byte cap bounds what the headroom can cost.
+         *
+         * Package-visible because `hafen.client:profiling():textcache()` reports what the cache is bounded BY
+         * beside what it is holding (026.2) — a count means nothing without its ceiling.
+         */
+        static final int  MAXENTRIES = 512;
+        static final long MAXBYTES   = 8L << 20;    // 8 MiB of GL texture
 
         /** The LRU itself, in ACCESS order (`true`) so `removeEldest` below is genuinely least-recently-used. */
         private final Map<Key, Entry> live = new LinkedHashMap<Key, Entry>(64, 0.75f, true);
         private long bytes;
-        /* Pull-only counters for hafen.client:profiling():textcache() (026.2). Plain longs, UI thread only. */
-        long hits, misses, evictions;
+        /* Pull-only counters for hafen.client:profiling():textcache() (026.2). Plain longs, UI thread only —
+         * cumulative since this addon loaded (the Cache is a final field of the Addon, so a :reload starts a
+         * fresh count along with a fresh cache). */
+        private long hits, misses, evictions;
 
         /** The cached {@link Tex} for {@code k}, or {@code null} (a miss — the caller renders and {@link #put}s). */
         synchronized Tex get(Key k) {
@@ -139,9 +160,12 @@ final class LuaGOut {
             bytes = 0;
         }
 
-        /** Live entry count / total texture bytes — the 026.2 readers. */
-        synchronized int entries() {return live.size();}
-        synchronized long bytes()  {return bytes;}
+        /** Live entry count / total texture bytes / the lifetime counters — the 026.2 readers. */
+        synchronized int entries()     {return live.size();}
+        synchronized long bytes()      {return bytes;}
+        synchronized long hits()       {return hits;}
+        synchronized long misses()     {return misses;}
+        synchronized long evictions()  {return evictions;}
     }
 
     /**

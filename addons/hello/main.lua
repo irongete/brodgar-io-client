@@ -1333,9 +1333,13 @@ local demoSprite  -- R2a: the handle of the manual :hello sprite demo while plac
 local demoFollow  -- R2a anchor: the handle of the :hello follow demo (a sprite anchored to you); session-local
 local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-facing sprite); session-local
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
+-- 026.2: the text-cache bound check. The toggle is assigned beside the HUD overlay far below (that is where the
+-- drawing happens); its two constants live here so `:hello textcache` can quote them in the same breath.
+local textcacheStress
+local STRESS_POOL, STRESS_PER_FRAME = 2000, 32
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof | widgets | passes")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof | widgets | passes | textcache")
     return
   end
   local sub = args[1]
@@ -1942,8 +1946,42 @@ hafen.slash.register("hello", function(args)
                 and (" -- %d more period(s) before the measurement counts, ~%ss")
                     :format(o.periodsNeeded, fx(o.periodsNeeded * 64 * (o.frameMs or 16) / 1000, 0))
                 or ""))
+  elseif sub == "textcache" then
+    -- 026.2: THE TEXT CACHE. g:text/g:atext used to rasterise their string AND create + destroy a GL texture
+    -- EVERY FRAME (~0.28ms a line, ~50x the cost of geometry); since 026 the wrapper HOLDS the rendered raster
+    -- in a per-addon, content-keyed, bounded LRU, so an unchanged string is rasterised once and blitted after.
+    -- p:textcache() is PULL-ONLY like p:memory()/p:net()/p:loader()/p:render(): it answers with the profiling
+    -- checkbox OFF, because every number in it is one the cache keeps anyway in order to bound itself.
+    -- The top level is THIS addon's cache; `total` sums every Lua owner (addons + the :lua REPL) -- which is
+    -- also the leak check: disable every addon and total.bytes goes to ~0, because teardown disposes them.
+    -- The HUD overlay deliberately draws one STATIC line (a hit every frame) beside one VOLATILE line (a miss
+    -- every frame, its text carries the frame number), so both rates below are real and always non-zero.
+    local p = hafen.client:profiling()
+    if args[2] == "stress" then
+      -- The BOUND check. A pool of 2000 distinct strings -- far past the entry cap -- drawn 32 per frame in
+      -- the HUD overlay at alpha 0 (rasterised and cached for real, painted not at all). Entries climb to the
+      -- cap and then STOP, bytes stop rising with them, and evictions start counting: bounded, not growing.
+      -- It is genuinely expensive while it runs (32 fresh rasterisations a frame is the pre-026 cost, by
+      -- design), so it is a toggle and it is off by default.
+      hafen.log(textcacheStress())
+      return
+    end
+    local c = p:textcache()
+    local function pct(v) return (v ~= nil) and (fx(v * 100, 1) .. "%") or "-" end
+    local function mib(v) return fx(v / 1048576, 2) .. " MiB" end
+    hafen.log((":hello textcache -> hello's own cache: %d entries / %s held, %d hits + %d misses = %s hit rate,"
+      .. " %d evictions"):format(c.entries, mib(c.bytes), c.hits, c.misses, pct(c.hitRate), c.evictions))
+    hafen.log(("  bounded by %d entries AND %s -- entries stop at the cap, they do not grow (`:hello textcache"
+      .. " stress` proves it: %d distinct strings, %d a frame, invisible)")
+      :format(c.maxEntries, mib(c.maxBytes), STRESS_POOL, STRESS_PER_FRAME))
+    hafen.log(("  every Lua owner together (%d): %d entries / %s, %s hit rate, %d evictions -- disable every"
+      .. " addon and this drops to ~0 bytes (teardown disposes each cache: the leak check)")
+      :format(c.total.owners, c.total.entries, mib(c.total.bytes), pct(c.total.hitRate), c.total.evictions))
+    hafen.log("  a MISS is not a fault: it is a string never drawn before in that font. The HUD's `026 static"
+      .. " line` hits every frame; `026 volatile line` misses every frame because its text changes every frame"
+      .. " -- budget a live readout by how often its TEXT changes, not by how many lines it has.")
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets | passes | overhead)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets | passes | overhead | textcache)")
       :format(#args, table.concat(args, " | ")))
   end
 end)
@@ -2129,6 +2167,18 @@ end)
 local gobCount = 0
 hafen.timer.every(1, function() gobCount = hafen.world.count() end)
 
+-- 026.2: THE TEXT CACHE, made visible. g:text/g:atext hold their rendered raster across frames now (a per-addon,
+-- content-keyed, bounded LRU), so a line whose STRING is unchanged is rasterised once and blitted thereafter --
+-- but a line whose string changes every frame misses every frame and costs exactly what it always did. Both are
+-- drawn here, side by side and permanently, so `:hello textcache` always has a real hit rate AND a real miss
+-- rate to report: `hudFrames` ticks once per drawn frame, so the volatile line is guaranteed new text every
+-- frame no matter what the world is doing.
+local hudFrames = 0
+-- The bound check: a POOL of distinct strings, far more than the entry cap, drawn a slice at a time so the
+-- client stays usable while it runs. Toggled by `:hello textcache stress`; nil = off. Alpha 0, so it rasterises
+-- and caches for real without painting anything -- the cost and the cache churn are the point, not the pixels.
+local stressPool, stressAt = nil, 0
+
 local function drawHud(g, w, h)
   -- 2c/2d/2e: surface the hook states here too, so the input+action+message hooks have clear on-HUD feedback
   -- (border turns red while map-lock cancels clicks, orange while move-intercept re-sends moves, cyan while
@@ -2146,10 +2196,46 @@ local function drawHud(g, w, h)
   g:text(txt, x + 6, 4)
   -- R1: an ANCHORED image (g:aimage) just LEFT of the readout box -- ax=1 (right edge at x-4), ay=0.5 (centred).
   if icon then g:aimage(icon, x - 4, 11, 1.0, 0.5) end
+  -- 026.2: the cache pair. The first string never changes -> one rasterisation for the whole session, a cache
+  -- HIT every frame after the first. The second changes every frame -> a MISS every frame, by construction.
+  hudFrames = hudFrames + 1
+  g:color(150, 150, 150)
+  g:text("026 static line -- rasterised once, blitted thereafter", x + 6, 22)
+  g:color(200, 170, 120)
+  g:text(("026 volatile line -- frame %d (a miss, every frame)"):format(hudFrames), x + 6, 36)
+  g:color()
+  if stressPool then                                             -- the bound check, a slice per frame
+    g:color(0, 0, 0, 0)                                          -- fully transparent: cached for real, painted not at all
+    for i = 1, STRESS_PER_FRAME do
+      stressAt = (stressAt % STRESS_POOL) + 1
+      g:text(stressPool[stressAt], x + 6, 50)
+    end
+    g:color()
+  end
   local cx, cy = math.floor(w / 2), math.floor(h / 2)            -- crosshair at the exact screen centre
   g:color(255, 90, 90, 200)
   g:line(cx - 8, cy, cx + 8, cy, 1); g:line(cx, cy - 8, cx, cy + 8, 1)
   g:color()
+end
+
+-- 026.2: the bound check's toggle (forward-declared far above, next to the slash command that calls it). ON
+-- builds a pool of STRESS_POOL distinct strings and lets drawHud feed STRESS_PER_FRAME of them per frame to
+-- the cache; OFF drops the pool -- the entries it left behind are not freed here, they simply age out of the
+-- LRU as normal drawing reuses it, which is itself worth watching in `:hello textcache`.
+textcacheStress = function()
+  if stressPool then
+    stressPool, stressAt = nil, 0
+    return (":hello textcache stress -> OFF (the %d entries it pushed in stay until the LRU ages them out --"
+      .. " watch `:hello textcache` entries fall back as normal drawing reuses the cache)"):format(STRESS_POOL)
+  end
+  stressPool = {}
+  for i = 1, STRESS_POOL do stressPool[i] = ("stress line %d of %d -- distinct by construction"):format(i, STRESS_POOL) end
+  stressAt = 0
+  return (":hello textcache stress -> ON: %d distinct strings, %d drawn per frame at alpha 0 (invisible, but"
+    .. " rasterised and cached for real). Watch `:hello textcache`: entries climb to the cap and STOP, bytes"
+    .. " stop with them, evictions start counting. FPS will drop hard while it runs -- %d fresh rasterisations"
+    .. " a frame IS the pre-026 cost, which is the point. `:hello textcache stress` again turns it off.")
+    :format(STRESS_POOL, STRESS_PER_FRAME, STRESS_PER_FRAME)
 end
 
 -- 2b: WORLD-SPACE gob overlay (hafen.ui.gobOverlay). filter(gob) selects gobs (here: players — :isplayer()

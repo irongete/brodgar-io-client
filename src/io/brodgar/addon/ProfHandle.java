@@ -52,7 +52,9 @@ import java.util.Map;
  * {@code :render()} (019.3) answer whether profiling is armed or not, because every number in them is one
  * the client counts anyway and then formats into a {@code :stats on} string. 019.3 adds structured getters
  * beside those strings rather than re-counting anything, so there is one source of truth with the HUD and
- * no cost when disarmed. The frame surface above is the opposite: it exists only while armed.
+ * no cost when disarmed. The frame surface above is the opposite: it exists only while armed. {@code :textcache()}
+     * (026.2) joins them on the same terms: the text cache counts its own hits and bytes in order to bound
+     * itself, so reading them needs nothing armed.
  *
  * <p>Task 019.2 ships {@code :frame()}, {@code :history(n)} and {@code :reset()}; 019.3 the four counters;
  * 019.4 {@code :addons()} plus {@code :scope()}/{@code :measure()}; 019.5 {@code :widgets()}.
@@ -190,6 +192,15 @@ public final class ProfHandle {
         m.set("render", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 return render();
+            }
+        });
+
+        // p:textcache() -- the rendered-text cache behind g:text/g:atext (026). Pull-only like the four above:
+        // it answers with profiling OFF, because nothing in it is a probe -- the cache keeps these numbers to
+        // bound ITSELF, and this only reads them. Per addon, so the top level is the CALLER's own cache.
+        m.set("textcache", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return textcache(owner);
             }
         });
 
@@ -417,6 +428,64 @@ public final class ProfHandle {
                 t.set("drawSlots", LuaValue.valueOf(ds));
         }
         return t;
+    }
+
+    // ------------------------------------------------------------------------- the text cache (026.2)
+
+    /**
+     * {@code p:textcache()} — the rendered-text cache {@code g:text}/{@code g:atext} draw through (026). The
+     * cache is <b>per addon</b>, so the top level is the <b>calling</b> addon's own: {@code entries},
+     * {@code bytes} (GL texture bytes held), {@code hits}, {@code misses}, {@code evictions} and
+     * {@code hitRate} (absent until something has been looked up — an absent key is "not measured", which a 0
+     * would not be, D-050), plus {@code maxEntries}/{@code maxBytes}, the two caps it is bounded by. A count
+     * without its ceiling says nothing, which is why the caps are in the table rather than only in the source.
+     *
+     * <p>{@code total} is the same five figures summed across <b>every</b> Lua owner (the loaded addons plus
+     * the {@code :lua} REPL), with {@code owners} saying how many were summed. That is the leak check: disable
+     * every addon and {@code total.bytes} goes to ~0, because teardown drops each cache and disposes its
+     * textures. It is also the only view a console snippet has of somebody else's cache.
+     *
+     * <p><b>Pull-only</b> (D-051): this answers whether profiling is armed or not, like {@code p:memory()} and
+     * the other three counters — every number is one the cache maintains anyway in order to bound itself, and
+     * reading it costs one lock and five field reads. The counters are <b>cumulative since the addon loaded</b>;
+     * a {@code :reload} builds a fresh {@link Addon} and therefore a fresh cache and a fresh count.
+     *
+     * <p><b>How to read a miss.</b> A miss is not a fault: it is a string that had never been drawn in that
+     * font at that font generation, and it costs exactly what every draw cost before 026. A line whose text
+     * changes every frame therefore misses every frame and always will — budget a live readout by how often
+     * its <i>text</i> changes, not by how many lines it has.
+     */
+    private static LuaTable textcache(Addon owner) {
+        LuaTable t = new LuaTable();
+        if(owner != null)
+            fillTextcache(t, owner.texts.entries(), owner.texts.bytes(),
+                          owner.texts.hits(), owner.texts.misses(), owner.texts.evictions());
+        t.set("maxEntries", LuaValue.valueOf(LuaGOut.Cache.MAXENTRIES));
+        t.set("maxBytes", LuaValue.valueOf((double)LuaGOut.Cache.MAXBYTES));
+        long entries = 0, bytes = 0, hits = 0, misses = 0, evictions = 0;
+        List<Addon> owners = AddonManager.profOwners();
+        for(int i = 0; i < owners.size(); i++) {
+            LuaGOut.Cache c = owners.get(i).texts;
+            entries += c.entries();  bytes += c.bytes();
+            hits += c.hits();  misses += c.misses();  evictions += c.evictions();
+        }
+        LuaTable all = new LuaTable();
+        fillTextcache(all, entries, bytes, hits, misses, evictions);
+        all.set("owners", LuaValue.valueOf(owners.size()));
+        t.set("total", all);
+        return t;
+    }
+
+    /** The five figures of one cache (or of the sum), plus the hit rate when there has been a lookup at all. */
+    private static void fillTextcache(LuaTable t, long entries, long bytes, long hits, long misses, long evictions) {
+        t.set("entries", LuaValue.valueOf((double)entries));
+        t.set("bytes", LuaValue.valueOf((double)bytes));
+        t.set("hits", LuaValue.valueOf((double)hits));
+        t.set("misses", LuaValue.valueOf((double)misses));
+        t.set("evictions", LuaValue.valueOf((double)evictions));
+        long look = hits + misses;
+        if(look > 0)
+            t.set("hitRate", LuaValue.valueOf((double)hits / (double)look));
     }
 
     // ------------------------------------------------------------------------- per-addon cost (019.4)
