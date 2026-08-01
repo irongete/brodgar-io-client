@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.Coord;
+import haven.Fonts;
 import haven.GOut;
 import haven.Indir;
 import haven.Loading;
@@ -11,6 +12,9 @@ import haven.Text;
 import haven.render.Model;
 
 import java.awt.Color;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.luaj.vm2.LuaTable;
@@ -61,8 +65,139 @@ final class LuaGOut {
         return stockRich;
     }
 
+    /* ---- the rendered-Text cache (026.1) ------------------------------------------------------------------
+     *
+     * `g:text`/`g:atext` are immediate-mode, and both paths used to end render -> tex() -> blit -> dispose EVERY
+     * FRAME (the fast path inside GOut.atext, the rich path explicitly) -- ~0.28 ms per line (019.8), i.e. ~50x
+     * the cost of geometry. A client Label dodges that by HOLDING its rendered Text and rebuilding only when
+     * Fonts.gen() moves; an addon cannot, because it has no handle to hold. So the wrapper holds it for them:
+     * a per-addon, content-keyed, bounded LRU of the rendered Text + its Tex. No API change, no addon edit.
+     *
+     * Deliberately NOT in the key: the COLOUR. blitText applies it as a chcolor tint around the blit and the rich
+     * path rasterises glyphs white (F2), so one string in two colours is ONE entry.
+     *
+     * Deliberately IN the key: Fonts.gen(). The plan called for one `cachegen` compared against it, dropping
+     * everything when it moved -- the Label model. That is wrong HERE, because Fonts.gen() is not a frame-global:
+     * while a per-instance font frame is open (F5, `node:setFont`, Widget.draw's child loop) it carries that
+     * override's stamp, so it differs BETWEEN draw sites within a single frame. A drop-on-move cache would then
+     * clear itself on every alternation -- worse than no cache. As a key component it costs the same one int and
+     * is correct under F5: an override install/move/reset simply lands on fresh keys and the stale generation's
+     * entries fall out of the LRU. (`:hello node` is exactly this case, so it is not hypothetical.)
+     */
+    static final class Cache {
+        /* Provisional caps -- 026.2 tunes them with real numbers, and they live here so that is a one-line edit. */
+        private static final int  MAXENTRIES = 512;
+        private static final long MAXBYTES   = 16L << 20;   // 16 MiB of GL texture
+
+        /** The LRU itself, in ACCESS order (`true`) so `removeEldest` below is genuinely least-recently-used. */
+        private final Map<Key, Entry> live = new LinkedHashMap<Key, Entry>(64, 0.75f, true);
+        private long bytes;
+        /* Pull-only counters for hafen.client:profiling():textcache() (026.2). Plain longs, UI thread only. */
+        long hits, misses, evictions;
+
+        /** The cached {@link Tex} for {@code k}, or {@code null} (a miss — the caller renders and {@link #put}s). */
+        synchronized Tex get(Key k) {
+            Entry e = live.get(k);
+            if(e == null) {
+                misses++;
+                return null;
+            }
+            hits++;
+            return e.tex;
+        }
+
+        /** Adopt a freshly rendered {@code t}/{@code tex} under {@code k}, then evict down to the caps. */
+        synchronized void put(Key k, Text t, Tex tex) {
+            Coord sz = tex.sz();
+            long b = 4L * Tex.nextp2(sz.x) * Tex.nextp2(sz.y);
+            Entry old = live.put(k, new Entry(t, tex, b));
+            bytes += b;
+            if(old != null) {                       // cannot normally happen (we only put on a miss), but stay exact
+                bytes -= old.bytes;
+                old.text.dispose();
+            }
+            trim();
+        }
+
+        /** Drop the least-recently-used entries until both caps hold, disposing each. Never drops the newcomer. */
+        private void trim() {
+            while(((live.size() > MAXENTRIES) || (bytes > MAXBYTES)) && (live.size() > 1)) {
+                Iterator<Map.Entry<Key, Entry>> it = live.entrySet().iterator();
+                Entry e = it.next().getValue();     // access-order head = least recently used
+                it.remove();
+                bytes -= e.bytes;
+                e.text.dispose();
+                evictions++;
+            }
+        }
+
+        /** Drop and dispose everything (teardown: disable / {@code :reload} / session init). */
+        synchronized void clear() {
+            for(Entry e : live.values())
+                e.text.dispose();
+            live.clear();
+            bytes = 0;
+        }
+
+        /** Live entry count / total texture bytes — the 026.2 readers. */
+        synchronized int entries() {return live.size();}
+        synchronized long bytes()  {return bytes;}
+    }
+
+    /**
+     * A cache key: the string, the {@link FontHandle} it renders through (by IDENTITY — handles are immutable and
+     * interned per load) and the {@link Fonts#gen()} in force at the draw. Whether the string takes the fast or
+     * the rich path is a pure function of {@code (str, font)}, so the path is not a separate component.
+     */
+    static final class Key {
+        private final String str;
+        private final FontHandle font;
+        private final int gen;
+        private final int hash;
+
+        Key(String str, FontHandle font, int gen) {
+            this.str = str;
+            this.font = font;
+            this.gen = gen;
+            this.hash = (str.hashCode() * 31 + System.identityHashCode(font)) * 31 + gen;
+        }
+
+        public int hashCode() {return hash;}
+        public boolean equals(Object o) {
+            if(!(o instanceof Key))
+                return false;
+            Key k = (Key)o;
+            return (k.hash == hash) && (k.gen == gen) && (k.font == font) && k.str.equals(str);
+        }
+    }
+
+    /** One cached rendering. We are the ONLY disposer of this {@link Text} (a double dispose leaks, see plan). */
+    private static final class Entry {
+        final Text text;
+        final Tex  tex;
+        final long bytes;
+
+        Entry(Text text, Tex tex, long bytes) {
+            this.text = text;
+            this.tex = tex;
+            this.bytes = bytes;
+        }
+    }
+
+    /** Teardown (disable / {@code :reload}): drop this addon's cached text and free its GL textures. */
+    static void teardownTexts(Addon a) {
+        if(a != null)
+            a.texts.clear();
+    }
+
     /** The live {@link GOut} during the current draw callback, else {@code null} (the wrapper is then inert). */
     private GOut cur;
+    /**
+     * The addon whose draw callback is running (026.1) — the owner of the {@link Cache} {@code g:text} renders
+     * through. Set per draw callback beside {@link #cur}; {@code null} only defensively (then every draw
+     * re-rasterises, the pre-026 behaviour).
+     */
+    private Addon owner;
     /**
      * The widget's default font (F2), from {@code hafen.ui.window}/{@code widget}{@code {font=h}} — the base font
      * for {@code g:text}/{@code g:atext} when a call gives no per-call {@code opts.font}. {@code null} for a widget
@@ -77,18 +212,22 @@ final class LuaGOut {
         this.table = build();
     }
 
-    /** Bind the live {@code GOut} for one draw callback (no widget default font) and return the {@code g} table. */
-    LuaTable bind(GOut g) {
-        return bind(g, null);
+    /**
+     * Bind the live {@code GOut} for one draw callback of {@code owner} (no widget default font) and return the
+     * {@code g} table. The owner is the text cache's (026.1) — every draw site knows it, so it is not optional.
+     */
+    LuaTable bind(GOut g, Addon owner) {
+        return bind(g, owner, null);
     }
 
     /**
      * Bind the live {@code GOut} for one draw callback with a widget default font ({@code null} = none) and return
      * the {@code g} table to hand to Lua. The default font is the base for {@code g:text}/{@code g:atext} calls
-     * that pass no per-call {@code opts.font} (F2).
+     * that pass no per-call {@code opts.font} (F2); {@code owner} owns the rendered-text cache (026.1).
      */
-    LuaTable bind(GOut g, FontHandle def) {
+    LuaTable bind(GOut g, Addon owner, FontHandle def) {
         this.cur = g;
+        this.owner = owner;
         this.defFont = def;
         return table;
     }
@@ -96,6 +235,7 @@ final class LuaGOut {
     /** Invalidate the wrapper after a draw callback (no stashing — see the class note). */
     void unbind() {
         this.cur = null;
+        this.owner = null;
         this.defFont = null;
     }
 
@@ -272,6 +412,12 @@ final class LuaGOut {
      * A colour {@code opts.color} (else the handle's load-time colour) is applied as a temporary draw colour around
      * the blit (saved/restored) so it composes exactly like {@code g:color}. Malformed markup falls back to the
      * literal string via the fast path — never throwing into the render thread (the forgiving {@code g} contract).
+     *
+     * <p><b>Both paths now go through the {@link Cache}</b> (026.1). The fast path therefore no longer calls
+     * {@link GOut#atext}: it does that method's own three lines ({@link Text#render(String)} &rarr; {@code tex()}
+     * &rarr; {@code aimage}) minus the {@code dispose()}, so it is behaviour-identical by construction rather than
+     * by inspection. On a miss we render, adopt the {@link Text} into the cache and blit it; on a hit we blit the
+     * held {@link Tex}. Nothing else about the call changes — same anchors, same tint, same fallback.
      */
     private void drawText(GOut d, String str, int x, int y, double ax, double ay, LuaValue opts) {
         if(str == null)
@@ -290,41 +436,57 @@ final class LuaGOut {
             col = fh.color;
         Coord c = Coord.of(x, y);
 
-        boolean markup = str.indexOf('$') >= 0;
-        if((fh == null) && !markup) {                      // fast path: stock text, optional tint
-            blitText(d, null, str, c, ax, ay, col);
+        Cache cache = (owner != null) ? owner.texts : null;
+        Key k = (cache != null) ? new Key(str, fh, Fonts.gen()) : null;
+        Tex T = (cache != null) ? cache.get(k) : null;
+        if(T != null) {                                    // hit: blit the Text we already hold
+            blitText(d, T, c, ax, ay, col);
             return;
         }
-        RichText.Foundry f = (fh != null) ? fh.rich(Text.std.font.getSize()) : stockRich();
-        Text t;
-        try {
-            t = f.render(str, 0);                          // width 0 = single line, no wrap ($font/$col/… honoured)
-        } catch(RuntimeException e) {                      // malformed markup ($/{}/\) → draw it literally, never throw
-            blitText(d, null, str, c, ax, ay, col);
-            return;
-        }
-        Tex T = t.tex();
-        try {
-            blitText(d, T, null, c, ax, ay, col);
-        } finally {
-            T.dispose();                                   // matches GOut.atext's render→tex→blit→dispose lifecycle
+        Text t = render(str, fh);                          // miss: rasterise once (fast or rich path, per the key)
+        T = t.tex();
+        if(cache != null) {
+            cache.put(k, t, T);                            // the cache owns it from here — it is the only disposer
+            blitText(d, T, c, ax, ay, col);
+        } else {                                           // no owner (defensive): the pre-026 per-frame lifecycle
+            try {
+                blitText(d, T, c, ax, ay, col);
+            } finally {
+                t.dispose();
+            }
         }
     }
 
     /**
-     * Blit either a pre-rendered {@link Tex} ({@code tex != null}) or a stock-rendered string ({@code str}) at
-     * {@code c} with anchor {@code ax,ay}, under an optional colour tint ({@code col}) saved/restored around the
-     * draw. The stock-string branch is the untouched {@link GOut#atext} path (F1 default provider).
+     * Rasterise one {@code g:text} string, choosing the path exactly as before (026.1): no font handle and no
+     * {@code $} markup &rarr; the stock {@link Text#render(String)} (the body of {@link GOut#atext}, which routes
+     * through the F1 {@code "default"} provider); otherwise a {@link RichText.Foundry} — the handle's cached one
+     * ({@link FontHandle#rich}; never {@code derive}, see fonts.md) or {@link #stockRich()}. Malformed markup falls
+     * back to the literal string through the stock path, so it lands in the cache under the same key that produced
+     * it and never throws into the render thread.
      */
-    private static void blitText(GOut d, Tex tex, String str, Coord c, double ax, double ay, Color col) {
+    private static Text render(String str, FontHandle fh) {
+        if((fh == null) && (str.indexOf('$') < 0))
+            return Text.render(str);
+        RichText.Foundry f = (fh != null) ? fh.rich(Text.std.font.getSize()) : stockRich();
+        try {
+            return f.render(str, 0);                       // width 0 = single line, no wrap ($font/$col/… honoured)
+        } catch(RuntimeException e) {                      // malformed markup ($/{}/\) → draw it literally, never throw
+            return Text.render(str);
+        }
+    }
+
+    /**
+     * Blit a rendered text {@link Tex} at {@code c} with anchor {@code ax,ay}, under an optional colour tint
+     * ({@code col}) saved/restored around the draw — the tail of {@link GOut#atext} (its {@code aimage}), which is
+     * why the colour is not part of the cache key: it is applied HERE, per call, on a shared white raster.
+     */
+    private static void blitText(GOut d, Tex tex, Coord c, double ax, double ay, Color col) {
         Color save = (col != null) ? d.getcolor() : null;
         if(col != null)
             d.chcolor(col);
         try {
-            if(tex != null)
-                d.aimage(tex, c, ax, ay);
-            else
-                d.atext(str, c, ax, ay);
+            d.aimage(tex, c, ax, ay);
         } finally {
             if(save != null)
                 d.chcolor(save);

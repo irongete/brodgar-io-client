@@ -126,6 +126,7 @@ public final class AddonRegistry {
         HttpApi.teardownRequests(a);  // N2a: cancel in-flight HTTP requests (result discarded on drain; no callback)
         FontApi.teardownFonts(a);     // F1: revert this addon's font overrides on every scope (bumps gen -> stock foundry restored)
         LuaSound.teardownSounds(a);   // 024.2: silence anything the addon left in the air (a disabled addon making noise is a bug)
+        LuaGOut.teardownTexts(a);     // 026.1: drop the addon's cached g:text renderings (frees their GL textures — we own them)
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
         a.subs.clear();
@@ -187,6 +188,7 @@ public final class AddonRegistry {
         addons.clear();
         LuaGOut.clearResourceCache();                // U1/D-039: drop the g:resource name cache on reload
         LuaSound.teardownSounds(AddonManager.consoleOwner);  // 024.2: the REPL survives a reload, its clips do not
+        LuaGOut.teardownTexts(AddonManager.consoleOwner);    // 026.1: ...nor does its cached text (same reason)
         loadAll();                                   // re-scan disk + enabled set; re-run; fire OnLoad
         if(gui() != null) {                          // already in-world → re-init as a fresh login
             StoreApi.restorePerChar();                        // reload per-char saved vars (charScope still valid)

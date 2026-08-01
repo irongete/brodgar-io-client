@@ -112,7 +112,7 @@ public final class LuaWidget extends Widget implements DropTarget {
 
     public void draw(GOut g) {
         if(!dead && (onDraw != null)) {
-            LuaTable gt = gwrap.bind(g, defaultFont);   // F2: g:text with no per-call font uses this widget's font=
+            LuaTable gt = gwrap.bind(g, owner, defaultFont);   // F2: g:text with no per-call font uses this widget's font=
             try {
                 AddonManager.callLua(owner, Addon.C_DRAW, onDraw, gt, LuaValue.valueOf(sz.x), LuaValue.valueOf(sz.y));
             } finally {

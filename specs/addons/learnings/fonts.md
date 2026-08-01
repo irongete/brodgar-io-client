@@ -218,3 +218,11 @@
   addon only needs a **boolean** saying whether the sweep is worth doing.
 - **(F5) `Widget` has no `equals`/`hashCode` — so a `WeakHashMap` keyed on it is an identity map for free.** Worth
   knowing before reaching for a hand-rolled weak identity map.
+- **(026.1) `Fonts.gen()` is a per-SITE value, not a frame-global — so it keys a shared cache, it does not clear
+  one.** F5 made `gen()` report `gen ^ spec.stamp` *while a per-instance frame is open*, which is exactly what a
+  single widget's `gen != mygen` compare wants. But a cache shared by several draw sites (`LuaGOut`'s, spanning a
+  widget inside a `node:setFont` frame, a HUD overlay outside one, and a gob overlay) sees that value **alternate
+  within one frame**: the `Label`-style "generation moved ⇒ drop everything" rule would then clear the cache on
+  every alternation and be strictly worse than no cache. Making the generation a **component of the key** costs the
+  same single `int` per draw, is correct under F5 for free, and lets the stale generation's entries fall out of the
+  LRU on their own. Rule of thumb: a generation counter that carries *context* can be keyed on, never cleared on.

@@ -15,10 +15,18 @@
 | DPI sizing | [`UI.scale(float)`](src/haven/UI.java:982) — every produced size passes through it |
 | ~81 baked `Foundry` sites | across 36 files (`Label`, `ChatUI`, `SListMenu`, `CharWnd`, `Button`, `FlowerMenu`, …) — route **per slice**, never all at once |
 | Custom-TTF load | `Font.createFont(TRUETYPE_FONT, file)` (built-ins from `Text.*`); [`Resource.Font`](src/haven/Resource.java) is the resource-backed path |
+| **`Text` → GPU** | [`Text.tex()`](src/haven/Text.java:400) lazily wraps the `BufferedImage` in a `TexI` and **memoises it**; [`Text.dispose()`](src/haven/Text.java:406) forwards to it. A `Text` is therefore two allocations: the AWT raster (kept) and the texture |
+| **The immediate-mode blit** | [`GOut.atext`](src/haven/GOut.java:212) = `Text.render` → `tex()` → `aimage` → `dispose()`, **all four per call, every frame**; `GOut.text` is `atext(…,0,0)`. Drop the `dispose()` and you have the `Label` pattern |
+| **`TexI` GL side** | [`st()`](src/haven/TexI.java:59) uploads **lazily on first render** (so building a `TexI` is free of GL); [`dispose()`](src/haven/TexI.java:117) drops the `ColorTex` and nulls it — but `st()` would silently **re-upload**, so a double-free shows up as a slow leak, never a crash. Size is `Tex.nextp2`-rounded ([`tdim`](src/haven/TexI.java:44)): bytes = `4·nextp2(w)·nextp2(h)`, not `4·w·h` |
 
 ## Gotchas
 
 - A foundry is captured at construction: a site that caches its `Text` must be told to rebuild
   (generation counter) — changing the provider alone does nothing.
+- **`Fonts.gen()` is not frame-global.** While a per-instance frame is open (F5, `node:setFont` —
+  `Widget.draw`'s child loop) it XORs in that override's `Spec.stamp`, so it differs *between draw
+  sites within one frame*. Fine for the `gen != mygen` compare each site does on its own `Text`;
+  **wrong as a global "clear everything" trigger** for a cache shared by several sites, which would
+  then clear on every alternation. Use it as a key component there (026.1).
 - Some text surfaces live in published `.res` code, not in the fork — check before assuming a
   class exists (see the kin-names row).

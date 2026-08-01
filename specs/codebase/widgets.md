@@ -68,5 +68,7 @@ hence the cached `next`.
 - **Nothing 2D is cached across frames**: [`drawp`](src/haven/GOut.java:223) builds `Model`+`VertexArray`+`float[]`
   per call, [`image(BufferedImage)`](src/haven/GOut.java:80) a whole `TexI`, [`atext`](src/haven/GOut.java:212) is
   render→tex→blit→dispose **per call** (a `Label` dodges it by holding its `Text`; immediate-mode cannot).
+  Still true of `haven` — **no longer true of addon text**: `LuaGOut` holds the rendered `Text` behind
+  `g:text`/`g:atext` in a per-addon bounded LRU (026.1), so that path no longer calls `atext` at all.
 - Sums to <1 MB/frame while `UILoop.framealloc` reads **~11 MB** — the bulk is **not** here. `haven/render/gl`
   (`BGL` = one `Command` per GL call; `GLDrawList` = incremental) has **no subsystem file**: pay that toll first.

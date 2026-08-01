@@ -279,6 +279,16 @@ public final class Addon {
     final LuaBuff.Cache buffs = new LuaBuff.Cache(this);
 
     /**
+     * This addon's <b>rendered-text cache</b> ({@code g:text}/{@code g:atext}, spec {@code 026-text-cache}): the
+     * bounded LRU of {@code (string, font handle, Fonts.gen()) → the rendered Text + its Tex}, so an immediate-mode
+     * draw stops re-rasterising and re-uploading the same line every frame. Per-addon like every other cache here
+     * — one addon cannot evict another's entries, and {@link LuaGOut#teardownTexts} drops it (disposing the GL
+     * textures, which we own) on {@code :reload}/disable. Unlike the intern caches this one holds STRONG values on
+     * purpose: it is a cache, not an identity map, and it is bounded by entry count and texture bytes instead.
+     */
+    final LuaGOut.Cache texts = new LuaGOut.Cache();
+
+    /**
      * The single {@code hafen.player()} object for this addon ({@code Player} by composition, D-046) — built
      * lazily by {@code CharApi.installPlayer} and cached so {@code hafen.player() == hafen.player()}. Per-addon
      * for the same reason as {@link #gobs}.

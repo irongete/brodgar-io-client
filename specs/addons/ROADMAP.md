@@ -57,16 +57,17 @@ handle staying, or is it addon machinery wearing a generic name? Constraints: ze
 `docs/addons/api/` edits, `addon` itself stays **flat** (16 package-private classes), and anything that must
 widen to `public` purely to survive the move is evidence against that move.
 
-## Text rendering cost for addon-drawn UI — [016-fonts/](016-fonts/), `LuaGOut`
-019.8 measured it: `g:text` re-rasterises a texture **every frame** (render→tex→blit→dispose,
-[`LuaGOut.drawText`](src/io/brodgar/addon/LuaGOut.java:298)), ~0.28 ms per line, which is ~50x the cost of
-geometry — the profiler window's own data: 360 primitives = 0.11 ms vs ~20 text lines = 5.6 ms. Every
-text-drawing addon pays it. Two shapes were weighed and **neither is decided**: an engine-side LRU cache keyed
-by (string, font, markup) — invisible, but it misses on exactly the strings a live readout changes every frame,
-and it brings a cap/eviction/invalidation policy plus the first hidden state in the `g` wrapper; or an explicit
-**text handle** the addon builds once and blits (what a client `Label` does), which removes the policy entirely
-because only the addon knows what is static. Whichever wins needs a spec, a measured before/after, and it
-touches every addon's draw path.
+## Per-frame cost of the addon layer's polling suite — `AddonManager.tick`, `CharApi`
+Found while diagnosing 026: the tick's poll stage runs **whether or not any addon is loaded** —
+`AddonManager.init` attaches the tick pump and registers the 9 tree adapters unconditionally, with no
+`addons.isEmpty()` guard anywhere. So a client with every addon disabled still pays, every frame:
+`ActionbarAdapter.poll()` walking all 144 belt slots and allocating a Lua snapshot per occupied slot,
+`EquipAdapter`/`StudyAdapter`/`WoundAdapter` rebuilding a full snapshot and deep-comparing it, plus
+`pollModels`/`pollMarkers`. None of it is the enabled-vs-disabled delta (it is constant in both), which
+is why 026 does not touch it — but it is unmeasured constant cost on every frame of every session. The
+obvious shape is gating each adapter on whether any addon actually subscribes to its event (the
+`hasSub` test already used by `fireGob`/`fireKin`/`fireSlot`/`fireBuff`), which would also make the
+zero-addon case free. Wants the 019 profiler pointed at it first — measure, then gate.
 
 ## Allocation profiling — the natural 019 follow-up — [019-profiling/](019-profiling/)
 019 answers "who costs TIME". Nothing answers "who costs GARBAGE", and the client's own `allocPerFrame`

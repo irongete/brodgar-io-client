@@ -1185,17 +1185,21 @@ final class UiApi {
      * root GOut (absolute screen coords); {@code w,h} are the screen size. On the UI thread (inside UI.draw).
      */
     static void paintHudOverlays(GOut g) {
-        LuaTable gt = hudGout.bind(g);
-        try {
-            LuaValue w = LuaValue.valueOf(g.sz().x), h = LuaValue.valueOf(g.sz().y);
-            for(Addon a : addons) {
+        LuaValue w = LuaValue.valueOf(g.sz().x), h = LuaValue.valueOf(g.sz().y);
+        for(Addon a : addons) {
+            if(a.hudOverlays.isEmpty())
+                continue;
+            // 026.1: bound PER ADDON (it used to wrap the whole loop) — the wrapper now carries the owner of the
+            // g:text cache, and a cache is per-addon.
+            LuaTable gt = hudGout.bind(g, a);
+            try {
                 for(HudOverlay o : a.hudOverlays) {
                     if(o.active)
                         callLua(a, Addon.C_DRAW, o.fn, gt, w, h);
                 }
+            } finally {
+                hudGout.unbind();
             }
-        } finally {
-            hudGout.unbind();
         }
     }
 
@@ -1268,7 +1272,7 @@ final class UiApi {
                     continue;
                 if(!gobFilterMatch(o, gob))
                     continue;
-                LuaTable gt = gwrap.bind(g);
+                LuaTable gt = gwrap.bind(g, a);
                 try {
                     callLua(a, Addon.C_DRAW, o.draw, gt, LuaGob.of(a, gob.id), sx, sy);
                 } finally {
