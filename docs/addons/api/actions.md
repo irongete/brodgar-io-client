@@ -25,7 +25,7 @@ if hafen.act.enabled() then hafen.act.moveTo(x, y) end
 
 The same `actions` permission also gates the per-subsystem write verbs in their own sections:
 [`hafen.speed.set`](speed.md), [`hafen.craft.make`](craft.md),
-[`slot:use`](actionbar.md#write-gated--requires-the-actions-permission), and the kin verbs
+[`slot:use` / `slot:set`](actionbar.md#write-gated--requires-the-actions-permission), and the kin verbs
 [`hafen.kin():add` / `kin:rename`/`setGroup`/`endkin`/`forget`](kin.md#write-gated--requires-the-actions-permission).
 
 > **Modifiers.** Where a verb takes `mods`, it is a bitfield: Shift = 1, Ctrl = 2, Alt = 4 (combine by

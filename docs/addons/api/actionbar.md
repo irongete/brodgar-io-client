@@ -62,6 +62,27 @@ cooldown ticking (that would be every frame); read `:cooldown()` live off the ob
 | Method | Description |
 |---|---|
 | `slot:use([mods])` | activate the slot — exactly a left-click on that button. `mods` is an optional modifier bitfield (Shift=1, Ctrl=2, Alt=4). Returns the `Slot`, so it chains |
+| `slot:set(resourceName)` | assign an action to the slot **by resource name** — exactly what dragging it off the menu grid does. Returns the `Slot`, so it chains |
 
 A ground-targeted ability enters targeting mode when used, just as clicking the button would; supply the
 target with the [MapView action verbs](actions.md). `use` errors on an empty slot — check `:empty()` first.
+
+```lua
+hafen.actionbar(0):set("gfx/hud/act/mine")               -- gated: put "Mine" on the first slot
+hafen.timer.after(0.5, function()                        -- the write lands a beat later (see below)
+  hafen.actionbar(0):use()
+end)
+```
+
+`set` takes the **resource name** of the action — the same string `slot:res()` reads back, so the way to
+learn a name is to put the action on the bar by hand once and read it. It works on any slot, empty or
+occupied (an occupied one is overwritten); a nil, non-string or empty name **raises an error**.
+
+**The write is asynchronous.** `set` sends the assignment to the server, which echoes it back and *then* the
+slot changes — so the very next line still reads the old content, and `:set(...):use()` in one chain would
+activate whatever was there **before**. React to the [`ActionbarChanged`](events.md#character--status-widget-tree-backed)
+event on that slot (or wait a beat, as above) when you need the new action.
+
+An unknown resource name is **silently ignored** by the server, exactly as a drag of something that does not
+exist would be: the slot simply does not change, and no error comes back. There is no way to assign by
+pagina id — those are session-local and opaque to addons.

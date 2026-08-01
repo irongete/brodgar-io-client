@@ -2,7 +2,7 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**Active:** none — `021-actionbar-oop` **DONE** (021.1–021.3: LuaSlot + hard cut, `ActionbarChanged` = a Slot, docs + `hello` contract check). Prior: `020-kin-oop` **DONE** (020.1–020.3: hard cut, Kin ↔ Gob, `KinChanged` = `Kin[]`), `019-profiling` **DONE** (019.1–019.8). **Next:** ROADMAP's OOP migration continues (party/fight/… still flat).
+**Active:** none — `022-actionbar-set` **DONE** (022.1: gated `slot:set(resourceName)`, async write, `walker` demo). Prior: `021-actionbar-oop` **DONE** (021.1–021.3: LuaSlot + hard cut, `ActionbarChanged` = a Slot, docs + `hello` contract check), `020-kin-oop` **DONE** (020.1–020.3: hard cut, Kin ↔ Gob, `KinChanged` = `Kin[]`), `019-profiling` **DONE** (019.1–019.8). **Next:** ROADMAP's OOP migration continues (party/fight/… still flat).
 
 ## Engine & runtime
 - **Engine**: LuaJ embedded (`src/io/brodgar/addon/`); per-addon sandboxed envs (D-017), instruction watchdog + soft
@@ -25,7 +25,7 @@
   `world.gobs`+`g:kin()` = the many-case). **Actionbar (OOP, D-057, 021.1)**: CALLABLE-ONLY — `hafen.actionbar(n)` =
   the Slot at the raw 0-based game index (0..143, OOB throws), `hafen.actionbar()` = the **1-based** array of all 144
   (same interned objects, `#`=144); `slot:index/:empty/:res/:name/:cooldown/:info` + gated `:use([mods])` → self; flat
-  `.slot/.use` GONE; `ActionbarChanged` = the changed **Slot** (`fireSlot`, `hasSub`-gated, 021.2; `hello` re-checks the contract each login, 021.3). **Map** `map.*`: tile/height/grid/gridPos + conversions, grid ids = exact decimal strings.
+  `.slot/.use` GONE; `ActionbarChanged` = the changed **Slot** (`fireSlot`, `hasSub`-gated, 021.2; `hello` re-checks the contract each login, 021.3). **Write (022)**: gated `slot:set(resourceName)` → self = the drag's own `wdgmsg("setbelt", n, "res", …)`; ASYNC (echoed back ⇒ `:set():use()` uses the OLD content — watch `ActionbarChanged`), unknown name silently dropped, no `"pag"`; demo `:walker setbar`. **Map** `map.*`: tile/height/grid/gridPos + conversions, grid ids = exact decimal strings.
   **Player/char**: `hafen.player()` → Player object (`:gob()/:name()/:vitals()/:worldToScreen()`, D-046); `char.*`
   (attrs/food/skills/lp/weight), `time/party/buffs/study.*`, `items.*`. **Gap subsystems** (A1–A11)
   `markers/radar/kin/speed/craft/quests/wounds/fight` — widget-tree adapters. Windows/widgets (`ui.window`/`widget`) +

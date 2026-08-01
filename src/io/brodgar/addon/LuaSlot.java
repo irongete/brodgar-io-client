@@ -47,8 +47,10 @@ import java.util.Map;
  * {@code :empty()}). No {@code :find()} / {@code :list()}: with a fixed dense array there is nothing to look
  * up that {@code hafen.actionbar(n)} does not already answer.
  *
- * <p><b>Writes</b> ({@code :use}) keep the {@code requireActions} gating (D-027/D-028) and drive the client's
- * own {@code Belt.act} (wrap-not-reimplement, D-009); {@code :use} returns <b>self</b> so it chains.
+ * <p><b>Writes</b> ({@code :use}, {@code :set}) keep the {@code requireActions} gating (D-027/D-028) and go
+ * through the client's own paths (wrap-not-reimplement, D-009): {@code :use} drives {@code Belt.act},
+ * {@code :set(resourceName)} sends the very {@code wdgmsg("setbelt", n, "res", name)} a drag from the menu
+ * grid sends ({@code GameUI.Belt.dropthing}). Both return <b>self</b> so they chain.
  *
  * <p><b>Threading.</b> Every read/write runs on the UI thread (addon tick / REPL / timer / slash command);
  * {@code belt[n]} is a plain array read, but the resource-backed fields behind it are {@code Loading}-guarded
@@ -166,7 +168,7 @@ public final class LuaSlot {
     /**
      * The method set. Every reader re-resolves {@code belt[index]} and answers {@code nil} for an empty slot
      * (or before the HUD exists); {@code :index()} and {@code :empty()} are the two that always answer.
-     * {@code :use} is {@code actions}-gated and returns <b>self</b> so it chains.
+     * {@code :use} and {@code :set} are {@code actions}-gated and return <b>self</b> so they chain.
      */
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
@@ -229,6 +231,32 @@ public final class LuaSlot {
                 if(g.beltwdg == null)
                     throw new LuaError("slot:use(): no action-bar widget yet");
                 g.beltwdg.act(n, new MenuGrid.Interaction(1, a.arg(2).optint(0)));
+                return self;
+            }
+        });
+        // set(resourceName) — assign an action to this slot BY RESOURCE NAME: exactly the message dragging that
+        // action off the menu grid onto the bar sends (GameUI.Belt.dropthing -> wdgmsg("setbelt", n, "res",
+        // pag.res().name)), so the server treats it identically. The write lands ASYNCHRONOUSLY (the server
+        // echoes a "setbelt" uimsg back), so the slot still reads the OLD content on the next line; the change
+        // surfaces as an ActionbarChanged on this very Slot. An unknown resource name is simply ignored by the
+        // server — same as a drag of something that does not exist — so there is nothing to report back here.
+        // No "pag" variant: pagina ids are session-local and opaque to addons (022 spec, out of scope).
+        m.set("set", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                AddonManager.requireActions(owner, "slot:set");
+                int n = handle(self, "set").index;
+                LuaValue rv = a.arg(2);
+                if(!rv.isstring())
+                    throw new LuaError("slot:set(resourceName): expected a resource name string, got "
+                        + rv.typename() + " (e.g. slot:set(\"gfx/hud/act/mine\"))");
+                String res = rv.tojstring().trim();
+                if(res.isEmpty())
+                    throw new LuaError("slot:set(resourceName): the resource name is empty");
+                GameUI g = AddonManager.gui();
+                if(g == null)
+                    throw new LuaError("slot:set(): no game UI (not in the world yet)");
+                g.wdgmsg("setbelt", Integer.valueOf(n), "res", res);
                 return self;
             }
         });

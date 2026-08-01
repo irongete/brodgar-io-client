@@ -33,12 +33,14 @@
 --   :walker speed [n]   -- speed.set: select movement speed n=0..3 (crawl/walk/run/sprint; default 2=run). Reversible.
 --   :walker craft [all] -- craft.make: press Craft on the OPEN recipe (add 'all' for Craft All). CONSUMES ingredients!
 --   :walker bar <n>     -- slot:use: activate action-bar slot n (raw 0-based index; read hafen.actionbar(n) first)
+--   :walker setbar <n> <res>  -- slot:set: ASSIGN the action named <res> to slot n (what a drag from the menu
+--                          grid does). Overwrites the slot; right-click it in-game to clear.
 --   :walker kin add <secret>  -- hafen.kin():add: add a kin by the other player's HEARTH SECRET (wdgmsg 'bypwd')
 --   :walker kin <name> group <0..7>|rename <new>|endkin|forget
 --                       -- kin:setGroup/:rename a named kin (reversible), OR the two-step drop: endkin = End
 --                          kinship (stays memorized), then forget = drop the memorized kin from the list
 
-hafen.log("walker loaded (v0.6.0) -- write-actions demo (4d MapView verbs + 4e menu/flower + 4f item + 4g speed/craft/bar/kin)")
+hafen.log("walker loaded (v0.7.0) -- write-actions demo (4d MapView verbs + 4e menu/flower + 4f item + 4g speed/craft/bar/setbar/kin)")
 
 -- At login, confirm we're granted (we only load once YOU enabled us, and we declared the permission).
 hafen.events.on("OnEnterWorld", function()
@@ -53,7 +55,7 @@ hafen.slash.register("walker", function(args)
   local sub = args[1] or "help"
 
   if sub == "help" then
-    hafen.log(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | item | speed | craft | bar | kin")
+    hafen.log(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | item | speed | craft | bar | setbar | kin")
     hafen.log("   walk=moveTo  click=clickGob(right)  use=useItemOn  sel=select  place=place  raw=raw escape hatch")
     hafen.log("   menu=hafen.act.menu(path...)  e.g. ':walker menu lo cs' = log out to char select (reversible)")
     hafen.log("   flower=hafen.act.flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
@@ -62,6 +64,7 @@ hafen.slash.register("walker", function(args)
     hafen.log("   speed [n]=hafen.speed.set(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
     hafen.log("   craft [all]=hafen.craft.make(all)  press Craft on the OPEN recipe (CONSUMES ingredients; 'all'=Craft All)")
     hafen.log("   bar <n>=hafen.actionbar(n):use()  activate action-bar slot n (raw 0-based index)")
+    hafen.log("   setbar <n> <res>=hafen.actionbar(n):set(res)  assign an action by resource name (e.g. gfx/hud/act/mine)")
     hafen.log("   kin add <secret> =add by hearth secret; kin <name> group/rename =kin:setGroup/:rename; endkin =End kinship, forget =drop memorized kin")
     return
   end
@@ -187,6 +190,30 @@ hafen.slash.register("walker", function(args)
     local held = (not slot:empty()) and (slot:name() or slot:res() or "?") or "empty"
     slot:use()                                         -- gated; the belt "act" a left-click on the slot sends
     hafen.log((":walker bar -> hafen.actionbar(%d):use()  [slot holds: %s]"):format(n, held))
+
+  elseif sub == "setbar" then
+    -- 022: slot:set(res): ASSIGN an action to slot n by RESOURCE NAME -- the same wdgmsg("setbelt", n, "res",
+    -- name) dragging that action off the menu grid sends. Overwrites whatever was there (drag it back, or
+    -- right-click the slot to clear), so require BOTH args explicitly. The resource name is the string
+    -- slot:res() reads back: put an action on the bar by hand once and read it to learn the name.
+    local n, res = tonumber(args[2]), args[3]
+    if not n or not res then
+      hafen.log(":walker setbar <n> <res> -> assign a resource-backed action to slot n (0-based)."
+        .. "  e.g. ':walker setbar 5 gfx/hud/act/mine'  (read a name: :lua hafen.actionbar(0):res())")
+      return
+    end
+    local slot = hafen.actionbar(n)                    -- throws if n is outside 0..143
+    local was = (not slot:empty()) and (slot:name() or slot:res() or "?") or "empty"
+    slot:set(res)                                      -- gated; wdgmsg("setbelt", n, "res", res) -- returns self
+    -- The write is ASYNCHRONOUS (the server echoes a "setbelt" back), so the slot still reads the OLD content
+    -- right here -- re-read after a beat to show it landed. An unknown res name is silently ignored (no change).
+    hafen.log((":walker setbar -> hafen.actionbar(%d):set('%s')  [slot held: %s -- sent, watch ActionbarChanged]")
+      :format(n, res, was))
+    hafen.timer.after(0.5, function()
+      local now = (not slot:empty()) and (slot:name() or slot:res() or "?") or "empty"
+      hafen.log((":walker setbar +0.5s -> slot %d now holds: %s%s"):format(n, now,
+        (now == was) and "  (unchanged -- is that resource name right?)" or ""))
+    end)
 
   elseif sub == "kin" then
     -- 4g kin verbs, now on the Kin OBJECT (020-kin-oop): hafen.kin() is the roster (with the gated

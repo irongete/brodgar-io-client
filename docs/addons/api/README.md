@@ -41,7 +41,7 @@ events are in [events](events.md).
 | [`hafen.quests`](quests.md) | quest log |
 | [`hafen.wounds`](wounds.md) | wounds |
 | [`hafen.fight`](fight.md) | combat schools |
-| [`hafen.actionbar`](actionbar.md) | action bar / hotbar (read + gated use) |
+| [`hafen.actionbar`](actionbar.md) | action bar / hotbar (read + gated use/set) |
 
 ### Acting *(gated)*
 

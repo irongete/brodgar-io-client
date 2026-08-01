@@ -282,7 +282,8 @@ end
 -- iteration view, a 1-based array of all 144 Slots, so slot:index() is what gives the game index back.
 -- Reads live per call: :empty()/:res()/:name()/:cooldown() (0..1 on ability slots only, not seconds).
 -- The hotbar streams in a beat after enter-world like the rest of the HUD, so scan at now (often empty)
--- and +3s (populated).
+-- and +3s (populated). The write verbs (:use, and :set(res) since 022) are gated on "actions" — hello
+-- declares none, so it only CHECKS that :set refuses; ':walker setbar <n> <res>' is the working demo.
 local function readActionbar(tag)
   local bar = hafen.actionbar()
   local occupied, first = 0, nil
@@ -305,12 +306,17 @@ local function readActionbar(tag)
     local info = first and first:info()
     local ok = pcall(function() return hafen.actionbar(144) end)   -- 144 is one past the last index
     local flat = hafen.actionbar                              -- the namespace is callable-ONLY: no fields
-    hafen.log(("[%s] actionbar OOP: interned=%s zeroBased=%s info=%s oobThrows=%s flatGone=%s"):format(tag,
+    -- 022: the WRITE verb slot:set(res) is gated on "actions" (D-027/D-028) and hello declares NO permissions,
+    -- so calling it must ERROR before anything reaches the server -- the bar is left untouched. That refusal
+    -- IS the check here; the working write lives in the opt-in `walker` addon (':walker setbar <n> <res>').
+    local okSet = pcall(function() return hafen.actionbar(0):set("gfx/hud/act/mine") end)
+    hafen.log(("[%s] actionbar OOP: interned=%s zeroBased=%s info=%s oobThrows=%s flatGone=%s setGated=%s"):format(tag,
       tostring(bar[1] == hafen.actionbar(0)),
       tostring(bar[1]:index() == 0),
       info and tostring(info.res or info.name) or "none",
       tostring(not ok),
-      tostring((flat.slot == nil) and (flat.use == nil))))
+      tostring((flat.slot == nil) and (flat.use == nil)),
+      tostring(not okSet)))
   end
 end
 

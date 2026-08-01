@@ -144,3 +144,19 @@
   identical wire messages can be distinct user operations, and the client's own vocabulary (D-013), not a CRUD
   template, names the verbs.
 
+- **022 — a write verb that mirrors a DRAG copies the drag's message, and inherits its silence.** `slot:set(res)`
+  sends the exact `wdgmsg("setbelt", n, "res", name)` that `GameUI.Belt.dropthing` sends when you drop a
+  `MenuGrid.Pagina` on the bar (`src/haven/GameUI.java:224`) — wrap-not-reimplement (D-009) applies to the
+  *message* even when there is no client method to call (a drop handler is not callable: it needs a `Pagina`
+  instance an addon has no way to mint). Two consequences the surface must state, not hide: (1) an **unknown
+  resource name is silently ignored** by the server, exactly as a drag of something nonexistent would be — there
+  is no error to report back, only a slot that does not change; (2) the write is **asynchronous** — the server
+  echoes a `setbelt` uimsg back and `GameUI` fills `belt[n]` from the *loader* (`GameUI.java:1367`, a
+  `loader.defer`), so the very next line still reads the OLD content. `:set` returns self so it chains, but
+  `:set(res):use()` activates what was there BEFORE; the honest answer is `ActionbarChanged` on that Slot.
+  The "pag" variant (`setbelt n "pag" id`) is deliberately not exposed: pagina ids are session-local and opaque.
+- **022 — a gated verb's demo belongs in `walker`; `hello` regression-checks the REFUSAL.** `hello` declares no
+  permissions by construction (that is what makes it default-enabled), so a real `:set` call there can only ever
+  throw — a "demo" in `hello` would be testing nothing. The split that already holds for `slot:use`/kin/speed/
+  craft is the rule: `walker` (opt-in, `actions`) does the write, and `hello`'s per-login contract line asserts
+  the gate fires (`setGated=true` via `pcall`). A refusal check is cheap and catches a gate silently going away.
