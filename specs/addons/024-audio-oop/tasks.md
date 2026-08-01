@@ -28,7 +28,7 @@
       puts out of scope. `LuaMusic.java` deleted, `Addon.tracks` and the `hafen.music` wiring removed,
       `haven/Music.java` reverted to pristine. Reasoning + evidence: the revision note in `spec.md`.
 
-- [ ] 024.4 — **Docs, harness, decisions, tolls.** Rewrite `docs/addons/api/audio.md` as a
+- [x] 024.4 — **Docs, harness, decisions, tolls.** Rewrite `docs/addons/api/audio.md` as a
       **sound-only** page (volume-first `:play`, the auto-silence rule) + the `api/README.md` and
       `README.md` rows + the two stale `hafen.sound.play` references in `ghost.md`/`client.md`; the
       page must also state plainly that **there is no `hafen.music`** and why (`haven.Music` = MIDI

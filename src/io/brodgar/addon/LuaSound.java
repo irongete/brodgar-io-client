@@ -366,8 +366,10 @@ public final class LuaSound {
     }
 
     /**
-     * The optional {@code volume} argument shared by {@code sound:play} and (024.3) {@code track:play}:
-     * absent ⇒ {@code 1.0}, a number in {@code 0..1}, anything else a {@link LuaError} naming the method.
+     * The optional {@code volume} argument of {@code sound:play}: absent ⇒ {@code 1.0}, a number in
+     * {@code 0..1}, anything else a {@link LuaError} naming the method. It takes the method name because it
+     * was written to be shared with the Track section, which 024.3 cut (D-058); {@code sound:play} is the
+     * only caller today, and the parameter still buys the caller-accurate message.
      */
     static double volume(LuaValue v, String method) {
         if(v.isnil())

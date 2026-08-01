@@ -94,7 +94,8 @@ Volumes are `0.0`..`1.0` here, not the panel's 0..1000 slider units; a value out
 error. `latency` is milliseconds (what the panel shows), not the sample count the engine stores, and
 writing it reopens the audio output line.
 
-To *play* sounds, see [`hafen.sound` / `hafen.music`](audio.md) — this subsystem only sets levels.
+To *play* sounds, see [`hafen.sound`](audio.md) — this subsystem only sets levels. `ambientVolume` is
+the one that governs the world's ambient loops, i.e. what sounds like background music here.
 
 ## `camera()`
 

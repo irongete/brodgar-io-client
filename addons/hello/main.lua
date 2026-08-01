@@ -70,7 +70,14 @@
 -- name = a search convenience). hello scans it at login (short at first — resources resolve async — then
 -- full at +3s), re-checks the OOP contract, and ':hello actions' dumps the category tree; the verb
 -- pag:use() is a real action, so only the opt-in `walker` fires it (':walker menugrid Dig').
-hafen.log("hello loaded (v0.51.0)")
+
+-- And on 024 AUDIO — hafen.sound is callable-only too: hafen.sound(name) = one interned Sound
+-- (:res/:play([volume])/:stop/:playing/:info), hafen.sound() = the Sounds THIS addon still has in the air,
+-- silenced for it on disable/:reload. The flat hafen.sound.play is gone and hafen.music does not exist at
+-- all (this server has no MIDI content; the "music" you hear is ambient audio, on the ambientVolume slider).
+-- hello checks that contract at login (readSound), pings with ':hello ping' and toggles a long clip through
+-- the live set with ':hello sound'.
+hafen.log("hello loaded (v0.52.0)")
 
 -- LuaJ 3.0.1's string.format is NOT C's: it ignores the PRECISION of %f/%g/%e ("%.3f" prints
 -- 10.852199999987988, the raw double) and the WIDTH of %s ("%-12s" pads nothing); only %d honours a
@@ -395,6 +402,35 @@ local function dumpMenu()                        -- :hello actions -- the action
         c:hotkey() and (" [alt-" .. c:hotkey() .. "]") or ""))
     end
   end
+end
+
+-- 024: AUDIO -- hafen.sound is CALLABLE-ONLY (D-056), one interned Sound object per resource NAME:
+-- hafen.sound(name) is that Sound (:res/:play([volume])/:stop/:playing/:info), hafen.sound() (no argument)
+-- is the array of the Sounds THIS addon still has in the air. Volume is the FIRST argument of the play call
+-- and never state on the Sound (D-059) -- the object is interned and shared, so a stored level would leak
+-- between unrelated uses of the same clip. There is NO :exists() (D-060): a resource name has no lifetime to
+-- go stale, so a bogus name is simply silent (no Lua error). And there is NO hafen.music at all (D-058) --
+-- haven.Music is MIDI, which this server never sends; the "music" you hear is ambient audio, governed by
+-- hafen.client:options():audio():ambientVolume(). This is the contract check, once per login; the audible
+-- live-set demo is ':hello sound' and the ping is ':hello ping'.
+local function readSound(tag)
+  local msg = hafen.sound("sfx/msg")
+  local interned = (msg == hafen.sound("sfx/msg"))            -- D-045: the same name is the same object
+  local okVol = pcall(function() return msg:play(2) end)      -- volume is 0..1; outside it errors by name
+  local okNum = pcall(function() return hafen.sound(1) end)   -- the key is a resource NAME, not a number
+  -- A name that does not resolve never errors INTO LUA (D-060: there is no :exists() to ask first) -- the
+  -- client logs its own "addon: could not play ..." line a beat later, and that line is the expected proof.
+  hafen.sound("no/such/sound/here"):play()
+  local info = msg:info()
+  hafen.log(("[%s] sound: res=%s info={res=%s playing=%s} interned=%s badVolErrors=%s numErrors=%s missSilent=ok live=%d")
+    :format(tag, msg:res(), tostring(info.res), tostring(info.playing),
+      tostring(interned), tostring(not okVol), tostring(not okNum), #hafen.sound()))
+  -- The hard cut (D-013), both halves: the flat hafen.sound.play is gone (hafen.sound is callable, and the
+  -- old field reads as plain nil) and hafen.music is ABSENT ENTIRELY -- not flattened, not stubbed.
+  local okAmb, amb = pcall(function() return hafen.client:options():audio():ambientVolume() end)
+  hafen.log(("[%s] sound contract: flatPlayGone=%s musicGone=%s ambientVolume=%s"):format(tag,
+    tostring(hafen.sound.play == nil), tostring(hafen.music == nil),
+    okAmb and tostring(amb) or "n/a"))
 end
 
 -- A1: map markers via hafen.markers. list()/nearest() read the client's on-disk map DB; each snapshot is
@@ -727,8 +763,10 @@ hafen.events.on("OnEnterWorld", function()
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via the 'bags' key) and it logs") end
   end)
 
-  -- 1c-2: an audible confirmation ping (a client-bundled sound), proving hafen.sound(name):play() works.
+  -- 1c-2 / 024: an audible confirmation ping (a client-bundled sound), proving hafen.sound(name):play()
+  -- works -- plus the whole audio contract, re-checked once per login (024.4). See readSound() above.
   hafen.sound("sfx/msg"):play()
+  readSound("login")
 end)
 
 -- V1+V3: CLIENT-ONLY WORLD GHOSTS (hafen.ghost). A ghost is a virtual prop rendered in the 3D world at world

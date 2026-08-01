@@ -33,7 +33,7 @@ end)
 | **Acting** | [`act`](api/actions.md) *(gated)* · [`menugrid`](api/menugrid.md) |
 | **UI & input** | [`ui`](api/ui.md) · [`ghost`](api/ghost.md) · [`render`](api/render.md) · [`hook`](api/hooks.md) · [`font`](api/fonts.md) · [`client`](api/client.md) |
 | **Data & network** | [`json`](api/json.md) · [`http`](api/http.md) *(gated)* |
-| **Infrastructure** | [`events`](api/events.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash` / `log`](api/console.md) · [`sound` / `music`](api/audio.md) |
+| **Infrastructure** | [`events`](api/events.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash` / `log`](api/console.md) · [`sound`](api/audio.md) |
 
 See [conventions](api/conventions.md), [data types](api/types.md), and the [event catalogue](api/events.md)
 for the cross-cutting rules.

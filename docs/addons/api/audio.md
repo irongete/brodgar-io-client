@@ -1,6 +1,7 @@
-# hafen.sound / hafen.music — audio
+# hafen.sound — audio
 
-Play client sound effects and background music by resource name.
+Play client sound effects by resource name: start them, stop them, and ask what is still sounding.
+This is the whole audio section — there is deliberately no `hafen.music` ([why](#there-is-no-hafenmusic)).
 
 ## hafen.sound(name) — a Sound object
 
@@ -55,15 +56,22 @@ thread, so a not-yet-loaded one never errors into Lua. Client-bundled effect nam
 
 Playback is **ungated** — it is client-local and sends nothing to the server.
 
-## hafen.music
+## There is no `hafen.music`
 
-| Function | Returns | Description |
-|---|---|---|
-| `hafen.music.play(resname [, loop])` | — | play background music; `loop` defaults to `false`. A `nil`/empty `resname` stops playback |
+`hafen.music` is **absent** — not flattened, not stubbed. Indexing it reads as plain `nil`, and that is
+on purpose.
 
-```lua
-hafen.music.play("music/theme", true)
-hafen.music.play(nil)                -- stop music
-```
+The client *does* carry a background-music player (`haven.Music`), but it is a **MIDI** player, and the
+only thing that ever starts it is a `"bgm"` message from the server. This server never sends one: of
+the 132,777 files in a full resource cache, **zero** carry a `midi` layer (36 carry `audio` — all sound
+effects). A `hafen.music` API would therefore answer `nil` forever. It was built to spec, tested
+in-game, and removed whole.
 
-Music streams from content (the remote resource pool), not the client jar.
+What you actually hear as "music" in the world is something else: an **ambient loop**
+(`ActAudio.Ambience`) published by the world resources around you, on the `amb` channel — the same
+mechanism as the crickets, and what Options ▸ Audio ▸ "Ambient volume" governs
+([`hafen.client:options():audio()`](client.md)). That is a render-tree node with a lifetime rather than
+a clip handle, so it does not fit a Sound; if it is ever exposed it will be its own section
+(`hafen.ambience`), not a retrofit here.
+
+To *set* volumes (master, UI, event, ambient), see [`hafen.client:options():audio()`](client.md).

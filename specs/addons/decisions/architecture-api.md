@@ -390,3 +390,40 @@ a clip handle; if it is ever wanted it is **its own feature** (`hafen.ambience`)
 and the reason so nobody re-proposes it.
 **See.** [D-011](architecture-api.md), [D-013](architecture-api.md), [024-audio-oop](../024-audio-oop/spec.md),
 [process-method.md](../learnings/process-method.md), [services.md](../../codebase/services.md).
+
+### D-059 — Playback parameters are call arguments, not entity state ✅ (maintainer, 2026-08-01)
+**Decision.** `sound:play([volume])` takes the volume as the **first argument of the play call**; there is no
+`sound:volume(v)` and a Sound stores no level. Omitted ⇒ `1.0`; outside `0..1` raises a `LuaError` naming the
+method (`AudioOptions`' own convention). The rule generalises: **when an entity is interned, anything that
+describes one *use* of it is an argument, and only what describes the entity itself is state.**
+**Rationale.** Interning (D-045) is what makes `hafen.sound("sfx/msg") == hafen.sound("sfx/msg")` and lets a
+handle be a table key — but it also means two unrelated parts of an addon (or the same addon at two moments)
+hold the *same object*. A stored volume would leak across them: a HUD module dropping its notification blip
+to `0.2` would silently quieten the alarm another module plays from the same clip, with nothing in either
+call site to explain it. The chainable `:volume(0.2):play()` reads nicer in one line and is a bug in two.
+**Consequences.** `:play(0.2)` is one quiet blip and changes nothing for the next caller; `LuaSound.volume`
+is one shared validator taking the method name for the message. The same test applies to every future verb —
+per-call options (a repeat count, a fade, a pan) are arguments; identity is state. The counter-case is the
+*user's* configured level, which is not per-call and correctly lives elsewhere:
+`hafen.client:options():audio()`.
+**See.** [D-013](architecture-api.md), [D-045](../017-gob-oop/plan.md), [D-056](architecture-api.md),
+[D-060](architecture-api.md), [024-audio-oop](../024-audio-oop/spec.md).
+
+### D-060 — `:exists()` belongs to entities with a lifetime, not to name-keyed handles ✅ (maintainer, 2026-08-01)
+**Decision.** A Sound has **no `:exists()`**, breaking the pattern every other entity section follows
+(`gob:exists()`, `kin:exists()`, `pag:exists()`). The rule: `:exists()` is offered **iff** the entity's
+identity is a handle onto something with a lifetime that can end while the addon holds it. A resource name
+has no lifetime, so there is nothing to answer.
+**Rationale.** `:exists()` everywhere else answers *staleness* — the gob left the sight radius, the kin was
+forgotten, the pagina left the menu — which is the one question a stashed handle cannot answer for itself.
+On a Sound it would silently change meaning to "does this resource name resolve", i.e. a typo check, and it
+**cannot answer it honestly**: resources resolve off the UI thread, so a fresh name would report `false`
+until the loader lands and `true` after — a race dressed as a predicate. (My first draft had exactly that.)
+Symmetry with the other sections is not worth a method whose answer is wrong for the first few hundred ms.
+**Consequences.** A bogus name is simply **silent** — `:play()` raises nothing, the client logs one line, and
+Lua never sees the miss; validating a user-configured resource name would need an honest async answer (a play
+callback reporting the resolve), which is out of scope. Read the rule forward: before copying a method across
+sections, check that the *question it answers* still exists there. `hafen.sound()` (the live set) covers what
+addons actually ask — what am I playing right now.
+**See.** [D-045](../017-gob-oop/plan.md), [D-056](architecture-api.md), [D-059](architecture-api.md),
+[024-audio-oop](../024-audio-oop/spec.md), [threading.md](../learnings/threading.md).

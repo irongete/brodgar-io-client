@@ -154,3 +154,11 @@
   `hafen.actionbar(n)` uses, `hafen.actionbar()[1] == hafen.actionbar(0)` is true without any `__eq`
   metamethod, and `seen[slot] = true` works. Worth asserting in the same headless harness: an accidental
   fresh `userdataOf` per call passes every read test and fails only where an addon dedupes.
+- **(024.2) A weakly-interned handle cannot hold state — the state belongs in the cache, keyed the same way.**
+  The intern cache is weak-*valued* on purpose (an addon that drops its Sound must not pin it), so the userdata
+  can be collected and re-minted **while its clip is still sounding**: any `List<Audio.CS>` living on the handle
+  would silently reset mid-playback and `hafen.sound()` would under-count. Playback state therefore sits in a
+  per-`Addon` map keyed by the same resource NAME the intern cache uses, and the handle stays a pure address.
+  **Rule: interned userdata is an identity, not a record.** If a section needs per-entity state that outlives a
+  Lua reference, hang it off the owner keyed by the intern key — and it comes with a bonus, since that map is
+  exactly what the collection form (`hafen.sound()`) and the teardown sweep both need to walk.
