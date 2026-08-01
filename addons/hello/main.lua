@@ -887,20 +887,21 @@ end)
 
 -- 1d-2: buff add/remove/change. Buffs the character already has re-appear as BuffAdded shortly after
 -- enter-world (the bar streams in). Content updates (e.g. a cooldown ticking down a step) fire
--- BuffChanged. Log the first few of each so it does not flood.
+-- BuffChanged. Log the first few of each so it does not flood. Since 025.2 the payload is the Buff
+-- OBJECT, so these read it with colon calls; a removed buff still answers, with :exists() false.
 local buffsSeen = 0
 hafen.events.on("BuffAdded", function(b)
   buffsSeen = buffsSeen + 1
   if buffsSeen <= 5 then
-    hafen.log(("BuffAdded: %s (%s)"):format(tostring(b.name or b.res), tostring(b.res)))
+    hafen.log(("BuffAdded: %s (%s)"):format(tostring(b:name() or b:res()), tostring(b:res())))
   end
 end)
 hafen.events.on("BuffRemoved", function(b)
-  hafen.log(("BuffRemoved: %s"):format(tostring(b.name or b.res)))
+  hafen.log(("BuffRemoved: %s (exists=%s)"):format(tostring(b:name() or b:res()), tostring(b:exists())))
 end)
 hafen.events.on("BuffChanged", function(b)
   hafen.log(("BuffChanged: %s amount=%s cooldown=%s"):format(
-    tostring(b.name or b.res), tostring(b.amount), tostring(b.cooldown)))
+    tostring(b:name() or b:res()), tostring(b:amount()), tostring(b:cooldown())))
 end)
 
 -- 1d-2: FEP/hunger changes. The FEP bar and hunger level stream in as "food"/"glut" updates a beat

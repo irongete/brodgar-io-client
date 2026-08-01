@@ -13,7 +13,7 @@
       Verify in `:lua`: the array matches the HUD, the lookup returns the *same object*, `hafen.buffs`
       is nil, a `Loading` buff answers `:res()` and nil elsewhere without erroring.
 
-- [ ] 025.2 — **The event payloads become the object.** `AddonManager.fireBuff(Buff, event)` beside
+- [x] 025.2 — **The event payloads become the object.** `AddonManager.fireBuff(Buff, event)` beside
       `fireKin`/`fireSlot`: `hasSub`-gated, per-addon interning, UI-thread. `BuffsAdapter` keeps its
       snapshot cache as the change-detection key (`buffEqual`) but fires objects for `BuffAdded`/
       `BuffChanged`/`BuffRemoved`; `refresh`-before-`poll` unchanged. Verify: at login the existing

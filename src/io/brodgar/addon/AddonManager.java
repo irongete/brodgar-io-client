@@ -724,6 +724,29 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
             fireTo(c, "ActionbarChanged", LuaSlot.of(c, index));
     }
 
+    /**
+     * Fire a buff event ({@code BuffAdded}/{@code BuffRemoved}/{@code BuffChanged}) whose payload is a single
+     * <b>Buff object</b> (025.2) — the buff that was just added, dropped or updated. Same shape as
+     * {@link #fireGob}/{@link #fireKin}/{@link #fireSlot}: interning is per-addon (D-045) so the payload cannot
+     * be shared, and it is minted only for an owner that actually subscribes — a login brings the whole bar up
+     * in one burst, so the {@code hasSub} gate is what keeps that free for the addons that don't listen.
+     *
+     * <p>Change <i>detection</i> stays in {@code CharApi}'s buff adapter (the per-buff snapshot diff); the
+     * widget arrives already diffed. The Buff re-reads live, so a handler that stashes one keeps tracking it.
+     * On {@code BuffRemoved} the widget is unlinked but NOT cleared, so the payload still answers
+     * {@code :res()}/{@code :name()}/… and reports {@code :exists()} false — which is the whole reason the
+     * object can replace the snapshot this event used to carry.
+     */
+    static void fireBuff(String event, Buff b) {
+        for(Addon a : addons) {
+            if(hasSub(a, event))
+                fireTo(a, event, LuaBuff.of(a, b));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, event))
+            fireTo(c, event, LuaBuff.of(c, b));
+    }
+
     /** One owner's {@code KinChanged} payload: its own interned Kin objects, in roster order. */
     private static LuaValue kinPayload(Addon owner, int[] ids) {
         LuaTable t = new LuaTable();
@@ -1009,7 +1032,8 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // often nil, NOT seconds)/:number()/:exists()/:info() (the old flat snapshot). A buff fading out
         // after removal is excluded (:exists() false) but still READS — Widget.destroy() does not clear it —
         // which is what makes a stashed BuffRemoved payload useful. Subscribe to BuffAdded/BuffRemoved/
-        // BuffChanged (add/remove detected per-tick; content changes on the buff's "ch"/"tt" uimsg).
+        // BuffChanged (add/remove detected per-tick; content changes on the buff's "ch"/"tt" uimsg) — since
+        // 025.2 all three carry the Buff OBJECT (fireBuff), not a snapshot table.
         CharApi.installBuffs(hafen, owner);
 
         // hafen.actionbar — the action bar / hotbar (the engine calls it the "belt": GameUI.belt, a

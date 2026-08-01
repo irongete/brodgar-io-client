@@ -231,16 +231,20 @@ final class CharApi {
      * remove are widget create/{@code cdestroy}, NOT a {@code uimsg}, so they are detected by
      * <b>poll</b> (diffing {@code children(Buff.class)} each tick against a cache keyed by widget
      * identity); the per-buff {@code "ch"}/{@code "tt"} content updates ARE {@code uimsg}s, so
-     * <b>refresh</b> re-reads the cached buffs and fires {@code BuffChanged}. Fires {@code BuffAdded}/
-     * {@code BuffRemoved}/{@code BuffChanged} with the {@code Buff} snapshot. A buff fading out after a
+     * <b>refresh</b> re-reads the cached buffs and fires {@code BuffChanged}. A buff fading out after a
      * server removal ({@code Buff.dest}) is treated as already gone (excluded), so removal is timely.
      *
      * <p>The reads themselves live on {@link LuaBuff} since {@code 025-buffs-oop} (the entity owns them);
-     * only change <i>detection</i> — the per-buff snapshot diff — is this adapter's business.
+     * only change <i>detection</i> — the per-buff snapshot diff — is this adapter's business. Since 025.2 the
+     * three events carry the <b>Buff object</b> ({@link AddonManager#fireBuff}), so a handler reads the
+     * payload with the same methods as {@code hafen.buff()}. The snapshot stays, purely as the diff KEY: it
+     * is the cheap value-comparable form of the buff, and it is what makes {@code BuffChanged} fire on real
+     * content changes only. It is never handed to Lua any more — {@code buff:info()} is that, on demand.
      */
     private static final class BuffsAdapter implements TreeAdapter {
-        // Active buff -> its last snapshot. UI-thread-only (poll + refresh); reset per session by
-        // re-instantiation in init(). IdentityHashMap: Buff widgets are keyed by object identity.
+        // Active buff -> its last snapshot (the change-detection key, NOT a payload). UI-thread-only (poll +
+        // refresh); reset per session by re-instantiation in init(). IdentityHashMap: Buff widgets are keyed
+        // by object identity.
         private final Map<Buff, LuaValue> cache = new IdentityHashMap<Buff, LuaValue>();
 
         public boolean interested(Widget w, String msg) {
@@ -252,7 +256,7 @@ final class CharApi {
                 LuaValue snap = LuaBuff.snapshot(e.getKey());
                 if(!buffEqual(snap, e.getValue())) {
                     e.setValue(snap);
-                    fire("BuffChanged", snap);
+                    fireBuff("BuffChanged", e.getKey());
                 }
             }
         }
@@ -261,15 +265,17 @@ final class CharApi {
             Set<Buff> active = new LinkedHashSet<Buff>(LuaBuff.actives());
             for(Buff b : active) {                        // additions (unseen buffs)
                 if(!cache.containsKey(b)) {
-                    LuaValue snap = LuaBuff.snapshot(b);
-                    cache.put(b, snap);
-                    fire("BuffAdded", snap);
+                    cache.put(b, LuaBuff.snapshot(b));
+                    fireBuff("BuffAdded", b);
                 }
             }
             for(Iterator<Map.Entry<Buff, LuaValue>> it = cache.entrySet().iterator(); it.hasNext();) {
                 Map.Entry<Buff, LuaValue> e = it.next();  // removals (gone or fading out)
                 if(!active.contains(e.getKey())) {
-                    fire("BuffRemoved", e.getValue());
+                    // The widget is unlinked, not cleared: the payload still answers :res()/:name()/… and now
+                    // reports :exists() false. Fire BEFORE dropping the entry — the map holds nothing the
+                    // payload needs, but the order keeps "the buff the adapter just dropped" literal.
+                    fireBuff("BuffRemoved", e.getKey());
                     it.remove();
                 }
             }

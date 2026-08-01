@@ -176,3 +176,16 @@
   `LuaSound`'s name-keyed one. The needle lookup `hafen.buff("poison")` is therefore a *search
   convenience* over that array (first match wins), not an address — the same shape/role split as
   `hafen.menugrid(displayName)`.
+- **(025.2) When an adapter's payload becomes an object, keep the snapshot as the diff KEY.** The
+  `BuffsAdapter` still holds `IdentityHashMap<Buff, LuaValue>` of `LuaBuff.snapshot(b)` and still
+  diffs it with `buffEqual` — that value-comparable form is exactly what keeps `BuffChanged` from
+  firing every tick. What changed is only that the snapshot is never handed to Lua any more: the
+  three events fire `AddonManager.fireBuff(event, b)` (the widget), and `buff:info()` is the
+  snapshot on demand. Detection and payload are two different jobs; converting an adapter to OOP
+  means replacing the second, not the first. The same split applies to any future poll adapter —
+  an object cache is NOT a substitute for a value cache, because objects are interned per addon and
+  compare by identity, so they can never tell you that *content* changed.
+- **(025.2) Fire `*Removed` before dropping the map entry.** `BuffRemoved` needs nothing from the
+  cache (the `Buff` widget is unlinked, not cleared, so it reads fine after `it.remove()`), but
+  firing first keeps the payload literally "the entry the adapter is dropping" and leaves no window
+  where a handler re-entering the API would see a map the event has not been announced from.
