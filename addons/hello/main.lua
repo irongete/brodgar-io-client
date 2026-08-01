@@ -64,7 +64,13 @@
 -- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
-hafen.log("hello loaded (v0.50.0)")
+-- Built on 023 THE ACTION MENU — hafen.menugrid is the catalogue of everything the character can DO (the 4x4
+-- grid), callable-only: hafen.menugrid() = every entry as interned Pagina objects (+ :find/:roots/:list),
+-- hafen.menugrid(key) = one, keyed by SHAPE ('/' => resource name = the identity, anything else => display
+-- name = a search convenience). hello scans it at login (short at first — resources resolve async — then
+-- full at +3s), re-checks the OOP contract, and ':hello actions' dumps the category tree; the verb
+-- pag:use() is a real action, so only the opt-in `walker` fires it (':walker menugrid Dig').
+hafen.log("hello loaded (v0.51.0)")
 
 -- LuaJ 3.0.1's string.format is NOT C's: it ignores the PRECISION of %f/%g/%e ("%.3f" prints
 -- 10.852199999987988, the raw double) and the WIDTH of %s ("%-12s" pads nothing); only %d honours a
@@ -317,6 +323,77 @@ local function readActionbar(tag)
       tostring(not ok),
       tostring((flat.slot == nil) and (flat.use == nil)),
       tostring(not okSet)))
+  end
+end
+
+-- 023: THE ACTION MENU (the 4x4 "scm" grid) via hafen.menugrid -- the catalogue of everything the character
+-- can DO, OOP from the start and CALLABLE-ONLY: hafen.menugrid() is the whole catalogue (a 1-based array of
+-- interned Pagina objects in the grid's own sort order, plus :find(text) / :roots() / :list()), while
+-- hafen.menugrid(key) is ONE Pagina. The key is always a STRING and splits by SHAPE, not by fallback: it
+-- contains a '/' => a RESOURCE NAME ("paginae/act/dig", the identity and the intern key), anything else =>
+-- a DISPLAY NAME ("Dig"), a search convenience that needs the resource fully loaded and is NOT unique.
+-- Both forms hand back the SAME interned object. A miss is plain nil (unlike hafen.kin(id)); there are NO
+-- positions to address (the catalogue grows on every discovery), so hafen.menugrid(1) ERRORS.
+-- A Pagina reads with :res/:name/:tooltip/:hotkey/:path/:parent/:children/:isnew/:exists/:info, and the
+-- catalogue is flat but COMPLETE -- it holds the categories too, so :parent() always lands on something
+-- readable and "is this a category" is #pag:children() > 0.
+-- Names come from resources that resolve asynchronously, so the "now" scan is typically SHORT (or empty)
+-- and fills in sub-second -- exactly what the two passes below show. The one verb, pag:use(), is a real
+-- game action, so hello (the read-only harness) never calls it: ':walker menugrid <name>' is the demo.
+local function readMenu(tag)
+  local cat = hafen.menugrid()
+  local roots = cat:roots()
+  local first = cat[1]
+  hafen.log(("[%s] menugrid=%d entr(ies), %d root(s), first=%s%s"):format(tag, #cat, #roots,
+    first and tostring(first:name() or first:res()) or "none",
+    first and (" [res=%s hotkey=%s]"):format(first:res(), tostring(first:hotkey())) or ""))
+  if tag == "+3s" and first then
+    -- The OOP contract itself, once per login (on the +3s scan, when the catalogue has filled in): both key
+    -- forms landing on the SAME interned object, a miss being nil in both shapes, a NUMBER key erroring, the
+    -- tree closing (a child's :parent() is in the catalogue and lists it back among its :children()), and
+    -- :info() as the snapshot escape hatch (parent as a RESOURCE NAME there, not an object).
+    local byRes = hafen.menugrid(first:res())
+    local nm = first:name()
+    local byName = nm and hafen.menugrid(nm)
+    local okNum = pcall(function() return hafen.menugrid(1) end)      -- positions are not addresses
+    -- Find any entry that HAS a parent, and check the tree closes both ways on it.
+    local kid, par
+    for _, p in ipairs(cat) do
+      local up = p:parent()
+      if up then kid, par = p, up; break end
+    end
+    local closes = false
+    if kid then
+      for _, c in ipairs(par:children()) do
+        if c == kid then closes = true; break end
+      end
+    end
+    local info = first:info()
+    hafen.log(("[%s] menugrid oop: byRes=%s byName=%s noSuchRes=%s noSuchName=%s numErrors=%s"):format(tag,
+      tostring(byRes == first), tostring((byName == nil) and "n/a" or (byName == first)),
+      tostring(hafen.menugrid("nope/nope")), tostring(hafen.menugrid("NoSuchActionHere")),
+      tostring(not okNum)))
+    hafen.log(("[%s] menugrid tree: %s under %s (closes=%s, %d sibling(s)) | info.res=%s info.parent=%s exists=%s"):format(tag,
+      kid and tostring(kid:name() or kid:res()) or "none",
+      par and tostring(par:name() or par:res()) or "none",
+      tostring(closes), par and #par:children() or 0,
+      tostring((info or {}).res), tostring((info or {}).parent), tostring(first:exists())))
+  end
+end
+local function dumpMenu()                        -- :hello actions -- the action menu as a tree, one login's catalogue
+  local cat = hafen.menugrid()
+  if #cat == 0 then hafen.log(":hello actions -> the action menu is empty (not in the world yet?)"); return end
+  local roots = cat:roots()
+  hafen.log((":hello actions -> %d entr(ies), %d root(s)  [pag:use() fires one -- ':walker menugrid <name>']"):format(#cat, #roots))
+  for _, r in ipairs(roots) do
+    local kids = r:children()
+    hafen.log(("  %s%s  [%s]"):format(tostring(r:name() or r:res()),
+      (#kids > 0) and (" (category, %d)"):format(#kids) or "", r:res()))
+    for i, c in ipairs(kids) do
+      if i > 6 then hafen.log(("      ... and %d more"):format(#kids - 6)); break end
+      hafen.log(("      %s%s"):format(tostring(c:name() or c:res()),
+        c:hotkey() and (" [alt-" .. c:hotkey() .. "]") or ""))
+    end
   end
 end
 
@@ -642,10 +719,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readVitals("now")
-  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now"); readCraft("now"); readQuests("now"); readWounds("now"); readFight("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readMenu("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now"); readCraft("now"); readQuests("now"); readWounds("now"); readFight("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readVitals("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s"); readWounds("+3s"); readFight("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readMenu("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s"); readWounds("+3s"); readFight("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
     if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via the 'bags' key) and it logs") end
   end)
@@ -1196,7 +1273,7 @@ local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-faci
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof | widgets | passes")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof | widgets | passes")
     return
   end
   local sub = args[1]
@@ -1220,6 +1297,8 @@ hafen.slash.register("hello", function(args)
     dumpWounds()                                 -- A9-2: dump the full wound tree (name/severity, indented)
   elseif sub == "fight" then
     dumpFight()                                  -- A10: dump the combat-school deck (by hotkey) + known maneuvers
+  elseif sub == "actions" then
+    dumpMenu()                                   -- 023: dump the ACTION MENU as a tree (roots + their children)
   elseif sub == "ghost" then
     if demoGhost then                            -- V1: TOGGLE a client-only ghost cabin at your position
       demoGhost:destroy(); demoGhost = nil

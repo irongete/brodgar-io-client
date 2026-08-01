@@ -64,6 +64,10 @@ logs out to character select). Tokens are strings; at least one is required.
 > address space — and a path resolves only if that page is currently loaded. Some paths commit real
 > actions. Supply tokens deliberately.
 
+> **Prefer [`hafen.menugrid`](menugrid.md).** It hands you the action menu as objects you can *enumerate*
+> first — `hafen.menugrid("Dig"):use()` — instead of guessing a path, and it reaches the entries that have
+> no path at all (those are invoked by id, which `menu(path...)` cannot express).
+
 ### `hafen.act.flower`
 `flower(label) -> bool` — select a petal of the open radial (flower) context menu by its `label`,
 matched case-insensitively. Returns `true` if a petal matched, `false` if no menu is open or nothing

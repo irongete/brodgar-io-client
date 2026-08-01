@@ -196,3 +196,13 @@
   the assertion still proves the fields are gone, and the grep stays honest. Same trap for any future
   `hafen.<ns>.<field>` cut. Related: the manifest `description` blurb is prose that ALSO matches these greps —
   it has to be rewritten with the API, not just `main.lua`.
+- **(023.3) The harness stays READ-ONLY even when a verb is ungated.** `pag:use()` needs no permission, so
+  nothing *stopped* `hello` from firing an action every login — but `hello` runs on the maintainer's real
+  character on every single login, and a real game action there is a side effect nobody asked for. The rule:
+  `hello` proves the surface *exists and reads correctly*; the firing demo lives in `walker`
+  (`:walker menugrid <name>`), which the maintainer opts into. "Ungated" is about permissions, not about
+  whether the harness should do it.
+- **(023.3) A new `hello` sub-command has to be checked against the ones already there.** `:hello menu` was
+  taken (it is the *font*-scope demo), so the menu-grid tree dump became `:hello actions`. Grep the existing
+  dispatch before naming a sub-command — silently shadowing an old one breaks a prior feature's regression
+  and nothing errors.

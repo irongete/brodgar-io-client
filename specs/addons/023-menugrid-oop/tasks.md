@@ -27,7 +27,7 @@
       wrap-not-reimplement precedent for pagina messages; [`Makewindow.java:375`](src/haven/Makewindow.java:375)
       — the client calling `PagButton.use` from a non-grid widget.
 
-- [ ] **023.3 — Docs, harness, coverage toll**
+- [x] **023.3 — Docs, harness, coverage toll**
       `docs/addons/api/menugrid.md` (new page: the two key forms and why they are not equals, the
       `Loading`/fill-in behaviour, the tree, `:use`), its `api/README.md` index line and the
       `docs/addons/README.md` "API at a glance" row, the `Pagina` type in `types.md`, a cross-ref

@@ -43,11 +43,12 @@ events are in [events](events.md).
 | [`hafen.fight`](fight.md) | combat schools |
 | [`hafen.actionbar`](actionbar.md) | action bar / hotbar (read + gated use/set) |
 
-### Acting *(gated)*
+### Acting
 
 | Section | Purpose |
 |---|---|
 | [`hafen.act`](actions.md) | drive the character — move, click, use items, menus. Requires the `actions` permission |
+| [`hafen.menugrid`](menugrid.md) | the action menu — enumerate every action the character knows, and invoke one |
 
 ### UI & input
 

@@ -30,7 +30,7 @@ end)
 | **World** | [`gob`](api/gob.md) · [`world`](api/world.md) · [`map`](api/map.md) · [`markers`](api/markers.md) · [`radar`](api/radar.md) |
 | **Character** | [`player`](api/player.md) · [`time`](api/time.md) · [`char`](api/char.md) · [`study`](api/char.md#hafenstudy) · [`party`](api/party.md) · [`buffs`](api/buffs.md) |
 | **Subsystems** | [`kin`](api/kin.md) · [`speed`](api/speed.md) · [`craft`](api/craft.md) · [`quests`](api/quests.md) · [`wounds`](api/wounds.md) · [`fight`](api/fight.md) · [`actionbar`](api/actionbar.md) |
-| **Acting** *(gated)* | [`act`](api/actions.md) |
+| **Acting** | [`act`](api/actions.md) *(gated)* · [`menugrid`](api/menugrid.md) |
 | **UI & input** | [`ui`](api/ui.md) · [`ghost`](api/ghost.md) · [`render`](api/render.md) · [`hook`](api/hooks.md) · [`font`](api/fonts.md) · [`client`](api/client.md) |
 | **Data & network** | [`json`](api/json.md) · [`http`](api/http.md) *(gated)* |
 | **Infrastructure** | [`events`](api/events.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash` / `log`](api/console.md) · [`sound` / `music`](api/audio.md) |

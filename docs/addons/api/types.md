@@ -183,6 +183,15 @@ From [`slot:info()`](actionbar.md#read) — the snapshot escape hatch; `nil` for
 `{ res = string?, name = string?, cooldown = number? }` — `cooldown` (0..1) is present only for an
 ability slot with a meter; **not** seconds. The live reads are `slot:res()/:name()/:cooldown()`.
 
+## Pagina
+
+From [`pag:info()`](menugrid.md#read) and [`hafen.menugrid():list()`](menugrid.md#read) — the snapshot
+escape hatch for an action-menu entry.
+`{ res = string, exists = bool, name = string?, tooltip = string?, hotkey = string?, path = string[]?,
+parent = string?, isnew = bool? }` — `res` is the identity and always present; **`parent` is the parent's
+resource name**, not an object. Every other field is **absent** when the menu cannot answer it (the entry
+is gone, or its resource has not loaded yet). The live reads are `pag:res()/:name()/:parent()/…`.
+
 ## Marker
 
 From [`hafen.markers.*`](markers.md) and `MarkersChanged`.
