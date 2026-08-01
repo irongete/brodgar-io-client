@@ -55,9 +55,10 @@
 - **Buffs (1d-2) — mostly zero-edit, all public:** `GameUI.buffs` (public `Bufflist`) →
   `children(Buff.class)` (public recursive DFS, **creation order**). `Buff.res` (public `Indir<Resource>`,
   `.get().name` — Loading), name from `res.get().layer(Resource.tooltip).t` (nullable `layer`, not
-  `flayer`) with an `ItemInfo.find(ItemInfo.Name.class, Buff.info())` fallback. `amount`/`cooldown`/
-  `number` = `ItemInfo.find` over `Buff.info()` for `Buff.AMeterInfo` (`.ameter()` 0..1) / `GItem.MeterInfo`
-  (`.meter()` 0..1) / `GItem.NumberInfo` (`.itemnum()` int) — all public interfaces; often nil; **NOT
+  `flayer`) with an `ItemInfo.find(ItemInfo.Name.class, Buff.info())` fallback. `amount`/`duration`/
+  `number` (the API names since 025.3 — on a buff the radial meter is the run that is LEFT, so only the
+  action bar calls the identical `GItem.MeterInfo` a cooldown) = `ItemInfo.find` over `Buff.info()` for
+  `Buff.AMeterInfo` (`.ameter()` 0..1) / `GItem.MeterInfo` (`.meter()` 0..1) / `GItem.NumberInfo` (`.itemnum()` int) — all public interfaces; often nil; **NOT
   time-varying** (info-cached, rebuilt only on `"tt"`), so per-tick snapshotting doesn't spam `BuffChanged`.
   `Buff.info()` throws Loading and is `emptyList()` until the first `"tt"`. **`Buff.dest` (protected)** is
   the only non-public bit → `AddonWidgets.buffDest` (a `dest` buff is fading out post-removal → exclude it).
@@ -170,7 +171,7 @@
   which is why a Buff handed to a `BuffRemoved` handler still answers `:res()/:name()` (the widget object
   is merely unlinked) but says `:exists()` → false.
 - **(025.1) Buff identity is the WIDGET, never the resource name.** The same res can be up twice
-  (two stacks of the same debuff are two `Buff` children), and `Bufflist` child order is arrival order
+  (two stacks of the same buff are two `Buff` children), and `Bufflist` child order is arrival order
   from `GameUI.addchild "buff"` — not sorted, not stable across a re-add. So the intern cache is an
   `IdentityHashMap<Buff, Ref>` (weak values + `ReferenceQueue`, drained on every access), unlike
   `LuaSound`'s name-keyed one. The needle lookup `hafen.buff("poison")` is therefore a *search

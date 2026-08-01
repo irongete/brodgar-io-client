@@ -60,7 +60,7 @@ A **handle** returned by `hafen.ui.*` (or a widget id from
 ## Snapshots vs handles
 
 - **Snapshots** are plain Lua tables — point-in-time copies returned by the read APIs
-  (`gob:info()`, `hafen.items.inventory`, `hafen.buffs.list`, …). They do **not** update; don't
+  (`gob:info()`, `hafen.items.inventory`, `buff:info()`, …). They do **not** update; don't
   cache them across ticks. Re-read to get fresh values. Every snapshot shape is documented in
   [types.md](types.md).
 - **Handles** are live, bridge-owned proxies with methods (`hafen.ui.window`, `hafen.timer.every`,

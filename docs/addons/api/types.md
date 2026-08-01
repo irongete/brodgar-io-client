@@ -113,13 +113,14 @@ From [`hafen.party.*`](party.md). There is **no name** field for party members.
 
 ## Buff
 
-From [`hafen.buffs.list`](buffs.md) and `BuffAdded`/`BuffRemoved`/`BuffChanged`.
+From [`buff:info()`](buffs.md#read) — the one snapshot escape hatch. `hafen.buff()` and the
+`BuffAdded`/`BuffRemoved`/`BuffChanged` events hand you live [`Buff` objects](buffs.md), not this table.
 
 | Field | Type | Notes |
 |---|---|---|
 | `res`, `name` | string | resource + display name; optional |
 | `amount` | number | 0..1 fraction; content-defined, often absent |
-| `cooldown` | number | 0..1 fraction; content-defined, often absent — **not** seconds |
+| `duration` | number | 0..1 fraction of the buff's run that is left; content-defined, often absent — **not** seconds |
 | `number` | number | integer overlay; content-defined, often absent |
 
 ## KinEntry

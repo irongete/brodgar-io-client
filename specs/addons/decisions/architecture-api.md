@@ -427,3 +427,20 @@ sections, check that the *question it answers* still exists there. `hafen.sound(
 addons actually ask — what am I playing right now.
 **See.** [D-045](../017-gob-oop/plan.md), [D-056](architecture-api.md), [D-059](architecture-api.md),
 [024-audio-oop](../024-audio-oop/spec.md), [threading.md](../learnings/threading.md).
+
+### D-061 — the API's vocabulary comes from the engine, not from the genre ✅ (maintainer, 2026-08-01)
+**Decision.** Two renames in one rule. The buff meter is **`:duration()`**, not `:cooldown()` — the action
+bar's identical `GItem.MeterInfo` 0..1 read stays `:cooldown()` there. And the word **"debuff" is gone**
+from the whole area (docs, `addons/`, `src/io/brodgar/`, the specs): `hafen.buff()` returns buffs, full stop.
+**Rationale.** Both were WoW glosses we brought with us. The engine knows `Buff` and `Bufflist` and publishes
+**no positive/negative flag** — the one `CharWnd` constant named `debuff` is an unrelated red `Color` for
+reduced numbers — so a `hafen.buff` surface that says "debuff" promises a distinction the client cannot make.
+The same meter deserves the same treatment in reverse: what it *measures* differs by section — on a slot it is
+the wait until you may act again, on a buff it is the run that is left — so one shared Java read is exposed
+under the name true to each side, and neither gets an alias to the other (D-013).
+**Consequences.** `buff:info()`'s key is `duration`; `CharApi.buffEqual` had to follow it, or `BuffChanged`
+would have silently stopped seeing meter changes. Read forward: before naming a method, ask what the engine
+calls the thing and what the value means *here* — a name borrowed from another game (or another section) is a
+promise the API may not be able to keep.
+**See.** [D-013](architecture-api.md), [D-056](architecture-api.md), [D-057](architecture-api.md),
+[025-buffs-oop](../025-buffs-oop/spec.md), [widget-tree-reads.md](../learnings/widget-tree-reads.md).

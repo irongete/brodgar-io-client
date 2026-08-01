@@ -29,7 +29,7 @@ events are in [events](events.md).
 | [`hafen.char`](char.md) | attributes, LP, food, skills, credos, lore |
 | [`hafen.study`](char.md#hafenstudy) | curiosities being studied |
 | [`hafen.party`](party.md) | party roster |
-| [`hafen.buffs`](buffs.md) | buffs & debuffs |
+| [`hafen.buff`](buffs.md) | buffs — `hafen.buff()` is the bar, `hafen.buff(needle)` is one of them |
 
 ### Character-sheet subsystems
 

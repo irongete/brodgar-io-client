@@ -219,17 +219,38 @@ local function readVitals(tag)
   end
 end
 
--- 1d-2: active buffs/debuffs, OOP since 025-buffs-oop. hafen.buff() is the 1-based array of Buff
--- objects in bar order and hafen.buff(needle) the first whose res or name contains it; the reads live
--- on the object (:res/:name/:amount/:cooldown/:number/:exists/:info) and amount/cooldown are 0..1
--- fractions (NOT seconds), often nil. The buff bar streams in a beat after enter-world, so like vitals
--- this is read at now + a delay. Most characters carry a buff or two at login.
+-- 1d-2: the active buffs, OOP since 025-buffs-oop. hafen.buff is CALLABLE-ONLY (D-056): hafen.buff()
+-- is the 1-based array of Buff objects in bar order (a buff the server just removed is already out, even
+-- though it is still fading on screen) and hafen.buff(needle) is the FIRST whose res or name contains it
+-- -- the old buffs.has() predicate, now handing back the object. The reads live on the object
+-- (:res/:name/:amount/:duration/:number/:exists/:info) and amount/duration are 0..1 fractions (NOT
+-- seconds -- :duration() is the share of the buff's run still left, the radial meter), often nil -- a brand-new buff is routinely res-only for a beat. The buff bar streams in after
+-- enter-world, so like vitals this is read at now + a delay; most characters carry a buff or two at login.
 local function readBuffs(tag)
   local list = hafen.buff()
   local first = list[1]
   hafen.log(("[%s] buffs=%d, first=%s%s"):format(tag, #list,
     first and tostring(first:name() or first:res()) or "none",
-    (first and first:cooldown()) and (" cd=%.2f"):format(first:cooldown()) or ""))
+    (first and first:duration()) and (" left=%.2f"):format(first:duration()) or ""))
+  -- 025.3: the OOP contract itself, once per login (on the +3s scan, when the bar has streamed in) --
+  -- the lookup landing on the SAME interned object the array holds, a miss being plain nil, a NUMBER key
+  -- erroring (positions are not addresses -- hafen.buff()[n] is), :exists() true for a live buff, :info()
+  -- as the snapshot escape hatch, and the hard cut (D-013): the flat hafen.buffs is gone ENTIRELY.
+  if tag == "+3s" then
+    local okNum = pcall(function() return hafen.buff(1) end)
+    -- The needle is the tail of the first buff's own res, so the lookup must land back on it (the scan is
+    -- bar order and this IS entry 1). res() can still be nil for a beat, hence the guard.
+    local needle = first and first:res()
+    local byNeedle = needle and hafen.buff(needle:sub(-6))
+    local info = first and first:info()
+    hafen.log(("[%s] buff oop: interned=%s miss=%s numErrors=%s exists=%s info={res=%s name=%s} buffsGone=%s"):format(tag,
+      needle and tostring(byNeedle == first) or "n/a (no buff res yet)",
+      tostring(hafen.buff("NoSuchBuffHere")),
+      tostring(not okNum),
+      first and tostring(first:exists()) or "n/a",
+      tostring((info or {}).res), tostring((info or {}).name),
+      tostring(hafen.buffs == nil)))
+  end
 end
 
 -- 1d-2: FEP + hunger via the character sheet. food() = { fep={cap,total,entries={{res,name,amount}}},
@@ -598,7 +619,7 @@ end
 -- level}: wounds form a TREE (parentid = the parent wound's id, -1 = a root wound; level = the client's
 -- computed depth for indentation), and severity is the magnitude the client shows beside the wound (a
 -- content-defined string, usually a number -- NOT seconds; nil while it resolves). has(needle) tests presence
--- by a name/res substring (like buffs.has). filter is the canonical nil=all / name-substring / predicate. Like
+-- by a name/res substring (like hafen.buff(needle)). filter is the canonical nil=all / name-substring / predicate. Like
 -- the rest of the character sheet the wound list streams in a beat after enter-world, so read at now (often 0)
 -- and +3s. hello is READ-ONLY (wounds heal by playing / tending -- there is no wound action tier); we
 -- subscribe to WoundChanged below, and ':hello wound' dumps the full wound tree on demand. Most characters
@@ -886,7 +907,7 @@ hafen.events.on("VitalsChanged", function(v)
 end)
 
 -- 1d-2: buff add/remove/change. Buffs the character already has re-appear as BuffAdded shortly after
--- enter-world (the bar streams in). Content updates (e.g. a cooldown ticking down a step) fire
+-- enter-world (the bar streams in). Content updates (e.g. the duration meter ticking down a step) fire
 -- BuffChanged. Log the first few of each so it does not flood. Since 025.2 the payload is the Buff
 -- OBJECT, so these read it with colon calls; a removed buff still answers, with :exists() false.
 local buffsSeen = 0
@@ -900,8 +921,8 @@ hafen.events.on("BuffRemoved", function(b)
   hafen.log(("BuffRemoved: %s (exists=%s)"):format(tostring(b:name() or b:res()), tostring(b:exists())))
 end)
 hafen.events.on("BuffChanged", function(b)
-  hafen.log(("BuffChanged: %s amount=%s cooldown=%s"):format(
-    tostring(b:name() or b:res()), tostring(b:amount()), tostring(b:cooldown())))
+  hafen.log(("BuffChanged: %s amount=%s duration=%s"):format(
+    tostring(b:name() or b:res()), tostring(b:amount()), tostring(b:duration())))
 end)
 
 -- 1d-2: FEP/hunger changes. The FEP bar and hunger level stream in as "food"/"glut" updates a beat

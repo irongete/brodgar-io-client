@@ -1003,7 +1003,7 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // client shows beside the wound (the highest-priority QuickInfo — content-defined, usually the
         // wound's number, NOT seconds; omitted while it Loads). filter is the canonical nil=all / name-
         // substring / predicate. has(needle) tests whether any wound's name/res contains needle (like
-        // buffs.has). Subscribe to WoundChanged (the wound set or a severity changed; payload = the new
+        // hafen.buff(needle)). Subscribe to WoundChanged (the wound set or a severity changed; payload = the new
         // list). Read-only — there is no wound action tier (wounds heal by playing / tending).
         CharApi.installWounds(hafen, owner);
 
@@ -1024,12 +1024,13 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // FightWnd.saves[] would need a haven-package accessor; usesave/nsave identify the active slot).
         CharApi.installFight(hafen, owner);
 
-        // hafen.buff — active buffs/debuffs (GameUI.buffs → Buff widgets), via the widget-tree mechanism
+        // hafen.buff — the active buffs (GameUI.buffs → Buff widgets), via the widget-tree mechanism
         // (1d-2), CALLABLE-ONLY since 025-buffs-oop: hafen.buff() is the active buffs as a 1-based array of
         // Buff objects in bar order, hafen.buff(needle) the FIRST one whose res or name contains that
         // substring (the old has(), now handing back the object; nil on a miss). Reads on the object, live
-        // per call: :res()/:name()/:amount()/:cooldown() (0..1 fractions from resource-published ItemInfo,
-        // often nil, NOT seconds)/:number()/:exists()/:info() (the old flat snapshot). A buff fading out
+        // per call: :res()/:name()/:amount()/:duration() (0..1 fractions from resource-published ItemInfo,
+        // often nil, NOT seconds — :duration() is the radial meter, i.e. how much of the buff's run is
+        // left; the action bar calls the same meter a cooldown because there it is one)/:number()/:exists()/:info() (the old flat snapshot). A buff fading out
         // after removal is excluded (:exists() false) but still READS — Widget.destroy() does not clear it —
         // which is what makes a stashed BuffRemoved payload useful. Subscribe to BuffAdded/BuffRemoved/
         // BuffChanged (add/remove detected per-tick; content changes on the buff's "ch"/"tt" uimsg) — since

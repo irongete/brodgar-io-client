@@ -20,7 +20,7 @@
       buffs arrive as `BuffAdded` objects; a `BuffRemoved` handler that stashes its payload can still
       read `:res()/:name()` a tick later and gets `:exists()` → false; no `BuffChanged` spam at idle.
 
-- [ ] 025.3 — **Docs, harness, coverage toll.** `docs/addons/api/buffs.md` rewritten for `hafen.buff`
+- [x] 025.3 — **Docs, harness, coverage toll.** `docs/addons/api/buffs.md` rewritten for `hafen.buff`
       (collection + entity tables, `:info()` as the escape hatch, the kept "not seconds" note, and the
       `buff:click()` footnote saying why there is no verb); `api/README.md`, `docs/addons/README.md`,
       `types.md`, `events.md`, `conventions.md` updated. `hello`: `readBuffs` becomes the once-per-

@@ -24,14 +24,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A <b>Buff object</b> — one buff/debuff on the player's buff bar (spec {@code 025-buffs-oop}), the OOP
+ * A <b>Buff object</b> — one buff on the player's buff bar (spec {@code 025-buffs-oop}), the OOP
  * successor of the flat {@code hafen.buffs.list()}/{@code has()} snapshot reader. Built on exactly the
  * mechanism {@link LuaGob} (017), {@link LuaKin} (020), {@link LuaSlot} (021), {@link LuaPagina} (023) and
  * {@link LuaSound} (024) established; <b>arity is the verb on the namespace itself</b> (D-056):
  * {@code hafen.buff()} is the active buffs, {@code hafen.buff(needle)} is one of them.
  *
  * <p><b>The handle wraps the {@link Buff} widget and nothing else.</b> Every read goes through it live, so a
- * stashed Buff tracks its own cooldown/meter as the server pushes {@code "ch"}/{@code "tt"} updates —
+ * stashed Buff tracks its own meters as the server pushes {@code "ch"}/{@code "tt"} updates —
  * interned userdata is an <i>identity</i>, not a record. {@code :info()} is the one snapshot escape hatch and
  * keeps the documented {@code Buff} table shape.
  *
@@ -201,11 +201,13 @@ public final class LuaBuff {
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.doubleValue());
             }
         });
-        // cooldown() — the 0..1 fraction of the radial overlay (GItem.MeterInfo), nil when there is none.
-        // Content-defined, NOT seconds: the client has no seconds-based buff timer to read.
-        m.set("cooldown", new OneArgFunction() {
+        // duration() — the 0..1 fraction of the radial overlay (GItem.MeterInfo): how much of the buff's
+        // run is left, which on a buff is what that meter means (the action bar's identical meter is a
+        // cooldown, hence the different name there). Content-defined and nil when the buff publishes none,
+        // and NOT seconds: the client has no seconds-based buff timer to read.
+        m.set("duration", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                Double c = cooldown(handle(self, "cooldown").wdg);
+                Double c = duration(handle(self, "duration").wdg);
                 return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.doubleValue());
             }
         });
@@ -321,8 +323,8 @@ public final class LuaBuff {
         return (am == null) ? null : Double.valueOf(am.ameter());
     }
 
-    /** The radial cooldown fraction (0..1, {@link GItem.MeterInfo}), or {@code null} — never seconds. */
-    static Double cooldown(Buff b) {
+    /** The radial meter fraction (0..1, {@link GItem.MeterInfo}) — the buff's remaining run, never seconds. */
+    static Double duration(Buff b) {
         GItem.MeterInfo mi = info(b, GItem.MeterInfo.class);
         return (mi == null) ? null : Double.valueOf(mi.meter());
     }
@@ -350,7 +352,7 @@ public final class LuaBuff {
 
     /**
      * A Buff snapshot — the documented {@code Buff} table shape, {@code buff:info()} and (until 025.2) the
-     * {@code Buff*} event payload: {@code res}/{@code name} (stable), plus {@code amount}/{@code cooldown}/
+     * {@code Buff*} event payload: {@code res}/{@code name} (stable), plus {@code amount}/{@code duration}/
      * {@code number}, which come from resource-published {@link ItemInfo} and are 0..1 fractions / an integer,
      * content-dependent and often absent. Expressed over the same accessors the methods use, so there is one
      * source of truth per field; an absent value is simply an unset key, as before.
@@ -368,9 +370,9 @@ public final class LuaBuff {
         Double am = amount(b);
         if(am != null)
             t.set("amount", LuaValue.valueOf(am.doubleValue()));
-        Double cd = cooldown(b);
+        Double cd = duration(b);
         if(cd != null)
-            t.set("cooldown", LuaValue.valueOf(cd.doubleValue()));
+            t.set("duration", LuaValue.valueOf(cd.doubleValue()));
         Integer num = number(b);
         if(num != null)
             t.set("number", LuaValue.valueOf(num.intValue()));

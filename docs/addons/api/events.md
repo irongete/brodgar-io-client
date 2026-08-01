@@ -58,9 +58,9 @@ The payload is a live [Gob object](gob.md). On `GobRemoved` the gob is **already
 | Event | Payload | Fires |
 |---|---|---|
 | `VitalsChanged` | [`Vitals`](types.md#vitals) | an hp/stamina/energy bar changes |
-| `BuffAdded` | [`Buff`](types.md#buff) | a buff/debuff appears |
-| `BuffRemoved` | [`Buff`](types.md#buff) | a buff/debuff goes away |
-| `BuffChanged` | [`Buff`](types.md#buff) | a buff's content updates |
+| `BuffAdded` | [`Buff`](buffs.md) | a buff appears |
+| `BuffRemoved` | [`Buff`](buffs.md) | a buff goes away — the object still reads, `:exists()` is false |
+| `BuffChanged` | [`Buff`](buffs.md) | a buff's content updates |
 | `FepChanged` | [`food`](types.md#food) | FEP or hunger changes |
 | `StudyChanged` | [`StudySlot`](types.md#studyslot)`[]` | the study slots change (add/remove/resolve) |
 | `EquipChanged` | [`Item`](types.md#item)`[]` | worn equipment changes |

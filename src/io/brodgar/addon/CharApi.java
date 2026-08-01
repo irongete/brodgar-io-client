@@ -227,7 +227,7 @@ final class CharApi {
     }
 
     /**
-     * Buffs/debuffs — the {@link Buff} widgets under {@link GameUI#buffs} (a {@link Bufflist}). Add and
+     * Buffs — the {@link Buff} widgets under {@link GameUI#buffs} (a {@link Bufflist}). Add and
      * remove are widget create/{@code cdestroy}, NOT a {@code uimsg}, so they are detected by
      * <b>poll</b> (diffing {@code children(Buff.class)} each tick against a cache keyed by widget
      * identity); the per-buff {@code "ch"}/{@code "tt"} content updates ARE {@code uimsg}s, so
@@ -557,15 +557,15 @@ final class CharApi {
         }
     }
 
-    /* The buff READS (bufflist/res/name/amount/cooldown/number + the snapshot) moved onto LuaBuff with
+    /* The buff READS (bufflist/res/name/amount/duration/number + the snapshot) moved onto LuaBuff with
      * 025-buffs-oop — the entity owns them. What stays here is change DETECTION, below. */
 
-    /** Do two buff snapshots carry the same res/name/amount/cooldown/number? (for change-detection.) */
+    /** Do two buff snapshots carry the same res/name/amount/duration/number? (for change-detection.) */
     private static boolean buffEqual(LuaValue a, LuaValue b) {
         if((a == null) || (b == null))
             return false;
         return luaFieldEq(a, b, "res") && luaFieldEq(a, b, "name") && luaFieldEq(a, b, "amount")
-            && luaFieldEq(a, b, "cooldown") && luaFieldEq(a, b, "number");
+            && luaFieldEq(a, b, "duration") && luaFieldEq(a, b, "number");
     }
 
     /** Field-level equality for a snapshot key: nil/number/string aware (used by buffEqual). */
@@ -811,7 +811,7 @@ final class CharApi {
             }
         });
         // skills() — the character's KNOWN skills as {name, res} snapshots; skill(name) — a substring
-        // membership test over them (name OR res, matching hafen.buffs.has). Backed by the SkillWnd
+        // membership test over them (name OR res, matching hafen.buff(needle)). Backed by the SkillWnd
         // "Skills" tab (widget-tree), which streams in after enter-world like the rest of the sheet.
         chr.set("skills", new ZeroArgFunction() {
             public LuaValue call() {
