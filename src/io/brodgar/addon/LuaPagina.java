@@ -56,6 +56,14 @@ import java.util.Set;
  * {@code Loading}-guarded to {@code nil} — never partial, and no {@code Loading} escapes into Lua — which is
  * why a scan right at {@code OnEnterWorld} may be <b>short</b> and fills in sub-second as resources resolve.
  *
+ * <p><b>The one verb is {@code :use()}, and it takes no arguments.</b> It drives the client's own
+ * {@code MenuGrid.PagButton.use} (wrap-not-reimplement, D-009) — the pure message half, which branches
+ * {@code "act"}-by-path vs {@code "use"}-by-id and so reaches an id-only pagina no path can express — rather
+ * than {@code MenuGrid.use()}, the widget's click handler, which would also flip the visible page and reset
+ * grid state. A <b>category</b> errors instead of sending an empty {@code "act"}, pointing at
+ * {@code :children()}. There is no {@code mods} parameter because {@code PagButton.use} ignores
+ * {@code Interaction.modflags} and reads {@code ui.modflags()} live, so one could only lie.
+ *
  * <p><b>Userdata + per-addon interning</b> (D-017 / D-045), identical to its three predecessors: the handle
  * crosses as {@code LuaValue.userdataOf(luaPagina, mt)} so Lua cannot scribble on it, and the {@link Cache} on
  * the owning {@link Addon} (weak values + a {@link ReferenceQueue} drained on every access — <i>not</i> a
@@ -282,6 +290,34 @@ public final class LuaPagina {
                 return snapshot(handle(self, "info").res);
             }
         });
+        // -- the verb: drive the client's own PagButton.use (D-009), return self --------------------------
+        // use() — exactly what a LEFT-click on that menu button does. It goes through PagButton.use, which is
+        // the pure MESSAGE half and branches "act"-by-path vs "use"-by-id internally — which is how it reaches
+        // an id-only pagina no path can express. NOT MenuGrid.use(btn, iact, reset): that is the WIDGET's click
+        // handler, and for an entry with children it merely changes the visible page and resets the grid's
+        // state — side effects an addon call must not have. Makewindow does exactly this from a non-grid
+        // widget (src/haven/Makewindow.java:375).
+        // NO ARGUMENTS on purpose: PagButton.use never reads Interaction.modflags — it builds the message from
+        // ui.modflags() live — so a mods parameter could only lie about the keyboard state (plan.md has the
+        // trace). Ungated for now; the write-permission model is being restructured in its own plan.
+        m.set("use", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                String res = handle(self, "use").res;
+                MenuGrid.Pagina p = live(res);
+                if(p == null)
+                    throw new LuaError("pagina:use(): \"" + res + "\" is not in the menu — revoked, or the"
+                        + " catalogue has not filled it in yet (check :exists())");
+                MenuGrid.PagButton b = button(p);
+                if(b == null)
+                    throw new LuaError("pagina:use(): \"" + res + "\" has not finished loading yet — its"
+                        + " resource is still Loading; retry on a later tick");
+                if(hasChildren(p))
+                    throw new LuaError("pagina:use(): \"" + res + "\" is a CATEGORY, not an action — there is"
+                        + " nothing to send. Use :children() to reach the entries under it.");
+                b.use(new MenuGrid.Interaction(1, 0));
+                return self;
+            }
+        });
         return m;
     }
 
@@ -467,6 +503,23 @@ public final class LuaPagina {
             }
         }
         return out;
+    }
+
+    /**
+     * Is {@code p} a <b>category</b>, i.e. does anything hang under it? The one question {@code :use()} must
+     * ask, and it asks it over the raw {@link #closure} rather than the {@link #catalogue}: a child whose own
+     * resource has not resolved yet still makes its parent a category, and there is no name to resolve here.
+     */
+    private static boolean hasChildren(MenuGrid.Pagina p) {
+        List<MenuGrid.Pagina> all = closure();
+        for(int i = 0; i < all.size(); i++) {
+            try {
+                if(all.get(i).parent() == p)
+                    return true;
+            } catch(RuntimeException e) {   // Loading etc. — skip, never throw into Lua
+            }
+        }
+        return false;
     }
 
     /** {@code pag:info()} — a plain snapshot table; a field the menu cannot answer is simply absent. */

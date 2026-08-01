@@ -183,3 +183,18 @@
   Alt) is private; re-deriving it from `bind.key()` (`modmatch != 0` ⇒ no letter, `chr` else a 1-char `keyname`) is
   four lines in the addon layer against one `// addon:` edit on a hot client class. Invasiveness is allowed (D-011)
   but it must buy something — a copied accessor is not something.
+- **A12 — when two methods share a name, wrap the MESSAGE half, not the WIDGET half.** `MenuGrid` has both
+  `PagButton.use(Interaction)` and `MenuGrid.use(btn, iact, reset)`. The second is the *click handler*: it also
+  flips the visible page for a category and resets grid state, i.e. side effects an API call must not have. The
+  first is the pure message and branches internally `"act"`-by-path vs `"use"`-by-id — which is the only way to
+  reach an **id-only pagina** (granted ability/curio action, empty `:path()`), since a path message cannot express
+  it. Wrap-not-reimplement (D-009) says wrap the client's code; it does not say wrap the *first* method that
+  matches the verb's name.
+- **A12 — a `mods` parameter you cannot honour must not exist.** `PagButton.use` never reads
+  `Interaction.modflags`; it builds the message from `ui.modflags()` read live at call time. Accepting a `mods`
+  argument would have compiled, looked symmetric with `slot:use([mods])` and silently done nothing. Check that the
+  wrapped method actually *consumes* the field before mirroring a neighbouring API's signature.
+- **A12 — answer "is this a category?" from the raw closure, not the resolved catalogue.** `:use()` must reject
+  categories, and a child whose resource has not resolved yet still makes its parent one. Testing against the
+  `Loading`-filtered catalogue would let a category fire during the first second after login; scanning the raw
+  parent closure needs no name resolved and is right immediately.

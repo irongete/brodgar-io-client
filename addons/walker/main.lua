@@ -35,12 +35,15 @@
 --   :walker bar <n>     -- slot:use: activate action-bar slot n (raw 0-based index; read hafen.actionbar(n) first)
 --   :walker setbar <n> <res>  -- slot:set: ASSIGN the action named <res> to slot n (what a drag from the menu
 --                          grid does). Overwrites the slot; right-click it in-game to clear.
+--   :walker menugrid <name>   -- pagina:use: fire an ACTION MENU entry by display name (e.g. ':walker menugrid Dig')
+--                          or by resource name if you pass one containing a '/'. A category errors -- it lists
+--                          its :children() instead.
 --   :walker kin add <secret>  -- hafen.kin():add: add a kin by the other player's HEARTH SECRET (wdgmsg 'bypwd')
 --   :walker kin <name> group <0..7>|rename <new>|endkin|forget
 --                       -- kin:setGroup/:rename a named kin (reversible), OR the two-step drop: endkin = End
 --                          kinship (stays memorized), then forget = drop the memorized kin from the list
 
-hafen.log("walker loaded (v0.7.0) -- write-actions demo (4d MapView verbs + 4e menu/flower + 4f item + 4g speed/craft/bar/setbar/kin)")
+hafen.log("walker loaded (v0.8.0) -- write-actions demo (4d MapView verbs + 4e menu/flower + 4f item + 4g speed/craft/bar/setbar/kin + menugrid)")
 
 -- At login, confirm we're granted (we only load once YOU enabled us, and we declared the permission).
 hafen.events.on("OnEnterWorld", function()
@@ -55,7 +58,7 @@ hafen.slash.register("walker", function(args)
   local sub = args[1] or "help"
 
   if sub == "help" then
-    hafen.log(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | item | speed | craft | bar | setbar | kin")
+    hafen.log(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | item | speed | craft | bar | setbar | menugrid | kin")
     hafen.log("   walk=moveTo  click=clickGob(right)  use=useItemOn  sel=select  place=place  raw=raw escape hatch")
     hafen.log("   menu=hafen.act.menu(path...)  e.g. ':walker menu lo cs' = log out to char select (reversible)")
     hafen.log("   flower=hafen.act.flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
@@ -65,6 +68,7 @@ hafen.slash.register("walker", function(args)
     hafen.log("   craft [all]=hafen.craft.make(all)  press Craft on the OPEN recipe (CONSUMES ingredients; 'all'=Craft All)")
     hafen.log("   bar <n>=hafen.actionbar(n):use()  activate action-bar slot n (raw 0-based index)")
     hafen.log("   setbar <n> <res>=hafen.actionbar(n):set(res)  assign an action by resource name (e.g. gfx/hud/act/mine)")
+    hafen.log("   menugrid <name>=hafen.menugrid(name):use()  fire an action-menu entry (e.g. ':walker menugrid Dig')")
     hafen.log("   kin add <secret> =add by hearth secret; kin <name> group/rename =kin:setGroup/:rename; endkin =End kinship, forget =drop memorized kin")
     return
   end
@@ -214,6 +218,34 @@ hafen.slash.register("walker", function(args)
       hafen.log((":walker setbar +0.5s -> slot %d now holds: %s%s"):format(n, now,
         (now == was) and "  (unchanged -- is that resource name right?)" or ""))
     end)
+
+  elseif sub == "menugrid" then
+    -- 023: pagina:use(): fire an ACTION MENU entry -- exactly what left-clicking that button in the 4x4 grid
+    -- does. The key splits by SHAPE: a '/' makes it a resource name ("paginae/act/dig"), anything else a
+    -- display name ("Dig"). Display names can contain spaces, so join the rest of the args back together.
+    local key = table.concat(args, " ", 2)
+    if key == "" then
+      hafen.log(":walker menugrid <name> -> fire an action-menu entry, e.g. ':walker menugrid Dig'."
+        .. "  List them: :lua for _,a in ipairs(hafen.menugrid()) do hafen.log(a:name() or a:res()) end")
+      return
+    end
+    local pag = hafen.menugrid(key)                    -- nil when you do not have that action (either key form)
+    if not pag then
+      hafen.log((":walker menugrid -> no menu entry for '%s'  (display names need the resource loaded and are"
+        .. " not unique; search with  :lua hafen.menugrid():find('%s'))"):format(key, key))
+      return
+    end
+    local kids = pag:children()
+    if kids and #kids > 0 then                         -- a category: :use() would error, so say what it holds
+      local names = {}
+      for i, c in ipairs(kids) do names[i] = c:name() or c:res() end
+      hafen.log((":walker menugrid -> '%s' is a CATEGORY (%s), not an action -- it holds: %s")
+        :format(key, pag:res(), table.concat(names, ", ")))
+      return
+    end
+    pag:use()                                          -- PagButton.use: the "act"-by-path / "use"-by-id message
+    hafen.log((":walker menugrid -> hafen.menugrid('%s'):use()  [%s -- res %s]")
+      :format(key, pag:name() or "?", pag:res()))
 
   elseif sub == "kin" then
     -- 4g kin verbs, now on the Kin OBJECT (020-kin-oop): hafen.kin() is the roster (with the gated

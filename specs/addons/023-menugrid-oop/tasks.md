@@ -15,7 +15,7 @@
       matches the letter painted under Alt; `:tooltip()` the pagina description. Re-run right at
       `OnEnterWorld` to see the catalogue fill in rather than error.
 
-- [ ] **023.2 — `:use()`**
+- [x] **023.2 — `:use()`**
       The verb on the Pagina object, driving `PagButton.use(new MenuGrid.Interaction(1, 0))` — **no
       arguments**: that method ignores `Interaction.modflags` and builds the message from
       `ui.modflags()`, so a `mods` parameter could not mean anything. A category errors and points at
