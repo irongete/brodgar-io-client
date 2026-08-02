@@ -212,6 +212,7 @@ select once, keep it, and use `:exists()` when you need to know it is still ther
 | `:walk(fn)` | (self) | depth-first visit — `fn(widget, depth)`; **return `false` to prune** that subtree |
 | `:at(coord)` | Widget \| nil | the deepest widget under a `{x=,y=}` **root-coord** point **within this subtree** |
 | `:rootpos()` | `{x=,y=}` \| nil | its top-left in **root coords** (with `:size()` = a rectangle to outline it) |
+| `:style()` | table \| nil | the style this widget **resolves to** from the sheet's [tree keys](#tree-keys--resolved-per-widget-not-yet-drawn) — `{font=, color=}`, each present only where a rule set it — or **nil when no rule names it** |
 | `:setFont(h)` | (self) | restyle **this widget and its whole subtree** with a [font handle](fonts.md#restyle-one-widget--widgetsetfonth) — its siblings keep their font |
 | `:resetFont()` | (self) | drop **your** per-instance override on this widget (it falls back to the site rule, then the `*` rule) |
 
@@ -598,13 +599,36 @@ both stay native under one rule. What each key does with each property is the
 [property × key table](#what-each-key-accepts) below; see [`hafen.font`](fonts.md#site-keys) for the
 per-surface notes and geometry caveats.
 
-### Tree keys are accepted, and do nothing yet
+### Tree keys — resolved per widget, not yet drawn
 
 Any other valid selector — `@Class`, `[title=…]`, `[res=…]`, or the roles that classify a *widget* rather than a
-site (`window`, `inventory`) — is a **tree key**, resolved per widget against the live tree. That is the next
-feature. Today such a rule **parses fine and is silently inert**: never an error, so a sheet written for it
-loads now, unstyled, instead of blowing up. A key that is not valid *grammar* is still an error, and exactly the
+site (`window`, `inventory`) — is a **tree key**, and it says *which widgets* to style rather than *what kind of
+surface*. Every tree rule that matches a widget is folded into one style, and
+[`widget:style()`](#reads--they-answer-on-every-widget) reads the result back — `nil` when nothing names it.
+
+```lua
+hafen.ui.skin{ ["window[title=Cupboard]"] = { color = {200, 180, 140} } }
+hafen.ui("window[title=Cupboard]"):style()     --> { color = {r=200, g=180, b=140, a=255} }
+hafen.ui.inventory():style()                   --> nil
+```
+
+**What a tree key does not do yet is change what you see** — drawing them is the next slice, so today such a
+rule is *observable* rather than *visible*. A key that is not valid *grammar* is still an error, and exactly the
 error [`hafen.ui(selector)`](#selectors--naming-a-widget) gives.
+
+Three rules decide what one widget resolves to:
+
+- **The more specific rule wins, per property.** Specificity is the [selector](#selectors--naming-a-widget)'s
+  parts added up — role 1, `@Class` 2, `[title=]` 4, `[res=]` 8 — so `window[title=Cupboard]` (5) outranks
+  `window` (1) on the window it names while `window` still answers everywhere else. It is folded property by
+  property: a specific rule that sets only `color` does not take the `font` a broader one set. Equal
+  specificity goes to the rule applied last, addons included.
+- **A refiner alone reaches everything *inside* that window.** `[title=Cupboard]` matches every widget whose
+  nearest enclosing window is captioned `Cupboard` — the same [enclosing-window rule](#two-rules-that-are-easy-to-get-wrong)
+  every selector follows — while `window[title=Cupboard]` matches only the window itself.
+- **A site key is not a widget's style.** `*` and the eleven [site keys](#site-keys--the-surfaces-this-ships)
+  resolve where they *draw*, so `widget:style()` never reports one: a window contains buttons, labels and chat,
+  each drawn at its own site, and answering with one of them would be a guess.
 
 ### Properties
 
@@ -660,7 +684,7 @@ differs is what the surface *does* with it, and this is the honest table:
 | `chat` | ✅ | ✅ | colour is how you tell area from party from private: one rule paints them alike |
 | `world.nick` | ✅ | ✅ | a `color` rule flattens the kin-**group** colours; a font-only rule leaves them |
 | `world.speech` | ✅ | ✅ | `size=` is safe — the bubble measures its frame around the text every frame |
-| any tree key | — | — | [accepted and inert](#tree-keys-are-accepted-and-do-nothing-yet) until C1b; its *properties* are still validated |
+| any tree key | — | — | [resolved per widget](#tree-keys--resolved-per-widget-not-yet-drawn) and readable through `widget:style()`, not drawn yet; its *properties* are validated like any other rule's |
 
 **Where `color` is ignored, it is the same reason every time**: the surface is *embossed* — the client renders
 the text as a mask and tiles a texture through it, then blurs a shadow behind. The glyph colour is discarded

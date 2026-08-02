@@ -310,3 +310,23 @@
   (`blurmask2`), but that is `alphablit(blurred-black-mask, img)` — it composites the ORIGINAL image on top, so
   colour survives. **The rule: a foundry-level colour survives a blur, not a tile.** Grep `TexFurn` before
   writing a colour column.
+- **(034.1) A cached MISS needs 030.2's bounded re-check — a caption arrives AFTER the widget does.** Per-widget
+  style resolution caches its answer (`WeakHashMap<Widget, Resolved>` + the sheet generation), and caching the
+  *negative* is the whole point: otherwise every unmatched widget re-matches on every look. But a
+  `[title=]` refiner resolves against the enclosing window's `cap`, which lands by `uimsg` a tick or two after
+  the window is placed, and `[res=]` resolves asynchronously — so the first look at a just-opened window would
+  cache "nothing matches" **forever**. `Selector.late()` already names exactly this class of refiner (030.2 uses
+  it for its `PendingMatch` queue), so the fix is that rule applied one level over: while any installed tree rule
+  is `late()`, a negative entry is re-matched a bounded number of times (20, `-Dhaven.addon.stylerecheck=`)
+  before it settles. A POSITIVE entry needs none of it — the rules decided it, and a rule change bumps the
+  generation. The trap when testing this: a widget that still matches *another addon's* sheet is a hit, not a
+  miss, and the counter reads 0 for the right reason (cost the probe one red line).
+- **(034.1) `FontHandle.handle` had been written and never read since F2 — and the first reader was a sandbox
+  boundary.** A sheet rule stores the parsed `FontHandle`, so `w:style()` had to hand a font back to Lua. The
+  addon that WROTE the rule must get the very table it named (`w:style().font == body` is the natural
+  assertion), which is exactly what that field holds; but another addon reading the same rule must not receive
+  it, because no Lua value crosses a sandbox boundary (D-017) — a shared table is another addon's `:derive` to
+  overwrite. So `fontHandle()` split into `mint()` + the field assignment, and a foreign reader gets its own
+  interned view over the same immutable `FontHandle` (`AssetApi.Cache.fontViews`, beside the built-in font
+  intern). **The Java value is shared; the Lua value never is** — the rule every intern cache in the bridge
+  already followed, met here from the other direction.

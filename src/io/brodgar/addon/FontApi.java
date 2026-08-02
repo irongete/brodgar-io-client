@@ -120,6 +120,29 @@ final class FontApi {
      * a file, so it has no path and no lifetime.
      */
     static LuaTable fontHandle(final FontHandle fh) {
+        LuaTable h = mint(fh);
+        fh.handle = h;                                    // the table its OWN addon holds (read by handleFor)
+        return h;
+    }
+
+    /**
+     * The resolved {@code font} of a stylesheet rule, as {@code reader} may hold it ({@code widget:style()},
+     * 034.1). Its own rule hands back the very table it wrote — so {@code w:style().font == body} — while a rule
+     * from <b>another addon's</b> sheet is minted into {@code reader}'s own interned view: the two addons then
+     * share the {@link FontHandle} (an immutable, facade-safe Java value) and not a {@link LuaValue}, which is the
+     * sandbox rule every intern cache in this bridge follows (D-017).
+     */
+    static LuaValue handleFor(Addon reader, FontHandle fh, Addon origin) {
+        if((reader == origin) && (fh.handle != null))
+            return fh.handle;
+        LuaValue v = reader.assets.fontView(fh);
+        if(v == null)
+            reader.assets.putFontView(fh, v = mint(fh));
+        return v;
+    }
+
+    /** One handle table over {@code fh} — {@link #fontHandle} plus every per-addon view of the same font. */
+    private static LuaTable mint(final FontHandle fh) {
         LuaTable h = new LuaTable();
         h.set(FontHandle.KEY, LuaValue.userdataOf(fh));   // opaque backing ref for setFont / font= / g:text (F2)
         h.set("derive", new VarArgFunction() {            // a cheap variant with different size/aa/bold/italic/color
@@ -133,7 +156,6 @@ final class FontApi {
         h.set("size", new ZeroArgFunction() {
             public LuaValue call() { return (fh.size == null) ? LuaValue.NIL : LuaValue.valueOf(fh.size.intValue()); }
         });
-        fh.handle = h;
         return h;
     }
 
@@ -203,7 +225,7 @@ final class FontApi {
         if((a.skin == null) && !a.fontNodes)
             return;                       // never styled anything → nothing to revert (avoids a needless gen bump)
         Fonts.removeOwner(a);             // sweeps both the sheet's named scopes and the per-instance registry (F5)
-        a.skin = null;
+        Sheet.forget(a);                  // 034.1: and its TREE rules leave the per-widget resolution with it
         a.fontNodes = false;
     }
 

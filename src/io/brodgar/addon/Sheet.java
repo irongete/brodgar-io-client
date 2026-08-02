@@ -1,14 +1,19 @@
 package io.brodgar.addon;
 
 import haven.Fonts;
+import haven.UI;
+import haven.Widget;
 
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * One addon's <b>stylesheet</b> — the whole of {@code hafen.ui.skin{…}} (spec {@code 033-ui-stylesheet},
@@ -36,11 +41,19 @@ import java.util.List;
  *       {@code *} for the {@code "default"} scope — names a <b>render site</b>, and is resolved where that site
  *       draws. It contributes an owner-tagged entry to the {@link Fonts} provider stack. <b>C1a.</b></li>
  *   <li>a <b>tree key</b> — {@code @Class}, {@code [title=…]}, {@code [res=…]}, or a role that classifies a
- *       widget rather than a site ({@code window}, {@code inventory}) — is resolved per widget against the live
- *       tree, which is <b>C1b</b>. Here it parses fine and is then <b>silently inert</b>: never an error, so a
- *       sheet written for C1b loads today, unstyled, instead of blowing up. Such a rule is dropped after
- *       validation; C1b is what keeps it.</li>
+ *       widget rather than a site ({@code window}, {@code inventory}) — is resolved <b>per widget against the live
+ *       tree</b> ({@link #styleOf}, 034.1 / C1b): every tree rule that matches a widget is folded into one
+ *       {@link Resolved} style, most specific winning, and {@code widget:style()} reads it back. Nothing is
+ *       <i>drawn</i> differently yet — 034.2 widens F5's draw-pass frame to carry that style — so resolution is
+ *       for now observable only through Lua, which is exactly the point (030's {@code :res()} lesson, applied
+ *       before the fact rather than after).</li>
  * </ul>
+ *
+ * <p><b>The two key classes never resolve each other's rules.</b> A site key fills the {@link Fonts} provider and
+ * reaches a <i>render site</i> — including text no widget owns; a tree key reaches <i>widgets</i>. So
+ * {@code widget:style()} answers with the per-widget cascade alone: a site rule is not a property of any one
+ * widget (a window contains buttons, labels and chat, each drawn at its own site), and folding one in would make
+ * the read a guess. Where both reach the same pixels, 034.2 settles which wins at the draw.
  *
  * <p><b>Nothing about the render sites changes.</b> Every routed site keeps calling
  * {@code Fonts.foundry(scope, stock)} / {@code Fonts.style(scope)} exactly as it did for
@@ -56,24 +69,40 @@ final class Sheet {
     /** The style properties a rule may carry. {@code bg}/{@code border}/{@code pad} and the textures arrive in C2. */
     private static final String PROPS = "\"font\" and \"color\"";
 
-    /** One kept rule: a SITE key and the properties it fills that site with. Each is independently optional. */
+    /**
+     * One kept rule and the properties it fills. Each property is independently optional. A rule is either a
+     * <b>site</b> rule ({@link #site} set) or a <b>tree</b> rule ({@link #sel}/{@link #rank} set) — never both,
+     * because {@link #siteOf} answers exactly one of the two for a key.
+     */
     private static final class Rule {
-        final String site;        // a Fonts.SCOPES name ("default" for the `*` key)
+        final String site;        // a Fonts.SCOPES name ("default" for the `*` key), or null on a tree rule
+        final Selector sel;       // the parsed key a tree rule matches widgets with, or null on a site rule
+        final int rank;           // a tree rule's SPECIFICITY (030): role 1 · @Class 2 · [title=] 4 · [res=] 8
         final FontHandle font;    // the rule's `font` property, or null (a rule may carry only a colour)
         final Color color;        // the rule's `color` property, or null (a rule may carry only a font)
 
-        Rule(String site, FontHandle font, Color color) {
+        Rule(String site, Selector sel, FontHandle font, Color color) {
             this.site = site;
+            this.sel = sel;
+            this.rank = (sel == null) ? 0
+                : (((sel.role != null) ? 1 : 0) + ((sel.cls != null) ? 2 : 0)
+                   + ((sel.title != null) ? 4 : 0) + ((sel.res != null) ? 8 : 0));
             this.font = font;
             this.color = color;
         }
     }
 
+    /** The addon this sheet belongs to — the owner tag on its site entries, and whose Lua the fonts in it are. */
+    private final Addon owner;
     /** The site rules, in the order the sheet listed them. Distinct sites, so the order never decides a winner. */
-    private final List<Rule> rules;
+    private final List<Rule> site;
+    /** The tree rules, in the order the sheet listed them — folded per widget by {@link #styleOf}. */
+    private final List<Rule> tree;
 
-    private Sheet(List<Rule> rules) {
-        this.rules = rules;
+    private Sheet(Addon owner, List<Rule> site, List<Rule> tree) {
+        this.owner = owner;
+        this.site = site;
+        this.tree = tree;
     }
 
     // ---- the verb ----------------------------------------------------------------------------------
@@ -92,25 +121,41 @@ final class Sheet {
         if(!arg.istable())
             throw new LuaError("hafen.ui.skin(sheet): expected a table of [\"selector\"] = { font = h } rules, got "
                 + arg.typename() + " — hafen.ui.skin(nil) drops this addon's sheet");
-        Sheet s = parse(arg);
+        Sheet s = parse(owner, arg);
         drop(owner);          // an addon owns ONE sheet: the previous one's entries leave first...
         s.install(owner);     // ...then this one fills its site keys (so a site it no longer names falls back)
+        register(s);          // ...and its tree keys join the per-widget resolution (034.1)
         owner.skin = s;
         return LuaValue.NIL;
     }
 
     /**
      * Drop {@code owner}'s sheet: each site it filled falls back to whatever is beneath it (another addon's
-     * sheet, else the stock foundry). Deliberately per-scope rather than {@code Fonts.removeOwner}, which would
-     * also sweep this addon's per-instance {@code widget:setFont} overrides — those are not part of the sheet.
+     * sheet, else the stock foundry), and its tree rules stop resolving. Deliberately per-scope rather than
+     * {@code Fonts.removeOwner}, which would also sweep this addon's per-instance {@code widget:setFont}
+     * overrides — those are not part of the sheet.
      */
     static void drop(Addon owner) {
         Sheet s = owner.skin;
         if(s == null)
             return;
         owner.skin = null;
-        for(int i = 0; i < s.rules.size(); i++)
-            Fonts.reset(s.rules.get(i).site, owner);   // bumps gen only when something was actually removed
+        for(int i = 0; i < s.site.size(); i++)
+            Fonts.reset(s.site.get(i).site, owner);   // bumps gen only when something was actually removed
+        unregister(s);
+    }
+
+    /**
+     * Teardown ({@code :reload}/disable, {@link FontApi#teardownFonts}): forget this addon's sheet without
+     * touching {@link Fonts}, whose {@code removeOwner} sweep has already pulled every site entry the addon
+     * owned. Only the tree half needs saying goodbye to by hand — it lives here, not in the provider.
+     */
+    static void forget(Addon owner) {
+        Sheet s = owner.skin;
+        if(s == null)
+            return;
+        owner.skin = null;
+        unregister(s);
     }
 
     /**
@@ -126,8 +171,8 @@ final class Sheet {
      * handle installed on a scope tinted it: two answers to "what colour is this text", one of them invisible.
      */
     private void install(Addon owner) {
-        for(int i = 0; i < rules.size(); i++) {
-            Rule r = rules.get(i);
+        for(int i = 0; i < site.size(); i++) {
+            Rule r = site.get(i);
             if((r.font == null) && (r.color == null))
                 continue;      // nothing to fill the stack with — keep the identity fast path intact
             FontHandle f = r.font;
@@ -141,9 +186,10 @@ final class Sheet {
 
     // ---- parsing -----------------------------------------------------------------------------------
 
-    /** Parse a Lua sheet table into its site rules. Every key is validated; only the site ones are kept (C1a). */
-    private static Sheet parse(LuaValue t) {
-        List<Rule> rules = new ArrayList<Rule>();
+    /** Parse a Lua sheet table into its rules, each key validated and sorted into the site half or the tree half. */
+    private static Sheet parse(Addon owner, LuaValue t) {
+        List<Rule> site = new ArrayList<Rule>();
+        List<Rule> tree = new ArrayList<Rule>();
         LuaValue k = LuaValue.NIL;
         while(true) {
             Varargs n = t.next(k);
@@ -160,13 +206,15 @@ final class Sheet {
             if(!v.istable())
                 throw new LuaError("hafen.ui.skin[\"" + key + "\"]: the value is a table of style properties "
                     + "{ font = h, color = {r,g,b} }, got " + v.typename());
-            String site = siteOf(Selector.parse(key));    // a bad key errors exactly as it does in hafen.ui(sel)
-            Rule r = propsOf(key, v, site);               // validated for EVERY key: what is inert is the key, not the typo
-            if(site == null)
-                continue;        // a TREE key: valid grammar, resolves nowhere YET (C1b) — silently inert, never an error
-            rules.add(r);
+            Selector sel = Selector.parse(key);           // a bad key errors exactly as it does in hafen.ui(sel)
+            String scope = siteOf(sel);
+            Rule r = propsOf(key, v, scope, (scope == null) ? sel : null);
+            if(scope == null)
+                tree.add(r);     // a TREE key: matched per widget against the live tree (034.1)
+            else
+                site.add(r);     // a SITE key: an owner-tagged entry in the Fonts provider (033.1)
         }
-        return new Sheet(rules);
+        return new Sheet(owner, site, tree);
     }
 
     /**
@@ -188,10 +236,9 @@ final class Sheet {
      * The properties of one rule ({@code font}, {@code color}), each {@code null} when the rule carries none. An
      * unknown property is an <b>error</b> — unlike an unresolved key, a misspelt property has no future meaning to
      * wait for, and silently doing nothing is the worst way to answer a typo (D-072). It is checked for <b>every</b>
-     * key, including a tree key whose rule is then dropped: what C1a defers is resolving the key, not reading the
-     * rule, so a sheet written for C1b still has its typos caught today.
+     * key, site or tree alike: the two kinds of key differ in where they resolve, never in what a rule may say.
      */
-    private static Rule propsOf(String key, LuaValue props, String site) {
+    private static Rule propsOf(String key, LuaValue props, String site, Selector sel) {
         FontHandle font = null;
         Color color = null;
         LuaValue pk = LuaValue.NIL;
@@ -217,6 +264,178 @@ final class Sheet {
                     + "\" is not a style property — the properties this client ships are " + PROPS);
             }
         }
-        return new Rule(site, font, color);
+        return new Rule(site, sel, font, color);
+    }
+
+    // ---- the TREE side: per-widget resolution (034.1) -----------------------------------------------
+
+    /**
+     * The style one widget resolves to — the fold of every <b>tree</b> rule that matches it, most specific
+     * winning, <b>per property</b> (a colour-only rule high up does not take the font a lower one sets, exactly as
+     * a cascade should). {@code null} is never one of these: {@link #styleOf} answers {@code null} when nothing
+     * matches, so "nothing overrides this widget" is a value the caller cannot mistake for an empty style — the
+     * contract that keeps the identity fast path honest and lets {@code widget:style()} read as
+     * <i>nil means stock</i>.
+     */
+    static final class Resolved {
+        /** The winning {@code font} property, or {@code null}. */
+        final FontHandle font;
+        /**
+         * The addon whose sheet won {@code font}. A {@link FontHandle}'s Lua handle table belongs to the addon that
+         * made it, and <b>no Lua value crosses a sandbox boundary</b> (D-017) — so a reader that is not this addon
+         * is handed its own interned view instead ({@link FontApi#handleFor}).
+         */
+        final Addon fontOwner;
+        /** The winning {@code color} property, or {@code null}. */
+        final Color color;
+        /** The {@link #treegen} this was resolved at — a bump makes the entry stale on its next touch. */
+        final int gen;
+        /**
+         * Re-matches left before this <b>negative</b> answer is settled (0 on a positive one, which the rules alone
+         * decide). A {@code [title=]} caption arrives by {@code uimsg} and a {@code [res=]} resource resolves
+         * asynchronously, so a widget can genuinely start matching a tick after it was first asked about; 030.2 met
+         * the same thing at the event seam and answered it the same bounded way. Without it the very first look at
+         * a just-opened window would cache "nothing matches" forever.
+         */
+        int recheck;
+
+        Resolved(FontHandle font, Addon fontOwner, Color color, int gen) {
+            this.font = font;
+            this.fontOwner = fontOwner;
+            this.color = color;
+            this.gen = gen;
+        }
+
+        boolean empty() {
+            return (font == null) && (color == null);
+        }
+    }
+
+    /** The sheets with tree rules, in INSTALL order — so a later sheet wins an equal-specificity tie (D-043). */
+    private static final List<Sheet> installed = new ArrayList<Sheet>();
+    /**
+     * The resolution cache: one folded style per widget. A {@link WeakHashMap} because {@code Widget} overrides
+     * neither {@code equals} nor {@code hashCode} — that is an identity map for free — and because the keys
+     * <b>must</b> be weak: a strong list of styled widgets would pin every closed window, the leak F5 already
+     * recorded. Guarded by {@code Sheet.class}.
+     */
+    private static final Map<Widget, Resolved> cache = new WeakHashMap<Widget, Resolved>();
+    /** Any tree rule installed anywhere? The fast path: without one, {@link #styleOf} is a volatile read. */
+    private static volatile boolean anyTree = false;
+    /** Any installed tree rule carrying a late refiner ({@link Selector#late})? Gates the negative re-check. */
+    private static volatile boolean anyLate = false;
+    /** Bumped whenever the installed tree rules change; a cached entry from an older one is stale. */
+    private static int treegen = 0;
+    /** How many times a negative answer is re-matched before it settles (030.2's bounded re-check, same default). */
+    private static final int LATE_RECHECK =
+        Integer.getInteger("haven.addon.stylerecheck", 20).intValue();
+
+    private static synchronized void register(Sheet s) {
+        if(s.tree.isEmpty())
+            return;              // a site-only sheet resolves nothing per widget: nothing to invalidate either
+        installed.add(s);
+        rulesChanged();
+    }
+
+    private static synchronized void unregister(Sheet s) {
+        if(installed.remove(s))
+            rulesChanged();
+    }
+
+    /** Recompute the fast-path flags and invalidate every cached entry. Caller holds {@code Sheet.class}. */
+    private static void rulesChanged() {
+        boolean tree = false, late = false;
+        for(int i = 0; i < installed.size(); i++) {
+            List<Rule> rs = installed.get(i).tree;
+            for(int j = 0; j < rs.size(); j++) {
+                tree = true;
+                late |= rs.get(j).sel.late();
+            }
+        }
+        anyTree = tree;
+        anyLate = late;
+        treegen++;
+        if(!tree)
+            cache.clear();       // the last sheet left: hold nothing, so a stock client carries no state at all
+    }
+
+    /**
+     * The resolved style for {@code w}, or {@code null} when no tree rule matches it (the common case, and the
+     * answer a stock client always gives). Cache-first: a hit is a map lookup, and matching happens only on a miss
+     * or when the rules have changed — the whole reason resolution is stored per widget rather than redone.
+     *
+     * <p><b>Call under the {@code ui} monitor</b>: matching reads the tree (a {@code [title=]} walks to the
+     * enclosing window). It never resolves a subtree or scans anything but this one widget, so it cannot turn into
+     * a match storm.
+     */
+    static Resolved styleOf(Widget w) {
+        if(!anyTree || (w == null))
+            return null;
+        synchronized(Sheet.class) {
+            int left = LATE_RECHECK;
+            Resolved cur = cache.get(w);
+            if((cur != null) && (cur.gen == treegen)) {
+                if(!cur.empty())
+                    return cur;                      // a positive answer stands until the rules change
+                if(cur.recheck <= 0)
+                    return null;                     // a negative answer, settled
+                left = cur.recheck - 1;              // still worth asking: a late caption/res may have landed
+            }
+            Resolved r = fold(w);
+            r.recheck = (r.empty() && anyLate) ? left : 0;
+            cache.put(w, r);
+            return r.empty() ? null : r;
+        }
+    }
+
+    /**
+     * Fold every matching tree rule into one style: highest {@link Rule#rank} wins each property, and an equal
+     * rank goes to the rule applied last — later sheet first, then later key within a sheet, which is D-043's
+     * last-applied-wins read one level down. Caller holds {@code Sheet.class}.
+     */
+    private static Resolved fold(Widget w) {
+        FontHandle font = null;
+        Addon fontOwner = null;
+        Color color = null;
+        int frank = -1, crank = -1;
+        for(int i = 0; i < installed.size(); i++) {
+            Sheet s = installed.get(i);
+            for(int j = 0; j < s.tree.size(); j++) {
+                Rule r = s.tree.get(j);
+                if(!r.sel.matches(w))
+                    continue;
+                if((r.font != null) && (r.rank >= frank)) {
+                    font = r.font; fontOwner = s.owner; frank = r.rank;
+                }
+                if((r.color != null) && (r.rank >= crank)) {
+                    color = r.color; crank = r.rank;
+                }
+            }
+        }
+        return new Resolved(font, fontOwner, color, treegen);
+    }
+
+    /**
+     * {@code widget:style()} — the resolved style as Lua reads it: {@code { font = <handle>, color = {r=,g=,b=,a=} }},
+     * each field present only when a rule set it, or {@code nil} when nothing overrides this widget. The font comes
+     * back as the very handle the sheet named when {@code reader} is the addon that wrote it, so
+     * {@code w:style().font == body} holds; another addon's font arrives as {@code reader}'s own interned view of
+     * it, because no Lua value crosses a sandbox boundary (D-017).
+     */
+    static LuaValue styleTable(Addon reader, Widget w) {
+        UI u = AddonManager.ui;
+        Resolved r;
+        if(u == null)
+            r = styleOf(w);
+        else
+            synchronized(u) { r = styleOf(w); }
+        if(r == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        if(r.font != null)
+            t.set("font", FontApi.handleFor(reader, r.font, r.fontOwner));
+        if(r.color != null)
+            t.set("color", AddonManager.color(r.color));
+        return t;
     }
 }

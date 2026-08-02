@@ -334,3 +334,17 @@
   hyphens; duplicate headings get `-1`, `-2`. Skip fenced blocks in both the link scan and the heading scan.
   **Always plant a bad link and a bad anchor and re-run** — a checker that reports 0/600 without ever having
   been seen to fail proves nothing (the `luac -p` lesson, again).
+- **(034.1) A suite that builds windows cannot be dry-run — so pre-check the ENGINE surface instead, and a
+  `Label` is the headless widget that classifies.** 033.3's trick (load the shipping suite under
+  `Sandbox.create()` and call the slash command it registers) stops working the moment a suite calls
+  `hafen.ui.window{}`: `haven.Window` needs GL. What still works is a same-package probe that drives the real
+  namespaces (`installHafen` on TWO addons, `hafen.ui.skin{…}` from real Lua) over a hand-built tree of
+  `new Widget(Coord)` subclasses — nested `public static class PA extends Widget` gives `@PA` a stable
+  `typeName`. Bare widgets classify as nothing, so a rank-ordering test looks impossible; **`new haven.Label("hi")`
+  builds headless** (needs `bin/builtin-res.jar;bin/hafen-res.jar` on the classpath — `Text.<clinit>` loads
+  `ui/fraktur` — plus `lib/jglob.jar` and `-Djava.awt.headless=true`), and it answers role `label`, which makes
+  `label@Label` (3) vs `@Label` (2) a real specificity check with no client. 22/22 before the maintainer logged
+  in; the shipping suite is then still worth *loading* headlessly, which proves it parses and registers.
+- **(034.1) `python - <<EOF` HANGS on this box** — the Store stub reads stdin and never returns (a 2-minute tool
+  timeout), which is worse than the known `python -c` no-op. There is no Python here: use `perl -0pi -e`, a
+  throwaway Java file, or just the editor.

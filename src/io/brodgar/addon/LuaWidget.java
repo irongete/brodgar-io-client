@@ -486,6 +486,19 @@ public final class LuaWidget {
                 return (rp == null) ? LuaValue.NIL : xyTable(rp);
             }
         });
+        // style() — 034.1: the style THIS widget RESOLVES to — { font = <handle>, color = {r=,g=,b=,a=} }, each
+        // field present only where a rule set it — or nil when nothing overrides it. "nil means stock": on a
+        // client with no sheet installed every widget reads nil, which is the same contract the identity fast path
+        // in the font provider rests on. What it folds is the sheet's TREE keys (hafen.ui.skin{ ["window[title=…]"]
+        // = … }), most specific first — a site key like ["button"] is not a property of any one widget (a window
+        // contains buttons, labels and chat, each drawn at its own site) and is deliberately not folded in here.
+        // The font comes back as the very handle your own sheet named, so w:style().font == body holds.
+        m.set("style", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Widget w = live(handle(self, "style"));
+                return (w == null) ? LuaValue.NIL : Sheet.styleTable(owner, w);
+            }
+        });
         // F5 (spec 21): setFont(h) — restyle THIS widget and everything drawn inside it with a font handle
         // (hafen.asset / hafen.font), while its siblings keep the scope/"default" font (the top of the font
         // resolution chain). Owner-tagged: reverted on :reload/disable, and it dies with the widget. Chains.

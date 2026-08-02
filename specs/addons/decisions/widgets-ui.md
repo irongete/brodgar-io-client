@@ -347,3 +347,33 @@ precisely so the three paths can overlap without ordering rules between them.
 [D-069](#d-069) (hiding takes the toggle), [D-009](#d-009) (wrap, don't reimplement),
 [`032-replace-verb/spec.md`](../032-replace-verb/spec.md),
 [learnings/widget-replacement.md](../learnings/widget-replacement.md).
+
+### D-075 — a read answers for the thing you point at, so a SITE rule is not a widget's style
+
+**Context.** 034.1 made the stylesheet's **tree keys** resolve per widget and added `widget:style()` to read the
+result — the read the whole feature is tested through (030's `:res()` lesson, applied before the fact). The
+question it forced: the sheet also holds **site keys** (`*`, `button`, `chat`, … — 033), and the cascade the
+feature documents is *per-instance → most specific tree rule → site rule → `*` → stock*. Should `w:style()`
+report the site levels too, so the read shows the whole cascade?
+
+**Decision.** **No — `w:style()` folds the TREE keys alone**, and answers `nil` when none of them names the
+widget. A site key resolves where its text **draws**, not on a widget: a window contains buttons, labels and
+chat, each rendered at its own site, so "the site rule for this widget" has no single true answer and would be a
+guess dressed as a read. The same holds downward — a site key also reaches text no widget owns (a tooltip is
+painted, not placed), which is precisely why the two key classes exist (D-067). The cascade's site half is real,
+but it is settled at the **draw**, where the site is known; the read answers the half that is a property of the
+widget itself.
+
+**Consequences.** `nil` keeps one meaning on this read — *no rule names this widget* — instead of two, and it
+stays the same value the draw path tests for when deciding whether to open a frame at all, so the read and the
+draw cannot drift. The honest cost is that `w:style()` is **not** "what this text will look like": with
+`["*"] = {font=body}` installed, every label draws in `body` and `label:style()` is still `nil`. The docs say so
+in the same breath as the read. The alternative — falling back to the widget's own role-as-scope, else
+`"default"` — was rejected twice over: it makes every widget non-`nil` the moment a `*` rule exists (the
+identity fast path's contract read backwards), and for any container it reports one of the several sites drawing
+inside it.
+
+**See.** [D-067](#d-067) (a classifier answers only where the widget IS the thing — the same rule, one level
+up), [D-072](../decisions/architecture-api.md) (forgive what the API will later understand),
+[`034-ui-stylesheet-tree/spec.md`](../034-ui-stylesheet-tree/spec.md),
+[learnings/fonts.md](../learnings/fonts.md).

@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -137,6 +138,14 @@ final class AssetApi {
          * {@code hafen.asset()} and carry no {@code :dispose()} ([D-060]).
          */
         private final Map<String, LuaValue> builtinFonts = new HashMap<String, LuaValue>();
+        /**
+         * This addon's own Lua view of a font <b>another addon</b> created — minted only when
+         * {@code widget:style()} (034.1) reports a rule from someone else's stylesheet. Interned by handle
+         * identity ({@link FontHandle} overrides neither {@code equals} nor {@code hashCode}) so the read is
+         * stable across calls, and it exists at all because <b>no Lua value crosses a sandbox boundary</b>
+         * (D-017): what the two addons share is the immutable {@link FontHandle}, never a table.
+         */
+        private final Map<FontHandle, LuaValue> fontViews = new IdentityHashMap<FontHandle, LuaValue>();
 
         Entry get(String key) {return live.get(key);}
         void put(String key, Entry e) {live.put(key, e);}
@@ -154,10 +163,14 @@ final class AssetApi {
         LuaValue builtinFont(String name) {return builtinFonts.get(name);}
         void putBuiltinFont(String name, LuaValue h) {builtinFonts.put(name, h);}
 
+        LuaValue fontView(FontHandle fh) {return fontViews.get(fh);}
+        void putFontView(FontHandle fh, LuaValue h) {fontViews.put(fh, h);}
+
         /** Teardown: drop every entry (the GPU state is freed by the typed teardowns that ran first). */
         void clear() {
             live.clear();
             builtinFonts.clear();
+            fontViews.clear();
         }
     }
 

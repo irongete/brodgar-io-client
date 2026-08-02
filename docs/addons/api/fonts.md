@@ -168,7 +168,8 @@ A **site key** is a bare selector naming a place the client draws. All of them a
 > finds the widgets whose captions `["button"] = {font=h}` restyles ([roles](ui.md#roles)). The overlap is not
 > 1:1, and the difference is the point: a site key names a **render site**, a role names a **widget**. The
 > global fallback is `*` on both sides; `window` and `inventory` are roles with **no site**, so as sheet keys
-> they are [tree keys](ui.md#tree-keys-are-accepted-and-do-nothing-yet) and do nothing yet; and five site keys —
+> they are [tree keys](ui.md#tree-keys--resolved-per-widget-not-yet-drawn), resolved per widget rather than at a
+> site; and five site keys —
 > `window.title`, `heading`, `tooltip`, `world.nick`, `world.speech` — are valid selectors that **classify no
 > widget**, because a caption is drawn by its window's decoration, a tooltip is painted rather than placed, and
 > the world sites live over the 3D view. Restyling them works; selecting them finds nothing, which is the honest
