@@ -46,7 +46,7 @@ local p = hafen.client:profiling()
 -- A monospace handle so the columns line up: with a mono font, padding by character count IS alignment.
 -- The window's `font =` makes it the default for every g:text this addon draws (fonts F2), and it touches
 -- nobody else's pixels.
-local FONT = hafen.font.load("mono", { size = 11 })
+local FONT = hafen.font("mono"):derive{ size = 11 }
 
 local function client() return hafen.client:options():client() end
 

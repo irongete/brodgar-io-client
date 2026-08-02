@@ -18,7 +18,6 @@ import haven.Music;
 import haven.ResDrawable;
 import haven.Resource;
 import haven.SprDrawable;
-import haven.TexI;
 import haven.UI;
 import haven.Widget;
 import haven.render.RenderTree;
@@ -31,25 +30,21 @@ import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Set;
-
-import javax.imageio.ImageIO;
 
 import static io.brodgar.addon.AddonManager.*;
 
 /**
- * The custom-rendering subsystem (V-series ghosts + R-series images/sprites/objects): {@code hafen.ghost}
- * (client-only world ghosts) and {@code hafen.render} ({@code image}/{@code sprite}/{@code model}/{@code object}
- * — custom PNG + glTF props). Owns the world-entity lifecycle (create/transform/follow/click/teardown) over
+ * The custom-rendering subsystem (V-series ghosts + R-series sprites/objects): {@code hafen.ghost}
+ * (client-only world ghosts) and {@code hafen.render} ({@code sprite}/{@code object} — custom PNG + glTF props
+ * standing in the 3D world). Owns the world-entity lifecycle (create/transform/follow/click/teardown) over
  * {@link LuaWorldEntity}. The V2 click seam {@code onGhostClick} (called from {@code haven.MapView}) stays a
  * facade in {@link AddonManager} and delegates here; {@link AddonManager} calls the per-kind teardowns on
- * reload/disable. Not instantiable.
+ * reload/disable.
+ *
+ * <p><b>This is a SCENE namespace, not a loader</b> (028.1): {@code hafen.render.image}/{@code model} are cut,
+ * and the addon's own files — images, fonts and meshes alike — come from the one door {@link AssetApi}
+ * ({@code hafen.asset(path)}), which also owns the D-017 sandbox resolver and the intern cache. Not instantiable.
  */
 final class RenderApi {
     private RenderApi() {}
@@ -100,24 +95,14 @@ final class RenderApi {
     /** Build {@code hafen.render} for {@code owner}. From installHafen. */
     static void installRender(LuaTable hafen, final Addon owner) {
         LuaTable render = new LuaTable();
-        // hafen.render.image(path) — load a PNG (or any ImageIO-decodable image) from THIS addon's folder into a
-        // cached, bridge-owned handle. `path` is addon-relative (e.g. "icon.png", "img/sign.png"); absolute paths
-        // and ".." escapes are REJECTED (D-017 — an addon reads only its own assets). Repeated loads of the same
-        // path return the SAME handle (one TexI per (addon, path)). Call it from setup code (OnLoad/OnEnterWorld/a
-        // command), never inside a draw (v1 decodes synchronously). Returns a handle:
-        //   :size()     -- {w, h} in pixels
-        //   :dispose()  -- free the GPU texture now (also automatic on reload/disable/relogin, P2)
-        // Draw it inside any draw callback via the `g` wrapper: g:image(img, x, y[, w, h]) / g:aimage(img, x, y,
-        // ax, ay). A disposed/typo'd handle simply draws nothing (the draw verbs are forgiving).
-        render.set("image", new OneArgFunction() {
-            public LuaValue call(LuaValue path) {
-                return newImage(owner, path);
-            }
-        });
+        // hafen.render is a SCENE namespace only: it stands things in the 3D world. LOADING the addon's own files
+        // is hafen.asset(path) — one door for every local file (028.1, D-013 hard cut): hafen.render.image and
+        // hafen.render.model are GONE and read as plain nil. An image handle is hafen.asset("icon.png"), a mesh
+        // handle hafen.asset("chair.glb"); both are interned, so repeating the load is free.
         // hafen.render.sprite{image, x, y [, a] [, scale] [, alpha] [, tint] [, billboard] [, clickable] [, onClick]}
         // — stand a custom PNG in the 3D world (spec 17 §5, R2). The non-`.res` sibling of hafen.ghost, on the SAME
         // virtual-entity core + gizmo: a Gob with no server id, so it never reaches the server (SAFE-tier, NOT gated,
-        // D-034). image = a hafen.render.image handle OR an addon-relative path (auto-loaded + cached, D-017-sandboxed);
+        // D-034). image = a hafen.asset image handle OR an addon-relative path (auto-loaded + interned, D-017-sandboxed);
         // x,y = world coords (like gob:pos()); a = facing radians (default 0). Options:
         //   scale = 2               -- uniform scale (default 1); fixed = ~1 tile tall, billboard = screen-size ×
         //   alpha = 0.5             -- opacity 0..1 (default 1); combines with the PNG's own transparency
@@ -138,27 +123,10 @@ final class RenderApi {
                 return newSprite(owner, opts);
             }
         });
-        // hafen.render.model(path) — load a glTF 2.0 STATIC model (.glb preferred, or .gltf + buffers) from THIS
-        // addon's folder into a cached, bridge-owned handle (spec 18-custom-models-gltf, R3). `path` is addon-relative
-        // and sandboxed (absolute / ".." rejected, D-017); repeated loads of the same path return the SAME handle. The
-        // mesh is parsed to baked, H&H-local geometry (Z up; 1 glTF metre = 1 tile) — POSITION + indices, multiple
-        // primitives/materials, TEXCOORD_0 + baseColorTexture (R3b: embedded/data-URI/external PNG-JPG, decoded to
-        // shared TexIs) × baseColorFactor, alpha modes OPAQUE/MASK/BLEND + doubleSided cull — UNLIT (normals/lighting
-        // are R3c). SAFE-tier, NOT gated (D-034). Returns:
-        //   :bounds()   -- {min={x,y,z}, max={x,y,z}, size={x,y,z}} in world units
-        //   :info()     -- {prims, textured, textures, verts, tris} (R3b: what the parser produced)
-        //   :dispose()  -- free the geometry + shared textures now (also automatic on reload/disable, P2)
-        // Stand it in the world with hafen.render.object{model=…}. A model using an unsupported feature (skins,
-        // animation, sparse accessors, …) raises a clear error naming it — never a crash.
-        render.set("model", new OneArgFunction() {
-            public LuaValue call(LuaValue path) {
-                return newMesh(owner, path);
-            }
-        });
         // hafen.render.object{model, x, y [, a] [, scale] [, alpha] [, tint] [, clickable] [, onClick] [, follow]
         // [, offset]} — stand a custom glTF MODEL in the 3D world (spec 18, R3). The mesh sibling of a sprite/ghost,
         // on the SAME virtual-entity core + gizmo: a Gob with no server id (SAFE-tier, NOT gated, D-034). model = a
-        // hafen.render.model handle OR an addon-relative path (auto-loaded + cached, D-017-sandboxed); x,y = world
+        // hafen.asset mesh handle OR an addon-relative path (auto-loaded + interned, D-017-sandboxed); x,y = world
         // coords (like gob:pos()); a = facing radians (default 0). Options mirror hafen.render.sprite:
         //   scale = 2               -- uniform scale (default 1) on top of the baked model→world size
         //   alpha = 0.5             -- opacity 0..1 (default 1); tint = {r=,g=,b=[,a=]} colour overlay 0..255
@@ -514,270 +482,13 @@ final class RenderApi {
             destroyEntity(sp);          // removes each from a.sprites as it goes (copy-on-write list)
     }
 
-    // ---- R1: custom images (hafen.render.image) --------------------------------------------------------------
-
-    /**
-     * Resolve an addon-relative asset path to a filesystem {@link Path} <b>inside</b> the addon's own folder,
-     * rejecting absolute paths and {@code ..} escapes (D-017 — an addon reads only its own assets). {@code ctx}
-     * names the caller in the error text. After {@code normalize()}, both an absolute path and a {@code ..} that
-     * climbs out of the folder fail the containment check (they no longer start with the folder), while an
-     * internal {@code a/../b} is allowed. Never returns a path outside {@link Addon#dir}.
-     */
-    static Path resolveAddonAsset(Addon owner, String name, String ctx) {
-        if((name == null) || name.isEmpty())
-            throw new LuaError(ctx + ": path must be a non-empty string (addon-relative, e.g. \"icon.png\")");
-        Path base = owner.dir.toAbsolutePath().normalize();
-        Path p;
-        try {
-            p = base.resolve(name).normalize();
-        } catch(RuntimeException e) {                 // InvalidPathException — a malformed name
-            throw new LuaError(ctx + ": invalid path '" + name + "'");
-        }
-        if(!p.startsWith(base))                        // absolute, or a ".." that climbs out → rejected
-            throw new LuaError(ctx + ": path '" + name + "' escapes the addon folder (absolute paths and '..' are not allowed)");
-        return p;
-    }
-
-    /**
-     * {@code hafen.render.image(path)} (R1): load a PNG (or any {@code ImageIO}-decodable image) from the addon's
-     * own folder into a cached, bridge-owned {@link LuaImage} handle. Rejects a non-string / out-of-folder path
-     * (D-017); decodes <b>synchronously</b> on the UI thread (small local assets — spec 17 §3) via {@code ImageIO}
-     * → {@link TexI}; a repeated load of the same path returns the <b>same</b> handle (one {@code TexI} per
-     * {@code (addon, path)}). A decode failure raises a clear {@link LuaError}.
-     */
-    private static LuaValue newImage(Addon owner, LuaValue pathv) {
-        if(!pathv.isstring())
-            throw new LuaError("hafen.render.image(path) expects a string (an addon-relative file name, e.g. \"icon.png\")");
-        String name = pathv.tojstring();
-        for(LuaImage ex : owner.images) {              // cache: one handle per (addon, path)
-            if(!ex.dead && name.equals(ex.name) && (ex.handle != null))
-                return ex.handle;
-        }
-        Path p = resolveAddonAsset(owner, name, "hafen.render.image");
-        BufferedImage img;
-        try {
-            img = ImageIO.read(p.toFile());
-        } catch(IOException | RuntimeException e) {
-            throw new LuaError("hafen.render.image: could not read '" + name + "': " + e.getMessage());
-        }
-        if(img == null)
-            throw new LuaError("hafen.render.image: '" + name + "' is not a decodable image (PNG/JPG/GIF/BMP)");
-        LuaImage li = new LuaImage(owner, name, new TexI(img));
-        owner.images.add(li);
-        LuaValue handle = imageHandle(li);
-        li.handle = handle;
-        return handle;
-    }
-
-    /**
-     * The Lua handle for a {@link LuaImage} (R1): {@code :size()} → {@code {w,h}} and {@code :dispose()}. The
-     * table also carries the {@link LuaImage} as an <b>opaque userdata</b> (its {@link LuaImage#KEY} field) so
-     * {@code g:image}/{@code g:aimage} can {@link LuaImage#resolve} it back to the texture — facade-safe (no Java
-     * method is reachable from Lua; the userdata has no metatable and cannot be forged without {@code luajava}).
-     */
-    private static LuaValue imageHandle(final LuaImage li) {
-        LuaTable h = new LuaTable();
-        h.set(LuaImage.KEY, LuaValue.userdataOf(li));  // opaque backing ref for g:image / g:aimage
-        h.set("size", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable t = new LuaTable();
-                t.set("w", LuaValue.valueOf(li.sz.x));
-                t.set("h", LuaValue.valueOf(li.sz.y));
-                return t;
-            }
-        });
-        h.set("dispose", new VarArgFunction() {
-            public Varargs invoke(Varargs a) { disposeImage(li); return a.arg1(); }
-        });
-        return h;
-    }
-
-    /**
-     * Free one image now (its {@code :dispose()}, and teardown): flip {@link LuaImage#dead} (so an in-flight
-     * {@code g:image} on the draw thread no-ops instead of re-uploading the texture via {@code TexI.st()}), drop
-     * it from the addon's registry, and dispose the {@link TexI} (frees the GL texture). Idempotent.
-     */
-    private static void disposeImage(LuaImage li) {
-        if(li.dead)
-            return;
-        li.dead = true;
-        li.owner.images.remove(li);
-        try {
-            li.tex.dispose();
-        } catch(RuntimeException e) { /* best-effort: free the GL texture */ }
-    }
-
-    /** Dispose every image this addon owns (reload/disable/relogin, P2): frees each {@code TexI}'s GL texture. */
-    static void teardownImages(Addon a) {
-        if(a.images.isEmpty())
-            return;
-        for(LuaImage li : new ArrayList<LuaImage>(a.images))
-            disposeImage(li);          // removes each from a.images as it goes (copy-on-write list)
-    }
-
-    // ---- R3: custom 3D models (hafen.render.model / hafen.render.object) ----------------------------------------
-
-    /**
-     * {@code hafen.render.model(path)} (R3a): load a glTF 2.0 <b>static</b> model ({@code .glb} preferred, or
-     * {@code .gltf} + buffers) from the addon's own folder into a cached, bridge-owned {@link LuaMesh} handle.
-     * Rejects a non-string / out-of-folder path (D-017); parses <b>synchronously</b> on the UI thread (small local
-     * assets — spec 17 §3) via {@link Gltf} into baked, H&amp;H-local geometry; a repeated load of the same path
-     * returns the <b>same</b> handle (one parse per {@code (addon, path)}). External {@code .gltf} buffer/image URIs
-     * are resolved <b>relative to the model file</b> and re-sandboxed to the addon folder. A parse failure (malformed
-     * data, or an unsupported feature named by {@link Gltf}) raises a clear {@link LuaError}.
-     */
-    private static LuaValue newMesh(Addon owner, LuaValue pathv) {
-        if(!pathv.isstring())
-            throw new LuaError("hafen.render.model(path) expects a string (an addon-relative file name, e.g. \"chair.glb\")");
-        String name = pathv.tojstring();
-        for(LuaMesh ex : owner.meshes) {               // cache: one parse per (addon, path)
-            if(!ex.dead && name.equals(ex.name) && (ex.handle != null))
-                return ex.handle;
-        }
-        Path p = resolveAddonAsset(owner, name, "hafen.render.model");
-        byte[] bytes;
-        try {
-            bytes = Files.readAllBytes(p);
-        } catch(IOException | RuntimeException e) {
-            throw new LuaError("hafen.render.model: could not read '" + name + "': " + e.getMessage());
-        }
-        final Path base = owner.dir.toAbsolutePath().normalize();
-        final Path parent = p.getParent();             // external URIs resolve relative to the model file...
-        Gltf.Loader loader = new Gltf.Loader() {
-            public byte[] read(String uri) throws Exception {
-                Path q = parent.resolve(uri).normalize();
-                if(!q.startsWith(base))                // ...but never escape the addon folder (D-017)
-                    throw new IOException("external asset '" + uri + "' escapes the addon folder");
-                return Files.readAllBytes(q);
-            }
-        };
-        Gltf mesh;
-        try {
-            mesh = Gltf.parse(bytes, name, loader);
-        } catch(RuntimeException e) {
-            throw new LuaError("hafen.render.model: " + e.getMessage());
-        }
-        TexI[] textures = buildMeshTextures(mesh, name);   // R3b: decode the shared base-colour textures (owned by the mesh)
-        LuaMesh lm = new LuaMesh(owner, name, mesh, textures);
-        owner.meshes.add(lm);
-        LuaValue handle = meshHandle(lm);
-        lm.handle = handle;
-        return handle;
-    }
-
-    /**
-     * Decode a parsed model's referenced texture image blobs ({@link Gltf#images}) into shared {@link TexI}s (R3b) —
-     * the same {@code ImageIO} → {@code TexI} substrate as {@code hafen.render.image}, but built with <b>no
-     * power-of-two rounding</b> ({@code new TexI(img, false)}) so glTF {@code [0,1]} UVs sample the whole image
-     * regardless of its dimensions (NPOT-safe). One {@code TexI} per glTF image (already deduped by {@link Gltf}); the
-     * {@link LuaMesh} owns them and frees them in {@link #disposeMesh}. A blob that fails to decode raises a clear
-     * {@link LuaError} naming the image (never a crash). Empty array for an untextured model.
-     */
-    private static TexI[] buildMeshTextures(Gltf mesh, String name) {
-        int n = mesh.images.size();
-        TexI[] out = new TexI[n];
-        for(int i = 0; i < n; i++) {
-            Gltf.Image im = mesh.images.get(i);
-            String kind = (im.mime != null) ? im.mime : "unknown type";
-            BufferedImage bi;
-            try {
-                bi = ImageIO.read(new ByteArrayInputStream(im.bytes));
-            } catch(IOException | RuntimeException e) {
-                throw new LuaError("hafen.render.model: could not decode texture image " + i + " (" + kind + ") in '" + name + "': " + e.getMessage());
-            }
-            if(bi == null)
-                throw new LuaError("hafen.render.model: texture image " + i + " (" + kind + ") in '" + name + "' is not a decodable image (PNG/JPG/GIF/BMP)");
-            out[i] = new TexI(bi, false);   // no POT rounding → [0,1] glTF UVs map to the full image (NPOT-safe)
-        }
-        return out;
-    }
-
-    /**
-     * The Lua handle for a {@link LuaMesh} (R3): {@code :bounds()} → {@code {min={x,y,z}, max={x,y,z},
-     * size={x,y,z}}} (world units) and {@code :dispose()}. The table also carries the {@link LuaMesh} as an
-     * <b>opaque userdata</b> ({@link LuaMesh#KEY}) so {@code hafen.render.object{model=…}} can {@link LuaMesh#resolve}
-     * it back to the parsed geometry — facade-safe (no Java method reachable from Lua; unforgeable without {@code luajava}).
-     */
-    private static LuaValue meshHandle(final LuaMesh lm) {
-        LuaTable h = new LuaTable();
-        h.set(LuaMesh.KEY, LuaValue.userdataOf(lm));   // opaque backing ref for hafen.render.object
-        h.set("bounds", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable t = new LuaTable();
-                t.set("min", vec3Table(lm.mesh.min));
-                t.set("max", vec3Table(lm.mesh.max));
-                t.set("size", vec3Table(new float[] {
-                    lm.mesh.max[0] - lm.mesh.min[0], lm.mesh.max[1] - lm.mesh.min[1], lm.mesh.max[2] - lm.mesh.min[2] }));
-                return t;
-            }
-        });
-        // :info() → a small summary of what the parser produced (R3b): primitive/texture/triangle counts. Useful for
-        // an addon (or the hello harness) to confirm a model loaded textured, and for logging.
-        h.set("info", new ZeroArgFunction() {
-            public LuaValue call() {
-                int textured = 0, lit = 0;
-                for(Gltf.Prim p : lm.mesh.prims) {
-                    if(p.textured()) textured++;
-                    if(p.nrm != null) lit++;                         // R3c: primitives shaded by the world lights
-                }
-                LuaTable t = new LuaTable();
-                t.set("prims", LuaValue.valueOf(lm.mesh.prims.size()));
-                t.set("textured", LuaValue.valueOf(textured));       // primitives with a base-colour texture
-                t.set("lit", LuaValue.valueOf(lit));                 // primitives with normals → Phong-lit (R3c)
-                t.set("textures", LuaValue.valueOf(lm.textures.length));   // distinct decoded texture images
-                t.set("verts", LuaValue.valueOf((double)lm.mesh.nvert));
-                t.set("tris", LuaValue.valueOf((double)lm.mesh.ntri));
-                return t;
-            }
-        });
-        h.set("dispose", new VarArgFunction() {
-            public Varargs invoke(Varargs a) { disposeMesh(lm); return a.arg1(); }
-        });
-        return h;
-    }
-
-    /** A {@code {x,y,z}} Lua table from a 3-float array (mesh bounds). */
-    private static LuaTable vec3Table(float[] v) {
-        LuaTable t = new LuaTable();
-        t.set("x", LuaValue.valueOf((double)v[0]));
-        t.set("y", LuaValue.valueOf((double)v[1]));
-        t.set("z", LuaValue.valueOf((double)v[2]));
-        return t;
-    }
-
-    /**
-     * Free one model now (its {@code :dispose()}, and teardown): flip {@link LuaMesh#dead} (so a later
-     * {@code render.object} refuses it), drop it from the addon's registry, and (R3b) dispose the mesh's <b>shared
-     * base-colour textures</b> (the first GPU state a mesh owns). Each {@link LuaObject} owns its own engine
-     * {@code Model}s (freed by {@code teardownObjects}, which runs first), so at teardown a live object never
-     * references a freed texture; a manual {@code mesh:dispose()} while an object still draws it does free the
-     * textures out from under it (dispose only when unused — see {@link LuaMesh}). Idempotent.
-     */
-    private static void disposeMesh(LuaMesh lm) {
-        if(lm.dead)
-            return;
-        lm.dead = true;
-        lm.owner.meshes.remove(lm);
-        for(TexI t : lm.textures) {                   // R3b: free the shared base-colour textures
-            if(t != null) {
-                try { t.dispose(); } catch(RuntimeException e) { /* best-effort: free the GL texture */ }
-            }
-        }
-    }
-
-    /** Dispose every model this addon owns (reload/disable/relogin, P2). Objects are torn down first ({@link #teardownObjects}). */
-    static void teardownMeshes(Addon a) {
-        if(a.meshes.isEmpty())
-            return;
-        for(LuaMesh lm : new ArrayList<LuaMesh>(a.meshes))
-            disposeMesh(lm);           // removes each from a.meshes as it goes (copy-on-write list)
-    }
+    // ---- R3: custom 3D models in the world (hafen.render.object) -----------------------------------------------
 
     /**
      * {@code hafen.render.object{model, x, y [, a] [, scale] [, alpha] [, tint] [, clickable] [, onClick] [, follow]
      * [, offset]}} (R3a): stand a custom glTF model in the 3D world — the mesh sibling of a sprite/ghost, on the same
-     * virtual-entity core (spec 18 §3). Validates the options, resolves the {@code model} (a {@code hafen.render.model}
-     * handle or an addon-relative path, auto-loaded + cached), builds a {@link GhostGob}, attaches a {@link MeshSprite}
+     * virtual-entity core (spec 18 §3). Validates the options, resolves the {@code model} (a {@code hafen.asset}
+     * mesh handle or an addon-relative path, auto-loaded + cached), builds a {@link GhostGob}, attaches a {@link MeshSprite}
      * ({@code SprDrawable}), and adds it to the MapView {@code basic} scene ({@link MapView#addClientGob}). Everything
      * else — transform, look, {@code follow} anchor, {@code clickable}/{@code onClick}, gizmo — is shared with sprites.
      * Because the geometry is already decoded ({@link Gltf}), there is NO {@code Loading} to dodge — the gob is built
@@ -857,15 +568,16 @@ final class RenderApi {
     }
 
     /**
-     * Resolve the object {@code model=} option to a live {@link LuaMesh}: a {@code hafen.render.model} handle (or its
-     * raw backing userdata), or an addon-relative <b>path</b> string (auto-loaded + cached from the addon's own
-     * folder, D-017-sandboxed, via {@link #newMesh}). Throws a {@link LuaError} for anything else / a disposed model.
+     * Resolve the object {@code model=} option to a live {@link LuaMesh}: a {@code hafen.asset} mesh handle (or its
+     * raw backing userdata), or an addon-relative <b>path</b> string (auto-loaded + interned through
+     * {@link AssetApi#load}, D-017-sandboxed). Throws a {@link LuaError} for anything else / a disposed model.
+     * (028.2 makes this <b>handle-only</b> — one flow, D-012.)
      */
     private static LuaMesh resolveObjectMesh(Addon owner, LuaValue modelv) {
-        LuaMesh lm = modelv.isstring() ? LuaMesh.resolve(newMesh(owner, modelv))   // load+cache from the addon folder
+        LuaMesh lm = modelv.isstring() ? LuaMesh.resolve(AssetApi.load(owner, modelv.tojstring()))
                                        : LuaMesh.resolve(modelv);                   // a handle or its raw userdata
         if((lm == null) || lm.dead)
-            throw new LuaError("hafen.render.object: 'model' must be a hafen.render.model handle or an addon-relative path string");
+            throw new LuaError("hafen.render.object: 'model' must be a hafen.asset mesh handle (hafen.asset(\"chair.glb\")) or an addon-relative path string");
         return lm;
     }
 
@@ -882,7 +594,7 @@ final class RenderApi {
     /**
      * {@code hafen.render.sprite{image, x, y [, a] [, scale] [, alpha] [, tint] [, billboard] [, clickable] [, onClick]}}
      * (R2): stand a custom PNG in the 3D world — the non-{@code .res} sibling of a ghost, on the same virtual-entity
-     * core (spec 17 §5). Validates the options, resolves the {@code image} (a {@code hafen.render.image} handle or an
+     * core (spec 17 §5). Validates the options, resolves the {@code image} (a {@code hafen.asset} image handle or an
      * addon-relative path, auto-loaded + cached), builds a {@link GhostGob}, attaches the visual, and adds it to the
      * MapView {@code basic} scene ({@link MapView#addClientGob}). The visual is the ONLY thing {@code billboard}
      * selects: {@code false} (default) → a resource-free {@link SprDrawable} quad ({@link SpriteQuad}) standing
@@ -976,15 +688,16 @@ final class RenderApi {
     }
 
     /**
-     * Resolve the sprite {@code image=} option to a live {@link LuaImage}: a {@code hafen.render.image} handle (or
-     * its raw backing userdata), or an addon-relative <b>path</b> string (auto-loaded + cached from the addon's own
-     * folder, D-017-sandboxed, via {@link #newImage}). Throws a {@link LuaError} for anything else / a disposed image.
+     * Resolve the sprite {@code image=} option to a live {@link LuaImage}: a {@code hafen.asset} image handle (or
+     * its raw backing userdata), or an addon-relative <b>path</b> string (auto-loaded + interned through
+     * {@link AssetApi#load}, D-017-sandboxed). Throws a {@link LuaError} for anything else / a disposed image.
+     * (028.2 makes this <b>handle-only</b> — one flow, D-012.)
      */
     private static LuaImage resolveSpriteImage(Addon owner, LuaValue imgv) {
-        LuaImage li = imgv.isstring() ? LuaImage.resolve(newImage(owner, imgv))   // load+cache from the addon folder
+        LuaImage li = imgv.isstring() ? LuaImage.resolve(AssetApi.load(owner, imgv.tojstring()))
                                       : LuaImage.resolve(imgv);                    // a handle or its raw userdata
         if((li == null) || li.dead)
-            throw new LuaError("hafen.render.sprite: 'image' must be a hafen.render.image handle or an addon-relative path string");
+            throw new LuaError("hafen.render.sprite: 'image' must be a hafen.asset image handle (hafen.asset(\"icon.png\")) or an addon-relative path string");
         return li;
     }
 

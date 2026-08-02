@@ -902,7 +902,7 @@ final class UiApi {
             }
         });
         // F5 (spec 21): node:setFont(h) — restyle THIS widget and everything drawn inside it with a
-        // hafen.font.load handle, while its siblings keep the scope/"default" font (the top of the font resolution
+        // font handle (hafen.asset / hafen.font), while its siblings keep the scope/"default" font (the top of the font resolution
         // chain). Owner-tagged: reverted automatically on :reload/disable, and it dies with the widget (a closed
         // window takes its override with it). Returns the node, so it chains.
         h.set("setFont", new VarArgFunction() {

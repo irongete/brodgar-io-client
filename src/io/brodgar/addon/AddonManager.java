@@ -1120,6 +1120,22 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // wdgmsg the server (that is hafen.act, Phase 4). See LuaWidget for the callback plumbing.
         UiApi.installUi(hafen, owner);
 
+        // hafen.asset(path) — the ONE loader for the files THIS addon ships (spec 028-asset-loader). A CALLABLE
+        // namespace (D-056): hafen.asset(path) is one interned, typed handle; hafen.asset() is the array of the
+        // addon's live assets. Dispatch is by EXTENSION — .png/.jpg/.jpeg/.gif/.bmp = an image (draw it with
+        // g:image / stand it with hafen.render.sprite), .ttf/.otf = a font (hafen.font.setFont / window{font=} /
+        // g:text{font=}), .glb/.gltf = a glTF mesh (hafen.render.object) — and anything else errors listing them.
+        // Paths are addon-relative and SANDBOXED (absolute paths and ".." escapes are rejected, D-017; the one
+        // containment check lives here now). It takes a PATH AND NOTHING ELSE: loading a file is expensive and
+        // happens once, configuring a use of it is cheap and happens many times, so a font's size/style is
+        // h:derive{size=12} — AWT's own split, and what keeps == free of an options table. Interned per (addon,
+        // resolved path), so repeating the load costs nothing and identity is stable WHILE ALIVE: :dispose()
+        // drops the entry, so the next load of that path is a NEW object. Every asset answers :type()/:path()/
+        // :dispose() on top of its own verbs. hafen.font.load / hafen.render.image / hafen.render.model are a
+        // HARD CUT (D-013) and read as nil; the client's four BUILT-IN fonts are engine-owned, so they are
+        // addressed rather than loaded: hafen.font("sans"|"serif"|"mono"|"fraktur").
+        AssetApi.install(hafen, owner);
+
         // hafen.ghost — CLIENT-ONLY world ghosts (spec 16-virtual-entities, V1). A ghost is a virtual prop
         // rendered in the 3D world at arbitrary world coords: a Gob with NO server id, so it never reaches the
         // server and grants no gameplay advantage — a visualization, like a HUD overlay (SAFE-tier, NOT gated;
@@ -1129,11 +1145,11 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // Ghosts are torn down on reload/disable/relogin (P2). Coords are WORLD (login-relative), like gob:pos().
         RenderApi.installGhost(hafen, owner);
 
-        // hafen.render — render CUSTOM assets that are NOT engine `.res` (spec 17-custom-rendering). The sibling of
-        // hafen.ghost (which places `.res` game models in the world): this is for the addon's OWN files. R1 ships the
-        // 2D-image loader; world sprites (R2) and glTF models (R3) join it later. Client-only ⇒ SAFE-tier, NOT gated
-        // (D-034), like a HUD overlay. A `.res` file is already a PNG under the hood (Resource.Image = new TexI(
-        // ImageIO.read(...))), so this just exposes that substrate directly, skipping the `.res` container.
+        // hafen.render — stand CUSTOM assets that are NOT engine `.res` in the 3D world (spec 17-custom-rendering).
+        // The sibling of hafen.ghost (which places `.res` game models): this is for the addon's OWN files —
+        // sprite{image=} (R2: a PNG quad, fixed or camera-facing) and object{model=} (R3: a glTF model). Client-only
+        // ⇒ SAFE-tier, NOT gated (D-034), like a HUD overlay. It is a SCENE namespace only: the files themselves come
+        // from hafen.asset (028.1 — .image/.model are cut and read as nil).
         RenderApi.installRender(hafen, owner);
 
         // hafen.hook (L1 input / L2 action / L3 message / V5 grab) + hafen.slash (WoW-style :name console
@@ -1146,12 +1162,15 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // write from Lua and a write from OptWnd are indistinguishable.
         OptionsHandle.install(hafen, owner);
 
-        // hafen.font — per-addon typography (F-series, D-043). load(source[,opts]) -> a PRIVATE FontHandle
-        // (a built-in "sans"/"serif"/"mono"/"fraktur", or a .ttf/.otf from THIS addon's folder — sandboxed,
-        // D-017; :derive/:family/:size). Apply it to a GLOBAL client surface with setFont(scope, h) — an
-        // OWNED override reverted on reload/disable (F1 routes the "default" scope: Text.std / Text.render /
-        // Label, which CASCADES to most UI text). scopes() lists the enumerated surfaces. No shared cross-addon
-        // registry: a handle is a value the addon holds. SAFE-tier (cosmetic, client-only — no server traffic).
+        // hafen.font — per-addon typography (F-series, D-043). hafen.font(name) -> a PRIVATE FontHandle for one of
+        // the client's four BUILT-IN fonts ("sans"/"serif"/"mono"/"fraktur"): engine-owned, so ADDRESSED by name
+        // and interned, with no lifetime (D-060). The addon's OWN .ttf/.otf is a file, so it is an ASSET:
+        // hafen.asset("fonts/Inter.ttf"). Either way the handle is :derive/:family/:size, and the sized/styled
+        // variant is :derive{size=12} — hafen.font.load(source, opts) is a HARD CUT (028.1, D-013). Apply it to a
+        // GLOBAL client surface with setFont(scope, h) — an OWNED override reverted on reload/disable (F1 routes
+        // the "default" scope: Text.std / Text.render / Label, which CASCADES to most UI text). scopes() lists the
+        // enumerated surfaces. No shared cross-addon registry: a handle is a value the addon holds. SAFE-tier
+        // (cosmetic, client-only — no server traffic).
         FontApi.installFont(hafen, owner);
 
         hafen.set("log", new OneArgFunction() {

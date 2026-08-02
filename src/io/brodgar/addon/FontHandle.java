@@ -12,8 +12,8 @@ import org.luaj.vm2.LuaValue;
 
 /**
  * A loaded, per-addon <b>font</b> (spec {@code specs/addons/21-fonts.md}, F1 / D-043) — the Java half of a
- * {@code hafen.font.load(source[, opts])} handle. Wraps an AWT {@link Font} (a built-in {@code Text.sans/serif/
- * mono/fraktur}, or a {@code .ttf}/{@code .otf} loaded from the addon's own folder via {@code Font.createFont})
+ * font handle — {@code hafen.font(name)} for a built-in ({@code Text.sans/serif/mono/fraktur}) or
+ * {@code hafen.asset(path)} for a {@code .ttf}/{@code .otf} the addon ships (via {@code Font.createFont}) —
  * with its bold/italic already baked in, plus the optional {@code size} (<b>logical</b> px), {@code aa}, and
  * default {@code color}. It is a <b>private value the addon holds</b> — there is no shared cross-addon registry
  * (D-043): another addon cannot look it up, so there are no name collisions and no coupling.
@@ -65,7 +65,7 @@ public final class FontHandle {
      * A cached {@link RichText.Foundry} for own-widget drawing (F2) at this handle's effective px — its own
      * {@code size} (UI-scaled) if set, else the caller's {@code stockPx}. The base font carries this handle's
      * family + bold/italic; a {@code $font[…]} tag overrides per run because the family was AWT-registered at
-     * {@code load}. Glyphs render WHITE so the GOut draw colour tints on blit (see the field note); {@code aa}
+     * load. Glyphs render WHITE so the GOut draw colour tints on blit (see the field note); {@code aa}
      * follows the handle (default off, matching {@link haven.Text#std}). Immutable handle &rarr; the cache is
      * stable and small (typically one entry).
      */
@@ -82,7 +82,7 @@ public final class FontHandle {
     }
 
     /**
-     * Resolve a Lua value (a {@code hafen.font.load} handle table, or the raw backing userdata) back to its
+     * Resolve a Lua value (a font handle table — {@code hafen.asset}/{@code hafen.font} — or the raw backing userdata) back to its
      * {@link FontHandle}; {@code null} for anything else (a nil/typo/foreign value). Mirrors {@link LuaImage#resolve}.
      */
     static FontHandle resolve(LuaValue v) {

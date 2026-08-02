@@ -119,9 +119,11 @@ public final class AddonRegistry {
         HookApi.teardownSlashCommands(a); // A11: drop the addon's live slash handlers (Console dispatchers stay — C1)
         RenderApi.teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
         RenderApi.teardownSprites(a);           // R2: destroy client-only world sprites (remove the slot + free the quad geometry)
-        RenderApi.teardownObjects(a);           // R3: destroy client-only world objects (remove the slot + free the glTF Models; before meshes)
-        RenderApi.teardownImages(a);            // R1: dispose custom images (frees each TexI's GL texture — no leak; after sprites)
-        RenderApi.teardownMeshes(a);            // R3: drop custom models (frees the CPU geometry; after the objects that used them)
+        RenderApi.teardownObjects(a);           // R3: destroy client-only world objects (remove the slot + free the glTF Models; before the meshes)
+        AssetApi.teardownAssets(a);             // 028.1: dispose every loaded asset — images (each TexI's GL texture; after
+                                                //   the sprites that sampled it), then meshes (the shared base-colour TexIs;
+                                                //   AFTER the objects above, R3b), then the intern cache itself. Fonts own
+                                                //   nothing releasable; FontApi.teardownFonts below reverts their overrides.
         HookApi.teardownMouseGrabs(a);// V5: release any active mouse-drag grab (drops the UI.Grab + unlinks the widget)
         HttpApi.teardownRequests(a);  // N2a: cancel in-flight HTTP requests (result discarded on drain; no callback)
         FontApi.teardownFonts(a);     // F1: revert this addon's font overrides on every scope (bumps gen -> stock foundry restored)

@@ -169,3 +169,13 @@
   fully qualified (`LuaBuff.name(b)`) at those call sites and leave a comment saying why, since it looks
   like gratuitous qualification. The same trap waits for any helper named `type`/`len`/`get`/`call`/
   `tostring` — the `LuaValue` surface is wide, so prefer distinct helper names when adding new ones.
+- **(028.1) `pcall` works over a CALLABLE TABLE, so a `hafen.x(...)` namespace is still probe-able.**
+  LuaJ's `BaseLib.pcall` only requires a non-nil value and then `invoke`s it, and `LuaValue.invoke` routes a
+  table through its `__call` metamethod — so `pcall(hafen.asset, "fonts/demo.ttf")` behaves exactly like
+  `pcall` over a function. This is what lets `hello` keep probing for an optional bundled file after the
+  namespace stopped being a plain function table (`hafen.font.load` → `hafen.asset`). Worth knowing before
+  converting any namespace to the D-056 callable shape: no caller that wrapped it in `pcall` breaks.
+- **(028.1) The `LuaValue`-method shadowing trap (025.1) bites hardest on `load`.** A loader's natural name
+  IS `load`, and `LuaValue.load(LuaValue)` exists — so `load(owner, path)` inside `new VarArgFunction(){…}`
+  fails to compile with a *misleading* "method load in class LuaValue cannot be applied to given types".
+  Qualify it (`AssetApi.load(...)`) and comment why; `FontApi` had carried exactly that comment since F1.

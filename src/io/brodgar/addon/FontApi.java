@@ -2,7 +2,6 @@ package io.brodgar.addon;
 
 import haven.Fonts;
 import haven.Text;
-import haven.UI;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -14,9 +13,6 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 
 import java.awt.Color;
 import java.awt.Font;
-import java.awt.GraphicsEnvironment;
-import java.io.IOException;
-import java.nio.file.Path;
 
 import static io.brodgar.addon.AddonManager.*;
 
@@ -25,18 +21,21 @@ import static io.brodgar.addon.AddonManager.*;
  * gives an addon <b>complete control over the client's typography</b> without a shared registry. It has three
  * parts, all built here:
  * <ul>
- *   <li><b>{@code hafen.font.load(source[, opts])} &rarr; a private {@link FontHandle}.</b> {@code source} = a
- *       built-in name ({@code "sans"/"serif"/"mono"/"fraktur"}) or a {@code .ttf}/{@code .otf} under the addon's
- *       own folder (sandboxed, D-017); {@code opts = {size,aa,bold,italic,color}}. The handle is an opaque,
- *       per-addon Lua value with {@code :derive}/{@code :family}/{@code :size}.</li>
+ *   <li><b>{@code hafen.font(name)} &rarr; a private {@link FontHandle} for a BUILT-IN font</b>
+ *       ({@code "sans"/"serif"/"mono"/"fraktur"}) — engine-owned, so addressed by name and interned per addon,
+ *       with no lifetime and none of the asset verbs (D-060). The addon's <b>own</b> {@code .ttf}/{@code .otf} is
+ *       loaded by {@link AssetApi} instead ({@code hafen.asset("fonts/Inter.ttf")}, which also AWT-registers its
+ *       family for {@code $font[…]}); {@code hafen.font.load} is a hard cut (028.1, D-013). Either way the handle
+ *       is an opaque per-addon Lua value with {@code :derive}/{@code :family}/{@code :size}, and the size/style
+ *       variant comes from {@code :derive{…}} — the load takes a name or a path and nothing else.</li>
  *   <li><b>Global overrides</b> on named client surfaces (F1 ships {@code "default"}): {@code setFont(scope, h)}
  *       / {@code reset(scope)} / {@code scopes()}, driving the {@code haven}-reachable {@link Fonts} provider.
  *       Each override is <b>owner-tagged</b> and reverted on the addon's teardown ({@link #teardownFonts}) —
  *       the owned-resource model (spec 05).</li>
  *   <li><b>Own-widget application</b> (F2, shipped): a {@code font=} option on {@code hafen.ui.window}/{@code
  *       widget} ({@link LuaWidget}) and a per-call {@code {font,color}} on the {@code g:text}/{@code g:atext} draw
- *       wrapper ({@link LuaGOut}) + a custom TTF in the {@code $font[…]} rich-text tag (family AWT-registered at
- *       {@code load}). Isolated — touches only the addon's own pixels; no global state, nothing to revert.</li>
+ *       wrapper ({@link LuaGOut}) + a custom TTF in the {@code $font[…]} rich-text tag (family AWT-registered
+ *       when the asset is loaded). Isolated — touches only the addon's own pixels; no global state, nothing to revert.</li>
  *   <li><b>Per-instance overrides</b> (F5): {@code node:setFont(h)} / {@code node:resetFont()} on any
  *       {@link LuaWidgetNode} (spec 20) restyle <b>one</b> native widget and its subtree while its siblings keep the
  *       scope/{@code "default"} font — the top of the resolution chain ({@link #setNodeFont}, built into the node
@@ -48,27 +47,12 @@ import static io.brodgar.addon.AddonManager.*;
 final class FontApi {
     private FontApi() {}
 
+    /** The built-in font names {@code hafen.font(name)} answers to, as the error text lists them. */
+    private static final String BUILTINS = "\"sans\", \"serif\", \"mono\" or \"fraktur\"";
+
     /** Build {@code hafen.font} for {@code owner}. From installHafen. */
     static void installFont(LuaTable hafen, final Addon owner) {
         LuaTable font = new LuaTable();
-        // hafen.font.load(source [, opts]) — load a font into a PRIVATE, per-addon handle (no shared registry, D-043).
-        //   source = a built-in name "sans" | "serif" | "mono" | "fraktur", OR an addon-relative path to a .ttf/.otf
-        //            (e.g. "fonts/Inter.ttf"; absolute paths and ".." escapes are REJECTED, D-017). Loading a file
-        //            also registers its family into AWT so h:family() works in a $font[…] rich-text tag (F2).
-        //   opts (all optional): { size = <logical px>, aa = <bool>, bold = <bool>, italic = <bool>,
-        //                          color = {r,g,b[,a]} (0..255) }. size passes through UI.scale when a foundry is
-        //                          built; omitted => the stock size of whatever surface the font is applied to.
-        // Returns a FontHandle (opaque):
-        //   :derive(opts)  -- a cheap variant with a different size/aa/bold/italic/color
-        //   :family()      -- the AWT family name (feed it to $font[family,sz]{…}, F2)
-        //   :size()        -- the handle's logical px size (nil if unset)
-        // Apply it to a GLOBAL client surface with hafen.font.setFont(scope, h) (an owned override, reverted on
-        // reload/disable); to your OWN drawing with hafen.ui.window/widget{font=h} and g:text(...,{font=h}) (F2).
-        font.set("load", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                return FontApi.load(owner, a.arg(1), a.arg(2));   // qualify: LuaValue also has a load(...)
-            }
-        });
         // hafen.font.setFont(scope, h) — install THIS addon's font override on a named client surface (D-043). scope
         // is one of hafen.font.scopes(); F1 routes "default" (the global fallback — Text.std / Text.render / Label),
         // which CASCADES to every routed surface with no more-specific override, so setFont("default", h) really does
@@ -98,69 +82,64 @@ final class FontApi {
                 return t;
             }
         });
+        // hafen.font(name) — the CALL form: one of the client's four BUILT-IN fonts, "sans" | "serif" | "mono" |
+        // "fraktur". They are ENGINE-owned, so they are ADDRESSED, not loaded (the hafen.sound(name) shape): the
+        // handle is interned per addon, has no lifetime, and therefore carries no :dispose()/:path()/:type()
+        // (D-060). The addon's OWN .ttf/.otf is an ASSET: hafen.asset("fonts/Inter.ttf"). Size/style come from
+        // :derive{size=12} in both cases — the load takes a name (or a path) and nothing else.
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.CALL, new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return builtin(owner, a.arg(2));   // arg1 = the callable table itself
+            }
+        });
+        font.setmetatable(mt);
         hafen.set("font", font);
     }
 
-    // ------------------------------------------------------------------ load + handle
+    // ------------------------------------------------------------------ built-ins + handle
 
     /**
-     * {@code hafen.font.load(source[, opts])}: resolve {@code source} to a base AWT {@link Font} (a built-in, or a
-     * {@code .ttf}/{@code .otf} created + AWT-registered from the addon's own folder), apply the {@code opts}
-     * (bold/italic baked into the font; size/aa/colour stored on the handle), and return an opaque
-     * {@link FontHandle}. Throws a clear {@link LuaError} for a bad source / unreadable font file.
+     * {@code hafen.font(name)}: the interned {@link FontHandle} for one of the client's built-in fonts
+     * ({@code Text.sans}/{@code serif}/{@code mono}/{@code fraktur}). Engine-owned, so — exactly like
+     * {@code hafen.sound(name)} — it is keyed by <b>name</b>, has no lifetime, and gets none of the asset verbs
+     * ([D-060]). Interned per addon, so {@code hafen.font("mono") == hafen.font("mono")}. A path, a typo or a
+     * missing argument all raise an error naming both this call and {@code hafen.asset}.
      */
-    private static LuaValue load(Addon owner, LuaValue sourcev, LuaValue optsv) {
-        if(!sourcev.isstring())
-            throw new LuaError("hafen.font.load(source [, opts]) expects a string source (a built-in \"sans\"/\"serif\"/\"mono\"/\"fraktur\", or an addon-relative .ttf/.otf path)");
-        if(!optsv.isnil() && !optsv.istable())
-            throw new LuaError("hafen.font.load: opts must be a table { size=, aa=, bold=, italic=, color= }");
-        String source = sourcev.tojstring();
-        Font base = baseFont(owner, source);
-
-        LuaValue opts = optsv.istable() ? optsv : LuaValue.NIL;
-        boolean bold   = opts.istable() && opts.get("bold").toboolean();
-        boolean italic = opts.istable() && opts.get("italic").toboolean();
-        int style = (bold ? Font.BOLD : 0) | (italic ? Font.ITALIC : 0);
-        if(style != Font.PLAIN)
-            base = base.deriveFont(style);
-
-        Integer size = optSize(opts.istable() ? opts.get("size") : LuaValue.NIL, "hafen.font.load");
-        Boolean aa   = optBool(opts.istable() ? opts.get("aa") : LuaValue.NIL);
-        Color color  = optColor(opts.istable() ? opts.get("color") : LuaValue.NIL);
-        return fontHandle(new FontHandle(base, size, aa, color));
+    private static LuaValue builtin(Addon owner, LuaValue namev) {
+        if(namev.isnumber())        // BEFORE isstring(): in LuaJ a number IS a string
+            throw new LuaError("hafen.font(name): the key is a built-in font NAME (" + BUILTINS + "), not a number");
+        if(!namev.isstring())
+            throw new LuaError("hafen.font(name): expected a built-in font name (" + BUILTINS + "), got "
+                + namev.typename() + " — the addon's own .ttf/.otf is hafen.asset(\"fonts/Inter.ttf\")");
+        String name = namev.tojstring();
+        LuaValue h = owner.assets.builtinFont(name);
+        if(h != null)
+            return h;
+        Font base = builtinFont(name);
+        h = fontHandle(new FontHandle(base, null, null, null));
+        owner.assets.putBuiltinFont(name, h);
+        return h;
     }
 
-    /**
-     * Resolve a {@code load} source to its base AWT font: a built-in ({@code Text.sans/serif/mono/fraktur}), or a
-     * {@code .ttf}/{@code .otf} under the addon's own folder — created via {@code Font.createFont} and registered
-     * into AWT (so its family resolves in a {@code $font} tag, F2). Sandboxed to the addon folder (D-017).
-     */
-    private static Font baseFont(Addon owner, String source) {
-        if("sans".equals(source))    return Text.sans;
-        if("serif".equals(source))   return Text.serif;
-        if("mono".equals(source))    return Text.mono;
-        if("fraktur".equals(source)) return Text.fraktur;
-        // otherwise a file under the addon folder (a .ttf/.otf) — sandboxed, created, and AWT-registered.
-        Path p = RenderApi.resolveAddonAsset(owner, source, "hafen.font.load");
-        Font f;
-        try {
-            f = Font.createFont(Font.TRUETYPE_FONT, p.toFile());
-        } catch(java.awt.FontFormatException e) {
-            throw new LuaError("hafen.font.load: '" + source + "' is not a valid TrueType/OpenType font: " + e.getMessage());
-        } catch(IOException | RuntimeException e) {
-            throw new LuaError("hafen.font.load: could not read font '" + source + "': " + e.getMessage());
-        }
-        try {
-            GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(f);   // so h:family() resolves in $font (F2)
-        } catch(RuntimeException e) { /* best-effort: even if registration fails the handle still draws via its Font */ }
-        return f;
+    /** The AWT font behind a built-in name, or a {@link LuaError} that also points a path at {@code hafen.asset}. */
+    private static Font builtinFont(String name) {
+        if("sans".equals(name))    return Text.sans;
+        if("serif".equals(name))   return Text.serif;
+        if("mono".equals(name))    return Text.mono;
+        if("fraktur".equals(name)) return Text.fraktur;
+        throw new LuaError("hafen.font(\"" + name + "\"): not a built-in font — the built-ins are " + BUILTINS
+            + "; a font FILE this addon ships is an asset: hafen.asset(\"fonts/Inter.ttf\")");
     }
 
     /**
      * The Lua handle for a {@link FontHandle}: the opaque backing userdata ({@link FontHandle#KEY}) plus
      * {@code :derive(opts)} / {@code :family()} / {@code :size()}. Facade-safe (no AWT {@code Font} reaches Lua).
+     * A font <b>asset</b> ({@link AssetApi}) is this table plus the shared {@code :type()}/{@code :path()}/
+     * {@code :dispose()}; a built-in or a {@code :derive}d variant is this table alone — it was never loaded from
+     * a file, so it has no path and no lifetime.
      */
-    private static LuaValue fontHandle(final FontHandle fh) {
+    static LuaTable fontHandle(final FontHandle fh) {
         LuaTable h = new LuaTable();
         h.set(FontHandle.KEY, LuaValue.userdataOf(fh));   // opaque backing ref for setFont / font= / g:text (F2)
         h.set("derive", new VarArgFunction() {            // a cheap variant with different size/aa/bold/italic/color
@@ -206,7 +185,7 @@ final class FontApi {
         String scope = requireScope(scopev, "hafen.font.setFont");
         FontHandle fh = FontHandle.resolve(hv);
         if(fh == null)
-            throw new LuaError("hafen.font.setFont(scope, h): h must be a hafen.font.load handle");
+            throw new LuaError("hafen.font.setFont(scope, h): h must be a font handle — hafen.asset(\"fonts/X.ttf\") or hafen.font(\"sans\")");
         Fonts.push(scope, owner, fh.font, fh.size, fh.aa, fh.color);
         if(!owner.fontOverrides.contains(scope))
             owner.fontOverrides.add(scope);
@@ -234,7 +213,7 @@ final class FontApi {
     static void setNodeFont(Addon owner, haven.Widget w, LuaValue hv) {
         FontHandle fh = FontHandle.resolve(hv);
         if(fh == null)
-            throw new LuaError("node:setFont(h): h must be a hafen.font.load handle — use a COLON call");
+            throw new LuaError("node:setFont(h): h must be a font handle — hafen.asset(\"fonts/X.ttf\") or hafen.font(\"sans\") — use a COLON call");
         if(w == null)
             return;
         Fonts.pushInstance(w, owner, fh.font, fh.size, fh.aa, fh.color);

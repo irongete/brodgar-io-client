@@ -139,27 +139,27 @@ public final class Addon {
      * {@code 17-custom-rendering.md} §2, SAFE-tier, D-034). Like ghosts there is no global dispatch/poll list (a
      * passive render node driven by the render tree's own tick); it lives only here. Teardown
      * ({@link RenderApi#teardownSprites}) destroys each — removes its scene slot + disposes the quad geometry
-     * (the shared {@code TexI} is freed by {@link RenderApi#teardownImages}) — so a reload/disable/relogin
+     * (the shared {@code TexI} is freed by {@link AssetApi#teardownAssets}) — so a reload/disable/relogin
      * leaks nothing. Copy-on-write: a firing callback may create or destroy a sprite.
      */
     public final List<LuaSprite> sprites = new CopyOnWriteArrayList<LuaSprite>();
     /**
-     * Live custom images owned by this addon ({@code hafen.render.image}, R1): each is a PNG decoded from the
+     * Live custom images owned by this addon ({@code hafen.asset("icon.png")}, R1): each is a PNG decoded from the
      * addon's own folder into a {@link haven.TexI} GPU texture — a client-only render asset that is NOT an
      * engine {@code .res} (SAFE-tier, D-034). Like the hook lists there is no global dispatch/poll list; an
      * image is a passive texture drawn on demand through the {@code g} wrapper, so it lives only here. Teardown
-     * ({@link RenderApi#teardownImages}) disposes each ({@code TexI.dispose()} frees the GL texture) so a
+     * ({@link AssetApi#teardownAssets}) disposes each ({@code TexI.dispose()} frees the GL texture) so a
      * reload/disable/relogin leaks no GPU resource — the same guarantee as windows, overlays, and ghosts.
      * Copy-on-write: a firing callback may load or {@code :dispose()} an image.
      */
     public final List<LuaImage> images = new CopyOnWriteArrayList<LuaImage>();
     /**
-     * Live custom 3D models owned by this addon ({@code hafen.render.model}, R3): each is a glTF mesh
+     * Live custom 3D models owned by this addon ({@code hafen.asset("chair.glb")}, R3): each is a glTF mesh
      * ({@code .glb}/{@code .gltf}) decoded from the addon's own folder into baked, H&amp;H-local geometry (a
      * {@link Gltf}) — a client-only render asset that is NOT an engine {@code .res} (SAFE-tier, D-034). Like
      * {@link #images} there is no global dispatch/poll list; a mesh is a passive geometry source that
      * {@link #objects} build engine {@code Model}s from on demand, so it lives only here. Teardown
-     * ({@link RenderApi#teardownMeshes}) marks each dead and drops it (frees the CPU geometry for GC; its
+     * ({@link AssetApi#teardownAssets}) marks each dead and drops it (frees the CPU geometry for GC; its
      * per-object GPU {@code Model}s are freed with the objects) so a reload/disable/relogin leaks nothing.
      * Copy-on-write: a firing callback may load or {@code :dispose()} a model.
      */
@@ -171,7 +171,7 @@ public final class Addon {
      * {@code 18-custom-models-gltf.md}, SAFE-tier, D-034). Like ghosts/sprites there is no global dispatch/poll
      * list (a passive render node driven by the render tree's own tick); it lives only here. Teardown
      * ({@link RenderApi#teardownObjects}) destroys each — removes its scene slot + disposes its engine
-     * {@code Model}s (the shared mesh is freed by {@link RenderApi#teardownMeshes}) — so a reload/disable/relogin
+     * {@code Model}s (the shared mesh is freed by {@link AssetApi#teardownAssets}) — so a reload/disable/relogin
      * leaks nothing. Copy-on-write: a firing callback may create or destroy an object.
      */
     public final List<LuaObject> objects = new CopyOnWriteArrayList<LuaObject>();
@@ -288,6 +288,22 @@ public final class Addon {
      * slot), so the keys are strong — bounded only because every access drains the queue; see {@link LuaMeter}.
      */
     final LuaMeter.Cache meters = new LuaMeter.Cache(this);
+
+    /**
+     * This addon's <b>asset intern cache</b> ({@code hafen.asset(path)}, spec {@code 028-asset-loader}): the
+     * {@code resolved path → loaded asset} map behind the one loader for the files this addon ships — images,
+     * fonts and glTF meshes alike, replacing the two linear scans over {@link #images}/{@link #meshes} and
+     * giving fonts the cache they never had (one {@code Font.createFont} + one {@code registerFont} per file,
+     * not one per call). Per-addon like every other cache here — no Lua value crosses a sandbox boundary
+     * (D-017) and the whole thing dies with this {@link Addon} on {@code :reload}/disable.
+     *
+     * <p>Unlike the weak intern caches ({@link #gobs}, {@link #sounds}, …) the values are <b>strong</b>: an
+     * asset is an owned resource with a lifetime, not an identity map over something the engine owns. The typed
+     * lists above stay the teardown units (they encode the R3b order); {@link AssetApi#teardownAssets} runs them
+     * and then clears this. It also interns the addon's <b>built-in</b> fonts ({@code hafen.font("sans")}),
+     * which are engine-owned and therefore not assets — never listed, never disposed.
+     */
+    final AssetApi.Cache assets = new AssetApi.Cache();
 
     /**
      * This addon's <b>rendered-text cache</b> ({@code g:text}/{@code g:atext}, spec {@code 026-text-cache}): the

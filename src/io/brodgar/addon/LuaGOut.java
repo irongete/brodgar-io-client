@@ -34,7 +34,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  * parameters start at {@code arg(2)}; coercions are forgiving (a bad arg draws garbage rather than
  * throwing). Coordinates are the callback's local pixel space (widget-local for a widget, screen for a
  * HUD overlay, the gob's projected screen point for a gob overlay). Maps 1:1 to {@link GOut}. Image
- * drawing ({@code g:image}/{@code g:aimage}, R1) takes a {@code hafen.render.image} handle (a
+ * drawing ({@code g:image}/{@code g:aimage}, R1) takes a {@code hafen.asset} image handle (a
  * {@link LuaImage}) and blits its {@link haven.TexI}; a nil/typo/disposed image simply draws nothing.
  */
 final class LuaGOut {
@@ -268,7 +268,7 @@ final class LuaGOut {
 
         // g:text(str, x, y [, opts]) — draw text at the top-left of (x, y).
         //   opts (all optional, F2): { font = h, color = {r,g,b[,a]} }.
-        //     font  = a hafen.font.load handle -> render str in THAT font (else the widget's font= default, else
+        //     font  = a font handle (hafen.asset("fonts/X.ttf") / hafen.font("mono")) -> render str in THAT font (else the widget's font= default, else
         //             the client stock). Own-widget drawing is isolated (no global state touched).
         //     color = {r,g,b[,a]} 0..255 -> tint the glyphs that colour (like g:color around the call); omitted =>
         //             white glyphs tinted by the current g:color (the stock behaviour).
@@ -340,9 +340,9 @@ final class LuaGOut {
                 return NIL;
             }
         });
-        // g:image(img, x, y)         — draw a hafen.render.image (R1) at its native size, top-left at (x, y).
+        // g:image(img, x, y)         — draw a hafen.asset image (R1) at its native size, top-left at (x, y).
         // g:image(img, x, y, w, h)   — the same, scaled into a w×h box.
-        // `img` is the handle from hafen.render.image; a nil / wrong-type / disposed handle draws nothing (the
+        // `img` is the handle from hafen.asset("icon.png"); a nil / wrong-type / disposed handle draws nothing (the
         // resolve returns null / the dead guard skips it) — never throws, matching the forgiving g wrapper.
         t.set("image", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -361,7 +361,7 @@ final class LuaGOut {
         });
         // g:resource(name, x, y)         — draw an ENGINE .res image BY NAME at its native size, top-left at (x,y).
         // g:resource(name, x, y, w, h)   — the same, scaled into a w×h box.
-        // The sibling of g:image: g:image draws the addon's OWN PNGs (hafen.render.image, R1), g:resource draws
+        // The sibling of g:image: g:image draws the addon's OWN PNGs (hafen.asset, R1), g:resource draws
         // the client's own .res art (action icons, hud pieces) — e.g. the `res` a widget receives from onDrop
         // (D-038). The name is resolved ASYNC + cached (one Indir per name) and the draw is Loading-GUARDED: it
         // draws nothing until the texture is ready, then blits the default image layer (Resource.imgc) — the

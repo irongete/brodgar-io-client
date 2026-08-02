@@ -7,14 +7,14 @@ import org.luaj.vm2.LuaValue;
 
 /**
  * A loaded, bridge-owned custom <b>image</b> (spec {@code 17-custom-rendering.md}, R1) — the Java half of
- * {@code hafen.render.image(path)}. A PNG (or any {@code ImageIO}-decodable image) read from the addon's own
+ * {@code hafen.asset("icon.png")} (028.1; was {@code hafen.render.image}). A PNG (or any {@code ImageIO}-decodable image) read from the addon's own
  * folder and wrapped in a {@link TexI} — the very substrate the engine's {@code .res} images already run on
  * ({@code Resource.Image} does {@code new TexI(ImageIO.read(...))}), exposed directly without the {@code .res}
  * container. Because it is a client-side texture that never reaches the server and grants no gameplay
  * advantage, it is <b>SAFE-tier, NOT gated</b> (D-034) — like a HUD overlay or a world ghost.
  *
  * <p><b>Handle, not a ref.</b> An image has no server identity, so it is addressed by a bridge-owned
- * <b>handle</b> ({@link AddonManager#imageHandle}) exposing {@code :size()} &rarr; {@code {w,h}} and
+ * <b>handle</b> (built by {@link AssetApi}) exposing the shared asset verbs, {@code :size()} &rarr; {@code {w,h}} and
  * {@code :dispose()}. The handle table carries this {@code LuaImage} as an <b>opaque userdata</b> (the
  * {@link #KEY} field) so the {@code g} draw wrapper ({@link LuaGOut}'s {@code g:image}/{@code g:aimage}) can
  * {@link #resolve} it back to its {@link #tex}. This is the same facade-safe opaque round-trip
@@ -24,7 +24,7 @@ import org.luaj.vm2.LuaValue;
  *
  * <p><b>Ownership (P2).</b> Bridge-owned: it lives only in the addon's owned-resource registry
  * ({@link Addon#images}). {@code :dispose()} / {@code OnDisable} / {@code :reload} / relogin teardown
- * ({@link RenderApi#teardownImages}) frees its GPU texture ({@link TexI#dispose()}) and drops it from the
+ * ({@link AssetApi#teardownAssets}) frees its GPU texture ({@link TexI#dispose()}) and drops it from the
  * registry, leaking no GL resource — the same guarantee as windows, overlays, and ghosts. The {@link #dead}
  * flag makes any later {@code g:image} a clean no-op, so a disposed image never resurrects its texture via
  * {@code TexI.st()}'s lazy re-upload.
@@ -54,7 +54,7 @@ public final class LuaImage {
 
     /**
      * Resolve a Lua value passed to {@code g:image}/{@code g:aimage} back to its {@link LuaImage}: the
-     * {@code hafen.render.image} handle table (via its {@link #KEY} userdata field) or the raw backing userdata
+     * {@code hafen.asset} image handle table (via its {@link #KEY} userdata field) or the raw backing userdata
      * itself; returns {@code null} for anything else (a nil/typo/foreign value &rarr; the draw verb no-ops).
      */
     static LuaImage resolve(LuaValue v) {

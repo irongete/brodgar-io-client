@@ -1169,7 +1169,7 @@ local dropWidget            -- U1: the borderless drop-target widget handle (nil
 local droppedRes           -- U1: the .res name of the last menu-grid action dropped on it (drawn via g:resource)
 local fontWin               -- F2: a small window rendered in the addon's OWN font (font=demoFont) + a $font mix line
 
--- R1: CUSTOM IMAGE (hafen.render.image). Load a PNG shipped in THIS addon's own folder (icon.png -- a small
+-- R1: CUSTOM IMAGE (hafen.asset). Load a PNG shipped in THIS addon's own folder (icon.png -- a small
 -- green "H" disc) into a bridge-owned TexI handle, then draw it below in the 2a window (native + scaled) and
 -- the 2b HUD overlay (anchored). This is a CLIENT-ONLY render asset, NOT an engine .res -- SAFE-tier, NOT
 -- gated (D-034), like an overlay. Paths are addon-relative and sandboxed (absolute / ".." are rejected, D-017).
@@ -1177,13 +1177,13 @@ local fontWin               -- F2: a small window rendered in the addon's OWN fo
 -- there is no GL leak (the Phase-R1 DoD). Loaded at OnLoad -> re-loaded on every reload (the env is rebuilt).
 local icon   -- the image handle (nil until loaded; a fresh reload rebuilds the env -> nil, re-loaded below)
 hafen.events.on("OnLoad", function()
-  icon = hafen.render.image("icon.png")
+  icon = hafen.asset("icon.png")   -- 028.1: ONE loader for every file this addon ships (was hafen.render.image)
   local s = icon:size()
   hafen.log(("R1: loaded icon.png (%dx%d) -- drawn in the 2a window (native + scaled) and the 2b HUD overlay")
     :format(s.w, s.h))
 end)
 
--- R3a/R3b: CUSTOM 3D MODEL (hafen.render.model). Load a glTF .glb shipped in THIS addon's folder (tank.glb -- a
+-- R3a/R3b: CUSTOM 3D MODEL (hafen.asset). Load a glTF .glb shipped in THIS addon's folder (tank.glb -- a
 -- real TEXTURED, MULTI-MATERIAL model) into a bridge-owned mesh handle. Like the R1 image it is a CLIENT-ONLY
 -- render asset, NOT an engine .res -- SAFE-tier, NOT gated (D-034); paths are addon-relative + sandboxed (absolute
 -- / ".." rejected, D-017). The parser bakes the glTF (+Y up) into H&H model space (Z up; 1 glTF metre = 1 tile);
@@ -1195,18 +1195,20 @@ end)
 -- on reload/disable, P2). Stand it with hafen.render.object{model=cube, x=, y=}; ':hello object' places one.
 local cube   -- the model handle (nil until loaded; a fresh reload rebuilds the env -> nil, re-loaded below)
 hafen.events.on("OnLoad", function()
-  cube = hafen.render.model("tank.glb")
+  cube = hafen.asset("tank.glb")   -- 028.1: same door as the image; the .glb extension picks the mesh loader
   local b, nfo = cube:bounds(), cube:info()
   hafen.log(("R3c: loaded tank.glb -- %d prims (%d textured, %d LIT, %d textures), %d tris; baked size %.0f x %.0f x %.0f world units (~%.1f tiles tall); :hello object to place it (now shaded by the world lights)")
     :format(nfo.prims, nfo.textured, nfo.lit, nfo.textures, nfo.tris, b.size.x, b.size.y, b.size.z, b.size.z / 11))
 end)
 
--- F1: PER-ADDON FONTS (hafen.font). hafen.font.load(source[,opts]) loads a font into a PRIVATE, per-addon handle
--- (no shared registry, D-043): `source` is a built-in name ("sans"/"serif"/"mono"/"fraktur") OR an addon-relative
--- .ttf/.otf path (sandboxed like the R1/R3 assets: absolute / ".." are rejected, D-017); `opts` = {size, aa, bold,
--- italic, color}. The handle exposes :derive(opts) (a cheap variant), :family() (the AWT family, for a $font tag in
--- F2) and :size() (its logical px). We prefer a bundled .ttf if one is present (drop any .ttf at addons/hello/fonts/
--- demo.ttf to exercise the file-load + AWT-register path -- the DoD's "loads a TTF"); otherwise we fall back to the
+-- F1: PER-ADDON FONTS (hafen.font / hafen.asset). A font handle is PRIVATE to this addon (no shared registry,
+-- D-043) and comes from one of two places (028.1): hafen.font(name) for a BUILT-IN ("sans"/"serif"/"mono"/
+-- "fraktur" -- engine-owned, so addressed by name, interned, no lifetime) and hafen.asset(path) for a .ttf/.otf
+-- THIS addon ships (sandboxed like every asset: absolute / ".." are rejected, D-017). Neither takes options --
+-- the size/style variant is :derive{size=..}, which is also what hafen.font.load(source, opts) became. The handle
+-- exposes :derive(opts) (a cheap variant), :family() (the AWT family, for a $font tag in F2) and :size().
+-- We prefer a bundled .ttf if one is present (drop any .ttf at addons/hello/fonts/demo.ttf to exercise the
+-- file-load + AWT-register path -- the DoD's "loads a TTF"); otherwise we fall back to the
 -- built-in "serif", which still proves the whole loop. Applying it to a GLOBAL surface is an OWNED override:
 -- hafen.font.setFont("default", h) restyles most UI text LIVE (the "default" scope cascades to Text.std / Text.render
 -- / every default Label), and it is reverted automatically on :reload/disable (the stock UI is always restorable).
@@ -1240,14 +1242,14 @@ hafen.events.on("OnLoad", function()
   speechApplied = false                                 -- F4: ...and for the world.speech override (P2)
   nickApplied = false                                   -- F4: ...and for the world.nick override (P2)
   nodeFontApplied, nodeFontTarget = false, nil          -- F5: ...and for the per-instance (node:setFont) override (P2)
-  monoFont = hafen.font.load("mono", { size = 12 })     -- F2: a distinct font for the per-call g:text{font=} line
-  local ok, ttf = pcall(hafen.font.load, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
+  monoFont = hafen.font("mono"):derive{ size = 12 }     -- F2: a distinct font for the per-call g:text{font=} line
+  local ok, ttf = pcall(hafen.asset, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
   if ok and ttf then
     demoFont = ttf
     hafen.log(("F1: loaded bundled font fonts/demo.ttf -- family '%s', size %s -- :hello font to flip the default font")
       :format(demoFont:family(), tostring(demoFont:size() or "stock")))
   else
-    demoFont = hafen.font.load("serif", { size = 11 })  -- ...else a built-in (no TTF shipped by default). size in logical px.
+    demoFont = hafen.font("serif"):derive{ size = 11 }  -- ...else a built-in (no TTF shipped by default). size in logical px.
     hafen.log(("F1: loaded built-in font 'serif' (size 11) -- family '%s'; drop a .ttf at addons/hello/fonts/demo.ttf to load a real TTF -- :hello font to flip the default font")
       :format(demoFont:family()))
   end
@@ -1565,7 +1567,7 @@ hafen.slash.register("hello", function(args)
       hafen.font.setFont("default", demoFont)           -- override #1 (serif/ttf)
       -- LAST-WINS: stack a SECOND override (mono) on top of the same scope, then drop back to #1, to prove the
       -- owner-tagged stack resolves most-recent-first (a real addon would only set one; this is the harness proof).
-      local mono = hafen.font.load("mono")
+      local mono = hafen.font("mono")
       hafen.font.setFont("default", mono)               -- override #2 now wins (mono)
       hafen.timer.after(3.0, function()
         hafen.font.setFont("default", demoFont)          -- re-apply #1 -> it wins again (last-wins), back to serif/ttf
@@ -2110,7 +2112,7 @@ hafen.events.on("OnEnterWorld", function()
   -- F2: OWN-WIDGET FONTS + $font MIXING. This window declares font = demoFont (the F1-loaded handle), so EVERY
   -- g:text/g:atext inside it defaults to the addon's OWN font -- fully ISOLATED (no global override, nothing the
   -- other addons or the stock UI can see). A per-call { font = h } / { color = {..} } overrides one line, and a
-  -- $font[family,sz]{...} tag mixes TWO fonts on ONE line (the F2 headline) -- it works because hafen.font.load
+  -- $font[family,sz]{...} tag mixes TWO fonts on ONE line (the F2 headline) -- it works because loading the .ttf
   -- AWT-registered the family, so we just feed demoFont:family() to the existing rich-text tag (zero engine
   -- markup change). SAFE-tier, client-only. Disabling/:reload leaves the stock UI untouched. See api/fonts.md.
   if demoFont then

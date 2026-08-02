@@ -226,3 +226,18 @@
   `System.out.println` lines (play / stop / silence / resolve, each with `Thread.currentThread().getName()`)
   answered in ONE round what two passes of re-reasoning had got wrong — and the answer was that the engine was
   right and the *test* was lying. Print the thread name: for anything deferred, the ordering IS the diagnosis.
+- **(028.1) The `ui/fraktur` `<clinit>` wall (A8/A10) is a CLASSPATH problem, not a hard skip — add the res
+  jars.** `haven.Text.<clinit>` does `Resource.loadwait("ui/fraktur")`, which is why touching anything that
+  renders text was written off as headless-untestable. It resolves fine once the resource jars are on the
+  classpath: `bin/builtin-res.jar` + `bin/hafen-res.jar` (or `lib/ext/*.jar` before `ant bin` has copied them).
+  Full recipe for a same-package scratch `main`: `build/classes` + **all** of `lib/*.jar lib/brodgar/*.jar
+  lib/ext/*.jar bin/*res*.jar`, run with `-Djava.awt.headless=true`. The client still prints
+  `haven.iosys.Unavailable: could find no working toolkit` and a `GLException` trace while it hunts for a
+  toolkit — both are **caught**, and execution continues; do not read them as the test failing. That turned
+  028.1's font half from "verify in-game" into 53 headless asserts.
+- **(028.1) Drive the Lua contract through a real `Sandbox.create()` env, not just the Java entry points.**
+  A second scratch class that installs the namespaces into a `LuaTable`, sets it as `hafen` in the sandbox
+  globals and runs one `g.load(src).call()` chunk is what actually proves `==` interning from Lua,
+  `seen[asset]` as a table key, `pcall` over a callable table, and that a cut surface reads `nil`. Those are
+  the assertions the harness addon would otherwise be the first thing to run — and it costs one file.
+  MSYS note: a Git-Bash `/c/...` path in a `-cp` string silently yields `ClassNotFoundException`; use `C:/...`.

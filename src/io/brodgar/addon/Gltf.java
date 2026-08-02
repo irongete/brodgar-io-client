@@ -11,7 +11,7 @@ import haven.Matrix4f;
 
 /**
  * A minimal, dependency-free <b>glTF 2.0 static-mesh</b> reader (spec {@code 18-custom-models-gltf.md}, R-series
- * slice R3a) — the parser half of {@code hafen.render.model(path)}. It reads a {@code .glb} (single-file binary,
+ * slice R3a) — the parser half of a {@code hafen.asset("chair.glb")} mesh. It reads a {@code .glb} (single-file binary,
  * preferred) or a {@code .gltf}+buffers model and decodes it to a flat list of {@link Prim baked primitives} whose
  * geometry is already in <b>H&amp;H model-local space</b> (Z up, world-unit scale) — so a {@link LuaMesh} can build
  * engine {@link haven.render.Model}s from it directly and place them as a virtual gob on the shared world-entity

@@ -238,3 +238,11 @@
 - **(026.2) A permanently-evicting cache at 88.8% hit rate is the feature working, not a shortfall.** The misses are
   one string per frame that never existed before; no cache helps those. Report `hitRate` next to `evictions` so the
   reading is interpretable — and make it **absent, not 0**, before the first lookup (D-050).
+- **(028.1) An owned-resource LIST is earned by something releasable — a font asset has nothing.** The plan
+  gave font assets an `Addon.fonts` list beside `images`/`meshes`, by symmetry. But an image owns a `TexI` and
+  a mesh owns its shared `TexI`s, while a `FontHandle` owns an AWT `Font` (no counterpart to `registerFont`)
+  and a `RichText.Foundry` cache that dies with the handle: teardown would have had nothing to call. The list
+  was dropped, and with it the `dead` flag that would have broken `FontHandle`'s documented immutability —
+  the intern-cache entry IS a font asset's whole lifetime, so `font:dispose()` is "drop the cached parse; the
+  next load re-reads and re-registers the file". Symmetry across sibling types is worth less than each type
+  telling the truth about what it holds.
