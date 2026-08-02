@@ -261,7 +261,9 @@ the record.
 
 **One widget, one owner.** A native widget another addon has already hidden is not yours to hide:
 `w:hide()` refuses with an error naming the addon that holds it. Its toggle can only drive one thing, so
-two owners would leave the menu tick lying about both.
+two owners would leave the menu tick lying about both. [`replace`](#replacing-a-native-window) meets the
+same rule from the other side, and *logs* it rather than throwing (it runs on the client's own placement
+path): that one replacement is skipped, naming the addon that got there first.
 
 A hidden server widget stays fully **live**: still bound to its id, still receiving updates, still filling
 with items. That is why you can hide a grid and keep reading it.
@@ -274,7 +276,11 @@ menu button both stop reopening it, and the menu button's tick goes off:
 
 ```lua
 hafen.ui.inventory():parent():hide()   -- the Hidewnd around the grid: Tab no longer brings it back
+hafen.ui.inventory():hide()            -- the grid alone: the window is still the client's, Tab still opens it
 ```
+
+**What you own is what you point at.** The toggle belongs to the *window*, so hiding a widget inside one
+(the inventory grid, a button) leaves that window — and its key — exactly as stock.
 
 Without this, hiding was not authoritative. The keybinding fires the menu button's own click, and both land
 in one place inside the client that flips the window straight back on — so an addon that hid the stock

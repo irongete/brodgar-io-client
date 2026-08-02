@@ -1,6 +1,6 @@
 # Learnings — index
 
-> Hard-won, non-obvious facts (432 entries), split by category under `learnings/`. **Never read
+> Hard-won, non-obvious facts (436 entries), split by category under `learnings/`. **Never read
 > the whole set** — pick the 1-2 relevant files below and `grep` them (e.g.
 > `grep -i -B1 -A4 "Loading" learnings/ghosts.md`, or `grep -ri <term> learnings/` when unsure).
 > **Append-only:** new learnings are appended to the matching category file; add an index line

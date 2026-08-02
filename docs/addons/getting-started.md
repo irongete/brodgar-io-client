@@ -153,6 +153,13 @@ tells you whether two lookups found the same one. You may **write** only to widg
 (move, resize, destroy); on the client's own the one write is `:hide()`/`:show()`, and it is undone for
 you on reload/disable.
 
+**Hiding one of the client's own windows takes its toggle**: hide the inventory and Tab no longer brings it
+back, with the menu button's tick going off with it. Put your own window in its place with
+[`hafen.ui.replace`](api/ui.md#replacing-a-native-window) and that same key and button drive **your** view
+instead — nothing to wire, since `replace` knows both halves. Reload or disable and both come back, the
+stock window ending up [as the user was seeing it](api/ui.md#hiding-a-native-widget-carries-a-restore):
+open if your view was on screen, closed if nothing was.
+
 The same string also names a widget that **is not there yet**, so you never have to poll for a window:
 
 ```lua

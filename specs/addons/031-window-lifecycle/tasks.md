@@ -27,7 +27,7 @@
       follows it; disable with the view OPEN ⇒ the stock inventory is open; disable with it CLOSED ⇒ nothing
       appears; `:reload` and a relog both behave; a fading/closing window never answers for a live one.
 
-- [ ] **031.3 — docs, harness, close.**
+- [x] **031.3 — docs, harness, close.**
       `docs/addons/api/ui.md`, under the existing *"Hiding a native widget carries a restore"* heading: hiding
       now also **takes that window's toggle**; with `replace`, the client's own key and menu button drive your
       view and the menu tick reads it; and the teardown rule in one sentence — *the window ends up as the user

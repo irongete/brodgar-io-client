@@ -267,3 +267,13 @@
   spaces become dashes, every punctuation character (dash included) is deleted. So `## Selectors — naming a
   widget` is `#selectors--naming-a-widget`, and the double dash that looks like a typo in the link is the
   correct spelling. Same rule explains `#the-built-ins--hafenfontname` from `` ## The built-ins — `hafen.font(name)` ``.
+- **(031.3) Stub the engine's RULES, not just its reads, and the dry run finds state bugs — including a Lua
+  one-liner.** 030.4's stub answered lookups; 031.3's had to *behave*: a widget table with `hide`/`show` over an
+  ownership map (one window one owner, `:show()` drops the record) plus a `hafen.ui.replace` whose `:remove()`
+  applies the real restore rule. The function under test is sliced out of the live `main.lua` by string search
+  (`local swallowedWnd` → the next `hafen.events.on("OnEnterWorld"`) and `load(chunk, name, "t", env)`-ed against
+  it, so it can never drift from what ships. Five scenarios (normal HUD · window open · owned by another addon ·
+  replace finds nothing · pre-HUD) / 18 assertions ran in a second under `java -cp lib/brodgar/luaj-jse-3.0.1.jar
+  lua`, and caught a real defect: **`local x = (cond ~= nil) and w:visible() or nil` collapses a `false` to
+  `nil`** — the classic Lua and/or trap, and it silently turned an *expected-false* assertion into `visible=nil`
+  in the login log. Any harness line that reports a boolean has to use an `if`, not `and`/`or`.

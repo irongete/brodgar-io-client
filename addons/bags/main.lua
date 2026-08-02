@@ -4,18 +4,29 @@
 -- reimplement" (D-009). The real inventory stays server-bound (so model:items() keeps reading its live items),
 -- just hidden; disabling/reloading the addon — or toggling off — restores the stock window (the Phase-3 DoD).
 --
+-- 031: THE CLIENT'S OWN TOGGLE COMES WITH THE WINDOW. Hiding a native window makes it yours, toggle included, and
+-- `replace` binds the view YOU return to it — so once replaced, TAB and the inventory menu button open and close
+-- the "Bags (custom)" window, and the menu tick follows the custom window rather than the hidden one. There is
+-- nothing here to wire: replace is the only place that knows both halves. Before that, Tab flipped `visible` back
+-- on the very window this addon had hidden, and the stock inventory came back ON TOP of the custom one.
+--
 -- It is DORMANT until you press its hotkey, so it never disturbs a normal login / the `hello` regression harness.
--- The hotkey starts UNBOUND: assign "toggle" under Options > Keybindings > Bags (suggested: Ctrl+Shift+I). Then:
---   * Press it            -> REPLACE: the native inventory hides, a custom "Bags" window draws your real items.
---   * Press it again      -> RESTORE: the native inventory comes back, the custom window is destroyed.
---   * Or disable/`:reload` while replaced -> the native inventory is restored on teardown (no leak).
+-- The hotkey ARMS and DISARMS the replacement — it is not a show/hide key, that is Tab's job now. It starts
+-- UNBOUND: assign "toggle" under Options > Keybindings > Bags (suggested: Ctrl+Shift+I). Then:
+--   * Press it            -> REPLACE: the native inventory hides, a custom "Bags" window draws your real items,
+--                            and the client's Tab/menu button now drive THAT window.
+--   * Press it again      -> RESTORE: the native inventory (and its toggle) come back, the custom window is
+--                            destroyed, and the stock window is left AS YOU WERE SEEING IT — open if the custom
+--                            view was on screen, closed if you had toggled it away with Tab.
+--   * Or disable/`:reload` while replaced -> the same one rule runs on teardown (no leak, no orphaned key).
 -- Because replace SCANS for an already-open target at registration, pressing the key in-world finds your open
 -- inventory immediately (the :reload case the 3a->3b observer path could not re-catch).
 --
 -- Item MOVING (take/transfer/drop) is an outbound gameplay action -> the gated Phase-4 actions tier (hafen.act),
 -- so this view is READ-ONLY: it draws the real items and logs the one you click. `hafen` is the API facade.
 
-hafen.log("bags loaded (v0.1.0) -- assign the 'toggle' hotkey in Options > Keybindings > Bags, then press it in-world")
+hafen.log("bags loaded (v0.2.0) -- assign the 'toggle' hotkey in Options > Keybindings > Bags, then press it in-world"
+  .. " (once replaced, Tab and the inventory menu button drive the CUSTOM window)")
 
 local CELL = 34             -- px per inventory cell in the custom view
 local replaceHandle         -- non-nil while we are replacing (nil = native inventory showing)
@@ -68,7 +79,7 @@ local function buildBagsView(m)
         g:color()
       end
       g:color(180, 200, 160)
-      g:text(("%d item(s) -- native inventory hidden (toggle key restores)"):format(#items), 4, h - 15)
+      g:text(("%d item(s) -- Tab closes this window; the hotkey restores the stock one"):format(#items), 4, h - 15)
       g:color()
       g:color(150, 150, 150); g:rect(0, 0, w, h); g:color()             -- outer border
     end,
@@ -89,13 +100,17 @@ local function buildBagsView(m)
       return true                                                       -- truthy = consume
     end,
     onClose = function()
-      hafen.log("bags: view closed (X) -- native inventory restored; press the toggle key to replace again")
+      -- The X fires while this window is still on screen, so the one restore rule ("as the user was seeing it")
+      -- hands back an OPEN stock inventory -- which is what closing a window you were looking at should give you.
+      hafen.log("bags: view closed (X) -- the stock inventory is back OPEN (you were seeing a window), and Tab"
+        .. " toggles it again; press the toggle key to replace once more")
       stopReplace()                                                   -- X also restores the native inventory
     end,
   }
 end
 
--- The toggle hotkey. hafen.ui.replace("inv", {context="main"}, fn) targets the MAIN inventory (GameUI.maininv, the
+-- The ARM/DISARM hotkey (031: it is not the show/hide key -- Tab is, once we are replacing). hafen.ui.replace("inv",
+-- {context="main"}, fn) targets the MAIN inventory (GameUI.maininv, the
 -- unambiguous public reference) and, at registration, SCANS the live tree for it — so pressing this while your
 -- inventory is open replaces it right away. handle:remove() stops replacing AND restores the native inventory
 -- (destroying our view). The hotkey is declared through hafen.client:options():keybindings():register(name, fn)
@@ -105,12 +120,14 @@ local keys = hafen.client:options():keybindings()
 keys:register("toggle", function()
   if replaceHandle then
     stopReplace()
-    hafen.log("bags: RESTORED the native inventory")
+    hafen.log("bags: RESTORED the native inventory (and its Tab/menu toggle) -- left as you were seeing it:"
+      .. " open if the custom window was on screen, closed if you had toggled it away")
   else
     model = nil
     replaceHandle = hafen.ui.replace("inv", { context = "main" }, buildBagsView)
     if model then
-      hafen.log("bags: REPLACED the native inventory with the custom view (drag it; click an item to log it)")
+      hafen.log("bags: REPLACED the native inventory with the custom view (drag it; click an item to log it)."
+        .. " Tab and the inventory menu button now open and close THIS window, and the menu tick follows it")
     else
       hafen.log("bags: no open inventory to replace yet -- open it (Tab) then press the toggle key again")
     end

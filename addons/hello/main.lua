@@ -47,6 +47,12 @@
 -- INVENTORY: the 'bags' hotkey hides/shows its grid with w:hide()/:show() — the ONE write that answers on a native
 -- widget — and the reads keep working, and :reload/disable gives the grid back. Item
 -- MUTATING verbs (take/drop/transfer/use) are NOT here — they are gameplay actions (the gated Phase-4 tier).
+-- Built on 031 WINDOW LIFECYCLE — hiding one of the windows the CLIENT itself opens now TAKES ITS TOGGLE (its key
+-- and its menu button stop reopening it, and the tick goes off), and hafen.ui.replace binds the view your builder
+-- returns to that same hide record, so the client's own key drives YOUR window and the tick reads it. There is no
+-- verb for any of it: ownership follows the hide, and the restore is ONE rule — the window ends up as the user was
+-- seeing it. readToggle (once per login, and ':hello wnd') asserts the swallow, the one-owner refusal and both
+-- halves of that rule; ':hello wnd swallow' parks the swallowed state so you can press Tab at it yourself.
 -- Built on 030.2 SELECTOR EVENTS — hafen.ui.on(selector, "appear"|"disappear", fn) watches the client's OWN UI for
 -- a part of it, named with the same selector a lookup uses, and hands the callback the Widget ENTITY (the old
 -- hafen.ui.onWidgetCreate and its {id,type,place,caption,parentType} descriptor are GONE). It also demonstrates GLOBAL HOTKEYS —
@@ -935,12 +941,97 @@ local function readSelectors(tag)
             tostring(hafen.ui.root), tostring(hafen.ui.onWidgetCreate)))
 end
 
+-- 031.3: THE WINDOW-TOGGLE CONTRACT, re-checked once per login (and on demand with ':hello wnd'). 029 made hiding a
+-- native widget record a RESTORE; 031 makes the hide AUTHORITATIVE. MenuCheckBox calls setgkey, so the client's key
+-- and its menu button fire the SAME click and both land in one private GameUI method that flipped `visible` straight
+-- back on the very window an addon had hidden -- which is why a replaced inventory used to come back on Tab, sitting
+-- on top of its replacement. Now hiding one of the windows the client itself opens TAKES ITS TOGGLE, and there is no
+-- verb for it: ownership follows the hide, and hafen.ui.replace -- the one place that knows BOTH halves, the window
+-- it hid and the view your builder returned -- binds them itself. This asserts the whole contract from Lua in one
+-- pass, on the main inventory's own wrapper window: the SWALLOW (hidden with nothing in its place, so the key does
+-- nothing and the tick reads false), the one-owner rule (idempotent for us, refused for anybody else), and BOTH
+-- HALVES of the one teardown rule -- the window ends up AS THE USER WAS SEEING IT -- driven through two live
+-- replace/:remove() rounds, one with the view on screen (=> the stock window opens) and one with it hidden (=> it
+-- stays closed). The second round is also how the check puts the HUD back exactly as it found it: the rule that is
+-- being tested is the same rule that restores. Press Tab yourself with ':hello wnd swallow', which parks the client
+-- in the swallowed state (the one thing Lua cannot observe: nothing here can press a key).
+local swallowedWnd        -- the window ':hello wnd swallow' is holding hidden (nil = not parked); session-local
+local function readToggle(tag)
+  local grid = hafen.ui.inventory()
+  if not grid then hafen.log(("[%s] toggle: no inventory widget yet (the HUD is not up)"):format(tag)); return end
+  local wnd = grid:parent()                    -- the Hidewnd AROUND the grid: what the client's Tab toggles
+  if not wnd then hafen.log(("[%s] toggle: the inventory grid has no enclosing window"):format(tag)); return end
+  if swallowedWnd then
+    hafen.log((("[%s] toggle: ':hello wnd swallow' is parked on %s -- run it again to give the window back, then"
+      .. " re-run this check"):format(tag, wnd:type())))
+    return
+  end
+  local wasVis = wnd:visible()
+  -- 1. THE HIDE TAKES THE TOGGLE, AND WITH NOTHING IN ITS PLACE THE TOGGLE IS SWALLOWED. The hide is refused outright
+  -- if another addon (or the :lua REPL) already holds this window -- one window, one owner, because its toggle can
+  -- only ever drive one thing and two owners would leave the menu tick lying about both. That refusal is the check's
+  -- gate as well: with 'bags' replaced (or after a :lua hide) this reports the owner by name and stops, rather than
+  -- asserting against a HUD somebody else is driving.
+  local ok, err = pcall(wnd.hide, wnd)
+  if not ok then
+    hafen.log(("[%s] toggle: %s is already owned -- one window, one owner: %s")
+      :format(tag, wnd:type(), (tostring(err):gsub("^.-%.lua:%d+:%s*", ""))))
+    return
+  end
+  local again = pcall(wnd.hide, wnd)           -- ...but OUR own second hide is idempotent (one record, not two)
+  hafen.log(("[%s] toggle: hid %s '%s' (was visible=%s, now %s) -- nothing stands in for it, so the client's key AND"
+      .. " its menu button are SWALLOWED and the tick reads false; our own second hide is idempotent (no error=%s)")
+    :format(tag, wnd:type(), tostring(wnd:text()), tostring(wasVis), tostring(wnd:visible()), tostring(again)))
+  -- 2+3. BOTH HALVES OF THE ONE TEARDOWN RULE. Each round replaces the main inventory (joining the very record the
+  -- hide above made -- one record per window, never a second copy), binds the view the builder returns, and then
+  -- undoes it live with handle:remove(), which is the same rule :reload/disable runs. The rule has NO branches and
+  -- no bookkeeping boolean: the restored window's visibility IS "was the view on screen".
+  local function round(open)
+    local view
+    local h = hafen.ui.replace("inv", { context = "main" }, function()
+      view = hafen.ui.window{ title = "hello: toggle check", size = { 150, 28 }, pos = { 40, 40 },
+                              onDraw = function(g) g:text("toggle check", 4, 4) end }
+      return view                              -- replace binds THIS to the hide record: the toggle drives it
+    end)
+    if not view then h:remove(); return nil end
+    if not open then view:hide() end           -- "nothing was on screen" -- an owned widget, so no record of its own
+    local shown = view:visible()
+    h:remove()                                 -- the live undo: the one rule runs here, before the view is destroyed
+    return shown
+  end
+  local openA = round(true)
+  if openA == nil then
+    wnd:show()                                 -- release our record by hand; the window is back and so is the key
+    hafen.log(("[%s] toggle: hafen.ui.replace found no main inventory to stand in for -- gave %s back with :show()"
+      .. " (it is OPEN now: press Tab to close it)"):format(tag, wnd:type()))
+    return
+  end
+  local afterA = wnd:visible()
+  local openB = round(false)
+  local afterB                                 -- NB a plain `and ... or nil` would collapse a false here
+  if openB ~= nil then afterB = wnd:visible() end
+  hafen.log(("[%s] toggle: teardown rule (the window ends up AS THE USER WAS SEEING IT) -- view open=%s => stock"
+      .. " window visible=%s (expected true) | view hidden=%s => visible=%s (expected false); one expression, no"
+      .. " branches, and it is what makes a bare hide stay hidden through a :reload")
+    :format(tag, tostring(openA), tostring(afterA), tostring(openB), tostring(afterB)))
+  -- 4. LEAVE THE HUD AS WE FOUND IT -- with the rule itself: round B ended hidden, which is the wrapper's own default
+  -- state, so only a HUD that had the inventory open needs the last :show() (which owns nothing and records nothing).
+  if wasVis and not wnd:visible() then wnd:show() end
+  local now = wnd:visible()
+  hafen.log(("[%s] toggle: no verb for any of this (widget.onToggle=%s hafen.ui.toggle=%s -- ownership follows the"
+      .. " hide, replace binds the view); %s left visible=%s, as found=%s%s")
+    :format(tag, tostring(grid.onToggle), tostring(hafen.ui.toggle), wnd:type(), tostring(now), tostring(wasVis),
+            (now == wasVis) and "" or "  <-- MISMATCH (press Tab to put it right)"))
+end
+
 hafen.events.on("OnEnterWorld", function()
   readWidgets("login")                        -- once per login, like readAssets/readMeters/readBuffs
   readSelectors("login")                      -- 030.4: the selector contract, same cadence
+  readToggle("login")                         -- 031.3: the window-toggle contract, same cadence
   hafen.timer.after(3, function()             -- ...and once the inventory/equipment widgets have streamed in
     readWidgets("+3s")
     readSelectors("+3s")                      -- the HUD is fully built by now: the census is the real one
+    readToggle("+3s")                         -- ...and the inventory wrapper exists, so this one really runs
   end)
 end)
 
@@ -1639,9 +1730,13 @@ end)
 -- 3b/029.2: a THIRD hotkey ("bags", suggested Ctrl+B) toggling the native inventory grid's visibility --
 -- widget:hide()/:show(), the ONE write that answers on a widget you did NOT create. Open your inventory (Tab),
 -- press it: the item grid HIDES (it stays bound to its id, so :items() and the add/remove events keep working --
--- drop something in and 3b still logs it); press again: it SHOWS. Hiding a native widget records the RESTORE, so
--- disabling hello or :reload puts it back exactly as it was (and a relog correctly skips it) -- what hafen.ui.adopt
--- used to do implicitly, now explicit. This adds a third row to the "Hello" keybind section (2e-3 grouping). If you
+-- drop something in and 3b still logs it); press again: it SHOWS. Hiding a native widget records the RESTORE -- what
+-- hafen.ui.adopt used to do implicitly, now explicit. 031: what you own is what you POINT AT, and the restore is one
+-- rule -- "the window ends up as the user was seeing it". This hides the GRID, not its window, so Tab keeps toggling
+-- the inventory exactly as stock (it just opens empty); and because nothing stands in for the grid, a :reload leaves
+-- it HIDDEN rather than replaying the visibility it had -- press the key again (or hide the WINDOW instead,
+-- hafen.ui.inventory():parent(), which is what takes Tab over: ':hello wnd swallow'). A relog skips the restore
+-- entirely, that session's widgets being gone. This adds a third row to the "Hello" keybind section (2e-3). If you
 -- assign a key a client binding already owns, the client wins (addon hotkeys are the fallback) -- pick another one.
 keys:register("bags", function()
   local w = hafen.ui.inventory()        -- the same interned entity the observer above subscribed to (==)
@@ -1700,7 +1795,7 @@ local textcacheStress
 local STRESS_POOL, STRESS_PER_FRAME = 2000, 32
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | widget | selector | prof | widgets | passes | textcache")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | widget | selector | wnd [swallow] | prof | widgets | passes | textcache")
     return
   end
   local sub = args[1]
@@ -2173,6 +2268,38 @@ hafen.slash.register("hello", function(args)
     -- To learn a selector for something you are LOOKING at, enable the 'widgetstack' addon and hover it: the
     -- inspector names the widget's role/class/title/res and offers only selectors it has already resolved.
     readSelectors("cmd")
+  elseif sub == "wnd" then
+    -- 031.3: re-run the whole window-toggle contract on demand (it also runs once per login and at +3s -- see
+    -- readToggle above), and, with the 'swallow' argument, PARK the client in the state Lua cannot observe for
+    -- itself: nothing in the API can press Tab, so the swallow is checked by hand. Worth running with 'bags'
+    -- replaced too -- then the contract check reports the one-owner refusal, naming bags.
+    if args[2] ~= "swallow" then
+      readToggle("cmd")
+      return
+    end
+    if swallowedWnd then
+      swallowedWnd:show()                     -- :show() gives the widget back AND drops the record: the key is the
+      swallowedWnd = nil                      -- client's again (the same restore :reload/disable would have done)
+      hafen.log(":hello wnd swallow -> gave the window back: the stock inventory is OPEN again and Tab toggles it"
+        .. " as stock (press Tab to close it)")
+      return
+    end
+    local grid = hafen.ui.inventory()
+    local wnd = grid and grid:parent()
+    if not wnd then hafen.log(":hello wnd swallow -> no inventory window yet (enter the world first)"); return end
+    local ok, err = pcall(wnd.hide, wnd)
+    if not ok then
+      hafen.log((":hello wnd swallow -> refused, one window one owner: %s")
+        :format((tostring(err):gsub("^.-%.lua:%d+:%s*", ""))))
+      return
+    end
+    swallowedWnd = wnd
+    hafen.log((":hello wnd swallow -> %s is hidden with NOTHING standing in for it. Press Tab and click the"
+      .. " inventory button in the menu: nothing opens and the tick stays off -- the toggle is swallowed, because"
+      .. " hiding is authoritative now. Every OTHER window (equipment, character sheet, kin, options, the map)"
+      .. " toggles exactly as stock. ':hello wnd swallow' again hands it back OPEN; a :reload hands the KEY back"
+      .. " and leaves the window closed (nothing was standing in for it), so Tab opens it")
+      :format(wnd:type()))
   elseif sub == "widget" then
     -- 029.4: re-run the whole widget-entity contract on demand (it also runs once per login and at +3s -- see
     -- readWidgets above). Worth re-running with a CONTAINER OPEN: open a cupboard, a chest or the study window and

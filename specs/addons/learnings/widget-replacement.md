@@ -126,3 +126,14 @@
   selector cannot express `context="main"`. Hence `descTable` survives as the argument of `replace{match=fn}` only,
   `widgetTypes` recording is now gated on replacers alone, and converting `replace` to selectors stays a **semantic**
   change deferred to B3 — not a rename.
+- **(031.3) The view's own X restores an OPEN stock window — `reqclose` fires `onClose` BEFORE the view is
+  killed.** `UiApi`'s window builder wires `win.reqclose(() -> { onClose(); content.kill(); })`, so an addon that
+  calls its `handle:remove()` from `onClose` (as `bags` does) runs the one teardown rule while the view is still
+  visible: "the user was seeing a window" ⇒ the stock inventory comes back open. That is the right answer for a
+  close button, and it is worth stating in the addon's own log, because the *same* addon disarming from its
+  hotkey with the view Tab-closed correctly gets nothing.
+- **(031.3) A `replace` addon's hotkey stops being a show/hide key and becomes ARM/DISARM.** Once the client's own
+  toggle drives the view (031), `bags`' key would be a duplicate of Tab if it still meant "show my window" — but
+  it is not redundant, because nothing else can *start* or *stop* the replacement. So the key kept its binding and
+  changed its meaning, and the docs/logs say which of the two jobs it does. The plan's "it may now drop its own
+  toggle hotkey" was the right question with the opposite answer.

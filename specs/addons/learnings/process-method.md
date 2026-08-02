@@ -269,3 +269,14 @@
   and both index tables), not the section — exactly what STATE had recorded. Writing the reference at the moment
   the behaviour lands is cheaper than reconstructing it at the close, and it leaves the closing task to do the
   thing only a closing task can: check that everything *else* still points at the truth.
+- **(031.3) A contract check asserts what its own language can observe; everything else is PARKED for a human.**
+  031's whole point is that a keypress no longer reaches a hidden window — and nothing in `hafen.*` can press a
+  key. So `readToggle` proves the Lua-visible half (the hide is taken, the record is one per window, both halves
+  of the teardown rule) and `:hello wnd swallow` *parks* the client in the swallowed state with a log line saying
+  exactly which key to press and what must NOT happen. Faking the unobservable half would have asserted the stub,
+  not the client. Two rules fell out with it: **restore the world with the rule under test** (the check's last
+  `replace` round ends with the view hidden, so the one teardown rule itself puts the HUD back — if the rule is
+  broken the check both fails *and* leaves a visible mess, which is the honest failure mode), and **gate on
+  foreign ownership** (with `bags` replaced, or after a `:lua` hide, the check reports the owner by name and
+  stops instead of asserting against a HUD somebody else is driving — the 028 "gate an assertion whose
+  precondition is not guaranteed" rule, now with the refusal message as the gate).
