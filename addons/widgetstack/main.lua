@@ -5,16 +5,17 @@
 --
 -- W2 adds the two reads that find *what is under the cursor* -- the only pieces missing from W1's tree:
 --   hafen.ui.mouse()   -> { x=, y= }   the cursor in root coords (public UI.mc), polled each frame
---   hafen.ui.at(x, y)  -> the DEEPEST WidgetNode under that point, or nil. It mirrors the engine's own
+--   hafen.ui.at(x, y)  -> the DEEPEST Widget object under that point, or nil. It mirrors the engine's own
 --                         pointer dispatch, so it resolves EXACTLY the widget a real click would hit --
 --                         correct under SCROLL offsets and non-rectangular hit areas (a naive rect test
 --                         is wrong there). Walk :parent() up from the hit for the full stack.
---   node:rootpos()     -> { x=, y= }   the node's top-left in root coords, for the highlight box
+--   w:rootpos()        -> { x=, y= }   the widget's top-left in root coords, for the highlight box
 --
--- The EFFICIENCY GUARD (the point of W1's :same): OnUpdate fires EVERY frame, but the hovered widget only
+-- The EFFICIENCY GUARD (029.1: plain `==`): OnUpdate fires EVERY frame, but the hovered widget only
 -- changes when the mouse moves onto a different one. So we cache the last hovered leaf and BAIL EARLY when
 -- it hasn't changed -- no tree walk, no window rebuild, per frame. A per-rebuild counter, shown in the
--- window, does NOT tick while the cursor sits still.
+-- window, does NOT tick while the cursor sits still. Widget objects are INTERNED, so two lookups of the
+-- same live widget are the SAME value and `==` IS the identity test -- :same() is gone with the collapse.
 --
 -- THE INSPECTOR: the stack rows are CLICKABLE -- click one and a new "Inspector" window opens with that
 -- widget's type/id/pos/size/rootpos/visible/text + its parent link + its child list. Inside an inspector,
@@ -22,15 +23,15 @@
 -- stack first (the "freeze" hotkey) so it holds still while you move the mouse into the window to click a row.
 -- That hotkey starts UNBOUND: assign it under Options > Keybindings > Widgetstack (suggested: Ctrl+Shift+F).
 
-hafen.log("widgetstack loaded (v0.2.0)")
+hafen.log("widgetstack loaded (v0.3.0)")
 
 local win                 -- the floating stack window (created at OnEnterWorld)
 local overlay             -- the HUD overlay handle drawing the highlight box
-local last                -- the WidgetNode we last built the stack for (the guard's memory)
+local last                -- the Widget object we last built the stack for (the guard's memory)
 local rows = {}           -- the current stack, LEAF-FIRST: { {node,type,id,text,w,h}, ... }
 local hoverPos            -- { x=, y= } the hovered leaf's top-left in root coords (highlight box)
 local hoverSize           -- { x=, y= } its size
-local rebuilds = 0        -- how many times we rebuilt the stack (proves the :same guard: it should NOT
+local rebuilds = 0        -- how many times we rebuilt the stack (proves the `==` guard: it should NOT
                           -- climb while the cursor sits still)
 local frozen = false      -- the "freeze" hotkey: hold the stack still so you can mouse into the window to read it
 
@@ -131,7 +132,7 @@ local function rebuild()
   while n do
     local sz = n:size()
     out[#out + 1] = {
-      node = n,                      -- the WidgetNode itself (for click-to-inspect)
+      node = n,                      -- the Widget object itself (for click-to-inspect)
       type = n:type() or "?",
       id   = n:id(),                 -- server id, or nil for a client-only widget
       text = n:text(),               -- best-effort, or nil
@@ -158,8 +159,8 @@ hafen.events.on("OnUpdate", function(dt)
   local leaf = hafen.ui.at(m.x, m.y)                -- deepest widget under the cursor (or nil)
 
   -- GUARD: same widget as last frame? -> bail (skip the rebuild entirely). This is the whole point.
-  if leaf and last and leaf:same(last) then return end
-  if not leaf and not last then return end          -- still hovering nothing
+  -- Interned entities (029.1), so `==` covers BOTH cases: same widget, and still hovering nothing (nil == nil).
+  if leaf == last then return end
   last = leaf                                        -- hover CHANGED -> remember it and rebuild once
   rebuild()
 end)

@@ -31,11 +31,11 @@ public final class Addon {
     public final List<AddonManager.Timer> timers = new CopyOnWriteArrayList<AddonManager.Timer>();
     /**
      * Live custom UI widgets/windows owned by this addon ({@code hafen.ui.widget}/{@code window}, Phase
-     * 2a). Each entry is the {@link LuaWidget} content; {@link LuaWidget#kill()} destroys its <i>root</i>
+     * 2a). Each entry is the {@link AddonWidget} content; {@link AddonWidget#kill()} destroys its <i>root</i>
      * (the window chrome, or the widget itself), which cascades to children — so the addon's UI vanishes
      * cleanly on reload/disable.
      */
-    public final List<LuaWidget> widgets = new CopyOnWriteArrayList<LuaWidget>();
+    public final List<AddonWidget> widgets = new CopyOnWriteArrayList<AddonWidget>();
     /**
      * Live HUD overlays owned by this addon ({@code hafen.ui.overlay}, Phase 2b): draw callbacks painted on
      * top of the HUD each frame. The engine iterates this list to paint (so clearing it stops the overlays
@@ -288,6 +288,21 @@ public final class Addon {
      * slot), so the keys are strong — bounded only because every access drains the queue; see {@link LuaMeter}.
      */
     final LuaMeter.Cache meters = new LuaMeter.Cache(this);
+
+    /**
+     * This addon's <b>Widget interning cache</b> ({@code hafen.ui.root()}/{@code node(id)}/{@code at(x,y)}, spec
+     * {@code 029-widget-oop}): the {@code Widget → Widget object} map and the per-addon metatable that make
+     * {@code hafen.ui.at(m.x,m.y) == hafen.ui.at(m.x,m.y)} true and let {@code node:same()} be cut. Per-addon like
+     * every other cache here — no Lua value crosses a sandbox boundary (D-017) and the whole cache dies with this
+     * {@link Addon} on {@code :reload}/disable.
+     *
+     * <p>It is the one intern cache that is weak on <b>both</b> axes ({@code WeakHashMap<Widget,
+     * WeakReference<LuaValue>>}), not the {@link #buffs}/{@link #meters} strong-key shape: over a whole widget tree
+     * a strong key would pin every destroyed widget until the next queue drain, breaking the D-041 no-pin rule.
+     * Nothing to tear down — this is an identity map over engine-owned widgets, deliberately NOT an owned-resource
+     * registry like {@link #widgets} (which holds the addon's own drawn {@link AddonWidget}s).
+     */
+    final LuaWidget.Cache widgetObjs = new LuaWidget.Cache(this);
 
     /**
      * This addon's <b>asset intern cache</b> ({@code hafen.asset(path)}, spec {@code 028-asset-loader}): the

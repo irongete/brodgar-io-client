@@ -189,3 +189,9 @@
   **document that an explicit `nil` is the collection form** and tell callers to test the variable before
   passing it. The failure it causes is silent (a table where an object was expected), so it is worth a line
   in every callable section's page — 028.3 put it in `asset.md`.
+- **(029.1) Do not name a static helper `type` in a class whose methods live in anonymous LuaJ function
+  subclasses.** `OneArgFunction` extends `LuaValue`, which already has a `type()`; inside the anonymous body
+  `type(w)` resolves against the *inherited* method set first and fails with `Widget cannot be converted to
+  int` — a type error that says nothing about the shadowing that caused it. The same trap is waiting for any
+  helper named after a `LuaValue` member (`len`, `call`, `get`, `set`, `method`, `tostring`). Name the helper
+  for the domain (`typeName(Widget)`), not for the Lua method it backs.

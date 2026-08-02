@@ -46,7 +46,7 @@ import java.util.Map;
  * whole with the {@link Addon} on {@code :reload}/disable.
  *
  * <p><b>No pinning.</b> A {@code LuaGob} holds no {@link Gob} reference, so a stashed handle can never keep a
- * despawned gob (or its {@code .res}/overlays) alive — strictly better than {@link LuaWidgetNode}, which has to
+ * despawned gob (or its {@code .res}/overlays) alive — strictly better than {@link LuaWidget}, which has to
  * null its {@code Widget} by hand.
  *
  * <p><b>Threading.</b> Reads run on the UI thread (addon tick / REPL), each attribute under the gob monitor and

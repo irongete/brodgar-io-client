@@ -490,3 +490,26 @@ identifier, expose the search over it — shipping your own names for someone el
 cannot keep.
 **See.** [D-013](architecture-api.md), [D-056](architecture-api.md), [D-061](architecture-api.md),
 [027-meters-oop](../027-meters-oop/spec.md), [widget-tree-reads.md](../learnings/widget-tree-reads.md).
+
+### D-064 — an intern cache's key strength follows the population it keys, not the pattern it copies ✅ (2026-08-02)
+**Decision.** The Widget intern cache (029.1) is a **`WeakHashMap<Widget, WeakReference<LuaValue>>`** — weak on
+**both** axes — and not the `IdentityHashMap<K, WeakRef<handle>>` + drained `ReferenceQueue` that `LuaGob`,
+`LuaKin`, `LuaSlot`, `LuaPagina`, `LuaSound`, `LuaBuff` and `LuaMeter` all share. The strong-key shape stays
+correct for those; it is simply not portable to an entity whose population is a whole tree.
+**Rationale.** The strong-key caches are bounded by *how few of the thing there is*: a handful of meters, one
+buff bar, 144 slots. An entry outlives its widget only until the next access drains the queue, and keeping a
+removed `Buff`/`IMeter` readable is a *feature* (that is what makes a `MeterRemoved` payload worth having).
+A widget tree is the opposite population: thousands of nodes, churning as windows open and close. Strong keys
+there would pin every destroyed widget — and its whole subtree — until some later access happened to drain,
+which is exactly the **D-041 no-pin rule** the transient `WidgetNode` was built to honour. `haven.Widget`
+overrides neither `equals` nor `hashCode`, so `WeakHashMap` gives identity keying *and* weak keys with no
+custom map: the deviation costs one line, not a mechanism.
+**Consequences.** The map value must be a `WeakReference`, never the handle itself — a `WeakHashMap` whose
+value strongly reaches its own key never expires an entry, which would have re-created the pin it was chosen
+to avoid. There is no `ReferenceQueue` and no drain: `WeakHashMap` expunges on use, and a value cleared while
+its widget is still alive is simply replaced on the next lookup. Nothing to tear down, so the cache is
+deliberately **not** an owned-resource registry (`Addon.widgetObjs` is not `Addon.widgets`). Read forward:
+when copying an interning cache, ask how many of the keyed thing can exist at once and whether an entry
+outliving its subject is a feature or a leak — the answer, not the precedent, picks the map.
+**See.** [D-041](widgets-ui.md), [D-044/D-045](architecture-api.md), [D-012](architecture-api.md),
+[029-widget-oop](../029-widget-oop/plan.md), [ui-widgets.md](../learnings/ui-widgets.md).

@@ -711,14 +711,14 @@ public final class ProfHandle {
     }
 
     /**
-     * The addon that put this widget in the tree, or {@code null} for a client widget. {@link LuaWidget} is
+     * The addon that put this widget in the tree, or {@code null} for a client widget. {@link AddonWidget} is
      * the only widget that knows — which is exactly the link that makes {@code :widgets()} and
      * {@code :addons()} two views of the same cost rather than two measurements of it.
      */
     private static String owner(Widget w) {
-        if(!(w instanceof LuaWidget))
+        if(!(w instanceof AddonWidget))
             return null;
-        Addon a = ((LuaWidget)w).profOwner();
+        Addon a = ((AddonWidget)w).profOwner();
         return ((a != null) && (a.manifest != null)) ? a.manifest.id : null;
     }
 

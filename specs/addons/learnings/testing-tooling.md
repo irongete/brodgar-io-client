@@ -241,3 +241,10 @@
   `seen[asset]` as a table key, `pcall` over a callable table, and that a cut surface reads `nil`. Those are
   the assertions the harness addon would otherwise be the first thing to run — and it costs one file.
   MSYS note: a Git-Bash `/c/...` path in a `-cp` string silently yields `ClassNotFoundException`; use `C:/...`.
+- **(029.1) A real `haven.UI` can be constructed headlessly, which makes the whole widget tree assertable.**
+  Everything W-series — interning, `==`, liveness via `hasparent(ui.root)`, staleness, the no-pin rule — needs
+  a `ui.root` to hang widgets off, and that used to read as "verify in-game". It is two workarounds: put
+  `bin/builtin-res.jar` on the classpath (`Text.<clinit>` does a `loadwait("ui/fraktur")` and dies without it)
+  and hand `new UI(...)` an `Audio.Root` allocated via `Unsafe.allocateInstance` with a bare `Mixer` reflected
+  into its final `mixer` field — the real constructor opens a sink line. Full recipe + anchors in
+  `specs/codebase/boot-and-loop.md`. 22 asserts, including a GC-based no-pin proof, for one scratch file.

@@ -33,11 +33,11 @@ import static io.brodgar.addon.AddonManager.*;
  *       Each override is <b>owner-tagged</b> and reverted on the addon's teardown ({@link #teardownFonts}) —
  *       the owned-resource model (spec 05).</li>
  *   <li><b>Own-widget application</b> (F2, shipped): a {@code font=} option on {@code hafen.ui.window}/{@code
- *       widget} ({@link LuaWidget}) and a per-call {@code {font,color}} on the {@code g:text}/{@code g:atext} draw
+ *       widget} ({@link AddonWidget}) and a per-call {@code {font,color}} on the {@code g:text}/{@code g:atext} draw
  *       wrapper ({@link LuaGOut}) + a custom TTF in the {@code $font[…]} rich-text tag (family AWT-registered
  *       when the asset is loaded). Isolated — touches only the addon's own pixels; no global state, nothing to revert.</li>
  *   <li><b>Per-instance overrides</b> (F5): {@code node:setFont(h)} / {@code node:resetFont()} on any
- *       {@link LuaWidgetNode} (spec 20) restyle <b>one</b> native widget and its subtree while its siblings keep the
+ *       {@link LuaWidget} (spec 20) restyle <b>one</b> native widget and its subtree while its siblings keep the
  *       scope/{@code "default"} font — the top of the resolution chain ({@link #setNodeFont}, built into the node
  *       handle by {@link UiApi}). Owner-tagged and reverted on teardown like a scope override.</li>
  * </ul>
@@ -203,7 +203,7 @@ final class FontApi {
     // ------------------------------------------------------------------ per-instance overrides (F5, node:setFont)
 
     /**
-     * {@code node:setFont(h)} (F5, spec 20 + 21): install {@code owner}'s <b>per-instance</b> font override on one
+     * {@code widget:setFont(h)} (F5, spec 20 + 21): install {@code owner}'s <b>per-instance</b> font override on one
      * live widget — it restyles that widget and everything drawn inside it, while its siblings keep the
      * scope/{@code "default"} font (the top of the resolution chain). Owner-tagged and reverted on teardown exactly
      * like a scope override; the provider keys it by widget identity with a <b>weak</b> key, so a window that closes
@@ -213,7 +213,7 @@ final class FontApi {
     static void setNodeFont(Addon owner, haven.Widget w, LuaValue hv) {
         FontHandle fh = FontHandle.resolve(hv);
         if(fh == null)
-            throw new LuaError("node:setFont(h): h must be a font handle — hafen.asset(\"fonts/X.ttf\") or hafen.font(\"sans\") — use a COLON call");
+            throw new LuaError("widget:setFont(h): h must be a font handle — hafen.asset(\"fonts/X.ttf\") or hafen.font(\"sans\") — use a COLON call");
         if(w == null)
             return;
         Fonts.pushInstance(w, owner, fh.font, fh.size, fh.aa, fh.color);
@@ -221,7 +221,7 @@ final class FontApi {
     }
 
     /**
-     * {@code node:resetFont()} (F5): drop {@code owner}'s per-instance override on this widget — it falls back to
+     * {@code widget:resetFont()} (F5): drop {@code owner}'s per-instance override on this widget — it falls back to
      * whatever is beneath (another addon's per-instance override, else the scope/{@code "default"} chain, else
      * stock). A no-op on a stale node or when this addon had no override there.
      */

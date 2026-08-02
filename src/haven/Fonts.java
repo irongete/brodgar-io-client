@@ -239,7 +239,7 @@ public class Fonts {
 
     /* ---- PER-INSTANCE overrides (F5) ----------------------------------------------------------------------
      *
-     * `node:setFont(h)` on a WidgetNode (spec 20) restyles ONE arbitrary native widget -- and everything drawn
+     * `widget:setFont(h)` on a Widget object (spec 20) restyles ONE arbitrary native widget -- and everything drawn
      * inside it -- while its siblings keep the scope/default font. It sits at the top of the resolution chain.
      *
      * The mechanism is dynamic, like F3d's composition scope, rather than a per-widget field: the UI draw pass

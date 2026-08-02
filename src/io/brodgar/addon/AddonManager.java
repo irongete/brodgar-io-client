@@ -802,8 +802,8 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
     /**
      * Call into Lua with full error isolation (a Lua error never escapes the engine step) and return its
      * result varargs (or {@link LuaValue#NIL} on error). Most callers (events/timers) ignore the return;
-     * the custom-UI input forwards ({@link LuaWidget}) read {@code .arg1().toboolean()} for "consume".
-     * Package-visible so {@link LuaWidget} (same package) routes its draw/tick/mouse callbacks through the
+     * the custom-UI input forwards ({@link AddonWidget}) read {@code .arg1().toboolean()} for "consume".
+     * Package-visible so {@link AddonWidget} (same package) routes its draw/tick/mouse callbacks through the
      * one watchdog-armed, CPU-accounted choke point.
      */
     static Varargs callLua(Addon owner, int cat, LuaValue fn, LuaValue... args) {
@@ -1117,7 +1117,7 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // onMouseMove(x,y) / onWheel(x,y,amount) / onClose (window). Returns a handle:
         //   :move(x,y)  :show()  :hide()  :visible()  :pack()  :size(w,h)  :destroy()
         // The widget is bridge-owned (P2) and torn down on reload/disable. Client-side only: it cannot
-        // wdgmsg the server (that is hafen.act, Phase 4). See LuaWidget for the callback plumbing.
+        // wdgmsg the server (that is hafen.act, Phase 4). See AddonWidget for the callback plumbing.
         UiApi.installUi(hafen, owner);
 
         // hafen.asset(path) — the ONE loader for the files THIS addon ships (spec 028-asset-loader). A CALLABLE
@@ -1284,11 +1284,11 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
     // ------------------------------------------------------------- logging (hafen.log + console output)
 
     /**
-     * Build a custom UI element for {@code hafen.ui.window}/{@code widget} (spec 07): a {@link LuaWidget}
+     * Build a custom UI element for {@code hafen.ui.window}/{@code widget} (spec 07): a {@link AddonWidget}
      * content leaf, optionally wrapped in a draggable {@link Window} (chrome). Reads {@code size}/{@code
      * pos} (both {@code {a,b}} arrays), {@code parent} ({@code "root"} default, or {@code "gameui"}), and
      * {@code title} from {@code opts}; the callbacks live on the same table and are wired in the
-     * LuaWidget. Attaches to the tree (locks on {@code ui}), registers the content in the addon's
+     * AddonWidget. Attaches to the tree (locks on {@code ui}), registers the content in the addon's
      * owned-resource registry (torn down on reload/disable), and returns the Lua handle.
      */
 

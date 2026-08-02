@@ -215,3 +215,23 @@
   leak. The three drop sites (LRU eviction, `AddonRegistry.teardown`, the `:reload` sweep of the `:lua` REPL,
   which is not an addon and never gets teardown) are the whole ownership surface, and `total.bytes` returning
   to 0 with every addon disabled is the check that proves it.
+- **(029.1) Interning the widget tree turned out to be ~19× CHEAPER than the handles it replaced — the plan's
+  performance risk was backwards.** The gate was "a full `root():walk()` becomes a map insert per node, the
+  per-frame allocation class 026 was written to kill". Measured on a synthetic 2000-widget tree, per node: the
+  OLD `nodeHandle` **513 ns** (it minted a `LuaTable` *plus fifteen anonymous closures* for every node it
+  touched), a bare interned cache HIT **27 ns**, a cold insert **201 ns** — one full walk went 1.03 ms → 0.05 ms
+  steady, 0.40 ms cold. The lesson is not "interning is free": it is that the thing being compared against was
+  never cheap. A closure-table handle is one allocation per METHOD; userdata + a metatable built once per addon
+  is one allocation per OBJECT. Measure the incumbent before you budget for the replacement.
+- **(029.1) `WeakHashMap` only helps if the value cannot reach the key.** The cache is
+  `WeakHashMap<Widget, WeakReference<LuaValue>>`, and the inner `WeakReference` is load-bearing: the handle
+  userdata holds its `Widget` strongly (that is how a stashed handle keeps reading), so storing the handle
+  directly as the map value would make every entry self-referential and immortal — the exact pin D-041 forbids,
+  reintroduced by the map chosen to prevent it. The headless check that proves it is not "does the map shrink"
+  but "does a destroyed, unreferenced widget become weakly unreachable" (`WeakReference` probe + `System.gc()`
+  loop); the entry then goes on the next access, since `WeakHashMap` expunges on use, not on a timer.
+- **(029.1) Interning collapses an identity guard to `==`, and `nil == nil` collapses the second branch too.**
+  `widgetstack`'s per-frame hover guard was `if leaf and last and leaf:same(last) then return end` followed by a
+  separate `if not leaf and not last then return end` for "still hovering nothing". Once entities are interned
+  both are one line: `if leaf == last then return end`. `:same()` existed *only* because nothing was interned —
+  when a section goes OOP, look for the identity helper it can now delete, not just the reads it gains.

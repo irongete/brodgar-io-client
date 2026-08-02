@@ -69,3 +69,20 @@ frame-time comparison, while still delaying the next frame. Time it directly or 
 | MCache mutation | Connection worker (`mapdata`) under `synchronized(grids)`/`synchronized(req)` |
 | `Loading` exception protocol | [`Loader.Future.run`](src/haven/Loader.java:76); any code touching resources/gobs/grids must tolerate it |
 | **GPU part nesting + late arrival** | [`GPUProfile.Part.part(Render,nm)`](src/haven/GPUProfile.java:64) hangs the new part **under** the one it is called on and emits **one** timestamp that also closes the parent's previous child (`tfin()`), so opening a sibling **truncates** the part before it — nest, never sit beside. [`Part.fin(out)`](src/haven/GPUProfile.java:83) is the explicit close (idempotent; a later sibling's `tfin()` on a `fin` part is a no-op). [`GPUProfile.check()`](src/haven/GPUProfile.java:119) drains `waiting` **in order** and returns on the first part that is not `done` ⇒ **one unclosed part blocks every later frame's GPU timing, silently**. Fork: [`io.brodgar.prof.Passes`](src/io/brodgar/prof/Passes.java) hangs the named passes under the frame's `draw` part, captured in [`Frame.display`](src/haven/UILoop.java:480), every seam in `try`/`finally` |
+
+## Building a `UI` headlessly (029.1)
+
+The whole widget tree becomes unit-testable once a real `UI` exists off-screen — `hasparent(ui.root)` liveness,
+interning, staleness and GC/no-pin proofs all need `ui.root` to hang widgets off. Two things block it:
+
+| Blocker | Where | Fix |
+|---|---|---|
+| `Text.<clinit>` does a blocking `loadwait("ui/fraktur")` | [`Text`](src/haven/Text.java:40) ← [`ConsoleHost.<clinit>`](src/haven/ConsoleHost.java:33) ← `RootWidget` ← [`UI.<init>`](src/haven/UI.java:178) | put **`bin/builtin-res.jar`** on the classpath — the local pool is a `JarSource("res")` ([`Resource.local`](src/haven/Resource.java:850)), so no network is needed |
+| `new ActAudio.Root(sys)` NPEs on a null `Audio.Root` | [`ActAudio.Root`](src/haven/ActAudio.java:176) reads `sys.mixer` | `Unsafe.allocateInstance(Audio.Root.class)` (the real ctor opens a sink line) + reflect a `new Audio.Mixer(true)` into its final `mixer` field |
+| toolkit/scale probe at `UI.<clinit>` | [`UI.initscale`](src/haven/UI.java:1063) | add the jogl/lwjgl jars from `build/*.jar`; the `Unavailable` traces it prints are **caught** — not a failure |
+
+Then `UI u = new UI(null, ar, Coord.of(800, 600), null)`; `u.root` is a live `RootWidget`, `u.root.add(w)` and
+`w.destroy()` behave exactly as in-game, and `haven.Widget` overrides neither `equals` nor `hashCode` (so it is
+safe as an identity map key). The bridge's `AddonManager.ui` is package-private ⇒ a test class declared
+`package io.brodgar.addon` can set it directly; `Addon`'s constructor is package-private too and takes
+`(Manifest, Path, Globals)` — `null, Paths.get("."), null` is enough for any cache-level test.

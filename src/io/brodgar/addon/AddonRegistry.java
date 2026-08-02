@@ -142,10 +142,10 @@ public final class AddonRegistry {
         if(a.widgets.isEmpty())
             return;
         UI u = ui;
-        List<LuaWidget> ws = new ArrayList<LuaWidget>(a.widgets);
+        List<AddonWidget> ws = new ArrayList<AddonWidget>(a.widgets);
         a.widgets.clear();
         Runnable kill = () -> {
-            for(LuaWidget w : ws) {
+            for(AddonWidget w : ws) {
                 try {
                     w.kill();   // stop callbacks + destroy its root (the window chrome, or the widget)
                 } catch(RuntimeException e) {

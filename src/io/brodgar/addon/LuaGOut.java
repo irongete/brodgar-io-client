@@ -24,7 +24,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 /**
  * The Lua {@code g} drawing wrapper over {@link GOut} — the single, canonical draw surface shared by
- * <b>every</b> addon draw callback: custom widgets/windows ({@link LuaWidget}, Phase 2a), HUD overlays and
+ * <b>every</b> addon draw callback: custom widgets/windows ({@link AddonWidget}, Phase 2a), HUD overlays and
  * world-space gob overlays ({@link LuaGobOverlay}, Phase 2b). It is built once; the live {@code GOut} is
  * bound only for the duration of a single draw callback via {@link #bind}/{@link #unbind}. Outside a draw
  * the wrapper is <b>inert</b> — every method no-ops on a {@code null} target — so an addon that stashes

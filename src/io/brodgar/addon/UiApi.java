@@ -207,28 +207,30 @@ final class UiApi {
                 return newReplacer(owner, type, opts, fn);
             }
         });
-        // hafen.ui.root() / hafen.ui.node(id) — generic, READ-ONLY widget-tree introspection (spec 20, W1). Walk
-        // ANY widget's children to arbitrary depth from Lua (the generic reader that complements the spec-14 typed
-        // adapters). Two entry points for two distinct inputs (D-012): root() = the top of the WHOLE client tree
-        // (discovery, walk DOWN to any open window); node(id) = a WidgetNode for a SERVER widget id (a desc.id from
-        // onWidgetCreate, a model:raw(), or another node's :id()) — nil if it doesn't resolve. Returns an opaque,
-        // facade-safe WidgetNode handle (no raw haven.Widget crosses into Lua, P1/D-017); it is a GobRef-style lazy
-        // handle, NOT an owned-registry entry (a deep tree would mint thousands) — it checks liveness per access and
-        // returns nil/empty once the widget is destroyed (no teardown, no leak). The handle:
+        // hafen.ui.root() / hafen.ui.node(id) / hafen.ui.at(x,y) — the widget-tree entry points (spec 20 W1/W2,
+        // rebuilt on the ONE entity by 029-widget-oop). Walk ANY widget's children to arbitrary depth from Lua (the
+        // generic reader that complements the spec-14 typed adapters). Two entry points for two distinct inputs
+        // (D-012): root() = the top of the WHOLE client tree (discovery, walk DOWN to any open window); node(id) =
+        // the Widget object for a SERVER widget id (a desc.id from onWidgetCreate, a model:raw(), or another
+        // widget's :id()) — nil if it doesn't resolve. All of them hand back the SAME type: opaque, facade-safe
+        // userdata (no raw haven.Widget crosses into Lua, P1/D-017), INTERNED per addon — so two lookups of one
+        // live widget are the SAME value and `==` is the identity test (:same() is GONE, 029.1). Not an
+        // owned-registry entry: it checks liveness per access, and once its widget leaves the tree it nulls its
+        // reference (no pin, D-041), every read answers nil/empty and :exists() is false. The entity:
         //   :type()          -- class simple name (e.g. "Inventory", "Label", "Button")
         //   :id()            -- server widget id (int), or nil if the widget is NOT server-bound (client-only)
-        //   :children()      -- array of child WidgetNodes, in tree order (empty if a leaf)
-        //   :parent()        -- parent WidgetNode, or nil at the root
+        //   :children()      -- array of child Widget objects, in tree order (empty if a leaf)
+        //   :parent()        -- parent Widget object, or nil at the root
         //   :pos()           -- {x=,y=} position within the parent (widget-local px)
         //   :size()          -- {x=,y=}
         //   :visible()       -- boolean
         //   :text()          -- best-effort text for text-bearing widgets (Label/Button/Window/TextEntry), else nil
-        //   :walk(fn)        -- depth-first: fn(node, depth); return false to PRUNE the subtree
-        //   :same(other)     -- true iff both handles wrap the SAME live widget (nil-safe; the identity primitive
-        //                       W2's per-frame guard needs — fresh handles + no-:id() leaves rule out ==/:id())
-        //   :at(coord)       -- W2: the DEEPEST WidgetNode under a {x=,y=} root-coord point WITHIN this subtree, or nil
-        //   :rootpos()       -- W2: {x=,y=} the node's top-left in root coords (with :size() = a highlight box)
-        // READ-ONLY: to ACT, read a server-bound node's :id() and pass it to the gated hafen.act.raw (D-025) — no
+        //   :exists()        -- is it still in the tree? (the one read that always answers)
+        //   :info()          -- the snapshot escape hatch {type,id,pos,size,visible,text}
+        //   :walk(fn)        -- depth-first: fn(widget, depth); return false to PRUNE the subtree
+        //   :at(coord)       -- W2: the DEEPEST Widget object under a {x=,y=} root-coord point WITHIN this subtree
+        //   :rootpos()       -- W2: {x=,y=} its top-left in root coords (with :size() = a highlight box)
+        // READ-ONLY: to ACT, read a server-bound widget's :id() and pass it to the gated hafen.act.raw (D-025) — no
         // new action surface, no new gate (reading the tree is ungated client-side data).
         uiT.set("root", new ZeroArgFunction() {
             public LuaValue call() { return nodeRoot(owner); }
@@ -237,7 +239,7 @@ final class UiApi {
             public LuaValue call(LuaValue id) { return nodeById(owner, id); }
         });
         // hafen.ui.mouse() / hafen.ui.at(x,y) — W2 hit-testing, the WoW /framestack enabler (spec 20 §W2, D-042).
-        // mouse() = {x=,y=} the cursor in root coords (public UI.mc); at(x,y) = the DEEPEST WidgetNode under that
+        // mouse() = {x=,y=} the cursor in root coords (public UI.mc); at(x,y) = the DEEPEST Widget object under that
         // root-coord point, or nil. at() MIRRORS the engine's own pointer dispatch (PointerEvent.propagation): it
         // walks children topmost-first, skips !visible(), descends by xlate (so SCROLL offsets are honoured) +
         // rect-intersect, and honours checkhit at the leaf (non-rectangular hit areas) — so it resolves EXACTLY the
@@ -280,7 +282,7 @@ final class UiApi {
         int px = posv.istable() ? posv.get(1).optint(100) : 100;
         int py = posv.istable() ? posv.get(2).optint(100) : 100;
 
-        final LuaWidget content = new LuaWidget(owner, Coord.of(w, h), opts);
+        final AddonWidget content = new AddonWidget(owner, Coord.of(w, h), opts);
 
         // Parent: default ui.root; "gameui" attaches under the HUD (falls back to root before it is up).
         Widget parent = u.root;
@@ -324,7 +326,7 @@ final class UiApi {
      * (and repacks a window). {@code :pack} is a no-op for a bare widget (a leaf has no children to fit).
      * Handle methods are safe to call after teardown (they act on a detached widget).
      */
-    private static LuaValue uiHandle(final Addon owner, final LuaWidget content, final Widget rootw,
+    private static LuaValue uiHandle(final Addon owner, final AddonWidget content, final Widget rootw,
                                      final boolean isWindow) {
         LuaTable h = new LuaTable();
         h.set("move", new VarArgFunction() {
@@ -525,11 +527,11 @@ final class UiApi {
         h.set("onDestroy", new VarArgFunction() {
             public Varargs invoke(Varargs a) { m.onDestroy = fnOrNull(a.arg(2)); return a.arg1(); }
         });
-        // :node() — sugar for hafen.ui.node(model:raw()): a WidgetNode over this model's server widget (spec 20,
-        // W1), so an addon can walk the adopted widget's full child tree generically. nil once the model is dead.
+        // :node() — sugar for hafen.ui.node(model:raw()): the Widget OBJECT for this model's server widget (029.1),
+        // so an addon can walk the adopted widget's full child tree generically. nil once the model is dead.
         h.set("node", new ZeroArgFunction() {
             public LuaValue call() {
-                return m.alive ? nodeHandle(m.owner, new LuaWidgetNode(m.wdg)) : LuaValue.NIL;
+                return m.alive ? LuaWidget.of(m.owner, m.wdg) : LuaValue.NIL;
             }
         });
         return h;
@@ -633,19 +635,19 @@ final class UiApi {
     // -------------------------------------------------- generic widget-tree introspection (hafen.ui, W1, spec 20)
 
     /**
-     * {@code hafen.ui.root()} — a {@link LuaWidgetNode} for {@code ui.root}, the top of the whole client tree
+     * {@code hafen.ui.root()} — the {@link LuaWidget} entity for {@code ui.root}, the top of the whole client tree
      * (spec 20, W1). Returns {@code nil} if no UI is up yet. From here an addon walks DOWN to any open window.
      */
     private static LuaValue nodeRoot(Addon owner) {
         UI u = ui;
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
-        return nodeHandle(owner, new LuaWidgetNode(u.root));
+        return LuaWidget.of(owner, u.root);
     }
 
     /**
-     * {@code hafen.ui.node(id)} — a {@link LuaWidgetNode} for a SERVER widget id (a {@code desc.id}, a
-     * {@code model:raw()}, or another node's {@code :id()}), or {@code nil} if the id doesn't resolve (no such
+     * {@code hafen.ui.node(id)} — the {@link LuaWidget} entity for a SERVER widget id (a {@code desc.id}, a
+     * {@code model:raw()}, or another widget's {@code :id()}), or {@code nil} if the id doesn't resolve (no such
      * server widget, or it was destroyed). A non-number id is a clear error, like {@code hafen.ui.adopt}.
      */
     private static LuaValue nodeById(Addon owner, LuaValue idv) {
@@ -657,7 +659,7 @@ final class UiApi {
         Widget w = u.getwidget(idv.toint());
         if(w == null)
             return LuaValue.NIL;
-        return nodeHandle(owner, new LuaWidgetNode(w));
+        return LuaWidget.of(owner, w);
     }
 
     /**
@@ -669,14 +671,15 @@ final class UiApi {
         UI u = ui;
         if((u == null) || (u.mc == null))
             return LuaValue.NIL;
-        return xyTable(u.mc);
+        return LuaWidget.xyTable(u.mc);
     }
 
     /**
-     * {@code hafen.ui.at(x, y)} — the DEEPEST {@link LuaWidgetNode} under a root-coord point (spec 20, W2), or
-     * {@code nil}. Runs {@link #hitTest} from {@code ui.root} (the point is already in root-local coords), under the
-     * {@code ui} monitor so the walk never races tree mutation. Non-number args are a clear error, like
-     * {@code hafen.ui.node}.
+     * {@code hafen.ui.at(x, y)} — the DEEPEST {@link LuaWidget} entity under a root-coord point (spec 20, W2), or
+     * {@code nil}. Runs {@link LuaWidget#hitTest} from {@code ui.root} (the point is already in root-local coords),
+     * under the {@code ui} monitor so the walk never races tree mutation. Non-number args are a clear error, like
+     * {@code hafen.ui.node}. Interned, so two calls on the same widget answer the SAME value — which is what let
+     * {@code :same()} be cut (029.1).
      */
     private static LuaValue nodeAt(Addon owner, LuaValue xv, LuaValue yv) {
         if(!xv.isnumber() || !yv.isnumber())
@@ -685,276 +688,8 @@ final class UiApi {
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
         Widget hit;
-        synchronized(u) { hit = hitTest(u.root, new Coord(xv.toint(), yv.toint())); }
-        return (hit == null) ? LuaValue.NIL : nodeHandle(owner, new LuaWidgetNode(hit));
-    }
-
-    /**
-     * The deepest widget under {@code c} (given in {@code from}'s local coords), for {@code hafen.ui.at} /
-     * {@code node:at} (spec 20, W2). It <b>mirrors the engine's own pointer dispatch</b>
-     * ({@link Widget.PointerEvent#propagation}, {@code Widget.java:981}): walk children {@code lchild → prev}
-     * (topmost-first — the last child draws on top), skip {@code !visible()}, descend by
-     * {@code from.xlate(child.c, true)} (so a scrolled {@code Scrollport} offsets correctly) + a rectangle
-     * intersect, and at the leaf honour {@link Widget#checkhit(Coord)} (so a non-rectangular hit area resolves as a
-     * real click would). Returns the deepest hit, {@code from} itself when the point is in its own hit area but no
-     * child claims it, or {@code null} when the point misses {@code from} entirely. Must be called under the
-     * {@code ui} monitor.
-     */
-    private static Widget hitTest(Widget from, Coord c) {
-        for(Widget wdg = from.lchild; wdg != null; wdg = wdg.prev) {
-            if(!wdg.visible())
-                continue;
-            Coord cc = from.xlate(wdg.c, true);
-            if((wdg.sz != null) && c.isect(cc, wdg.sz)) {
-                Widget hit = hitTest(wdg, c.sub(cc));
-                if(hit != null)
-                    return hit;
-            }
-        }
-        return from.checkhit(c) ? from : null;
-    }
-
-    /** Parse a Lua {@code {x=,y=}} table into a {@link Coord} (root coords for W2 hit-tests); a clear error otherwise. */
-    private static Coord coordArg(LuaValue v, String where) {
-        if(!v.istable())
-            throw new LuaError(where + " expects a {x=,y=} coord table");
-        LuaValue x = v.get("x"), y = v.get("y");
-        if(!x.isnumber() || !y.isnumber())
-            throw new LuaError(where + " expects a {x=,y=} coord table");
-        return new Coord(x.toint(), y.toint());
-    }
-
-    /**
-     * Resolve a node's wrapped widget, checking liveness (spec 20, W1): a widget still attached to the tree is
-     * live, one detached (destroyed → {@code parent} nulled) is stale. We test reachability via
-     * {@link Widget#hasparent(Widget) hasparent(ui.root)} (O(depth), the {@code GobRef}-per-access discipline);
-     * once stale we <b>null the node's reference</b> so a stashed node can't pin a dead subtree in memory, and all
-     * accessors then return {@code nil}/empty. Returns {@code null} when there is no UI yet (transient — the ref is
-     * kept, not killed) or the node is dead. Runs on the UI thread under the {@code ui} monitor.
-     */
-    private static Widget nodeLive(LuaWidgetNode n) {
-        Widget w = n.wdg;
-        if(w == null)
-            return null;
-        UI u = ui;
-        if((u == null) || (u.root == null))
-            return null;                       // no UI yet: unresolvable now, but not proven dead — keep the ref
-        if(!w.hasparent(u.root)) {             // detached from the tree → destroyed
-            n.wdg = null;                      // drop the ref so a dead subtree can be GC'd (no pin)
-            return null;
-        }
-        return w;
-    }
-
-    /** {@code node:same(other)} — true iff both handles wrap the SAME live widget (reference identity; nil-safe). */
-    private static boolean nodeSame(LuaWidgetNode a, LuaWidgetNode b) {
-        if((a == null) || (b == null))
-            return false;
-        Widget wa = nodeLive(a), wb = nodeLive(b);   // a stale node is never :same as a live one
-        return (wa != null) && (wa == wb);
-    }
-
-    /**
-     * The class name for {@code node:type()} (spec 20, W1). {@code getClass().getSimpleName()} — but Hafen builds a
-     * great many widgets as <b>anonymous subclasses</b> (e.g. {@code new TextEntry(...) {...}}), whose simple name is
-     * the empty string; so for an anonymous/local class we climb to the nearest <b>named</b> superclass (a
-     * {@code new Button(...){}} reports {@code "Button"}), which is the useful identity for building adapters. Falls
-     * back to {@code "?"} only in the impossible case of no named ancestor.
-     */
-    private static String nodeType(Widget w) {
-        Class<?> c = w.getClass();
-        String n = c.getSimpleName();
-        while(n.isEmpty() && (c.getSuperclass() != null)) {
-            c = c.getSuperclass();
-            n = c.getSimpleName();
-        }
-        return n.isEmpty() ? "?" : n;
-    }
-
-    /** A {@code {x=,y=}} table from a {@link Coord} (widget-local px), for {@code node:pos()}/{@code :size()}. */
-    private static LuaValue xyTable(Coord c) {
-        LuaTable t = new LuaTable();
-        t.set("x", LuaValue.valueOf(c.x));
-        t.set("y", LuaValue.valueOf(c.y));
-        return t;
-    }
-
-    /**
-     * Best-effort text for a text-bearing widget ({@code node:text()}, spec 20, W1) — the one upstream-volatile
-     * bit, localized in THIS switch (like the spec-14 adapters): {@link Label#texts}, {@link Button} caption,
-     * {@link Window#cap}, {@link TextEntry#text()}. An unknown type returns {@code null} (→ Lua {@code nil}),
-     * never throws — upstream churn breaks only this method, not addons.
-     */
-    private static String nodeText(Widget w) {
-        if(w instanceof Label)
-            return ((Label)w).texts;
-        if(w instanceof Button) {
-            Text t = ((Button)w).text;
-            return (t == null) ? null : t.text;
-        }
-        if(w instanceof Window)
-            return ((Window)w).cap;
-        if(w instanceof TextEntry)
-            return ((TextEntry)w).text();
-        return null;
-    }
-
-    /**
-     * Build the Lua handle for a {@link LuaWidgetNode} (spec 20, W1): {@code :type/:id/:children/:parent/:pos/
-     * :size/:visible/:text/:walk/:same} (+ W2's {@code :rootpos}/{@code :at} and F5's {@code :setFont}/
-     * {@code :resetFont} — the one <i>write</i> a node carries, and a purely cosmetic, owner-reverted one).
-     * Every accessor returns {@code nil}/empty once the node is stale (its
-     * widget left the tree — {@link #nodeLive}). Facade-safe: the table carries the node as an opaque userdata
-     * ({@link LuaWidgetNode#KEY}) for {@code :same}, but no raw {@code haven.Widget} crosses into Lua (P1/D-017).
-     * {@code :children()}/{@code :parent()}/{@code :walk} mint FRESH handles (nodes are transient, not owned).
-     */
-    private static LuaValue nodeHandle(final Addon owner, final LuaWidgetNode n) {
-        LuaTable h = new LuaTable();
-        h.set(LuaWidgetNode.KEY, LuaValue.userdataOf(n));   // opaque backing ref for :same (facade-safe)
-        h.set("type", new ZeroArgFunction() {
-            public LuaValue call() {
-                Widget w = nodeLive(n);
-                return (w == null) ? LuaValue.NIL : LuaValue.valueOf(nodeType(w));
-            }
-        });
-        h.set("id", new ZeroArgFunction() {
-            public LuaValue call() {
-                Widget w = nodeLive(n);
-                if(w == null)
-                    return LuaValue.NIL;
-                int id = w.wdgid();                          // server id, or -1 if not server-bound
-                return (id < 0) ? LuaValue.NIL : LuaValue.valueOf(id);
-            }
-        });
-        h.set("children", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable out = new LuaTable();
-                Widget w = nodeLive(n);
-                if(w != null) {
-                    UI u = ui;
-                    List<Widget> kids;
-                    synchronized(u) { kids = new ArrayList<Widget>(w.children()); }  // copy under ui: no race
-                    int i = 0;
-                    for(Widget c : kids)
-                        out.set(++i, nodeHandle(owner, new LuaWidgetNode(c)));
-                }
-                return out;
-            }
-        });
-        h.set("parent", new ZeroArgFunction() {
-            public LuaValue call() {
-                Widget w = nodeLive(n);
-                if(w == null)
-                    return LuaValue.NIL;
-                Widget p = w.parent;
-                return (p == null) ? LuaValue.NIL : nodeHandle(owner, new LuaWidgetNode(p));
-            }
-        });
-        h.set("pos", new ZeroArgFunction() {
-            public LuaValue call() {
-                Widget w = nodeLive(n);
-                return ((w == null) || (w.c == null)) ? LuaValue.NIL : xyTable(w.c);
-            }
-        });
-        h.set("size", new ZeroArgFunction() {
-            public LuaValue call() {
-                Widget w = nodeLive(n);
-                return ((w == null) || (w.sz == null)) ? LuaValue.NIL : xyTable(w.sz);
-            }
-        });
-        h.set("visible", new ZeroArgFunction() {
-            public LuaValue call() {
-                Widget w = nodeLive(n);
-                return LuaValue.valueOf((w != null) && w.visible());
-            }
-        });
-        h.set("text", new ZeroArgFunction() {
-            public LuaValue call() {
-                Widget w = nodeLive(n);
-                if(w == null)
-                    return LuaValue.NIL;
-                String t = nodeText(w);
-                return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t);
-            }
-        });
-        h.set("walk", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {                // node:walk(fn) → self=arg1, fn=arg2
-                LuaValue fn = a.arg(2);
-                if(fn.isfunction())
-                    nodeWalk(owner, n, a.arg1(), fn, 0);
-                return a.arg1();
-            }
-        });
-        h.set("same", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {                // node:same(other) → self=arg1, other=arg2
-                return LuaValue.valueOf(nodeSame(n, LuaWidgetNode.resolve(a.arg(2))));
-            }
-        });
-        h.set("rootpos", new ZeroArgFunction() {              // W2: node top-left in root coords ({x=,y=}), or nil
-            public LuaValue call() {
-                Widget w = nodeLive(n);
-                if(w == null)
-                    return LuaValue.NIL;
-                UI u = ui;
-                Coord rp;
-                synchronized(u) { rp = w.rootpos(); }
-                return (rp == null) ? LuaValue.NIL : xyTable(rp);
-            }
-        });
-        // F5 (spec 21): node:setFont(h) — restyle THIS widget and everything drawn inside it with a
-        // font handle (hafen.asset / hafen.font), while its siblings keep the scope/"default" font (the top of the font resolution
-        // chain). Owner-tagged: reverted automatically on :reload/disable, and it dies with the widget (a closed
-        // window takes its override with it). Returns the node, so it chains.
-        h.set("setFont", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {                // node:setFont(h) → self=arg1, handle=arg2
-                FontApi.setNodeFont(owner, nodeLive(n), a.arg(2));
-                return a.arg1();
-            }
-        });
-        // F5: node:resetFont() — drop THIS addon's per-instance override on this widget (it falls back to the
-        // scope/"default" chain, or to another addon's override beneath). A no-op if there was none. Returns the node.
-        h.set("resetFont", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {                // node:resetFont() → self=arg1
-                FontApi.resetNodeFont(owner, nodeLive(n));
-                return a.arg1();
-            }
-        });
-        h.set("at", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {                // node:at(coord) → self=arg1, coord=arg2 (root coords)
-                Widget w = nodeLive(n);
-                if(w == null)
-                    return LuaValue.NIL;
-                Coord pt = coordArg(a.arg(2), "node:at(coord)");
-                UI u = ui;
-                Widget hit;
-                synchronized(u) { hit = hitTest(w, w.rootxlate(pt)); }
-                return (hit == null) ? LuaValue.NIL : nodeHandle(owner, new LuaWidgetNode(hit));
-            }
-        });
-        return h;
-    }
-
-    /**
-     * Depth-first walk for {@code node:walk(fn)} (spec 20, W1): call {@code fn(node, depth)} on this node, then —
-     * unless {@code fn} returned exactly {@code false} (prune) — recurse into each child. Reuses {@code handle}
-     * for the current node (so the callback gets the SAME handle {@code :walk} was called on) and mints fresh
-     * handles for children. Each callback runs isolated + watchdog-armed via {@link #callLua}. A node that goes
-     * stale mid-walk simply stops descending (its {@code children()} is empty).
-     */
-    private static void nodeWalk(Addon owner, LuaWidgetNode n, LuaValue handle, LuaValue fn, int depth) {
-        Widget w = nodeLive(n);
-        if(w == null)
-            return;
-        LuaValue r = callLua(owner, Addon.C_WIDGET, fn, handle, LuaValue.valueOf(depth)).arg1();
-        if(r.isboolean() && !r.toboolean())       // fn returned false → prune this subtree
-            return;
-        UI u = ui;
-        List<Widget> kids;
-        synchronized(u) { kids = new ArrayList<Widget>(w.children()); }
-        for(Widget c : kids) {
-            LuaWidgetNode cn = new LuaWidgetNode(c);
-            nodeWalk(owner, cn, nodeHandle(owner, cn), fn, depth + 1);
-        }
+        synchronized(u) { hit = LuaWidget.hitTest(u.root, new Coord(xv.toint(), yv.toint())); }
+        return (hit == null) ? LuaValue.NIL : LuaWidget.of(owner, hit);
     }
 
     // -------------------------------------------------------------------- widget replacers (hafen.ui, 3c)
