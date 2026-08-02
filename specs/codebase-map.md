@@ -13,6 +13,7 @@
 |---|---|
 | [boot-and-loop.md](codebase/boot-and-loop.md) | `main` → login → `RemoteUI.init` → `GameUI`; the per-frame tick/draw loop; the `UI` monitor, Loader/Connection threads and the `Loading` protocol |
 | [widgets.md](codebase/widgets.md) | `Widget`/`UI` tree, `@RName` registry, server→create/place/**destroy** seams (unbind ≠ unlink: a `Window` fades), tick/draw traversal seams, `GameUI.addchild`, `GOut`, introspection + hit-testing, drops and modifier flags |
+| [gameui-windows.md](codebase/gameui-windows.md) | The windows `GameUI` itself owns: the `Hidewnd` wrappers (created **hidden**), the menu bars, the one private `togglewnd`/`wndstate` path all seven call sites funnel into, `setgkey` (key and button are ONE click), and the `wnd*` prefs |
 | [network.md](codebase/network.md) | `Session`/`Connection`, `uimsg` in / `wdgmsg` out, and the full action channel (map clicks, menu acts, item verbs, flower petals) |
 | [state.md](codebase/state.md) | Where game state lives: `Glob`, `OCache`/`Gob`, `MCache`, player, inventory/`GItem`/`ItemInfo`, `CharWnd` attrs, party, time/astronomy |
 | [services.md](codebase/services.md) | Console, keybindings, `Resource` (+ code adoption), prefs + Options/`GSettings`, audio, chat, combat, buffs, kin, vitals, FEP/hunger, study, skills, crafting, action menu (`MenuGrid` paginae) |

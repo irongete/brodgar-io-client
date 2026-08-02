@@ -243,3 +243,40 @@ make the addon responsible for the difference.
 **See.** [D-024](#d-024) (the descriptor this replaces), [D-012](architecture-api.md) (one entry point per distinct
 input), [D-056](architecture-api.md) (arity is the verb), [`030-ui-selectors/plan.md`](../030-ui-selectors/plan.md)
 §5, [learnings/ui-widgets.md](../learnings/ui-widgets.md) (why `disappear` fires at the server destroy).
+
+### D-069 — an addon's hide is authoritative: hiding a native window takes that window's toggle
+
+**Context.** `bags` replaces the inventory, and the stock one came back on Tab and sat on top of it — the felt bug
+`031-window-lifecycle` exists for. The cause is not in `bags`: `MenuCheckBox` calls `setgkey`, so the key fires the
+button's own click, and both land in the private [`GameUI.togglewnd`](src/haven/GameUI.java:1482), which flips
+`visible` on the very window the addon hid. **An addon's `w:hide()` was a suggestion the client overruled one
+keypress later.** Seven call sites, one private method, and its tick read by the equally private `wndstate`.
+
+**Decision.** Hiding a native window **takes its toggle**, and 029's restore list is the ownership record — no new
+list, no new state. `togglewnd` and `wndstate` each gain one `// addon:` line *inside the body* asking
+[`AddonWidgets`](src/haven/AddonWidgets.java) whether an addon owns the window; ownership is matched by **widget
+identity** against the CURRENT owners only (`AddonManager.addons` + the `:lua` REPL). With nothing standing in for
+the window the toggle is **swallowed** and the tick answers `false` — the honest report of what is on screen.
+**There is no verb**: ownership follows the hide, and it is released by the same restore (`w:show()`, disable,
+`:reload`). Rejected: a public `w:onToggle(fn)` (API for something nothing has to ask for), an engine-side
+open/closed boolean per owned window (two states that drift, and the checkbox is what lies when they do),
+rebinding `kb_inv` from Lua (the button bypasses the keybinding entirely, and it would edit the user's own config
+to fix a window problem), and hooking `Window.show()` (far broader, and it fights every internal `show()` the
+client makes for its own reasons).
+
+**Consequences.** The generic rule this settles is **an addon's write to a native widget must survive the client's
+own reflexes, or it is not a write at all** — and the cheapest way to make it survive is to ask at the *one* place
+the reflex funnels through, rather than to fight it at seven. Cost is on the frame path (`ACheckBox.state` is a
+per-frame `Supplier` on six checkboxes), so the lookup is a global-empty volatile read plus indexed walks that
+allocate nothing; a client with no addon behaves byte-for-byte as before. Because ownership is derived from the
+hide record rather than stored, a stale owner cannot eat the key — a disabled addon, a relog and 030's fading
+corpse all fall through to stock behaviour, a dead Tab being strictly worse than a stock Tab. What this does NOT
+do is take the *key*: `kb_inv` still fires its normal click, which now asks the window's owner. The half left
+open — giving the swallowed toggle something to **drive** — is `replace`'s, since it is the only place that knows
+both the window it hid and the view that stands in for it.
+
+**See.** [D-009](#d-009) (wrap, don't reimplement), [D-011](architecture-api.md) (invasiveness where it enables
+better features), [D-041](#d-041) (no pinning — ownership is derived, not held),
+[`031-window-lifecycle/plan.md`](../031-window-lifecycle/plan.md),
+[`specs/codebase/gameui-windows.md`](../../codebase/gameui-windows.md) (the seam and its seven call sites),
+[learnings/ui-widgets.md](../learnings/ui-widgets.md).

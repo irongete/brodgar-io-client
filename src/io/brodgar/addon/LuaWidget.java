@@ -549,6 +549,31 @@ public final class LuaWidget {
         }
     }
 
+    /**
+     * Does <b>any</b> live owner hold a hidden-native record right now? The global-empty fast path for the 031
+     * window-toggle seam ({@link UiApi#toggleWnd}/{@link UiApi#wndState}), which the client polls <i>per frame,
+     * per menu checkbox</i> — six of them. A plain volatile read is the whole cost for a client that hides
+     * nothing, which is every client until an addon calls {@code w:hide()} on a native widget.
+     *
+     * <p>Maintained by {@link #recountHidden()} at the four places a restore list changes (hide, show,
+     * {@link UiApi#teardownHidden}, {@link UiApi#resetSession}). A stale <i>true</i> costs only the walk, which
+     * then finds no record and falls through to stock behaviour; a stale <i>false</i> would be a silent
+     * mis-answer, so the flag is only ever cleared by a recount that actually looked.
+     */
+    static volatile boolean anyHidden = false;
+
+    /** Recompute {@link #anyHidden} over every live owner — the loaded addons plus the {@code :lua} REPL. */
+    static void recountHidden() {
+        boolean any = false;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); !any && (i < n); i++)
+            any = !as.get(i).hiddenNative.isEmpty();
+        Addon c = AddonManager.consoleOwner;
+        if(!any && (c != null))
+            any = !c.hiddenNative.isEmpty();
+        anyHidden = any;
+    }
+
     /** Record a BORROWED widget as hidden-by-us (idempotent: the FIRST hide owns the original visibility). */
     private static void recordHidden(Addon owner, Widget w, boolean origVisible) {
         for(Hidden h : owner.hiddenNative) {
@@ -557,6 +582,7 @@ public final class LuaWidget {
         }
         UI u = AddonManager.ui;
         owner.hiddenNative.add(new Hidden(w, (u == null) ? -1 : u.widgetid(w), origVisible));
+        anyHidden = true;                     // 031.1: this addon now owns that window's toggle
     }
 
     /** Drop a widget from the restore list — the addon showed it again itself, so teardown has nothing to undo. */
@@ -564,6 +590,7 @@ public final class LuaWidget {
         for(Hidden h : owner.hiddenNative) {
             if(h.wdg == w) {
                 owner.hiddenNative.remove(h);
+                recountHidden();              // 031.1: ...and gives the toggle back, if that was the last record
                 return;
             }
         }

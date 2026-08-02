@@ -260,6 +260,29 @@ and drops the record.
 A hidden server widget stays fully **live**: still bound to its id, still receiving updates, still filling
 with items. That is why you can hide a grid and keep reading it.
 
+#### Hiding a native window takes its toggle
+
+If what you hid is one of the windows the client itself can open — the inventory, equipment, the character
+sheet, kin, options, the map, the action search — **you also own its toggle**. The client's key and its
+menu button both stop reopening it, and the menu button's tick goes off:
+
+```lua
+hafen.ui.inventory():parent():hide()   -- the Hidewnd around the grid: Tab no longer brings it back
+```
+
+Without this, hiding was not authoritative. The keybinding fires the menu button's own click, and both land
+in one place inside the client that flips the window straight back on — so an addon that hid the stock
+inventory got it back on the next Tab, sitting on top of its replacement.
+
+The toggle is **swallowed** while nothing stands in for the window: pressing the key does nothing, and the
+tick tells the truth about what is on screen. Giving the widget back gives the toggle back with it — the
+same restore as above, so `w:show()`, disabling your addon and `:reload` all hand the key to the client
+again. That is also the escape hatch for a `w:hide()` typed into the `:lua` console: `:reload`, not a relog.
+
+**There is no verb for this** — nothing to register, nothing to release. Ownership follows the hide, and it
+is per window: hiding the inventory leaves equipment, the character sheet, kin, options and the map
+behaving exactly as stock.
+
 **There is no `hafen.ui.adopt`.** It existed only to get a readable handle on a native widget, and it
 charged you a hidden window for the privilege. Reading no longer costs anything: `hafen.ui(selector)` (or
 `node(id)`, `at()`, `inventory()`) hands you the same entity with **nothing hidden**, and hiding is the

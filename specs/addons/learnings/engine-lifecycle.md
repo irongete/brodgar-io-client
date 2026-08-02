@@ -205,3 +205,11 @@
   what the addon left playing") must therefore be swept for the REPL explicitly in `reload()`, or the rule has a
   silent exception exactly where the maintainer tests it. (`UiApi.resetSession` already had this shape for the
   console's models/replacers — follow it rather than inventing a second pattern.)
+- **(031.1) That REPL rule has now cost three teardowns — treat it as a checklist item, not a discovery.**
+  Sounds (024.2), cached text (026.1) and hidden native windows (031.1) each had to be added to `reload()` one
+  at a time, always after a maintainer test failed. The tell is sharp: **a resource is only reachable from the
+  `:lua` console until the promise it carries becomes user-visible**, and then the missing sweep surfaces
+  instantly. 031.1 is the worst shape of it — a hidden window's *toggle* is owned too, so the REPL's stale
+  record did not merely leave a window hidden, it ate the Tab key until a relog. **When adding any per-owner
+  registry, add its `AddonRegistry.reload` sweep for `consoleOwner` in the same commit**, and have the teardown
+  tolerate a `null` owner (the REPL owner exists only once someone has typed `:lua`).

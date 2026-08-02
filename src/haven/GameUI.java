@@ -1475,11 +1475,13 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private boolean wndstate(Window wnd) {
 	if(wnd == null)
 	    return(false);
+	Boolean as = AddonWidgets.wndState(wnd); if(as != null) return(as.booleanValue());	// addon: an AddOn that hid this window owns its tick too (031)
 	return(wnd.visible());
     }
 
     private void togglewnd(Window wnd) {
 	if(wnd != null) {
+	    if(AddonWidgets.toggleWnd(wnd)) return;	// addon: ...and its toggle — the key and the menu button both land here (031)
 	    if(wnd.show(!wnd.visible())) {
 		wnd.raise();
 		fitwdg(wnd);

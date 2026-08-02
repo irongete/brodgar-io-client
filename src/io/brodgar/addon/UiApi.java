@@ -421,6 +421,7 @@ final class UiApi {
             consoleOwner.itemWatches.clear();    // 029.3: ...and so are the containers it was subscribed to
             consoleOwner.selectorWatches.clear();// 030.2: ...and the selectors it was watching for
         }
+        LuaWidget.recountHidden();               // 031.1: nothing is hidden in a session that has not started
     }
 
     private static LuaValue newUi(final Addon owner, LuaValue opts, boolean window) {
@@ -902,6 +903,11 @@ final class UiApi {
      * restore that {@code hafen.ui.adopt} used to carry. Each entry replays its ORIGINAL visibility rather than
      * blindly showing (hiding something already hidden must not reveal it later — the {@code replace} lesson).
      *
+     * <p><b>The {@code :lua} REPL is torn down here too</b>, from {@code AddonRegistry.reload} — the REPL owner
+     * itself survives a reload, but the windows it hid do not, exactly as its sounds (024.2) and cached text
+     * (026.1) do not. Since 031.1 a hidden window's <i>toggle</i> is owned as well, which makes {@code :reload}
+     * the escape hatch for a hide typed into the console: without this the key stays swallowed until a relog.
+     *
      * <p><b>The guard decides relog vs {@code :reload}.</b> {@code AddonManager.init} binds the NEW session's
      * {@code ui} <i>before</i> the teardown loop, so after a relog a server-bound entry's id no longer maps to the
      * recorded widget (and a client-only one is no longer under the live root) — the restore is correctly skipped,
@@ -909,11 +915,12 @@ final class UiApi {
      * Tree ops → under the {@code ui} monitor, like {@link #teardownModels}.
      */
     static void teardownHidden(Addon a) {
-        if(a.hiddenNative.isEmpty())
+        if((a == null) || a.hiddenNative.isEmpty())    // null: the :lua REPL owner, which exists only once used
             return;
         final UI u = ui;
         final List<LuaWidget.Hidden> hs = new ArrayList<LuaWidget.Hidden>(a.hiddenNative);
         a.hiddenNative.clear();
+        LuaWidget.recountHidden();      // 031.1: the toggles this addon owned go back to the client
         Runnable restore = () -> {
             for(LuaWidget.Hidden h : hs) {
                 if(!stillHidable(u, h))
@@ -928,6 +935,71 @@ final class UiApi {
         } else {
             restore.run();
         }
+    }
+
+    // ---- the window toggle a hidden native window carries (031.1) ------------------------------------
+
+    /**
+     * The restore-list entry for this window, or {@code null} if no live addon hid it — the ownership lookup
+     * behind the 031 toggle seam. <b>Identity, and only the CURRENT owners.</b> A torn-down addon's list is
+     * already cleared ({@link #teardownHidden}) and it is off {@link AddonManager#addons} anyway, so a stale
+     * owner simply is not found here and the client's stock behaviour runs — a dead Tab being worse than a stock
+     * Tab. The same identity test disposes of 030's other corpse case: a window fading out after
+     * {@code reqdestroy} lingers in the tree, but it is not the object {@code GameUI} now holds, so it cannot
+     * answer for the live one.
+     *
+     * <p><b>Allocates nothing and, in the common case, reads one volatile.</b> {@code GameUI.wndstate} is a
+     * per-frame {@code state()} supplier on six menu checkboxes, so this is on the frame path: the
+     * {@link LuaWidget#anyHidden} fast path returns immediately for a client that hides nothing, and both walks
+     * below are indexed over {@link CopyOnWriteArrayList}s (an enhanced-for would allocate an iterator per
+     * checkbox per frame).
+     */
+    private static LuaWidget.Hidden hiddenOwner(Widget wnd) {
+        if(!LuaWidget.anyHidden || (wnd == null))
+            return null;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++) {
+            LuaWidget.Hidden h = hiddenIn(as.get(i), wnd);
+            if(h != null)
+                return h;
+        }
+        Addon c = consoleOwner;               // the :lua REPL hides windows too, and owns them the same way
+        return (c == null) ? null : hiddenIn(c, wnd);
+    }
+
+    /** One owner's restore list, by widget identity. Indexed: no iterator on the frame path. */
+    private static LuaWidget.Hidden hiddenIn(Addon a, Widget wnd) {
+        List<LuaWidget.Hidden> hs = a.hiddenNative;
+        for(int i = 0, n = hs.size(); i < n; i++) {
+            LuaWidget.Hidden h = hs.get(i);
+            if(h.wdg == wnd)
+                return h;
+        }
+        return null;
+    }
+
+    /**
+     * {@code GameUI.togglewnd} asks first (031.1, through {@code haven.AddonWidgets}): has an addon taken this
+     * window over? Returns whether the toggle was <b>handled</b> — {@code true} stops the client's own
+     * {@code show(!visible())} dead.
+     *
+     * <p><b>A native window you hid is a window you own.</b> {@code MenuCheckBox} calls {@code setgkey}, so the
+     * keybinding and the menu button fire the same click and both land here; without this the client would flip
+     * {@code visible} back on the very window the addon hid, which is why the stock inventory used to come back
+     * on Tab. With no view bound (031.1: there is none yet) the toggle is simply <b>swallowed</b> — the window
+     * stays hidden and nothing appears. 031.2 makes a bound view the thing the toggle drives.
+     */
+    static boolean toggleWnd(Window wnd) {
+        return hiddenOwner(wnd) != null;
+    }
+
+    /**
+     * {@code GameUI.wndstate} asks first (031.1): what should the menu checkbox's tick say? {@code null} = not
+     * owned, read the window as usual. An owned window with no view bound has nothing on screen, so the honest
+     * answer is {@code false} — the tick must not claim a window the user cannot see.
+     */
+    static Boolean wndState(Window wnd) {
+        return (hiddenOwner(wnd) == null) ? null : Boolean.FALSE;
     }
 
     /** Is a restore-list entry still the same live widget? (Server-bound: by id; client-only: by tree reachability.) */

@@ -339,3 +339,17 @@
   "the nearest enclosing `Window`", so the deco is perfectly addressable as `@DefaultDeco[title=Cupboard]` — but any
   tool that turns a hover into "the widget you meant" must expect the deco and offer the parent hop. Verified
   in-game: the selector inspector reports exactly that, and the offered selector round-trips.
+- **(031.1) `MenuCheckBox.setgkey` means the key and the menu button are ONE click — there is no keyboard path to
+  intercept separately.** `setgkey(KeyBinding)` stores `kb_gkey`; a matching `GlobKeyEvent` reaches the widget's
+  own `gkeytype`, which `ACheckBox` overrides to `click()` ([ACheckBox:63](src/haven/ACheckBox.java:63)). So Tab
+  and the mouse both run the checkbox's `click` closure and land in the private
+  [`GameUI.togglewnd`](src/haven/GameUI.java:1482) — seven call sites, one method. Consuming the key would leave
+  the button working and vice versa; the seam is the method, never the binding. Its tick is the equally private
+  `wndstate`, read through [`ACheckBox.state`](src/haven/ACheckBox.java:37), a `Supplier<Boolean>` called from
+  `draw` — i.e. **per frame, on six checkboxes**, so anything hung there must be allocation-free.
+- **(031.1) The inventory/equipment wrappers are `Hidewnd`s created hidden**
+  ([GameUI:957](src/haven/GameUI.java:957)) and their close only *hides* them, so "put the window back" is never
+  a blind `show()` — that hands the user a window they never opened. Replaying the visibility actually recorded
+  at hide time is the only correct restore, which is exactly what 029's `Hidden.origVisible` already stored.
+  Note also that `replace` does **not** use that list: it hides via its own `LuaModel.hideTarget` record, so a
+  rule written over `Addon.hiddenNative` covers `w:hide()` and *not* `replace` until the two are joined.

@@ -652,6 +652,22 @@ public static void onWidgetCreated(int id, String typenm) {        UiApi.onWidge
 public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] pargs) {        UiApi.onWidgetPlaced(id, wdg, pwdg, pargs);    }
 
     /**
+     * The <b>window-toggle seam</b> (031.1) — called from {@code haven.AddonWidgets}, which is where
+     * {@code GameUI.togglewnd} and {@code GameUI.wndstate} reach the addon layer. A native window an addon hid
+     * with {@code widget:hide()} is a window that addon <b>owns</b>, toggle included: {@link #toggleWnd} answers
+     * whether the click was handled (so the client leaves the window alone), {@link #wndState} what the menu
+     * checkbox's tick should say ({@code null} = not owned, read the window as usual).
+     *
+     * <p><b>Threading.</b> Both are reached on the UI thread — a click, or the checkbox's per-frame
+     * {@code state()} supplier — and neither raises Lua. The fast path (nobody hid anything) is one volatile
+     * read and allocates nothing, so an uninterested client is unaffected by a per-frame poll on six checkboxes.
+     */
+    public static boolean toggleWnd(Window wnd) {        return UiApi.toggleWnd(wnd);    }
+
+    /** @see #toggleWnd */
+    public static Boolean wndState(Window wnd) {         return UiApi.wndState(wnd);     }
+
+    /**
      * Build the widget-targeting descriptor {@code {id, type, place, caption, parentType}} (D-024) — since 030.2 the
      * argument of {@code replace{match=fn}} and nothing else: the {@code onWidgetCreate} observer that shared it was
      * hard cut, so the descriptor is no longer a discovery surface (a {@link Selector} is), and it goes with

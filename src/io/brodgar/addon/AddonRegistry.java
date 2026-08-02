@@ -193,6 +193,8 @@ public final class AddonRegistry {
         LuaGOut.clearResourceCache();                // U1/D-039: drop the g:resource name cache on reload
         LuaSound.teardownSounds(AddonManager.consoleOwner);  // 024.2: the REPL survives a reload, its clips do not
         LuaGOut.teardownTexts(AddonManager.consoleOwner);    // 026.1: ...nor does its cached text (same reason)
+        UiApi.teardownHidden(AddonManager.consoleOwner);     // 031.1: ...nor do the native windows it hid — with their
+                                                             //   toggles now owned too, :reload IS the escape hatch
         loadAll();                                   // re-scan disk + enabled set; re-run; fire OnLoad
         if(gui() != null) {                          // already in-world → re-init as a fresh login
             StoreApi.restorePerChar();                        // reload per-char saved vars (charScope still valid)
