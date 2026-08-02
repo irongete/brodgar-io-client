@@ -10,8 +10,8 @@
 | `AddonManager` (hub, ~1.6k lines) | lifecycle (attach/init/tick), the `haven` seams (`onUimsg`/`onWdgmsg`/`onMessage`/`onGlobKey`/`onWidgetCreated`/`onWidgetPlaced`/`onGhostClick` — core edits call these by name; they delegate), the shared gob-read/engine substrate (`getgob`/`gobMatches`/`gobSnapshot`/`gui`/…), event bus + `callLua`, timers, the `:lua` REPL, `installHafen` |
 | `AddonRegistry` | discovery/loadAll, enabled set (+ D-027 defaults), `reload`, per-addon teardown, the AddOns-panel data API |
 | `WorldApi` | `hafen.world/map/markers/radar/time/sound/music` (per-gob reads are `LuaGob`) |
-| `CharApi` | `hafen.player/char/items/study/party/kin/buffs/actionbar/quests/wounds/fight` + the `TreeAdapter`s |
-| `UiApi` | `hafen.ui` — windows/overlays, observe/adopt/replace, WidgetNode + hit-testing |
+| `CharApi` | `hafen.player/char/study/party/kin/buffs/actionbar/quests/wounds/fight` + the `TreeAdapter`s + `itemSnapshot` (the one Item producer; `hafen.items` was cut in 029.3) |
+| `UiApi` | `hafen.ui` — windows/overlays, observe/replace, the entry points + hit-testing, the container-subscription poll (`adopt` deleted in 029.2) |
 | `HookApi` | `hafen.hook` (L1/L2/L3 + grab), `hafen.slash`; owns the hotkey registry behind `hafen.client:options():keybindings()` |
 | `ActApi` | `hafen.act` (gated verbs) + `hafen.craft`/`hafen.speed` writes |
 | `RenderApi` | `hafen.ghost` + `hafen.render` (world entities) |

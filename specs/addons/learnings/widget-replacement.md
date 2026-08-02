@@ -107,3 +107,15 @@
   the handle's Lua `:destroy()`. With `hafen.ui.window{}` returning the entity that test silently yields `null`
   and the custom view leaks on every undo. It now resolves the entity to its `AddonWidget` and kills it in Java.
   When a handle changes representation, grep for the type predicates that were guarding it, not just its methods.
+- **(029.3) `replace` survived the collapse by handing over the entity — its model handle was pure duplication.**
+  `hafen.ui.replace(type, opts, fn)` is untouched in name, matching, scan-on-register and restore; the only change
+  is that `fn(model)` now receives the `LuaWidget` entity for the replaced widget instead of a bespoke table of
+  closures. Every verb that table had already existed on the entity (`:hide/:show/:visible/:items/:onItem*/
+  :onDestroy`), and `:raw()` was `:id()` under another name — so the handle deleted itself. Watch the difference
+  it introduces: `m:hide()` now toggles the **widget**, while `replace`'s own hiding still targets the enclosing
+  **window** and replays `hideTargetOrigVisible` on teardown. Those two rules are not merged, and `bags` proves it
+  — its toggle makes the whole stock window vanish and come back, across `:reload` and disable.
+- **(029.3) What is left of `LuaModel` is an undo record, and `pollModels` is now destroy-detection only.** The
+  item diff and the three callbacks moved to the entity's own hasSub-gated poll, so the replace poll no longer
+  walks `WItem`s at all — it only checks whether the server widget's id still maps to it, to destroy the addon's
+  view with it. If a replacer ever needs item events again it subscribes like anybody else, on the entity.

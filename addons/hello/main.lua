@@ -38,10 +38,11 @@
 -- only while the marker is in your current segment). The 'marker' hotkey drops (and, pressed again, removes) a "Hello
 -- marker" at your position — watch it appear on the map (M) and the corner minimap. add() writes the shared
 -- on-disk DB so it persists, but hello removes its own demo marker on disable/reload so the regression harness
--- never pollutes your map. Built on Phase 3b WIDGET MODELS — hafen.ui.adopt(id) adopts a live SERVER widget (by the desc.id a 3a
--- onWidgetCreate observer hands out) as a hidden MODEL you can hide/show, read items() from, and get lifecycle
--- events on (onItemAdded/onItemRemoved/onDestroy) — "wrap, don't reimplement" (D-009). Here we adopt the MAIN
--- INVENTORY: the 'bags' hotkey hides/shows its grid while it stays live, and :reload/disable un-hides it (3b DoD). Item
+-- never pollutes your map. Built on the WIDGET ENTITY (029) — every hafen.ui door (root/node/at/inventory/window)
+-- hands back ONE interned type, and a container answers for what is inside it: w:items() plus the lifecycle verbs
+-- w:onItemAdded/:onItemRemoved/:onDestroy, read with the window VISIBLE (hafen.ui.adopt, which hid a window just so
+-- you could look in it, is GONE). Here that is the MAIN INVENTORY: the 'bags' hotkey hides/shows its grid with
+-- w:hide()/:show() and the reads keep working, and :reload/disable gives the grid back. Item
 -- MUTATING verbs (take/drop/transfer/use) are NOT here — they are gameplay actions (the gated Phase-4 tier).
 -- Built on 3a WIDGET-CREATION INTERCEPTION — hafen.ui.onWidgetCreate(fn) observes the server's OWN UI as the
 -- client builds it (fn(desc) runs per server widget; desc = {id,type,place,caption,parentType}). It also demonstrates GLOBAL HOTKEYS —
@@ -176,16 +177,20 @@ local function readPlace(tag)
     s and ("%.0f,%.0f"):format(s.x, s.y) or "nil"))
 end
 
--- 1c-3: read the inventory / equipment / cursor through hafen.items. Item NAMES come from resolved
--- item info, which (like the inventory widget itself) can stream in a beat after enter-world, so this
--- is read twice — immediately and after a short delay — the same pattern as the map reads above.
--- 4f (read side): each Item snapshot now also carries a `handle` (the item's server widget id) — the
--- ItemRef the gated hafen.act.item(item, verb) verb takes. hello is READ-ONLY, so it just OBSERVES the
--- handle here (the write demo lives in the opt-in `walker` addon); a handle proves the 4f plumbing.
+-- 1c-3: read the inventory / equipment / cursor. 029.3 HARD-CUT hafen.items: items are a RELATION on their
+-- container now, so the backpack and the equipory are looked up as WIDGETS (hafen.ui.inventory() /
+-- hafen.ui.equipment(), the same entity every other hafen.ui entry point hands back) and asked for :items().
+-- The cursor item is the odd one out — it is not a widget you can walk — so hafen.ui.hand() stays a snapshot.
+-- Item NAMES come from resolved item info, which (like the inventory widget itself) can stream in a beat after
+-- enter-world, so this is read twice — immediately and after a short delay — like the map reads above.
+-- 4f (read side): each Item snapshot still carries a `handle` (the item's server widget id) — the ItemRef the
+-- gated hafen.act.item(item, verb) verb takes. hello is READ-ONLY, so it just OBSERVES the handle here (the
+-- write demo lives in the opt-in `walker` addon); a handle proves the 4f plumbing.
 local function readInv(tag)
-  local inv = hafen.items.inventory()   -- array of Item snapshots {name,res,num,wear,pos,handle}
-  local eq = hafen.items.equipment()    -- array of Item snapshots {..., slot, handle}
-  local hand = hafen.items.hand()       -- Item snapshot or nil (cursor item)
+  local invw, eqw = hafen.ui.inventory(), hafen.ui.equipment()   -- Widget objects, or nil before the HUD is up
+  local inv = invw and invw:items() or {}   -- array of Item snapshots {name,res,num,wear,pos,handle}
+  local eq = eqw and eqw:items() or {}      -- array of Item snapshots {..., slot, handle}
+  local hand = hafen.ui.hand()              -- Item snapshot or nil (cursor item)
   local first = inv[1]
   hafen.log(("[%s] inventory=%d item(s), first=%s x%s handle=%s")
     :format(tag, #inv, first and tostring(first.name or first.res) or "nil",
@@ -715,24 +720,26 @@ end
 -- default and enabling it raises a consent dialog — write-actions are a PER-ADDON permission with no global switch
 -- (D-027/D-028). See docs/addons/phase-4c-enable-consent-dialog.md.
 
--- 3b: WIDGET MODEL (hafen.ui.adopt). We adopt the MAIN INVENTORY as a model down in the onWidgetCreate observer
--- (the 3a -> 3b flow: observe a widget's creation, then adopt it by desc.id). invModel is that handle (nil until
--- the inventory is observed at login). readBags reads it: item count + first item (via model:items(), the same
--- Item snapshots as hafen.items.inventory) + whether its grid is currently shown. The KEY property: a hidden
--- server widget stays bound to its id, so items() and the onItemAdded/onItemRemoved events keep working while it
--- is hidden -- a perfect headless model. Like the rest of the inventory data, items stream in a beat after
--- enter-world, so this is read at now (often 0) and +3s.
-local invModel            -- the adopted inventory model (set in the observer below; nil after :reload until relog)
+-- 3b/029.3: CONTAINER READS + EVENTS, with NOTHING HIDDEN. hafen.ui.adopt is GONE (029.2) and with it the whole
+-- "take the window over to look inside it" trade: hafen.ui.inventory() hands back the Widget entity for the main
+-- backpack, w:items() reads it while the grid is VISIBLE and INTERACTIVE, and the lifecycle events are subscribed
+-- on the entity itself (w:onItemAdded/:onItemRemoved/:onDestroy, wired in the onWidgetCreate observer below to
+-- keep the 3a -> read handoff). The property that made a hidden model work still holds and is now just a bonus: a
+-- hidden server widget stays bound to its id, so the reads and the events keep working with the grid hidden too
+-- (the 'bags' hotkey proves it). Like the rest of the inventory data, items stream in a beat after enter-world,
+-- so this is read at now (often 0) and +3s.
+local invWdg              -- the main-inventory Widget object subscribed in the observer (nil until it is observed)
 local itemsAdded, itemsRemoved = 0, 0
--- The ~dozen items already in the backpack fire onItemAdded as they stream in at login (like BuffAdded does for
--- existing buffs). So log only the first few of that initial fill, then flip bagsReady a few seconds in and log
--- EVERY live add/remove after that -- so a pick-up/drop while the grid is hidden is clearly visible in the log.
+-- The ~dozen items already in the backpack fire onItemAdded on the first poll after we subscribe (like BuffAdded
+-- does for existing buffs). So log only the first few of that initial fill, then flip bagsReady a few seconds in
+-- and log EVERY live add/remove after that -- so a pick-up/drop while the grid is hidden is clear in the log.
 local bagsReady = false
 local function readBags(tag)
-  if not invModel then hafen.log(("[%s] bags: inventory not adopted yet"):format(tag)); return end
-  local items = invModel:items()
-  hafen.log(("[%s] bags: %d item(s) via model, first=%s, grid-visible=%s"):format(tag, #items,
-    items[1] and tostring(items[1].name or items[1].res) or "none", tostring(invModel:visible())))
+  local w = invWdg or hafen.ui.inventory()   -- either door leads to the SAME interned entity (==)
+  if not w then hafen.log(("[%s] bags: no inventory widget yet"):format(tag)); return end
+  local items = w:items()
+  hafen.log(("[%s] bags: %d item(s) via widget:items(), first=%s, grid-visible=%s"):format(tag, #items,
+    items[1] and tostring(items[1].name or items[1].res) or "none", tostring(w:visible())))
 end
 
 hafen.events.on("OnEnterWorld", function()
@@ -812,7 +819,7 @@ hafen.events.on("OnEnterWorld", function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readMeters("+3s")
     readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readMenu("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s"); readWounds("+3s"); readFight("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
-    if invModel then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via the 'bags' key) and it logs") end
+    if invWdg then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via the 'bags' key) and it logs") end
   end)
 
   -- 1c-2 / 024: an audible confirmation ping (a client-bundled sound), proving hafen.sound(name):play()
@@ -1010,7 +1017,7 @@ hafen.events.on("ActionbarChanged", function(slot)
 end)
 
 -- 1d-4: EquipChanged fires when worn equipment changes (equip/unequip) — the payload is the same array
--- as hafen.items.equipment(). Equipment streams in at login (a few fires), then on any change. Log the
+-- as hafen.ui.equipment():items(). Equipment streams in at login (a few fires), then on any change. Log the
 -- first few so it does not flood.
 local equipSeen = 0
 hafen.events.on("EquipChanged", function(eq)
@@ -1115,36 +1122,37 @@ hafen.ui.onWidgetCreate(function(desc)
               tostring(desc.parentType), tostring(desc.caption)))
   end
 
-  -- 3b: when the MAIN inventory ({type="inv", place="inv", parentType="GameUI"}) is built, ADOPT it as a model
-  -- (hafen.ui.adopt(desc.id)) -- the observe -> adopt handoff. We hold the model to hide/show its grid ('bags')
-  -- and to receive item add/remove events. onDestroy fires if the server ever destroys it (it won't for the main
-  -- backpack, but a container/cupboard model would). NB: :reload does NOT recreate the existing inventory, so the
-  -- freshly-registered observer won't re-fire for it -- re-adoption after :reload waits for a relog (or 3c's
-  -- hafen.ui.replace, which FINDS an already-open window by descriptor). adopt() returns nil if the id is gone.
-  if desc.type == "inv" and desc.place == "inv" and desc.parentType == "GameUI" and not invModel then
-    invModel = hafen.ui.adopt(desc.id)
-    if invModel then
-      hafen.log(("3b: adopted main inventory (id=%s) -- the 'bags' hotkey hides/shows its grid; it stays live while hidden")
-        :format(tostring(desc.id)))
-      invModel:onItemAdded(function(item)
+  -- 3b/029.3: when the MAIN inventory ({type="inv", place="inv", parentType="GameUI"}) is built, take the Widget
+  -- ENTITY for it (hafen.ui.node(desc.id)) and SUBSCRIBE to its item lifecycle -- the observe -> read handoff that
+  -- used to be observe -> adopt. Nothing is hidden and nothing is taken over: the grid stays visible and usable
+  -- while we read it. Subscribing IS the registration (an unwatched widget is never polled), and passing nil to
+  -- any of the three verbs unsubscribes. NB :reload does NOT recreate the existing inventory, so this observer
+  -- won't re-fire for it -- but hafen.ui.inventory() finds it anyway (which is why readBags falls back to that
+  -- door, and the 'bags' hotkey uses it). onDestroy fires if the widget ever leaves the tree.
+  if desc.type == "inv" and desc.place == "inv" and desc.parentType == "GameUI" and not invWdg then
+    invWdg = hafen.ui.node(desc.id)
+    if invWdg then
+      hafen.log(("3b: watching the main inventory (id=%s, %s) -- items read with NOTHING hidden; the 'bags' hotkey"
+                 .. " hides/shows the grid and the reads keep working"):format(tostring(desc.id), tostring(invWdg)))
+      invWdg:onItemAdded(function(item)
         itemsAdded = itemsAdded + 1
         if bagsReady or itemsAdded <= 3 then          -- initial fill: first few only; after +3s: every live add
           hafen.log(("3b: item ADDED to inventory: %s x%s (total seen %d)%s")
             :format(tostring(item.name or item.res), tostring(item.num or 1), itemsAdded,
-                    (invModel and not invModel:visible()) and " [grid hidden -- model still live]" or ""))
+                    (invWdg and not invWdg:visible()) and " [grid hidden -- still readable]" or ""))
         end
       end)
-      invModel:onItemRemoved(function(item)
+      invWdg:onItemRemoved(function(item)
         itemsRemoved = itemsRemoved + 1
         if bagsReady or itemsRemoved <= 3 then
           hafen.log(("3b: item REMOVED from inventory: %s (total seen %d)%s")
             :format(tostring(item.name or item.res), itemsRemoved,
-                    (invModel and not invModel:visible()) and " [grid hidden -- model still live]" or ""))
+                    (invWdg and not invWdg:visible()) and " [grid hidden -- still readable]" or ""))
         end
       end)
-      invModel:onDestroy(function()
-        hafen.log("3b: inventory model destroyed by the server")
-        invModel = nil
+      invWdg:onDestroy(function()
+        hafen.log("3b: the inventory widget left the tree (server destroy)")
+        invWdg = nil
       end)
     end
   end
@@ -1397,20 +1405,22 @@ keys:register("ping", function()
   hafen.log("2e-3: ping hotkey fired (assigned in Options > Keybindings > Hello)")
 end)
 
--- 3b: a THIRD hotkey ("bags", suggested Ctrl+B) toggling the ADOPTED inventory model's visibility -- hide()/show()
--- a real server widget while it stays live. Open your inventory (Tab), press it: the item grid HIDES (the model is
--- still bound, so items() and the add/remove events keep working -- drop something in and 3b still logs it);
--- press again: it SHOWS. Disabling hello or :reload UN-HIDES it automatically (teardown restores the stock UI) --
--- the Phase-3b DoD. This adds a third row to the "Hello" keybind section (2e-3 grouping). If you assign a key a
--- client binding already owns, the client wins (addon hotkeys are the fallback) -- pick another one.
+-- 3b/029.2: a THIRD hotkey ("bags", suggested Ctrl+B) toggling the native inventory grid's visibility --
+-- widget:hide()/:show(), the ONE write that answers on a widget you did NOT create. Open your inventory (Tab),
+-- press it: the item grid HIDES (it stays bound to its id, so :items() and the add/remove events keep working --
+-- drop something in and 3b still logs it); press again: it SHOWS. Hiding a native widget records the RESTORE, so
+-- disabling hello or :reload puts it back exactly as it was (and a relog correctly skips it) -- what hafen.ui.adopt
+-- used to do implicitly, now explicit. This adds a third row to the "Hello" keybind section (2e-3 grouping). If you
+-- assign a key a client binding already owns, the client wins (addon hotkeys are the fallback) -- pick another one.
 keys:register("bags", function()
-  if not invModel then
-    hafen.log("3b: 'bags' -- inventory not adopted yet (relog to re-adopt; 3c will re-find an open window)")
+  local w = hafen.ui.inventory()        -- the same interned entity the observer above subscribed to (==)
+  if not w then
+    hafen.log("3b: 'bags' -- no inventory widget yet (the HUD isn't up)")
     return
   end
-  if invModel:visible() then invModel:hide() else invModel:show() end
-  hafen.log(("3b: 'bags' -> inventory grid %s (%d item(s) still live via the model)")
-    :format(invModel:visible() and "shown" or "hidden", #invModel:items()))
+  if w:visible() then w:hide() else w:show() end
+  hafen.log(("3b: 'bags' -> inventory grid %s (%d item(s) still readable, nothing adopted)")
+    :format(w:visible() and "shown" or "hidden", #w:items()))
 end)
 
 -- A1: a FOURTH hotkey ("marker", suggested Ctrl+Shift+M) — a TOGGLE that drops a persistent "Hello marker" at your

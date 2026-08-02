@@ -113,6 +113,15 @@ public final class Addon {
      */
     public final List<LuaWidget.Hidden> hiddenNative = new CopyOnWriteArrayList<LuaWidget.Hidden>();
     /**
+     * Container subscriptions this addon holds ({@code widget:onItemAdded/:onItemRemoved/:onDestroy}, 029.3) — one
+     * entry per watched widget, created by the FIRST callback set on it and dropped when the last one is cleared
+     * (the {@code hasSub} gate: an unsubscribed widget is never polled). They also live in a flat global list in
+     * {@link UiApi}, diffed each tick for {@code WItem} add/remove and for the widget's death; teardown
+     * ({@link UiApi#teardownWatches}) drops both copies without firing anything — a {@code :reload}/disable is not
+     * a destroy. Copy-on-write: a firing callback may subscribe or unsubscribe mid-poll.
+     */
+    public final List<LuaWidget.Watch> itemWatches = new CopyOnWriteArrayList<LuaWidget.Watch>();
+    /**
      * Live widget replacers owned by this addon ({@code hafen.ui.replace}, Phase 3c): each watches for a server
      * widget matching a descriptor (by type/context/caption), then adopts it as a hidden {@link LuaModel} and
      * hands the addon a custom view — "wrap, don't reimplement" (D-009). They live in a flat global dispatch list

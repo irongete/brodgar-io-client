@@ -401,10 +401,10 @@ final class CharApi {
      * Equipment — the {@link WItem}s worn in the {@link Equipory}. Equipping/removing is a widget
      * create/{@code cdestroy} under the Equipory (not a targeted {@code uimsg}), and item data streams
      * in a beat after each item appears, so this is <b>poll-driven</b>: each tick it re-reads the
-     * equipment snapshot (the same array {@code hafen.items.equipment()} returns) and fires {@code
+     * equipment snapshot (the same array {@code hafen.ui.equipment():items()} returns) and fires {@code
      * EquipChanged} with it when the set changes. Change-detection compares {@code slot}/{@code res}/
      * {@code name}/{@code num} — not {@code wear} (a slowly-changing durability that is not an equip
-     * change; read it live via {@code hafen.items.equipment()}).
+     * change; read it live via {@code hafen.ui.equipment():items()}).
      */
     private static final class EquipAdapter implements TreeAdapter {
         private LuaValue cache;   // last equipment snapshot (UI thread; change-detect)
@@ -728,54 +728,13 @@ final class CharApi {
         public String toString() { return "Player"; }
     }
 
-    /** Build a char namespace for owner. From installHafen. */
-    static void installItems(LuaTable hafen, final Addon owner) {
-        LuaTable items = new LuaTable();
-        items.set("inventory", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable out = new LuaTable();
-                Inventory inv = maininv();
-                if(inv == null)
-                    return out;
-                int i = 0;
-                for(WItem w : inv.children(WItem.class))
-                    out.set(++i, itemSnapshot(w.item, cellPos(w)));
-                return out;
-            }
-        });
-        items.set("equipment", new ZeroArgFunction() {
-            public LuaValue call() {
-                return readEquipment(equipory());   // {..., slot} per worn item; EquipChanged mirrors this
-            }
-        });
-        items.set("hand", new ZeroArgFunction() {
-            public LuaValue call() {
-                GameUI g = gui();
-                if((g == null) || (g.vhand == null))
-                    return LuaValue.NIL;
-                return itemSnapshot(g.vhand.item, LuaValue.NIL);
-            }
-        });
-        items.set("find", new OneArgFunction() {
-            public LuaValue call(LuaValue q) {
-                LuaTable out = new LuaTable();
-                Inventory inv = maininv();
-                if((inv == null) || !q.isstring())
-                    return out;
-                String needle = q.tojstring();
-                int i = 0;
-                for(WItem w : inv.children(WItem.class)) {
-                    LuaValue snap = itemSnapshot(w.item, cellPos(w));
-                    LuaValue nm = snap.get("name"), rs = snap.get("res");
-                    if((nm.isstring() && nm.tojstring().contains(needle)) ||
-                       (rs.isstring() && rs.tojstring().contains(needle)))
-                        out.set(++i, snap);
-                }
-                return out;
-            }
-        });
-        hafen.set("items", items);
-    }
+    // hafen.items is a HARD CUT (029.3, D-013). In Hafen there is no inventory model outside the widget tree —
+    // GameUI.maininv is an Inventory exactly like a chest's — so a section of its own only preserved the
+    // player-inventory privilege the Widget entity removes. Items are now a RELATION on their container:
+    // hafen.ui.inventory():items() / hafen.ui.equipment():items() / hafen.ui.hand(), and :items() answers on ANY
+    // container widget (a chest, a cupboard, another player's equipory) with nothing hidden. `find` had no
+    // replacement built for it: it was a name/res substring filter over one array, which is a Lua one-liner over
+    // :items(). The item SHAPE is unchanged — itemSnapshot below is still the one Item producer.
 
     /** Build a char namespace for owner. From installHafen. */
     static void installChar(LuaTable hafen, final Addon owner) {
@@ -1015,7 +974,7 @@ final class CharApi {
         {"str", "agi", "int", "con", "prc", "csm", "dex", "wil", "psy"};
 
     /** The player's main inventory widget, or {@code null} before the HUD/inventory exists. */
-    private static Inventory maininv() {
+    static Inventory maininv() {
         GameUI g = gui();
         return (g == null) ? null : g.maininv;
     }
@@ -1025,7 +984,7 @@ final class CharApi {
      * private {@code Window}, so we descend to the Equipory itself — typically the only one open (a
      * second appears only while inspecting another gob's equipment). {@code null} before it exists.
      */
-    private static Equipory equipory() {
+    static Equipory equipory() {
         GameUI g = gui();
         if(g != null) {
             for(Equipory e : g.children(Equipory.class))
@@ -1493,23 +1452,31 @@ final class CharApi {
 
     /**
      * Read an {@link Equipory}'s worn {@link WItem} children into an array of item snapshots, each with
-     * its equipment {@code slot} index and slot {@code pos} name. Backs both {@code hafen.items.equipment}
+     * its equipment {@code slot} index and slot {@code pos} name. Backs both {@code hafen.ui.equipment():items()}
      * and the {@code EquipChanged} change-detection. A two-slot item appears as two entries (distinct
      * {@code slot}).
      */
-    private static LuaValue readEquipment(Equipory eq) {
+    static LuaValue readEquipment(Equipory eq) {
         LuaTable out = new LuaTable();
         if(eq == null)
             return out;
         int i = 0;
-        for(WItem w : eq.children(WItem.class)) {
-            int ep = slotOf(eq, w);
-            LuaValue snap = itemSnapshot(w.item, slotName(ep));
-            if((ep >= 0) && snap.istable())
-                ((LuaTable)snap).set("slot", LuaValue.valueOf(ep));
-            out.set(++i, snap);
-        }
+        for(WItem w : eq.children(WItem.class))
+            out.set(++i, equipSnapshot(eq, w));
         return out;
+    }
+
+    /**
+     * One worn item's snapshot: the usual {@link #itemSnapshot} plus its equipment {@code slot} index and the slot
+     * name as {@code pos}. Shared by {@link #readEquipment} (the bulk read + {@code EquipChanged}) and by
+     * {@code widget:items()} on an {@link Equipory} (029.3) — one shape for the worn items, wherever they are read.
+     */
+    static LuaValue equipSnapshot(Equipory eq, WItem w) {
+        int ep = slotOf(eq, w);
+        LuaValue snap = itemSnapshot(w.item, slotName(ep));
+        if((ep >= 0) && snap.istable())
+            ((LuaTable)snap).set("slot", LuaValue.valueOf(ep));
+        return snap;
     }
 
     /** Do two equipment snapshots carry the same slot/res/name/num? ({@code wear} is excluded — a slow

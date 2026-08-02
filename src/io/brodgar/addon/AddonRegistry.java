@@ -111,6 +111,7 @@ public final class AddonRegistry {
         destroyWidgets(a);            // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
         UiApi.teardownModels(a);            // 3c: drop replace models + restore the native window each one hid
         UiApi.teardownHidden(a);            // 029.2: give back every native widget the addon hid with widget:hide()
+        UiApi.teardownWatches(a);           // 029.3: stop watching every container the addon subscribed to (no onDestroy)
         HookApi.teardownHooks(a);         // 2c: deafen input hooks (engine widgets outlive a :reload — must detach)
         HookApi.teardownActionHooks(a);   // 2d: unregister action hooks from the outbound-wdgmsg dispatch map
         HookApi.teardownMessageHooks(a);  // 2e-1: unregister message hooks from the inbound-uimsg dispatch map

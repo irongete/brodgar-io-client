@@ -360,10 +360,14 @@ public final class AddonManager {
             CharApi.refreshTreeAdapters();
             CharApi.pollTreeAdapters();
 
-            // 1c. Adopted widget models (3b): per-tick poll for item add/remove (a WItem create/cdestroy on the
-            //     model, not a uimsg — like the buff/study adapters) and server destroy (the model's id stops
-            //     mapping to its widget → fire onDestroy). Fast-paths out when no addon has adopted anything.
+            // 1c. Replaced widget models (3c): per-tick check for server destroy (the model's id stops mapping to
+            //     its widget → drop it and destroy the addon's view). Fast-paths out when nothing is replaced.
             UiApi.pollModels();
+
+            // 1c'. Watched containers (029.3): per-tick diff of every widget an addon subscribed to, for item
+            //      add/remove (a WItem create/cdestroy, not a uimsg — like the buff/meter adapters) and for the
+            //      widget's own death (→ onDestroy). hasSub-gated: a widget nobody listens to is never polled.
+            UiApi.pollWatches();
 
             // 1d. Map markers (A1): fire MarkersChanged when the on-disk map DB's markerseq changes (a
             //     marker add/remove is not a uimsg — the server pushes SMarkers via markobj, the player/
@@ -934,13 +938,11 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         // render-tree node with a lifetime, NOT a clip handle — its own feature if ever wanted, and explicitly
         // out of scope here. The audio section is hafen.sound and nothing else.
 
-        // hafen.items.* — inventory / equipment / cursor items as snapshots (the "Item" shape in
-        // api-reference.md). Bulk reads return point-in-time snapshots carrying name/res/num/wear/pos plus a
-        // `handle` (the item's server widget id = the ItemRef the gated hafen.act.item(item, verb) verb takes to
-        // re-resolve + drive the live GItem — 4f; the only stable way to address an item, D-022). Reads walk the
-        // WItem children of the inventory/equipory widgets (both public) → zero core edit; item names/resources
-        // are Loading-guarded → nil while resolving.
-        CharApi.installItems(hafen, owner);
+        // hafen.items is GONE (029.3, hard cut D-013). Items are a RELATION on their container now:
+        // hafen.ui.inventory():items() / hafen.ui.equipment():items() / hafen.ui.hand(), and widget:items() answers
+        // on ANY container — a chest, a cupboard — with its window visible and interactive. The Item SHAPE is
+        // unchanged (name/res/num/wear/pos + the `handle` the gated hafen.act.item(item, verb) takes, D-022), and it
+        // is still CharApi.itemSnapshot that produces it.
 
         // hafen.char.* — character attributes (Glob.getcattr; a zero-info entry is reported as nil),
         // plus learning points (CharWnd.exp) and encumbrance/weight (CharWnd.enc) — public live fields

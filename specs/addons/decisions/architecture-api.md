@@ -536,3 +536,29 @@ before adding a field to an interned handle, ask what happens when the cache re-
 "wrong value", the field belongs to the wrapped object, to the owner, or to a snapshot — not to the handle.
 **See.** [D-064](architecture-api.md), [D-044/D-045](architecture-api.md), [D-041](widgets-ui.md),
 [029-widget-oop](../029-widget-oop/spec.md), [ui-widgets.md](../learnings/ui-widgets.md).
+
+### D-066 — a thing that lives INSIDE another is a relation on it, not a section of its own ✅ (2026-08-02)
+**Decision.** Items are read from their **container**: `widget:items()`, the same shape as `widget:children()`,
+answering on any `Inventory`/`Equipory`/window that has `WItem`s under it. The `hafen.items` section is a **hard
+cut** (D-013) — `inventory()`/`equipment()` became widget *lookups* (`hafen.ui.inventory():items()`), `hand()`
+moved to `hafen.ui.hand()` (the cursor item is not a widget), and `find()` got no replacement at all: a
+name/res substring filter over one array is a Lua one-liner over `:items()`.
+**Rationale.** (Maintainer, 2026-08-02.) In Hafen there is no inventory model outside the widget tree —
+`GameUI.maininv` is an `Inventory` exactly like a chest's, a belt's or the study window's. A section named
+`hafen.items` therefore had to pick *one* container to be about, and it picked the player's; every other
+container was reachable only through `hafen.ui.adopt(id)`, which **hid the window** to give you a readable
+handle. That is the privilege this feature exists to remove: a section over one privileged instance is a
+statement about the API's author, not about the game. As a relation the same verb covers every container that
+exists now and every one added later — verified in-game the first time it ran, where one `root():walk()`
+returned the backpack, an open cupboard, the `Belt` and the study inventory, three of which no adapter had ever
+been written for.
+**Consequences.** `:items()` shapes each entry the way its container does (an `Equipory` adds `slot` + the slot
+name; everything else the grid cell) — the container is the context, so it supplies it. The lifecycle verbs
+follow the items onto the same entity (`:onItemAdded/:onItemRemoved/:onDestroy`), which is what let the
+`adopt` model handle be deleted outright rather than renamed. The Item *shape* did not change: one
+`CharApi.itemSnapshot` still produces it, so `item.handle` still addresses the live `GItem` for the gated
+`hafen.act.item` (D-022). Read forward: before giving something its own `hafen.*` section, ask what it lives
+inside; if the answer is a single engine object, it is a verb on that object's entity, and a section would only
+privilege whichever instance you happened to build the section around.
+**See.** [D-012/D-013](architecture-api.md), [D-022](architecture-api.md), [D-009](widgets-ui.md),
+[029-widget-oop](../029-widget-oop/spec.md), [ui-widgets.md](../learnings/ui-widgets.md).

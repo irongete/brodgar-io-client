@@ -31,8 +31,9 @@ local function stopReplace()
   end
 end
 
--- The VIEW builder. hafen.ui.replace calls this with the adopted MODEL — the real, now-hidden inventory. We draw a
--- custom window over model:items() (the same Item snapshots as hafen.items.inventory: {res,name,num,wear,pos}) and
+-- The VIEW builder. hafen.ui.replace calls this with the WIDGET OBJECT for the real, now-hidden inventory (029.3:
+-- the one entity every hafen.ui door hands back — the bespoke "model handle" is gone, so every widget verb answers
+-- on it). We draw a custom window over m:items() (Item snapshots: {res,name,num,wear,pos,handle}) and
 -- RETURN the window handle. replace owns it: it is destroyed automatically when we toggle off, when the addon is
 -- reloaded/disabled, or if the server ever destroys the inventory. No manual teardown needed here.
 local function buildBagsView(m)

@@ -27,7 +27,7 @@
       wrapper correctly on toggle, disable and `:reload`; a relog leaves nothing wrongly shown; the
       owned/borrowed errors read clearly from `:lua`.
 
-- [ ] **029.3 — items without hiding, and the `hafen.items` cut.**
+- [x] **029.3 — items without hiding, and the `hafen.items` cut.**
       `:items()` on any container (its `WItem` children, deep traversal), readable while the window is
       **visible and interactive** — no hiding, no registration. `:onItemAdded/:onItemRemoved/:onDestroy`
       move onto the entity as a per-tick diff (the `BuffsAdapter` shape, since item add/remove is not a

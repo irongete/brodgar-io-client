@@ -2,10 +2,12 @@ package io.brodgar.addon;
 
 import haven.Button;
 import haven.Coord;
+import haven.Equipory;
 import haven.Label;
 import haven.Text;
 import haven.TextEntry;
 import haven.UI;
+import haven.WItem;
 import haven.Widget;
 import haven.Window;
 
@@ -18,6 +20,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -156,8 +159,8 @@ public final class LuaWidget {
     }
 
     /**
-     * The method set (029.1 the reads + 029.2 creation, geometry and visibility; {@code :items()} arrives in
-     * 029.3). Every reader re-reads through the widget and answers {@code nil}/empty once it is stale;
+     * The method set (029.1 the reads + 029.2 creation, geometry and visibility + 029.3 the items relation and the
+     * container lifecycle). Every reader re-reads through the widget and answers {@code nil}/empty once it is stale;
      * {@code :exists()} always answers. The metatable is per-addon, so the closures can capture the {@code owner}
      * the child handles, the walk callback, the font override and the OWNED/BORROWED test all need.
      *
@@ -312,6 +315,44 @@ public final class LuaWidget {
                     owner.widgets.remove(content);
                 }
                 return LuaValue.NIL;
+            }
+        });
+        // items() — 029.3: the items INSIDE this widget, as an array of Item snapshots. A RELATION on the
+        // container, exactly like :children() — an Inventory (the backpack, a chest, a cupboard), an Equipory
+        // (each entry also carrying its `slot`), or any widget with WItems under it (children(WItem.class) is a
+        // DEEP traversal, so a whole window answers for its grid). Read with the window VISIBLE and interactive:
+        // nothing is hidden, nothing is registered — which is the whole point of deleting hafen.ui.adopt. Empty
+        // for a leaf, a non-container or a stale widget. Read-only: MOVING items is the gated hafen.act tier.
+        m.set("items", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Widget w = live(handle(self, "items"));
+                return (w == null) ? new LuaTable() : items(w);
+            }
+        });
+        // onItemAdded(fn) / onItemRemoved(fn) / onDestroy(fn) — 029.3: the lifecycle of a container, on the entity
+        // itself. fn(item) gets the same Item snapshot :items() produces; onDestroy takes no argument and fires
+        // once, when the widget leaves the tree (server-destroyed, window closed, relog). An item add/remove is a
+        // WItem create/cdestroy and NOT a uimsg, so these are a per-tick diff (the BuffsAdapter shape) — but the
+        // poll is hasSub-GATED: the subscription IS the registration, so a widget nobody subscribed to is never
+        // polled, and passing nil (or anything not a function) unsubscribes. Drop the last callback and the widget
+        // leaves the poll entirely. All three chain on self. NB the items already inside a container fire
+        // onItemAdded on the first poll after you subscribe — the state arrives as events, like BuffAdded.
+        m.set("onItemAdded", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                UiApi.setItemCallback(owner, live(handle(a.arg1(), "onItemAdded")), Watch.ADDED, a.arg(2));
+                return a.arg1();
+            }
+        });
+        m.set("onItemRemoved", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                UiApi.setItemCallback(owner, live(handle(a.arg1(), "onItemRemoved")), Watch.REMOVED, a.arg(2));
+                return a.arg1();
+            }
+        });
+        m.set("onDestroy", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                UiApi.setItemCallback(owner, live(handle(a.arg1(), "onDestroy")), Watch.DESTROYED, a.arg(2));
+                return a.arg1();
             }
         });
         // text() — best-effort text for a text-bearing widget (Label/Button/Window/TextEntry), else nil.
@@ -494,6 +535,81 @@ public final class LuaWidget {
                 return;
             }
         }
+    }
+
+    // ---- items: the relation + the per-tick subscription (029.3) ------------------------------------
+
+    /**
+     * One addon's subscription to a container's item lifecycle ({@code :onItemAdded}/{@code :onItemRemoved}/
+     * {@code :onDestroy}) — the record {@link UiApi#pollWatches} diffs each tick. It exists <b>only while at least
+     * one callback is set</b> (that is the {@code hasSub} gate: no subscription, no record, no poll), so the strong
+     * {@link #wdg} reference here is a deliberate, explicit one — an addon asked to be told about this widget — and
+     * it is dropped on the first tick that finds the widget gone, right after {@code onDestroy} fires.
+     *
+     * <p>{@link #id} is the server widget id captured at subscription time ({@code -1} for a client-only widget):
+     * the death test is the same two-branch guard the restore list uses — by id when server-bound, by tree
+     * reachability otherwise — because a container can be either.
+     */
+    static final class Watch {
+        static final int ADDED = 0, REMOVED = 1, DESTROYED = 2;
+
+        final Addon owner;
+        final Widget wdg;
+        final int id;
+        LuaValue onItemAdded, onItemRemoved, onDestroy;   // null = unset (all three null ⇒ the Watch is dropped)
+        boolean alive = true;
+        /** Present items → their last snapshot; identity-keyed ({@link WItem}s compare by object identity). */
+        final Map<WItem, LuaValue> items = new IdentityHashMap<WItem, LuaValue>();
+
+        Watch(Addon owner, Widget wdg, int id) {
+            this.owner = owner;
+            this.wdg = wdg;
+            this.id = id;
+        }
+
+        /** Set one callback slot; {@code null} clears it. */
+        void set(int slot, LuaValue fn) {
+            switch(slot) {
+            case ADDED:   onItemAdded = fn;   break;
+            case REMOVED: onItemRemoved = fn; break;
+            default:      onDestroy = fn;     break;
+            }
+        }
+
+        /** Is anybody still listening? (False ⇒ drop the record and stop polling — the hasSub gate.) */
+        boolean subscribed() {
+            return (onItemAdded != null) || (onItemRemoved != null) || (onDestroy != null);
+        }
+    }
+
+    /**
+     * The items inside a container widget, as an array of Item snapshots ({@code widget:items()}). {@code
+     * children(WItem.class)} is a <b>deep</b> traversal, so a whole window answers for the grid inside it. The
+     * {@code pos} of each entry is what makes sense for the container: an {@link Equipory}'s worn items carry their
+     * slot (plus a {@code slot} index), everything else carries its inventory grid cell. Taken under the {@code ui}
+     * monitor, like every other tree read.
+     */
+    static LuaValue items(Widget w) {
+        LuaTable out = new LuaTable();
+        int i = 0;
+        for(WItem it : witems(w))
+            out.set(++i, itemSnap(w, it));
+        return out;
+    }
+
+    /** A copy of a container's {@link WItem} children (deep), taken under the {@code ui} monitor. */
+    static List<WItem> witems(Widget w) {
+        UI u = AddonManager.ui;
+        if(u == null)
+            return new ArrayList<WItem>();
+        synchronized(u) { return new ArrayList<WItem>(w.children(WItem.class)); }
+    }
+
+    /** One item's snapshot in the shape its container gives it (equipment slot vs inventory cell). */
+    static LuaValue itemSnap(Widget container, WItem it) {
+        if(container instanceof Equipory)
+            return CharApi.equipSnapshot((Equipory)container, it);
+        return CharApi.itemSnapshot(it.item, AddonManager.cellPos(it));
     }
 
     // ---- liveness + the reads ----------------------------------------------------------------------

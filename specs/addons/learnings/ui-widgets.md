@@ -252,3 +252,33 @@
   the **root** (the chrome, or the bare widget when there is no chrome), because that is what the addon
   positions, shows and destroys; `:size(w,h)` still resizes the **content** and then repacks the chrome around
   it. `content != root` is the whole "is this a window?" test — no `isWindow` flag survives.
+- **(029.3) Containers are everywhere, and an adapter-per-container would never have found them.** The first
+  in-game run of `widget:items()` — one `hafen.ui.root():walk()` filtering on `:type()=="Inventory"` — returned
+  four live containers: the backpack (`Inventory#9`), an open `Cupboard` (22 items), the `Belt` window, and the
+  **study** inventory. Three of those had no read surface at all, and nobody had asked for them; they came free
+  the moment the verb moved onto the container instead of naming one (D-066). When a section is about "the
+  player's X", grep the tree for the widget class first — the count is the argument.
+- **(029.3) Reading a container never needed the window; `adopt` charged for a capability it did not have.**
+  `Widget.children(WItem.class)` is a deep traversal on a *live* widget, so a cupboard's items read fine with its
+  window open, visible and clickable — proved in-game, and proved the other way round in the same line
+  (`Inventory#9 … visible=false` still answering its 14 items, because a hidden server widget stays bound to its
+  id). `hafen.ui.adopt` hid a window purely to hand back a handle; once every widget IS a handle, hiding and
+  reading are orthogonal and hiding goes back to being an explicit, restorable act (029.2).
+- **(029.3) `hafen.ui.inventory()` is the GRID, not the window — the window is one hop up.** `GameUI.maininv` is
+  the `Inventory` inside the `Inventory` `Hidewnd` the client shows on Tab, so `hafen.ui.inventory():hide()` hides
+  the grid (exactly what `adopt` used to hide) and `:parent():hide()` hides the whole window (what `replace`
+  hides). Both land on the same restore list, so either is undone on `:reload`/disable — but the two rules stay
+  deliberately unmerged, and a doc that says "hide the inventory" is ambiguous until it says which.
+- **(029.3) A per-widget subscription IS its registration — that is the whole hasSub gate.** Item add/remove is a
+  `WItem` create/`cdestroy`, not a `uimsg`, so it can only be polled; but a poll over "every widget" is
+  unaffordable. Keying the record on *having a callback* (`Addon.itemWatches`, created by the first
+  `:onItemAdded/:onItemRemoved/:onDestroy` and dropped when the last is cleared) makes the unsubscribed case cost
+  one `isEmpty()` and needs no separate `:watch()`/`:unwatch()` verb. It also fixes the lifetime question: the
+  record holds a strong `Widget` ref, which is fine precisely because an addon asked for it and the next tick that
+  finds the widget gone fires `onDestroy` and drops it. Teardown drops the records **without** firing — a
+  `:reload` is not a destroy.
+- **(029.3) A container's death test is two-branch, like the restore list's.** `getwidget(id) == wdg` covers only
+  server-bound widgets, and `:onDestroy` must work on a client-only one too, so the poll tests by id when the
+  widget had one at subscribe time and by `hasparent(ui.root)` otherwise — the same shape `UiApi.stillHidable`
+  needed in 029.2, for the same reason. Whenever a rule is written against "the server widget", check whether the
+  surface can also be handed a client-only one.

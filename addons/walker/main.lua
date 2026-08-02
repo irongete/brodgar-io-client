@@ -149,12 +149,13 @@ hafen.slash.register("walker", function(args)
 
   elseif sub == "item" then
     -- 4f: item verbs act on a LIVE item addressed by its HANDLE (item.handle = the item's server widget id),
-    -- which every item snapshot carries -- you get it from a READ (hafen.items.* / model:items()). The verb
+    -- which every item snapshot carries -- you get it from a READ (widget:items() on any container). The verb
     -- re-resolves that handle to the live GItem each call (a stale/used item errors, like a GobRef) and sends
     -- exactly the GItem.wdgmsg a click sends. Demo: act on the FIRST inventory item; default 'take' is the
     -- safest + most visible (it lifts the item onto your cursor -- click an empty slot to put it back).
     local verb = args[2] or "take"
-    local inv = hafen.items.inventory()                -- array of Item snapshots, each with a `handle`
+    local invw = hafen.ui.inventory()                  -- the backpack's Widget object (029.3; hafen.items is GONE)
+    local inv = invw and invw:items() or {}            -- array of Item snapshots, each with a `handle`
     local it = inv[1]
     if not it then hafen.log(":walker item -> your inventory is empty (put something in it, then retry)"); return end
     hafen.act.item(it, verb)                            -- gated; resolves it.handle -> the live GItem, sends `verb`
