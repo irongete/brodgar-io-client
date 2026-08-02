@@ -72,7 +72,7 @@ rich-text tag (F2). Being an asset, it *also* answers `:type()`/`:path()`/`:disp
 | `size` | logical px (passed through `UI.scale`). Omit ⇒ use the stock size of whatever surface it is applied to. |
 | `aa` | antialias on/off. Omit ⇒ inherit the surface's stock setting. |
 | `bold` / `italic` | style (baked into the font). |
-| `color` | default text colour `{r, g, b [, a]}` (0–255). Omit ⇒ inherit the surface's stock colour. |
+| `color` | text colour `{r, g, b [, a]}` (0–255) — **for your own drawing only**, see below. |
 
 Either way you hold an opaque **`FontHandle`** (no AWT font object crosses into Lua):
 
@@ -84,6 +84,12 @@ Either way you hold an opaque **`FontHandle`** (no AWT font object crosses into 
 
 A derived handle is a **variant of a font**, not a file: like a built-in, it carries no
 `:type`/`:path`/`:dispose`, even when the handle it came from was an asset.
+
+> **`color` is the one option that does not travel.** It applies wherever *you* draw with the handle — `g:text`,
+> your own windows and widgets — and is **ignored** when the handle is installed on a client surface, through
+> [`hafen.ui.skin`](ui.md#properties) or [`widget:setFont`](#restyle-one-widget--widgetsetfonth-f5). A surface's
+> colour is a [sheet property](ui.md#color--a-surfaces-colour-is-the-sheets), stated where you can read it, not a
+> value hidden inside a font handle. `size`, `aa`, `bold` and `italic` travel everywhere.
 
 ## Draw with it — your own widgets (F2)
 
@@ -325,6 +331,9 @@ n:resetFont()       -- drop it again
 - **It is the top of the chain**: per-instance → scope → `"default"` → stock. Inside an overridden widget the
   handle wins whatever scope the text belongs to, so it also catches text drawn by the game's **own resource
   code** (the `.res` tooltip rows) — the one place a scope override could never reach.
+- **The handle's `color` does not apply here.** A native widget is a client surface, and a surface's colour comes
+  from a [sheet rule](ui.md#color--a-surfaces-colour-is-the-sheets); `setFont` takes the family, size and
+  antialiasing only. Colouring *one* widget is what C1b's `widget:skin{…}` will be for.
 - **Sizes are inherited unless your handle carries one**, exactly as with a scope: each site keeps its own stock
   size, so the layout does not move. If you *do* pass `size=`, remember the geometry caveats of the scopes it
   overlaps (a text field's height is fixed by its background texture, list-row heights were measured at

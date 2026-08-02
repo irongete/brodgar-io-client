@@ -18,6 +18,7 @@
 | **`Text` → GPU** | [`Text.tex()`](src/haven/Text.java:400) lazily wraps the `BufferedImage` in a `TexI` and **memoises it**; [`Text.dispose()`](src/haven/Text.java:406) forwards to it. A `Text` is therefore two allocations: the AWT raster (kept) and the texture |
 | **The immediate-mode blit** | [`GOut.atext`](src/haven/GOut.java:212) = `Text.render` → `tex()` → `aimage` → `dispose()`, **all four per call, every frame**; `GOut.text` is `atext(…,0,0)`. Drop the `dispose()` and you have the `Label` pattern |
 | **`TexI` GL side** | [`st()`](src/haven/TexI.java:59) uploads **lazily on first render** (so building a `TexI` is free of GL); [`dispose()`](src/haven/TexI.java:117) drops the `ColorTex` and nulls it — but `st()` would silently **re-upload**, so a double-free shows up as a slow leak, never a crash. Size is `Tex.nextp2`-rounded ([`tdim`](src/haven/TexI.java:44)): bytes = `4·nextp2(w)·nextp2(h)`, not `4·w·h` |
+| **Where COLOUR enters a render** | Three different layers — see the gotcha below. [`Text.Foundry.defcol`](src/haven/Text.java:130) (the default), the `Color` argument of [`render(text, c)`](src/haven/Text.java:216)/`renderwrap` (**baked into the raster** by `g.setColor(c)`), and a per-render `TextAttribute.FOREGROUND` extra on a [`RichText.Foundry.render(…)`](src/haven/RichText.java:868) call |
 
 ## Gotchas
 
@@ -30,3 +31,11 @@
   then clear on every alternation. Use it as a key component there (026.1).
 - Some text surfaces live in published `.res` code, not in the fork — check before assuming a
   class exists (see the kin-names row).
+- **A foundry's `defcol` is almost never what you see**: nearly every site passes its colour *per
+  render* — `Label` its `col`, tooltips `Text.white`, `ChatUI` the speaker's as a `FOREGROUND` extra
+  ([`SimpleMessage.render`](src/haven/ChatUI.java:303), [`MultiChat.Rendered.get`](src/haven/ChatUI.java:918)).
+  And it is baked into the AWT raster: a rendered `Text` cannot be re-tinted, only a *white* glyph
+  tex can (the `GOut` draw colour — the `g:text` path).
+- **`$col[…]` markup vs a `FOREGROUND` extra**: both land as a foreground attribute on a run, but the
+  first comes from the *string* and the second from the *call site* — opposite precedence against an
+  override. Check which one you are looking at.

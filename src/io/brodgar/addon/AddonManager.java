@@ -1475,12 +1475,25 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         return t;
     }
 
-    /** Parse a Lua {@code {r,g,b[,a]}} table (0..255) into a {@link java.awt.Color}, or {@code dflt}. Shared by
-     *  {@code hafen.markers} pins (WorldApi) and ghost/entity {@code tint} (RenderApi) — a hub color util. */
+    /**
+     * Parse a Lua colour table (0..255 components) into a {@link java.awt.Color}, or {@code dflt}. Shared by
+     * {@code hafen.markers} pins (WorldApi), ghost/entity {@code tint} (RenderApi), the {@code g:text} draw
+     * wrapper and the stylesheet's {@code color} property (033.2) — a hub color util.
+     *
+     * <p><b>Two spellings, one shape.</b> The KEYED form {@code {r=,g=,b=[,a=]}} is what every reader in this API
+     * hands back ({@link #color}, {@code kin:color()}, {@code meter:color()}), so it is what a round-trip writes;
+     * the POSITIONAL shorthand {@code {r,g,b[,a]}} is what the docs and every hand-written literal actually say.
+     * Accepting only the first made the second <b>silently do nothing</b> — the worst possible answer to a colour
+     * that reads exactly like the documentation. The keyed form is checked first; a table carrying neither is
+     * {@code dflt}, which each caller turns into its own refusal or fallback.
+     */
     static java.awt.Color luaColor(LuaValue t, java.awt.Color dflt) {
         LuaValue r = t.get("r"), g = t.get("g"), b = t.get("b"), a = t.get("a");
-        if(!r.isnumber() || !g.isnumber() || !b.isnumber())
-            return dflt;
+        if(!r.isnumber() || !g.isnumber() || !b.isnumber()) {
+            r = t.get(1); g = t.get(2); b = t.get(3); a = t.get(4);   // the positional shorthand {r,g,b[,a]}
+            if(!r.isnumber() || !g.isnumber() || !b.isnumber())
+                return dflt;
+        }
         int ai = a.isnumber() ? clampByte(a.toint()) : 255;
         return new java.awt.Color(clampByte(r.toint()), clampByte(g.toint()), clampByte(b.toint()), ai);
     }

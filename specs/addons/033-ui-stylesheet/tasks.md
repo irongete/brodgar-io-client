@@ -18,7 +18,7 @@
       console command line) both stay native in size/colour with one rule; a tree key in the sheet is silently
       inert; `hafen.font.setFont` reads `nil`; `:reload` and disable restore stock.
 
-- [ ] **033.2 — `color`, and the two-addon stack.**
+- [x] **033.2 — `color`, and the two-addon stack.**
       `color` as a sheet property, `{r,g,b[,a]}` 0..255 (the `kin:color()` shape), reaching the **blit tint**
       path (F2: glyphs render white, the colour is applied around the blit) and the `Fonts.style` scalars the
       non-`Foundry` sites read — never baked into a foundry, or one cached foundry per colour reappears and

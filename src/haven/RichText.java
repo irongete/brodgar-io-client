@@ -843,7 +843,12 @@ public class RichText extends Text {
 		    rfnd = this;
 		} else {
 		    Font f = st.font(parserfont());
-		    rfnd = derive(TextAttribute.FAMILY, f.getFamily(), TextAttribute.SIZE, f.getSize2D()).aa(st.aa(aa));
+		    Color col = st.color(null);   // addon: (033.2) the sheet's colour for this scope, or null when it sets none
+		    rfnd = ((col == null)
+			    ? derive(TextAttribute.FAMILY, f.getFamily(), TextAttribute.SIZE, f.getSize2D())
+			    : derive(TextAttribute.FAMILY, f.getFamily(), TextAttribute.SIZE, f.getSize2D(),
+				     TextAttribute.FOREGROUND, col))
+			.aa(st.aa(aa));
 		    rfnd.noresolve = true;
 		}
 		rgen = g;
@@ -917,7 +922,11 @@ public class RichText extends Text {
 		f = stdf;
 	    } else {
 		Font fo = st.font(stdfont);
-		f = stdf.derive(TextAttribute.FAMILY, fo.getFamily(), TextAttribute.SIZE, fo.getSize2D())
+		Color col = st.color(null);   // addon: (033.2) the sheet's `color` for this scope, or null when it sets none
+		f = ((col == null)
+		     ? stdf.derive(TextAttribute.FAMILY, fo.getFamily(), TextAttribute.SIZE, fo.getSize2D())
+		     : stdf.derive(TextAttribute.FAMILY, fo.getFamily(), TextAttribute.SIZE, fo.getSize2D(),
+				   TextAttribute.FOREGROUND, col))
 		    .aa(st.aa(stdf.aa));
 		f.noresolve = true;   // already provider-resolved -- must not resolve itself again
 	    }

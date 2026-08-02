@@ -66,3 +66,38 @@ traffic). Rollout F1→F5 in [21](../design/21-fonts.md).
 **See.** [21-fonts.md](../design/21-fonts.md), [07-ui-and-drawing.md](../design/07-ui-and-drawing.md) (draw wrapper + `font=` opt),
 [20-widget-introspection.md](../design/20-widget-introspection.md) (the `WidgetNode` F5 reuses), [D-012](architecture-api.md)
 (one canonical way), [D-017](security-sandbox.md) (facade safety), [05-lifecycle-and-reload.md](../design/05-lifecycle-and-reload.md)
+
+### D-073 — a surface's look is the sheet's; a handle's colour is for your own pixels ✅ (2026-08-02)
+**Decision.** (033.2.) `color` becomes a stylesheet property, and two things follow that the F-series had the
+other way round. **(a) A rule's colour outranks the colour the SITE asks for.** A provider-built `Text.Foundry`
+carries the rule's colour (`Text.Foundry.fixcol`) and renders in it whatever `Color` the caller passes to
+`render(text, c)`; the `RichText`/`ChatUI` sites likewise resolve the sheet's colour over the per-render
+`TextAttribute.FOREGROUND` they were passing (`ChatUI.fndcol(site)`). **(b) A `FontHandle`'s own `color` no
+longer styles a surface** — not through `hafen.ui.skin{font=h}` and not through `widget:setFont(h)`. The handle
+still contributes family/size/aa there, and its colour still applies to the addon's **own** drawing (`g:text`,
+its own widgets). `size`/`aa`/`bold`/`italic` travel everywhere; `color` is the one option that does not.
+**Rationale.** (a) is forced by the client: almost no routed site renders with its foundry's `defcol` — a
+`Label` passes its `col`, every tooltip passes `Text.white`, every chat line passes its speaker's `FOREGROUND`.
+A colour that only filled `defcol` would have been correct in the provider and invisible on screen, which is the
+worst kind of shipped feature. (b) is the duplication (a) creates: with the sheet able to colour a surface, a
+handle that *also* coloured it would leave two answers to "what colour is this text", and the losing one is
+invisible — it is spelled nowhere in the sheet, only inside a handle built elsewhere. One surface, one place
+that says how it looks.
+**Scope / limits.** `$col[…]` markup inside the text still wins: it is part of the string, not the site's choice,
+so a tooltip's green/red attribute deltas survive a `["tooltip"]` colour rule. `widget:setFont` still outranks
+every site rule (chain unchanged). A window caption ignores `color` entirely — `Window.DefaultDeco` tiles a
+**texture** over the glyph mask, so there is nothing there for a colour to reach; that is a property of the
+surface, not a gap. And the honest cost: while a rule is on, colour that carried *meaning* on that surface is
+flattened with the rest (a red warning under `["*"] = {color=…}`), which is why the docs say to key the site
+rather than `*` when that matters.
+**Alternatives.** Filling only `defcol` (rejected — invisible, see above). Keeping the handle's colour as a
+second door (rejected, [D-012](architecture-api.md) — two ways to colour one surface, one of them unreadable).
+Baking the colour into the foundry *identity*, i.e. one cached foundry per colour (rejected — 026's text cache
+keys on the foundry and would thrash; the colour rides the existing per-stock cache instead).
+**Consequences.** `Fonts.Spec` tolerates a `null` base font, so a **colour-only rule** is a first-class rule that
+keeps the site's own font; `Fonts.Style.color(null)` is how a rich site asks *whether* the sheet set a colour at
+all. Read forward: C1b's `widget:skin{…}` is where a per-widget `color` returns, and this decision is what says
+it belongs there rather than back on the handle.
+**See.** [D-043](#d-043) (the stack this reuses), [D-072](architecture-api.md) (the other half of the sheet's
+contract), [D-012](architecture-api.md), [033-ui-stylesheet](../033-ui-stylesheet/spec.md),
+[fonts.md](../learnings/fonts.md), [text-and-fonts.md](../../codebase/text-and-fonts.md).

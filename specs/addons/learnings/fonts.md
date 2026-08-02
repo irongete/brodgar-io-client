@@ -268,3 +268,31 @@
   and a sheet whose keys are all tree keys therefore install **zero** entries rather than an empty spec. An
   "apply always writes something" implementation would have cost every routed site its fast path for the
   lifetime of the sheet, and the symptom — a slightly slower client — is one nobody would trace back here.
+- **(033.2) A provider that only fills `defcol` is correct and invisible — find out WHO PASSES THE COLOUR before
+  designing a colour property.** The plan had `color` riding the existing `Spec` field into
+  `new Text.Foundry(f, col)`, which is the foundry's *default* colour. Grepping the routed sites first would have
+  shown it reaches almost nothing: `Label` renders with its own `col`, every tooltip site passes `Text.white`
+  explicitly, and every chat line passes its speaker's `TextAttribute.FOREGROUND` as a per-render attribute that
+  outranks the foundry's default. The answer that generalises is a **marker on the provider's own product** —
+  `Text.Foundry.fixcol`, set only on foundries `Fonts.Spec` built — plus one substitution inside `render(text,c)`
+  / `renderwrap`, and the same idea at the rich sites (`ChatUI.fndcol(site)`). Stock foundries never carry it, so
+  the identity fast path and byte-for-byte teardown are untouched. **Rule: for a font, "what the site passes in"
+  is a fallback; for a colour it is usually the actual value — so the two properties need opposite plumbing.**
+- **(033.2) `$col` markup and a per-render attribute look alike in the code and are opposite in intent.**
+  `fnd().render(text, w, TextAttribute.FOREGROUND, col)` is the *site* choosing a colour (a speaker's kin colour)
+  and must lose to a sheet rule; `$col[…]{…}` inside the string is part of the *text* and must win. Both end up as
+  a FOREGROUND attribute on a run. Decide per call site which one you are looking at — the tell is whether the
+  colour came from the string or from a field beside it.
+- **(033.2) A hub parser that accepts only one spelling of a literal fails SILENTLY, and the docs are where you
+  find out.** `AddonManager.luaColor` read `{r=,g=,b=}` only, while the API's own docs (`markers.md`) and the
+  033 spec both write the positional `{0, 200, 0}` — which parsed to `null` and was quietly replaced by a default.
+  `hello`'s F2 per-call coloured `g:text` line had therefore never been coloured, in shipped code, unnoticed.
+  Accepting both (keyed first, then positional) is four lines and makes every `color =` in the docs true. **When a
+  reader hands back one shape and every hand-written literal uses another, the parser owes both** — and grep the
+  docs for the literal before assuming your shape is the one people write.
+- **(033.2) Once a rule carries two independent properties, a harness toggle must edit a PROPERTY, not the rule.**
+  `hello`'s eleven site toggles replaced `skinRules[key]` wholesale, so `:hello chat` would have silently wiped
+  the colour `:hello color` had just put on the same key. Re-expressing them over one `setProp(key, prop, value)`
+  (which drops an emptied rule, since a rule with no property pushes nothing) keeps every existing toggle
+  unchanged at its call site and makes the composition testable. The same shape will be needed again at C2, when
+  `bg`/`border`/`pad` arrive.

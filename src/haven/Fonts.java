@@ -100,19 +100,29 @@ public class Fonts {
     public interface Style {
         /** The font to render with, at the size the override asks for — or, when it carries none, {@code stock}'s size. */
         Font font(Font stock);
-        /** The override's default colour, or {@code stock} when it carries none. */
+        /**
+         * The override's colour, or {@code stock} when it carries none. Pass {@code null} to <b>ask whether</b> the
+         * sheet set one at all (033.2): a rich site that must decide between deriving a {@code FOREGROUND}
+         * attribute and leaving its own defaults alone reads {@code color(null)} and skips the attribute on
+         * {@code null}.
+         */
         Color color(Color stock);
         /** The override's antialias flag, or {@code stock} when it carries none. */
         boolean aa(boolean stock);
     }
 
-    /** One installed override: an addon's chosen font for a scope, tagged with its owner. Immutable once pushed. */
+    /**
+     * One installed override: the resolved style of a <b>stylesheet rule</b> for one scope, tagged with its owner.
+     * Immutable once pushed. Every field is independently optional, because a rule is: {@code base}/{@code size}/
+     * {@code aa} come from its {@code font} property and {@code color} from its {@code color} property (033.2), so a
+     * colour-only rule carries a {@code null} {@code base} and the site simply keeps its own font.
+     */
     private static final class Spec implements Style {
         final Object owner;      // the owning io.brodgar.addon.Addon (compared by identity only)
-        final Font   base;       // the AWT font, with bold/italic already baked in (size applied per-site)
+        final Font   base;       // the AWT font, with bold/italic already baked in (size applied per-site), or null = keep the site's own font
         final Integer size;      // logical px (UI.scale is applied when a foundry is built), or null = use the site's stock size
         final Boolean aa;        // or null = inherit the site's stock antialias flag
-        final Color  color;      // or null = inherit the site's stock default colour
+        final Color  color;      // the rule's `color` property, or null = inherit the site's stock default colour
         // A per-Spec stamp mixed into gen() while this override is the active per-instance FRAME (F5). It is what
         // makes a site's `gen != mygen` check fire for a widget CONSTRUCTED outside the frame and first drawn inside
         // it (and vice versa) -- without it, a label created after the setFont would keep its stock font forever,
@@ -136,11 +146,12 @@ public class Fonts {
                 return c;
             float px = (size != null) ? UI.scale((float)size.intValue())
                                       : stock.font.getSize2D();   // the stock font is already UI.scale'd
-            Font f = base.deriveFont(px);
+            Font f = derive(stock.font, px);
             Color col = (color != null) ? color : stock.defcol;
             boolean a = (aa != null) ? aa.booleanValue() : stock.aa;
             Text.Foundry made = new Text.Foundry(f, col).aa(a);   // (Font, Color) ctor does NOT re-scale — px is final
             made.noresolve = true;   // a provider-built foundry must not resolve itself again (would recurse)
+            made.fixcol = color;     // addon: (033.2) a `color` rule outranks the colour the SITE passes to render()
             cache.put(stock, made);
             return made;
         }
@@ -151,9 +162,20 @@ public class Fonts {
                 return c;
             float px = (size != null) ? UI.scale((float)size.intValue())
                                       : stock.getSize2D();   // the stock font is already UI.scale'd
-            Font made = base.deriveFont(px);
+            Font made = derive(stock, px);
             fcache.put(stock, made);
             return made;
+        }
+
+        /**
+         * This override's font at {@code px}, over the site's {@code stock} font. A colour-only rule has no
+         * {@code base}, so it keeps the site's own font — and, when it asks for no size either, hands back
+         * {@code stock} <b>itself</b>, which is what lets a rich site tell "nothing to re-derive" by identity.
+         */
+        private Font derive(Font stock, float px) {
+            if(base != null)
+                return base.deriveFont(px);
+            return (size != null) ? stock.deriveFont(px) : stock;
         }
 
         public Color color(Color stock)  {return((color != null) ? color : stock);}
@@ -419,9 +441,9 @@ public class Fonts {
      * Install {@code owner}'s override on {@code scope} (one <b>site rule</b> of its {@code hafen.ui.skin} sheet).
      * An addon owns at most one override per scope — re-applying its sheet replaces the previous entry and
      * re-raises it to the top (last-wins). Bumps {@link #gen()} so routed sites/widgets rebuild. {@code base}
-     * already carries any
-     * bold/italic; {@code size} is <b>logical</b> px (UI-scaled when the foundry is built), {@code aa}/{@code color}
-     * are {@code null} to inherit the site's stock.
+     * already carries any bold/italic, and is {@code null} when the rule sets no {@code font} at all (a
+     * colour-only rule — the site keeps its own font); {@code size} is <b>logical</b> px (UI-scaled when the
+     * foundry is built), {@code aa}/{@code color} are {@code null} to inherit the site's stock.
      */
     public static synchronized void push(String scope, Object owner, Font base, Integer size, Boolean aa, Color color) {
         List<Spec> st = overrides.get(scope);

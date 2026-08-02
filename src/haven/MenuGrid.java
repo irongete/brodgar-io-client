@@ -59,7 +59,11 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 		bttfnd = ttfnd;
 	    } else {
 		Font f = st.font(ttstock);
-		bttfnd = ttfnd.derive(TextAttribute.FAMILY, f.getFamily(), TextAttribute.SIZE, f.getSize2D())
+		Color col = st.color(null);   // addon: (033.2) the sheet's `color` for "tooltip", or null when it sets none
+		bttfnd = ((col == null)
+			  ? ttfnd.derive(TextAttribute.FAMILY, f.getFamily(), TextAttribute.SIZE, f.getSize2D())
+			  : ttfnd.derive(TextAttribute.FAMILY, f.getFamily(), TextAttribute.SIZE, f.getSize2D(),
+					 TextAttribute.FOREGROUND, col))
 		    .aa(st.aa(ttfnd.aa));
 	    }
 	    ttfndgen = g;

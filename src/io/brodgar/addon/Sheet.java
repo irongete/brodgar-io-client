@@ -6,6 +6,7 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
+import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,6 +18,7 @@ import java.util.List;
  *   hafen.ui.skin{
  *     ["*"]            = { font = body },
  *     ["window.title"] = { font = body:derive{ size = 14, bold = true } },
+ *     ["chat"]         = { color = { 200, 210, 200 } },
  *   }
  * </pre>
  *
@@ -51,17 +53,19 @@ import java.util.List;
  * <p>Immutable once parsed, package-private, and carries no Lua.
  */
 final class Sheet {
-    /** The style properties a rule may carry. {@code color} arrives in 033.2, {@code bg}/{@code border}/{@code pad} in C2. */
-    private static final String PROPS = "\"font\"";
+    /** The style properties a rule may carry. {@code bg}/{@code border}/{@code pad} and the textures arrive in C2. */
+    private static final String PROPS = "\"font\" and \"color\"";
 
-    /** One kept rule: a SITE key and the properties it fills that site with. */
+    /** One kept rule: a SITE key and the properties it fills that site with. Each is independently optional. */
     private static final class Rule {
         final String site;        // a Fonts.SCOPES name ("default" for the `*` key)
-        final FontHandle font;    // the rule's `font` property, or null (a rule may carry none)
+        final FontHandle font;    // the rule's `font` property, or null (a rule may carry only a colour)
+        final Color color;        // the rule's `color` property, or null (a rule may carry only a font)
 
-        Rule(String site, FontHandle font) {
+        Rule(String site, FontHandle font, Color color) {
             this.site = site;
             this.font = font;
+            this.color = color;
         }
     }
 
@@ -109,13 +113,29 @@ final class Sheet {
             Fonts.reset(s.rules.get(i).site, owner);   // bumps gen only when something was actually removed
     }
 
-    /** Push this sheet's site rules onto the provider stack, owner-tagged. A rule with no property pushes nothing. */
+    /**
+     * Push this sheet's site rules onto the provider stack, owner-tagged. A rule with no property at all pushes
+     * <b>nothing</b> — the identity fast path stays intact, so a sheet of empty rules leaves the client
+     * byte-for-byte stock. A rule with only one of the two fills that half and inherits the site's own for the
+     * other (a colour-only rule keeps the site's font; a font-only rule keeps its colour).
+     *
+     * <p><b>The colour is the RULE's, never the handle's</b> (033.2). A {@link FontHandle} may carry a colour —
+     * {@code hafen.font("serif"):derive{color=…}} — and that colour still applies to the addon's <b>own</b>
+     * drawing ({@code g:text}, its own widgets). On a client SURFACE it is ignored: a surface's colour is what the
+     * sheet says it is, in one place, visible in the sheet. That is a deliberate change from F1–F5, where a
+     * handle installed on a scope tinted it: two answers to "what colour is this text", one of them invisible.
+     */
     private void install(Addon owner) {
         for(int i = 0; i < rules.size(); i++) {
             Rule r = rules.get(i);
-            if(r.font == null)
-                continue;      // nothing to fill the stack with yet — keep the identity fast path intact
-            Fonts.push(r.site, owner, r.font.font, r.font.size, r.font.aa, r.font.color);
+            if((r.font == null) && (r.color == null))
+                continue;      // nothing to fill the stack with — keep the identity fast path intact
+            FontHandle f = r.font;
+            Fonts.push(r.site, owner,
+                       (f == null) ? null : f.font,
+                       (f == null) ? null : f.size,
+                       (f == null) ? null : f.aa,
+                       r.color);
         }
     }
 
@@ -139,11 +159,12 @@ final class Sheet {
             LuaValue v = n.arg(2);
             if(!v.istable())
                 throw new LuaError("hafen.ui.skin[\"" + key + "\"]: the value is a table of style properties "
-                    + "{ font = h }, got " + v.typename());
+                    + "{ font = h, color = {r,g,b} }, got " + v.typename());
             String site = siteOf(Selector.parse(key));    // a bad key errors exactly as it does in hafen.ui(sel)
+            Rule r = propsOf(key, v, site);               // validated for EVERY key: what is inert is the key, not the typo
             if(site == null)
                 continue;        // a TREE key: valid grammar, resolves nowhere YET (C1b) — silently inert, never an error
-            rules.add(new Rule(site, fontOf(key, v)));
+            rules.add(r);
         }
         return new Sheet(rules);
     }
@@ -164,12 +185,15 @@ final class Sheet {
     }
 
     /**
-     * The {@code font} property of one rule, or {@code null} when it carries none. An unknown property is an
-     * <b>error</b> — unlike an unresolved key, a misspelt property has no future meaning to wait for, and
-     * silently doing nothing is the worst way to answer a typo.
+     * The properties of one rule ({@code font}, {@code color}), each {@code null} when the rule carries none. An
+     * unknown property is an <b>error</b> — unlike an unresolved key, a misspelt property has no future meaning to
+     * wait for, and silently doing nothing is the worst way to answer a typo (D-072). It is checked for <b>every</b>
+     * key, including a tree key whose rule is then dropped: what C1a defers is resolving the key, not reading the
+     * rule, so a sheet written for C1b still has its typos caught today.
      */
-    private static FontHandle fontOf(String key, LuaValue props) {
+    private static Rule propsOf(String key, LuaValue props, String site) {
         FontHandle font = null;
+        Color color = null;
         LuaValue pk = LuaValue.NIL;
         while(true) {
             Varargs n = props.next(pk);
@@ -177,14 +201,22 @@ final class Sheet {
             if(pk.isnil())
                 break;
             String p = (!pk.isnumber() && pk.isstring()) ? pk.tojstring() : null;
-            if(!"font".equals(p))
+            LuaValue pv = n.arg(2);
+            if("font".equals(p)) {
+                font = FontHandle.resolve(pv);
+                if(font == null)
+                    throw new LuaError("hafen.ui.skin[\"" + key + "\"].font: expected a font handle — hafen.font(\"sans\")"
+                        + " or hafen.asset(\"fonts/Inter.ttf\"), optionally :derive{size=…}");
+            } else if("color".equals(p)) {
+                color = pv.istable() ? AddonManager.luaColor(pv, null) : null;
+                if(color == null)
+                    throw new LuaError("hafen.ui.skin[\"" + key + "\"].color: expected a colour table with 0..255"
+                        + " components — { 200, 210, 200 } or { r = 200, g = 210, b = 200, a = 255 }");
+            } else {
                 throw new LuaError("hafen.ui.skin[\"" + key + "\"]: \"" + pk.tojstring()
                     + "\" is not a style property — the properties this client ships are " + PROPS);
-            font = FontHandle.resolve(n.arg(2));
-            if(font == null)
-                throw new LuaError("hafen.ui.skin[\"" + key + "\"].font: expected a font handle — hafen.font(\"sans\")"
-                    + " or hafen.asset(\"fonts/Inter.ttf\"), optionally :derive{size=…}");
+            }
         }
-        return font;
+        return new Rule(site, font, color);
     }
 }

@@ -1573,6 +1573,12 @@ end)
 -- See docs/addons/api/fonts.md.
 local demoFont          -- the loaded FontHandle (nil until OnLoad; env rebuilt on reload -> nil, re-loaded below)
 local monoFont          -- F2: a second handle (built-in "mono") for the per-call { font = } demo in the F2 window
+-- 033.2: a handle CARRYING a colour -- the whole point of which is that it behaves DIFFERENTLY in the two places
+-- a font can go. On the addon's OWN drawing (the F2 window's line 5 below) the colour applies. Installed on a
+-- client SURFACE (':hello color' puts it on ['chat']) it is IGNORED: a surface's colour comes from the sheet's
+-- `color` property, in one place, visible in the sheet. Two answers to "what colour is this text" -- one of them
+-- invisible -- is exactly what 033.2 ended.
+local tintedFont
 local skinRules = {}    -- C1a: OUR ONE SHEET, [selector] = {properties}. Empty = no sheet installed.
 local nodeFontApplied = false -- F5: is our PER-INSTANCE override installed on one window? (teardown reverts it)
 local nodeFontTarget        -- F5: the WidgetNode we styled (a transient handle; nil once reset / after a reload)
@@ -1581,16 +1587,40 @@ local nodeFontTarget        -- F5: the WidgetNode we styled (a transient handle;
 local function applySkin()
   if next(skinRules) == nil then hafen.ui.skin(nil) else hafen.ui.skin(skinRules) end
 end
--- Flip one rule of the sheet on/off and re-apply the whole thing. Returns true if the rule is now ON.
-local function toggleSkin(key, props)
-  if skinRules[key] then skinRules[key] = nil else skinRules[key] = props end
+-- 033.2: set/clear ONE property of one rule and re-apply the whole sheet. A rule carries several INDEPENDENT
+-- properties now (`font`, `color`), so the toggles below have to edit a property rather than replace the rule --
+-- otherwise ':hello chat' would silently wipe the colour ':hello color' put on the same key. An emptied rule is
+-- dropped: a rule with no property pushes nothing anyway (the identity fast path). value = nil clears.
+local function setProp(key, prop, value)
+  local r = skinRules[key]
+  if value == nil then
+    if r then
+      r[prop] = nil
+      if next(r) == nil then skinRules[key] = nil end
+    end
+  else
+    r = r or {}
+    r[prop] = value
+    skinRules[key] = r
+  end
   applySkin()
-  return skinRules[key] ~= nil
+  return (skinRules[key] ~= nil) and (skinRules[key][prop] ~= nil)
+end
+-- Flip one property of one rule on/off. Returns true if it is now SET.
+local function toggleProp(key, prop, value)
+  local r = skinRules[key]
+  local on = (r ~= nil) and (r[prop] ~= nil)
+  return setProp(key, prop, (not on) and value or nil)
+end
+-- Flip the `font` property of one rule on/off (the eleven site toggles below). Returns true if the rule is now ON.
+local function toggleSkin(key, props)
+  return toggleProp(key, "font", props.font)
 end
 hafen.events.on("OnLoad", function()
   skinRules = {}                                        -- a reload rebuilt the env; the sheet was torn down (P2)
   nodeFontApplied, nodeFontTarget = false, nil          -- F5: ...and so was the per-instance (setFont) override (P2)
   monoFont = hafen.font("mono"):derive{ size = 12 }     -- F2: a distinct font for the per-call g:text{font=} line
+  tintedFont = hafen.font("mono"):derive{ size = 13, color = { 255, 120, 190 } }   -- 033.2: a handle with a colour
   local ok, ttf = pcall(hafen.asset, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
   if ok and ttf then
     demoFont = ttf
@@ -1604,7 +1634,55 @@ hafen.events.on("OnLoad", function()
   hafen.log(("C1a: hafen.ui.skin is the stylesheet; hafen.font.setFont is a hard cut -> %s. Site keys: *, window.title,"
     .. " heading, button, label, textentry, tooltip, menu, chat, world.nick, world.speech -- :hello font|title|button|"
     .. "entry|label|heading|menu|tip|chat|speech|nick flip one rule each"):format(tostring(hafen.font.setFont)))
+  hafen.log("033.2: `color` is the second sheet property ({200,210,220} or {r=,g=,b=[,a=]}, 0..255) and stands alone"
+    .. " -- a colour-only rule keeps the site's font. ':hello color' installs three rules at once (the `*` cascade, a"
+    .. " colour-only tooltip rule, and chat carrying a PINK handle that must come out GREEN -- a surface's colour is"
+    .. " the sheet's, a handle's colour is for your own drawing)")
 end)
+
+-- 033.2: THE SHEET CONTRACT, checked once per login (like readAssets/readToggle). Everything about hafen.ui.skin
+-- that Lua can settle WITHOUT a screen: the two colour spellings, a rule whose properties stand alone, and the
+-- exact line between what the sheet FORGIVES and what it REFUSES (D-072) -- a key it cannot resolve yet is inert
+-- because C1b will resolve it, a property it will never understand is an error because silence is the worst
+-- answer to a typo. What Lua cannot do is LOOK at a pixel, so the two visual halves -- a `color` rule painting a
+-- surface, and a font handle's own colour NOT painting one -- are what ':hello color' parks for a human.
+-- The addon's real sheet is re-applied at the end: this check borrows the one sheet an addon owns.
+local function readSkin(tag)
+  local function why(sheet)
+    local ok, err = pcall(hafen.ui.skin, sheet)
+    if ok then return "accepted" end
+    return (tostring(err):gsub("^.-%.lua:%d+:%s*", ""))       -- drop the chunk:line prefix, keep the whole message
+  end
+  local function ok(sheet) return why(sheet) == "accepted" end
+  -- 1. the two colour SPELLINGS -- positional is what the docs and every literal write, keyed is what every
+  --    reader in this API hands back (kin:color(), meter:color()), so a round-trip must work too.
+  local kin = { r = 200, g = 210, b = 220, a = 255 }
+  hafen.log(("[%s] skin colour shapes: positional=%s keyed=%s alpha=%s"):format(tag,
+    tostring(ok{ ["chat"] = { color = { 200, 210, 220 } } }),
+    tostring(ok{ ["chat"] = { color = kin } }),
+    tostring(ok{ ["chat"] = { color = { 200, 210, 220, 128 } } })))
+  -- 2. the properties are INDEPENDENT: colour-only (the site keeps its own font), font-only (it keeps its own
+  --    colour), both, and neither (an empty rule pushes nothing, so the client stays byte-for-byte stock).
+  hafen.log(("[%s] skin rule shapes: colourOnly=%s fontOnly=%s both=%s empty=%s"):format(tag,
+    tostring(ok{ ["chat"] = { color = { 90, 235, 120 } } }),
+    tostring(ok{ ["chat"] = { font = monoFont } }),
+    tostring(ok{ ["chat"] = { font = monoFont, color = { 90, 235, 120 } } }),
+    tostring(ok{ ["chat"] = {} })))
+  -- 3. forgiven vs refused. A TREE key is inert WITH a colour too (C1b resolves that exact rule) -- but its
+  --    properties are still read, so a typo inside one is caught today rather than in six months.
+  hafen.log(("[%s] skin treeKey: withColour=%s   (accepted + inert until C1b)"):format(tag,
+    tostring(ok{ ["@Inventory"] = { color = { 90, 235, 120 } } })))
+  hafen.log(("[%s] skin refuses: badProp -> %s"):format(tag, why{ ["chat"] = { colour = { 1, 2, 3 } } }))
+  hafen.log(("[%s]              badColour -> %s"):format(tag, why{ ["chat"] = { color = "green" } }))
+  hafen.log(("[%s]              badProp on a TREE key -> %s"):format(tag, why{ ["@Inventory"] = { fnt = 1 } }))
+  hafen.log(("[%s]              badKey -> %s"):format(tag, why{ ["window["] = { color = { 1, 2, 3 } } }))
+  -- 4. the hard cut is still cut, and the sheet is still the only door (033.1).
+  hafen.log(("[%s] skin cut: setFont=%s reset=%s scopes=%s | hafen.font('serif') still answers=%s"):format(tag,
+    tostring(hafen.font.setFont), tostring(hafen.font.reset), tostring(hafen.font.scopes),
+    tostring(hafen.font("serif") ~= nil)))
+  applySkin()      -- give this addon's own sheet back (the checks above borrowed the one sheet we own)
+end
+hafen.events.on("OnEnterWorld", function() readSkin("login") end)
 
 -- 028.3: THE ASSET CONTRACT (hafen.asset), checked once per login. ONE door for every file this addon ships:
 -- hafen.asset(path) is one interned, typed handle (the TYPE comes from the EXTENSION: .png/.jpg/.jpeg/.gif/.bmp
@@ -2004,23 +2082,57 @@ hafen.slash.register("hello", function(args)
     -- swapping to the real handle 3s later, which is the same last-wins stack the old setFont pushed onto.
     -- A TREE key rides along to show it is silently INERT in C1a (never an error, styled in C1b).
     if not demoFont then hafen.log(":hello font -> font not loaded yet (OnLoad)"); return end
-    if skinRules["*"] then
-      skinRules["*"], skinRules["@Inventory"] = nil, nil   -- drop both rules -> the stock font returns live
-      applySkin()
-      hafen.log((":hello font -> hafen.ui.skin(%s) -- the ['*'] rule left our sheet; stock font restored (also happens on :reload/disable)")
+    if skinRules["*"] and skinRules["*"].font then
+      setProp("@Inventory", "font", nil)
+      setProp("*", "font", nil)                          -- drop both -> the stock font returns live
+      hafen.log((":hello font -> hafen.ui.skin(%s) -- the ['*'] rule's font left our sheet; stock font restored (also happens on :reload/disable)")
         :format((next(skinRules) == nil) and "nil" or "{...}"))
     else
-      skinRules["*"] = { font = hafen.font("mono") }    -- sheet #1 (mono)
-      skinRules["@Inventory"] = { font = demoFont }     -- a TREE key: valid grammar, resolves nowhere until C1b
-      applySkin()
+      setProp("@Inventory", "font", demoFont)            -- a TREE key: valid grammar, resolves nowhere until C1b
+      setProp("*", "font", hafen.font("mono"))           -- sheet #1 (mono)
       hafen.timer.after(3.0, function()
-        if not skinRules["*"] then return end            -- toggled off in the meantime -- nothing to replace
-        skinRules["*"] = { font = demoFont }             -- sheet #2 REPLACES sheet #1 whole -> back to serif/ttf
-        applySkin()
+        if not (skinRules["*"] and skinRules["*"].font) then return end   -- toggled off meanwhile -- nothing to replace
+        setProp("*", "font", demoFont)                   -- sheet #2 REPLACES sheet #1 whole -> back to serif/ttf
         hafen.log(":hello font -> a second skin{} replaced the first: was mono for 3s, now the loaded font")
       end)
       hafen.log((":hello font -> hafen.ui.skin{ ['*'] = { font = %s }, ['@Inventory'] = {...} } -- most UI text should change; showing 'mono' for 3s first (a second skin{} then replaces the sheet), then '%s'. The @Inventory rule is a TREE key: accepted, inert until C1b. :hello font again to drop it")
         :format(demoFont:family(), demoFont:family()))
+    end
+  elseif sub == "color" then
+    -- 033.2: `color` -- the second sheet property, and the one that settles a duplication. THREE rules go in at
+    -- once, because each answers a different half of the story:
+    --   ['*']       = { color = ... }  the CASCADE: every routed site with no colour of its own takes it, so most
+    --                                  of the client goes pale amber in one line (the broad hammer, as with font).
+    --   ['tooltip'] = { color = ... }  a COLOUR-ONLY rule refining the cascade on one site: tooltips keep their
+    --                                  own font (we set none) and only change colour -- hover an inventory item.
+    --   ['chat']    = { font = tintedFont, color = ... }  the SETTLEMENT. tintedFont is a handle carrying PINK.
+    --                                  Chat comes out GREEN, not pink: a surface's colour is the sheet's `color`,
+    --                                  and a handle's colour applies only to your OWN drawing -- the very same
+    --                                  handle IS pink on line 5 of the "Hello F2 (fonts)" window. One handle, two
+    --                                  places, one visible difference. (Before 033.2 the handle tinted the surface
+    --                                  too, which meant two answers to "what colour is this text", one of them
+    --                                  nowhere in the sheet.)
+    -- Where a rule sets a colour the site draws in it EVEN WHEN THE SITE ASKS FOR ANOTHER -- that is the point of
+    -- a stylesheet, and it does flatten colour-coded text (a red warning goes amber too) while the rule is on.
+    -- $col markup INSIDE rich text still wins, and a surface whose colour is not its font's (a window caption is
+    -- tiled from a texture) simply ignores it. Owner-tagged and reverted on :reload/disable like every rule.
+    if not tintedFont then hafen.log(":hello color -> fonts not loaded yet (OnLoad)"); return end
+    local on = (skinRules["*"] ~= nil) and (skinRules["*"].color ~= nil)
+    if on then
+      setProp("chat", "font", nil)
+      setProp("chat", "color", nil)
+      setProp("tooltip", "color", nil)
+      setProp("*", "color", nil)
+      hafen.log(":hello color -> the three colour rules left our sheet -- stock colours restored everywhere (also on :reload/disable)")
+    else
+      setProp("*", "color", { 235, 215, 160 })            -- the cascade: every site with no colour of its own
+      setProp("tooltip", "color", { 255, 150, 90 })       -- a COLOUR-ONLY rule: tooltips keep their font, change colour
+      setProp("chat", "color", { 90, 235, 120 })          -- ...and chat refines it again
+      setProp("chat", "font", tintedFont)                 -- the handle is PINK -- and chat must come out GREEN
+      hafen.log(":hello color -> skin{ ['*']={color={235,215,160}}, ['tooltip']={color={255,150,90}}, ['chat']={font=<pink handle>, color={90,235,120}} }")
+      hafen.log("   look at: most UI text pale amber (the `*` cascade) | a hovered item's TOOLTIP orange (a colour-only rule -- its font is unchanged) | CHAT green, NOT pink")
+      hafen.log("   the pink is the handle's own colour: it shows up ONLY on line 5 of the 'Hello F2 (fonts)' window (your own drawing), never on the surface it was installed on")
+      hafen.log("   two addons, one surface: paste  :lua hafen.ui.skin{ ['chat'] = { color = {255,80,80} } }  -- chat goes RED (last applied wins); :lua hafen.ui.skin(nil) drops it and chat falls back to hello's GREEN, not to stock; :hello color then restores stock")
     end
   elseif sub == "title" then
     -- F3: toggle a font override on the "window.title" scope (WINDOW CAPTIONS only) -- INDEPENDENT of "default".
@@ -2582,6 +2694,10 @@ hafen.events.on("OnEnterWorld", function()
         g:text("per-call mono, coloured", 6, 52, { font = monoFont, color = { 120, 220, 255 } })
         -- 4) rich colour/bold tags also work now that g:text renders through rich text:
         g:text("$col[235,180,80]{$b{rich} tags} work too", 6, 74)
+        -- 5) 033.2: a handle that CARRIES a colour, on our OWN drawing -> it applies (this line is pink). The
+        --    SAME handle on a client surface (':hello color' installs it on ['chat']) does NOT tint it: a
+        --    surface's colour is the sheet's `color` property, a handle's colour is for your own pixels only.
+        g:text("handle colour: own drawing only", 6, 94, { font = tintedFont })
         g:color(150, 150, 150); g:rect(0, 0, w, h); g:color()
       end,
       onClose = function() hafen.log("F2: font window closed (X) -- :reload to bring it back") end,

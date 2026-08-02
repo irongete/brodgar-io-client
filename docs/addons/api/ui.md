@@ -535,7 +535,8 @@ local body = hafen.asset("fonts/Inter.ttf"):derive{ size = 12 }
 hafen.ui.skin{
   ["*"]            = { font = body },                                -- the global fallback
   ["window.title"] = { font = body:derive{ size = 14, bold = true } },
-  ["chat"]         = { font = hafen.font("mono"):derive{ size = 13 } },
+  ["chat"]         = { font = hafen.font("mono"):derive{ size = 13 }, color = {200, 210, 200} },
+  ["tooltip"]      = { color = {255, 150, 90} },                     -- colour alone: the font stays stock
 }
 ```
 
@@ -602,9 +603,35 @@ error [`hafen.ui(selector)`](#selectors--naming-a-widget) gives.
 | Property | Value | Notes |
 |---|---|---|
 | `font` | a [font handle](fonts.md) | `hafen.font(name)` or `hafen.asset(path)`, optionally `:derive{size=,bold=,…}` |
+| `color` | `{r, g, b [, a]}`, 0–255 | also spelled `{r = …, g = …, b = …}` — the shape every reader hands back |
+
+**The two are independent.** A rule may carry either alone: a colour-only rule leaves the surface's own font
+exactly as it is, a font-only rule leaves its colour. A rule carrying neither styles nothing.
 
 An **unknown property is an error** naming the ones that exist — unlike an unresolved key, a misspelt property
 has no later meaning to wait for.
+
+#### `color` — a surface's colour is the sheet's
+
+Where a rule sets a colour, the surface **draws in it even when the client itself asks for another**. That is
+what a stylesheet is for, and it is worth knowing what it costs: while the rule is on, text that carries
+*meaning* in its colour is flattened with the rest — a red warning under `["*"] = {color=…}` goes the same
+colour as everything else. Style one site rather than `*` when that matters.
+
+Two things still win over a rule, and one surface ignores it:
+
+- **`$col[…]` markup inside the text** — it is part of the string, not the site's choice of colour, so a tooltip's
+  green/red attribute deltas survive a `["tooltip"]` colour rule.
+- **[`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth-f5)**, which sits above every site rule.
+- **A window caption** (`window.title`) takes its colour from a *texture* tiled over the glyphs, not from the
+  font — so it follows a `font` rule and ignores a `color` one. Not a bug to report; there is nothing there to
+  colour.
+
+> **A font handle's own `color` does not style a surface.** `hafen.font("serif"):derive{color = {255,0,0}}`
+> installed through `skin{}` (or `widget:setFont`) contributes its family, size and antialiasing — its **colour
+> is ignored**. That colour is for [your own drawing](fonts.md#draw-with-it--your-own-widgets-f2): `g:text`, your
+> own widgets. One question, "what colour is this surface", has exactly one answer, and it is written in the
+> sheet where you can see it.
 
 ### Cascade & conflict
 

@@ -290,8 +290,17 @@ final class UiApi {
         //   loads today unstyled instead of blowing up. A malformed key errors exactly as hafen.ui(sel) does.
         //   Conflict between addons is D-043 reused literally: last applied wins, an addon's entries are pulled on
         //   its teardown, the surface falls back to the next owner beneath and finally to stock.
-        // Properties in this task: `font` (a handle from hafen.font(name) or hafen.asset(path), optionally
-        // :derive{size=,bold=,…}); an unknown property is an error naming the ones that exist. Returns nil.
+        // Properties: `font` (a handle from hafen.font(name) or hafen.asset(path), optionally :derive{size=,bold=,…})
+        // and `color` ({200,210,200} or {r=200,g=210,b=200[,a=255]}, 0..255). Either may stand alone: a colour-only
+        // rule keeps the site's own font, a font-only rule keeps its colour. An unknown property is an ERROR naming
+        // the ones that exist — a key may mean something later, a misspelt property never will (D-072).
+        //   033.2 settles a duplication: a SURFACE's colour comes from the SHEET; a font handle's own `color`
+        //   (hafen.font("serif"):derive{color=…}) applies only to YOUR OWN drawing — g:text and your own widgets —
+        //   and is ignored when that handle is installed on a surface (here or via widget:setFont). Otherwise there
+        //   would be two answers to "what colour is this text", one of them invisible in the sheet. Where a rule
+        //   sets a colour the site draws in it even when the site itself asks for another; rich-text $col markup
+        //   inside the text still wins, and a surface whose colour is not the font's (a window caption is tiled
+        //   from a texture) simply ignores it. Returns nil.
         uiT.set("skin", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 return Sheet.skin(owner, a);

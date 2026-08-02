@@ -167,6 +167,11 @@ final class FontApi {
      * like a scope override; the provider keys it by widget identity with a <b>weak</b> key, so a window that closes
      * takes its override with it. {@code w == null} = a stale node (its widget left the tree) → nothing to style,
      * but the handle is still validated so a bad call is a clear error either way.
+     *
+     * <p>The handle's <b>colour is not applied</b> (033.2): a native widget is a client SURFACE, and a surface's
+     * colour comes from the stylesheet — one place, visible in the sheet — while a handle's colour is for the
+     * addon's own drawing. This method takes the family/size/aa and passes {@code null} for the colour; C1b folds
+     * it into {@code widget:skin{…}}, where a per-widget {@code color} is a rule property like any other.
      */
     static void setNodeFont(Addon owner, haven.Widget w, LuaValue hv) {
         FontHandle fh = FontHandle.resolve(hv);
@@ -174,7 +179,7 @@ final class FontApi {
             throw new LuaError("widget:setFont(h): h must be a font handle — hafen.asset(\"fonts/X.ttf\") or hafen.font(\"sans\") — use a COLON call");
         if(w == null)
             return;
-        Fonts.pushInstance(w, owner, fh.font, fh.size, fh.aa, fh.color);
+        Fonts.pushInstance(w, owner, fh.font, fh.size, fh.aa, null);
         owner.fontNodes = true;
     }
 

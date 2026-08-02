@@ -165,6 +165,14 @@ public class Text implements Disposable {
 	 * Fonts.dynamic() is null and this is a no-op -- which is what keeps the rest of the client unchanged.
 	 * `noresolve` marks the provider's own product, so resolution cannot recurse. */
 	boolean noresolve = false;
+	/* addon: (033.2, C1a) the STYLESHEET colour of the surface this PROVIDER-BUILT foundry fronts, or null.
+	 * `defcol` alone cannot carry it: nearly every routed site passes an explicit Color to render(…)/renderwrap(…)
+	 * -- a Label its own `col`, a tooltip Text.white -- so a `color` rule would be invisible exactly where text is
+	 * actually drawn. A foundry the provider built for a rule carrying `color` therefore renders in THAT colour
+	 * whatever the caller asks for: the sheet is what says how a surface looks. Set only on the provider's own
+	 * products (Fonts.Spec.foundry), so a stock foundry is untouched and teardown stays exactly reversible; and
+	 * rich-text $col runs still win, being markup inside the text rather than the site's colour choice. */
+	Color fixcol = null;
 	private Foundry resolved() {
 	    if(noresolve)
 		return(this);
@@ -200,6 +208,8 @@ public class Text implements Disposable {
 	    Foundry f = resolved();   // addon: (F3d)
 	    if(f != this)
 		return(f.renderwrap(text, c, width));
+	    if(fixcol != null)
+		c = fixcol;            // addon: (033.2) the sheet's colour for this surface outranks the caller's
 	    if(wfnd == null)
 		wfnd = new RichText.Foundry(font, defcol);
 	    wfnd.aa = aa;
@@ -214,9 +224,11 @@ public class Text implements Disposable {
 	}
                 
 	public Line render(String text, Color c) {
-	    Foundry f = resolved();   // addon: (F3d) -- the colour stays the CALLER's, so colour-coded rows keep theirs
+	    Foundry f = resolved();   // addon: (F3d) -- the caller's colour rides along; the SHEET's (fixcol) outranks it below
 	    if(f != this)
 		return(f.render(text, c));
+	    if(fixcol != null)
+		c = fixcol;            // addon: (033.2) a `color` rule paints this surface whatever the site asked for
 	    Coord sz = strsize(text);
 	    if(sz.x < 1)
 		sz = sz.add(1, 0);

@@ -56,6 +56,7 @@ public class ChatUI extends Widget {
     private static final Color fndcol = Color.BLACK;
     private static RichText.Foundry bfnd;
     private static Text.Foundry bqfnd;
+    private static Color bfndcol;   // addon: (033.2) the sheet's `color` for "chat", or null when it sets none
     private static int fontgen = -1;
     private static void checkfont() {
 	int g = Fonts.gen();
@@ -63,10 +64,12 @@ public class ChatUI extends Widget {
 	    Fonts.Style st = Fonts.style("chat");
 	    if(st == null) {
 		bfnd = fnd;
+		bfndcol = null;
 	    } else {
 		bfnd = new RichText.Foundry(new ChatParser(TextAttribute.FONT, st.font(fndstock),
 							   TextAttribute.FOREGROUND, st.color(fndcol)))
 		    .aa(st.aa(fnd.aa));
+		bfndcol = st.color(null);
 	    }
 	    bqfnd = Fonts.foundry("chat", qfnd);
 	    fontgen = g;
@@ -74,6 +77,14 @@ public class ChatUI extends Widget {
     }
     /** addon: the current message foundry for the {@code "chat"} scope (an override, else stock {@link #fnd}). */
     public static RichText.Foundry fnd() {checkfont(); return(bfnd);}
+    /**
+     * addon: (033.2) the colour a chat line should be rendered in, given the colour the SITE picked. Almost every
+     * line passes its own {@code FOREGROUND} — a speaker's kin colour, a system message's — which as a per-render
+     * attribute outranks the foundry's default, so without this a {@code ["chat"] = {color=…}} rule would only
+     * ever reach the handful of lines that pass none. A sheet rule is what the surface looks like, so it wins;
+     * with no rule this hands the site's own colour straight back and nothing changes.
+     */
+    private static Color fndcol(Color site) {checkfont(); return((bfndcol != null) ? bfndcol : site);}
     /** addon: the current quick-line foundry for the {@code "chat"} scope (an override, else stock {@link #qfnd}). */
     public static Text.Foundry qfnd() {checkfont(); return(bqfnd);}
     public static final int selw = UI.scale(130);
@@ -304,7 +315,7 @@ public class ChatUI extends Widget {
 		if(col == null)
 		    return(() -> fnd().render(RichText.Parser.quote(text), w));   // addon: the "chat" scope (F3d)
 		else
-		    return(() -> fnd().render(RichText.Parser.quote(text), w, TextAttribute.FOREGROUND, col));   // addon: (F3d)
+		    return(() -> fnd().render(RichText.Parser.quote(text), w, TextAttribute.FOREGROUND, fndcol(col)));   // addon: (F3d) + the sheet's colour (033.2)
 	    }
 	}
 
@@ -916,7 +927,7 @@ public class ChatUI extends Widget {
 		}
 
 		public Text get() {
-		    return(fnd().render(RichText.Parser.quote(String.format("%s: %s", nm, text)), w, TextAttribute.FOREGROUND, col));   // addon: (F3d)
+		    return(fnd().render(RichText.Parser.quote(String.format("%s: %s", nm, text)), w, TextAttribute.FOREGROUND, fndcol(col)));   // addon: (F3d) + the sheet's colour (033.2)
 		}
 	    }
 
@@ -1460,7 +1471,7 @@ public class ChatUI extends Widget {
 	private Notification(Channel chan, Channel.Message msg) {
 	    this.chan = chan;
 	    this.msg = msg;
-	    this.chnm = fnd().render(chan.name(), 0, TextAttribute.FOREGROUND, Color.WHITE);   // addon: the "chat" scope (F3d)
+	    this.chnm = fnd().render(chan.name(), 0, TextAttribute.FOREGROUND, fndcol(Color.WHITE));   // addon: the "chat" scope (F3d) + the sheet's colour (033.2)
 	    this.rmsg = msg.render(sz.x - selw).get();
 	}
     }

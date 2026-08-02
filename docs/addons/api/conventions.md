@@ -154,6 +154,19 @@ otherwise. `hafen.map` converts between world, tile, and grid space.
 > is a **grid id** plus a within-grid offset — see [`hafen.map.gridPos`](map.md).
 > Map markers anchor on **segment id + segment tile coord** instead (see [markers](markers.md)).
 
+## Colours
+
+A colour is a table of **0–255 components**, written either way:
+
+```lua
+{ 200, 210, 220 }                                   -- positional, {r, g, b [, a]}
+{ r = 200, g = 210, b = 220, a = 255 }              -- keyed — what every reader hands back
+```
+
+Both are accepted everywhere a colour goes in (`hafen.ui.skin{…}`'s `color`, `g:text{color=…}`,
+`hafen.markers.add`, a ghost/sprite `tint`, `font:derive{color=…}`), so a colour you *read* — `kin:color()`,
+`meter:color()` — can be passed straight back. Alpha defaults to `255`; components outside 0–255 are clamped.
+
 ## Missing data returns `nil`
 
 A read returns `nil` (or an empty table for list verbs) when the data isn't available yet — before the
