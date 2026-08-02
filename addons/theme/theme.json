@@ -1,0 +1,25 @@
+{
+  "name": "Slate",
+
+  "_comment": [
+    "A stylesheet as data. Each key is a selector; each rule may carry a `font` descriptor and/or a `color`.",
+    "`face` is a built-in name (sans / serif / mono / fraktur) or a path to a font THIS addon ships",
+    "(\"fonts/Inter.ttf\"), which main.lua maps through hafen.asset. `size` is logical px; omit it and the",
+    "surface keeps its own stock size, which is what stops a theme from moving the layout.",
+    "No colour on window.title / heading / a plain button caption: those surfaces are EMBOSSED (a texture is",
+    "tiled through the glyph mask), so a colour rule there is inert -- see docs/addons/api/ui.md#what-each-key-accepts."
+  ],
+
+  "rules": {
+    "*":            { "font": { "face": "serif", "size": 11 } },
+    "window.title": { "font": { "face": "fraktur", "size": 15 } },
+    "heading":      { "font": { "face": "serif" } },
+    "button":       { "font": { "face": "sans", "size": 12, "bold": true } },
+    "label":        { "color": [225, 225, 215] },
+    "textentry":    { "font": { "face": "mono", "size": 12 } },
+    "tooltip":      { "color": [255, 225, 175] },
+    "menu":         { "color": [235, 235, 225] },
+    "chat":         { "font": { "face": "mono", "size": 12 }, "color": [190, 210, 190] },
+    "world.speech": { "color": [225, 235, 225] }
+  }
+}

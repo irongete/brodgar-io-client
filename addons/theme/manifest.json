@@ -1,0 +1,9 @@
+{
+  "name": "Theme",
+  "id": "theme",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Example addon (033-ui-stylesheet, C1a): A CLIENT THEME THAT IS DATA, NOT CODE. Everything this addon looks like lives in theme.json next to main.lua — main.lua never names a surface, a font, a size or a colour; it reads the file, maps each rule's font descriptor to a handle, and hands the whole table to hafen.ui.skin{}. To make a different theme you edit the JSON. Three ordinary doors, one line each: hafen.asset('theme.json') is the FILE this addon ships (a 'data' asset, 033.3 — read as UTF-8 through :text(), sandboxed like every asset: absolute paths and '..' are rejected, D-017); hafen.json.parse turns the text into a table (a JSON array is 1-indexed, so [190,210,190] arrives as the sheet's own positional colour shape and needs no conversion); hafen.ui.skin{} installs it. The one value JSON cannot carry is a font, because a font is a HANDLE — so a rule's font is a descriptor { face = 'serif', size = 11 } whose `face` is mapped in Lua: a bare name is one of the client's built-ins, anything with a dot ('fonts/demo.ttf') is a file this addon ships and goes through hafen.asset, the same door theme.json came through. DORMANT until you ask for it: ':theme on' wears it, ':theme off' takes it off, ':theme dump' lists what it styles — a theme installed at login would restyle your whole client on every login, which is not an example addon's decision to make. The sheet is OWNED: :reload or disabling this addon drops it and the stock client comes back, and with a second styling addon the last one applied wins (D-043). Assets are interned, so an edit to theme.json takes effect on ':reload'. SAFE-tier: cosmetic, client-side, declares no permissions, sends nothing to the server.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

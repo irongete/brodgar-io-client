@@ -58,11 +58,11 @@ events are in [events](events.md).
 |---|---|
 | [`hafen.ui`](ui.md) | the Widget object — [selectors](ui.md#selectors--naming-a-widget), custom windows, overlays, the items in any container, replacing native widgets, the [stylesheet](ui.md#the-stylesheet--restyling-the-client) that restyles the client, and walking + hit-testing the tree |
 | [`hafen.ghost`](ghost.md) | client-only world props ("ghosts") — base/city planning |
-| [`hafen.asset`](asset.md) | load the files your addon ships — images, fonts, glTF models — through one door |
+| [`hafen.asset`](asset.md) | load the files your addon ships — images, fonts, glTF models, data — through one door |
 | [`hafen.render`](render.md) | stand your own (non-`.res`) images and glTF models **in the world** |
 | [`hafen.hook`](hooks.md) | intercept & alter input / actions / server messages |
 | [`hafen.client`](client.md) | client settings (interface / video / audio / camera / client), hotkeys, the frame profiler, its counters, per-addon, per-widget and per-render-pass cost, your own named scopes, and what the profiler itself costs |
-| [`hafen.font`](fonts.md) | per-addon typography — get a font handle, and what each client surface does when a [stylesheet](ui.md#the-stylesheet--restyling-the-client) lands one on it |
+| [`hafen.font`](fonts.md) | per-addon typography — get a font handle, draw with it, and what each client surface does when a [stylesheet](ui.md#the-stylesheet--restyling-the-client) rule lands on it |
 
 ### Audio & infrastructure
 

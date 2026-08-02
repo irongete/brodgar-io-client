@@ -1,0 +1,7 @@
+{
+  "name": "suite fixture",
+  "rules": {
+    "*":    { "font": { "face": "serif", "size": 11 } },
+    "chat": { "color": [90, 235, 120] }
+  }
+}

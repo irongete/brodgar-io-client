@@ -1,12 +1,13 @@
 # `hafen.asset` — the files your addon ships
 
-**One loader for every file that lives in your addon's folder.** An image, a font, a 3D model — they all
-come through the same door:
+**One loader for every file that lives in your addon's folder.** An image, a font, a 3D model, a data file —
+they all come through the same door:
 
 ```lua
 local icon = hafen.asset("icon.png")              -- an image
 local face = hafen.asset("fonts/Inter.ttf")       -- a font
 local chair = hafen.asset("props/chair.glb")      -- a mesh
+local theme = hafen.asset("theme.json")           -- data (its text)
 ```
 
 `hafen.asset` is **callable**, and the arity is the verb: `hafen.asset(path)` is **one** asset,
@@ -17,18 +18,19 @@ local chair = hafen.asset("props/chair.glb")      -- a mesh
 > grants no gameplay advantage, so it needs no `actions` permission — like a
 > [HUD overlay](ui.md#overlays) or a [ghost](ghost.md).
 
-There is exactly **one flow** for a local file: **load → draw / decorate / stand**. Load it once, keep the
-handle, hand the *handle* to whatever uses it. The use sites take a handle and nothing else — passing a path
+There is exactly **one flow** for a local file: **load → draw / decorate / stand / read**. Load it once, keep
+the handle, hand the *handle* to whatever uses it. The use sites take a handle and nothing else — passing a path
 string to [`hafen.render.sprite`](render.md#standing-an-image-in-the-world) or
 [`object`](render.md#standing-a-3d-model-in-the-world) is an error that points you back here.
 
-## The three types
+## The four types
 
 | Extensions | `a:type()` | What you get | Use it with |
 |---|---|---|---|
 | `.png` `.jpg` `.jpeg` `.gif` `.bmp` | `"image"` | a GPU texture (alpha preserved) | [`g:image`/`g:aimage`](ui.md#the-g-draw-wrapper), [`hafen.render.sprite`](render.md#standing-an-image-in-the-world) |
-| `.ttf` `.otf` | `"font"` | a [`FontHandle`](fonts.md) (its family is AWT-registered, so `$font[…]` works) | [`font =`](fonts.md#draw-with-it--your-own-widgets-f2), [`hafen.ui.skin`](ui.md#the-stylesheet--restyling-the-client), [`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth-f5) |
+| `.ttf` `.otf` | `"font"` | a [`FontHandle`](fonts.md) (its family is AWT-registered, so `$font[…]` works) | [`font =`](fonts.md#draw-with-it--your-own-drawing), [`hafen.ui.skin`](ui.md#the-stylesheet--restyling-the-client), [`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth) |
 | `.glb` `.gltf` | `"mesh"` | parsed glTF 2.0 static geometry + its textures | [`hafen.render.object`](render.md#standing-a-3d-model-in-the-world) |
+| `.json` `.txt` | `"data"` | the file's **text**, read as UTF-8 | [`hafen.json.parse`](json.md), and anything else that takes a string |
 
 PNG is the recommended image format (transparency), and `.glb` the recommended model format (single file).
 Any other extension is an error listing these.
@@ -84,7 +86,7 @@ second call, and no reason for the use sites to accept a path string.
 
 | Method | Description |
 |---|---|
-| `a:type()` | `"image"` \| `"font"` \| `"mesh"` — what the extension dispatched to |
+| `a:type()` | `"image"` \| `"font"` \| `"mesh"` \| `"data"` — what the extension dispatched to |
 | `a:path()` | the addon-relative path it was loaded from |
 | `a:dispose()` | free it **now** (also automatic on reload / disable / relogin); returns the handle |
 
@@ -102,7 +104,7 @@ A disposed image simply **draws nothing** thereafter (`g:image` is forgiving —
 ### Font — `:derive` / `:family` / `:size`
 
 A font asset **is** a [`FontHandle`](fonts.md) with the three asset verbs on top. See
-[`hafen.font`](fonts.md) for `:derive(opts)`, `:family()` and `:size()`, and for the scopes you can install
+[`hafen.font`](fonts.md) for `:derive(opts)`, `:family()` and `:size()`, and for the surfaces you can install
 it on. Disposing a font asset frees nothing (a font holds no releasable resource) — it only drops the cache
 entry, so the next load re-reads and re-registers the file.
 
@@ -121,6 +123,29 @@ a clear error that **names** the feature.
 > textured and unchanged: it captured its texture samplers when it was built. What you forfeit is the
 > *freeing* — the memory is not reclaimed until that object is destroyed. So `:dispose()` a mesh only when
 > nothing is standing it; the automatic teardown already gets the order right.
+
+### Data — `:text()`
+
+| Method | Description |
+|---|---|
+| `d:text()` | the file's contents as a **string**, decoded as UTF-8 (a leading BOM is stripped) |
+
+A `.json`/`.txt` file your addon ships — a config, a word list, a **theme**. It is how an addon's *content*
+stops being written in Lua:
+
+```lua
+local theme = hafen.json.parse(hafen.asset("theme.json"):text())
+hafen.ui.skin(theme.rules)                        -- a stylesheet that is data (see the `theme` example addon)
+```
+
+**It hands back the text, not a parsed table**, and that is on purpose: reading a file is `hafen.asset`,
+parsing JSON is [`hafen.json`](json.md), and gluing them is one line — one canonical way per job. It also
+keeps [interning](#interning) honest, since a parsed table would be *mutable shared state* handed to every
+re-load of the path, where a string cannot be edited behind your back.
+
+The text is read once and held by the handle, so `:text()` is free to call repeatedly — and, like every other
+type, an **edit to the file takes effect on `:reload`**, which drops the cache with the addon's environment.
+Disposing a data asset frees nothing; it only drops that cache entry.
 
 ## The collection form
 
@@ -148,7 +173,7 @@ Everything below raises a `pcall`-able error naming `hafen.asset`, and each shap
 | `hafen.asset("/etc/passwd")` | the path *is absolute* — an addon loads only its own files |
 | `hafen.asset("../other/icon.png")` | the path *climbs out of the addon folder with `..`* |
 | `hafen.asset("nope.png")` | *no such file* in this addon's folder (checked before any decode) |
-| `hafen.asset("notes.txt")` | *no supported extension* — the message lists all of them |
+| `hafen.asset("theme.yaml")` | *no supported extension* — the message lists all of them |
 | `hafen.asset("broken.png")` | *not a decodable image* / *not a valid TrueType/OpenType font* / the glTF parser's own message |
 | `hafen.asset(1)` | the key is a **path string**, not a number |
 | `hafen.asset({})`, `hafen.asset(fn)` | expected a path string, `got table` / `got function` |
@@ -209,4 +234,6 @@ end)
 - [`hafen.render`](render.md) — stand an image or a mesh **in the world** (`sprite` / `object`).
 - [`hafen.ui`](ui.md#the-g-draw-wrapper) — `g:image`/`g:aimage` draw an image asset on screen.
 - [`hafen.font`](fonts.md) — what a font asset does once you have it (and the built-ins that are *not* assets).
+- [`hafen.json`](json.md) — turn a `"data"` asset's `:text()` into a table; [`hafen.ui.skin`](ui.md#the-stylesheet--restyling-the-client)
+  then takes that table, which is all the `theme` example addon is.
 - [conventions](conventions.md#asset--a-file-your-addon-ships) — callable namespaces, owned resources & teardown.

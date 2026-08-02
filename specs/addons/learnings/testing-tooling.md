@@ -315,3 +315,22 @@
   worth keeping.** ~60 lines of Python over `docs/addons/` (fenced blocks skipped, relative paths resolved,
   fragments matched against slugged headings) reports 0 broken over **557** links; rebuilding it costs minutes,
   where getting 030.4's em-dash rule wrong costs 36 false positives.
+- **(033.3) Drive the SHIPPING suite headlessly through the slash command it registers — no slicing, no stub.**
+  031.3/032.3 sliced a function out of `hello/main.lua` because that file needs the whole API; a per-task suite
+  (`TESTING.md`) is small enough that the *real* namespaces load: `Sandbox.create()` + `new Addon(Manifest
+  .internal(id), dir, env)` + `AddonManager.installHafen(g, owner)`, then `g.load(src).call()`. The suite's `run`
+  is a local, but it hands itself to `hafen.slash.register("t033-3", run)` — so a same-package probe reads
+  `owner.slashCommands` and calls `c.fn` directly. `AddonManager.fireTo(owner, "OnLoad")` supplies the login
+  event an addon that builds state in `OnLoad` needs (without it the `theme` example reported "nothing loaded"
+  three times and nothing else — a silent pass that looked like a bug in the addon). `AddonManager.log` prints
+  to stdout with the `[id]` prefix and tolerates a null `ui`, so the pasted-back format is byte-identical to
+  the in-game one: **the pre-check output IS the deliverable's output**. 18/18 before the maintainer logged in.
+- **(033.3) There is no Python on this machine — the docs link/anchor checker was re-derived in JAVA, and
+  `java Foo.java` runs a single file with no compile step.** 032.3's note ("~60 lines of Python, rebuilt every
+  close") assumed an interpreter that is only the Microsoft Store stub here (`python3` prints an install
+  message; `python -c` exits 0 having done **nothing**, which is the dangerous half — it looks like it worked).
+  The keeper is still the **slug rule**, and it is GitHub's, not the 030.4 shorthand: lowercase, **delete every
+  character that is not `[a-z0-9 _-]`** (so an ASCII hyphen SURVIVES and an em dash vanishes), then spaces →
+  hyphens; duplicate headings get `-1`, `-2`. Skip fenced blocks in both the link scan and the heading scan.
+  **Always plant a bad link and a bad anchor and re-run** — a checker that reports 0/600 without ever having
+  been seen to fail proves nothing (the `luac -p` lesson, again).

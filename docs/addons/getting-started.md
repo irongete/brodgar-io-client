@@ -179,13 +179,14 @@ vocabulary — see [selectors](api/ui.md#selectors--naming-a-widget).
 
 ## Files your addon ships
 
-Drop an image, a font or a glTF model in your addon's folder and load it with
-[`hafen.asset(path)`](api/asset.md) — one door for all three, the type coming from the extension:
+Drop an image, a font, a glTF model or a data file in your addon's folder and load it with
+[`hafen.asset(path)`](api/asset.md) — one door for all four, the type coming from the extension:
 
 ```lua
 local icon = hafen.asset("icon.png")                 -- draw with g:image / stand with hafen.render.sprite
 local face = hafen.asset("fonts/Inter.ttf")          -- font= on a window, or hafen.ui.skin{…}
 local chair = hafen.asset("props/chair.glb")         -- stand with hafen.render.object
+local conf = hafen.asset("theme.json")               -- its :text(), for hafen.json.parse
 ```
 
 Paths are **relative to your own folder** (absolute paths and `..` are rejected), the same path always

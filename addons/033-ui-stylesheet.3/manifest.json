@@ -1,0 +1,9 @@
+{
+  "name": "033.3 — docs, the theme example, close",
+  "id": "033-ui-stylesheet.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 033.3: the `data` asset (.json/.txt through hafen.asset, typed, interned, :text()), the sheet AS DATA end to end (a shipped sheet.json -> hafen.json.parse -> hafen.ui.skin, with a JSON colour array arriving as the sheet's own positional shape), and the C1a contract the docs now publish — a site key, the `*` cascade, a silently inert tree key, an unknown property refused (including inside a tree key, because what C1a defers is the key and not the rule), a malformed key erroring exactly as hafen.ui(sel) does, and the hafen.font.setFont/reset/scopes hard cut still reading nil. It drops its sheet before it finishes, so a login that runs it leaves the client stock. The two things a program cannot see are [manual] lines with their exact steps: the `theme` addon restyling the client from its JSON, and the two-addon fallback (a second sheet from the :lua REPL wins, and dropping it falls back to the theme rather than to stock).",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

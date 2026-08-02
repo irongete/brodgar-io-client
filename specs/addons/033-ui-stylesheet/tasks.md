@@ -31,7 +31,7 @@
       still colours the addon's own `g:text`; with two addons, the last applied wins, disabling it falls back
       to the other rather than to stock, disabling both restores stock, and `:reload`/relog behave.
 
-- [ ] **033.3 — docs, the `theme` example, close.**
+- [x] **033.3 — docs, the `theme` example, close.**
       `docs/addons/api/fonts.md` rewritten around the sheet — the F-slice history collapses into *a font is a
       sheet property* — and `ui.md` gains `hafen.ui.skin` plus the **property × key table**: what each of the
       eleven sites accepts, what it ignores, and the honest limits (a `static final Tex` baked at class-init

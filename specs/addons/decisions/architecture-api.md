@@ -588,3 +588,27 @@ forward: whenever a feature is *sliced*, check whether the slice line is visible
 usually an error message that should have been silence.
 **See.** [D-012](architecture-api.md), [D-067](widgets-ui.md), [033-ui-stylesheet](../033-ui-stylesheet/spec.md),
 [fonts.md](../learnings/fonts.md).
+
+### D-074 — a loader hands back the file, not an interpretation of it ✅ (2026-08-02)
+**Decision.** `hafen.asset` gained a fourth type (033.3): `.json`/`.txt` → `"data"`, whose one verb is
+`:text()` — the file's contents as a UTF-8 string. It does **not** parse. Turning that text into a table is
+`hafen.json.parse`, in its own namespace, and the two compose in one line:
+`hafen.json.parse(hafen.asset("theme.json"):text())`. The same rule read backwards is why the three older
+types *do* hand back a decoded object: a `TexI`, an AWT `Font`, parsed glTF geometry are the file in the only
+terms the client can use it — there is no second namespace that owns "what a PNG means".
+**Rationale.** (2026-08-02, 033.3.) Two forces pointed the same way. **One canonical way**: a parsing
+`hafen.asset(".json")` would make `hafen.json.parse` the *second* door to a Lua table from JSON, and the first
+one invisible in the call. And **interning**: an asset is interned per resolved path, so a parsed table would
+be one **mutable** object handed to every re-load of that path — addon code that edits its own config would be
+editing what the next reader sees, a shared-state bug with no syntax to warn you. A string cannot be edited
+behind your back, so interning stays honest for free. The test that separates the cases is *"is there already
+a namespace that owns this interpretation?"* — for JSON there is; for a PNG there is not.
+**Consequences.** The door that was missing is now the one a **theme** comes through: the bundled `theme`
+example addon's whole look is a `theme.json`, its Lua naming no surface, font, size or colour — the spec's
+"the sheet is data" criterion met by a real file rather than by a table literal in Lua. Read forward: a future
+`.csv`/`.ini`/`.toml` extension is the same shape (text out, a parser namespace beside it), and if one ever
+*needs* to return structure it must return a fresh value per call, not the interned one. Cost: an addon pays
+one extra call and one extra failure mode (a `pcall` around `parse` for a malformed file), which is the right
+place for it — the loader succeeded, the content was wrong.
+**See.** [D-012/D-013](architecture-api.md), [D-036](network-data.md), [D-060](architecture-api.md),
+[028-asset-loader](../028-asset-loader/spec.md), [033-ui-stylesheet](../033-ui-stylesheet/spec.md).

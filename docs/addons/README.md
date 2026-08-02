@@ -38,4 +38,5 @@ end)
 See [conventions](api/conventions.md), [data types](api/types.md), and the [event catalogue](api/events.md)
 for the cross-cutting rules — including how you address things: a [Gob](api/gob.md) or a
 [Kin](api/kin.md) by object, an item by handle, and a piece of the UI by
-[selector](api/ui.md#selectors--naming-a-widget) (`hafen.ui("window[title=Cupboard]")`).
+[selector](api/ui.md#selectors--naming-a-widget) (`hafen.ui("window[title=Cupboard]")`) — which is also the
+key of the [stylesheet](api/ui.md#the-stylesheet--restyling-the-client) that says what the client looks like.

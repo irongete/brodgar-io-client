@@ -14,6 +14,7 @@ import java.awt.GraphicsEnvironment;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -38,12 +39,13 @@ import javax.imageio.ImageIO;
  * expensive and happens once, configuring a <i>use</i> of it is cheap and happens many times — so a font's
  * size/style comes from {@code :derive{…}}, never from the load. That is AWT's own split ({@code
  * Font.createFont} returns a 1&nbsp;pt font, {@code deriveFont} makes the variants), and it is what keeps the
- * signature uniform across all three types and interning unambiguous ({@code ==} never depends on an options
+ * signature uniform across every type and interning unambiguous ({@code ==} never depends on an options
  * table).
  *
  * <p><b>Dispatch is by extension</b> — {@code .png}/{@code .jpg}/{@code .jpeg}/{@code .gif}/{@code .bmp} &rarr;
  * an image ({@code ImageIO} &rarr; {@link TexI}), {@code .ttf}/{@code .otf} &rarr; a font ({@code
- * Font.createFont} + one AWT {@code registerFont}), {@code .glb}/{@code .gltf} &rarr; a mesh ({@link Gltf}).
+ * Font.createFont} + one AWT {@code registerFont}), {@code .glb}/{@code .gltf} &rarr; a mesh ({@link Gltf}),
+ * {@code .json}/{@code .txt} &rarr; data (UTF-8 text, 033.3 — the door a {@code theme.json} comes through).
  * Anything else is an error listing the supported ones. Decoding is <b>synchronous</b> on the UI thread, as it
  * always was (small local assets — spec 17 §3): load from setup code, never inside a draw.
  *
@@ -62,7 +64,7 @@ import javax.imageio.ImageIO;
  *
  * <p><b>Every asset answers {@code :type()}, {@code :path()} and {@code :dispose()}</b>, on top of its own
  * verbs ({@code :size()} for an image, {@code :bounds()}/{@code :info()} for a mesh,
- * {@code :derive}/{@code :family}/{@code :size} for a font). Those three are the <i>asset</i> surface: a
+ * {@code :derive}/{@code :family}/{@code :size} for a font, {@code :text()} for data). Those three are the <i>asset</i> surface: a
  * built-in font ({@code hafen.font("sans")}) and a derived variant are font handles that were never loaded
  * from a file, so they carry none of them ([D-060] — no file, no path, no lifetime).
  *
@@ -74,7 +76,7 @@ final class AssetApi {
 
     /** The supported extensions, as the unknown-extension error lists them. */
     private static final String EXTS =
-        ".png/.jpg/.jpeg/.gif/.bmp (image), .ttf/.otf (font), .glb/.gltf (mesh)";
+        ".png/.jpg/.jpeg/.gif/.bmp (image), .ttf/.otf (font), .glb/.gltf (mesh), .json/.txt (data)";
 
     /** Build {@code hafen.asset} for {@code owner}. From installHafen. */
     static void install(LuaTable hafen, final Addon owner) {
@@ -161,7 +163,7 @@ final class AssetApi {
 
     /** One cached asset: what it is, the path it was loaded from, and the stable handle that IS its identity. */
     static final class Entry {
-        final String type;        // "image" | "font" | "mesh"
+        final String type;        // "image" | "font" | "mesh" | "data"
         final String path;        // the addon-relative path the FIRST load spelled — what :path() answers
         final LuaValue handle;    // the Lua handle table (interned: the same object on every re-load)
 
@@ -193,6 +195,8 @@ final class AssetApi {
             return newFont(owner, name, key, requireFile(p, name));
         if(ext.equals("glb") || ext.equals("gltf"))
             return newMesh(owner, name, key, requireFile(p, name));
+        if(ext.equals("json") || ext.equals("txt"))
+            return newData(owner, name, key, requireFile(p, name));
         throw new LuaError("hafen.asset: '" + name + "' has no supported extension — hafen.asset loads "
             + EXTS);
     }
@@ -508,6 +512,42 @@ final class AssetApi {
             disposeMesh(lm);           // removes each from a.meshes as it goes (copy-on-write list)
     }
 
+    // ---- data (033.3) --------------------------------------------------------------------------------
+
+    /**
+     * Load a <b>data</b> asset — a {@code .json}/{@code .txt} file this addon ships, read as UTF-8 and handed to
+     * Lua as its {@code :text()}. It is the door a <b>theme</b> comes through ({@code 033-ui-stylesheet}, C1a):
+     * {@code hafen.json.parse(hafen.asset("theme.json"):text())} is a stylesheet as <i>data</i>, its font strings
+     * mapped through {@code hafen.asset} in Lua — an addon whose look is a file, not code.
+     *
+     * <p><b>It hands back the TEXT, not a parsed table</b>, and that is the one canonical way rule doing its job:
+     * reading a file is {@code hafen.asset}, parsing JSON is {@link Json} ({@code hafen.json}), and gluing them is
+     * one Lua call. Parsing here would also make the interned value <b>mutable shared state</b> — every re-load of
+     * the path handing back the same table, one addon's edit visible to its next reader — where a string is
+     * immutable and interning stays honest. Like a font asset it owns nothing releasable, so dropping the cache
+     * entry IS its {@code :dispose()}.
+     */
+    private static LuaValue newData(Addon owner, String name, String key, Path p) {
+        String text;
+        try {
+            text = new String(Files.readAllBytes(p), StandardCharsets.UTF_8);
+        } catch(IOException | RuntimeException e) {
+            throw new LuaError("hafen.asset: could not read '" + name + "': " + e.getMessage());
+        }
+        if(text.startsWith("\uFEFF"))
+            text = text.substring(1);      // a UTF-8 BOM is not JSON: it would fail parse() on the very first char
+        final LuaValue s = LuaValue.valueOf(text);
+        LuaTable h = new LuaTable();
+        h.set("text", new ZeroArgFunction() {
+            public LuaValue call() {return s;}
+        });
+        addAssetVerbs(h, "data", name, owner, key, new Disposer() {
+            public void dispose() { /* data owns nothing releasable — dropping the cache entry IS the dispose */ }
+        });
+        owner.assets.put(key, new Entry("data", name, h));
+        return h;
+    }
+
     // ---- the shared handle surface -------------------------------------------------------------------
 
     /** What one asset type does when its handle is disposed (the type-specific half of {@code :dispose()}). */
@@ -517,7 +557,7 @@ final class AssetApi {
 
     /**
      * Install the verbs <b>every</b> asset carries, whatever its type: {@code :type()} (the dispatch result —
-     * {@code "image"}/{@code "font"}/{@code "mesh"}), {@code :path()} (the addon-relative path it was loaded
+     * {@code "image"}/{@code "font"}/{@code "mesh"}/{@code "data"}), {@code :path()} (the addon-relative path it was loaded
      * from), and {@code :dispose()} (free it now — also automatic on {@code :reload}/disable/relogin, P2).
      *
      * <p>{@code :dispose()} drops the intern entry <b>first</b>, which is what makes "identity is stable while

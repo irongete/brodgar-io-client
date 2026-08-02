@@ -296,3 +296,17 @@
   (which drops an emptied rule, since a rule with no property pushes nothing) keeps every existing toggle
   unchanged at its call site and makes the composition testable. The same shape will be needed again at C2, when
   `bg`/`border`/`pad` arrive.
+- **(033.3) An EMBOSSED surface discards the glyph colour — check the FURNACE, not the foundry, before promising
+  a `color` reaches a site.** 033.2 shipped `Text.Foundry.fixcol` (the sheet's colour outranks the caller's) and
+  the docs were written as "every key takes `color`, except `window.title`". Reading the sites says otherwise:
+  `Window.DefaultDeco` ([Window.java:189](../../../src/haven/Window.java)), `CharWnd.catf`/`GridList.dcatf`
+  (**`heading`**) and `Button.nf` (**`button`**, the ordinary caption) are all
+  `BlurFurn(TexFurn(foundry, ctex), …)`, and `PUtils.TexFurn.proc` calls `tilemod`, which **replaces the RGB with
+  the tiled texture and keeps only the alpha** — so the colour the foundry rendered with never reaches the
+  screen. Three of the eleven keys, not one. `button` is the interesting case because it is **partial**:
+  `Button.render()` picks `nfont()` (the furnace) for a plain caption but `tfont()` (the plain foundry) for a
+  `wrapped()` multi-line caption and for `change(text, col)` — so the same key honours `color` on some of its
+  buttons and ignores it on the rest. The nearby false friend: `world.nick` also post-processes
+  (`blurmask2`), but that is `alphablit(blurred-black-mask, img)` — it composites the ORIGINAL image on top, so
+  colour survives. **The rule: a foundry-level colour survives a blur, not a tile.** Grep `TexFurn` before
+  writing a colour column.

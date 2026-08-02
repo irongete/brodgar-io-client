@@ -125,7 +125,8 @@ role, listing every valid one.
 #### Roles
 
 `:role()` answers what a widget is, or **nil** when nothing classifies it. The names are the same
-vocabulary as the [font scopes](fonts.md) — deliberately, so there is one set of names, not two.
+vocabulary as the stylesheet's [site keys](fonts.md#site-keys) — deliberately, so there is one set of
+names, not two.
 
 | Role | Matches |
 |---|---|
@@ -137,10 +138,10 @@ vocabulary as the [font scopes](fonts.md) — deliberately, so there is one set 
 | `chat` | `ChatUI` and its channels |
 | `menu` | `MenuGrid`, `FlowerMenu` |
 
-**Five font-scope names classify no widget** — `window.title`, `heading`, `tooltip`, `world.nick`,
+**Five site-key names classify no widget** — `window.title`, `heading`, `tooltip`, `world.nick`,
 `world.speech`. They name a *render site*, not a widget: a window's caption is drawn by the window's
-decoration, a tooltip is painted rather than placed, and the world scopes live over the 3D view. They stay
-valid selectors (the vocabulary is shared with fonts, and coverage can grow) but they match nothing.
+decoration, a tooltip is painted rather than placed, and the world sites live over the 3D view. They stay
+valid selectors (the vocabulary is shared with the sheet, and coverage can grow) but they match nothing.
 
 Most widgets have **no** role — layout containers, scroll ports, images, item icons. On a live HUD, 174 of
 625 widgets classified. That is the rule working, not a gap: an unrecognised widget answers `nil` rather
@@ -211,8 +212,8 @@ select once, keep it, and use `:exists()` when you need to know it is still ther
 | `:walk(fn)` | (self) | depth-first visit — `fn(widget, depth)`; **return `false` to prune** that subtree |
 | `:at(coord)` | Widget \| nil | the deepest widget under a `{x=,y=}` **root-coord** point **within this subtree** |
 | `:rootpos()` | `{x=,y=}` \| nil | its top-left in **root coords** (with `:size()` = a rectangle to outline it) |
-| `:setFont(h)` | (self) | restyle **this widget and its whole subtree** with a [font handle](fonts.md) — its siblings keep their font ([F5](fonts.md#restyle-one-widget--widgetsetfonth-f5)) |
-| `:resetFont()` | (self) | drop **your** per-instance override on this widget (it falls back to the scope/`"default"` font) |
+| `:setFont(h)` | (self) | restyle **this widget and its whole subtree** with a [font handle](fonts.md#restyle-one-widget--widgetsetfonth) — its siblings keep their font |
+| `:resetFont()` | (self) | drop **your** per-instance override on this widget (it falls back to the site rule, then the `*` rule) |
 
 **`:id()` is the pivot for acting.** Reading the tree is ungated client-side data. To *act*, read a
 **server-bound** widget's `:id()` and pass it to the gated [`hafen.act.raw(id, msg, …)`](actions.md) with
@@ -560,6 +561,12 @@ end
 The change is **live** — existing text re-renders on the spot — and the sheet is **owned**: it is dropped
 automatically on your addon's `:reload`/disable, so the stock client is always restorable.
 
+**A sheet is an ordinary table, so it can come from anywhere — including a file.** The bundled
+[`theme`](../../../addons/theme) example addon reads a `theme.json` through
+[`hafen.asset`](asset.md#data--text) + [`hafen.json`](json.md) and maps each rule's font descriptor to a
+handle; its Lua never names a surface, a font, a size or a colour. A theme with no code of its own is one
+`:theme on` away.
+
 > `hafen.font.setFont`, `hafen.font.reset` and `hafen.font.scopes` are **gone** — they read as plain `nil`. A
 > font is now one *property* of a rule, and the key is a *selector*, so there is one vocabulary for "which part
 > of the UI" instead of a scope enum beside it. [`hafen.font(name)`](fonts.md#the-built-ins--hafenfontname) is
@@ -569,7 +576,7 @@ automatically on your addon's `:reload`/disable, so the stock client is always r
 ### Site keys — the surfaces this ships
 
 A key is [a selector](#selectors--naming-a-widget), and it resolves one of two ways. A **site key** names a
-place the client *draws*, and is resolved there — these are the twelve that work today:
+place the client *draws*, and is resolved there — these are the eleven that work today:
 
 | Key | What it styles |
 |---|---|
@@ -587,8 +594,9 @@ place the client *draws*, and is resolved there — these are the twelve that wo
 
 Each surface keeps **its own stock size and colour** unless your rule overrides them — one key can front two
 sites with different stocks (`textentry` covers the serif-12 fields *and* the mono-12 wheat command line), and
-both stay native under one rule. See [`hafen.font`](fonts.md#site-keys) for the per-surface notes and geometry
-caveats.
+both stay native under one rule. What each key does with each property is the
+[property × key table](#what-each-key-accepts) below; see [`hafen.font`](fonts.md#site-keys) for the
+per-surface notes and geometry caveats.
 
 ### Tree keys are accepted, and do nothing yet
 
@@ -622,20 +630,59 @@ Two things still win over a rule, and one surface ignores it:
 
 - **`$col[…]` markup inside the text** — it is part of the string, not the site's choice of colour, so a tooltip's
   green/red attribute deltas survive a `["tooltip"]` colour rule.
-- **[`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth-f5)**, which sits above every site rule.
-- **A window caption** (`window.title`) takes its colour from a *texture* tiled over the glyphs, not from the
-  font — so it follows a `font` rule and ignores a `color` one. Not a bug to report; there is nothing there to
-  colour.
+- **[`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth)**, which sits above every site rule.
+- **An embossed surface** — a window caption, a section heading, an ordinary button caption — takes its colour
+  from a *texture* tiled through the glyph mask, not from the font, so it follows a `font` rule and ignores a
+  `color` one. Not a bug to report; there is nothing there to colour. See
+  [what each key accepts](#what-each-key-accepts).
 
 > **A font handle's own `color` does not style a surface.** `hafen.font("serif"):derive{color = {255,0,0}}`
 > installed through `skin{}` (or `widget:setFont`) contributes its family, size and antialiasing — its **colour
-> is ignored**. That colour is for [your own drawing](fonts.md#draw-with-it--your-own-widgets-f2): `g:text`, your
+> is ignored**. That colour is for [your own drawing](fonts.md#draw-with-it--your-own-drawing): `g:text`, your
 > own widgets. One question, "what colour is this surface", has exactly one answer, and it is written in the
 > sheet where you can see it.
 
+### What each key accepts
+
+Both properties are accepted on **every** key — a sheet never errors because a surface cannot use one. What
+differs is what the surface *does* with it, and this is the honest table:
+
+| Key | `font` | `color` | Worth knowing |
+|---|---|---|---|
+| `*` | ✅ | ✅ | cascades to every key you do not write — including the colour |
+| `window.title` | ✅ | ❌ **ignored** | an *embossed* surface: a texture is tiled through the glyph mask, so there is nothing left to tint |
+| `heading` | ✅ | ❌ **ignored** | embossed the same way. Two stock sizes (25 px / 18 px) ride this key and a size-less rule keeps each |
+| `button` | ✅ | ⚠️ **partly** | the ordinary caption is embossed (ignored); a `wrapped` multi-line caption, or one the client sets *with* a colour, follows the rule. Stock is **bold serif 12** — a serif 12 rule installs correctly and looks like nothing happened |
+| `label` | ✅ | ✅ | `size=` clips: row heights were measured at construction |
+| `textentry` | ✅ | ✅ | `size=` clips: a field's height comes from its background texture, not the font |
+| `tooltip` | ✅ | ✅ | `$col[…]` rows keep their own colour; `size=` is safe (a tip sizes its box around its text) |
+| `menu` | ✅ | ✅ | `size=` is safe — a petal re-sizes around its own centre |
+| `chat` | ✅ | ✅ | colour is how you tell area from party from private: one rule paints them alike |
+| `world.nick` | ✅ | ✅ | a `color` rule flattens the kin-**group** colours; a font-only rule leaves them |
+| `world.speech` | ✅ | ✅ | `size=` is safe — the bubble measures its frame around the text every frame |
+| any tree key | — | — | [accepted and inert](#tree-keys-are-accepted-and-do-nothing-yet) until C1b; its *properties* are still validated |
+
+**Where `color` is ignored, it is the same reason every time**: the surface is *embossed* — the client renders
+the text as a mask and tiles a texture through it, then blurs a shadow behind. The glyph colour is discarded
+before anything reaches the screen, so there is nothing for a rule to override. Those surfaces still follow a
+`font` rule perfectly. Nothing is refused and nothing warns: a `color` on such a key is simply inert.
+
+Three more limits are structural rather than per-key, and none of them is a bug to report:
+
+- **Text the client rasterised into a `static` field at class-load** can never follow a rule — the JVM does not
+  re-run a static initialiser. One such row (a tooltip's `Gilding:` heading) is reached by shipping a local copy
+  of that resource's code; see [`hafen.font`](fonts.md#site-keys).
+- **`$col[…]` markup wins over a `color` rule**, everywhere. It is part of the *string*, not the site's choice.
+- **A rule flattens colour that carried meaning.** While `["*"] = {color=…}` is on, a red warning is the same
+  colour as everything else. Style one key rather than `*` when that matters.
+
+Geometry is never changed by a rule: nothing in a sheet resizes a widget. A larger `size=` can still *clip*
+where a surface's box was measured from the stock font — the per-surface notes in
+[`hafen.font`](fonts.md#site-keys) say which ones, and why.
+
 ### Cascade & conflict
 
-Resolution is **most-specific first**: [`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth-f5) → the
+Resolution is **most-specific first**: [`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth) → the
 matching site rule → the `*` rule → the client's stock. So `["*"]` alone changes everything, and any other key
 refines one surface out of that cascade.
 
@@ -676,7 +723,7 @@ cooldown sweep. A bad name simply draws nothing.
 one call in a [loaded font](fonts.md) and/or tint it. A widget's `font =` option supplies the default when a
 call gives none. The string may also carry rich-text markup — `$font[family,sz]{…}` (mix fonts on one line via
 `h:family()`), `$col`, `$b`, `$i`, `$u`, `$size`. Plain text with no font/markup is unchanged. See
-[`hafen.font`](fonts.md#draw-with-it--your-own-widgets-f2).
+[`hafen.font`](fonts.md#draw-with-it--your-own-drawing).
 
 ### Text is cached across frames
 
