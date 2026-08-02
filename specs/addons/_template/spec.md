@@ -9,7 +9,8 @@
 ## Acceptance criteria
 <!-- Each one verifiable IN-GAME by the maintainer. Concrete: what to type/click, what appears. -->
 - [ ] ...
-- [ ] `hello` (or a dedicated example addon) exercises the feature; full regression still passes.
+- [ ] Each task ships its self-checking addon per `specs/addons/TESTING.md`; its run is all
+      `[pass]` (plus any `[manual]` line the maintainer confirms) and every prior suite still is.
 
 ## Out of scope
 - ...

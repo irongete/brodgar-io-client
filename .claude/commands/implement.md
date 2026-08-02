@@ -17,9 +17,12 @@ be in flight in different areas at once, so every invocation names its own.
    which area this is, listing the existing ones. Never guess and never fall back to a default
    — implementing the wrong area's task wastes a whole session.
 3. **Read `specs/<area>/AREA.md`.** It declares the build check, verification procedure, test
-   harness, design rules and commit paths. Everything area-specific comes from there — this
+   protocol, design rules and commit paths. Everything area-specific comes from there — this
    command never assumes them.
-4. **Open your reply with `[area: <area>]`** so the maintainer always sees which area is in play.
+4. **Read the area's test protocol file** (`AREA.md`'s *Test protocol* — for `addons`,
+   `specs/addons/TESTING.md`). It defines what this task must ship as tests and the exact format
+   its results are reported in. Skip only if the area declares `none`.
+5. **Open your reply with `[area: <area>]`** so the maintainer always sees which area is in play.
 
 ## Common rules (non-negotiable)
 
@@ -34,18 +37,24 @@ be in flight in different areas at once, so every invocation names its own.
 
 ## Procedure
 
-1. **Read ONLY:** `specs/<area>/AREA.md` and `specs/<area>/STATE.md` → the active feature →
+1. **Read ONLY:** `specs/<area>/AREA.md`, the test protocol file it names, and
+   `specs/<area>/STATE.md` → the active feature →
    its `tasks.md`, `spec.md` and `plan.md`, **plus** the spec's "Context files" (and the
    task's own "extra context", if any). If `specs/<area>/HANDOFF.md` exists, WARN the
    maintainer: there is a task pending `/end` — do not silently overwrite it.
 2. **Implement the ONE task.** Verify with the area's build check (it must pass), and
    pre-check the logic however `AREA.md` says is feasible.
-3. **Do NOT check the task off, do NOT document, do NOT touch STATE.md** (that is /end's
+3. **Ship the task's tests exactly as the test protocol prescribes** — they are part of the
+   task, not an extra. **Automate everything the API can assert**; only what a program cannot
+   do is left as a `[manual]` line, and each of those states the steps and the expected result.
+4. **Do NOT check the task off, do NOT document, do NOT touch STATE.md** (that is /end's
    job). Write `specs/<area>/HANDOFF.md` (MAX 30 lines): the task · files touched ·
-   decisions made along the way · EXACTLY what the maintainer must test · **"uncovered
+   decisions made along the way · **how to run the task's tests and paste the results back** ·
+   any `[manual]` line that needs a human · **"uncovered
    source"** — any `haven` file you had to read that no `specs/codebase/<subsystem>.md`
    covers, and which subsystem file should absorb it (`/end` writes it).
-4. **STOP and report what to test.** Then stay with the maintainer for as many rounds as it
-   takes: they test, report back, you fix, they retest. Each fix updates `HANDOFF.md` so it
+5. **STOP and report how to run the tests.** Then stay with the maintainer for as many rounds
+   as it takes: they run it and paste the log back, you read every `[fail]` and every answered
+   `[manual]` line, fix, they re-run. Each fix updates `HANDOFF.md` so it
    always describes the CURRENT state. Still only ONE task, still no commit — when the
    maintainer is satisfied they run `/end`.

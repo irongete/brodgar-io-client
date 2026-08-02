@@ -31,13 +31,15 @@
       still colours the addon's own `g:text`; with two addons, the last applied wins, disabling it falls back
       to the other rather than to stock, disabling both restores stock, and `:reload`/relog behave.
 
-- [ ] **033.3 — docs, harness, close.**
+- [ ] **033.3 — docs, the `theme` example, close.**
       `docs/addons/api/fonts.md` rewritten around the sheet — the F-slice history collapses into *a font is a
       sheet property* — and `ui.md` gains `hafen.ui.skin` plus the **property × key table**: what each of the
       eleven sites accepts, what it ignores, and the honest limits (a `static final Tex` baked at class-init
       can never follow an override). Sweep `conventions.md` and `getting-started.md`; both index tables.
       A small **`theme` example addon** carrying a `theme.json`, its font strings mapped through `hafen.asset`
-      in Lua — the proof that a theme needs no code of its own. `hello` version bump + the once-per-login
-      contract check (a site key, `*`, an inert tree key, the two-addon fallback, `setFontGone`).
-      **Verify:** one login re-checks 033 and every prior feature; the `theme` addon restyles the client from
-      its JSON and un-restyles on disable; the link/anchor checker over `docs/addons/` reports 0 broken.
+      in Lua — the proof that a theme needs no code of its own. Plus the task's own suite,
+      `addons/033-ui-stylesheet.3/` per `specs/addons/TESTING.md`: a site key, `*`, an inert tree key, the
+      two-addon fallback and `setFontGone` asserted, with the look of each restyled surface as `[manual]`.
+      **Verify:** the suite's run is all `[pass]` and the `[manual]` lines match; every prior suite (and the
+      frozen `hello`) still passes on the same login; the `theme` addon restyles the client from its JSON and
+      un-restyles on disable; the link/anchor checker over `docs/addons/` reports 0 broken.

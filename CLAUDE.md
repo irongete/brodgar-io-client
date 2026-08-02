@@ -42,7 +42,7 @@ Each command states exactly what to read — read nothing else.
 
 **Work is organized in AREAS**, one folder per area under `specs/` (today: `specs/addons/`).
 Each area owns a `specs/<area>/AREA.md` manifest — docs tier, build check, verification, test
-harness, design rules, commit paths — and everything area-specific comes from there.
+protocol, design rules, commit paths — and everything area-specific comes from there.
 **The area is always stated explicitly** — `/plan <area> <desc>`, `/implement <area> [NNN.X]`,
 `/end <area> [note]` — and each command echoes `[area: <name>]` first. There is no "current
 area" state: several features can be in flight in different areas at once, so nothing is ever
@@ -59,7 +59,9 @@ work), `FEATURES.md` (one line per `NNN-` feature folder), `DECISIONS.md` (→ `
 `LEARNINGS.md` (index of grep-able `learnings/*.md`). The area's public contract is its docs
 tier — for `addons`, `docs/addons/api/` is the `hafen.*` contract; there is no second copy.
 
-**Area `addons` — the `hello` addon (`addons/hello/`) is its standing test + regression harness.** Every task
-extends it to exercise the new feature, so one login re-checks that *all* prior features still work.
-It grows gradually with the project. If a feature is too big or distinct to fold in cleanly,
-**propose a dedicated example addon** instead of bloating `hello`.
+**Area `addons` — testing is governed by `specs/addons/TESTING.md`. READ IT** before writing or
+verifying a task's tests. In short: every task ships its own **self-checking addon**
+(`addons/<NNN>-<feature>.<X>/`) that asserts through the `hafen.*` API it just shipped and prints
+one `[pass]` / `[fail]` / `[manual]` line per check, which the maintainer pastes straight back into
+the conversation. Past suites stay installed and re-run on every login, so one login is still the
+full regression. The details, the output format and the copy-paste skeleton live in that file.

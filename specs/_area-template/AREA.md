@@ -10,7 +10,8 @@
 - **Build check**: <command that must succeed before handing over, and its success string>.
 - **Verification**: <how the maintainer verifies a task: in-game / test suite / manual run.
   State what needs a rebuild or restart and what reloads live>.
-- **Test harness**: <the standing regression target every task extends, or `none`>.
+- **Test protocol**: <the file that defines how a task is tested and how results are reported —
+  e.g. `specs/<name>/TESTING.md`, to be READ before writing or verifying tests — or `none`>.
 - **Design rules**: <the area's non-negotiable design constraints, if any>.
 - **Commit paths** (for `/end`'s single commit): <paths to `git add`, e.g. `src specs`>.
 - **Contract file**: `none — the docs tier IS the contract` (the default; only name a separate

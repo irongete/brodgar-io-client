@@ -23,4 +23,4 @@
 - [testing-tooling.md](learnings/testing-tooling.md) — headless test patterns (`<clinit>` traps, prefs isolation, reflection), jshell, dry-running Lua against a stub bridge, docs link/anchor checking, MSYS/Windows, build/encoding.
 - [profiling.md](learnings/profiling.md) — the client's own frame instrumentation (`uprof`/`rprof`/`gprof`), late GPU timestamps, hot-path rules for the probes and the read surface.
 - [client-limits.md](learnings/client-limits.md) — what the client/protocol CANNOT give (other players' names, absolute vitals, typed quality, buff seconds) — check before promising a surface.
-- [process-method.md](learnings/process-method.md) — task splitting, harness/demo design (`hello` rules), API-design judgement calls, decision-process lessons.
+- [process-method.md](learnings/process-method.md) — task splitting, test/demo design (its pre-034 entries speak of the old single `hello` harness; the protocol is now `TESTING.md`), API-design judgement calls, decision-process lessons.

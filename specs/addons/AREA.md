@@ -14,9 +14,9 @@
 - **Verification**: in-game, by the maintainer. Java (engine) changes require an `ant` rebuild
   **plus a full client restart** — the JVM does not hot-reload; only Lua addon *files* reload
   live with `:reload`. Logic can be pre-checked with `jshell` or the in-game `:lua` REPL.
-- **Test harness**: `addons/hello/` is the standing regression addon — every task extends it so
-  one login re-checks all prior features. If a feature does not fold in cleanly, propose a
-  dedicated example addon instead of bloating `hello`.
+- **Test protocol**: **`specs/addons/TESTING.md` — READ IT** before writing or verifying a task's
+  tests. One self-checking addon per task (`addons/<NNN>-<feature>.<X>/`), asserting through
+  `hafen.*` and printing `[pass]`/`[fail]`/`[manual]` lines the maintainer pastes back.
 - **API design rules**: one canonical way per operation (no dual styles); namespaced `hafen.*`;
   reference-based accessors (`hafen.gob.health(ref)`).
 - **Commit paths** (for `/end`'s single commit): `src docs addons specs` — plus anything else the

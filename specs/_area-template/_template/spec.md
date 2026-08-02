@@ -10,7 +10,7 @@
 <!-- Each one verifiable by the maintainer the way this area's AREA.md defines Verification.
      Concrete: what to run/type/click, what appears. -->
 - [ ] ...
-- [ ] The area's test harness (see AREA.md) exercises the feature; regression still passes.
+- [ ] Each task is tested the way the area's test protocol says (see AREA.md); regression passes.
 
 ## Out of scope
 - ...

@@ -17,8 +17,8 @@ be in flight in different areas at once, so every invocation names its own.
    which area this is, listing the ones that currently have a `HANDOFF.md` pending. Never guess
    and never fall back to a default — this command COMMITS, and the wrong area stages the wrong
    paths and closes the wrong task.
-3. **Read `specs/<area>/AREA.md`.** It declares the docs tier and commit paths used below.
-   Everything area-specific comes from there — this command never assumes them.
+3. **Read `specs/<area>/AREA.md`.** It declares the docs tier, the test protocol and the commit
+   paths used below. Everything area-specific comes from there — this command never assumes them.
 4. **Open your reply with `[area: <area>]`** so the maintainer always sees which area is in play.
 
 ## Common rules (non-negotiable)
@@ -38,7 +38,10 @@ be in flight in different areas at once, so every invocation names its own.
 1. **Read ONLY `specs/<area>/AREA.md` and `specs/<area>/HANDOFF.md`** (+ the maintainer's
    note). If HANDOFF.md does not exist, say so and do nothing.
 2. If the note describes a problem that requires code, **do NOT close**: propose fixing it
-   within the same task or add a new task to the feature's `tasks.md`, and stop.
+   within the same task or add a new task to the feature's `tasks.md`, and stop. The same holds
+   for the task's test run: **a `[fail]` line, or a `[manual]` line whose answer does not match
+   the expected result, is a problem** — read the pasted log before closing anything. If the
+   task shipped no tests where the area's test protocol requires them, it is not closed either.
 3. **Document in ONE tier only — exactly the docs tier `AREA.md` declares**, including the index
    / overview files it names when a new section first ships. **Never create per-task narrative
    notes; no devlog exists.** A new design decision → append the full entry to its

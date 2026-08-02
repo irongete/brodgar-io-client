@@ -18,10 +18,14 @@ be in flight in different areas at once, so every invocation names its own.
    the OK, copy `specs/_area-template/` to `specs/<area>/`, fill its `AREA.md`, and **STOP for
    approval of that AREA.md** before planning anything.
 4. **Read `specs/<area>/AREA.md`.** It declares the docs tier, build check, verification,
-   test harness, design rules and commit paths for this area. Everything area-specific comes
+   test protocol, design rules and commit paths for this area. Everything area-specific comes
    from there — this command never assumes them. Below, "the docs tier", "the build check",
-   "the harness" mean whatever `AREA.md` says.
-5. **Open your reply with `[area: <area>]`** so the maintainer always sees which area is in play.
+   "the test protocol" mean whatever `AREA.md` says.
+5. **Read the area's test protocol file** (`AREA.md`'s *Test protocol* — for `addons`,
+   `specs/addons/TESTING.md`). It defines how a task is tested and how its result is reported;
+   the acceptance criteria you write must be verifiable exactly that way. Skip only if the area
+   declares `none`.
+6. **Open your reply with `[area: <area>]`** so the maintainer always sees which area is in play.
 
 ## Common rules (non-negotiable)
 
@@ -37,7 +41,8 @@ be in flight in different areas at once, so every invocation names its own.
 
 ## Procedure
 
-1. **Read ONLY:** `specs/<area>/AREA.md`, `STATE.md`, `ROADMAP.md`, `FEATURES.md`,
+1. **Read ONLY:** `specs/<area>/AREA.md`, the test protocol file it names, `STATE.md`,
+   `ROADMAP.md`, `FEATURES.md`,
    `DECISIONS.md` (all under `specs/<area>/`). From those, identify and read the relevant
    `specs/<area>/design/` docs (normally 1–3).
    - **Codebase detail: `specs/codebase-map.md` is an INDEX** — read it and open ONLY the 1–2
@@ -60,7 +65,9 @@ be in flight in different areas at once, so every invocation names its own.
      alternatives, one line each. If the design already lives in `design/`, reference it and
      land only deltas.
    - **tasks.md** (MAX 60 lines): checklist `NNN.1`, `NNN.2`, … One task = one session,
-     self-contained, verifiable on its own; a task may carry its own "extra context" line.
+     self-contained, verifiable on its own **through the area's test protocol** (each task
+     carries its own tests, so say what its suite must prove — and what can only be `[manual]`);
+     a task may carry its own "extra context" line.
      If it does not fit the limits, do NOT stretch them: propose splitting the feature.
      The limits are ceilings, not targets.
 3. **Register it**: mark it the active feature in `specs/<area>/STATE.md`, add its line
