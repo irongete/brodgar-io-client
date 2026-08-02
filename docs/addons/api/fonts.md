@@ -160,6 +160,16 @@ restorable. The change is **live** — most existing text re-renders on the spot
 | `"world.nick"` | floating kin names over characters (kin-list members) | **F4 (live)** |
 | `"world.speech"` | speech bubbles over talking characters | **F4 (live)** |
 
+> **The same names have a second consumer.** These scope names are also the **roles** a
+> [UI selector](ui.md#roles) matches on — `hafen.ui.all("button")` finds the widgets whose captions
+> `setFont("button", h)` restyles. One vocabulary, deliberately, so there is not a second set of names to learn.
+> The promotion is not 1:1, and the difference is the point: a scope names a **render site**, a role names a
+> **widget**. `"default"` has no role (its selector twin is `*`); `window` and `inventory` are roles with no scope;
+> and five scopes — `"window.title"`, `"heading"`, `"tooltip"`, `"world.nick"`, `"world.speech"` — are valid
+> selectors that **classify no widget**, because a caption is drawn by its window's decoration, a tooltip is
+> painted rather than placed, and the world scopes live over the 3D view. Restyling them works; selecting them
+> finds nothing, which is the honest answer.
+
 `"default"` is the broad hammer: it **cascades** to every routed surface that has no more-specific override — so
 `setFont("default", h)` changes everything in one call, while a per-scope override refines any one surface. The
 resolution order is **most-specific first**:
@@ -350,7 +360,8 @@ end)
 
 - [`hafen.asset`](asset.md) — the one door for a `.ttf`/`.otf` your addon ships (and every other local file).
 - [`hafen.ui`](ui.md) — the `font=` widget option + the `g:text` draw wrapper take a handle (F2), and a
-  [Widget](ui.md#the-widget-object) carries `:setFont`/`:resetFont` (F5). Drawn text is
+  [Widget](ui.md#the-widget-object) carries `:setFont`/`:resetFont` (F5). The
+  [selector roles](ui.md#roles) are these same scope names, from the other side (widget, not render site). Drawn text is
   [cached across frames](ui.md#text-is-cached-across-frames) per `(string, handle)`; an override change
   invalidates it on the next frame.
 - [`hafen.client`](client.md#textcache) — `profiling():textcache()` reports that cache: entries, texture bytes,

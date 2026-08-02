@@ -1,6 +1,6 @@
 # Learnings — index
 
-> Hard-won, non-obvious facts (428 entries), split by category under `learnings/`. **Never read
+> Hard-won, non-obvious facts (432 entries), split by category under `learnings/`. **Never read
 > the whole set** — pick the 1-2 relevant files below and `grep` them (e.g.
 > `grep -i -B1 -A4 "Loading" learnings/ghosts.md`, or `grep -ri <term> learnings/` when unsure).
 > **Append-only:** new learnings are appended to the matching category file; add an index line
@@ -20,7 +20,7 @@
 - [rendering.md](learnings/rendering.md) — custom images/sprites/billboards, glTF (parse, textures, materials, normals/lighting).
 - [network-data.md](learnings/network-data.md) — `hafen.json`, `hafen.http` (async, allowlist, redirects), hostile-input caps.
 - [fonts.md](learnings/fonts.md) — font provider/scopes, per-site routing patterns, text caches + invalidation, RichText.
-- [testing-tooling.md](learnings/testing-tooling.md) — headless test patterns (`<clinit>` traps, prefs isolation, reflection), jshell, MSYS/Windows, build/encoding.
+- [testing-tooling.md](learnings/testing-tooling.md) — headless test patterns (`<clinit>` traps, prefs isolation, reflection), jshell, dry-running Lua against a stub bridge, docs link/anchor checking, MSYS/Windows, build/encoding.
 - [profiling.md](learnings/profiling.md) — the client's own frame instrumentation (`uprof`/`rprof`/`gprof`), late GPU timestamps, hot-path rules for the probes and the read surface.
 - [client-limits.md](learnings/client-limits.md) — what the client/protocol CANNOT give (other players' names, absolute vitals, typed quality, buff seconds) — check before promising a surface.
 - [process-method.md](learnings/process-method.md) — task splitting, harness/demo design (`hello` rules), API-design judgement calls, decision-process lessons.

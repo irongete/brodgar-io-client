@@ -257,3 +257,15 @@
   Generating a plausible string and trusting it would have been half the code and wrong at exactly the moments that
   matter. The cost is bounded because the enumeration is over parts that exist (3 walks for a plain widget, 7 with a
   title, ≤15 for an item) and it runs on a **hover change**, never per frame.
+- **(030.4) A `design/` doc is historical-at-write-time; a new one SUPERSEDES rather than the set being
+  retro-swept.** `20-widget-introspection.md` still describes `WidgetNode` and `hafen.ui.root()`, and
+  `08-widget-replacement.md` still shows `hafen.ui.onWidgetCreate` — both cut by 029/030. Nothing was edited:
+  `22-ui-selectors.md` states the current model, and the **docs tier** (`docs/addons/api/`) is the one place that
+  must be true *now* (that is what makes it the contract). Sweeping every old design doc on every feature would be
+  unbounded work that destroys the record of what was believed when a decision was made. The rule that keeps this
+  honest: a design doc's header carries its status and the feature it shipped as, so a reader can date it.
+- **(030.4) The docs tier can already be complete before the feature's "docs task" runs.** 030.1–030.3 each landed
+  their own section of `api/ui.md` as they shipped, so 030.4's docs work was the **sweep** (the cross-cutting pages
+  and both index tables), not the section — exactly what STATE had recorded. Writing the reference at the moment
+  the behaviour lands is cheaper than reconstructing it at the close, and it leaves the closing task to do the
+  thing only a closing task can: check that everything *else* still points at the truth.

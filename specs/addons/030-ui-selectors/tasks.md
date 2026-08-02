@@ -33,7 +33,7 @@
       (or an honest `nil`), and the offered selector, pasted into `:lua hafen.ui("…")`, returns that same
       widget (`==`).
 
-- [ ] **030.4 — docs, harness, close.**
+- [x] **030.4 — docs, harness, close.**
       New `specs/addons/design/22-ui-selectors.md` (the standing design doc — C, D and E consume this
       vocabulary). `docs/addons/api/ui.md` gains the grammar, the **role table with its class mapping**,
       `:role()`, the events, and the two rules that are easy to get wrong: `[title=]` resolves against the

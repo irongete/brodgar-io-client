@@ -817,10 +817,130 @@ local function readWidgets(tag)
             tostring(hafen.items), tostring(hafen.ui.adopt)))
 end
 
+-- 030.4: THE SELECTOR CONTRACT, re-checked once per login (and on demand with ':hello selector'). 030 gave 029's ONE
+-- entity the vocabulary to NAME one: a selector is a STRING and hafen.ui IS the lookup (D-056) -- hafen.ui(sel) is the
+-- first match in tree order, hafen.ui.all(sel) every match (an empty array, never nil), hafen.ui() the root. This
+-- asserts the whole grammar in one pass against the LIVE HUD: `*`, a role, @Class, [title=], [res=] and a combination;
+-- the classifier's CENSUS (:role() answers what a widget IS, or an honest nil -- never a guess in place of no answer,
+-- D-067); the two rules that are easiest to get wrong ([title=] resolves against the nearest ENCLOSING WINDOW, so it
+-- reaches the widgets INSIDE it; @Class is an EXACT typeName, not a superclass walk); the five promoted font-scope
+-- names that are valid grammar and classify NOTHING; the parse-error catalogue; an hafen.ui.on() ROUND TRIP, whose
+-- point is D-068 -- registration SCANS the live tree, so `appear` fires for what is ALREADY open, synchronously,
+-- inside the on() call, handing back the very entity a lookup gives; interning, which is why "hold your result" is
+-- free advice; and the two hard cuts (hafen.ui.root, hafen.ui.onWidgetCreate) as plain nil.
+local SEL_ROLES = { "window", "inventory", "button", "label", "textentry", "chat", "menu" }
+local SEL_SITES = { "window.title", "heading", "tooltip", "world.nick", "world.speech" }
+local function readSelectors(tag)
+  local root = hafen.ui()
+  if not root then hafen.log(("[%s] selector: no UI yet"):format(tag)); return end
+  local function why(f, ...)
+    local ok, err = pcall(f, ...)
+    if ok then return "ACCEPTED (BUG)" end
+    return (tostring(err):gsub("^.-%.lua:%d+:%s*", ""))   -- drop the chunk:line prefix, keep the whole message
+  end
+  -- `*` AND THE ROLE CENSUS. ONE walk of the whole tree (never a deep helper per node -- that is O(n^2)), asking
+  -- :role() per widget: the counts below ARE the classifier's answer over a real HUD, and the nil majority is the
+  -- honest one (layout containers, scroll ports, images and item icons are none of these things). `*` matches every
+  -- widget including the root, and tree order is pre-order -- so hafen.ui("*") IS hafen.ui().
+  local every = hafen.ui.all("*")
+  local census, classified = {}, 0
+  for i = 1, #every do
+    local r = every[i]:role()
+    if r then census[r] = (census[r] or 0) + 1; classified = classified + 1 end
+  end
+  local parts = {}
+  for _, r in ipairs(SEL_ROLES) do parts[#parts + 1] = ("%s %d"):format(r, census[r] or 0) end
+  hafen.log(("[%s] selector *: %d widget(s), %d classified (%s), %d nil | ui('*')==ui()=%s interned=%s")
+    :format(tag, #every, classified, table.concat(parts, " "), #every - classified,
+            tostring(hafen.ui("*") == root), tostring(hafen.ui.all("*")[1] == every[1])))
+  -- EACH GRAMMAR ELEMENT, and the first-vs-all contract: hafen.ui(sel) is exactly all(sel)[1] -- never a different
+  -- widget -- and a miss is plain nil, never an error and never an empty stand-in. @Class goes through the same
+  -- typeName :type() reports (Hafen builds most widgets as ANONYMOUS subclasses, so getSimpleName would match almost
+  -- nothing) and is EXACT: the two counts below differ by exactly the Window SUBCLASSES open right now, which is the
+  -- whole reason "any window" is the ROLE and not @Window.
+  local wnds, byCls = hafen.ui.all("window"), hafen.ui.all("@Window")
+  local inv = hafen.ui.inventory()
+  local invByCls = inv and hafen.ui("@" .. inv:type()) or nil
+  hafen.log(("[%s] grammar: window -> %s (#all=%d, first==all[1]=%s) | @Window -> %d (role window=%d: the rest are"
+             .. " SUBCLASSES, @Class does not walk up) | @%s -> %s (==inventory()=%s) | miss 'textentry@Label' -> %s")
+    :format(tag, tostring(hafen.ui("window")), #wnds, tostring(hafen.ui("window") == wnds[1]),
+            #byCls, #wnds, inv and inv:type() or "?", tostring(invByCls),
+            tostring((inv ~= nil) and (invByCls == inv)), tostring(hafen.ui("textentry@Label"))))
+  -- [res=] -- the STABLE key (D-063), and the honest scoping 030.1 measured in-game: NO window on this server carries
+  -- a resource. What does: items (gfx/invobjs/...), the HUD meters, and the chat channels whose code ships inside a
+  -- .res. So [res=] is the right key for everything item-shaped and [title=] the only one for windows -- w:res() is
+  -- how you find out which you are holding, never a client-side alias list.
+  local withRes, meters = 0, hafen.ui.all("[res=gfx/hud/meter]")
+  for i = 1, #every do if every[i]:res() then withRes = withRes + 1 end end
+  hafen.log(("[%s] [res=]: %d of %d widget(s) carry one | [res=gfx/hud/meter] -> %d (first res=%s) | windows with a"
+             .. " res: %d (that is why [title=] is the key for windows)")
+    :format(tag, withRes, #every, #meters, meters[1] and tostring(meters[1]:res()) or "none",
+            (function() local n = 0; for i = 1, #wnds do if wnds[i]:res() then n = n + 1 end end; return n end)()))
+  -- [title=] RESOLVES AGAINST THE NEAREST ENCLOSING WINDOW, not the widget's own text. That is the single easiest way
+  -- to ship a selector engine that looks right and never matches: a bare widget the engine wraps in a titled window
+  -- (an Inventory inside a Hidewnd) has NO caption of its own, so inventory[title=Cupboard] -- the most obvious
+  -- selector anyone will write -- would silently never match. Proof, taken from whatever titled window is open right
+  -- now: the refiner-only selector [title=<cap>] matches the window AND everything INSIDE it, the window first (tree
+  -- order), and window[title=<cap>] narrows back to the window itself.
+  local titled, cap
+  for i = 1, #wnds do
+    local t = wnds[i]:text()
+    if t and t ~= "" then titled, cap = wnds[i], t; break end
+  end
+  if titled then
+    local scoped = hafen.ui.all(("[title=%s]"):format(cap))
+    hafen.log(("[%s] [title=%s]: %d widget(s) inside that window's scope, first==the window itself=%s |"
+               .. " window[title=%s]==it=%s | inventory[title=%s] -> %s (the GRID, one hop below)")
+      :format(tag, cap, #scoped, tostring(scoped[1] == titled), cap,
+              tostring(hafen.ui(("window[title=%s]"):format(cap)) == titled), cap,
+              tostring(hafen.ui(("inventory[title=%s]"):format(cap)))))
+  else
+    hafen.log(("[%s] [title=]: no titled window open right now -- open a cupboard/chest and re-run ':hello selector'")
+      :format(tag))
+  end
+  -- THE FIVE RENDER-SITE ROLES (D-067). They are promoted Fonts.SCOPES names -- ONE vocabulary shared with the font
+  -- system -- but they name a render SITE, not a widget: a caption is drawn by Window.Deco, a tooltip is painted
+  -- rather than placed, and the world scopes live over the 3D view. So they stay VALID GRAMMAR (no error) and match
+  -- NOTHING, because guessing that a Label is a "heading" is exactly the wrong answer.
+  local sites = {}
+  for _, r in ipairs(SEL_SITES) do sites[#sites + 1] = ("%s=%d"):format(r, #hafen.ui.all(r)) end
+  hafen.log(("[%s] render-site roles (valid grammar, classify nothing): %s"):format(tag, table.concat(sites, " ")))
+  -- THE PARSE-ERROR CATALOGUE -- every shape distinguishable, each naming the offending part, and a bad role listing
+  -- every valid one (the one error worth spelling out in full: nobody guesses a role).
+  local function sel(s) return function() return hafen.ui(s) end end
+  hafen.log(("[%s] selector errors: bad role -> %s"):format(tag, why(sel("windo"))))
+  hafen.log(("[%s]                  unclosed [ -> %s"):format(tag, why(sel("window[title=X"))))
+  hafen.log(("[%s]                  bad refiner key -> %s"):format(tag, why(sel("window[caption=X]"))))
+  hafen.log(("[%s]                  refiner twice -> %s"):format(tag, why(sel("window[title=A][title=B]"))))
+  hafen.log(("[%s]                  empty -> %s"):format(tag, why(sel("   "))))
+  hafen.log(("[%s]                  a number -> %s"):format(tag, why(hafen.ui.all, 1)))
+  -- hafen.ui.on() ROUND TRIP (030.2, D-068). "appear" does not mean "was created": registration SCANS the live tree,
+  -- so it fires for every match ALREADY in it -- synchronously, inside this very call, which is why the counter below
+  -- is already set when on() returns. That is the difference that killed onWidgetCreate: a creation feed could never
+  -- fire for a widget that existed before the addon layer was rebuilt, so every :reload lost every open window. The
+  -- payload is the SAME interned entity a lookup hands back, which is what makes `==` the join between the two events.
+  local fired, sawInv = 0, false
+  local watch = hafen.ui.on("inventory", "appear", function(w)
+    fired = fired + 1
+    if w == inv then sawInv = true end
+  end)
+  watch:remove()
+  hafen.log(("[%s] on() round trip: 'inventory' appear fired %d time(s) DURING registration (the live-tree scan --"
+             .. " containers open now: %d), payload==inventory()=%s; handle:remove() dropped the subscription")
+    :format(tag, fired, #hafen.ui.all("inventory"), tostring(sawInv)))
+  -- The hard cuts (D-013): both read as plain nil -- not flattened, not stubbed, no deprecation alias. hafen.ui() IS
+  -- the root (the no-arg collection form is the tree), and a selector IS the discovery primitive.
+  hafen.log(("[%s] selector contract: rootGone=%s onWidgetCreateGone=%s (hafen.ui.root=%s hafen.ui.onWidgetCreate=%s)")
+    :format(tag, tostring(hafen.ui.root == nil), tostring(hafen.ui.onWidgetCreate == nil),
+            tostring(hafen.ui.root), tostring(hafen.ui.onWidgetCreate)))
+end
+
 hafen.events.on("OnEnterWorld", function()
   readWidgets("login")                        -- once per login, like readAssets/readMeters/readBuffs
+  readSelectors("login")                      -- 030.4: the selector contract, same cadence
   hafen.timer.after(3, function()             -- ...and once the inventory/equipment widgets have streamed in
     readWidgets("+3s")
+    readSelectors("+3s")                      -- the HUD is fully built by now: the census is the real one
   end)
 end)
 
@@ -1580,7 +1700,7 @@ local textcacheStress
 local STRESS_POOL, STRESS_PER_FRAME = 2000, 32
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | widget | prof | widgets | passes | textcache")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | widget | selector | prof | widgets | passes | textcache")
     return
   end
   local sub = args[1]
@@ -2046,6 +2166,13 @@ hafen.slash.register("hello", function(args)
       hafen.log((":hello node -> setFont on ONE widget: the '%s' window (%d text bits inside) is now in %s 13 -- caption, labels, list rows and button captions included; every OTHER open window stays stock. Candidates+text counts: [%s]. That is the per-instance override; :hello node again to reset")
         :format(wins[best].name, wins[best].texts, h:family(), table.concat(report, ", ")))
     end
+  elseif sub == "selector" then
+    -- 030.4: re-run the whole selector contract on demand (it also runs once per login and at +3s -- see
+    -- readSelectors above). Worth re-running with a TITLED CONTAINER OPEN: open a cupboard or a chest and the
+    -- [title=] block below reports the real enclosing-window scope, the window first and its grid one hop below.
+    -- To learn a selector for something you are LOOKING at, enable the 'widgetstack' addon and hover it: the
+    -- inspector names the widget's role/class/title/res and offers only selectors it has already resolved.
+    readSelectors("cmd")
   elseif sub == "widget" then
     -- 029.4: re-run the whole widget-entity contract on demand (it also runs once per login and at +3s -- see
     -- readWidgets above). Worth re-running with a CONTAINER OPEN: open a cupboard, a chest or the study window and

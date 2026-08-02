@@ -153,6 +153,22 @@ tells you whether two lookups found the same one. You may **write** only to widg
 (move, resize, destroy); on the client's own the one write is `:hide()`/`:show()`, and it is undone for
 you on reload/disable.
 
+The same string also names a widget that **is not there yet**, so you never have to poll for a window:
+
+```lua
+hafen.ui.on("window[title=Cupboard]", "appear", function(w)
+  hafen.log(("cupboard open: %d item(s)"):format(#w:items()))
+end)
+```
+
+`appear` also fires for what is **already** open when you subscribe, so a `:reload` with the window up still
+reaches your handler.
+
+**Don't guess a selector — hover for it.** Enable the bundled **`widgetstack`** addon and point at any part of the
+client: it reports that widget's role, class, title and resource, and offers the selectors that actually match it
+(each one resolved before it is shown), ready to paste into `:lua`. That is the fastest way to learn the
+vocabulary — see [selectors](api/ui.md#selectors--naming-a-widget).
+
 ## Files your addon ships
 
 Drop an image, a font or a glTF model in your addon's folder and load it with

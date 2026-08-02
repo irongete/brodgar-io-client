@@ -83,6 +83,32 @@ and answers `nil`/empty with `:exists()` false once its widget is gone. What you
 whether your addon created it — see [owned vs borrowed](ui.md#owned-vs-borrowed--which-writes-answer).
 A **server widget id** (`:id()`) is the number the gated [`hafen.act.raw`](actions.md) takes.
 
+### Selector — naming a piece of the UI
+
+Ids and handles address a thing you already have. A **selector** addresses one you can only *describe*: a string
+that names a widget by what it **is**, resolved against the live tree.
+
+```lua
+hafen.ui("window[title=Cupboard]")     -- the first match, or nil
+hafen.ui.all("inventory")              -- every match, in tree order (empty array, never nil)
+```
+
+Three properties make it a convention rather than a lookup helper:
+
+- **One string, three uses.** The same selector names a widget for a lookup (`hafen.ui(sel)`), for a listing
+  (`hafen.ui.all(sel)`) and for something that does not exist yet
+  ([`hafen.ui.on(sel, "appear"|"disappear", fn)`](ui.md#watching-for-a-widget)) — so waiting for a window and then
+  reading it no longer take two different vocabularies.
+- **The vocabulary is shared, not invented.** A selector's **roles** are the same names as the
+  [font scopes](fonts.md#scopes); `w:role()` reports one, or an honest `nil`.
+- **Arity is the verb**, as everywhere else: `hafen.ui(sel)` is one widget, `hafen.ui.all(sel)` is all of them, and
+  `hafen.ui()` with no argument is the root of the whole tree.
+
+The grammar, the role table and the two rules worth knowing before you write one (`[title=]` resolves against the
+*enclosing window*; hold your result rather than re-selecting every frame) are in
+[selectors](ui.md#selectors--naming-a-widget). You never have to guess a role — the bundled `widgetstack` addon
+[tells you by hovering](ui.md#dont-guess--the-inspector-tells-you).
+
 ## Snapshots vs handles
 
 - **Snapshots** are plain Lua tables — point-in-time copies returned by the read APIs

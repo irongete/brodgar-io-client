@@ -4,7 +4,8 @@ The complete `hafen.*` API available to addons. Start with the [conventions](con
 apply everywhere — then jump to a section below. Shared data shapes are in [types](types.md); all
 events are in [events](events.md).
 
-- **[Conventions](conventions.md)** — references, snapshots vs handles, filters, coordinates, gating.
+- **[Conventions](conventions.md)** — references (objects, handles, [UI selectors](conventions.md#selector--naming-a-piece-of-the-ui)),
+  snapshots vs handles, filters, coordinates, gating.
 - **[Data types](types.md)** — every snapshot shape (Gob, Item, Buff, …).
 - **[Events](events.md)** — `hafen.events` + the full event catalogue.
 

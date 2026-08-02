@@ -74,6 +74,21 @@ subscribe to the container itself:
 [`widget:onItemAdded/:onItemRemoved/:onDestroy`](ui.md#the-container-lifecycle). `EquipChanged` above
 stays global because your worn gear is one fixed surface.
 
+### Parts of the UI appearing & disappearing *(not on this bus)*
+
+There is no `WidgetCreated` event, and `hafen.ui.onWidgetCreate` with its `{id, type, place, caption, parentType}`
+descriptor is gone. A widget is not a global fact either — you say *which* one you care about, with the same
+[selector](ui.md#selectors--naming-a-widget) a lookup uses:
+
+```lua
+hafen.ui.on("window[title=Cupboard]", "appear", function(w) hafen.log(#w:items() .. " items") end)
+```
+
+`fn` receives the [Widget](ui.md#the-widget-object) itself, and **`appear` also covers what is already open** —
+registering scans the live tree — so an addon reloaded with the window up still sees it. See
+[watching for a widget](ui.md#watching-for-a-widget) for the two rules that matter: neither event is about
+*visibility*, and at `disappear` the widget is a key to match, not something to read.
+
 ### Roster, quests, markers
 
 | Event | Payload | Fires |

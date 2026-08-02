@@ -255,3 +255,15 @@
   and `:pos(x,y)`/`:size(w,h)`/`pack()` are assertable on it. 49/49 on top of 029.1's off-screen `UI` recipe,
   including the relog guard (build a SECOND `UI`, point `AddonManager.ui` at it, assert the restore is skipped).
   `LuaValue.method(name, a, b)` is the 3-arg colon call — no need to hand-build a `Varargs` for a two-arg verb.
+- **(030.4) A `hello` harness function can be dry-run against a STUB `hafen` bridge, with no client and no engine.**
+  `jshell --class-path lib/brodgar/luaj-jse-3.0.1.jar` + `JsePlatform.standardGlobals()`: `g.loadfile(path)` alone
+  is a syntax check for every addon (it compiles without executing), and `sed`-ing the one function out of
+  `main.lua` in front of a 40-line fake `hafen.ui` (a callable table over a 5-widget array) runs it for real. That
+  catches the failure mode this kind of code actually has — a `string.format` whose argument count drifted from its
+  placeholders, which throws at the *end* of a long log line and would otherwise surface as a broken login. Every
+  branch of a 100-line contract check verified in seconds, before the maintainer ever logs in.
+- **(030.4) In a GitHub anchor slug an em dash DROPS ENTIRELY — ` — ` becomes `--`, not `---`.** The link/anchor
+  checker over `docs/addons/` reported 36 false positives until the slugger stopped mapping `—`/`–` to `-`:
+  spaces become dashes, every punctuation character (dash included) is deleted. So `## Selectors — naming a
+  widget` is `#selectors--naming-a-widget`, and the double dash that looks like a typo in the link is the
+  correct spelling. Same rule explains `#the-built-ins--hafenfontname` from `` ## The built-ins — `hafen.font(name)` ``.
