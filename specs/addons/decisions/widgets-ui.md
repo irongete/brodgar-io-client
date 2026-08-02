@@ -216,3 +216,30 @@ that one method, not addons. The same discipline governs `resName` (three real s
 **See.** [22 · the selector grammar](../030-ui-selectors/spec.md), [D-061](architecture-api.md) (the API's vocabulary
 comes from the engine), [D-063](architecture-api.md) (an entity's key is what the engine publishes),
 [21-fonts.md](../design/21-fonts.md) (the scope table this inverts).
+
+### D-068 — a discovery primitive answers for what is already there, not only for what happens next
+
+**Context.** `hafen.ui.onWidgetCreate(fn)` was a **creation feed**: it fired from the widget-placement seam, for
+widgets placed from that moment on. That is the correct shape for an event and the wrong shape for the question
+addons actually ask — *"give me the cupboard"* — because the most common moment an addon starts asking is a
+`:reload`, and a `:reload` recreates nothing. Every window already open was invisible to the addon that had just
+been edited to look for it. `hello` carried a comment apologising for exactly this, and `replace` had already been
+forced to work around it with a one-off scan at registration ([`scanForReplace`](src/io/brodgar/addon/UiApi.java)).
+
+**Decision.** `hafen.ui.on(selector, "appear"|"disappear", fn)` (030.2) makes that scan **the rule, not a
+workaround**: registering walks the live tree once and fires `appear` for every current match, inside the
+registration call. "Appear" therefore means *"is in the tree, as of now"* rather than *"entered the tree while you
+were watching"* — a state, reached either way, not an edge. `disappear` records those same matches silently, which
+is what lets a window opened before the subscription still report its close.
+
+**Consequences.** An addon never writes the "was it already there?" branch, which was the single most repeated
+piece of boilerplate in the old descriptor idiom — `hello`'s inventory handoff is now nine lines with no fallback
+door, and it survives `:reload`. The cost is one tree walk per subscription, paid once at registration, against a
+per-tick diff of the whole tree (the discarded alternative) — and it is the same walk `hafen.ui.all` already does.
+The rule generalises to anything else that hands out live entities: **B3**'s replacement, **C**'s stylesheet and
+**E**'s layout all address a tree that exists before the addon does. What a discovery primitive must never do is
+make the addon responsible for the difference.
+
+**See.** [D-024](#d-024) (the descriptor this replaces), [D-012](architecture-api.md) (one entry point per distinct
+input), [D-056](architecture-api.md) (arity is the verb), [`030-ui-selectors/plan.md`](../030-ui-selectors/plan.md)
+§5, [learnings/ui-widgets.md](../learnings/ui-widgets.md) (why `disappear` fires at the server destroy).

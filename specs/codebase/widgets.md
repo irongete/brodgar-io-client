@@ -1,6 +1,6 @@
-# Subsystem: widget system (tree, creation seams, introspection, drops)
+# Subsystem: widget system (tree, create/destroy seams, introspection, drops)
 
-> `file:line` anchors: tree, creation path, introspection, drops, per-frame cost. Lines are indicative —
+> `file:line` anchors: tree, creation + destruction paths, introspection, drops, per-frame cost. Lines are indicative —
 > the **class + method/field name is the stable anchor**. Max 70 lines.
 
 ## Core tree
@@ -17,6 +17,15 @@
 | Window chrome / CPU-buffered base | [`Window`](src/haven/Window.java:35) · [`SIWidget`](src/haven/SIWidget.java) |
 | 2D drawing context | [`GOut`](src/haven/GOut.java) (image/text/rect/line/prect/chcolor) |
 | Modal mouse capture (drag) | [`UI.grabmouse(Widget)`](src/haven/UI.java:575) / [`UI.grab`](src/haven/UI.java:538) |
+| **Server → widget destroy** ← lifecycle seam | [`UI.destroy(int)`](src/haven/UI.java:665) (shadow-children first, then a `DstWidget` command) → [`UI.destroy(Widget)`](src/haven/UI.java:622) = [`removeid`](src/haven/UI.java:603) (recursive unbind) **then** `reqdestroy()` |
+| Leaving the tree | [`Widget.destroy`](src/haven/Widget.java:586) → [`remove`](src/haven/Widget.java:570) (`unlink()`, `parent.cdestroy(this)`, **`parent = null`**) + `rdispose()` |
+| **The override that breaks the sequence** | [`Window.reqdestroy`](src/haven/Window.java:609) — starts a hide *animation* (`animst = "dest"`) instead of removing; also [`Buff`](src/haven/Buff.java:190) |
+
+**Destroy gotcha.** Unbind and unlink are **not** simultaneous: `removeid` runs first, and for a `Window` the
+removal is deferred to the end of a fade. So a closing window has `getwidget(id) != wdg` while `hasparent(root)` is
+still true and its reads still answer. Any liveness/lifecycle check over widgets needs the **two-branch** test — by
+id when server-bound, by reachability otherwise — or it fires a whole animation late (or, on `hasparent` alone for
+a client-only widget, not at all sooner).
 
 ## Tick & draw traversal (the two recursion seams)
 

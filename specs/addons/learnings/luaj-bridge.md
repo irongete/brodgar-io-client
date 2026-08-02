@@ -195,3 +195,10 @@
   int` — a type error that says nothing about the shadowing that caused it. The same trap is waiting for any
   helper named after a `LuaValue` member (`len`, `call`, `get`, `set`, `method`, `tostring`). Name the helper
   for the domain (`typeName(Widget)`), not for the Lua method it backs.
+- **(030.2) An interned userdata is a valid, identity-stable Lua TABLE KEY** — `state[widget] = …` works, which is
+  what makes a two-event API (`appear`/`disappear`) usable without inventing an id. LuaJ's `LuaUserdata` overrides
+  both `hashCode()` (→ the wrapped Java object's) and `raweq` (→ same metatable + `m_instance.equals`), and our
+  wrapper types (`LuaWidget`, …) override neither, so both reduce to Java identity — and interning means the same
+  widget always yields the same `LuaValue` anyway. Verified against `luaj-jse-3.0.1.jar` with `javap` rather than
+  assumed: a wrapper that DID override `equals`/`hashCode` (e.g. one keyed by a snapshot's fields) would silently
+  collapse distinct entities into one table slot.

@@ -116,7 +116,7 @@ public final class AddonRegistry {
         HookApi.teardownActionHooks(a);   // 2d: unregister action hooks from the outbound-wdgmsg dispatch map
         HookApi.teardownMessageHooks(a);  // 2e-1: unregister message hooks from the inbound-uimsg dispatch map
         HookApi.teardownKeyBinds(a);      // 2e-2: unregister global hotkeys from the GlobKeyEvent dispatch list
-        UiApi.teardownWidgetObservers(a);   // 3a: unregister widget-creation observers from the placement dispatch list
+        UiApi.teardownSelectorWatches(a);    // 030.2: drop the selector subscriptions (no disappear — reload != destroy)
         UiApi.teardownReplacers(a);         // 3c: stop the replacers matching (models un-hidden above, views destroyed above)
         HookApi.teardownSlashCommands(a); // A11: drop the addon's live slash handlers (Console dispatchers stay — C1)
         RenderApi.teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)

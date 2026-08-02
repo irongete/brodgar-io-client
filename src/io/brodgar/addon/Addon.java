@@ -84,13 +84,15 @@ public final class Addon {
      */
     public final List<LuaKeyBind> keybinds = new CopyOnWriteArrayList<LuaKeyBind>();
     /**
-     * Live widget-creation observers owned by this addon ({@code hafen.ui.onWidgetCreate}, Phase 3a): each runs a
-     * Lua handler for every server widget as it is placed into the tree (spec 08's creation seam). They live in a
-     * flat global dispatch list in {@link AddonManager} (an observer watches EVERY creation, not one keyed
-     * target); teardown marks each dead and drops it from that list (principle P2) — like an action/message hook
-     * there is no widget to deafen. Copy-on-write: a firing observer may {@code :remove()} itself mid-dispatch.
+     * Live selector subscriptions owned by this addon ({@code hafen.ui.on(sel, "appear"|"disappear", fn)}, 030.2 —
+     * what replaced {@code hafen.ui.onWidgetCreate} and its descriptor): each watches the whole tree for widgets
+     * matching one {@link Selector}, fired from the placement seam and from the per-tick poll. They live in a flat
+     * global dispatch list in {@link UiApi} (a subscription watches the whole tree, not one keyed target);
+     * teardown ({@link UiApi#teardownSelectorWatches}) marks each dead and drops both copies <b>without firing</b>
+     * — a {@code :reload}/disable is not a destroy, exactly as for {@link #itemWatches}. Copy-on-write: a firing
+     * handler may subscribe or {@code :remove()} itself mid-dispatch.
      */
-    public final List<LuaWidgetObserver> widgetObservers = new CopyOnWriteArrayList<LuaWidgetObserver>();
+    public final List<LuaSelectorWatch> selectorWatches = new CopyOnWriteArrayList<LuaSelectorWatch>();
     /**
      * Live replaced widget models owned by this addon ({@code hafen.ui.replace}, Phase 3c — {@code hafen.ui.adopt}
      * was deleted by 029.2, so this is now reached only through a replacer): each wraps a live
@@ -125,7 +127,7 @@ public final class Addon {
      * Live widget replacers owned by this addon ({@code hafen.ui.replace}, Phase 3c): each watches for a server
      * widget matching a descriptor (by type/context/caption), then adopts it as a hidden {@link LuaModel} and
      * hands the addon a custom view — "wrap, don't reimplement" (D-009). They live in a flat global dispatch list
-     * in {@link AddonManager} (consulted at widget placement, like {@link #widgetObservers}) and also scan the live
+     * in {@link AddonManager} (consulted at widget placement, like {@link #selectorWatches}) and also scan the live
      * tree once at registration to catch an already-open target (the {@code :reload} case). Teardown marks each dead
      * and drops it from that list (principle P2); the adopted models are un-hidden by {@link AddonManager}'s model
      * teardown and the views destroyed with the rest of {@link #widgets}. Copy-on-write: a firing replacer may

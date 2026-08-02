@@ -47,8 +47,9 @@
 -- INVENTORY: the 'bags' hotkey hides/shows its grid with w:hide()/:show() — the ONE write that answers on a native
 -- widget — and the reads keep working, and :reload/disable gives the grid back. Item
 -- MUTATING verbs (take/drop/transfer/use) are NOT here — they are gameplay actions (the gated Phase-4 tier).
--- Built on 3a WIDGET-CREATION INTERCEPTION — hafen.ui.onWidgetCreate(fn) observes the server's OWN UI as the
--- client builds it (fn(desc) runs per server widget; desc = {id,type,place,caption,parentType}). It also demonstrates GLOBAL HOTKEYS —
+-- Built on 030.2 SELECTOR EVENTS — hafen.ui.on(selector, "appear"|"disappear", fn) watches the client's OWN UI for
+-- a part of it, named with the same selector a lookup uses, and hands the callback the Widget ENTITY (the old
+-- hafen.ui.onWidgetCreate and its {id,type,place,caption,parentType} descriptor are GONE). It also demonstrates GLOBAL HOTKEYS —
 -- hafen.client:options():keybindings():register(name, fn) declares a remappable, persisted hotkey (over the
 -- client's KeyBinding registry) that fires when no widget consumed the keypress first; here 'toggle' shows/hides
 -- the custom window, plus 'ping'. Addon hotkeys start UNBOUND: this addon's "Hello" section under
@@ -726,8 +727,8 @@ end
 -- 3b/029.3: CONTAINER READS + EVENTS, with NOTHING HIDDEN. hafen.ui.adopt is GONE (029.2) and with it the whole
 -- "take the window over to look inside it" trade: hafen.ui.inventory() hands back the Widget entity for the main
 -- backpack, w:items() reads it while the grid is VISIBLE and INTERACTIVE, and the lifecycle events are subscribed
--- on the entity itself (w:onItemAdded/:onItemRemoved/:onDestroy, wired in the onWidgetCreate observer below to
--- keep the 3a -> read handoff). The property that made a hidden model work still holds and is now just a bonus: a
+-- on the entity itself (w:onItemAdded/:onItemRemoved/:onDestroy, wired in the hafen.ui.on("inventory","appear")
+-- subscription below to keep the discover -> read handoff). The property that made a hidden model work still holds and is now just a bonus: a
 -- hidden server widget stays bound to its id, so the reads and the events keep working with the grid hidden too
 -- (the 'bags' hotkey proves it). Like the rest of the inventory data, items stream in a beat after enter-world,
 -- so this is read at now (often 0) and +3s.
@@ -1181,64 +1182,93 @@ hafen.events.on("WoundChanged", function(list)
   end
 end)
 
--- 3a: WIDGET-CREATION INTERCEPTION (hafen.ui.onWidgetCreate). Observe the server's OWN UI as the client builds
--- it — the foundation for replacing native windows (a bag/inventory reskin, etc.). fn(desc) runs for every
--- SERVER widget as it is placed into the tree, with desc = {id, type, place, caption, parentType} (the targeting
--- descriptor): the inventory is {type="inv", place="inv", parentType="GameUI"}; a cupboard is {type="wnd",
--- place="misc", caption="Cupboard", parentType="GameUI"}. A HUD-placed window reports parentType="GameUI"; item
--- widgets streaming into an inventory report their container instead — so we log only HUD-level widgets + any
--- titled window/container (the interesting replace targets), skipping the item churn. This slice is OBSERVE-ONLY
--- (adopting a widget as a hidden MODEL and drawing a custom VIEW over it comes in a later slice); the return is
--- ignored. Registered in the FILE BODY (no live target needed) so it also catches the burst of windows created
--- at login. Bridge-owned: :reload/disable removes it (the handle also exposes :remove()). VERIFY in-game: open a
--- cupboard/chest or a crafting window and a "3a:" line carrying its caption should appear.
-local widgetsSeen = 0
-hafen.ui.onWidgetCreate(function(desc)
-  local hud = desc.parentType == "GameUI"            -- HUD-placed windows (inv/equ/chr/craft/containers/…)
-  if not (hud or desc.caption) then return end        -- skip item/nested widgets (no caption, non-GameUI parent)
-  widgetsSeen = widgetsSeen + 1
-  if widgetsSeen <= 20 or desc.caption then           -- cap the login burst; always log a titled window/container
-    hafen.log(("3a: widget created id=%s type=%s place=%s parent=%s caption=%s")
-      :format(tostring(desc.id), tostring(desc.type), tostring(desc.place),
-              tostring(desc.parentType), tostring(desc.caption)))
-  end
-
-  -- 3b/029.3: when the MAIN inventory ({type="inv", place="inv", parentType="GameUI"}) is built, take the Widget
-  -- ENTITY for it (hafen.ui.node(desc.id)) and SUBSCRIBE to its item lifecycle -- the observe -> read handoff that
-  -- used to be observe -> adopt. Nothing is hidden and nothing is taken over: the grid stays visible and usable
-  -- while we read it. Subscribing IS the registration (an unwatched widget is never polled), and passing nil to
-  -- any of the three verbs unsubscribes. NB :reload does NOT recreate the existing inventory, so this observer
-  -- won't re-fire for it -- but hafen.ui.inventory() finds it anyway (which is why readBags falls back to that
-  -- door, and the 'bags' hotkey uses it). onDestroy fires if the widget ever leaves the tree.
-  if desc.type == "inv" and desc.place == "inv" and desc.parentType == "GameUI" and not invWdg then
-    invWdg = hafen.ui.node(desc.id)
-    if invWdg then
-      hafen.log(("3b: watching the main inventory (id=%s, %s) -- items read with NOTHING hidden; the 'bags' hotkey"
-                 .. " hides/shows the grid and the reads keep working"):format(tostring(desc.id), tostring(invWdg)))
-      invWdg:onItemAdded(function(item)
-        itemsAdded = itemsAdded + 1
-        if bagsReady or itemsAdded <= 3 then          -- initial fill: first few only; after +3s: every live add
-          hafen.log(("3b: item ADDED to inventory: %s x%s (total seen %d)%s")
-            :format(tostring(item.name or item.res), tostring(item.num or 1), itemsAdded,
-                    (invWdg and not invWdg:visible()) and " [grid hidden -- still readable]" or ""))
-        end
-      end)
-      invWdg:onItemRemoved(function(item)
-        itemsRemoved = itemsRemoved + 1
-        if bagsReady or itemsRemoved <= 3 then
-          hafen.log(("3b: item REMOVED from inventory: %s (total seen %d)%s")
-            :format(tostring(item.name or item.res), itemsRemoved,
-                    (invWdg and not invWdg:visible()) and " [grid hidden -- still readable]" or ""))
-        end
-      end)
-      invWdg:onDestroy(function()
-        hafen.log("3b: the inventory widget left the tree (server destroy)")
-        invWdg = nil
-      end)
-    end
+-- 030.2: SELECTOR EVENTS (hafen.ui.on). WATCH the client's own UI for a part of it, named with the SAME selector a
+-- lookup uses -- hafen.ui.onWidgetCreate and its {id, type, place, caption, parentType} descriptor are HARD CUT,
+-- and with them the second vocabulary you had to learn to say "wait for the cupboard". fn(w) receives the Widget
+-- ENTITY (029): the very value hafen.ui(sel) hands back, interned -- so `==` identifies it and a plain Lua table
+-- keyed by it carries state across the two events (used below to remember a window's title).
+--   "appear"    -- a matching widget was PLACED into the tree, or was ALREADY in it when you subscribed:
+--                  registration scans the live tree once, which is exactly what the old observer could NOT do
+--                  (a :reload lost every window that was already open -- see the inventory handoff below).
+--   "disappear" -- a widget that had matched is GONE, where GONE means the SERVER destroyed it (its id stops
+--                  resolving): the moment it stops being REAL, not the moment it stops being DRAWN. A Window only
+--                  starts a fade-out when it is destroyed, so it lingers in the tree -- unbound and still
+--                  readable -- for the length of that animation, which is why the line below can print
+--                  exists=true. Take the entity as a KEY to match against what you kept at appear; do not count
+--                  on reading it (a client-only widget really is gone by then).
+-- Neither is about visibility: a window the client merely HIDES (the inventory's Tab toggle) never left the tree,
+-- so it fires neither -- that is a property of the tree, and the honest answer. One event per call.
+-- Bridge-owned: :reload/disable drops the subscription and fires NOTHING (a reload is not a destroy); the handle
+-- also exposes :remove(). VERIFY in-game: open a cupboard/chest -> one "window APPEARED" line naming it, plus one
+-- from the [title=] subscription; close it -> exactly one "DISAPPEARED" of each, naming the same window.
+local windowsSeen, windowsGone = 0, 0
+local wndTitle = {}                                   -- Widget entity -> its title at appear (a stable table key)
+hafen.ui.on("window", "appear", function(w)
+  windowsSeen = windowsSeen + 1
+  local title = w:text()                              -- may be nil here: a .res window's caption can land a tick late
+  wndTitle[w] = title
+  if windowsSeen <= 20 or title then                  -- cap the login burst; always log a titled window
+    hafen.log(("030.2: window APPEARED %s role=%s title=%s res=%s (%d seen)")
+      :format(tostring(w), tostring(w:role()), tostring(title), tostring(w:res()), windowsSeen))
   end
 end)
-hafen.log("3a: onWidgetCreate observer installed -- open a cupboard/chest or a crafting window to see it log")
+hafen.ui.on("window", "disappear", function(w)
+  windowsGone = windowsGone + 1
+  hafen.log(("030.2: window DISAPPEARED %s title=%s -- server-destroyed (id gone); still fading: intree=%s text=%s;"
+             .. " %d seen / %d gone")
+    :format(tostring(w), tostring(wndTitle[w]), tostring(w:exists()), tostring(w:text()), windowsSeen, windowsGone))
+  wndTitle[w] = nil
+end)
+
+-- The same, with a [title=] REFINER -- the case the bounded re-check exists for. A caption arrives by uimsg, so a
+-- window can be placed a tick or two BEFORE it is titled; a candidate that matches the selector's structure but
+-- not yet its refiner is re-offered for a bounded number of ticks, so this fires exactly ONCE, not zero times and
+-- not twice. Remember: [title=] resolves against the nearest enclosing Window (030.1), which is why "window" is
+-- the role here and "inventory[title=Cupboard]" would hand you the GRID inside that same window.
+for _, cap in ipairs({ "Cupboard", "Chest" }) do
+  hafen.ui.on(("window[title=%s]"):format(cap), "appear", function(w)
+    hafen.log(("030.2: [title=%s] APPEARED %s -- %d item(s) inside, grid=%s")
+      :format(cap, tostring(w), #w:items(), tostring(hafen.ui(("inventory[title=%s]"):format(cap)))))
+  end)
+  hafen.ui.on(("window[title=%s]"):format(cap), "disappear", function(w)
+    hafen.log(("030.2: [title=%s] DISAPPEARED %s"):format(cap, tostring(w)))
+  end)
+end
+
+-- 3b/029.3: the discover -> read handoff. Every open container carries the `inventory` role, so pick the player's
+-- OWN backpack by identity (hafen.ui.inventory() is the same interned entity, 029.3) and SUBSCRIBE to its item
+-- lifecycle. Nothing is hidden and nothing is taken over: the grid stays visible and usable while we read it.
+-- Subscribing IS the registration (an unwatched widget is never polled), and passing nil to any of the three verbs
+-- unsubscribes. NB this is where 030.2 beats the old observer outright: a :reload does NOT recreate the existing
+-- inventory, so onWidgetCreate never re-fired for it -- the registration SCAN finds it anyway, so the handoff now
+-- survives a reload. onDestroy fires if the widget ever leaves the tree.
+hafen.ui.on("inventory", "appear", function(w)
+  if invWdg or w ~= hafen.ui.inventory() then return end   -- containers also have this role; we want the player's own
+  invWdg = w
+  hafen.log(("3b: watching the main inventory (id=%s, %s) -- items read with NOTHING hidden; the 'bags' hotkey"
+             .. " hides/shows the grid and the reads keep working"):format(tostring(w:id()), tostring(invWdg)))
+  invWdg:onItemAdded(function(item)
+    itemsAdded = itemsAdded + 1
+    if bagsReady or itemsAdded <= 3 then              -- initial fill: first few only; after +3s: every live add
+      hafen.log(("3b: item ADDED to inventory: %s x%s (total seen %d)%s")
+        :format(tostring(item.name or item.res), tostring(item.num or 1), itemsAdded,
+                (invWdg and not invWdg:visible()) and " [grid hidden -- still readable]" or ""))
+    end
+  end)
+  invWdg:onItemRemoved(function(item)
+    itemsRemoved = itemsRemoved + 1
+    if bagsReady or itemsRemoved <= 3 then
+      hafen.log(("3b: item REMOVED from inventory: %s (total seen %d)%s")
+        :format(tostring(item.name or item.res), itemsRemoved,
+                (invWdg and not invWdg:visible()) and " [grid hidden -- still readable]" or ""))
+    end
+  end)
+  invWdg:onDestroy(function()
+    hafen.log("3b: the inventory widget left the tree (server destroy)")
+    invWdg = nil
+  end)
+end)
+hafen.log("030.2: selector subscriptions installed -- open a cupboard/chest to see appear/disappear log")
 
 -- 2a: CUSTOM UI (hafen.ui). Create a small DRAGGABLE window that draws live state through the GOut
 -- wrapper `g` and counts clicks — the Phase 2 "draggable custom window" DoD. The window is bridge-owned

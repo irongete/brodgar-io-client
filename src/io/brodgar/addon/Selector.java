@@ -202,6 +202,16 @@ final class Selector {
      * may have to resolve a resource. Must be called under the {@code ui} monitor (it reads the tree).
      */
     boolean matches(Widget w) {
+        return matchesStructure(w) && matchesRefiners(w);
+    }
+
+    /**
+     * The <b>structural</b> half — role and class, both derived from the widget's Java type and therefore fixed for
+     * its whole life. 030.2's event seam splits the match here: a widget that fails this can never start matching,
+     * while one that passes it but fails a refiner ({@link #late}) may simply not have its caption yet, and is worth
+     * re-checking for a bounded number of ticks.
+     */
+    boolean matchesStructure(Widget w) {
         if(w == null)
             return false;
         if(role != null) {
@@ -211,6 +221,11 @@ final class Selector {
         }
         if((cls != null) && !cls.equals(LuaWidget.typeName(w)))
             return false;
+        return true;
+    }
+
+    /** The refiner half — {@code [title=]} (exact, against the enclosing window) and {@code [res=]} (substring). */
+    private boolean matchesRefiners(Widget w) {
         if(title != null) {
             String cap = windowTitle(w);
             if((cap == null) || !title.equals(cap))
@@ -222,6 +237,15 @@ final class Selector {
                 return false;
         }
         return true;
+    }
+
+    /**
+     * Does this selector carry a refiner that can land <b>after</b> the widget is placed? A caption arrives by
+     * {@code uimsg} and a resource resolves asynchronously, so both {@code [title=]} and {@code [res=]} can be
+     * absent at placement time and present a tick later — which is what 030.2's bounded re-check exists for.
+     */
+    boolean late() {
+        return (title != null) || (res != null);
     }
 
     /**

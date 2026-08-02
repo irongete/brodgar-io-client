@@ -324,16 +324,40 @@ end)
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.ui.onWidgetCreate(fn)` | [`{ :remove() }`](#overlay--observer-handles) | `fn(desc)` for every server widget as it is placed |
+| `hafen.ui.on(selector, event, fn)` | [`{ :remove() }`](#overlay--observer-handles) | `fn(widget)` when a widget matching a [selector](#selectors--naming-a-widget) appears or disappears |
 | `hafen.ui.replace(type, opts, fn)` | [`{ :remove() }`](#overlay--observer-handles) | replace a native window with your own view |
 
-### The widget descriptor
+### Watching for a widget
 
-`onWidgetCreate`'s `fn(desc)` receives `desc = { id, type, place, caption, parentType }` — e.g. the
-inventory is `{ type = "inv", place = "inv", parentType = "GameUI" }`; a cupboard is
-`{ type = "wnd", place = "misc", caption = "Cupboard", parentType = "GameUI" }`. Any field may be
-absent. This is observe-only (the return is ignored). To *read* the widget it describes, pass its `id` to
-[`hafen.ui.node(id)`](#the-widget-object); to take it over, `replace` it.
+`hafen.ui.on(selector, event, fn)` is how you wait for a part of the client's UI — named with the same
+[selector](#selectors--naming-a-widget) a lookup uses, and handed back as the same interned
+[Widget](#the-widget-object), so `==` and a Lua table keyed by it work across both events. `event` is one
+of two strings, and a subscription carries exactly one (subscribe twice to watch both):
+
+| Event | Fires when |
+|---|---|
+| `"appear"` | a matching widget is placed into the tree — **or is already in it when you subscribe** |
+| `"disappear"` | a widget that had matched is destroyed |
+
+```lua
+hafen.ui.on("window[title=Cupboard]", "appear", function(w)
+  hafen.log(("cupboard open: %d item(s)"):format(#w:items()))
+end)
+```
+
+Three things worth knowing:
+
+- **`appear` covers what is already open.** Registering scans the live tree once, so an addon reloaded
+  with a window open still sees it — you never have to handle "was it there before me?" yourself.
+- **Neither event is about visibility.** They track the *tree*: a window the client merely hides (the
+  inventory's Tab toggle) never left, so it fires neither.
+- **At `disappear`, treat the widget as a key, not as something to read.** It fires when the widget stops
+  being *real* (the server destroyed it), which is not when it stops being *drawn* — a window plays a
+  fade-out on close, so it lingers in the tree, readable, for the length of that animation. Match it
+  against what you kept at `appear`; keep the data you need from there.
+
+A `[title=]`/`[res=]` selector still fires exactly once for a window whose caption arrives a tick after
+the window itself — such a candidate is re-checked for a short while rather than dropped.
 
 ### Replacing a native window
 
@@ -349,7 +373,11 @@ on it while your view is up. The native window it hides is the **enclosing** one
 that.
 
 `opts` (all optional): `context` (`"main"` = the main inventory), `caption` (an exact window title),
-`match` (a predicate `match(desc)` over the [descriptor](#the-widget-descriptor)).
+`match` (an escape-hatch predicate `match(desc)`). `desc = { id, type, place, caption, parentType }` — the
+server's own view of a widget at the moment it is placed, e.g. the inventory is
+`{ type = "inv", place = "inv", parentType = "GameUI" }`; any field may be absent. It survives here only
+because `replace` matches *before* the widget is in the tree; to find a widget that exists, use a
+[selector](#selectors--naming-a-widget).
 
 ```lua
 hafen.ui.replace("inv", { context = "main" }, function(inv)
@@ -397,7 +425,7 @@ clone built on exactly this.
 
 ### Overlay / observer handles
 
-`overlay`, `gobOverlay`, `onWidgetCreate`, and `replace` return a handle with a single method:
+`overlay`, `gobOverlay`, `on`, and `replace` return a handle with a single method:
 
 | Method | Description |
 |---|---|

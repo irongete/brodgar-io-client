@@ -81,9 +81,7 @@ your callback are all the same [Widget](ui.md#the-widget-object). It is interned
 `hafen.ui.at(x, y) == hafen.ui.at(x, y)` and `==` is the identity test; it re-reads the tree on every call
 and answers `nil`/empty with `:exists()` false once its widget is gone. What you may *write* depends on
 whether your addon created it — see [owned vs borrowed](ui.md#owned-vs-borrowed--which-writes-answer).
-A **server widget id** (`:id()`, or a `desc.id` from
-[`hafen.ui.onWidgetCreate`](ui.md#observing--replacing-the-clients-own-ui)) is the number the gated
-[`hafen.act.raw`](actions.md) takes.
+A **server widget id** (`:id()`) is the number the gated [`hafen.act.raw`](actions.md) takes.
 
 ## Snapshots vs handles
 

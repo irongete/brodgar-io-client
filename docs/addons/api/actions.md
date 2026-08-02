@@ -99,7 +99,7 @@ if first then hafen.act.item(first, "take") end
 
 ### `hafen.act.raw`
 `raw(target, msg, ...)` — send an arbitrary widget message from a bound widget. `target` is a widget id
-(a number, e.g. a [widget's `:id()`](ui.md#the-widget-object) or an `onWidgetCreate` descriptor) or the
+(a number, e.g. a [widget's `:id()`](ui.md#the-widget-object)) or the
 token `"mapview"` / `"gameui"`. Trailing args are marshalled like the [hooks](hooks.md) (a `{x=, y=}`
 table ↔ a coord; numbers/strings/booleans pass through). For power users — the typed verbs cover the
 common cases.

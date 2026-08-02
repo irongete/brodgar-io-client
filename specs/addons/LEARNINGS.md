@@ -1,6 +1,6 @@
 # Learnings — index
 
-> Hard-won, non-obvious facts (422 entries), split by category under `learnings/`. **Never read
+> Hard-won, non-obvious facts (426 entries), split by category under `learnings/`. **Never read
 > the whole set** — pick the 1-2 relevant files below and `grep` them (e.g.
 > `grep -i -B1 -A4 "Loading" learnings/ghosts.md`, or `grep -ri <term> learnings/` when unsure).
 > **Append-only:** new learnings are appended to the matching category file; add an index line
@@ -11,8 +11,8 @@
 - [luaj-bridge.md](learnings/luaj-bridge.md) — LuaJ quirks (coercion, `isstring`, userdata), sandbox + watchdog, bridge calling conventions, marshalling.
 - [world-reads.md](learnings/world-reads.md) — Glob-backed reads: gobs, map/grids/**positioning** (no global coord), items, char, party.
 - [widget-tree-reads.md](learnings/widget-tree-reads.md) — the adapter mechanism (uimsg tap vs per-tick poll) and its surfaces: the HUD meters, buffs, FEP, study, skills, actionbar, equip.
-- [ui-widgets.md](learnings/ui-widgets.md) — custom windows/widgets, `LuaGOut`, HUD/gob overlays, drops, widget internals (`add` vs `addchild`), the W-series introspection/hit-testing, the Widget entity (interning, provenance, container items) and the selector grammar + role classifier.
-- [widget-replacement.md](learnings/widget-replacement.md) — `onWidgetCreate`/`replace` (3a/3c — `adopt` is gone): descriptors, scans, restore-on-remove.
+- [ui-widgets.md](learnings/ui-widgets.md) — custom windows/widgets, `LuaGOut`, HUD/gob overlays, drops, widget internals (`add` vs `addchild`, the close-animation destroy), the W-series introspection/hit-testing, the Widget entity (interning, provenance, container items) and the selector grammar + role classifier + selector events.
+- [widget-replacement.md](learnings/widget-replacement.md) — `replace` (3c — `adopt` and `onWidgetCreate` are gone): the placement descriptor and why it outlived its observer, scans, restore-on-remove.
 - [hooks-hotkeys.md](learnings/hooks-hotkeys.md) — input/action/message hooks (L1/L2/L3), `Widget.listen`, `UI.wdgmsg`/`uimsg` taps, global hotkeys, `KeyBinding`/keybind panel.
 - [gap-subsystems.md](learnings/gap-subsystems.md) — markers/MapFile, radar, slash/console, kin, craft, quests, wounds, fight.
 - [actions-gated.md](learnings/actions-gated.md) — `hafen.act` verbs, wdgmsg encodings, the permission model (D-027/D-028), write-verb design.

@@ -315,3 +315,20 @@
   and applies a pre-parsed `Selector` per node; the selector string is parsed at the call, never inside the walk.
   Measured in-game: **0.08 ms for `all("*")` over 625 widgets**, which is once-per-event cheap and per-frame
   expensive — hence the docs rule "hold your result", which costs nothing because entities are interned.
+- **(030.2) A closing `Window` is unbound from its id BEFORE it leaves the tree — and stays readable for the whole
+  fade.** [`UI.destroy(Widget)`](src/haven/UI.java:622) is `removeid(wdg); wdg.reqdestroy();`, and
+  [`Window.reqdestroy`](src/haven/Window.java:609) **overrides** the default (`remove()` + `rdispose()`) to start a
+  hide *animation* (`animst = "dest"`) — the widget leaves the tree only when the animation ends, several frames
+  later. So between the two there is a real interval where `ui.getwidget(id) != wdg` but `wdg.hasparent(ui.root)` is
+  still true, `:exists()` answers **true** and `:text()` still returns the caption. This is why the **two-branch**
+  death guard (by id when server-bound, by reachability otherwise) is load-bearing and not merely tidy: on the
+  reachability branch alone, every window's `disappear`/`onDestroy` would lag by its close animation. Consequence
+  for any lifecycle event over widgets: it fires when the widget stops being **real**, not when it stops being
+  **drawn**, and the entity handed to the handler may still answer its reads — document it as a key to match, never
+  as a last chance to read (a client-only widget, with no id, really is gone by then).
+- **(030.2) Split a matcher into the half that can change and the half that cannot.** A widget's role and class come
+  from its Java type and are fixed for its life; a caption arrives by `uimsg` and a resource resolves async, so both
+  can be absent at placement and present a tick later. `Selector.matchesStructure` + `late()` is what lets the
+  placement seam say "this can never match" versus "this does not match *yet*" — only the latter is queued for a
+  bounded re-check (20 ticks), so a `.res`/late-captioned window fires exactly once instead of never. Without that
+  split the choice is a permanent re-check list or a silently missed match.

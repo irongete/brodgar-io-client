@@ -41,13 +41,14 @@ import static io.brodgar.addon.AddonManager.*;
 
 /**
  * The custom-UI + widget-introspection subsystem:
- * {@code hafen.ui} — custom windows/widgets (2a), HUD + world-space gob overlays (2b), widget-creation
- * observers (3a), adopted-widget models (3b), widget replacers (3c), and the read-only widget-tree walk +
- * hit-testing (W1/W2 node API). Owns the observer/model/replacer registries + overlay paint state. The
+ * {@code hafen.ui} — custom windows/widgets (2a), HUD + world-space gob overlays (2b), selector lookups and
+ * selector events (030), adopted-widget models (3b), widget replacers (3c), and the read-only widget-tree walk +
+ * hit-testing (W1/W2 node API). Owns the subscription/model/replacer registries + overlay paint state. The
  * widget-creation seams {@code onWidgetCreated}/{@code onWidgetPlaced} (called from {@code haven.UI}) stay
- * facades in {@link AddonManager} and delegate here; the tick drives {@link #pollModels}/
- * {@link #sweepGobOverlays}/{@link #anyHudOverlays}; {@code haven}-side {@code LuaGobOverlay.draw} calls
- * {@link #paintGobOverlays}. Shared gob-read/engine helpers stay in {@link AddonManager}. Not instantiable.
+ * facades in {@link AddonManager} and delegate here; the tick drives {@link #pollModels}/{@link #pollWatches}/
+ * {@link #pollSelectorWatches}/{@link #sweepGobOverlays}/{@link #anyHudOverlays}; {@code haven}-side
+ * {@code LuaGobOverlay.draw} calls {@link #paintGobOverlays}. Shared gob-read/engine helpers stay in
+ * {@link AddonManager}. Not instantiable.
  */
 final class UiApi {
     private UiApi() {}
@@ -67,18 +68,42 @@ final class UiApi {
     private static final double GOB_SWEEP_INTERVAL =                      // gob-overlay filter sweep period (s)
         Double.parseDouble(System.getProperty("haven.addon.gobsweepsec", "0.2"));
 
-    // -- widget-creation interception (spec 08 / Phase 3a): observe server widgets as the server creates them ---
-    // hafen.ui.onWidgetCreate(fn) fires fn(desc) for every SERVER widget as it is placed into the tree, where
-    // desc = {id, type, place, caption, parentType} (the targeting descriptor, D-024). Two UI.java edits feed it:
-    // NewWidget.run records the server type name (onWidgetCreated), AddWidget.run fires onWidgetPlaced once the
-    // widget is in the tree — the first moment place + parent exist. onWidgetPlaced runs inside AddWidget.run's
-    // synchronized(ui) block (the monitor tick/draw hold), so observer Lua never races other Lua. A FLAT list
-    // (observers watch EVERY creation, not one keyed target); globally empty = a near-zero fast path, so an
-    // unobserving client pays only an isEmpty() check per placement. widgetTypes holds only in-flight creations
-    // (recorded at NewWidget, removed at the matching AddWidget) and is recorded only while an observer exists;
-    // owned observer copies live on each Addon for teardown. Both are session-scoped (cleared per init).
+    // -- widget-creation interception (spec 08 / Phase 3a): the server type string, for replace's descriptor -------
+    // widgetTypes holds only IN-FLIGHT creations (recorded at NewWidget.run by onWidgetCreated, removed at the
+    // matching AddWidget.run by onWidgetPlaced) and is recorded only while a REPLACER exists, so the map stays tiny
+    // and an unreplacing client records nothing. Since 030.2 that is its only consumer: hafen.ui.onWidgetCreate and
+    // its {id,type,place,caption,parentType} descriptor are HARD CUT — an addon names the widget it is waiting for
+    // with a SELECTOR now (see selectorWatches below), not with a second vocabulary. The descriptor survives only as
+    // the argument of replace{match=fn}, which goes with replace itself in B3. Session-scoped (cleared per init).
     private static final Map<Integer, String> widgetTypes = new ConcurrentHashMap<Integer, String>();
-    private static final List<LuaWidgetObserver> widgetObservers = new CopyOnWriteArrayList<LuaWidgetObserver>();
+
+    // -- selector subscriptions (030.2): hafen.ui.on(sel, "appear"|"disappear", fn) — the discovery primitive that
+    // replaced onWidgetCreate. A FLAT global list (a subscription watches the whole tree, not one keyed target),
+    // consulted at the placement seam and polled each tick; globally empty = a near-zero fast path, so a client with
+    // no subscription pays one isEmpty() per widget placement and one per tick. `pending` is the BOUNDED re-check:
+    // a widget that matched a selector's structure (role/class, fixed for its life) but not its [title=]/[res=]
+    // refiner may simply not have its caption yet, so it is re-offered for RECHECK_TICKS ticks and then dropped —
+    // cost scales with widget creation, not with frames (a per-tick diff of the whole tree was the discarded
+    // alternative). Owned copies live on each Addon for teardown. Session-scoped (cleared per init).
+    // THREADING: the placement seam runs on a Loader thread but inside AddWidget.run's synchronized(ui), and the
+    // per-tick poll runs on the UI thread inside UILoop's synchronized(ui) — so the UI monitor already guards both
+    // ends and each subscription's `matched` map needs no lock of its own.
+    private static final List<LuaSelectorWatch> selectorWatches = new CopyOnWriteArrayList<LuaSelectorWatch>();
+    private static final List<PendingMatch> pending = new CopyOnWriteArrayList<PendingMatch>();
+    private static final int RECHECK_TICKS =              // how long a late caption/res has to land (in ticks)
+        Integer.getInteger("haven.addon.selrecheck", 20).intValue();
+
+    /** One recently-placed widget still awaiting a late {@code [title=]}/{@code [res=]} (030.2's bounded re-check). */
+    private static final class PendingMatch {
+        final Widget wdg;
+        final int id;                 // server widget id, or -1 (client-only) — the two-branch death test
+        int ticks = RECHECK_TICKS;
+
+        PendingMatch(Widget wdg, int id) {
+            this.wdg = wdg;
+            this.id = id;
+        }
+    }
 
     // -- adopted widget models (spec 08 / Phase 3b): hafen.ui.adopt(id) wraps a live server-bound widget so an
     // addon can hide it as a headless model + present a custom view (D-009). A FLAT global list, polled each tick
@@ -103,24 +128,22 @@ final class UiApi {
 
     // ===== widget-creation seams (bodies behind AddonManager.onWidgetCreated/onWidgetPlaced) =====
     static void onWidgetCreated(int id, String typenm) {
-        if((widgetObservers.isEmpty() && widgetReplacers.isEmpty()) || (typenm == null))
-            return;                                   // fast path: nobody is observing/replacing, or no type string
+        if(widgetReplacers.isEmpty() || (typenm == null))
+            return;                                   // fast path: nobody is replacing, or no type string
         widgetTypes.put(Integer.valueOf(id), typenm);
     }
 
     static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] pargs) {
-        if(widgetObservers.isEmpty() && widgetReplacers.isEmpty())
-            return;                                   // fast path: no widget-create observers/replacers anywhere
+        if(!selectorWatches.isEmpty())
+            offerPlaced(wdg, id);                     // 030.2: the selector subscriptions see the LIVE widget itself
+        if(widgetReplacers.isEmpty())
+            return;                                   // fast path: nothing is being replaced
         String type = widgetTypes.remove(Integer.valueOf(id));
         String place = ((pargs != null) && (pargs.length > 0) && (pargs[0] instanceof String))
                        ? (String)pargs[0] : null;
         String parentType = (pwdg == null) ? null : pwdg.getClass().getSimpleName();
         String caption = (wdg instanceof Window) ? ((Window)wdg).cap : null;
-        for(LuaWidgetObserver o : widgetObservers) {  // copy-on-write: an observer may :remove() itself here
-            if(o.alive)
-                o.invoke(id, type, place, caption, parentType);
-        }
-        // 3c: also offer this newly-placed widget to every replacer (a target opened AFTER the replacer registered).
+        // 3c: offer this newly-placed widget to every replacer (a target opened AFTER the replacer registered).
         for(LuaReplacer r : widgetReplacers) {        // copy-on-write: a builder may register/remove replacers here
             if(r.alive && !r.handled(id) && matchOnCreate(r, id, type, place, caption, parentType))
                 fireReplace(r, id, wdg);
@@ -158,18 +181,27 @@ final class UiApi {
                 return newGobOverlay(owner, filter, fn);
             }
         });
-        // hafen.ui.onWidgetCreate(fn) — observe the server's own UI as it is built (spec 08, Phase 3a). fn(desc)
-        // runs for every SERVER widget as it is placed into the tree, with desc = {id, type, place, caption,
-        // parentType} (the targeting descriptor, D-024) — e.g. the inventory is {type="inv", place="inv",
-        // parentType="GameUI"}; a cupboard is {type="wnd", place="misc", caption="Cupboard", parentType="GameUI"}.
-        // A HUD-placed window always reports parentType="GameUI"; item widgets streaming into an inventory report
-        // their container instead, so an addon filters by parentType/type/place. This slice is observe-only
-        // (adopting the real widget as a hidden model + drawing a custom view is a later slice); the return is
-        // ignored. Returns a handle with :remove(); auto-removed on reload/disable (P2). Register any time (no
-        // live target needed) — the file body catches the login window burst too.
-        uiT.set("onWidgetCreate", new OneArgFunction() {
-            public LuaValue call(LuaValue fn) {
-                return newWidgetObserver(owner, fn);
+        // hafen.ui.on(selector, "appear"|"disappear", fn) — 030.2: WATCH the client's own UI for a part of it, named
+        // with the same selector a lookup uses. fn(widget) receives the Widget ENTITY (the very value hafen.ui(sel)
+        // would hand back, interned — so `==` and your own tables work across the two events). This is the discovery
+        // primitive: hafen.ui.onWidgetCreate and its {id,type,place,caption,parentType} descriptor are HARD CUT, and
+        // with them the second vocabulary an addon had to learn to say "wait for the cupboard".
+        //   appear     -- a matching widget was PLACED into the tree, or was ALREADY there when you subscribed
+        //                 (registration scans the live tree once — which is exactly what onWidgetCreate could not
+        //                 do, and why a :reload used to lose every window already open).
+        //   disappear  -- a widget that had matched is GONE, where GONE means the server destroyed it (its id stops
+        //                 resolving) -- the moment it stops being REAL, not the moment it stops being DRAWN: a
+        //                 Window only starts a fade-out in reqdestroy(), so it lingers in the tree, unbound and
+        //                 still readable, for the length of that animation. Take the entity as a KEY to match (==)
+        //                 against what you kept at appear; do not count on being able to read it.
+        // Both are about the TREE, not visibility: a window the client merely hides (the inventory's Tab toggle)
+        // never left, so it fires neither. One event per call — subscribe twice to watch both. A [title=]/[res=]
+        // selector still fires exactly once for a window whose caption lands a tick late (the placement seam
+        // re-checks such a candidate for a bounded number of ticks). Returns a handle with :remove(); auto-removed
+        // on reload/disable (P2), which fires nothing — a reload is not a destroy.
+        uiT.set("on", new ThreeArgFunction() {
+            public LuaValue call(LuaValue sel, LuaValue event, LuaValue fn) {
+                return newSelectorWatch(owner, sel, event, fn);
             }
         });
         // hafen.ui.adopt(id) is GONE (029.2). It only ever existed to get a readable handle on a native widget, and
@@ -204,8 +236,8 @@ final class UiApi {
         // hafen.ui(selector) = the FIRST widget matching a selector string, or nil; hafen.ui.all(selector) = every
         // match as a 1-based array (empty, never nil); hafen.ui() = the ROOT of the whole client tree (discovery,
         // walk DOWN to any open window — hafen.ui.root() is hard cut, the no-arg collection form IS the tree);
-        // node(id) = the Widget object for a SERVER widget id (a desc.id from onWidgetCreate, or another
-        // widget's :id()) — nil if it doesn't resolve. All of them hand back the SAME type: opaque, facade-safe
+        // node(id) = the Widget object for a SERVER widget id (another widget's :id(), typically) — nil if it
+        // doesn't resolve. All of them hand back the SAME type: opaque, facade-safe
         // userdata (no raw haven.Widget crosses into Lua, P1/D-017), INTERNED per addon — so two lookups of one
         // live widget are the SAME value and `==` is the identity test (:same() is GONE, 029.1). Not an
         // owned-registry entry: it checks liveness per access, and once its widget leaves the tree it nulls its
@@ -380,11 +412,14 @@ final class UiApi {
         models.clear();
         widgetReplacers.clear();
         watches.clear();
+        selectorWatches.clear();      // 030.2: the tree of the session just ended; nothing matches any more
+        pending.clear();
         if(consoleOwner != null) {
             consoleOwner.models.clear();
             consoleOwner.replacers.clear();
             consoleOwner.hiddenNative.clear();   // 029.2: last session's widgets are gone; nothing left to restore
             consoleOwner.itemWatches.clear();    // 029.3: ...and so are the containers it was subscribed to
+            consoleOwner.selectorWatches.clear();// 030.2: ...and the selectors it was watching for
         }
     }
 
@@ -494,45 +529,193 @@ final class UiApi {
     }
 
 
-    // ------------------------------------------------------- widget-creation observers (hafen.ui, 3a)
+    // ------------------------------------------------- selector subscriptions (hafen.ui.on, 030.2)
 
     /**
-     * Register a widget-creation observer ({@code hafen.ui.onWidgetCreate(fn)}, spec 08 / Phase 3a): install
-     * {@code fn} in the global observer list (fired by {@link #onWidgetPlaced} for every server widget) and in the
-     * addon's owned-resource registry (dropped on reload/disable, P2). Returns the Lua handle ({@code :remove()}).
-     * Needs no live target, so it can be registered any time — the file body is fine (and catches the login
-     * window burst). An observer watches EVERY creation (there is no per-target keying), so this is a flat list,
-     * not a per-name map like the hook levels.
+     * Register a selector subscription ({@code hafen.ui.on(selector, "appear"|"disappear", fn)}): parse the selector
+     * ONCE, install the {@link LuaSelectorWatch} in the global list (consulted at the placement seam and polled each
+     * tick) and in the addon's owned-resource registry (dropped on reload/disable, P2), then SCAN the live tree once
+     * so an already-open target is not missed. Returns the Lua handle ({@code :remove()}).
      */
-    private static LuaValue newWidgetObserver(final Addon owner, LuaValue fn) {
+    private static LuaValue newSelectorWatch(final Addon owner, LuaValue selv, LuaValue eventv, LuaValue fn) {
+        final String where = "hafen.ui.on(selector, event, fn)";
+        Selector sel = selArg(selv, where);
+        if(!eventv.isstring())
+            throw new LuaError(where + ": event must be \"appear\" or \"disappear\", got " + eventv.typename());
+        int ev = LuaSelectorWatch.eventCode(eventv.tojstring());
+        if(ev < 0)
+            throw new LuaError(where + ": \"" + eventv.tojstring() + "\" is not an event — the events are"
+                + " \"appear\" (a matching widget entered the tree, or was already in it) and \"disappear\""
+                + " (one that had matched left it)");
         if(!fn.isfunction())
-            throw new LuaError("hafen.ui.onWidgetCreate(fn) expects a function");
-        final LuaWidgetObserver o = new LuaWidgetObserver(owner, fn);
-        widgetObservers.add(o);
-        owner.widgetObservers.add(o);
+            throw new LuaError(where + " expects a handler function fn(widget)");
+        final LuaSelectorWatch w = new LuaSelectorWatch(owner, sel, ev, fn);
+        selectorWatches.add(w);
+        owner.selectorWatches.add(w);
+        scanForWatch(w);                       // catch what is ALREADY open (the :reload / subscribe-in-world case)
         LuaTable handle = new LuaTable();
         handle.set("remove", new ZeroArgFunction() {
             public LuaValue call() {
-                removeWidgetObserver(owner, o);
+                removeSelectorWatch(owner, w);
                 return LuaValue.NIL;
             }
         });
         return handle;
     }
 
-    /** Remove one widget-creation observer: stop it firing + drop it from both lists (the handle's {@code :remove()}). */
-    private static void removeWidgetObserver(Addon owner, LuaWidgetObserver o) {
-        o.alive = false;
-        widgetObservers.remove(o);
-        owner.widgetObservers.remove(o);
+    /**
+     * Sweep the live tree once for widgets this subscription already matches — the {@code :reload} case, and the
+     * ordinary one of subscribing while the game is running. This is the difference between a discovery primitive
+     * and a creation feed: {@code onWidgetCreate} could never fire for a widget that already existed, so an addon
+     * that only watched creations lost every window open at the moment it was edited. An {@code appear}
+     * subscription is called back here, inside its own registration (the {@code replace} precedent); a
+     * {@code disappear} one records silently, which is what lets a later close still fire.
+     */
+    private static void scanForWatch(LuaSelectorWatch w) {
+        UI u = ui;
+        if((u == null) || (u.root == null))
+            return;
+        // Under the ui monitor for the WHOLE scan, not just the walk: the placement seam and the tick both hold it,
+        // so this is what keeps the subscription's `matched` map from being written by two threads at once (a
+        // registration can arrive off the UI thread, from the session bind). Lua under the monitor is the seam's
+        // own discipline, and re-entrant for the walk the handler may itself do.
+        synchronized(u) {
+            List<Widget> hits = new ArrayList<Widget>();
+            collect(u.root, w.sel, hits);
+            for(Widget hit : hits)
+                record(w, hit, u.widgetid(hit));
+        }
     }
 
-    /** Mark dead + drop every widget-creation observer this addon owns (teardown on reload/disable, P2). */
-    static void teardownWidgetObservers(Addon a) {
-        for(LuaWidgetObserver o : a.widgetObservers)
-            o.alive = false;
-        widgetObservers.removeAll(a.widgetObservers);
-        a.widgetObservers.clear();
+    /**
+     * Offer one newly-placed widget to every selector subscription (from {@link #onWidgetPlaced}, inside
+     * {@code AddWidget.run}'s {@code synchronized(ui)} block). A full match fires {@code appear} at once. A widget
+     * that matches only the STRUCTURE of a selector carrying a {@code [title=]}/{@code [res=]} refiner is queued for
+     * the bounded re-check instead: role and class are fixed for a widget's life, but a caption arrives by
+     * {@code uimsg} and can land a tick or two after placement, and a {@code .res} window would otherwise be
+     * unmatchable by the very key that identifies it.
+     */
+    private static void offerPlaced(Widget wdg, int id) {
+        boolean recheck = false;
+        for(LuaSelectorWatch w : selectorWatches) {   // copy-on-write: a handler may subscribe/remove here
+            if(!w.alive || w.matched.containsKey(wdg))
+                continue;
+            if(w.sel.matches(wdg))
+                record(w, wdg, id);
+            else if(w.sel.late() && w.sel.matchesStructure(wdg))
+                recheck = true;
+        }
+        if(recheck)
+            pending.add(new PendingMatch(wdg, id));
+    }
+
+    /**
+     * Record a match on one subscription and, for an {@code appear} one, fire it. The tracked set is what keeps the
+     * bounded re-check from firing twice for the same widget, and what a {@code disappear} subscription later reads
+     * — so both events record, only one calls Lua. The payload is the interned Widget entity, the same value every
+     * other {@code hafen.ui} door hands back (029.1), so {@code ==} identifies it across the two events.
+     */
+    private static void record(LuaSelectorWatch w, Widget wdg, int id) {
+        w.matched.put(wdg, Integer.valueOf(id));
+        if(w.event == LuaSelectorWatch.APPEAR)
+            callLua(w.owner, Addon.C_WIDGET, w.fn, LuaWidget.of(w.owner, wdg));
+    }
+
+    /**
+     * Per-tick work for the selector subscriptions (UI thread): re-check the recently-placed candidates still
+     * waiting for a late {@code [title=]}/{@code [res=]}, then prune every subscription's tracked set, firing
+     * {@code disappear} for each widget that left the tree. Fast-paths out when nobody subscribes, which is the
+     * normal case — the whole feature then costs one {@code isEmpty()} check per tick.
+     *
+     * <p>Deaths are collected and removed <b>before</b> any Lua runs, so a handler that unsubscribes itself
+     * mid-notification (fire once, then {@code handle:remove()}) cannot invalidate the iteration.
+     */
+    static void pollSelectorWatches() {
+        if(selectorWatches.isEmpty()) {
+            pending.clear();                                 // last subscription gone: nothing left to re-check
+            return;
+        }
+        UI u = ui;
+        if((u == null) || (u.root == null))
+            return;
+        recheckPending(u);
+        for(LuaSelectorWatch w : selectorWatches) {          // copy-on-write: a handler may subscribe/remove here
+            if(!w.alive || w.matched.isEmpty())
+                continue;
+            List<Widget> gone = null;
+            for(Map.Entry<Widget, Integer> e : w.matched.entrySet()) {
+                if(matchLive(u, e.getKey(), e.getValue().intValue()))
+                    continue;
+                if(gone == null)
+                    gone = new ArrayList<Widget>();
+                gone.add(e.getKey());
+            }
+            if(gone == null)
+                continue;
+            for(Widget g : gone)
+                w.matched.remove(g);                         // dropped the tick it dies: a strong ref, never a pin
+            if(w.event != LuaSelectorWatch.DISAPPEAR)
+                continue;
+            for(Widget g : gone) {
+                if(!w.alive)                                 // a handler removed the subscription mid-notification
+                    break;
+                callLua(w.owner, Addon.C_WIDGET, w.fn, LuaWidget.of(w.owner, g));
+            }
+        }
+    }
+
+    /**
+     * The bounded re-check (030.2): re-offer each recently-placed candidate to every subscription whose refiner had
+     * not yet resolved, then age it out. A candidate that dies, or that survives {@link #RECHECK_TICKS} ticks
+     * without matching, is dropped — so this list is short-lived by construction and the cost of the whole event
+     * mechanism scales with widget CREATION, not with frames. An entry ageing out is still offered one last time.
+     */
+    private static void recheckPending(UI u) {
+        if(pending.isEmpty())
+            return;
+        for(PendingMatch p : pending) {                      // copy-on-write: entries drop out as we go
+            if(!matchLive(u, p.wdg, p.id)) {
+                pending.remove(p);                           // it died before its caption arrived
+                continue;
+            }
+            if(--p.ticks <= 0)
+                pending.remove(p);
+            for(LuaSelectorWatch w : selectorWatches) {
+                if(!w.alive || w.matched.containsKey(p.wdg))
+                    continue;
+                if(w.sel.late() && w.sel.matches(p.wdg))
+                    record(w, p.wdg, p.id);
+            }
+        }
+    }
+
+    /** Is a matched/pending widget still the same live one? (Server-bound: by id; client-only: by reachability.) */
+    private static boolean matchLive(UI u, Widget w, int id) {
+        return (id >= 0) ? (u.getwidget(id) == w) : w.hasparent(u.root);
+    }
+
+    /** Remove one selector subscription: stop it firing + drop it from both lists (the handle's {@code :remove()}). */
+    private static void removeSelectorWatch(Addon owner, LuaSelectorWatch w) {
+        w.alive = false;
+        w.matched.clear();
+        selectorWatches.remove(w);
+        owner.selectorWatches.remove(w);
+    }
+
+    /**
+     * Drop every selector subscription this addon owns (reload/disable, P2). Nothing is fired: a {@code :reload} is
+     * not a destroy — the widgets go on living, this addon simply stops watching (and its Lua callbacks are about to
+     * cease to exist with its env). Same rule as {@link #teardownWatches}.
+     */
+    static void teardownSelectorWatches(Addon a) {
+        if(a.selectorWatches.isEmpty())
+            return;
+        for(LuaSelectorWatch w : a.selectorWatches) {
+            w.alive = false;
+            w.matched.clear();
+        }
+        selectorWatches.removeAll(a.selectorWatches);
+        a.selectorWatches.clear();
     }
 
     // -------------------------------------------------------------- adopted widget models (hafen.ui, 3b)
@@ -770,9 +953,9 @@ final class UiApi {
     }
 
     /**
-     * {@code hafen.ui.node(id)} — the {@link LuaWidget} entity for a SERVER widget id (a {@code desc.id}, a
-     * {@code model:raw()}, or another widget's {@code :id()}), or {@code nil} if the id doesn't resolve (no such
-     * server widget, or it was destroyed). A non-number id is a clear error, like {@code hafen.ui.adopt}.
+     * {@code hafen.ui.node(id)} — the {@link LuaWidget} entity for a SERVER widget id (another widget's
+     * {@code :id()}, typically), or {@code nil} if the id doesn't resolve (no such server widget, or it was
+     * destroyed). A non-number id is a clear error.
      */
     private static LuaValue nodeById(Addon owner, LuaValue idv) {
         if(!idv.isnumber())

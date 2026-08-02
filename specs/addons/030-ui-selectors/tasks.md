@@ -15,7 +15,7 @@
       **Verify:** in-game from `:lua` — each grammar element against real windows, an open Cupboard matched by
       title AND by res, a malformed selector's error, and the profiler number for `all("*")`.
 
-- [ ] **030.2 — selector events, and the end of `onWidgetCreate`.**
+- [x] **030.2 — selector events, and the end of `onWidgetCreate`.**
       `hafen.ui.on(sel, "appear"|"disappear", fn)` on the existing `onWidgetPlaced` seam — **the first complete
       moment** (`place`/`parentType`/`caption` do not exist at `NewWidget.run`) — with the **global-empty fast
       path preserved**. A candidate that matches structurally but carries a `[title=]`/`[res=]` refiner is

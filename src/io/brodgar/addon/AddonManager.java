@@ -369,6 +369,12 @@ public final class AddonManager {
             //      widget's own death (→ onDestroy). hasSub-gated: a widget nobody listens to is never polled.
             UiApi.pollWatches();
 
+            // 1c''. Selector subscriptions (030.2): re-check the widgets placed in the last few ticks whose
+            //       [title=]/[res=] refiner had not resolved yet (a caption arrives by uimsg, a tick after
+            //       placement), then fire `disappear` for every tracked widget that has left the tree. Gated on
+            //       somebody having subscribed — an idle client pays one isEmpty().
+            UiApi.pollSelectorWatches();
+
             // 1d. Map markers (A1): fire MarkersChanged when the on-disk map DB's markerseq changes (a
             //     marker add/remove is not a uimsg — the server pushes SMarkers via markobj, the player/
             //     addon adds PMarkers, and segment merges re-key them; all bump markerseq). Global event.
@@ -622,31 +628,35 @@ public final class AddonManager {
      * Record a server widget's <b>type name</b> (spec 08 / Phase 3a) — called from the {@code UI.NewWidget.run}
      * core edit right after the widget is bound to its id. The widget instance does not carry its registered type
      * string, so we stash {@code id -> typenm} here and read it back when the widget is placed (the descriptor's
-     * {@code type} field). Kept only while an observer is registered (so an unobserving client records nothing),
-     * and only the in-flight set (the matching {@link #onWidgetPlaced} removes it), so the map stays tiny.
-     * {@code typenm} is {@code null} when the widget was built from a {@link Widget.Factory} directly rather than
-     * a type string (never the case for a server widget) — those simply record no type.
+     * {@code type} field). Kept only while a {@link LuaReplacer} is registered (so a client that replaces nothing
+     * records nothing), and only the in-flight set (the matching {@link #onWidgetPlaced} removes it), so the map
+     * stays tiny. {@code typenm} is {@code null} when the widget was built from a {@link Widget.Factory} directly
+     * rather than a type string (never the case for a server widget) — those simply record no type.
      */
 public static void onWidgetCreated(int id, String typenm) {        UiApi.onWidgetCreated(id, typenm);    }
 
     /**
-     * Fire every {@code hafen.ui.onWidgetCreate(fn)} observer for one placed server widget (spec 08 / Phase 3a) —
-     * called from the {@code UI.AddWidget.run} core edit, right after {@code pwdg.addchild(wdg, pargs)}, i.e. the
-     * first moment the FULL descriptor exists (placement supplies the {@code place}-string + parent that creation
-     * lacks). Builds {@code desc = {id, type, place, caption, parentType}} (D-024) and hands it to each observer's
-     * Lua {@code fn(desc)}. This slice is observe-only (the return is ignored — adopt/replace is 3b/3c).
+     * The <b>widget-placement seam</b> — called from the {@code UI.AddWidget.run} core edit, right after
+     * {@code pwdg.addchild(wdg, pargs)}, i.e. the first COMPLETE moment: placement supplies the {@code place}
+     * string and the parent that pure creation lacks, and the widget is in the tree, so a {@link Selector} can be
+     * applied to it. Two consumers: the 030.2 selector subscriptions ({@code hafen.ui.on}), which see the live
+     * widget itself, and the 3c {@link LuaReplacer}s, which still match the {@code {id, type, place, caption,
+     * parentType}} descriptor (D-024). {@code hafen.ui.onWidgetCreate}, the third, is gone.
      *
      * <p><b>Threading.</b> Reached only from inside {@code AddWidget.run}'s {@code synchronized(ui)} block (on a
-     * Loader thread, under the monitor tick/draw hold), so observer Lua never races other Lua — the same
-     * discipline as {@link #onMessage} (no {@code holdsLock} guard needed). The fast path (no observers anywhere)
-     * returns immediately, so an unobserving client is unaffected even though every widget placement passes here.
+     * Loader thread, under the monitor tick/draw hold), so the Lua raised here never races other Lua — the same
+     * discipline as {@link #onMessage} (no {@code holdsLock} guard needed). The fast path (nobody subscribing or
+     * replacing) returns immediately, so an uninterested client is unaffected even though every widget placement
+     * passes here.
      */
 public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] pargs) {        UiApi.onWidgetPlaced(id, wdg, pwdg, pargs);    }
 
     /**
-     * Build the widget-targeting descriptor {@code {id, type, place, caption, parentType}} (D-024) shared by the 3a
-     * {@link LuaWidgetObserver} and the 3c {@link LuaReplacer} match predicate. A {@code null} field is left absent
-     * (Lua {@code nil}) so an addon tests it idiomatically ({@code if desc.caption then ... end}).
+     * Build the widget-targeting descriptor {@code {id, type, place, caption, parentType}} (D-024) — since 030.2 the
+     * argument of {@code replace{match=fn}} and nothing else: the {@code onWidgetCreate} observer that shared it was
+     * hard cut, so the descriptor is no longer a discovery surface (a {@link Selector} is), and it goes with
+     * {@code replace} itself in B3. A {@code null} field is left absent (Lua {@code nil}) so an addon tests it
+     * idiomatically ({@code if desc.caption then ... end}).
      */
     static LuaTable descTable(int id, String type, String place, String caption, String parentType) {
         LuaTable desc = new LuaTable();

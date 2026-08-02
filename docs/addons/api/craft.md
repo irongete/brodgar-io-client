@@ -28,5 +28,5 @@ end
 | `hafen.craft.make([all])` | craft the open recipe once; `all = true` presses **Craft All**. Consumes the ingredients |
 
 There is no `CraftChanged` event — a recipe changes only when the player opens one. To detect that,
-observe the window via [`hafen.ui.onWidgetCreate`](ui.md#observing--replacing-the-clients-own-ui) (its `place` is
-`"craft"`).
+watch for the window with [`hafen.ui.on`](ui.md#observing--replacing-the-clients-own-ui):
+`hafen.ui.on("window", "appear", fn)`.

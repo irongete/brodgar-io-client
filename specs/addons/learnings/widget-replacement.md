@@ -119,3 +119,10 @@
   item diff and the three callbacks moved to the entity's own hasSub-gated poll, so the replace poll no longer
   walks `WItem`s at all — it only checks whether the server widget's id still maps to it, to destroy the addon's
   view with it. If a replacer ever needs item events again it subscribes like anybody else, on the entity.
+- **(030.2) `onWidgetCreate` and the addon-facing descriptor are GONE; `replace` keeps the descriptor internally.**
+  Discovery is `hafen.ui.on(selector, "appear"|"disappear", fn)` (D-068). What did **not** move is `replace`'s own
+  matching: it fires at *placement*, against `{id, type, place, caption, parentType}`, whose `place`/`parentType`
+  describe the **server** parent — a live `maininv.parent` is already a client-side `Hidewnd`, so a live-tree
+  selector cannot express `context="main"`. Hence `descTable` survives as the argument of `replace{match=fn}` only,
+  `widgetTypes` recording is now gated on replacers alone, and converting `replace` to selectors stays a **semantic**
+  change deferred to B3 — not a rename.
