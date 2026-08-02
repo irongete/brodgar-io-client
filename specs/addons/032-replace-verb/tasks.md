@@ -18,7 +18,7 @@
       window (no empty frame), Tab and the menu button drive the custom one, `w:replace()` reads it back,
       `w:replace(nil)` restores; a chest replaced then closed by the server takes its view with it.
 
-- [ ] **032.2 — delete the old surface, port the addons.**
+- [x] **032.2 — delete the old surface, port the addons.**
       `hafen.ui.replace` **deleted**, and with it `LuaReplacer`, the replacer registry, its branch in
       `onWidgetPlaced` and the registration scan — D-068's `ui.on` already does both match paths, so this is a
       deletion, not a port. Drop the replacer list and its teardown leg from `Addon`/`AddonManager`. Port

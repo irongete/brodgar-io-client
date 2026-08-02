@@ -1,13 +1,10 @@
 package io.brodgar.addon;
 
 import haven.Button;
-import haven.CharWnd;
 import haven.Coord;
-import haven.Equipory;
 import haven.GameUI;
 import haven.Gob;
 import haven.GOut;
-import haven.Inventory;
 import haven.Label;
 import haven.Loading;
 import haven.Text;
@@ -33,7 +30,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 
@@ -42,10 +38,10 @@ import static io.brodgar.addon.AddonManager.*;
 /**
  * The custom-UI + widget-introspection subsystem:
  * {@code hafen.ui} — custom windows/widgets (2a), HUD + world-space gob overlays (2b), selector lookups and
- * selector events (030), adopted-widget models (3b), widget replacers (3c), and the read-only widget-tree walk +
- * hit-testing (W1/W2 node API). Owns the subscription/model/replacer registries + overlay paint state. The
- * widget-creation seams {@code onWidgetCreated}/{@code onWidgetPlaced} (called from {@code haven.UI}) stay
- * facades in {@link AddonManager} and delegate here; the tick drives {@link #pollModels}/{@link #pollWatches}/
+ * selector events (030), the window-toggle seam + the {@code widget:replace(view)} substitution (031/032), and the
+ * read-only widget-tree walk + hit-testing (W1/W2 node API). Owns the subscription registries + overlay paint
+ * state. The widget-placement seam {@code onWidgetPlaced} (called from {@code haven.UI}) stays a facade in
+ * {@link AddonManager} and delegates here; the tick drives {@link #pollReplaced}/{@link #pollWatches}/
  * {@link #pollSelectorWatches}/{@link #sweepGobOverlays}/{@link #anyHudOverlays}; {@code haven}-side
  * {@code LuaGobOverlay.draw} calls {@link #paintGobOverlays}. Shared gob-read/engine helpers stay in
  * {@link AddonManager}. Not instantiable.
@@ -67,15 +63,6 @@ final class UiApi {
     private static double lastGobSweep;                                   // engine-clock of the last gob sweep
     private static final double GOB_SWEEP_INTERVAL =                      // gob-overlay filter sweep period (s)
         Double.parseDouble(System.getProperty("haven.addon.gobsweepsec", "0.2"));
-
-    // -- widget-creation interception (spec 08 / Phase 3a): the server type string, for replace's descriptor -------
-    // widgetTypes holds only IN-FLIGHT creations (recorded at NewWidget.run by onWidgetCreated, removed at the
-    // matching AddWidget.run by onWidgetPlaced) and is recorded only while a REPLACER exists, so the map stays tiny
-    // and an unreplacing client records nothing. Since 030.2 that is its only consumer: hafen.ui.onWidgetCreate and
-    // its {id,type,place,caption,parentType} descriptor are HARD CUT — an addon names the widget it is waiting for
-    // with a SELECTOR now (see selectorWatches below), not with a second vocabulary. The descriptor survives only as
-    // the argument of replace{match=fn}, which goes with replace itself in B3. Session-scoped (cleared per init).
-    private static final Map<Integer, String> widgetTypes = new ConcurrentHashMap<Integer, String>();
 
     // -- selector subscriptions (030.2): hafen.ui.on(sel, "appear"|"disappear", fn) — the discovery primitive that
     // replaced onWidgetCreate. A FLAT global list (a subscription watches the whole tree, not one keyed target),
@@ -105,13 +92,6 @@ final class UiApi {
         }
     }
 
-    // -- adopted widget models (spec 08 / Phase 3b): hafen.ui.adopt(id) wraps a live server-bound widget so an
-    // addon can hide it as a headless model + present a custom view (D-009). A FLAT global list, polled each tick
-    // (pollModels) for item add/remove (a WItem create/cdestroy, not a uimsg) and server destroy (its id stops
-    // mapping to the widget); globally empty = a near-zero fast path. Owned copies live on each Addon for teardown
-    // (which un-hides anything the addon hid, restoring the stock UI). Session-scoped (cleared per init).
-    private static final List<LuaModel> models = new CopyOnWriteArrayList<LuaModel>();
-
     // -- container subscriptions (029.3): widget:onItemAdded/:onItemRemoved/:onDestroy. A FLAT global list of the
     // widgets SOMEBODY is listening to, diffed each tick (pollWatches) for WItem add/remove (a create/cdestroy, not
     // a uimsg) and for the widget's own death. hasSub-GATED by construction — an entry exists only while at least
@@ -119,35 +99,13 @@ final class UiApi {
     // Owned copies live on each Addon for teardown. Session-scoped (cleared per init; the tree is rebuilt).
     private static final List<LuaWidget.Watch> watches = new CopyOnWriteArrayList<LuaWidget.Watch>();
 
-    // -- widget replacers (spec 08 / Phase 3c): hafen.ui.replace(type, opts, fn) — the high-level sugar over 3a+3b.
-    // Watch for a server widget matching a descriptor, then adopt+hide it and hand the addon a custom view (D-009).
-    // A FLAT global list consulted at widget placement (onWidgetPlaced, alongside the observers); registration also
-    // SCANS the live tree once to catch an already-open target (the :reload case, where no creation event fires).
-    // Owned copies live on each Addon for teardown. Session-scoped (cleared per init; widget ids are per-session).
-    private static final List<LuaReplacer> widgetReplacers = new CopyOnWriteArrayList<LuaReplacer>();
-
-    // ===== widget-creation seams (bodies behind AddonManager.onWidgetCreated/onWidgetPlaced) =====
-    static void onWidgetCreated(int id, String typenm) {
-        if(widgetReplacers.isEmpty() || (typenm == null))
-            return;                                   // fast path: nobody is replacing, or no type string
-        widgetTypes.put(Integer.valueOf(id), typenm);
-    }
-
-    static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] pargs) {
+    // ===== the widget-placement seam (the body behind AddonManager.onWidgetPlaced) =====
+    // ONE consumer since 032.2: the 030.2 selector subscriptions, which see the LIVE widget itself. The
+    // {id,type,place,caption,parentType} descriptor that used to be built here for hafen.ui.replace went with it —
+    // and with it the NewWidget seam that recorded the server type string, since nothing reads it any more.
+    static void onWidgetPlaced(int id, Widget wdg) {
         if(!selectorWatches.isEmpty())
-            offerPlaced(wdg, id);                     // 030.2: the selector subscriptions see the LIVE widget itself
-        if(widgetReplacers.isEmpty())
-            return;                                   // fast path: nothing is being replaced
-        String type = widgetTypes.remove(Integer.valueOf(id));
-        String place = ((pargs != null) && (pargs.length > 0) && (pargs[0] instanceof String))
-                       ? (String)pargs[0] : null;
-        String parentType = (pwdg == null) ? null : pwdg.getClass().getSimpleName();
-        String caption = (wdg instanceof Window) ? ((Window)wdg).cap : null;
-        // 3c: offer this newly-placed widget to every replacer (a target opened AFTER the replacer registered).
-        for(LuaReplacer r : widgetReplacers) {        // copy-on-write: a builder may register/remove replacers here
-            if(r.alive && !r.handled(id) && matchOnCreate(r, id, type, place, caption, parentType))
-                fireReplace(r, id, wdg);
-        }
+            offerPlaced(wdg, id);
     }
 
     /** Build {@code hafen.ui} for {@code owner}. From installHafen. */
@@ -207,29 +165,14 @@ final class UiApi {
         // hafen.ui.adopt(id) is GONE (029.2). It only ever existed to get a readable handle on a native widget, and
         // it charged you a hidden window for the privilege. Now every widget IS an entity: hafen.ui.node(id) hands
         // you the same one WITHOUT hiding anything, and widget:hide() (which records the restore, see below) is the
-        // separate, explicit act it always should have been. Replacing a native window is still hafen.ui.replace.
-        // hafen.ui.replace(type, opts, fn) — the high-level "replace a native window with your own view" sugar over
-        // 3a (observe) + 3b (adopt), spec 08 / Phase 3c. It watches for a SERVER widget matching a descriptor, then
-        // adopts the real widget as a hidden MODEL and calls fn(model); fn draws a custom VIEW (e.g. a hafen.ui.window)
-        // and RETURNS it — "wrap, don't reimplement" (D-009). Since 029.3 fn's argument is the WIDGET ENTITY for the
-        // replaced widget (the same value hafen.ui.node(id) hands back), so model:items(), model:onItemAdded(fn) and
-        // every other widget verb answer on it. The native window is hidden but stays server-bound, so
-        // its items/events keep working; disabling/reloading the addon (or handle:remove()) UN-HIDES it, restoring
-        // the stock UI (the Phase-3 DoD). Matching:
-        //   type            -- the server type string (e.g. "inv"); required.
-        //   opts.context    -- a semantic selector: "main" = the main inventory (GameUI.maininv).
-        //   opts.caption    -- an exact window caption (for titled containers, e.g. "Cupboard").
-        //   opts.match      -- an escape-hatch predicate match(desc)->truthy, desc={id,type,place,caption,parentType}.
-        // Registration also SCANS the live tree ONCE for an already-open match (the :reload case, where the target
-        // was created before this addon layer existed) — so it works whether the window opens before or after you
-        // call replace. Item MOVING (take/transfer/drop) is a gameplay action -> the gated Phase-4 tier, not here.
-        // Returns a handle { :remove() } that stops replacing AND restores the native window (destroying your view);
-        // bridge-owned, so :reload/disable does the same automatically.
-        uiT.set("replace", new ThreeArgFunction() {
-            public LuaValue call(LuaValue type, LuaValue opts, LuaValue fn) {
-                return newReplacer(owner, type, opts, fn);
-            }
-        });
+        // separate, explicit act it always should have been.
+        // hafen.ui.replace(type, opts, fn) is GONE too (032.2, hard cut — it reads as plain nil). It was the LAST
+        // place that named a window a different way: its {id,type,place,caption,parentType} descriptor (D-024) was
+        // a second vocabulary for "which window", and it was PRIVILEGED — only it could bind a view to a hidden
+        // native window, so an addon doing the same by hand got a swallowed toggle and nothing driving it. Both
+        // halves are ordinary API now: hafen.ui.on(sel, "appear", fn) does the WAITING (and fires for what is
+        // already open, D-068), and widget:replace(view) does the REPLACING. The whole pattern is
+        //     hafen.ui.on("inventory[title=Inventory]", "appear", function(w) w:replace(buildMyView(w)) end)
         // hafen.ui(sel) / hafen.ui.all(sel) / hafen.ui() / hafen.ui.node(id) / hafen.ui.at(x,y) — the widget-tree entry points (spec 20 W1/W2,
         // rebuilt on the ONE entity by 029-widget-oop). Walk ANY widget's children to arbitrary depth from Lua (the
         // generic reader that complements the spec-14 typed adapters). Entry points for distinct inputs (D-012):
@@ -413,18 +356,13 @@ final class UiApi {
             collect(c, sel, out);
     }
 
-    /** Session init: drop per-session widget-type records, adopted models, and replacers (from AddonManager.init). */
+    /** Session init: drop every per-session widget record (from AddonManager.init). */
     static void resetSession() {
         lastGobSweep = 0;             // 2b: sweep gob overlays promptly on the new session
-        widgetTypes.clear();
-        models.clear();
-        widgetReplacers.clear();
         watches.clear();
         selectorWatches.clear();      // 030.2: the tree of the session just ended; nothing matches any more
         pending.clear();
         if(consoleOwner != null) {
-            consoleOwner.models.clear();
-            consoleOwner.replacers.clear();
             consoleOwner.hiddenNative.clear();   // 029.2: last session's widgets are gone; nothing left to restore
             consoleOwner.itemWatches.clear();    // 029.3: ...and so are the containers it was subscribed to
             consoleOwner.selectorWatches.clear();// 030.2: ...and the selectors it was watching for
@@ -727,41 +665,6 @@ final class UiApi {
         a.selectorWatches.clear();
     }
 
-    // -------------------------------------------------------------- adopted widget models (hafen.ui, 3b)
-
-    /**
-     * Per-tick poll of every {@code replace}d model (UI thread, spec 08 / Phase 3c): a model whose server widget is
-     * gone (its id no longer maps to it) is dropped, its replacer notified and the addon's view destroyed — the view
-     * must die with the model. Fast-paths out when nothing is replaced.
-     *
-     * <p><b>029.3 took the items out of here.</b> {@code :items()} and the three lifecycle callbacks are now on the
-     * Widget entity, where they answer for ANY container; the per-tick diff moved to {@link #pollWatches}, which is
-     * gated on somebody having subscribed. What is left is purely {@code replace}'s own bookkeeping — an addon that
-     * wants to know when the replaced widget dies subscribes to it like any other widget, with
-     * {@code widget:onDestroy(fn)}.
-     */
-    static void pollModels() {
-        if(models.isEmpty())
-            return;
-        UI u = ui;
-        if(u == null)
-            return;
-        for(LuaModel m : models) {           // copy-on-write: a callback may drop a model here
-            if(!m.alive)
-                continue;
-            if(u.getwidget(m.id) != m.wdg) {  // server destroyed it (or reused the id) → the model is gone
-                m.alive = false;
-                models.remove(m);
-                m.owner.models.remove(m);
-                if(m.fromReplace != null)     // 3c: the view dies with the native widget (spec 08); notify the replacer
-                    m.fromReplace.active.remove(m);
-                releaseHidden(m.hideRecord);  // 031.2: ...and the wrapper's toggle goes back to the client
-                m.hideRecord = null;
-                destroyReplaceView(m);
-            }
-        }
-    }
-
     // ---------------------------------------------- container subscriptions (the Widget entity's events, 029.3)
 
     /**
@@ -875,25 +778,6 @@ final class UiApi {
     }
 
     /**
-     * Tear down every adopted model this addon owns (reload/disable, P2): mark each dead and drop it from the
-     * global poll list. That is all it does now — <b>the un-hide moved out</b> (031.2). Restoring the native
-     * window used to live here, replaying the model's own copy of the window's original visibility; since the hide
-     * is one record on {@link Addon#hiddenNative}, {@link #teardownHidden} restores it (under the one rule) and
-     * this method has no tree op left, so it needs no {@code ui} lock either.
-     */
-    static void teardownModels(Addon a) {
-        if(a.models.isEmpty())
-            return;
-        final List<LuaModel> ms = new ArrayList<LuaModel>(a.models);
-        a.models.clear();
-        models.removeAll(ms);
-        for(LuaModel m : ms) {
-            m.alive = false;
-            m.hideRecord = null;
-        }
-    }
-
-    /**
      * Give back every NATIVE widget this addon hid with {@code widget:hide()} (029.2, reload/disable, P2) — the
      * restore that {@code hafen.ui.adopt} used to carry — and with it the window's toggle (031).
      *
@@ -922,7 +806,7 @@ final class UiApi {
      * {@code ui} <i>before</i> the teardown loop, so after a relog a server-bound entry's id no longer maps to the
      * recorded widget (and a client-only one is no longer under the live root) — the restore is correctly skipped,
      * the old tree being gone entirely. Within one session both tests still hold and the widget is put back.
-     * Tree ops → under the {@code ui} monitor, like {@link #teardownModels}.
+     * Tree ops → under the {@code ui} monitor, like every other write into the client's tree.
      */
     static void teardownHidden(Addon a) {
         if((a == null) || a.hiddenNative.isEmpty())    // null: the :lua REPL owner, which exists only once used
@@ -1220,7 +1104,7 @@ final class UiApi {
         } else {
             wnd.hide();
         }
-        assertToggleTarget(owner, w, wnd, "widget:replace(view)");
+        assertToggleTarget(owner, w, wnd);
     }
 
     /**
@@ -1276,15 +1160,17 @@ final class UiApi {
      * replaced window — a chest closed, a relog — <b>ends the substitution</b>, so the record goes and the view dies
      * with it rather than hanging over a container that no longer exists.
      *
-     * <p><b>Keyed on the hide record, not on a model.</b> {@link #pollModels} watches the widget the legacy {@code
-     * hafen.ui.replace} adopted; the verb adopts nothing, so the thing to watch is the record that IS the
-     * substitution. The death test is {@link #stillHidable}, the same two-branch guard the teardown uses (by server
-     * id when the window has one, by tree reachability for a client-side wrapper like the inventory's, which never
-     * dies). A record with no view bound — a bare {@code w:hide()} — is not a substitution and is left alone.
+     * <p><b>Keyed on the hide record, not on a model</b> (D-071): a relationship's lifetime is watched on the
+     * relationship. The retired {@code hafen.ui.replace} minted a {@code LuaModel} around the widget it adopted and
+     * polled that; the verb adopts nothing, so the thing to watch is the record that IS the substitution — which is
+     * why 032.2 could delete the model and its poll outright rather than port them. The death test is
+     * {@link #stillHidable}, the same two-branch guard the teardown uses (by server id when the window has one, by
+     * tree reachability for a client-side wrapper like the inventory's, which never dies). A record with no view
+     * bound — a bare {@code w:hide()} — is not a substitution and is left alone.
      *
      * <p>Gated on the {@link LuaWidget#anyHidden} volatile the toggle seam already maintains, so a client that hides
-     * nothing pays one read per tick. Both paths are idempotent, so a record the legacy {@code replace} also owns
-     * being swept here (and then again by {@link #pollModels}) is harmless.
+     * nothing pays one read per tick. {@link #endReplacement} is idempotent, so this sweep racing an undo or a
+     * teardown over the same record is harmless.
      */
     static void pollReplaced() {
         if(!LuaWidget.anyHidden)
@@ -1308,247 +1194,21 @@ final class UiApi {
         }
     }
 
-    // -------------------------------------------------------------------- widget replacers (hafen.ui, 3c)
-
-    /**
-     * Register a widget replacer ({@code hafen.ui.replace(type, opts, fn)}, spec 08 / Phase 3c): build a {@link
-     * LuaReplacer} from the match criteria, register it globally (consulted at widget placement) + in the addon's
-     * owned-resource registry (P2), then immediately SCAN the live tree for an already-open match (the {@code
-     * :reload} case). Returns the Lua handle ({@code :remove()}). Throws a {@link LuaError} for a bad {@code type}/
-     * {@code fn}.
-     */
-    private static LuaValue newReplacer(final Addon owner, LuaValue typev, LuaValue opts, LuaValue fn) {
-        if(!typev.isstring())
-            throw new LuaError("hafen.ui.replace(type, opts, fn) expects a type string (e.g. \"inv\")");
-        if(!fn.isfunction())
-            throw new LuaError("hafen.ui.replace(type, opts, fn) expects a builder function fn(model)");
-        final LuaReplacer r = new LuaReplacer(owner, typev.tojstring());
-        if(opts.istable()) {
-            LuaValue ctx = opts.get("context"); if(ctx.isstring())   r.context = ctx.tojstring();
-            LuaValue cap = opts.get("caption"); if(cap.isstring())   r.caption = cap.tojstring();
-            LuaValue mf  = opts.get("match");   if(mf.isfunction())  r.matchFn = mf;
-        }
-        r.builderFn = fn;
-        widgetReplacers.add(r);
-        owner.replacers.add(r);
-        scanForReplace(r);                     // catch an ALREADY-OPEN target (the :reload / register-while-in-world case)
-        LuaTable h = new LuaTable();
-        h.set("remove", new ZeroArgFunction() {
-            public LuaValue call() {
-                removeReplacer(owner, r);
-                return LuaValue.NIL;
-            }
-        });
-        return h;
-    }
-
-    /**
-     * Sweep the live widget tree once for a target the replacer would match but that already exists — the {@code
-     * :reload} case (the target, e.g. the main inventory, was created before this rebuilt addon layer, so no {@code
-     * onWidgetPlaced} will fire for it). For {@code context="main"} on {@code "inv"} the target is the unambiguous
-     * public {@code GameUI.maininv}; otherwise scan the widgets of the type's class for a caption/match hit. The
-     * server type string is not recorded for an already-live widget, so the scan keys on the Java class instead
-     * ({@link #typeClass}) — a bridge-internal detail; the addon's {@code type} string stays the one canonical key.
-     */
-    private static void scanForReplace(LuaReplacer r) {
-        UI u = ui;
-        if(u == null)
-            return;
-        GameUI g = gui();
-        if("main".equals(r.context) && "inv".equals(r.type)) {
-            if((g != null) && (g.maininv != null)) {
-                int id = u.widgetid(g.maininv);        // -1 for a client-side widget (no server id)
-                String parentType = (g.maininv.parent != null) ? g.maininv.parent.getClass().getSimpleName() : null;
-                if((id >= 0) && !r.handled(id) && matchCriteria(r, id, "inv", null, null, parentType))
-                    fireReplace(r, id, g.maininv);
-            }
-            return;
-        }
-        Class<? extends Widget> cls = typeClass(r.type);
-        if(cls == null)
-            return;                                    // unknown type for scanning; the creation path still catches new ones
-        Widget rootw = (g != null) ? g : u.root;
-        if(rootw == null)
-            return;
-        for(Widget w : widgetsOfClass(rootw, cls)) {
-            int id = u.widgetid(w);
-            if((id < 0) || r.handled(id))
-                continue;
-            String caption = (w instanceof Window) ? ((Window)w).cap : null;
-            String parentType = (w.parent != null) ? w.parent.getClass().getSimpleName() : null;
-            if(matchCriteria(r, id, r.type, null, caption, parentType))
-                fireReplace(r, id, w);
-        }
-    }
-
-    /**
-     * Creation-path match: the placed widget's full descriptor vs the replacer. Checks {@code type} and (for
-     * {@code context="main"}) that this is the main inventory — server-placed with {@code place=="inv"} directly
-     * under {@code GameUI} (a container inventory is placed inside its own window, so {@code place} is null) — then
-     * the shared {@link #matchCriteria} (caption + match fn).
-     */
-    private static boolean matchOnCreate(LuaReplacer r, int id, String type, String place, String caption, String parentType) {
-        if(!r.type.equals(type))
-            return false;
-        if("main".equals(r.context)
-           && !("inv".equals(r.type) && "inv".equals(place) && "GameUI".equals(parentType)))
-            return false;
-        return matchCriteria(r, id, type, place, caption, parentType);
-    }
-
-    /** Shared caption + {@code match(desc)} criteria (type/context are pre-checked by the caller). */
-    private static boolean matchCriteria(LuaReplacer r, int id, String type, String place, String caption, String parentType) {
-        if((r.caption != null) && !r.caption.equals(caption))
-            return false;
-        if((r.matchFn != null)
-           && !callLua(r.owner, Addon.C_HOOK, r.matchFn, descTable(id, type, place, caption, parentType)).arg1().toboolean())
-            return false;
-        return true;
-    }
-
-    /**
-     * Adopt the matched server widget as a hidden {@link LuaModel}, hide the native WINDOW around it (so the whole
-     * stock window disappears, not just its content), then call the addon's {@code fn(model)} builder and keep the
-     * view it returns. Runs on the UI thread under {@code synchronized(ui)} (from {@code onWidgetPlaced}, or the
-     * tick-driven reload scan) — the tree ops are locked; the builder's own {@code hafen.ui.window} re-locks
-     * reentrantly.
-     *
-     * <p><b>031.2: the hide is the ONE record, and the view is bound to it.</b> {@code replace} takes (or joins)
-     * the same {@link Addon#hiddenNative} entry {@code widget:hide()} makes, so the window it hides is a window it
-     * <i>owns</i> — toggle included — and then fills that record's view with whatever the builder returned. That is
-     * the whole wiring: nothing for the addon to call, no second copy of the hide to keep in step, and the menu
-     * checkbox reads the view rather than a bookkeeping boolean. A window another addon already owns is refused
-     * here, naming it (the engine path cannot throw into Lua, so this one logs and skips).
-     */
-    private static void fireReplace(final LuaReplacer r, int id, Widget wdg) {
-        final UI u = ui;
-        if(u == null)
-            return;
-        final Widget nativeWin = LuaWidget.nativeWindowOf(wdg);   // the wrapper (the "Inventory" Hidewnd), or wdg itself
-        LuaWidget.Hidden ex = hiddenOwner(nativeWin);
-        if((ex != null) && (ex.owner != r.owner)) {
-            log(r.owner, "hafen.ui.replace: " + LuaWidget.typeName(nativeWin) + " is already hidden by the addon \""
-                + ownerName(ex.owner) + "\", which owns its toggle too; one window has one owner, so this"
-                + " replacement was skipped");
-            return;
-        }
-        assertToggleTarget(r.owner, wdg, nativeWin, "hafen.ui.replace");
-        final LuaModel m = new LuaModel(r.owner, id, wdg);
-        m.fromReplace = r;
-        m.hideRecord = LuaWidget.recordHidden(r.owner, nativeWin);
-        synchronized(u) {
-            nativeWin.hide();
-        }
-        models.add(m);
-        r.owner.models.add(m);
-        r.handled.add(Integer.valueOf(id));
-        r.active.add(m);
-        // 029.3: the builder is handed the WIDGET ENTITY for the replaced widget — the same value hafen.ui.node(id)
-        // or hafen.ui.inventory() gives, with :items(), the three lifecycle verbs and every read on it. The bespoke
-        // model handle (:hide/:show/:visible/:items/:on*/:node) is gone: it was the last of the three objects this
-        // feature collapses, and every one of its verbs now lives on the entity.
-        LuaValue view = callLua(r.owner, Addon.C_WIDGET, r.builderFn, LuaWidget.of(r.owner, wdg)).arg1();
-        // 029.2: the builder's hafen.ui.window{} now returns the Widget ENTITY, not a table of closures — so keep
-        // the addon's own content widget directly (the same thing the old handle's :destroy() reached through Lua).
-        // Anything else the builder may return (nil, a table) simply leaves no view to destroy, as before.
-        m.replaceView = LuaWidget.ownedContent(r.owner, LuaWidget.live(LuaWidget.resolve(view)));
-        if(m.hideRecord != null)
-            m.hideRecord.view = m.replaceView;   // 031.2: from here on the client's own toggle drives the view
-    }
-
     /**
      * Check — rather than assume — that the window a replacement just hid is the object {@code GameUI} toggles
-     * (031.2). Two ways it can fail to be one, both reported and neither fatal: the widget has no enclosing
-     * {@link Window} at all (nothing for a toggle to own — the view is then the addon's to show and hide), and,
-     * for the main inventory, the wrapper not being {@code maininv.parent}, which is what {@code togglewnd(invwnd)}
-     * is called with. On the normal path both are silent, so an in-game replace that logs nothing has proved the
-     * identity the seam rests on. {@code where} names the caller, since 032.1 gave it two — the verb (which
-     * refuses the first case outright, so only the second can fire) and the legacy placement path (which can only
-     * log, never throw into the engine).
+     * (031.2): for the main inventory, that the hidden wrapper really is {@code maininv.parent}, which is what
+     * {@code togglewnd(invwnd)} is called with. Silent on the normal path, so an in-game replace that logs nothing
+     * has proved the identity the seam rests on. It only logs — a wrong wrapper costs the Tab toggle, not the
+     * replacement. (Its other case, a widget with no enclosing {@link Window} at all, is a hard refusal in
+     * {@link #replaceWith} since 032.2 left the verb as the only caller: the placement path that could merely log
+     * went with {@code hafen.ui.replace}.)
      */
-    private static void assertToggleTarget(Addon owner, Widget wdg, Widget nativeWin, String where) {
-        if(!(nativeWin instanceof Window)) {
-            log(owner, where + ": " + LuaWidget.typeName(wdg) + " is not inside a window, so there is no"
-                + " client toggle to take over — showing and hiding your view is yours to drive");
-            return;
-        }
+    private static void assertToggleTarget(Addon owner, Widget wdg, Widget nativeWin) {
         GameUI g = gui();
         if((g != null) && (wdg == g.maininv) && (nativeWin != g.maininv.parent))
-            log(owner, where + ": internal — the hidden window is not the main inventory's own wrapper, so"
-                + " the client's Tab toggle will not follow this replacement");
+            log(owner, "widget:replace(view): internal — the hidden window is not the main inventory's own"
+                + " wrapper, so the client's Tab toggle will not follow this replacement");
     }
-
-    /** The server type string → the Java widget class, for scanning an already-open target (see {@link #scanForReplace}). */
-    private static Class<? extends Widget> typeClass(String type) {
-        if("inv".equals(type))  return Inventory.class;
-        if("epry".equals(type)) return Equipory.class;
-        if("chr".equals(type))  return CharWnd.class;
-        if("wnd".equals(type))  return Window.class;
-        return null;
-    }
-
-    /** Every widget of a class in a subtree ({@link Widget#children(Class)} is a deep traversal), typed as {@code Widget}. */
-    @SuppressWarnings("unchecked")
-    private static Set<Widget> widgetsOfClass(Widget root, Class<? extends Widget> cls) {
-        return (Set<Widget>)(Set<?>)root.children(cls);
-    }
-
-    /**
-     * Remove a replacer (the handle's {@code :remove()}, a live toggle-off): stop matching, then UNDO every active
-     * replacement — restore the native window's original visibility and destroy the addon's view. (Teardown on
-     * reload/disable takes a different path: {@link #teardownModels} restores + {@link #destroyWidgets} destroys.)
-     */
-    private static void removeReplacer(Addon owner, LuaReplacer r) {
-        r.alive = false;
-        widgetReplacers.remove(r);
-        owner.replacers.remove(r);
-        for(LuaModel m : new ArrayList<LuaModel>(r.active))
-            undoReplace(m);
-        r.active.clear();
-    }
-
-    /**
-     * Undo one active replacement (live {@code :remove()}): drop the model, give the native window and its toggle
-     * back under the one rule, then destroy the view. The order is load-bearing — the rule reads the view's
-     * visibility, so it has to be asked before the view is killed.
-     */
-    private static void undoReplace(LuaModel m) {
-        m.alive = false;
-        models.remove(m);
-        m.owner.models.remove(m);
-        releaseHidden(m.hideRecord);    // 031.2: as the user was seeing it — view open ⇒ the stock window opens
-        m.hideRecord = null;
-        destroyReplaceView(m);
-    }
-
-    /**
-     * Destroy a replace model's view, if any — the Java side of what the old table handle's {@code :destroy()} did.
-     * Since 032.1 the killing itself is {@link #destroyView}, shared with the verb: this method is only the model's
-     * own bookkeeping around it.
-     */
-    private static void destroyReplaceView(LuaModel m) {
-        AddonWidget v = m.replaceView;
-        m.replaceView = null;
-        if(m.hideRecord != null)
-            m.hideRecord.view = null;   // 031.2: the toggle has nothing left to drive (it swallows again)
-        destroyView(m.owner, v);
-    }
-
-    /**
-     * Tear down every replacer this addon owns (reload/disable, P2): mark each dead and stop it matching. The
-     * adopted models are un-hidden by {@link #teardownModels} and the views destroyed by {@link #destroyWidgets}
-     * (both run in the same {@link #teardown}), so this only clears the dispatch state.
-     */
-    static void teardownReplacers(Addon a) {
-        for(LuaReplacer r : a.replacers) {
-            r.alive = false;
-            r.active.clear();
-        }
-        widgetReplacers.removeAll(a.replacers);
-        a.replacers.clear();
-    }
-
-
 
     /** Any addon currently has a HUD overlay? (Decides whether to queue the per-frame afterdraw.) */
     static boolean anyHudOverlays() {

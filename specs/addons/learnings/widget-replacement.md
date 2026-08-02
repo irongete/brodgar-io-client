@@ -157,3 +157,19 @@
   what a server destroy takes away (a chest's `Window` and its `Inventory` die together), and it is the object the
   restore rule already tests with `stillHidable`. That is also what makes the sweep affordable: it rides the
   `LuaWidget.anyHidden` volatile, so a client that replaces nothing pays one read per tick.
+- **(032.2) A privileged function's private machinery is dead the moment the function is — follow the cascade,
+  don't grep for the type name.** Deleting `hafen.ui.replace` took `LuaReplacer` *and* `LuaModel` with it: the
+  model was the thing the old function adopted, and 032.1's `pollReplaced` had already moved destroy-detection
+  onto the hide record (D-071), so nothing was left to mint one. `Addon.models`, `pollModels`, `teardownModels`,
+  the `widgetTypes` map, `AddonManager.descTable` and the `UI.NewWidget.run` **core seam** that fed it all went the
+  same way — one `// addon:` line fewer in `haven`. The test that finds this is *"who still CREATES one?"*; a grep
+  for `LuaModel` answers "plenty of places" right up to the moment the last constructor call goes.
+- **(032.2) A parameter that exists to tell two callers apart is a sign one of them is temporary.** 031.2's
+  `assertToggleTarget` gained a `where` string in 032.1 so it could name the verb or the placement path; 032.2
+  deleted the placement path and the parameter with it, and its "widget not inside a window" branch became
+  unreachable (the verb throws first). The two-spelling note above is now history, not a rule.
+- **(032.2) `ui.on` + `w:replace` covers both of the old function's match paths with no extra code.** The
+  creation path (placement, gated on the *server* parent) and the registration scan (targeting `GameUI.maininv`
+  directly) were two matchers for one intent; D-068's "registration scans the live tree" is the single behaviour
+  that subsumes them, which is why 032.2 is a deletion and not a port. The seam it leaves behind takes
+  `(id, wdg)` — the parent and the placement args existed only for the descriptor.

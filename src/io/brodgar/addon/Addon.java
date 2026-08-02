@@ -94,24 +94,16 @@ public final class Addon {
      */
     public final List<LuaSelectorWatch> selectorWatches = new CopyOnWriteArrayList<LuaSelectorWatch>();
     /**
-     * Live replaced widget models owned by this addon ({@code hafen.ui.replace}, Phase 3c — {@code hafen.ui.adopt}
-     * was deleted by 029.2, so this is now reached only through a replacer): each wraps a live
-     * server-bound widget (by id) so the addon can hide it as a headless model + present a custom view (D-009).
-     * They live in a flat global list in {@link AddonManager} (polled each tick for item add/remove + server
-     * destroy); teardown marks each dead, drops it from that list, and <b>un-hides</b> any widget the addon had
-     * hidden so disabling restores the stock UI (spec 08). Copy-on-write: a firing lifecycle callback may adopt
-     * or drop a model mid-poll.
-     */
-    public final List<LuaModel> models = new CopyOnWriteArrayList<LuaModel>();
-    /**
      * Native widgets this addon has <b>hidden</b> with {@code widget:hide()} (029.2) — the restore list that
-     * replaced {@code hafen.ui.adopt}. Hiding a widget the addon does not own is the one write that reaches the
-     * client's own UI, so it is bridge-owned like everything else: {@link UiApi#teardownHidden} replays each
-     * entry's ORIGINAL visibility on {@code :reload}/disable, guarded on the widget still being the same live one
-     * (so a relog — which rebinds {@code ui} before the teardown loop — correctly skips it while a same-session
-     * {@code :reload} performs it). {@code widget:show()} drops its own entry: nothing left to undo. Distinct from
-     * {@link #models}, which is {@code replace}'s bookkeeping and hides the enclosing <i>wrapper</i> instead —
-     * the two rules are deliberately not merged. Copy-on-write like the other owned lists.
+     * replaced {@code hafen.ui.adopt}, and <b>the one record a substitution lives on</b> since 031.2: a
+     * {@code widget:replace(view)} joins the very entry a bare hide makes and fills in its view, so there is no
+     * second bookkeeping object beside it (D-071, which is what let 032.2 delete {@code LuaModel} with the
+     * function that minted it). Hiding a widget the addon does not own is the one write that reaches the client's
+     * own UI, so it is bridge-owned like everything else: {@link UiApi#teardownHidden} restores each entry on
+     * {@code :reload}/disable under the one rule (<i>the window ends up as the user was seeing it</i>) and destroys
+     * the stand-in with it, guarded on the widget still being the same live one (so a relog — which rebinds
+     * {@code ui} before the teardown loop — correctly skips it while a same-session {@code :reload} performs it).
+     * {@code widget:show()} drops its own entry: nothing left to undo. Copy-on-write like the other owned lists.
      */
     public final List<LuaWidget.Hidden> hiddenNative = new CopyOnWriteArrayList<LuaWidget.Hidden>();
     /**
@@ -123,17 +115,6 @@ public final class Addon {
      * a destroy. Copy-on-write: a firing callback may subscribe or unsubscribe mid-poll.
      */
     public final List<LuaWidget.Watch> itemWatches = new CopyOnWriteArrayList<LuaWidget.Watch>();
-    /**
-     * Live widget replacers owned by this addon ({@code hafen.ui.replace}, Phase 3c): each watches for a server
-     * widget matching a descriptor (by type/context/caption), then adopts it as a hidden {@link LuaModel} and
-     * hands the addon a custom view — "wrap, don't reimplement" (D-009). They live in a flat global dispatch list
-     * in {@link AddonManager} (consulted at widget placement, like {@link #selectorWatches}) and also scan the live
-     * tree once at registration to catch an already-open target (the {@code :reload} case). Teardown marks each dead
-     * and drops it from that list (principle P2); the adopted models are un-hidden by {@link AddonManager}'s model
-     * teardown and the views destroyed with the rest of {@link #widgets}. Copy-on-write: a firing replacer may
-     * {@code :remove()} itself mid-dispatch.
-     */
-    public final List<LuaReplacer> replacers = new CopyOnWriteArrayList<LuaReplacer>();
     /**
      * Live addon slash commands owned by this addon ({@code hafen.slash.register}, gap subsystem A11): each routes
      * a console command {@code :name} to a Lua handler. Unlike the hook lists, the engine's {@link haven.Console}

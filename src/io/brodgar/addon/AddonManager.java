@@ -360,14 +360,10 @@ public final class AddonManager {
             CharApi.refreshTreeAdapters();
             CharApi.pollTreeAdapters();
 
-            // 1c. Replaced widget models (3c): per-tick check for server destroy (the model's id stops mapping to
-            //     its widget → drop it and destroy the addon's view). Fast-paths out when nothing is replaced.
-            UiApi.pollModels();
-
-            // 1c*. Replacements (032.1): per-tick check for the server destroying a window an addon replaced with
-            //      widget:replace(view) — the substitution ends, the window and its toggle go back under the one
-            //      rule, and the stand-in view is destroyed with it. Gated on the same volatile the toggle seam
-            //      reads, so a client that hides nothing pays one read.
+            // 1c. Replacements (032.1): per-tick check for the server destroying a window an addon replaced with
+            //     widget:replace(view) — the substitution ends, the window and its toggle go back under the one
+            //     rule, and the stand-in view is destroyed with it. Gated on the same volatile the toggle seam
+            //     reads, so a client that hides nothing pays one read.
             UiApi.pollReplaced();
 
             // 1c'. Watched containers (029.3): per-tick diff of every widget an addon subscribed to, for item
@@ -631,31 +627,20 @@ public final class AddonManager {
     }
 
     /**
-     * Record a server widget's <b>type name</b> (spec 08 / Phase 3a) — called from the {@code UI.NewWidget.run}
-     * core edit right after the widget is bound to its id. The widget instance does not carry its registered type
-     * string, so we stash {@code id -> typenm} here and read it back when the widget is placed (the descriptor's
-     * {@code type} field). Kept only while a {@link LuaReplacer} is registered (so a client that replaces nothing
-     * records nothing), and only the in-flight set (the matching {@link #onWidgetPlaced} removes it), so the map
-     * stays tiny. {@code typenm} is {@code null} when the widget was built from a {@link Widget.Factory} directly
-     * rather than a type string (never the case for a server widget) — those simply record no type.
-     */
-public static void onWidgetCreated(int id, String typenm) {        UiApi.onWidgetCreated(id, typenm);    }
-
-    /**
      * The <b>widget-placement seam</b> — called from the {@code UI.AddWidget.run} core edit, right after
-     * {@code pwdg.addchild(wdg, pargs)}, i.e. the first COMPLETE moment: placement supplies the {@code place}
-     * string and the parent that pure creation lacks, and the widget is in the tree, so a {@link Selector} can be
-     * applied to it. Two consumers: the 030.2 selector subscriptions ({@code hafen.ui.on}), which see the live
-     * widget itself, and the 3c {@link LuaReplacer}s, which still match the {@code {id, type, place, caption,
-     * parentType}} descriptor (D-024). {@code hafen.ui.onWidgetCreate}, the third, is gone.
+     * {@code pwdg.addchild(wdg, pargs)}, i.e. the first COMPLETE moment: the widget is in the tree, so a
+     * {@link Selector} can be applied to it. <b>One consumer since 032.2</b>: the 030.2 selector subscriptions
+     * ({@code hafen.ui.on}), which see the live widget itself. The other two are gone — {@code
+     * hafen.ui.onWidgetCreate} with 030.2, and {@code hafen.ui.replace}'s {@code {id, type, place, caption,
+     * parentType}} descriptor (D-024) with 032.2 — so the seam no longer needs the parent or the placement args,
+     * and the {@code UI.NewWidget.run} edit that recorded the server type string for that descriptor is gone too.
      *
      * <p><b>Threading.</b> Reached only from inside {@code AddWidget.run}'s {@code synchronized(ui)} block (on a
      * Loader thread, under the monitor tick/draw hold), so the Lua raised here never races other Lua — the same
-     * discipline as {@link #onMessage} (no {@code holdsLock} guard needed). The fast path (nobody subscribing or
-     * replacing) returns immediately, so an uninterested client is unaffected even though every widget placement
-     * passes here.
+     * discipline as {@link #onMessage} (no {@code holdsLock} guard needed). The fast path (nobody subscribing)
+     * returns immediately, so an uninterested client is unaffected even though every widget placement passes here.
      */
-public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] pargs) {        UiApi.onWidgetPlaced(id, wdg, pwdg, pargs);    }
+public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPlaced(id, wdg);    }
 
     /**
      * The <b>window-toggle seam</b> (031.1) — called from {@code haven.AddonWidgets}, which is where
@@ -673,22 +658,9 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
     /** @see #toggleWnd */
     public static Boolean wndState(Window wnd) {         return UiApi.wndState(wnd);     }
 
-    /**
-     * Build the widget-targeting descriptor {@code {id, type, place, caption, parentType}} (D-024) — since 030.2 the
-     * argument of {@code replace{match=fn}} and nothing else: the {@code onWidgetCreate} observer that shared it was
-     * hard cut, so the descriptor is no longer a discovery surface (a {@link Selector} is), and it goes with
-     * {@code replace} itself in B3. A {@code null} field is left absent (Lua {@code nil}) so an addon tests it
-     * idiomatically ({@code if desc.caption then ... end}).
-     */
-    static LuaTable descTable(int id, String type, String place, String caption, String parentType) {
-        LuaTable desc = new LuaTable();
-        desc.set("id", LuaValue.valueOf(id));
-        if(type != null)       desc.set("type", LuaValue.valueOf(type));
-        if(place != null)      desc.set("place", LuaValue.valueOf(place));
-        if(caption != null)    desc.set("caption", LuaValue.valueOf(caption));
-        if(parentType != null) desc.set("parentType", LuaValue.valueOf(parentType));
-        return desc;
-    }
+    // The widget-targeting descriptor {id, type, place, caption, parentType} (D-024) is GONE (032.2). It was the
+    // argument of replace{match=fn} and nothing else once 030.2 hard-cut the onWidgetCreate observer that shared
+    // it; with hafen.ui.replace deleted there is exactly one vocabulary for "which window" left — the Selector.
 
     /** Re-read each dirty adapter and fire its semantic event (UI thread, drained from the tick). */
 

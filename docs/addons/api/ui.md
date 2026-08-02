@@ -471,10 +471,10 @@ view); installing the same one again is a no-op. Four things are refused outrigh
 instead: a view your addon did not create, a widget with **no enclosing window** (there is nothing to stand
 in for), one of your *own* windows, and a window another addon already holds.
 
-> `hafen.ui.replace(type, opts, fn)` — the old namespace function, matching on the server's
-> `{id, type, place, caption, parentType}` descriptor — is still callable in this slice and is removed in
-> the next one. It was the last place naming a window a different way; `hafen.ui.on` + `w:replace` is the
-> full-strength replacement for both of its halves.
+> `hafen.ui.replace(type, opts, fn)` — the old namespace function, which matched on the server's
+> `{id, type, place, caption, parentType}` descriptor — is **gone**, and reads as plain `nil`. It was the
+> last place naming a window a different way, and the only thing that could bind a view to a hidden native
+> window. Both of its halves are ordinary API now: `hafen.ui.on` waits, `w:replace` replaces.
 
 **Limits.** A widget's Java state is otherwise read-only — mutating it desyncs from the server. `:text()`
 is best-effort over a known type set (unknown → nil, never throws). The whole client tree is reachable via

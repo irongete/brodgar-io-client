@@ -293,3 +293,15 @@
   HUD, which additionally showed `inventory` = 4 matches vs `@Inventory` = 3 (the `Equipory` classifies as
   `inventory` too) and `[title=Inventory]` = 32 (every widget *inside* the wrapper answers the refiner). Build the
   probe to shrink the risk, then still take the measurement.
+- **(032.2) Load the SHIPPING addon file whole against the rule stub when you can — slicing is the fallback.**
+  031.3 sliced `readToggle` out of `hello/main.lua` because that file needs the entire API to load; `bags` is
+  small enough that `loadfile("addons/bags/main.lua")()` runs the real thing, so the dry run exercises the
+  addon's *actual* control flow (its hotkey closure, its `onClose`, its refusal branch) instead of a transcription
+  of it. Feed it `hafen` as a plain **global** rather than an env table: LuaJ 3.0.1 is Lua 5.2, so there is no
+  `setfenv`/`loadstring` (the 5.1 idiom every snippet reaches for), and scenarios run sequentially anyway.
+- **(032.2) A rule stub catches REPORTING bugs, not just state bugs — and those are the ones in-game testing
+  glosses over.** 11 scenarios / 42 checks over the ported `bags` + `readToggle`; the one failure was a log line:
+  a replacement refused by another owner fell through to `if not grid then log("no inventory in the tree yet")`,
+  because "nothing was replaced" and "nothing was there" are the same absence. The fix is to gate the fallback on
+  what actually *happened* (`seen`, set when the subscription matched at all), not on the absence of a result.
+  Nothing would have crashed in-game; the addon would simply have lied about a window sitting in plain sight.

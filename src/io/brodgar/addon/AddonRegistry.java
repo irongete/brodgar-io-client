@@ -109,18 +109,17 @@ public final class AddonRegistry {
         }
         StoreApi.flush(a);                     // ...then persist them (spec 05: flushed at OnDisable)
         UiApi.teardownHidden(a);      // 029.2/031.2: give back every native widget the addon hid — and its toggle —
-                                      //   under the one rule: the window ends up as the user was seeing it. BEFORE
+                                      //   under the one rule: the window ends up as the user was seeing it, and a
+                                      //   substitution ends whole (the stand-in view dies with it, 032.1). BEFORE
                                       //   destroyWidgets: the rule reads the view's visibility, and a destroyed
                                       //   view stands for nothing.
         destroyWidgets(a);            // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
-        UiApi.teardownModels(a);            // 3c: drop the replace models (the un-hide above is the whole restore)
         UiApi.teardownWatches(a);           // 029.3: stop watching every container the addon subscribed to (no onDestroy)
         HookApi.teardownHooks(a);         // 2c: deafen input hooks (engine widgets outlive a :reload — must detach)
         HookApi.teardownActionHooks(a);   // 2d: unregister action hooks from the outbound-wdgmsg dispatch map
         HookApi.teardownMessageHooks(a);  // 2e-1: unregister message hooks from the inbound-uimsg dispatch map
         HookApi.teardownKeyBinds(a);      // 2e-2: unregister global hotkeys from the GlobKeyEvent dispatch list
         UiApi.teardownSelectorWatches(a);    // 030.2: drop the selector subscriptions (no disappear — reload != destroy)
-        UiApi.teardownReplacers(a);         // 3c: stop the replacers matching (models un-hidden above, views destroyed above)
         HookApi.teardownSlashCommands(a); // A11: drop the addon's live slash handlers (Console dispatchers stay — C1)
         RenderApi.teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
         RenderApi.teardownSprites(a);           // R2: destroy client-only world sprites (remove the slot + free the quad geometry)

@@ -453,7 +453,6 @@ public class UI {
 	    synchronized(UI.this) {
 		wdg.attach(UI.this);
 		bind(wdg, id);
-		io.brodgar.addon.AddonManager.onWidgetCreated(id, typenm);   // addon: record the server type name for hafen.ui.replace's descriptor (spec 08 seam A / Phase 3a)
 	    }
 	}
 
@@ -492,7 +491,7 @@ public class UI {
 		if(pwdg == null)
 		    throw(new UIException(String.format("Null parent widget %d for %d (%s)", parent, id, wdg), null, pargs));
 		pwdg.addchild(wdg, pargs);
-		io.brodgar.addon.AddonManager.onWidgetPlaced(id, wdg, pwdg, pargs);   // addon: widget-placement seam — fires hafen.ui.on(selector, "appear") (030.2) and offers the {id,type,place,caption,parentType} descriptor to hafen.ui.replace (spec 08 seam B)
+		io.brodgar.addon.AddonManager.onWidgetPlaced(id, wdg);   // addon: widget-placement seam — fires hafen.ui.on(selector, "appear") (030.2)
 	    }
 	}
 

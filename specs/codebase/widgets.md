@@ -11,8 +11,8 @@
 | Add/attach child | [`Widget.add`](src/haven/Widget.java:250), `add0` (~:236), `attach` (:220) |
 | **Type registry (`@RName` → Factory)** ← replacement seam A | [`Widget.types`](src/haven/Widget.java:51), [`Factory`](src/haven/Widget.java:142), [`initnames`](src/haven/Widget.java:156), [`gettype3`](src/haven/Widget.java:169) |
 | UI root / id map / dispatch | [`UI`](src/haven/UI.java): `root` (:48), `widgets`/`rwidgets` (:50), `bind`/`getwidget`/`widgetid` (:343–363) |
-| **Server → widget create** ← replacement seam A | [`UI.NewWidget.run`](src/haven/UI.java:433), `newwidgetp` (:510) |
-| **Server → widget place** ← replacement seam B | [`UI.AddWidget.run`](src/haven/UI.java:470) → `pwdg.addchild(...)` |
+| **Server → widget create** | [`UI.NewWidget.run`](src/haven/UI.java:433), `newwidgetp` (:510) — its addon seam was **removed** in 032.2: it only recorded the server type string for the retired descriptor |
+| **Server → widget place** ← the one addon seam | [`UI.AddWidget.run`](src/haven/UI.java:470) → `pwdg.addchild(...)` → `onWidgetPlaced(id, wdg)`, i.e. *after* the child is in the tree, so a `Selector` (`[title=]` included) already resolves |
 | HUD placement switch (per type: inv/equ/chr/craft/…) | [`GameUI.addchild`](src/haven/GameUI.java:910) |
 | Window chrome / CPU-buffered base | [`Window`](src/haven/Window.java:35) · [`SIWidget`](src/haven/SIWidget.java) |
 | 2D drawing context | [`GOut`](src/haven/GOut.java) (image/text/rect/line/prect/chcolor) |

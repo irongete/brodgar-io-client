@@ -7,11 +7,11 @@
 
 | File | Owns |
 |---|---|
-| `AddonManager` (hub, ~1.6k lines) | lifecycle (attach/init/tick), the `haven` seams (`onUimsg`/`onWdgmsg`/`onMessage`/`onGlobKey`/`onWidgetCreated`/`onWidgetPlaced`/`onGhostClick` — core edits call these by name; they delegate), the shared gob-read/engine substrate (`getgob`/`gobMatches`/`gobSnapshot`/`gui`/…), event bus + `callLua`, timers, the `:lua` REPL, `installHafen` |
+| `AddonManager` (hub, ~1.6k lines) | lifecycle (attach/init/tick), the `haven` seams (`onUimsg`/`onWdgmsg`/`onMessage`/`onGlobKey`/`onWidgetPlaced`/`onGhostClick` — core edits call these by name; they delegate; `onWidgetCreated` went with the descriptor in 032.2), the shared gob-read/engine substrate (`getgob`/`gobMatches`/`gobSnapshot`/`gui`/…), event bus + `callLua`, timers, the `:lua` REPL, `installHafen` |
 | `AddonRegistry` | discovery/loadAll, enabled set (+ D-027 defaults), `reload`, per-addon teardown, the AddOns-panel data API |
 | `WorldApi` | `hafen.world/map/markers/radar/time/sound/music` (per-gob reads are `LuaGob`) |
 | `CharApi` | `hafen.player/char/study/party/kin/buffs/actionbar/quests/wounds/fight` + the `TreeAdapter`s + `itemSnapshot` (the one Item producer; `hafen.items` was cut in 029.3) |
-| `UiApi` | `hafen.ui` — a **callable** namespace (`hafen.ui(sel)`/`.all(sel)`/`hafen.ui()`, `root()` cut in 030.1): windows/overlays, observe/replace, the entry points + selector resolution + hit-testing, the container-subscription poll (`adopt` deleted in 029.2) |
+| `UiApi` | `hafen.ui` — a **callable** namespace (`hafen.ui(sel)`/`.all(sel)`/`hafen.ui()`, `root()` cut in 030.1): windows/overlays, selector events, the window-toggle seam + the `widget:replace(view)` substitution and its per-tick sweep, the entry points + selector resolution + hit-testing, the container-subscription poll (`adopt` deleted in 029.2; `hafen.ui.replace` + `LuaReplacer`/`LuaModel` in 032.2) |
 | **`Selector`** | the selector grammar (030.1): parse `*`/role/`@Class`/`[title=]`/`[res=]` **once**, then match one widget. Pure — no Lua, no state — so the events and the inspector reuse it. The widget→role classifier itself lives in `LuaWidget.role` (D-067), beside `typeName`/`text`/`resName` |
 | `HookApi` | `hafen.hook` (L1/L2/L3 + grab), `hafen.slash`; owns the hotkey registry behind `hafen.client:options():keybindings()` |
 | `ActApi` | `hafen.act` (gated verbs) + `hafen.craft`/`hafen.speed` writes |
@@ -42,7 +42,7 @@ delegates so `haven` core edits never move. `haven.Fonts` + `haven.AddonWidgets`
 | [`RemoteUI.init`](src/haven/RemoteUI.java:147) | per-session attach — the engine's entry point |
 | The invisible `AddonRoot` on `ui.root` | per-frame tick + `globtype` hotkeys, zero core edit (invisible widgets still tick) |
 | [`UI.wdgmsg`](src/haven/UI.java:665)/[`UI.uimsg`](src/haven/UI.java:702) taps | outbound L2 / inbound L3 + tree-read events (already split/tapped, `// addon:`) |
-| `UI.NewWidget`/`AddWidget` (`onWidgetCreated`/`onWidgetPlaced`) | widget-creation interception + descriptors |
+| `UI.AddWidget` (`onWidgetPlaced(id, wdg)`) | the widget-**placement** seam, and the only one left: `hafen.ui.on` selector events (030.2). The `UI.NewWidget` edit and the `{id,type,place,caption,parentType}` descriptor went with `hafen.ui.replace` (032.2) |
 | [`GameUI.addchild`](src/haven/GameUI.java:910) | HUD placement switch (place-string routing) |
 | `MapView` client-gob seam (`addClientGob`) + `Click.hit` intercept + `placeSnap` | the 3D-scene seams for client-only entities |
 | `Widget.listen`/`deafen`, `KeyBinding.get`, `Console.setscmd`, `OptWnd.Panel`+`PButton`, `OCache.callback`, `UI.drawafter`, `DropTarget` | zero-edit seams the engine already provides |
