@@ -3,7 +3,7 @@
   "id": "bags",
   "version": "0.1.0",
   "author": "brodgar",
-  "description": "Example addon (Phase 3c): hafen.ui.replace — replace the native inventory with a custom read-only view that draws the REAL items at their real grid positions ('wrap, don't reimplement', D-009). DORMANT until you press the 'toggle' hotkey (unbound until you assign it under Options > Keybindings > Bags; suggested Ctrl+Shift+I): that adopts the live inventory as a hidden model and shows the custom Bags window; press again — or disable/reload the addon — to restore the stock inventory. Registering replace also re-finds an ALREADY-OPEN inventory (the :reload case). Item moving (take/transfer/drop) is the gated Phase-4 actions tier, so the view is read-only (a click logs the item).",
+  "description": "Example addon (Phase 3c): hafen.ui.replace — replace the native inventory with a custom read-only view that draws the REAL items at their real grid positions ('wrap, don't reimplement', D-009). DORMANT until you press the 'toggle' hotkey (unbound until you assign it under Options > Keybindings > Bags; suggested Ctrl+Shift+I): that hands hafen.ui.replace the live inventory's Widget object, hides the native window and shows the custom Bags window in its place; press again — or disable/reload the addon — to restore the stock inventory. Registering replace also re-finds an ALREADY-OPEN inventory (the :reload case). Item moving (take/transfer/drop) is the gated Phase-4 actions tier, so the view is read-only (a click logs the item).",
   "api_version": 1,
   "files": ["main.lua"]
 }

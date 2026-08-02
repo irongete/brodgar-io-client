@@ -38,7 +38,7 @@
       pick something up and see one add event; `hafen.items` reads `nil`; with nobody subscribed the
       profiler shows no per-tick item polling.
 
-- [ ] **029.4 — docs, harness, close.**
+- [x] **029.4 — docs, harness, close.**
       `docs/addons/api/ui.md` rewritten around the entity (the one type; owned vs borrowed and which
       verbs each answers; interning and `==`; `:hide()` on a native widget carries the restore — the
       line that must be impossible to miss; why there is no `adopt`; `replace` unchanged);

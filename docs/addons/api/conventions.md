@@ -5,7 +5,7 @@ Rules that apply across the whole `hafen.*` API. Read this once; every section p
 ## The `hafen` namespace
 
 Every function lives under a namespaced table — `hafen.<section>.<verb>(...)`. There are no flat
-globals. A section groups related verbs (`hafen.map`, `hafen.items`, …); this reference has one page
+globals. A section groups related verbs (`hafen.map`, `hafen.char`, …); this reference has one page
 per section.
 
 ```lua
@@ -51,9 +51,9 @@ Either way the strings are **server-published**, not keys the API defines — re
 with `:res()` rather than trusting a list in this reference. A miss is plain `nil`, and addressing one by
 **position** is an error (positions are not addresses — index the collection instead).
 
-The object-oriented sections today are **Gob, Player, Kin, Slot, Buff, Meter, Action (menugrid), Sound and
-Asset**; the rest are still flat tables of functions. That mix is deliberate and temporary — the
-migration continues.
+The object-oriented sections today are **Gob, Player, Kin, Slot, Buff, Meter, Action (menugrid), Sound,
+Asset and Widget**; the rest are still flat tables of functions. That mix is deliberate and temporary —
+the migration continues.
 
 ### Asset — a file your addon ships
 
@@ -73,15 +73,22 @@ Every [Item snapshot](types.md#item) carries a `handle` field. The gated verb
 number) and re-resolves the live item on each call; a stale/moved/used item no longer resolves and the
 verb raises a clear error.
 
-### WidgetRef — a window or widget
+### Widget — a piece of the UI
 
-A **handle** returned by `hafen.ui.*` (or a widget id from
-[`hafen.ui.onWidgetCreate`](ui.md#observing--replacing-the-clients-own-ui)). Not a token.
+A widget is an **object**, and there is only one kind: a window you create with `hafen.ui.window{}`, a
+native one you find with `hafen.ui.root()`/`node(id)`/`at(x, y)`/`inventory()`, and the one `replace` hands
+your callback are all the same [Widget](ui.md#the-widget-object). It is interned per addon, so
+`hafen.ui.at(x, y) == hafen.ui.at(x, y)` and `==` is the identity test; it re-reads the tree on every call
+and answers `nil`/empty with `:exists()` false once its widget is gone. What you may *write* depends on
+whether your addon created it — see [owned vs borrowed](ui.md#owned-vs-borrowed--which-writes-answer).
+A **server widget id** (`:id()`, or a `desc.id` from
+[`hafen.ui.onWidgetCreate`](ui.md#observing--replacing-the-clients-own-ui)) is the number the gated
+[`hafen.act.raw`](actions.md) takes.
 
 ## Snapshots vs handles
 
 - **Snapshots** are plain Lua tables — point-in-time copies returned by the read APIs
-  (`gob:info()`, `hafen.items.inventory`, `buff:info()`, …). They do **not** update; don't
+  (`gob:info()`, `widget:items()`, `buff:info()`, …). They do **not** update; don't
   cache them across ticks. Re-read to get fresh values. Every snapshot shape is documented in
   [types.md](types.md).
 - **Handles** are live, bridge-owned proxies with methods (`hafen.ui.window`, `hafen.timer.every`,

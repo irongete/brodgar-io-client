@@ -17,7 +17,7 @@ another addon cannot look it up (no name collisions, no coupling).
 > enum in this slice. **F3d (shipped):** the **`"menu"`**, **`"tooltip"`** and **`"chat"`** scopes — which
 > **completes the UI chrome**. **F4 (shipped):** the two **world** scopes — **`"world.speech"`** (speech bubbles)
 > and **`"world.nick"`** (floating kin names) — so **every scope in `scopes()` is now live**. **F5 (shipped):**
-> the **per-instance** override — `node:setFont(h)` on any [`WidgetNode`](ui.md#widgetnode) restyles **one** widget
+> the **per-instance** override — `widget:setFont(h)` on any [Widget](ui.md#the-widget-object) restyles **one** widget
 > and its subtree while its siblings keep their font. **The font series is complete.**
 > See [`21-fonts.md`](../../../specs/addons/design/21-fonts.md) for the roadmap.
 
@@ -138,7 +138,7 @@ hafen.font.scopes()            -- array of valid scope names (discovery)
 ```
 
 `setFont` installs an **owned** override: it is reverted **automatically** on your addon's `:reload`/disable
-(the same owned-resource model as [`hafen.ui.adopt`](ui.md), hooks, and overlays), so the stock UI is always
+(the same owned-resource model as [`hafen.ui.replace`](ui.md#replacing-a-native-window), hooks, and overlays), so the stock UI is always
 restorable. The change is **live** — most existing text re-renders on the spot.
 
 ### Scopes
@@ -163,7 +163,7 @@ restorable. The change is **live** — most existing text re-renders on the spot
 `"default"` is the broad hammer: it **cascades** to every routed surface that has no more-specific override — so
 `setFont("default", h)` changes everything in one call, while a per-scope override refines any one surface. The
 resolution order is **most-specific first**:
-[per-instance](#restyle-one-widget--nodesetfonth-f5) → scope override → `"default"` override → stock.
+[per-instance](#restyle-one-widget--widgetsetfonth-f5) → scope override → `"default"` override → stock.
 
 ```lua
 hafen.font.setFont("default", h)             -- everything routed (incl. captions + button captions)
@@ -284,11 +284,11 @@ nearby there is no label to restyle. Any other world label composed by the same 
 contributed by game resources alongside the kin name) follows `"world.nick"` too. Neither world scope follows a
 tooltip composition, and both fall back to the `"default"` cascade when unset, like every other scope.
 
-## Restyle ONE widget — `node:setFont(h)` (F5)
+## Restyle ONE widget — `widget:setFont(h)` (F5)
 
 A scope restyles a *family* of surfaces across the whole client. To restyle **one** widget instead, call
-`setFont` on its [`WidgetNode`](ui.md#widgetnode) — the tree handle from
-[`hafen.ui.root()`](ui.md#introspecting-the-widget-tree) / `hafen.ui.node(id)` / `hafen.ui.at(x, y)`:
+`setFont` on its [Widget object](ui.md#the-widget-object) — from
+[`hafen.ui.root()`](ui.md#the-widget-object) / `hafen.ui.node(id)` / `hafen.ui.at(x, y)`:
 
 ```lua
 local n = hafen.ui.at(hafen.ui.mouse().x, hafen.ui.mouse().y)   -- the widget under the cursor
@@ -298,8 +298,8 @@ n:resetFont()       -- drop it again
 
 | Call | Returns | Description |
 |---|---|---|
-| `node:setFont(h)` | (self) | install **your** per-instance override on that widget |
-| `node:resetFont()` | (self) | drop **your** per-instance override on that widget |
+| `widget:setFont(h)` | (self) | install **your** per-instance override on that widget |
+| `widget:resetFont()` | (self) | drop **your** per-instance override on that widget |
 
 - **It covers the whole subtree.** The client draws parents before children, so an override on a window reaches
   its caption, its labels, its button captions, its list rows — and any widget created inside it *later*. A child
@@ -328,7 +328,7 @@ Over your **own** drawing (F2): isolated, unlimited freedom. Over a **global** s
 state, so each scope holds a **stack of overrides, each tagged with its owning addon — the last applied wins**.
 On teardown an addon's entries are pulled from every scope and the surface falls back to the next owner beneath
 (or stock). Two addons cannot own the same surface at once; the outcome is deterministic and per-owner
-reversible (this mirrors `hafen.ui.adopt`/`replace`). Per-instance overrides (F5) follow the same rules, per
+reversible (this mirrors `hafen.ui.replace`). Per-instance overrides (F5) follow the same rules, per
 widget.
 
 ## Example
@@ -350,7 +350,7 @@ end)
 
 - [`hafen.asset`](asset.md) — the one door for a `.ttf`/`.otf` your addon ships (and every other local file).
 - [`hafen.ui`](ui.md) — the `font=` widget option + the `g:text` draw wrapper take a handle (F2), and a
-  [`WidgetNode`](ui.md#widgetnode) carries `:setFont`/`:resetFont` (F5). Drawn text is
+  [Widget](ui.md#the-widget-object) carries `:setFont`/`:resetFont` (F5). Drawn text is
   [cached across frames](ui.md#text-is-cached-across-frames) per `(string, handle)`; an override change
   invalidates it on the next frame.
 - [`hafen.client`](client.md#textcache) — `profiling():textcache()` reports that cache: entries, texture bytes,

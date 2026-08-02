@@ -282,3 +282,9 @@
   widget had one at subscribe time and by `hasparent(ui.root)` otherwise — the same shape `UiApi.stillHidable`
   needed in 029.2, for the same reason. Whenever a rule is written against "the server widget", check whether the
   surface can also be handed a client-only one.
+- **(029.4) Never call `:items()` from inside a `:walk()` — prune to the container types instead.** `:items()`
+  is `children(WItem.class)`, a **deep** traversal, so asking every node "do you hold items?" is O(n²) over a
+  2000-widget tree (and every enclosing window double-counts the grid inside it). `hello`'s container scan walks
+  once and returns `false` (prune) on `:type() == "Inventory"`/`"Equipory"`, which is both cheap and exact —
+  below a grid there is nothing but its own items. Generally: a relation verb that hides a subtree traversal is
+  safe per call and quadratic per walk.

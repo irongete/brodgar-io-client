@@ -29,7 +29,6 @@ events are in [events](events.md).
 | [`hafen.char`](char.md) | attributes, LP, food, skills, credos, lore |
 | [`hafen.study`](char.md#hafenstudy) | curiosities being studied |
 | [`hafen.party`](party.md) | party roster |
-| [`hafen.items`](items.md) | inventory & worn equipment |
 | [`hafen.buff`](buffs.md) | buffs — `hafen.buff()` is the bar, `hafen.buff(needle)` is one of them |
 | [`hafen.meter`](meters.md) | the HUD meter bars — health, stamina, energy and whatever else the server puts there |
 
@@ -56,7 +55,7 @@ events are in [events](events.md).
 
 | Section | Purpose |
 |---|---|
-| [`hafen.ui`](ui.md) | custom windows, overlays, replacing native widgets, and walking + hit-testing the widget tree |
+| [`hafen.ui`](ui.md) | the Widget object — custom windows, overlays, the items in any container, replacing native widgets, and walking + hit-testing the tree |
 | [`hafen.ghost`](ghost.md) | client-only world props ("ghosts") — base/city planning |
 | [`hafen.asset`](asset.md) | load the files your addon ships — images, fonts, glTF models — through one door |
 | [`hafen.render`](render.md) | stand your own (non-`.res`) images and glTF models **in the world** |

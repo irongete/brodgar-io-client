@@ -41,8 +41,11 @@
 -- never pollutes your map. Built on the WIDGET ENTITY (029) — every hafen.ui door (root/node/at/inventory/window)
 -- hands back ONE interned type, and a container answers for what is inside it: w:items() plus the lifecycle verbs
 -- w:onItemAdded/:onItemRemoved/:onDestroy, read with the window VISIBLE (hafen.ui.adopt, which hid a window just so
--- you could look in it, is GONE). Here that is the MAIN INVENTORY: the 'bags' hotkey hides/shows its grid with
--- w:hide()/:show() and the reads keep working, and :reload/disable gives the grid back. Item
+-- you could look in it, is GONE, and so are hafen.items, :same() and :move()). `==` is the identity test, arity is
+-- the verb on geometry, and the write verbs answer only on a widget THIS addon created — readWidgets (once per
+-- login, and ':hello widget') asserts that whole contract, refusals included. Here the container is the MAIN
+-- INVENTORY: the 'bags' hotkey hides/shows its grid with w:hide()/:show() — the ONE write that answers on a native
+-- widget — and the reads keep working, and :reload/disable gives the grid back. Item
 -- MUTATING verbs (take/drop/transfer/use) are NOT here — they are gameplay actions (the gated Phase-4 tier).
 -- Built on 3a WIDGET-CREATION INTERCEPTION — hafen.ui.onWidgetCreate(fn) observes the server's OWN UI as the
 -- client builds it (fn(desc) runs per server widget; desc = {id,type,place,caption,parentType}). It also demonstrates GLOBAL HOTKEYS —
@@ -78,7 +81,7 @@
 -- all (this server has no MIDI content; the "music" you hear is ambient audio, on the ambientVolume slider).
 -- hello checks that contract at login (readSound), pings with ':hello ping' and toggles a long clip through
 -- the live set with ':hello sound'.
-hafen.log("hello loaded (v0.63.0)")
+hafen.log("hello loaded (v0.64.0)")
 
 -- LuaJ 3.0.1's string.format is NOT C's: it ignores the PRECISION of %f/%g/%e ("%.3f" prints
 -- 10.852199999987988, the raw double) and the WIDTH of %s ("%-12s" pads nothing); only %d honours a
@@ -741,6 +744,84 @@ local function readBags(tag)
   hafen.log(("[%s] bags: %d item(s) via widget:items(), first=%s, grid-visible=%s"):format(tag, #items,
     items[1] and tostring(items[1].name or items[1].res) or "none", tostring(w:visible())))
 end
+
+-- 029.4: THE WIDGET ENTITY CONTRACT, re-checked once per login (and on demand with ':hello widget'). 029 collapsed
+-- the THREE objects hafen.ui used to hand back for one widget -- the window handle from hafen.ui.window{}, the model
+-- handle from adopt/replace, and the transient WidgetNode from root/node/at -- into ONE interned entity: what you
+-- CREATE and what you FIND are the same type. This asserts the whole collapse in one pass: every door hands back
+-- that type; `==` is the identity test (which is why :same() could be cut); arity is the verb on geometry
+-- (:pos()/:size() read, :pos(x,y)/:size(w,h) write and chain, so :move() is gone); the write verbs answer only on a
+-- widget THIS addon created, with two DISTINCT refusals on a native one (geometry names layout, feature E;
+-- :pack()/:destroy() name the creation doors); a stale entity reads nil/empty with :exists() false while a write on
+-- it is a silent chaining no-op; containers are readable with NOTHING hidden; and the four hard cuts (hafen.items,
+-- hafen.ui.adopt, :same, :move) are plain nil, not shims (D-013).
+local function readWidgets(tag)
+  local root = hafen.ui.root()
+  if not root then hafen.log(("[%s] widget: no UI yet"):format(tag)); return end
+  local function why(f, ...)
+    local ok, err = pcall(f, ...)
+    if ok then return "ACCEPTED (BUG)" end
+    return (tostring(err):gsub("^.-%.lua:%d+:%s*", ""))   -- drop the chunk:line prefix, keep the whole message
+  end
+  -- ONE TYPE FROM EVERY DOOR + INTERNING. root() / node(id) / at(x,y) / inventory() / equipment() and the creation
+  -- doors all hand back the same entity, and two lookups of ONE live widget are the SAME Lua value. node(id) is the
+  -- round-trip that proves it across doors: take the inventory's own :id() back through the id door. hand() is the
+  -- deliberate exception -- the cursor item is not a widget, so it stays an Item snapshot.
+  local inv, eq = hafen.ui.inventory(), hafen.ui.equipment()
+  local byId = (inv and inv:id()) and hafen.ui.node(inv:id()) or nil
+  local m = hafen.ui.mouse()
+  local at = m and hafen.ui.at(m.x, m.y) or nil
+  hafen.log(("[%s] widget doors: root=%s inv=%s eq=%s at(mouse)=%s hand=%s | node(id)==inv=%s root()==root=%s at()==at=%s")
+    :format(tag, tostring(root), tostring(inv), tostring(eq), tostring(at),
+            tostring(hafen.ui.hand() and "item" or nil),
+            tostring((inv ~= nil) and (byId == inv)), tostring(hafen.ui.root() == root),
+            tostring((at == nil) or (hafen.ui.at(m.x, m.y) == at))))
+  -- OWNED vs BORROWED. A throwaway widget of our own (destroyed at the end of this check) exercises the writes; the
+  -- client's root exercises the two refusals. Provenance is DERIVED from the tree, never stored on the handle, so
+  -- :info().owned is how you ASK instead of provoking the error -- and it is per-addon: the same root reads
+  -- owned=false for us, while our own widget would read owned=false for any OTHER addon.
+  local own = hafen.ui.widget{ size = {40, 20}, pos = {8, 8} }
+  own:pos(12, 14):size(48, 24):pack()                  -- arity is the verb, and every write chains on self
+  local p, s = own:pos(), own:size()
+  hafen.log(("[%s] owned: own.owned=%s root.owned=%s | chained pos(x,y)->%d,%d size(w,h)->%d,%d")
+    :format(tag, tostring((own:info() or {}).owned), tostring((root:info() or {}).owned), p.x, p.y, s.x, s.y))
+  hafen.log(("[%s] borrowed refusals: root:pos(1,1) -> %s"):format(tag, why(root.pos, root, 1, 1)))
+  hafen.log(("[%s]                    root:destroy() -> %s"):format(tag, why(root.destroy, root)))
+  -- STALENESS + the no-op write. Destroying our own widget makes every read answer nil/empty with :exists() false,
+  -- while a WRITE on it is a silent no-op that STILL CHAINS: a write is not a question, so it does not error and no
+  -- call site has to guard :exists() first.
+  own:destroy()
+  hafen.log(("[%s] stale: exists=%s type=%s info=%s items=%d writeStillChains=%s")
+    :format(tag, tostring(own:exists()), tostring(own:type()), tostring(own:info()),
+            #own:items(), tostring(own:pos(1, 1) == own)))
+  -- READ WITHOUT HIDING -- the point of the whole feature. Walk the live tree for every item container and report
+  -- what it holds AND whether it is visible: open a Cupboard/chest (or the study window) and re-run ':hello widget'
+  -- -- it is listed here, read through the very same entity, with its window still open and usable. hafen.ui.adopt,
+  -- which hid the window as the price of looking inside it, is gone.
+  local conts = {}
+  root:walk(function(n)
+    local t = n:type()
+    if (t == "Inventory") or (t == "Equipory") then
+      conts[#conts + 1] = ("%s#%s:%ditem(s)%s")
+        :format(t, tostring(n:id()), #n:items(), n:visible() and "" or " HIDDEN")
+      return false                                     -- prune: below a grid there is nothing but its items
+    end
+  end)
+  hafen.log(("[%s] containers readable with nothing hidden: %d [%s]")
+    :format(tag, #conts, table.concat(conts, ", ")))
+  -- The hard cuts (D-013): all four read as plain nil -- not flattened, not stubbed, no deprecation alias.
+  hafen.log(("[%s] widget contract: itemsGone=%s adoptGone=%s sameGone=%s moveGone=%s (hafen.items=%s hafen.ui.adopt=%s)")
+    :format(tag, tostring(hafen.items == nil), tostring(hafen.ui.adopt == nil),
+            tostring(root.same == nil), tostring(root.move == nil),
+            tostring(hafen.items), tostring(hafen.ui.adopt)))
+end
+
+hafen.events.on("OnEnterWorld", function()
+  readWidgets("login")                        -- once per login, like readAssets/readMeters/readBuffs
+  hafen.timer.after(3, function()             -- ...and once the inventory/equipment widgets have streamed in
+    readWidgets("+3s")
+  end)
+end)
 
 hafen.events.on("OnEnterWorld", function()
   hafen.log("entered the world")
@@ -1469,7 +1550,7 @@ local textcacheStress
 local STRESS_POOL, STRESS_PER_FRAME = 2000, 32
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof | widgets | passes | textcache")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | widget | prof | widgets | passes | textcache")
     return
   end
   local sub = args[1]
@@ -1935,6 +2016,12 @@ hafen.slash.register("hello", function(args)
       hafen.log((":hello node -> setFont on ONE widget: the '%s' window (%d text bits inside) is now in %s 13 -- caption, labels, list rows and button captions included; every OTHER open window stays stock. Candidates+text counts: [%s]. That is the per-instance override; :hello node again to reset")
         :format(wins[best].name, wins[best].texts, h:family(), table.concat(report, ", ")))
     end
+  elseif sub == "widget" then
+    -- 029.4: re-run the whole widget-entity contract on demand (it also runs once per login and at +3s -- see
+    -- readWidgets above). Worth re-running with a CONTAINER OPEN: open a cupboard, a chest or the study window and
+    -- it is listed among the readable containers, VISIBLE, read through the same entity every other door hands back.
+    readWidgets("cmd")
+    readBags("cmd")
   elseif sub == "prof" then
     -- 019.4: PER-ADDON COST + CUSTOM SCOPES. p:measure(name, fn) brackets a section of OUR code with a named
     -- marker and charges it to THIS addon -- the ProfilerMarker equivalent. Names are per-addon, so another

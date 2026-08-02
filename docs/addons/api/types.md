@@ -31,8 +31,9 @@ always fresh. ([`hafen.world.*`](world.md) and the `GobAdded`/`GobRemoved` event
 
 ## Item
 
-An inventory or equipment item. From [`hafen.items.*`](items.md) and a model's
-[`:items()`](ui.md#model-handle). Every field is optional.
+An item inside a container. From any widget's [`:items()`](ui.md#items-inside-a-container) — your backpack
+(`hafen.ui.inventory()`), your worn gear (`hafen.ui.equipment()`), a chest, a cupboard — and from
+[`hafen.ui.hand()`](ui.md#the-widget-object) for the cursor item. Every field is optional.
 
 | Field | Type | Notes |
 |---|---|---|

@@ -77,7 +77,7 @@ matched (it doesn't throw for those). Typically used after `clickGob(gob, 3)` to
 
 ### `hafen.act.item`
 `item(item, verb [, n])` — act on an item. `item` is an [`Item`](types.md#item) snapshot (from
-[`hafen.items.*`](items.md) or a [model's `:items()`](ui.md#model-handle)) or its raw `handle` number;
+any container's [`:items()`](ui.md#items-inside-a-container)) or its raw `handle` number;
 it re-resolves the live item each call (a stale/moved/used item raises a clear error). `verb`:
 
 | `verb` | Effect |
@@ -91,7 +91,7 @@ it re-resolves the live item each call (a stale/moved/used item raises a clear e
 `n` is ignored for `take`/`iact`/`itemact`. For a modified interaction, use `raw` (below).
 
 ```lua
-local first = hafen.items.inventory()[1]
+local first = hafen.ui.inventory():items()[1]
 if first then hafen.act.item(first, "take") end
 ```
 
@@ -99,7 +99,7 @@ if first then hafen.act.item(first, "take") end
 
 ### `hafen.act.raw`
 `raw(target, msg, ...)` — send an arbitrary widget message from a bound widget. `target` is a widget id
-(a number, e.g. from a [model's `:raw()`](ui.md#model-handle) or an `onWidgetCreate` descriptor) or the
+(a number, e.g. a [widget's `:id()`](ui.md#the-widget-object) or an `onWidgetCreate` descriptor) or the
 token `"mapview"` / `"gameui"`. Trailing args are marshalled like the [hooks](hooks.md) (a `{x=, y=}`
 table ↔ a coord; numbers/strings/booleans pass through). For power users — the typed verbs cover the
 common cases.

@@ -236,3 +236,14 @@
   with no check between them: either derive the log line from the manifest, or accept that "bump the
   version" means **both** places. Cheap to spot in the in-game log — read the whole login block after a
   task, not only the lines the task added.
+- **(029.4) A contract probe that needs an owned resource should BUILD one, not borrow the addon's.** The
+  owned-vs-borrowed half of `hello`'s widget check makes its own `hafen.ui.widget{}` and `:destroy()`s it in the
+  same call, rather than reaching for the addon's `panel` — so it has no ordering dependency on where the panel
+  is created (file body vs `OnEnterWorld`), it cannot disturb a surface the maintainer is looking at, and the
+  corpse doubles as the **staleness** probe (nil reads, `:exists()` false, a write that still chains). One
+  throwaway object covered three assertions that would otherwise each have needed a precondition.
+- **(029.4) Renaming a heading in the docs tier silently breaks every anchor pointing at it.** Retitling
+  `## Restyle ONE widget — node:setFont(h)` moved its slug, and three other pages linked to the old one;
+  deleting `items.md` and rewriting `ui.md`'s sections moved several more. Markdown link rot is invisible until
+  someone clicks. A ~30-line script that slugs every heading and resolves every `](path#anchor)` under
+  `docs/addons/` catches the lot in a second — run it as the last step of any docs sweep, not as a spot check.

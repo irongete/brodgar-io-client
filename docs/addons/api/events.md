@@ -69,6 +69,11 @@ The payload is a live [Gob object](gob.md). On `GobRemoved` the gob is **already
 | `ActionbarChanged` | [`Slot`](actionbar.md) | an action-bar slot is set/cleared/changed |
 | `WoundChanged` | [`Wound`](types.md#wound)`[]` | a wound is added/healed or its severity changes |
 
+Items entering or leaving a **container** are not on this bus — a chest is not a global fact, so you
+subscribe to the container itself:
+[`widget:onItemAdded/:onItemRemoved/:onDestroy`](ui.md#the-container-lifecycle). `EquipChanged` above
+stays global because your worn gear is one fixed surface.
+
 ### Roster, quests, markers
 
 | Event | Payload | Fires |

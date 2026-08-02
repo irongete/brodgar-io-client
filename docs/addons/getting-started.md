@@ -135,6 +135,23 @@ An addon hotkey starts **unbound**: you name the action, the user assigns the ke
 **Options ▸ Keybindings**, in a section named after your addon. Advertise a *suggested* key in your
 README rather than claiming one.
 
+## Reading the client's own UI
+
+The window you just created and the client's own windows are the **same kind of object** — a
+[Widget](api/ui.md#the-widget-object). `hafen.ui.root()` is the top of the tree, `hafen.ui.at(x, y)` is
+whatever is under a point, and a container answers for what is inside it:
+
+```lua
+for _, it in ipairs(hafen.ui.inventory():items()) do   -- a chest works the same way
+  hafen.log(it.name or it.res or "?")
+end
+```
+
+Reading costs nothing and hides nothing — the window stays open and usable. Widgets are interned, so `==`
+tells you whether two lookups found the same one. You may **write** only to widgets your addon created
+(move, resize, destroy); on the client's own the one write is `:hide()`/`:show()`, and it is undone for
+you on reload/disable.
+
 ## Files your addon ships
 
 Drop an image, a font or a glTF model in your addon's folder and load it with
