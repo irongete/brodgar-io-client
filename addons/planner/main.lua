@@ -174,14 +174,17 @@ end
 local function spawn(it, wx, wy)
   if it.kind == "sprite" then
     it.entity = hafen.render.sprite{
-      image = it.img or SPRITE_IMG, x = wx, y = wy, a = it.a, scale = it.scale or 1,
+      -- 028.2: sprite/object are HANDLE-ONLY (D-012). The RECORD still stores a PATH (that is what persists to
+      -- JSON); hafen.asset turns it into the handle here, at spawn -- interned, so re-spawning costs nothing.
+      image = hafen.asset(it.img or SPRITE_IMG), x = wx, y = wy, a = it.a, scale = it.scale or 1,
       billboard = it.billboard or false,
       clickable = not it.billboard,                       -- fixed sprites are pickable; billboards are not
       onClick = function(s, button) selectItem(it) end,
     }
   elseif it.kind == "object" then
     it.entity = hafen.render.object{                      -- R3b-2: a custom glTF model on the same world-entity core
-      model = it.model or OBJECT_MODEL, x = wx, y = wy, a = it.a, scale = it.scale or 1,
+      model = hafen.asset(it.model or OBJECT_MODEL),      -- 028.2: handle-only; the record keeps the path (persisted)
+      x = wx, y = wy, a = it.a, scale = it.scale or 1,
       clickable = true,                                   -- its mesh renders into the clickmap -> a click selects it
       onClick = function(o, button) selectItem(it) end,
     }

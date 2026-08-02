@@ -102,8 +102,8 @@ final class RenderApi {
         // hafen.render.sprite{image, x, y [, a] [, scale] [, alpha] [, tint] [, billboard] [, clickable] [, onClick]}
         // — stand a custom PNG in the 3D world (spec 17 §5, R2). The non-`.res` sibling of hafen.ghost, on the SAME
         // virtual-entity core + gizmo: a Gob with no server id, so it never reaches the server (SAFE-tier, NOT gated,
-        // D-034). image = a hafen.asset image handle OR an addon-relative path (auto-loaded + interned, D-017-sandboxed);
-        // x,y = world coords (like gob:pos()); a = facing radians (default 0). Options:
+        // D-034). image = a hafen.asset image HANDLE — handle-only (028.2, D-012): a path string raises an error naming
+        // hafen.asset; x,y = world coords (like gob:pos()); a = facing radians (default 0). Options:
         //   scale = 2               -- uniform scale (default 1); fixed = ~1 tile tall, billboard = screen-size ×
         //   alpha = 0.5             -- opacity 0..1 (default 1); combines with the PNG's own transparency
         //   tint  = {r=,g=,b=[,a=]} -- colour overlay 0..255 (a = blend strength)
@@ -126,8 +126,8 @@ final class RenderApi {
         // hafen.render.object{model, x, y [, a] [, scale] [, alpha] [, tint] [, clickable] [, onClick] [, follow]
         // [, offset]} — stand a custom glTF MODEL in the 3D world (spec 18, R3). The mesh sibling of a sprite/ghost,
         // on the SAME virtual-entity core + gizmo: a Gob with no server id (SAFE-tier, NOT gated, D-034). model = a
-        // hafen.asset mesh handle OR an addon-relative path (auto-loaded + interned, D-017-sandboxed); x,y = world
-        // coords (like gob:pos()); a = facing radians (default 0). Options mirror hafen.render.sprite:
+        // hafen.asset mesh HANDLE — handle-only (028.2, D-012): a path string raises an error naming hafen.asset;
+        // x,y = world coords (like gob:pos()); a = facing radians (default 0). Options mirror hafen.render.sprite:
         //   scale = 2               -- uniform scale (default 1) on top of the baked model→world size
         //   alpha = 0.5             -- opacity 0..1 (default 1); tint = {r=,g=,b=[,a=]} colour overlay 0..255
         //   clickable = true        -- opt into the V2 pick (the mesh renders into the clickmap) → ObjectClicked / onClick
@@ -488,7 +488,7 @@ final class RenderApi {
      * {@code hafen.render.object{model, x, y [, a] [, scale] [, alpha] [, tint] [, clickable] [, onClick] [, follow]
      * [, offset]}} (R3a): stand a custom glTF model in the 3D world — the mesh sibling of a sprite/ghost, on the same
      * virtual-entity core (spec 18 §3). Validates the options, resolves the {@code model} (a {@code hafen.asset}
-     * mesh handle or an addon-relative path, auto-loaded + cached), builds a {@link GhostGob}, attaches a {@link MeshSprite}
+     * mesh handle — <b>handle-only</b>, 028.2), builds a {@link GhostGob}, attaches a {@link MeshSprite}
      * ({@code SprDrawable}), and adds it to the MapView {@code basic} scene ({@link MapView#addClientGob}). Everything
      * else — transform, look, {@code follow} anchor, {@code clickable}/{@code onClick}, gizmo — is shared with sprites.
      * Because the geometry is already decoded ({@link Gltf}), there is NO {@code Loading} to dodge — the gob is built
@@ -508,7 +508,7 @@ final class RenderApi {
         final Glob g = glob();
         if((mv == null) || (g == null))
             return LuaValue.NIL;                       // not in the world yet — no scene to add to
-        LuaMesh mesh = resolveObjectMesh(owner, opts.get("model"));   // AFTER the world check (don't parse when not in world)
+        LuaMesh mesh = resolveObjectMesh(opts.get("model"));   // AFTER the world check (don't validate when not in world)
         LuaValue av = opts.get("a");
         double a = av.isnumber() ? av.todouble() : 0.0;
         Coord2d rc = new Coord2d(xv.optdouble(0.0), yv.optdouble(0.0));   // 0,0 placeholder when following
@@ -568,16 +568,24 @@ final class RenderApi {
     }
 
     /**
-     * Resolve the object {@code model=} option to a live {@link LuaMesh}: a {@code hafen.asset} mesh handle (or its
-     * raw backing userdata), or an addon-relative <b>path</b> string (auto-loaded + interned through
-     * {@link AssetApi#load}, D-017-sandboxed). Throws a {@link LuaError} for anything else / a disposed model.
-     * (028.2 makes this <b>handle-only</b> — one flow, D-012.)
+     * Resolve the object {@code model=} option to a live {@link LuaMesh}: a {@code hafen.asset} mesh handle, or
+     * its raw backing userdata. <b>Handle-only</b> (028.2 — one flow, D-012): a <b>path string</b> is refused
+     * with an error naming {@code hafen.asset} as the way in, because interning makes repeating the load free,
+     * so a shortcut here would only buy a second way to say the same thing. The three failures are
+     * distinguishable: a path string, a disposed mesh, anything else.
      */
-    private static LuaMesh resolveObjectMesh(Addon owner, LuaValue modelv) {
-        LuaMesh lm = modelv.isstring() ? LuaMesh.resolve(AssetApi.load(owner, modelv.tojstring()))
-                                       : LuaMesh.resolve(modelv);                   // a handle or its raw userdata
-        if((lm == null) || lm.dead)
-            throw new LuaError("hafen.render.object: 'model' must be a hafen.asset mesh handle (hafen.asset(\"chair.glb\")) or an addon-relative path string");
+    private static LuaMesh resolveObjectMesh(LuaValue modelv) {
+        if(modelv.isstring() && !modelv.isnumber())    // in LuaJ a number IS a string — that one is just a wrong type
+            throw new LuaError("hafen.render.object: 'model' is a hafen.asset mesh handle, not a path string — load it"
+                + " once with hafen.asset(\"" + modelv.tojstring() + "\") and pass the handle (it is interned, so"
+                + " repeating the load is free)");
+        LuaMesh lm = LuaMesh.resolve(modelv);          // a handle or its raw userdata
+        if(lm == null)
+            throw new LuaError("hafen.render.object: 'model' must be a hafen.asset mesh handle"
+                + " (hafen.asset(\"chair.glb\")), got " + modelv.typename());
+        if(lm.dead)
+            throw new LuaError("hafen.render.object: 'model' has been disposed — after a :dispose(), hafen.asset(path)"
+                + " loads the file again as a NEW asset");
         return lm;
     }
 
@@ -594,8 +602,8 @@ final class RenderApi {
     /**
      * {@code hafen.render.sprite{image, x, y [, a] [, scale] [, alpha] [, tint] [, billboard] [, clickable] [, onClick]}}
      * (R2): stand a custom PNG in the 3D world — the non-{@code .res} sibling of a ghost, on the same virtual-entity
-     * core (spec 17 §5). Validates the options, resolves the {@code image} (a {@code hafen.asset} image handle or an
-     * addon-relative path, auto-loaded + cached), builds a {@link GhostGob}, attaches the visual, and adds it to the
+     * core (spec 17 §5). Validates the options, resolves the {@code image} (a {@code hafen.asset} image handle —
+     * <b>handle-only</b>, 028.2), builds a {@link GhostGob}, attaches the visual, and adds it to the
      * MapView {@code basic} scene ({@link MapView#addClientGob}). The visual is the ONLY thing {@code billboard}
      * selects: {@code false} (default) → a resource-free {@link SprDrawable} quad ({@link SpriteQuad}) standing
      * upright, sized to the image aspect (R2a); {@code true} → a resource-free {@link LuaSpriteBillboard} camera-facing
@@ -620,7 +628,7 @@ final class RenderApi {
         final Glob g = glob();
         if((mv == null) || (g == null))
             return LuaValue.NIL;                       // not in the world yet — no scene to add to
-        LuaImage img = resolveSpriteImage(owner, opts.get("image"));   // AFTER the world check (don't load when not in world)
+        LuaImage img = resolveSpriteImage(opts.get("image"));   // AFTER the world check (don't validate when not in world)
         LuaValue av = opts.get("a");
         double a = av.isnumber() ? av.todouble() : 0.0;
         Coord2d rc = new Coord2d(xv.optdouble(0.0), yv.optdouble(0.0));   // 0,0 placeholder when following (the gob overrides)
@@ -688,16 +696,23 @@ final class RenderApi {
     }
 
     /**
-     * Resolve the sprite {@code image=} option to a live {@link LuaImage}: a {@code hafen.asset} image handle (or
-     * its raw backing userdata), or an addon-relative <b>path</b> string (auto-loaded + interned through
-     * {@link AssetApi#load}, D-017-sandboxed). Throws a {@link LuaError} for anything else / a disposed image.
-     * (028.2 makes this <b>handle-only</b> — one flow, D-012.)
+     * Resolve the sprite {@code image=} option to a live {@link LuaImage}: a {@code hafen.asset} image handle, or
+     * its raw backing userdata. <b>Handle-only</b> (028.2 — one flow, D-012), exactly like
+     * {@link #resolveObjectMesh}: a <b>path string</b> is refused with an error naming {@code hafen.asset} as the
+     * way in. The three failures are distinguishable: a path string, a disposed image, anything else.
      */
-    private static LuaImage resolveSpriteImage(Addon owner, LuaValue imgv) {
-        LuaImage li = imgv.isstring() ? LuaImage.resolve(AssetApi.load(owner, imgv.tojstring()))
-                                      : LuaImage.resolve(imgv);                    // a handle or its raw userdata
-        if((li == null) || li.dead)
-            throw new LuaError("hafen.render.sprite: 'image' must be a hafen.asset image handle (hafen.asset(\"icon.png\")) or an addon-relative path string");
+    private static LuaImage resolveSpriteImage(LuaValue imgv) {
+        if(imgv.isstring() && !imgv.isnumber())        // in LuaJ a number IS a string — that one is just a wrong type
+            throw new LuaError("hafen.render.sprite: 'image' is a hafen.asset image handle, not a path string — load it"
+                + " once with hafen.asset(\"" + imgv.tojstring() + "\") and pass the handle (it is interned, so"
+                + " repeating the load is free)");
+        LuaImage li = LuaImage.resolve(imgv);          // a handle or its raw userdata
+        if(li == null)
+            throw new LuaError("hafen.render.sprite: 'image' must be a hafen.asset image handle"
+                + " (hafen.asset(\"icon.png\")), got " + imgv.typename());
+        if(li.dead)
+            throw new LuaError("hafen.render.sprite: 'image' has been disposed — after a :dispose(), hafen.asset(path)"
+                + " loads the file again as a NEW asset");
         return li;
     }
 

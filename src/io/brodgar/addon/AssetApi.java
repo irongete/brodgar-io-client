@@ -482,9 +482,11 @@ final class AssetApi {
      * Free one model now (its {@code :dispose()}, and teardown): flip {@link LuaMesh#dead} (so a later
      * {@code render.object} refuses it), drop it from the addon's registry, and (R3b) dispose the mesh's
      * <b>shared base-colour textures</b> (the first GPU state a mesh owns). Each {@link LuaObject} owns its own
-     * engine {@code Model}s (freed by {@code teardownObjects}, which runs first), so at teardown a live object
-     * never references a freed texture; a manual {@code mesh:dispose()} while an object still draws it does free
-     * the textures out from under it (dispose only when unused — see {@link LuaMesh}). Idempotent.
+     * engine {@code Model}s (freed by {@code teardownObjects}, which runs first), so at teardown nothing still
+     * holds a sampler when its {@code TexI} goes. A manual {@code mesh:dispose()} while an object draws it does
+     * <b>not</b> break that object visually (it captured the sampler at mill time — measured 028.2); it only
+     * forfeits the freeing until the object is destroyed. Dispose only when unused — see {@link LuaMesh}.
+     * Idempotent.
      */
     private static void disposeMesh(LuaMesh lm) {
         if(lm.dead)

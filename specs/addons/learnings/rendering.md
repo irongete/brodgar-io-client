@@ -120,9 +120,21 @@
   magic / dedup), the same discipline as R3a's geometry.
 - **R3b: the shared mesh `TexI` changes `mesh:dispose()` semantics — teardown ORDER matters.** R3a's mesh held no GPU
   state (objects owned their own `Model`s), so a mesh `:dispose()` never hurt a live object. R3b's mesh owns the shared
-  textures, so `teardownObjects` MUST run before `teardownMeshes` (it does) — else a live object references a freed `TexI`.
-  A *manual* `mesh:dispose()` while an object still draws it now frees the textures out from under it (documented: dispose
-  a mesh only when unused).
+  textures, so `teardownObjects` MUST run before `teardownMeshes` (it does) — else a live object still holds a sampler
+  when its `TexI` is disposed and that memory is never reclaimed. **Corrected in 028.2, measured:** this entry used to
+  claim a manual `mesh:dispose()` "frees the textures out from under" a live object. **It does not.** The object keeps
+  drawing, textured and unchanged, because `MeshSprite.texRender` captures `tex.st().data` **once, at mill time**, into
+  the material state — it never re-reads the `TexI`. What dispose forfeits under a live object is the *freeing*, not the
+  picture. So the order is load-bearing for **leak-freedom**, not for visual correctness, and the leak check
+  (`profiling():memory()` texture counters back to baseline after `:reload`/disable/relogin) is what actually tests it.
+  Still: dispose a mesh only when unused — it buys nothing while an object draws it, and the handle goes `dead`.
+- **A prediction derived from ownership is not an observation — say which one an entry is.** The R3b line above was
+  reasoned from "the mesh owns the textures, so freeing them must break the object" and written as fact; it survived two
+  features before 028.2's acceptance list finally made someone *look*. Ownership tells you who may free what; it does not
+  tell you what a consumer that already **captured** the resource will do. The same shape as R1 ("engine `dispose()`
+  releases, it does not invalidate") and R2a ("dispose only what you own") — both learned by measuring, not deducing.
+  **Lesson:** when a learning states a user-visible consequence nobody has watched happen, mark it *predicted* and put it
+  on an acceptance list; a wrong learning is worse than a missing one, because it gets copied into the docs.
 - **glTF UV `v`-orientation is a genuine can't-verify-headlessly item — make it a one-line switch.** glTF `v=0` = image
   top; `TexI.st()` uploads the `BufferedImage`'s row 0 (top) directly (no flip) → glTF UVs *should* map straight (no
   `1-v`). But 3D sampling orientation can't be asserted without GL, so `MeshSprite.TEXV_FLIP` is a single `boolean`:

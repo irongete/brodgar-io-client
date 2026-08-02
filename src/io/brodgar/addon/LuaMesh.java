@@ -27,9 +27,16 @@ import org.luaj.vm2.LuaValue;
  * ({@link AssetApi#teardownAssets}) now disposes each {@code TexI} in addition to marking it {@link #dead} (a
  * later {@code render.object} on a disposed handle errors). Teardown order guarantees safety: {@code teardownObjects}
  * (frees each object's own {@code Model}s) runs <b>before</b> {@code teardownMeshes} (frees the shared textures), so a
- * live object never references a freed texture. (Consequently, unlike R3a, calling {@code mesh:dispose()} <b>while an
- * object still uses it</b> frees the shared textures out from under that object — dispose a mesh only when no live
- * object draws it; teardown always does this in the right order.)
+ * live object never references a freed texture.
+ *
+ * <p><b>What a manual {@code mesh:dispose()} under a live object actually does</b> (measured 028.2 — the earlier
+ * R3b note predicted the opposite and was wrong): the object keeps drawing, <b>textured and unchanged</b>. It
+ * never re-reads the {@link TexI}: {@link MeshSprite#texRender} captures {@code tex.st().data} <b>once</b>, at
+ * mill time, into the material state, so nothing is pulled out from under it. What is lost is the <i>freeing</i>
+ * — the sampler is still referenced by that live object, so its GPU memory is not reclaimed until the object is
+ * destroyed, and the handle is {@link #dead} so the mesh can never be stood again. That is what makes the
+ * teardown order load-bearing: objects first means nothing holds a sampler when the {@code TexI} goes. Still:
+ * dispose a mesh only when no live object draws it — it buys nothing while one does.
  */
 public final class LuaMesh {
     /** The handle-table field carrying this object as an opaque userdata (read by {@link #resolve}). */

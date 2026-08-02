@@ -19,7 +19,7 @@
       `:dispose()` giving a *new* object (all headless: `Gltf` is pure, `new TexI` uploads lazily). Then
       in-game: `hello`'s image, font and model all still draw, `hafen.font.load` reads `nil`.
 
-- [ ] **028.2 — the consumers: handle-only, and the teardown audit.**
+- [x] **028.2 — the consumers: handle-only, and the teardown audit.**
       `hafen.render.sprite{image=}` / `object{model=}` become **handle-only**; a string raises an error
       naming `hafen.asset` as the way in. Wire the collection form (`hafen.asset()` lists **live** assets —
       never resurrect a dead entry) and confirm the typed owned-lists still drive teardown in the order

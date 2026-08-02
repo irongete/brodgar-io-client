@@ -1393,7 +1393,7 @@ local textcacheStress
 local STRESS_POOL, STRESS_PER_FRAME = 2000, 32
 hafen.slash.register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof | widgets | passes | textcache")
+    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | prof | widgets | passes | textcache")
     return
   end
   local sub = args[1]
@@ -1554,6 +1554,41 @@ hafen.slash.register("hello", function(args)
           hafen.log(":hello object -> moved +2 tiles E, rotated 45 deg, grew x1.5 (gizmo-compatible transform handle on a mesh)")
         end
       end)
+    end
+  elseif sub == "assets" then
+    -- 028.2 (INTERIM harness; 028.3 folds this into the once-per-login contract check): the COLLECTION form and
+    -- the HANDLE-ONLY rule. hafen.asset() lists this addon's LIVE assets in load order (a disposed one is never
+    -- listed and never resurrected), and hafen.render.sprite/object take a HANDLE ONLY -- a path string raises an
+    -- error pointing at hafen.asset (one flow: load -> draw/stand, D-012).
+    local live = hafen.asset()
+    hafen.log((":hello assets -> hafen.asset() lists %d LIVE asset(s), in load order:"):format(#live))
+    for i = 1, #live do
+      local a = live[i]
+      hafen.log(("   %d. %-5s %s"):format(i, a:type(), a:path()))
+    end
+    hafen.log(("   interning: hafen.asset('icon.png') == the OnLoad handle -> %s")
+      :format(tostring(hafen.asset("icon.png") == icon)))
+    local okImg, errImg = pcall(function() return hafen.render.sprite{ image = "icon.png", x = 0, y = 0 } end)
+    hafen.log(("   sprite{image='icon.png'} (a PATH) -> %s: %s"):format(okImg and "ACCEPTED (BUG)" or "refused",
+      tostring(errImg)))
+    local okMdl, errMdl = pcall(function() return hafen.render.object{ model = "tank.glb", x = 0, y = 0 } end)
+    hafen.log(("   object{model='tank.glb'} (a PATH) -> %s: %s"):format(okMdl and "ACCEPTED (BUG)" or "refused",
+      tostring(errMdl)))
+    if (args[2] == "dispose") and not cube then
+      hafen.log("   dispose: tank.glb not loaded yet (OnLoad) -- skipped")
+    elseif args[2] == "dispose" then
+      -- ':hello assets dispose' -- what disposing a MESH under a LIVE object really does (measured 028.2): the
+      -- object keeps drawing, textured and unchanged, because it captured the texture sampler when it was built.
+      -- Disposing buys nothing while an object draws it -- the memory is not reclaimed until that object is
+      -- destroyed. The re-load then proves identity is stable only WHILE ALIVE: the same path, a NEW asset.
+      local old = cube
+      old:dispose()
+      cube = hafen.asset("tank.glb")                    -- the same path, a NEW asset (the disposed one is never served)
+      hafen.log(("   dispose: tank.glb disposed -- a STANDING object keeps its textures (it captured the sampler"
+        .. " at build time); re-load == the old handle -> %s (false = a NEW asset, as documented)")
+        :format(tostring(cube == old)))
+      hafen.log(("   hafen.asset() now lists %d live asset(s) -- the disposed one is gone, not resurrected")
+        :format(#hafen.asset()))
     end
   elseif sub == "font" then
     -- F1: toggle a GLOBAL font override on the "default" scope + prove LAST-WINS. setFont installs THIS addon's
@@ -2035,7 +2070,7 @@ hafen.slash.register("hello", function(args)
       .. " line` hits every frame; `026 volatile line` misses every frame because its text changes every frame"
       .. " -- budget a live readout by how often its TEXT changes, not by how many lines it has.")
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets | passes | overhead | textcache)")
+    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets | passes | overhead | textcache)")
       :format(#args, table.concat(args, " | ")))
   end
 end)
