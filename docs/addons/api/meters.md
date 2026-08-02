@@ -60,7 +60,7 @@ bar as the server updates it — see [snapshots vs handles](conventions.md#snaps
 | `meter:color()` | `{r,g,b,a}` \| nil | the first segment's colour, `0..255` per channel |
 | `meter:segments()` | `{{value=, color=}, …}` | the whole bar, 1-based — never nil, may be empty |
 | `meter:exists()` | boolean | is this meter still in the HUD slot — always answers |
-| `meter:info()` | table \| nil | a plain-table **snapshot** `{res, index, value, color, segments}` — the escape hatch for logging/serialising |
+| `meter:info()` | [`Meter`](types.md#meter) \| nil | a plain-table **snapshot** `{res, index, value, color, segments}` — the escape hatch for logging/serialising |
 
 > `:value()` is a **bar fraction only** — there are no absolute hp/stamina/energy numbers, and no hunger,
 > in the client. The one place absolute numbers exist is FEP: see [`hafen.char.food`](char.md).
@@ -104,5 +104,5 @@ makes a `MeterRemoved` payload (or a meter you stashed) worth holding on to. `:e
 predicate `hafen.meter()` filters on.
 
 > **There is no write verb.** Meters are server-pushed presentation; there is nothing to set. You *can*
-> freeze the bars client-side by swallowing their updates with an [`IMeter` message hook](hooks.md#hafenhookmessage)
+> freeze the bars client-side by swallowing their updates with an [`IMeter` message hook](hooks.md#hafenhookmessagemsg-fn)
 > — purely cosmetic, the server still knows your real values.

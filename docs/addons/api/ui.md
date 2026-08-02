@@ -162,7 +162,7 @@ destroyed (the node detects it and lets go).
 | `:same(other)` | boolean | true iff both handles wrap the **same live widget** (nil-safe) — the identity check |
 | `:at(coord)` | [WidgetNode](#widgetnode) \| nil | the deepest widget under a `{x=,y=}` **root-coord** point **within this subtree** |
 | `:rootpos()` | `{x=,y=}` \| nil | the node's top-left in **root coords** (with `:size()` = a rectangle to outline it) |
-| `:setFont(h)` | (self) | restyle **this widget and its whole subtree** with a [font handle](fonts.md) — its siblings keep their font ([F5](fonts.md#restyle-one-widget--nodesetfont-f5)) |
+| `:setFont(h)` | (self) | restyle **this widget and its whole subtree** with a [font handle](fonts.md) — its siblings keep their font ([F5](fonts.md#restyle-one-widget--nodesetfonth-f5)) |
 | `:resetFont()` | (self) | drop **your** per-instance override on this widget (it falls back to the scope/`"default"` font) |
 
 **`:id()` is the pivot for acting.** Reading the tree is ungated client-side data. To *act*, read a
@@ -253,7 +253,7 @@ point for a gob overlay). Methods are colon-calls.
 `g` is valid only during the draw callback — stashing it and drawing later does nothing (it goes
 inert). To draw your own PNG images, load them with [`hafen.render.image`](render.md) and blit with
 `g:image`/`g:aimage`. To draw the **client's own `.res` art** (action icons, hud pieces) — e.g. the icon of
-the action a widget received from [`onDrop`](#windows--widgets) — use `g:resource(name, …)`. It resolves the
+the action a widget received from [`onDrop`](#custom-windows--widgets) — use `g:resource(name, …)`. It resolves the
 resource **asynchronously and caches** it, and is **`Loading`-guarded** (draws nothing until the texture is
 ready, then blits the resource's default image layer). It draws the **static icon only** — no live sprite /
 cooldown sweep. A bad name simply draws nothing.

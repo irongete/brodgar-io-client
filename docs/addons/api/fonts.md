@@ -18,7 +18,7 @@ your addon keeps; another addon cannot look it up (no name collisions, no coupli
 > and **`"world.nick"`** (floating kin names) — so **every scope in `scopes()` is now live**. **F5 (shipped):**
 > the **per-instance** override — `node:setFont(h)` on any [`WidgetNode`](ui.md#widgetnode) restyles **one** widget
 > and its subtree while its siblings keep their font. **The font series is complete.**
-> See [`21-fonts.md`](../../../specs/addons/21-fonts.md) for the roadmap.
+> See [`21-fonts.md`](../../../specs/addons/design/21-fonts.md) for the roadmap.
 
 Client-only and cosmetic (**safe-tier — not gated**), like a HUD overlay.
 
@@ -136,7 +136,7 @@ restorable. The change is **live** — most existing text re-renders on the spot
 `"default"` is the broad hammer: it **cascades** to every routed surface that has no more-specific override — so
 `setFont("default", h)` changes everything in one call, while a per-scope override refines any one surface. The
 resolution order is **most-specific first**:
-[per-instance](#restyle-one-widget--nodesetfont-f5) → scope override → `"default"` override → stock.
+[per-instance](#restyle-one-widget--nodesetfonth-f5) → scope override → `"default"` override → stock.
 
 ```lua
 hafen.font.setFont("default", h)             -- everything routed (incl. captions + button captions)
@@ -158,7 +158,7 @@ like `IButton`, and the character-selection list entries), and button-shaped wid
 
 **Notes on `"textentry"` (F3c).** It covers **both** of the client's text-input surfaces: every editable field
 (the chat input, search boxes, the login name/password fields, name-a-save fields, …) **and** the console
-command line — the `:` prompt, so `:lua` and your own [`hafen.slash`](slash.md) commands are typed in your font
+command line — the `:` prompt, so `:lua` and your own [`hafen.slash`](console.md) commands are typed in your font
 too. Each field drops its cached line when the override moves, so the change is live on the next frame, and
 selection/caret positions follow the new glyph advances automatically. **Geometry caveat:** a field's *height*
 comes from its background texture, not from the font — a much larger size is drawn but vertically clipped. Stay

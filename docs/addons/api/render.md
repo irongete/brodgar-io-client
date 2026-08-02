@@ -349,5 +349,5 @@ same code path that handles its ghosts/sprites gives the model **click-select**,
 and **grid-anchored persistence** (it reloads at the same spot after a relog) — the editor-flow counterpart to
 `:hello object`'s render demo.
 
-See [17-custom-rendering.md](../../../specs/addons/17-custom-rendering.md) and
-[18-custom-models-gltf.md](../../../specs/addons/18-custom-models-gltf.md) for the full design.
+See [17-custom-rendering.md](../../../specs/addons/design/17-custom-rendering.md) and
+[18-custom-models-gltf.md](../../../specs/addons/design/18-custom-models-gltf.md) for the full design.

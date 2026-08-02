@@ -41,8 +41,19 @@ An action-bar slot is an **object** as well, and `hafen.actionbar` is *callable*
 one goes `:empty()` the moment the slot is cleared, and `hafen.actionbar(0) == hafen.actionbar(0)`.
 `slot:index()` gives the game index back from an array position. See [actionbar.md](actionbar.md).
 
-Gob, Kin and Slot are the sections that are object-oriented today; every other section is still a flat
-table of functions. That mix is deliberate and temporary — the rest follows.
+### Needle-keyed objects — Buff, Meter, Action, Sound
+
+The same callable-namespace pattern, keyed by a **string** instead of an id, and the no-argument call is
+always the collection. [`hafen.buff(needle)`](buffs.md) and [`hafen.meter(needle)`](meters.md) are
+*substring* lookups — the first object whose resource (for a buff, also its display name) contains the
+needle; [`hafen.menugrid(key)`](menugrid.md) and [`hafen.sound(resName)`](audio.md) name one outright.
+Either way the strings are **server-published**, not keys the API defines — read them off a live client
+with `:res()` rather than trusting a list in this reference. A miss is plain `nil`, and addressing one by
+**position** is an error (positions are not addresses — index the collection instead).
+
+The object-oriented sections today are **Gob, Player, Kin, Slot, Buff, Meter, Action (menugrid) and
+Sound**; the rest are still flat tables of functions. That mix is deliberate and temporary — the
+migration continues.
 
 ### ItemRef — an inventory/equipment item
 

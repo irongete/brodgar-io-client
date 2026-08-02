@@ -118,6 +118,19 @@ From [`buff:info()`](buffs.md#read) — the one snapshot escape hatch. `hafen.bu
 | `duration` | number | 0..1 fraction of the buff's run that is left; content-defined, often absent — **not** seconds |
 | `number` | number | integer overlay; content-defined, often absent |
 
+## Meter
+
+From [`meter:info()`](meters.md#read) — the one snapshot escape hatch. `hafen.meter()` and the
+`MeterAdded`/`MeterRemoved`/`MeterChanged` events hand you live [`Meter` objects](meters.md), not this table.
+
+| Field | Type | Notes |
+|---|---|---|
+| `res` | string | the background resource name — the meter's identity; optional (Loading-guarded) |
+| `index` | number | its 1-based HUD position; absent once the meter is gone |
+| `value` | number | the **first** segment's fill fraction, 0..1; optional |
+| `color` | [Color](#color) | the **first** segment's colour; optional (content-defined) |
+| `segments` | `{value, color?}[]` | the whole bar, 1-based — always present, may be empty |
+
 ## KinEntry
 
 From [`kin:info()`](kin.md#read) — the one snapshot escape hatch. The roster and `KinChanged` hand you

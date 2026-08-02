@@ -34,7 +34,7 @@ reload / disable / relogin (the scene slot is removed and the sprite freed), lea
 | `tint` | `{r, g, b [, a]}` | — | colour overlay, `0..255` (`a` = blend strength, default `255`) (V3) |
 | `scale` | number | `1` | uniform scale — `1` is original size (V6); see [Scale](#scale-v6) |
 | `clickable` | boolean | `false` | opt-in pick surface (V2) — see [Clickability](#clickability--the-ghostclicked-event-v2) |
-| `onClick` | function | — | `fn(g, button, x, y)` fired on click (V2); also delivered as the [`GhostClicked`](events.md#world-ghosts) event |
+| `onClick` | function | — | `fn(g, button, x, y)` fired on click (V2); also delivered as the [`GhostClicked`](events.md#world-ghosts--sprites) event |
 
 For `list`, `filter` is the canonical [filter](conventions.md#the-filter-argument), adapted to handles:
 `nil` = all; a **string** = substring match on the ghost's `res`; a **function** is called with the ghost
@@ -168,7 +168,7 @@ end)
 g:clickable(false)                          -- back to decorative / click-through
 ```
 
-Both the per-ghost `onClick` and the [`GhostClicked`](events.md#world-ghosts) event fire on every click of
+Both the per-ghost `onClick` and the [`GhostClicked`](events.md#world-ghosts--sprites) event fire on every click of
 a clickable ghost; `GhostClicked` reaches only *your* addon (a ghost is private to the addon that made it).
 
 > **Still safe-tier.** Clickability is **pure client-side detection** — the engine's pick pass returns the
@@ -211,7 +211,7 @@ overlay — so they're always **on top** of the 3D scene — and the grab target
 zoom (only the axis shafts foreshorten with the camera, anchoring the arrows in the world). No game resource needed.
 
 Per [D-031](../../../specs/addons/decisions/virtual-entities.md), the gizmo is a **bundled Lua library over the ghost/map/hook
-primitives** ([`hafen.ui.overlay`](ui.md#overlays) to draw, [`hafen.hook.input`](hooks.md#hafenhookinput) to pick a
+primitives** ([`hafen.ui.overlay`](ui.md#overlays) to draw, [`hafen.hook.input`](hooks.md#hafenhookinputtarget-event-fn) to pick a
 handle, [`hafen.hook.grab`](hooks.md#hafenhookgrab) + [`hafen.map.screenToWorld`](map.md#screen--world--placement-snapping-v5)
 + [`hafen.map.snapPlace`](map.md#screen--world--placement-snapping-v5) / [`hafen.map.snapAngle`](map.md#screen--world--placement-snapping-v5)
 to drag, and `g:move`/`g:rotate`/`g:scale` to apply) — **not** a built-in `hafen.*` function. It ships as
