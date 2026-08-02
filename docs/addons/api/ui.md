@@ -240,9 +240,11 @@ tells you which you are holding — ask, rather than provoking the error.
 | `:pack()` | shrink the chrome to fit its content (no-op for a bare widget) + chain | **error** — that is not yours to do |
 | `:destroy()` | remove it and everything in it | **error**, same reason |
 | `:hide()` / `:show()` | toggle visibility + chain | **works** — [see below](#hiding-a-native-widget-carries-a-restore) |
+| `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](#replacing-a-native-window) |
 
 **Arity is the verb** on geometry — `w:pos()` reads, `w:pos(x, y)` writes; `w:size()` reads,
-`w:size(w, h)` writes. That is the same shape as [client options](client.md), and it is why there is no
+`w:size(w, h)` writes — and on replacement: `w:replace()` reads, `w:replace(view)` installs,
+`w:replace(nil)` undoes. That is the same shape as [client options](client.md), and it is why there is no
 `:move()`.
 
 Provenance is derived from the tree, not from how you obtained the object: find your own window with
@@ -291,10 +293,10 @@ tick tells the truth about what is on screen. Giving the widget back gives the t
 same restore as above, so `w:show()`, disabling your addon and `:reload` all hand the key to the client
 again. That is also the escape hatch for a `w:hide()` typed into the `:lua` console: `:reload`, not a relog.
 
-**With [`replace`](#replacing-a-native-window), the toggle drives your view instead.** Tab and the menu
-button open and close the window *you* built, and the menu tick reads your view's own visibility — so it
-cannot drift out of sync with what is on screen. Nothing to wire: `replace` is the only place that knows
-both halves (the window it hid, and the widget your builder returned), so it binds them itself.
+**With [`w:replace(view)`](#replacing-a-native-window), the toggle drives your view instead.** Tab and the
+menu button open and close the window *you* built, and the menu tick reads your view's own visibility — so
+it cannot drift out of sync with what is on screen. Nothing to wire: the verb is the only place that knows
+both halves (the window it hides, and the view you handed it), so it binds them itself.
 
 **There is no verb for this** — nothing to register, nothing to release. Ownership follows the hide, and it
 is per window: hiding the inventory leaves equipment, the character sheet, kin, options and the map
@@ -303,8 +305,8 @@ behaving exactly as stock.
 **There is no `hafen.ui.adopt`.** It existed only to get a readable handle on a native widget, and it
 charged you a hidden window for the privilege. Reading no longer costs anything: `hafen.ui(selector)` (or
 `node(id)`, `at()`, `inventory()`) hands you the same entity with **nothing hidden**, and hiding is the
-separate, explicit act it always should have been. Replacing a native window is still
-[`hafen.ui.replace`](#replacing-a-native-window).
+separate, explicit act it always should have been. Putting your own window in a native one's place is
+[`w:replace(view)`](#replacing-a-native-window).
 
 ## Items inside a container
 
@@ -385,7 +387,7 @@ end)
 | Function | Returns | Description |
 |---|---|---|
 | `hafen.ui.on(selector, event, fn)` | [`{ :remove() }`](#overlay--observer-handles) | `fn(widget)` when a widget matching a [selector](#selectors--naming-a-widget) appears or disappears |
-| `hafen.ui.replace(type, opts, fn)` | [`{ :remove() }`](#overlay--observer-handles) | replace a native window with your own view |
+| `widget:replace(view)` | Widget (chains) | put your own window in place of the native one around it — a [verb on the widget](#replacing-a-native-window), not a namespace function |
 
 ### Watching for a widget
 
@@ -421,37 +423,58 @@ the window itself — such a candidate is re-checked for a short while rather th
 
 ### Replacing a native window
 
-`hafen.ui.replace(type, opts, fn)` finds a server widget by descriptor, hides the native window and calls
-`fn(w)` — which draws a custom view (e.g. a `hafen.ui.window`) and **returns** it. It also scans once for
-an already-open match, so it works whether the window is already open or opens later.
+Replacing is a **verb on the widget**, and arity is the verb:
 
-**The client's own toggle comes with the window.** Because `replace` hid it, it [owns
-it](#hiding-a-native-window-takes-its-toggle) — so Tab (or the menu button, or whichever key that window
-uses) opens and closes **your view**, and the menu tick follows your view rather than the hidden window.
-You return the view; that is the whole wiring. Disabling/reloading the addon, or the handle's `:remove()`,
-hands the toggle back and leaves the stock window **as the user was seeing it**: your view was open ⇒ the
-stock window is open; nothing was on screen ⇒ it stays closed.
+| Call | Does |
+|---|---|
+| `w:replace()` | reads the view standing in for this window, or `nil` |
+| `w:replace(view)` | hides the native window and puts `view` in its place — chains |
+| `w:replace(nil)` | undoes it there and then: the window comes back, the view is destroyed — chains |
 
-`fn`'s argument is the ordinary [Widget object](#the-widget-object) for the replaced widget — the same
-value `hafen.ui.node(id)` would give you — so `w:items()`, `w:onItemAdded(…)` and every other verb answer
-on it while your view is up. The native window it hides is the **enclosing** one; your view stands in for
-that.
+**It hides the *enclosing* window, not the widget you point at.** That one line is why the verb exists.
+Point it at the inventory **grid** and the whole stock window goes — frame, caption and all — because a
+frame left standing around a hole is not a replacement. This is exactly where it differs from
+[`w:hide()`](#hiding-a-native-widget-carries-a-restore), which hides precisely what you point at and
+nothing more. Two operations, two rules; pick by what you want left on screen.
 
-`opts` (all optional): `context` (`"main"` = the main inventory), `caption` (an exact window title),
-`match` (an escape-hatch predicate `match(desc)`). `desc = { id, type, place, caption, parentType }` — the
-server's own view of a widget at the moment it is placed, e.g. the inventory is
-`{ type = "inv", place = "inv", parentType = "GameUI" }`; any field may be absent. It survives here only
-because `replace` matches *before* the widget is in the tree; to find a widget that exists, use a
-[selector](#selectors--naming-a-widget).
+**Waiting is not part of it.** [`hafen.ui.on(sel, "appear", fn)`](#watching-for-a-widget) already waits for
+anything and already fires for what is **already open**, so the whole pattern is those two together:
 
 ```lua
-hafen.ui.replace("inv", { context = "main" }, function(inv)
-  return hafen.ui.window({
+hafen.ui.on("inventory[title=Inventory]", "appear", function(inv)
+  inv:replace(hafen.ui.window({
     title = "Bags", size = {200, 120},
     onDraw = function(g) g:text(#inv:items() .. " items", 6, 6) end,
-  })
+  }))
 end)
 ```
+
+`inv` stays an ordinary [Widget object](#the-widget-object) throughout: the widget you replaced is
+**hidden, not destroyed**, so it is still bound to its server id, still filling with items, and
+`inv:items()`, `inv:onItemAdded(…)` and every other verb keep answering while your view is up. That is
+"wrap, don't reimplement" — you draw, the client keeps doing the work.
+
+**The client's own toggle comes with the window.** Hiding it means you [own
+it](#hiding-a-native-window-takes-its-toggle), so Tab (or the menu button, or whichever key that window
+uses) opens and closes **your view**, and the menu tick reads your view's visibility rather than the
+hidden window's.
+
+**The view's fate follows the substitution.** When the replacement ends, the view is destroyed — by
+`w:replace(nil)`, by `:reload`/disabling your addon, or by the server destroying the window (close a
+replaced chest and your view goes with it). A stand-in that no longer stands for anything is an orphan
+window over a container that is gone, so it is not left behind for you to clean up. Every ending also
+leaves the stock window **as the user was seeing it**: your view was open ⇒ the stock window is open;
+nothing was on screen ⇒ it stays closed.
+
+**One window, one view.** Installing a *different* view ends the previous substitution (and destroys that
+view); installing the same one again is a no-op. Four things are refused outright, each naming what to do
+instead: a view your addon did not create, a widget with **no enclosing window** (there is nothing to stand
+in for), one of your *own* windows, and a window another addon already holds.
+
+> `hafen.ui.replace(type, opts, fn)` — the old namespace function, matching on the server's
+> `{id, type, place, caption, parentType}` descriptor — is still callable in this slice and is removed in
+> the next one. It was the last place naming a window a different way; `hafen.ui.on` + `w:replace` is the
+> full-strength replacement for both of its halves.
 
 **Limits.** A widget's Java state is otherwise read-only — mutating it desyncs from the server. `:text()`
 is best-effort over a known type set (unknown → nil, never throws). The whole client tree is reachable via
@@ -491,7 +514,7 @@ off the same hover, which is the cheapest way to learn what a widget is and how 
 
 ### Overlay / observer handles
 
-`overlay`, `gobOverlay`, `on`, and `replace` return a handle with a single method:
+`overlay`, `gobOverlay` and `on` return a handle with a single method:
 
 | Method | Description |
 |---|---|

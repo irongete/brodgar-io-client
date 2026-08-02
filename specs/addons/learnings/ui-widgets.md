@@ -378,3 +378,10 @@
   applied against the *view's own parent*, which is the more correct frame anyway, since an addon window may hang
   off `ui.root` rather than the HUD. Re-derive when the logic is small, stable and arithmetic; expose when it is
   behaviour you would be forking.
+- **(032.1) `hafen.ui.window{}` silently ignores unknown opts keys — which reads exactly like a broken feature.**
+  The size is `size = {w, h}` and the draw callback is `onDraw`; a plausible-looking `{title=…, w=300, h=200,
+  draw=…}` produces a **default-sized 200x140 window that never draws**, with no error anywhere. It cost a full
+  round-trip with the maintainer during 032.1 verification — the empty window was blamed on the new verb, which was
+  working perfectly. `AddonWidget`'s `fn(opts, key)` returns `null` for an absent *or* misnamed callback and
+  `newUi`'s `optint` falls back to the default, so nothing has anything to complain about. When handing anyone a
+  one-off `:lua` line, copy the opts from `docs/addons/api/ui.md` rather than typing them from memory.

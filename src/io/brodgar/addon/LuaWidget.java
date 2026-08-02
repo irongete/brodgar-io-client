@@ -321,6 +321,40 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // replace() / replace(view) / replace(nil) — 032.1: ARITY IS THE VERB (the :pos/:size shape). The one way to
+        // put your OWN window in place of one of the client's: replace() READS the view standing in for this window
+        // (or nil), replace(view) INSTALLS one, replace(nil) undoes it there and then. Both writes chain.
+        //
+        // THE TRAP IT OWNS, and the whole reason it is a verb of its own: installing hides the ENCLOSING WINDOW
+        // (nativeWindowOf), not the widget you point at — replace the inventory GRID and the whole stock window
+        // goes, rather than leaving its frame around a hole. widget:hide() still hides exactly what you point at;
+        // that is the difference between the two.
+        //
+        // Hiding a native window TAKES ITS TOGGLE (031, D-069), and from here that toggle drives YOUR view: Tab and
+        // the menu button show and hide it, and the menu tick reads its visibility. The view's fate follows the
+        // substitution — replace(nil), :reload/disable, or the server destroying the window all destroy it, since a
+        // custom window left standing over a container that is gone is worse than no window. One window has one
+        // view: installing a different one ends the previous substitution (and destroys that view).
+        //
+        // WAITING IS NOT PART OF IT: hafen.ui.on(selector, "appear", fn) already waits, and already fires for what
+        // is ALREADY open (D-068) — so the whole pattern is
+        //     hafen.ui.on("inventory[title=Inventory]", "appear", function(w) w:replace(buildMyView(w)) end)
+        m.set("replace", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:replace() → narg 1 · w:replace(view|nil) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "replace"));
+                if(a.narg() < 2)
+                    return (w == null) ? LuaValue.NIL : UiApi.installedView(owner, w);
+                if(w != null) {                           // a write on a stale widget: the 029.2 silent chaining no-op
+                    LuaValue v = a.arg(2);
+                    if(v.isnil())
+                        UiApi.unreplace(owner, w);
+                    else
+                        UiApi.replaceWith(owner, w, v);
+                }
+                return self;
+            }
+        });
         // pack() — shrink the chrome to fit its content. OWNED-only; a no-op for a bare hafen.ui.widget (a leaf has
         // no children to fit). Chains.
         m.set("pack", new VarArgFunction() {
@@ -539,8 +573,8 @@ public final class LuaWidget {
      * both back. It carries the owner, the widget, and its server id ({@code -1} for a client-only widget, which
      * is what the {@code Hidewnd} wrappers around {@code maininv}/the equipory are).
      *
-     * <p><b>The {@link #view} is the whole state of the toggle</b> (031.2). {@code hafen.ui.replace} is the one
-     * place that knows both halves — the window it hid and the widget its builder returned — so it fills this in
+     * <p><b>The {@link #view} is the whole state of the toggle</b> (031.2). {@code widget:replace(view)} is the one
+     * place that knows both halves — the window it hides and the view put in its place — so it fills this in
      * itself; a bare {@code w:hide()} leaves it {@code null} and the toggle is simply swallowed. There is no
      * bookkeeping boolean beside it: "is it open?" is {@code view.visible()}, so the menu checkbox cannot drift
      * out of sync with what is on screen, and teardown's one rule (<i>the window ends up as the user was seeing
@@ -631,6 +665,26 @@ public final class LuaWidget {
         throw new LuaError(verb + " — " + typeName(w) + " is already hidden by the addon \""
             + AddonManager.ownerName(ex.owner) + "\", which owns its toggle too; one window has one owner."
             + " Disable that addon first, or point at a widget it does not hold.");
+    }
+
+    /**
+     * The nearest enclosing {@link Window} of a widget, or {@code w} itself when nothing encloses it — <b>the
+     * enclosing-window hop</b>, which 032.1 moved here from the old {@code hafen.ui.replace} because it is what
+     * {@code widget:replace(view)} is for: the window to hide is the stock <i>frame</i> around the widget you
+     * matched (the {@code Hidewnd "Inventory"} around {@code GameUI.maininv}), not the widget itself, or the
+     * replacement leaves an empty frame on screen. It is also the object {@code GameUI} toggles, which is how the
+     * substitution inherits the client's own key and menu button (031, D-069).
+     *
+     * <p>The "nothing encloses it" answer is deliberately not an error here: the two callers mean different things
+     * by it — {@code widget:replace} refuses (there is no window to stand in for), while the placement path of the
+     * legacy {@code hafen.ui.replace} can only log, since it must not throw into the engine.
+     */
+    static Widget nativeWindowOf(Widget w) {
+        for(Widget p = w; p != null; p = p.parent) {
+            if(p instanceof Window)
+                return p;
+        }
+        return w;
     }
 
     /** This owner's own record for a widget, or {@code null} (identity-keyed; the list is per-addon tiny). */

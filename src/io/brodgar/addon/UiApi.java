@@ -259,7 +259,15 @@ final class UiApi {
         //   :at(coord)       -- W2: the DEEPEST Widget object under a {x=,y=} root-coord point WITHIN this subtree
         //   :rootpos()       -- W2: {x=,y=} its top-left in root coords (with :size() = a highlight box)
         //   :hide() / :show()-- the ONE write that answers on a native widget. Hiding one you do not own records
-        //                       the restore, so :reload/disable puts it back exactly as it was (029.2).
+        //                       the restore, so :reload/disable puts it back exactly as it was (029.2). It hides
+        //                       EXACTLY what you point at (:replace does not — see below).
+        //   :replace(view)   -- 032.1: put your own window in place of the native one, and inherit its toggle
+        //                       (031, D-069). Arity is the verb: :replace() reads the installed view or nil,
+        //                       :replace(view) installs, :replace(nil) undoes. It hides the ENCLOSING WINDOW, not
+        //                       the widget you point at, so replacing the inventory GRID takes the whole stock
+        //                       window with it; the view is destroyed when the substitution ends (undo, teardown,
+        //                       or the server destroying the window). Wait for the target with
+        //                       hafen.ui.on(sel, "appear", fn) — that half is not part of the verb.
         //   :items()         -- 029.3: the Item snapshots inside this container (a relation, like :children()) —
         //                       an Inventory, an Equipory (each entry also carrying its `slot`), or any widget with
         //                       WItems under it. Read it with the window VISIBLE and interactive: nothing is hidden.
@@ -899,6 +907,12 @@ final class UiApi {
      * <p><b>This must run BEFORE the addon's own widgets are destroyed</b> ({@code AddonRegistry.teardown} orders
      * it so): the rule reads the view's visibility, and a destroyed view stands for nothing.
      *
+     * <p><b>And it ends the substitution, view included</b> (032.1). Restoring the window is only half of an
+     * ending: the stand-in has to go with it, or a {@code :reload} leaves a custom window floating over the stock
+     * one it no longer replaces. For a loaded addon {@code destroyWidgets} would have caught it a moment later
+     * anyway (the kill is idempotent), but the {@code :lua} REPL owner <b>survives</b> a reload and has no such
+     * sweep — which is exactly where the leak showed. The rule is read first, the view killed after.
+     *
      * <p><b>The {@code :lua} REPL is torn down here too</b>, from {@code AddonRegistry.reload} — the REPL owner
      * itself survives a reload, but the windows it hid do not, exactly as its sounds (024.2) and cached text
      * (026.1) do not. Since 031.1 a hidden window's <i>toggle</i> is owned as well, which makes {@code :reload}
@@ -918,8 +932,12 @@ final class UiApi {
         a.hiddenNative.clear();
         LuaWidget.recountHidden();      // 031.1: the toggles this addon owned go back to the client
         Runnable restore = () -> {
-            for(LuaWidget.Hidden h : hs)
-                restoreHidden(u, h);
+            for(LuaWidget.Hidden h : hs) {
+                restoreHidden(u, h);          // the rule — asked BEFORE the view is killed
+                AddonWidget v = h.view;
+                h.view = null;
+                destroyView(h.owner, v);      // 032.1: the view's fate follows the substitution, teardown included
+            }
         };
         if(u != null) {
             synchronized(u) { restore.run(); }
@@ -1144,6 +1162,152 @@ final class UiApi {
         return (hit == null) ? LuaValue.NIL : LuaWidget.of(owner, hit);
     }
 
+    // ------------------------------------------------------ the replacement verb (widget:replace, 032.1)
+
+    /**
+     * {@code w:replace()} — the view this addon has standing in for {@code w}'s enclosing window, or {@code nil}.
+     * Read through the one {@link LuaWidget.Hidden} record, so it is the field the toggle itself reads: a view the
+     * addon destroyed (its own X, a teardown) answers {@code nil}, exactly as the toggle then swallows.
+     * Per-addon by construction ({@link LuaWidget#findHidden} looks only at this owner's list), so it never reports
+     * another addon's stand-in.
+     */
+    static LuaValue installedView(Addon owner, Widget w) {
+        LuaWidget.Hidden h = LuaWidget.findHidden(owner, LuaWidget.nativeWindowOf(w));
+        return (h == null) ? LuaValue.NIL : LuaWidget.of(owner, h.liveView());
+    }
+
+    /**
+     * {@code w:replace(view)} — put the addon's own {@code view} in place of the native window around {@code w}
+     * (032.1). This is 031's internal wiring made into the verb: hide {@link LuaWidget#nativeWindowOf the enclosing
+     * window}, take (or join) the single {@link Addon#hiddenNative} record {@code w:hide()} makes, and bind the view
+     * to it — from which point the client's own toggle drives the view and the menu tick reads it (D-069/D-070).
+     * Nothing new is stored: the verb fills in a field that already exists.
+     *
+     * <p><b>Four refusals, all clear and all thrown</b> (this is a Lua call, unlike the placement path that can only
+     * log): a view the addon does not own, a widget with no enclosing window (nothing to stand in for), one of the
+     * addon's <i>own</i> windows, and a window another addon already holds — <i>one window, one owner</i>, since the
+     * toggle goes with it (031.2).
+     *
+     * <p><b>One window, one view.</b> Installing a different view ends the previous substitution and destroys that
+     * view, for the same reason every other ending does: a stand-in that stands for nothing is an orphan window over
+     * a container it no longer represents. Re-installing the SAME view is a no-op that still re-hides the window.
+     */
+    static void replaceWith(Addon owner, Widget w, LuaValue viewv) {
+        AddonWidget view = LuaWidget.ownedContent(owner, LuaWidget.live(LuaWidget.resolve(viewv)));
+        if(view == null)
+            throw new LuaError("widget:replace(view) expects a widget YOUR addon created (hafen.ui.window{} or"
+                + " hafen.ui.widget{}) to stand in for the native one — pass nil to undo a replacement.");
+        Widget wnd = LuaWidget.nativeWindowOf(w);
+        if(!(wnd instanceof Window))
+            throw new LuaError("widget:replace(view) — " + LuaWidget.typeName(w) + " is not inside a window, so"
+                + " there is nothing to stand in for (no window to hide, and no toggle to inherit). Point at a"
+                + " widget inside a client window, or just show your own with hafen.ui.window{}.");
+        if(LuaWidget.ownedContent(owner, wnd) != null)
+            throw new LuaError("widget:replace(view) — " + LuaWidget.typeName(wnd) + " is a window your OWN addon"
+                + " created; replacing stands in for the CLIENT's windows. Move, resize or destroy yours instead.");
+        LuaWidget.refuseSecondOwner(owner, wnd, "widget:replace(view)");
+        LuaWidget.Hidden h = LuaWidget.recordHidden(owner, wnd);
+        if(h == null)
+            return;                        // raced another owner between the check and the record: leave it be
+        if(h.view != view) {               // one window, one view: the previous stand-in's substitution has ended
+            AddonWidget old = h.view;
+            h.view = view;
+            destroyView(owner, old);
+        }
+        UI u = ui;
+        if(u != null) {
+            synchronized(u) { wnd.hide(); }
+        } else {
+            wnd.hide();
+        }
+        assertToggleTarget(owner, w, wnd, "widget:replace(view)");
+    }
+
+    /**
+     * {@code w:replace(nil)} — undo the substitution there and then: the window (and its toggle) go back under the
+     * one rule, and the view is destroyed. A widget with <b>no view</b> bound is left alone: a bare
+     * {@code w:hide()} is not a replacement, and giving it back is {@code w:show()}'s job.
+     */
+    static void unreplace(Addon owner, Widget w) {
+        LuaWidget.Hidden h = LuaWidget.findHidden(owner, LuaWidget.nativeWindowOf(w));
+        if((h == null) || (h.view == null))
+            return;
+        endReplacement(h);
+    }
+
+    /**
+     * End one substitution — the shared body of {@code w:replace(nil)} and the server-destroy sweep: give the window
+     * and its toggle back under the one rule ({@link #restoreHidden}), then destroy the view.
+     *
+     * <p><b>The order is load-bearing</b> (the 031.2 lesson): the rule reads the view's visibility, so it must be
+     * asked <i>before</i> the view is killed — a destroyed view stands for nothing, and the failure would be silent
+     * and always in the plausible direction.
+     */
+    private static void endReplacement(LuaWidget.Hidden h) {
+        AddonWidget v = h.view;
+        releaseHidden(h);                  // the rule: the window ends up as the user was SEEING it
+        h.view = null;                     // ...and the record has nothing left to drive
+        destroyView(h.owner, v);
+    }
+
+    /**
+     * Destroy a stand-in view and drop it from the addon's owned registry — the view's fate following the
+     * substitution. Idempotent ({@link AddonWidget#kill} guards a double kill, which is what lets the undo path,
+     * this sweep and a teardown all reach the same view without ordering rules between them) and best-effort, under
+     * the {@code ui} monitor like every other tree op.
+     */
+    private static void destroyView(Addon owner, final AddonWidget v) {
+        if(v == null)
+            return;
+        owner.widgets.remove(v);
+        UI u = ui;
+        Runnable kill = () -> {
+            try { v.kill(); } catch(RuntimeException e) { /* best-effort: never abort a teardown/undo */ }
+        };
+        if(u != null) {
+            synchronized(u) { kill.run(); }
+        } else {
+            kill.run();
+        }
+    }
+
+    /**
+     * Per-tick destroy-detection for the substitutions themselves (032.1, UI thread): the server destroying a
+     * replaced window — a chest closed, a relog — <b>ends the substitution</b>, so the record goes and the view dies
+     * with it rather than hanging over a container that no longer exists.
+     *
+     * <p><b>Keyed on the hide record, not on a model.</b> {@link #pollModels} watches the widget the legacy {@code
+     * hafen.ui.replace} adopted; the verb adopts nothing, so the thing to watch is the record that IS the
+     * substitution. The death test is {@link #stillHidable}, the same two-branch guard the teardown uses (by server
+     * id when the window has one, by tree reachability for a client-side wrapper like the inventory's, which never
+     * dies). A record with no view bound — a bare {@code w:hide()} — is not a substitution and is left alone.
+     *
+     * <p>Gated on the {@link LuaWidget#anyHidden} volatile the toggle seam already maintains, so a client that hides
+     * nothing pays one read per tick. Both paths are idempotent, so a record the legacy {@code replace} also owns
+     * being swept here (and then again by {@link #pollModels}) is harmless.
+     */
+    static void pollReplaced() {
+        if(!LuaWidget.anyHidden)
+            return;
+        UI u = ui;
+        if((u == null) || (u.root == null))
+            return;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            sweepReplaced(u, as.get(i));
+        sweepReplaced(u, consoleOwner);    // the :lua REPL replaces windows too, and owns them the same way
+    }
+
+    /** One owner's substitutions: end every one whose window the server has taken away. */
+    private static void sweepReplaced(UI u, Addon a) {
+        if((a == null) || a.hiddenNative.isEmpty())
+            return;
+        for(LuaWidget.Hidden h : a.hiddenNative) {   // copy-on-write: endReplacement removes from this very list
+            if((h.view != null) && !stillHidable(u, h))
+                endReplacement(h);
+        }
+    }
+
     // -------------------------------------------------------------------- widget replacers (hafen.ui, 3c)
 
     /**
@@ -1260,7 +1424,7 @@ final class UiApi {
         final UI u = ui;
         if(u == null)
             return;
-        final Widget nativeWin = nativeWindowOf(wdg);   // the wrapper (e.g. the "Inventory" Hidewnd), or the widget itself
+        final Widget nativeWin = LuaWidget.nativeWindowOf(wdg);   // the wrapper (the "Inventory" Hidewnd), or wdg itself
         LuaWidget.Hidden ex = hiddenOwner(nativeWin);
         if((ex != null) && (ex.owner != r.owner)) {
             log(r.owner, "hafen.ui.replace: " + LuaWidget.typeName(nativeWin) + " is already hidden by the addon \""
@@ -1268,7 +1432,7 @@ final class UiApi {
                 + " replacement was skipped");
             return;
         }
-        assertToggleTarget(r.owner, wdg, nativeWin);
+        assertToggleTarget(r.owner, wdg, nativeWin, "hafen.ui.replace");
         final LuaModel m = new LuaModel(r.owner, id, wdg);
         m.fromReplace = r;
         m.hideRecord = LuaWidget.recordHidden(r.owner, nativeWin);
@@ -1293,32 +1457,25 @@ final class UiApi {
     }
 
     /**
-     * Check — rather than assume — that the window {@code replace} just hid is the object {@code GameUI} toggles
+     * Check — rather than assume — that the window a replacement just hid is the object {@code GameUI} toggles
      * (031.2). Two ways it can fail to be one, both reported and neither fatal: the widget has no enclosing
      * {@link Window} at all (nothing for a toggle to own — the view is then the addon's to show and hide), and,
      * for the main inventory, the wrapper not being {@code maininv.parent}, which is what {@code togglewnd(invwnd)}
      * is called with. On the normal path both are silent, so an in-game replace that logs nothing has proved the
-     * identity the seam rests on.
+     * identity the seam rests on. {@code where} names the caller, since 032.1 gave it two — the verb (which
+     * refuses the first case outright, so only the second can fire) and the legacy placement path (which can only
+     * log, never throw into the engine).
      */
-    private static void assertToggleTarget(Addon owner, Widget wdg, Widget nativeWin) {
+    private static void assertToggleTarget(Addon owner, Widget wdg, Widget nativeWin, String where) {
         if(!(nativeWin instanceof Window)) {
-            log(owner, "hafen.ui.replace: " + LuaWidget.typeName(wdg) + " is not inside a window, so there is no"
+            log(owner, where + ": " + LuaWidget.typeName(wdg) + " is not inside a window, so there is no"
                 + " client toggle to take over — showing and hiding your view is yours to drive");
             return;
         }
         GameUI g = gui();
         if((g != null) && (wdg == g.maininv) && (nativeWin != g.maininv.parent))
-            log(owner, "hafen.ui.replace: internal — the hidden window is not the main inventory's own wrapper, so"
+            log(owner, where + ": internal — the hidden window is not the main inventory's own wrapper, so"
                 + " the client's Tab toggle will not follow this replacement");
-    }
-
-    /** The nearest enclosing {@link Window} of a widget (or the widget itself if none) — the native window to hide. */
-    private static Widget nativeWindowOf(Widget w) {
-        for(Widget p = w; p != null; p = p.parent) {
-            if(p instanceof Window)
-                return p;
-        }
-        return w;
     }
 
     /** The server type string → the Java widget class, for scanning an already-open target (see {@link #scanForReplace}). */
@@ -1365,27 +1522,16 @@ final class UiApi {
     }
 
     /**
-     * Destroy a replace model's view, if any — the Java side of what the old table handle's {@code :destroy()} did
-     * (kill the addon's content + its chrome, drop it from the owned registry). Idempotent, best-effort, and under
-     * the {@code ui} monitor like every other tree op.
+     * Destroy a replace model's view, if any — the Java side of what the old table handle's {@code :destroy()} did.
+     * Since 032.1 the killing itself is {@link #destroyView}, shared with the verb: this method is only the model's
+     * own bookkeeping around it.
      */
     private static void destroyReplaceView(LuaModel m) {
         AddonWidget v = m.replaceView;
         m.replaceView = null;
         if(m.hideRecord != null)
             m.hideRecord.view = null;   // 031.2: the toggle has nothing left to drive (it swallows again)
-        if(v == null)
-            return;
-        m.owner.widgets.remove(v);
-        UI u = ui;
-        Runnable kill = () -> {
-            try { v.kill(); } catch(RuntimeException e) { /* best-effort: never abort a teardown/undo */ }
-        };
-        if(u != null) {
-            synchronized(u) { kill.run(); }
-        } else {
-            kill.run();
-        }
+        destroyView(m.owner, v);
     }
 
     /**

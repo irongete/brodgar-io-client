@@ -137,3 +137,23 @@
   it is not redundant, because nothing else can *start* or *stop* the replacement. So the key kept its binding and
   changed its meaning, and the docs/logs say which of the two jobs it does. The plan's "it may now drop its own
   toggle hotkey" was the right question with the opposite answer.
+- **(032.1) The enclosing-window hop is the whole verb, and it belongs on the entity.** `nativeWindowOf` moved from
+  `UiApi` into `LuaWidget`: `w:replace(view)` hides the nearest enclosing `Window` (the `Hidewnd "Inventory"` around
+  `GameUI.maininv`), while `w:hide()` keeps hiding exactly what you point at. Two verbs, two rules, and the docs
+  have to say so in one line or the pair reads as a bug. `nativeWindowOf` deliberately returns the widget *itself*
+  when nothing encloses it, because the two callers mean different things by that: the verb refuses (a Lua call may
+  throw), the legacy placement path only logs (it must never throw into the engine).
+- **(032.1) A verb can refuse where a placement hook can only log — so the same check needs two spellings.**
+  `assertToggleTarget` gained a `where` argument for exactly this: the "not inside a window" branch is unreachable
+  from the verb (it throws first) and is the honest best-effort answer on the engine path.
+- **(032.1) An ending split across two places is half-done wherever only one of them runs.** `teardownHidden`
+  restored the native window; `destroyWidgets` destroyed the view. For a loaded addon those run back to back, so
+  nothing looked wrong for a whole feature — but the **`:lua` REPL owner survives a `:reload`** and has no
+  `destroyWidgets` leg, so a replacement typed into the console restored the stock inventory and left the custom
+  window floating on top of it. Found in-game by the maintainer, not by 46 headless checks that each exercised one
+  path. Ending the substitution *whole* in one helper (rule → drop record → destroy view) is the fix; the kill is
+  idempotent so the undo/sweep/teardown paths may overlap freely. See [D-071](../decisions/widgets-ui.md#d-071).
+- **(032.1) Destroy-detection keys on the hide record, not on the replaced widget's id.** The record's window is
+  what a server destroy takes away (a chest's `Window` and its `Inventory` die together), and it is the object the
+  restore rule already tests with `stillHidable`. That is also what makes the sweep affordable: it rides the
+  `LuaWidget.anyHidden` volatile, so a client that replaces nothing pays one read per tick.

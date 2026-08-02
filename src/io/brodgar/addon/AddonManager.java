@@ -364,6 +364,12 @@ public final class AddonManager {
             //     its widget → drop it and destroy the addon's view). Fast-paths out when nothing is replaced.
             UiApi.pollModels();
 
+            // 1c*. Replacements (032.1): per-tick check for the server destroying a window an addon replaced with
+            //      widget:replace(view) — the substitution ends, the window and its toggle go back under the one
+            //      rule, and the stand-in view is destroyed with it. Gated on the same volatile the toggle seam
+            //      reads, so a client that hides nothing pays one read.
+            UiApi.pollReplaced();
+
             // 1c'. Watched containers (029.3): per-tick diff of every widget an addon subscribed to, for item
             //      add/remove (a WItem create/cdestroy, not a uimsg — like the buff/meter adapters) and for the
             //      widget's own death (→ onDestroy). hasSub-gated: a widget nobody listens to is never polled.

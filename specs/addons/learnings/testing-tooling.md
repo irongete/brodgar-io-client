@@ -277,3 +277,19 @@
   lua`, and caught a real defect: **`local x = (cond ~= nil) and w:visible() or nil` collapses a `false` to
   `nil`** — the classic Lua and/or trap, and it silently turned an *expected-false* assertion into `visible=nil`
   in the login log. Any harness line that reports a boolean has to use an `if`, not `and`/`or`.
+- **(032.1) `haven.Window` DOES construct headlessly — put `bin/hafen-res.jar` on the classpath.** This corrects the
+  029.2 note above ("`Window` needs GL"): the blocker was never GL, it was `Window.<clinit>` doing
+  `Resource.loadtex("gfx/hud/wnd/lg/bg")`, which `bin/builtin-res.jar` alone cannot satisfy. `loadtex` hands back a
+  lazy `Tex` — GL is only touched when something *draws* — so with both res jars on the classpath a real
+  `GameUI.Hidewnd(Coord.z, "Inventory")` builds off-screen and behaves exactly as in-game. That upgrades every
+  headless widget test from "a bare `Widget` stands in for the chrome" to the actual chrome, and it is what let
+  032.1 verify the selector, the enclosing-window hop, the toggle seam and the D-070 restore rule before the
+  maintainer logged in: 46 assertions, one scratch file, `new UI(...)` + `new AddonWidget(owner, sz, new LuaTable())`
+  as the view (its ctor is package-private, so the probe declares `package io.brodgar.addon`).
+  Classpath: `build/classes;bin/hafen-res.jar;bin/builtin-res.jar;lib/brodgar/luaj-jse-3.0.1.jar;lib/jglob.jar` plus
+  `build/{jogl-all,gluegen-rt,lwjgl-fat,lwjgl-awt}.jar` for `UI.initscale` (its `Unavailable` traces are caught).
+- **(032.1) A headless pass is not the measurement.** The same probe "confirmed" `inventory[title=Inventory]` on a
+  hand-built two-window tree; the thing that actually settled it was `widgetstack`'s inspector on a live 600-widget
+  HUD, which additionally showed `inventory` = 4 matches vs `@Inventory` = 3 (the `Equipory` classifies as
+  `inventory` too) and `[title=Inventory]` = 32 (every widget *inside* the wrapper answers the refiner). Build the
+  probe to shrink the risk, then still take the measurement.

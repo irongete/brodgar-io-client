@@ -315,3 +315,35 @@ on the engine's placement path and must not throw into it, logs and skips).
 [D-009](#d-009) (wrap, don't reimplement), [`031-window-lifecycle/spec.md`](../031-window-lifecycle/spec.md),
 [learnings/ui-widgets.md](../learnings/ui-widgets.md),
 [`specs/codebase/gameui-windows.md`](../../codebase/gameui-windows.md).
+
+### D-071 — a relationship's lifetime is watched on the relationship, not on a bookkeeping object beside it
+
+**Context.** `hafen.ui.replace` created a `LuaModel` per replacement and watched *that* for the server destroying
+the window (`pollModels`: `getwidget(id) != wdg`). 032.1 turned replacement into `w:replace(view)`, a verb on the
+entity — and the verb **adopts nothing**: there is no model to create, because 031.2 had already collapsed the two
+records into one and the substitution *is* the single `Addon.hiddenNative` entry (the window it hid + the view
+bound to it). So the question became: what does destroy-detection key on when the bookkeeping object is gone?
+
+**Decision.** **Key it on the record that IS the relationship** (maintainer, 2026-08-02), and funnel every way a
+substitution can end through one expression. `pollReplaced` sweeps the hide records that have a view bound, with
+the same two-branch liveness test the teardown already uses (`stillHidable`: by server id when the window has one,
+by tree reachability for a client-side wrapper) and gated on the `anyHidden` volatile the toggle seam maintains, so
+a client that replaces nothing pays one read per tick. `w:replace(nil)`, the sweep and the teardown all call the
+same `endReplacement`: apply the D-070 rule, drop the record, destroy the view — in that order, since the rule
+reads the view's visibility. Rejected: having the verb mint a `LuaModel` just so the existing poll would fire (a
+bookkeeping object whose only purpose is to be watched is a second record to keep in step — the exact thing D-070
+deleted), and per-substitution `onDestroy` callbacks (the addon can already subscribe to any widget).
+
+**Consequences.** The decisive evidence arrived as a bug the maintainer found in-game: after `w:replace(view)`, a
+`:reload` restored the stock inventory correctly **and left the custom window floating on top of it**. Restoring
+the window is only *half* of an ending, and the other half lived somewhere else entirely — `teardownHidden`
+restored, `destroyWidgets` killed the view a moment later. For a loaded addon those two run back to back, so the
+split was invisible; the `:lua` REPL owner **survives a reload** and has no `destroyWidgets` leg, so there the half
+never ran. The general rule: **an ending split across two places will be half-done wherever only one of them runs**
+— so `teardownHidden` now ends the substitution whole, and the kill is idempotent (`AddonWidget.kill` guards)
+precisely so the three paths can overlap without ordering rules between them.
+
+**See.** [D-070](#d-070) (one record, one rule — this is its lifetime half),
+[D-069](#d-069) (hiding takes the toggle), [D-009](#d-009) (wrap, don't reimplement),
+[`032-replace-verb/spec.md`](../032-replace-verb/spec.md),
+[learnings/widget-replacement.md](../learnings/widget-replacement.md).
