@@ -245,13 +245,13 @@ point for a gob overlay). Methods are colon-calls.
 | `g:line(x1, y1, x2, y2 [, width])` | a line (`width` default 1) |
 | `g:poly(x1, y1, x2, y2, x3, y3, ...)` | a **filled** convex polygon (≥ 3 points) in the current colour — e.g. a triangle |
 | `g:prect(cx, cy, radius, fraction)` | a clockwise pie/progress wedge (0..1) — for cooldowns/meters |
-| `g:image(img, x, y [, w, h])` | draw a [`hafen.render.image`](render.md) at native size (or scaled into `w × h`) |
-| `g:aimage(img, x, y, ax, ay)` | draw a [`hafen.render.image`](render.md) anchored; `ax`/`ay` 0..1 pick which point sits at `(x, y)` |
+| `g:image(img, x, y [, w, h])` | draw an [image asset](asset.md) at native size (or scaled into `w × h`) |
+| `g:aimage(img, x, y, ax, ay)` | draw an [image asset](asset.md) anchored; `ax`/`ay` 0..1 pick which point sits at `(x, y)` |
 | `g:resource(name, x, y [, w, h])` | draw an engine `.res` image **by name** at native size (or scaled into `w × h`) |
 | `g:color(r, g, b [, a])` | set the draw colour (0..255); `g:color()` resets to white |
 
 `g` is valid only during the draw callback — stashing it and drawing later does nothing (it goes
-inert). To draw your own PNG images, load them with [`hafen.render.image`](render.md) and blit with
+inert). To draw your own PNG images, load them with [`hafen.asset`](asset.md) and blit with
 `g:image`/`g:aimage`. To draw the **client's own `.res` art** (action icons, hud pieces) — e.g. the icon of
 the action a widget received from [`onDrop`](#custom-windows--widgets) — use `g:resource(name, …)`. It resolves the
 resource **asynchronously and caches** it, and is **`Loading`-guarded** (draws nothing until the texture is

@@ -221,3 +221,18 @@
   deleting the class, *and* revising the spec/plan/tasks in place with the evidence, so the folder reads as
   the decision rather than as an abandoned branch. The absence then has to be asserted by the harness
   (`hafen.music == nil`) like any other hard cut, or it silently comes back.
+- **(028.3) A harness assertion whose precondition is not guaranteed must be GATED, or it reports a fake
+  failure.** `hello`'s handle-only check `pcall`s `hafen.render.sprite{image = "<a path>"}` and expects a
+  refusal — but `sprite`/`object` run their **world check before** validating options, so outside the world
+  they answer plain `nil` and the probe would print `ACCEPTED (BUG)` for a bug that does not exist. Gate on
+  the precondition (`hafen.player():gob()`) and log a `skipped -- <why>` line instead. General rule for the
+  regression harness: a check that can fail for a reason other than the thing it checks is worse than no
+  check, because the harness's whole value is that a red line means something. The same shape applies to
+  every read that streams in after enter-world — which is why the rest of `hello` reads at `now` **and**
+  `+3s` rather than asserting once.
+- **(028.3) A harness that logs its own version string duplicates the manifest, and drifts.** `hello` had
+  been printing `hello loaded (v0.52.0)` for eleven feature versions while `manifest.json` said otherwise,
+  and nobody saw it because the loader prints the *real* version on the next line. Two copies of one fact
+  with no check between them: either derive the log line from the manifest, or accept that "bump the
+  version" means **both** places. Cheap to spot in the in-game log — read the whole login block after a
+  task, not only the lines the task added.

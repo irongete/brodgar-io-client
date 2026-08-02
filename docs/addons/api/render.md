@@ -1,41 +1,38 @@
-# hafen.render — custom images & models (non-`.res`)
+# hafen.render — custom images & models in the world (non-`.res`)
 
-Render **custom assets that ship with your addon** — not engine `.res` resources. This is the sibling of
-[`hafen.ghost`](ghost.md) (which places the game's own `.res` models in the world): `hafen.render` is for
-**your own files**. It loads **PNG images** and draws them on screen, stands them **in the world** as fixed
-or camera-facing **sprites**, and places custom **glTF 3D models** in the world — all on the same handle model.
+**Stand your addon's own files in the 3D world** — not engine `.res` resources. This is the sibling of
+[`hafen.ghost`](ghost.md) (which places the game's own `.res` models): `hafen.render` is for **your own
+files**. It stands an image in the world as a fixed or camera-facing **sprite**, and a custom **glTF 3D
+model** as an **object** — both on the same transform-handle model.
+
+> **`hafen.render` is not a loader.** The files themselves come from [`hafen.asset`](asset.md) — the one door
+> for everything your addon ships. `hafen.render.image` and `hafen.render.model` are **gone**; `sprite` and
+> `object` take an **asset handle** and nothing else (see [Handle-only](#handle-only)).
 
 > **Safe-tier — not gated.** A custom image is a client-side texture that never reaches the server and grants
 > no gameplay advantage, so it needs **no** `actions` permission — exactly like [`hafen.ui.overlay`](ui.md#overlays)
 > or a [ghost](ghost.md). ([D-034](../../../specs/addons/decisions/rendering.md).)
 
-Under the hood a `.res` file is *already* a PNG the client wraps in a GPU texture; `hafen.render` just exposes
-that substrate directly, skipping the `.res` container. Everything here is **bridge-owned**: every image your
-addon loads is disposed automatically on reload / disable / relogin, so it never leaks a GPU texture.
+Under the hood a `.res` file is *already* a PNG the client wraps in a GPU texture; an
+[image asset](asset.md) just exposes that substrate directly, skipping the `.res` container. Everything here
+is **bridge-owned**: every sprite, object and asset is disposed automatically on reload / disable / relogin,
+so it never leaks a GPU texture.
 
-## Loading an image
+## Handle-only
 
-| Function | Returns | Description |
-|---|---|---|
-| `hafen.render.image(path)` | [image handle](#image-handle) | load a PNG from your addon's folder into a cached, bridge-owned texture |
+Both world builders take a **[`hafen.asset`](asset.md) handle**:
 
-`path` is **relative to your addon's own folder** (e.g. `"icon.png"`, `"img/sign.png"`). Absolute paths and
-`..` escapes are **rejected** — an addon reads only its own assets ([D-017](../../../specs/addons/decisions/security-sandbox.md)).
-PNG (with alpha) is the recommended format; anything `ImageIO` decodes (JPG/GIF/BMP) also works.
+```lua
+local icon = hafen.asset("icon.png")                    -- load once...
+hafen.render.sprite{ image = icon, x = wx, y = wy }     -- ...pass the handle
+hafen.render.sprite{ image = "icon.png", x = wx, y = wy }  -- ERROR: that is a path, not a handle
+```
 
-Loading is **cached**: repeated `hafen.render.image` of the same path returns the **same handle** (one texture
-per path). Call it from **setup code** — `OnLoad`, `OnEnterWorld`, or a command — **not** from inside a draw
-callback (v1 decodes the file synchronously). A bad path or an undecodable file raises a clear error.
-
-## Image handle
-
-| Method | Description |
-|---|---|
-| `img:size()` | `{w, h}` — the image's pixel dimensions |
-| `img:dispose()` | free the GPU texture now (also automatic on reload/disable/relogin) |
-
-You rarely need `:dispose()` — teardown frees every image for you. Use it only to release a large image early.
-A disposed handle simply draws nothing thereafter.
+A path string raises an error naming `hafen.asset` as the way in. There is no shortcut because there is
+nothing to save: assets are [interned](asset.md#interning), so `hafen.asset("icon.png")` at the call site is
+free — a second spelling would only be a second way to say the same thing
+([D-012](../../../specs/addons/decisions/architecture-api.md)). A **disposed** handle gets its own error
+(re-load it: the same path is a new asset).
 
 ## Drawing on screen
 
@@ -54,7 +51,7 @@ A `nil`, wrong-type, or disposed handle **draws nothing** (the draw verbs are fo
 local icon                                     -- upvalue for the draw callbacks below
 
 hafen.events.on("OnLoad", function()
-  icon = hafen.render.image("icon.png")        -- load once from addons/<me>/icon.png
+  icon = hafen.asset("icon.png")               -- load once from addons/<me>/icon.png
   local s = icon:size()
   hafen.log(("icon is %dx%d"):format(s.w, s.h))
 end)
@@ -98,7 +95,7 @@ Options:
 
 | Option | Default | Meaning |
 |---|---|---|
-| `image` | *(required)* | a [`hafen.render.image`](#loading-an-image) handle **or** an addon-relative path string (auto-loaded + cached) |
+| `image` | *(required)* | a [`hafen.asset`](asset.md) **image handle** — [handle-only](#handle-only); a path string is an error |
 | `x`, `y` | *(required¹)* | world coordinates, like [`gob:pos()`](gob.md) |
 | `a` | `0` | facing angle in **radians** (a billboard ignores it — it faces the camera) |
 | `scale` | `1` | uniform scale; a **fixed** sprite is ~1 tile tall at `1` (width follows the image aspect), a **billboard** is its native pixel size × `scale` |
@@ -136,7 +133,7 @@ The same transform surface as a [ghost handle](ghost.md), with `:image()` in pla
 The verbs **chain** (each returns the handle): `s:move(x, y):rotate(a):scale(2)`.
 
 ```lua
-local icon = hafen.render.image("icon.png")
+local icon = hafen.asset("icon.png")
 local p = hafen.player():gob():pos()
 local s = hafen.render.sprite{ image = icon, x = p.x, y = p.y, scale = 3 }  -- ~3 tiles tall, at your feet
 s:rotate(math.pi / 2):alpha(0.8)     -- face 90°, slightly translucent
@@ -156,7 +153,7 @@ same number of pixels). It is the ergonomic, gob-anchored version of drawing an 
 scene (no depth occlusion).
 
 ```lua
-local icon = hafen.render.image("icon.png")
+local icon = hafen.asset("icon.png")
 local p = hafen.player():gob():pos()
 local b = hafen.render.sprite{ image = icon, x = p.x, y = p.y, billboard = true, scale = 2 }  -- 2× native px, faces you
 -- b:move(x, y) still works (and the gizmo moves it); b:scale(k) resizes it on screen.
@@ -212,7 +209,7 @@ re-resolved each frame, so it survives the gob unloading/reloading (it holds pos
 
 ```lua
 -- a marker that floats above a creature and follows it around
-local icon = hafen.render.image("marker.png")
+local icon = hafen.asset("marker.png")
 local prey = hafen.world.nearest(function(g) return (g:name() or ""):find("rabbit") end)
 if prey then
   local s = hafen.render.sprite{ image = icon, scale = 1.5, follow = prey, offset = { z = 14 } }
@@ -220,24 +217,21 @@ if prey then
 end
 ```
 
-## Loading a 3D model
+## The model itself
 
-`hafen.render.model(path)` loads a **glTF 2.0 static model** — your own `.glb` (single-file binary, **preferred**)
-or `.gltf` + buffers — into a cached, bridge-owned mesh handle, exactly like [`hafen.render.image`](#loading-an-image)
-loads a PNG. The parser is pure Java (no native deps), and the model is decoded **synchronously** on the calling
-thread, so call it from **setup code** (`OnLoad`/`OnEnterWorld`/a command), never inside a draw.
+A model is a **[`hafen.asset`](asset.md) mesh handle** — `hafen.asset("props/chair.glb")` — a glTF 2.0 static
+model, your own `.glb` (single-file binary, **preferred**) or `.gltf` + buffers. The parser is pure Java (no
+native deps) and decodes **synchronously**, so load it from setup code (`OnLoad`/`OnEnterWorld`/a command),
+never inside a draw. It reads `mdl:bounds()` (world-unit AABB) and `mdl:info()`
+(`{prims, textured, lit, textures, verts, tris}`) — see [Mesh](asset.md#mesh--bounds--info).
 
-| Function | Returns | Description |
-|---|---|---|
-| `hafen.render.model(path)` | [model handle](#model-handle) | load a glTF model from your addon's folder into cached, bridge-owned geometry |
+> **Sizing tip.** glTF authored units vary wildly (a model may be 1 or 100 "units" tall). Read
+> `mdl:bounds().size.z` and pick a `scale` so it stands the height you want — e.g. `scale = (2 * 11) / size.z`
+> for ~2 tiles tall.
 
-`path` is **relative to your addon's own folder** (e.g. `"chair.glb"`, `"props/tree.glb"`); absolute paths and
-`..` escapes are rejected ([D-017](../../../specs/addons/decisions/security-sandbox.md)). External `.gltf` buffer/texture files are
-resolved relative to the model and re-checked against your folder. Loading is cached (one parse per path). A
-malformed file — or one using an **unsupported feature** — raises a clear error that **names** the feature (never
-a crash).
+### The glTF subset
 
-> **The subset (R3a/R3b/R3c — static, textured, lit).** Supported: `.glb`/`.gltf`, triangle meshes (`POSITION` +
+> **(R3a/R3b/R3c — static, textured, lit.)** Supported: `.glb`/`.gltf`, triangle meshes (`POSITION` +
 > indices), multiple nodes/meshes/primitives with **baked node transforms**, **multiple materials**, and — the
 > colour — a **`baseColorTexture`** (its image embedded via a `bufferView`, a `data:` URI, or an external PNG/JPG;
 > decoded once into a shared GPU texture) **×** the **`baseColorFactor`** multiply. Per-material **alpha mode**
@@ -250,17 +244,6 @@ a crash).
 > model textures). **Not yet:** `emissiveTexture`, per-texture sampler wrap/filter, a non-zero
 > `baseColorTexture.texCoord` (`TEXCOORD_1`), full PBR (metallic/roughness/occlusion). **Never:** skins, animation,
 > morph targets, Draco/meshopt, sparse accessors — a model using one fails with a named error.
-
-### Model handle
-
-| Method | Description |
-|---|---|
-| `mdl:bounds()` | `{min={x,y,z}, max={x,y,z}, size={x,y,z}}` — the model's axis-aligned bounds in **world units** (after the basis conversion below) |
-| `mdl:info()` | `{prims, textured, lit, textures, verts, tris}` — what the parser produced: primitive count, how many are textured, how many are **lit** (carry normals — R3c), distinct decoded textures, and vertex/triangle totals |
-| `mdl:dispose()` | drop the geometry **and its shared textures** now (also automatic on reload/disable/relogin) |
-
-> **Sizing tip.** glTF authored units vary wildly (a model may be 1 or 100 "units" tall). Read `mdl:bounds().size.z`
-> and pick a `scale` so it stands the height you want — e.g. `scale = (2 * 11) / size.z` for ~2 tiles tall.
 
 ## Standing a 3D model in the world
 
@@ -277,7 +260,7 @@ Options mirror [`hafen.render.sprite`](#standing-an-image-in-the-world), with `m
 
 | Option | Default | Meaning |
 |---|---|---|
-| `model` | *(required)* | a [`hafen.render.model`](#loading-a-3d-model) handle **or** an addon-relative path string (auto-loaded + cached) |
+| `model` | *(required)* | a [`hafen.asset`](asset.md) **mesh handle** — [handle-only](#handle-only); a path string is an error |
 | `x`, `y` | *(required¹)* | world coordinates, like [`gob:pos()`](gob.md) |
 | `a` | `0` | facing angle in **radians** (rotates about the vertical) |
 | `scale` | `1` | uniform scale **on top of** the baked model→world size |
@@ -314,7 +297,7 @@ The verbs **chain** (each returns the handle): `o:move(x, y):rotate(a):scale(2)`
 ```lua
 local mdl                                          -- upvalue
 hafen.events.on("OnLoad", function()
-  mdl = hafen.render.model("props/chair.glb")      -- load once from addons/<me>/props/chair.glb
+  mdl = hafen.asset("props/chair.glb")             -- load once from addons/<me>/props/chair.glb
   local b = mdl:bounds()
   hafen.log(("chair is %.1f tall (world units)"):format(b.size.z))
 end)

@@ -1,10 +1,11 @@
 # `hafen.font` — per-addon typography
 
-Load a font into a **private handle** the addon holds, then either draw with it (F2) or install it as an
-**owned override** on a named client surface. There is **no shared cross-addon registry** — a handle is a value
-your addon keeps; another addon cannot look it up (no name collisions, no coupling).
+Get a font into a **private handle** the addon holds — a [built-in](#the-built-ins--hafenfontname) by name or
+your own `.ttf` as an [asset](asset.md) — then either draw with it (F2) or install it as an **owned override**
+on a named client surface. There is **no shared cross-addon registry** — a handle is a value your addon keeps;
+another addon cannot look it up (no name collisions, no coupling).
 
-> **Slice status.** **F1 (shipped):** `load` / `setFont` / `reset` / `scopes`, and the **`"default"`** scope
+> **Slice status.** **F1 (shipped):** the handle / `setFont` / `reset` / `scopes`, and the **`"default"`** scope
 > (the global fallback — most UI text). **F2 (shipped):** applying a font to your **own** drawing — `font=` on
 > `hafen.ui.window`/`widget`, `g:text`/`g:atext` with a `{font=…, color=…}` option, and a custom TTF in a
 > `$font[…]{…}` rich-text tag. **F3a (shipped):** the **`"window.title"`** scope (window captions).
@@ -22,33 +23,59 @@ your addon keeps; another addon cannot look it up (no name collisions, no coupli
 
 Client-only and cosmetic (**safe-tier — not gated**), like a HUD overlay.
 
-## Load a font — `hafen.font.load(source [, opts]) → FontHandle`
+## Where a font comes from — two doors
+
+A font handle comes from exactly one of two places, and which one you use is decided by **who owns the
+file**:
 
 ```lua
-local h = hafen.font.load("serif")                        -- a built-in
-local h = hafen.font.load("fonts/Inter.ttf", {size = 12}) -- a .ttf from THIS addon's folder
+local h = hafen.font("serif")                     -- a BUILT-IN: the client already owns it
+local h = hafen.asset("fonts/Inter.ttf")          -- a FILE THIS ADDON SHIPS
 ```
 
-- **`source`** — a **built-in name** (`"sans"`, `"serif"`, `"mono"`, `"fraktur"`), or a **path to a
-  `.ttf`/`.otf` under the addon's own folder** (`"fonts/Inter.ttf"`). File paths are sandboxed exactly like
-  [`hafen.render.image`](render.md): absolute paths and `..` escapes are rejected. Loading a file also registers
-  its family into the JVM so `h:family()` resolves in a `$font[…]` rich-text tag (F2).
-- **`opts`** (all optional):
+Neither takes options. **Size and style are a `:derive{…}` away**, never part of the load — see
+[the variant](#the-variant--hderiveopts).
 
-  | Key | Meaning |
-  |---|---|
-  | `size` | logical px (passed through `UI.scale`). Omit ⇒ use the stock size of whatever surface it is applied to. |
-  | `aa` | antialias on/off. Omit ⇒ inherit the surface's stock setting. |
-  | `bold` / `italic` | style (baked into the font). |
-  | `color` | default text colour `{r, g, b [, a]}` (0–255). Omit ⇒ inherit the surface's stock colour. |
+### The built-ins — `hafen.font(name)`
 
-Returns an opaque **`FontHandle`** (no AWT font object crosses into Lua):
+`hafen.font` is **callable**: `hafen.font(name)` is the handle for one of the client's four built-in fonts —
+`"sans"`, `"serif"`, `"mono"`, `"fraktur"`. They are **engine-owned**, so they are *addressed by name*, not
+loaded: interned (`hafen.font("mono") == hafen.font("mono")`), no file, no path, and **no lifetime** — a
+built-in carries none of the [asset verbs](asset.md#every-asset) (`:type`/`:path`/`:dispose`). A typo, a
+number, or a path raises an error listing the four names and pointing paths at `hafen.asset`.
+
+### Your own `.ttf`/`.otf` — `hafen.asset(path)`
+
+A font file your addon ships is an [**asset**](asset.md), loaded through the same door as an image or a
+model: `hafen.asset("fonts/Inter.ttf")`. It is sandboxed (absolute paths and `..` escapes are rejected),
+**interned per path** (one parse per file, however many times you call it), and disposed automatically on
+reload/disable. Loading also registers the family into the JVM, so `h:family()` resolves in a `$font[…]`
+rich-text tag (F2). Being an asset, it *also* answers `:type()`/`:path()`/`:dispose()`.
+
+> `hafen.font.load` is **gone**. A built-in is `hafen.font(name)`; a file is `hafen.asset(path)`; a sized or
+> styled variant is `:derive{…}`.
+
+### The variant — `h:derive(opts)`
+
+`opts` (all optional):
+
+| Key | Meaning |
+|---|---|
+| `size` | logical px (passed through `UI.scale`). Omit ⇒ use the stock size of whatever surface it is applied to. |
+| `aa` | antialias on/off. Omit ⇒ inherit the surface's stock setting. |
+| `bold` / `italic` | style (baked into the font). |
+| `color` | default text colour `{r, g, b [, a]}` (0–255). Omit ⇒ inherit the surface's stock colour. |
+
+Either way you hold an opaque **`FontHandle`** (no AWT font object crosses into Lua):
 
 | Method | Returns | Notes |
 |---|---|---|
 | `h:derive(opts)` | `FontHandle` | a cheap variant with a different `size`/`aa`/`bold`/`italic`/`color`; never mutates `h`. |
 | `h:family()` | string | the AWT family name — feed it to a `$font[family, sz]{…}` tag for per-run mixing (F2). |
 | `h:size()` | number \| nil | the handle's logical px size (nil if unset). |
+
+A derived handle is a **variant of a font**, not a file: like a built-in, it carries no
+`:type`/`:path`/`:dispose`, even when the handle it came from was an asset.
 
 ## Draw with it — your own widgets (F2)
 
@@ -58,7 +85,7 @@ is no conflict and nothing to revert — the stock UI and every other addon are 
 ### `font =` on a window / widget — the default for its draws
 
 ```lua
-local h = hafen.font.load("serif", { size = 12 })
+local h = hafen.font("serif"):derive{ size = 12 }
 hafen.ui.window{ title = "Mine", size = {200, 120}, font = h, onDraw = function(g, w, h)
   g:text("this text is in my font", 6, 6)   -- no per-call opts => uses the widget's font=
 end }
@@ -98,7 +125,7 @@ g:text(("$font[%s,16]{Fancy} normal"):format(h:family()), 6, 6)   -- two fonts, 
 g:text("$col[235,180,80]{$b{bold} orange} plain", 6, 26)          -- $col / $b / $i / $u / $size too
 ```
 
-This works because `hafen.font.load` registers a loaded TTF's family into the JVM — **zero engine markup
+This works because loading a `.ttf` [asset](asset.md) registers its family into the JVM — **zero engine markup
 change**. Plain text with no `$` and no `font=` takes the exact stock render path (no behaviour change for
 existing addons); malformed markup falls back to drawing the literal string (it never throws).
 
@@ -309,7 +336,7 @@ widget.
 ```lua
 local h
 hafen.events.on("OnLoad", function()
-  h = hafen.font.load("serif", { size = 11 })
+  h = hafen.asset("fonts/Inter.ttf"):derive{ size = 11 }   -- or hafen.font("serif"):derive{ size = 11 }
 end)
 
 hafen.slash.register("bigserif", function()
@@ -321,6 +348,7 @@ end)
 
 ## See also
 
+- [`hafen.asset`](asset.md) — the one door for a `.ttf`/`.otf` your addon ships (and every other local file).
 - [`hafen.ui`](ui.md) — the `font=` widget option + the `g:text` draw wrapper take a handle (F2), and a
   [`WidgetNode`](ui.md#widgetnode) carries `:setFont`/`:resetFont` (F5). Drawn text is
   [cached across frames](ui.md#text-is-cached-across-frames) per `(string, handle)`; an override change

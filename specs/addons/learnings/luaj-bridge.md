@@ -179,3 +179,13 @@
   IS `load`, and `LuaValue.load(LuaValue)` exists — so `load(owner, path)` inside `new VarArgFunction(){…}`
   fails to compile with a *misleading* "method load in class LuaValue cannot be applied to given types".
   Qualify it (`AssetApi.load(...)`) and comment why; `FontApi` had carried exactly that comment since F1.
+- **(028.3) An explicit `nil` argument to a D-056 callable namespace is the COLLECTION form, not an error.**
+  The `__call` handlers all branch `if(key.isnil()) return <the collection>` — and LuaJ cannot distinguish
+  "called with no argument" from "called with an argument that happens to be `nil`" (both arrive as `NIL` at
+  `a.arg(2)`). So `hafen.asset(maybeNil)` quietly hands back the *list* instead of raising, and the same is
+  true of `hafen.gob`/`kin`/`buff`/`meter`/`sound`/`menugrid`/`actionbar`. It cannot be fixed by checking
+  `a.narg()` either — a Lua caller writing `f(x)` with `x == nil` genuinely passes one argument in some
+  paths and none in others, so the check would be inconsistent rather than correct. Treat it as contract:
+  **document that an explicit `nil` is the collection form** and tell callers to test the variable before
+  passing it. The failure it causes is silent (a table where an object was expected), so it is worth a line
+  in every callable section's page — 028.3 put it in `asset.md`.

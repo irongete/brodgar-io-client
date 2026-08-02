@@ -29,7 +29,7 @@
       `hafen.client:profiling()` texture/memory counters, the `012` method), and a manual `mesh:dispose()`
       while an object still draws it behaves as documented.
 
-- [ ] **028.3 — docs, harness, close.**
+- [x] **028.3 — docs, harness, close.**
       New `docs/addons/api/asset.md` (the one flow *load → draw/decorate/stand*; the three types and their
       extensions; interning and the honest limit that identity is stable **while alive** — a disposed asset
       re-loads as a new object; the error catalogue; why there are no URLs and why engine resources are

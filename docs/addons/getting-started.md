@@ -135,6 +135,23 @@ An addon hotkey starts **unbound**: you name the action, the user assigns the ke
 **Options ▸ Keybindings**, in a section named after your addon. Advertise a *suggested* key in your
 README rather than claiming one.
 
+## Files your addon ships
+
+Drop an image, a font or a glTF model in your addon's folder and load it with
+[`hafen.asset(path)`](api/asset.md) — one door for all three, the type coming from the extension:
+
+```lua
+local icon = hafen.asset("icon.png")                 -- draw with g:image / stand with hafen.render.sprite
+local face = hafen.asset("fonts/Inter.ttf")          -- font= on a window, or hafen.font.setFont
+local chair = hafen.asset("props/chair.glb")         -- stand with hafen.render.object
+```
+
+Paths are **relative to your own folder** (absolute paths and `..` are rejected), the same path always
+returns the **same handle**, and everything is freed for you on reload/disable. Load from setup code
+(`OnLoad`), never inside a draw. Engine `.res` content is *addressed*, not loaded — that is
+[`g:resource`](api/ui.md#the-g-draw-wrapper), [`hafen.sound(name)`](api/audio.md),
+[`hafen.ghost`](api/ghost.md) and [`hafen.font(name)`](api/fonts.md#the-built-ins--hafenfontname).
+
 ## Actions & permissions
 
 Reading the game needs no permission. **Acting on the game** — moving, clicking, using items — is gated:

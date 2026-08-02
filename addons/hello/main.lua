@@ -77,7 +77,7 @@
 -- all (this server has no MIDI content; the "music" you hear is ambient audio, on the ambientVolume slider).
 -- hello checks that contract at login (readSound), pings with ':hello ping' and toggles a long clip through
 -- the live set with ':hello sound'.
-hafen.log("hello loaded (v0.52.0)")
+hafen.log("hello loaded (v0.63.0)")
 
 -- LuaJ 3.0.1's string.format is NOT C's: it ignores the PRECISION of %f/%g/%e ("%.3f" prints
 -- 10.852199999987988, the raw double) and the WIDTH of %s ("%-12s" pads nothing); only %d honours a
@@ -1256,6 +1256,72 @@ hafen.events.on("OnLoad", function()
   hafen.log("F1: hafen.font.scopes() = " .. table.concat(hafen.font.scopes(), ", "))
 end)
 
+-- 028.3: THE ASSET CONTRACT (hafen.asset), checked once per login. ONE door for every file this addon ships:
+-- hafen.asset(path) is one interned, typed handle (the TYPE comes from the EXTENSION: .png/.jpg/.jpeg/.gif/.bmp
+-- -> image, .ttf/.otf -> font, .glb/.gltf -> mesh) and hafen.asset() -- arity is the verb, D-056 -- is the array
+-- of the assets this addon currently HOLDS, in load order. The loader takes a PATH AND NOTHING ELSE: a font's
+-- size/style is :derive{..}, never a load option, so the signature is the same for all three types and interning
+-- never depends on an options table. Interning is keyed by the RESOLVED path ('./icon.png' and 'icon.png' are one
+-- asset and one TexI) and identity is stable only WHILE ALIVE -- :dispose() drops the entry, so the next load of
+-- that path is a NEW object (':hello assets dispose' proves that half). Every asset answers :type()/:path()/
+-- :dispose(); a BUILT-IN font (hafen.font("serif")) and a :derive'd variant carry NONE of them and are never
+-- listed -- no file, no path, no lifetime (D-060). The three old loaders (hafen.font.load / hafen.render.image /
+-- hafen.render.model) are a HARD CUT and read as plain nil, and the use sites are HANDLE-ONLY (D-012): a path
+-- string into render.sprite{image=} / object{model=} is an error that points back at hafen.asset.
+local function readAssets(tag)
+  local live = hafen.asset()
+  local parts = {}
+  for i = 1, #live do parts[#parts + 1] = ("%s:%s"):format(live[i]:type(), live[i]:path()) end
+  hafen.log(("[%s] assets: hafen.asset() = %d live [%s]"):format(tag, #live, table.concat(parts, ", ")))
+  -- Interning + the resolved-path key. icon.png and tank.glb are the two this addon always ships; the .ttf is
+  -- optional (drop one at addons/hello/fonts/demo.ttf) so its type is reported rather than asserted.
+  local interned = (icon == hafen.asset("icon.png")) and (cube == hafen.asset("tank.glb"))
+  local resolved = (hafen.asset("./icon.png") == icon) and (hafen.asset("img/../icon.png") == icon)
+  local fontAsset = (demoFont and demoFont.type) and demoFont:type() or "none (built-in serif -- not an asset)"
+  hafen.log(("[%s] asset types: icon=%s tank=%s font=%s | interned=%s resolvedKey=%s")
+    :format(tag, icon and icon:type() or "?", cube and cube:type() or "?", fontAsset,
+      tostring(interned), tostring(resolved)))
+  -- The ERROR catalogue -- every shape distinguishable, and each one naming hafen.asset (028.1 acceptance).
+  local function why(f, ...)
+    local ok, err = pcall(f, ...)
+    if ok then return "ACCEPTED (BUG)" end
+    return (tostring(err):gsub("^.-%.lua:%d+:%s*", ""))   -- drop the chunk:line prefix, keep the whole message
+  end
+  hafen.log(("[%s] asset errors: absolute -> %s"):format(tag, why(hafen.asset, "/etc/passwd")))
+  hafen.log(("[%s]              '..' -> %s"):format(tag, why(hafen.asset, "../planner/main.lua")))
+  hafen.log(("[%s]              unknown ext -> %s"):format(tag, why(hafen.asset, "manifest.json")))
+  hafen.log(("[%s]              missing -> %s"):format(tag, why(hafen.asset, "nope.png")))
+  hafen.log(("[%s]              number key -> %s"):format(tag, why(hafen.asset, 1)))
+  -- HANDLE-ONLY (D-012): the two world builders refuse a PATH STRING with an error naming hafen.asset. The option
+  -- check runs AFTER the world check, so outside the world they simply answer nil -- gate on it, or the harness
+  -- would report a refusal that never happened.
+  local okp, mygob = pcall(function() return hafen.player():gob() end)
+  if okp and mygob then
+    hafen.log(("[%s] handle-only: sprite{image='icon.png'} -> %s"):format(tag,
+      why(function() return hafen.render.sprite{ image = "icon.png", x = 0, y = 0 } end)))
+    hafen.log(("[%s]              object{model='tank.glb'} -> %s"):format(tag,
+      why(function() return hafen.render.object{ model = "tank.glb", x = 0, y = 0 } end)))
+  else
+    hafen.log(("[%s] handle-only: skipped -- not in the world yet (sprite/object answer nil before the option check)")
+      :format(tag))
+  end
+  -- D-060: a BUILT-IN font is engine-owned -- addressed by name, interned, and carrying none of the asset verbs
+  -- (that is also why hafen.asset() above lists 2, not 3, when no .ttf is shipped: the built-in is not a file).
+  local serif = hafen.font("serif")
+  hafen.log(("[%s] builtin font: interned=%s noAssetVerbs=%s badName -> %s"):format(tag,
+    tostring(serif == hafen.font("serif")),
+    tostring((serif.type == nil) and (serif.path == nil) and (serif.dispose == nil)),
+    (function() local ok, e = pcall(hafen.font, "comic"); return (not ok) and "refused" or "ACCEPTED (BUG)" end)()))
+  -- The hard cut (D-013): all three old loaders read as plain nil -- not flattened, not stubbed.
+  hafen.log(("[%s] asset contract: loadersGone=%s (font.load=%s render.image=%s render.model=%s)"):format(tag,
+    tostring((hafen.font.load == nil) and (hafen.render.image == nil) and (hafen.render.model == nil)),
+    tostring(hafen.font.load), tostring(hafen.render.image), tostring(hafen.render.model)))
+end
+
+hafen.events.on("OnEnterWorld", function()
+  readAssets("login")   -- once per login: this whole section re-checked, like readSound/readMeters/readBuffs
+end)
+
 local function drawPanel(g, w, h)
   g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()          -- translucent backdrop
   g:text(("clock %.0f"):format(hafen.time.clock() or 0), 6, 6)
@@ -1291,7 +1357,7 @@ local function drawPanel(g, w, h)
   g:color(meterFreeze and 90 or 150, meterFreeze and 210 or 150, meterFreeze and 235 or 150)
   g:text(("meter-freeze %s (MMB)"):format(meterFreeze and "ON" or "OFF"), 6, h - 18)
   g:color()
-  -- R1: draw the custom image (hafen.render.image) two ways in the top-right, above the bars: native 32x32
+  -- R1: draw the custom image (a hafen.asset image handle) two ways in the top-right, above the bars: native 32x32
   -- and the same handle scaled to 16x16 (g:image with/without a w,h). A nil/disposed handle draws nothing.
   if icon then
     g:image(icon, w - 34, 2)                                      -- native size (32x32) in the top-right corner
@@ -1556,24 +1622,9 @@ hafen.slash.register("hello", function(args)
       end)
     end
   elseif sub == "assets" then
-    -- 028.2 (INTERIM harness; 028.3 folds this into the once-per-login contract check): the COLLECTION form and
-    -- the HANDLE-ONLY rule. hafen.asset() lists this addon's LIVE assets in load order (a disposed one is never
-    -- listed and never resurrected), and hafen.render.sprite/object take a HANDLE ONLY -- a path string raises an
-    -- error pointing at hafen.asset (one flow: load -> draw/stand, D-012).
-    local live = hafen.asset()
-    hafen.log((":hello assets -> hafen.asset() lists %d LIVE asset(s), in load order:"):format(#live))
-    for i = 1, #live do
-      local a = live[i]
-      hafen.log(("   %d. %-5s %s"):format(i, a:type(), a:path()))
-    end
-    hafen.log(("   interning: hafen.asset('icon.png') == the OnLoad handle -> %s")
-      :format(tostring(hafen.asset("icon.png") == icon)))
-    local okImg, errImg = pcall(function() return hafen.render.sprite{ image = "icon.png", x = 0, y = 0 } end)
-    hafen.log(("   sprite{image='icon.png'} (a PATH) -> %s: %s"):format(okImg and "ACCEPTED (BUG)" or "refused",
-      tostring(errImg)))
-    local okMdl, errMdl = pcall(function() return hafen.render.object{ model = "tank.glb", x = 0, y = 0 } end)
-    hafen.log(("   object{model='tank.glb'} (a PATH) -> %s: %s"):format(okMdl and "ACCEPTED (BUG)" or "refused",
-      tostring(errMdl)))
+    -- 028.3: re-run the whole asset contract on demand (it also runs once per login -- see readAssets above),
+    -- and, with the 'dispose' argument, the one part that is DESTRUCTIVE and so cannot live in the login pass.
+    readAssets("cmd")
     if (args[2] == "dispose") and not cube then
       hafen.log("   dispose: tank.glb not loaded yet (OnLoad) -- skipped")
     elseif args[2] == "dispose" then
@@ -1587,8 +1638,8 @@ hafen.slash.register("hello", function(args)
       hafen.log(("   dispose: tank.glb disposed -- a STANDING object keeps its textures (it captured the sampler"
         .. " at build time); re-load == the old handle -> %s (false = a NEW asset, as documented)")
         :format(tostring(cube == old)))
-      hafen.log(("   hafen.asset() now lists %d live asset(s) -- the disposed one is gone, not resurrected")
-        :format(#hafen.asset()))
+      hafen.log(("   hafen.asset() still lists %d live asset(s) -- the disposed entry was DROPPED and the re-load"
+        .. " added a NEW one in its place; the corpse is never served and never listed"):format(#hafen.asset()))
     end
   elseif sub == "font" then
     -- F1: toggle a GLOBAL font override on the "default" scope + prove LAST-WINS. setFont installs THIS addon's

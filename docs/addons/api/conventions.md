@@ -51,9 +51,19 @@ Either way the strings are **server-published**, not keys the API defines — re
 with `:res()` rather than trusting a list in this reference. A miss is plain `nil`, and addressing one by
 **position** is an error (positions are not addresses — index the collection instead).
 
-The object-oriented sections today are **Gob, Player, Kin, Slot, Buff, Meter, Action (menugrid) and
-Sound**; the rest are still flat tables of functions. That mix is deliberate and temporary — the
+The object-oriented sections today are **Gob, Player, Kin, Slot, Buff, Meter, Action (menugrid), Sound and
+Asset**; the rest are still flat tables of functions. That mix is deliberate and temporary — the
 migration continues.
+
+### Asset — a file your addon ships
+
+[`hafen.asset`](asset.md) is callable on the same pattern, keyed by an **addon-relative path**:
+`hafen.asset(path)` is one asset, `hafen.asset()` is the ones this addon currently holds. It is the one
+place a callable namespace hands back an **owned resource** rather than a view of engine state — the type
+comes from the file's extension, the handle is interned per path, and it is freed automatically on
+reload/disable (or by `:dispose()`, after which the same path re-loads as a *new* object). Wherever a local
+file is used — `hafen.render.sprite{image=}`, `object{model=}`, `font=` — you pass the **handle**, never a
+path string.
 
 ### ItemRef — an inventory/equipment item
 

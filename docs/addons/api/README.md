@@ -58,7 +58,8 @@ events are in [events](events.md).
 |---|---|
 | [`hafen.ui`](ui.md) | custom windows, overlays, replacing native widgets, and walking + hit-testing the widget tree |
 | [`hafen.ghost`](ghost.md) | client-only world props ("ghosts") — base/city planning |
-| [`hafen.render`](render.md) | draw custom (non-`.res`) assets — the addon's own PNGs (on screen or in the world) and glTF 3D models |
+| [`hafen.asset`](asset.md) | load the files your addon ships — images, fonts, glTF models — through one door |
+| [`hafen.render`](render.md) | stand your own (non-`.res`) images and glTF models **in the world** |
 | [`hafen.hook`](hooks.md) | intercept & alter input / actions / server messages |
 | [`hafen.client`](client.md) | client settings (interface / video / audio / camera / client), hotkeys, the frame profiler, its counters, per-addon, per-widget and per-render-pass cost, your own named scopes, and what the profiler itself costs |
 | [`hafen.font`](fonts.md) | per-addon typography — load fonts, restyle client surfaces (or one single widget) |
