@@ -288,7 +288,7 @@ tooltip composition, and both fall back to the `"default"` cascade when unset, l
 
 A scope restyles a *family* of surfaces across the whole client. To restyle **one** widget instead, call
 `setFont` on its [Widget object](ui.md#the-widget-object) — from
-[`hafen.ui.root()`](ui.md#the-widget-object) / `hafen.ui.node(id)` / `hafen.ui.at(x, y)`:
+[`hafen.ui(selector)`](ui.md#selectors--naming-a-widget) / `hafen.ui.node(id)` / `hafen.ui.at(x, y)`:
 
 ```lua
 local n = hafen.ui.at(hafen.ui.mouse().x, hafen.ui.mouse().y)   -- the widget under the cursor
@@ -317,7 +317,7 @@ n:resetFont()       -- drop it again
 - **Some windows have no text to restyle.** An Inventory or Equipment window contains item *icons* (`WItem`s) —
   its only text is the caption, so an override there shows up on the title bar alone and looks like it did nothing.
   Pick a text-rich window (the Character Sheet, Options) when you want to see the effect.
-- `hafen.ui.root():setFont(h)` works and covers the entire client, but that is what `setFont("default", h)` is
+- `hafen.ui():setFont(h)` works and covers the entire client, but that is what `setFont("default", h)` is
   for — prefer the scope when you mean "everything".
 - A node is not owned (it is a lazy handle), so **keep the node** if you intend to reset the override later —
   or just re-find the widget when you need it.

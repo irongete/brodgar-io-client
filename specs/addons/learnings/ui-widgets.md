@@ -288,3 +288,30 @@
   once and returns `false` (prune) on `:type() == "Inventory"`/`"Equipory"`, which is both cheap and exact —
   below a grid there is nothing but its own items. Generally: a relation verb that hides a subtree traversal is
   safe per call and quadratic per walk.
+- **(030.1) `[title=]` must resolve against the ENCLOSING window, or the most obvious selector never matches.**
+  The client wraps bare widgets in titled windows — an `Inventory` inside a `Hidewnd "Inventory"`, a cupboard grid
+  inside a `Window "Cupboard"` — and the wrapped widget has **no `cap` of its own**. Matching a widget's own caption
+  would make `inventory[title=Cupboard]`, the single most obvious selector a user will write, silently return `nil`
+  forever. `Selector.windowTitle` therefore walks `parent` up to the nearest `Window` (counting the widget itself),
+  which makes `window[title=X]` and `inventory[title=X]` both work and name *different* widgets of the same window.
+  Proved in-game on an open Cupboard: the window, then its grid with 21 items and `grid:parent() == wnd`.
+- **(030.1) No window in this client carries a resource — `[res=]` is for items, meters and res-published code.**
+  The plan expected `[res=]` to be the language-proof key for a `.res`-published *window* (D-063). It is not: all
+  nine open windows (`OptWnd`, `MapWnd`, `Zergwnd`, `Hidewnd`, `CharWnd`, `ContentsWindow`, a plain `Window`, …) are
+  client-side Java classes with no resource behind them, so `:res()` is `nil` for every one. Of 625 live widgets
+  exactly 69 carry a res: 62 `WItem`s (`gfx/invobjs/…`), the 3 `IMeter`s (`gfx/hud/meter/hp`) and the chat channels
+  whose **code ships inside a resource** (`ui/rchan`, `ui/vlg`, `ui/provinces`). So in practice `[title=]` is the
+  only key for windows and `[res=]` the correct one for everything item-shaped — the opposite of the spec's promise.
+  Check what a key can actually address on a live client before writing it into an acceptance criterion.
+- **(030.1) `Resource.classres(cl)` is unusable as a cheap "what res is this widget from?" — it blocks or throws.**
+  For a class defined by a `ResClassLoader` it is fine, but for a `get-code` copy carrying `@FromResource` it does
+  `remote().loadwait(name, version)` (a **blocking** fetch), and for an ordinary class it throws. Reading the res
+  identity of an arbitrary widget — which a `[res=]` matcher does for every node of the tree — must instead test
+  `getClass().getClassLoader() instanceof Resource.ResClassLoader` → `getres().name`, else
+  `Resource.ResClassLoader.getsource(cl).name()` (the annotation, no load), climbing superclasses because anonymous
+  subclasses are the norm. A convenience helper written for one-off use is not automatically a per-node predicate.
+- **(030.1) One tree walk that tests each node, never a deep helper per node — and the cost is small.**
+  `hafen.ui.all(sel)` walks `child`/`next` once under the `ui` monitor (the same order `Widget.children()` yields)
+  and applies a pre-parsed `Selector` per node; the selector string is parsed at the call, never inside the walk.
+  Measured in-game: **0.08 ms for `all("*")` over 625 widgets**, which is once-per-event cheap and per-frame
+  expensive — hence the docs rule "hold your result", which costs nothing because entities are interned.

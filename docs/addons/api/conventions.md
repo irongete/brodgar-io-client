@@ -76,7 +76,7 @@ verb raises a clear error.
 ### Widget — a piece of the UI
 
 A widget is an **object**, and there is only one kind: a window you create with `hafen.ui.window{}`, a
-native one you find with `hafen.ui.root()`/`node(id)`/`at(x, y)`/`inventory()`, and the one `replace` hands
+native one you name with `hafen.ui(selector)`/`node(id)`/`at(x, y)`/`inventory()`, and the one `replace` hands
 your callback are all the same [Widget](ui.md#the-widget-object). It is interned per addon, so
 `hafen.ui.at(x, y) == hafen.ui.at(x, y)` and `==` is the identity test; it re-reads the tree on every call
 and answers `nil`/empty with `:exists()` false once its widget is gone. What you may *write* depends on

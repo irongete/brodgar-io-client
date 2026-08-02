@@ -756,7 +756,7 @@ end
 -- it is a silent chaining no-op; containers are readable with NOTHING hidden; and the four hard cuts (hafen.items,
 -- hafen.ui.adopt, :same, :move) are plain nil, not shims (D-013).
 local function readWidgets(tag)
-  local root = hafen.ui.root()
+  local root = hafen.ui()
   if not root then hafen.log(("[%s] widget: no UI yet"):format(tag)); return end
   local function why(f, ...)
     local ok, err = pcall(f, ...)
@@ -774,7 +774,7 @@ local function readWidgets(tag)
   hafen.log(("[%s] widget doors: root=%s inv=%s eq=%s at(mouse)=%s hand=%s | node(id)==inv=%s root()==root=%s at()==at=%s")
     :format(tag, tostring(root), tostring(inv), tostring(eq), tostring(at),
             tostring(hafen.ui.hand() and "item" or nil),
-            tostring((inv ~= nil) and (byId == inv)), tostring(hafen.ui.root() == root),
+            tostring((inv ~= nil) and (byId == inv)), tostring(hafen.ui() == root),
             tostring((at == nil) or (hafen.ui.at(m.x, m.y) == at))))
   -- OWNED vs BORROWED. A throwaway widget of our own (destroyed at the end of this check) exercises the writes; the
   -- client's root exercises the two refusals. Provenance is DERIVED from the tree, never stored on the handle, so
@@ -1969,7 +1969,7 @@ hafen.slash.register("hello", function(args)
     -- scope. node:setFont(h) restyles ONE native widget and everything drawn inside it (its title, its labels, its
     -- button captions, even text drawn by the game's own resource code), while its SIBLINGS keep the scope/"default"
     -- font: it sits at the TOP of the resolution chain (instance > scope > "default" > stock). The node comes from
-    -- the W1 widget-tree walk (hafen.ui.root():walk), so any widget in the client can be targeted -- here we pick
+    -- the W1 widget-tree walk (hafen.ui():walk), so any widget in the client can be targeted -- here we pick
     -- the FIRST open window and leave the rest stock, which is exactly the thing to look at. A window is
     -- recognised as "has a caption AND has children" (a Label/Button/TextEntry has a caption but no children).
     -- Owner-tagged like every other font override: reverted automatically on :reload/disable, and it dies with the
@@ -1981,7 +1981,7 @@ hafen.slash.register("hello", function(args)
       nodeFontTarget, nodeFontApplied = nil, false
       hafen.log(":hello node -> resetFont() -- that window is back to the stock/scope font (a :reload/disable reverts it too)")
     else
-      local root = hafen.ui.root()
+      local root = hafen.ui()
       if not root then hafen.log(":hello node -> no UI yet (try in-world)"); return end
       -- Collect the open captioned windows AND count the restylable text in each subtree. Picking "the first
       -- window" is a trap: the Inventory/Equipment windows contain only WItem icons, so their ONLY text is the

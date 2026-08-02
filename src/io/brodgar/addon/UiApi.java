@@ -198,17 +198,22 @@ final class UiApi {
                 return newReplacer(owner, type, opts, fn);
             }
         });
-        // hafen.ui.root() / hafen.ui.node(id) / hafen.ui.at(x,y) — the widget-tree entry points (spec 20 W1/W2,
+        // hafen.ui(sel) / hafen.ui.all(sel) / hafen.ui() / hafen.ui.node(id) / hafen.ui.at(x,y) — the widget-tree entry points (spec 20 W1/W2,
         // rebuilt on the ONE entity by 029-widget-oop). Walk ANY widget's children to arbitrary depth from Lua (the
-        // generic reader that complements the spec-14 typed adapters). Two entry points for two distinct inputs
-        // (D-012): root() = the top of the WHOLE client tree (discovery, walk DOWN to any open window); node(id) =
-        // the Widget object for a SERVER widget id (a desc.id from onWidgetCreate, a model:raw(), or another
+        // generic reader that complements the spec-14 typed adapters). Entry points for distinct inputs (D-012):
+        // hafen.ui(selector) = the FIRST widget matching a selector string, or nil; hafen.ui.all(selector) = every
+        // match as a 1-based array (empty, never nil); hafen.ui() = the ROOT of the whole client tree (discovery,
+        // walk DOWN to any open window — hafen.ui.root() is hard cut, the no-arg collection form IS the tree);
+        // node(id) = the Widget object for a SERVER widget id (a desc.id from onWidgetCreate, or another
         // widget's :id()) — nil if it doesn't resolve. All of them hand back the SAME type: opaque, facade-safe
         // userdata (no raw haven.Widget crosses into Lua, P1/D-017), INTERNED per addon — so two lookups of one
         // live widget are the SAME value and `==` is the identity test (:same() is GONE, 029.1). Not an
         // owned-registry entry: it checks liveness per access, and once its widget leaves the tree it nulls its
         // reference (no pin, D-041), every read answers nil/empty and :exists() is false. The entity:
         //   :type()          -- class simple name (e.g. "Inventory", "Label", "Button")
+        //   :role()          -- 030.1: what it IS in the selector vocabulary ("window"/"inventory"/"button"/…), or
+        //                       nil when nothing classifies it (an honest no answer, never a guess)
+        //   :res()           -- 030.1: its resource name ("gfx/hud/…"), the stable key [res=] matches, or nil
         //   :id()            -- server widget id (int), or nil if the widget is NOT server-bound (client-only)
         //   :children()      -- array of child Widget objects, in tree order (empty if a leaf)
         //   :parent()        -- parent Widget object, or nil at the root
@@ -217,7 +222,7 @@ final class UiApi {
         //   :visible()       -- boolean
         //   :text()          -- best-effort text for text-bearing widgets (Label/Button/Window/TextEntry), else nil
         //   :exists()        -- is it still in the tree? (the one read that always answers)
-        //   :info()          -- the snapshot escape hatch {type,id,pos,size,visible,text,owned}
+        //   :info()          -- the snapshot escape hatch {type,role,res,id,pos,size,visible,text,owned}
         //   :walk(fn)        -- depth-first: fn(widget, depth); return false to PRUNE the subtree
         //   :at(coord)       -- W2: the DEEPEST Widget object under a {x=,y=} root-coord point WITHIN this subtree
         //   :rootpos()       -- W2: {x=,y=} its top-left in root coords (with :size() = a highlight box)
@@ -238,8 +243,14 @@ final class UiApi {
         //   :destroy()       -- remove it and drop it from the addon's owned registry
         // Otherwise READ-ONLY: to ACT on the GAME, read a server-bound widget's :id() and pass it to the gated
         // hafen.act.raw (D-025) — no new action surface, no new gate (reading the tree is ungated client-side data).
-        uiT.set("root", new ZeroArgFunction() {
-            public LuaValue call() { return nodeRoot(owner); }
+        // hafen.ui.all(selector) — EVERY widget matching the selector, as a 1-based array in tree order (empty,
+        // never nil). One walk of the tree testing each node, not a deep helper per node (that is O(n²)); the
+        // selector is parsed ONCE here, never per node. HOLD the result — entities are interned, so keeping it is
+        // free, while re-selecting every frame is a whole tree walk every frame.
+        uiT.set("all", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return selectAll(owner, selArg(a.arg1(), "hafen.ui.all(selector)"));
+            }
         });
         uiT.set("node", new OneArgFunction() {
             public LuaValue call(LuaValue id) { return nodeById(owner, id); }
@@ -277,7 +288,89 @@ final class UiApi {
         uiT.set("at", new TwoArgFunction() {
             public LuaValue call(LuaValue x, LuaValue y) { return nodeAt(owner, x, y); }
         });
+        // 030.1: hafen.ui is CALLABLE (the hafen.asset/hafen.kin/hafen.meter shape, D-056) — arity is the verb.
+        // hafen.ui(selector) is the FIRST match or nil; hafen.ui() with no argument is the ROOT, which is why
+        // hafen.ui.root() is a hard cut and now reads as plain nil from Lua (D-013).
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.CALL, new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue key = a.arg(2);            // arg1 = the callable table itself
+                if(key.isnil())                     // hafen.ui() — the top of the whole client tree
+                    return nodeRoot(owner);
+                return selectFirst(owner, selArg(key, "hafen.ui(selector)"));
+            }
+        });
+        uiT.setmetatable(mt);
         hafen.set("ui", uiT);
+    }
+
+    // ------------------------------------------------------------------ selectors (hafen.ui(sel), 030.1)
+
+    /**
+     * A selector argument &rarr; a parsed {@link Selector}, or a clear error. The number check comes BEFORE
+     * {@code isstring()} because in LuaJ a number IS a string (the {@code hafen.asset} lesson, 028).
+     */
+    private static Selector selArg(LuaValue v, String where) {
+        if(v.isnumber())
+            throw new LuaError(where + ": the argument is a SELECTOR string (e.g. \"window[title=Cupboard]\"),"
+                + " not a number — hafen.ui.node(id) is the one that takes a widget id");
+        if(!v.isstring())
+            throw new LuaError(where + " expects a selector string (e.g. \"*\", \"inventory\","
+                + " \"@Equipory\", \"window[title=Cupboard]\"), got " + v.typename());
+        return Selector.parse(v.tojstring());
+    }
+
+    /**
+     * {@code hafen.ui(selector)} — the FIRST widget matching {@code sel} in tree order (pre-order, depth-first from
+     * {@code ui.root}), or {@code nil}. Stops at the first hit, so the common "find one window" case does not pay
+     * for the whole tree.
+     */
+    private static LuaValue selectFirst(Addon owner, Selector sel) {
+        UI u = ui;
+        if((u == null) || (u.root == null))
+            return LuaValue.NIL;
+        Widget hit;
+        synchronized(u) { hit = firstMatch(u.root, sel); }
+        return (hit == null) ? LuaValue.NIL : LuaWidget.of(owner, hit);
+    }
+
+    /**
+     * {@code hafen.ui.all(selector)} — every match as a 1-based Lua array in tree order; <b>empty, never nil</b>
+     * (the collection form always answers). ONE pre-order walk testing each node — never {@link Widget#children}
+     * per node, which is a deep traversal and would make this O(n²) (the 029.4 lesson). The whole walk runs under
+     * the {@code ui} monitor, so it never races tree mutation, and the matcher calls no Lua.
+     */
+    private static LuaValue selectAll(Addon owner, Selector sel) {
+        LuaTable out = new LuaTable();
+        UI u = ui;
+        if((u == null) || (u.root == null))
+            return out;
+        List<Widget> hits = new ArrayList<Widget>();
+        synchronized(u) { collect(u.root, sel, hits); }
+        int i = 0;
+        for(Widget w : hits)
+            out.set(++i, LuaWidget.of(owner, w));
+        return out;
+    }
+
+    /** Pre-order search for the first match under {@code w} (inclusive). Under the {@code ui} monitor. */
+    private static Widget firstMatch(Widget w, Selector sel) {
+        if(sel.matches(w))
+            return w;
+        for(Widget c = w.child; c != null; c = c.next) {
+            Widget hit = firstMatch(c, sel);
+            if(hit != null)
+                return hit;
+        }
+        return null;
+    }
+
+    /** Pre-order collection of every match under {@code w} (inclusive). Under the {@code ui} monitor. */
+    private static void collect(Widget w, Selector sel, List<Widget> out) {
+        if(sel.matches(w))
+            out.add(w);
+        for(Widget c = w.child; c != null; c = c.next)
+            collect(c, sel, out);
     }
 
     /** Session init: drop per-session widget-type records, adopted models, and replacers (from AddonManager.init). */
@@ -664,8 +757,10 @@ final class UiApi {
     // -------------------------------------------------- generic widget-tree introspection (hafen.ui, W1, spec 20)
 
     /**
-     * {@code hafen.ui.root()} — the {@link LuaWidget} entity for {@code ui.root}, the top of the whole client tree
-     * (spec 20, W1). Returns {@code nil} if no UI is up yet. From here an addon walks DOWN to any open window.
+     * {@code hafen.ui()} — the {@link LuaWidget} entity for {@code ui.root}, the top of the whole client tree
+     * (spec 20, W1; the no-argument form of the callable namespace since 030.1, which hard-cut
+     * {@code hafen.ui.root()}). Returns {@code nil} if no UI is up yet. From here an addon walks DOWN to any open
+     * window — or names one directly with a selector.
      */
     private static LuaValue nodeRoot(Addon owner) {
         UI u = ui;

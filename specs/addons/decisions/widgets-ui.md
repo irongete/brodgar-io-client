@@ -185,3 +185,34 @@ W1). *(A slash toggle + an optional `hafen.hook.grab` freeze key are addon-side 
 **See.** [20-widget-introspection.md](../design/20-widget-introspection.md) §W2, [D-041](widgets-ui.md) (the `WidgetNode` +
 `:same` it extends), [09-events-catalog.md](../design/09-events-catalog.md) (`OnUpdate`), [07-ui-and-drawing.md](../design/07-ui-and-drawing.md)
 (`hafen.hook.grab` for a freeze toggle).
+
+### D-067 — a classifier answers only where the widget IS the thing; a render-site name classifies nothing
+
+**Context.** `030-ui-selectors` needed a *role* per widget (`hafen.ui("inventory")`), and the obvious source of names
+was `Fonts.SCOPES` — reuse the vocabulary `016-fonts` established rather than invent a second one. But fonts resolve
+*scope → override* **at each render site**, a lookup a site performs on itself; a selector must answer the **inverse**
+— *what role is THIS widget?* — and nothing in `haven` answers that. The classifier is new code, and it is the only
+place where the mapping can be wrong.
+
+**Decision.** One `instanceof` chain in ONE method ([`LuaWidget.role`](src/io/brodgar/addon/LuaWidget.java)), the
+`typeName`/`text` discipline for fragile upstream knowledge, and the rule that decides every borderline case:
+**prefer no answer to a wrong one.** A role is claimed only where the class genuinely *is* that thing
+(`Inventory`/`Equipory` → `inventory`, every `Window` → `window`, …); anything unrecognised answers `nil`.
+
+The consequence is that the promotion from `Fonts.SCOPES` is **not** 1:1, and the gap is not an oversight:
+`window.title`, `heading`, `tooltip`, `world.nick` and `world.speech` name a **render site**, not a widget — a
+caption belongs to `Window.Deco`, a tooltip is painted rather than placed, the world scopes live over the 3D view.
+They stay **valid grammar** (one vocabulary shared with fonts; coverage can grow) and match nothing. Guessing that a
+`Label` inside a `CharWnd` is a `heading` would be exactly the wrong answer this rule forbids.
+
+**Measured.** Over a live HUD, 174 of 625 widgets classify (window 9 · inventory 5 · button 114 · label 33 ·
+textentry 7 · chat 5 · menu 1); 451 answer `nil`. That ratio is the rule working — layout containers, scroll ports
+and item icons are reached by `*`, `@Class` or `[res=]`, which is what those exist for.
+
+**Consequences.** The role set grows by adding to one method, and an addon written against a role never breaks when
+coverage grows; what must never happen is a role that starts matching a *different* widget. Upstream churn breaks
+that one method, not addons. The same discipline governs `resName` (three real sources, `nil` otherwise).
+
+**See.** [22 · the selector grammar](../030-ui-selectors/spec.md), [D-061](architecture-api.md) (the API's vocabulary
+comes from the engine), [D-063](architecture-api.md) (an entity's key is what the engine publishes),
+[21-fonts.md](../design/21-fonts.md) (the scope table this inverts).

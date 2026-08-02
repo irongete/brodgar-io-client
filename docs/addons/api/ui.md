@@ -9,6 +9,9 @@ the server; that is [`hafen.act`](actions.md).)
 cursor and the container `replace` hands your callback are all the **same** [Widget object](#the-widget-object).
 What you create and what you find are not different things.
 
+**And one way to name one.** `hafen.ui` is *callable*: `hafen.ui("window[title=Cupboard]")` is the first
+matching widget, `hafen.ui.all("inventory")` is every one — see [selectors](#selectors--naming-a-widget).
+
 ## Custom windows & widgets
 
 | Function | Returns | Description |
@@ -63,7 +66,9 @@ The one entity `hafen.ui` hands back. Every door below returns it, and `:info()`
 | Function | Returns | Description |
 |---|---|---|
 | `hafen.ui.window(opts)` / `widget(opts)` | Widget | one you **created** (owned) — see above |
-| `hafen.ui.root()` | Widget \| nil | the top of the whole client tree — walk **down** to any open window |
+| `hafen.ui(selector)` | Widget \| nil | the **first** widget matching a [selector](#selectors--naming-a-widget), in tree order |
+| `hafen.ui.all(selector)` | Widget[] | **every** match, in tree order — an empty array, never nil |
+| `hafen.ui()` | Widget \| nil | the top of the whole client tree — walk **down** to any open window |
 | `hafen.ui.node(id)` | Widget \| nil | the widget for a **server widget id** (a `desc.id`, another widget's `:id()`); nil if it doesn't resolve |
 | `hafen.ui.at(x, y)` | Widget \| nil | the **deepest** widget under a root-coord point — exactly what a click would hit ([see below](#hit-testing--what-is-under-the-cursor-the-wow-framestack-enabler)) |
 | `hafen.ui.mouse()` | `{x=,y=}` \| nil | the cursor in **root coords** (not a widget) |
@@ -88,11 +93,88 @@ answers `nil`/empty, every write is a silent no-op that still chains, and `:exis
 always answers — is `false`. A stashed object is therefore always safe to call; guard on `:exists()` only
 when "is it still there?" is the question you are actually asking.
 
+### Selectors — naming a widget
+
+A **selector is a string**, and `hafen.ui` itself is the lookup. The grammar is deliberately tiny and
+CSS-shaped, and there are **no descendant selectors** (`window[title=X] button` is not a thing):
+
+```lua
+hafen.ui("window[title=Cupboard]")     -- the first match, or nil
+hafen.ui.all("inventory")              -- every open container, in tree order
+hafen.ui("inventory[title=Cupboard]")  -- the grid inside that window
+hafen.ui("@Equipory")                  -- by widget class
+hafen.ui("[res=gfx/hud/meter/hp]")     -- by resource name
+hafen.ui()                             -- no argument: the root of the whole tree
+```
+
+| Part | Meaning |
+|---|---|
+| `*` | any widget — including one no role classifies |
+| a **role** | what the widget *is* (see the table below) |
+| `@Class` | its class name, the same string `:type()` reports |
+| `[title=…]` | the caption of the **nearest enclosing window** — **exact** match |
+| `[res=…]` | a **substring** of its resource name (`:res()`) |
+
+A selector is a role (or `*`) followed by any of the refiners, in any order, each at most once —
+`inventory@Inventory[title=Cupboard]`. Anything else errors, naming the offending part and, for a bad
+role, listing every valid one.
+
+#### Roles
+
+`:role()` answers what a widget is, or **nil** when nothing classifies it. The names are the same
+vocabulary as the [font scopes](fonts.md) — deliberately, so there is one set of names, not two.
+
+| Role | Matches |
+|---|---|
+| `window` | `Window` and every subclass (including the `Hidewnd` the client wraps the inventory in) |
+| `inventory` | `Inventory` and `Equipory` — *every* open container, not just yours |
+| `button` | `Button`, `IButton` |
+| `label` | `Label` |
+| `textentry` | `TextEntry` |
+| `chat` | `ChatUI` and its channels |
+| `menu` | `MenuGrid`, `FlowerMenu` |
+
+**Five font-scope names classify no widget** — `window.title`, `heading`, `tooltip`, `world.nick`,
+`world.speech`. They name a *render site*, not a widget: a window's caption is drawn by the window's
+decoration, a tooltip is painted rather than placed, and the world scopes live over the 3D view. They stay
+valid selectors (the vocabulary is shared with fonts, and coverage can grow) but they match nothing.
+
+Most widgets have **no** role — layout containers, scroll ports, images, item icons. On a live HUD, 174 of
+625 widgets classified. That is the rule working, not a gap: an unrecognised widget answers `nil` rather
+than being guessed into the nearest role. Reach those with `*`, `@Class` or `[res=]`.
+
+#### Two rules that are easy to get wrong
+
+- **`[title=]` is the *enclosing window's* caption, not the widget's own text.** The client wraps bare
+  widgets in titled windows — the inventory grid itself has no caption — so `inventory[title=Cupboard]`
+  matches the **grid inside** the Cupboard window, and `window[title=Cupboard]` matches the window. Both
+  work; that is the point.
+- **`@Class` is the class name, not a base class.** `@Window` matches a plain `Window`, not a `CharWnd`.
+  Use the `window` role for "any window". Hafen builds most widgets as anonymous subclasses, and both
+  `@Class` and `:type()` report the nearest **named** class, so this is the name you actually see.
+
+#### What carries a `res`
+
+`[res=]` is the *stable* key — a resource name never changes with the client's language, where a caption
+can. But only some widgets have one: **items** (`gfx/invobjs/…`), **meters** (`gfx/hud/meter/hp`), and
+widgets whose code ships inside a resource (`ui/rchan`, `ui/vlg`). **Windows do not** — the client's
+windows are plain Java classes with no resource behind them. So in practice: `[res=]` for items and
+meters, `[title=]` for windows. `w:res()` tells you what a widget actually carries.
+
+#### Hold the result — do not re-select every frame
+
+`hafen.ui.all("*")` walks the whole tree: about **0.08 ms for 625 widgets**. Once per event, or once when
+the hover changes, that is nothing; sixty times a second it is a real slice of your frame budget. Because
+widgets are **interned**, holding the result costs nothing and the objects stay `==`-comparable — so
+select once, keep it, and use `:exists()` when you need to know it is still there.
+
 ### Reads — they answer on every widget
 
 | Method | Returns | Description |
 |---|---|---|
 | `:type()` | string | class name, e.g. `"Inventory"`, `"Label"`, `"Button"` (for an anonymous subclass — common in Hafen — the nearest named superclass) |
+| `:role()` | string \| nil | what it **is** in the [selector vocabulary](#roles) — `"window"`, `"inventory"`, … — or nil when nothing classifies it |
+| `:res()` | string \| nil | its [resource name](#what-carries-a-res), e.g. `"gfx/invobjs/torch"`; nil for most widgets |
 | `:id()` | int \| nil | server widget id, or **nil if the widget is not server-bound** (client-only) |
 | `:children()` | array | child Widgets in tree order (empty for a leaf) |
 | `:parent()` | Widget \| nil | the enclosing widget, or nil at the root |
@@ -102,7 +184,7 @@ when "is it still there?" is the question you are actually asking.
 | `:text()` | string \| nil | best-effort text for text-bearing widgets (Label/Button/Window/TextEntry), else nil |
 | `:items()` | [`Item`](types.md#item)`[]` | the items inside it — [see below](#items-inside-a-container) |
 | `:exists()` | boolean | is it still in the tree? |
-| `:info()` | table \| nil | the snapshot escape hatch `{type, id, pos, size, visible, text, owned}`; nil once stale |
+| `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}` (absent values are simply unset); nil once stale |
 | `:walk(fn)` | (self) | depth-first visit — `fn(widget, depth)`; **return `false` to prune** that subtree |
 | `:at(coord)` | Widget \| nil | the deepest widget under a `{x=,y=}` **root-coord** point **within this subtree** |
 | `:rootpos()` | `{x=,y=}` \| nil | its top-left in **root coords** (with `:size()` = a rectangle to outline it) |
@@ -116,9 +198,10 @@ from an unbound (client-only, no `:id()`) widget is dropped, so you never target
 its nearest server-bound ancestor.
 
 ```lua
--- dump an open window's full nested tree from the :lua REPL
-hafen.ui.root():walk(function(n, d)
+-- dump the client's full nested tree from the :lua REPL
+hafen.ui():walk(function(n, d)
   hafen.log(string.rep("  ", d) .. n:type()
+    .. (n:role() and (" [" .. n:role() .. "]")   or "")
     .. (n:id()   and (" #" .. n:id())            or "")
     .. (n:text() and (" '" .. n:text() .. "'")   or ""))
 end)
@@ -158,8 +241,8 @@ A hidden server widget stays fully **live**: still bound to its id, still receiv
 with items. That is why you can hide a grid and keep reading it.
 
 **There is no `hafen.ui.adopt`.** It existed only to get a readable handle on a native widget, and it
-charged you a hidden window for the privilege. Reading no longer costs anything: `hafen.ui.node(id)` (or
-`root()`, `at()`, `inventory()`) hands you the same entity with **nothing hidden**, and hiding is the
+charged you a hidden window for the privilege. Reading no longer costs anything: `hafen.ui(selector)` (or
+`node(id)`, `at()`, `inventory()`) hands you the same entity with **nothing hidden**, and hiding is the
 separate, explicit act it always should have been. Replacing a native window is still
 [`hafen.ui.replace`](#replacing-a-native-window).
 
@@ -279,7 +362,7 @@ end)
 
 **Limits.** A widget's Java state is otherwise read-only — mutating it desyncs from the server. `:text()`
 is best-effort over a known type set (unknown → nil, never throws). The whole client tree is reachable via
-`root()`/`:parent()` (all client-side data — actions stay separately gated); which child is a price vs. a
+`hafen.ui()`/`:parent()` (all client-side data — actions stay separately gated); which child is a price vs. a
 spacer is upstream-defined knowledge your Lua adapter supplies. Restyling native widgets beyond
 `:setFont`/`:resetFont`, and moving them, are later features.
 

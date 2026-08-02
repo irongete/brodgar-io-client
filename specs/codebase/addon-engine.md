@@ -11,7 +11,8 @@
 | `AddonRegistry` | discovery/loadAll, enabled set (+ D-027 defaults), `reload`, per-addon teardown, the AddOns-panel data API |
 | `WorldApi` | `hafen.world/map/markers/radar/time/sound/music` (per-gob reads are `LuaGob`) |
 | `CharApi` | `hafen.player/char/study/party/kin/buffs/actionbar/quests/wounds/fight` + the `TreeAdapter`s + `itemSnapshot` (the one Item producer; `hafen.items` was cut in 029.3) |
-| `UiApi` | `hafen.ui` — windows/overlays, observe/replace, the entry points + hit-testing, the container-subscription poll (`adopt` deleted in 029.2) |
+| `UiApi` | `hafen.ui` — a **callable** namespace (`hafen.ui(sel)`/`.all(sel)`/`hafen.ui()`, `root()` cut in 030.1): windows/overlays, observe/replace, the entry points + selector resolution + hit-testing, the container-subscription poll (`adopt` deleted in 029.2) |
+| **`Selector`** | the selector grammar (030.1): parse `*`/role/`@Class`/`[title=]`/`[res=]` **once**, then match one widget. Pure — no Lua, no state — so the events and the inspector reuse it. The widget→role classifier itself lives in `LuaWidget.role` (D-067), beside `typeName`/`text`/`resName` |
 | `HookApi` | `hafen.hook` (L1/L2/L3 + grab), `hafen.slash`; owns the hotkey registry behind `hafen.client:options():keybindings()` |
 | `ActApi` | `hafen.act` (gated verbs) + `hafen.craft`/`hafen.speed` writes |
 | `RenderApi` | `hafen.ghost` + `hafen.render` (world entities) |

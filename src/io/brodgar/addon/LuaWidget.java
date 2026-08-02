@@ -1,9 +1,17 @@
 package io.brodgar.addon;
 
 import haven.Button;
+import haven.ChatUI;
 import haven.Coord;
 import haven.Equipory;
+import haven.FlowerMenu;
+import haven.FromResource;
+import haven.IButton;
+import haven.IMeter;
+import haven.Inventory;
 import haven.Label;
+import haven.MenuGrid;
+import haven.Resource;
 import haven.Text;
 import haven.TextEntry;
 import haven.UI;
@@ -175,6 +183,30 @@ public final class LuaWidget {
             public LuaValue call(LuaValue self) {
                 Widget w = live(handle(self, "type"));
                 return (w == null) ? LuaValue.NIL : LuaValue.valueOf(typeName(w));
+            }
+        });
+        // role() — 030.1: WHAT this widget is, in the selector vocabulary ("window", "inventory", "button", …), or
+        // nil when nothing classifies it. The inverse question to the one the font scopes answer, and the half a
+        // selector needs; see LuaWidget.role for why an unknown widget answers nil rather than a guess.
+        m.set("role", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Widget w = live(handle(self, "role"));
+                if(w == null)
+                    return LuaValue.NIL;
+                String r = role(w);
+                return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r);
+            }
+        });
+        // res() — 030.1: the widget's RESOURCE name ("gfx/hud/…"), the stable server-published key [title=] only
+        // approximates (D-063), or nil where the widget has none. This is what [res=] matches (by substring), so it
+        // is also how you find out what to write there.
+        m.set("res", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Widget w = live(handle(self, "res"));
+                if(w == null)
+                    return LuaValue.NIL;
+                String r = resName(w);
+                return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r);
             }
         });
         // id() — the SERVER widget id, or nil for a client-only widget (the facade-safe WidgetRef, P1).
@@ -372,7 +404,7 @@ public final class LuaWidget {
                 return LuaValue.valueOf(live(handle(self, "exists")) != null);
             }
         });
-        // info() — the one SNAPSHOT escape hatch ({type,id,pos,size,visible,text,owned}), for logging/serialising.
+        // info() — the one SNAPSHOT escape hatch ({type,role,res,id,pos,size,visible,text,owned}), for logging.
         // An absent value is simply an unset key; nil for a stale widget (there is nothing to snapshot). `owned`
         // is the provenance 029.2 introduced — true iff THIS addon created the widget, i.e. iff the write verbs
         // answer on it — and it is how you ask instead of provoking the error.
@@ -443,7 +475,7 @@ public final class LuaWidget {
         LuaWidget h = resolve(self);
         if(h == null)
             throw new LuaError("widget:" + method + "() — use a COLON call on a Widget object"
-                + " (hafen.ui.root(), hafen.ui.node(id), hafen.ui.at(x, y))");
+                + " (hafen.ui(), hafen.ui(selector), hafen.ui.node(id), hafen.ui.at(x, y))");
         return h;
     }
 
@@ -662,6 +694,94 @@ public final class LuaWidget {
     }
 
     /**
+     * <b>The widget&rarr;role classifier</b> ({@code widget:role()}, and the first half of every {@link Selector}) —
+     * spec {@code 030-ui-selectors}, and the heart of that feature. ONE {@code instanceof} chain in ONE method, the
+     * same discipline {@link #typeName}/{@link #text} already use for fragile upstream knowledge: upstream churn
+     * breaks this method, not addons.
+     *
+     * <p><b>The question is the inverse of the one the font scopes answer.</b> Fonts resolve <i>scope &rarr;
+     * override</i> at each render site, which is a lookup the site performs on itself; a selector must answer
+     * <i>what role is THIS widget?</i>, and nothing in {@code haven} answers that — hence this chain.
+     *
+     * <p><b>Never a wrong answer in place of no answer.</b> An unrecognised widget is {@code null} (&rarr; Lua
+     * {@code nil}), and a role is only claimed where the class genuinely <i>is</i> that thing: {@code Inventory}/
+     * {@code Equipory} are the containers, every {@link Window} (including {@code GameUI.Hidewnd} and every
+     * subclass) is the frame. The five remaining promoted font scopes ({@code window.title}, {@code heading},
+     * {@code tooltip}, {@code world.nick}, {@code world.speech}) are deliberately absent: they name render sites
+     * that are drawn, not widgets that are placed (a caption belongs to {@code Window.Deco}), and guessing a
+     * {@link Label} was a heading would be exactly the wrong answer this rule forbids. The role set is expected to
+     * grow; what must not happen is a role that matches the wrong widget.
+     *
+     * <p>Ordered most-specific first, and {@code null}-safe.
+     */
+    static String role(Widget w) {
+        if(w == null)
+            return null;
+        if((w instanceof Inventory) || (w instanceof Equipory))
+            return "inventory";
+        if(w instanceof Window)
+            return "window";
+        if((w instanceof Button) || (w instanceof IButton))
+            return "button";
+        if(w instanceof Label)
+            return "label";
+        if(w instanceof TextEntry)
+            return "textentry";
+        if((w instanceof ChatUI) || (w instanceof ChatUI.Channel))
+            return "chat";
+        if((w instanceof FlowerMenu) || (w instanceof MenuGrid))
+            return "menu";
+        return null;
+    }
+
+    /**
+     * The widget's <b>resource name</b> ({@code widget:res()}, and what {@code [res=]} matches by substring) — the
+     * stable server-published key of D-063, where the widget has one; {@code null} otherwise, never a throw.
+     *
+     * <p>Three sources, because "the res of a widget" is three different things in {@code haven} and no field on
+     * {@link Widget} holds any of them:
+     * <ol>
+     *   <li>a widget whose <b>code came from a resource</b> ({@code Widget.gettype3} on a {@code /}-name &rarr;
+     *       {@code Resource.getcode}) — its class was defined by a {@link Resource.ResClassLoader}, or carries the
+     *       {@link FromResource} annotation a {@code get-code} copy is stamped with. We read the loader/annotation
+     *       directly rather than calling {@code Resource.classres}, which <b>blocks</b> on a
+     *       {@code remote().loadwait} for the annotated case and throws for everything else;</li>
+     *   <li>a {@link WItem} &rarr; its item's resource (the same key {@code widget:items()} entries carry);</li>
+     *   <li>an {@link IMeter} &rarr; its background resource — the identity {@code hafen.meter(needle)} already
+     *       matches on (027, D-063).</li>
+     * </ol>
+     *
+     * <p>Anonymous subclasses are the norm, so the class walk climbs superclasses the way {@link #typeName} does.
+     * A resource still loading resolves to {@code null} for now ({@link AddonManager#resIdent} is Loading-guarded)
+     * and answers on a later call — the same "nameless for a beat" behaviour meters have.
+     */
+    static String resName(Widget w) {
+        if(w == null)
+            return null;
+        if(w instanceof WItem) {
+            WItem it = (WItem)w;
+            return (it.item == null) ? null : AddonManager.resIdent(it.item.res);
+        }
+        if(w instanceof IMeter)
+            return AddonManager.resIdent(((IMeter)w).bg);
+        for(Class<?> c = w.getClass(); c != null; c = c.getSuperclass()) {
+            ClassLoader l = c.getClassLoader();
+            if(l instanceof Resource.ResClassLoader) {
+                try {
+                    Resource r = ((Resource.ResClassLoader)l).getres();
+                    return (r == null) ? null : r.name;
+                } catch(RuntimeException e) {       // Loading, or a half-built code entry
+                    return null;
+                }
+            }
+            FromResource src = Resource.ResClassLoader.getsource(c);
+            if(src != null)
+                return src.name();
+        }
+        return null;
+    }
+
+    /**
      * Best-effort text for a text-bearing widget ({@code :text()}, spec 20, W1) — the one upstream-volatile bit,
      * localized in THIS switch (like the spec-14 adapters): {@link Label#texts}, {@link Button} caption,
      * {@link Window#cap}, {@link TextEntry#text()}. An unknown type returns {@code null} (&rarr; Lua {@code nil}),
@@ -683,7 +803,7 @@ public final class LuaWidget {
 
     /**
      * A Widget snapshot — {@code widget:info()}, the escape hatch for logging/serialising:
-     * {@code {type,id,pos,size,visible,text,owned}}. Expressed over the same accessors the methods use, so there is
+     * {@code {type,role,res,id,pos,size,visible,text,owned}}. Expressed over the same accessors the methods use, so there is
      * one source of truth per field; an absent value is simply an unset key. {@code owned} is per-addon (029.2):
      * the same widget is {@code owned=true} for the addon that created it and {@code false} for every other one.
      */
@@ -693,6 +813,12 @@ public final class LuaWidget {
         LuaTable t = new LuaTable();
         t.set("type", LuaValue.valueOf(typeName(w)));
         t.set("owned", LuaValue.valueOf(ownedContent(owner, w) != null));
+        String rl = role(w);                       // 030.1: the selector vocabulary, absent when nothing classifies it
+        if(rl != null)
+            t.set("role", LuaValue.valueOf(rl));
+        String rs = resName(w);
+        if(rs != null)
+            t.set("res", LuaValue.valueOf(rs));
         int id = w.wdgid();
         if(id >= 0)
             t.set("id", LuaValue.valueOf(id));

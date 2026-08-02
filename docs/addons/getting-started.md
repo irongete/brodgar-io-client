@@ -138,8 +138,9 @@ README rather than claiming one.
 ## Reading the client's own UI
 
 The window you just created and the client's own windows are the **same kind of object** — a
-[Widget](api/ui.md#the-widget-object). `hafen.ui.root()` is the top of the tree, `hafen.ui.at(x, y)` is
-whatever is under a point, and a container answers for what is inside it:
+[Widget](api/ui.md#the-widget-object). `hafen.ui("window[title=Cupboard]")` names one with a
+[selector](api/ui.md#selectors--naming-a-widget), `hafen.ui()` is the top of the tree, `hafen.ui.at(x, y)`
+is whatever is under a point, and a container answers for what is inside it:
 
 ```lua
 for _, it in ipairs(hafen.ui.inventory():items()) do   -- a chest works the same way
