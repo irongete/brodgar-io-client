@@ -53,8 +53,10 @@
 -- the view you pass to that same hide record, so the client's own key drives YOUR window and the tick reads it. The
 -- verb hides the ENCLOSING window (w:hide() still hides exactly what you point at), and there is no verb for the
 -- toggle itself: ownership follows the hide, and the restore is ONE rule — the window ends up as the user was
--- seeing it. readToggle (once per login, and ':hello wnd') asserts the swallow, the one-owner refusal and both
--- halves of that rule; ':hello wnd swallow' parks the swallowed state so you can press Tab at it yourself.
+-- seeing it. readToggle (once per login, and ':hello wnd') asserts the swallow, the one-owner refusal, both
+-- halves of that rule, the verb's THREE ARITIES and the hop itself (install through the grid, read the same view
+-- back through its window: ONE record); ':hello wnd swallow' parks the swallowed state so you can press Tab at it
+-- yourself.
 -- Built on 030.2 SELECTOR EVENTS — hafen.ui.on(selector, "appear"|"disappear", fn) watches the client's OWN UI for
 -- a part of it, named with the same selector a lookup uses, and hands the callback the Widget ENTITY (the old
 -- hafen.ui.onWidgetCreate and its {id,type,place,caption,parentType} descriptor are GONE). It also demonstrates GLOBAL HOTKEYS —
@@ -990,14 +992,21 @@ local function readToggle(tag)
   -- binds the view to it; then grid:replace(nil) undoes it live, which is the same rule :reload/disable runs. The
   -- rule has NO branches and no bookkeeping boolean: the restored window's visibility IS "was the view on screen".
   local replaceErr
+  local readBack, hopRead, readGone            -- 032.3: the three arities, and the hop read from both ends
   local function round(open)
     local view = hafen.ui.window{ title = "hello: toggle check", size = { 150, 28 }, pos = { 40, 40 },
                                   onDraw = function(g) g:text("toggle check", 4, 4) end }
     local ok, err = pcall(grid.replace, grid, view)   -- the verb REFUSES (throws) where the old function logged
     if not ok then replaceErr = err; view:destroy(); return nil end
+    -- ARITY IS THE VERB (032.3): replace(view) installed above, replace() READS the view standing in for this
+    -- window. Reading it back through `wnd` -- the ENCLOSING window we never pointed at -- is the hop itself: the
+    -- record lives on the window the client toggles, so the grid and its window reach the SAME one view.
+    readBack = (grid:replace() == view)
+    hopRead  = (wnd:replace() == view)
     if not open then view:hide() end           -- "nothing was on screen" -- an owned widget, so no record of its own
     local shown = view:visible()
     grid:replace(nil)                          -- the live undo: the one rule runs here, before the view is destroyed
+    readGone = (grid:replace() == nil)         -- ...and the read arity says so: nothing stands in for it any more
     return shown
   end
   local openA = round(true)
@@ -1015,6 +1024,14 @@ local function readToggle(tag)
       .. " window visible=%s (expected true) | view hidden=%s => visible=%s (expected false); one expression, no"
       .. " branches, and it is what makes a bare hide stay hidden through a :reload")
     :format(tag, tostring(openA), tostring(afterA), tostring(openB), tostring(afterB)))
+  -- 3b. THE VERB'S OWN CONTRACT (032.3): three arities over ONE record, reached from either end of the hop, and the
+  -- namespace function that used to do all of this in one call reading plain nil -- a hard cut, no alias (D-013).
+  hafen.log(("[%s] toggle: replace() arities -- installed via the GRID, read back=%s, and the same view read"
+      .. " through its enclosing %s=%s (one record: the verb hops to the window, which is why the whole stock"
+      .. " frame goes and not just the grid); after replace(nil) the read is nil=%s. replaceGone=%s"
+      .. " (hafen.ui.replace=%s -- the old namespace function is a hard cut; ui.on waits, w:replace replaces)")
+    :format(tag, tostring(readBack), wnd:type(), tostring(hopRead), tostring(readGone),
+            tostring(hafen.ui.replace == nil), tostring(hafen.ui.replace)))
   -- 4. LEAVE THE HUD AS WE FOUND IT -- with the rule itself: round B ended hidden, which is the wrapper's own default
   -- state, so only a HUD that had the inventory open needs the last :show() (which owns nothing and records nothing).
   if wasVis and not wnd:visible() then wnd:show() end

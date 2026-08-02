@@ -173,3 +173,12 @@
   directly) were two matchers for one intent; D-068's "registration scans the live tree" is the single behaviour
   that subsumes them, which is why 032.2 is a deletion and not a port. The seam it leaves behind takes
   `(id, wdg)` — the parent and the placement args existed only for the descriptor.
+- **(032.3) A retired vocabulary hides in prose, not in the API tables.** The tables were rewritten with the code
+  (032.1/032.2), so grepping `docs/addons/` for the dead *function* found only two obituaries — what survived was
+  the descriptor's **language**, in asides and examples that never name it: "the container `replace` hands your
+  callback" (`ui.md` and `conventions.md`), `hafen.ui.node(desc.id)` in the container-lifecycle example, the field
+  list itself inside a "this is gone" note. Sweep for the concept's words, not for the symbol.
+- **(032.3) An obituary keeps the name, not the vocabulary.** `hafen.ui.replace` still has one line in `api/ui.md`
+  saying it is gone and reads `nil` — that is the reader's answer when they meet old code — but it now names what
+  it matched on ("the server's own widget-creation vocabulary") instead of spelling `{id, type, place, caption,
+  parentType}` out. A hard cut owes the reader the fact, not the dead syntax.

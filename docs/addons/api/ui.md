@@ -6,8 +6,9 @@ bridge-owned — it is torn down automatically on reload/disable. (Client-side U
 the server; that is [`hafen.act`](actions.md).)
 
 **There is one type.** A window you create, a native window you find, the deepest widget under the
-cursor and the container `replace` hands your callback are all the **same** [Widget object](#the-widget-object).
-What you create and what you find are not different things.
+cursor and the container an [`appear` subscription](#watching-for-a-widget) hands your callback are all
+the **same** [Widget object](#the-widget-object). What you create and what you find are not different
+things.
 
 **And one way to name one.** `hafen.ui` is *callable*: `hafen.ui("window[title=Cupboard]")` is the first
 matching widget, `hafen.ui.all("inventory")` is every one — see [selectors](#selectors--naming-a-widget).
@@ -69,7 +70,7 @@ The one entity `hafen.ui` hands back. Every door below returns it, and `:info()`
 | `hafen.ui(selector)` | Widget \| nil | the **first** widget matching a [selector](#selectors--naming-a-widget), in tree order |
 | `hafen.ui.all(selector)` | Widget[] | **every** match, in tree order — an empty array, never nil |
 | `hafen.ui()` | Widget \| nil | the top of the whole client tree — walk **down** to any open window |
-| `hafen.ui.node(id)` | Widget \| nil | the widget for a **server widget id** (a `desc.id`, another widget's `:id()`); nil if it doesn't resolve |
+| `hafen.ui.node(id)` | Widget \| nil | the widget for a **server widget id** (another widget's `:id()`); nil if it doesn't resolve |
 | `hafen.ui.at(x, y)` | Widget \| nil | the **deepest** widget under a root-coord point — exactly what a click would hit ([see below](#hit-testing--what-is-under-the-cursor-the-wow-framestack-enabler)) |
 | `hafen.ui.mouse()` | `{x=,y=}` \| nil | the cursor in **root coords** (not a widget) |
 | `hafen.ui.inventory()` | Widget \| nil | your main backpack grid — a container like any other |
@@ -346,7 +347,7 @@ Three subscriptions on the container itself. All chain; pass `nil` to unsubscrib
 | `:onDestroy(fn)` | `fn()` once, when this widget leaves the tree |
 
 ```lua
-local chest = hafen.ui.node(desc.id)
+local chest = hafen.ui("window[title=Chest]")
 chest:onItemAdded(function(item) hafen.log("in:  " .. (item.name or item.res or "?")) end)
      :onItemRemoved(function(item) hafen.log("out: " .. (item.name or item.res or "?")) end)
      :onDestroy(function() hafen.log("chest closed") end)
@@ -471,10 +472,10 @@ view); installing the same one again is a no-op. Four things are refused outrigh
 instead: a view your addon did not create, a widget with **no enclosing window** (there is nothing to stand
 in for), one of your *own* windows, and a window another addon already holds.
 
-> `hafen.ui.replace(type, opts, fn)` — the old namespace function, which matched on the server's
-> `{id, type, place, caption, parentType}` descriptor — is **gone**, and reads as plain `nil`. It was the
-> last place naming a window a different way, and the only thing that could bind a view to a hidden native
-> window. Both of its halves are ordinary API now: `hafen.ui.on` waits, `w:replace` replaces.
+> `hafen.ui.replace` — the old namespace function, which named a window by the server's own widget-creation
+> vocabulary rather than by a [selector](#selectors--naming-a-widget) — is **gone**, and reads as plain
+> `nil`. It was the last place naming a window a different way, and the only thing that could bind a view to
+> a hidden native window. Both of its halves are ordinary API now: `hafen.ui.on` waits, `w:replace` replaces.
 
 **Limits.** A widget's Java state is otherwise read-only — mutating it desyncs from the server. `:text()`
 is best-effort over a known type set (unknown → nil, never throws). The whole client tree is reachable via

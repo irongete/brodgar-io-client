@@ -138,7 +138,7 @@ hafen.font.scopes()            -- array of valid scope names (discovery)
 ```
 
 `setFont` installs an **owned** override: it is reverted **automatically** on your addon's `:reload`/disable
-(the same owned-resource model as [`hafen.ui.replace`](ui.md#replacing-a-native-window), hooks, and overlays), so the stock UI is always
+(the same owned-resource model as [`widget:replace`](ui.md#replacing-a-native-window), hooks, and overlays), so the stock UI is always
 restorable. The change is **live** — most existing text re-renders on the spot.
 
 ### Scopes
@@ -338,7 +338,7 @@ Over your **own** drawing (F2): isolated, unlimited freedom. Over a **global** s
 state, so each scope holds a **stack of overrides, each tagged with its owning addon — the last applied wins**.
 On teardown an addon's entries are pulled from every scope and the surface falls back to the next owner beneath
 (or stock). Two addons cannot own the same surface at once; the outcome is deterministic and per-owner
-reversible (this mirrors `hafen.ui.replace`). Per-instance overrides (F5) follow the same rules, per
+reversible (this mirrors [`widget:replace`](ui.md#replacing-a-native-window)). Per-instance overrides (F5) follow the same rules, per
 widget.
 
 ## Example

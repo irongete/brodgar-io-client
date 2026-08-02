@@ -76,9 +76,9 @@ stays global because your worn gear is one fixed surface.
 
 ### Parts of the UI appearing & disappearing *(not on this bus)*
 
-There is no `WidgetCreated` event, and `hafen.ui.onWidgetCreate` with its `{id, type, place, caption, parentType}`
-descriptor is gone. A widget is not a global fact either — you say *which* one you care about, with the same
-[selector](ui.md#selectors--naming-a-widget) a lookup uses:
+There is no `WidgetCreated` event, and `hafen.ui.onWidgetCreate` — which reported the server's own
+widget-creation vocabulary — is gone. A widget is not a global fact either — you say *which* one you care
+about, with the same [selector](ui.md#selectors--naming-a-widget) a lookup uses:
 
 ```lua
 hafen.ui.on("window[title=Cupboard]", "appear", function(w) hafen.log(#w:items() .. " items") end)

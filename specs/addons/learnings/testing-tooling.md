@@ -305,3 +305,13 @@
   because "nothing was replaced" and "nothing was there" are the same absence. The fix is to gate the fallback on
   what actually *happened* (`seen`, set when the subscription matched at all), not on the absence of a result.
   Nothing would have crashed in-game; the addon would simply have lied about a window sitting in plain sight.
+- **(032.3) Assert a relationship from BOTH ends — that is what turns a documented rule into a checked one.**
+  `hello`'s login check installs a view through the inventory **grid** and then reads it back through the
+  **enclosing window** (`grid:replace() == view` *and* `wnd:replace() == view`): one record, reached from either
+  side of the enclosing-window hop, proved from Lua instead of described in a comment. It keeps the headless stub
+  honest too — a stub that mints a fresh table per read passes every `== nil` assertion and fails only this one.
+  5 scenarios / 24 checks on `readToggle` sliced out of the shipping `main.lua`, in a second.
+- **(032.3) The docs link/anchor checker is re-derived every close, and that is fine — the SLUG RULE is the part
+  worth keeping.** ~60 lines of Python over `docs/addons/` (fenced blocks skipped, relative paths resolved,
+  fragments matched against slugged headings) reports 0 broken over **557** links; rebuilding it costs minutes,
+  where getting 030.4's em-dash rule wrong costs 36 false positives.

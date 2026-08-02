@@ -29,7 +29,7 @@
       case**: arm it with the stock inventory open. `hafen.ui.replace` reads `nil`. A second addon replacing an
       owned window still gets the D-069 error; replacing a non-window fails clearly.
 
-- [ ] **032.3 — docs, harness, close.**
+- [x] **032.3 — docs, harness, close.**
       `docs/addons/api/ui.md` §"Replacing a native window" rewritten around the verb: the three arities; **the
       enclosing-window rule stated as the reason the verb exists**, next to the one line saying `w:hide()` still
       hides exactly what you point at (or the pair reads as a bug); the view's fate when the substitution ends;
