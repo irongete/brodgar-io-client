@@ -14,7 +14,7 @@
       picks the right rule with two competing keys; removing a sheet returns every widget to nil; an unknown
       property is still refused, saying which. Assert through `w:style()` only.
 
-- [ ] **034.2 — draw it: F5's frame, widened.**
+- [x] **034.2 — draw it: F5's frame, widened.**
       In the parent-first `Widget.draw` descent, a widget with a non-null resolved style opens the frame F5
       already opens, carrying a **style** instead of a `FontHandle` — so every routed site becomes tree-capable
       **with no second edit**, and the subtree is covered by being inside it. The `gen ^ stamp` contextual check

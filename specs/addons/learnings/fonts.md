@@ -330,3 +330,36 @@
   interned view over the same immutable `FontHandle` (`AssetApi.Cache.fontViews`, beside the built-in font
   intern). **The Java value is shared; the Lua value never is** — the rule every intern cache in the bridge
   already followed, met here from the other direction.
+- **(034.2) F5's note came true literally: widening the frame's PAYLOAD is the whole draw-side feature.** F5 said
+  *the draw pass IS a scope stack — reuse it before inventing per-widget state*, and C1b needed exactly one
+  change to collect on it: `Fonts.frame(wdg)` stopped asking only "does this widget carry a `setFont`?" and also
+  asks a source (`Sheet.specOf`) "what rule does it match?". No render site was re-routed, no drawing code
+  changed, the subtree came free from the parent-first descent, and a widget built *after* the rule picks it up
+  because the `gen ^ stamp` check was already contextual. The engine diff for "the sheet can style which widgets"
+  is a payload swap plus a compose function.
+- **(034.2) "Innermost wins" is not a cascade — compose per property, and prove it on the spec's own example.**
+  The plan said a tree rule *outranks* a site rule, which read as wholesale replacement until it was written out:
+  `["*"]={font=body}` + `["window[title=X]"]={color=…}` would have put that window back on the STOCK font, the
+  broad rule cancelled by one that never mentioned fonts. The fix is one `combine(inner, outer)` used at both
+  seams (frame push, site resolve) — and it makes the pre-existing `widget:setFont` level behave the same way,
+  which is a shipped behaviour change worth stating out loud rather than discovering later ([D-076](../decisions/fonts.md)).
+- **(034.2) A composed override must be INTERNED, or the stamp that makes F5 work destroys the frame rate.**
+  `gen()` reports `gen ^ spec.stamp` inside a frame, so a Spec minted per resolve hands every routed site a new
+  generation every frame — a correct feature at 12 FPS, the exact failure F5 warned about. Two levels of
+  interning are load-bearing and they are NOT the same one: the *per-widget* `Resolved` cache is what makes the
+  stamp stable **across frames**, while interning the style per (font handle, colour) is what makes two widgets
+  under one rule **share** a stamp, a foundry and its raster. Falsifying them separately proved it — dropping the
+  second broke only "a widget created after the rule resolves the same thing", which is a checkable claim in a way
+  "it feels slow" is not.
+- **(034.2) Lua cannot read a pixel, but it CAN read what the draw left in the text cache — and that is a real
+  assertion about the draw.** `g:text`'s cache is keyed on `(string, font, Fonts.gen())`, and `Fonts.gen()` is
+  the value the frame stamps, so drawing ONE string in two probe windows and counting `profiling():textcache()
+  .misses` answers three questions a screenshot could not: the frame is in force at the draw (one string, two
+  keys), the stamp is stable (the count stops moving over ~60 frames), and a widget created later joins the same
+  frame (no new key). `textcache()` is pull-only, so none of it needs the profiler armed. Rule of thumb: when a
+  feature is invisible to Lua, look for a cache whose KEY contains the thing you changed.
+- **(034.2) The draw pass now spends 034.1's bounded negative re-check in ~20 frames, not lazily.** The same
+  budget (`Selector.late`, 20, `-Dhaven.addon.stylerecheck=`) that a Lua reader consumed a call at a time is now
+  consumed by the descent asking about every widget every frame — ~0.33 s at 60 fps. It still covers a caption
+  arriving by `uimsg` a tick or two late, but a counter sized for one caller is not sized for another: when a
+  lazy path becomes a per-frame path, re-read every bound written for the lazy one.

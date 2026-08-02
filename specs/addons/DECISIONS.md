@@ -1,6 +1,6 @@
 # Decision Log (ADR-lite) — index
 
-> The decisions (D-001..D-075) live in `decisions/`, split by category — the same shape
+> The decisions (D-001..D-076) live in `decisions/`, split by category — the same shape
 > as `learnings/`. **Never read the whole set**: each line below says which D-numbers a file
 > holds; open only the entry you need (every `### D-xxx — <title>` header doubles as its
 > one-liner — `grep -h "^### D-" decisions/*.md` lists them all). **Adding a decision:**
@@ -16,5 +16,5 @@
 - [virtual-entities](decisions/virtual-entities.md) — client-only ghosts, handles, clickability, gizmo, placement snapping (D-029, D-030, D-031, D-032, D-033)
 - [rendering](decisions/rendering.md) — hafen.render namespace, glTF 2.0 static subset (D-034, D-035)
 - [network-data](decisions/network-data.md) — hafen.json, hafen.http + network allowlist (D-036, D-037)
-- [fonts](decisions/fonts.md) — per-addon font system: private handles + owned overrides, a surface's look is the sheet's and a handle's colour is for your own pixels (D-073) (D-043, D-073)
+- [fonts](decisions/fonts.md) — per-addon font system: private handles + owned overrides, a surface's look is the sheet's and a handle's colour is for your own pixels (D-073), a cascade level takes the properties it names, not the ones it does not (D-076) (D-043, D-073, D-076)
 - [process](decisions/process.md) — spec language, gap build order (D-007, D-026)

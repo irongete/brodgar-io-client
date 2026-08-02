@@ -50,10 +50,17 @@ import java.util.WeakHashMap;
  * render sites changed when the sheet arrived</b> — only who fills the stack.
  *
  * <p><b>Resolution</b> is most-specific first: a <b>per-instance</b> override on the widget being drawn or one of
- * its ancestors (F5, {@link #frame(Widget)}) &rarr; a scope's own override (top of its owner-tagged stack) &rarr; the
- * {@code "default"} override &rarr; the site's stock foundry. So a sheet's {@code ["*"]} rule cascades to every
- * routed surface that has no more-specific rule, a rule keyed on one site refines that surface, and
- * {@code widget:setFont(h)} refines one widget subtree.
+ * its ancestors (F5, {@link #frame(Widget)}) &rarr; the <b>tree rule</b> that widget (or an ancestor) matches
+ * (034.2/C1b — the same frame, filled by {@code io.brodgar.addon.Sheet} instead of by hand) &rarr; a scope's own
+ * override (top of its owner-tagged stack) &rarr; the {@code "default"} override &rarr; the site's stock foundry. So a
+ * sheet's {@code ["*"]} rule cascades to every routed surface that has no more-specific rule, a rule keyed on one
+ * site refines that surface, a rule keyed on a widget refines that widget's subtree, and {@code widget:setFont(h)}
+ * refines one widget subtree by hand.
+ *
+ * <p><b>Every step of that chain composes PER PROPERTY</b> ({@link #combine}), which is what makes it a cascade
+ * rather than a series of replacements: a tree rule that sets only {@code color} leaves the scope rule's font in
+ * place, and a per-instance {@code setFont} leaves the sheet's colour alone. A level only ever takes the properties
+ * it actually names.
  *
  * <p><b>Cost.</b> When no addon has installed <i>any</i> override (the overwhelmingly common case) {@link #foundry}
  * returns the stock foundry after a single {@code volatile} read — no lock, no allocation. Only once an override
@@ -187,6 +194,37 @@ public class Fonts {
     private static volatile int gen = 0;
     private static volatile boolean active = false;   // any override installed anywhere → foundry() takes the slow path
     private static int stampseq = 0;                  // Spec.stamp source (guarded by `Fonts.class`)
+    // addon: (034.2) `inner ⊕ outer` interned by the identity of the two, so the composed Spec -- and therefore its
+    // stamp -- is the SAME object every frame for the same pair. Minting one per resolve would give every routed
+    // site a new generation every frame and rebuild the whole client 60 times a second (the F5 stamp rule).
+    // Guarded by `Fonts.class`, dropped whenever `gen` moves (everything rebuilds then anyway).
+    private static final Map<Spec, Map<Spec, Spec>> combos = new IdentityHashMap<Spec, Map<Spec, Spec>>();
+
+    /**
+     * {@code inner} over {@code outer}, <b>property by property</b>: {@code inner} keeps every property it names and
+     * {@code outer} fills the rest. This is the one place the resolution chain is composed, and the reason a level of
+     * it never silently drops the level beneath — a tree rule of {@code {color=…}} inside a sheet whose {@code ["*"]}
+     * sets the font must not put that subtree back on the stock font. Interned (see {@link #combos}) because the
+     * result's {@link Spec#stamp} has to be stable across frames. Caller need not hold the lock.
+     */
+    private static synchronized Spec combine(Spec inner, Spec outer) {
+        if(inner == null)
+            return outer;
+        if((outer == null) || ((inner.base != null) && (inner.size != null) && (inner.aa != null) && (inner.color != null)))
+            return inner;                 // nothing left for the outer one to fill in
+        Map<Spec, Spec> m = combos.get(inner);
+        if(m == null)
+            combos.put(inner, m = new IdentityHashMap<Spec, Spec>());
+        Spec c = m.get(outer);
+        if(c == null) {
+            m.put(outer, c = new Spec(inner.owner,
+                                      (inner.base  != null) ? inner.base  : outer.base,
+                                      (inner.size  != null) ? inner.size  : outer.size,
+                                      (inner.aa    != null) ? inner.aa    : outer.aa,
+                                      (inner.color != null) ? inner.color : outer.color));
+        }
+        return c;
+    }
 
     /**
      * The provider primitive a routed render site calls (F1: {@code "default"} consumers). Resolves the current
@@ -219,23 +257,22 @@ public class Fonts {
     }
 
     private static synchronized Style resolveStyle(String scope) {
-        Spec o = frameTop();              // F5: a per-instance override outranks every scope
-        if(o != null)
-            return o;
-        o = top(scope);
-        if((o == null) && !"default".equals(scope))
-            o = top("default");           // cascade, exactly as in resolve()
-        return o;
+        return combine(frameTop(), scopeTop(scope));
     }
 
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {
-        Spec o = frameTop();              // F5: a per-instance override outranks every scope
-        if(o == null) {
-            o = top(scope);
-            if((o == null) && !"default".equals(scope))
-                o = top("default");       // cascade: an unset scope falls back to the "default" override
-        }
+        // F5/C1b: the frame (this widget's per-instance override, its tree rule, or an enclosing widget's) outranks
+        // every scope -- but only for the properties it names; combine() lets the scope fill the rest.
+        Spec o = combine(frameTop(), scopeTop(scope));
         return (o == null) ? stock : o.foundry(stock);
+    }
+
+    /** The override a scope resolves to on its own: its own stack, else the {@code "default"} cascade. */
+    private static Spec scopeTop(String scope) {
+        Spec o = top(scope);
+        if((o == null) && !"default".equals(scope))
+            o = top("default");           // cascade: an unset scope falls back to the "default" override
+        return o;
     }
 
     /** The current top-of-stack override for {@code scope}, or {@code null}. Caller holds {@code Fonts.class}. */
@@ -312,16 +349,29 @@ public class Fonts {
      * read → a shared no-op frame).
      */
     public static Frame frame(Widget wdg) {
-        if(!instanced)
-            return NOFRAME;                     // fast path: nobody uses per-instance overrides
-        Spec s = instanceTop(wdg);
+        if(!instanced && !treed)
+            return NOFRAME;                     // fast path: no per-instance override and no tree rule anywhere
+        Spec s = own(wdg);
         if(s == null)
-            return NOFRAME;                     // no override on THIS widget → inherit the enclosing frame
+            return NOFRAME;                     // nothing styles THIS widget → inherit the enclosing frame
         List<Spec> st = frames.get();
         if(st == null)
             frames.set(st = new ArrayList<Spec>(4));
+        if(!st.isEmpty())
+            s = combine(s, st.get(st.size() - 1));   // an enclosing frame still fills what this one does not name
         st.add(s);
         return POPFRAME;
+    }
+
+    /**
+     * The style {@code wdg} itself carries: its per-instance override ({@code widget:setFont}, F5) over the tree rule
+     * it matches (034.2) — {@code null} when neither. Takes no lock of its own: the two sources are consulted one
+     * after the other, never nested, so the tree source's lock is never taken under {@code Fonts.class}.
+     */
+    private static Spec own(Widget wdg) {
+        Spec inst = instanced ? instanceTop(wdg) : null;
+        Spec tree = treed ? treeTop(wdg) : null;
+        return (inst == null) ? tree : combine(inst, tree);
     }
 
     /** The top-of-stack per-instance override for {@code wdg}, or {@code null}. */
@@ -330,9 +380,9 @@ public class Fonts {
         return ((st == null) || st.isEmpty()) ? null : st.get(st.size() - 1);
     }
 
-    /** The innermost per-instance override in force on this thread right now, or {@code null}. */
+    /** The innermost frame style in force on this thread right now, or {@code null}. */
     private static Spec frameTop() {
-        if(!instanced)
+        if(!instanced && !treed)
             return null;
         List<Spec> st = frames.get();
         return ((st == null) || st.isEmpty()) ? null : st.get(st.size() - 1);
@@ -351,7 +401,7 @@ public class Fonts {
         st.add(new Spec(owner, base, size, aa, color));   // re-raise to the top (last applied wins)
         active = true;
         instanced = true;
-        gen++;
+        bumped();
     }
 
     /**
@@ -363,9 +413,68 @@ public class Fonts {
         boolean rm = (st != null) && removeOwnerFrom(st, owner);
         if(rm) {
             prune();
-            gen++;
+            bumped();
         }
         return rm;
+    }
+
+    /* ---- the TREE style source (034.2, C1b) ---------------------------------------------------------------
+     *
+     * A stylesheet key that names WIDGETS rather than a render site (`["window[title=Cupboard]"]`) is resolved per
+     * widget against the live tree by io.brodgar.addon.Sheet, which folds every rule that matches one widget into a
+     * single style. This is where that style meets the draw: the frame the child-draw loop already opens for F5
+     * asks the source for the widget it is about to draw, so a tree rule covers that widget AND its subtree, every
+     * routed site becomes tree-capable with no second edit, and there is no second resolution path to disagree with
+     * this one.
+     *
+     * The source hands back an OPAQUE Style built by treeSpec() below -- a Spec, but the addon layer never says so:
+     * this class keeps carrying no dependency on the addon package, exactly as with the owner tokens. It must be a
+     * CACHE LOOKUP: it is called for every visible widget on every frame.
+     */
+
+    /** The per-widget tree style source (034.2) — installed once by the addon layer; {@code null} in a stock client. */
+    public interface TreeStyles {
+        /** The style {@code wdg} resolves to, as built by {@link Fonts#treeSpec}, or {@code null} for none. */
+        public Style styleFor(Widget wdg);
+    }
+    private static volatile TreeStyles trees = null;
+    private static volatile boolean treed = false;    // any tree rule installed anywhere → frame() asks the source
+
+    /** Install the tree style source (the addon layer, once). */
+    public static void treeStyles(TreeStyles src) {
+        trees = src;
+    }
+
+    /**
+     * The addon layer telling the provider whether <b>any</b> tree rule is installed right now. It is the whole of
+     * what this class knows about the sheet's tree half: with nothing installed, {@link #frame} and {@link #frameTop}
+     * are a {@code volatile} read and the client is byte-for-byte stock again.
+     */
+    public static synchronized void treeActive(boolean any) {
+        treed = any;
+        if(any)
+            active = true;
+        else
+            prune();
+        bumped();
+    }
+
+    /**
+     * Build the provider's own representation of one resolved tree style — the value {@link TreeStyles#styleFor}
+     * hands back. The addon layer <b>interns</b> these per resolved rule set (same rules ⇒ the same object), which is
+     * what makes the {@link Spec#stamp} mixed into {@link #gen()} stable across frames.
+     */
+    public static synchronized Style treeSpec(Object owner, Font base, Integer size, Boolean aa, Color color) {
+        return new Spec(owner, base, size, aa, color);
+    }
+
+    /** {@code wdg}'s resolved tree style, or {@code null}. Takes the source's lock, never {@code Fonts.class}. */
+    private static Spec treeTop(Widget wdg) {
+        TreeStyles src = trees;
+        if(src == null)
+            return null;
+        Style st = src.styleFor(wdg);
+        return (st instanceof Spec) ? (Spec)st : null;
     }
 
     /* ---- the dynamic COMPOSITION scope (F3d amendment) ----------------------------------------------------
@@ -452,7 +561,7 @@ public class Fonts {
         removeOwnerFrom(st, owner);       // an addon owns at most one override per scope
         st.add(new Spec(owner, base, size, aa, color));   // re-raise to the top (last applied wins)
         active = true;
-        gen++;
+        bumped();
     }
 
     /**
@@ -465,7 +574,7 @@ public class Fonts {
         boolean rm = (st != null) && removeOwnerFrom(st, owner);
         if(rm) {
             prune();
-            gen++;
+            bumped();
         }
         return rm;
     }
@@ -483,8 +592,17 @@ public class Fonts {
             rm |= removeOwnerFrom(st, owner);     // addon: (F5) its per-instance overrides go too
         if(rm) {
             prune();
-            gen++;
+            bumped();
         }
+    }
+
+    /**
+     * A rule changed: bump the generation every routed site rebuilds on, and drop the composed specs with it —
+     * they are the OLD chain, and their stamps must not outlive it. Caller holds {@code Fonts.class}.
+     */
+    private static void bumped() {
+        combos.clear();
+        gen++;
     }
 
     private static boolean removeOwnerFrom(List<Spec> st, Object owner) {
@@ -513,7 +631,7 @@ public class Fonts {
             else
                 inst = true;
         }
-        active = any || inst;
+        active = any || inst || treed;   // addon: (034.2) a tree-keys-only sheet still needs the slow path
         instanced = inst;
     }
 

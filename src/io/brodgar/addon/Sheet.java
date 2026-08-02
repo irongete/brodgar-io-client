@@ -11,6 +11,7 @@ import org.luaj.vm2.Varargs;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -43,17 +44,20 @@ import java.util.WeakHashMap;
  *   <li>a <b>tree key</b> — {@code @Class}, {@code [title=…]}, {@code [res=…]}, or a role that classifies a
  *       widget rather than a site ({@code window}, {@code inventory}) — is resolved <b>per widget against the live
  *       tree</b> ({@link #styleOf}, 034.1 / C1b): every tree rule that matches a widget is folded into one
- *       {@link Resolved} style, most specific winning, and {@code widget:style()} reads it back. Nothing is
- *       <i>drawn</i> differently yet — 034.2 widens F5's draw-pass frame to carry that style — so resolution is
- *       for now observable only through Lua, which is exactly the point (030's {@code :res()} lesson, applied
- *       before the fact rather than after).</li>
+ *       {@link Resolved} style, most specific winning, and {@code widget:style()} reads it back. It reaches the
+ *       screen through {@link #specOf} (034.2), which the provider asks for the widget it is about to draw: F5's
+ *       per-instance frame, widened from <i>a handle an addon named by hand</i> to <i>the rule a widget matches</i>,
+ *       so the style covers that widget and its whole subtree and <b>no render site is re-routed</b>.</li>
  * </ul>
  *
  * <p><b>The two key classes never resolve each other's rules.</b> A site key fills the {@link Fonts} provider and
  * reaches a <i>render site</i> — including text no widget owns; a tree key reaches <i>widgets</i>. So
  * {@code widget:style()} answers with the per-widget cascade alone: a site rule is not a property of any one
  * widget (a window contains buttons, labels and chat, each drawn at its own site), and folding one in would make
- * the read a guess. Where both reach the same pixels, 034.2 settles which wins at the draw.
+ * the read a guess. <b>Where both reach the same pixels the tree rule wins</b> (034.2) — the frame is nearer the
+ * draw than the scope stack — but only property by property: what the tree rule does not name, the site rule still
+ * fills, so {@code ["*"] = {font=body}} beside {@code ["window[title=X]"] = {color=…}} paints that window's text in
+ * {@code body}, in that colour.
  *
  * <p><b>Nothing about the render sites changes.</b> Every routed site keeps calling
  * {@code Fonts.foundry(scope, stock)} / {@code Fonts.style(scope)} exactly as it did for
@@ -291,6 +295,13 @@ final class Sheet {
         /** The {@link #treegen} this was resolved at — a bump makes the entry stale on its next touch. */
         final int gen;
         /**
+         * The provider's own view of this style (034.2) — what the draw-pass frame carries, {@code null} on an empty
+         * resolution. <b>Interned per resolved style</b> ({@link #specFor}), so the {@code stamp} the provider mixes
+         * into {@code Fonts.gen()} inside the frame is the same value every frame: a stamp that varied would make
+         * every routed site inside the frame rebuild 60 times a second.
+         */
+        Fonts.Style spec;
+        /**
          * Re-matches left before this <b>negative</b> answer is settled (0 on a positive one, which the rules alone
          * decide). A {@code [title=]} caption arrives by {@code uimsg} and a {@code [res=]} resource resolves
          * asynchronously, so a widget can genuinely start matching a tick after it was first asked about; 030.2 met
@@ -329,6 +340,49 @@ final class Sheet {
     /** How many times a negative answer is re-matched before it settles (030.2's bounded re-check, same default). */
     private static final int LATE_RECHECK =
         Integer.getInteger("haven.addon.stylerecheck", 20).intValue();
+    /**
+     * One {@link Fonts.Style} per distinct resolved style, so widgets that resolve to the same rules share one — and
+     * therefore one stamp (034.2). Keyed on the winning font handle's identity and the winning colour: what the fold
+     * produces is exactly that pair. Cleared with the rules. Guarded by {@code Sheet.class}.
+     */
+    private static final Map<SKey, Fonts.Style> specs = new HashMap<SKey, Fonts.Style>();
+
+    /** The key of {@link #specs}: a resolved style IS its (font handle, colour) pair. */
+    private static final class SKey {
+        final FontHandle font;
+        final Color color;
+
+        SKey(FontHandle font, Color color) {
+            this.font = font;
+            this.color = color;
+        }
+
+        public int hashCode() {
+            return (System.identityHashCode(font) * 31) + ((color == null) ? 0 : color.hashCode());
+        }
+
+        public boolean equals(Object o) {
+            if(!(o instanceof SKey))
+                return false;
+            SKey k = (SKey)o;
+            return (font == k.font) && ((color == null) ? (k.color == null) : color.equals(k.color));
+        }
+    }
+
+    /*
+     * 034.2 — where the tree half meets the DRAW. The provider asks us for the style of the widget it is about to
+     * draw, once per visible widget per frame, and opens F5's frame around it when there is one; so a tree rule
+     * covers that widget and its whole subtree, every already-routed site becomes tree-capable with no second edit,
+     * and there is no second resolution path. Registered once, when this class is first touched — which is
+     * necessarily before any tree rule can exist, since installing one goes through here.
+     */
+    static {
+        Fonts.treeStyles(new Fonts.TreeStyles() {
+            public Fonts.Style styleFor(Widget w) {
+                return specOf(w);
+            }
+        });
+    }
 
     private static synchronized void register(Sheet s) {
         if(s.tree.isEmpty())
@@ -355,8 +409,10 @@ final class Sheet {
         anyTree = tree;
         anyLate = late;
         treegen++;
+        specs.clear();           // the old rules' styles, and their stamps, do not outlive them
         if(!tree)
             cache.clear();       // the last sheet left: hold nothing, so a stock client carries no state at all
+        Fonts.treeActive(tree);  // 034.2: and the provider stops (or starts) asking us at the draw
     }
 
     /**
@@ -383,9 +439,42 @@ final class Sheet {
             }
             Resolved r = fold(w);
             r.recheck = (r.empty() && anyLate) ? left : 0;
+            r.spec = r.empty() ? null : specFor(r.font, r.color);
             cache.put(w, r);
             return r.empty() ? null : r;
         }
+    }
+
+    /**
+     * The style {@code w} resolves to as the <b>provider</b> reads it (034.2) — what the draw-pass frame carries, or
+     * {@code null} for the overwhelmingly common "nothing names this widget". This is the hot path: it is called for
+     * every visible widget on every frame, so it must be, and is, a cache lookup — {@link #styleOf} matches only on a
+     * miss or after the rules changed. Called from the widget draw loop, which holds the {@code ui} monitor.
+     */
+    static Fonts.Style specOf(Widget w) {
+        Resolved r = styleOf(w);
+        return (r == null) ? null : r.spec;
+    }
+
+    /**
+     * The interned {@link Fonts.Style} for one resolved (font, colour) pair — one object per distinct style, however
+     * many widgets resolve to it, because the provider mixes its stamp into {@code Fonts.gen()} while the frame is
+     * open and that value has to be <b>stable across frames</b> (F5's rule: a stamp that varies rebuilds every routed
+     * site every frame). Caller holds {@code Sheet.class}.
+     */
+    private static Fonts.Style specFor(FontHandle font, Color color) {
+        SKey k = new SKey(font, color);
+        Fonts.Style s = specs.get(k);
+        if(s == null) {
+            // No owner token: unlike a site entry, a tree style never joins an owner-tagged stack in the provider —
+            // it is produced on demand and stops existing when the sheet unregisters, which is the whole teardown.
+            specs.put(k, s = Fonts.treeSpec(null,
+                                            (font == null) ? null : font.font,
+                                            (font == null) ? null : font.size,
+                                            (font == null) ? null : font.aa,
+                                            color));
+        }
+        return s;
     }
 
     /**

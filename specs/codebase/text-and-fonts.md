@@ -28,7 +28,9 @@
   `Widget.draw`'s child loop) it XORs in that override's `Spec.stamp`, so it differs *between draw
   sites within one frame*. Fine for the `gen != mygen` compare each site does on its own `Text`;
   **wrong as a global "clear everything" trigger** for a cache shared by several sites, which would
-  then clear on every alternation. Use it as a key component there (026.1).
+  then clear on every alternation. Use it as a key component there (026.1). Since 034.2 that frame
+  also opens for any widget matching a **stylesheet tree rule**, so it is no longer only widgets an
+  addon named by hand — assume any widget may be drawing under a stamped generation.
 - Some text surfaces live in published `.res` code, not in the fork — check before assuming a
   class exists (see the kin-names row).
 - **A foundry's `defcol` is almost never what you see**: nearly every site passes its colour *per

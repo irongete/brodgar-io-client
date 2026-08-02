@@ -101,3 +101,34 @@ it belongs there rather than back on the handle.
 **See.** [D-043](#d-043) (the stack this reuses), [D-072](architecture-api.md) (the other half of the sheet's
 contract), [D-012](architecture-api.md), [033-ui-stylesheet](../033-ui-stylesheet/spec.md),
 [fonts.md](../learnings/fonts.md), [text-and-fonts.md](../../codebase/text-and-fonts.md).
+
+### D-076 — a cascade level takes the properties it names, not the ones it does not ✅ (2026-08-02)
+**Decision.** (034.2.) The font resolution chain — per-instance `widget:setFont` → the **tree rule** covering the
+widget → the site rule → the `*` rule → stock — **composes property by property** instead of the innermost level
+replacing the ones beneath it (`Fonts.combine`, applied both when a draw-pass frame is pushed and when a site
+resolves). A level fills only what it actually names; everything else falls through to the next level down, and
+only what nothing sets falls through to the site's stock.
+**Rationale.** C1b's own headline example refuted the wholesale reading before it shipped:
+`["*"] = {font=body}` beside `["window[title=Cupboard]"] = {color=…}` is the sheet the spec opens with, and
+under "innermost wins whole" that window's text would have gone back to the **stock** font — the broad rule
+silently cancelled by a rule that never mentioned fonts. 034.1 had already settled the same question one level
+down (the tree fold is per property: *"a specific `color` does not take a broad rule's `font`"*), so wholesale
+would have meant one cascade obeying two different rules depending on which pair of levels you looked at.
+**Scope / limits.** This also changes **shipped F5 behaviour**: `widget:setFont(h)` inside a scope that a sheet
+has coloured now keeps that colour instead of reverting the subtree to the site's stock colour. That is the same
+rule, applied to the level that already existed, and it is strictly the more useful answer — a handle carries no
+colour for a surface anyway ([D-073](#d-073)), so there was never a colour of its own to defend. Nested frames
+compose the same way, at push time, so the composition cost is paid once per (inner, outer) pair rather than per
+render site.
+**Alternatives.** Innermost-wins-wholesale (rejected — above; it is also what makes a "cascade" not one).
+Folding the site half into `widget:style()` so the read shows the composed answer (rejected —
+[D-075](widgets-ui.md): a read answers for the thing you point at, and the site half is only decided at the draw,
+where the site is known). Composing at each render site instead of once in the provider (rejected — that is a
+second resolution path, the thing C1b exists to avoid).
+**Consequences.** The composed `Spec` must be **interned by the identity of its two halves**, because
+`Fonts.gen()` mixes the frame's stamp into the generation every routed site compares against: a freshly minted
+composition per resolve would hand every site a new generation every frame and rebuild the whole client sixty
+times a second. The interning table is dropped whenever `gen` moves, so it never outlives the chain it composed.
+**See.** [D-043](#d-043) (the chain), [D-073](#d-073) (whose colour a surface takes),
+[D-075](widgets-ui.md) (why the read stays tree-only), [034-ui-stylesheet-tree](../034-ui-stylesheet-tree/spec.md),
+[fonts.md](../learnings/fonts.md).

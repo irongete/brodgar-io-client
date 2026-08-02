@@ -348,3 +348,17 @@
 - **(034.1) `python - <<EOF` HANGS on this box** — the Store stub reads stdin and never returns (a 2-minute tool
   timeout), which is worse than the known `python -c` no-op. There is no Python here: use `perl -0pi -e`, a
   throwaway Java file, or just the editor.
+- **(034.2) The DRAW seam is headless-testable even though drawing is not — call the frame yourself.** 034.1
+  concluded a suite that builds windows cannot be dry-run; the engine surface beneath it still can, and this time
+  that surface *is* the feature. A same-package probe builds a tree of `new Widget(Coord)` + `new haven.Label`,
+  installs sheets from **real Lua** through `installHafen` on two addons, then does exactly what
+  `Widget.draw`'s child loop does — `try(Fonts.Frame f = Fonts.frame(w)) { Fonts.foundry(scope, stock) }` — and
+  asserts on the returned foundry: its family, its `defcol`, its `fixcol` (package-private → one reflective
+  getter), and its **identity** (`== stock` is "this client is byte-for-byte stock"; `== the previous one` is
+  "nothing re-derived"). 28/28 before the maintainer logged in, covering composition, specificity, teardown and
+  two addons — none of which needs a pixel.
+- **(034.2) Plant the bug you are most afraid of, not a generic one — the two falsifications disagreed, which is
+  the point.** Removing the style interning failed exactly ONE check ("a widget created after the rule still
+  resolves it"); making it mint a Spec per call failed FOUR, the stamp-stability pair among them. Had only the
+  first been tried, the greenness of the stamp checks would have looked like coverage it did not have. A
+  falsification tells you which mechanism guards which claim, so run one per mechanism, not one per file.

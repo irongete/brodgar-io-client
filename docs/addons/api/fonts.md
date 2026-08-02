@@ -168,8 +168,8 @@ A **site key** is a bare selector naming a place the client draws. All of them a
 > finds the widgets whose captions `["button"] = {font=h}` restyles ([roles](ui.md#roles)). The overlap is not
 > 1:1, and the difference is the point: a site key names a **render site**, a role names a **widget**. The
 > global fallback is `*` on both sides; `window` and `inventory` are roles with **no site**, so as sheet keys
-> they are [tree keys](ui.md#tree-keys--resolved-per-widget-not-yet-drawn), resolved per widget rather than at a
-> site; and five site keys —
+> they are [tree keys](ui.md#tree-keys--which-widgets-not-what-kind-of-surface), resolved per widget rather than
+> at a site; and five site keys —
 > `window.title`, `heading`, `tooltip`, `world.nick`, `world.speech` — are valid selectors that **classify no
 > widget**, because a caption is drawn by its window's decoration, a tooltip is painted rather than placed, and
 > the world sites live over the 3D view. Restyling them works; selecting them finds nothing, which is the honest
@@ -177,7 +177,10 @@ A **site key** is a bare selector naming a place the client draws. All of them a
 
 `*` is the broad hammer: it **cascades** to every routed surface with no more-specific rule — so `["*"]` alone
 changes everything, while another key refines any one surface. The resolution order is **most-specific first**:
-[per-instance](#restyle-one-widget--widgetsetfonth) → the site rule → the `*` rule → stock.
+[per-instance](#restyle-one-widget--widgetsetfonth) → the
+[tree rule](ui.md#tree-keys--which-widgets-not-what-kind-of-surface) covering that widget → the site rule → the
+`*` rule → stock. **Each step takes only the properties it names**, so a level never silently drops the one
+beneath it: a tree rule of `{color=…}` inside a sheet whose `["*"]` sets the font keeps that font.
 
 ```lua
 hafen.ui.skin{ ["*"] = { font = h } }                            -- everything routed (incl. captions + buttons)
@@ -332,9 +335,12 @@ n:resetFont()       -- drop it again
 - **It covers the whole subtree.** The client draws parents before children, so an override on a window reaches
   its caption, its labels, its button captions, its list rows — and any widget created inside it *later*. A child
   with an override of its own wins inside itself (innermost first).
-- **It is the top of the chain**: per-instance → the site rule → the `*` rule → stock. Inside an overridden widget
-  the handle wins whatever surface the text belongs to, so it also catches text drawn by the game's **own resource
-  code** (the `.res` tooltip rows) — the one place a site rule could never reach.
+- **It is the top of the chain**: per-instance → the
+  [tree rule](ui.md#tree-keys--which-widgets-not-what-kind-of-surface) → the site rule → the `*` rule → stock.
+  Inside an overridden widget the handle wins whatever surface the text belongs to, so it also catches text drawn
+  by the game's **own resource code** (the `.res` tooltip rows) — the one place a site rule could never reach.
+  It wins the **font** and nothing else: a colour set by a rule beneath it still applies, because every step of
+  the chain takes only the properties it names.
 - **The handle's `color` does not apply here.** A native widget is a client surface, and a surface's colour comes
   from a [sheet rule](ui.md#color--a-surfaces-colour-is-the-sheets); `setFont` takes the family, size and
   antialiasing only. Colouring *one* widget is what C1b's `widget:skin{…}` will be for.
