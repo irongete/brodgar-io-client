@@ -252,10 +252,16 @@ looking at addon A's window holds a *borrowed* widget — which is the correct a
 ### Hiding a native widget carries a restore
 
 `w:hide()` is the one write that answers on a widget you do not own, and it is the important line on this
-page: **hiding a native widget records the restore.** Disabling your addon or `:reload`ing it puts that
-widget back exactly as it was — including leaving it hidden if it was already hidden when you got there.
-A relog correctly skips the restore (that session's widgets are gone). `w:show()` gives it back yourself
-and drops the record.
+page: **hiding a native widget records the restore.** Disabling your addon or `:reload`ing it gives the
+widget back under **one rule — it ends up as the user was seeing it**: visible exactly when whatever you
+put in its place was on screen. Hide something and put nothing there, and it stays hidden on teardown —
+the user was not seeing it, and the toggle you get back (below) is what opens it again. A relog correctly
+skips the restore entirely (that session's widgets are gone). `w:show()` gives it back yourself and drops
+the record.
+
+**One widget, one owner.** A native widget another addon has already hidden is not yours to hide:
+`w:hide()` refuses with an error naming the addon that holds it. Its toggle can only drive one thing, so
+two owners would leave the menu tick lying about both.
 
 A hidden server widget stays fully **live**: still bound to its id, still receiving updates, still filling
 with items. That is why you can hide a grid and keep reading it.
@@ -278,6 +284,11 @@ The toggle is **swallowed** while nothing stands in for the window: pressing the
 tick tells the truth about what is on screen. Giving the widget back gives the toggle back with it — the
 same restore as above, so `w:show()`, disabling your addon and `:reload` all hand the key to the client
 again. That is also the escape hatch for a `w:hide()` typed into the `:lua` console: `:reload`, not a relog.
+
+**With [`replace`](#replacing-a-native-window), the toggle drives your view instead.** Tab and the menu
+button open and close the window *you* built, and the menu tick reads your view's own visibility — so it
+cannot drift out of sync with what is on screen. Nothing to wire: `replace` is the only place that knows
+both halves (the window it hid, and the widget your builder returned), so it binds them itself.
 
 **There is no verb for this** — nothing to register, nothing to release. Ownership follows the hide, and it
 is per window: hiding the inventory leaves equipment, the character sheet, kin, options and the map
@@ -407,8 +418,13 @@ the window itself — such a candidate is re-checked for a short while rather th
 `hafen.ui.replace(type, opts, fn)` finds a server widget by descriptor, hides the native window and calls
 `fn(w)` — which draws a custom view (e.g. a `hafen.ui.window`) and **returns** it. It also scans once for
 an already-open match, so it works whether the window is already open or opens later.
-Disabling/reloading the addon (or the handle's `:remove()`) un-hides the native window, restoring the
-stock UI.
+
+**The client's own toggle comes with the window.** Because `replace` hid it, it [owns
+it](#hiding-a-native-window-takes-its-toggle) — so Tab (or the menu button, or whichever key that window
+uses) opens and closes **your view**, and the menu tick follows your view rather than the hidden window.
+You return the view; that is the whole wiring. Disabling/reloading the addon, or the handle's `:remove()`,
+hands the toggle back and leaves the stock window **as the user was seeing it**: your view was open ⇒ the
+stock window is open; nothing was on screen ⇒ it stays closed.
 
 `fn`'s argument is the ordinary [Widget object](#the-widget-object) for the replaced widget — the same
 value `hafen.ui.node(id)` would give you — so `w:items()`, `w:onItemAdded(…)` and every other verb answer

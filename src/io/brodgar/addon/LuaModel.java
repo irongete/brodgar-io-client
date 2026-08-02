@@ -21,9 +21,10 @@ import haven.Widget;
  *
  * <p><b>Ownership (P2).</b> The model is bridge-owned: it lives in a flat global list (checked each tick by
  * {@link UiApi#pollModels} for a server destroy) plus the addon's owned-resource registry ({@link Addon#models}).
- * It is dropped when the server destroys the widget or when the addon is reloaded/disabled;
- * {@link UiApi#teardownModels} additionally <b>un-hides</b> the window the addon hid, so disabling a
- * UI-replacement addon restores the stock window (spec 08). The {@link #alive} flag makes any late poll a no-op.
+ * It is dropped when the server destroys the widget or when the addon is reloaded/disabled. The <b>un-hide</b> of
+ * the native window — so disabling a UI-replacement addon restores the stock window (spec 08) — is no longer this
+ * class's own bookkeeping: since 031.2 it rides on {@link #hideRecord}, the one hide record per window, and follows
+ * the one rule stated there. The {@link #alive} flag makes any late poll a no-op.
  *
  * <p><b>Threading.</b> Every operation — the replace itself, the per-tick poll, and the teardown un-hide — runs on
  * the UI thread while holding the {@code ui} monitor (the tick/draw/input/hotkey paths all do), so the widget-tree
@@ -34,17 +35,16 @@ public final class LuaModel {
     final int id;          // the server widget id (the desc.id the observer handed out)
     final Widget wdg;      // the adopted, server-bound widget
     boolean alive = true;  // false once the server destroys it or the addon is torn down
-    boolean hidden;        // did WE hide {@link #hideTarget}? (teardown restores only what we hid)
 
     /**
-     * The widget that {@code :hide()}/{@code :show()} and teardown actually toggle. For {@code hafen.ui.adopt}
-     * (3b) it is {@link #wdg} itself (hide the grid). For {@code hafen.ui.replace} (3c) it is the <b>native
-     * window</b> wrapping the widget (the "Inventory" {@code Hidewnd} around {@code maininv}), so replacing hides
-     * the whole stock window, not just its content. {@link #hideTargetOrigVisible} is its visibility before we hid
-     * it, so teardown restores it exactly (a window hidden-by-default is put back to hidden, not shown).
+     * The addon's hide record for the <b>native window</b> wrapping {@link #wdg} — the "Inventory" {@code Hidewnd}
+     * around {@code maininv} — so replacing hides the whole stock window, not just its content. Since 031.2 this
+     * is the SAME record {@code widget:hide()} makes ({@link Addon#hiddenNative}), not a second copy: {@code
+     * replace} is the one place that knows both halves, so it binds {@link #replaceView} to it and the window's
+     * toggle then drives the view. The record also carries the restore, under the one rule — <i>the window ends up
+     * as the user was seeing it</i> ({@link UiApi#teardownHidden}). {@code null} if the window was already owned.
      */
-    Widget hideTarget;
-    boolean hideTargetOrigVisible;
+    LuaWidget.Hidden hideRecord;
 
     /**
      * {@code hafen.ui.replace} only: the addon's custom view (the content behind the {@link LuaWidget} entity its
@@ -59,7 +59,5 @@ public final class LuaModel {
         this.owner = owner;
         this.id = id;
         this.wdg = wdg;
-        this.hideTarget = wdg;                          // adopt: hide the widget itself; replace overrides this
-        this.hideTargetOrigVisible = wdg.visible();
     }
 }

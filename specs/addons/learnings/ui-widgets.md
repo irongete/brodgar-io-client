@@ -353,3 +353,28 @@
   at hide time is the only correct restore, which is exactly what 029's `Hidden.origVisible` already stored.
   Note also that `replace` does **not** use that list: it hides via its own `LuaModel.hideTarget` record, so a
   rule written over `Addon.hiddenNative` covers `w:hide()` and *not* `replace` until the two are joined.
+- **(031.2) That last point is now REFUTED in its second half — `origVisible` was the wrong thing to remember.**
+  "Replay the visibility recorded at hide time" is only right while nothing stands in for the window. Once the
+  toggle drives a **view** (D-069 → D-070), the question teardown must answer is *what was the user seeing*, not
+  *what was the widget*: a custom inventory that is open, on an addon that is then disabled, must leave the STOCK
+  inventory open — even though the wrapper it hid was hidden at the time. The one rule
+  (`view != null && view.visible()`) collapses to the same answer in the canonical unbound case, which is why the
+  031.1 record looked correct: hiding the `Hidewnd` wrapper reads `origVisible == false` and the rule reads
+  `false`. **A remembered state that agrees with a derived one on every case you have tested is not evidence the
+  state is needed** — delete it and derive, or it becomes the second thing that can drift. (The first half of the
+  031.1 note stands: it is still never a blind `show()`.) `replace` was joined to `Addon.hiddenNative` in the same
+  change, so there is one record per window instead of two.
+- **(031.2) `Window.visible()` is animation-aware, and that is what makes the menu tick honest.**
+  `Window` overrides it to `visible && ((animst == null) || (animst == "show"))`
+  ([Window:556](src/haven/Window.java:556)) — `hide()` does NOT clear the `visible` field, it starts a fade and
+  lets the tick call `super.hide()` when the anim finishes. So a window that is fading out already reads
+  `visible() == false`, which is why `wndstate` can read a view's `visible()` directly with no debounce and no
+  bookkeeping boolean. The flip side is the 030 corpse rule from the other direction: *drawn* and *real* are
+  different axes, and `visible()` answers the first.
+- **(031.2) A private helper you cannot call is sometimes cheaper to re-derive than to expose.**
+  `togglewnd` finishes with `raise`/`fitwdg`/`setfocus`, and `GameUI.fitwdg` is private. Widening it would have
+  been a third core edit on a feature that promised two one-liners; the clamp is four lines of arithmetic over
+  public `Widget.c`/`sz`/`parent` (`fitmarg = UI.scale(100)`), so it was re-derived in `UiApi.fitView` — and
+  applied against the *view's own parent*, which is the more correct frame anyway, since an addon window may hang
+  off `ui.root` rather than the HUD. Re-derive when the logic is small, stable and arithmetic; expose when it is
+  behaviour you would be forking.

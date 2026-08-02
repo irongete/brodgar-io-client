@@ -1345,9 +1345,18 @@ public static void onWidgetPlaced(int id, Widget wdg, Widget pwdg, Object[] parg
         }
     }
 
+    /**
+     * How an addon is named to the user — its manifest id ({@code "(console)"} for the {@code :lua} REPL). Used by
+     * {@link #log(Addon, String)} and by any message that has to name <i>another</i> addon, e.g. the 031.2 refusal
+     * when a second addon tries to take a window that is already owned.
+     */
+    static String ownerName(Addon a) {
+        return ((a != null) && (a.manifest != null)) ? a.manifest.id : "addon";
+    }
+
     /** Addon-level output ({@code hafen.log} + handler errors): tagged with the addon id. */
     static void log(Addon owner, String msg) {
-        String id = ((owner != null) && (owner.manifest != null)) ? owner.manifest.id : "addon";
+        String id = ownerName(owner);
         System.out.println("[" + id + "] " + msg);
         UI u = ui;
         if(u != null) {

@@ -298,11 +298,13 @@ public final class LuaWidget {
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "hide"));
                 if(w != null) {
-                    boolean was = w.visible();
+                    boolean borrowed = (ownedContent(owner, w) == null);
+                    if(borrowed)
+                        refuseSecondOwner(owner, w, "widget:hide()");   // 031.2: one window, one owner
                     UI u = AddonManager.ui;
                     synchronized(u) { w.hide(); }
-                    if(ownedContent(owner, w) == null)    // BORROWED: remember to give it back on teardown
-                        recordHidden(owner, w, was);
+                    if(borrowed)                          // BORROWED: remember to give it back on teardown
+                        recordHidden(owner, w);
                 }
                 return self;
             }
@@ -532,20 +534,39 @@ public final class LuaWidget {
     // ---- the hidden-native restore list (029.2, what replaced hafen.ui.adopt) -----------------------
 
     /**
-     * One native widget this addon hid with {@code w:hide()}, plus what it takes to give it back: its server id
-     * (or {@code -1} for a client-only widget) and the visibility it had <b>before</b> the addon touched it.
-     * Recording the original state — rather than blindly showing on teardown — is the {@code replace} lesson:
-     * hiding something that was already hidden must not reveal it later.
+     * One native widget an addon hid with {@code w:hide()} — and, since 031, the record that it <b>owns</b> that
+     * window: its toggle is looked up here ({@link UiApi#toggleWnd}/{@link UiApi#wndState}) and teardown gives
+     * both back. It carries the owner, the widget, and its server id ({@code -1} for a client-only widget, which
+     * is what the {@code Hidewnd} wrappers around {@code maininv}/the equipory are).
+     *
+     * <p><b>The {@link #view} is the whole state of the toggle</b> (031.2). {@code hafen.ui.replace} is the one
+     * place that knows both halves — the window it hid and the widget its builder returned — so it fills this in
+     * itself; a bare {@code w:hide()} leaves it {@code null} and the toggle is simply swallowed. There is no
+     * bookkeeping boolean beside it: "is it open?" is {@code view.visible()}, so the menu checkbox cannot drift
+     * out of sync with what is on screen, and teardown's one rule (<i>the window ends up as the user was seeing
+     * it</i>) reads the same field. That is also why the visibility the window had before the addon touched it is
+     * <b>not</b> recorded any more — the user was not seeing that window, they were seeing the view.
      */
     static final class Hidden {
+        final Addon owner;
         final Widget wdg;
         final int id;
-        final boolean origVisible;
+        AddonWidget view;       // 031.2: the addon's stand-in, or null (a bare w:hide() ⇒ the toggle is swallowed)
 
-        Hidden(Widget wdg, int id, boolean origVisible) {
+        Hidden(Addon owner, Widget wdg, int id) {
+            this.owner = owner;
             this.wdg = wdg;
             this.id = id;
-            this.origVisible = origVisible;
+        }
+
+        /**
+         * The view's top-level widget (its window chrome) while the view is alive, or {@code null} — never bound,
+         * or already destroyed (teardown, the chrome's own X). A dead view stands in for nothing, so the toggle
+         * falls back to swallowing and the tick to {@code false}. Allocates nothing: this is on the frame path.
+         */
+        Widget liveView() {
+            AddonWidget v = view;
+            return ((v == null) || v.dead()) ? null : v.rootw();
         }
     }
 
@@ -574,15 +595,51 @@ public final class LuaWidget {
         anyHidden = any;
     }
 
-    /** Record a BORROWED widget as hidden-by-us (idempotent: the FIRST hide owns the original visibility). */
-    private static void recordHidden(Addon owner, Widget w, boolean origVisible) {
+    /**
+     * Record a BORROWED widget as hidden-by-us and hand back the record — the entry {@code replace} then binds its
+     * view to (031.2). Idempotent for the SAME owner (the first hide wins, and a later {@code replace} of the same
+     * window joins that one record rather than making a second). Returns {@code null} when another live addon
+     * already owns the widget: <b>one window, one owner</b>, because the toggle goes with it and two addons cannot
+     * both drive it. The caller decides how to refuse — {@code w:hide()} throws, {@code replace} skips and logs.
+     *
+     * <p>The addon's own list is checked first, so this is correct even while the addon is still loading and has
+     * not yet joined {@link AddonManager#addons} (which is all {@link UiApi#hiddenOwner} can see).
+     */
+    static Hidden recordHidden(Addon owner, Widget w) {
+        Hidden mine = findHidden(owner, w);
+        if(mine != null)
+            return mine;
+        if(UiApi.hiddenOwner(w) != null)
+            return null;                      // 031.2: somebody else's window
+        UI u = AddonManager.ui;
+        Hidden h = new Hidden(owner, w, (u == null) ? -1 : u.widgetid(w));
+        owner.hiddenNative.add(h);
+        anyHidden = true;                     // 031.1: this addon now owns that window's toggle
+        return h;
+    }
+
+    /**
+     * Refuse a second owner for a native widget somebody else already hid, naming the first (031.2). A hidden
+     * window carries its toggle, and a toggle can only drive one view — so the second addon is stopped here rather
+     * than left to fight over a window whose menu tick would then lie about both. Silent when the widget is free
+     * or already this addon's own.
+     */
+    static void refuseSecondOwner(Addon owner, Widget w, String verb) {
+        Hidden ex = UiApi.hiddenOwner(w);
+        if((ex == null) || (ex.owner == owner))
+            return;
+        throw new LuaError(verb + " — " + typeName(w) + " is already hidden by the addon \""
+            + AddonManager.ownerName(ex.owner) + "\", which owns its toggle too; one window has one owner."
+            + " Disable that addon first, or point at a widget it does not hold.");
+    }
+
+    /** This owner's own record for a widget, or {@code null} (identity-keyed; the list is per-addon tiny). */
+    static Hidden findHidden(Addon owner, Widget w) {
         for(Hidden h : owner.hiddenNative) {
             if(h.wdg == w)
-                return;
+                return h;
         }
-        UI u = AddonManager.ui;
-        owner.hiddenNative.add(new Hidden(w, (u == null) ? -1 : u.widgetid(w), origVisible));
-        anyHidden = true;                     // 031.1: this addon now owns that window's toggle
+        return null;
     }
 
     /** Drop a widget from the restore list — the addon showed it again itself, so teardown has nothing to undo. */

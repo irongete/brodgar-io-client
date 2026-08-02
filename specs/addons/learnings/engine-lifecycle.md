@@ -213,3 +213,10 @@
   record did not merely leave a window hidden, it ate the Tab key until a relog. **When adding any per-owner
   registry, add its `AddonRegistry.reload` sweep for `consoleOwner` in the same commit**, and have the teardown
   tolerate a `null` owner (the REPL owner exists only once someone has typed `:lua`).
+- **(031.2) A teardown step that READS a live object must run before the step that destroys it.** The 031.2 rule
+  ("the window ends up as the user was seeing it") reads the addon's view visibility, and `AddonRegistry.teardown`
+  destroyed that view (`destroyWidgets`) two lines before the restore ran — which would have made the rule answer
+  "closed" every single time, silently and always in the plausible direction. `teardownHidden` now runs **first**.
+  The general shape: teardown lists are usually ordered by *ownership* (drop the leaves, then the roots), but any
+  step whose decision is derived from another owned object is ordered by *data dependency* instead. When adding
+  one, ask what it reads, not just what it frees — the same question the R3b asset order turned on.

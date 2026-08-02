@@ -15,9 +15,9 @@
 | Action search | [:950](src/haven/GameUI.java:950) `place == "menu"` — `srchwnd`, `reqclose(srchwnd::hide).hide()` |
 | Position + visibility prefs | [`savewndpos`](src/haven/GameUI.java:896) writes `wndc-inv/equ/chr/zerg/…`; `wndvis-map` is written at the map toggle ([:1553](src/haven/GameUI.java:1553)) |
 
-**The wrappers are hidden from birth.** `maininv` exists from login; the `Hidewnd` around it does not become
-visible until the user asks. So *"put the inventory back"* is **not** `show()` — restoring it means replaying
-the visibility it actually had, or you hand the user a window they never opened.
+**The wrappers are hidden from birth.** `maininv` exists from login; the `Hidewnd` around it does not. So *"put
+the inventory back"* is **never** a blind `show()` — that hands the user a window they never opened (what it IS:
+D-070, as the user was seeing it).
 
 ## The toggle path (one private method, seven call sites)
 
@@ -36,14 +36,28 @@ the visibility it actually had, or you hand the user a window they never opened.
 **The key and the button are ONE click.** `setgkey(KeyBinding)` ([`Widget`](src/haven/Widget.java:1492)) stores
 `kb_gkey`; a `GlobKeyEvent` matching it reaches the widget's own `gkeytype`, which for an `ACheckBox` simply calls
 `click()`. So there is no separate keyboard path to intercept: **rebinding or consuming the key would still leave
-the mouse button working**, and vice versa. Everything funnels into `togglewnd`, which is why one edit there
-covers all seven call sites.
+the mouse button working**, and vice versa. Everything funnels into `togglewnd` — one edit there covers all seven
+call sites. **`state()` is polled every frame, per checkbox** (`ACheckBox.draw` calls `state.get()`, six of them
+on the HUD), so anything hung off `wndstate` is on the frame path and must be allocation-free.
 
-**`state()` is polled every frame, per checkbox.** `ACheckBox.draw` calls `state.get()`, and there are six such
-suppliers on the HUD. Anything hung off `wndstate` is on the frame path and must be allocation-free.
+**[`show(boolean)`](src/haven/Widget.java:2059) returns its own ARGUMENT**, not whether anything changed (031.2
+correction): `togglewnd`'s `raise`/`fitwdg`/`setfocus` run whenever it is *showing*, never when hiding.
+**[`fitwdg`](src/haven/GameUI.java:1471)** is `private` — it clamps `wdg.c` so at least `fitmarg = UI.scale(100)`
+px (or the widget's own extent) stays inside `GameUI.sz`; four lines of arithmetic over public `c`/`sz`, cheaper
+re-derived (`UiApi.fitView`, against the widget's own parent) than widened.
 
-**[`show(boolean)`](src/haven/Widget.java:2059) returns whether it changed.** `togglewnd` only does `raise`/`fitwdg`/`setfocus` when
-`wnd.show(...)` reports a real transition — do not assume the follow-up always runs.
+## `Window`'s visibility is a small state machine (it wraps show/hide around a fade `Transition`)
+
+| What | Where |
+|---|---|
+| `visible()` — **animation-aware** | [:556](src/haven/Window.java:556) — `visible && ((animst == null) \|\| (animst == "show"))` |
+| `hide()` does **not** clear `visible` | [:591](src/haven/Window.java:591) — starts `animst = "hide"`; [`tick`](src/haven/Window.java:524) calls `super.hide()` when the anim ends |
+| `reqdestroy()` → `animst = "dest"` | [:609](src/haven/Window.java:609) — `tick` destroys at the end (the 030 fading corpse) |
+| `trans` is set on attach | [`added()`](src/haven/Window.java:119) → `initanim()`; `added()` also `setfocus`es a visible window |
+
+**A fading-out window already reads `visible() == false`**, so a menu tick can read one directly, with no
+debounce — *drawn* and *real* are different axes and this answers the first.
+[`RootWidget`](src/haven/RootWidget.java:41) sets `focusctl`, which is why `parent.setfocus(w)` terminates.
 
 ## The addon seam (031)
 
@@ -52,5 +66,5 @@ Two `// addon:` one-liners **inside the two method bodies** — no visibility ch
 window alone), `wndstate` asks [`wndState(wnd)`](src/haven/AddonWidgets.java) (`null` = not owned, read the window
 as usual). Both delegate to `io.brodgar.addon.AddonManager`, so `haven` keeps exactly one file that knows the
 addon layer exists. Ownership is 029's hide record (`Addon.hiddenNative`), matched by **widget identity** — which
-also disposes of the fading-corpse case from [widgets.md](widgets.md#core-tree): a closing window lingers in the
-tree, but it is not the object `GameUI` still holds.
+also disposes of the fading-corpse case from [widgets.md](widgets.md#core-tree). Since 031.2 that record carries
+the addon's **view**, so `toggleWnd` drives it and `wndState` answers `view.visible()`.

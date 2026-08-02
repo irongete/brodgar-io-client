@@ -747,6 +747,8 @@ final class UiApi {
                 m.owner.models.remove(m);
                 if(m.fromReplace != null)     // 3c: the view dies with the native widget (spec 08); notify the replacer
                     m.fromReplace.active.remove(m);
+                releaseHidden(m.hideRecord);  // 031.2: ...and the wrapper's toggle goes back to the client
+                m.hideRecord = null;
                 destroyReplaceView(m);
             }
         }
@@ -865,43 +867,37 @@ final class UiApi {
     }
 
     /**
-     * Tear down every adopted model this addon owns (reload/disable, P2): mark each dead, drop it from the global
-     * poll list, and — critically — <b>restore</b> a window the addon had hidden to its ORIGINAL visibility, so
-     * disabling a UI-replacement addon restores the stock UI (spec 08). "Restore", not blindly "show": a plain
-     * {@code adopt} model hid a visible grid (→ show it), but a {@code replace} model hid the native window (the
-     * {@code Hidewnd} around {@code maininv}), which is hidden-by-default (→ put it back to hidden), so we replay
-     * {@link LuaModel#hideTargetOrigVisible}. Only a still-live server-bound widget is touched (a stale or
-     * already-destroyed one is skipped). The restore is a tree op → done under {@code synchronized(ui)}, like
-     * {@link #destroyWidgets}.
+     * Tear down every adopted model this addon owns (reload/disable, P2): mark each dead and drop it from the
+     * global poll list. That is all it does now — <b>the un-hide moved out</b> (031.2). Restoring the native
+     * window used to live here, replaying the model's own copy of the window's original visibility; since the hide
+     * is one record on {@link Addon#hiddenNative}, {@link #teardownHidden} restores it (under the one rule) and
+     * this method has no tree op left, so it needs no {@code ui} lock either.
      */
     static void teardownModels(Addon a) {
         if(a.models.isEmpty())
             return;
-        final UI u = ui;
         final List<LuaModel> ms = new ArrayList<LuaModel>(a.models);
         a.models.clear();
         models.removeAll(ms);
-        Runnable restore = () -> {
-            for(LuaModel m : ms) {
-                m.alive = false;
-                if(m.hidden && (u != null) && (u.getwidget(m.id) == m.wdg) && (m.hideTarget != null)) {
-                    try {
-                        if(m.hideTargetOrigVisible) m.hideTarget.show(); else m.hideTarget.hide();
-                    } catch(RuntimeException e) { /* best-effort: never abort teardown */ }
-                }
-            }
-        };
-        if(u != null) {
-            synchronized(u) { restore.run(); }
-        } else {
-            restore.run();
+        for(LuaModel m : ms) {
+            m.alive = false;
+            m.hideRecord = null;
         }
     }
 
     /**
      * Give back every NATIVE widget this addon hid with {@code widget:hide()} (029.2, reload/disable, P2) — the
-     * restore that {@code hafen.ui.adopt} used to carry. Each entry replays its ORIGINAL visibility rather than
-     * blindly showing (hiding something already hidden must not reveal it later — the {@code replace} lesson).
+     * restore that {@code hafen.ui.adopt} used to carry — and with it the window's toggle (031).
+     *
+     * <p><b>One rule, no branches: the window ends up as the user was seeing it</b> (031.2). The addon's view was
+     * open ⇒ the stock window opens; nothing was on screen ⇒ it stays closed. That single expression
+     * ({@link #restoreHidden}) covers the bare {@code w:hide()} case too — a window hidden with nothing put in its
+     * place was not being seen, so it stays hidden, and its toggle (handed back here) is what opens it again. A
+     * blind {@code show()} would be wrong the other way: the inventory wrapper is hidden by default, so it would
+     * hand the user a window they never opened.
+     *
+     * <p><b>This must run BEFORE the addon's own widgets are destroyed</b> ({@code AddonRegistry.teardown} orders
+     * it so): the rule reads the view's visibility, and a destroyed view stands for nothing.
      *
      * <p><b>The {@code :lua} REPL is torn down here too</b>, from {@code AddonRegistry.reload} — the REPL owner
      * itself survives a reload, but the windows it hid do not, exactly as its sounds (024.2) and cached text
@@ -922,18 +918,44 @@ final class UiApi {
         a.hiddenNative.clear();
         LuaWidget.recountHidden();      // 031.1: the toggles this addon owned go back to the client
         Runnable restore = () -> {
-            for(LuaWidget.Hidden h : hs) {
-                if(!stillHidable(u, h))
-                    continue;
-                try {
-                    if(h.origVisible) h.wdg.show(); else h.wdg.hide();
-                } catch(RuntimeException e) { /* best-effort: never abort teardown */ }
-            }
+            for(LuaWidget.Hidden h : hs)
+                restoreHidden(u, h);
         };
         if(u != null) {
             synchronized(u) { restore.run(); }
         } else {
             restore.run();
+        }
+    }
+
+    /**
+     * The <b>one teardown rule</b> for a single hide record (031.2): the window ends up as the user was seeing it
+     * — visible exactly when the addon's view was on screen. Skips a record whose widget is no longer the live one
+     * (a relog: the whole old tree is gone, see {@link #stillHidable}). Best-effort; never aborts a teardown.
+     */
+    private static void restoreHidden(UI u, LuaWidget.Hidden h) {
+        if(!stillHidable(u, h))
+            return;
+        Widget view = h.liveView();
+        try {
+            h.wdg.show((view != null) && view.visible());
+        } catch(RuntimeException e) { /* best-effort: never abort teardown */ }
+    }
+
+    /**
+     * Drop ONE hide record and apply the same rule — the live undo path ({@code replacer:remove()}, a server
+     * destroy), where the addon goes on living and only this window goes back. Gives the toggle back with it.
+     */
+    private static void releaseHidden(LuaWidget.Hidden h) {
+        if(h == null)
+            return;
+        h.owner.hiddenNative.remove(h);
+        LuaWidget.recountHidden();
+        UI u = ui;
+        if(u != null) {
+            synchronized(u) { restoreHidden(u, h); }
+        } else {
+            restoreHidden(null, h);
         }
     }
 
@@ -954,7 +976,7 @@ final class UiApi {
      * below are indexed over {@link CopyOnWriteArrayList}s (an enhanced-for would allocate an iterator per
      * checkbox per frame).
      */
-    private static LuaWidget.Hidden hiddenOwner(Widget wnd) {
+    static LuaWidget.Hidden hiddenOwner(Widget wnd) {
         if(!LuaWidget.anyHidden || (wnd == null))
             return null;
         List<Addon> as = AddonManager.addons;
@@ -986,20 +1008,71 @@ final class UiApi {
      * <p><b>A native window you hid is a window you own.</b> {@code MenuCheckBox} calls {@code setgkey}, so the
      * keybinding and the menu button fire the same click and both land here; without this the client would flip
      * {@code visible} back on the very window the addon hid, which is why the stock inventory used to come back
-     * on Tab. With no view bound (031.1: there is none yet) the toggle is simply <b>swallowed</b> — the window
-     * stays hidden and nothing appears. 031.2 makes a bound view the thing the toggle drives.
+     * on Tab.
+     *
+     * <p><b>What the toggle drives is the view</b> (031.2). {@code hafen.ui.replace} binds the widget its builder
+     * returned to the hide record, so Tab and the menu button open and close the addon's own window exactly as
+     * they would the stock one. With nothing bound — a bare {@code w:hide()}, or a view already destroyed — the
+     * toggle is <b>swallowed</b>: the window stays hidden and nothing appears. Either way it is handled.
      */
     static boolean toggleWnd(Window wnd) {
-        return hiddenOwner(wnd) != null;
+        LuaWidget.Hidden h = hiddenOwner(wnd);
+        if(h == null)
+            return false;                     // nobody owns it: the client's own toggle runs, unchanged
+        Widget view = h.liveView();
+        if(view != null)
+            toggleView(view);
+        return true;
     }
 
     /**
      * {@code GameUI.wndstate} asks first (031.1): what should the menu checkbox's tick say? {@code null} = not
-     * owned, read the window as usual. An owned window with no view bound has nothing on screen, so the honest
-     * answer is {@code false} — the tick must not claim a window the user cannot see.
+     * owned, read the window as usual. For an owned window the answer is <b>the view's own visibility</b> (031.2)
+     * — no bookkeeping boolean, so the tick cannot drift out of sync with what is on screen — and {@code false}
+     * when nothing stands in for it, because the tick must not claim a window the user cannot see.
      */
     static Boolean wndState(Window wnd) {
-        return (hiddenOwner(wnd) == null) ? null : Boolean.FALSE;
+        LuaWidget.Hidden h = hiddenOwner(wnd);
+        if(h == null)
+            return null;
+        Widget view = h.liveView();
+        return ((view != null) && view.visible()) ? Boolean.TRUE : Boolean.FALSE;
+    }
+
+    /**
+     * Flip the addon's view, doing to it precisely what {@code GameUI.togglewnd} would have done to the window it
+     * stands in for: {@code show(!visible())}, and when it comes up, raise it, clamp it back on screen and give it
+     * the focus. The clamp is {@code GameUI.fitwdg}'s rule ({@link #fitView}) — that method is private and this
+     * feature adds no core call site, so it is applied against the view's OWN parent, which is the more correct
+     * frame anyway (a view may hang off {@code ui.root} rather than the HUD). Click path, not the frame path.
+     */
+    private static void toggleView(final Widget view) {
+        UI u = ui;
+        Runnable act = () -> {
+            if(!view.show(!view.visible()))
+                return;                       // just closed it: nothing to raise or focus
+            view.raise();
+            fitView(view);
+            if(view.parent != null)
+                view.parent.setfocus(view);
+        };
+        if(u != null) {
+            synchronized(u) { act.run(); }
+        } else {
+            act.run();
+        }
+    }
+
+    /** {@code GameUI.fitwdg}'s off-screen clamp, applied to a widget within its own parent (see {@link #toggleView}). */
+    private static void fitView(Widget w) {
+        Widget p = w.parent;
+        if((p == null) || (p.sz == null) || (w.sz == null) || (w.c == null))
+            return;
+        int marg = UI.scale(100);
+        int x = Math.max(w.c.x, Math.min(0, marg - w.sz.x));
+        int y = Math.max(w.c.y, Math.min(0, marg - w.sz.y));
+        w.c = Coord.of(Math.min(x, p.sz.x - Math.min(marg, w.sz.x)),
+                       Math.min(y, p.sz.y - Math.min(marg, w.sz.y)));
     }
 
     /** Is a restore-list entry still the same live widget? (Server-bound: by id; client-only: by tree reachability.) */
@@ -1171,24 +1244,37 @@ final class UiApi {
 
     /**
      * Adopt the matched server widget as a hidden {@link LuaModel}, hide the native WINDOW around it (so the whole
-     * stock window disappears, not just its content — recording its original visibility for teardown), then call
-     * the addon's {@code fn(model)} builder and keep the view it returns. Runs on the UI thread under {@code
-     * synchronized(ui)} (from {@code onWidgetPlaced}, or the tick-driven reload scan) — the tree ops are locked; the
-     * builder's own {@code hafen.ui.window} re-locks reentrantly.
+     * stock window disappears, not just its content), then call the addon's {@code fn(model)} builder and keep the
+     * view it returns. Runs on the UI thread under {@code synchronized(ui)} (from {@code onWidgetPlaced}, or the
+     * tick-driven reload scan) — the tree ops are locked; the builder's own {@code hafen.ui.window} re-locks
+     * reentrantly.
+     *
+     * <p><b>031.2: the hide is the ONE record, and the view is bound to it.</b> {@code replace} takes (or joins)
+     * the same {@link Addon#hiddenNative} entry {@code widget:hide()} makes, so the window it hides is a window it
+     * <i>owns</i> — toggle included — and then fills that record's view with whatever the builder returned. That is
+     * the whole wiring: nothing for the addon to call, no second copy of the hide to keep in step, and the menu
+     * checkbox reads the view rather than a bookkeeping boolean. A window another addon already owns is refused
+     * here, naming it (the engine path cannot throw into Lua, so this one logs and skips).
      */
     private static void fireReplace(final LuaReplacer r, int id, Widget wdg) {
         final UI u = ui;
         if(u == null)
             return;
+        final Widget nativeWin = nativeWindowOf(wdg);   // the wrapper (e.g. the "Inventory" Hidewnd), or the widget itself
+        LuaWidget.Hidden ex = hiddenOwner(nativeWin);
+        if((ex != null) && (ex.owner != r.owner)) {
+            log(r.owner, "hafen.ui.replace: " + LuaWidget.typeName(nativeWin) + " is already hidden by the addon \""
+                + ownerName(ex.owner) + "\", which owns its toggle too; one window has one owner, so this"
+                + " replacement was skipped");
+            return;
+        }
+        assertToggleTarget(r.owner, wdg, nativeWin);
         final LuaModel m = new LuaModel(r.owner, id, wdg);
         m.fromReplace = r;
-        final Widget nativeWin = nativeWindowOf(wdg);   // the wrapper (e.g. the "Inventory" Hidewnd), or the widget itself
-        m.hideTarget = nativeWin;
-        m.hideTargetOrigVisible = nativeWin.visible();
+        m.hideRecord = LuaWidget.recordHidden(r.owner, nativeWin);
         synchronized(u) {
             nativeWin.hide();
         }
-        m.hidden = true;
         models.add(m);
         r.owner.models.add(m);
         r.handled.add(Integer.valueOf(id));
@@ -1202,6 +1288,28 @@ final class UiApi {
         // the addon's own content widget directly (the same thing the old handle's :destroy() reached through Lua).
         // Anything else the builder may return (nil, a table) simply leaves no view to destroy, as before.
         m.replaceView = LuaWidget.ownedContent(r.owner, LuaWidget.live(LuaWidget.resolve(view)));
+        if(m.hideRecord != null)
+            m.hideRecord.view = m.replaceView;   // 031.2: from here on the client's own toggle drives the view
+    }
+
+    /**
+     * Check — rather than assume — that the window {@code replace} just hid is the object {@code GameUI} toggles
+     * (031.2). Two ways it can fail to be one, both reported and neither fatal: the widget has no enclosing
+     * {@link Window} at all (nothing for a toggle to own — the view is then the addon's to show and hide), and,
+     * for the main inventory, the wrapper not being {@code maininv.parent}, which is what {@code togglewnd(invwnd)}
+     * is called with. On the normal path both are silent, so an in-game replace that logs nothing has proved the
+     * identity the seam rests on.
+     */
+    private static void assertToggleTarget(Addon owner, Widget wdg, Widget nativeWin) {
+        if(!(nativeWin instanceof Window)) {
+            log(owner, "hafen.ui.replace: " + LuaWidget.typeName(wdg) + " is not inside a window, so there is no"
+                + " client toggle to take over — showing and hiding your view is yours to drive");
+            return;
+        }
+        GameUI g = gui();
+        if((g != null) && (wdg == g.maininv) && (nativeWin != g.maininv.parent))
+            log(owner, "hafen.ui.replace: internal — the hidden window is not the main inventory's own wrapper, so"
+                + " the client's Tab toggle will not follow this replacement");
     }
 
     /** The nearest enclosing {@link Window} of a widget (or the widget itself if none) — the native window to hide. */
@@ -1242,19 +1350,17 @@ final class UiApi {
         r.active.clear();
     }
 
-    /** Undo one active replacement (live {@code :remove()}): drop the model, restore the native window, destroy the view. */
+    /**
+     * Undo one active replacement (live {@code :remove()}): drop the model, give the native window and its toggle
+     * back under the one rule, then destroy the view. The order is load-bearing — the rule reads the view's
+     * visibility, so it has to be asked before the view is killed.
+     */
     private static void undoReplace(LuaModel m) {
         m.alive = false;
         models.remove(m);
         m.owner.models.remove(m);
-        final UI u = ui;
-        if(m.hidden && (u != null) && (u.getwidget(m.id) == m.wdg) && (m.hideTarget != null)) {
-            synchronized(u) {
-                try {
-                    if(m.hideTargetOrigVisible) m.hideTarget.show(); else m.hideTarget.hide();
-                } catch(RuntimeException e) { /* best-effort */ }
-            }
-        }
+        releaseHidden(m.hideRecord);    // 031.2: as the user was seeing it — view open ⇒ the stock window opens
+        m.hideRecord = null;
         destroyReplaceView(m);
     }
 
@@ -1266,6 +1372,8 @@ final class UiApi {
     private static void destroyReplaceView(LuaModel m) {
         AddonWidget v = m.replaceView;
         m.replaceView = null;
+        if(m.hideRecord != null)
+            m.hideRecord.view = null;   // 031.2: the toggle has nothing left to drive (it swallows again)
         if(v == null)
             return;
         m.owner.widgets.remove(v);

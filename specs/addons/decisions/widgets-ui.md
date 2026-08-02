@@ -280,3 +280,38 @@ better features), [D-041](#d-041) (no pinning — ownership is derived, not held
 [`031-window-lifecycle/plan.md`](../031-window-lifecycle/plan.md),
 [`specs/codebase/gameui-windows.md`](../../codebase/gameui-windows.md) (the seam and its seven call sites),
 [learnings/ui-widgets.md](../learnings/ui-widgets.md).
+
+### D-070 — a restore replays what the user was SEEING, not what the widget was
+
+**Context.** 029 recorded, per hidden native widget, the visibility it had *before* the addon touched it, and
+teardown replayed that (`Hidden.origVisible`) — the right answer at the time, because the alternative on the table
+was a blind `show()`, which hands the user a window they never opened (the `Hidewnd` wrappers are created hidden).
+031 then gave a hidden window's **toggle** to its owner (D-069) and 031.2 gave that toggle a **view** to drive, at
+which point "what was the widget?" and "what was the user looking at?" stopped being the same question: an addon
+whose custom inventory is open, then disabled, should leave the *stock* inventory open — even though the wrapper it
+hid was hidden at the time.
+
+**Decision.** **One rule, no branches: the window ends up as the user was seeing it** (maintainer, 2026-08-02).
+Teardown, `replacer:remove()` and a server destroy all restore visibility as `view != null && view.visible()` —
+the addon's stand-in was on screen ⇒ the stock window opens; nothing was on screen ⇒ it stays closed. `origVisible`
+is **deleted**, not kept as a fallback: a second remembered state is a second thing to drift, and the canonical
+unbound case (hiding the inventory wrapper, which is hidden from birth) evaluates to exactly the same answer, so
+the branch bought nothing. The corollary on the live side is the same principle: `wndstate` answers
+`view.visible()` rather than a bookkeeping boolean, so the menu tick cannot disagree with the screen. Rejected: an
+engine-side open/closed flag per owned window, and keeping `origVisible` for the unbound case (two rules, and the
+one the maintainer would hit is whichever they did not read).
+
+**Consequences.** `replace` stops keeping a hide record of its own — it joins the one `Addon.hiddenNative` entry
+`w:hide()` makes and binds its view to it, so there is exactly one record per window and no second copy to keep in
+step. Ordering becomes load-bearing where it was not: a rule that *reads a live object* must run before that object
+is destroyed, so `teardownHidden` now precedes `destroyWidgets`. And a real behaviour change ships with it: a bare
+`w:hide()` on something that WAS visible now stays hidden through a `:reload` instead of coming back — correct
+under the rule (nothing was standing in for it), and recoverable, because the toggle handed back with it is what
+opens it again. **One window, one owner** follows from the same place: a toggle can drive one view, so a second
+addon hiding an already-hidden native widget is refused, naming the first (`w:hide()` throws; `replace`, which runs
+on the engine's placement path and must not throw into it, logs and skips).
+
+**See.** [D-069](#d-069) (hiding takes the toggle — this gives it something to drive),
+[D-009](#d-009) (wrap, don't reimplement), [`031-window-lifecycle/spec.md`](../031-window-lifecycle/spec.md),
+[learnings/ui-widgets.md](../learnings/ui-widgets.md),
+[`specs/codebase/gameui-windows.md`](../../codebase/gameui-windows.md).

@@ -108,9 +108,12 @@ public final class AddonRegistry {
             /* isolation is per-handler in callLua; this is just a backstop */
         }
         StoreApi.flush(a);                     // ...then persist them (spec 05: flushed at OnDisable)
+        UiApi.teardownHidden(a);      // 029.2/031.2: give back every native widget the addon hid — and its toggle —
+                                      //   under the one rule: the window ends up as the user was seeing it. BEFORE
+                                      //   destroyWidgets: the rule reads the view's visibility, and a destroyed
+                                      //   view stands for nothing.
         destroyWidgets(a);            // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
-        UiApi.teardownModels(a);            // 3c: drop replace models + restore the native window each one hid
-        UiApi.teardownHidden(a);            // 029.2: give back every native widget the addon hid with widget:hide()
+        UiApi.teardownModels(a);            // 3c: drop the replace models (the un-hide above is the whole restore)
         UiApi.teardownWatches(a);           // 029.3: stop watching every container the addon subscribed to (no onDestroy)
         HookApi.teardownHooks(a);         // 2c: deafen input hooks (engine widgets outlive a :reload — must detach)
         HookApi.teardownActionHooks(a);   // 2d: unregister action hooks from the outbound-wdgmsg dispatch map

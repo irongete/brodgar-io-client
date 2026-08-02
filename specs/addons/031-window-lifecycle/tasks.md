@@ -14,7 +14,7 @@
       nothing appears and the tick stays off; Equipment/Character/Kin/Options/map still toggle exactly as
       stock; with no addon loaded the client is unchanged; `:reload` gives the window back.
 
-- [ ] **031.2 — `replace` drives the view, and the one teardown rule.**
+- [x] **031.2 — `replace` drives the view, and the one teardown rule.**
       `LuaWidget.Hidden` gains a nullable **view** field; `replace` fills it with the widget its builder
       returned — the only place that knows both halves. With a view bound, `toggleWnd` does
       `view.show(!view.visible())` + `raise`/`fitwdg`/`setfocus` and `wndState` answers `view.visible()`:
