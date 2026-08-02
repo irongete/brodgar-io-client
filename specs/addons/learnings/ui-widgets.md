@@ -332,3 +332,10 @@
   placement seam say "this can never match" versus "this does not match *yet*" — only the latter is queued for a
   bounded re-check (20 ticks), so a `.res`/late-captioned window fires exactly once instead of never. Without that
   split the choice is a permanent re-check list or a silently missed match.
+- **(030.3) A window's chrome is a CHILD widget, so hovering the frame never gives you the window.**
+  `hafen.ui.at()` over a Cupboard's border/title bar resolves to its **decoration** (`@DefaultDeco`, role `nil`),
+  not to the `Window` — the same fact that makes `window.title` classify nothing (a caption is drawn by
+  `Window.Deco`, 030.1) seen from the hit-testing side. `[title=]` still resolves *through* it, because the rule is
+  "the nearest enclosing `Window`", so the deco is perfectly addressable as `@DefaultDeco[title=Cupboard]` — but any
+  tool that turns a hover into "the widget you meant" must expect the deco and offer the parent hop. Verified
+  in-game: the selector inspector reports exactly that, and the offered selector round-trips.

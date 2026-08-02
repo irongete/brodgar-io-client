@@ -247,3 +247,13 @@
   deleting `items.md` and rewriting `ui.md`'s sections moved several more. Markdown link rot is invisible until
   someone clicks. A ~30-line script that slugs every heading and resolves every `](path#anchor)` under
   `docs/addons/` catches the lot in a second — run it as the last step of any docs sweep, not as a spot check.
+- **(030.3) A tool that hands you a string must prove the string works, by running it.** The selector inspector
+  builds its candidates from the hovered widget's own parts (role · `@Class` · `[title=]` · `[res=]`), but it keeps
+  only the ones it has just **resolved with `hafen.ui.all()` and found the widget inside** — so it cannot offer a
+  selector that does not come back. That one rule paid for itself three ways: it makes the offer's promise literally
+  true; it absorbs any drift between the tool's Lua re-derivation of a key (`[title=]` walked via `role()=="window"`)
+  and the engine's own (`instanceof Window`); and it forces the honest form — `hafen.ui(sel)` only when the widget is
+  the **first** match, `hafen.ui.all(sel)[i]` otherwise, because "first match" is what `hafen.ui(sel)` means.
+  Generating a plausible string and trusting it would have been half the code and wrong at exactly the moments that
+  matter. The cost is bounded because the enumeration is over parts that exist (3 walks for a plain widget, 7 with a
+  title, ≤15 for an item) and it runs on a **hover change**, never per frame.

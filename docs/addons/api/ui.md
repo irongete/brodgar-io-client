@@ -161,6 +161,26 @@ widgets whose code ships inside a resource (`ui/rchan`, `ui/vlg`). **Windows do 
 windows are plain Java classes with no resource behind them. So in practice: `[res=]` for items and
 meters, `[title=]` for windows. `w:res()` tells you what a widget actually carries.
 
+#### Don't guess — the inspector tells you
+
+Nobody guesses a widget's role. The bundled **`widgetstack`** addon answers it by hovering: its bottom panel
+reports the hovered widget's **role** (or an honest `nil`), its **class**, its `[title=]` and its `[res=]`,
+and then **every selector that actually matches it**, most specific first, with how many widgets each one
+matches and where this one falls among them. The bottom line is ready to paste into `:lua` — it is
+`hafen.ui("…")` when this widget is the **first** match and `hafen.ui.all("…")[i]` when it is not, because
+`hafen.ui(sel)` means *first match*. Every offered selector is resolved before it is offered, so it always
+hands back the widget you were pointing at.
+
+Click a row (or run `:selector`) to log the line — chat-log text is selectable, which is how it reaches your
+editor. Freeze the stack first (`widgetstack`'s `freeze` hotkey), or moving the mouse to the window
+re-hovers.
+
+One thing the inspector makes obvious: **hovering a window's frame does not give you the window.** The
+chrome — border, title bar, close button — is the window's *decoration*, a child widget of its own, so the
+hover resolves to that (`@DefaultDeco`, role `nil`) and not to the `Window`. `[title=]` still resolves
+through it, so the deco is addressable; but for the window itself, click one level up in the stack, or just
+write `window[title=…]`.
+
 #### Hold the result — do not re-select every frame
 
 `hafen.ui.all("*")` walks the whole tree: about **0.08 ms for 625 widgets**. Once per event, or once when
@@ -421,7 +441,8 @@ The efficiency guard is the point: `OnUpdate` fires every frame, but the expensi
 (it covers "still hovering nothing" too, since `nil == nil`). Reading the cursor + geometry is client-side
 data (**ungated**); acting on the resolved widget still goes through the gated
 [`hafen.act.raw`](actions.md) on its `:id()`. The bundled **`widgetstack`** addon is a full `/framestack`
-clone built on exactly this.
+clone built on exactly this — and it hangs the [selector inspector](#dont-guess--the-inspector-tells-you)
+off the same hover, which is the cheapest way to learn what a widget is and how to name it.
 
 ### Overlay / observer handles
 

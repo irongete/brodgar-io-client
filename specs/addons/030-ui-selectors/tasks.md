@@ -25,7 +25,7 @@
       a late-captioned window still fires once and only once; with no subscription the profiler shows the seam
       costing nothing; `hello`'s old `onWidgetCreate` use is ported.
 
-- [ ] **030.3 — the inspector (`widgetstack`).**
+- [x] **030.3 — the inspector (`widgetstack`).**
       Hovering shows, per widget: **role**, class, `[title=]` and `[res=]` where they exist, the selectors that
       match it and **which is most specific** — plus a copyable selector string for the hovered widget. Reuses
       015's `at()`/`rootpos()` and 029's `==` hover guard; no new addon.
