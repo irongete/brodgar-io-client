@@ -235,3 +235,20 @@
   separate `if not leaf and not last then return end` for "still hovering nothing". Once entities are interned
   both are one line: `if leaf == last then return end`. `:same()` existed *only* because nothing was interned —
   when a section goes OOP, look for the identity helper it can now delete, not just the reads it gains.
+- **(029.2) A weak intern cache forbids per-handle state — derive it or lose it.** OWNED-vs-BORROWED was going
+  to be a flag set when `hafen.ui.window{}` minted the entity. It cannot be: the cache is weak on both axes
+  (D-064), so the handle is collected the moment Lua drops it and the next `hafen.ui.at(x,y)` mints a fresh
+  one — with the flag gone. Derivation was already sitting in the tree: an `AddonWidget` records its owner and
+  its `root`, so "is `w` owned by addon A" is "is `w`, or a direct child of `w`, A's live content whose root is
+  `w`" — two field reads, correct forever, and per-addon for free (D-065). The general rule: an interned handle
+  may hold only what it can re-derive, or `==` stops meaning "same entity".
+- **(029.2) Arity-as-verb needs a rule for the dead case, and the answer is "chain silently".** `:pos()` reads,
+  `:pos(x,y)` writes — but a stale widget has nothing to move, and a write is not a question, so erroring would
+  force every call site to guard `:exists()` first. A write on a stale entity is a **no-op that still returns
+  self**; the OWNED check runs only on a live widget, because a dead widget's provenance is no longer knowable
+  from the tree (it left it). Reads keep answering `nil`/empty; only `:exists()` always answers.
+- **(029.2) The chrome, not the content, is the entity — and `pack()` distinguishes them.** `hafen.ui.window{}`
+  builds two widgets: a `haven.Window` and the addon's `AddonWidget` inside it. The Lua entity is interned on
+  the **root** (the chrome, or the bare widget when there is no chrome), because that is what the addon
+  positions, shows and destroys; `:size(w,h)` still resizes the **content** and then repacks the chrome around
+  it. `content != root` is the whole "is this a window?" test — no `isWindow` flag survives.

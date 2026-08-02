@@ -45,6 +45,16 @@ import java.util.WeakHashMap;
  * classic {@code WeakHashMap} self-reference leak); a value cleared while its widget is still alive is simply
  * replaced on the next lookup.
  *
+ * <p><b>Owned vs borrowed (029.2).</b> The same type covers a widget the addon <i>created</i>
+ * ({@code hafen.ui.window{}}/{@code widget{}} — OWNED) and one it merely <i>found</i> (a native widget, or another
+ * addon's — BORROWED). Every read answers on both, and so does the one visibility write ({@code :hide()}/
+ * {@code :show()}); the geometry writes ({@code :pos(x,y)}/{@code :size(w,h)}), {@code :pack()} and
+ * {@code :destroy()} are OWNED-only and raise a clear error otherwise — the geometry one naming layout (feature E)
+ * rather than half-working. Provenance is <b>derived from the tree</b> ({@link #ownedContent}), never stored on the
+ * handle, because the cache below may collect and re-mint an entity at any moment. {@code :hide()} on a BORROWED
+ * widget records it on the addon's restore list ({@link Addon#hiddenNative}) and teardown gives it back — that,
+ * and not a separate handle type, is what {@code hafen.ui.adopt} used to be for.
+ *
  * <p><b>Liveness is {@code hasparent(ui.root)}</b> (the node rule, not the model's {@code getwidget(id) != wdg},
  * which only covers server-bound widgets). A widget detached from the tree is stale: every read answers
  * {@code nil}/empty, {@code :exists()} is {@code false}, and the handle <b>nulls its {@link #wdg} reference on
@@ -146,10 +156,14 @@ public final class LuaWidget {
     }
 
     /**
-     * The method set (029.1: the READS — creation, the geometry writes and {@code :items()} arrive in 029.2/029.3).
-     * Every reader re-reads through the widget and answers {@code nil}/empty once it is stale; {@code :exists()}
-     * always answers. The metatable is per-addon, so the closures can capture the {@code owner} the child
-     * handles, the walk callback and the font override all need.
+     * The method set (029.1 the reads + 029.2 creation, geometry and visibility; {@code :items()} arrives in
+     * 029.3). Every reader re-reads through the widget and answers {@code nil}/empty once it is stale;
+     * {@code :exists()} always answers. The metatable is per-addon, so the closures can capture the {@code owner}
+     * the child handles, the walk callback, the font override and the OWNED/BORROWED test all need.
+     *
+     * <p><b>Writes on a stale widget are a silent no-op that still chains</b> — there is nothing to move, size or
+     * destroy, and refusing would make every write site guard {@code :exists()} first. The OWNED check runs only
+     * on a live widget, for the same reason: a dead widget's provenance is no longer knowable from the tree.
      */
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
@@ -193,18 +207,43 @@ public final class LuaWidget {
                 return (p == null) ? LuaValue.NIL : of(owner, p);
             }
         });
-        // pos() — {x=,y=} position within the parent (widget-local px). 029.2 adds the :pos(x,y) write arity.
-        m.set("pos", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        // pos() / pos(x, y) — ARITY IS THE VERB (the 018 options shape, 029.2): no args READS the position within
+        // the parent as {x=,y=} (widget-local px); two numbers MOVE the widget and chain on self. The write is
+        // OWNED-only — on a native widget it raises the layout error (feature E). :move() is hard cut.
+        m.set("pos", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:pos() → narg 1 · w:pos(x,y) → narg 3
+                LuaValue self = a.arg1();
                 Widget w = live(handle(self, "pos"));
-                return ((w == null) || (w.c == null)) ? LuaValue.NIL : xyTable(w.c);
+                if(a.narg() < 3)
+                    return ((w == null) || (w.c == null)) ? LuaValue.NIL : xyTable(w.c);
+                Coord to = Coord.of(a.checkint(2), a.checkint(3));
+                if(w != null) {
+                    owned(owner, w, "pos(x, y)", true);
+                    UI u = AddonManager.ui;
+                    synchronized(u) { w.move(to); }
+                }
+                return self;
             }
         });
-        // size() — {x=,y=}. 029.2 adds the :size(w,h) write arity.
-        m.set("size", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        // size() / size(w, h) — same arity rule: read {x=,y=}, or RESIZE and chain. The write resizes the addon's
+        // CONTENT and repacks the chrome around it (so a window's frame follows), and is OWNED-only.
+        m.set("size", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:size() → narg 1 · w:size(w,h) → narg 3
+                LuaValue self = a.arg1();
                 Widget w = live(handle(self, "size"));
-                return ((w == null) || (w.sz == null)) ? LuaValue.NIL : xyTable(w.sz);
+                if(a.narg() < 3)
+                    return ((w == null) || (w.sz == null)) ? LuaValue.NIL : xyTable(w.sz);
+                Coord to = Coord.of(a.checkint(2), a.checkint(3));
+                if(w != null) {
+                    AddonWidget content = owned(owner, w, "size(w, h)", true);
+                    UI u = AddonManager.ui;
+                    synchronized(u) {
+                        content.resize(to);
+                        if(content != w)                  // a window: refit the chrome around the resized content
+                            w.pack();
+                    }
+                }
+                return self;
             }
         });
         // visible() — is it currently drawn? False once stale.
@@ -212,6 +251,67 @@ public final class LuaWidget {
             public LuaValue call(LuaValue self) {
                 Widget w = live(handle(self, "visible"));
                 return LuaValue.valueOf((w != null) && w.visible());
+            }
+        });
+        // show() / hide() — the one visibility write, and the ONLY write that answers on a native widget (029.2).
+        // Hiding a NATIVE widget registers it on the addon's restore list, so :reload/disable puts it back exactly
+        // as it was (UiApi.teardownHidden) — that is what replaces hafen.ui.adopt, which used to hide a window just
+        // so you could read it. A hidden server widget stays bound to its id (still receiving uimsg/addchild), so it
+        // remains a perfectly live model. :show() gives it back and drops the record. Both chain.
+        m.set("hide", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "hide"));
+                if(w != null) {
+                    boolean was = w.visible();
+                    UI u = AddonManager.ui;
+                    synchronized(u) { w.hide(); }
+                    if(ownedContent(owner, w) == null)    // BORROWED: remember to give it back on teardown
+                        recordHidden(owner, w, was);
+                }
+                return self;
+            }
+        });
+        m.set("show", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "show"));
+                if(w != null) {
+                    UI u = AddonManager.ui;
+                    synchronized(u) { w.show(); }
+                    dropHidden(owner, w);                 // restored by hand: teardown has nothing left to undo
+                }
+                return self;
+            }
+        });
+        // pack() — shrink the chrome to fit its content. OWNED-only; a no-op for a bare hafen.ui.widget (a leaf has
+        // no children to fit). Chains.
+        m.set("pack", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "pack"));
+                if(w != null) {
+                    AddonWidget content = owned(owner, w, "pack()", false);
+                    if(content != w) {
+                        UI u = AddonManager.ui;
+                        synchronized(u) { w.pack(); }
+                    }
+                }
+                return self;
+            }
+        });
+        // destroy() — remove a widget this addon created (its chrome and everything in it) and drop it from the
+        // owned registry. OWNED-only: a native widget is the client's, and killing it is not the addon's to do.
+        m.set("destroy", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Widget w = live(handle(self, "destroy"));
+                if(w != null) {
+                    AddonWidget content = owned(owner, w, "destroy()", false);
+                    UI u = AddonManager.ui;
+                    synchronized(u) { content.kill(); }
+                    owner.widgets.remove(content);
+                }
+                return LuaValue.NIL;
             }
         });
         // text() — best-effort text for a text-bearing widget (Label/Button/Window/TextEntry), else nil.
@@ -231,11 +331,13 @@ public final class LuaWidget {
                 return LuaValue.valueOf(live(handle(self, "exists")) != null);
             }
         });
-        // info() — the one SNAPSHOT escape hatch ({type,id,pos,size,visible,text}), for logging/serialising. An
-        // absent value is simply an unset key; nil for a stale widget (there is nothing to snapshot).
+        // info() — the one SNAPSHOT escape hatch ({type,id,pos,size,visible,text,owned}), for logging/serialising.
+        // An absent value is simply an unset key; nil for a stale widget (there is nothing to snapshot). `owned`
+        // is the provenance 029.2 introduced — true iff THIS addon created the widget, i.e. iff the write verbs
+        // answer on it — and it is how you ask instead of provoking the error.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return snapshot(live(handle(self, "info")));
+                return snapshot(owner, live(handle(self, "info")));
             }
         });
         // walk(fn) — depth-first: fn(widget, depth) on this widget, then its children; return false to PRUNE the
@@ -302,6 +404,96 @@ public final class LuaWidget {
             throw new LuaError("widget:" + method + "() — use a COLON call on a Widget object"
                 + " (hafen.ui.root(), hafen.ui.node(id), hafen.ui.at(x, y))");
         return h;
+    }
+
+    // ---- provenance: OWNED vs BORROWED (029.2) -----------------------------------------------------
+
+    /**
+     * The addon's own {@link AddonWidget} behind an <b>OWNED</b> widget — {@code null} when {@code w} is
+     * <b>BORROWED</b> (a native widget, or another addon's). This is what decides whether the geometry writes,
+     * {@code :pack()} and {@code :destroy()} answer.
+     *
+     * <p><b>Derived, never stored.</b> The intern cache is weak on both axes, so an entity can be collected and
+     * re-minted at any time; a provenance flag on the handle would silently be lost. Instead the tree itself is
+     * the record: {@code hafen.ui.window{}}/{@code widget{}} intern the entity on the widget's <b>root</b> (the
+     * chrome, or the content itself), and an {@link AddonWidget} already knows both its {@link AddonWidget#profOwner
+     * owner} and its {@link AddonWidget#rootw root} — so {@code w} is owned exactly when {@code w} is, or directly
+     * contains, this addon's content whose root is {@code w}. Per-addon by construction: addon B looking at addon
+     * A's window gets a BORROWED entity, which is the correct answer.
+     */
+    static AddonWidget ownedContent(Addon owner, Widget w) {
+        if(w == null)
+            return null;
+        if(w instanceof AddonWidget)
+            return isOwn(owner, (AddonWidget)w, w) ? (AddonWidget)w : null;
+        for(Widget c = w.child; c != null; c = c.next) {   // the chrome case: our content is a direct child
+            if((c instanceof AddonWidget) && isOwn(owner, (AddonWidget)c, w))
+                return (AddonWidget)c;
+        }
+        return null;
+    }
+
+    /** Is {@code c} this addon's live content, rooted at {@code root}? (A killed widget owns nothing any more.) */
+    private static boolean isOwn(Addon owner, AddonWidget c, Widget root) {
+        return (c.profOwner() == owner) && (c.rootw() == root) && !c.dead();
+    }
+
+    /**
+     * The OWNED content behind {@code w}, or a clear error naming what the addon may do instead. Two messages,
+     * because the two refusals mean different things: a geometry write on a native widget is <b>layout</b>, a
+     * later feature (E) — not something the addon should half-do through a raw {@code move()}; while
+     * {@code :pack()}/{@code :destroy()} on a native widget is simply not the addon's to do at all.
+     */
+    private static AddonWidget owned(Addon owner, Widget w, String verb, boolean geometry) {
+        AddonWidget c = ownedContent(owner, w);
+        if(c == null)
+            throw new LuaError("widget:" + verb + " — " + typeName(w) + " is a NATIVE widget (your addon did not"
+                + " create it); " + (geometry
+                    ? "moving or resizing native widgets is layout, a later feature (E). widget:pos() and"
+                      + " widget:size() READ any widget, and widget:hide()/:show() work on any widget too."
+                    : ":pack()/:destroy() answer only on a widget you created with hafen.ui.window{} or"
+                      + " hafen.ui.widget{}."));
+        return c;
+    }
+
+    // ---- the hidden-native restore list (029.2, what replaced hafen.ui.adopt) -----------------------
+
+    /**
+     * One native widget this addon hid with {@code w:hide()}, plus what it takes to give it back: its server id
+     * (or {@code -1} for a client-only widget) and the visibility it had <b>before</b> the addon touched it.
+     * Recording the original state — rather than blindly showing on teardown — is the {@code replace} lesson:
+     * hiding something that was already hidden must not reveal it later.
+     */
+    static final class Hidden {
+        final Widget wdg;
+        final int id;
+        final boolean origVisible;
+
+        Hidden(Widget wdg, int id, boolean origVisible) {
+            this.wdg = wdg;
+            this.id = id;
+            this.origVisible = origVisible;
+        }
+    }
+
+    /** Record a BORROWED widget as hidden-by-us (idempotent: the FIRST hide owns the original visibility). */
+    private static void recordHidden(Addon owner, Widget w, boolean origVisible) {
+        for(Hidden h : owner.hiddenNative) {
+            if(h.wdg == w)
+                return;
+        }
+        UI u = AddonManager.ui;
+        owner.hiddenNative.add(new Hidden(w, (u == null) ? -1 : u.widgetid(w), origVisible));
+    }
+
+    /** Drop a widget from the restore list — the addon showed it again itself, so teardown has nothing to undo. */
+    private static void dropHidden(Addon owner, Widget w) {
+        for(Hidden h : owner.hiddenNative) {
+            if(h.wdg == w) {
+                owner.hiddenNative.remove(h);
+                return;
+            }
+        }
     }
 
     // ---- liveness + the reads ----------------------------------------------------------------------
@@ -375,14 +567,16 @@ public final class LuaWidget {
 
     /**
      * A Widget snapshot — {@code widget:info()}, the escape hatch for logging/serialising:
-     * {@code {type,id,pos,size,visible,text}}. Expressed over the same accessors the methods use, so there is one
-     * source of truth per field; an absent value is simply an unset key.
+     * {@code {type,id,pos,size,visible,text,owned}}. Expressed over the same accessors the methods use, so there is
+     * one source of truth per field; an absent value is simply an unset key. {@code owned} is per-addon (029.2):
+     * the same widget is {@code owned=true} for the addon that created it and {@code false} for every other one.
      */
-    static LuaValue snapshot(Widget w) {
+    static LuaValue snapshot(Addon owner, Widget w) {
         if(w == null)
             return LuaValue.NIL;
         LuaTable t = new LuaTable();
         t.set("type", LuaValue.valueOf(typeName(w)));
+        t.set("owned", LuaValue.valueOf(ownedContent(owner, w) != null));
         int id = w.wdgid();
         if(id >= 0)
             t.set("id", LuaValue.valueOf(id));

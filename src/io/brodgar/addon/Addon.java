@@ -92,7 +92,8 @@ public final class Addon {
      */
     public final List<LuaWidgetObserver> widgetObservers = new CopyOnWriteArrayList<LuaWidgetObserver>();
     /**
-     * Live adopted widget models owned by this addon ({@code hafen.ui.adopt}, Phase 3b): each wraps a live
+     * Live replaced widget models owned by this addon ({@code hafen.ui.replace}, Phase 3c — {@code hafen.ui.adopt}
+     * was deleted by 029.2, so this is now reached only through a replacer): each wraps a live
      * server-bound widget (by id) so the addon can hide it as a headless model + present a custom view (D-009).
      * They live in a flat global list in {@link AddonManager} (polled each tick for item add/remove + server
      * destroy); teardown marks each dead, drops it from that list, and <b>un-hides</b> any widget the addon had
@@ -100,6 +101,17 @@ public final class Addon {
      * or drop a model mid-poll.
      */
     public final List<LuaModel> models = new CopyOnWriteArrayList<LuaModel>();
+    /**
+     * Native widgets this addon has <b>hidden</b> with {@code widget:hide()} (029.2) — the restore list that
+     * replaced {@code hafen.ui.adopt}. Hiding a widget the addon does not own is the one write that reaches the
+     * client's own UI, so it is bridge-owned like everything else: {@link UiApi#teardownHidden} replays each
+     * entry's ORIGINAL visibility on {@code :reload}/disable, guarded on the widget still being the same live one
+     * (so a relog — which rebinds {@code ui} before the teardown loop — correctly skips it while a same-session
+     * {@code :reload} performs it). {@code widget:show()} drops its own entry: nothing left to undo. Distinct from
+     * {@link #models}, which is {@code replace}'s bookkeeping and hides the enclosing <i>wrapper</i> instead —
+     * the two rules are deliberately not merged. Copy-on-write like the other owned lists.
+     */
+    public final List<LuaWidget.Hidden> hiddenNative = new CopyOnWriteArrayList<LuaWidget.Hidden>();
     /**
      * Live widget replacers owned by this addon ({@code hafen.ui.replace}, Phase 3c): each watches for a server
      * widget matching a descriptor (by type/context/caption), then adopts it as a hidden {@link LuaModel} and

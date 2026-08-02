@@ -66,12 +66,12 @@ public final class LuaModel {
     boolean hideTargetOrigVisible;
 
     /**
-     * {@code hafen.ui.replace} only: the addon's custom view handle (what the {@code fn(model)} builder returned),
-     * and the replacer that created this model. The view is auto-destroyed and the replacer notified when the model
-     * dies (server-destroy in {@link AddonManager#pollModels}, or {@code :remove()}). {@code null} for a plain
-     * {@code adopt} model.
+     * {@code hafen.ui.replace} only: the addon's custom view (the content behind the {@link LuaWidget} entity its
+     * {@code fn(model)} builder returned — 029.2; it used to be that builder's table handle), and the replacer that
+     * created this model. The view is auto-destroyed and the replacer notified when the model dies (server-destroy
+     * in {@link UiApi#pollModels}, or {@code :remove()}). {@code null} if the builder returned no view.
      */
-    LuaValue replaceView;
+    AddonWidget replaceView;
     LuaReplacer fromReplace;
 
     LuaValue onItemAdded, onItemRemoved, onDestroy;   // lifecycle callbacks (null = unset)

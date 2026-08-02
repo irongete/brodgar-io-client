@@ -89,6 +89,18 @@ final class AddonWidget extends Widget implements DropTarget {
         this.root = (root != null) ? root : this;
     }
 
+    /**
+     * The top-level widget this content lives under — the window chrome, or this widget itself for a bare
+     * {@code hafen.ui.widget}. It is the widget the Lua entity is interned on (029.2), so
+     * {@link LuaWidget#ownedContent} recognises an OWNED entity by matching it: {@code w} is owned by an addon
+     * exactly when {@code w} is (or directly contains) that addon's content whose {@code root} is {@code w}.
+     * Derived, not stored on the handle — the intern cache is weak on both axes, so a re-minted entity must be
+     * able to rediscover its own provenance.
+     */
+    Widget rootw() {
+        return root;
+    }
+
     /** Already torn down? (guards a double kill from close-button + teardown.) */
     boolean dead() {
         return dead;

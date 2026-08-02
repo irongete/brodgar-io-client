@@ -513,3 +513,26 @@ when copying an interning cache, ask how many of the keyed thing can exist at on
 outliving its subject is a feature or a leak — the answer, not the precedent, picks the map.
 **See.** [D-041](widgets-ui.md), [D-044/D-045](architecture-api.md), [D-012](architecture-api.md),
 [029-widget-oop](../029-widget-oop/plan.md), [ui-widgets.md](../learnings/ui-widgets.md).
+
+### D-065 — per-entity state that a weak intern cache would lose must be DERIVED, not stored ✅ (2026-08-02)
+**Decision.** The Widget entity's **provenance** — OWNED (the addon created it with `hafen.ui.window{}`/
+`widget{}`) vs BORROWED (a native widget, or another addon's) — is computed from the widget tree on every
+ask (`LuaWidget.ownedContent`), never written onto the handle when it is minted. A widget is owned by an
+addon exactly when it *is*, or directly contains, that addon's `AddonWidget` whose recorded `root` is it.
+**Rationale.** The cache behind the entity is weak on both axes ([D-064](architecture-api.md)): a Lua value
+the addon stops holding is collected, and the next `hafen.ui.at(x, y)` over the same widget mints a *fresh*
+handle. A flag set at creation time would therefore be true for as long as the addon happened to keep the
+value and silently false afterwards — a bug that reproduces only under GC pressure, i.e. never on the
+maintainer's machine and always on a busy one. Interning makes handles interchangeable **only** if they
+carry no state of their own; the moment one does, `==` stops meaning "same entity". The tree already knew
+the answer (an `AddonWidget` records its owner and its root), so the derivation is a field read, not a
+search — and it falls out **per-addon** for free, which a global registry would have had to encode.
+**Consequences.** Anything the entity answers must be re-derivable from the engine object it wraps: that is
+why `:info().owned` is a snapshot field rather than a stored one, and why the write verbs check ownership
+per call instead of at mint time. The one thing that genuinely cannot be derived — *did this addon hide
+that native widget?* — is deliberately kept **off** the handle, in the addon's own restore list
+(`Addon.hiddenNative`), where its lifetime is the addon's and not the garbage collector's. Read forward:
+before adding a field to an interned handle, ask what happens when the cache re-mints it; if the answer is
+"wrong value", the field belongs to the wrapped object, to the owner, or to a snapshot — not to the handle.
+**See.** [D-064](architecture-api.md), [D-044/D-045](architecture-api.md), [D-041](widgets-ui.md),
+[029-widget-oop](../029-widget-oop/spec.md), [ui-widgets.md](../learnings/ui-widgets.md).

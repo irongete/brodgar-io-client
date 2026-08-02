@@ -15,7 +15,7 @@
       **Verify:** `jshell` on a bare `new haven.Widget(Coord)` (interning, `==`, staleness, no-pin), then
       in-game `widgetstack` with `:same()` replaced by `==`, plus the profiler numbers.
 
-- [ ] **029.2 — owned vs borrowed: creation, geometry, and the end of `adopt`.**
+- [x] **029.2 — owned vs borrowed: creation, geometry, and the end of `adopt`.**
       `hafen.ui.window{}`/`widget{}` return the same entity, tagged OWNED. Geometry becomes
       arity-as-verb — `:pos()`/`:size()` read, `:pos(x,y)`/`:size(w,h)` write and chain; `:move()` cut.
       OWNED-only verbs (`:destroy`, `:pack`, the geometry writes) raise a clear error on a BORROWED

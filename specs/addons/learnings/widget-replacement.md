@@ -90,3 +90,20 @@
   (destroy). Track the view as `LuaModel.replaceView` (the Lua handle `fn` returned) and destroy it by calling its
   own `:destroy()` (idempotent); a server-destroy in `pollModels` does the same (spec 08 "the view dies with the
   model"). The replacer holds an `active` list + a `handled` id-set so a re-scan/placement never double-fires.
+- **(029.2) `adopt` was never a capability, only a side effect — deleting it left one honest verb.** Its whole
+  job was "give me a readable handle on a native widget", and it charged a hidden window for it. Once every
+  widget is an interned entity, `hafen.ui.node(id)` already hands that back with nothing hidden, so what was
+  left of `adopt` is just `w:hide()`. Hiding a widget the addon does **not** own now records it on
+  `Addon.hiddenNative` and `UiApi.teardownHidden` gives it back on `:reload`/disable; `w:show()` drops its own
+  record. The restore replays the **original** visibility rather than blindly showing — hiding something that
+  was already hidden must not reveal it later, the same lesson `replace` learned with `hideTargetOrigVisible`.
+- **(029.2) The relog-vs-`:reload` guard generalises, but the id test does not.** `replace`'s restore guards on
+  `getwidget(id) == wdg`, which works because `AddonManager.init` binds the NEW session's `ui` *before* the
+  teardown loop. A widget hidden through `w:hide()` may be **client-only** (`widgetid` = −1), so the guard is
+  two-branch: by id when server-bound, else `hasparent(u.root)` against the live root. Both fail after a relog
+  (old tree, new root) and both hold within a session — the intent survives, the single test does not.
+- **(029.2) A builder that used to return a table of closures now returns userdata — check every `istable()`.**
+  `hafen.ui.replace`'s `fireReplace` kept the view as `view.istable() ? view : null` and destroyed it by calling
+  the handle's Lua `:destroy()`. With `hafen.ui.window{}` returning the entity that test silently yields `null`
+  and the custom view leaks on every undo. It now resolves the entity to its `AddonWidget` and kills it in Java.
+  When a handle changes representation, grep for the type predicates that were guarding it, not just its methods.

@@ -165,28 +165,10 @@ final class UiApi {
                 return newWidgetObserver(owner, fn);
             }
         });
-        // hafen.ui.adopt(id) — adopt a live SERVER widget by its id (the desc.id an onWidgetCreate observer hands
-        // out) as a MODEL (spec 08 / Phase 3b): keep the real, server-bound widget as a hidden model and present
-        // your own view over it — "wrap, don't reimplement" (D-009). Returns a model handle, or nil if no widget
-        // has that id (e.g. it was already destroyed). The handle:
-        //   :hide() / :show()      -- toggle the widget's visibility (chainable). A HIDDEN server widget stays
-        //                             bound to its id, so it keeps receiving item adds / updates — a headless model.
-        //   :visible()             -- is it currently visible?
-        //   :raw()                 -- the server widget id (a WidgetRef); the facade-safe escape hatch.
-        //   :items()               -- array of Item snapshots (same shape as hafen.items.inventory) off the
-        //                             widget's WItem children; empty for a non-inventory widget. READ-ONLY:
-        //                             item verbs (take/drop/transfer/use) are gameplay actions -> the gated
-        //                             actions tier (Phase 4, D-010/D-025), not here.
-        //   :onItemAdded(fn)/:onItemRemoved(fn)  -- fn(item) when an item enters/leaves (poll-diffed each tick).
-        //   :onDestroy(fn)         -- fn() once when the SERVER destroys the widget (the view must die with it).
-        // Bridge-owned (P2): :reload/disable drops the model and UN-HIDES anything it hid (restoring the stock UI).
-        // Adopt from an onWidgetCreate observer (which fires as the widget is built); re-finding an ALREADY-open
-        // window by type/descriptor is hafen.ui.replace (Phase 3c).
-        uiT.set("adopt", new OneArgFunction() {
-            public LuaValue call(LuaValue id) {
-                return newModel(owner, id);
-            }
-        });
+        // hafen.ui.adopt(id) is GONE (029.2). It only ever existed to get a readable handle on a native widget, and
+        // it charged you a hidden window for the privilege. Now every widget IS an entity: hafen.ui.node(id) hands
+        // you the same one WITHOUT hiding anything, and widget:hide() (which records the restore, see below) is the
+        // separate, explicit act it always should have been. Replacing a native window is still hafen.ui.replace.
         // hafen.ui.replace(type, opts, fn) — the high-level "replace a native window with your own view" sugar over
         // 3a (observe) + 3b (adopt), spec 08 / Phase 3c. It watches for a SERVER widget matching a descriptor, then
         // adopts the real widget as a hidden MODEL and calls fn(model); fn draws a custom VIEW (e.g. a hafen.ui.window)
@@ -226,12 +208,20 @@ final class UiApi {
         //   :visible()       -- boolean
         //   :text()          -- best-effort text for text-bearing widgets (Label/Button/Window/TextEntry), else nil
         //   :exists()        -- is it still in the tree? (the one read that always answers)
-        //   :info()          -- the snapshot escape hatch {type,id,pos,size,visible,text}
+        //   :info()          -- the snapshot escape hatch {type,id,pos,size,visible,text,owned}
         //   :walk(fn)        -- depth-first: fn(widget, depth); return false to PRUNE the subtree
         //   :at(coord)       -- W2: the DEEPEST Widget object under a {x=,y=} root-coord point WITHIN this subtree
         //   :rootpos()       -- W2: {x=,y=} its top-left in root coords (with :size() = a highlight box)
-        // READ-ONLY: to ACT, read a server-bound widget's :id() and pass it to the gated hafen.act.raw (D-025) — no
-        // new action surface, no new gate (reading the tree is ungated client-side data).
+        //   :hide() / :show()-- the ONE write that answers on a native widget. Hiding one you do not own records
+        //                       the restore, so :reload/disable puts it back exactly as it was (029.2).
+        // OWNED-ONLY (a widget YOUR addon created with hafen.ui.window{} / hafen.ui.widget{}); on a native widget
+        // each raises a clear error, the geometry ones naming layout (feature E):
+        //   :pos(x, y)       -- move + chain (arity is the verb, the 018 shape; :move() is GONE)
+        //   :size(w, h)      -- resize the content (+ repack a window's chrome) + chain
+        //   :pack()          -- shrink the chrome to fit (no-op for a bare widget) + chain
+        //   :destroy()       -- remove it and drop it from the addon's owned registry
+        // Otherwise READ-ONLY: to ACT on the GAME, read a server-bound widget's :id() and pass it to the gated
+        // hafen.act.raw (D-025) — no new action surface, no new gate (reading the tree is ungated client-side data).
         uiT.set("root", new ZeroArgFunction() {
             public LuaValue call() { return nodeRoot(owner); }
         });
@@ -264,6 +254,7 @@ final class UiApi {
         if(consoleOwner != null) {
             consoleOwner.models.clear();
             consoleOwner.replacers.clear();
+            consoleOwner.hiddenNative.clear();   // 029.2: last session's widgets are gone; nothing left to restore
         }
     }
 
@@ -317,52 +308,10 @@ final class UiApi {
         rootw.c = Coord.of(px, py);      // initial position (set before attach)
         parent.add(rootw);               // add() locks on ui; content ticks/draws from the next frame
         owner.widgets.add(content);
-        return uiHandle(owner, content, rootw, isWindow);
-    }
-
-    /**
-     * The Lua handle for a {@link #newUi} element: {@code :move/:show/:hide/:visible/:pack/:size/:destroy}.
-     * Geometry ops target the root (the window chrome, or the widget); {@code :size} resizes the content
-     * (and repacks a window). {@code :pack} is a no-op for a bare widget (a leaf has no children to fit).
-     * Handle methods are safe to call after teardown (they act on a detached widget).
-     */
-    private static LuaValue uiHandle(final Addon owner, final AddonWidget content, final Widget rootw,
-                                     final boolean isWindow) {
-        LuaTable h = new LuaTable();
-        h.set("move", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                rootw.move(Coord.of(a.arg(2).toint(), a.arg(3).toint()));
-                return a.arg1();          // return the handle for chaining (win:move(..):show())
-            }
-        });
-        h.set("show", new VarArgFunction() {
-            public Varargs invoke(Varargs a) { rootw.show(); return a.arg1(); }
-        });
-        h.set("hide", new VarArgFunction() {
-            public Varargs invoke(Varargs a) { rootw.hide(); return a.arg1(); }
-        });
-        h.set("visible", new ZeroArgFunction() {
-            public LuaValue call() { return LuaValue.valueOf(rootw.visible()); }
-        });
-        h.set("pack", new VarArgFunction() {
-            public Varargs invoke(Varargs a) { if(isWindow) rootw.pack(); return a.arg1(); }
-        });
-        h.set("size", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                content.resize(Coord.of(a.arg(2).toint(), a.arg(3).toint()));
-                if(isWindow)
-                    rootw.pack();
-                return a.arg1();
-            }
-        });
-        h.set("destroy", new ZeroArgFunction() {
-            public LuaValue call() {
-                content.kill();
-                owner.widgets.remove(content);
-                return LuaValue.NIL;
-            }
-        });
-        return h;
+        // 029.2: what you CREATE and what you FIND are the same type. The entity is interned on the ROOT (the window
+        // chrome, or the bare widget) — the widget the addon positions, shows and destroys — and LuaWidget derives
+        // OWNED from the tree, so hafen.ui.at(x,y) over this same window hands back this very value.
+        return LuaWidget.of(owner, rootw);
     }
 
     // ------------------------------------------------------------- custom UI overlays (hafen.ui, 2b)
@@ -459,33 +408,15 @@ final class UiApi {
     // -------------------------------------------------------------- adopted widget models (hafen.ui, 3b)
 
     /**
-     * Adopt a live server widget as a {@link LuaModel} ({@code hafen.ui.adopt(id)}, spec 08 / Phase 3b): look the
-     * widget up by its server id ({@code desc.id}), wrap it, register it globally (polled each tick) + in the
-     * addon's owned-resource registry (P2), and return the Lua handle. Returns {@code nil} when no widget has that
-     * id (it may have been destroyed) — the caller tests it the idiomatic way. A non-number id is a clear error.
-     */
-    private static LuaValue newModel(final Addon owner, LuaValue idv) {
-        if(!idv.isnumber())
-            throw new LuaError("hafen.ui.adopt(id) expects a widget id (number)");
-        UI u = ui;
-        if(u == null)
-            return LuaValue.NIL;
-        int id = idv.toint();
-        Widget w = u.getwidget(id);
-        if(w == null)
-            return LuaValue.NIL;                 // no server widget with that id (already destroyed, etc.)
-        LuaModel m = new LuaModel(owner, id, w);
-        models.add(m);
-        owner.models.add(m);
-        return modelHandle(m);
-    }
-
-    /**
-     * The Lua handle for an adopted {@link LuaModel}: {@code :hide/:show/:visible/:raw/:items} +
-     * {@code :onItemAdded/:onItemRemoved/:onDestroy}. Geometry-free (a model is the real widget, not our chrome);
-     * the mutating item verbs are deliberately absent (gated actions tier, Phase 4). Every method no-ops safely
-     * once the model is dead (server-destroyed or torn down). The colon-call convention passes {@code self} as
-     * arg1, so a callback setter reads {@code arg(2)} and returns arg1 (the handle) for chaining.
+     * The Lua handle for a {@code replace}d {@link LuaModel}: {@code :hide/:show/:visible/:items/:node} +
+     * {@code :onItemAdded/:onItemRemoved/:onDestroy}. Since 029.2 this is reached ONLY through
+     * {@code hafen.ui.replace} — {@code hafen.ui.adopt} is gone, and with it {@code :raw()} (it was
+     * {@code widget:id()} under another name; {@code model:node():id()} answers it). Geometry-free (a model is the
+     * real widget, not our chrome); the mutating item verbs are deliberately absent (gated actions tier, Phase 4).
+     * Every method no-ops safely once the model is dead (server-destroyed or torn down). The colon-call convention
+     * passes {@code self} as arg1, so a callback setter reads {@code arg(2)} and returns arg1 for chaining.
+     * <b>029.3 replaces this handle with the Widget entity itself</b>, once {@code :items()} and the three
+     * lifecycle callbacks move onto it.
      */
     private static LuaValue modelHandle(final LuaModel m) {
         LuaTable h = new LuaTable();
@@ -503,9 +434,6 @@ final class UiApi {
         });
         h.set("visible", new ZeroArgFunction() {
             public LuaValue call() { return LuaValue.valueOf(m.alive && m.hideTarget.visible()); }
-        });
-        h.set("raw", new ZeroArgFunction() {
-            public LuaValue call() { return LuaValue.valueOf(m.id); }   // the server id: a facade-safe WidgetRef (P1)
         });
         h.set("items", new ZeroArgFunction() {
             public LuaValue call() {
@@ -527,8 +455,9 @@ final class UiApi {
         h.set("onDestroy", new VarArgFunction() {
             public Varargs invoke(Varargs a) { m.onDestroy = fnOrNull(a.arg(2)); return a.arg1(); }
         });
-        // :node() — sugar for hafen.ui.node(model:raw()): the Widget OBJECT for this model's server widget (029.1),
-        // so an addon can walk the adopted widget's full child tree generically. nil once the model is dead.
+        // :node() — the Widget OBJECT for this model's server widget (029.1): the entity every other hafen.ui entry
+        // point hands back, so an addon can read, walk and hit-test the replaced widget generically (and read its
+        // :id(), which is what :raw() used to be). nil once the model is dead.
         h.set("node", new ZeroArgFunction() {
             public LuaValue call() {
                 return m.alive ? LuaWidget.of(m.owner, m.wdg) : LuaValue.NIL;
@@ -630,6 +559,46 @@ final class UiApi {
         } else {
             restore.run();
         }
+    }
+
+    /**
+     * Give back every NATIVE widget this addon hid with {@code widget:hide()} (029.2, reload/disable, P2) — the
+     * restore that {@code hafen.ui.adopt} used to carry. Each entry replays its ORIGINAL visibility rather than
+     * blindly showing (hiding something already hidden must not reveal it later — the {@code replace} lesson).
+     *
+     * <p><b>The guard decides relog vs {@code :reload}.</b> {@code AddonManager.init} binds the NEW session's
+     * {@code ui} <i>before</i> the teardown loop, so after a relog a server-bound entry's id no longer maps to the
+     * recorded widget (and a client-only one is no longer under the live root) — the restore is correctly skipped,
+     * the old tree being gone entirely. Within one session both tests still hold and the widget is put back.
+     * Tree ops → under the {@code ui} monitor, like {@link #teardownModels}.
+     */
+    static void teardownHidden(Addon a) {
+        if(a.hiddenNative.isEmpty())
+            return;
+        final UI u = ui;
+        final List<LuaWidget.Hidden> hs = new ArrayList<LuaWidget.Hidden>(a.hiddenNative);
+        a.hiddenNative.clear();
+        Runnable restore = () -> {
+            for(LuaWidget.Hidden h : hs) {
+                if(!stillHidable(u, h))
+                    continue;
+                try {
+                    if(h.origVisible) h.wdg.show(); else h.wdg.hide();
+                } catch(RuntimeException e) { /* best-effort: never abort teardown */ }
+            }
+        };
+        if(u != null) {
+            synchronized(u) { restore.run(); }
+        } else {
+            restore.run();
+        }
+    }
+
+    /** Is a restore-list entry still the same live widget? (Server-bound: by id; client-only: by tree reachability.) */
+    private static boolean stillHidable(UI u, LuaWidget.Hidden h) {
+        if((u == null) || (u.root == null))
+            return false;
+        return (h.id >= 0) ? (u.getwidget(h.id) == h.wdg) : h.wdg.hasparent(u.root);
     }
 
     // -------------------------------------------------- generic widget-tree introspection (hafen.ui, W1, spec 20)
@@ -814,8 +783,11 @@ final class UiApi {
         r.owner.models.add(m);
         r.handled.add(Integer.valueOf(id));
         r.active.add(m);
-        LuaValue view = callLua(r.owner, Addon.C_WIDGET, r.builderFn, modelHandle(m)).arg1();   // fn(model) -> the addon's view handle
-        m.replaceView = ((view != null) && view.istable()) ? view : null;
+        LuaValue view = callLua(r.owner, Addon.C_WIDGET, r.builderFn, modelHandle(m)).arg1();   // fn(model) -> the addon's view
+        // 029.2: the builder's hafen.ui.window{} now returns the Widget ENTITY, not a table of closures — so keep
+        // the addon's own content widget directly (the same thing the old handle's :destroy() reached through Lua).
+        // Anything else the builder may return (nil, a table) simply leaves no view to destroy, as before.
+        m.replaceView = LuaWidget.ownedContent(r.owner, LuaWidget.live(LuaWidget.resolve(view)));
     }
 
     /** The nearest enclosing {@link Window} of a widget (or the widget itself if none) — the native window to hide. */
@@ -872,14 +844,26 @@ final class UiApi {
         destroyReplaceView(m);
     }
 
-    /** Destroy a replace model's view (call the Lua handle's {@code :destroy()}), if any. Idempotent. */
+    /**
+     * Destroy a replace model's view, if any — the Java side of what the old table handle's {@code :destroy()} did
+     * (kill the addon's content + its chrome, drop it from the owned registry). Idempotent, best-effort, and under
+     * the {@code ui} monitor like every other tree op.
+     */
     private static void destroyReplaceView(LuaModel m) {
-        if((m.replaceView != null) && m.replaceView.istable()) {
-            LuaValue d = m.replaceView.get("destroy");
-            if(d.isfunction())
-                callLua(m.owner, Addon.C_WIDGET, d);
-        }
+        AddonWidget v = m.replaceView;
         m.replaceView = null;
+        if(v == null)
+            return;
+        m.owner.widgets.remove(v);
+        UI u = ui;
+        Runnable kill = () -> {
+            try { v.kill(); } catch(RuntimeException e) { /* best-effort: never abort a teardown/undo */ }
+        };
+        if(u != null) {
+            synchronized(u) { kill.run(); }
+        } else {
+            kill.run();
+        }
     }
 
     /**

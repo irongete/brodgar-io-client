@@ -248,3 +248,10 @@
   and hand `new UI(...)` an `Audio.Root` allocated via `Unsafe.allocateInstance` with a bare `Mixer` reflected
   into its final `mixer` field — the real constructor opens a sink line. Full recipe + anchors in
   `specs/codebase/boot-and-loop.md`. 22 asserts, including a GC-based no-pin proof, for one scratch file.
+- **(029.2) A bare `new Widget(Coord)` is a fine stand-in for the window chrome `haven.Window` cannot be
+  headlessly.** `Window` needs GL (3c already knew), but nothing about the owned/borrowed logic cares *which*
+  class the chrome is — only that the addon's `AddonWidget` sits inside it with its `root` pointing back. So
+  `chrome.add(content, Coord.z); content.root(chrome)` reproduces the whole `hafen.ui.window{}` shape headlessly,
+  and `:pos(x,y)`/`:size(w,h)`/`pack()` are assertable on it. 49/49 on top of 029.1's off-screen `UI` recipe,
+  including the relog guard (build a SECOND `UI`, point `AddonManager.ui` at it, assert the restore is skipped).
+  `LuaValue.method(name, a, b)` is the 3-arg colon call — no need to hand-build a `Varargs` for a two-arg verb.
