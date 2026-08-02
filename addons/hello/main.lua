@@ -1557,39 +1557,39 @@ end)
 -- exposes :derive(opts) (a cheap variant), :family() (the AWT family, for a $font tag in F2) and :size().
 -- We prefer a bundled .ttf if one is present (drop any .ttf at addons/hello/fonts/demo.ttf to exercise the
 -- file-load + AWT-register path -- the DoD's "loads a TTF"); otherwise we fall back to the
--- built-in "serif", which still proves the whole loop. Applying it to a GLOBAL surface is an OWNED override:
--- hafen.font.setFont("default", h) restyles most UI text LIVE (the "default" scope cascades to Text.std / Text.render
--- / every default Label), and it is reverted automatically on :reload/disable (the stock UI is always restorable).
--- ':hello font' toggles the override; while ON it also stacks a SECOND override (mono) on top to prove LAST-WINS,
--- then drops it back to the first. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
+-- built-in "serif", which still proves the whole loop.
+--
+-- C1a (033-ui-stylesheet): APPLYING a font to a GLOBAL client surface is now the STYLESHEET's job.
+-- hafen.ui.skin{ [selector] = {properties} } is ONE table saying what the client looks like, applied live and
+-- owned by this addon; hafen.font.setFont / .reset / .scopes are a HARD CUT and read as plain nil. A font is one
+-- PROPERTY of a rule, and the key is a SELECTOR -- the same string hafen.ui(sel) takes -- so there is one
+-- vocabulary for "which part of the UI" instead of the old scope enum beside it. An addon owns exactly ONE sheet:
+-- a second skin{} REPLACES it whole, which is why the eleven ':hello font|title|button|...' toggles below all
+-- edit ONE table (skinRules) and re-apply it -- turning one surface off is a fresh skin{} carrying every rule
+-- still wanted. hafen.ui.skin(nil) drops the sheet, and so does :reload/disable (the stock UI is always
+-- restorable). C1a resolves SITE keys -- `*` (the global fallback, the old "default" scope) and the eleven routed
+-- surfaces; a TREE key (@Class, [title=..], and the widget roles `window`/`inventory`) parses fine and is
+-- silently INERT until C1b, which is what lets a C1b-ready sheet load today. SAFE-tier (cosmetic, client-only).
+-- See docs/addons/api/fonts.md.
 local demoFont          -- the loaded FontHandle (nil until OnLoad; env rebuilt on reload -> nil, re-loaded below)
 local monoFont          -- F2: a second handle (built-in "mono") for the per-call { font = } demo in the F2 window
-local fontApplied = false   -- is our "default" override currently installed? (session-local; teardown reverts it)
-local titleApplied = false  -- F3a: is our "window.title" override installed? (session-local; teardown reverts it)
-local btnApplied = false    -- F3b: is our "button" override installed? (session-local; teardown reverts it)
-local entryApplied = false  -- F3c: is our "textentry" override installed? (session-local; teardown reverts it)
-local labelApplied = false  -- F3c: is our "label" override installed? (session-local; teardown reverts it)
-local headApplied = false   -- F3e: is our "heading" override installed? (session-local; teardown reverts it)
-local menuApplied = false   -- F3d: is our "menu" override installed? (session-local; teardown reverts it)
-local tipApplied = false    -- F3d: is our "tooltip" override installed? (session-local; teardown reverts it)
-local chatApplied = false   -- F3d: is our "chat" override installed? (session-local; teardown reverts it)
-local speechApplied = false -- F4: is our "world.speech" override installed? (session-local; teardown reverts it)
-local nickApplied = false   -- F4: is our "world.nick" override installed? (session-local; teardown reverts it)
+local skinRules = {}    -- C1a: OUR ONE SHEET, [selector] = {properties}. Empty = no sheet installed.
 local nodeFontApplied = false -- F5: is our PER-INSTANCE override installed on one window? (teardown reverts it)
 local nodeFontTarget        -- F5: the WidgetNode we styled (a transient handle; nil once reset / after a reload)
+-- Push the CURRENT sheet (or drop it when the last rule went): every toggle below goes through here, so the
+-- "an addon owns one sheet" rule is exercised on every single flip rather than described.
+local function applySkin()
+  if next(skinRules) == nil then hafen.ui.skin(nil) else hafen.ui.skin(skinRules) end
+end
+-- Flip one rule of the sheet on/off and re-apply the whole thing. Returns true if the rule is now ON.
+local function toggleSkin(key, props)
+  if skinRules[key] then skinRules[key] = nil else skinRules[key] = props end
+  applySkin()
+  return skinRules[key] ~= nil
+end
 hafen.events.on("OnLoad", function()
-  fontApplied = false                                   -- a reload rebuilt the env; the override was torn down (P2)
-  titleApplied = false                                  -- F3a: likewise for the window.title override (P2)
-  btnApplied = false                                    -- F3b: ...and for the button override (P2)
-  entryApplied = false                                  -- F3c: ...and for the textentry override (P2)
-  labelApplied = false                                  -- F3c: ...and for the label override (P2)
-  headApplied = false                                   -- F3e: ...and for the heading override (P2)
-  menuApplied = false                                   -- F3d: ...and for the menu override (P2)
-  tipApplied = false                                    -- F3d: ...and for the tooltip override (P2)
-  chatApplied = false                                   -- F3d: ...and for the chat override (P2)
-  speechApplied = false                                 -- F4: ...and for the world.speech override (P2)
-  nickApplied = false                                   -- F4: ...and for the world.nick override (P2)
-  nodeFontApplied, nodeFontTarget = false, nil          -- F5: ...and for the per-instance (node:setFont) override (P2)
+  skinRules = {}                                        -- a reload rebuilt the env; the sheet was torn down (P2)
+  nodeFontApplied, nodeFontTarget = false, nil          -- F5: ...and so was the per-instance (setFont) override (P2)
   monoFont = hafen.font("mono"):derive{ size = 12 }     -- F2: a distinct font for the per-call g:text{font=} line
   local ok, ttf = pcall(hafen.asset, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
   if ok and ttf then
@@ -1601,7 +1601,9 @@ hafen.events.on("OnLoad", function()
     hafen.log(("F1: loaded built-in font 'serif' (size 11) -- family '%s'; drop a .ttf at addons/hello/fonts/demo.ttf to load a real TTF -- :hello font to flip the default font")
       :format(demoFont:family()))
   end
-  hafen.log("F1: hafen.font.scopes() = " .. table.concat(hafen.font.scopes(), ", "))
+  hafen.log(("C1a: hafen.ui.skin is the stylesheet; hafen.font.setFont is a hard cut -> %s. Site keys: *, window.title,"
+    .. " heading, button, label, textentry, tooltip, menu, chat, world.nick, world.speech -- :hello font|title|button|"
+    .. "entry|label|heading|menu|tip|chat|speech|nick flip one rule each"):format(tostring(hafen.font.setFont)))
 end)
 
 -- 028.3: THE ASSET CONTRACT (hafen.asset), checked once per login. ONE door for every file this addon ships:
@@ -1996,25 +1998,28 @@ hafen.slash.register("hello", function(args)
         .. " added a NEW one in its place; the corpse is never served and never listed"):format(#hafen.asset()))
     end
   elseif sub == "font" then
-    -- F1: toggle a GLOBAL font override on the "default" scope + prove LAST-WINS. setFont installs THIS addon's
-    -- override (owner-tagged); it restyles most UI text live and is reverted automatically on :reload/disable.
+    -- C1a: the sheet's `*` rule = the GLOBAL fallback (what setFont("default", h) used to be). It cascades to
+    -- every routed surface with no more-specific rule, so most UI text changes at once. Re-applying the sheet
+    -- with a different font REPLACES this addon's previous sheet -- proved here by installing mono first and
+    -- swapping to the real handle 3s later, which is the same last-wins stack the old setFont pushed onto.
+    -- A TREE key rides along to show it is silently INERT in C1a (never an error, styled in C1b).
     if not demoFont then hafen.log(":hello font -> font not loaded yet (OnLoad)"); return end
-    if fontApplied then
-      hafen.font.reset("default")                       -- drop our override -> the stock font returns live
-      fontApplied = false
-      hafen.log(":hello font -> reset('default') -- stock font restored (also happens on :reload/disable)")
+    if skinRules["*"] then
+      skinRules["*"], skinRules["@Inventory"] = nil, nil   -- drop both rules -> the stock font returns live
+      applySkin()
+      hafen.log((":hello font -> hafen.ui.skin(%s) -- the ['*'] rule left our sheet; stock font restored (also happens on :reload/disable)")
+        :format((next(skinRules) == nil) and "nil" or "{...}"))
     else
-      hafen.font.setFont("default", demoFont)           -- override #1 (serif/ttf)
-      -- LAST-WINS: stack a SECOND override (mono) on top of the same scope, then drop back to #1, to prove the
-      -- owner-tagged stack resolves most-recent-first (a real addon would only set one; this is the harness proof).
-      local mono = hafen.font("mono")
-      hafen.font.setFont("default", mono)               -- override #2 now wins (mono)
+      skinRules["*"] = { font = hafen.font("mono") }    -- sheet #1 (mono)
+      skinRules["@Inventory"] = { font = demoFont }     -- a TREE key: valid grammar, resolves nowhere until C1b
+      applySkin()
       hafen.timer.after(3.0, function()
-        hafen.font.setFont("default", demoFont)          -- re-apply #1 -> it wins again (last-wins), back to serif/ttf
-        hafen.log(":hello font -> last-wins: was mono for 3s, now back to the first font")
+        if not skinRules["*"] then return end            -- toggled off in the meantime -- nothing to replace
+        skinRules["*"] = { font = demoFont }             -- sheet #2 REPLACES sheet #1 whole -> back to serif/ttf
+        applySkin()
+        hafen.log(":hello font -> a second skin{} replaced the first: was mono for 3s, now the loaded font")
       end)
-      fontApplied = true
-      hafen.log((":hello font -> setFont('default', %s) -- most UI text should change; showing 'mono' for 3s first (last-wins), then '%s'; :hello font again to reset")
+      hafen.log((":hello font -> hafen.ui.skin{ ['*'] = { font = %s }, ['@Inventory'] = {...} } -- most UI text should change; showing 'mono' for 3s first (a second skin{} then replaces the sheet), then '%s'. The @Inventory rule is a TREE key: accepted, inert until C1b. :hello font again to drop it")
         :format(demoFont:family(), demoFont:family()))
     end
   elseif sub == "title" then
@@ -2023,15 +2028,11 @@ hafen.slash.register("hello", function(args)
     -- font), the cascade restyles captions too until a "window.title" override refines them. Owner-tagged,
     -- reverted automatically on :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
     if not demoFont then hafen.log(":hello title -> font not loaded yet (OnLoad)"); return end
-    if titleApplied then
-      hafen.font.reset("window.title")                  -- drop our override -> stock window captions return live
-      titleApplied = false
-      hafen.log(":hello title -> reset('window.title') -- stock window captions restored (also on :reload/disable)")
-    else
-      hafen.font.setFont("window.title", demoFont:derive{ size = 15 })  -- caption size ~= the stock fraktur 15
-      titleApplied = true
-      hafen.log((":hello title -> setFont('window.title', %s) -- open/focus any window: its CAPTION font changes (body text stays stock unless :hello font); :hello title again to reset")
+    if toggleSkin("window.title", { font = demoFont:derive{ size = 15 } }) then   -- caption size ~= the stock fraktur 15
+      hafen.log((":hello title -> skin{ ['window.title'] = { font = %s } } -- open/focus any window: its CAPTION font changes (body text stays stock unless :hello font); :hello title again to drop the rule")
         :format(demoFont:family()))
+    else
+      hafen.log(":hello title -> the ['window.title'] rule left our sheet -- stock window captions restored (also on :reload/disable)")
     end
   elseif sub == "button" then
     -- F3b: toggle a font override on the "button" scope (BUTTON CAPTIONS only) -- independent of "default" and of
@@ -2045,15 +2046,11 @@ hafen.slash.register("hello", function(args)
     -- different family (mono) so the DoD is observable; the size stays 12 to keep the captions inside the buttons.
     local h = (monoFont or demoFont)
     if not h then hafen.log(":hello button -> font not loaded yet (OnLoad)"); return end
-    if btnApplied then
-      hafen.font.reset("button")                        -- drop our override -> stock button captions return live
-      btnApplied = false
-      hafen.log(":hello button -> reset('button') -- stock button captions restored (also on :reload/disable)")
-    else
-      hafen.font.setFont("button", h:derive{ size = 12, bold = true })  -- mono bold 12 vs the stock serif bold 12
-      btnApplied = true
-      hafen.log((":hello button -> setFont('button', %s) -- open the Options window: its BUTTON captions change (titles/body stay stock unless :hello title / :hello font); :hello button again to reset")
+    if toggleSkin("button", { font = h:derive{ size = 12, bold = true } }) then   -- mono bold 12 vs the stock serif bold 12
+      hafen.log((":hello button -> skin{ ['button'] = { font = %s } } -- open the Options window: its BUTTON captions change (titles/body stay stock unless :hello title / :hello font); :hello button again to drop the rule")
         :format(h:family()))
+    else
+      hafen.log(":hello button -> the ['button'] rule left our sheet -- stock button captions restored (also on :reload/disable)")
     end
   elseif sub == "entry" then
     -- F3c: toggle a font override on the "textentry" scope (TEXT-INPUT FIELDS only) -- independent of "default",
@@ -2067,15 +2064,11 @@ hafen.slash.register("hello", function(args)
     -- glyphs will be clipped -- that is a client-geometry fact, not an API limit. See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
     if not h then hafen.log(":hello entry -> font not loaded yet (OnLoad)"); return end
-    if entryApplied then
-      hafen.font.reset("textentry")                     -- drop our override -> stock entry font returns live
-      entryApplied = false
-      hafen.log(":hello entry -> reset('textentry') -- stock text-field font restored (also on :reload/disable)")
-    else
-      hafen.font.setFont("textentry", h:derive{ size = 12 })   -- mono 12 vs the stock serif 12 (visibly different)
-      entryApplied = true
-      hafen.log((":hello entry -> setFont('textentry', %s) -- click any text field (or this console line) and type: the glyphs change; :hello entry again to reset")
+    if toggleSkin("textentry", { font = h:derive{ size = 12 } }) then   -- mono 12 vs the stock serif 12 (visibly different)
+      hafen.log((":hello entry -> skin{ ['textentry'] = { font = %s } } -- ONE rule fronting TWO sites: click any text field AND this console command line and type -- both change family, and each keeps its OWN stock size/colour (serif 12 entries, mono 12 console); :hello entry again to drop the rule")
         :format(h:family()))
+    else
+      hafen.log(":hello entry -> the ['textentry'] rule left our sheet -- stock text-field font restored (also on :reload/disable)")
     end
   elseif sub == "label" then
     -- F3c: toggle a font override on the "label" scope = the client's BODY TEXT. F1 already routed the DEFAULT
@@ -2092,15 +2085,11 @@ hafen.slash.register("hello", function(args)
     -- font), so a bigger size would clip; the family swap is the safe, observable demo. See api/fonts.md.
     local h = (monoFont or demoFont)
     if not h then hafen.log(":hello label -> font not loaded yet (OnLoad)"); return end
-    if labelApplied then
-      hafen.font.reset("label")                         -- drop our override -> stock label font returns live
-      labelApplied = false
-      hafen.log(":hello label -> reset('label') -- stock explicit-foundry labels restored (also on :reload/disable)")
-    else
-      hafen.font.setFont("label", h)                    -- no size -> every routed label keeps its own stock size
-      labelApplied = true
-      hafen.log((":hello label -> setFont('label', %s) -- open the character sheet (attribute rows) or Skills & Lore / Quests / Wounds (list items): the BODY TEXT changes family but keeps its sizes; :hello label again to reset")
+    if toggleSkin("label", { font = h }) then           -- no size -> every routed label keeps its own stock size
+      hafen.log((":hello label -> skin{ ['label'] = { font = %s } } -- open the character sheet (attribute rows) or Skills & Lore / Quests / Wounds (list items): the BODY TEXT changes family but keeps its sizes; :hello label again to drop the rule")
         :format(h:family()))
+    else
+      hafen.log(":hello label -> the ['label'] rule left our sheet -- stock explicit-foundry labels restored (also on :reload/disable)")
     end
   elseif sub == "heading" then
     -- F3e: toggle a font override on the "heading" scope = the client's in-window SECTION HEADINGS, the big
@@ -2115,15 +2104,11 @@ hafen.slash.register("hello", function(args)
     -- captions 18px), so the layout around them does not move. See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
     if not h then hafen.log(":hello heading -> font not loaded yet (OnLoad)"); return end
-    if headApplied then
-      hafen.font.reset("heading")                       -- drop our override -> stock headings return live
-      headApplied = false
-      hafen.log(":hello heading -> reset('heading') -- stock section headings restored (also on :reload/disable)")
-    else
-      hafen.font.setFont("heading", h)                  -- no size -> every heading keeps its own
-      headApplied = true
-      hafen.log((":hello heading -> setFont('heading', %s) -- open the character sheet: 'Base Attributes' / 'Food Satiations' / 'Abilities' change (titles + body text stay stock); :hello heading again to reset")
+    if toggleSkin("heading", { font = h }) then         -- no size -> every heading keeps its own
+      hafen.log((":hello heading -> skin{ ['heading'] = { font = %s } } -- open the character sheet: 'Base Attributes' / 'Food Satiations' / 'Abilities' change (titles + body text stay stock); :hello heading again to drop the rule")
         :format(h:family()))
+    else
+      hafen.log(":hello heading -> the ['heading'] rule left our sheet -- stock section headings restored (also on :reload/disable)")
     end
   elseif sub == "menu" then
     -- F3d: toggle a font override on the "menu" scope = the client's ACTION MENUS. Two surfaces: the petal
@@ -2135,15 +2120,11 @@ hafen.slash.register("hello", function(args)
     -- menus too, until a "menu" override refines them. Owner-tagged, reverted on :reload/disable. SAFE-tier.
     local h = (monoFont or demoFont)
     if not h then hafen.log(":hello menu -> font not loaded yet (OnLoad)"); return end
-    if menuApplied then
-      hafen.font.reset("menu")                          -- drop our override -> stock petal captions return live
-      menuApplied = false
-      hafen.log(":hello menu -> reset('menu') -- stock flower-menu font restored (also on :reload/disable)")
-    else
-      hafen.font.setFont("menu", h:derive{ size = 14 })  -- mono 14 vs the stock sans 12 (visibly different + bigger)
-      menuApplied = true
-      hafen.log((":hello menu -> setFont('menu', %s) -- right-click something: the PETAL captions are in the new font (and a petal already open re-sizes around its centre); :hello menu again to reset")
+    if toggleSkin("menu", { font = h:derive{ size = 14 } }) then   -- mono 14 vs the stock sans 12 (bigger + different)
+      hafen.log((":hello menu -> skin{ ['menu'] = { font = %s } } -- right-click something: the PETAL captions are in the new font (and a petal already open re-sizes around its centre); :hello menu again to drop the rule")
         :format(h:family()))
+    else
+      hafen.log(":hello menu -> the ['menu'] rule left our sheet -- stock flower-menu font restored (also on :reload/disable)")
     end
   elseif sub == "tip" then
     -- F3d: toggle a font override on the "tooltip" scope = every TOOLTIP the client pops up. The bulk of it is the
@@ -2158,15 +2139,11 @@ hafen.slash.register("hello", function(args)
     -- NOTE: a tooltip sizes its own box around its text, so a bigger size is safe here -- unlike a text field.
     local h = (monoFont or demoFont)
     if not h then hafen.log(":hello tip -> font not loaded yet (OnLoad)"); return end
-    if tipApplied then
-      hafen.font.reset("tooltip")                       -- drop our override -> stock tooltips return live
-      tipApplied = false
-      hafen.log(":hello tip -> reset('tooltip') -- stock tooltip font restored (also on :reload/disable)")
-    else
-      hafen.font.setFont("tooltip", h:derive{ size = 13 })   -- mono 13 vs the stock sans 10 (bigger + different)
-      tipApplied = true
-      hafen.log((":hello tip -> setFont('tooltip', %s) -- hover an INVENTORY ITEM (or a buff / a HUD meter / a craft input / an action-menu icon / a HUD button): the tooltip is in the new font, and it changes while you keep hovering; :hello tip again to reset")
+    if toggleSkin("tooltip", { font = h:derive{ size = 13 } }) then   -- mono 13 vs the stock sans 10 (bigger + different)
+      hafen.log((":hello tip -> skin{ ['tooltip'] = { font = %s } } -- hover an INVENTORY ITEM (or a buff / a HUD meter / a craft input / an action-menu icon / a HUD button): the tooltip is in the new font, and it changes while you keep hovering; :hello tip again to drop the rule")
         :format(h:family()))
+    else
+      hafen.log(":hello tip -> the ['tooltip'] rule left our sheet -- stock tooltip font restored (also on :reload/disable)")
     end
   elseif sub == "chat" then
     -- F3d: toggle a font override on the "chat" scope = the whole CHAT window: every message line (area/party/
@@ -2177,15 +2154,11 @@ hafen.slash.register("hello", function(args)
     -- cascade restyles chat too, until a "chat" override refines it. Owner-tagged, reverted on :reload/disable.
     local h = (monoFont or demoFont)
     if not h then hafen.log(":hello chat -> font not loaded yet (OnLoad)"); return end
-    if chatApplied then
-      hafen.font.reset("chat")                          -- drop our override -> stock chat font returns live
-      chatApplied = false
-      hafen.log(":hello chat -> reset('chat') -- stock chat font restored (also on :reload/disable)")
-    else
-      hafen.font.setFont("chat", h:derive{ size = 13 })  -- mono 13 vs the stock sans 12
-      chatApplied = true
-      hafen.log((":hello chat -> setFont('chat', %s) -- open the chat window (Ctrl+C): the message lines, the channel tabs and the line you type are in the new font; :hello chat again to reset")
+    if toggleSkin("chat", { font = h:derive{ size = 13 } }) then   -- mono 13 vs the stock sans 12
+      hafen.log((":hello chat -> skin{ ['chat'] = { font = %s } } -- open the chat window (Ctrl+C): the message lines, the channel tabs and the line you type are in the new font; :hello chat again to drop the rule")
         :format(h:family()))
+    else
+      hafen.log(":hello chat -> the ['chat'] rule left our sheet -- stock chat font restored (also on :reload/disable)")
     end
   elseif sub == "speech" then
     -- F4: toggle a font override on the "world.speech" scope = the SPEECH BUBBLES that pop up over a character's
@@ -2197,15 +2170,11 @@ hafen.slash.register("hello", function(args)
     -- :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
     if not h then hafen.log(":hello speech -> font not loaded yet (OnLoad)"); return end
-    if speechApplied then
-      hafen.font.reset("world.speech")                  -- drop our override -> stock bubble font returns live
-      speechApplied = false
-      hafen.log(":hello speech -> reset('world.speech') -- stock speech-bubble font restored (also on :reload/disable)")
-    else
-      hafen.font.setFont("world.speech", h:derive{ size = 16 })  -- mono 16 vs the stock sans 10 (clearly bigger)
-      speechApplied = true
-      hafen.log((":hello speech -> setFont('world.speech', %s) -- say something in area chat (Enter): the BUBBLE over your head is in the new font and its frame grows with it; :hello speech again to reset")
+    if toggleSkin("world.speech", { font = h:derive{ size = 16 } }) then   -- mono 16 vs the stock sans 10 (clearly bigger)
+      hafen.log((":hello speech -> skin{ ['world.speech'] = { font = %s } } -- say something in area chat (Enter): the BUBBLE over your head is in the new font and its frame grows with it; :hello speech again to drop the rule")
         :format(h:family()))
+    else
+      hafen.log(":hello speech -> the ['world.speech'] rule left our sheet -- stock speech-bubble font restored (also on :reload/disable)")
     end
   elseif sub == "nick" then
     -- F4: toggle a font override on the "world.nick" scope = the floating KIN NAMES drawn over the characters of
@@ -2217,15 +2186,11 @@ hafen.slash.register("hello", function(args)
     -- automatically on :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
     if not h then hafen.log(":hello nick -> font not loaded yet (OnLoad)"); return end
-    if nickApplied then
-      hafen.font.reset("world.nick")                    -- drop our override -> stock kin names return live
-      nickApplied = false
-      hafen.log(":hello nick -> reset('world.nick') -- stock floating kin-name font restored (also on :reload/disable)")
-    else
-      hafen.font.setFont("world.nick", h:derive{ size = 16, bold = true })  -- mono bold 16 vs the stock sans bold 12
-      nickApplied = true
-      hafen.log((":hello nick -> setFont('world.nick', %s) -- look at a KIN standing nearby: the name floating over them is in the new font (its colour stays the kin-group colour); :hello nick again to reset")
+    if toggleSkin("world.nick", { font = h:derive{ size = 16, bold = true } }) then  -- mono bold 16 vs stock sans bold 12
+      hafen.log((":hello nick -> skin{ ['world.nick'] = { font = %s } } -- look at a KIN standing nearby: the name floating over them is in the new font (its colour stays the kin-group colour); :hello nick again to drop the rule")
         :format(h:family()))
+    else
+      hafen.log(":hello nick -> the ['world.nick'] rule left our sheet -- stock floating kin-name font restored (also on :reload/disable)")
     end
   elseif sub == "node" then
     -- F5: a PER-INSTANCE font override -- the last piece of the font system and the only one that is not a named

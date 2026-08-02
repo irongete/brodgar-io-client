@@ -12,6 +12,8 @@ things.
 
 **And one way to name one.** `hafen.ui` is *callable*: `hafen.ui("window[title=Cupboard]")` is the first
 matching widget, `hafen.ui.all("inventory")` is every one — see [selectors](#selectors--naming-a-widget).
+The same selector is the key of a [**stylesheet**](#the-stylesheet--restyling-the-client), the one way to
+restyle the client's own surfaces.
 
 ## Custom windows & widgets
 
@@ -523,6 +525,98 @@ off the same hover, which is the cheapest way to learn what a widget is and how 
 
 Note this is *not* a Widget object — a Widget's own removal verb is `:destroy()`.
 
+## The stylesheet — restyling the client
+
+One table says what the client looks like: a **selector as the key**, a **table of style properties as the
+value**, applied live and owned by the addon that installed it.
+
+```lua
+local body = hafen.asset("fonts/Inter.ttf"):derive{ size = 12 }
+hafen.ui.skin{
+  ["*"]            = { font = body },                                -- the global fallback
+  ["window.title"] = { font = body:derive{ size = 14, bold = true } },
+  ["chat"]         = { font = hafen.font("mono"):derive{ size = 13 } },
+}
+```
+
+| Call | Description |
+|---|---|
+| `hafen.ui.skin{…}` | install this addon's stylesheet, **replacing** whatever it had |
+| `hafen.ui.skin(nil)` | drop it — every surface it styled falls back |
+
+**An addon owns exactly one sheet.** A second `skin{…}` replaces the first *whole*, not rule by rule: a surface
+the new sheet no longer names falls back on the spot. So to turn one rule off, re-apply the sheet without it —
+keep your rules in a table and pass that:
+
+```lua
+local rules = {}
+local function restyle(key, props)
+  rules[key] = props                                                  -- props = nil removes the rule
+  if next(rules) == nil then hafen.ui.skin(nil) else hafen.ui.skin(rules) end
+end
+```
+
+The change is **live** — existing text re-renders on the spot — and the sheet is **owned**: it is dropped
+automatically on your addon's `:reload`/disable, so the stock client is always restorable.
+
+> `hafen.font.setFont`, `hafen.font.reset` and `hafen.font.scopes` are **gone** — they read as plain `nil`. A
+> font is now one *property* of a rule, and the key is a *selector*, so there is one vocabulary for "which part
+> of the UI" instead of a scope enum beside it. [`hafen.font(name)`](fonts.md#the-built-ins--hafenfontname) is
+> untouched: it still names an engine font, and a `.ttf` your addon ships is still
+> [`hafen.asset(path)`](asset.md).
+
+### Site keys — the surfaces this ships
+
+A key is [a selector](#selectors--naming-a-widget), and it resolves one of two ways. A **site key** names a
+place the client *draws*, and is resolved there — these are the twelve that work today:
+
+| Key | What it styles |
+|---|---|
+| `*` | the global fallback — most UI text, and the cascade for every rule you do not write |
+| `window.title` | window captions |
+| `heading` | in-window section headings (the embossed fraktur ones) |
+| `button` | button captions |
+| `label` | body text — attribute rows, list items, explicit-foundry labels |
+| `textentry` | text-entry fields **and** the console command line |
+| `tooltip` | every tooltip — items, buffs, meters, craft, minimap, the action menu |
+| `menu` | flower-menu petals + the action-menu keybind letters |
+| `chat` | the chat window — messages, channel tabs, the typed line |
+| `world.nick` | floating kin names over characters |
+| `world.speech` | speech bubbles |
+
+Each surface keeps **its own stock size and colour** unless your rule overrides them — one key can front two
+sites with different stocks (`textentry` covers the serif-12 fields *and* the mono-12 wheat command line), and
+both stay native under one rule. See [`hafen.font`](fonts.md#site-keys) for the per-surface notes and geometry
+caveats.
+
+### Tree keys are accepted, and do nothing yet
+
+Any other valid selector — `@Class`, `[title=…]`, `[res=…]`, or the roles that classify a *widget* rather than a
+site (`window`, `inventory`) — is a **tree key**, resolved per widget against the live tree. That is the next
+feature. Today such a rule **parses fine and is silently inert**: never an error, so a sheet written for it
+loads now, unstyled, instead of blowing up. A key that is not valid *grammar* is still an error, and exactly the
+error [`hafen.ui(selector)`](#selectors--naming-a-widget) gives.
+
+### Properties
+
+| Property | Value | Notes |
+|---|---|---|
+| `font` | a [font handle](fonts.md) | `hafen.font(name)` or `hafen.asset(path)`, optionally `:derive{size=,bold=,…}` |
+
+An **unknown property is an error** naming the ones that exist — unlike an unresolved key, a misspelt property
+has no later meaning to wait for.
+
+### Cascade & conflict
+
+Resolution is **most-specific first**: [`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth-f5) → the
+matching site rule → the `*` rule → the client's stock. So `["*"]` alone changes everything, and any other key
+refines one surface out of that cascade.
+
+Two addons styling the same surface is shared client state, resolved the same way as
+[`widget:replace`](#replacing-a-native-window): each surface holds a **stack of rules tagged with their owning
+addon, and the last applied wins**. Disabling that addon pulls its entries and the surface falls back to the
+next owner beneath — or to stock when there is none. Deterministic, and reversible per owner.
+
 ## The `g` draw wrapper
 
 Draw callbacks (`onDraw`, `overlay`, `gobOverlay`) receive `g`, a drawing surface. Its coordinates are
@@ -574,7 +668,8 @@ What that means when you write a draw callback:
   **Budget a live readout by how often its *text* changes, not by how many lines it has** — `"HP: 100/100"`
   redrawn 60 times is free; `"HP: 100/100 (12.483 s)"` is 60 rasterisations.
 - **Font overrides still take effect immediately.** The key carries the font generation, so installing, moving
-  or resetting a font (`hafen.font.setFont`, [`widget:setFont`](#reads--they-answer-on-every-widget)) restyles
+  or resetting a font ([`hafen.ui.skin`](#the-stylesheet--restyling-the-client),
+  [`widget:setFont`](#reads--they-answer-on-every-widget)) restyles
   on the next frame — the old entries simply stop being looked up and age out.
 - **It is bounded, not a leak.** An LRU of at most **512 entries / 8 MiB** of texture; the least recently used
   entries are evicted and their textures disposed. An addon that draws thousands of distinct strings settles at

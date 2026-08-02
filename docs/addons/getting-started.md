@@ -184,7 +184,7 @@ Drop an image, a font or a glTF model in your addon's folder and load it with
 
 ```lua
 local icon = hafen.asset("icon.png")                 -- draw with g:image / stand with hafen.render.sprite
-local face = hafen.asset("fonts/Inter.ttf")          -- font= on a window, or hafen.font.setFont
+local face = hafen.asset("fonts/Inter.ttf")          -- font= on a window, or hafen.ui.skin{…}
 local chair = hafen.asset("props/chair.glb")         -- stand with hafen.render.object
 ```
 

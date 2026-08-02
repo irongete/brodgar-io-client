@@ -271,6 +271,32 @@ final class UiApi {
         uiT.set("at", new TwoArgFunction() {
             public LuaValue call(LuaValue x, LuaValue y) { return nodeAt(owner, x, y); }
         });
+        // hafen.ui.skin{ ["selector"] = { font = h }, … } — 033.1, feature C1a: THE STYLESHEET. One table says what
+        // the client looks like: a SELECTOR as the key (the very string hafen.ui(sel) takes — one vocabulary, not
+        // two) and a table of style properties as the value, applied LIVE and owned by the addon that installed it.
+        //     hafen.ui.skin{ ["*"] = { font = body }, ["window.title"] = { font = body:derive{ size = 14 } } }
+        // An addon owns exactly ONE sheet: a second skin{…} REPLACES it whole (a site the new sheet no longer names
+        // falls back), hafen.ui.skin(nil) drops it, and a :reload/disable drops it too — the stock client is always
+        // restorable. hafen.font.setFont / .reset / .scopes are a HARD CUT (they read as plain nil): a font is one
+        // PROPERTY of a rule now, not an API of its own. hafen.font(name) is untouched — it still names an engine
+        // font (D-060), and a .ttf this addon ships is still hafen.asset(path):derive{…}.
+        //   Keys resolve one of two ways, and this feature ships the first: a SITE key — `*` (the global fallback)
+        //   or one of the eleven routed surfaces (window.title / heading / button / label / textentry / tooltip /
+        //   menu / chat / world.nick / world.speech) — is resolved where that site DRAWS, exactly as the font
+        //   scopes always were, so no render site is re-routed and no drawing code changed: what changed is who
+        //   fills the provider stack. A TREE key (@Class, [title=…], [res=…], or a role that classifies a widget
+        //   rather than a site, like `window`/`inventory`) is resolved per widget against the live tree — that is
+        //   C1b, next — so here it parses fine and is SILENTLY INERT, never an error, and a sheet written for C1b
+        //   loads today unstyled instead of blowing up. A malformed key errors exactly as hafen.ui(sel) does.
+        //   Conflict between addons is D-043 reused literally: last applied wins, an addon's entries are pulled on
+        //   its teardown, the surface falls back to the next owner beneath and finally to stock.
+        // Properties in this task: `font` (a handle from hafen.font(name) or hafen.asset(path), optionally
+        // :derive{size=,bold=,…}); an unknown property is an error naming the ones that exist. Returns nil.
+        uiT.set("skin", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return Sheet.skin(owner, a);
+            }
+        });
         // 030.1: hafen.ui is CALLABLE (the hafen.asset/hafen.kin/hafen.meter shape, D-056) — arity is the verb.
         // hafen.ui(selector) is the FIRST match or nil; hafen.ui() with no argument is the ROOT, which is why
         // hafen.ui.root() is a hard cut and now reads as plain nil from Lua (D-013).

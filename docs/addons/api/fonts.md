@@ -1,16 +1,24 @@
 # `hafen.font` — per-addon typography
 
 Get a font into a **private handle** the addon holds — a [built-in](#the-built-ins--hafenfontname) by name or
-your own `.ttf` as an [asset](asset.md) — then either draw with it (F2) or install it as an **owned override**
-on a named client surface. There is **no shared cross-addon registry** — a handle is a value your addon keeps;
-another addon cannot look it up (no name collisions, no coupling).
+your own `.ttf` as an [asset](asset.md) — then either draw with it (F2) or name it in a
+[**stylesheet**](ui.md#the-stylesheet--restyling-the-client) to restyle the client. There is **no shared
+cross-addon registry** — a handle is a value your addon keeps; another addon cannot look it up (no name
+collisions, no coupling).
 
-> **Slice status.** **F1 (shipped):** the handle / `setFont` / `reset` / `scopes`, and the **`"default"`** scope
+> **A font is a stylesheet property now.** `hafen.font.setFont` / `reset` / `scopes` are **gone** (they read as
+> plain `nil`): the surfaces below are restyled with
+> [`hafen.ui.skin{ ["window.title"] = { font = h } }`](ui.md#the-stylesheet--restyling-the-client), where the key
+> is a [selector](ui.md#selectors--naming-a-widget) rather than a scope enum. `hafen.font` keeps its one job —
+> naming an engine font. Everything this page says about *what each surface does under an override* is unchanged;
+> only the call that installs one moved.
+
+> **Slice status.** **F1 (shipped):** the handle and the **`"default"`** surface — now the sheet's `*` key
 > (the global fallback — most UI text). **F2 (shipped):** applying a font to your **own** drawing — `font=` on
 > `hafen.ui.window`/`widget`, `g:text`/`g:atext` with a `{font=…, color=…}` option, and a custom TTF in a
 > `$font[…]{…}` rich-text tag. **F3a (shipped):** the **`"window.title"`** scope (window captions).
 > **F3b (shipped):** the **`"button"`** scope (button captions). **F3c (shipped):** the **`"textentry"`** scope
-> (every text-input field + the console command line) and the **`"label"`** scope (the client's **body text** —
+> (every text-input field + the console command line) and the **`"label"`** surface (the client's **body text** —
 > character-sheet attribute rows, skill/lore/quest/wound list items, and the explicit-foundry labels F1's
 > default-`Label` routing left out) are now live. **F3e (shipped):** the **`"heading"`** scope — the embossed
 > section headings *inside* a window ("Base Attributes", "Lore & Skills", "Kin", …); a **new scope**, added to the
@@ -129,26 +137,27 @@ This works because loading a `.ttf` [asset](asset.md) registers its family into 
 change**. Plain text with no `$` and no `font=` takes the exact stock render path (no behaviour change for
 existing addons); malformed markup falls back to drawing the literal string (it never throws).
 
-## Restyle a global surface — owned overrides
+## Restyle a global surface — the stylesheet
 
 ```lua
-hafen.font.setFont(scope, h)   -- install THIS addon's override on a named surface
-hafen.font.reset(scope)        -- drop THIS addon's override on that scope (restores what's beneath)
-hafen.font.scopes()            -- array of valid scope names (discovery)
+hafen.ui.skin{ ["window.title"] = { font = h } }   -- install THIS addon's sheet (replacing its previous one)
+hafen.ui.skin(nil)                                 -- drop it (every surface it styled falls back)
 ```
 
-`setFont` installs an **owned** override: it is reverted **automatically** on your addon's `:reload`/disable
-(the same owned-resource model as [`widget:replace`](ui.md#replacing-a-native-window), hooks, and overlays), so the stock UI is always
-restorable. The change is **live** — most existing text re-renders on the spot.
+A sheet is **owned**: it is dropped **automatically** on your addon's `:reload`/disable (the same owned-resource
+model as [`widget:replace`](ui.md#replacing-a-native-window), hooks, and overlays), so the stock UI is always
+restorable. The change is **live** — most existing text re-renders on the spot. The call, the one-sheet-per-addon
+rule and the conflict model are documented in full under
+[`hafen.ui.skin`](ui.md#the-stylesheet--restyling-the-client); what follows is **what each surface does** when a
+font lands on it.
 
-### Scopes
+### Site keys
 
-`scope` is one of an enumerated set (`hafen.font.scopes()`). The full set is declared now; each becomes
-**effective** only once its render site is routed (its slice):
+A **site key** is a bare selector naming a place the client draws. All of them are live:
 
-| Scope | Client surface | Slice |
+| Site key | Client surface | Slice |
 |---|---|---|
-| `"default"` | global fallback — most UI text (`Text.std` / `Text.render` / `RichText.render` / default `Label`) | **F1 (live)** |
+| `*` | global fallback — most UI text (`Text.std` / `Text.render` / `RichText.render` / default `Label`) | **F1 (live)** |
 | `"window.title"` | window captions | **F3a (live)** |
 | `"heading"` | in-window section headings (embossed fraktur) | **F3e (live)** |
 | `"button"` | button captions | **F3b (live)** |
@@ -160,25 +169,24 @@ restorable. The change is **live** — most existing text re-renders on the spot
 | `"world.nick"` | floating kin names over characters (kin-list members) | **F4 (live)** |
 | `"world.speech"` | speech bubbles over talking characters | **F4 (live)** |
 
-> **The same names have a second consumer.** These scope names are also the **roles** a
-> [UI selector](ui.md#roles) matches on — `hafen.ui.all("button")` finds the widgets whose captions
-> `setFont("button", h)` restyles. One vocabulary, deliberately, so there is not a second set of names to learn.
-> The promotion is not 1:1, and the difference is the point: a scope names a **render site**, a role names a
-> **widget**. `"default"` has no role (its selector twin is `*`); `window` and `inventory` are roles with no scope;
-> and five scopes — `"window.title"`, `"heading"`, `"tooltip"`, `"world.nick"`, `"world.speech"` — are valid
-> selectors that **classify no widget**, because a caption is drawn by its window's decoration, a tooltip is
-> painted rather than placed, and the world scopes live over the 3D view. Restyling them works; selecting them
-> finds nothing, which is the honest answer.
+> **These are the same names as the selector roles**, because there is one vocabulary — `hafen.ui.all("button")`
+> finds the widgets whose captions `["button"] = {font=h}` restyles ([roles](ui.md#roles)). The overlap is not
+> 1:1, and the difference is the point: a site key names a **render site**, a role names a **widget**. The
+> global fallback is `*` on both sides; `window` and `inventory` are roles with **no site**, so as sheet keys
+> they are [tree keys](ui.md#tree-keys-are-accepted-and-do-nothing-yet) and do nothing yet; and five site keys —
+> `window.title`, `heading`, `tooltip`, `world.nick`, `world.speech` — are valid selectors that **classify no
+> widget**, because a caption is drawn by its window's decoration, a tooltip is painted rather than placed, and
+> the world sites live over the 3D view. Restyling them works; selecting them finds nothing, which is the honest
+> answer.
 
-`"default"` is the broad hammer: it **cascades** to every routed surface that has no more-specific override — so
-`setFont("default", h)` changes everything in one call, while a per-scope override refines any one surface. The
-resolution order is **most-specific first**:
-[per-instance](#restyle-one-widget--widgetsetfonth-f5) → scope override → `"default"` override → stock.
+`*` is the broad hammer: it **cascades** to every routed surface with no more-specific rule — so `["*"]` alone
+changes everything, while another key refines any one surface. The resolution order is **most-specific first**:
+[per-instance](#restyle-one-widget--widgetsetfonth-f5) → the site rule → the `*` rule → stock.
 
 ```lua
-hafen.font.setFont("default", h)             -- everything routed (incl. captions + button captions)
-hafen.font.setFont("button",  h2)            -- ...but buttons now use h2 (a refinement over the cascade)
-hafen.font.reset("button")                   -- buttons fall back to the "default" cascade again
+hafen.ui.skin{ ["*"] = { font = h } }                            -- everything routed (incl. captions + buttons)
+hafen.ui.skin{ ["*"] = { font = h }, ["button"] = { font = h2 } } -- ...but buttons use h2 (a refinement)
+hafen.ui.skin{ ["*"] = { font = h } }                            -- buttons fall back to the `*` cascade again
 ```
 
 **Notes on `"button"` (F3b).** It covers the captions of the client's standard buttons — the Options window, the
@@ -225,7 +233,7 @@ labels through `"default"`; `"label"` covers the rest:
 
 Each site re-renders **lazily, on the next frame it draws** (so a mass restyle never stalls a frame) and keeps its
 own colour; labels also keep their **wrap width**. Because an override **inherits each site's stock size** unless
-you pass `size=`, `setFont("label", h)` swaps the *family* everywhere while an 18 px row stays 18 px — the safe way
+you pass `size=`, `["label"] = { font = h }` swaps the *family* everywhere while an 18 px row stays 18 px — the safe way
 to restyle body text without moving layouts. **Two geometry caveats if you do pass `size=`:** list/attribute **row
 heights** were computed from the stock font at construction, so taller glyphs clip; and a `Label` resizes itself to
 its text while its container does not re-lay-out around it. Deliberately *not* in this scope: a caller-supplied
@@ -327,8 +335,8 @@ n:resetFont()       -- drop it again
 - **Some windows have no text to restyle.** An Inventory or Equipment window contains item *icons* (`WItem`s) —
   its only text is the caption, so an override there shows up on the title bar alone and looks like it did nothing.
   Pick a text-rich window (the Character Sheet, Options) when you want to see the effect.
-- `hafen.ui():setFont(h)` works and covers the entire client, but that is what `setFont("default", h)` is
-  for — prefer the scope when you mean "everything".
+- `hafen.ui():setFont(h)` works and covers the entire client, but that is what a sheet's `["*"]` rule is for —
+  prefer the sheet when you mean "everything".
 - A node is not owned (it is a lazy handle), so **keep the node** if you intend to reset the override later —
   or just re-find the widget when you need it.
 
@@ -350,10 +358,10 @@ hafen.events.on("OnLoad", function()
 end)
 
 hafen.slash.register("bigserif", function()
-  hafen.font.setFont("default", h)   -- most UI text becomes serif, live
+  hafen.ui.skin{ ["*"] = { font = h } }   -- most UI text becomes serif, live
 end)
 -- reverted automatically when the addon is reloaded or disabled;
--- or explicitly: hafen.font.reset("default")
+-- or explicitly: hafen.ui.skin(nil)
 ```
 
 ## See also

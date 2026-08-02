@@ -246,3 +246,25 @@
   the intern-cache entry IS a font asset's whole lifetime, so `font:dispose()` is "drop the cached parse; the
   next load re-reads and re-registers the file". Symmetry across sibling types is worth less than each type
   telling the truth about what it holds.
+- **(033.1) A teardown sweep and a live drop are NOT the same call, once one owner owns two kinds of thing.**
+  `Fonts.removeOwner(a)` pulls an addon's entries from the scope stacks **and** from the per-instance registry
+  (`widget:setFont`, F5) — exactly right at teardown, and silently wrong for `hafen.ui.skin(nil)`, which would
+  have taken every `widget:setFont` the addon had installed down with the sheet. The sheet drops per-scope
+  (`Fonts.reset(site, owner)` over the rules it filled); teardown keeps the one-sweep form. The tell is that
+  the convenience method was written when the owner owned **one** kind of thing, and nothing about its name
+  changed when the second kind arrived.
+- **(033.1) The site-vs-tree test on a parsed selector is two lines, and both are load-bearing.** A refiner
+  (`@Class`, `[title=]`, `[res=]`) can only ever be answered by a *widget*, so any refiner makes the key a tree
+  key regardless of its role. And a refiner-less selector with **no** role can only have been written `*`,
+  since `Selector.parse` rejects an empty selector — which is what lets `*` map to the `"default"` scope with
+  no extra field on `Selector` and no string compare against the source. What is left is the bare role, and
+  only the ones the font provider knows (`Fonts.isScope`) name a render site: `window` and `inventory` are
+  widget roles with nothing behind them, so they are tree keys (D-067 from the other side).
+- **(033.1) A stylesheet must be parsed BEFORE the previous one is dropped.** `skin{…}` replaces the addon's
+  sheet whole, so the natural order is drop-then-apply — which turns a typo in the fifth rule into a client
+  that is now unstyled *and* erroring. Parsing first makes a malformed sheet a pure error: nothing moved.
+- **(033.1) A sheet that pushes nothing must push nothing.** `Fonts` keeps an addon-less client byte-for-byte
+  stock through an `active` volatile that only a real `push` sets; a rule with no property (`["chat"] = {}`)
+  and a sheet whose keys are all tree keys therefore install **zero** entries rather than an empty spec. An
+  "apply always writes something" implementation would have cost every routed site its fast path for the
+  lifetime of the sheet, and the symptom — a slightly slower client — is one nobody would trace back here.

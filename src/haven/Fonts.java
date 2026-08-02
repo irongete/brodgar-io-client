@@ -43,15 +43,17 @@ import java.util.WeakHashMap;
  * {@code new Text.Foundry(...)} with {@link #foundry(String, Text.Foundry)}, tagged {@code // addon:}, and
  * the provider resolves the current foundry for that named <b>scope</b> — an addon-installed override, or the
  * site's stock foundry when none is set. It also holds the <b>owner-tagged override registry</b> and the
- * <b>generation counter</b>; the Lua surface ({@code hafen.font.*}) is built by {@code io.brodgar.addon.FontApi},
- * which drives this class ({@link #push}/{@link #reset}/{@link #removeOwner}) and reverts an addon's overrides on
- * teardown (owned-resource model, spec 05).
+ * <b>generation counter</b>; the Lua surface is the <b>stylesheet</b> {@code hafen.ui.skin{…}}
+ * ({@code io.brodgar.addon.Sheet}, 033.1 — a font is one property of a rule, and {@code hafen.font.setFont} is a
+ * hard cut), which drives this class ({@link #push}/{@link #reset}/{@link #removeOwner}); an addon's entries are
+ * reverted on teardown by {@code io.brodgar.addon.FontApi} (owned-resource model, spec 05). <b>Nothing about the
+ * render sites changed when the sheet arrived</b> — only who fills the stack.
  *
  * <p><b>Resolution</b> is most-specific first: a <b>per-instance</b> override on the widget being drawn or one of
  * its ancestors (F5, {@link #frame(Widget)}) &rarr; a scope's own override (top of its owner-tagged stack) &rarr; the
- * {@code "default"} override &rarr; the site's stock foundry. So {@code setFont("default", h)} cascades to every
- * routed surface that has no more-specific override, a per-scope override refines any one surface, and
- * {@code node:setFont(h)} refines one widget subtree.
+ * {@code "default"} override &rarr; the site's stock foundry. So a sheet's {@code ["*"]} rule cascades to every
+ * routed surface that has no more-specific rule, a rule keyed on one site refines that surface, and
+ * {@code widget:setFont(h)} refines one widget subtree.
  *
  * <p><b>Cost.</b> When no addon has installed <i>any</i> override (the overwhelmingly common case) {@link #foundry}
  * returns the stock foundry after a single {@code volatile} read — no lock, no allocation. Only once an override
@@ -414,9 +416,10 @@ public class Fonts {
     }
 
     /**
-     * Install {@code owner}'s override on {@code scope} (its {@code hafen.font.setFont(scope, h)}). An addon owns
-     * at most one override per scope — a repeat {@code setFont} replaces its previous one and re-raises it to the
-     * top (last-wins). Bumps {@link #gen()} so routed sites/widgets rebuild. {@code base} already carries any
+     * Install {@code owner}'s override on {@code scope} (one <b>site rule</b> of its {@code hafen.ui.skin} sheet).
+     * An addon owns at most one override per scope — re-applying its sheet replaces the previous entry and
+     * re-raises it to the top (last-wins). Bumps {@link #gen()} so routed sites/widgets rebuild. {@code base}
+     * already carries any
      * bold/italic; {@code size} is <b>logical</b> px (UI-scaled when the foundry is built), {@code aa}/{@code color}
      * are {@code null} to inherit the site's stock.
      */
@@ -431,9 +434,9 @@ public class Fonts {
     }
 
     /**
-     * Drop {@code owner}'s override on {@code scope} (its {@code hafen.font.reset(scope)}) — the surface falls back
-     * to the next owner beneath, or the stock foundry. Returns whether anything was removed; bumps {@link #gen()}
-     * only when it was.
+     * Drop {@code owner}'s override on {@code scope} (a site rule leaving its sheet, or the whole sheet being
+     * dropped) — the surface falls back to the next owner beneath, or the stock foundry. Returns whether anything
+     * was removed; bumps {@link #gen()} only when it was.
      */
     public static synchronized boolean reset(String scope, Object owner) {
         List<Spec> st = overrides.get(scope);
@@ -492,12 +495,13 @@ public class Fonts {
         instanced = inst;
     }
 
-    /** The full scope enum ({@link #SCOPES}), for {@code hafen.font.scopes()} discovery. */
-    public static String[] scopes() {
-        return SCOPES.clone();
-    }
-
-    /** Is {@code name} a valid scope (a member of {@link #SCOPES})? Used to validate {@code setFont}/{@code reset}. */
+    /**
+     * Is {@code name} a valid scope (a member of {@link #SCOPES})? This is how a <b>stylesheet key</b> is
+     * classified (033.1): a bare selector role that names one of these is a <b>site key</b> and fills this
+     * provider; anything else is a tree key, resolved against the live widget tree instead. ({@code scopes()},
+     * the discovery list behind {@code hafen.font.scopes()}, went with that function's hard cut — a sheet key is
+     * a selector, so the vocabulary an addon discovers is the selector grammar, not a second enum.)
+     */
     public static boolean isScope(String name) {
         if(name == null)
             return false;

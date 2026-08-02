@@ -198,15 +198,15 @@ public final class Addon {
      */
     public final List<LuaHttpRequest> requests = new CopyOnWriteArrayList<LuaHttpRequest>();
     /**
-     * Named client-surface font overrides this addon has installed ({@code hafen.font.setFont(scope, h)}, F-series):
-     * the {@code scope} names (e.g. {@code "default"}) it currently overrides in the {@link haven.Fonts} provider.
-     * Owner-tagged in the provider by <b>this</b> {@code Addon} instance (spec 05); teardown
-     * ({@link FontApi#teardownFonts}) removes them from every scope stack ({@code Fonts.removeOwner(this)} bumps the
-     * generation counter → routed sites revert to the stock foundry) and clears the list, so a reload/disable
-     * restores the stock UI. Copy-on-write for symmetry (font ops run on the UI thread; a {@code :reload} mid-op
-     * cannot happen).
+     * The <b>one stylesheet</b> this addon has installed ({@code hafen.ui.skin{…}}, 033-ui-stylesheet), or
+     * {@code null}. An addon owns exactly one: a second {@code skin{…}} replaces it whole and {@code skin(nil)}
+     * drops it ({@link Sheet#skin}). Each of its site keys is an owner-tagged entry in the {@link haven.Fonts}
+     * provider, tagged by <b>this</b> {@code Addon} instance (spec 05); teardown
+     * ({@link FontApi#teardownFonts}) removes them ({@code Fonts.removeOwner(this)} bumps the generation counter →
+     * routed sites revert to the stock foundry), so a reload/disable restores the stock UI. The sheet itself is
+     * immutable once parsed, so the field is a plain volatile reference rather than a mutable collection.
      */
-    public final List<String> fontOverrides = new CopyOnWriteArrayList<String>();
+    volatile Sheet skin = null;
     /**
      * Has this addon installed any <b>per-instance</b> font override ({@code node:setFont(h)}, F5)? Only a flag, not
      * a list: the overrides are keyed by widget inside the {@link haven.Fonts} provider, whose registry holds its

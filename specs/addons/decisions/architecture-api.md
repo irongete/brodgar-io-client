@@ -562,3 +562,29 @@ inside; if the answer is a single engine object, it is a verb on that object's e
 privilege whichever instance you happened to build the section around.
 **See.** [D-012/D-013](architecture-api.md), [D-022](architecture-api.md), [D-009](widgets-ui.md),
 [029-widget-oop](../029-widget-oop/spec.md), [ui-widgets.md](../learnings/ui-widgets.md).
+
+### D-072 — forgive what the API will later understand; refuse what it never will ✅ (2026-08-02)
+**Decision.** In a two-part surface where one part's vocabulary is still **growing** and the other's is
+**complete**, they get opposite failure modes. `hafen.ui.skin{ [selector] = {props} }` (033.1) accepts a
+**tree key** — `@Inventory`, `window[title=Cupboard]`, the `window`/`inventory` roles — parses it, and then
+does **nothing**: silently inert, never an error, because C1b will resolve exactly that key and a sheet written
+for it must load today, unstyled, rather than blow up. An unknown **property** in a rule (`fnt = h`) is an
+**error** naming the ones that exist. Bad *grammar* stays an error on both sides — the key goes through the
+same `Selector` parser `hafen.ui(sel)` uses, so `"nope"` gets the same message in both places.
+**Rationale.** (2026-08-02, 033.1.) The two look like the same "unknown name" case and are not. A key that does
+not resolve **has a future meaning already designed** — the C1a/C1b split is a task boundary, not a semantic
+one, so erroring on it would make the *implementation schedule* visible in the API and punish an author for
+being early. A misspelt property has no future meaning to wait for: `fnt` is never going to mean anything, so
+silence would leave a typo indistinguishable from a working rule for as long as it takes to notice the font
+never changed. Erring toward silence where a value is *not yet* understood and toward noise where it *cannot*
+be is the only combination that never lies about which of the two happened.
+**Consequences.** The rule generalises past this feature: a growing key space (selectors, roles, resource
+names, event names, scopes) forgives; a closed value space (property names, option keys, enum arguments)
+refuses. It also says how to *tell them apart* — ask "is there a designed later meaning for this exact
+string?", not "is this in my table?". Cost: a sheet whose keys are all inert applies cleanly and appears to do
+nothing, so the honest place to learn what resolved is the docs' site-key table, and a future task adding a
+diagnostic (a count of inert rules) is compatible with this decision rather than a reversal of it. Read
+forward: whenever a feature is *sliced*, check whether the slice line is visible from Lua — if it is, that is
+usually an error message that should have been silence.
+**See.** [D-012](architecture-api.md), [D-067](widgets-ui.md), [033-ui-stylesheet](../033-ui-stylesheet/spec.md),
+[fonts.md](../learnings/fonts.md).

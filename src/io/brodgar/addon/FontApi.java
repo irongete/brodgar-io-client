@@ -7,7 +7,6 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
@@ -28,10 +27,12 @@ import static io.brodgar.addon.AddonManager.*;
  *       family for {@code $font[…]}); {@code hafen.font.load} is a hard cut (028.1, D-013). Either way the handle
  *       is an opaque per-addon Lua value with {@code :derive}/{@code :family}/{@code :size}, and the size/style
  *       variant comes from {@code :derive{…}} — the load takes a name or a path and nothing else.</li>
- *   <li><b>Global overrides</b> on named client surfaces (F1 ships {@code "default"}): {@code setFont(scope, h)}
- *       / {@code reset(scope)} / {@code scopes()}, driving the {@code haven}-reachable {@link Fonts} provider.
- *       Each override is <b>owner-tagged</b> and reverted on the addon's teardown ({@link #teardownFonts}) —
- *       the owned-resource model (spec 05).</li>
+ *   <li><b>Global surfaces are the STYLESHEET's</b>, not this file's: {@code hafen.font.setFont(scope, h)} /
+ *       {@code reset(scope)} / {@code scopes()} are a <b>hard cut</b> (033.1) — a font became one property of a
+ *       rule, and {@code hafen.ui.skin{ ["window.title"] = { font = h } }} ({@link Sheet}) is the single place
+ *       that says what a client surface looks like. The {@link Fonts} provider and its owner-tagged stack are
+ *       unchanged: only <i>who fills them</i> moved. Their teardown still runs from here
+ *       ({@link #teardownFonts}) — the owned-resource model (spec 05).</li>
  *   <li><b>Own-widget application</b> (F2, shipped): a {@code font=} option on {@code hafen.ui.window}/{@code
  *       widget} ({@link AddonWidget}) and a per-call {@code {font,color}} on the {@code g:text}/{@code g:atext} draw
  *       wrapper ({@link LuaGOut}) + a custom TTF in the {@code $font[…]} rich-text tag (family AWT-registered
@@ -53,35 +54,14 @@ final class FontApi {
     /** Build {@code hafen.font} for {@code owner}. From installHafen. */
     static void installFont(LuaTable hafen, final Addon owner) {
         LuaTable font = new LuaTable();
-        // hafen.font.setFont(scope, h) — install THIS addon's font override on a named client surface (D-043). scope
-        // is one of hafen.font.scopes(); F1 routes "default" (the global fallback — Text.std / Text.render / Label),
-        // which CASCADES to every routed surface with no more-specific override, so setFont("default", h) really does
-        // change most UI text live. Each scope holds an owner-tagged stack (last-wins); this addon's overrides are
-        // reverted automatically on :reload/disable (the stock UI is always restorable). Changing text is invalidated
-        // via a generation counter, so it appears live (Label re-renders; Text.render rebuilds each call). Returns nil.
-        font.set("setFont", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                return setFont(owner, a.arg(1), a.arg(2));
-            }
-        });
-        // hafen.font.reset(scope) — drop THIS addon's override on that scope (restores whatever is beneath: another
-        // addon's override, or the stock foundry). A no-op if this addon had no override there. Returns nil.
-        font.set("reset", new OneArgFunction() {
-            public LuaValue call(LuaValue scope) {
-                return reset(owner, scope);
-            }
-        });
-        // hafen.font.scopes() — the array of valid scope names (discovery). The enum is complete from F1; a scope
-        // becomes EFFECTIVE only once its render site is routed through the provider (its slice — F1 = "default").
-        font.set("scopes", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable t = new LuaTable();
-                String[] sc = Fonts.scopes();
-                for(int i = 0; i < sc.length; i++)
-                    t.set(i + 1, LuaValue.valueOf(sc[i]));
-                return t;
-            }
-        });
+        // hafen.font.setFont(scope, h) / .reset(scope) / .scopes() are GONE (033.1, hard cut — they read as plain
+        // nil). A font is not an API of its own any more, it is ONE PROPERTY of a stylesheet rule, so the surface
+        // that used to be setFont("window.title", h) is now
+        //     hafen.ui.skin{ ["window.title"] = { font = h } }
+        // — one sheet per addon, applied live, dropped with hafen.ui.skin(nil) and reverted on :reload/disable
+        // (Sheet). The scope enum is gone with it: a sheet key is a SELECTOR, the same string hafen.ui(sel) takes,
+        // so there is one vocabulary for "which part of the UI" instead of two. hafen.font itself keeps its ONE
+        // job below — naming an engine font (D-060).
         // hafen.font(name) — the CALL form: one of the client's four BUILT-IN fonts, "sans" | "serif" | "mono" |
         // "fraktur". They are ENGINE-owned, so they are ADDRESSED, not loaded (the hafen.sound(name) shape): the
         // handle is interned per addon, has no lifetime, and therefore carries no :dispose()/:path()/:type()
@@ -178,28 +158,6 @@ final class FontApi {
         return fontHandle(new FontHandle(base, size, aa, color));
     }
 
-    // ------------------------------------------------------------------ global overrides (setFont / reset)
-
-    /** {@code hafen.font.setFont(scope, h)}: validate + install {@code owner}'s override on {@code scope} (F1: "default"). */
-    private static LuaValue setFont(Addon owner, LuaValue scopev, LuaValue hv) {
-        String scope = requireScope(scopev, "hafen.font.setFont");
-        FontHandle fh = FontHandle.resolve(hv);
-        if(fh == null)
-            throw new LuaError("hafen.font.setFont(scope, h): h must be a font handle — hafen.asset(\"fonts/X.ttf\") or hafen.font(\"sans\")");
-        Fonts.push(scope, owner, fh.font, fh.size, fh.aa, fh.color);
-        if(!owner.fontOverrides.contains(scope))
-            owner.fontOverrides.add(scope);
-        return LuaValue.NIL;
-    }
-
-    /** {@code hafen.font.reset(scope)}: drop {@code owner}'s override on {@code scope}. */
-    private static LuaValue reset(Addon owner, LuaValue scopev) {
-        String scope = requireScope(scopev, "hafen.font.reset");
-        Fonts.reset(scope, owner);
-        owner.fontOverrides.remove(scope);
-        return LuaValue.NIL;
-    }
-
     // ------------------------------------------------------------------ per-instance overrides (F5, node:setFont)
 
     /**
@@ -230,22 +188,17 @@ final class FontApi {
             Fonts.resetInstance(w, owner);
     }
 
-    private static String requireScope(LuaValue scopev, String ctx) {
-        if(!scopev.isstring() || !Fonts.isScope(scopev.tojstring()))
-            throw new LuaError(ctx + ": scope must be one of hafen.font.scopes() (e.g. \"default\")");
-        return scopev.tojstring();
-    }
-
     /**
-     * Tear down every font override this addon owns (reload/disable/relogin, spec 05): remove its entries from
-     * every scope stack ({@link Fonts#removeOwner}, which bumps the generation counter so routed sites revert to
-     * the stock foundry) and clear the owned list. Called from {@link AddonRegistry#teardown}.
+     * Tear down everything this addon styled (reload/disable/relogin, spec 05): its <b>stylesheet</b>'s site
+     * entries ({@code hafen.ui.skin}, 033.1) and its per-instance {@code widget:setFont} overrides (F5), in one
+     * sweep — {@link Fonts#removeOwner} pulls both and bumps the generation counter, so every routed site reverts
+     * to the stock foundry. Called from {@link AddonRegistry#teardown}.
      */
     static void teardownFonts(Addon a) {
-        if(a.fontOverrides.isEmpty() && !a.fontNodes)
-            return;                       // never touched fonts → nothing to revert (avoids a needless gen bump)
-        Fonts.removeOwner(a);             // sweeps both the named scopes and the per-instance registry (F5)
-        a.fontOverrides.clear();
+        if((a.skin == null) && !a.fontNodes)
+            return;                       // never styled anything → nothing to revert (avoids a needless gen bump)
+        Fonts.removeOwner(a);             // sweeps both the sheet's named scopes and the per-instance registry (F5)
+        a.skin = null;
         a.fontNodes = false;
     }
 

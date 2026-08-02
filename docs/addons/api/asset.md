@@ -27,7 +27,7 @@ string to [`hafen.render.sprite`](render.md#standing-an-image-in-the-world) or
 | Extensions | `a:type()` | What you get | Use it with |
 |---|---|---|---|
 | `.png` `.jpg` `.jpeg` `.gif` `.bmp` | `"image"` | a GPU texture (alpha preserved) | [`g:image`/`g:aimage`](ui.md#the-g-draw-wrapper), [`hafen.render.sprite`](render.md#standing-an-image-in-the-world) |
-| `.ttf` `.otf` | `"font"` | a [`FontHandle`](fonts.md) (its family is AWT-registered, so `$font[…]` works) | [`font =`](fonts.md#draw-with-it--your-own-widgets-f2), [`hafen.font.setFont`](fonts.md#restyle-a-global-surface--owned-overrides), [`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth-f5) |
+| `.ttf` `.otf` | `"font"` | a [`FontHandle`](fonts.md) (its family is AWT-registered, so `$font[…]` works) | [`font =`](fonts.md#draw-with-it--your-own-widgets-f2), [`hafen.ui.skin`](ui.md#the-stylesheet--restyling-the-client), [`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth-f5) |
 | `.glb` `.gltf` | `"mesh"` | parsed glTF 2.0 static geometry + its textures | [`hafen.render.object`](render.md#standing-a-3d-model-in-the-world) |
 
 PNG is the recommended image format (transparency), and `.glb` the recommended model format (single file).

@@ -100,8 +100,10 @@ Three properties make it a convention rather than a lookup helper:
   (`hafen.ui.all(sel)`) and for something that does not exist yet
   ([`hafen.ui.on(sel, "appear"|"disappear", fn)`](ui.md#watching-for-a-widget)) — so waiting for a window and then
   reading it no longer take two different vocabularies.
-- **The vocabulary is shared, not invented.** A selector's **roles** are the same names as the
-  [font scopes](fonts.md#scopes); `w:role()` reports one, or an honest `nil`.
+- **One string, two resolutions.** The same selector is also the key of a
+  [stylesheet](ui.md#the-stylesheet--restyling-the-client): a **role** that names a render *site* restyles it
+  ([the site keys](fonts.md#site-keys)), while every other selector resolves against the live tree. `w:role()`
+  reports a widget's role, or an honest `nil`.
 - **Arity is the verb**, as everywhere else: `hafen.ui(sel)` is one widget, `hafen.ui.all(sel)` is all of them, and
   `hafen.ui()` with no argument is the root of the whole tree.
 
