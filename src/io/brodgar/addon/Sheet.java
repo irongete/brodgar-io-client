@@ -77,8 +77,8 @@ import java.util.WeakHashMap;
  * <p>Immutable once parsed, package-private, and carries no Lua.
  */
 final class Sheet {
-    /** The style properties a rule may carry. {@code bg}/{@code border}/{@code pad} and the textures arrive in C2. */
-    private static final String PROPS = "\"font\" and \"color\"";
+    /** The style properties a rule may carry. {@code pad} arrives with the geometry half of C2 (035.2). */
+    private static final String PROPS = "\"font\", \"color\", \"bg\" and \"border\"";
 
     /**
      * One kept rule and the properties it fills. Each property is independently optional. A rule is either a
@@ -91,8 +91,10 @@ final class Sheet {
         final int rank;           // a tree rule's SPECIFICITY (030): role 1 · @Class 2 · [title=] 4 · [res=] 8
         final FontHandle font;    // the rule's `font` property, or null (a rule may carry only a colour)
         final Color color;        // the rule's `color` property, or null (a rule may carry only a font)
+        final Chrome.Bg bg;       // the rule's `bg` property (035.1), or null
+        final Chrome.Border border;   // the rule's `border` property (035.1), or null
 
-        Rule(String site, Selector sel, FontHandle font, Color color) {
+        Rule(String site, Selector sel, FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border) {
             this.site = site;
             this.sel = sel;
             this.rank = (sel == null) ? 0
@@ -100,6 +102,13 @@ final class Sheet {
                    + ((sel.title != null) ? 4 : 0) + ((sel.res != null) ? 8 : 0));
             this.font = font;
             this.color = color;
+            this.bg = bg;
+            this.border = border;
+        }
+
+        /** Does this rule say anything at all? A rule that names no property styles nothing, anywhere. */
+        boolean empty() {
+            return (font == null) && (color == null) && (bg == null) && (border == null);
         }
     }
 
@@ -189,14 +198,14 @@ final class Sheet {
     private void install(Addon owner) {
         for(int i = 0; i < site.size(); i++) {
             Rule r = site.get(i);
-            if((r.font == null) && (r.color == null))
+            if(r.empty())
                 continue;      // nothing to fill the stack with — keep the identity fast path intact
             FontHandle f = r.font;
             Fonts.push(r.site, owner,
                        (f == null) ? null : f.font,
                        (f == null) ? null : f.size,
                        (f == null) ? null : f.aa,
-                       r.color);
+                       r.color, r.bg, r.border);
         }
     }
 
@@ -259,6 +268,8 @@ final class Sheet {
     private static Rule propsOf(String ctx, LuaValue props, String site, Selector sel) {
         FontHandle font = null;
         Color color = null;
+        Chrome.Bg bg = null;
+        Chrome.Border border = null;
         LuaValue pk = LuaValue.NIL;
         while(true) {
             Varargs n = props.next(pk);
@@ -277,12 +288,16 @@ final class Sheet {
                 if(color == null)
                     throw new LuaError(ctx + ".color: expected a colour table with 0..255"
                         + " components — { 200, 210, 200 } or { r = 200, g = 210, b = 200, a = 255 }");
+            } else if("bg".equals(p)) {
+                bg = Chrome.parseBg(ctx, pv);
+            } else if("border".equals(p)) {
+                border = Chrome.parseBorder(ctx, pv);
             } else {
                 throw new LuaError(ctx + ": \"" + pk.tojstring()
                     + "\" is not a style property — the properties this client ships are " + PROPS);
             }
         }
-        return new Rule(site, sel, font, color);
+        return new Rule(site, sel, font, color, bg, border);
     }
 
     // ---- the PER-WIDGET cascade: tree rules (034.1) + widget:skin (034.3) ---------------------------
@@ -307,6 +322,10 @@ final class Sheet {
         final Addon fontOwner;
         /** The winning {@code color} property, or {@code null}. */
         final Color color;
+        /** The winning {@code bg} property (035.1), or {@code null}. */
+        final Chrome.Bg bg;
+        /** The winning {@code border} property (035.1), or {@code null}. */
+        final Chrome.Border border;
         /** The {@link #treegen} this was resolved at — a bump makes the entry stale on its next touch. */
         final int gen;
         /**
@@ -325,15 +344,17 @@ final class Sheet {
          */
         int recheck;
 
-        Resolved(FontHandle font, Addon fontOwner, Color color, int gen) {
+        Resolved(FontHandle font, Addon fontOwner, Color color, Chrome.Bg bg, Chrome.Border border, int gen) {
             this.font = font;
             this.fontOwner = fontOwner;
             this.color = color;
+            this.bg = bg;
+            this.border = border;
             this.gen = gen;
         }
 
         boolean empty() {
-            return (font == null) && (color == null);
+            return (font == null) && (color == null) && (bg == null) && (border == null);
         }
     }
 
@@ -380,33 +401,49 @@ final class Sheet {
         final Addon owner;
         final FontHandle font;
         final Color color;
+        final Chrome.Bg bg;
+        final Chrome.Border border;
 
-        Skin(Addon owner, FontHandle font, Color color) {
+        Skin(Addon owner, FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border) {
             this.owner = owner;
             this.font = font;
             this.color = color;
+            this.bg = bg;
+            this.border = border;
+        }
+
+        boolean empty() {
+            return (font == null) && (color == null) && (bg == null) && (border == null);
         }
     }
 
-    /** The key of {@link #specs}: a resolved style IS its (font handle, colour) pair. */
+    /** The key of {@link #specs}: a resolved style IS the set of properties it won. */
     private static final class SKey {
         final FontHandle font;
         final Color color;
+        final Chrome.Bg bg;
+        final Chrome.Border border;
 
-        SKey(FontHandle font, Color color) {
+        SKey(FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border) {
             this.font = font;
             this.color = color;
+            this.bg = bg;
+            this.border = border;
         }
 
         public int hashCode() {
-            return (System.identityHashCode(font) * 31) + ((color == null) ? 0 : color.hashCode());
+            return (System.identityHashCode(font) * 31) + ((color == null) ? 0 : color.hashCode())
+                + ((bg == null) ? 0 : bg.hashCode() * 7) + ((border == null) ? 0 : border.hashCode() * 13);
         }
 
         public boolean equals(Object o) {
             if(!(o instanceof SKey))
                 return false;
             SKey k = (SKey)o;
-            return (font == k.font) && ((color == null) ? (k.color == null) : color.equals(k.color));
+            return (font == k.font)
+                && ((color == null) ? (k.color == null) : color.equals(k.color))
+                && ((bg == null) ? (k.bg == null) : bg.equals(k.bg))
+                && ((border == null) ? (k.border == null) : border.equals(k.border));
         }
     }
 
@@ -479,24 +516,21 @@ final class Sheet {
      * happens even on a <b>stale</b> widget, whose write is then the 029.2 silent chaining no-op.
      */
     static void applySkin(Addon owner, Widget w, LuaValue props) {
-        FontHandle font = null;
-        Color color = null;
+        Rule r = null;
         if(!props.isnil()) {
             if(!props.istable())
                 throw new LuaError("widget:skin(props): expected a table of style properties { font = h,"
                     + " color = {r,g,b} }, got " + props.typename()
                     + " — widget:skin() reads this addon's style back, widget:skin(nil) drops it");
-            Rule r = propsOf("widget:skin", props, null, null);
-            font = r.font;
-            color = r.color;
+            r = propsOf("widget:skin", props, null, null);
         }
         if(w == null)
             return;                       // a write on a stale widget: nothing to style (029.2)
-        setSkin(owner, w, font, color);
+        setSkin(owner, w, (r == null) ? null : new Skin(owner, r.font, r.color, r.bg, r.border));
     }
 
-    /** Install (or, with both properties {@code null}, drop) {@code owner}'s entry on {@code w}. */
-    private static synchronized void setSkin(Addon owner, Widget w, FontHandle font, Color color) {
+    /** Install (or, with {@code s} empty or {@code null}, drop) {@code owner}'s entry on {@code w}. */
+    private static synchronized void setSkin(Addon owner, Widget w, Skin s) {
         List<Skin> st = skins.get(w);
         boolean changed = false;
         if(st != null) {
@@ -507,10 +541,10 @@ final class Sheet {
                 }
             }
         }
-        if((font != null) || (color != null)) {
+        if((s != null) && !s.empty()) {
             if(st == null)
                 skins.put(w, st = new ArrayList<Skin>(1));
-            st.add(new Skin(owner, font, color));         // re-raised to the top: last applied wins (D-043)
+            st.add(s);                                    // re-raised to the top: last applied wins (D-043)
             owner.skinNodes = true;
             changed = true;
         } else if((st != null) && st.isEmpty()) {
@@ -544,6 +578,10 @@ final class Sheet {
             t.set("font", FontApi.handleFor(reader, s.font, reader));
         if(s.color != null)
             t.set("color", AddonManager.color(s.color));
+        if(s.bg != null)
+            t.set("bg", s.bg.toLua(reader));
+        if(s.border != null)
+            t.set("border", s.border.toLua(reader));
         return t;
     }
 
@@ -589,7 +627,7 @@ final class Sheet {
             }
             Resolved r = fold(w);
             r.recheck = (r.empty() && anyLate) ? left : 0;
-            r.spec = r.empty() ? null : specFor(r.font, r.color);
+            r.spec = r.empty() ? null : specFor(r);
             cache.put(w, r);
             return r.empty() ? null : r;
         }
@@ -612,17 +650,18 @@ final class Sheet {
      * open and that value has to be <b>stable across frames</b> (F5's rule: a stamp that varies rebuilds every routed
      * site every frame). Caller holds {@code Sheet.class}.
      */
-    private static Fonts.Style specFor(FontHandle font, Color color) {
-        SKey k = new SKey(font, color);
+    private static Fonts.Style specFor(Resolved r) {
+        SKey k = new SKey(r.font, r.color, r.bg, r.border);
         Fonts.Style s = specs.get(k);
         if(s == null) {
+            FontHandle font = r.font;
             // No owner token: unlike a site entry, a tree style never joins an owner-tagged stack in the provider —
             // it is produced on demand and stops existing when the sheet unregisters, which is the whole teardown.
             specs.put(k, s = Fonts.treeSpec(null,
                                             (font == null) ? null : font.font,
                                             (font == null) ? null : font.size,
                                             (font == null) ? null : font.aa,
-                                            color));
+                                            r.color, r.bg, r.border));
         }
         return s;
     }
@@ -639,7 +678,9 @@ final class Sheet {
         FontHandle font = null;
         Addon fontOwner = null;
         Color color = null;
-        int frank = -1, crank = -1;
+        Chrome.Bg bg = null;
+        Chrome.Border border = null;
+        int frank = -1, crank = -1, grank = -1, brank = -1;
         for(int i = 0; i < installed.size(); i++) {
             Sheet s = installed.get(i);
             for(int j = 0; j < s.tree.size(); j++) {
@@ -652,6 +693,12 @@ final class Sheet {
                 if((r.color != null) && (r.rank >= crank)) {
                     color = r.color; crank = r.rank;
                 }
+                if((r.bg != null) && (r.rank >= grank)) {
+                    bg = r.bg; grank = r.rank;
+                }
+                if((r.border != null) && (r.rank >= brank)) {
+                    border = r.border; brank = r.rank;
+                }
             }
         }
         List<Skin> sk = skins.get(w);                     // 034.3: the per-instance level, above every rule
@@ -662,8 +709,12 @@ final class Sheet {
             }
             if(s.color != null)
                 color = s.color;
+            if(s.bg != null)
+                bg = s.bg;
+            if(s.border != null)
+                border = s.border;
         }
-        return new Resolved(font, fontOwner, color, treegen);
+        return new Resolved(font, fontOwner, color, bg, border, treegen);
     }
 
     /**
@@ -688,6 +739,10 @@ final class Sheet {
             t.set("font", FontApi.handleFor(reader, r.font, r.fontOwner));
         if(r.color != null)
             t.set("color", AddonManager.color(r.color));
+        if(r.bg != null)
+            t.set("bg", r.bg.toLua(reader));
+        if(r.border != null)
+            t.set("border", r.border.toLua(reader));
         return t;
     }
 }

@@ -378,3 +378,25 @@
   everything downstream (interning, the stamp, `Fonts.combine`, `specOf`) was already written by 034.1/034.2.
   That is what "no second resolution path" buys the *next* feature, not just this one — C2's `bg`/`border` are
   properties on the same rules, not another mechanism.
+- **(035.1) The site half of the cascade does NOT compose per property — only the levels above it do.**
+  `Fonts.scopeTop(scope)` returns the scope's own top-of-stack **or**, when it has none, `"default"`'s: a
+  fallback, not a `combine`. So `["*"] = {bg=…}` beside `["window.frame"] = {border=…}` yields the border
+  ALONE, and this is 033 behaviour that chrome merely made visible (it is equally true of
+  `["*"] = {font=body}` beside `["chat"] = {color=…}`, where chat keeps its stock font). D-076's per-property
+  fold lives in `combine(frameTop(), scopeTop(scope))` — i.e. between the **per-widget** levels and the site
+  half, never inside the site half. Documented as a caveat rather than changed; changing it would silently
+  alter every shipped 033 sheet.
+- **(035.1) A style whose properties are all non-text must hand the site its OWN foundry back.** `["*"]` is the
+  `"default"` scope, so a chrome-only rule there reaches every routed text site's `resolve()`. Without a
+  short-circuit, `Spec.foundry(stock)` builds a *new* foundry equal to the stock one — same family, same size,
+  same colour — and every routed site in the client re-derives and re-rasterises for a background it never
+  reads. One `if` at the top of `Spec.foundry` (all of `base`/`size`/`aa`/`color` null → `return stock`) keeps
+  the identity fast path. The check that guards this must install the rule on **`*`**, not on a scope the site
+  does not fall back through — testing `window.title` while the rule sat on `window.frame` proved nothing, and
+  only the falsification showed it.
+- **(035.1) `Fonts.styleFor(scope, widget)` is the chain with the frame NAMED rather than ambient.**
+  `style(scope)`/`foundry(scope, stock)` read `frameTop()`, a `ThreadLocal` only meaningful inside the draw
+  descent. Anything deciding *outside* a draw — 035.1 decides the deco swap in `Window.tick` — needs the same
+  `combine(treeTop(w), scopeTop(scope))` against a widget it names. Resolve `treeTop` **before** taking
+  `Fonts.class`: it calls into the style source, and the established lock order never holds the provider's
+  monitor across that call.

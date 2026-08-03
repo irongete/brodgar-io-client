@@ -113,4 +113,19 @@ public final class AddonWidgets {
     public static Boolean wndState(Window wnd) {
         return io.brodgar.addon.AddonManager.wndState(wnd);
     }
+
+    /**
+     * The <b>window-chrome seam</b> (spec {@code 035-ui-chrome}, C2) — asked once per window per
+     * {@link Window#tick}: should this window be carrying the sheet-fed {@code Deco} right now, or the stock one?
+     * A {@code hafen.ui.skin{["window.frame"] = {bg=…, border=…}}} rule is what puts it on, and dropping the
+     * sheet is what takes it off; the swap goes through the public {@link Window#chdeco} the engine already
+     * provides, so nothing about {@code Window} is re-routed.
+     *
+     * <p>It lives in {@code tick} rather than in a draw because {@code chdeco} destroys a widget and re-lays the
+     * window out — neither belongs inside a draw pass. With no addon override installed anywhere the whole call
+     * is two {@code volatile} reads and allocates nothing.
+     */
+    public static void chrome(Window wnd) {
+        io.brodgar.addon.AddonManager.chrome(wnd);
+    }
 }

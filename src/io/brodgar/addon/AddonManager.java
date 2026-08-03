@@ -658,6 +658,18 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
     /** @see #toggleWnd */
     public static Boolean wndState(Window wnd) {         return UiApi.wndState(wnd);     }
 
+    /**
+     * The <b>window-chrome seam</b> (035.1, C2) — called from {@code haven.AddonWidgets} for every window on
+     * every {@code Window.tick}: put the sheet-fed {@code Deco} on, take it off, or refresh what it paints
+     * ({@link SkinDeco#check}). It runs in {@code tick} because the swap goes through {@code Window.chdeco},
+     * which destroys a widget and re-lays the window out — neither belongs inside a draw.
+     *
+     * <p><b>Threading.</b> UI thread, under the monitor the tick already holds (the resolution reads the widget
+     * tree), and it raises no Lua: a rule is plain parsed data by the time it gets here. With no override
+     * installed anywhere the call is one {@code instanceof} plus one {@code volatile} read and allocates nothing.
+     */
+    public static void chrome(Window wnd) {              SkinDeco.check(wnd);            }
+
     // The widget-targeting descriptor {id, type, place, caption, parentType} (D-024) is GONE (032.2). It was the
     // argument of replace{match=fn} and nothing else once 030.2 hard-cut the onWidgetCreate observer that shared
     // it; with hafen.ui.replace deleted there is exactly one vocabulary for "which window" left — the Selector.

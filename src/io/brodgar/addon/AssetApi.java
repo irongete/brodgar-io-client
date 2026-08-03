@@ -146,6 +146,13 @@ final class AssetApi {
          * (D-017): what the two addons share is the immutable {@link FontHandle}, never a table.
          */
         private final Map<FontHandle, LuaValue> fontViews = new IdentityHashMap<FontHandle, LuaValue>();
+        /**
+         * The same thing for an <b>image</b> another addon loaded (035.1) — minted only when
+         * {@code widget:style()} reports a {@code bg}/{@code border} from someone else's rule. Interned by
+         * {@link LuaImage} identity, and for the same D-017 reason: the two addons share the loaded image, never
+         * a table.
+         */
+        private final Map<LuaImage, LuaValue> imageViews = new IdentityHashMap<LuaImage, LuaValue>();
 
         Entry get(String key) {return live.get(key);}
         void put(String key, Entry e) {live.put(key, e);}
@@ -166,11 +173,15 @@ final class AssetApi {
         LuaValue fontView(FontHandle fh) {return fontViews.get(fh);}
         void putFontView(FontHandle fh, LuaValue h) {fontViews.put(fh, h);}
 
+        LuaValue imageView(LuaImage li) {return imageViews.get(li);}
+        void putImageView(LuaImage li, LuaValue h) {imageViews.put(li, h);}
+
         /** Teardown: drop every entry (the GPU state is freed by the typed teardowns that ran first). */
         void clear() {
             live.clear();
             builtinFonts.clear();
             fontViews.clear();
+            imageViews.clear();
         }
     }
 
@@ -316,6 +327,42 @@ final class AssetApi {
             public void dispose() {disposeImage(li);}
         });
         return h;
+    }
+
+    /**
+     * The image behind a resolved {@code bg}/{@code border}, as {@code reader} may hold it ({@code widget:style()},
+     * 035.1) — the mirror of {@link FontApi#handleFor}. Its own rule hands back the very handle it loaded, so
+     * {@code w:style().bg.image == panel} holds; a rule from <b>another addon's</b> sheet arrives as
+     * {@code reader}'s own interned view, because no Lua value crosses a sandbox boundary (D-017).
+     *
+     * <p>The view is deliberately <b>reduced</b>: it reads and it draws, but it carries no {@code :dispose()} —
+     * freeing an asset is the owner's to do, and an addon that could dispose a file it never loaded would be able
+     * to blank another addon's UI.
+     */
+    static LuaValue imageFor(Addon reader, final LuaImage li) {
+        if((li.owner == reader) && (li.handle != null))
+            return li.handle;
+        LuaValue v = reader.assets.imageView(li);
+        if(v == null) {
+            LuaTable h = new LuaTable();
+            h.set(LuaImage.KEY, LuaValue.userdataOf(li));   // the same opaque backing ref g:image resolves
+            h.set("type", new ZeroArgFunction() {
+                public LuaValue call() {return LuaValue.valueOf("image");}
+            });
+            h.set("path", new ZeroArgFunction() {
+                public LuaValue call() {return LuaValue.valueOf(li.name);}
+            });
+            h.set("size", new ZeroArgFunction() {
+                public LuaValue call() {
+                    LuaTable t = new LuaTable();
+                    t.set("w", LuaValue.valueOf(li.sz.x));
+                    t.set("h", LuaValue.valueOf(li.sz.y));
+                    return t;
+                }
+            });
+            reader.assets.putImageView(li, v = h);
+        }
+        return v;
     }
 
     /**

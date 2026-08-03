@@ -82,6 +82,7 @@ public class Fonts {
     public static final String[] SCOPES = {
         "default",        // F1  — global fallback (Text.std / Text.render / Label default)
         "window.title",   // F3  — window captions (Window.DefaultDeco)
+        "window.frame",   // C2  — the window CHROME the deco paints (035; bg/border, not a text site)
         "heading",        // F3e — in-window section headings (CharWnd.catf/failf, GridList.dcatf)
         "button",         // F3  — button captions
         "label",          // F3  — explicit non-default labels
@@ -114,6 +115,15 @@ public class Fonts {
         Color color(Color stock);
         /** The override's antialias flag, or {@code stock} when it carries none. */
         boolean aa(boolean stock);
+        /**
+         * The rule's {@code bg} property, or {@code null} (035.1/C2). <b>Opaque</b>: it is plain parsed data the
+         * addon layer defines and only the addon layer reads back — this class never looks inside one, exactly as
+         * it never looks inside an owner token. What consumes it is the sheet-fed chrome
+         * ({@code io.brodgar.addon.SkinDeco}); every text site ignores it.
+         */
+        Object bg();
+        /** The rule's {@code border} property, or {@code null} — opaque, like {@link #bg()}. */
+        Object border();
     }
 
     /**
@@ -128,6 +138,9 @@ public class Fonts {
         final Integer size;      // logical px (UI.scale is applied when a foundry is built), or null = use the site's stock size
         final Boolean aa;        // or null = inherit the site's stock antialias flag
         final Color  color;      // the rule's `color` property, or null = inherit the site's stock default colour
+        // addon: (035.1/C2) the rule's chrome properties, opaque to this class -- see Style.bg().
+        final Object bg;
+        final Object border;
         // A per-Spec stamp mixed into gen() while this override is the active per-widget FRAME (F5). It is what
         // makes a site's `gen != mygen` check fire for a widget CONSTRUCTED outside the frame and first drawn inside
         // it (and vice versa) -- without it, a label created after the skin would keep its stock font forever,
@@ -140,12 +153,17 @@ public class Fonts {
         // STOCK font identity so each site keeps its own size. Guarded by `this`.
         private final Map<Font, Font> fcache = new IdentityHashMap<Font, Font>();
 
-        Spec(Object owner, Font base, Integer size, Boolean aa, Color color) {
+        Spec(Object owner, Font base, Integer size, Boolean aa, Color color, Object bg, Object border) {
             this.owner = owner; this.base = base; this.size = size; this.aa = aa; this.color = color;
+            this.bg = bg; this.border = border;
             this.stamp = (++stampseq) * 0x9E3779B1;   // a distinct odd multiplier per Spec (built under Fonts.class)
         }
 
         synchronized Text.Foundry foundry(Text.Foundry stock) {
+            // addon: (035.1) a rule that names only chrome (bg/border) says nothing about text: hand the site its
+            // OWN foundry back, so a `["*"] = {bg=…}` sheet leaves every text surface byte-for-byte stock.
+            if((base == null) && (size == null) && (aa == null) && (color == null))
+                return stock;
             Text.Foundry c = cache.get(stock);
             if(c != null)
                 return c;
@@ -185,6 +203,8 @@ public class Fonts {
 
         public Color color(Color stock)  {return((color != null) ? color : stock);}
         public boolean aa(boolean stock) {return((aa != null) ? aa.booleanValue() : stock);}
+        public Object bg()               {return(bg);}
+        public Object border()           {return(border);}
     }
 
     // scope -> owner-tagged override stack (last = top = current). Guarded by `Fonts.class`.
@@ -208,7 +228,8 @@ public class Fonts {
     private static synchronized Spec combine(Spec inner, Spec outer) {
         if(inner == null)
             return outer;
-        if((outer == null) || ((inner.base != null) && (inner.size != null) && (inner.aa != null) && (inner.color != null)))
+        if((outer == null) || ((inner.base != null) && (inner.size != null) && (inner.aa != null)
+                               && (inner.color != null) && (inner.bg != null) && (inner.border != null)))
             return inner;                 // nothing left for the outer one to fill in
         Map<Spec, Spec> m = combos.get(inner);
         if(m == null)
@@ -216,10 +237,12 @@ public class Fonts {
         Spec c = m.get(outer);
         if(c == null) {
             m.put(outer, c = new Spec(inner.owner,
-                                      (inner.base  != null) ? inner.base  : outer.base,
-                                      (inner.size  != null) ? inner.size  : outer.size,
-                                      (inner.aa    != null) ? inner.aa    : outer.aa,
-                                      (inner.color != null) ? inner.color : outer.color));
+                                      (inner.base   != null) ? inner.base   : outer.base,
+                                      (inner.size   != null) ? inner.size   : outer.size,
+                                      (inner.aa     != null) ? inner.aa     : outer.aa,
+                                      (inner.color  != null) ? inner.color  : outer.color,
+                                      (inner.bg     != null) ? inner.bg     : outer.bg,
+                                      (inner.border != null) ? inner.border : outer.border));
         }
         return c;
     }
@@ -256,6 +279,36 @@ public class Fonts {
 
     private static synchronized Style resolveStyle(String scope) {
         return combine(frameTop(), scopeTop(scope));
+    }
+
+    /**
+     * The style {@code scope} resolves to <b>for one named widget</b> — {@code wdg}'s own per-widget style (its
+     * tree rule / {@code widget:skin}) over the scope's stack, {@code null} when nothing applies. Added by 035.1
+     * for the sheet-fed window chrome, which has to ask the question <b>outside</b> a draw ({@code Window.tick}
+     * decides whether to swap the deco) and therefore cannot read the thread-local frame {@link #style(String)}
+     * uses. Same chain, same per-property {@link #combine}; only the frame is named rather than ambient.
+     *
+     * <p>{@code treeTop} is resolved <b>before</b> the lock is taken: it calls into the style source, and this
+     * class never holds {@code Fonts.class} across that call.
+     */
+    public static Style styleFor(String scope, Widget wdg) {
+        if(!active)
+            return null;                  // fast path: no override anywhere
+        Spec t = treed ? treeTop(wdg) : null;
+        return resolveWith(t, scope);
+    }
+
+    private static synchronized Spec resolveWith(Spec tree, String scope) {
+        return combine(tree, scopeTop(scope));
+    }
+
+    /**
+     * Has <b>any</b> addon installed <b>any</b> override (a scope entry or a per-widget style)? The addon
+     * layer's own cheap gate: with nothing installed there is nothing this class could resolve, so a caller that
+     * polls per widget per frame (035.1's chrome check) can skip the question entirely.
+     */
+    public static boolean styled() {
+        return active;
     }
 
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {
@@ -416,8 +469,9 @@ public class Fonts {
      * properties ⇒ the same object), which is what makes the {@link Spec#stamp} mixed into {@link #gen()} stable
      * across frames.
      */
-    public static synchronized Style treeSpec(Object owner, Font base, Integer size, Boolean aa, Color color) {
-        return new Spec(owner, base, size, aa, color);
+    public static synchronized Style treeSpec(Object owner, Font base, Integer size, Boolean aa, Color color,
+                                              Object bg, Object border) {
+        return new Spec(owner, base, size, aa, color, bg, border);
     }
 
     /** {@code wdg}'s resolved per-widget style, or {@code null}. Takes the source's lock, never {@code Fonts.class}. */
@@ -504,14 +558,17 @@ public class Fonts {
      * re-raises it to the top (last-wins). Bumps {@link #gen()} so routed sites/widgets rebuild. {@code base}
      * already carries any bold/italic, and is {@code null} when the rule sets no {@code font} at all (a
      * colour-only rule — the site keeps its own font); {@code size} is <b>logical</b> px (UI-scaled when the
-     * foundry is built), {@code aa}/{@code color} are {@code null} to inherit the site's stock.
+     * foundry is built), {@code aa}/{@code color} are {@code null} to inherit the site's stock. {@code bg}/
+     * {@code border} are the opaque chrome properties (035.1) — a scope whose site paints no chrome simply never
+     * asks for them, exactly as a chrome-only rule leaves every text site alone.
      */
-    public static synchronized void push(String scope, Object owner, Font base, Integer size, Boolean aa, Color color) {
+    public static synchronized void push(String scope, Object owner, Font base, Integer size, Boolean aa, Color color,
+                                         Object bg, Object border) {
         List<Spec> st = overrides.get(scope);
         if(st == null)
             overrides.put(scope, st = new ArrayList<Spec>());
         removeOwnerFrom(st, owner);       // an addon owns at most one override per scope
-        st.add(new Spec(owner, base, size, aa, color));   // re-raise to the top (last applied wins)
+        st.add(new Spec(owner, base, size, aa, color, bg, border));   // re-raise to the top (last applied wins)
         active = true;
         bumped();
     }

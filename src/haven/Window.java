@@ -246,7 +246,11 @@ public class Window extends Widget {
 		g.image(bgr, bgc, ca.ul, ca.br);
 	}
 
-	protected void drawframe(GOut g) {
+	// addon: (035.1) EXTRACTED from drawframe unchanged, so a replacement deco that paints its own frame
+	// (io.brodgar.addon.SkinDeco, fed by the "window.frame" sheet key) still renders the caption through the
+	// SAME provider routing -- F3a's blur/tex furnaces and the capgen re-render. Duplicating it there would let
+	// "window.title" silently stop working the moment a theme is installed.
+	protected void checkcap() {
 	    Window wnd = (Window)parent;
 	    checktitlefont();          // addon: rebuild the title furnaces if the "window.title" font override moved
 	    int fg = Fonts.gen();      // addon:
@@ -259,6 +263,10 @@ public class Window extends Widget {
 		cpsz = Coord.of(cpo.x + cmw, cm.sz().y).sub(cptl);
 		cmw = cmw - (cl.sz().x - cpo.x) - UI.scale(5);
 	    }
+	}
+
+	protected void drawframe(GOut g) {
+	    checkcap();                // addon: (035.1) the caption state, extracted -- see checkcap
 	    if(dragsize)
 		g.image(sizer, ca.br.sub(sizer.sz()));
 	    Coord mdo, cbr;
@@ -524,6 +532,7 @@ public class Window extends Widget {
     private String animst = null;
     public void tick(double dt) {
 	super.tick(dt);
+	AddonWidgets.chrome(this);   // addon: (035.1) install/drop the sheet-fed deco -- here, never inside a draw
 	if(anim != null) {
 	    if(anim.tick(dt)) {
 		if(animst == "show") {

@@ -377,3 +377,57 @@ inside it.
 up), [D-072](../decisions/architecture-api.md) (forgive what the API will later understand),
 [`034-ui-stylesheet-tree/spec.md`](../034-ui-stylesheet-tree/spec.md),
 [learnings/fonts.md](../learnings/fonts.md).
+
+### D-078 — replace only what the engine itself would have built, and restore its CONFIGURATION, not its identity
+
+**Context.** 035.1 restyles the window chrome by swapping `Window.deco` — the engine's own public seam
+(`chdeco`, which `dhide` already drives from a server message) — for a sheet-fed `Deco`. Two questions the seam
+does not answer: *which* windows may be swapped, and what "putting the stock one back" means. The plan's own
+risk list had asked for the stock deco to come back **as the same object**, on the identity-fast-path reasoning
+033/034 both leaned on.
+
+**Decision.** **Dress only a window whose deco's class is EXACTLY the engine's default** (`DefaultDeco`), and
+restore by building a fresh one carrying the displaced deco's own `lg`/`dragsize`. A window that built a
+decoration of its own — `GItem.ContentsWindow`'s `HoverDeco`, any subclass — is left alone entirely, and a
+`null` deco (a compacted `MapWnd`) likewise. Swapping happens only while the window is `visible()` (031's
+animation-aware predicate, so never mid-`animst`); swapping **back** happens whenever the rules stop naming it,
+visible or not.
+
+**Consequences.** "The same object" turned out to be impossible rather than merely hard: `chdeco`
+`reqdestroy()`s the deco it displaces, so keeping one would mean re-adding a destroyed widget — and `makedeco()`
+itself only ever builds a fresh `DefaultDeco(lg)`, so a rebuilt equivalent *is* what the engine calls stock. The
+faithful thing to preserve is therefore the **configuration**, which is asserted (`lg`, `dragsize`, content-area
+origin and size, window position and size, all unchanged across install *and* restore). The exact-class rule is
+what keeps the feature from silently eating a window's bespoke look, and it is a rule 035.3 inherits verbatim
+when it reaches the `IBox` panels. The asymmetry between dressing and undressing is deliberate: a restore that
+waited for visibility would leave a themed frame on screen after the addon that asked for it was gone.
+
+**See.** [D-069](#d-069) (an addon's hide is authoritative), [D-070](#d-070) (a restore replays what the user
+was seeing), [`035-ui-chrome/spec.md`](../035-ui-chrome/spec.md),
+[`specs/codebase/gameui-windows.md`](../../codebase/gameui-windows.md),
+[learnings/ui-widgets.md](../learnings/ui-widgets.md).
+
+### D-079 — a background is bounded by the frame that sits on it
+
+**Context.** 035.1's `bg` first filled the **content area**, copying what the stock `drawbg` does. The
+maintainer's first in-game run showed why that is not a rule but a coincidence: a window reserves an 18x30
+logical-px margin around its content, and the stock frame's art is opaque across all of it — but a sheet's
+9-slice `border` is transparent between its slices and typically far thinner, so the strip between the two
+showed the empty buffer `Window.draw` clears to transparent black. A black band inside the border, reported as
+"padding" because a dark theme made it nearly invisible.
+
+**Decision.** The rule's `bg` fills **the whole surface when the same rule frames it**, and the content area
+when the **stock** frame is still painting the margin. One sentence, one reason: a background extends to
+wherever the frame drawn over it reaches.
+
+**Consequences.** The band cannot come back for any border thickness, and the two properties compose the way a
+theme author expects — `border` never paints the centre, `bg` never paints over its own frame. The
+stock-frame branch is not a special case but the same rule read the other way: filling the whole window there
+would square off the shaped corners the stock chrome draws. Generalises past windows — 035.3's `IBox` panels
+face the identical question, and 035.2's geometry work does not change the answer, only where "the frame"
+ends. The finding is also a method note: this was found by a human looking at a screen, after 63 headless checks
+and 23 in-game assertions had all passed, because no assertion can see a colour that is nearly the colour
+beside it.
+
+**See.** [D-076](fonts.md) (a cascade level takes the properties it names), [D-078](#d-078),
+[learnings/ui-widgets.md](../learnings/ui-widgets.md).

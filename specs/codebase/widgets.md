@@ -16,6 +16,9 @@
 | HUD placement switch (per type: inv/equ/chr/craft/…) | [`GameUI.addchild`](src/haven/GameUI.java:910) |
 | Window chrome / CPU-buffered base | [`Window`](src/haven/Window.java:35) · [`SIWidget`](src/haven/SIWidget.java) |
 | 2D drawing context | [`GOut`](src/haven/GOut.java) (image/text/rect/line/prect/chcolor) |
+| **Image overloads (each a different thing)** | [`image(tex,c)`](src/haven/GOut.java:97) natural · [`(tex,c,sz)`](src/haven/GOut.java:117) **scaled** · [`(tex,c,ul,br)`](src/haven/GOut.java:124) natural + **clipped** · [`(tex,c,ul,br,sz)`](src/haven/GOut.java:140) both · [`rimage`](src/haven/GOut.java:170)/`rimagev`/`rimageh` **tile** |
+| **9-slice is a first-class engine concept** | [`IBox`](src/haven/IBox.java:29) is an **interface** — `draw(g, tl, sz)` + six inset queries; [`Images`](src/haven/IBox.java:38) takes eight `Tex`es in the order `(ctl, ctr, cbl, cbr, bl, br, bt, bb)` where **`bl`/`br` are the LEFT/RIGHT edge bars**, not the bottom corners; [`Scaled`](src/haven/IBox.java:89) stretches the edges and **never paints the centre** |
+| **Sub-rect texture view** | [`TexSI`](src/haven/TexSI.java:29) — `(parent, ul, br)`, sharing the parent's GPU texture. `Tex` coords are in **pixels** ([`Tex.crender`](src/haven/Tex.java:52)), so slicing an image costs eight small objects and **no** upload |
 | Modal mouse capture (drag) | [`UI.grabmouse(Widget)`](src/haven/UI.java:575) / [`UI.grab`](src/haven/UI.java:538) |
 | **Server → widget destroy** ← lifecycle seam | [`UI.destroy(int)`](src/haven/UI.java:665) (shadow-children first, then a `DstWidget` command) → [`UI.destroy(Widget)`](src/haven/UI.java:622) = [`removeid`](src/haven/UI.java:603) (recursive unbind) **then** `reqdestroy()` |
 | Leaving the tree | [`Widget.destroy`](src/haven/Widget.java:586) → [`remove`](src/haven/Widget.java:570) (`unlink()`, `parent.cdestroy(this)`, **`parent = null`**) + `rdispose()` |
@@ -44,7 +47,9 @@ a client-only widget, not at all sooner).
 both correct. `draw` skips `!visible` children; **tick does not** (`TickEvent.visible` goes false for the subtree).
 The root is reached by neither seam (its "parent" is `UI`), so anything wrapped per widget misses it unless
 `UI.draw`/`UI.dispatch` is handled separately. `TickEvent.shandle` tolerates a widget removing itself mid-tick —
-hence the cached `next`.
+hence the cached `next` — and a widget may equally rebuild **its own** child list in its `tick`: `handle`
+(→`shandle`, the widget itself) runs **before** `propagation`, which then re-reads `from.child` fresh. That is
+what makes `Window.tick` a legal place to `chdeco` (035).
 
 ## Introspection & hit-testing (read-only walk)
 

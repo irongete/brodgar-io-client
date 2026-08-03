@@ -385,3 +385,38 @@
   working perfectly. `AddonWidget`'s `fn(opts, key)` returns `null` for an absent *or* misnamed callback and
   `newUi`'s `optint` falls back to the default, so nothing has anything to complain about. When handing anyone a
   one-off `:lua` line, copy the opts from `docs/addons/api/ui.md` rather than typing them from memory.
+- **(035.1) `Window.deco` is a swappable CHILD, and `chdeco` is the whole seam.** `public Deco deco` +
+  `public void chdeco(Deco)` ([Window.java:131](../../../src/haven/Window.java:131)); `Deco extends Widget` is
+  abstract with `iresize(Coord)`/`contarea()`, `DragDeco` adds the caption drag, and `DefaultDeco` — the stock
+  one — owns `drawbg`, `drawframe`, the close `IButton`, the sizer, `checkhit` and **the geometry**. `chdeco`
+  reads the OLD deco's `contarea()` first, `reqdestroy()`s it, adds the new one, `resize2(psz)`, then shifts the
+  window's own `c` by the content-area delta — so an equal-geometry swap moves and resizes **nothing**
+  (asserted: `sz`, `c`, `ca().ul`, `ca().sz()` all unchanged across install and restore). Corollaries that cost
+  time: the displaced deco is **destroyed**, so "put the same object back" is not available (D-078); `makedeco()`
+  is `protected`, so only `haven`-package code can call it, but `new Window.DefaultDeco(lg).dragsize(ds)` is
+  public and rebuilds exactly what it would have; and `uimsg "dhide"` already does `chdeco(makedeco())`, which is
+  the engine's own proof the seam is live-swappable.
+- **(035.1) Not every window's deco is `DefaultDeco`, and the difference is invisible from `instanceof`.**
+  `MapWnd.makedeco()` returns `new DefaultDeco(true).dragsize(true)` (still exactly that class, so it IS
+  skinnable, and `dragsize` must be carried across a swap or the resize grip vanishes); `MapWnd.compact(true)`
+  sets the deco to **null**; `GItem.ContentsWindow` swaps between a `HoverDeco` and a `DefaultDeco` on its own,
+  per state, so anything that re-skins per frame must expect its deco to change underneath it. Test
+  `getClass() == DefaultDeco.class`, never `instanceof` — a subclass built itself for a reason.
+- **(035.1) A widget may change its OWN child list inside its `tick`.** The tick traversal is
+  `UI.tick` → `dispatch(root, TickEvent)` → `Event.dispatch` → `w.handle(ev)` → **`shandle` (the widget itself)
+  BEFORE `propagation` (its children)**, and `propagation` re-reads `from.child` fresh while capturing each
+  `next` before dispatching. So a `chdeco` inside `Window.tick` is safe in both directions: the old deco is
+  unlinked before the child loop starts, the new one simply ticks this frame. `TickEvent.propagation` also
+  ignores `visible` entirely — **hidden windows still tick**, which is what lets a restore reach a window nobody
+  can see.
+- **(035.1) The frame band is 18x30 logical px, and an addon's border image is not DPI-scaled.** A window's
+  content starts at `Window.tlm = UI.scale(18,30)` with `brm = UI.scale(13,22)` at the far end; a 9-slice from
+  `hafen.asset` draws at its image's own pixel size, like every other addon image. So a themed border reads
+  *thinner* than the stock chrome it replaced, and anything it does not cover is the offscreen buffer
+  `Window.draw` clears to `FColor.BLACK_T` — a transparent-black band, not a background (D-079).
+- **(035.1) `IBox` is an interface and `TexSI` makes 9-slice free.** `IBox.draw(g, tl, sz)` with
+  `IBox.Images`/`Scaled` taking **eight** `Tex`es in the order `(ctl, ctr, cbl, cbr, bl, br, bt, bb)` — where
+  `bl`/`br` are the LEFT and RIGHT edge bars, not the bottom corners (those are `cbl`/`cbr`), an off-by-one
+  waiting to happen. `Scaled` stretches the edges and never paints the centre. Slicing one loaded image into
+  eight `TexSI` sub-rect views shares the parent's single GPU texture, so a border uploads nothing and owns
+  nothing to dispose — much better than eight `TexI`s from `getSubimage`, which would leak per `:reload`.

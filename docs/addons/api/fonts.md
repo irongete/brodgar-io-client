@@ -154,6 +154,7 @@ A **site key** is a bare selector naming a place the client draws. All of them a
 |---|---|
 | `*` | global fallback — most UI text (`Text.std` / `Text.render` / `RichText.render` / default `Label`) |
 | `"window.title"` | window captions |
+| `"window.frame"` | the window **chrome** — the only site that draws no text, so it takes [`bg`/`border`](ui.md#bg-and-border--the-window-chrome) and nothing here |
 | `"heading"` | in-window section headings (embossed fraktur) |
 | `"button"` | button captions |
 | `"label"` | body text — attribute rows, list items, explicit-foundry labels |
@@ -169,10 +170,11 @@ A **site key** is a bare selector naming a place the client draws. All of them a
 > 1:1, and the difference is the point: a site key names a **render site**, a role names a **widget**. The
 > global fallback is `*` on both sides; `window` and `inventory` are roles with **no site**, so as sheet keys
 > they are [tree keys](ui.md#tree-keys--which-widgets-not-what-kind-of-surface), resolved per widget rather than
-> at a site; and five site keys —
-> `window.title`, `heading`, `tooltip`, `world.nick`, `world.speech` — are valid selectors that **classify no
-> widget**, because a caption is drawn by its window's decoration, a tooltip is painted rather than placed, and
-> the world sites live over the 3D view. Restyling them works; selecting them finds nothing, which is the honest
+> at a site; and six site keys —
+> `window.title`, `window.frame`, `heading`, `tooltip`, `world.nick`, `world.speech` — are valid selectors that
+> **classify no widget**, because a caption and the frame around it are both drawn by the window's *decoration*
+> (a child of the window, which is exactly why `window.frame` had to be a site), a tooltip is painted rather
+> than placed, and the world sites live over the 3D view. Restyling them works; selecting them finds nothing, which is the honest
 > answer.
 
 `*` is the broad hammer: it **cascades** to every routed surface with no more-specific rule — so `["*"]` alone

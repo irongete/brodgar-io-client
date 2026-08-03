@@ -578,12 +578,13 @@ handle; its Lua never names a surface, a font, a size or a colour. A theme with 
 ### Site keys — the surfaces this ships
 
 A key is [a selector](#selectors--naming-a-widget), and it resolves one of two ways. A **site key** names a
-place the client *draws*, and is resolved there — these are the eleven that work today:
+place the client *draws*, and is resolved there — these are the twelve that work today:
 
 | Key | What it styles |
 |---|---|
 | `*` | the global fallback — most UI text, and the cascade for every rule you do not write |
 | `window.title` | window captions |
+| `window.frame` | the window **chrome** — the frame drawn around a window and the surface it sits on. The only key that draws no text: it takes [`bg` and `border`](#bg-and-border--the-window-chrome), not `font`/`color` |
 | `heading` | in-window section headings (the embossed fraktur ones) |
 | `button` | button captions |
 | `label` | body text — attribute rows, list items, explicit-foundry labels |
@@ -664,9 +665,11 @@ Three rules decide what one widget resolves to:
 |---|---|---|
 | `font` | a [font handle](fonts.md) | `hafen.font(name)` or `hafen.asset(path)`, optionally `:derive{size=,bold=,…}` |
 | `color` | `{r, g, b [, a]}`, 0–255 | also spelled `{r = …, g = …, b = …}` — the shape every reader hands back |
+| `bg` | `{color = {r,g,b[,a]}}` **or** `{image = hafen.asset(…)}` | the surface something is painted on: a flat fill (alpha included — that is what makes a panel translucent) or a tiled image. One or the other, never both |
+| `border` | `{image = hafen.asset(…), slice = {l, t, r, b}}` | a 9-slice frame: the four corners draw at their own size and the four edges stretch between them. The centre is never painted — that is `bg`'s job, so the two compose |
 
-**The two are independent.** A rule may carry either alone: a colour-only rule leaves the surface's own font
-exactly as it is, a font-only rule leaves its colour. A rule carrying neither styles nothing.
+**The properties are independent.** A rule may carry any one alone: a colour-only rule leaves the surface's own
+font exactly as it is, a `border`-only rule leaves its background. A rule carrying none styles nothing.
 
 An **unknown property is an error** naming the ones that exist — unlike an unresolved key, a misspelt property
 has no later meaning to wait for.
@@ -696,10 +699,41 @@ Two things still win over a rule, and one surface ignores it:
 > own widgets. One question, "what colour is this surface", has exactly one answer, and it is written as a
 > `color` where you can see it.
 
+#### `bg` and `border` — the window chrome
+
+These are the properties that **paint** rather than write, and today exactly one key consumes them:
+`window.frame`. Point it at the client's windows and every one of them is restyled live.
+
+```lua
+hafen.ui.skin{
+  ["window.frame"] = { bg     = { color = {26, 26, 28, 240} },
+                       border = { image = hafen.asset("img/panel.png"), slice = {8, 8, 8, 8} } },
+}
+```
+
+- **Why `window.frame` and not `window`.** A window's chrome is a *child* of the window, not the window itself
+  — [the inspector says so](#dont-guess--the-inspector-tells-you), and it is the first thing anyone writing a
+  theme trips over. So the frame is named the way its caption already is: `window.frame` is the sibling of
+  `window.title`, a **site**, not a role. A `["window"]` tree rule still reaches the window's *contents*.
+- **A background is bounded by the frame that sits on it.** With a `border` in the same rule the `bg` fills the
+  whole window, because your border is now the entire frame and a 9-slice is transparent between its slices.
+  With no `border`, the stock frame still paints the window's margin, so the `bg` stays inside the content area
+  — filling the whole window there would square off the stock chrome's shaped corners.
+- **A restyled window still behaves like a window.** The chrome is *replaced*, not bypassed: dragging, resizing,
+  the close button, focus and the caption all keep working, and the caption is still rendered through the
+  `window.title` rule. Nothing about the window's geometry changes — see below.
+- **Slice insets are in the image's own pixels and are not DPI-scaled**, like every other image your addon
+  draws. On a scaled client an 8-px border therefore reads *thinner* than the stock chrome it replaced; author
+  the image at the weight you want to see.
+- **A window whose chrome is its own is left alone** — a few build a decoration for a reason (an item's hover
+  window, for one), and a rule never overrides that.
+
+Dropping the sheet, disabling the addon or `:reload` puts the stock chrome back on every window.
+
 ### What each key accepts
 
-Both properties are accepted on **every** key — a sheet never errors because a surface cannot use one. What
-differs is what the surface *does* with it, and this is the honest table:
+Every property is accepted on **every** key — a sheet never errors because a surface cannot use one. What
+differs is what the surface *does* with it, and this is the honest table. First the two that write text:
 
 | Key | `font` | `color` | Worth knowing |
 |---|---|---|---|
@@ -716,6 +750,23 @@ differs is what the surface *does* with it, and this is the honest table:
 | `world.speech` | ✅ | ✅ | `size=` is safe — the bubble measures its frame around the text every frame |
 | any tree key | ✅ | ⚠️ **per surface** | [resolved per widget](#tree-keys--which-widgets-not-what-kind-of-surface), readable through `widget:style()` and drawn over that widget's whole subtree. It reaches the same surfaces as the rows above and carries their caveats **unchanged**: a rule on a window covers the window's own caption, where `font` works and `color` is inert. `:style()` reports the colour a rule set even where the surface then throws it away |
 | `widget:skin{…}` | ✅ | ⚠️ **per surface** | the same, one widget at a time and [named by hand](fonts.md#restyle-one-widget--widgetskin) rather than matched. Being the top of the cascade changes *who wins*, never *what a surface can do*: an embossed caption inside a skinned window still ignores `color` |
+
+And the two that paint. Only one key draws chrome today, so the table is short and says so rather than implying
+coverage it does not have:
+
+| Key | `bg` | `border` | Worth knowing |
+|---|---|---|---|
+| `window.frame` | ✅ | ✅ | every window whose chrome is the client's own stock decoration. Geometry is untouched: the window is the size and in the place it was |
+| `*` | ⚠️ **cascades** | ⚠️ **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches `window.frame` — and only that, since it is the only site that paints. Text surfaces ignore it entirely and stay byte-for-byte stock |
+| every other site key | ❌ **inert** | ❌ **inert** | a text site has no surface of its own to paint. Nothing is refused and nothing warns |
+| any tree key | ❌ **inert** | ❌ **inert** | resolved per widget and readable through [`widget:style()`](#reads--they-answer-on-every-widget), but no widget paints them yet — a tree rule on a *window* does **not** reach that window's frame, which is what `window.frame` is for |
+| `widget:skin{…}` | ❌ **inert** | ❌ **inert** | the same: readable back, not yet drawn |
+
+> **A site key does not compose with `*` per property.** Within the site half of the cascade a key either has a
+> rule of its own or falls back to `*` — it does not take half of each. So `["*"] = {bg = …}` beside
+> `["window.frame"] = {border = …}` gives you the border **alone**; write both properties in the rule that names
+> the surface. (Levels *above* the site half — a tree rule, a `widget:skin` — do compose per property, as
+> [below](#cascade--conflict).)
 
 **Where `color` is ignored, it is the same reason every time**: the surface is *embossed* — the client renders
 the text as a mask and tiles a texture through it, then blurs a shadow behind. The glyph colour is discarded

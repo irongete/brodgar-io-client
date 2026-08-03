@@ -371,3 +371,20 @@
   is still reachable without a UI: the method table itself (a hard cut reads `nil`, the new verb is a function),
   every refusal (parse the argument BEFORE looking at the widget and a bad call errors either way — worth doing
   for that reason alone), and the whole engine layer beneath, driven directly.
+- **(035.1) A real `haven.Window` DOES build headless — leave it PARENTLESS.** 034.1 recorded that a suite
+  building windows cannot be dry-run, and 034.3 that `haven.UI` needs a real `Audio.Root`; neither means
+  `Window` itself is out of reach. `new Window(Coord, cap, lg)` constructs fine (its `<clinit>` eagerly
+  `loadsimg`s the chrome, so `bin/hafen-res.jar` must be on the classpath) and the whole deco path —
+  `chdeco`, `contarea`, `iresize`, `visible()`, `show`/`hide` — works on it. What does NOT work is **adding it
+  to anything**: `Window.added()` does `parent.setfocus(this)`, which NPEs unless the parent has a parent of
+  its own. A parentless window is enough for every selector (a selector matches a widget, not a position) and
+  for driving a per-window tick decision directly. 63/63 before the maintainer logged in.
+- **(035.1) A falsification can prove a check is HOLLOW, which is worth more than proving it green.** Three
+  planted bugs, each expected to redden a different claim: dropping `combine`'s new properties → 2 red (the
+  per-property fold), guarding the restore on `visible()` → 1 red (a hidden window kept its skin). The third —
+  removing the identity fast path for a chrome-only rule — came back **0 red**, because the check was asserting
+  on a scope the rule never cascaded through. The bug was in the test, and only the falsification could have
+  said so; a green run reports the same thing whether it is guarding something or nothing.
+- **(035.1) `git-bash` `perl -0pi -e` is the reliable in-place editor for a throwaway probe** (no Python on this
+  box, per 034.1). For a Java source file, remember the probe's own compile is the syntax check — a botched
+  substitution shows up as a `javac` error immediately, so rebuild after every edit rather than batching them.
