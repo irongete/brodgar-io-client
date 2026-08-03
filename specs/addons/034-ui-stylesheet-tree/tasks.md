@@ -30,7 +30,7 @@
       surfaces with 033.3's table in hand: a `color` `[manual]` on an **embossed** surface (`heading`, a plain
       `button` caption) would be a false expectation, because the tile keeps only the alpha.
 
-- [ ] **034.3 — `widget:skin{}`, the cut, docs, close.**
+- [x] **034.3 — `widget:skin{}`, the cut, docs, close.**
       `widget:setFont(h)`/`:resetFont()` **deleted**, replaced by `widget:skin{…}` (set / read / `nil` clears
       that addon's override only) over the same frame — per-instance becomes the top of the cascade rather than
       a font-only special case. D-073 carries over unchanged: a handle's colour never styles a surface.

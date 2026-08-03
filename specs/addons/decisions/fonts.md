@@ -132,3 +132,39 @@ times a second. The interning table is dropped whenever `gen` moves, so it never
 **See.** [D-043](#d-043) (the chain), [D-073](#d-073) (whose colour a surface takes),
 [D-075](widgets-ui.md) (why the read stays tree-only), [034-ui-stylesheet-tree](../034-ui-stylesheet-tree/spec.md),
 [fonts.md](../learnings/fonts.md).
+
+### D-077 — per-instance is a LEVEL of the cascade, not a mechanism beside it ✅ (2026-08-03)
+**Decision.** (034.3.) `widget:setFont(h)` / `widget:resetFont()` are a **hard cut**, replaced by
+`widget:skin{font = h, color = …}` — read / set / `nil` clears this addon's entry, arity as the verb (D-056) —
+carrying the very properties a sheet rule carries. And the store moved with the verb: the per-widget override
+registry left `haven.Fonts` entirely (`instances`/`pushInstance`/`resetInstance`/`instanceTop`, ~100 lines) and
+became the **top level of the one per-widget fold** in `io.brodgar.addon.Sheet`, above every tree rule. The
+provider keeps the F5 frame and asks its one source what a widget resolves to.
+**Rationale.** Two things forced the same answer from opposite ends. From the API side, a font was never a special
+case — only the first property that existed — so a font-only verb beside a two-property sheet is a second
+vocabulary for "restyle this"; C1a already made that argument for scopes (033.1) and this is the same argument one
+level down. From the implementation side, `widget:style()` must report a **`FontHandle`**, which the provider does
+not keep (it stores an AWT font, a size and a flag), so keeping the store in `Fonts` would have meant a second
+addon-side record beside it — two stores for one cascade level, free to drift exactly where they overlap. Deleting
+the store beats reading it back: what is left is one place that resolves a widget, and it cannot disagree with
+itself.
+**Scope / limits.** A handle's own `color` is still **ignored** on a surface ([D-073](#d-073)) — `skin{font=h}`
+takes family/size/aa and `widget:style()` reports no colour — because refusing it here would contradict the
+sheet, which ignores it. `w:skin()` reads back **your own entry**, not the resolved style: what you wrote comes
+back unchanged, which is a different question from what the widget resolves to ([D-075](widgets-ui.md)), and it
+is why both verbs exist. An empty table carries no property and is therefore the same as no entry, exactly as a
+sheet rule with no property styles nothing. A skin change invalidates the whole per-widget generation rather than
+one entry: it costs one re-fold per widget on its next draw, is what installing a sheet already does, and keeps
+ONE rule for "the cascade changed".
+**Alternatives.** Keeping `Fonts.pushInstance` for the draw and adding a parallel addon-side record for the read
+(rejected — the drift above, and it is the "second resolution path" C1b exists to avoid). Erroring when a handle
+carrying a colour is skinned onto a surface (rejected — the sheet ignores it, and one rule beats two). Folding an
+ancestor's style into a child's `:style()` (rejected — inheritance happens at the draw; a read answers for the
+thing you point at).
+**Consequences.** `haven` shrinks: the provider now holds the frame, the scope stacks and the generation, and
+nothing per-widget at all — `Fonts.treeStyles`/`treeActive` mean *any* per-widget style, skins included. Teardown
+is one sweep in the addon layer (`Sheet.forget` drops an addon's tree rules **and** its skins), and
+`Addon.fontNodes` became `Addon.skinNodes`.
+**See.** [D-043](#d-043) (the chain), [D-073](#d-073) (whose colour a surface takes), [D-076](#d-076) (each level
+takes what it names), [D-075](widgets-ui.md), [D-056](architecture-api.md) (arity is the verb),
+[034-ui-stylesheet-tree](../034-ui-stylesheet-tree/spec.md), [fonts.md](../learnings/fonts.md).

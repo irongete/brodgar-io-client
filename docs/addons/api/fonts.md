@@ -75,7 +75,7 @@ A derived handle is a **variant of a font**, not a file: like a built-in, it car
 
 > **`color` is the one option that does not travel.** It applies wherever *you* draw with the handle — `g:text`,
 > your own windows and widgets — and is **ignored** when the handle is installed on a client surface, through
-> [`hafen.ui.skin`](ui.md#properties) or [`widget:setFont`](#restyle-one-widget--widgetsetfonth). A surface's
+> [`hafen.ui.skin`](ui.md#properties) or [`widget:skin`](#restyle-one-widget--widgetskin). A surface's
 > colour is a [sheet property](ui.md#color--a-surfaces-colour-is-the-sheets), stated where you can read it, not a
 > value hidden inside a font handle. `size`, `aa`, `bold` and `italic` travel everywhere.
 
@@ -177,7 +177,7 @@ A **site key** is a bare selector naming a place the client draws. All of them a
 
 `*` is the broad hammer: it **cascades** to every routed surface with no more-specific rule — so `["*"]` alone
 changes everything, while another key refines any one surface. The resolution order is **most-specific first**:
-[per-instance](#restyle-one-widget--widgetsetfonth) → the
+[`widget:skin{…}`](#restyle-one-widget--widgetskin) → the
 [tree rule](ui.md#tree-keys--which-widgets-not-what-kind-of-surface) covering that widget → the site rule → the
 `*` rule → stock. **Each step takes only the properties it names**, so a level never silently drops the one
 beneath it: a tree rule of `{color=…}` inside a sheet whose `["*"]` sets the font keeps that font.
@@ -315,49 +315,69 @@ composed by the same client mechanism (parts contributed by game resources along
 `"world.nick"` too. Neither world key follows a tooltip composition, and both fall back to the `*` cascade
 when unset, like every other key.
 
-## Restyle ONE widget — `widget:setFont(h)`
+## Restyle ONE widget — `widget:skin{…}`
 
-A site key restyles a *family* of surfaces across the whole client. To restyle **one** widget instead, call
-`setFont` on its [Widget object](ui.md#the-widget-object) — from
+A site key restyles a *family* of surfaces across the whole client; a [tree
+key](ui.md#tree-keys--which-widgets-not-what-kind-of-surface) restyles the widgets a selector *matches*. To
+restyle **one** widget you already hold, call `skin` on its [Widget object](ui.md#the-widget-object) — from
 [`hafen.ui(selector)`](ui.md#selectors--naming-a-widget) / `hafen.ui.node(id)` / `hafen.ui.at(x, y)`:
 
 ```lua
 local n = hafen.ui.at(hafen.ui.mouse().x, hafen.ui.mouse().y)   -- the widget under the cursor
-n:setFont(h)        -- this widget and everything inside it -> h; its SIBLINGS keep their font
-n:resetFont()       -- drop it again
+n:skin{ font = h, color = {200, 180, 140} }   -- this widget and everything inside it; its SIBLINGS untouched
+n:skin()                                      --> { font = h, color = {r=200, g=180, b=140, a=255} }
+n:skin(nil)                                   -- drop it again
 ```
 
 | Call | Returns | Description |
 |---|---|---|
-| `widget:setFont(h)` | (self) | install **your** per-instance override on that widget |
-| `widget:resetFont()` | (self) | drop **your** per-instance override on that widget |
+| `widget:skin{…}` | (self) | install **your** style on that widget — the same `{font=, color=}` properties a [sheet rule](ui.md#properties) carries |
+| `widget:skin()` | table \| nil | read **your own** entry back, exactly as you wrote it — `nil` if you have none |
+| `widget:skin(nil)` | (self) | drop **your** entry; another addon's on the same widget is untouched |
 
-- **It covers the whole subtree.** The client draws parents before children, so an override on a window reaches
+**Arity is the verb**, the same shape as [`widget:replace`](ui.md#replacing-a-native-window): no argument reads,
+a table sets, `nil` clears.
+
+- **It covers the whole subtree.** The client draws parents before children, so a style on a window reaches
   its caption, its labels, its button captions, its list rows — and any widget created inside it *later*. A child
-  with an override of its own wins inside itself (innermost first).
-- **It is the top of the chain**: per-instance → the
+  with a style of its own wins inside itself (innermost first).
+- **It is the top of the cascade**: `widget:skin` → the
   [tree rule](ui.md#tree-keys--which-widgets-not-what-kind-of-surface) → the site rule → the `*` rule → stock.
-  Inside an overridden widget the handle wins whatever surface the text belongs to, so it also catches text drawn
+  Inside a skinned widget it wins whatever surface the text belongs to, so it also catches text drawn
   by the game's **own resource code** (the `.res` tooltip rows) — the one place a site rule could never reach.
-  It wins the **font** and nothing else: a colour set by a rule beneath it still applies, because every step of
-  the chain takes only the properties it names.
-- **The handle's `color` does not apply here.** A native widget is a client surface, and a surface's colour comes
-  from a [sheet rule](ui.md#color--a-surfaces-colour-is-the-sheets); `setFont` takes the family, size and
-  antialiasing only. Colouring *one* widget is what C1b's `widget:skin{…}` will be for.
+  It wins **the properties it names and no others**: `skin{color=…}` over a sheet that set a font keeps that font,
+  because every step of the chain takes only what it names.
+- **`widget:style()` is the read-back for the *result*.** `skin()` hands back what *you* wrote; `:style()` hands
+  back what the widget **resolves to** — your entry folded over every tree rule that matches it, `nil` when
+  nothing does. Both answer for that widget alone: a style inherited from an enclosing widget is applied at the
+  *draw*, not resolved onto the child, so a child inside a skinned window still reads `nil`.
+- **A handle's `color` is not a surface's colour.** `skin{font = h}` takes the handle's family, size and
+  antialiasing; if that handle carries a `color`, it is **ignored** here exactly as it is in a
+  [sheet rule](ui.md#color--a-surfaces-colour-is-the-sheets), and `:style()` reports no colour. Say it as
+  `skin{color = {…}}` — where it can be read — and keep the handle's own colour for
+  [your own drawing](#draw-with-it--your-own-drawing).
+- **A `color` is inert on an embossed surface**, here as everywhere: a window caption, a section heading and an
+  ordinary button caption take their colour from a texture tiled through the glyph mask. `:style()` still reports
+  the colour you set — it is honest about the rule, not about the pixels. See the
+  [property × key table](ui.md#what-each-key-accepts).
 - **Sizes are inherited unless your handle carries one**, exactly as with a site key: each site keeps its own stock
   size, so the layout does not move. If you *do* pass `size=`, remember the geometry caveats of the surfaces it
   overlaps (a text field's height is fixed by its background texture, list-row heights were measured at
-  construction) — a per-instance override is not a layout engine.
-- **Owned and short-lived.** The override is tagged with your addon and reverted on `:reload`/disable like every
-  other one, and it is held **weakly against the widget**: when that window closes, the override goes with it (a
-  stashed node reports `nil` from every accessor and `:resetFont()` becomes a no-op — never an error).
+  construction) — a per-widget style is not a layout engine.
+- **Owned and short-lived.** The entry is tagged with your addon and reverted on `:reload`/disable like every
+  other one, and it is held **weakly against the widget**: when that window closes, it goes with it (a
+  stashed node reports `nil` from every accessor and `:skin(nil)` becomes a no-op — never an error).
 - **Some windows have no text to restyle.** An Inventory or Equipment window contains item *icons* (`WItem`s) —
-  its only text is the caption, so an override there shows up on the title bar alone and looks like it did nothing.
+  its only text is the caption, so a style there shows up on the title bar alone and looks like it did nothing.
   Pick a text-rich window (the Character Sheet, Options) when you want to see the effect.
-- `hafen.ui():setFont(h)` works and covers the entire client, but that is what a sheet's `["*"]` rule is for —
+- `hafen.ui():skin{…}` works and covers the entire client, but that is what a sheet's `["*"]` rule is for —
   prefer the sheet when you mean "everything".
-- A node is not owned (it is a lazy handle), so **keep the node** if you intend to reset the override later —
+- A node is not owned (it is a lazy handle), so **keep the node** if you intend to clear the style later —
   or just re-find the widget when you need it.
+
+> `widget:setFont(h)` and `widget:resetFont()` are **gone** — they read as plain `nil`. A font was never a special
+> case, only the first property that existed; `skin{font = h}` is the same call with the rest of the sheet's
+> vocabulary beside it.
 
 ### Conflict model (one intrinsic limit)
 
@@ -392,7 +412,7 @@ colour or a surface — a theme with no code of its own.
 - [`hafen.ui`](ui.md#the-stylesheet--restyling-the-client) — the stylesheet itself: the call, the properties, the
   [property × key table](ui.md#what-each-key-accepts), the cascade and the conflict model. The `font =` widget
   option and the `g:text` draw wrapper take a handle, and a [Widget](ui.md#the-widget-object) carries
-  `:setFont`/`:resetFont`. The [selector roles](ui.md#roles) are these same names, from the other side (widget,
+  `:skin{…}`/`:style()`. The [selector roles](ui.md#roles) are these same names, from the other side (widget,
   not render site). Drawn text is [cached across frames](ui.md#text-is-cached-across-frames) per
   `(string, handle)`; a sheet change invalidates it on the next frame.
 - [`hafen.asset`](asset.md) — the one door for a `.ttf`/`.otf` your addon ships (and every other local file).

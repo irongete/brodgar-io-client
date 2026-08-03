@@ -12,6 +12,7 @@ import org.luaj.vm2.Varargs;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -58,6 +59,12 @@ import java.util.WeakHashMap;
  * draw than the scope stack — but only property by property: what the tree rule does not name, the site rule still
  * fills, so {@code ["*"] = {font=body}} beside {@code ["window[title=X]"] = {color=…}} paints that window's text in
  * {@code body}, in that colour.
+ *
+ * <p><b>Above every tree rule sits {@code widget:skin{…}}</b> (034.3, {@link #applySkin}): one addon's style on
+ * <b>one</b> widget, named by hand rather than matched. It is not a third mechanism — it is the top level of the
+ * <i>same</i> per-widget fold, so it reaches the screen through the same frame, composes per property like every
+ * other level, and {@code widget:style()} reports it with the rest. {@code widget:setFont}/{@code :resetFont}
+ * (F5) are a <b>hard cut</b>: a font was never a special case, only the first property that existed.
  *
  * <p><b>Nothing about the render sites changes.</b> Every routed site keeps calling
  * {@code Fonts.foundry(scope, stock)} / {@code Fonts.style(scope)} exactly as it did for
@@ -136,8 +143,8 @@ final class Sheet {
     /**
      * Drop {@code owner}'s sheet: each site it filled falls back to whatever is beneath it (another addon's
      * sheet, else the stock foundry), and its tree rules stop resolving. Deliberately per-scope rather than
-     * {@code Fonts.removeOwner}, which would also sweep this addon's per-instance {@code widget:setFont}
-     * overrides — those are not part of the sheet.
+     * {@code Fonts.removeOwner}, which would also sweep this addon's site entries on scopes it still names. Its
+     * {@code widget:skin} entries are untouched either way: a per-instance style is not part of the sheet.
      */
     static void drop(Addon owner) {
         Sheet s = owner.skin;
@@ -150,16 +157,21 @@ final class Sheet {
     }
 
     /**
-     * Teardown ({@code :reload}/disable, {@link FontApi#teardownFonts}): forget this addon's sheet without
-     * touching {@link Fonts}, whose {@code removeOwner} sweep has already pulled every site entry the addon
-     * owned. Only the tree half needs saying goodbye to by hand — it lives here, not in the provider.
+     * Teardown ({@code :reload}/disable, {@link FontApi#teardownFonts}): forget everything this addon styled
+     * <b>per widget</b> — its sheet's tree rules and its {@code widget:skin} entries — without touching
+     * {@link Fonts}, whose {@code removeOwner} sweep has already pulled every site entry the addon owned. The whole
+     * per-widget cascade lives here, not in the provider, so this is the only place that can say goodbye to it.
      */
-    static void forget(Addon owner) {
+    static synchronized void forget(Addon owner) {
         Sheet s = owner.skin;
-        if(s == null)
-            return;
-        owner.skin = null;
-        unregister(s);
+        boolean changed = false;
+        if(s != null) {
+            owner.skin = null;
+            changed = installed.remove(s);
+        }
+        changed |= dropSkins(owner);
+        if(changed)
+            rulesChanged();
     }
 
     /**
@@ -212,7 +224,7 @@ final class Sheet {
                     + "{ font = h, color = {r,g,b} }, got " + v.typename());
             Selector sel = Selector.parse(key);           // a bad key errors exactly as it does in hafen.ui(sel)
             String scope = siteOf(sel);
-            Rule r = propsOf(key, v, scope, (scope == null) ? sel : null);
+            Rule r = propsOf("hafen.ui.skin[\"" + key + "\"]", v, scope, (scope == null) ? sel : null);
             if(scope == null)
                 tree.add(r);     // a TREE key: matched per widget against the live tree (034.1)
             else
@@ -240,9 +252,11 @@ final class Sheet {
      * The properties of one rule ({@code font}, {@code color}), each {@code null} when the rule carries none. An
      * unknown property is an <b>error</b> — unlike an unresolved key, a misspelt property has no future meaning to
      * wait for, and silently doing nothing is the worst way to answer a typo (D-072). It is checked for <b>every</b>
-     * key, site or tree alike: the two kinds of key differ in where they resolve, never in what a rule may say.
+     * key, site or tree alike: the two kinds of key differ in where they resolve, never in what a rule may say —
+     * and for {@code widget:skin{…}} too ({@code ctx} names the caller), because a level of the cascade differs in
+     * <i>which widgets</i> it reaches, never in what it may say either.
      */
-    private static Rule propsOf(String key, LuaValue props, String site, Selector sel) {
+    private static Rule propsOf(String ctx, LuaValue props, String site, Selector sel) {
         FontHandle font = null;
         Color color = null;
         LuaValue pk = LuaValue.NIL;
@@ -256,26 +270,27 @@ final class Sheet {
             if("font".equals(p)) {
                 font = FontHandle.resolve(pv);
                 if(font == null)
-                    throw new LuaError("hafen.ui.skin[\"" + key + "\"].font: expected a font handle — hafen.font(\"sans\")"
+                    throw new LuaError(ctx + ".font: expected a font handle — hafen.font(\"sans\")"
                         + " or hafen.asset(\"fonts/Inter.ttf\"), optionally :derive{size=…}");
             } else if("color".equals(p)) {
                 color = pv.istable() ? AddonManager.luaColor(pv, null) : null;
                 if(color == null)
-                    throw new LuaError("hafen.ui.skin[\"" + key + "\"].color: expected a colour table with 0..255"
+                    throw new LuaError(ctx + ".color: expected a colour table with 0..255"
                         + " components — { 200, 210, 200 } or { r = 200, g = 210, b = 200, a = 255 }");
             } else {
-                throw new LuaError("hafen.ui.skin[\"" + key + "\"]: \"" + pk.tojstring()
+                throw new LuaError(ctx + ": \"" + pk.tojstring()
                     + "\" is not a style property — the properties this client ships are " + PROPS);
             }
         }
         return new Rule(site, sel, font, color);
     }
 
-    // ---- the TREE side: per-widget resolution (034.1) -----------------------------------------------
+    // ---- the PER-WIDGET cascade: tree rules (034.1) + widget:skin (034.3) ---------------------------
 
     /**
      * The style one widget resolves to — the fold of every <b>tree</b> rule that matches it, most specific
-     * winning, <b>per property</b> (a colour-only rule high up does not take the font a lower one sets, exactly as
+     * winning, with this widget's own {@code widget:skin{…}} above them all, <b>per property</b> (a colour-only
+     * rule high up does not take the font a lower one sets, exactly as
      * a cascade should). {@code null} is never one of these: {@link #styleOf} answers {@code null} when nothing
      * matches, so "nothing overrides this widget" is a value the caller cannot mistake for an empty style — the
      * contract that keeps the identity fast path honest and lets {@code widget:style()} read as
@@ -331,7 +346,17 @@ final class Sheet {
      * recorded. Guarded by {@code Sheet.class}.
      */
     private static final Map<Widget, Resolved> cache = new WeakHashMap<Widget, Resolved>();
-    /** Any tree rule installed anywhere? The fast path: without one, {@link #styleOf} is a volatile read. */
+    /**
+     * The per-instance level (034.3): {@code widget:skin{…}}, one list per widget, in <b>apply</b> order so the
+     * last addon to skin a widget wins the properties it names. Weak keys for the same two reasons as
+     * {@link #cache} — identity for free, and a strong list of skinned widgets would pin every closed window.
+     * An addon owns at most one entry per widget, and an empty list is removed rather than kept.
+     * Guarded by {@code Sheet.class}.
+     */
+    private static final Map<Widget, List<Skin>> skins = new WeakHashMap<Widget, List<Skin>>();
+    /** Any style installed anywhere — a tree rule or a {@code widget:skin}? Without one, {@link #styleOf} is a volatile read. */
+    private static volatile boolean anyStyle = false;
+    /** Any tree rule installed anywhere? (The {@code skins} half of {@link #anyStyle} is the map's emptiness.) */
     private static volatile boolean anyTree = false;
     /** Any installed tree rule carrying a late refiner ({@link Selector#late})? Gates the negative re-check. */
     private static volatile boolean anyLate = false;
@@ -346,6 +371,22 @@ final class Sheet {
      * produces is exactly that pair. Cleared with the rules. Guarded by {@code Sheet.class}.
      */
     private static final Map<SKey, Fonts.Style> specs = new HashMap<SKey, Fonts.Style>();
+
+    /**
+     * One addon's {@code widget:skin{…}} on one widget (034.3) — the top level of the per-widget cascade. Immutable;
+     * an addon replaces its own entry rather than stacking a second one.
+     */
+    private static final class Skin {
+        final Addon owner;
+        final FontHandle font;
+        final Color color;
+
+        Skin(Addon owner, FontHandle font, Color color) {
+            this.owner = owner;
+            this.font = font;
+            this.color = color;
+        }
+    }
 
     /** The key of {@link #specs}: a resolved style IS its (font handle, colour) pair. */
     private static final class SKey {
@@ -396,7 +437,13 @@ final class Sheet {
             rulesChanged();
     }
 
-    /** Recompute the fast-path flags and invalidate every cached entry. Caller holds {@code Sheet.class}. */
+    /**
+     * Recompute the fast-path flags and invalidate every cached entry — the one place a change to <b>any</b> level
+     * of the per-widget cascade lands, a sheet's tree rules and a {@code widget:skin} alike. A skin touches one
+     * widget, so invalidating all of them is broader than it needs to be: it is also what a sheet does, it costs one
+     * re-fold per widget on its next draw, and one rule for "the cascade changed" cannot drift from itself.
+     * Caller holds {@code Sheet.class}.
+     */
     private static void rulesChanged() {
         boolean tree = false, late = false;
         for(int i = 0; i < installed.size(); i++) {
@@ -406,13 +453,116 @@ final class Sheet {
                 late |= rs.get(j).sel.late();
             }
         }
+        boolean any = tree || !skins.isEmpty();
         anyTree = tree;
+        anyStyle = any;
         anyLate = late;
         treegen++;
         specs.clear();           // the old rules' styles, and their stamps, do not outlive them
-        if(!tree)
-            cache.clear();       // the last sheet left: hold nothing, so a stock client carries no state at all
-        Fonts.treeActive(tree);  // 034.2: and the provider stops (or starts) asking us at the draw
+        if(!any)
+            cache.clear();       // the last style left: hold nothing, so a stock client carries no state at all
+        Fonts.treeActive(any);   // 034.2: and the provider stops (or starts) asking us at the draw
+    }
+
+    // ---- the per-INSTANCE level: widget:skin{…} (034.3) ---------------------------------------------
+
+    /**
+     * {@code widget:skin{…}} / {@code widget:skin(nil)} — install this addon's style on <b>one</b> widget (and, by
+     * the same frame every other level uses, its whole subtree), or drop it. Replaces this addon's previous entry on
+     * that widget and leaves every other addon's alone; a table carrying <b>no</b> property is the same as none at
+     * all, exactly as a sheet rule with no property styles nothing.
+     *
+     * <p>The properties are a rule's, parsed by the same {@link #propsOf} — so an unknown one is the same error, and
+     * a font handle's own {@code color} is ignored here for the same reason it is ignored in a sheet (D-073): a
+     * surface's colour is said <i>as a colour</i>, where it can be read, and a handle's colour is for the addon's own
+     * pixels. Parsing happens before anything changes, so a bad call leaves the widget exactly as it was — and it
+     * happens even on a <b>stale</b> widget, whose write is then the 029.2 silent chaining no-op.
+     */
+    static void applySkin(Addon owner, Widget w, LuaValue props) {
+        FontHandle font = null;
+        Color color = null;
+        if(!props.isnil()) {
+            if(!props.istable())
+                throw new LuaError("widget:skin(props): expected a table of style properties { font = h,"
+                    + " color = {r,g,b} }, got " + props.typename()
+                    + " — widget:skin() reads this addon's style back, widget:skin(nil) drops it");
+            Rule r = propsOf("widget:skin", props, null, null);
+            font = r.font;
+            color = r.color;
+        }
+        if(w == null)
+            return;                       // a write on a stale widget: nothing to style (029.2)
+        setSkin(owner, w, font, color);
+    }
+
+    /** Install (or, with both properties {@code null}, drop) {@code owner}'s entry on {@code w}. */
+    private static synchronized void setSkin(Addon owner, Widget w, FontHandle font, Color color) {
+        List<Skin> st = skins.get(w);
+        boolean changed = false;
+        if(st != null) {
+            for(int i = st.size() - 1; i >= 0; i--) {     // an addon owns at most ONE entry per widget
+                if(st.get(i).owner == owner) {
+                    st.remove(i);
+                    changed = true;
+                }
+            }
+        }
+        if((font != null) || (color != null)) {
+            if(st == null)
+                skins.put(w, st = new ArrayList<Skin>(1));
+            st.add(new Skin(owner, font, color));         // re-raised to the top: last applied wins (D-043)
+            owner.skinNodes = true;
+            changed = true;
+        } else if((st != null) && st.isEmpty()) {
+            skins.remove(w);                              // hold nothing for a widget nobody skins any more
+        }
+        if(changed)
+            rulesChanged();
+    }
+
+    /**
+     * {@code widget:skin()} — <b>this addon's own</b> entry on {@code w} as Lua reads it
+     * ({@code { font = <handle>, color = {r=,g=,b=,a=} }}), or {@code nil} when it has none. Deliberately not the
+     * resolved style: {@code skin} is a value you wrote and can therefore read back unchanged, while
+     * {@code widget:style()} answers the different question of what the whole cascade makes of this widget.
+     */
+    static LuaValue skinOf(Addon reader, Widget w) {
+        Skin s = null;
+        synchronized(Sheet.class) {
+            List<Skin> st = (w == null) ? null : skins.get(w);
+            for(int i = (st == null) ? -1 : st.size() - 1; i >= 0; i--) {
+                if(st.get(i).owner == reader) {
+                    s = st.get(i);
+                    break;
+                }
+            }
+        }
+        if(s == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        if(s.font != null)
+            t.set("font", FontApi.handleFor(reader, s.font, reader));
+        if(s.color != null)
+            t.set("color", AddonManager.color(s.color));
+        return t;
+    }
+
+    /** Drop every {@code widget:skin} entry {@code owner} installed (its teardown). Caller holds {@code Sheet.class}. */
+    private static boolean dropSkins(Addon owner) {
+        boolean rm = false;
+        for(Iterator<Map.Entry<Widget, List<Skin>>> it = skins.entrySet().iterator(); it.hasNext();) {
+            List<Skin> st = it.next().getValue();
+            for(int i = st.size() - 1; i >= 0; i--) {
+                if(st.get(i).owner == owner) {
+                    st.remove(i);
+                    rm = true;
+                }
+            }
+            if(st.isEmpty())
+                it.remove();
+        }
+        owner.skinNodes = false;
+        return rm;
     }
 
     /**
@@ -425,7 +575,7 @@ final class Sheet {
      * a match storm.
      */
     static Resolved styleOf(Widget w) {
-        if(!anyTree || (w == null))
+        if(!anyStyle || (w == null))
             return null;
         synchronized(Sheet.class) {
             int left = LATE_RECHECK;
@@ -480,7 +630,10 @@ final class Sheet {
     /**
      * Fold every matching tree rule into one style: highest {@link Rule#rank} wins each property, and an equal
      * rank goes to the rule applied last — later sheet first, then later key within a sheet, which is D-043's
-     * last-applied-wins read one level down. Caller holds {@code Sheet.class}.
+     * last-applied-wins read one level down. Then this widget's own {@code widget:skin} entries go on top of the
+     * lot, in apply order: a style named by hand outranks every style that was <i>matched</i>, however specific the
+     * selector that matched it — but, like every other level, only for the properties it names. Caller holds
+     * {@code Sheet.class}.
      */
     private static Resolved fold(Widget w) {
         FontHandle font = null;
@@ -501,12 +654,22 @@ final class Sheet {
                 }
             }
         }
+        List<Skin> sk = skins.get(w);                     // 034.3: the per-instance level, above every rule
+        for(int i = 0; (sk != null) && (i < sk.size()); i++) {
+            Skin s = sk.get(i);
+            if(s.font != null) {
+                font = s.font; fontOwner = s.owner;
+            }
+            if(s.color != null)
+                color = s.color;
+        }
         return new Resolved(font, fontOwner, color, treegen);
     }
 
     /**
      * {@code widget:style()} — the resolved style as Lua reads it: {@code { font = <handle>, color = {r=,g=,b=,a=} }},
-     * each field present only when a rule set it, or {@code nil} when nothing overrides this widget. The font comes
+     * each field present only when a level of the cascade set it (a tree rule, or this widget's own
+     * {@code widget:skin}), or {@code nil} when nothing overrides this widget. The font comes
      * back as the very handle the sheet named when {@code reader} is the addon that wrote it, so
      * {@code w:style().font == body} holds; another addon's font arrives as {@code reader}'s own interned view of
      * it, because no Lua value crosses a sandbox boundary (D-017).

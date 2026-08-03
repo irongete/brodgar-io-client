@@ -362,3 +362,12 @@
   resolves it"); making it mint a Spec per call failed FOUR, the stamp-stability pair among them. Had only the
   first been tried, the greenness of the stamp checks would have looked like coverage it did not have. A
   falsification tells you which mechanism guards which claim, so run one per mechanism, not one per file.
+- **(034.3) `haven.UI` does NOT build headless — the 032.1 note needs its other half.** 032.1 recorded that a real
+  `UI` constructs off-screen once `bin/hafen-res.jar` is on the classpath; what it did not record is that the
+  constructor also does `new ActAudio.Root(audio)`, which **NPEs on `sys.mixer`** when `audio` is null. So a probe
+  that needs a live tree needs a real `Audio.Root` (which opens a device) — out of reach for a throwaway. The
+  consequence is worth knowing before you plan the pre-check: anything behind `LuaWidget.live()` (every WRITE verb
+  on a widget) is **in-game only**, because `live()` answers "unresolvable" while `AddonManager.ui` is null. What
+  is still reachable without a UI: the method table itself (a hard cut reads `nil`, the new verb is a function),
+  every refusal (parse the argument BEFORE looking at the widget and a bad call errors either way — worth doing
+  for that reason alone), and the whole engine layer beneath, driven directly.

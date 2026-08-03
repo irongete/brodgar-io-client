@@ -208,14 +208,13 @@ public final class Addon {
      */
     volatile Sheet skin = null;
     /**
-     * Has this addon installed any <b>per-instance</b> font override ({@code node:setFont(h)}, F5)? Only a flag, not
-     * a list: the overrides are keyed by widget inside the {@link haven.Fonts} provider, whose registry holds its
-     * widget keys <b>weakly</b> — a list here would pin a closed window's widget tree in memory. Teardown
-     * ({@link FontApi#teardownFonts}) sweeps this addon's entries out of that registry with the same
-     * {@code Fonts.removeOwner(this)} call the named scopes use; this flag only tells it whether the sweep is
-     * needed at all (so an addon that never touched fonts costs no generation bump).
+     * Has this addon styled any single widget by hand ({@code widget:skin{…}}, 034.3)? Only a flag, not a list: the
+     * styles are keyed by widget inside {@link Sheet}, whose map holds its widget keys <b>weakly</b> — a list here
+     * would pin a closed window's widget tree in memory. Teardown ({@link FontApi#teardownFonts}) sweeps this
+     * addon's entries out of that map along with its tree rules ({@link Sheet#forget}); this flag only tells it
+     * whether the sweep is needed at all (so an addon that never styled anything costs no generation bump).
      */
-    public volatile boolean fontNodes = false;
+    public volatile boolean skinNodes = false;
 
     /**
      * This addon's <b>Gob interning cache</b> ({@code hafen.gob(id)}, D-045): the weak-valued

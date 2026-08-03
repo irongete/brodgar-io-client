@@ -84,6 +84,12 @@ and answers `nil`/empty with `:exists()` false once its widget is gone. What you
 whether your addon created it — see [owned vs borrowed](ui.md#owned-vs-borrowed--which-writes-answer).
 A **server widget id** (`:id()`) is the number the gated [`hafen.act.raw`](actions.md) takes.
 
+Its two write verbs read the **arity as the verb**, like every callable namespace above:
+[`w:replace()`](ui.md#replacing-a-native-window) reads / `w:replace(view)` installs / `w:replace(nil)` undoes,
+and [`w:skin()`](fonts.md#restyle-one-widget--widgetskin) reads your own style / `w:skin{…}` installs it /
+`w:skin(nil)` drops it. Each answers for **your** addon: what you wrote comes back unchanged, what you drop
+leaves another addon's alone.
+
 ### Selector — naming a piece of the UI
 
 Ids and handles address a thing you already have. A **selector** addresses one you can only *describe*: a string

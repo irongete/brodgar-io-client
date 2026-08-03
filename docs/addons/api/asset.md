@@ -28,7 +28,7 @@ string to [`hafen.render.sprite`](render.md#standing-an-image-in-the-world) or
 | Extensions | `a:type()` | What you get | Use it with |
 |---|---|---|---|
 | `.png` `.jpg` `.jpeg` `.gif` `.bmp` | `"image"` | a GPU texture (alpha preserved) | [`g:image`/`g:aimage`](ui.md#the-g-draw-wrapper), [`hafen.render.sprite`](render.md#standing-an-image-in-the-world) |
-| `.ttf` `.otf` | `"font"` | a [`FontHandle`](fonts.md) (its family is AWT-registered, so `$font[…]` works) | [`font =`](fonts.md#draw-with-it--your-own-drawing), [`hafen.ui.skin`](ui.md#the-stylesheet--restyling-the-client), [`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth) |
+| `.ttf` `.otf` | `"font"` | a [`FontHandle`](fonts.md) (its family is AWT-registered, so `$font[…]` works) | [`font =`](fonts.md#draw-with-it--your-own-drawing), [`hafen.ui.skin`](ui.md#the-stylesheet--restyling-the-client), [`widget:skin`](fonts.md#restyle-one-widget--widgetskin) |
 | `.glb` `.gltf` | `"mesh"` | parsed glTF 2.0 static geometry + its textures | [`hafen.render.object`](render.md#standing-a-3d-model-in-the-world) |
 | `.json` `.txt` | `"data"` | the file's **text**, read as UTF-8 | [`hafen.json.parse`](json.md), and anything else that takes a string |
 

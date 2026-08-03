@@ -16,5 +16,5 @@
 - [virtual-entities](decisions/virtual-entities.md) — client-only ghosts, handles, clickability, gizmo, placement snapping (D-029, D-030, D-031, D-032, D-033)
 - [rendering](decisions/rendering.md) — hafen.render namespace, glTF 2.0 static subset (D-034, D-035)
 - [network-data](decisions/network-data.md) — hafen.json, hafen.http + network allowlist (D-036, D-037)
-- [fonts](decisions/fonts.md) — per-addon font system: private handles + owned overrides, a surface's look is the sheet's and a handle's colour is for your own pixels (D-073), a cascade level takes the properties it names, not the ones it does not (D-076) (D-043, D-073, D-076)
+- [fonts](decisions/fonts.md) — per-addon font system: private handles + owned overrides, a surface's look is the sheet's and a handle's colour is for your own pixels (D-073), a cascade level takes the properties it names, not the ones it does not (D-076), per-instance is a LEVEL of the cascade, not a mechanism beside it (D-077) (D-043, D-073, D-076, D-077)
 - [process](decisions/process.md) — spec language, gap build order (D-007, D-026)

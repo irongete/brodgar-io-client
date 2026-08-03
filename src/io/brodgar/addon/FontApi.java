@@ -37,10 +37,11 @@ import static io.brodgar.addon.AddonManager.*;
  *       widget} ({@link AddonWidget}) and a per-call {@code {font,color}} on the {@code g:text}/{@code g:atext} draw
  *       wrapper ({@link LuaGOut}) + a custom TTF in the {@code $font[…]} rich-text tag (family AWT-registered
  *       when the asset is loaded). Isolated — touches only the addon's own pixels; no global state, nothing to revert.</li>
- *   <li><b>Per-instance overrides</b> (F5): {@code node:setFont(h)} / {@code node:resetFont()} on any
- *       {@link LuaWidget} (spec 20) restyle <b>one</b> native widget and its subtree while its siblings keep the
- *       scope/{@code "default"} font — the top of the resolution chain ({@link #setNodeFont}, built into the node
- *       handle by {@link UiApi}). Owner-tagged and reverted on teardown like a scope override.</li>
+ *   <li><b>Per-widget styles are the SHEET's too</b> (F5, widened by 034.3): {@code widget:setFont(h)} /
+ *       {@code widget:resetFont()} are a <b>hard cut</b> — {@code widget:skin{font = h, color = …}}
+ *       ({@link Sheet#applySkin}) restyles <b>one</b> native widget and its subtree, and a font is one of its
+ *       properties rather than the whole verb. It is the top of the resolution chain, owner-tagged, and reverted on
+ *       teardown here ({@link #teardownFonts}) like every other level.</li>
  * </ul>
  * The Lua handle is facade-safe (no AWT {@code Font} crosses into Lua, D-017): a widget/scope stores the handle,
  * the bridge {@link FontHandle#resolve}s it back. Not instantiable.
@@ -180,53 +181,18 @@ final class FontApi {
         return fontHandle(new FontHandle(base, size, aa, color));
     }
 
-    // ------------------------------------------------------------------ per-instance overrides (F5, node:setFont)
-
-    /**
-     * {@code widget:setFont(h)} (F5, spec 20 + 21): install {@code owner}'s <b>per-instance</b> font override on one
-     * live widget — it restyles that widget and everything drawn inside it, while its siblings keep the
-     * scope/{@code "default"} font (the top of the resolution chain). Owner-tagged and reverted on teardown exactly
-     * like a scope override; the provider keys it by widget identity with a <b>weak</b> key, so a window that closes
-     * takes its override with it. {@code w == null} = a stale node (its widget left the tree) → nothing to style,
-     * but the handle is still validated so a bad call is a clear error either way.
-     *
-     * <p>The handle's <b>colour is not applied</b> (033.2): a native widget is a client SURFACE, and a surface's
-     * colour comes from the stylesheet — one place, visible in the sheet — while a handle's colour is for the
-     * addon's own drawing. This method takes the family/size/aa and passes {@code null} for the colour; C1b folds
-     * it into {@code widget:skin{…}}, where a per-widget {@code color} is a rule property like any other.
-     */
-    static void setNodeFont(Addon owner, haven.Widget w, LuaValue hv) {
-        FontHandle fh = FontHandle.resolve(hv);
-        if(fh == null)
-            throw new LuaError("widget:setFont(h): h must be a font handle — hafen.asset(\"fonts/X.ttf\") or hafen.font(\"sans\") — use a COLON call");
-        if(w == null)
-            return;
-        Fonts.pushInstance(w, owner, fh.font, fh.size, fh.aa, null);
-        owner.fontNodes = true;
-    }
-
-    /**
-     * {@code widget:resetFont()} (F5): drop {@code owner}'s per-instance override on this widget — it falls back to
-     * whatever is beneath (another addon's per-instance override, else the scope/{@code "default"} chain, else
-     * stock). A no-op on a stale node or when this addon had no override there.
-     */
-    static void resetNodeFont(Addon owner, haven.Widget w) {
-        if(w != null)
-            Fonts.resetInstance(w, owner);
-    }
-
     /**
      * Tear down everything this addon styled (reload/disable/relogin, spec 05): its <b>stylesheet</b>'s site
-     * entries ({@code hafen.ui.skin}, 033.1) and its per-instance {@code widget:setFont} overrides (F5), in one
-     * sweep — {@link Fonts#removeOwner} pulls both and bumps the generation counter, so every routed site reverts
-     * to the stock foundry. Called from {@link AddonRegistry#teardown}.
+     * entries ({@code hafen.ui.skin}, 033.1) through {@link Fonts#removeOwner}, then everything it styled
+     * <b>per widget</b> — the sheet's tree rules and its {@code widget:skin} entries — through
+     * {@link Sheet#forget}, which is where the whole per-widget cascade lives. Both bump the generation counter, so
+     * every routed site reverts to the stock foundry. Called from {@link AddonRegistry#teardown}.
      */
     static void teardownFonts(Addon a) {
-        if((a.skin == null) && !a.fontNodes)
+        if((a.skin == null) && !a.skinNodes)
             return;                       // never styled anything → nothing to revert (avoids a needless gen bump)
-        Fonts.removeOwner(a);             // sweeps both the sheet's named scopes and the per-instance registry (F5)
-        Sheet.forget(a);                  // 034.1: and its TREE rules leave the per-widget resolution with it
-        a.fontNodes = false;
+        Fonts.removeOwner(a);             // the sheet's named scopes
+        Sheet.forget(a);                  // its TREE rules and its widget:skin entries leave with it (034.1/034.3)
     }
 
     // ------------------------------------------------------------------ opt parsing

@@ -828,10 +828,10 @@ public class Widget {
 		else
 		    g2 = g.reclipl(cc, wdg.sz);
 		/* addon: the style frame (F5, D-043; widened by 034.2/C1b). This loop is the one place that knows "we
-		 * are now drawing widget W", so it opens the frame for a widget carrying a node:setFont override OR a
+		 * are now drawing widget W", so it opens the frame for a widget carrying a widget:skin{…} style OR a
 		 * stylesheet TREE rule it matches -- the frame covers W's own text AND its whole subtree, while its
 		 * siblings resolve as before. A no-op (a shared frame object, one volatile read) until an addon
-		 * installs a per-instance override or a tree key. */
+		 * installs a per-widget style. */
 		try(Fonts.Frame ff = Fonts.frame(wdg)) {
 		    wdg.draw(g2);
 		}

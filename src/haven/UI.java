@@ -384,9 +384,9 @@ public class UI {
     }
 
     public void draw(GOut g) {
-	/* addon: per-instance font override (F5, D-043) -- the root's own frame. Widget.draw opens one around every
+	/* addon: per-widget style frame (F5, D-043) -- the root's own. Widget.draw opens one around every
 	 * CHILD it draws, which covers every widget in the tree except the root itself; this is what makes
-	 * hafen.ui.root():setFont(h) work instead of silently doing nothing. */
+	 * hafen.ui():skin{…} work instead of silently doing nothing. */
 	/* addon: the ROOT's own inclusive draw (spec 019, task 019.5). Widget.draw's child loop times every
 	 * widget in the tree except the one it starts from, so without this the root -- and therefore the
 	 * whole-UI total p:widgets() reconciles against -- would be the only missing row. Two nanoTime calls

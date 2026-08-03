@@ -1,0 +1,9 @@
+{
+  "name": "034.3 — widget:skin{}, the cut, docs, close",
+  "id": "034-ui-stylesheet-tree.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 034.3: widget:setFont/:resetFont are a hard cut and widget:skin{…} replaces them as the TOP of the per-widget cascade — set / read back / nil clears this addon's entry only. It asserts the full cascade through w:style() (skin over the most specific tree rule, composed per property), that the skin reaches the DRAW through the same frame (one string in two probe windows takes two text-cache keys), that a font handle's own colour never styles a surface (D-073) while its family does, and that teardown returns every widget to nil. It drops its sheet and destroys its probe windows before it finishes, so a login that runs it leaves the client stock.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

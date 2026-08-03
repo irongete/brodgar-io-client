@@ -212,9 +212,10 @@ select once, keep it, and use `:exists()` when you need to know it is still ther
 | `:walk(fn)` | (self) | depth-first visit — `fn(widget, depth)`; **return `false` to prune** that subtree |
 | `:at(coord)` | Widget \| nil | the deepest widget under a `{x=,y=}` **root-coord** point **within this subtree** |
 | `:rootpos()` | `{x=,y=}` \| nil | its top-left in **root coords** (with `:size()` = a rectangle to outline it) |
-| `:style()` | table \| nil | the style this widget **resolves to** from the sheet's [tree keys](#tree-keys--which-widgets-not-what-kind-of-surface) — `{font=, color=}`, each present only where a rule set it — or **nil when no rule names it** |
-| `:setFont(h)` | (self) | restyle **this widget and its whole subtree** with a [font handle](fonts.md#restyle-one-widget--widgetsetfonth) — its siblings keep their font |
-| `:resetFont()` | (self) | drop **your** per-instance override on this widget (it falls back to the site rule, then the `*` rule) |
+| `:style()` | table \| nil | the style this widget **resolves to** — its own [`:skin{}`](fonts.md#restyle-one-widget--widgetskin) over the sheet's [tree keys](#tree-keys--which-widgets-not-what-kind-of-surface) — `{font=, color=}`, each present only where a level set it — or **nil when nothing names it** |
+| `:skin{…}` | (self) | restyle **this widget and its whole subtree** — `{font=, color=}`, the [top of the cascade](fonts.md#restyle-one-widget--widgetskin); its siblings are untouched |
+| `:skin()` | table \| nil | read **your own** entry back (not the resolved style — that is `:style()`) |
+| `:skin(nil)` | (self) | drop **your** entry on this widget; it falls back to the tree rule, then the site rule, then `*` |
 
 **`:id()` is the pivot for acting.** Reading the tree is ungated client-side data. To *act*, read a
 **server-bound** widget's `:id()` and pass it to the gated [`hafen.act.raw(id, msg, …)`](actions.md) with
@@ -484,8 +485,8 @@ in for), one of your *own* windows, and a window another addon already holds.
 **Limits.** A widget's Java state is otherwise read-only — mutating it desyncs from the server. `:text()`
 is best-effort over a known type set (unknown → nil, never throws). The whole client tree is reachable via
 `hafen.ui()`/`:parent()` (all client-side data — actions stay separately gated); which child is a price vs. a
-spacer is upstream-defined knowledge your Lua adapter supplies. Restyling native widgets beyond
-`:setFont`/`:resetFont`, and moving them, are later features.
+spacer is upstream-defined knowledge your Lua adapter supplies. Restyling native widgets beyond `:skin{}`
+(backgrounds, borders, window chrome), and moving them, are later features.
 
 ### Hit-testing — what is under the cursor (the WoW `/framestack` enabler)
 
@@ -606,6 +607,10 @@ site (`window`, `inventory`) — is a **tree key**, and it says *which widgets* 
 surface*. Every tree rule that matches a widget is folded into one style, and
 [`widget:style()`](#reads--they-answer-on-every-widget) reads the result back — `nil` when nothing names it.
 
+**Which kind a key is, in one line:** a **bare role** is a site key; a **role with a refiner** — or a role with no
+site behind it (`window`, `inventory`) — is a tree key. Nothing is ambiguous and nothing has to be declared: the
+key's own shape decides, and where the two kinds reach the same pixels the more specific one wins (below).
+
 ```lua
 hafen.ui.skin{ ["window[title=Cupboard]"] = { color = {200, 180, 140} } }
 hafen.ui("window[title=Cupboard]"):style()     --> { color = {r=200, g=180, b=140, a=255} }
@@ -618,8 +623,14 @@ A key that is not valid *grammar* is still an error, and exactly the error
 **A tree rule covers the widget it names *and everything drawn inside it*.** The client draws parents before
 children, so the rule is in force for the whole subtree — a window's caption, its labels, its button captions,
 its rows, and any widget created inside it *later*. That is the same mechanism
-[`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth) has always used, so a tree rule reaches every
+[`widget:skin{…}`](fonts.md#restyle-one-widget--widgetskin) uses, so a tree rule reaches every
 surface a site key does, including text drawn by the game's own resource code.
+
+> **A `window` rule does not reach the window's *frame*.** The chrome — the border, the title bar's background,
+> the close button — is a **child** of the window, not part of it, and it classifies as nothing
+> (`@DefaultDeco`, role `nil` — [030's inspector](#hit-testing--what-is-under-the-cursor-the-wow-framestack-enabler)
+> shows it when you hover a border). The caption *text* drawn on that bar follows the rule, because it is drawn
+> inside the window's subtree; the frame's own pixels are textures, and styling those is a later feature.
 
 Three rules decide what one widget resolves to:
 
@@ -672,17 +683,18 @@ Two things still win over a rule, and one surface ignores it:
 - **`$col[…]` markup inside the text** — it is part of the string, not the site's choice of colour, so a tooltip's
   green/red attribute deltas survive a `["tooltip"]` colour rule.
 - **A [tree key](#tree-keys--which-widgets-not-what-kind-of-surface) covering that widget**, and above it
-  [`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth) — both sit nearer the draw than a site rule.
+  [`widget:skin{…}`](fonts.md#restyle-one-widget--widgetskin) — both sit nearer the draw than a site rule.
 - **An embossed surface** — a window caption, a section heading, an ordinary button caption — takes its colour
   from a *texture* tiled through the glyph mask, not from the font, so it follows a `font` rule and ignores a
   `color` one. Not a bug to report; there is nothing there to colour. See
   [what each key accepts](#what-each-key-accepts).
 
 > **A font handle's own `color` does not style a surface.** `hafen.font("serif"):derive{color = {255,0,0}}`
-> installed through `skin{}` (or `widget:setFont`) contributes its family, size and antialiasing — its **colour
-> is ignored**. That colour is for [your own drawing](fonts.md#draw-with-it--your-own-drawing): `g:text`, your
-> own widgets. One question, "what colour is this surface", has exactly one answer, and it is written in the
-> sheet where you can see it.
+> installed through `skin{}` (the sheet's or a [widget's](fonts.md#restyle-one-widget--widgetskin)) contributes
+> its family, size and antialiasing — its **colour is ignored**, and `widget:style()` reports no colour for it.
+> That colour is for [your own drawing](fonts.md#draw-with-it--your-own-drawing): `g:text`, your
+> own widgets. One question, "what colour is this surface", has exactly one answer, and it is written as a
+> `color` where you can see it.
 
 ### What each key accepts
 
@@ -703,6 +715,7 @@ differs is what the surface *does* with it, and this is the honest table:
 | `world.nick` | ✅ | ✅ | a `color` rule flattens the kin-**group** colours; a font-only rule leaves them |
 | `world.speech` | ✅ | ✅ | `size=` is safe — the bubble measures its frame around the text every frame |
 | any tree key | ✅ | ⚠️ **per surface** | [resolved per widget](#tree-keys--which-widgets-not-what-kind-of-surface), readable through `widget:style()` and drawn over that widget's whole subtree. It reaches the same surfaces as the rows above and carries their caveats **unchanged**: a rule on a window covers the window's own caption, where `font` works and `color` is inert. `:style()` reports the colour a rule set even where the surface then throws it away |
+| `widget:skin{…}` | ✅ | ⚠️ **per surface** | the same, one widget at a time and [named by hand](fonts.md#restyle-one-widget--widgetskin) rather than matched. Being the top of the cascade changes *who wins*, never *what a surface can do*: an embossed caption inside a skinned window still ignores `color` |
 
 **Where `color` is ignored, it is the same reason every time**: the surface is *embossed* — the client renders
 the text as a mask and tiles a texture through it, then blurs a shadow behind. The glyph colour is discarded
@@ -724,9 +737,17 @@ where a surface's box was measured from the stock font — the per-surface notes
 
 ### Cascade & conflict
 
-Resolution is **most-specific first**: [`widget:setFont`](fonts.md#restyle-one-widget--widgetsetfonth) → the
-matching site rule → the `*` rule → the client's stock. So `["*"]` alone changes everything, and any other key
-refines one surface out of that cascade.
+Resolution is **most-specific first**: [`widget:skin{…}`](fonts.md#restyle-one-widget--widgetskin) → the
+matching [tree rule](#tree-keys--which-widgets-not-what-kind-of-surface) → the matching site rule → the `*` rule
+→ the client's stock. So `["*"]` alone changes everything, and any other key refines one surface, or one widget,
+out of that cascade.
+
+**Every level composes per property, never wholesale.** A level takes the properties it *names* and leaves the
+rest to the level beneath, which is what makes this a cascade rather than a series of replacements: a
+`widget:skin{color=…}` on a window whose sheet says `["*"] = {font = body}` recolours it **in `body`**, not in the
+client's stock font. Read the result for any one widget with
+[`widget:style()`](#reads--they-answer-on-every-widget) — which answers for the levels that name *that widget*
+(its skin and the tree rules), since a site rule belongs to a render site rather than to any one widget.
 
 Two addons styling the same surface is shared client state, resolved the same way as
 [`widget:replace`](#replacing-a-native-window): each surface holds a **stack of rules tagged with their owning
@@ -784,8 +805,8 @@ What that means when you write a draw callback:
   **Budget a live readout by how often its *text* changes, not by how many lines it has** — `"HP: 100/100"`
   redrawn 60 times is free; `"HP: 100/100 (12.483 s)"` is 60 rasterisations.
 - **Font overrides still take effect immediately.** The key carries the font generation, so installing, moving
-  or resetting a font ([`hafen.ui.skin`](#the-stylesheet--restyling-the-client),
-  [`widget:setFont`](#reads--they-answer-on-every-widget)) restyles
+  or dropping a style ([`hafen.ui.skin`](#the-stylesheet--restyling-the-client),
+  [`widget:skin`](#reads--they-answer-on-every-widget)) restyles
   on the next frame — the old entries simply stop being looked up and age out.
 - **It is bounded, not a leak.** An LRU of at most **512 entries / 8 MiB** of texture; the least recently used
   entries are evicted and their textures disposed. An addon that draws thousands of distinct strings settles at

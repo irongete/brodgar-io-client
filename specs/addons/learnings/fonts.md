@@ -363,3 +363,18 @@
   consumed by the descent asking about every widget every frame — ~0.33 s at 60 fps. It still covers a caption
   arriving by `uimsg` a tick or two late, but a counter sized for one caller is not sized for another: when a
   lazy path becomes a per-frame path, re-read every bound written for the lazy one.
+- **(034.3) When a read forces you to keep a second copy of a store, move the store instead of copying it.**
+  `widget:style()` has to hand back a **`FontHandle`**, and the provider keeps no handles — it keeps an AWT font,
+  a size and a flag. Keeping `Fonts.pushInstance` for the draw would therefore have meant an addon-side record
+  beside it holding the same override in the readable shape: two stores for ONE cascade level, free to drift
+  exactly where they overlap and impossible to test apart. Moving the whole per-widget registry out of
+  `haven.Fonts` into the fold that already existed deleted ~100 lines of core, left the provider with the frame
+  and nothing per-widget, and made "what does this widget resolve to" a question with one answerer
+  ([D-077](../decisions/fonts.md)). The tell that you are in this situation: the new read cannot be written
+  without duplicating state the old write already holds.
+- **(034.3) The per-widget cascade's fold is where a new LEVEL goes — adding one is ~10 lines and no new path.**
+  `widget:skin{…}` sits above every tree rule and reaches the screen, the subtree, `widget:style()` and the
+  teardown with no code of its own at any of those seams: it is applied at the end of `fold()`, per property, and
+  everything downstream (interning, the stamp, `Fonts.combine`, `specOf`) was already written by 034.1/034.2.
+  That is what "no second resolution path" buys the *next* feature, not just this one — C2's `bg`/`border` are
+  properties on the same rules, not another mechanism.

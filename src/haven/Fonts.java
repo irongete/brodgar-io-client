@@ -30,11 +30,9 @@ import java.awt.Color;
 import java.awt.Font;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.WeakHashMap;
 
 // addon: font provider facade (F-series, D-043) — driven from io.brodgar.addon.FontApi.
 /**
@@ -49,17 +47,17 @@ import java.util.WeakHashMap;
  * reverted on teardown by {@code io.brodgar.addon.FontApi} (owned-resource model, spec 05). <b>Nothing about the
  * render sites changed when the sheet arrived</b> — only who fills the stack.
  *
- * <p><b>Resolution</b> is most-specific first: a <b>per-instance</b> override on the widget being drawn or one of
- * its ancestors (F5, {@link #frame(Widget)}) &rarr; the <b>tree rule</b> that widget (or an ancestor) matches
- * (034.2/C1b — the same frame, filled by {@code io.brodgar.addon.Sheet} instead of by hand) &rarr; a scope's own
+ * <p><b>Resolution</b> is most-specific first: the <b>per-widget style</b> of the widget being drawn or of one of
+ * its ancestors (F5, {@link #frame(Widget)} — its {@code widget:skin{…}} over the <b>tree rule</b> it matches,
+ * folded into one style by {@code io.brodgar.addon.Sheet} before it ever gets here) &rarr; a scope's own
  * override (top of its owner-tagged stack) &rarr; the {@code "default"} override &rarr; the site's stock foundry. So a
  * sheet's {@code ["*"]} rule cascades to every routed surface that has no more-specific rule, a rule keyed on one
- * site refines that surface, a rule keyed on a widget refines that widget's subtree, and {@code widget:setFont(h)}
+ * site refines that surface, a rule keyed on a widget refines that widget's subtree, and {@code widget:skin{…}}
  * refines one widget subtree by hand.
  *
  * <p><b>Every step of that chain composes PER PROPERTY</b> ({@link #combine}), which is what makes it a cascade
  * rather than a series of replacements: a tree rule that sets only {@code color} leaves the scope rule's font in
- * place, and a per-instance {@code setFont} leaves the sheet's colour alone. A level only ever takes the properties
+ * place, and a {@code widget:skin{font=…}} leaves the sheet's colour alone. A level only ever takes the properties
  * it actually names.
  *
  * <p><b>Cost.</b> When no addon has installed <i>any</i> override (the overwhelmingly common case) {@link #foundry}
@@ -130,9 +128,9 @@ public class Fonts {
         final Integer size;      // logical px (UI.scale is applied when a foundry is built), or null = use the site's stock size
         final Boolean aa;        // or null = inherit the site's stock antialias flag
         final Color  color;      // the rule's `color` property, or null = inherit the site's stock default colour
-        // A per-Spec stamp mixed into gen() while this override is the active per-instance FRAME (F5). It is what
+        // A per-Spec stamp mixed into gen() while this override is the active per-widget FRAME (F5). It is what
         // makes a site's `gen != mygen` check fire for a widget CONSTRUCTED outside the frame and first drawn inside
-        // it (and vice versa) -- without it, a label created after the setFont would keep its stock font forever,
+        // it (and vice versa) -- without it, a label created after the skin would keep its stock font forever,
         // since the global counter had not moved since its construction.
         final int    stamp;
         // Lazily-built foundries, keyed by the STOCK foundry identity (one override may front several sites whose
@@ -261,7 +259,7 @@ public class Fonts {
     }
 
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {
-        // F5/C1b: the frame (this widget's per-instance override, its tree rule, or an enclosing widget's) outranks
+        // F5/C1b: the frame (this widget's own skin, its tree rule, or an enclosing widget's) outranks
         // every scope -- but only for the properties it names; combine() lets the scope fill the rest.
         Spec o = combine(frameTop(), scopeTop(scope));
         return (o == null) ? stock : o.foundry(stock);
@@ -285,12 +283,12 @@ public class Fonts {
      * The current generation counter; bumped on every {@link #push}/{@link #reset}/{@link #removeOwner}. A routed
      * site caches the value it last rendered at and rebuilds when it moves.
      *
-     * <p>While a <b>per-instance frame</b> is active (F5 — the widget being drawn, or an ancestor, carries a
-     * {@code node:setFont} override) the reported generation additionally carries that override's
+     * <p>While a <b>per-widget frame</b> is active (F5 — the widget being drawn, or an ancestor, carries a tree rule
+     * or a {@code widget:skin}) the reported generation additionally carries that style's
      * {@link Spec#stamp}. That is what makes the very same {@code gen != mygen} check every routed site already
      * performs also detect <i>where</i> it is being drawn: a widget built outside the frame (the common case — a
-     * label constructed long before, or one created inside an already-overridden window) sees a different
-     * generation on its first draw inside the frame, re-resolves, and picks the instance override up. It is stable
+     * label constructed long before, or one created inside an already-styled window) sees a different
+     * generation on its first draw inside the frame, re-resolves, and picks the style up. It is stable
      * across frames, so there is no per-frame rebuild.
      */
     public static int gen() {
@@ -298,40 +296,40 @@ public class Fonts {
         return (f == null) ? gen : (gen ^ f.stamp);
     }
 
-    /* ---- PER-INSTANCE overrides (F5) ----------------------------------------------------------------------
+    /* ---- the PER-WIDGET frame (F5, widened by 034.2/C1b) ---------------------------------------------------
      *
-     * `widget:setFont(h)` on a Widget object (spec 20) restyles ONE arbitrary native widget -- and everything drawn
-     * inside it -- while its siblings keep the scope/default font. It sits at the top of the resolution chain.
+     * A style may name ONE widget rather than a render site -- a stylesheet TREE rule (`["window[title=X]"]`) or an
+     * addon's `widget:skin{…}` on a widget it picked by hand. Either way it restyles that widget AND everything
+     * drawn inside it, while its siblings keep the scope/default style, and it sits at the top of the resolution
+     * chain.
      *
      * The mechanism is dynamic, like F3d's composition scope, rather than a per-widget field: the UI draw pass
      * already descends the tree parent-first, so the ONE place that knows "we are now inside widget W" is the
-     * child-draw loop (Widget.draw(GOut, boolean)). It opens a FRAME around each child that carries an override
-     * (`frame(Widget)`), the frame stays in force for the child's whole subtree -- a child with no override of its
+     * child-draw loop (Widget.draw(GOut, boolean)). It opens a FRAME around each child that carries a style
+     * (`frame(Widget)`), the frame stays in force for the child's whole subtree -- a child with no style of its
      * own simply inherits the enclosing one -- and every routed site resolves through it because resolve() consults
-     * frameTop() first. So no render site needs a second edit: every scope routed by F1..F4 is per-instance capable
+     * frameTop() first. So no render site needs a second edit: every scope routed by F1..F4 is per-widget capable
      * for free, and even text drawn by PUBLISHED resource code follows (via `dynamic()` below).
      *
-     * The registry is keyed by widget IDENTITY and holds its keys WEAKLY (Widget overrides neither equals nor
-     * hashCode), so a destroyed window's override simply evaporates -- a stashed override can never pin a dead
-     * subtree, and there is nothing to clean up when a window closes.
+     * Where the styles themselves LIVE is the addon layer's business (io.brodgar.addon.Sheet, the TreeStyles source
+     * below): both levels are resolved per widget and folded into one style there, so this class holds no per-widget
+     * registry at all and cannot disagree with the one that does.
      */
-    private static final Map<Widget, List<Spec>> instances = new WeakHashMap<Widget, List<Spec>>();
-    private static volatile boolean instanced = false;      // any per-instance override anywhere → frame() looks up
     private static final ThreadLocal<List<Spec>> frames = new ThreadLocal<List<Spec>>();
 
     /**
-     * A per-instance font frame opened around one widget's draw (F5) — {@code close()} ends it. Not
+     * A per-widget style frame opened around one widget's draw (F5) — {@code close()} ends it. Not
      * {@code AutoCloseable} itself so a caller needs no {@code catch}: it is meant to be used as
      * {@code try(Fonts.Frame f = Fonts.frame(wdg)) {…}} in the widget draw loop.
      */
     public interface Frame extends AutoCloseable {
         public void close();
     }
-    /** The frame for a widget with no override of its own: pushes nothing, so an enclosing frame stays in force. */
+    /** The frame for a widget with no style of its own: pushes nothing, so an enclosing frame stays in force. */
     private static final Frame NOFRAME = new Frame() {
         public void close() {}
     };
-    /** The frame for a widget that DOES carry an override: {@link #frame} pushed it, {@code close()} pops it. */
+    /** The frame for a widget that DOES carry a style: {@link #frame} pushed it, {@code close()} pops it. */
     private static final Frame POPFRAME = new Frame() {
         public void close() {
             List<Spec> st = frames.get();
@@ -341,17 +339,17 @@ public class Fonts {
     };
 
     /**
-     * Open the per-instance font frame for {@code wdg} (F5) — called by the widget draw loop around every child's
+     * Open the per-widget style frame for {@code wdg} (F5) — called by the widget draw loop around every child's
      * {@code draw}, and by {@link UI#draw} around the root. Everything rendered until the returned {@link Frame} is
-     * closed (so {@code wdg} <i>and its whole subtree</i>) resolves through {@code wdg}'s override, if it has one;
-     * otherwise the enclosing frame (an overridden ancestor), if any, stays in force. <b>Always</b> use it in a
-     * {@code try}-with-resources. Free when no addon has installed a per-instance override (one {@code volatile}
+     * closed (so {@code wdg} <i>and its whole subtree</i>) resolves through {@code wdg}'s style, if it has one;
+     * otherwise the enclosing frame (a styled ancestor), if any, stays in force. <b>Always</b> use it in a
+     * {@code try}-with-resources. Free when no addon has installed any per-widget style (one {@code volatile}
      * read → a shared no-op frame).
      */
     public static Frame frame(Widget wdg) {
-        if(!instanced && !treed)
-            return NOFRAME;                     // fast path: no per-instance override and no tree rule anywhere
-        Spec s = own(wdg);
+        if(!treed)
+            return NOFRAME;                     // fast path: no tree rule and no widget:skin anywhere
+        Spec s = treeTop(wdg);
         if(s == null)
             return NOFRAME;                     // nothing styles THIS widget → inherit the enclosing frame
         List<Spec> st = frames.get();
@@ -363,92 +361,45 @@ public class Fonts {
         return POPFRAME;
     }
 
-    /**
-     * The style {@code wdg} itself carries: its per-instance override ({@code widget:setFont}, F5) over the tree rule
-     * it matches (034.2) — {@code null} when neither. Takes no lock of its own: the two sources are consulted one
-     * after the other, never nested, so the tree source's lock is never taken under {@code Fonts.class}.
-     */
-    private static Spec own(Widget wdg) {
-        Spec inst = instanced ? instanceTop(wdg) : null;
-        Spec tree = treed ? treeTop(wdg) : null;
-        return (inst == null) ? tree : combine(inst, tree);
-    }
-
-    /** The top-of-stack per-instance override for {@code wdg}, or {@code null}. */
-    private static synchronized Spec instanceTop(Widget wdg) {
-        List<Spec> st = instances.get(wdg);
-        return ((st == null) || st.isEmpty()) ? null : st.get(st.size() - 1);
-    }
-
     /** The innermost frame style in force on this thread right now, or {@code null}. */
     private static Spec frameTop() {
-        if(!instanced && !treed)
+        if(!treed)
             return null;
         List<Spec> st = frames.get();
         return ((st == null) || st.isEmpty()) ? null : st.get(st.size() - 1);
     }
 
-    /**
-     * Install {@code owner}'s per-instance override on {@code wdg} (its {@code node:setFont(h)}, F5). Same
-     * ownership rules as {@link #push}: one override per owner per widget, last applied wins, reverted on the
-     * addon's teardown. Bumps {@link #gen()} so the subtree re-renders.
-     */
-    public static synchronized void pushInstance(Widget wdg, Object owner, Font base, Integer size, Boolean aa, Color color) {
-        List<Spec> st = instances.get(wdg);
-        if(st == null)
-            instances.put(wdg, st = new ArrayList<Spec>());
-        removeOwnerFrom(st, owner);       // an addon owns at most one override per widget
-        st.add(new Spec(owner, base, size, aa, color));   // re-raise to the top (last applied wins)
-        active = true;
-        instanced = true;
-        bumped();
-    }
-
-    /**
-     * Drop {@code owner}'s per-instance override on {@code wdg} (its {@code node:resetFont()}, F5) — the widget
-     * falls back to the next owner beneath, or to the scope/default chain. Returns whether anything was removed.
-     */
-    public static synchronized boolean resetInstance(Widget wdg, Object owner) {
-        List<Spec> st = instances.get(wdg);
-        boolean rm = (st != null) && removeOwnerFrom(st, owner);
-        if(rm) {
-            prune();
-            bumped();
-        }
-        return rm;
-    }
-
-    /* ---- the TREE style source (034.2, C1b) ---------------------------------------------------------------
+    /* ---- the PER-WIDGET style source (034.2/034.3, C1b) ---------------------------------------------------
      *
-     * A stylesheet key that names WIDGETS rather than a render site (`["window[title=Cupboard]"]`) is resolved per
-     * widget against the live tree by io.brodgar.addon.Sheet, which folds every rule that matches one widget into a
-     * single style. This is where that style meets the draw: the frame the child-draw loop already opens for F5
-     * asks the source for the widget it is about to draw, so a tree rule covers that widget AND its subtree, every
-     * routed site becomes tree-capable with no second edit, and there is no second resolution path to disagree with
-     * this one.
+     * A style that names WIDGETS rather than a render site -- a stylesheet key like `["window[title=Cupboard]"]`, or
+     * an addon's `widget:skin{…}` on one widget -- is resolved per widget against the live tree by
+     * io.brodgar.addon.Sheet, which folds every level that reaches one widget into a single style. This is where
+     * that style meets the draw: the frame the child-draw loop already opens for F5 asks the source for the widget
+     * it is about to draw, so the style covers that widget AND its subtree, every routed site becomes per-widget
+     * capable with no second edit, and there is no second resolution path to disagree with this one.
      *
      * The source hands back an OPAQUE Style built by treeSpec() below -- a Spec, but the addon layer never says so:
      * this class keeps carrying no dependency on the addon package, exactly as with the owner tokens. It must be a
      * CACHE LOOKUP: it is called for every visible widget on every frame.
      */
 
-    /** The per-widget tree style source (034.2) — installed once by the addon layer; {@code null} in a stock client. */
+    /** The per-widget style source (034.2) — installed once by the addon layer; {@code null} in a stock client. */
     public interface TreeStyles {
         /** The style {@code wdg} resolves to, as built by {@link Fonts#treeSpec}, or {@code null} for none. */
         public Style styleFor(Widget wdg);
     }
     private static volatile TreeStyles trees = null;
-    private static volatile boolean treed = false;    // any tree rule installed anywhere → frame() asks the source
+    private static volatile boolean treed = false;    // any per-widget style installed → frame() asks the source
 
-    /** Install the tree style source (the addon layer, once). */
+    /** Install the per-widget style source (the addon layer, once). */
     public static void treeStyles(TreeStyles src) {
         trees = src;
     }
 
     /**
-     * The addon layer telling the provider whether <b>any</b> tree rule is installed right now. It is the whole of
-     * what this class knows about the sheet's tree half: with nothing installed, {@link #frame} and {@link #frameTop}
-     * are a {@code volatile} read and the client is byte-for-byte stock again.
+     * The addon layer telling the provider whether <b>any</b> per-widget style is installed right now (a tree rule
+     * or a {@code widget:skin}). It is the whole of what this class knows about them: with nothing installed,
+     * {@link #frame} and {@link #frameTop} are a {@code volatile} read and the client is byte-for-byte stock again.
      */
     public static synchronized void treeActive(boolean any) {
         treed = any;
@@ -460,15 +411,16 @@ public class Fonts {
     }
 
     /**
-     * Build the provider's own representation of one resolved tree style — the value {@link TreeStyles#styleFor}
-     * hands back. The addon layer <b>interns</b> these per resolved rule set (same rules ⇒ the same object), which is
-     * what makes the {@link Spec#stamp} mixed into {@link #gen()} stable across frames.
+     * Build the provider's own representation of one resolved per-widget style — the value
+     * {@link TreeStyles#styleFor} hands back. The addon layer <b>interns</b> these per resolved style (same
+     * properties ⇒ the same object), which is what makes the {@link Spec#stamp} mixed into {@link #gen()} stable
+     * across frames.
      */
     public static synchronized Style treeSpec(Object owner, Font base, Integer size, Boolean aa, Color color) {
         return new Spec(owner, base, size, aa, color);
     }
 
-    /** {@code wdg}'s resolved tree style, or {@code null}. Takes the source's lock, never {@code Fonts.class}. */
+    /** {@code wdg}'s resolved per-widget style, or {@code null}. Takes the source's lock, never {@code Fonts.class}. */
     private static Spec treeTop(Widget wdg) {
         TreeStyles src = trees;
         if(src == null)
@@ -532,10 +484,10 @@ public class Fonts {
      * Outside a composition {@code null} means "render exactly as before", which is what keeps this invisible to
      * the rest of the client.
      *
-     * <p>A <b>per-instance frame</b> (F5) claims such a foundry too, and reports {@code "default"} for it: inside
-     * an overridden widget the resolution chain returns the instance override whatever scope is asked for, so this
-     * is how {@code node:setFont} reaches even the text a {@code .res}'s own code draws with its own private
-     * foundry, without a second mechanism.
+     * <p>A <b>per-widget frame</b> (F5) claims such a foundry too, and reports {@code "default"} for it: inside
+     * a styled widget the resolution chain returns the frame's style whatever scope is asked for, so this
+     * is how a tree rule or a {@code widget:skin} reaches even the text a {@code .res}'s own code draws with its own
+     * private foundry, without a second mechanism.
      */
     public static String dynamic() {
         if(!active)
@@ -543,7 +495,7 @@ public class Fonts {
         List<String> st = dynscope.get();
         if((st != null) && !st.isEmpty())
             return st.get(st.size() - 1);
-        return (frameTop() != null) ? "default" : null;   // addon: (F5) an instance frame claims unroutable foundries
+        return (frameTop() != null) ? "default" : null;   // addon: (F5) a per-widget frame claims unroutable foundries
     }
 
     /**
@@ -582,14 +534,13 @@ public class Fonts {
     /**
      * Remove every override owned by {@code owner} across all scopes (its teardown — reload/disable, spec 05). The
      * stock UI is always restorable this way: an addon's entries leave every scope stack and the surfaces fall back
-     * beneath. Bumps {@link #gen()} when anything was removed.
+     * beneath. Bumps {@link #gen()} when anything was removed. Its <b>per-widget</b> styles are not here — they live
+     * in the source ({@code io.brodgar.addon.Sheet}), which drops them in the same teardown.
      */
     public static synchronized void removeOwner(Object owner) {
         boolean rm = false;
         for(List<Spec> st : overrides.values())
             rm |= removeOwnerFrom(st, owner);
-        for(List<Spec> st : instances.values())
-            rm |= removeOwnerFrom(st, owner);     // addon: (F5) its per-instance overrides go too
         if(rm) {
             prune();
             bumped();
@@ -617,22 +568,14 @@ public class Fonts {
     }
 
     /**
-     * Recompute {@link #active} / {@link #instanced} after a removal (and drop the emptied per-instance entries, so
-     * the widget is no longer looked up on every draw). Both flags clear when nothing remains anywhere, putting
-     * every routed site back on its zero-cost fast path.
+     * Recompute {@link #active} after a removal. It clears when nothing remains anywhere — no scope override and no
+     * per-widget style — putting every routed site back on its zero-cost fast path.
      */
     private static void prune() {
-        boolean any = false, inst = false;
+        boolean any = false;
         for(List<Spec> st : overrides.values())
             any |= !st.isEmpty();
-        for(Iterator<List<Spec>> i = instances.values().iterator(); i.hasNext();) {
-            if(i.next().isEmpty())
-                i.remove();
-            else
-                inst = true;
-        }
-        active = any || inst || treed;   // addon: (034.2) a tree-keys-only sheet still needs the slow path
-        instanced = inst;
+        active = any || treed;   // addon: (034.2) a per-widget-only sheet still needs the slow path
     }
 
     /**

@@ -78,8 +78,8 @@ final class LuaGOut {
      *
      * Deliberately IN the key: Fonts.gen(). The plan called for one `cachegen` compared against it, dropping
      * everything when it moved -- the Label model. That is wrong HERE, because Fonts.gen() is not a frame-global:
-     * while a per-instance font frame is open (F5, `node:setFont`, Widget.draw's child loop) it carries that
-     * override's stamp, so it differs BETWEEN draw sites within a single frame. A drop-on-move cache would then
+     * while a per-widget style frame is open (F5, `widget:skin`, Widget.draw's child loop) it carries that
+     * style's stamp, so it differs BETWEEN draw sites within a single frame. A drop-on-move cache would then
      * clear itself on every alternation -- worse than no cache. As a key component it costs the same one int and
      * is correct under F5: an override install/move/reset simply lands on fresh keys and the stale generation's
      * entries fall out of the LRU. (`:hello node` is exactly this case, so it is not hypothetical.)

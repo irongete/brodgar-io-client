@@ -1618,7 +1618,7 @@ local function toggleSkin(key, props)
 end
 hafen.events.on("OnLoad", function()
   skinRules = {}                                        -- a reload rebuilt the env; the sheet was torn down (P2)
-  nodeFontApplied, nodeFontTarget = false, nil          -- F5: ...and so was the per-instance (setFont) override (P2)
+  nodeFontApplied, nodeFontTarget = false, nil          -- F5: ...and so was the per-instance (widget:skin) style (P2)
   monoFont = hafen.font("mono"):derive{ size = 12 }     -- F2: a distinct font for the per-call g:text{font=} line
   tintedFont = hafen.font("mono"):derive{ size = 13, color = { 255, 120, 190 } }   -- 033.2: a handle with a colour
   local ok, ttf = pcall(hafen.asset, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
@@ -2305,10 +2305,10 @@ hafen.slash.register("hello", function(args)
       hafen.log(":hello nick -> the ['world.nick'] rule left our sheet -- stock floating kin-name font restored (also on :reload/disable)")
     end
   elseif sub == "node" then
-    -- F5: a PER-INSTANCE font override -- the last piece of the font system and the only one that is not a named
-    -- scope. node:setFont(h) restyles ONE native widget and everything drawn inside it (its title, its labels, its
-    -- button captions, even text drawn by the game's own resource code), while its SIBLINGS keep the scope/"default"
-    -- font: it sits at the TOP of the resolution chain (instance > scope > "default" > stock). The node comes from
+    -- F5 (034.3): a PER-INSTANCE style -- the last piece of the font system and the only one that is not a named
+    -- scope. widget:skin{font=h} restyles ONE native widget and everything drawn inside it (its title, its labels,
+    -- its button captions, even text drawn by the game's own resource code), while its SIBLINGS keep the
+    -- tree/scope/"default" cascade: it sits at the TOP of it. The node comes from
     -- the W1 widget-tree walk (hafen.ui():walk), so any widget in the client can be targeted -- here we pick
     -- the FIRST open window and leave the rest stock, which is exactly the thing to look at. A window is
     -- recognised as "has a caption AND has children" (a Label/Button/TextEntry has a caption but no children).
@@ -2317,9 +2317,9 @@ hafen.slash.register("hello", function(args)
     local h = (monoFont or demoFont)
     if not h then hafen.log(":hello node -> font not loaded yet (OnLoad)"); return end
     if nodeFontApplied then
-      if nodeFontTarget then nodeFontTarget:resetFont() end   -- a no-op if that window was closed meanwhile
+      if nodeFontTarget then nodeFontTarget:skin(nil) end     -- a no-op if that window was closed meanwhile
       nodeFontTarget, nodeFontApplied = nil, false
-      hafen.log(":hello node -> resetFont() -- that window is back to the stock/scope font (a :reload/disable reverts it too)")
+      hafen.log(":hello node -> skin(nil) -- that window is back to the stock/scope font (a :reload/disable reverts it too)")
     else
       local root = hafen.ui()
       if not root then hafen.log(":hello node -> no UI yet (try in-world)"); return end
@@ -2351,9 +2351,9 @@ hafen.slash.register("hello", function(args)
           :format(table.concat(report, ", ")))
         return
       end
-      wins[best].node:setFont(h:derive{ size = 13 })           -- mono 13 (bigger + a different family, so it is obvious)
+      wins[best].node:skin{ font = h:derive{ size = 13 } }     -- mono 13 (bigger + a different family, so it is obvious)
       nodeFontTarget, nodeFontApplied = wins[best].node, true
-      hafen.log((":hello node -> setFont on ONE widget: the '%s' window (%d text bits inside) is now in %s 13 -- caption, labels, list rows and button captions included; every OTHER open window stays stock. Candidates+text counts: [%s]. That is the per-instance override; :hello node again to reset")
+      hafen.log((":hello node -> skin{} on ONE widget: the '%s' window (%d text bits inside) is now in %s 13 -- caption, labels, list rows and button captions included; every OTHER open window stays stock. Candidates+text counts: [%s]. That is the per-instance style; :hello node again to reset")
         :format(wins[best].name, wins[best].texts, h:family(), table.concat(report, ", ")))
     end
   elseif sub == "selector" then

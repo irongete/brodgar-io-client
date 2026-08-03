@@ -486,12 +486,14 @@ public final class LuaWidget {
                 return (rp == null) ? LuaValue.NIL : xyTable(rp);
             }
         });
-        // style() — 034.1: the style THIS widget RESOLVES to — { font = <handle>, color = {r=,g=,b=,a=} }, each
-        // field present only where a rule set it — or nil when nothing overrides it. "nil means stock": on a
-        // client with no sheet installed every widget reads nil, which is the same contract the identity fast path
-        // in the font provider rests on. What it folds is the sheet's TREE keys (hafen.ui.skin{ ["window[title=…]"]
-        // = … }), most specific first — a site key like ["button"] is not a property of any one widget (a window
-        // contains buttons, labels and chat, each drawn at its own site) and is deliberately not folded in here.
+        // style() — 034.1/034.3: the style THIS widget RESOLVES to — { font = <handle>, color = {r=,g=,b=,a=} },
+        // each field present only where a level of the cascade set it — or nil when nothing overrides it. "nil
+        // means stock": on a client with no sheet installed every widget reads nil, which is the same contract the
+        // identity fast path in the font provider rests on. What it folds is the PER-WIDGET cascade — this widget's
+        // own :skin{} over the sheet's TREE keys (hafen.ui.skin{ ["window[title=…]"] = … }), most specific first. A
+        // site key like ["button"] is not a property of any one widget (a window contains buttons, labels and chat,
+        // each drawn at its own site) and is deliberately not folded in here; nor is an ancestor's style, which is
+        // inherited at the DRAW rather than resolved (a read answers for the thing you point at, D-075).
         // The font comes back as the very handle your own sheet named, so w:style().font == body holds.
         m.set("style", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -499,21 +501,21 @@ public final class LuaWidget {
                 return (w == null) ? LuaValue.NIL : Sheet.styleTable(owner, w);
             }
         });
-        // F5 (spec 21): setFont(h) — restyle THIS widget and everything drawn inside it with a font handle
-        // (hafen.asset / hafen.font), while its siblings keep the scope/"default" font (the top of the font
-        // resolution chain). Owner-tagged: reverted on :reload/disable, and it dies with the widget. Chains.
-        m.set("setFont", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:setFont(h) → self=arg1, handle=arg2
-                FontApi.setNodeFont(owner, live(handle(a.arg1(), "setFont")), a.arg(2));
-                return a.arg1();
-            }
-        });
-        // F5: resetFont() — drop THIS addon's per-instance override on this widget (it falls back to the
-        // scope/"default" chain, or to another addon's override beneath). A no-op if there was none. Chains.
-        m.set("resetFont", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:resetFont() → self=arg1
-                FontApi.resetNodeFont(owner, live(handle(a.arg1(), "resetFont")));
-                return a.arg1();
+        // skin{…} (034.3, F5 widened) — restyle THIS widget and everything drawn inside it, while its siblings keep
+        // the tree/site/"default" cascade. Arity is the verb (029): w:skin() READS this addon's own entry back (nil
+        // if none), w:skin{font=,color=} SETS it, w:skin(nil) DROPS it — and only this addon's, never another's.
+        // The properties are a sheet rule's, so an unknown one is the same error and a handle's own colour is
+        // ignored exactly as it is in a sheet (D-073). widget:setFont/:resetFont are a HARD CUT: a font was never a
+        // special case, only the first property that existed. Owner-tagged (reverted on :reload/disable), held
+        // weakly against the widget (it dies with the window), and chains on a write.
+        m.set("skin", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:skin() → narg 1 · w:skin(props|nil) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "skin"));
+                if(a.narg() < 2)
+                    return Sheet.skinOf(owner, w);
+                Sheet.applySkin(owner, w, a.arg(2));      // a stale widget: parsed, then a silent no-op (029.2)
+                return self;
             }
         });
         return m;
