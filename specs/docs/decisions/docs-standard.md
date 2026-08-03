@@ -78,4 +78,38 @@ write the sentence; if it does not, drop it.
 
 **Consequences.** The reason a design is what it is has to be *stated* in the docs or left out —
 it can no longer be outsourced to a link. A reader of `docs/` cannot tell that `specs/` exists.
-</content>
+
+### D-006 — A reference page's verbs are a table; a `###` call heading is for a verb that needs prose
+
+**Context (001.3).** The style guide's reference template shows `## Read` / `### \`hafen.speed()\`` —
+one call heading per verb — while §6 says tables carry the facts, because 001.1 found the tables were
+right and the prose around them was wrong. Applied literally to group A, the template would have given
+`hafen.gob` fifteen `###` sections for fifteen one-line readers.
+
+**Decision.** Both, chosen by what the verb needs. A verb whose whole contract fits a row lives in the
+group's **table** — that is §6's rule and it is the default. A verb that needs an argument table, its
+own error cases or an example gets a `### <the call in backticks>` heading. Across group A only
+`act.md` needed the second form. The **gating annotation lives on the group heading** and only on a
+write group: `## Write (gated: \`actions\`)` or `## Write (ungated)`. `## Read` stays plain — a read is
+ungated by construction, and annotating twenty of them is noise that hides the two cases that matter.
+
+**Consequences.** Group A's pages average ~67 lines, the reference index still reaches every verb, and
+`markers`/`radar`/`menugrid` — the three ungated *writes* (drift D-2, D-3) — are the pages where the
+annotation actually carries information.
+
+### D-007 — A call heading carries its parameter list, written without `[ ]`
+
+**Context (001.3).** D-004 fixed the em dash because ` — ` slugs to a double hyphen. Optional-argument
+brackets have exactly the same failure: `### \`hafen.act.clickGob(gob [, button [, mods]])\`` slugs to
+`hafenactclickgobgob--button--mods`, two double hyphens, and every inbound link then depends on a
+reader reproducing them.
+
+**Decision.** The heading is the call with its parameters and no optionality syntax —
+`### \`hafen.act.clickGob(gob, button, mods)\``. Which parameters are optional, and what they default
+to, is stated in the line below or in the argument table. The rule generalises: **no heading contains a
+character that the slugger deletes while its neighbours are spaces**, because that is the shape that
+produces a double hyphen.
+
+**Consequences.** `docs/` anchors are derivable from the heading by one rule (lowercase, drop
+punctuation, spaces to hyphens) with no double-hyphen special case outside the four oversized pages
+001.4 still owns.

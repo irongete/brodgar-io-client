@@ -75,3 +75,41 @@
   `grep -rn 'set("<name>"' src/io/brodgar/addon/`; the same sweep over the `hafen` facade and
   `uiT.set(` lists the whole namespace set in one shot, which is what a docs tree's page names
   should be derived from.
+
+- **(001.3) A page template is a skeleton, not a shape for every verb — decide the granularity from
+  what the verb needs, or the template fights the rule that motivated it.** The style guide's reference
+  template shows one `###` call heading per verb; §6, written from 001.1's finding that the tables were
+  right and the prose wrong, says tables carry the facts. Both are the standard, and applying either
+  alone is visibly wrong: `hafen.gob` would have become fifteen `###` sections for fifteen one-line
+  readers, while `hafen.act`'s ten verbs each need arguments, an error case and a caveat that no row
+  holds. The rule that resolved it (D-006) is granularity-by-need, and it is worth reaching for
+  whenever two parts of a standard prescribe different shapes for the same thing: **the template says
+  what a page contains, not how finely it is cut.**
+
+- **(001.3) The em-dash trap is not about em dashes — it is about any deleted character between two
+  spaces.** D-004 banned ` — ` in headings because the slugger drops the dash and maps both surviving
+  spaces to hyphens. Writing the group-A call headings surfaced the same failure from a different
+  character: `hafen.act.clickGob(gob [, button [, mods]])` slugs to `hafenactclickgobgob--button--mods`,
+  because `[`, `,` and `]` are deleted and the spaces around them are not. Optional-argument brackets,
+  parenthesised asides and ` / ` between words all do it. The general form (D-007): **a heading must
+  contain no slugger-deleted character whose neighbours are spaces.** Checking for the em dash alone
+  would have passed a page whose every verb anchor carried a double hyphen.
+
+- **(001.3) A "state the gating on every verb" rule inverts into noise unless it is scoped to the
+  verbs that can surprise.** Style guide §6 requires every verb to state its gating *including the
+  ungated ones*, which came from drift D-3: `markers.add` and `radar.setVisible` write, are ungated,
+  and no page said so. Applied literally, the twenty group-A pages would each have annotated a dozen
+  readers as ungated — and the two pages where "ungated" is genuinely surprising would have been
+  indistinguishable from the rest. Scoping the annotation to **write groups only** (D-006) made
+  `## Write (ungated)` a signal again: it appears on exactly `markers`, `radar` and `menugrid`, which
+  is precisely the audit's finding. A completeness rule aimed at an omission needs a scope, or it
+  buries the thing it was written to expose.
+
+- **(001.3) Re-derive an "it works like the client does" sentence from the source, because the
+  plausible version is usually the wrong one.** `speed.md` said the write drives the client's own
+  control, which is true, and a reader would reasonably conclude the server refuses a bad value.
+  `ActApi.actSpeedSet` validates `0..3` **client-side** and throws, and throws again when the selector
+  does not exist. The old page never said it was the server, but its shape implied it, and the docs
+  had been read past for eleven features. **A wrapper's error behaviour is not inherited from the
+  thing it wraps** — read the call site, not the design intent, for every "throws / returns nil /
+  is ignored" clause.

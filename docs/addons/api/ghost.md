@@ -10,7 +10,7 @@ buildings over the real terrain and iterate.
 
 > **Safe-tier — not gated.** Because nothing reaches the server, ghosts need **no** `actions` permission
 > and no consent dialog. They sit alongside [`hafen.ui.overlay`](ui.md#overlays), not
-> [`hafen.act`](actions.md). Committing a *real* build is still the gated `hafen.act.place`.
+> [`hafen.act`](act.md). Committing a *real* build is still the gated `hafen.act.place`.
 
 Everything here is **bridge-owned**: every ghost your addon creates is torn down automatically on
 reload / disable / relogin (the scene slot is removed and the sprite freed), leaking nothing.
@@ -188,8 +188,8 @@ physical spot after a relog (retrying as the map streams in). Use it as the refe
 
 You can drag a ghost along the terrain, snapping **exactly like placing a real building** (the `:placegrid` setting),
 using three primitives — [`hafen.hook.grab`](hooks.md#hafenhookgrab) (capture the mouse; camera stays put),
-[`hafen.map.screenToWorld`](map.md#screen--world--placement-snapping-v5) (cursor pixel → ground coord), and
-[`hafen.map.snapPlace`](map.md#screen--world--placement-snapping-v5) (snap to the placegrid, SHIFT = fine) — then
+[`hafen.map.screenToWorld`](map.md#screen-to-world-and-placement-snapping) (cursor pixel → ground coord), and
+[`hafen.map.snapPlace`](map.md#screen-to-world-and-placement-snapping) (snap to the placegrid, SHIFT = fine) — then
 `ghost:move`. The [`planner`](../../../addons/planner) example addon wires these into a move-mode: select a ghost,
 `:planner grab`, and it follows the cursor snapped to the placegrid until you click to drop it. See
 [`hafen.hook.grab`](hooks.md#hafenhookgrab) for the drag pattern.
@@ -212,8 +212,8 @@ zoom (only the axis shafts foreshorten with the camera, anchoring the arrows in 
 
 Per [D-031](../../../specs/addons/decisions/virtual-entities.md), the gizmo is a **bundled Lua library over the ghost/map/hook
 primitives** ([`hafen.ui.overlay`](ui.md#overlays) to draw, [`hafen.hook.input`](hooks.md#hafenhookinputtarget-event-fn) to pick a
-handle, [`hafen.hook.grab`](hooks.md#hafenhookgrab) + [`hafen.map.screenToWorld`](map.md#screen--world--placement-snapping-v5)
-+ [`hafen.map.snapPlace`](map.md#screen--world--placement-snapping-v5) / [`hafen.map.snapAngle`](map.md#screen--world--placement-snapping-v5)
+handle, [`hafen.hook.grab`](hooks.md#hafenhookgrab) + [`hafen.map.screenToWorld`](map.md#screen-to-world-and-placement-snapping)
++ [`hafen.map.snapPlace`](map.md#screen-to-world-and-placement-snapping) / [`hafen.map.snapAngle`](map.md#screen-to-world-and-placement-snapping)
 to drag, and `g:move`/`g:rotate`/`g:scale` to apply) — **not** a built-in `hafen.*` function. It ships as
 [`planner/gizmo.lua`](../../../addons/planner/gizmo.lua); the shape is:
 

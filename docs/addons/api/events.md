@@ -57,12 +57,12 @@ The payload is a live [Gob object](gob.md). On `GobRemoved` the gob is **already
 
 | Event | Payload | Fires |
 |---|---|---|
-| `MeterAdded` | [`Meter`](meters.md) | a HUD meter bar appears |
-| `MeterRemoved` | [`Meter`](meters.md) | a HUD meter bar goes away — the object still reads, `:exists()` is false |
-| `MeterChanged` | [`Meter`](meters.md) | a HUD meter bar's value or colour changes |
-| `BuffAdded` | [`Buff`](buffs.md) | a buff appears |
-| `BuffRemoved` | [`Buff`](buffs.md) | a buff goes away — the object still reads, `:exists()` is false |
-| `BuffChanged` | [`Buff`](buffs.md) | a buff's content updates |
+| `MeterAdded` | [`Meter`](meter.md) | a HUD meter bar appears |
+| `MeterRemoved` | [`Meter`](meter.md) | a HUD meter bar goes away — the object still reads, `:exists()` is false |
+| `MeterChanged` | [`Meter`](meter.md) | a HUD meter bar's value or colour changes |
+| `BuffAdded` | [`Buff`](buff.md) | a buff appears |
+| `BuffRemoved` | [`Buff`](buff.md) | a buff goes away — the object still reads, `:exists()` is false |
+| `BuffChanged` | [`Buff`](buff.md) | a buff's content updates |
 | `FepChanged` | [`food`](types.md#food) | FEP or hunger changes |
 | `StudyChanged` | [`StudySlot`](types.md#studyslot)`[]` | the study slots change (add/remove/resolve) |
 | `EquipChanged` | [`Item`](types.md#item)`[]` | worn equipment changes |

@@ -7,7 +7,7 @@ available yet or is still resolving, so guard for it. See [conventions](conventi
 ## GobInfo
 
 A game object's fields as one plain table — the snapshot [`gob:info()`](gob.md) returns. It is the
-escape hatch for logging/serialising; to *read* a gob, call its [methods](gob.md#methods), which are
+escape hatch for logging/serialising; to *read* a gob, call its [methods](gob.md#read), which are
 always fresh. ([`hafen.world.*`](world.md) and the `GobAdded`/`GobRemoved` events hand out Gob
 **objects**, not this table.)
 
@@ -75,7 +75,7 @@ From [`hafen.char.food`](char.md) and `FepChanged`.
 
 ## StudySlot
 
-From [`hafen.study.slots`](char.md#hafenstudy) and `StudyChanged`.
+From [`hafen.study.slots`](study.md) and `StudyChanged`.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -109,8 +109,8 @@ From [`hafen.party.*`](party.md). There is **no name** field for party members.
 
 ## Buff
 
-From [`buff:info()`](buffs.md#read) — the one snapshot escape hatch. `hafen.buff()` and the
-`BuffAdded`/`BuffRemoved`/`BuffChanged` events hand you live [`Buff` objects](buffs.md), not this table.
+From [`buff:info()`](buff.md#read) — the one snapshot escape hatch. `hafen.buff()` and the
+`BuffAdded`/`BuffRemoved`/`BuffChanged` events hand you live [`Buff` objects](buff.md), not this table.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -121,8 +121,8 @@ From [`buff:info()`](buffs.md#read) — the one snapshot escape hatch. `hafen.bu
 
 ## Meter
 
-From [`meter:info()`](meters.md#read) — the one snapshot escape hatch. `hafen.meter()` and the
-`MeterAdded`/`MeterRemoved`/`MeterChanged` events hand you live [`Meter` objects](meters.md), not this table.
+From [`meter:info()`](meter.md#read) — the one snapshot escape hatch. `hafen.meter()` and the
+`MeterAdded`/`MeterRemoved`/`MeterChanged` events hand you live [`Meter` objects](meter.md), not this table.
 
 | Field | Type | Notes |
 |---|---|---|

@@ -343,3 +343,9 @@ Each entry: what the docs say · what `src/` says · verdict.
   area `addons` (this area does not edit it).
 - **`specs/addons/017-gob-oop/tasks.md` still has 017.2 unchecked** while `FEATURES.md` records the
   feature DONE. No docs impact; file to area `addons`.
+- **(001.3) `pag:use()` is an ungated write verb** (`LuaPagina.java`, no `requireActions`), while all
+  18 other verbs that send something to the server require the `actions` permission. It performs a
+  real action — exactly a click on that menu button — so the asymmetry is a permission-model gap, not
+  a docs one; `LuaPagina`'s own comment records the model as being restructured, which is the promise
+  drift D-2 leaked into `menugrid.md`. `api/menugrid.md` now states the fact in the present tense; the
+  engine decision is area `addons`'.

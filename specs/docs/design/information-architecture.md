@@ -249,4 +249,3 @@ links the path that exists at the end of the task touching it — never a path a
 create. 001.4 therefore carries the largest share of the re-pointing, because `ui.md` and
 `fonts.md` are the most-linked pages in the tree, and `api/README.md` and the landing page link
 six `ui.md` anchors between them.
-</content>

@@ -3,7 +3,7 @@
 Draw your own client-side UI, paint over the HUD and the 3D world, observe and replace the client's own
 server widgets, and [walk any widget's tree](#the-widget-object). Everything here is client-side and
 bridge-owned — it is torn down automatically on reload/disable. (Client-side UI cannot send actions to
-the server; that is [`hafen.act`](actions.md).)
+the server; that is [`hafen.act`](act.md).)
 
 **There is one type.** A window you create, a native window you find, the deepest widget under the
 cursor and the container an [`appear` subscription](#watching-for-a-widget) hands your callback are all
@@ -218,7 +218,7 @@ select once, keep it, and use `:exists()` when you need to know it is still ther
 | `:skin(nil)` | (self) | drop **your** entry on this widget; it falls back to the tree rule, then the site rule, then `*` |
 
 **`:id()` is the pivot for acting.** Reading the tree is ungated client-side data. To *act*, read a
-**server-bound** widget's `:id()` and pass it to the gated [`hafen.act.raw(id, msg, …)`](actions.md) with
+**server-bound** widget's `:id()` and pass it to the gated [`hafen.act.raw(id, msg, …)`](act.md) with
 the message a client-only button would have sent (learned from the upstream widget class) — a `wdgmsg`
 from an unbound (client-only, no `:id()`) widget is dropped, so you never target the button itself, but
 its nearest server-bound ancestor.
@@ -385,7 +385,7 @@ local cursor = hafen.ui.hand()                              -- the item on the c
 - A non-container (or a stale widget) answers with an empty array. `quality` and container `contents` are
   not exposed.
 - Reading is ungated. To **move** an item (take, drop, transfer, use), pass its `handle` to the gated
-  [`hafen.act.item`](actions.md#hafenactitem).
+  [`hafen.act.item`](act.md#hafenactitemitem-verb-n).
 - There is no `find` verb — it is a one-liner over `:items()`, and it would have to pick a container for
   you.
 
@@ -566,7 +566,7 @@ The efficiency guard is the point: `OnUpdate` fires every frame, but the expensi
 **only when the hovered widget changes** — and because widgets are interned, that guard is a plain `==`
 (it covers "still hovering nothing" too, since `nil == nil`). Reading the cursor + geometry is client-side
 data (**ungated**); acting on the resolved widget still goes through the gated
-[`hafen.act.raw`](actions.md) on its `:id()`. The bundled **`widgetstack`** addon is a full `/framestack`
+[`hafen.act.raw`](act.md) on its `:id()`. The bundled **`widgetstack`** addon is a full `/framestack`
 clone built on exactly this — and it hangs the [selector inspector](#dont-guess--the-inspector-tells-you)
 off the same hover, which is the cheapest way to learn what a widget is and how to name it.
 

@@ -28,10 +28,10 @@ events are in [events](events.md).
 | [`hafen.player`](player.md) | local player data — the anchor for your own Gob |
 | [`hafen.time`](time.md) | game clock & astronomy |
 | [`hafen.char`](char.md) | attributes, LP, food, skills, credos, lore |
-| [`hafen.study`](char.md#hafenstudy) | curiosities being studied |
+| [`hafen.study`](study.md) | curiosities being studied |
 | [`hafen.party`](party.md) | party roster |
-| [`hafen.buff`](buffs.md) | buffs — `hafen.buff()` is the bar, `hafen.buff(needle)` is one of them |
-| [`hafen.meter`](meters.md) | the HUD meter bars — health, stamina, energy and whatever else the server puts there |
+| [`hafen.buff`](buff.md) | buffs — `hafen.buff()` is the bar, `hafen.buff(needle)` is one of them |
+| [`hafen.meter`](meter.md) | the HUD meter bars — health, stamina, energy and whatever else the server puts there |
 
 ### Character-sheet subsystems
 
@@ -49,7 +49,7 @@ events are in [events](events.md).
 
 | Section | Purpose |
 |---|---|
-| [`hafen.act`](actions.md) | drive the character — move, click, use items, menus. Requires the `actions` permission |
+| [`hafen.act`](act.md) | drive the character — move, click, use items, menus. Requires the `actions` permission |
 | [`hafen.menugrid`](menugrid.md) | the action menu — enumerate every action the character knows, and invoke one |
 
 ### UI & input

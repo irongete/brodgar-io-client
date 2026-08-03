@@ -44,7 +44,7 @@ one goes `:empty()` the moment the slot is cleared, and `hafen.actionbar(0) == h
 ### Needle-keyed objects — Buff, Meter, Action, Sound
 
 The same callable-namespace pattern, keyed by a **string** instead of an id, and the no-argument call is
-always the collection. [`hafen.buff(needle)`](buffs.md) and [`hafen.meter(needle)`](meters.md) are
+always the collection. [`hafen.buff(needle)`](buff.md) and [`hafen.meter(needle)`](meter.md) are
 *substring* lookups — the first object whose resource (for a buff, also its display name) contains the
 needle; [`hafen.menugrid(key)`](menugrid.md) and [`hafen.sound(resName)`](audio.md) name one outright.
 Either way the strings are **server-published**, not keys the API defines — read them off a live client
@@ -69,7 +69,7 @@ path string.
 
 Items have no stable content id, so they are addressed by a **handle** = the item's server widget id.
 Every [Item snapshot](types.md#item) carries a `handle` field. The gated verb
-[`hafen.act.item`](actions.md#hafenactitem) takes the snapshot (or the raw `handle`
+[`hafen.act.item`](act.md#hafenactitemitem-verb-n) takes the snapshot (or the raw `handle`
 number) and re-resolves the live item on each call; a stale/moved/used item no longer resolves and the
 verb raises a clear error.
 
@@ -82,7 +82,7 @@ native one you name with `hafen.ui(selector)`/`node(id)`/`at(x, y)`/`inventory()
 `hafen.ui.at(x, y) == hafen.ui.at(x, y)` and `==` is the identity test; it re-reads the tree on every call
 and answers `nil`/empty with `:exists()` false once its widget is gone. What you may *write* depends on
 whether your addon created it — see [owned vs borrowed](ui.md#owned-vs-borrowed--which-writes-answer).
-A **server widget id** (`:id()`) is the number the gated [`hafen.act.raw`](actions.md) takes.
+A **server widget id** (`:id()`) is the number the gated [`hafen.act.raw`](act.md) takes.
 
 Its two write verbs read the **arity as the verb**, like every callable namespace above:
 [`w:replace()`](ui.md#replacing-a-native-window) reads / `w:replace(view)` installs / `w:replace(nil)` undoes,
@@ -189,7 +189,7 @@ client, and the sandbox's instruction watchdog will abort a runaway one.
 
 ## Gating — the `actions` permission
 
-Everything in the API **observes** except one section: [`hafen.act`](actions.md) (and the per-subsystem
+Everything in the API **observes** except one section: [`hafen.act`](act.md) (and the per-subsystem
 write verbs `hafen.speed.set`, `hafen.craft.make`, `slot:use`, and the kin verbs
 `hafen.kin():add` / `kin:rename`/`setGroup`/`endkin`/`forget`), which **drive the character** by sending
 actions to the server.
@@ -197,4 +197,4 @@ actions to the server.
 A write verb runs only if the addon **declared** `"permissions": ["actions"]` in its manifest and the
 user enabled the addon (write addons are disabled by default; enabling one raises a consent dialog).
 An undeclared addon calling a write verb gets a clear error. `hafen.act.enabled()` reports the grant
-without throwing. See [Actions & permissions](actions.md).
+without throwing. See [Actions & permissions](act.md).

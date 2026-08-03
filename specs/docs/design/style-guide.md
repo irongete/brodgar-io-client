@@ -51,6 +51,14 @@ What it gives back when the data is not there.
 ## See also                               <- required, 2-5 links, last section
 ````
 
+**Granularity is per verb, not per page** (D-006). The skeleton above says what a reference page
+*contains*, not how finely it is cut. A verb whose whole contract fits one row lives in the group's
+**table** — that is §6's rule and it is the default, and it is what most namespaces are. A verb that
+needs an argument table, its own error cases or an example gets a `###` call heading. One page may use
+both. The **gating annotation sits on the group heading and only on a write group**:
+`## Write (gated: \`actions\`)` or `## Write (ungated)`. `## Read` stays plain — a read is ungated by
+construction, and annotating every reader buries the write that is surprisingly ungated.
+
 **Guide** (`guides/**`) — one *task* per page, start to finish, and it **never restates a
 signature**: it shows the shape of the solution and links each verb to its reference page. A
 guide may be read top to bottom; it ends with a "Next" line pointing at the next guide or at the
@@ -71,10 +79,15 @@ carries no explanation that its pages do not carry.
 - **Call headings** are the fully qualified call in backticks and nothing else:
   `### \`hafen.act.moveTo(x, y)\``, `### \`gob:name()\``. No arrows, no return types, no prose —
   the return goes in the first line below. This keeps anchors short and predictable.
+- **A call heading carries its parameters, without `[ ]`** (D-007):
+  `### \`hafen.act.clickGob(gob, button, mods)\``, never `(gob [, button [, mods]])`. Which
+  parameters are optional is stated in the line below or in the argument table.
 - **Topic headings** are sentence case; a subtitle uses a colon: `## Selectors: naming a widget`.
-- **No em dash in any heading, ever.** ` — ` slugs to a *double* hyphen, which is the trap that
-  made 001.1's first checker report 208 false breaks (`specs/docs/learnings/docs-maintenance.md`).
-  Checkable: `grep -rn "^#.*—" docs/` returns nothing.
+- **No em dash in any heading, ever** — and no other deleted character between two spaces. ` — `
+  slugs to a *double* hyphen, which is the trap that made 001.1's first checker report 208 false
+  breaks (`specs/docs/learnings/docs-maintenance.md`); ` [, ` and ` / ` do exactly the same. The
+  general rule: **no heading holds a slugger-deleted character whose neighbours are spaces.**
+  Checkable: `grep -rn "^#.*—" docs/` returns nothing, and no anchor in the tree has `--`.
 - No trailing punctuation, no internal codes (`(V2)`, `035.4`, `D-092`), no bold in headings.
 - Heading text is unique within its page.
 
@@ -204,5 +217,3 @@ offenders listed — that report *is* the task's verification material:
 5. **Symbols** — every `hafen.*` name the task wrote exists in `src/`.
 6. Any engine gap or wrong behaviour found is **filed to the owning area**, named in the report,
    and never fixed here.
-</content>
-</invoke>

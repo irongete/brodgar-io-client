@@ -19,10 +19,13 @@
       `guides/`, `api/`; plus the migration map — every current page and section → its target
       path). Decided from 001.1's evidence; moves no file yet.
 
-- [ ] 001.3 — **Reference, group A — the read side.** `gob`, `world`, `map`, `markers`, `radar`,
+- [x] 001.3 — **Reference, group A — the read side.** `gob`, `world`, `map`, `markers`, `radar`,
       `player`, `time`, `char`, `party`, `buffs`, `meters`, `kin`, `speed`, `craft`, `quests`,
       `wounds`, `fight`, `actionbar`, `actions`, `menugrid`. One pass per page: fill its matrix
       gaps, delete drift and history, apply the template, land it at its target path.
+      <!-- landed: 21 pages (char split into char+study; buffs→buff, meters→meter, actions→act).
+           Drift D-2, D-3, D-13(map) and D-4(map) fixed. D-006/D-007 decided here and folded into
+           the style guide, so 001.4 does not re-litigate the page shape. -->
 
 - [ ] 001.4 — **Reference, group B — the UI stack.** The oversized set: `ui.md` (1171) split into
       topic pages with a hub and a reading order, `client.md` (688), `fonts.md` (436),

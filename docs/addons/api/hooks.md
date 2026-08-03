@@ -91,8 +91,8 @@ active the map view neither pans nor clicks, so a drag leaves the **camera put**
 | `up` | once, on release (then auto-releases) | `(x, y, button, mods)` |
 
 Returns a handle `{ :release() }` to end the grab early (the `up` handler also releases automatically).
-Both handlers are optional. Pair it with [`hafen.map.screenToWorld`](map.md#screen--world--placement-snapping-v5)
-(pixel → world) and [`snapPlace`](map.md#screen--world--placement-snapping-v5) (placegrid snapping) to drag
+Both handlers are optional. Pair it with [`hafen.map.screenToWorld`](map.md#screen-to-world-and-placement-snapping)
+(pixel → world) and [`snapPlace`](map.md#screen-to-world-and-placement-snapping) (placegrid snapping) to drag
 something along the ground:
 
 ```lua
