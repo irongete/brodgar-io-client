@@ -22,6 +22,24 @@
 -- which is why the whole chrome half of this theme (the window frame, its title band, the panels) costs the
 -- three lines of ruleOf() below and no more.
 --
+-- ...AND THE LAYOUT HALF COSTS NONE (036-ui-layout, feature E). A theme also says WHERE the client's windows
+-- sit: `anchor = {to = "screen", at = "bottomright", offset = {-8, -8}}` on a selector that names a window.
+-- There is nothing to map — an anchor's corner is a string, its offset is two numbers, and `pos`/`size` are the
+-- same {x, y} arrays a colour and a slice already are — so the layout rules travel through ruleOf() verbatim
+-- and this file gained not one line for them. A handle is the only thing an adapter is ever for.
+--
+-- SAVING A LAYOUT IS THIS ADDON'S OWN BUSINESS, and that is the point of the store half below. The engine ships
+-- no profiles: a sheet is plain data and hafen.store is account-wide JSON, so "remember where I put my windows"
+-- is a dozen lines here rather than a second store beside the one every addon already has.
+--
+--   ':theme save'    where each themed window is RIGHT NOW becomes a pinned `pos` for it, kept in
+--                    hafen.store.layout (account scope) and re-applied on every ':theme on', on every character.
+--   ':theme forget'  drop the pins and fall back to the file's own anchors.
+--
+-- An anchor HOLDS and a pin lets go: an anchored window is re-derived every tick, so dragging it snaps back,
+-- while a saved `pos` is written once and the window is yours to drag until you save again. That is not a mode
+-- this addon invents — it is what the two spellings of the one property mean (see the API docs' anchor section).
+--
 -- DORMANT until you ask for it: ':theme on' applies the sheet, ':theme off' drops it. A theme installed at login
 -- would restyle the whole client on every login, which is not something an example addon should decide for you.
 -- Assets are interned, so editing theme.json takes effect on ':reload' (which rebuilds the addon layer).
@@ -85,14 +103,100 @@ local function build()
   return doc.name or "(unnamed)", rules, n
 end
 
+-- ---- the layout half: the file places the windows, and the STORE pins them ---------------------------
+--
+-- Everything below is the profile system the engine deliberately does not ship. It is short because a sheet is
+-- plain data: a saved layout is { [selector] = {x, y} } and applying it is one more rule on top of the file's.
+
+-- Does this rule say where its widget goes? (`pos` and `anchor` are one property in two spellings, so a rule
+-- carrying either is one this addon can pin -- and a rule saying BOTH is an error the sheet refuses.)
+local function places(rule)
+  return (rule.pos ~= nil) or (rule.anchor ~= nil)
+end
+
+-- The saved layout: { [selector] = {x = , y = } }, account scope, so it is ready in OnLoad and shared by every
+-- character. The table object is stable for this addon's whole life (a restore refills it in place), so it is
+-- written THROUGH rather than replaced.
+local function pins()
+  local t = hafen.store.layout
+  if t == nil then                  -- declared in manifest.json; this is belt and braces for a hand-edited one
+    t = {}
+    hafen.store.layout = t
+  end
+  return t
+end
+
+-- The sheet as it is actually installed: the file's rules, with a pinned position REPLACING the file's own
+-- placement for any selector the user has saved. The pin is written as `pos` because that is what it is -- an
+-- absolute point they chose by dragging -- and it takes the anchor's slot rather than sitting beside it.
+local function effective()
+  local saved = pins()
+  if next(saved) == nil then return sheet end
+  local out = {}
+  for key, rule in pairs(sheet) do out[key] = rule end
+  for key, p in pairs(saved) do
+    local rule = {}
+    for k, v in pairs(out[key] or {}) do rule[k] = v end
+    rule.anchor, rule.pos = nil, { x = p.x, y = p.y }
+    out[key] = rule
+  end
+  return out
+end
+
 local function apply(want)
   if want then
-    hafen.ui.skin(sheet)
+    hafen.ui.skin(effective())
   else
     hafen.ui.skin(nil)              -- every surface it styled falls back — to another addon's sheet, else stock
   end
   on = want
   hafen.log(("theme: '%s' (%d rules) is now %s"):format(name, count, on and "ON" or "OFF"))
+end
+
+-- ':theme save' -- read every laid-out window's CURRENT position back through the same API that placed it, and
+-- keep it. Nothing here knows what the file said: where the window is now is the whole truth, whether it got
+-- there from an anchor, from a previous pin, or from the user dragging it afterwards.
+local function saveLayout()
+  local saved, n = pins(), 0
+  for key, rule in pairs(sheet) do
+    if places(rule) then
+      local w = hafen.ui(key)
+      if w ~= nil then
+        local p = w:pos()
+        saved[key] = { x = p.x, y = p.y }
+        n = n + 1
+      end
+    end
+  end
+  hafen.store.flush()
+  if on then apply(true) end        -- re-install so the pins take over from the anchors immediately
+  hafen.log(("theme: saved the layout of %d window%s (account-wide). They are pinned now, so you can drag them"
+    .. " -- ':theme save' again to keep where you put them, ':theme forget' to go back to %s's own anchors.")
+    :format(n, (n == 1) and "" or "s", FILE))
+end
+
+-- How ':theme dump' says where a rule puts its widget. Both spellings of the one property, and both spellings of
+-- a coordinate: the file writes [40, 200] and a pin writes {x = , y = }, exactly as the sheet accepts either.
+local function whereOf(rule)
+  local p = rule.pos
+  if p ~= nil then
+    return ("pinned %s,%s"):format(tostring(p.x or p[1]), tostring(p.y or p[2]))
+  end
+  local a = rule.anchor
+  if a ~= nil then
+    local o = a.offset
+    return ("%s of %s%s"):format(tostring(a.at or "topleft"), tostring(a.to or "screen"),
+      o and ((" %+d,%+d"):format(o.x or o[1], o.y or o[2])) or "")
+  end
+  return "-"
+end
+
+local function forgetLayout()
+  local saved = pins()
+  for key in pairs(saved) do saved[key] = nil end
+  hafen.store.flush()
+  if on then apply(true) end
+  hafen.log("theme: forgot the saved layout -- the windows go back where " .. FILE .. " anchors them")
 end
 
 hafen.events.on("OnLoad", function()
@@ -103,8 +207,12 @@ hafen.events.on("OnLoad", function()
     hafen.log("theme: could not load " .. FILE .. " -- " .. tostring(err))
     return
   end
-  hafen.log(("theme: '%s' loaded from %s -- %d rules, nothing applied yet. ':theme on' to wear it, ':theme off'"
-    .. " to take it off, ':theme dump' to list what it styles."):format(name, FILE, count))
+  local n = 0
+  for _ in pairs(pins()) do n = n + 1 end
+  hafen.log(("theme: '%s' loaded from %s -- %d rules%s, nothing applied yet. ':theme on' to wear it,"
+    .. " ':theme off' to take it off, ':theme dump' to list what it styles, ':theme save' / ':theme forget'"
+    .. " for where its windows sit."):format(name, FILE, count,
+      (n > 0) and (" + " .. n .. " saved window position" .. ((n == 1) and "" or "s")) or ""))
 end)
 
 hafen.slash.register("theme", function(args)
@@ -114,20 +222,24 @@ hafen.slash.register("theme", function(args)
     apply(true)
   elseif sub == "off" then
     apply(false)
+  elseif sub == "save" then
+    saveLayout()
+  elseif sub == "forget" then
+    forgetLayout()
   elseif sub == "dump" then
     hafen.log(("theme: '%s' from %s"):format(name, FILE))
-    for key, rule in pairs(sheet) do
-      hafen.log(("  [\"%s\"] font=%s color=%s bg=%s border=%s pad=%s"):format(key,
+    for key, rule in pairs(effective()) do
+      hafen.log(("  [\"%s\"] font=%s color=%s bg=%s border=%s pad=%s where=%s"):format(key,
         rule.font and (rule.font:family() .. "/" .. tostring(rule.font:size() or "stock")) or "-",
         rule.color and ("{" .. table.concat(rule.color, ",") .. "}") or "-",
         rule.bg and (rule.bg.image and rule.bg.image:path()
                      or ("{" .. table.concat(rule.bg.color, ",") .. "}")) or "-",
         rule.border and (rule.border.image:path()
                          .. " {" .. table.concat(rule.border.slice, ",") .. "}") or "-",
-        rule.pad or "-"))
+        rule.pad or "-", whereOf(rule)))
     end
   else
-    hafen.log(("theme: '%s', %d rules, currently %s -- ':theme on' / ':theme off' / ':theme dump'")
-      :format(name, count, on and "ON" or "OFF"))
+    hafen.log(("theme: '%s', %d rules, currently %s -- ':theme on' / ':theme off' / ':theme dump' /"
+      .. " ':theme save' / ':theme forget'"):format(name, count, on and "ON" or "OFF"))
   end
 end)

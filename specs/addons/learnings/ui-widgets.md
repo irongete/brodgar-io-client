@@ -508,3 +508,18 @@
   OS window size every iteration and calls `ui.root.resize(sz)` when they differ; `Widget.resize` then cascades
   `presize()` to the children. There is no hook to subscribe to — which is why anything deriving from the screen's
   size polls it.
+
+- **(036.4) A layout in a theme FILE needs no adapter, and that is a property of handles.** `theme`'s JSON→sheet
+  mapper exists for exactly two values — a font's `face` and an image path — because those are **handles**;
+  a colour array, a slice's insets, a `pad`, an anchor's corner and offset, a `pos`/`size` pair are all already
+  the sheet's own shapes and travel verbatim. So the chrome half of a theme cost three lines of Lua and the
+  layout half cost none: `hafen.json.parse(text)` **is** the sheet. The rule to carry: when adding a property,
+  ask whether it can be spelt in JSON — if it can, the file support is free, and if it cannot, it is because the
+  value is a handle to something the client owns.
+- **(036.4) An anchor HOLDS and a plain `pos` LETS GO — the observable difference an addon's layout profile
+  rests on.** Anchored widgets sit in `Layout.derived` and are re-derived every tick, so dragging one snaps it
+  back; a `pos` is written once and never polled, so the user can drag it afterwards. `theme`'s `:theme save`
+  turns each anchor into a pin (`pos` at where the window is now, kept in `hafen.store`) and that alone makes
+  the HUD draggable again — no mode, no flag, just the other spelling of the same property. A rule saying both
+  is refused, so the pin must *replace* the anchor in the rule, not sit beside it (dropping that one line makes
+  the whole sheet throw and the theme install nothing).

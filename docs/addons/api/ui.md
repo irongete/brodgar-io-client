@@ -620,9 +620,16 @@ automatically on your addon's `:reload`/disable, so the stock client is always r
 [`hafen.asset`](asset.md#data--text) + [`hafen.json`](json.md); its Lua never names a surface, a font, a size,
 a colour or a pixel. **Exactly two values in a rule are things JSON cannot carry, and both because they are
 handles**: a font's face and an [image](#bg-and-border--the-surfaces-that-paint). Map those two and everything
-else — a colour array, a border's four slice insets, a `pad` — is already the sheet's own shape and travels
-verbatim, so a theme's window frames cost the same three lines its fonts do. A whole client look with no code
-of its own is one `:theme on` away.
+else — a colour array, a border's four slice insets, a `pad`, an
+[anchor's corner and offset](#anchor--a-position-that-is-derived) — is already the sheet's own shape and travels
+verbatim, so a theme's window frames cost the same three lines its fonts do and **its layout costs none at all**:
+a place is not a handle. A whole client look, windows included, with no code of its own is one `:theme on` away.
+
+**Saving a layout is your addon's business, not the engine's** — and it is small, because a layout you can read
+back with `widget:pos()` is a table of numbers and [`hafen.store`](store.md) already persists tables. `theme`
+demonstrates the whole of it: `:theme save` reads where its windows currently are and keeps them account-wide,
+`:theme on` re-applies them over the file's own placement, `:theme forget` drops them. Note what that costs the
+engine — nothing: there is no profile system here, because a sheet is data and an addon already has a store.
 
 > `hafen.font.setFont`, `hafen.font.reset` and `hafen.font.scopes` are **gone** — they read as plain `nil`. A
 > font is now one *property* of a rule, and the key is a *selector*, so there is one vocabulary for "which part
@@ -1059,6 +1066,48 @@ Two addons styling the same surface is shared client state, resolved the same wa
 [`widget:replace`](#replacing-a-native-window): each surface holds a **stack of rules tagged with their owning
 addon, and the last applied wins**. Disabling that addon pulls its entries and the surface falls back to the
 next owner beneath — or to stock when there is none. Deterministic, and reversible per owner.
+
+### Where the skinning system ends
+
+The sheet is finished, and this is its edge. Everything below is a **decision**, not a gap waiting for a
+patch — so if you were about to report one of these as a bug, report it as a feature request for a different
+chapter instead.
+
+**What one table reaches.** *Which* — any render site the client draws text or chrome at (the thirteen
+[site keys](#site-keys--the-surfaces-this-ships)), any widget a [selector](#selectors--naming-a-widget) names,
+and any single widget you point at with [`widget:skin{…}`](fonts.md#restyle-one-widget--widgetskin). *What* —
+the text (`font`, `color`), the surfaces that paint (`bg`, `border`), the room around content (`pad`), and where
+a widget is and how big (`pos`, `size`, `anchor`). *How* — plain data, resolved
+[per property](#cascade--conflict), applied live, owned by your addon and reversible to the pixel; and since it
+is plain data, a whole look can be a **file** rather than code.
+
+**What it does not reach, and why each one is a different chapter:**
+
+- **The inside of a client window.** A rule places a *widget*; it does not re-flow what a window puts within
+  itself — rows, columns, tabs, the order of a list. Those places are computed by that window's own code when it
+  is built, and nothing re-runs that construction, which is the same fact `pad` and a border's insets meet on a
+  [panel](#what-each-key-accepts). Rearranging a window's insides is **replacing** it
+  ([`widget:replace`](#replacing-a-native-window)), not styling it.
+- **State-dependent looks.** There is no hover, pressed, focused or disabled selector. A rule matches what a
+  widget *is* — its role, class, caption, resource — not what it is momentarily doing, and per-state styling
+  would need the client to publish those states at every site. Your own widgets can of course draw themselves
+  differently in `onDraw`.
+- **Relationships between widgets in the grammar.** No descendant selectors, no `window > button`, no
+  pseudo-classes, no specificity arithmetic: a selector is one level and its cascade is *most specific level
+  wins*, per property. What a rule does reach without saying so is the whole **subtree** of the widget it
+  matches — that is the one containment relationship the sheet has, and it comes from the draw pass rather than
+  from the grammar.
+- **Motion.** A rule is a state, not a transition: nothing tweens, eases or animates, and installing a sheet
+  moves things in one frame. Animation is a per-frame job, and the reason this system costs nothing per frame is
+  that it does not have one.
+- **A configuration UI.** No drag-to-arrange editor, no docking, no profile manager. The engine ships the
+  mechanism — a layout is data, `widget:pos()` reads it back and [`hafen.store`](store.md) persists tables — and
+  an addon ships the experience. The bundled [`theme`](../../../addons/theme) does exactly that in a dozen lines:
+  `:theme save` reads where its windows are, keeps them account-wide, and re-applies them next time.
+- **The 3D world.** The sheet is the UI. Terrain, objects, animations and their materials are game resources;
+  what an addon adds there is [`hafen.render`](render.md) and [`hafen.ghost`](ghost.md), not a rule.
+- **Text the client baked at class-load**, and `$col[…]` markup inside a string — both
+  [above](#what-each-key-accepts), and both structural rather than missing.
 
 ## The `g` draw wrapper
 

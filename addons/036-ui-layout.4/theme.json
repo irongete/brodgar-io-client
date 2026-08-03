@@ -1,0 +1,21 @@
+{
+  "name": "Slate (layout)",
+
+  "_comment": [
+    "A LAYOUT as data -- the file half of task 036.4, shaped exactly like the bundled `theme` addon's own",
+    "theme.json and naming this suite's probe windows instead of the client's, so the assertions are numbers",
+    "rather than a look. Each key is a selector that names a WIDGET (a site key cannot carry layout: a site is",
+    "where the client draws text, and text has no position), and each rule says where that widget goes.",
+    "`anchor` is a relationship: a corner of the screen (or of another widget), plus an offset in raw pixels.",
+    "`pos` is the same property said as an absolute point, and `size` is the widget's CONTENT box; both take the",
+    "[x, y] array a colour and a 9-slice's insets already take.",
+    "NOTHING HERE IS MAPPED. The chrome half of a theme needs three lines of Lua because an image and a font's",
+    "face are HANDLES; a corner, an offset and a point are not, so the table hafen.json.parse returns IS the",
+    "sheet -- which is what this suite asserts by handing it to hafen.ui.skin{} unchanged."
+  ],
+
+  "rules": {
+    "window[title=036.4 anchored]": { "anchor": { "to": "screen", "at": "bottomright", "offset": [-8, -8] } },
+    "window[title=036.4 placed]":   { "pos": [40, 200], "size": [180, 90] }
+  }
+}

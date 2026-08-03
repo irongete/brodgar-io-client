@@ -38,7 +38,7 @@
       that proves anchors are not decoration); a widget anchored to another follows it; an off-screen rule
       leaves the widget reachable by `hafen.ui.at()`. `[manual]`: resize the game window and see the HUD hold.
 
-- [ ] **036.4 — cost, docs, the theme, and the boundary. Close the run.**
+- [x] **036.4 — cost, docs, the theme, and the boundary. Close the run.**
       **Measure** (`hafen.client:profiling()`): layout re-derives on events and **not per frame**. Docs:
       the property × key table gains the three; a section on anchors; and — this being the last feature of the
       run — a plain statement of **what the skinning system covers and what would be a new chapter**, so the

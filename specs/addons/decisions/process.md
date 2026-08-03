@@ -32,3 +32,21 @@ Order: **widget-tree-read mechanism** ([14-widget-tree-reads.md](../design/14-wi
 → A5 overlays (done) → A1 map/markers → A4 study/curiosity/FEP → A3 action bar → A2 radar/GobIcon settings
 → A11 slash commands → A6–A10. Rationale: the widget-tree mechanism unblocks vitals/buffs/char/FEP/
 action bar at once ([coverage-gaps.md](../ROADMAP.md) B1/C2), so it comes first.
+
+### D-092 — A system's boundary is a DECISION on the page, not a gap in the code ✅
+**Decision.** The close of a feature run states, in the user-facing docs, **what the system covers and what
+would be a new chapter** — each exclusion named with the reason it is a different mechanism rather than a
+missing one. For the skinning run that is
+[`ui.md`'s "Where the skinning system ends"](../../../docs/addons/api/ui.md): the inside of a client window
+(that is `widget:replace`, not styling), state-dependent looks, relationships in the grammar, motion, a
+configuration UI, the 3D world, and the two structural limits already measured.
+**Rationale.** Everything a system does not do is discovered by somebody eventually; the only question is
+whether they find it written down or find it as a bug report. Six of the seven exclusions above are things
+this run *chose* — each has a decision behind it (D-084's re-layout rule, D-088's "layout is said where a
+widget is matched", the one-level grammar of 030) — and a reader cannot tell a considered omission from an
+oversight unless the page says which it is. The docs already carried the pattern in the small (the property ×
+key table's honest ❌ cells); this applies it to the system.
+**Consequence.** The statement is written at the run's close, when the boundary is known, and it is written as
+prose that ages: it names mechanisms (`hafen.render`, `hafen.store`, `widget:replace`), not tasks. A later
+feature that crosses one of these lines edits the section rather than leaving it to rot — which is the same
+maintenance the property tables already get.

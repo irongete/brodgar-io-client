@@ -1,0 +1,9 @@
+{
+  "name": "036.4 — cost, docs, the theme, the boundary",
+  "id": "036-ui-layout.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 036.4, the close of feature E: a whole LAYOUT applies from a JSON file and reverts to the pixel (and needs no adapter at all, unlike the chrome half a theme's images force), a saved layout is plain data that round-trips through hafen.json and lands on the same pixel, and laying widgets out costs the DRAW nothing — one string in two windows keeps ONE text-cache key while a rule moves one of them, stays at one over ~60 frames with an anchor re-deriving every tick, and takes two the moment the same rule carries a font. With the profiler armed it also reports zero draw/widget callbacks of ours while an anchored client paints, and the widget tree's median frame cost anchored vs stock.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

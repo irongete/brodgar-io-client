@@ -189,6 +189,8 @@ hafen.ui.skin{
   ["window.frame"] = { bg = { color = {26, 26, 28, 240} },                 -- the window chrome
                        border = { image = hafen.asset("frame.png"), slice = {12, 40, 12, 12} },
                        pad = 4 },
+  ["window[title=Inventory]"] =                                           -- ...and where it sits
+                     { anchor = { to = "screen", at = "bottomright", offset = {-8, -8} } },
 }
 ```
 
@@ -198,10 +200,12 @@ inside it. Rules cascade most-specific-first and compose property by property, s
 drops a broad one. `hafen.ui.skin(nil)`, `:reload` or disabling your addon puts the stock client back.
 
 Nothing here is code the client calls: a rule is plain data — a font handle, a colour, an image, a number of
-pixels — which is why a whole theme can *be* a file. The bundled **`theme`** addon is exactly that, a
-`theme.json` its Lua reads without ever naming a surface. See
+pixels, a corner to hang off — which is why a whole theme can *be* a file. The bundled **`theme`** addon is
+exactly that, a `theme.json` its Lua reads without ever naming a surface or a place; it also shows how an addon
+keeps a layout of its own, since [`hafen.store`](api/store.md) persists tables and a layout is one. See
 [the stylesheet](api/ui.md#the-stylesheet--restyling-the-client) and the
-[property × key table](api/ui.md#what-each-key-accepts) for what each key does with each property.
+[property × key table](api/ui.md#what-each-key-accepts) for what each key does with each property, and
+[where the skinning system ends](api/ui.md#where-the-skinning-system-ends) for what it deliberately leaves alone.
 
 ## Files your addon ships
 

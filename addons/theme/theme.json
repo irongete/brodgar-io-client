@@ -15,7 +15,15 @@
     "neither writes, so they take bg/border/pad and no font or colour. A panel cannot re-lay itself out, so it",
     "takes no pad and its art is drawn into the ~5 px the stock box had -- hence the thin panel.png beside the",
     "window's frame.png, whose 40 px top inset is the title band the caption sits in (a smaller one would put",
-    "the caption over the content: the engine adds no hidden room for it)."
+    "the caption over the content: the engine adds no hidden room for it).",
+    "The last three rules say WHERE, not what: a selector that names a window may carry `anchor` (a corner of",
+    "the screen or of another widget, plus an offset in raw pixels), or `pos`/`size` as plain [x, y] arrays.",
+    "Nothing about them is mapped -- they are already the sheet's own shapes -- so the layout half of this",
+    "theme cost main.lua not one line. A window with no rule keeps the place its user gave it, and dropping",
+    "the sheet puts every window back where it was, to the pixel.",
+    "An anchor HOLDS (it is re-derived whenever the screen or its target changes, so dragging an anchored",
+    "window snaps back). ':theme save' pins each of them at where it is now instead, through hafen.store --",
+    "the demonstration that a layout PROFILE is an addon's own business and not an engine feature."
   ],
 
   "rules": {
@@ -32,6 +40,10 @@
     "tooltip":      { "color": [255, 225, 175] },
     "menu":         { "color": [235, 235, 225] },
     "chat":         { "font": { "face": "mono", "size": 12 }, "color": [190, 210, 190] },
-    "world.speech": { "color": [225, 235, 225] }
+    "world.speech": { "color": [225, 235, 225] },
+
+    "window[title=Inventory]":       { "anchor": { "to": "screen", "at": "bottomright", "offset": [-8, -8] } },
+    "window[title=Equipment]":       { "anchor": { "to": "screen", "at": "topright",    "offset": [-8,  8] } },
+    "window[title=Character Sheet]": { "anchor": { "to": "screen", "at": "center" } }
   }
 }

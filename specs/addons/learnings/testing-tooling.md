@@ -504,3 +504,31 @@
   multi-line `perl -0pi -e` pattern needs `\r?\n` on this box (the sources are CRLF) or it silently matches
   nothing — which reads exactly like a falsification that did not bite. The four bit 3 / 1 / 22 / 2 red: the
   clamp, the synchronous dependents, the parent-frame conversion, the per-tick re-derive.
+
+- **(036.4) A callback-count check must OWN its scene.** 036.4's cost round asserts *"this addon ran 0 draw/
+  widget callbacks while the client painted"* — and its first in-game run reported **2**, the only red in the
+  task. Both were honest: the round before it stands up two probe windows whose entire job is to `g:text` every
+  frame (the text-cache half), and `costRound` had not destroyed them. A counter cannot tell one of your own
+  drawing widgets from an engine path calling you back, so a "nothing of ours ran" assertion has to begin by
+  clearing the screen of everything of yours that is *supposed* to run. Generalise: a categorical zero is only
+  as good as the scene it is measured in, and the scene must be built by the check, not inherited from the step
+  before it. (035.4's version of this rule was about the *comparison* — stand up your own windows rather than
+  measuring whatever is open; this is the same rule one step further: tear down the previous round's too.)
+- **(036.4) The per-addon text cache measures "did this reach the DRAW?" with nothing armed.**
+  `profiling():textcache()` is pull-only **and per addon** ("the top level is the CALLER's own cache"), so no
+  other addon can perturb it — which makes 034.2's one-string-two-windows trick the whole cost proof for a
+  property that is a *write*: with a layout-only sheet naming one window the two still share **ONE** key, and
+  the same rule with a `font` in it takes **two**. Note the number to assert is one, not zero: `Sheet
+  .rulesChanged` always ends in `Fonts.treeActive(…)`, which bumps `gen` unconditionally, so **any** sheet
+  change re-keys everything once. What the layout-only case buys is that no per-widget *frame* opens, and the
+  count then stops moving — assert both, plus the font variant, or "still one key" cannot fail.
+- **(036.4) The fabricated-UI probe drives an EXAMPLE addon as happily as a suite** — load `addons/theme`,
+  `AddonManager.fireTo(a, "OnLoad")` (the registry does that, `Addon.run()` does not), then call its
+  `slashCommands` entries. Two conveniences make it painless: `a.env.load("return " + src).call()` reads any
+  state back out of the addon's own sandbox, and **`-Dhaven.savedatadir=<scratch>` isolates `hafen.store`**, so
+  a store round trip can be asserted without writing into the repo. 10/10 for `theme`'s layout + save/pin/forget
+  matrix before the client started.
+- **(036.4) There IS Python on this box now (3.14).** 033.3 recorded "no Python here" and re-derived the docs
+  link/anchor checker in Java; it is a 40-line Python script again (GitHub's slug rule: lowercase, drop
+  everything but word chars/space/hyphen, spaces → hyphens — so an em dash leaves **two** hyphens). Still
+  self-verify it against planted breaks each time: 693 links, 0 broken, 3 planted, 3 caught.
