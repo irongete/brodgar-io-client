@@ -55,7 +55,7 @@ foundry.
 
 Both of the client's text-input surfaces: every editable field — the chat input, search boxes, the login
 name and password fields, name-a-save fields — **and** the console command line, the `:` prompt, so `:lua`
-and your own [`hafen.slash`](../../console.md) commands are typed in your font too. Each field drops its
+and your own [`hafen.slash`](../../slash.md) commands are typed in your font too. Each field drops its
 cached line when the rule moves, so the change is live on the next frame, and selection and caret positions
 follow the new glyph advances automatically.
 

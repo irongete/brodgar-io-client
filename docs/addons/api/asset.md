@@ -189,7 +189,7 @@ namespace is *your files*; the table below is *the game's*.
 | Engine resource | Call |
 |---|---|
 | a `.res` image — action icons, HUD art | [`g:resource(name, x, y)`](ui/drawing.md) |
-| a `.res` sound | [`hafen.sound(name)`](audio.md) |
+| a `.res` sound | [`hafen.sound(name)`](sound.md) |
 | a `.res` prop in the world | [`hafen.ghost`](ghost.md) |
 | a built-in font | [`hafen.font(name)`](font.md#the-built-ins) |
 
@@ -226,4 +226,4 @@ end)
 - [drawing](ui/drawing.md) — `g:image` and `g:aimage` draw an image asset on screen
 - [`hafen.font`](font.md) — what a font asset does once you have it, and the built-ins that are not assets
 - [`hafen.json`](json.md) — turning a data asset's `:text()` into a table
-- [conventions](conventions.md#asset--a-file-your-addon-ships) — callable namespaces, owned resources and teardown
+- [conventions](conventions.md#asset-a-file-your-addon-ships) — callable namespaces, owned resources and teardown

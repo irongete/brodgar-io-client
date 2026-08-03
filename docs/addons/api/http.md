@@ -1,26 +1,21 @@
-# hafen.http — external HTTP requests
+# hafen.http: external HTTP requests
 
-Fetch data from an external URL. `hafen.http` is **gated**: an addon may reach the network only if it
-**declares a `network` block** in its `manifest.json`, and only the **hosts it lists** — the declaration
-*is* the allowlist. Pair it with [`hafen.json`](json.md) to fetch and parse a JSON API.
-
-| Member | Description |
-|---|---|
-| `hafen.http.get(url [, opts], cb)` | perform an HTTP GET; returns a request handle |
-| `hafen.http.post(url, body [, opts], cb)` | perform an HTTP POST with a body; returns a request handle |
+Fetch data from a URL outside the game. `hafen.http` is **gated by your manifest**: an addon reaches the
+network only if it declares a `network` block, and only the hosts that block lists — the declaration
+*is* the allowlist. Pair it with [`hafen.json`](json.md) to read a JSON API.
 
 ```lua
 hafen.http.get("https://api.example.com/prices", function(res)
   if not res.ok then hafen.log("request failed: " .. res.error); return end
   if res.status ~= 200 then hafen.log("HTTP " .. res.status); return end
-  local data = hafen.json.parse(res.body)      -- JSON string → Lua table
+  local data = hafen.json.parse(res.body)
   hafen.log("iron = " .. tostring(data.iron))
 end)
 ```
 
-## Declaring network access (required)
+## Declaring network access
 
-Add a `network` block to your `manifest.json` whose `hosts` array lists every host you will call:
+Add a `network` block to `manifest.json` whose `hosts` array lists every host you will call:
 
 ```json
 {
@@ -32,119 +27,112 @@ Add a `network` block to your `manifest.json` whose `hosts` array lists every ho
 }
 ```
 
-- **No `network` block ⇒ no network.** Any `hafen.http.*` call raises a Lua error telling you to add one.
-- **`hosts` is an exact, case-insensitive allowlist** with a **`*.domain`** wildcard for sub-domains:
-  `*.example.com` matches `a.example.com` and `a.b.example.com`, but **not** the apex `example.com`
-  (list the apex separately). A call to any host not matched is **rejected synchronously** (a Lua error
-  at call time — wrap it in `pcall` if the URL is dynamic).
+- **No `network` block means no network.** Any `hafen.http` call raises a Lua error telling you to add
+  one.
+- **`hosts` is an exact, case-insensitive allowlist**, with a `*.domain` wildcard for sub-domains:
+  `*.example.com` matches `a.example.com` and `a.b.example.com`, but **not** the apex `example.com`,
+  which you list separately. A call to any other host is rejected **synchronously**, as a Lua error at
+  call time, so wrap the call if the URL is dynamic.
 - The **AddOns panel** shows a `[net]` badge and the declared hosts in the addon's tooltip, so the user
-  sees which servers the addon talks to **before** enabling it.
+  sees which servers it talks to before enabling it.
 
-## `get(url [, opts], cb)`
+## Request
 
-- **`url`** — string. Scheme must be `http` or `https`; the host must be in your allowlist.
-- **`opts`** (optional table):
-  - `headers` — a table of string→string request headers (e.g. `{ Authorization = "Bearer …" }`).
-    Transport-owned headers (`Host`, `Content-Length`, `Connection`, `User-Agent`, …) are ignored.
-  - `timeout` — milliseconds; default **10000**, capped at **60000**.
-- **`cb`** (optional) — `function(res)`, called later on the UI thread with the [result table](#the-res-table).
-  Omit it to fire-and-forget (transport errors are still logged).
+Both verbs are **asynchronous**: the call returns immediately, and the callback runs on the UI thread a
+frame or more later. There is no blocking form — a request on the UI thread would freeze the client —
+so do your work inside the callback.
 
-Returns a **request handle** `{ :cancel() }`. `hafen.http` is **asynchronous** — the call returns
-immediately and the callback runs a frame or more later, once the reply arrives.
+### `hafen.http.get(url, opts, cb)`
+
+Returns a request handle, `{ :cancel() }`. `opts` and `cb` are both optional.
+
+| Argument | Type | Meaning |
+|---|---|---|
+| `url` | string | scheme must be `http` or `https`, and the host must be in your allowlist |
+| `opts.headers` | table | string to string request headers, e.g. `{ Authorization = "Bearer …" }`. Transport-owned ones (`Host`, `Content-Length`, `Connection`, `User-Agent`, …) are ignored |
+| `opts.timeout` | number | milliseconds; default **10000**, capped at **60000** |
+| `cb` | function | `function(res)`, called with the [result table](#the-res-table). Omit it to fire and forget; a transport error is still logged |
 
 ```lua
 local req = hafen.http.get("https://api.example.com/slow",
   { headers = { Authorization = "Bearer " .. hafen.store.cfg.token }, timeout = 5000 },
-  function(res) ... end)
+  function(res) hafen.log(res.status) end)
 
--- later, if you no longer want it:
 req:cancel()      -- the callback will NOT fire
 ```
 
-## `post(url, body [, opts], cb)`
+### `hafen.http.post(url, body, opts, cb)`
 
-Same as `get`, plus a request **body**:
+`get` plus a request **body**; `opts` and `cb` behave exactly as above.
 
-- **`body`** — either a **string** (sent verbatim) or a **table** (auto-encoded to JSON with the same
-  serializer as [`hafen.json.encode`](json.md) and sent as `Content-Type: application/json`, unless you set
-  your own `Content-Type` in `opts.headers`). A non-serializable table (function/userdata value, cycle)
-  raises a Lua error at call. `nil` sends an empty POST.
-- **`opts`** / **`cb`** — exactly as `get` (headers, timeout; the `res` table).
+`body` is either a **string**, sent verbatim, or a **table**, encoded to JSON with the same serializer
+as [`hafen.json.encode`](json.md) and sent as `Content-Type: application/json` unless you set your own
+in `opts.headers`. A table that cannot be serialized — a function or userdata value, a cycle — raises a
+Lua error at call time. `nil` sends an empty POST.
 
 ```lua
 -- POST a Lua table as JSON, read JSON back
 hafen.http.post("https://api.example.com/report",
-  { char = hafen.player():name(), lp = hafen.char.attrs().lp },        -- table → application/json
+  { char = hafen.player():name(), lp = hafen.char.lp() },
   { headers = { Authorization = "Bearer " .. hafen.store.cfg.token } },
   function(res)
     if res.ok and res.status == 200 then
       local reply = hafen.json.parse(res.body)
-      ...
+      hafen.log(reply.message)
     end
   end)
 
 -- or a raw string body with your own content type
 hafen.http.post("https://api.example.com/ingest", "a,b,c\n1,2,3",
-  { headers = { ["Content-Type"] = "text/csv" } }, function(res) ... end)
+  { headers = { ["Content-Type"] = "text/csv" } })
 ```
 
-## The `res` table
+## The res table
 
 | Field | When | Meaning |
 |---|---|---|
-| `res.ok` | always | `true` if an HTTP response was received (**any** status, incl. 4xx/5xx); `false` only on a **transport** failure. |
-| `res.status` | `ok` | HTTP status code (`200`, `404`, `500`, …). |
-| `res.body` | `ok` | response body as a string (decoded via the response charset, default UTF-8). |
-| `res.headers` | `ok` | response headers, keys **lower-cased** (`res.headers["content-type"]`). |
-| `res.error` | `not ok` | human-readable transport-error string. |
+| `res.ok` | always | `true` if an HTTP response arrived, whatever its status, including 4xx and 5xx; `false` only on a **transport** failure |
+| `res.status` | `ok` | HTTP status code |
+| `res.body` | `ok` | response body as a string, decoded with the response charset, UTF-8 by default |
+| `res.headers` | `ok` | response headers, keys **lower-cased**, so `res.headers["content-type"]` |
+| `res.error` | not `ok` | human-readable transport-error string |
 
-`res.ok` separates *"did we get a reply?"* from *"what code?"* — a `404` is `ok=true, status=404` (the
-server answered); a DNS/connect/timeout failure is `ok=false, error=…`. Check `res.status` for HTTP-level
-outcomes:
+`res.ok` separates *did we get a reply* from *what did it say*: a `404` is `ok = true, status = 404`,
+because the server answered, while a DNS, connect or timeout failure is `ok = false` with `res.error`
+set. So check `ok` first and branch on `status` after.
 
-```lua
-hafen.http.get(url, function(res)
-  if not res.ok then hafen.log("transport error: " .. res.error); return end
-  if res.status == 200 then
-    local data = hafen.json.parse(res.body)
-    ...
-  elseif res.status == 404 then
-    hafen.log("not found")
-  end
-end)
-```
+## Cancellation and lifecycle
 
-## Cancellation & lifecycle
+`req:cancel()` marks the request dead and its callback **never fires** — there is no "cancelled"
+callback. Reloading or disabling the addon, and relogging, cancel every request the addon has in
+flight: an in-flight response is discarded and no callback runs, so nothing leaks across a reload.
 
-- **`req:cancel()`** marks the request dead; its callback **never fires** (there is no "cancelled"
-  callback).
-- **`:reload` / disabling the addon / relogging** cancels every in-flight request the addon owns — an
-  in-flight response is discarded and no callback runs. Nothing leaks across a reload.
+The callback runs under the same watchdog and error isolation as every other addon callback: an error
+inside it is logged, never propagated.
 
-## Security & limits
+## Security and limits
 
-- **Private / loopback / link-local IPs are refused** even for an allowlisted host: if the host resolves
-  to `127.0.0.0/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `::1`, `fc00::/7`, or `fe80::/10`,
-  the request fails with `ok=false, error="… blocked address …"`. This blocks LAN scanning / internal-
-  service access from addon code.
-- **TLS is verified** (the JDK default trust store); certificate verification is never disabled.
-- **Redirects are followed** (up to **5** hops), and **every hop is re-checked** against your allowlist and
-  the private-IP block — a `3xx` whose `Location` points at a host you did **not** declare (or a private IP)
-  aborts with `ok=false, error="… refused …"`. So a redirect can never take a request off your allowlist.
-  A `303` (and a `301`/`302` on a POST) is followed as a `GET` with the body dropped, per HTTP convention.
-- **A generic `User-Agent`** (`brodgar-addon/1`) is sent; nothing identifies your character or account.
-  **No cookies, no shared session** — each request is stateless; any token is your own (from your
-  [`hafen.store`](store.md)).
-- **Resource caps** (all `-D`-tunable): response size **8 MB** (`ok=false, error="response too large"`);
-  timeout **10 s**, cap **60 s**; **6** concurrent requests per addon (excess queued; a hard per-addon
-  cap of **64** pending raises at call); a shared pool of **8** threads across all addons.
+> **A request can never leave the allowlist you declared.** Every redirect hop is re-checked against
+> it, and against the address rules below.
 
-## Notes
+- **Private, loopback and link-local addresses are refused**, even for an allowlisted host: if it
+  resolves into `127.0.0.0/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `::1`, `fc00::/7` or
+  `fe80::/10`, the request fails with `ok = false` and a blocked-address error. That closes LAN
+  scanning and internal-service access from addon code.
+- **TLS is verified** against the JDK trust store, and certificate verification is never disabled.
+- **Redirects are followed**, up to **5** hops. A `3xx` whose `Location` points at a host you did not
+  declare, or at a private address, aborts with `ok = false`. A `303`, and a `301` or `302` on a POST,
+  is followed as a `GET` with the body dropped, per HTTP convention.
+- **A generic `User-Agent`, `brodgar-addon/1`, is sent**, and nothing identifies your character or your
+  account. There are no cookies and no shared session: every request stands alone, and any token is one
+  you keep yourself, in [`hafen.store`](store.md).
+- **Resource caps**: response size **8 MB**, above which the request fails with a too-large error;
+  timeout **10 s**, raisable to **60 s**; **6** requests in flight per addon, with the excess queued and
+  a hard cap of **64** pending, past which the call raises; and a pool of **8** threads shared by all
+  addons.
 
-- Requests never run on the UI thread (they'd freeze the client), so the API is async-only — there is no
-  blocking `get`. Do your work inside the callback.
-- The callback runs under the same watchdog + error-isolation as every other addon callback: an error in
-  it is logged, never propagated.
-- See [`hafen.json`](json.md) to parse a JSON body, and [`hafen.store`](store.md) to persist tokens or
-  cached results.
+## See also
+
+- [`hafen.json`](json.md) — parsing a response body, and encoding a request one
+- [`hafen.store`](store.md) — persisting tokens and cached results
+- [`hafen.act`](act.md) — the other gated tier, and how a permission is declared

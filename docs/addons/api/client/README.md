@@ -91,7 +91,7 @@ Volumes are `0.0`..`1.0` here, not the panel's slider units, and a value outside
 `latency` is milliseconds, what the panel shows, not the sample count the engine stores, and writing it
 reopens the audio output line.
 
-To *play* sounds, see [`hafen.sound`](../audio.md) — this subsystem only sets levels. `ambientVolume`
+To *play* sounds, see [`hafen.sound`](../sound.md) — this subsystem only sets levels. `ambientVolume`
 governs the world's ambient loops, which is what sounds like background music here.
 
 ## `camera()`
@@ -146,5 +146,5 @@ if shadows ~= nil then hafen.log("shadows: " .. tostring(shadows)) end
 
 - [keybindings](keybindings.md) — declaring your addon's hotkeys, and remapping any binding
 - [profiling](profiling/README.md) — the frame profiler this panel arms
-- [`hafen.sound`](../audio.md) — playing sounds, as opposed to setting levels
+- [`hafen.sound`](../sound.md) — playing sounds, as opposed to setting levels
 - [events](../events.md) — `OnEnterWorld`, the guard for the options that are not up yet

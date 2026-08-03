@@ -14,11 +14,11 @@ end
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.quests.list(filter)` | [`Quest`](types.md#quest--condition)`[]` | every quest matching the [filter](conventions.md#the-filter-argument) |
-| `hafen.quests.selected()` | [`Quest`](types.md#quest--condition) \| nil | the quest open in the log, with its `conds` objectives |
+| `hafen.quests.list(filter)` | [`Quest`](types.md#quest-and-condition)`[]` | every quest matching the [filter](conventions.md#the-filter-argument) |
+| `hafen.quests.selected()` | [`Quest`](types.md#quest-and-condition) \| nil | the quest open in the log, with its `conds` objectives |
 
 A quest's `status` is `"pending"`, `"done"`, `"failed"` or `"disabled"`. Only the **selected** quest
-loads its conditions, so `conds`, an array of [`Condition`](types.md#quest--condition), appears on
+loads its conditions, so `conds`, an array of [`Condition`](types.md#quest-and-condition), appears on
 `selected()` alone.
 
 `list` answers an empty array and `selected` answers `nil` before the quest log has built, which is a
@@ -38,6 +38,6 @@ quest snapshot.
 
 ## See also
 
-- [`Quest` and `Condition`](types.md#quest--condition) — the snapshot shapes
+- [`Quest` and `Condition`](types.md#quest-and-condition) — the snapshot shapes
 - [`hafen.markers`](markers.md) — the map pins a quest puts down
 - [events](events.md#roster-quests-markers) — `QuestAdded` and `QuestDone`

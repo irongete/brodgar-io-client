@@ -33,7 +33,7 @@ end)
 | **Acting** | [`act`](api/act.md) *(gated)* · [`menugrid`](api/menugrid.md) |
 | **UI & input** | [`ui`](api/ui/README.md) · [`ghost`](api/ghost.md) · [`asset`](api/asset.md) · [`render`](api/render/README.md) · [`hook`](api/hook.md) · [`font`](api/font.md) · [`client`](api/client/README.md) |
 | **Data & network** | [`json`](api/json.md) · [`http`](api/http.md) *(gated)* |
-| **Infrastructure** | [`events`](api/events.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash` / `log`](api/console.md) · [`sound`](api/audio.md) |
+| **Infrastructure** | [`events`](api/events.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash`](api/slash.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |
 
 See [conventions](api/conventions.md), [data types](api/types.md), and the [event catalogue](api/events.md)
 for the cross-cutting rules — including how you address things: a [Gob](api/gob.md) or a

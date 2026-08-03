@@ -55,7 +55,7 @@ on, so there is nothing to expose.
 a buff you stashed, worth holding on to. `:exists()` is exactly the predicate `hafen.buff()` filters on.
 
 Subscribe to [`BuffAdded`, `BuffRemoved` and
-`BuffChanged`](events.md#character--status-widget-tree-backed); each payload is the `Buff` object
+`BuffChanged`](events.md#character-and-status); each payload is the `Buff` object
 itself. The buffs the character already has arrive as a burst of `BuffAdded` shortly after entering the
 world.
 
@@ -70,4 +70,4 @@ end)
 - [`Buff`](types.md#buff) — the snapshot shape `:info()` returns
 - [`hafen.meter`](meter.md) — the HUD bars, read the same way
 - [snapshots vs handles](conventions.md#snapshots-vs-handles) — why a stashed `Buff` stays current
-- [events](events.md#character--status-widget-tree-backed) — the three buff events
+- [events](events.md#character-and-status) — the three buff events

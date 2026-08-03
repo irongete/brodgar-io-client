@@ -42,7 +42,7 @@ disable and relogin, leaking nothing.
 | `tint` | `{r, g, b, a}` | *none* | colour overlay, `0..255`, where `a` is blend strength |
 | `scale` | number | `1` | uniform scale; `1` is original size |
 | `clickable` | boolean | `false` | opt-in pick surface — see [clickability](#clickability) |
-| `onClick` | function | *none* | `fn(g, button, x, y)` fired on click, also delivered as the [`GhostClicked`](events.md#world-ghosts--sprites) event |
+| `onClick` | function | *none* | `fn(g, button, x, y)` fired on click, also delivered as the [`GhostClicked`](events.md#world-ghosts-and-sprites) event |
 | `follow` | Gob | *none* | **anchor** to a gob so it follows automatically — see [anchoring](#anchoring-to-a-gob) |
 | `offset` | `{x=, y=, z=}` | *none* | fixed world offset from the followed gob, `z` being up |
 
@@ -142,7 +142,7 @@ hafen.events.on("GhostClicked", function(ev)
 end)
 ```
 
-Both the per-ghost `onClick` and the [`GhostClicked`](events.md#world-ghosts--sprites) event fire on every
+Both the per-ghost `onClick` and the [`GhostClicked`](events.md#world-ghosts-and-sprites) event fire on every
 click, and `GhostClicked` reaches only *your* addon, since a ghost is private to the addon that made it.
 
 > **Still ungated.** Clickability is pure client-side detection: the engine's pick pass returns the ghost
@@ -240,4 +240,4 @@ Because the gizmo drives any handle with `:pos`, `:move`, `:rotate` and `:scale`
 - [`hafen.map`](map.md#saving-a-world-position-across-sessions) — grid anchoring, and the snapping the gizmo uses
 - [`hafen.hook`](hook.md#hafenhookgrabmove-up) — the mouse-capture primitive behind a drag
 - [`hafen.act.place`](act.md) — committing a real build, which is gated
-- [events](events.md#world-ghosts--sprites) — `GhostClicked`
+- [events](events.md#world-ghosts-and-sprites) — `GhostClicked`

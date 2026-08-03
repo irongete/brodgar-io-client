@@ -138,3 +138,30 @@
   had been read past for eleven features. **A wrapper's error behaviour is not inherited from the
   thing it wraps** — read the call site, not the design intent, for every "throws / returns nil /
   is ignored" clause.
+
+- **(001.5) The style guide's own conformance grep was the wrong check: `— ` is one member of a
+  character class, not the rule.** After group B, `grep -rn "^#.*—" docs/` returned clean on every
+  page 001.3 and 001.4 had landed — while six double-hyphen anchors were still live in the tree,
+  because ` / ` and ` & ` slug exactly like ` — ` (`## Skill / Credo / Experience` →
+  `#skill--credo--experience`, three inbound links; `## Character & status *(widget-tree backed)*` →
+  `#character--status-widget-tree-backed`, sixteen). D-007 had already stated the general rule — *no
+  slugger-deleted character between two spaces* — and the checkable line beside it still tested only
+  the em dash, so the tree read conformant. **When a rule is a character class, the check greps the
+  class** (`^#.*( [—/&] |\[, )`), or better, slugs every heading and looks for `--`. The same run
+  found six more in the two pages 001.6/001.7 still own, which is how a check earns its keep.
+
+- **(001.5) Rot lives in examples as well as in prose — a code block is a claim, and it is the one
+  claim nobody re-reads.** 035.4's rule (the tables were right, the notes were wrong) has a third
+  category: `api/events.md`'s opening subscription example read `gob.name` on the `GobAdded` payload,
+  eleven features after 020/017 made that payload a **Gob object** whose name is `gob:name()`. The
+  table two lines below said *Payload: Gob* and was correct; the block under it had been wrong since
+  017 and would have failed for the first reader who pasted it. Group C's pass found three of these
+  (`gob.name`, `hafen.char.attrs().lp` for `hafen.char.lp()`, a "per-addon log" file that never
+  existed). **Check every `hafen.*` name inside a fence against `src/`, not only the ones in tables**
+  — the audit's symbol sweep does exactly this and is worth re-running per page, not per feature.
+
+- **(001.5) Splitting a page is priced by its inbound *anchors*, not by its size.** `console.md` (39
+  lines, two namespaces) became `log.md` + `slash.md` for the cost of six link edits, because only one
+  inbound link was anchored; `events.md` (137 lines) stayed one page but its two heading renames cost
+  twenty-six. The migration map should carry the inbound-anchor count per page next to the line count:
+  it is the number that predicts the work, and it is one grep away before anything moves.

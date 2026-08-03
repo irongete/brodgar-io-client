@@ -22,11 +22,11 @@ immediate read answers `nil` or an empty array. Read on a short timer, or on the
 | `hafen.char.lp()` | number \| nil | current learning points |
 | `hafen.char.weight()` | number \| nil | carried weight, the encumbrance figure |
 | `hafen.char.food()` | [`food`](types.md#food) \| nil | FEP and hunger |
-| `hafen.char.skills()` | [`Skill`](types.md#skill--credo--experience)`[]` | known skills, `{name, res}` |
+| `hafen.char.skills()` | [`Skill`](types.md#skill-credo-experience)`[]` | known skills, `{name, res}` |
 | `hafen.char.skill(name)` | bool | whether a known skill's name or res contains the string |
-| `hafen.char.skillsAvailable()` | [`Skill`](types.md#skill--credo--experience)`[]` | buyable skills, `{name, res, cost}` |
+| `hafen.char.skillsAvailable()` | [`Skill`](types.md#skill-credo-experience)`[]` | buyable skills, `{name, res, cost}` |
 | `hafen.char.credos()` | table \| nil | the Credos tab: `acquired`, `available`, `cost`, `pursuing` |
-| `hafen.char.experiences()` | [`Experience`](types.md#skill--credo--experience)`[]` | lore and experiences seen |
+| `hafen.char.experiences()` | [`Experience`](types.md#skill-credo-experience)`[]` | lore and experiences seen |
 
 The base attribute names are `str`, `agi`, `int`, `con`, `prc`, `csm`, `dex`, `wil` and `psy`. An
 attribute the server has sent no data for reads as `nil`, and so does an unknown name. The array
@@ -35,7 +35,7 @@ readers answer an empty array rather than `nil`. Nothing here throws and nothing
 `hafen.char.food()` is the one place in the client with **absolute** numbers about your character —
 everywhere else, a bar is a fraction. See [`hafen.meter`](meter.md).
 
-Subscribe to [`FepChanged`](events.md#character--status-widget-tree-backed) for food and hunger. Skills,
+Subscribe to [`FepChanged`](events.md#character-and-status) for food and hunger. Skills,
 credos and lore change only on a buy, a pursue or quest progress, and have no event — read them on
 demand.
 

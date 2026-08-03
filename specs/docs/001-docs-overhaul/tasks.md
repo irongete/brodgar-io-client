@@ -42,9 +42,20 @@
       three clicks from the landing page, since the index still lists hubs only. 001.7 regenerates
       it anyway; this exists so the gap is recorded rather than forgotten.
 
-- [ ] 001.5 — **Reference, group C — cross-cutting & infrastructure.** `conventions`, `types`,
+- [x] 001.5 — **Reference, group C — cross-cutting & infrastructure.** `conventions`, `types`,
       `events`, `timer`, `store`, `json`, `http`, `console`, `audio`. These are the pages every
       other page links to, so they land after the vocabulary they define is stable.
+      <!-- landed: 10 pages. Amendment (IA §5.3): `console` shipped as `log` + `slash`, `audio` as
+           `sound` — one namespace per path (D-002). Drift D-6 and D-10 closed; the tree now has 0
+           em-dash headings and 0 retired names. Three example/prose accuracy fixes against `src/`
+           (`gob.name` → `gob:name()`, `char.attrs().lp` → `char.lp()`, the "per-addon log" file).
+           D-010 decided here (a client-local write group carries `(ungated)`), folded into the
+           style guide with the widened heading grep, so 001.6 does not re-litigate either. -->
+
+- [ ] 001.5b — **The last six `&` headings** (001.5's widened grep): `api/README.md` (3) and
+      `getting-started.md` (3) still hold ` & ` headings, which slug to a double hyphen. Nothing
+      links their anchors today, so this is not a break — 001.6 and 001.7 rewrite both pages and
+      fix them there. Recorded so the grep result is not lost between tasks.
 
 - [ ] 001.6 — **The learning path.** `getting-started.md` rewritten as a real first-addon
       tutorial (zero context → a working addon, every code block runs as written), plus

@@ -148,3 +148,22 @@ path a later task will create (style guide §8).
 
 **Consequences.** Group B went from fifteen outbound links to zero without losing a single mention,
 and 001.6 gains a concrete list of which pages want an `examples.md` link once it exists.
+
+### D-010 — A client-local write group carries `(ungated)`; only reads and subscriptions stay plain
+
+**Context (001.5).** D-006 puts the gating annotation on write group headings and leaves `## Read`
+plain, and style guide §3 exempts "a subscription and your own drawing" from counting as writes.
+Group C has a third shape neither line resolves: `sound:play`/`sound:stop` change client state that a
+later read reports (`sound:playing()`), they are not a subscription and not drawing, and they send
+nothing to the server — the same shape as `markers.add` and `radar.setVisible`, which drift D-3 was.
+
+**Decision.** The question a group heading answers is *does this verb need a permission*, and it is
+asked of every verb that **changes something**, wherever the change lands. A verb that changes
+client-local state gets a write group with `(ungated)`; a read, a subscription and drawing into your
+own frame stay plain, because they change nothing at all. So `sound.md` reads
+`## Play and stop (ungated)`.
+
+**Consequences.** The annotation now appears on exactly the groups where "no permission" is
+information — `markers`, `radar`, `menugrid`, `sound` — and the rule is stated as a property of the
+verb (does it change state?) rather than as a list of exempt shapes, which is what made the third
+case ambiguous.

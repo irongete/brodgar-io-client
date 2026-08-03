@@ -87,4 +87,4 @@ Hotkeys are torn down with your addon on reload or disable, so you do not need t
 
 - [`hafen.client:options()`](README.md) — the rest of the settings surface
 - [`hafen.hook`](../hook.md) — intercepting input before the client's own bindings
-- [`hafen.slash`](../console.md) — a console command, the other way an addon is invoked by hand
+- [`hafen.slash`](../slash.md) — a console command, the other way an addon is invoked by hand

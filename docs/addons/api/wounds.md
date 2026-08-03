@@ -28,11 +28,11 @@ all it takes to print the shape.
 > A wound's `severity` is the magnitude string the client shows beside it — usually a number, but
 > content-defined, and **not** seconds. It may be absent for a beat while the wound's data resolves.
 
-Subscribe to [`WoundChanged`](events.md#character--status-widget-tree-backed), whose payload is the new
+Subscribe to [`WoundChanged`](events.md#character-and-status), whose payload is the new
 list, to react to a wound being added, healed or worsening.
 
 ## See also
 
 - [`Wound`](types.md#wound) — the snapshot shape `list` returns
 - [`hafen.char`](char.md) — the rest of the character sheet
-- [events](events.md#character--status-widget-tree-backed) — `WoundChanged`
+- [events](events.md#character-and-status) — `WoundChanged`

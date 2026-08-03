@@ -56,13 +56,15 @@ What it gives back when the data is not there.
 **table** — that is §6's rule and it is the default, and it is what most namespaces are. A verb that
 needs an argument table, its own error cases or an example gets a `###` call heading. One page may use
 both. The **gating annotation sits on the group heading and only on a write group**:
-`## Write (gated: \`actions\`)` or `## Write (ungated)`. `## Read` stays plain — a read is ungated by
-construction, and annotating every reader buries the write that is surprisingly ungated. **A
-subscription and your own drawing are not writes** for this purpose (`hafen.ui.on`, `:onItemAdded`,
-`hafen.ui.overlay`, the `g:` verbs): they change no client state, so their group heading stays plain and
-the page's opening lines say the namespace is ungated. That also keeps their anchors stable — an
-annotation appended to a heading *is* an anchor change, and 001.4 broke 18 inbound links that way before
-the sweep caught it.
+`## Write (gated: \`actions\`)` or `## Write (ungated)`. **A group is a write group when its verbs change
+something, wherever the change lands** (D-010): a client-local change — a map marker, an icon flag, a
+sound — is a write and its heading says `(ungated)`, which is exactly where "no permission" is
+information. `## Read` stays plain — a read is ungated by construction, and annotating every reader
+buries the write that is surprisingly ungated. **A subscription and your own drawing are not writes**
+(`hafen.ui.on`, `:onItemAdded`, `hafen.ui.overlay`, the `g:` verbs): they change no state at all, so
+their group heading stays plain and the page's opening lines say the namespace is ungated. That also
+keeps their anchors stable — an annotation appended to a heading *is* an anchor change, and 001.4 broke
+18 inbound links that way before the sweep caught it.
 
 **Guide** (`guides/**`) — one *task* per page, start to finish, and it **never restates a
 signature**: it shows the shape of the solution and links each verb to its reference page. A
@@ -90,9 +92,12 @@ carries no explanation that its pages do not carry.
 - **Topic headings** are sentence case; a subtitle uses a colon: `## Selectors: naming a widget`.
 - **No em dash in any heading, ever** — and no other deleted character between two spaces. ` — `
   slugs to a *double* hyphen, which is the trap that made 001.1's first checker report 208 false
-  breaks (`specs/docs/learnings/docs-maintenance.md`); ` [, ` and ` / ` do exactly the same. The
-  general rule: **no heading holds a slugger-deleted character whose neighbours are spaces.**
-  Checkable: `grep -rn "^#.*—" docs/` returns nothing, and no anchor in the tree has `--`.
+  breaks (`specs/docs/learnings/docs-maintenance.md`); ` [, `, ` / ` and ` & ` do exactly the same.
+  The general rule: **no heading holds a slugger-deleted character whose neighbours are spaces.**
+  Write `Skill, Credo, Experience` and `Character and status`, not `Skill / Credo / Experience` and
+  `Character & status`. Checkable — and the em-dash grep alone is **not** the check, since it read
+  clean while six ` / ` and ` & ` anchors survived (001.5): `grep -rnE "^#.*( [—/&] |\[, )" docs/`
+  returns nothing, and no anchor in the tree has `--`.
 - No trailing punctuation, no internal codes (`(V2)`, `035.4`, `D-092`), no bold in headings.
 - Heading text is unique within its page.
 

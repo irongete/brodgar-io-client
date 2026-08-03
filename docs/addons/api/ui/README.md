@@ -60,5 +60,5 @@ and layout.
 - [`hafen.font`](../font.md) — the handles a `font` property and a `g:text` call take
 - [`hafen.asset`](../asset.md) — the images and fonts your addon ships
 - [`hafen.act`](../act.md) — acting on a widget you found, through its `:id()`
-- [conventions](../conventions.md#widget--a-piece-of-the-ui) — where a Widget sits among the other references
+- [conventions](../conventions.md#widget-a-piece-of-the-ui) — where a Widget sits among the other references
 - [events](../events.md) — the bus, for everything that is not a widget subscription

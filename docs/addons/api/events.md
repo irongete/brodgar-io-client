@@ -1,117 +1,121 @@
-# hafen.events — the event bus
+# hafen.events: the event bus
 
-Subscribe to client events. Handlers run on the UI thread.
-
-| Function | Returns | Description |
-|---|---|---|
-| `hafen.events.on(name, fn)` | subscription handle | run `fn(...)` each time event `name` fires |
-
-The returned handle has one method:
-
-| Method | Description |
-|---|---|
-| `sub:off()` | unsubscribe (also done automatically on reload/disable) |
+Subscribe to something the client does, instead of polling for it every frame. `hafen.events` is
+**ungated**: subscribing observes, it changes nothing. Handlers run on the UI thread, so keep them
+short.
 
 ```lua
 local sub = hafen.events.on("GobAdded", function(gob)
-  hafen.log("appeared: " .. (gob.name or "?"))
+  hafen.log("appeared: " .. (gob:name() or "?"))
 end)
 -- later:
 sub:off()
 ```
 
-Subscribe once (e.g. in the file body or `OnLoad`); the subscription is owned by your addon and is
-released automatically when it is reloaded or disabled. A handler that errors is isolated — it won't
-break other addons or the client.
+## Subscribe
 
----
+| Function | Returns | Description |
+|---|---|---|
+| `hafen.events.on(name, fn)` | subscription handle | run `fn(...)` each time the event `name` fires |
 
-## Event catalogue
+| Method | Description |
+|---|---|
+| `sub:off()` | unsubscribe; also done for you on reload or disable |
 
-### Lifecycle
+Subscribe once, in the file body or in `OnLoad`. The subscription is owned by your addon and released
+when it is reloaded or disabled, so you never have to unsubscribe by hand. A name no event uses is
+accepted and simply never fires — nothing validates it against the catalogue below. A handler that
+errors is isolated: the error is logged and it breaks neither other addons nor the client.
+
+## Lifecycle
 
 | Event | Payload | Fires |
 |---|---|---|
-| `OnLoad` | — | once, when the addon is loaded (before entering the world) |
-| `OnEnterWorld` | — | each time you enter the world (login, and re-fired on `:reload` while in-world) |
-| `OnUpdate` | `dt` (number) | every frame; `dt` = seconds since the last frame |
-| `OnDisable` | — | when the addon is disabled, reloaded, or the session ends |
+| `OnLoad` | — | once, when the addon is loaded, before entering the world |
+| `OnEnterWorld` | — | each time you enter the world: login, and again on `:reload` while in-world |
+| `OnUpdate` | `dt` (number) | every frame; `dt` is seconds since the last frame |
+| `OnDisable` | — | when the addon is disabled or reloaded, or the session ends |
 
-`OnEnterWorld` fires once the HUD exists, but much character-sheet data still streams in for a few
-seconds afterward (see [conventions](conventions.md#missing-data-returns-nil)). Keep `OnUpdate`
-handlers cheap — they run on the UI thread every frame.
+`OnEnterWorld` fires once the HUD exists, but much character-sheet data streams in for a few seconds
+afterwards — see [missing data returns nil](conventions.md#missing-data-returns-nil). Keep `OnUpdate`
+handlers cheap: they run on the UI thread on every frame.
 
-### World
+## World
 
 | Event | Payload | Fires |
 |---|---|---|
-| `GobAdded` | [Gob](gob.md) | a game object enters the world/view |
+| `GobAdded` | [Gob](gob.md) | a game object enters the world or your view |
 | `GobRemoved` | [Gob](gob.md) | a game object leaves |
 
-Prefer these over scanning [`hafen.world.gobs`](world.md) every frame.
+Prefer these over scanning [`hafen.world.gobs`](world.md) every frame. The payload is a live
+[Gob object](gob.md). On `GobRemoved` the gob is **already gone**, so only `gob:id()` answers there; if
+you need its name, index it on `GobAdded`.
 
-The payload is a live [Gob object](gob.md). On `GobRemoved` the gob is **already gone**, so only
-`gob:id()` answers there — if you need its name, index it on `GobAdded`.
+## Character and status
 
-### Character & status *(widget-tree backed)*
+These come from the HUD's own widgets, so they start once the HUD is up.
 
 | Event | Payload | Fires |
 |---|---|---|
 | `MeterAdded` | [`Meter`](meter.md) | a HUD meter bar appears |
 | `MeterRemoved` | [`Meter`](meter.md) | a HUD meter bar goes away — the object still reads, `:exists()` is false |
-| `MeterChanged` | [`Meter`](meter.md) | a HUD meter bar's value or colour changes |
+| `MeterChanged` | [`Meter`](meter.md) | a meter bar's value or colour changes |
 | `BuffAdded` | [`Buff`](buff.md) | a buff appears |
 | `BuffRemoved` | [`Buff`](buff.md) | a buff goes away — the object still reads, `:exists()` is false |
 | `BuffChanged` | [`Buff`](buff.md) | a buff's content updates |
-| `FepChanged` | [`food`](types.md#food) | FEP or hunger changes |
-| `StudyChanged` | [`StudySlot`](types.md#studyslot)`[]` | the study slots change (add/remove/resolve) |
+| `FepChanged` | [`Food`](types.md#food) | FEP or hunger changes |
+| `StudyChanged` | [`StudySlot`](types.md#studyslot)`[]` | the study slots change: an add, a removal, or data resolving |
 | `EquipChanged` | [`Item`](types.md#item)`[]` | worn equipment changes |
-| `ActionbarChanged` | [`Slot`](actionbar.md) | an action-bar slot is set/cleared/changed |
-| `WoundChanged` | [`Wound`](types.md#wound)`[]` | a wound is added/healed or its severity changes |
+| `ActionbarChanged` | [`Slot`](actionbar.md) | an action-bar slot is set, cleared or changed |
+| `WoundChanged` | [`Wound`](types.md#wound)`[]` | a wound is added or healed, or its severity changes |
 
-Items entering or leaving a **container** are not on this bus — a chest is not a global fact, so you
-subscribe to the container itself:
-[`widget:onItemAdded/:onItemRemoved/:onDestroy`](ui/items.md#the-container-lifecycle). `EquipChanged` above
-stays global because your worn gear is one fixed surface.
+Items entering or leaving a **container** are not on this bus: a chest is not a global fact, so you
+subscribe to the container itself with
+[`widget:onItemAdded`, `:onItemRemoved` and `:onDestroy`](ui/items.md#the-container-lifecycle).
+`EquipChanged` stays global because your worn gear is one fixed surface.
 
-### Parts of the UI appearing & disappearing *(not on this bus)*
+`ActionbarChanged` hands you the **changed slot** as a live [`Slot` object](actionbar.md) — the same
+interned object `hafen.actionbar(n)` returns, so `payload == hafen.actionbar(payload:index())` and you
+can key a table by one. `slot:index()` is the raw 0-based game index. It fires on a set, a clear, a
+drag, or when a slot's data resolves, and **not** on `:cooldown()` ticking, which would fire every
+frame — read the cooldown live off the object instead. At login the occupied slots stream in as a
+burst, one fire each.
 
-There is no `WidgetCreated` event, and `hafen.ui.onWidgetCreate` — which reported the server's own
-widget-creation vocabulary — is gone. A widget is not a global fact either — you say *which* one you care
-about, with the same [selector](ui/selectors.md) a lookup uses:
+> For the list events — `StudyChanged`, `EquipChanged`, `KinChanged`, `WoundChanged` — the payload is
+> the **full new list**, not a delta. Read the initial state once with the section's own `list()` or
+> `slots()` verb, then listen.
+
+## Roster, quests, markers
+
+| Event | Payload | Fires |
+|---|---|---|
+| `KinChanged` | [`Kin`](kin.md)`[]` | a kin is added, removed or edited, or flips online or offline |
+| `QuestAdded` | [`Quest`](types.md#quest-and-condition) | a new active quest appears |
+| `QuestDone` | [`Quest`](types.md#quest-and-condition) | an active quest is completed or failed |
+| `MarkersChanged` | `{ count = number }` | a map marker is added or removed |
+
+`KinChanged` hands you the **whole roster** as live [`Kin` objects](kin.md), in Kin-window sort order —
+the same interned objects `hafen.kin()` returns, so `payload[1] == hafen.kin(payload[1]:id())` and you
+can key a table by one. It tells you *that* the roster changed, not *what* changed: keep your own map
+of the last state if you want to name who just came online, and key it **by the `Kin` itself** rather
+than by `:name()`, so a rename does not read as one kin leaving and another arriving.
+[`kin:info()`](types.md#kinentry) is there when you want a plain table instead.
+
+## Widgets appearing and disappearing
+
+A widget is not a global fact either, so there is no `WidgetCreated` event. You say *which* widget you
+care about, with the same [selector](ui/selectors.md) a lookup uses:
 
 ```lua
 hafen.ui.on("window[title=Cupboard]", "appear", function(w) hafen.log(#w:items() .. " items") end)
 ```
 
-`fn` receives the [Widget](ui/widget.md) itself, and **`appear` also covers what is already open** —
-registering scans the live tree — so an addon reloaded with the window up still sees it. See
-[watching for a widget](ui/replace.md#watching-for-a-widget) for the two rules that matter: neither event is about
-*visibility*, and at `disappear` the widget is a key to match, not something to read.
+`fn` receives the [Widget](ui/widget.md) itself, and **`appear` also covers what is already open**,
+because registering scans the live tree — so an addon reloaded with the window up still sees it. See
+[watching for a widget](ui/replace.md#watching-for-a-widget) for the two rules that matter: neither
+event is about *visibility*, and at `disappear` the widget is a key to match, not something to read.
 
-### Roster, quests, markers
-
-| Event | Payload | Fires |
-|---|---|---|
-| `KinChanged` | [`Kin`](kin.md)`[]` | a kin is added/removed/edited or flips online/offline |
-| `QuestAdded` | [`Quest`](types.md#quest--condition) | a new active quest appears |
-| `QuestDone` | [`Quest`](types.md#quest--condition) | an active quest is completed or failed |
-| `MarkersChanged` | `{ count = number }` | a map marker is added or removed |
-
-`KinChanged` hands you the **whole roster** as live [`Kin` objects](kin.md), in Kin-window sort order —
-the same interned objects `hafen.kin()` returns, so `payload[1] == hafen.kin(payload[1]:id())` and you can
-key a table by one. It tells you *that* the roster changed, not *what* changed: keep your own map of the
-last state if you want to name who just came online — key it **by the `Kin` itself**, not by `:name()`,
-so a rename doesn't read as one kin leaving and another arriving. `kin:info()` is there when you want a
-plain-table [snapshot](types.md#kinentry) instead.
-
-`ActionbarChanged` hands you the **changed slot** as a live [`Slot` object](actionbar.md) — the same interned
-object `hafen.actionbar(n)` returns, so `payload == hafen.actionbar(payload:index())` and you can key a table
-by one. `slot:index()` is the raw 0-based game index. It fires on a set/clear/drag or when a slot's data
-resolves — not on `:cooldown()` ticking, which would fire every frame; read the cooldown live off the object.
-At login the occupied slots stream in as a burst, one fire each.
-
-### World ghosts & sprites
+## World ghosts and sprites
 
 | Event | Payload | Fires |
 |---|---|---|
@@ -119,19 +123,23 @@ At login the occupied slots stream in as a burst, one fire each.
 | `SpriteClicked` | `{ sprite, button, x, y }` | a **clickable** fixed [sprite](render/sprites.md#clickability) of *your* addon is clicked |
 | `ObjectClicked` | `{ object, button, x, y }` | a **clickable** [glTF object](render/models.md#clickability) of *your* addon is clicked |
 
-All three are **owner-scoped** — they fire only to the addon that owns the clicked entity (a ghost/sprite/object
-is private to its addon, so its handle never leaks to others), unlike the world/roster events above which
-broadcast to everyone. `ghost`/`sprite`/`object` = the clicked [handle](render/sprites.md#sprite-handle); `button` = 1
-(left) / 3 (right); `x, y` = the world point the click resolved to. The click is **consumed** (no server
-click, no character walk) — see [`hafen.ghost`](ghost.md#clickability) /
-[`hafen.render`](render/sprites.md#clickability). An entity fires this only while
-**clickable**; a non-clickable one is click-through and never fires it. (A **billboard** sprite has no
-world mesh, so it is never picked — only ghosts and **fixed** sprites fire these events.)
+All three are **owner-scoped**: they fire only to the addon that owns the clicked entity, unlike the
+world and roster events above, which broadcast. That is because a ghost, sprite or object is private
+to its addon and its handle never leaves it. `ghost`, `sprite` and `object` are the clicked
+[handle](render/sprites.md#sprite-handle); `button` is 1 for left and 3 for right; `x, y` is the world
+point the click resolved to. The click is **consumed** — no server click, no character walk. An entity
+fires this only while clickable; a non-clickable one is click-through and silent, and a **billboard**
+sprite has no world mesh, so it is never picked at all.
 
-> For `*Changed` list events (`StudyChanged`, `EquipChanged`, `KinChanged`, `WoundChanged`) the payload
-> is the **full new list**. Read the initial state once with the section's `list()`/`slots()` verb,
-> then listen for deltas.
+## What is deliberately not an event
 
-There is deliberately **no** change event for data that only changes on explicit, infrequent player
-action — available skills, credos, lore, crafting recipes, combat schools, radar categories. Read
-those on demand.
+Data that changes only on an explicit, infrequent player action has no change event: available skills,
+credos, lore, crafting recipes, combat schools, radar categories, movement speed. Read those on
+demand, from their own section's verbs.
+
+## See also
+
+- [data types](types.md) — the payload shapes the list events hand you
+- [`hafen.timer`](timer.md) — for what the bus cannot tell you: polling on your own schedule
+- [`hafen.hook`](hook.md) — intercepting client behaviour *before* it happens, and cancelling it
+- [conventions](conventions.md#threading) — why a handler must not block

@@ -56,9 +56,9 @@ There is no `:watch()`/`:unwatch()` pair because there is nothing extra to say.
 An item entering or leaving is a widget create or destroy rather than a server message, so these are
 detected on a per-tick diff. Two consequences are worth knowing: the items **already** inside a container
 fire `onItemAdded` on the first poll after you subscribe, so the state arrives as events the way
-[`BuffAdded`](../events.md#character--status-widget-tree-backed) does; and a container that is hidden still
+[`BuffAdded`](../events.md#character-and-status) does; and a container that is hidden still
 fires them, which is why you can [hide a grid](native.md) and keep reading it. Worn equipment additionally
-has the global [`EquipChanged`](../events.md#character--status-widget-tree-backed) event, which carries the
+has the global [`EquipChanged`](../events.md#character-and-status) event, which carries the
 whole new list.
 
 ## See also
@@ -67,4 +67,4 @@ whole new list.
 - [`hafen.act.item`](../act.md#hafenactitemitem-verb-n) — the gated verb that moves one
 - [widget](widget.md) — the object `:items()` is a method on
 - [replace](replace.md#watching-for-a-widget) — waiting for a container to open in the first place
-- [events](../events.md#character--status-widget-tree-backed) — `EquipChanged` and the other global lists
+- [events](../events.md#character-and-status) — `EquipChanged` and the other global lists

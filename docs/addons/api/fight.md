@@ -16,9 +16,9 @@ if s then hafen.log("used " .. s.used .. "/" .. s.maxact .. " action points") en
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.fight.maneuvers(filter)` | [`Maneuver`](types.md#maneuver--deckcard--fightsummary)`[]` | every known maneuver and attack matching the [filter](conventions.md#the-filter-argument) |
-| `hafen.fight.deck()` | [`DeckCard`](types.md#maneuver--deckcard--fightsummary)`[]` | the current school's card layout: the filled hotkey slots |
-| `hafen.fight.summary()` | [`FightSummary`](types.md#maneuver--deckcard--fightsummary) \| nil | the action-point budget and the active saved-school slot |
+| `hafen.fight.maneuvers(filter)` | [`Maneuver`](types.md#maneuver-deckcard-fightsummary)`[]` | every known maneuver and attack matching the [filter](conventions.md#the-filter-argument) |
+| `hafen.fight.deck()` | [`DeckCard`](types.md#maneuver-deckcard-fightsummary)`[]` | the current school's card layout: the filled hotkey slots |
+| `hafen.fight.summary()` | [`FightSummary`](types.md#maneuver-deckcard-fightsummary) \| nil | the action-point budget and the active saved-school slot |
 
 The array readers answer empty and `summary` answers `nil` until the tab has built. Nothing throws and
 nothing is gated; there is no write side, and no `FightChanged` event — read on demand.
@@ -28,6 +28,6 @@ the raw 0-based deck index and its `key` the hotkey label.
 
 ## See also
 
-- [types](types.md#maneuver--deckcard--fightsummary) — `Maneuver`, `DeckCard` and `FightSummary`
+- [types](types.md#maneuver-deckcard-fightsummary) — `Maneuver`, `DeckCard` and `FightSummary`
 - [`hafen.actionbar`](actionbar.md) — the other hotkey surface, which is writable
 - [`hafen.char`](char.md) — the skills that unlock maneuvers

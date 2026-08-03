@@ -15,10 +15,10 @@ end
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.craft.current()` | [`Craft`](types.md#craft--craftspec) \| nil | the open recipe; `nil` when no craft window is up |
+| `hafen.craft.current()` | [`Craft`](types.md#craft-and-craftspec) \| nil | the open recipe; `nil` when no craft window is up |
 
 The snapshot is `{ recipe, inputs, outputs, qmod, tools }`. `inputs` and `outputs` are
-[`CraftSpec`](types.md#craft--craftspec) entries, `{res, name, num, opt}`; `qmod`, the quality-affecting
+[`CraftSpec`](types.md#craft-and-craftspec) entries, `{res, name, num, opt}`; `qmod`, the quality-affecting
 inputs, and `tools`, the required tools, are `{res, name}` arrays. The reader does not throw and is not
 gated.
 
@@ -38,6 +38,6 @@ error, and so does calling it with no crafting window open — check `current()`
 
 ## See also
 
-- [`Craft` and `CraftSpec`](types.md#craft--craftspec) — the snapshot shapes
+- [`Craft` and `CraftSpec`](types.md#craft-and-craftspec) — the snapshot shapes
 - [`hafen.act`](act.md) — the permission this write shares, and `item` for moving ingredients
 - [`hafen.menugrid`](menugrid.md) — how a recipe window gets opened in the first place

@@ -124,7 +124,7 @@ A bare name is per-character; `{"name": ..., "scope": "account"}` is shared acro
 ## Custom UI & hotkeys
 
 Draw your own windows and overlays with [`hafen.ui`](api/ui/README.md), declare hotkeys with
-[`hafen.client:options():keybindings()`](api/client/keybindings.md), and add console commands with [`hafen.slash`](api/console.md):
+[`hafen.client:options():keybindings()`](api/client/keybindings.md), and add console commands with [`hafen.slash`](api/slash.md):
 
 ```lua
 hafen.client:options():keybindings():register("panic", function() hafen.log("panic!") end)
@@ -222,7 +222,7 @@ local conf = hafen.asset("theme.json")               -- its :text(), for hafen.j
 Paths are **relative to your own folder** (absolute paths and `..` are rejected), the same path always
 returns the **same handle**, and everything is freed for you on reload/disable. Load from setup code
 (`OnLoad`), never inside a draw. Engine `.res` content is *addressed*, not loaded — that is
-[`g:resource`](api/ui/drawing.md), [`hafen.sound(name)`](api/audio.md),
+[`g:resource`](api/ui/drawing.md), [`hafen.sound(name)`](api/sound.md),
 [`hafen.ghost`](api/ghost.md) and [`hafen.font(name)`](api/font.md#the-built-ins).
 
 ## Actions & permissions

@@ -79,9 +79,9 @@ knows your real values.
 
 | Event | Payload | Fires |
 |---|---|---|
-| [`MeterAdded`](events.md#character--status-widget-tree-backed) | `Meter` | a bar appears in the HUD slot |
-| [`MeterRemoved`](events.md#character--status-widget-tree-backed) | `Meter` | a bar goes away; the object still reads, and `:exists()` is false |
-| [`MeterChanged`](events.md#character--status-widget-tree-backed) | `Meter` | a bar's value **or** colour changes |
+| [`MeterAdded`](events.md#character-and-status) | `Meter` | a bar appears in the HUD slot |
+| [`MeterRemoved`](events.md#character-and-status) | `Meter` | a bar goes away; the object still reads, and `:exists()` is false |
+| [`MeterChanged`](events.md#character-and-status) | `Meter` | a bar's value **or** colour changes |
 
 The meters stream in a beat after `OnEnterWorld`, so `hafen.meter()` is legitimately empty for a moment
 and the bars arrive as a burst of `MeterAdded`. Mounting a horse adds two more mid-session and
@@ -112,4 +112,4 @@ exactly the predicate `hafen.meter()` filters on.
 - [`Meter`](types.md#meter) — the snapshot shape `:info()` returns
 - [`hafen.char`](char.md) — `food()`, the one absolute reading about your character
 - [`hafen.buff`](buff.md) — the other needle-keyed status surface
-- [events](events.md#character--status-widget-tree-backed) — the three meter events
+- [events](events.md#character-and-status) — the three meter events

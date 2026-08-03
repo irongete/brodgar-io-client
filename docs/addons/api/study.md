@@ -25,10 +25,10 @@ answers an empty array.
 > A slot's `time` is the **total** study time for that curiosity, not what is left. The client is not
 > sent a per-item countdown, so there is none to read.
 
-Subscribe to [`StudyChanged`](events.md#character--status-widget-tree-backed) for updates.
+Subscribe to [`StudyChanged`](events.md#character-and-status) for updates.
 
 ## See also
 
 - [`hafen.char`](char.md) — attributes, learning points and skills
 - [`StudySlot`](types.md#studyslot) — the snapshot shape `slots()` returns
-- [events](events.md#character--status-widget-tree-backed) — `StudyChanged`
+- [events](events.md#character-and-status) — `StudyChanged`

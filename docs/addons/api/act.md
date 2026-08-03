@@ -128,4 +128,4 @@ resolves to no live widget raises an error, as does a non-string `msg`.
 - [`hafen.menugrid`](menugrid.md) — the action catalogue, enumerable and addressable by name
 - [`hafen.gob`](gob.md) — the objects `clickGob` takes
 - [`hafen.map`](map.md) — snapping a coordinate before you place on it
-- [gating](conventions.md#gating--the-actions-permission) — how the permission reads across the API
+- [gating](conventions.md#gating-the-actions-permission) — how the permission reads across the API

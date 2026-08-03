@@ -134,4 +134,4 @@ client-side data; acting on the resolved widget still goes through the gated
 - [style](style/keys.md) — the same selector, used as a rule's key
 - [replace](replace.md#watching-for-a-widget) — waiting for a widget instead of polling for it
 - [native](native.md) — moving and hiding what you named
-- [conventions](../conventions.md#selector--naming-a-piece-of-the-ui) — where selectors sit among the other reference kinds
+- [conventions](../conventions.md#selector-naming-a-piece-of-the-ui) — where selectors sit among the other reference kinds

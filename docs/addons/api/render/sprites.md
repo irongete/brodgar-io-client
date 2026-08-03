@@ -33,7 +33,7 @@ yet, since there is no map view to stand it in.
 | `tint` | *none* | colour overlay `{r=, g=, b=, a=}`, `0..255`, where `a` is blend strength |
 | `billboard` | `false` | `false` is a fixed upright quad, `true` a [camera-facing](#billboard) screen blit |
 | `clickable` | `false` | opt into [the click event](#clickability) — **fixed sprites only** |
-| `onClick` | *none* | `fn(s, button, x, y)` fired on click, also delivered as the [`SpriteClicked`](../events.md#world-ghosts--sprites) event |
+| `onClick` | *none* | `fn(s, button, x, y)` fired on click, also delivered as the [`SpriteClicked`](../events.md#world-ghosts-and-sprites) event |
 | `follow` | *none* | **anchor to a gob** so the sprite tracks it every frame — see [anchoring](#anchoring-to-a-gob) |
 | `offset` | *none* | fixed world offset `{x=, y=, z=}` from the followed gob, `z` being up |
 
@@ -82,7 +82,7 @@ A **fixed** sprite can be made clickable — `clickable = true` at create, or `s
 exactly like a [ghost](../ghost.md#clickability). It gains a pick surface, and a click on it is detected
 **client-side** and **consumed** before any server click, so you never walk or interact and nothing reaches
 the server. Both the per-sprite `onClick(s, button, x, y)` and the owner-scoped
-[`SpriteClicked`](../events.md#world-ghosts--sprites) event fire; `SpriteClicked` reaches only *your* addon,
+[`SpriteClicked`](../events.md#world-ghosts-and-sprites) event fire; `SpriteClicked` reaches only *your* addon,
 since a sprite is private to the addon that made it.
 
 ```lua
@@ -134,4 +134,4 @@ end
 - [`hafen.asset`](../asset.md) — loading the PNG a sprite takes
 - [`hafen.ghost`](../ghost.md) — the game's own props, and the gizmo that moves any of these handles
 - [drawing](../ui/drawing.md) — the same image drawn on screen instead of in the world
-- [events](../events.md#world-ghosts--sprites) — `SpriteClicked`
+- [events](../events.md#world-ghosts-and-sprites) — `SpriteClicked`

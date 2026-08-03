@@ -54,7 +54,7 @@ none is gated.
 > A slot's `cooldown` is present only for an ability with a meter, and it is a `0..1` **fraction, not
 > seconds**.
 
-Subscribe to [`ActionbarChanged`](events.md#character--status-widget-tree-backed), whose payload is the
+Subscribe to [`ActionbarChanged`](events.md#character-and-status), whose payload is the
 changed `Slot` itself, to react to a slot being set, cleared or changed. It does **not** fire on a
 cooldown ticking, which would be every frame; read `:cooldown()` live off the object instead.
 
@@ -97,4 +97,4 @@ end)
 - [`hafen.menugrid`](menugrid.md) — where the resource names `set` takes come from
 - [`hafen.act`](act.md) — the permission both writes share, and the verbs that supply a target
 - [`ActionbarSlot`](types.md#actionbarslot) — the snapshot shape `:info()` returns
-- [events](events.md#character--status-widget-tree-backed) — `ActionbarChanged`
+- [events](events.md#character-and-status) — `ActionbarChanged`
