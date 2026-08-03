@@ -466,3 +466,18 @@
   candidate at *both* probe points before accepting it. Generalisation: when a check is "it is no longer here",
   derive "here" from a point the move provably vacates, and make the self-validating pick prove that too — a
   dynamically chosen target can otherwise redden on someone else's HUD for a reason that is not the feature.
+
+- **(036.2) The fabricated `UI` is enough to run the SHIPPING suite end to end — not just the engine under it.**
+  036.1's probe drove the real Lua verbs over `Unsafe`-allocated `UI`/`RootWidget`; 036.2's went one step
+  further and `call()`ed the slash handler the shipping `main.lua` registers, against two real `haven.Window`s
+  attached by assigning `parent`. The suite's own self-validating pickers (a uniquely-titled window; one the
+  client lets you resize) find those windows exactly as they find HUD windows, so **19/19 of the in-game
+  verdict lines were green before the client was started**, and the in-game run confirmed the same 19. Two
+  fields make the difference: set `w.ui` as well as `w.parent` (`:info()` calls `wdgid()`), and add the suite's
+  `Addon` to `AddonManager.addons` or nothing that scans the live owners can see its records. Generalise: a
+  suite whose targets are *picked* rather than *named* is the one kind that can be dry-run against a fabricated
+  world — which is a second reason to write the picker.
+- **(036.2) Falsify each seam separately and they redden differently, which is the point.** Removing the
+  hand-named level → 2 red, removing the re-fold after teardown → 1, removing the placement seam → 2. Three
+  distinct signatures over 44 checks: each seam is load-bearing for a *different* claim, and a single shared
+  count would have proved only that something was wired.

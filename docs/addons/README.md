@@ -40,5 +40,6 @@ for the cross-cutting rules — including how you address things: a [Gob](api/go
 [Kin](api/kin.md) by object, an item by handle, and a piece of the UI by
 [selector](api/ui.md#selectors--naming-a-widget) (`hafen.ui("window[title=Cupboard]")`) — which is also the
 key of the [stylesheet](api/ui.md#the-stylesheet--restyling-the-client) that says what the client looks like:
-its fonts and colours, and the [backgrounds, borders and window chrome](api/ui.md#bg-and-border--the-surfaces-that-paint)
-it draws. A whole theme can be a data file rather than code.
+its fonts and colours, the [backgrounds, borders and window chrome](api/ui.md#bg-and-border--the-surfaces-that-paint)
+it draws, and [where its windows sit](api/ui.md#pos-and-size--laying-widgets-out-from-the-sheet). A whole theme
+can be a data file rather than code.

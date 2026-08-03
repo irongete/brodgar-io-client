@@ -377,6 +377,12 @@ public final class AddonManager {
             //       somebody having subscribed — an idle client pays one isEmpty().
             UiApi.pollSelectorWatches();
 
+            // 1c'''. Layout (036.2): re-offer the widgets placed in the last few ticks whose layout rule's
+            //        [title=]/[res=] had not resolved yet (the same late caption the line above waits for), then
+            //        drop the records of widgets that have left the tree. Nothing here re-derives per frame: a
+            //        client with no layout rule and nothing laid out by hand pays two empty-list reads.
+            Layout.poll();
+
             // 1d. Map markers (A1): fire MarkersChanged when the on-disk map DB's markerseq changes (a
             //     marker add/remove is not a uimsg — the server pushes SMarkers via markobj, the player/
             //     addon adds PMarkers, and segment merges re-key them; all bump markerseq). Global event.

@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.Coord;
 import haven.Fonts;
 import haven.UI;
 import haven.Widget;
@@ -78,7 +79,8 @@ import java.util.WeakHashMap;
  */
 final class Sheet {
     /** The style properties a rule may carry. */
-    private static final String PROPS = "\"font\", \"color\", \"bg\", \"border\" and \"pad\"";
+    private static final String PROPS =
+        "\"font\", \"color\", \"bg\", \"border\", \"pad\", \"pos\" and \"size\"";
 
     /**
      * One kept rule and the properties it fills. Each property is independently optional. A rule is either a
@@ -94,9 +96,11 @@ final class Sheet {
         final Chrome.Bg bg;       // the rule's `bg` property (035.1), or null
         final Chrome.Border border;   // the rule's `border` property (035.1), or null
         final Integer pad;        // the rule's `pad` property (035.2), or null
+        final Coord pos;          // the rule's `pos` property (036.2), or null — TREE rules only
+        final Coord size;         // the rule's `size` property (036.2), or null — TREE rules only
 
         Rule(String site, Selector sel, FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border,
-             Integer pad) {
+             Integer pad, Coord pos, Coord size) {
             this.site = site;
             this.sel = sel;
             this.rank = (sel == null) ? 0
@@ -107,11 +111,24 @@ final class Sheet {
             this.bg = bg;
             this.border = border;
             this.pad = pad;
+            this.pos = pos;
+            this.size = size;
         }
 
         /** Does this rule say anything at all? A rule that names no property styles nothing, anywhere. */
         boolean empty() {
-            return (font == null) && (color == null) && (bg == null) && (border == null) && (pad == null);
+            return (font == null) && (color == null) && (bg == null) && (border == null) && (pad == null)
+                && (pos == null) && (size == null);
+        }
+
+        /** Does it lay anything out (036.2)? The half of a rule that is a WRITE rather than a draw-time read. */
+        boolean layout() {
+            return (pos != null) || (size != null);
+        }
+
+        /** ...and does it say anything the DRAW reads? A layout-only sheet must not reach the draw pass at all. */
+        boolean draws() {
+            return (font != null) || (color != null) || (bg != null) || (border != null) || (pad != null);
         }
     }
 
@@ -139,6 +156,7 @@ final class Sheet {
         LuaValue arg = a.arg1();
         if(arg.isnil()) {
             drop(owner);
+            Layout.sweep();   // 036.2: whatever this sheet was laying out goes back where the user had it
             return LuaValue.NIL;
         }
         if(!arg.istable())
@@ -149,6 +167,11 @@ final class Sheet {
         s.install(owner);     // ...then this one fills its site keys (so a site it no longer names falls back)
         register(s);          // ...and its tree keys join the per-widget resolution (034.1)
         owner.skin = s;
+        // 036.2: ...and its LAYOUT half is enforced now. Outside register()'s lock, because matching takes
+        // Sheet.class under the ui monitor and a sweep holding Sheet.class would be the one path able to invert
+        // that order — and synchronously, because a rule that moved a window has moved it by the time skin{}
+        // returns, exactly as one that recoloured it has recoloured it.
+        Layout.sweep();
         return LuaValue.NIL;
     }
 
@@ -174,16 +197,24 @@ final class Sheet {
      * {@link Fonts}, whose {@code removeOwner} sweep has already pulled every site entry the addon owned. The whole
      * per-widget cascade lives here, not in the provider, so this is the only place that can say goodbye to it.
      */
-    static synchronized void forget(Addon owner) {
-        Sheet s = owner.skin;
-        boolean changed = false;
-        if(s != null) {
-            owner.skin = null;
-            changed = installed.remove(s);
+    static void forget(Addon owner) {
+        boolean changed;
+        synchronized(Sheet.class) {
+            Sheet s = owner.skin;
+            changed = false;
+            if(s != null) {
+                owner.skin = null;
+                changed = installed.remove(s);
+            }
+            changed |= dropSkins(owner);
+            if(changed)
+                rulesChanged();
         }
-        changed |= dropSkins(owner);
+        // 036.2, and OUTSIDE the lock (see skin()): this addon's layout rules have just stopped resolving, so
+        // every widget one of them was holding is offered to whatever cascade is left — another addon's rule, or
+        // nothing at all, in which case the stock value comes back.
         if(changed)
-            rulesChanged();
+            Layout.sweep();
     }
 
     /**
@@ -268,6 +299,17 @@ final class Sheet {
      * key, site or tree alike: the two kinds of key differ in where they resolve, never in what a rule may say —
      * and for {@code widget:skin{…}} too ({@code ctx} names the caller), because a level of the cascade differs in
      * <i>which widgets</i> it reaches, never in what it may say either.
+     *
+     * <p><b>{@code pos} and {@code size} are the exception, and deliberately so</b> (036.2). They are the first
+     * properties that are a <i>write</i> rather than something a surface is drawn with, so they can only be said
+     * about a <b>widget</b>, and only in a rule that <i>matches</i> one:
+     * <ul>
+     *   <li>on a <b>site</b> key they are refused — a site is where the client draws text, and text has no
+     *       position of its own to move ({@code "*"} is the {@code default} site, not "every widget");</li>
+     *   <li>in {@code widget:skin{…}} they are refused too — the hand-named level of the layout cascade already
+     *       exists and is the <b>verb</b>, {@code widget:pos(x, y)} / {@code widget:size(w, h)}. One canonical way
+     *       per operation: a second spelling of the same level is exactly what this API does not ship.</li>
+     * </ul>
      */
     private static Rule propsOf(String ctx, LuaValue props, String site, Selector sel) {
         FontHandle font = null;
@@ -275,6 +317,7 @@ final class Sheet {
         Chrome.Bg bg = null;
         Chrome.Border border = null;
         Integer pad = null;
+        Coord pos = null, size = null;
         LuaValue pk = LuaValue.NIL;
         while(true) {
             Varargs n = props.next(pk);
@@ -299,12 +342,36 @@ final class Sheet {
                 border = Chrome.parseBorder(ctx, pv);
             } else if("pad".equals(p)) {
                 pad = Chrome.parsePad(ctx, pv);
+            } else if("pos".equals(p) || "size".equals(p)) {
+                layoutable(ctx, p, site, sel);
+                if("pos".equals(p))
+                    pos = Layout.parseCoord(ctx, p, pv);
+                else
+                    size = Layout.parseCoord(ctx, p, pv);
             } else {
                 throw new LuaError(ctx + ": \"" + pk.tojstring()
                     + "\" is not a style property — the properties this client ships are " + PROPS);
             }
         }
-        return new Rule(site, sel, font, color, bg, border, pad);
+        return new Rule(site, sel, font, color, bg, border, pad, pos, size);
+    }
+
+    /**
+     * Refuse a layout property said somewhere that can never lay anything out (036.2) — see {@link #propsOf}. Two
+     * messages, because the two are different mistakes: a site key is the <i>wrong kind of key</i> and the fix is
+     * to name the widget, while {@code widget:skin} is the <i>wrong spelling of the right level</i> and the fix is
+     * the verb that already does it.
+     */
+    private static void layoutable(String ctx, String prop, String site, Selector sel) {
+        if(site != null)
+            throw new LuaError(ctx + "." + prop + ": \"" + prop + "\" lays out a WIDGET, and this key names a"
+                + " render site (\"" + site + "\"" + ("default".equals(site) ? ", which is what \"*\" means" : "")
+                + ") — a site is where the client draws, not something with a position. Name the widget instead:"
+                + " [\"window[title=Equipment]\"] = { " + prop + " = {40, 200} }");
+        if(sel == null)
+            throw new LuaError(ctx + "." + prop + ": layout is not a skin property — the hand-named level of the"
+                + " cascade is the VERB: widget:pos(x, y) and widget:size(w, h), undone with widget:pos(nil)."
+                + " widget:skin{…} says what a widget is drawn WITH; the verbs say where it is");
     }
 
     // ---- the PER-WIDGET cascade: tree rules (034.1) + widget:skin (034.3) ---------------------------
@@ -335,6 +402,16 @@ final class Sheet {
         final Chrome.Border border;
         /** The winning {@code pad} property (035.2), or {@code null}. */
         final Integer pad;
+        /**
+         * The winning {@code pos} property (036.2), or {@code null} — and the addon whose rule won it, which is who
+         * records what the widget was before the layer touched it ({@link Addon#movedNative}) and therefore who
+         * gives it back. Unlike the five above these are not read at the draw: {@link Layout} enforces them.
+         */
+        Coord pos;
+        Addon posOwner;
+        /** The winning {@code size} property (036.2) and its owner — see {@link #pos}. */
+        Coord size;
+        Addon sizeOwner;
         /** The {@link #treegen} this was resolved at — a bump makes the entry stale on its next touch. */
         final int gen;
         /**
@@ -365,6 +442,15 @@ final class Sheet {
         }
 
         boolean empty() {
+            return drawEmpty() && (pos == null) && (size == null);
+        }
+
+        /**
+         * Does the cascade give this widget nothing to be <b>drawn</b> with? Then it carries no {@link #spec} and
+         * the provider opens no frame around it — which is what keeps a layout-only rule out of the draw path
+         * entirely, stamp, foundry rebuild and all (036.2).
+         */
+        boolean drawEmpty() {
             return (font == null) && (color == null) && (bg == null) && (border == null) && (pad == null);
         }
     }
@@ -392,6 +478,13 @@ final class Sheet {
     private static volatile boolean anyTree = false;
     /** Any installed tree rule carrying a late refiner ({@link Selector#late})? Gates the negative re-check. */
     private static volatile boolean anyLate = false;
+    /**
+     * Any installed tree rule carrying {@code pos}/{@code size} (036.2)? The fast path of the whole layout layer:
+     * without one — and with nothing laid out by hand — {@link Layout} has nothing to enforce and sweeps nothing.
+     */
+    static volatile boolean anyLayout = false;
+    /** Any installed LAYOUT rule with a late refiner? Gates {@link Layout}'s bounded re-check at the placement seam. */
+    private static volatile boolean anyLateLayout = false;
     /** Bumped whenever the installed tree rules change; a cached entry from an older one is stale. */
     private static int treegen = 0;
     /** How many times a negative answer is re-matched before it settles (030.2's bounded re-check, same default). */
@@ -507,23 +600,33 @@ final class Sheet {
      * Caller holds {@code Sheet.class}.
      */
     private static void rulesChanged() {
-        boolean tree = false, late = false;
+        boolean tree = false, late = false, lay = false, latelay = false, draw = false;
         for(int i = 0; i < installed.size(); i++) {
             List<Rule> rs = installed.get(i).tree;
             for(int j = 0; j < rs.size(); j++) {
+                Rule r = rs.get(j);
                 tree = true;
-                late |= rs.get(j).sel.late();
+                late |= r.sel.late();
+                draw |= r.draws();
+                if(r.layout()) {                  // 036.2: the half of the cascade that is enforced, not drawn
+                    lay = true;
+                    latelay |= r.sel.late();
+                }
             }
         }
         boolean any = tree || !skins.isEmpty();
         anyTree = tree;
         anyStyle = any;
         anyLate = late;
+        anyLayout = lay;
+        anyLateLayout = latelay;
         treegen++;
         specs.clear();           // the old rules' styles, and their stamps, do not outlive them
         if(!any)
             cache.clear();       // the last style left: hold nothing, so a stock client carries no state at all
-        Fonts.treeActive(any);   // 034.2: and the provider stops (or starts) asking us at the draw
+        // 034.2: and the provider stops (or starts) asking us at the draw — on the DRAWING half alone (036.2), so
+        // a sheet that only lays widgets out never opens a frame, never bumps a stamp and costs the draw nothing.
+        Fonts.treeActive(draw || !skins.isEmpty());
     }
 
     // ---- the per-INSTANCE level: widget:skin{…} (034.3) ---------------------------------------------
@@ -654,7 +757,7 @@ final class Sheet {
             }
             Resolved r = fold(w);
             r.recheck = (r.empty() && anyLate) ? left : 0;
-            r.spec = r.empty() ? null : specFor(r);
+            r.spec = r.drawEmpty() ? null : specFor(r);    // a layout-only resolution carries no draw payload
             cache.put(w, r);
             return r.empty() ? null : r;
         }
@@ -708,7 +811,9 @@ final class Sheet {
         Chrome.Bg bg = null;
         Chrome.Border border = null;
         Integer pad = null;
-        int frank = -1, crank = -1, grank = -1, brank = -1, prank = -1;
+        Coord pos = null, size = null;
+        Addon posOwner = null, sizeOwner = null;
+        int frank = -1, crank = -1, grank = -1, brank = -1, prank = -1, xrank = -1, zrank = -1;
         for(int i = 0; i < installed.size(); i++) {
             Sheet s = installed.get(i);
             for(int j = 0; j < s.tree.size(); j++) {
@@ -730,6 +835,12 @@ final class Sheet {
                 if((r.pad != null) && (r.rank >= prank)) {
                     pad = r.pad; prank = r.rank;
                 }
+                if((r.pos != null) && (r.rank >= xrank)) {          // 036.2: the owner rides along, because a
+                    pos = r.pos; posOwner = s.owner; xrank = r.rank;//   layout property is given BACK, not drawn
+                }
+                if((r.size != null) && (r.rank >= zrank)) {
+                    size = r.size; sizeOwner = s.owner; zrank = r.rank;
+                }
             }
         }
         List<Skin> sk = skins.get(w);                     // 034.3: the per-instance level, above every rule
@@ -746,8 +857,37 @@ final class Sheet {
                 border = s.border;
             if(s.pad != null)
                 pad = s.pad;
+            // No layout here: widget:skin{} cannot carry pos/size (propsOf refuses it). The hand-named level of
+            // the LAYOUT cascade is the verb, and Layout folds it in above this whole result.
         }
-        return new Resolved(font, fontOwner, color, bg, border, pad, treegen);
+        Resolved out = new Resolved(font, fontOwner, color, bg, border, pad, treegen);
+        out.pos = pos;
+        out.posOwner = posOwner;
+        out.size = size;
+        out.sizeOwner = sizeOwner;
+        return out;
+    }
+
+    /**
+     * Could an installed <b>layout</b> rule start matching {@code w} once its caption or its resource lands
+     * (036.2)? Asked at the placement seam: {@code role}/{@code @Class} are fixed for a widget's life, so only a
+     * rule whose structure already matches and whose refiner is a late one is worth re-checking — which is what
+     * keeps {@link Layout}'s pending list to the windows a rule actually names.
+     */
+    static boolean lateLayoutCandidate(Widget w) {
+        if(!anyLateLayout || (w == null))
+            return false;
+        synchronized(Sheet.class) {
+            for(int i = 0; i < installed.size(); i++) {
+                List<Rule> rs = installed.get(i).tree;
+                for(int j = 0; j < rs.size(); j++) {
+                    Rule r = rs.get(j);
+                    if(r.layout() && r.sel.late() && r.sel.matchesStructure(w))
+                        return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -778,6 +918,10 @@ final class Sheet {
             t.set("border", r.border.toLua(reader));
         if(r.pad != null)
             t.set("pad", LuaValue.valueOf(r.pad.intValue()));
+        if(r.pos != null)                             // 036.2: what the SHEET says this widget's layout is — the
+            t.set("pos", LuaWidget.xyTable(r.pos));   //   verb above it is read with widget:pos(), which answers
+        if(r.size != null)                            //   where the widget actually IS
+            t.set("size", LuaWidget.xyTable(r.size));
         return t;
     }
 }

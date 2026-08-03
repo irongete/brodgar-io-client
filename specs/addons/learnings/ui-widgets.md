@@ -476,3 +476,20 @@
 - **(036.1) Moving `c` is all hit-testing needs.** `hafen.ui.at()` mirrors the engine's own pointer dispatch off
   `Widget.c`, so a real move is found at its new place with no other change — which is the concrete reason a
   draw-time offset was refused: it would have drawn the widget where no click could reach it.
+
+- **(036.2) A cascade that WRITES needs its own lock order, and the rule is: never hold the sheet's lock while
+  touching the tree.** The draw pass has established `ui` → `Sheet.class` (the per-widget fold is resolved under
+  the UI monitor), so the layout sweep — which walks the tree and calls `move`/`resize` — must take `ui` and
+  *then* the sheet's, i.e. it runs **outside** `Sheet.skin`/`forget`'s own `synchronized` block. A sweep called
+  from inside `rulesChanged()` would have been the one path in the client able to invert that order. Generalise:
+  when a resolver gains a side effect, the side effect goes at the call site, not inside the resolution.
+- **(036.2) Applying a sheet SYNCHRONOUSLY is worth the tree walk.** The alternative — mark dirty, sweep on the
+  next tick — costs nothing at runtime but makes every suite (and every addon) that reads a value back after
+  `hafen.ui.skin{}` need a timer, which is exactly the staging that 035.3 spent two rounds deleting. A rule
+  change is rare and the walk is ~600 cache-hit folds; a rule that has moved a window has moved it by the time
+  `skin{}` returns, like one that recoloured it.
+- **(036.2) A per-widget record that a RULE can mint must be pruned, not just torn down.** The verbs made one
+  record per widget an addon touched by hand — a handful. A rule makes one per *matching* window, forever, each
+  holding a strong reference to a widget that will close: the same leak F5 recorded for styled widgets, arriving
+  by a different door. The tick prunes records whose widget has left the tree (the `stillHidable`/`matchLive`
+  two-branch test again), gated on the same volatile the whole layer already reads.

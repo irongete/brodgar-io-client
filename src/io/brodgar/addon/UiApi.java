@@ -106,6 +106,8 @@ final class UiApi {
     static void onWidgetPlaced(int id, Widget wdg) {
         if(!selectorWatches.isEmpty())
             offerPlaced(wdg, id);
+        if(Sheet.anyLayout)               // 036.2: a layout rule reaches a window the moment it opens, not a frame
+            Layout.placed(wdg, id);       //   later — and never at the draw (035.1's chdeco lesson)
     }
 
     /** Build {@code hafen.ui} for {@code owner}. From installHafen. */
@@ -406,6 +408,7 @@ final class UiApi {
         }
         LuaWidget.recountHidden();               // 031.1: nothing is hidden in a session that has not started
         LuaWidget.recountMoved();                // 036.1: ...and nothing is laid out in one either
+        Layout.resetSession();                   // 036.2: ...and no widget of the old tree is awaiting its caption
     }
 
     private static LuaValue newUi(final Addon owner, LuaValue opts, boolean window) {
@@ -1036,6 +1039,11 @@ final class UiApi {
      * outer box it had. The size goes back <b>first</b>: {@link Widget#resize} tells the parent
      * ({@code parent.cresize(this)}), which is free to re-place the child, so the position must have the last
      * word. Best-effort per record; never aborts a teardown. Tree ops under the {@code ui} monitor.
+     *
+     * <p><b>Then the cascade is re-run</b> (036.2): this addon's levels are gone, but another addon's rule may
+     * still name a widget it was standing on, and that rule has to take it back rather than leave it at stock.
+     * Which is why the registry runs this <b>after</b> {@code FontApi.teardownFonts}: the addon's own sheet must
+     * have stopped resolving first, or the sweep would put its rules straight back on.
      */
     static void teardownMoved(Addon a) {
         if((a == null) || a.movedNative.isEmpty())    // null: the :lua REPL owner, which exists only once used
@@ -1053,6 +1061,7 @@ final class UiApi {
         } else {
             restore.run();
         }
+        Layout.sweep();
     }
 
     /**
@@ -1071,9 +1080,11 @@ final class UiApi {
     }
 
     /**
-     * The live undo behind {@code widget:pos(nil)} / {@code widget:size(nil)}: drop <b>one half</b> of this
-     * addon's layout record and restore that half there and then. A record with neither half left is dropped
-     * entirely, which is what puts {@link LuaWidget#anyMoved} back to {@code false} for a client nobody is
+     * The live undo behind {@code widget:pos(nil)} / {@code widget:size(nil)}: drop <b>one half</b> of this addon's
+     * hand-named layout and let the cascade say what happens next (036.2). It removes a <i>level</i>, it does not
+     * empty the layout: a sheet rule that also names this widget takes it back at once, and only when nothing names
+     * that half at all does the stock value return and the record's half go with it. A record with nothing left is
+     * dropped entirely, which is what puts {@link LuaWidget#anyMoved} back to {@code false} for a client nobody is
      * laying out any more. A widget this addon never touched is a silent no-op — there is nothing of ours on it.
      */
     static void releaseMoved(Addon owner, Widget w, boolean pos) {
@@ -1082,15 +1093,13 @@ final class UiApi {
             return;
         UI u = ui;
         Runnable act = () -> {
-            restoreMoved(u, m, pos, !pos);
             if(pos)
-                m.pos = null;
+                m.wantPos = null;
             else
-                m.size = null;
-            if(m.idle()) {
-                owner.movedNative.remove(m);
+                m.wantSize = null;
+            Layout.apply(w);                     // the fold again, one level shorter
+            if(m.idle() && owner.movedNative.remove(m))
                 LuaWidget.recountMoved();
-            }
         };
         if(u != null) {
             synchronized(u) { act.run(); }

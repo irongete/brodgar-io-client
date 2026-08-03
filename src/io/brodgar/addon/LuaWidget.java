@@ -252,6 +252,11 @@ public final class LuaWidget {
         // writes, never a draw-time offset (which would make the widget draw where it cannot be clicked). Touching
         // one records the stock value first (Addon.movedNative), so :reload/disable gives it back and, above all,
         // the client's own position store never learns about us: GameUI.savewndpos asks for the stock coordinate.
+        //
+        // AND SINCE 036.2 IT IS A LEVEL OF THE CASCADE, not a write beside it (D-077): the verb is the HAND-NAMED
+        // top of the same fold a sheet's `pos` rule feeds, so it wins over every rule that merely matched the
+        // widget -- and pos(nil) drops back to THE RULE when one still names it, reaching the stock value only
+        // when no level does. Layout.apply is what decides; this verb only says what this addon wants.
         m.set("pos", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:pos() → narg 1 · w:pos(nil) → narg 2 · w:pos(x,y) → narg 3
                 LuaValue self = a.arg1();
@@ -270,10 +275,14 @@ public final class LuaWidget {
                 if(w != null) {
                     UI u = AddonManager.ui;
                     synchronized(u) {
-                        Moved rec = (ownedContent(owner, w) == null) ? recordMoved(owner, w) : null;
-                        if((rec != null) && (rec.pos == null))
-                            rec.pos = w.c;                // the stock value, at FIRST touch and only then
-                        w.move(to);
+                        if(ownedContent(owner, w) == null) {
+                            Moved rec = recordMoved(owner, w);     // BORROWED: name the level, then resolve it
+                            rec.wantPos = to;
+                            rec.posSeq = Layout.nextSeq();
+                            Layout.apply(w);
+                        } else {
+                            w.move(to);                            // your own widget: no layer, no cascade
+                        }
                     }
                 }
                 return self;
@@ -303,9 +312,9 @@ public final class LuaWidget {
                     synchronized(u) {
                         if(content == null) {             // BORROWED (036.1): the layer remembers, then resizes
                             Moved rec = recordMoved(owner, w);
-                            if(rec.size == null)
-                                rec.size = sizeArg(w);
-                            w.resize(to);
+                            rec.wantSize = to;            // 036.2: ...and the resize is the cascade's to make
+                            rec.sizeSeq = Layout.nextSeq();
+                            Layout.apply(w);
                         } else {
                             content.resize(to);
                             if(content != w)              // a window: refit the chrome around the resized content
@@ -777,8 +786,20 @@ public final class LuaWidget {
         final Addon owner;
         final Widget wdg;
         final int id;
-        Coord pos;       // the stock c   — null: this addon never moved it
-        Coord size;      // the stock size ARGUMENT (a Window's content size) — null: this addon never resized it
+        Coord pos;       // the stock c   — null: this addon's layer is not standing on the position
+        Coord size;      // the stock size ARGUMENT (a Window's content size) — null: nor on the size
+        /**
+         * This addon's <b>hand-named</b> position (036.2) — what {@code widget:pos(x, y)} asked for, and the top
+         * level of the layout cascade ({@link Layout}). Separate from {@link #pos} because they answer different
+         * questions: one is what the user had, one is what this addon wants. {@code widget:pos(nil)} clears this
+         * and leaves the cascade to say what happens next — a rule that also names the widget takes over, and only
+         * when nothing does at all is {@link #pos} given back and the half dropped.
+         */
+        Coord wantPos;
+        /** This addon's hand-named size — see {@link #wantPos}. */
+        Coord wantSize;
+        /** When each half was named, so the latest hand-named level wins between two addons ({@link Layout#nextSeq}). */
+        long posSeq, sizeSeq;
 
         Moved(Addon owner, Widget wdg, int id) {
             this.owner = owner;
@@ -788,7 +809,7 @@ public final class LuaWidget {
 
         /** Nothing of ours left on this widget ⇒ the record is dropped. */
         boolean idle() {
-            return (pos == null) && (size == null);
+            return (pos == null) && (size == null) && (wantPos == null) && (wantSize == null);
         }
     }
 
@@ -852,6 +873,98 @@ public final class LuaWidget {
         owner.movedNative.add(m);
         anyMoved = true;
         return m;
+    }
+
+    /**
+     * The winning <b>hand-named</b> layer on {@code w} for one half (036.2) — the record with the latest
+     * {@code seq}, over every live owner, or {@code null} when no addon has named this half by hand. This is the
+     * top level of {@link Layout}'s fold, above every rule that merely <i>matched</i> the widget (D-077).
+     */
+    static Moved topWant(Widget w, boolean pos) {
+        Moved best = null;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            best = topWantIn(as.get(i), w, pos, best);
+        return topWantIn(AddonManager.consoleOwner, w, pos, best);
+    }
+
+    private static Moved topWantIn(Addon a, Widget w, boolean pos, Moved best) {
+        if(a == null)
+            return best;
+        List<Moved> ms = a.movedNative;
+        for(int i = 0, n = ms.size(); i < n; i++) {
+            Moved m = ms.get(i);
+            if((m.wdg != w) || ((pos ? m.wantPos : m.wantSize) == null))
+                continue;
+            long s = pos ? m.posSeq : m.sizeSeq;
+            if((best == null) || (s > (pos ? best.posSeq : best.sizeSeq)))
+                best = m;
+        }
+        return best;
+    }
+
+    /**
+     * No level names this half of {@code w} any more: forget the stock value every owner recorded for it, dropping
+     * a record that has nothing left. Answers whether anything was actually being held — which is what tells
+     * {@link Layout} whether there is a value to give back or the widget was never ours to begin with.
+     */
+    static boolean dropStock(Widget w, boolean pos) {
+        if(!anyMoved)
+            return false;
+        boolean held = false;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            held |= dropStockIn(as.get(i), w, pos);
+        held |= dropStockIn(AddonManager.consoleOwner, w, pos);
+        if(held)
+            recountMoved();
+        return held;
+    }
+
+    private static boolean dropStockIn(Addon a, Widget w, boolean pos) {
+        if(a == null)
+            return false;
+        boolean held = false;
+        for(Moved m : a.movedNative) {
+            if((m.wdg != w) || ((pos ? m.pos : m.size) == null))
+                continue;
+            if(pos)
+                m.pos = null;
+            else
+                m.size = null;
+            held = true;
+            if(m.idle())
+                a.movedNative.remove(m);
+        }
+        return held;
+    }
+
+    /**
+     * Drop the records of widgets that have left the tree (036.2, from {@link Layout#poll}). Nothing is restored —
+     * there is nothing left to restore it to — but the record would otherwise outlive its widget and, worse, hold a
+     * strong reference to it: a rule that names a kind of window records one per window that opens.
+     */
+    static void pruneMoved(UI u) {
+        boolean gone = false;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            gone |= pruneMovedIn(as.get(i), u);
+        gone |= pruneMovedIn(AddonManager.consoleOwner, u);
+        if(gone)
+            recountMoved();
+    }
+
+    private static boolean pruneMovedIn(Addon a, UI u) {
+        if((a == null) || a.movedNative.isEmpty())
+            return false;
+        boolean gone = false;
+        for(Moved m : a.movedNative) {
+            if(Layout.alive(u, m.wdg, m.id))
+                continue;
+            a.movedNative.remove(m);
+            gone = true;
+        }
+        return gone;
     }
 
     // ---- items: the relation + the per-tick subscription (029.3) ------------------------------------

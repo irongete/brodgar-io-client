@@ -113,9 +113,6 @@ public final class AddonRegistry {
                                       //   substitution ends whole (the stand-in view dies with it, 032.1). BEFORE
                                       //   destroyWidgets: the rule reads the view's visibility, and a destroyed
                                       //   view stands for nothing.
-        UiApi.teardownMoved(a);       // 036.1: put every native widget this addon laid out back where the user had
-                                      //   it — an addon's layout is a LAYER over the client's, so nothing of ours
-                                      //   is left behind for GameUI.savewndpos to persist as their preference
         destroyWidgets(a);            // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
         UiApi.teardownWatches(a);           // 029.3: stop watching every container the addon subscribed to (no onDestroy)
         HookApi.teardownHooks(a);         // 2c: deafen input hooks (engine widgets outlive a :reload — must detach)
@@ -135,6 +132,11 @@ public final class AddonRegistry {
         HttpApi.teardownRequests(a);  // N2a: cancel in-flight HTTP requests (result discarded on drain; no callback)
         FontApi.teardownFonts(a);     // 033.1: drop this addon's STYLESHEET (hafen.ui.skin) and its per-instance
                                       //   widget:setFont overrides in one sweep (bumps gen -> stock foundry restored)
+        UiApi.teardownMoved(a);       // 036.1: put every native widget this addon laid out back where the user had
+                                      //   it — an addon's layout is a LAYER over the client's, so nothing of ours
+                                      //   is left behind for GameUI.savewndpos to persist as their preference.
+                                      //   AFTER teardownFonts (036.2): the sheet's own pos/size rules have to have
+                                      //   stopped resolving first, or re-running the cascade would put them back
         LuaSound.teardownSounds(a);   // 024.2: silence anything the addon left in the air (a disabled addon making noise is a bug)
         LuaGOut.teardownTexts(a);     // 026.1: drop the addon's cached g:text renderings (frees their GL textures — we own them)
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
@@ -201,7 +203,9 @@ public final class AddonRegistry {
         LuaGOut.teardownTexts(AddonManager.consoleOwner);    // 026.1: ...nor does its cached text (same reason)
         UiApi.teardownHidden(AddonManager.consoleOwner);     // 031.1: ...nor do the native windows it hid — with their
                                                              //   toggles now owned too, :reload IS the escape hatch
-        UiApi.teardownMoved(AddonManager.consoleOwner);      // 036.1: ...nor the ones it moved, for the same reason
+        UiApi.teardownMoved(AddonManager.consoleOwner);      // 036.1: ...nor the ones it moved, for the same reason.
+                                                             //   Its SHEET survives a reload (like its site rules), so
+                                                             //   036.2's re-fold hands a widget its own rule back
         loadAll();                                   // re-scan disk + enabled set; re-run; fire OnLoad
         if(gui() != null) {                          // already in-world → re-init as a fresh login
             StoreApi.restorePerChar();                        // reload per-char saved vars (charScope still valid)

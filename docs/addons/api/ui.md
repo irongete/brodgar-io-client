@@ -300,6 +300,11 @@ a position is not a toggle. The last write wins on screen, and each addon restor
 `:pack()` and `:destroy()` are still refused on a widget you do not own: those destroy the client's work
 rather than sit on top of it.
 
+**The verb is the top of a cascade, not the only way in.** The sheet says the same two things with
+[`pos` and `size` rules](#pos-and-size--laying-widgets-out-from-the-sheet), matched rather than named, and the
+verb sits above whatever a rule resolved — so `w:pos(nil)` drops *your* level and falls back to the rule when one
+still names the widget, reaching the stock value only when nothing does.
+
 ### Hiding a native widget carries a restore
 
 `w:hide()` is the one write that answers on a widget you do not own, and it is the important line on this
@@ -723,12 +728,15 @@ Three rules decide what one widget resolves to:
 | `bg` | `{color = {r,g,b[,a]}}` **or** `{image = hafen.asset(…)}` | the surface something is painted on: a flat fill (alpha included — that is what makes a panel translucent) or a tiled image. One or the other, never both |
 | `border` | `{image = hafen.asset(…), slice = {l, t, r, b}}` | a 9-slice frame: the four corners draw at their own size and the four edges stretch between them. The centre is never painted — that is `bg`'s job, so the two compose |
 | `pad` | a number of pixels, `≥ 0` | the space a surface keeps between its frame and its content. The one property that **moves** things — see [`pad`](#pad--the-one-property-that-moves-things) |
+| `pos` | `{x, y}`, also `{x = …, y = …}` | where the widget sits inside its parent, in raw px — **tree keys only**, see [`pos` and `size`](#pos-and-size--laying-widgets-out-from-the-sheet) |
+| `size` | `{w, h}`, also `{x = …, y = …}` | how big it is (a window's *content* size), in raw px — **tree keys only**, same section |
 
 **The properties are independent.** A rule may carry any one alone: a colour-only rule leaves the surface's own
 font exactly as it is, a `border`-only rule leaves its background. A rule carrying none styles nothing.
 
 An **unknown property is an error** naming the ones that exist — unlike an unresolved key, a misspelt property
-has no later meaning to wait for.
+has no later meaning to wait for. So is `pos`/`size` on a key that names a render **site** rather than a widget:
+those two lay out a *widget*, and a site is where the client draws.
 
 #### `color` — a surface's colour is the sheet's
 
@@ -848,10 +856,54 @@ a panel's size and the places of its contents were fixed when it was built, and 
 window is the only thing a `pad` moves.** [The table below](#what-each-key-accepts) says which is which,
 measured.
 
+#### `pos` and `size` — laying widgets out from the sheet
+
+The sheet can say **where** a widget is, not only what it looks like:
+
+```lua
+hafen.ui.skin{
+  ["window[title=Equipment]"] = { pos = {40, 200} },
+  ["window[title=Cupboard]"]  = { pos = {x = 400, y = 60}, size = {300, 220} },
+}
+```
+
+- **They are said about a widget, so only a [tree key](#tree-keys--which-widgets-not-what-kind-of-surface) may
+  carry them.** `["chat"]`, `["window.title"]`, `["*"]` — every *site* key — name a place the client draws text,
+  and text has no position of its own to move, so `pos`/`size` there is an **error** naming the fix rather than a
+  rule that silently does nothing. (`*` is the `default` site, not "every widget"; select widgets with `["window"]`
+  or a refiner.)
+- **`widget:skin{pos = …}` is an error too**, for the opposite reason: the hand-named level of the layout cascade
+  already exists and is the **verb**, `w:pos(x, y)`. One way per operation.
+- **The rule and the verb are one cascade, not two mechanisms.** A `pos` from the verb outranks a `pos` from any
+  rule, however specific — and `w:pos(nil)` drops *your level*, falling back to the rule when one still names the
+  widget and only reaching the stock value when nothing does.
+- **Raw pixels**, like `pad`, a border's slice and `hafen.ui.window{size = …}`. `pos` is within the **parent**;
+  `size` on a window is its **content** size, exactly as [the verb](#laying-out-a-native-widget) takes it.
+- **Applied when the sheet is, and when a widget appears** — including a window whose caption arrives a moment
+  after it opens. Never per frame, and never at the draw.
+- **Dropping the rule restores the exact numbers it found**, the same discipline `pad` follows, and the client's
+  own saved positions stay [the user's](#laying-out-a-native-widget).
+
+```lua
+local w = hafen.ui("window[title=Equipment]")
+hafen.ui.skin{ ["window[title=Equipment]"] = { pos = {40, 200} } }
+w:pos()            --> {x = 40,  y = 200}    -- the rule
+w:pos(12, 12)      --                        -- named by hand: the top of the same fold
+w:pos()            --> {x = 12,  y = 12}
+w:pos(nil)         --                        -- your level goes...
+w:pos()            --> {x = 40,  y = 200}    -- ...and the RULE is what is underneath
+hafen.ui.skin(nil) --                        -- ...and now nothing is: back to where the user had it
+```
+
+`size` carries [the same caveat as the verb](#laying-out-a-native-widget): a client window that packs itself
+around its contents (the main inventory) is honoured and then re-packs before the call returns — inert, never an
+error. Read `:size()` back if you need to know which kind you are holding.
+
 ### What each key accepts
 
-Every property is accepted on **every** key — a sheet never errors because a surface cannot use one. What
-differs is what the surface *does* with it, and this is the honest table. First the two that write text:
+Every *drawing* property is accepted on **every** key — a sheet never errors because a surface cannot use one —
+and the exception is the pair that lays widgets out, which only a tree key may carry (above). What differs is
+what the surface *does* with a property, and this is the honest table. First the two that write text:
 
 | Key | `font` | `color` | Worth knowing |
 |---|---|---|---|
@@ -900,6 +952,14 @@ window-less panels — and each cell below is measured, including the ones that 
 > the surface. (Levels *above* the site half — a tree rule, a `widget:skin` — do compose per property, as
 > [below](#cascade--conflict).)
 
+And the two that lay widgets out. This table is short because the answer is: a widget, or an error.
+
+| Key | `pos` | `size` | Worth knowing |
+|---|---|---|---|
+| any tree key | ✅ | ⚠️ **unless the widget owns its size** | the widget it matches is moved for real — `c`, the field a drag writes — so what you place is what you click. A window that packs around its contents re-packs itself: inert, never an error |
+| any site key, `*` included | ❌ **error** | ❌ **error** | a site is where the client draws text, and text has no position. The error names the fix: select the widget |
+| `widget:skin{…}` | ❌ **error** | ❌ **error** | the hand-named level is the verb, [`w:pos(x, y)`](#laying-out-a-native-widget) — the error says so |
+
 **Where `color` is ignored, it is the same reason every time**: the surface is *embossed* — the client renders
 the text as a mask and tiles a texture through it, then blurs a shadow behind. The glyph colour is discarded
 before anything reaches the screen, so there is nothing for a rule to override. Those surfaces still follow a
@@ -914,8 +974,10 @@ Three more limits are structural rather than per-key, and none of them is a bug 
 - **A rule flattens colour that carried meaning.** While `["*"] = {color=…}` is on, a red warning is the same
   colour as everything else. Style one key rather than `*` when that matters.
 
-**The only property that changes geometry is [`pad`](#pad--the-one-property-that-moves-things)**, and only where
-a surface owns its own layout — the window chrome alone, per the table above. A `font` rule never moves anything, but
+**The only *drawing* property that changes geometry is [`pad`](#pad--the-one-property-that-moves-things)**, and only
+where a surface owns its own layout — the window chrome alone, per the table above.
+([`pos`/`size`](#pos-and-size--laying-widgets-out-from-the-sheet) move things because that is all they do.)
+A `font` rule never moves anything, but
 a larger `size=` can still *clip* where a surface's box was measured from the stock font; the per-surface notes
 in [`hafen.font`](fonts.md#site-keys) say which ones, and why.
 
@@ -932,6 +994,12 @@ rest to the level beneath, which is what makes this a cascade rather than a seri
 client's stock font. Read the result for any one widget with
 [`widget:style()`](#reads--they-answer-on-every-widget) — which answers for the levels that name *that widget*
 (its skin and the tree rules), since a site rule belongs to a render site rather than to any one widget.
+
+**Layout is the same cascade with a different top.** [`pos`/`size`](#pos-and-size--laying-widgets-out-from-the-sheet)
+resolve through the very same fold — most-specific tree rule wins, per property — but the level above every rule is
+the **verb**, `w:pos(x, y)`, not `widget:skin{…}`. So `w:pos(nil)` removes one level and lands on the rule beneath;
+dropping the sheet removes the last one and lands on what the user had. Between two addons that both name a widget
+by hand, the last one to write wins, and each still restores what *it* found.
 
 Two addons styling the same surface is shared client state, resolved the same way as
 [`widget:replace`](#replacing-a-native-window): each surface holds a **stack of rules tagged with their owning

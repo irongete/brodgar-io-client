@@ -17,7 +17,7 @@
       cannot do: **log out, disable the addon, log back in — the `wndc-*` windows are where you last dragged
       them**, not where the test put them.
 
-- [ ] **036.2 — `pos` and `size` as sheet properties.**
+- [x] **036.2 — `pos` and `size` as sheet properties.**
       The three properties join `Sheet`'s validation (an unknown one still errors, D-072) and `Fonts.combine`'s
       per-property fold (D-076), carried as opaque values exactly as `bg`/`border` already are. The verbs from
       036.1 become the **hand-named top level** of that same fold (D-077) — one mechanism, two levels. Re-derive

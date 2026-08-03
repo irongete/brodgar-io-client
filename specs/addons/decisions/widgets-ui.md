@@ -593,3 +593,49 @@ verb level would have made the hand-named level behave unlike the rule level for
 `:destroy()` still refuse on a native widget: those destroy the client's work rather than sit on top of it.
 
 **See.** [D-069](#d-069), [D-076](#d-076), [D-086](#d-086), [`api/ui.md`](../../../docs/addons/api/ui.md).
+
+### D-088 — a property that is a WRITE is said where a widget is MATCHED
+
+**Context.** 036.2 gives the sheet `pos` and `size`. The plan had them ride `Fonts` "as opaque values, exactly as
+`bg`/`border` already are" — the provider carries them, the site half and the tree half fold as usual (D-076).
+The first line of the implementation refuted it: `bg` and `border` are read by the provider *at the moment a
+surface draws*, and a position is not read at all. It is **written**, to `c`/`sz`, the fields a user's drag owns.
+
+**Decision.** Layout resolves in the per-widget cascade **only**, and is refused everywhere it cannot mean
+anything: on a **site key** (`["chat"]`, `["window.title"]`, and `["*"]`, which is the `default` *site* and not
+"every widget"), because a site is where the client draws text and text has no position; and in
+`widget:skin{…}`, because the hand-named level of the *layout* cascade already exists and is the verb,
+`w:pos(x, y)`. Both errors name the fix. Nothing about layout reaches `haven.Fonts`.
+
+**Consequences.** Two refusals in an API whose rule has been *forgive what will later mean something, refuse what
+never will* (D-072) — and both are the second kind: a render site will never have a position, and a second
+spelling of `widget:pos` will never be wanted. It also buys a clean draw path: `Fonts.treeActive` is now gated on
+the **drawing** half of the installed rules and a layout-only resolution carries no `Fonts.Style`, so a sheet that
+only lays widgets out opens no frame, bumps no stamp and costs the draw exactly nothing — a categorical claim
+036.4 can measure rather than a small number to hope about. The mirror of D-082: there, a family of *surfaces* had
+to be named as a site rather than a role; here, a property that is not drawn cannot be named as a site at all.
+
+**See.** [D-072](#d-072), [D-076](#d-076), [D-077](#d-077), [D-082](#d-082), [D-089](#d-089),
+[`api/ui.md`](../../../docs/addons/api/ui.md).
+
+### D-089 — an undo removes a LEVEL, it does not empty the cascade
+
+**Context.** 036.1 shipped `widget:pos(nil)` as *restore the stock value*, which was the only thing it could mean
+when the verb was the only level. 036.2 puts rules underneath it, and the question becomes what the undo lands on
+when a sheet also names the widget.
+
+**Decision.** **The rule.** The verb is the hand-named top of one fold (D-077), so `:pos(nil)` drops that level
+and the cascade is re-resolved on the spot: a matching rule takes the widget back, and only when no level names
+that half at all does the stock value return and the record's half go with it. The same act, one scale up, is
+teardown — which is why `UiApi.teardownMoved` now runs **after** `FontApi.teardownFonts` in the registry: the
+addon's own rules have to stop resolving before the re-fold, or the sweep would put them straight back on.
+
+**Consequences.** The record's stock half became the **true** stock (`UiApi.stockPos(w)`, not `w.c`) rather than
+"what this addon found": under D-087 a second addon's `w.c` is already someone else's layer, so recording it would
+have made the first uninstall persist the wrong number through D-086's substitution — the one failure of this
+feature that is not reversible in memory. With every record agreeing on the same value, any of them can answer
+`savewndpos` and any of them can restore. Disabling an addon now hands its widgets to *another* addon's rule
+instead of leaving them at stock, which is what a cascade means and what a blind restore could never do.
+
+**See.** [D-070](#d-070), [D-077](#d-077), [D-086](#d-086), [D-087](#d-087), [D-088](#d-088),
+[`api/ui.md`](../../../docs/addons/api/ui.md).
