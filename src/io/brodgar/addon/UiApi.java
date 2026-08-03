@@ -1008,14 +1008,28 @@ final class UiApi {
 
     /** {@code GameUI.fitwdg}'s off-screen clamp, applied to a widget within its own parent (see {@link #toggleView}). */
     private static void fitView(Widget w) {
-        Widget p = w.parent;
-        if((p == null) || (p.sz == null) || (w.sz == null) || (w.c == null))
+        if((w.parent == null) || (w.c == null))
             return;
+        w.c = fitc(w, w.c);
+    }
+
+    /**
+     * <b>{@code GameUI.fitwdg}'s formula</b>, re-derived rather than exposed (031): where {@code c} becomes once
+     * the client's own rule that a widget stays graspable — at least {@code min(100 px, its own size)} of it inside
+     * the parent — has had its say. The client runs it when it places or toggles a window; 036.3's layout layer
+     * runs it on the same widgets for the same reason, so "is this on screen" has <b>one</b> answer and an
+     * off-screen rule leaves the window reachable rather than lost. Hands {@code c} straight back when there is
+     * nothing to measure against.
+     */
+    static Coord fitc(Widget w, Coord c) {
+        Widget p = w.parent;
+        if((p == null) || (p.sz == null) || (w.sz == null) || (c == null))
+            return c;
         int marg = UI.scale(100);
-        int x = Math.max(w.c.x, Math.min(0, marg - w.sz.x));
-        int y = Math.max(w.c.y, Math.min(0, marg - w.sz.y));
-        w.c = Coord.of(Math.min(x, p.sz.x - Math.min(marg, w.sz.x)),
-                       Math.min(y, p.sz.y - Math.min(marg, w.sz.y)));
+        int x = Math.max(c.x, Math.min(0, marg - w.sz.x));
+        int y = Math.max(c.y, Math.min(0, marg - w.sz.y));
+        return Coord.of(Math.min(x, p.sz.x - Math.min(marg, w.sz.x)),
+                        Math.min(y, p.sz.y - Math.min(marg, w.sz.y)));
     }
 
     /** Is a restore-list entry still the same live widget? (Server-bound: by id; client-only: by tree reachability.) */

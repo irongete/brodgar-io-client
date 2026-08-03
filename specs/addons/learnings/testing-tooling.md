@@ -481,3 +481,26 @@
   hand-named level → 2 red, removing the re-fold after teardown → 1, removing the placement seam → 2. Three
   distinct signatures over 44 checks: each seam is load-bearing for a *different* claim, and a single shared
   count would have proved only that something was wired.
+
+- **(036.3) A suite that builds windows CAN be dry-run — 034.1's limit is two missing fields wide.** That note
+  ("`haven.Window` needs GL") was really about `Window.added()`, which focuses into the root: over the fabricated
+  UI it NPEs. Two additions make the whole shipping suite run end to end, `hafen.ui.window{}` and all — allocate
+  the root as a **subclass of `RootWidget` that overrides `setfocus` to nothing** (Unsafe-allocated, so the ctor
+  never runs), and reflect-set `UI.grabs` to an empty `CopyOnWriteArrayList` (`:destroy()` walks it). 21/21 of
+  036.3's in-game verdict lines were green before the client started, and the in-game run printed the same 21.
+  `initanim()` sets `animst = "show"` synchronously, so a freshly added window is `visible()` with no ticks.
+- **(036.3) Hand-wiring a widget tree must maintain `lchild`, not just `child`/`next`.** Draw walks
+  `child→next`, **hit-testing walks `lchild→prev`** — so a probe that only sets `child` has a tree every read
+  sees and `hafen.ui.at()` finds nothing in, and worse, a real `Widget.add()` into that parent takes `link()`'s
+  `lchild == null` branch and **overwrites `child`**, silently unlinking everything attached by hand. Mirror
+  `link()`: append at the end and set `lchild`.
+- **(036.3) The dry run caught a bug in the SUITE that would have reddened in-game — a window's corner is not
+  hit-testable.** The reachability check probed the window's top-left + 2; `Window.checkhit` delegates to
+  `DefaultDeco.checkhit`, which owns the caption strip and the content area and **not** the transparent pixels
+  between them. Probing the addon's own content child (found by `:type() == "AddonWidget"`) is the honest way to
+  ask "can the client's dispatch still reach this window", and it works wherever the clamp put it.
+- **(036.3) Falsify with a file copy, never `git checkout` — the revert wiped the whole task's work.** Four
+  falsifications on one uncommitted file: `cp $F $SCRATCH/f.good` first, restore with `cp`, and remember that a
+  multi-line `perl -0pi -e` pattern needs `\r?\n` on this box (the sources are CRLF) or it silently matches
+  nothing — which reads exactly like a falsification that did not bite. The four bit 3 / 1 / 22 / 2 red: the
+  clamp, the synchronous dependents, the parent-frame conversion, the per-tick re-derive.

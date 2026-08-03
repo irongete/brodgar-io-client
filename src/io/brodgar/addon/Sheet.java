@@ -80,7 +80,7 @@ import java.util.WeakHashMap;
 final class Sheet {
     /** The style properties a rule may carry. */
     private static final String PROPS =
-        "\"font\", \"color\", \"bg\", \"border\", \"pad\", \"pos\" and \"size\"";
+        "\"font\", \"color\", \"bg\", \"border\", \"pad\", \"pos\", \"anchor\" and \"size\"";
 
     /**
      * One kept rule and the properties it fills. Each property is independently optional. A rule is either a
@@ -96,11 +96,11 @@ final class Sheet {
         final Chrome.Bg bg;       // the rule's `bg` property (035.1), or null
         final Chrome.Border border;   // the rule's `border` property (035.1), or null
         final Integer pad;        // the rule's `pad` property (035.2), or null
-        final Coord pos;          // the rule's `pos` property (036.2), or null — TREE rules only
+        final Layout.Anchor pos;  // where the rule puts it — `pos` or `anchor` (036.2/036.3) — TREE rules only
         final Coord size;         // the rule's `size` property (036.2), or null — TREE rules only
 
         Rule(String site, Selector sel, FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border,
-             Integer pad, Coord pos, Coord size) {
+             Integer pad, Layout.Anchor pos, Coord size) {
             this.site = site;
             this.sel = sel;
             this.rank = (sel == null) ? 0
@@ -300,9 +300,9 @@ final class Sheet {
      * and for {@code widget:skin{…}} too ({@code ctx} names the caller), because a level of the cascade differs in
      * <i>which widgets</i> it reaches, never in what it may say either.
      *
-     * <p><b>{@code pos} and {@code size} are the exception, and deliberately so</b> (036.2). They are the first
-     * properties that are a <i>write</i> rather than something a surface is drawn with, so they can only be said
-     * about a <b>widget</b>, and only in a rule that <i>matches</i> one:
+     * <p><b>{@code pos}, {@code anchor} and {@code size} are the exception, and deliberately so</b>
+     * (036.2/036.3). They are the first properties that are a <i>write</i> rather than something a surface is
+     * drawn with, so they can only be said about a <b>widget</b>, and only in a rule that <i>matches</i> one:
      * <ul>
      *   <li>on a <b>site</b> key they are refused — a site is where the client draws text, and text has no
      *       position of its own to move ({@code "*"} is the {@code default} site, not "every widget");</li>
@@ -310,6 +310,10 @@ final class Sheet {
      *       exists and is the <b>verb</b>, {@code widget:pos(x, y)} / {@code widget:size(w, h)}. One canonical way
      *       per operation: a second spelling of the same level is exactly what this API does not ship.</li>
      * </ul>
+     *
+     * <p><b>{@code pos} and {@code anchor} are ONE property said two ways</b> (036.3): {@code pos = {x, y}} is the
+     * anchor to the widget's own parent's top-left, so a rule carrying both is asking one question twice and gets
+     * an error rather than a winner picked by iteration order.
      */
     private static Rule propsOf(String ctx, LuaValue props, String site, Selector sel) {
         FontHandle font = null;
@@ -317,7 +321,9 @@ final class Sheet {
         Chrome.Bg bg = null;
         Chrome.Border border = null;
         Integer pad = null;
-        Coord pos = null, size = null;
+        Layout.Anchor pos = null;
+        Coord size = null;
+        String posprop = null;
         LuaValue pk = LuaValue.NIL;
         while(true) {
             Varargs n = props.next(pk);
@@ -342,12 +348,18 @@ final class Sheet {
                 border = Chrome.parseBorder(ctx, pv);
             } else if("pad".equals(p)) {
                 pad = Chrome.parsePad(ctx, pv);
-            } else if("pos".equals(p) || "size".equals(p)) {
+            } else if("pos".equals(p) || "anchor".equals(p) || "size".equals(p)) {
                 layoutable(ctx, p, site, sel);
-                if("pos".equals(p))
-                    pos = Layout.parseCoord(ctx, p, pv);
-                else
+                if("size".equals(p)) {
                     size = Layout.parseCoord(ctx, p, pv);
+                } else {
+                    if(posprop != null)
+                        throw new LuaError(ctx + ": \"pos\" and \"anchor\" are the same property said two ways —"
+                            + " pos = {x, y} IS the anchor to the parent's top-left. Say one of them");
+                    posprop = p;
+                    pos = "pos".equals(p) ? Layout.Anchor.at(Layout.parseCoord(ctx, p, pv))
+                                          : Layout.parseAnchor(ctx, pv);
+                }
             } else {
                 throw new LuaError(ctx + ": \"" + pk.tojstring()
                     + "\" is not a style property — the properties this client ships are " + PROPS);
@@ -367,7 +379,8 @@ final class Sheet {
             throw new LuaError(ctx + "." + prop + ": \"" + prop + "\" lays out a WIDGET, and this key names a"
                 + " render site (\"" + site + "\"" + ("default".equals(site) ? ", which is what \"*\" means" : "")
                 + ") — a site is where the client draws, not something with a position. Name the widget instead:"
-                + " [\"window[title=Equipment]\"] = { " + prop + " = {40, 200} }");
+                + " [\"window[title=Equipment]\"] = { " + prop + " = "
+                + ("anchor".equals(prop) ? "{ at = \"bottomright\" } }" : "{40, 200} }"));
         if(sel == null)
             throw new LuaError(ctx + "." + prop + ": layout is not a skin property — the hand-named level of the"
                 + " cascade is the VERB: widget:pos(x, y) and widget:size(w, h), undone with widget:pos(nil)."
@@ -403,11 +416,12 @@ final class Sheet {
         /** The winning {@code pad} property (035.2), or {@code null}. */
         final Integer pad;
         /**
-         * The winning {@code pos} property (036.2), or {@code null} — and the addon whose rule won it, which is who
+         * Where the winning rule puts this widget (036.2/036.3) — one {@link Layout.Anchor} whether it was written
+         * as {@code pos} or as {@code anchor} — or {@code null}; and the addon whose rule won it, which is who
          * records what the widget was before the layer touched it ({@link Addon#movedNative}) and therefore who
          * gives it back. Unlike the five above these are not read at the draw: {@link Layout} enforces them.
          */
-        Coord pos;
+        Layout.Anchor pos;
         Addon posOwner;
         /** The winning {@code size} property (036.2) and its owner — see {@link #pos}. */
         Coord size;
@@ -811,7 +825,8 @@ final class Sheet {
         Chrome.Bg bg = null;
         Chrome.Border border = null;
         Integer pad = null;
-        Coord pos = null, size = null;
+        Layout.Anchor pos = null;
+        Coord size = null;
         Addon posOwner = null, sizeOwner = null;
         int frank = -1, crank = -1, grank = -1, brank = -1, prank = -1, xrank = -1, zrank = -1;
         for(int i = 0; i < installed.size(); i++) {
@@ -919,9 +934,9 @@ final class Sheet {
         if(r.pad != null)
             t.set("pad", LuaValue.valueOf(r.pad.intValue()));
         if(r.pos != null)                             // 036.2: what the SHEET says this widget's layout is — the
-            t.set("pos", LuaWidget.xyTable(r.pos));   //   verb above it is read with widget:pos(), which answers
-        if(r.size != null)                            //   where the widget actually IS
-            t.set("size", LuaWidget.xyTable(r.size));
+            r.pos.toLua(reader, t);                   //   verb above it is read with widget:pos(), which answers
+        if(r.size != null)                            //   where the widget actually IS. 036.3: `pos` or `anchor`,
+            t.set("size", LuaWidget.xyTable(r.size)); //   whichever the rule was written with
         return t;
     }
 }

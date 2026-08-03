@@ -493,3 +493,18 @@
   holding a strong reference to a widget that will close: the same leak F5 recorded for styled widgets, arriving
   by a different door. The tick prunes records whose widget has left the tree (the `stillHidable`/`matchLive`
   two-branch test again), gated on the same volatile the whole layer already reads.
+
+- **(036.3) `Widget.parentpos(in)` is the conversion every anchor rests on**, and `rootpos()` is just
+  `parentpos(ui.root)` — which reads the widget's own `ui` field, one more thing to be null on a widget that is
+  halfway anywhere, so a layer that already holds the `UI` should call `parentpos(u.root)` itself (guarded by
+  `hasparent`). It folds each level's `xlate` in, so it is also the only correct way to cross a scrolling
+  container. A widget's `c` is **parent-relative**: converting a screen-space answer back means subtracting the
+  parent's own root position, and forgetting that reddens everything by the HUD's offset at once.
+- **(036.3) `UI.scalef` is `static final`, loaded once at class init** (`Utils.getprefd("uiscale", …)`), and the
+  Options slider says *requires restart* — so **nothing can observe a UI-scale change at runtime**. A spec that
+  asks for "assert it survives a rescale" is asking for something this client cannot do; what a rescale actually
+  changes is the sizes a layout reads, and *that* is drivable (resize the target, resize the root in a probe).
+- **(036.3) The root is resized from the frame loop, not by an event**: `UILoop` compares `ui.root.sz` with the
+  OS window size every iteration and calls `ui.root.resize(sz)` when they differ; `Widget.resize` then cascades
+  `presize()` to the children. There is no hook to subscribe to — which is why anything deriving from the screen's
+  size polls it.

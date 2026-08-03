@@ -639,3 +639,55 @@ instead of leaving them at stock, which is what a cascade means and what a blind
 
 **See.** [D-070](#d-070), [D-077](#d-077), [D-086](#d-086), [D-087](#d-087), [D-088](#d-088),
 [`api/ui.md`](../../../docs/addons/api/ui.md).
+
+### D-090 — `pos` is the DEGENERATE anchor, and its target is the PARENT
+
+**Context.** 036.3 adds `anchor = {to, at, offset}` beside 036.2's `pos`. The plan said *`pos` is an anchor to the
+root's top-left, so there is one resolution path* — and the first line of the implementation refuted the second
+half of that sentence: `widget:pos()` reads `c`, which is **parent-relative**, and 036.1/036.2 shipped it that
+way. An anchor to the *root* would silently have changed what `pos` means for every widget whose parent is not
+the root, in a way that looks like a rounding bug rather than a coordinate-space one.
+
+**Decision.** `pos = {x, y}` is the anchor **to the widget's own parent, at its top-left, with that offset** — by
+construction exactly the coordinate the client itself keeps. One `Anchor` type carries both spellings, so they
+compete for **one** slot in the per-widget fold (D-076/D-088) instead of each winning half a question, and a rule
+carrying both is an **error** rather than a winner picked by table-iteration order. The nine corners align the
+widget's own corner with the target's, which is what makes `offset = {-8, -8}` read as *8 px in from the edge*.
+The offsets are raw pixels (D-081): what survives a rescale is the **derivation**, not a scaled constant.
+
+**Consequences.** `to = "screen"` is where the root gets named, and it converts through the parent — so a screen
+anchor is correct for a widget nested anywhere, which an absolute `pos` never was. The hand-named level (the verb)
+spells only the degenerate form; to hand-name an anchor you write a one-rule sheet, which is D-088's *layout is
+said where a widget is matched* seen from the other side rather than a second verb. A widget target is held
+**weakly** and an unresolvable anchor is **inert** — the widget stays where it is when the window it hung off
+closes, because snapping back to stock would be a worse answer than leaving it, and the next tick places it again
+if the target returns. A plain `pos` on a parentless widget (the root) still writes `c`, unchanged from 036.1: a
+coordinate is not a relationship and needs no target.
+
+**See.** [D-076](#d-076), [D-077](#d-077), [D-081](#d-081), [D-088](#d-088), [D-089](#d-089), [D-091](#d-091),
+[`api/ui.md`](../../../docs/addons/api/ui.md).
+
+### D-091 — a derived position is re-derived by POLLING what it reads, and clamped by the client's own rule
+
+**Context.** An anchor is only worth having if it tracks what it names. The spec listed the moments — the root
+resizes, the UI scale changes, the target moves — as events to hook. Two of the three are not events at all:
+`Widget.c` is a public field the client and the user's own drag write directly (hooking `Widget.move` would put
+addon code in the client's hottest path), and **`UI.scalef` is `static final`**, read once at class load, so a
+scale change cannot be observed at runtime by anything — the option itself says *requires restart*.
+
+**Decision.** Keep a weak set of exactly the widgets an anchor is holding **derived**, and re-derive *those* every
+tick — never the tree. A screen resize, a target move, a target resize and a widget that packed itself around new
+contents then become **one** code path instead of three seams, and a plain `pos` is never in the set, so it costs
+nothing at rest. A move made **through this API** is still synchronous: applying a widget's layout re-derives
+whatever hangs off it before the call returns, bounded by a depth limit rather than a visited set. And an
+off-screen result is handed to `GameUI.fitwdg`'s **own** formula (re-derived once as `UiApi.fitc`, shared with the
+one 031 already had), applied where the client applies it — a widget the HUD or the root holds directly.
+
+**Consequences.** "Is this on screen" keeps **one** answer: at least `min(100 px, the widget's own size)` stays
+inside, so a bad offset cannot make a window unreachable and `hafen.ui.at()` still finds it where it is drawn — a
+widget *inside* a window is that window's to lay out and is not clamped. The per-tick cost is bounded by how many
+anchors an addon wrote, not by the tree, and it is the same list that gets pruned when a widget leaves. What the
+task asked for and cannot exist — *change the UI scale and re-read `:pos()`* — is replaced by driving the same
+derivation through the geometry a program **can** change, plus one `[manual]` for the screen itself.
+
+**See.** [D-081](#d-081), [D-086](#d-086), [D-090](#d-090), [`api/ui.md`](../../../docs/addons/api/ui.md).

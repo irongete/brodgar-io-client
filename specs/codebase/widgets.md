@@ -63,6 +63,8 @@ what makes `Window.tick` a legal place to `chdeco` (035).
 | **Cursor position (root coords)** | [`UI.mc`](src/haven/UI.java:54) (public `Coord`) |
 | **Hit-test walk (the one to mirror)** | [`PointerEvent.propagation`](src/haven/Widget.java:981) — `lchild→prev` (topmost-first), skip `!visible()`, `parent.xlate(child.c,true)`+rect-isect; leaf uses [`checkhit`](src/haven/Widget.java:794) |
 | **Coord translation (scroll offsets)** | [`Widget.xlate`](src/haven/Widget.java:482) / [`rootxlate`](src/haven/Widget.java:504) — a hit test must respect these, not a naïve rect test |
+| **Parent-relative `c` ⇄ root coords** | [`Widget.parentpos(in)`](src/haven/Widget.java:522) — `parent.xlate(parent.parentpos(in).add(c), true)`, recursing to `in`; `rootpos()` is `parentpos(ui.root)`. Folds every level's `xlate` in, so it is the only correct crossing of a scrolling container. **`c` is relative to the PARENT**: a screen-space answer becomes a `c` by subtracting the parent's own `parentpos(root)`. Prefer `parentpos(u.root)` over `rootpos()` where the `UI` is already in hand — the latter reads the widget's own `ui` field |
+| **The root's size, and who changes it** | [`UILoop.Frame.tick`](src/haven/UILoop.java:485) compares `ui.root.sz` with the OS window size **every iteration** and calls `ui.root.resize(sz)` when they differ; [`Widget.resize`](src/haven/Widget.java:1534) then cascades `presize()` to the children and notifies `parent.cresize`. There is **no event to subscribe to** — anything deriving from the screen's size polls it |
 
 ## Drop & modifier seams
 

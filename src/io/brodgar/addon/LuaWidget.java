@@ -277,11 +277,12 @@ public final class LuaWidget {
                     synchronized(u) {
                         if(ownedContent(owner, w) == null) {
                             Moved rec = recordMoved(owner, w);     // BORROWED: name the level, then resolve it
-                            rec.wantPos = to;
+                            rec.wantPos = Layout.Anchor.at(to);    // 036.3: the parent's top-left, plus (x, y)
                             rec.posSeq = Layout.nextSeq();
                             Layout.apply(w);
                         } else {
-                            w.move(to);                            // your own widget: no layer, no cascade
+                            w.move(to);                            // your own widget: no layer, no cascade...
+                            Layout.moved(w);                       // ...but an anchor may still hang off it (036.3)
                         }
                     }
                 }
@@ -319,6 +320,7 @@ public final class LuaWidget {
                             content.resize(to);
                             if(content != w)              // a window: refit the chrome around the resized content
                                 w.pack();
+                            Layout.moved(w);              // 036.3: a corner anchor reads the box that just changed
                         }
                     }
                 }
@@ -794,8 +796,13 @@ public final class LuaWidget {
          * questions: one is what the user had, one is what this addon wants. {@code widget:pos(nil)} clears this
          * and leaves the cascade to say what happens next — a rule that also names the widget takes over, and only
          * when nothing does at all is {@link #pos} given back and the half dropped.
+         *
+         * <p>An {@link Layout.Anchor} since 036.3, and the degenerate one: {@code widget:pos(x, y)} is the anchor
+         * to this widget's own parent's top-left. The verb keeps the whole hand-named level — a rule is where an
+         * anchor to the screen or to another widget is said — but it goes down the one resolution path all the
+         * same, which is what makes "the verb wins" a statement about a fold rather than about two mechanisms.
          */
-        Coord wantPos;
+        Layout.Anchor wantPos;
         /** This addon's hand-named size — see {@link #wantPos}. */
         Coord wantSize;
         /** When each half was named, so the latest hand-named level wins between two addons ({@link Layout#nextSeq}). */

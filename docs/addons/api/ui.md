@@ -212,7 +212,7 @@ select once, keep it, and use `:exists()` when you need to know it is still ther
 | `:walk(fn)` | (self) | depth-first visit — `fn(widget, depth)`; **return `false` to prune** that subtree |
 | `:at(coord)` | Widget \| nil | the deepest widget under a `{x=,y=}` **root-coord** point **within this subtree** |
 | `:rootpos()` | `{x=,y=}` \| nil | its top-left in **root coords** (with `:size()` = a rectangle to outline it) |
-| `:style()` | table \| nil | the style this widget **resolves to** — its own [`:skin{}`](fonts.md#restyle-one-widget--widgetskin) over the sheet's [tree keys](#tree-keys--which-widgets-not-what-kind-of-surface) — `{font=, color=}`, each present only where a level set it — or **nil when nothing names it** |
+| `:style()` | table \| nil | the style this widget **resolves to** — its own [`:skin{}`](fonts.md#restyle-one-widget--widgetskin) over the sheet's [tree keys](#tree-keys--which-widgets-not-what-kind-of-surface) — `{font=, color=}`, plus `pos`/`anchor`/`size` where a rule [lays it out](#pos-and-size--laying-widgets-out-from-the-sheet), each present only where a level set it — or **nil when nothing names it** |
 | `:skin{…}` | (self) | restyle **this widget and its whole subtree** — `{font=, color=}`, the [top of the cascade](fonts.md#restyle-one-widget--widgetskin); its siblings are untouched |
 | `:skin()` | table \| nil | read **your own** entry back (not the resolved style — that is `:style()`) |
 | `:skin(nil)` | (self) | drop **your** entry on this widget; it falls back to the tree rule, then the site rule, then `*` |
@@ -729,14 +729,15 @@ Three rules decide what one widget resolves to:
 | `border` | `{image = hafen.asset(…), slice = {l, t, r, b}}` | a 9-slice frame: the four corners draw at their own size and the four edges stretch between them. The centre is never painted — that is `bg`'s job, so the two compose |
 | `pad` | a number of pixels, `≥ 0` | the space a surface keeps between its frame and its content. The one property that **moves** things — see [`pad`](#pad--the-one-property-that-moves-things) |
 | `pos` | `{x, y}`, also `{x = …, y = …}` | where the widget sits inside its parent, in raw px — **tree keys only**, see [`pos` and `size`](#pos-and-size--laying-widgets-out-from-the-sheet) |
+| `anchor` | `{to = "screen" \| <widget>, at = <corner>, offset = {dx, dy}}` | the same place said as a **relationship**, re-derived whenever what it hangs off moves or resizes — `pos` is the degenerate case of it, see [`anchor`](#anchor--a-position-that-is-derived). Every field has a default; a rule may not carry both `pos` and `anchor` |
 | `size` | `{w, h}`, also `{x = …, y = …}` | how big it is (a window's *content* size), in raw px — **tree keys only**, same section |
 
 **The properties are independent.** A rule may carry any one alone: a colour-only rule leaves the surface's own
 font exactly as it is, a `border`-only rule leaves its background. A rule carrying none styles nothing.
 
 An **unknown property is an error** naming the ones that exist — unlike an unresolved key, a misspelt property
-has no later meaning to wait for. So is `pos`/`size` on a key that names a render **site** rather than a widget:
-those two lay out a *widget*, and a site is where the client draws.
+has no later meaning to wait for. So is `pos`/`anchor`/`size` on a key that names a render **site** rather than a
+widget: those three lay out a *widget*, and a site is where the client draws.
 
 #### `color` — a surface's colour is the sheet's
 
@@ -879,6 +880,9 @@ hafen.ui.skin{
   widget and only reaching the stock value when nothing does.
 - **Raw pixels**, like `pad`, a border's slice and `hafen.ui.window{size = …}`. `pos` is within the **parent**;
   `size` on a window is its **content** size, exactly as [the verb](#laying-out-a-native-widget) takes it.
+- **`pos` is an absolute number, and [`anchor`](#anchor--a-position-that-is-derived) is the same place said as a
+  relationship** — to a screen edge or to another widget, re-derived when what it hangs off moves. One property,
+  two spellings: a rule says one or the other.
 - **Applied when the sheet is, and when a widget appears** — including a window whose caption arrives a moment
   after it opens. Never per frame, and never at the draw.
 - **Dropping the rule restores the exact numbers it found**, the same discipline `pad` follows, and the client's
@@ -898,6 +902,52 @@ hafen.ui.skin(nil) --                        -- ...and now nothing is: back to w
 `size` carries [the same caveat as the verb](#laying-out-a-native-widget): a client window that packs itself
 around its contents (the main inventory) is honoured and then re-packs before the call returns — inert, never an
 error. Read `:size()` back if you need to know which kind you are holding.
+
+#### `anchor` — a position that is derived
+
+An absolute `pos` is a number you wrote down once. **An anchor is a relationship**, re-derived every time what it
+hangs off changes — so it survives a resized game window, a widget that moved under it, or a window that packed
+itself around new contents:
+
+```lua
+hafen.ui.skin{
+  ["window[title=Inventory]"] = { anchor = {to = "screen", at = "bottomright", offset = {-8, -8}} },
+  ["window[title=Equipment]"] = { anchor = {to = hafen.ui("window[title=Inventory]"), at = "topright"} },
+  ["window[title=Cupboard]"]  = { anchor = {at = "center"} },   -- every field has a default
+}
+```
+
+- **`to`** — `"screen"` (the default) or any widget. A widget target is held **weakly**: when it closes, the
+  anchor stops resolving and the widget simply stays where it is. Inert, never a snap back.
+- **`at`** — one of the nine corners: `"topleft"` (the default), `"top"`, `"topright"`, `"left"`, `"center"`,
+  `"right"`, `"bottomleft"`, `"bottom"`, `"bottomright"`. Anything else is an **error** naming all nine. The
+  corner is the widget's **own** as well as the target's — `at = "bottomright"` puts its bottom-right corner on
+  the target's, which is what makes `offset = {-8, -8}` read as *8 px in from the edge*.
+- **`offset`** — `{dx, dy}`, raw pixels (default `{0, 0}`), added after the corners meet.
+
+**`pos` is the degenerate anchor** — to the widget's own parent, at its top-left, with that offset — which is
+exactly the coordinate `:pos()` reads. So they are *one* property with two spellings: they compete for the same
+slot in the cascade, and a rule that says both is an error rather than a winner picked at random.
+
+```lua
+["window[title=X]"] = { pos = {40, 200} }
+["window[title=X]"] = { anchor = {to = "screen", at = "topleft", offset = {40, 200}} }   -- the same place,
+                                                                                        -- for a top-level window
+```
+
+**Re-derived on the events that change what it reads**, never per frame and never at the draw: the game window is
+resized, the target moves or resizes, the widget itself changes size. A move made through this API — a verb, a
+rule — has moved everything hanging off it **by the time the call returns**; a move the *user* makes by dragging
+is picked up on the next tick. Only anchored widgets are re-derived, so a plain `pos` costs nothing at rest.
+
+**Off-screen is clamped — by the client's own rule.** A window the HUD or the root holds directly is handed to the
+same clamp `GameUI` uses when it places or toggles one: at least `min(100 px, the widget's own size)` of it stays
+inside, so a bad offset can never make a window unreachable, and `hafen.ui.at()` still finds it where it is drawn.
+Read `:pos()` back if you need the number that survived. A widget *inside* a window is laid out by that window and
+is not the client's to clamp: there you get the pixels you asked for.
+
+`widget:style()` reports the property as it was **written** — `anchor = {to =, at =, offset =}` for an anchor,
+`pos = {x=, y=}` for a plain one — while `widget:pos()` answers where the widget actually is right now.
 
 ### What each key accepts
 
@@ -952,13 +1002,17 @@ window-less panels — and each cell below is measured, including the ones that 
 > the surface. (Levels *above* the site half — a tree rule, a `widget:skin` — do compose per property, as
 > [below](#cascade--conflict).)
 
-And the two that lay widgets out. This table is short because the answer is: a widget, or an error.
+And the three that lay widgets out. This table is short because the answer is: a widget, or an error.
 
-| Key | `pos` | `size` | Worth knowing |
+| Key | `pos` / `anchor` | `size` | Worth knowing |
 |---|---|---|---|
 | any tree key | ✅ | ⚠️ **unless the widget owns its size** | the widget it matches is moved for real — `c`, the field a drag writes — so what you place is what you click. A window that packs around its contents re-packs itself: inert, never an error |
 | any site key, `*` included | ❌ **error** | ❌ **error** | a site is where the client draws text, and text has no position. The error names the fix: select the widget |
 | `widget:skin{…}` | ❌ **error** | ❌ **error** | the hand-named level is the verb, [`w:pos(x, y)`](#laying-out-a-native-widget) — the error says so |
+
+> **`pos` and `anchor` are one property in two spellings**, so they share the column above and a rule carrying
+> both is an error. The hand-named level — the verb — spells only the absolute one: `w:pos(x, y)` is an anchor
+> to the parent's top-left. To hand-name an *anchor*, write a one-rule sheet naming that widget.
 
 **Where `color` is ignored, it is the same reason every time**: the surface is *embossed* — the client renders
 the text as a mask and tiles a texture through it, then blurs a shadow behind. The glyph colour is discarded

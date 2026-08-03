@@ -27,7 +27,7 @@
       restores the exact numbers; with both a rule and a verb on one widget the **verb wins** and removing it
       falls back to the rule; a rule naming nothing is inert. All asserted through `:pos()`/`:size()`.
 
-- [ ] **036.3 — anchors, and surviving a rescale.**
+- [x] **036.3 — anchors, and surviving a rescale.**
       `anchor = {to = "screen"|<widget>, at = <corner>, offset = {dx, dy}}`; **`pos` is the degenerate case** —
       an anchor to the root's top-left — so there is one resolution path, not two. Offsets are logical px
       through `UI.scale`. Mind the coordinate space: a window's `c` is relative to its **parent**, and `GameUI`
