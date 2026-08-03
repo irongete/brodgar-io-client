@@ -128,4 +128,33 @@ public final class AddonWidgets {
     public static void chrome(Window wnd) {
         io.brodgar.addon.AddonManager.chrome(wnd);
     }
+
+    /**
+     * The <b>layout-persistence seam</b> (spec {@code 036-ui-layout}, E) — the position the client should write
+     * down for a window it persists ({@link GameUI}'s {@code savewndpos}, {@code cdestroy}'s {@code wndc-misc},
+     * the crafting window's {@code makewndc}). Normally the widget's own {@code c}; for a widget an AddOn's
+     * layout is standing on, the coordinate the <b>user</b> last placed it at.
+     *
+     * <p>An addon's layout is a <i>layer</i> over the client's own, never a write into it. Everything else it does
+     * is reversible in memory, but {@code Utils.setprefc} is not: without this, moving {@code invwnd} would have
+     * the client persist the addon's position as the user's own preference, and uninstalling the addon would leave
+     * those windows displaced forever. Substituting the value (rather than shoving the window back and forth
+     * around the write) is also what keeps the 60 s {@code savewndpos} tick invisible: nothing on screen moves,
+     * only what is written down.
+     *
+     * <p>Tolerates {@code null} and never throws; with no AddOn laying anything out it is one volatile read and
+     * hands {@code wnd.c} straight back, so a stock client writes exactly the bytes it wrote before.
+     */
+    public static Coord stockc(Widget wnd) {
+        return io.brodgar.addon.AddonManager.stockPos(wnd);
+    }
+
+    /**
+     * The <b>size</b> counterpart of {@link #stockc}, for the one geometry the client persists beside a position
+     * ({@code wndsz-map}): a {@link Window}'s content size — the same value {@code csz()} answers — or the stock
+     * one when an AddOn has resized it.
+     */
+    public static Coord stockcsz(Window wnd) {
+        return io.brodgar.addon.AddonManager.stockSize(wnd);
+    }
 }

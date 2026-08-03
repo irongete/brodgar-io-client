@@ -549,3 +549,47 @@ aside — author to the stock weight.
 
 **See.** [D-080](#d-080), [D-081](#d-081), [D-083](#d-083),
 [`api/ui.md`](../../../docs/addons/api/ui.md), [`specs/codebase/gameui-windows.md`](../../codebase/gameui-windows.md).
+
+### D-086 — an addon's layout is a LAYER over the client's, never a write into it
+
+**Context.** Feature E lets `widget:pos(x,y)`/`:size(w,h)` move the client's own widgets, and they move `c`/`sz`
+for real (a draw-time offset would make a widget draw where it cannot be clicked). But the client **persists a
+few window positions of its own** — `GameUI.savewndpos` writes `wndc-inv/-equ/-chr/-zerg/-map` + `wndsz-map`
+through `Utils.setprefc`, and `cdestroy`/`makewndc` write two more. Everything else an addon does is reversible
+in memory; a `setprefc` is not, and the user only finds out after uninstalling.
+
+**Decision.** The layer records the stock value **at first touch** (`Addon.movedNative`, the `hiddenNative` shape
+one property along) and gives it back on `:pos(nil)`/`:size(nil)`, `:reload` and disable — *and* the client's
+writers are **substituted, not restored**: every `Utils.setprefc(key, w.c)` became
+`AddonWidgets.stockc(w)`/`stockcsz(w)`, which hands back the widget's own value unless an addon's layout is
+standing on it. **What the client saves is what the user last placed.**
+
+**Consequences.** Substitution rather than restoration is the load-bearing half, and it was forced by a fact the
+plan had not measured: `savewndpos` runs from `dispose()` at logout **and every 60 s from `tick`**, so a layer
+that only put the widgets back before the write would snap a laid-out HUD once a minute. Recording at *first*
+touch (not every touch) is what keeps the stock value stock across repeated moves. The restore is the exact
+inverse of the write — a window's size argument is its `csz()`, not its `sz` — and the size half goes back before
+the position half, because `Widget.resize` notifies `parent.cresize` which may re-place the child. A relog is
+correctly a no-op (`stillMovable`, the `stillHidable` test one list along): that tree is gone.
+
+**See.** [D-069](#d-069), [D-070](#d-070), [D-087](#d-087),
+[`api/ui.md`](../../../docs/addons/api/ui.md), [`specs/codebase/gameui-windows.md`](../../codebase/gameui-windows.md).
+
+### D-087 — a position is not a toggle: two addons may layer over one widget
+
+**Context.** D-069 made hiding a native window take its toggle and therefore refuse a **second owner** — one
+window, one owner — because a toggle can only drive one view and two owners would leave the menu tick lying
+about both. The layout verbs write to the same class of widget, so the obvious move was to copy that refusal.
+
+**Decision.** **Don't.** `widget:pos`/`:size` mint a per-addon record and never refuse: the last write wins on
+screen, and each addon restores what *it* found (addon B records A's position as its stock, so tearing B down
+leaves A's layer in force, and tearing A down restores the user's own).
+
+**Consequences.** The two verbs diverge from `w:hide()` on purpose, and the reason is what the record *is*: a
+hide record owns a **behaviour** (a key, a menu tick) that cannot be shared, while a layout record owns only a
+**value** that can be overwritten and handed back. It is also the answer the cascade already gives one task
+later — 036.2 folds `pos`/`size` per property across addons through `Fonts.combine` (D-076), so a refusal at the
+verb level would have made the hand-named level behave unlike the rule level for no reason. `:pack()`/
+`:destroy()` still refuse on a native widget: those destroy the client's work rather than sit on top of it.
+
+**See.** [D-069](#d-069), [D-076](#d-076), [D-086](#d-086), [`api/ui.md`](../../../docs/addons/api/ui.md).

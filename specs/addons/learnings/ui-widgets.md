@@ -459,3 +459,20 @@
   `Partyview.MemberView` both override `drawframe` to `g.chcolor(color)` + `box.draw(...)` (a server-set tint
   and the party colour). `MapWnd.ViewFrame` overrides `draw` but calls `super.draw`, so it inherits whatever
   the base does. A grep for `IBox` alone misses the first two — grep for the field name (`box.draw`) as well.
+
+- **(036.1) A native window that PACKS AROUND ITS CONTENT cannot be resized from outside — and it is not an
+  error, it is the client winning the race inside your own call.** `GameUI` builds the inventory's wrapper as an
+  anonymous `Hidewnd` with `cresize(ch) { pack(); }` (`GameUI.addchild`, `place == "inv"`), and
+  `Widget.resize` ends with `parent.cresize(this)` — so `Window.resize2`'s `deco.iresize(sz)` makes the **deco**
+  call its parent back, which packs the window to `contentsz()` **before `w.resize(to)` returns**. Read
+  `:size()` back and it never moved. `equwnd` has no such override and resizes fine. Generalisation: this is
+  D-084's panel rule one level up — *a size applies where the surface can re-lay itself out* — so `pos` always
+  lands while `size` does not overrule a window that owns its own. Do not "fix" it; document it as inert.
+- **(036.1) A window's size ARGUMENT is not its size.** `Window.resize(sz)` takes the **content** size and
+  derives the outer box from the deco (`this.sz = deco.sz`), so `:size()` reads the outer box while
+  `:size(w,h)` sets the content one. Anything that must restore a window exactly has to record `csz()`, not
+  `sz` — record the *argument that reproduces the state*, not the state, and the undo is the write's exact
+  inverse for a window and a bare widget alike.
+- **(036.1) Moving `c` is all hit-testing needs.** `hafen.ui.at()` mirrors the engine's own pointer dispatch off
+  `Widget.c`, so a real move is found at its new place with no other change — which is the concrete reason a
+  draw-time offset was refused: it would have drawn the widget where no click could reach it.

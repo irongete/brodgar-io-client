@@ -202,8 +202,8 @@ select once, keep it, and use `:exists()` when you need to know it is still ther
 | `:id()` | int \| nil | server widget id, or **nil if the widget is not server-bound** (client-only) |
 | `:children()` | array | child Widgets in tree order (empty for a leaf) |
 | `:parent()` | Widget \| nil | the enclosing widget, or nil at the root |
-| `:pos()` | `{x=,y=}` | position within the parent (widget-local px) |
-| `:size()` | `{x=,y=}` | size |
+| `:pos()` | `{x=,y=}` | position within the parent (widget-local px) — [`:pos(x, y)` moves it](#laying-out-a-native-widget) |
+| `:size()` | `{x=,y=}` | size — for a window, its **outer** box (`:size(w, h)` sets the content size) |
 | `:visible()` | boolean | is it visible? |
 | `:text()` | string \| nil | best-effort text for text-bearing widgets (Label/Button/Window/TextEntry), else nil |
 | `:items()` | [`Item`](types.md#item)`[]` | the items inside it — [see below](#items-inside-a-container) |
@@ -241,21 +241,64 @@ tells you which you are holding — ask, rather than provoking the error.
 
 | Method | Owned | Borrowed |
 |---|---|---|
-| `:pos(x, y)` | move + chain | **error** — moving a native widget is layout, a later feature |
-| `:size(w, h)` | resize the content (a window's chrome repacks around it) + chain | **error**, same reason |
+| `:pos(x, y)` | move + chain | **works** — [it is a layer, and it restores](#laying-out-a-native-widget) |
+| `:size(w, h)` | resize the content (a window's chrome repacks around it) + chain | **works**, same |
 | `:pack()` | shrink the chrome to fit its content (no-op for a bare widget) + chain | **error** — that is not yours to do |
 | `:destroy()` | remove it and everything in it | **error**, same reason |
 | `:hide()` / `:show()` | toggle visibility + chain | **works** — [see below](#hiding-a-native-widget-carries-a-restore) |
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](#replacing-a-native-window) |
 
-**Arity is the verb** on geometry — `w:pos()` reads, `w:pos(x, y)` writes; `w:size()` reads,
-`w:size(w, h)` writes — and on replacement: `w:replace()` reads, `w:replace(view)` installs,
-`w:replace(nil)` undoes. That is the same shape as [client options](client.md), and it is why there is no
-`:move()`.
+**Arity is the verb** on geometry — `w:pos()` reads, `w:pos(x, y)` writes, `w:pos(nil)` drops your write;
+`w:size()`/`w:size(w, h)`/`w:size(nil)` the same — and on replacement: `w:replace()` reads,
+`w:replace(view)` installs, `w:replace(nil)` undoes. That is the same shape as
+[client options](client.md) and as [`:skin{}`](fonts.md#restyle-one-widget--widgetskin), and it is why
+there is no `:move()`.
 
 Provenance is derived from the tree, not from how you obtained the object: find your own window with
 `hafen.ui.at(x, y)` and you get the very same value `hafen.ui.window{}` returned, writes and all. Addon B
 looking at addon A's window holds a *borrowed* widget — which is the correct answer.
+
+### Laying out a native widget
+
+`w:pos(x, y)` and `w:size(w, h)` **move the client's own widgets**, and they move them for real: `pos`
+writes the same field your own drag writes, so what you place is what you click. There is no draw-time
+offset anywhere, because a widget drawn where it cannot be clicked is worse than one that never moved.
+
+```lua
+local inv = hafen.ui("window[title=Inventory]")
+inv:pos(40, 200)          -- move it
+inv:size(300, 220)        -- resize its CONTENT; the chrome repacks around it
+inv:pos(nil)              -- drop YOUR move: back to where the user had it
+```
+
+**Your layout is a layer over the client's, never a write into it.** The first time you touch a native
+widget, the engine records what it was; `w:pos(nil)`/`w:size(nil)` give that half back on the spot, and
+disabling or `:reload`ing your addon gives back everything you were holding. A relog correctly restores
+nothing — that session's widgets are gone.
+
+**The half that is easy to get wrong is the disk.** The client persists a few window positions of its own
+(inventory, equipment, the character sheet, kin, the map, and any window it tracks by id), written at
+logout *and* every minute while you play. What it writes is always **what the user last placed** — never
+where your rule put it. So uninstalling your addon leaves the HUD exactly as its owner had arranged it,
+which is the whole point: nothing you do here is a change they have to undo by hand.
+
+**Reading back.** `w:pos()` answers within the parent, in widget-local px — a window's `c` is relative to
+whatever contains it, and the HUD is not the root, so use [`:rootpos()`](#the-widget-object) when you need
+screen coords. `w:size()` reads a window's **outer** box while `w:size(w, h)` sets its **content** size,
+which is the same asymmetry `:size()` has always had on a window you built: the chrome is derived, not set.
+
+**`pos` always lands; `size` does not overrule a window that owns its own.** Some of the client's windows
+pack themselves around their contents whenever anything resizes them — the main inventory is one — so
+`w:size(w, h)` on those is honoured and then undone by the client before the call returns. That is
+**inert, never an error**, and it leaves nothing behind; read `:size()` back if you need to know which kind
+you are holding. It is the same rule the sheet's [`pad`](#pad--the-one-property-that-moves-things) already
+follows: a size applies where the surface can re-lay itself out, and a surface that fixes its own size
+cannot.
+
+Two addons may each hold a layer over the same widget — unlike [`:hide()`](#hiding-a-native-widget-carries-a-restore),
+a position is not a toggle. The last write wins on screen, and each addon restores what *it* found.
+`:pack()` and `:destroy()` are still refused on a widget you do not own: those destroy the client's work
+rather than sit on top of it.
 
 ### Hiding a native widget carries a restore
 
@@ -487,9 +530,10 @@ is best-effort over a known type set (unknown → nil, never throws). The whole 
 `hafen.ui()`/`:parent()` (all client-side data — actions stay separately gated); which child is a price vs. a
 spacer is upstream-defined knowledge your Lua adapter supplies. **Restyling** a native widget — its text, its
 background, its border, a window's whole chrome — is [the stylesheet's](#the-stylesheet--restyling-the-client)
-job rather than a write; **placing** one is not here yet. The single exception is
-[`pad`](#pad--the-one-property-that-moves-things), which re-lays a window out around its own content: moving or
-anchoring widgets by rule is a later feature.
+job rather than a write, while **placing** one is a write:
+[`:pos(x, y)`/`:size(w, h)`](#laying-out-a-native-widget). The sheet reaches geometry in two places today —
+[`pad`](#pad--the-one-property-that-moves-things), which re-lays a window out around its own content — and
+placing or anchoring a widget *by rule* is a later task of the same feature.
 
 ### Hit-testing — what is under the cursor (the WoW `/framestack` enabler)
 

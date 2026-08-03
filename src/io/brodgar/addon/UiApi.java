@@ -400,10 +400,12 @@ final class UiApi {
         pending.clear();
         if(consoleOwner != null) {
             consoleOwner.hiddenNative.clear();   // 029.2: last session's widgets are gone; nothing left to restore
+            consoleOwner.movedNative.clear();    // 036.1: ...nor is there anything left to put back where it was
             consoleOwner.itemWatches.clear();    // 029.3: ...and so are the containers it was subscribed to
             consoleOwner.selectorWatches.clear();// 030.2: ...and the selectors it was watching for
         }
         LuaWidget.recountHidden();               // 031.1: nothing is hidden in a session that has not started
+        LuaWidget.recountMoved();                // 036.1: ...and nothing is laid out in one either
     }
 
     private static LuaValue newUi(final Addon owner, LuaValue opts, boolean window) {
@@ -1018,6 +1020,143 @@ final class UiApi {
         if((u == null) || (u.root == null))
             return false;
         return (h.id >= 0) ? (u.getwidget(h.id) == h.wdg) : h.wdg.hasparent(u.root);
+    }
+
+    // ---- the layout layer over the client's own (036.1, feature E) -----------------------------------
+
+    /**
+     * Give back every native widget this addon moved or resized ({@code :reload}/disable), then drop the list.
+     * The counterpart of {@link #teardownHidden} one property along, and the same guard: a record whose widget is
+     * no longer the live one is skipped, so a relog — which rebinds {@code ui} <i>before</i> the teardown loop —
+     * correctly restores nothing (that tree is gone), while a same-session {@code :reload} puts every widget back.
+     *
+     * <p><b>The restore is the exact inverse of the write</b>: the position half goes back through
+     * {@link Widget#move}, the size half through {@link Widget#resize} with the argument
+     * {@link LuaWidget#sizeArg} recorded — which is a window's CONTENT size, so its chrome re-derives exactly the
+     * outer box it had. The size goes back <b>first</b>: {@link Widget#resize} tells the parent
+     * ({@code parent.cresize(this)}), which is free to re-place the child, so the position must have the last
+     * word. Best-effort per record; never aborts a teardown. Tree ops under the {@code ui} monitor.
+     */
+    static void teardownMoved(Addon a) {
+        if((a == null) || a.movedNative.isEmpty())    // null: the :lua REPL owner, which exists only once used
+            return;
+        final UI u = ui;
+        final List<LuaWidget.Moved> ms = new ArrayList<LuaWidget.Moved>(a.movedNative);
+        a.movedNative.clear();
+        LuaWidget.recountMoved();
+        Runnable restore = () -> {
+            for(LuaWidget.Moved m : ms)
+                restoreMoved(u, m, true, true);
+        };
+        if(u != null) {
+            synchronized(u) { restore.run(); }
+        } else {
+            restore.run();
+        }
+    }
+
+    /**
+     * Put one record's halves back where the widget was ({@code pos} and/or {@code size}), leaving the record's
+     * own fields to the caller. Skips a widget that is no longer the live one ({@link #stillMovable}).
+     */
+    private static void restoreMoved(UI u, LuaWidget.Moved m, boolean pos, boolean size) {
+        if(!stillMovable(u, m))
+            return;
+        try {
+            if(size && (m.size != null))
+                m.wdg.resize(m.size);
+            if(pos && (m.pos != null))
+                m.wdg.move(m.pos);
+        } catch(RuntimeException e) { /* best-effort: never abort a teardown or a live undo */ }
+    }
+
+    /**
+     * The live undo behind {@code widget:pos(nil)} / {@code widget:size(nil)}: drop <b>one half</b> of this
+     * addon's layout record and restore that half there and then. A record with neither half left is dropped
+     * entirely, which is what puts {@link LuaWidget#anyMoved} back to {@code false} for a client nobody is
+     * laying out any more. A widget this addon never touched is a silent no-op — there is nothing of ours on it.
+     */
+    static void releaseMoved(Addon owner, Widget w, boolean pos) {
+        LuaWidget.Moved m = LuaWidget.findMoved(owner, w);
+        if(m == null)
+            return;
+        UI u = ui;
+        Runnable act = () -> {
+            restoreMoved(u, m, pos, !pos);
+            if(pos)
+                m.pos = null;
+            else
+                m.size = null;
+            if(m.idle()) {
+                owner.movedNative.remove(m);
+                LuaWidget.recountMoved();
+            }
+        };
+        if(u != null) {
+            synchronized(u) { act.run(); }
+        } else {
+            act.run();
+        }
+    }
+
+    /**
+     * <b>The position {@code GameUI.savewndpos} must persist</b> — what the <i>user</i> last placed, which is the
+     * widget's own {@code c} unless an addon's layout is standing on it, and then the stock value recorded at
+     * first touch (036.1, through {@code haven.AddonWidgets.stockc}).
+     *
+     * <p>This is the acceptance criterion the whole feature exists to satisfy: {@code savewndpos} writes
+     * {@code wndc-inv}/{@code -equ}/{@code -chr}/{@code -zerg}/{@code -map} through {@code Utils.setprefc} from
+     * {@code dispose()} at logout <i>and</i> every 60 s from {@code tick}, so a layer that merely restores at
+     * teardown would still have the client save our position as the user's own preference — and uninstalling the
+     * addon would leave those windows displaced <b>forever</b>, D-070's discipline defeated by a write to disk.
+     * Substituting the value rather than restoring the widget is also what keeps the 60 s tick invisible: nothing
+     * on screen moves, only what is written down. <b>An addon's layout is a layer over the client's, never a
+     * write into it.</b>
+     *
+     * <p>First live owner wins, which is the same order the moves themselves happened in. One volatile read for
+     * a client no addon has laid out.
+     */
+    static Coord stockPos(Widget w) {
+        LuaWidget.Moved m = movedOwner(w, true);
+        return (m != null) ? m.pos : ((w == null) ? null : w.c);
+    }
+
+    /** The size argument {@code savewndpos} must persist ({@code wndsz-map}) — see {@link #stockPos}. */
+    static Coord stockSizeArg(Widget w) {
+        LuaWidget.Moved m = movedOwner(w, false);
+        return (m != null) ? m.size : ((w == null) ? null : LuaWidget.sizeArg(w));
+    }
+
+    /** The first live owner holding the asked-for half of a layout record for {@code w}, or {@code null}. */
+    private static LuaWidget.Moved movedOwner(Widget w, boolean pos) {
+        if(!LuaWidget.anyMoved || (w == null))
+            return null;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++) {
+            LuaWidget.Moved m = movedIn(as.get(i), w, pos);
+            if(m != null)
+                return m;
+        }
+        Addon c = consoleOwner;               // the :lua REPL lays windows out too, and owns them the same way
+        return (c == null) ? null : movedIn(c, w, pos);
+    }
+
+    /** One owner's layout list, by widget identity, for the half asked about. Indexed: allocates no iterator. */
+    private static LuaWidget.Moved movedIn(Addon a, Widget w, boolean pos) {
+        List<LuaWidget.Moved> ms = a.movedNative;
+        for(int i = 0, n = ms.size(); i < n; i++) {
+            LuaWidget.Moved m = ms.get(i);
+            if((m.wdg == w) && ((pos ? m.pos : m.size) != null))
+                return m;
+        }
+        return null;
+    }
+
+    /** Is a layout record still the same live widget? (The {@link #stillHidable} test, one list along.) */
+    private static boolean stillMovable(UI u, LuaWidget.Moved m) {
+        if((u == null) || (u.root == null))
+            return false;
+        return (m.id >= 0) ? (u.getwidget(m.id) == m.wdg) : m.wdg.hasparent(u.root);
     }
 
     // -------------------------------------------------- generic widget-tree introspection (hafen.ui, W1, spec 20)

@@ -761,9 +761,10 @@ end
 -- handle from adopt/replace, and the transient WidgetNode from root/node/at -- into ONE interned entity: what you
 -- CREATE and what you FIND are the same type. This asserts the whole collapse in one pass: every door hands back
 -- that type; `==` is the identity test (which is why :same() could be cut); arity is the verb on geometry
--- (:pos()/:size() read, :pos(x,y)/:size(w,h) write and chain, so :move() is gone); the write verbs answer only on a
--- widget THIS addon created, with two DISTINCT refusals on a native one (geometry names layout, feature E;
--- :pack()/:destroy() name the creation doors); a stale entity reads nil/empty with :exists() false while a write on
+-- (:pos()/:size() read, :pos(x,y)/:size(w,h) write and chain, so :move() is gone); :pack()/:destroy() answer only on
+-- a widget THIS addon created and refuse on a native one naming the creation doors (the geometry writes used to
+-- refuse beside them, and since 036.1 they LAY A NATIVE WIDGET OUT instead -- 036-ui-layout.1 owns that coverage,
+-- and this frozen harness stopped poking the client's root with them); a stale entity reads nil/empty while a write on
 -- it is a silent chaining no-op; containers are readable with NOTHING hidden; and the four hard cuts (hafen.items,
 -- hafen.ui.adopt, :same, :move) are plain nil, not shims (D-013).
 local function readWidgets(tag)
@@ -796,7 +797,7 @@ local function readWidgets(tag)
   local p, s = own:pos(), own:size()
   hafen.log(("[%s] owned: own.owned=%s root.owned=%s | chained pos(x,y)->%d,%d size(w,h)->%d,%d")
     :format(tag, tostring((own:info() or {}).owned), tostring((root:info() or {}).owned), p.x, p.y, s.x, s.y))
-  hafen.log(("[%s] borrowed refusals: root:pos(1,1) -> %s"):format(tag, why(root.pos, root, 1, 1)))
+  hafen.log(("[%s] borrowed refusals: root:pack() -> %s"):format(tag, why(root.pack, root)))
   hafen.log(("[%s]                    root:destroy() -> %s"):format(tag, why(root.destroy, root)))
   -- STALENESS + the no-op write. Destroying our own widget makes every read answer nil/empty with :exists() false,
   -- while a WRITE on it is a silent no-op that STILL CHAINS: a write is not a question, so it does not error and no

@@ -670,6 +670,26 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
      */
     public static void chrome(Window wnd) {              SkinDeco.check(wnd);            }
 
+    /**
+     * The <b>layout-persistence seam</b> (036.1, feature E) — called from {@code haven.AddonWidgets} wherever the
+     * client writes a window's own geometry to disk ({@code GameUI.savewndpos}, {@code cdestroy}'s
+     * {@code wndc-misc}, the crafting window's {@code makewndc}): what should be persisted is what the <b>user</b>
+     * last placed, so a widget an addon's layout is standing on answers with the stock value recorded at first
+     * touch, and every other widget answers with itself.
+     *
+     * <p>Without it a naive move has the client save the addon's position as the user's preference, and
+     * uninstalling the addon leaves those windows displaced forever — the one risk of this feature that is not
+     * reversible in memory. <b>An addon's layout is a layer over the client's, never a write into it.</b>
+     *
+     * <p><b>Threading.</b> UI thread (a 60 s tick, {@code dispose()}, or a window's destroy) and it raises no Lua.
+     * With no addon laying anything out the call is one volatile read and hands the widget's own value straight
+     * back, so a stock client writes exactly the bytes it wrote before.
+     */
+    public static Coord stockPos(Widget w) {             return UiApi.stockPos(w);       }
+
+    /** @see #stockPos */
+    public static Coord stockSize(Widget w) {            return UiApi.stockSizeArg(w);   }
+
     // The widget-targeting descriptor {id, type, place, caption, parentType} (D-024) is GONE (032.2). It was the
     // argument of replace{match=fn} and nothing else once 030.2 hard-cut the onWidgetCreate observer that shared
     // it; with hafen.ui.replace deleted there is exactly one vocabulary for "which window" left — the Selector.

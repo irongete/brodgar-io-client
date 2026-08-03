@@ -58,13 +58,14 @@ import java.util.WeakHashMap;
  *
  * <p><b>Owned vs borrowed (029.2).</b> The same type covers a widget the addon <i>created</i>
  * ({@code hafen.ui.window{}}/{@code widget{}} — OWNED) and one it merely <i>found</i> (a native widget, or another
- * addon's — BORROWED). Every read answers on both, and so does the one visibility write ({@code :hide()}/
- * {@code :show()}); the geometry writes ({@code :pos(x,y)}/{@code :size(w,h)}), {@code :pack()} and
- * {@code :destroy()} are OWNED-only and raise a clear error otherwise — the geometry one naming layout (feature E)
- * rather than half-working. Provenance is <b>derived from the tree</b> ({@link #ownedContent}), never stored on the
- * handle, because the cache below may collect and re-mint an entity at any moment. {@code :hide()} on a BORROWED
- * widget records it on the addon's restore list ({@link Addon#hiddenNative}) and teardown gives it back — that,
- * and not a separate handle type, is what {@code hafen.ui.adopt} used to be for.
+ * addon's — BORROWED). Every read answers on both, and so do the visibility write ({@code :hide()}/{@code :show()})
+ * and — since 036.1, feature E — the geometry writes ({@code :pos(x,y)}/{@code :size(w,h)}); {@code :pack()} and
+ * {@code :destroy()} stay OWNED-only and raise a clear error otherwise, because destroying the client's own widget
+ * is not the addon's to do. Provenance is <b>derived from the tree</b> ({@link #ownedContent}), never stored on the
+ * handle, because the cache below may collect and re-mint an entity at any moment. A write on a BORROWED widget
+ * records what it was first — {@code :hide()} on {@link Addon#hiddenNative}, a move or a resize on
+ * {@link Addon#movedNative} — and teardown gives it back; that, and not a separate handle type, is what
+ * {@code hafen.ui.adopt} used to be for.
  *
  * <p><b>Liveness is {@code hasparent(ui.root)}</b> (the node rule, not the model's {@code getwidget(id) != wdg},
  * which only covers server-bound widgets). A widget detached from the tree is stale: every read answers
@@ -242,40 +243,74 @@ public final class LuaWidget {
                 return (p == null) ? LuaValue.NIL : of(owner, p);
             }
         });
-        // pos() / pos(x, y) — ARITY IS THE VERB (the 018 options shape, 029.2): no args READS the position within
-        // the parent as {x=,y=} (widget-local px); two numbers MOVE the widget and chain on self. The write is
-        // OWNED-only — on a native widget it raises the layout error (feature E). :move() is hard cut.
+        // pos() / pos(x, y) / pos(nil) — ARITY IS THE VERB (the 018 options shape, 029.2; the same three arities as
+        // :replace and :skin): no args READS the position within the parent as {x=,y=} (widget-local px), two
+        // numbers MOVE the widget, and nil DROPS your move and puts back what the widget was at before you first
+        // touched it. Both writes chain. :move() is hard cut.
+        //
+        // SINCE 036.1 IT ANSWERS ON A NATIVE WIDGET (feature E) — it moves `c`, the very field the user's own drag
+        // writes, never a draw-time offset (which would make the widget draw where it cannot be clicked). Touching
+        // one records the stock value first (Addon.movedNative), so :reload/disable gives it back and, above all,
+        // the client's own position store never learns about us: GameUI.savewndpos asks for the stock coordinate.
         m.set("pos", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:pos() → narg 1 · w:pos(x,y) → narg 3
+            public Varargs invoke(Varargs a) {            // w:pos() → narg 1 · w:pos(nil) → narg 2 · w:pos(x,y) → narg 3
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "pos"));
-                if(a.narg() < 3)
+                if(a.narg() < 2)
                     return ((w == null) || (w.c == null)) ? LuaValue.NIL : xyTable(w.c);
+                if(a.narg() < 3) {                        // w:pos(nil) — undo OUR move, back to the stock value
+                    if(!a.arg(2).isnil())                 // w:pos(x) is a mistake, not an undo
+                        throw new LuaError("widget:pos(x, y) takes BOTH coordinates; widget:pos() reads the"
+                            + " position and widget:pos(nil) drops your addon's move and restores the stock one");
+                    if(w != null)                         // a stale widget: the 029.2 silent chaining no-op
+                        UiApi.releaseMoved(owner, w, true);
+                    return self;
+                }
                 Coord to = Coord.of(a.checkint(2), a.checkint(3));
                 if(w != null) {
-                    owned(owner, w, "pos(x, y)", true);
                     UI u = AddonManager.ui;
-                    synchronized(u) { w.move(to); }
+                    synchronized(u) {
+                        Moved rec = (ownedContent(owner, w) == null) ? recordMoved(owner, w) : null;
+                        if((rec != null) && (rec.pos == null))
+                            rec.pos = w.c;                // the stock value, at FIRST touch and only then
+                        w.move(to);
+                    }
                 }
                 return self;
             }
         });
-        // size() / size(w, h) — same arity rule: read {x=,y=}, or RESIZE and chain. The write resizes the addon's
-        // CONTENT and repacks the chrome around it (so a window's frame follows), and is OWNED-only.
+        // size() / size(w, h) / size(nil) — same three arities. The write resizes the CONTENT and repacks the
+        // chrome around it (so a window's frame follows), which is why what :size() reads back on a window is the
+        // outer box and not the pair you passed; the undo restores that outer box exactly (LuaWidget.sizeArg).
         m.set("size", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:size() → narg 1 · w:size(w,h) → narg 3
+            public Varargs invoke(Varargs a) {            // w:size() → narg 1 · w:size(nil) → narg 2 · w:size(w,h) → narg 3
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "size"));
-                if(a.narg() < 3)
+                if(a.narg() < 2)
                     return ((w == null) || (w.sz == null)) ? LuaValue.NIL : xyTable(w.sz);
+                if(a.narg() < 3) {                        // w:size(nil) — undo OUR resize, back to the stock value
+                    if(!a.arg(2).isnil())
+                        throw new LuaError("widget:size(w, h) takes BOTH dimensions; widget:size() reads the size"
+                            + " and widget:size(nil) drops your addon's resize and restores the stock one");
+                    if(w != null)
+                        UiApi.releaseMoved(owner, w, false);
+                    return self;
+                }
                 Coord to = Coord.of(a.checkint(2), a.checkint(3));
                 if(w != null) {
-                    AddonWidget content = owned(owner, w, "size(w, h)", true);
+                    AddonWidget content = ownedContent(owner, w);
                     UI u = AddonManager.ui;
                     synchronized(u) {
-                        content.resize(to);
-                        if(content != w)                  // a window: refit the chrome around the resized content
-                            w.pack();
+                        if(content == null) {             // BORROWED (036.1): the layer remembers, then resizes
+                            Moved rec = recordMoved(owner, w);
+                            if(rec.size == null)
+                                rec.size = sizeArg(w);
+                            w.resize(to);
+                        } else {
+                            content.resize(to);
+                            if(content != w)              // a window: refit the chrome around the resized content
+                                w.pack();
+                        }
                     }
                 }
                 return self;
@@ -362,7 +397,7 @@ public final class LuaWidget {
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "pack"));
                 if(w != null) {
-                    AddonWidget content = owned(owner, w, "pack()", false);
+                    AddonWidget content = owned(owner, w, "pack()");
                     if(content != w) {
                         UI u = AddonManager.ui;
                         synchronized(u) { w.pack(); }
@@ -377,7 +412,7 @@ public final class LuaWidget {
             public LuaValue call(LuaValue self) {
                 Widget w = live(handle(self, "destroy"));
                 if(w != null) {
-                    AddonWidget content = owned(owner, w, "destroy()", false);
+                    AddonWidget content = owned(owner, w, "destroy()");
                     UI u = AddonManager.ui;
                     synchronized(u) { content.kill(); }
                     owner.widgets.remove(content);
@@ -563,20 +598,18 @@ public final class LuaWidget {
     }
 
     /**
-     * The OWNED content behind {@code w}, or a clear error naming what the addon may do instead. Two messages,
-     * because the two refusals mean different things: a geometry write on a native widget is <b>layout</b>, a
-     * later feature (E) — not something the addon should half-do through a raw {@code move()}; while
-     * {@code :pack()}/{@code :destroy()} on a native widget is simply not the addon's to do at all.
+     * The OWNED content behind {@code w}, or a clear error naming what the addon may do instead. One message
+     * since 036.1: the geometry writes stopped needing it — {@code :pos}/{@code :size} answer on a native widget
+     * now (feature E) and route through {@link Addon#movedNative} instead — leaving {@code :pack()} and
+     * {@code :destroy()}, which are simply not the addon's to do on a widget the client owns.
      */
-    private static AddonWidget owned(Addon owner, Widget w, String verb, boolean geometry) {
+    private static AddonWidget owned(Addon owner, Widget w, String verb) {
         AddonWidget c = ownedContent(owner, w);
         if(c == null)
             throw new LuaError("widget:" + verb + " — " + typeName(w) + " is a NATIVE widget (your addon did not"
-                + " create it); " + (geometry
-                    ? "moving or resizing native widgets is layout, a later feature (E). widget:pos() and"
-                      + " widget:size() READ any widget, and widget:hide()/:show() work on any widget too."
-                    : ":pack()/:destroy() answer only on a widget you created with hafen.ui.window{} or"
-                      + " hafen.ui.widget{}."));
+                + " create it); :pack()/:destroy() answer only on a widget you created with hafen.ui.window{} or"
+                + " hafen.ui.widget{}. To lay a native widget out, use widget:pos(x, y) / widget:size(w, h) —"
+                + " which restore themselves when your addon goes away.");
         return c;
     }
 
@@ -720,6 +753,105 @@ public final class LuaWidget {
                 return;
             }
         }
+    }
+
+    // ---- the moved-native restore list (036.1, feature E) ------------------------------------------
+
+    /**
+     * One native widget an addon has <b>moved or resized</b> — {@link Hidden}'s shape one property along:
+     * <i>what it was before we touched it</i>. Minted at the first touch, it carries the two halves
+     * independently, because they are touched by different verbs and dropped by different calls: {@link #pos}
+     * is the widget's {@code c} before the first {@code widget:pos(x,y)}, {@link #size} is the argument that
+     * reproduces its size through {@link Widget#resize(Coord)} before the first {@code widget:size(w,h)}. A
+     * {@code null} half means <i>this addon never touched that</i> and there is nothing there to give back.
+     *
+     * <p><b>Why the size half is not simply {@code sz}.</b> {@code Window.resize} takes the CONTENT size and
+     * derives the outer {@code sz} from the deco around it, so the value that restores a window is its
+     * {@code csz()}, not its {@code sz} — see {@link #sizeArg}. Recording the argument rather than the result
+     * makes the restore the exact inverse of the write for a window and a bare widget alike.
+     *
+     * <p>{@link #id} is the server widget id ({@code -1} for a client-only widget), so the restore can use the
+     * same two-branch death test the hide records use ({@link UiApi#stillMovable}).
+     */
+    static final class Moved {
+        final Addon owner;
+        final Widget wdg;
+        final int id;
+        Coord pos;       // the stock c   — null: this addon never moved it
+        Coord size;      // the stock size ARGUMENT (a Window's content size) — null: this addon never resized it
+
+        Moved(Addon owner, Widget wdg, int id) {
+            this.owner = owner;
+            this.wdg = wdg;
+            this.id = id;
+        }
+
+        /** Nothing of ours left on this widget ⇒ the record is dropped. */
+        boolean idle() {
+            return (pos == null) && (size == null);
+        }
+    }
+
+    /**
+     * Does <b>any</b> live owner hold a moved-native record right now? The global-empty fast path for the 036.1
+     * persistence seam ({@link UiApi#stockPos}/{@link UiApi#stockSizeArg}), which {@code GameUI.savewndpos} asks
+     * for six windows every 60 s and again at logout. A plain volatile read is the whole cost for a client no
+     * addon has laid out — which is every client until one calls {@code w:pos(x,y)} on a native widget.
+     *
+     * <p>Maintained exactly like {@link #anyHidden}: recomputed at the places a layout list changes (the two
+     * verbs, their {@code nil} undo, {@link UiApi#teardownMoved}, {@link UiApi#resetSession}). A stale
+     * <i>true</i> costs only the walk, which then finds no record and hands back the widget's own value; a
+     * stale <i>false</i> would silently persist our position as the user's, so it is only ever cleared by a
+     * recount that actually looked.
+     */
+    static volatile boolean anyMoved = false;
+
+    /** Recompute {@link #anyMoved} over every live owner — the loaded addons plus the {@code :lua} REPL. */
+    static void recountMoved() {
+        boolean any = false;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); !any && (i < n); i++)
+            any = !as.get(i).movedNative.isEmpty();
+        Addon c = AddonManager.consoleOwner;
+        if(!any && (c != null))
+            any = !c.movedNative.isEmpty();
+        anyMoved = any;
+    }
+
+    /**
+     * The size <b>argument</b> that reproduces {@code w}'s current geometry through {@link Widget#resize(Coord)}
+     * — a {@link Window}'s content size ({@code csz()}, since its {@code resize} sizes the content and derives
+     * the outer box from the deco), and plain {@code sz} for everything else. Both the record and the write go
+     * through this one answer, which is what makes the restore an exact inverse.
+     */
+    static Coord sizeArg(Widget w) {
+        return (w instanceof Window) ? ((Window)w).csz() : w.sz;
+    }
+
+    /** This owner's own layout record for a widget, or {@code null} (identity-keyed; the list is per-addon tiny). */
+    static Moved findMoved(Addon owner, Widget w) {
+        for(Moved m : owner.movedNative) {
+            if(m.wdg == w)
+                return m;
+        }
+        return null;
+    }
+
+    /**
+     * The record for a BORROWED widget this addon is about to move or resize, minting it on first touch. Unlike
+     * {@link #recordHidden} there is <b>no</b> one-widget-one-owner refusal: a position is not a toggle, two
+     * addons can each hold a layer over the same window, and each restores what <i>it</i> found (D-070's rule
+     * read one level down). The last writer wins on screen, which is the same answer the cascade gives.
+     */
+    static Moved recordMoved(Addon owner, Widget w) {
+        Moved m = findMoved(owner, w);
+        if(m != null)
+            return m;
+        UI u = AddonManager.ui;
+        m = new Moved(owner, w, (u == null) ? -1 : u.widgetid(w));
+        owner.movedNative.add(m);
+        anyMoved = true;
+        return m;
     }
 
     // ---- items: the relation + the per-tick subscription (029.3) ------------------------------------

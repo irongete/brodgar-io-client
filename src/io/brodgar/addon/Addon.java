@@ -107,6 +107,20 @@ public final class Addon {
      */
     public final List<LuaWidget.Hidden> hiddenNative = new CopyOnWriteArrayList<LuaWidget.Hidden>();
     /**
+     * Native widgets this addon has <b>moved or resized</b> with {@code widget:pos(x,y)}/{@code widget:size(w,h)}
+     * (036.1, feature E) — the same shape as {@link #hiddenNative} one property along: <i>what it was before we
+     * touched it</i>. One entry per widget, minted at the FIRST touch and carrying the stock position and the
+     * stock size argument independently (an addon that only moved a window has nothing to say about its size).
+     *
+     * <p><b>An addon's layout is a layer over the client's, never a write into it.</b> The record is what makes
+     * that true in both directions: {@link UiApi#teardownMoved} puts every widget back on {@code :reload}/disable
+     * (guarded on it still being the same live one, so a relog correctly skips it), and {@link UiApi#stockPos}
+     * answers {@code GameUI.savewndpos} with the coordinate the <i>user</i> last placed, so the client never
+     * persists our layout as their preference. {@code widget:pos(nil)}/{@code :size(nil)} drop their own half and
+     * restore it there and then; an entry with neither half left is dropped. Copy-on-write like the lists above.
+     */
+    public final List<LuaWidget.Moved> movedNative = new CopyOnWriteArrayList<LuaWidget.Moved>();
+    /**
      * Container subscriptions this addon holds ({@code widget:onItemAdded/:onItemRemoved/:onDestroy}, 029.3) — one
      * entry per watched widget, created by the FIRST callback set on it and dropped when the last one is cleared
      * (the {@code hasSub} gate: an unsubscribed widget is never polled). They also live in a flat global list in

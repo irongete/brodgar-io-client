@@ -449,3 +449,20 @@
   the categorical one beside it: this addon's own `addons()` row must read `calls.draw + calls.widgets == 0`
   while the chrome paints. The sampling timer is charged to `timers` and never to `draw`, which is what keeps
   that check clean — a measurement that ran from an `OnUpdate` would have been charged to the thing it measures.
+
+- **(036.1) A same-package probe can fabricate the `UI` the code under test only *reads*.** A real `haven.UI`
+  needs an `Audio.Root`, but `stillMovable`/`live()`/`widgetid` touch exactly three fields: `Unsafe
+  .allocateInstance(UI.class)`, reflectively set the private final `widgets`/`rwidgets` maps (a
+  `setAccessible(true)` `Field.set` still works on non-static finals), and point `root` at an
+  `Unsafe`-allocated `RootWidget`. Then wire the tree by **assigning the public `Widget.parent` field** instead
+  of calling `add()` — that skips `added()`, which is what makes a `haven.Window` un-buildable headlessly
+  (035.1) — and `hasparent(u.root)` is satisfied. With that, the probe drives the **real Lua verbs**
+  (`LuaWidget.of(owner, w)` then `self.get("pos").invoke(...)`) rather than the Java behind them: 49/49 for
+  036.1, including the whole record/restore/teardown/two-addon matrix that the in-game suite can only sample.
+- **(036.1) A negative hit-test assertion must leave the widget's own rectangle.** The suite picked its target
+  dynamically and moved it 24/18 px, then asserted `hafen.ui.at(old centre) ~= w` — which failed in-game on a
+  widget wider than the move, because its old centre was still inside it. The fix is to probe the old
+  **top-left + 2** (a corner any move of ≥ 3 px leaves) and to have the picker require `at()` to resolve to the
+  candidate at *both* probe points before accepting it. Generalisation: when a check is "it is no longer here",
+  derive "here" from a point the move provably vacates, and make the self-validating pick prove that too — a
+  dynamically chosen target can otherwise redden on someone else's HUD for a reason that is not the feature.

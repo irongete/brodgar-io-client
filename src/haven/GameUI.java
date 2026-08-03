@@ -894,17 +894,21 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     }
 
     private void savewndpos() {
+	/* addon: what gets written down is what the USER placed. AddonWidgets.stockc/stockcsz answer the widget's
+	 * own geometry unless an AddOn's layout is standing on it, and then the value it had before that addon
+	 * touched it — otherwise the client would persist the addon's position as the user's own preference, and
+	 * uninstalling it would leave these windows displaced forever (spec 036-ui-layout). */
 	if(invwnd != null)
-	    Utils.setprefc("wndc-inv", invwnd.c);
+	    Utils.setprefc("wndc-inv", AddonWidgets.stockc(invwnd));
 	if(equwnd != null)
-	    Utils.setprefc("wndc-equ", equwnd.c);
+	    Utils.setprefc("wndc-equ", AddonWidgets.stockc(equwnd));
 	if(chrwdg != null)
-	    Utils.setprefc("wndc-chr", chrwdg.c);
+	    Utils.setprefc("wndc-chr", AddonWidgets.stockc(chrwdg));
 	if(zerg != null)
-	    Utils.setprefc("wndc-zerg", zerg.c);
+	    Utils.setprefc("wndc-zerg", AddonWidgets.stockc(zerg));
 	if(mapfile != null) {
-	    Utils.setprefc("wndc-map", mapfile.c);
-	    Utils.setprefc("wndsz-map", mapfile.csz());
+	    Utils.setprefc("wndc-map", AddonWidgets.stockc(mapfile));
+	    Utils.setprefc("wndsz-map", AddonWidgets.stockcsz(mapfile));
 	}
     }
 
@@ -999,7 +1003,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			}
 		    }
 		    public void destroy() {
-			Utils.setprefc("makewndc", makewndc = this.c);
+			Utils.setprefc("makewndc", makewndc = AddonWidgets.stockc(this));	// addon: see savewndpos
 			super.destroy();
 		    }
 		};
@@ -1137,7 +1141,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    String wndid = wndids.reverse().get((Window)w);
 	    if(wndid != null) {
 		wndids.remove(wndid);
-		Utils.setprefc(String.format("wndc-misc/%s", wndid), w.c);
+		Utils.setprefc(String.format("wndc-misc/%s", wndid), AddonWidgets.stockc(w));	// addon: see savewndpos
 	    }
 	}
 	if(w instanceof GItem) {

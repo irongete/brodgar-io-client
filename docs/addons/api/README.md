@@ -56,7 +56,7 @@ events are in [events](events.md).
 
 | Section | Purpose |
 |---|---|
-| [`hafen.ui`](ui.md) | the Widget object — [selectors](ui.md#selectors--naming-a-widget), custom windows, overlays, the items in any container, replacing native widgets, the [stylesheet](ui.md#the-stylesheet--restyling-the-client) that restyles the client (text, and the [chrome it draws](ui.md#bg-and-border--the-surfaces-that-paint)), and walking + hit-testing the tree |
+| [`hafen.ui`](ui.md) | the Widget object — [selectors](ui.md#selectors--naming-a-widget), custom windows, overlays, the items in any container, replacing native widgets, [laying them out](ui.md#laying-out-a-native-widget), the [stylesheet](ui.md#the-stylesheet--restyling-the-client) that restyles the client (text, and the [chrome it draws](ui.md#bg-and-border--the-surfaces-that-paint)), and walking + hit-testing the tree |
 | [`hafen.ghost`](ghost.md) | client-only world props ("ghosts") — base/city planning |
 | [`hafen.asset`](asset.md) | load the files your addon ships — images, fonts, glTF models, data — through one door |
 | [`hafen.render`](render.md) | stand your own (non-`.res`) images and glTF models **in the world** |
