@@ -1,47 +1,52 @@
 # AddOns
 
-A WoW-style **Lua addon system** for the client. Addons install as folders of Lua files and extend the
-client through a stable `hafen.*` API — read the game state, react to events, draw custom UI, add
-hotkeys and console commands, and (with permission) drive the character.
-
-## Documentation
-
-- **[Getting started](getting-started.md)** — write your first addon: the manifest, the lifecycle, the
-  sandbox, saved variables, permissions, and the developer loop.
-- **[API reference](api/README.md)** — the complete `hafen.*` API, one page per section.
+A **Lua addon system** for the client. An addon is a folder of Lua files that the client loads at login
+and runs in a sandbox, with everything it may touch arriving through one `hafen.*` API: read the game
+state, react to events, draw your own UI, add hotkeys and console commands, restyle the client — and,
+with the user's permission, drive the character.
 
 ## Quick look
 
 ```lua
--- addons/hello/main.lua
+-- addons/myaddon/main.lua
 hafen.events.on("OnEnterWorld", function()
   hafen.log("hello from " .. (hafen.player():name() or "?"))
 end)
 
-hafen.client:options():keybindings():register("wave", function()
-  hafen.log("nearby players: " .. hafen.world.count("gfx/borka/body"))
+hafen.timer.every(5, function()
+  hafen.log("trees nearby: " .. hafen.world.count("terobjs/tree"))
 end)
 ```
 
+That is a whole addon, beside a [`manifest.json`](runtime.md#the-manifest) naming it. Nothing above needs
+a permission, a build step or a restart: drop the folder into `addons/`, type `:reload`, and it runs.
+
+## Where to go
+
+| Page | Read it when |
+|---|---|
+| [getting started](getting-started.md) | you have not written one yet: eight steps, from an empty folder to a window with a hotkey that remembers its state |
+| [the guides](guides/README.md) | you know the shape and want to do a thing — read the world, schedule work, draw UI, save data, add hotkeys, act, theme, debug |
+| [the API reference](api/README.md) | you want a name: every namespace, verb, argument, return and error |
+| [the runtime](runtime.md) | the manifest field by field, the sandbox, the CPU budgets, the AddOns panel, and the console commands |
+| [the examples](examples.md) | ten addons ship with the client, installed and running; read the one that already does what you are doing |
+
 ## The API at a glance
 
-| Area | Sections |
+One page per namespace, and a directory where a namespace is large. The
+[reference index](api/README.md) lists every page.
+
+| Area | Namespaces |
 |---|---|
 | **World** | [`gob`](api/gob.md) · [`world`](api/world.md) · [`map`](api/map.md) · [`markers`](api/markers.md) · [`radar`](api/radar.md) |
 | **Character** | [`player`](api/player.md) · [`time`](api/time.md) · [`char`](api/char.md) · [`study`](api/study.md) · [`party`](api/party.md) · [`buff`](api/buff.md) · [`meter`](api/meter.md) |
 | **Subsystems** | [`kin`](api/kin.md) · [`speed`](api/speed.md) · [`craft`](api/craft.md) · [`quests`](api/quests.md) · [`wounds`](api/wounds.md) · [`fight`](api/fight.md) · [`actionbar`](api/actionbar.md) |
 | **Acting** | [`act`](api/act.md) *(gated)* · [`menugrid`](api/menugrid.md) |
-| **UI & input** | [`ui`](api/ui/README.md) · [`ghost`](api/ghost.md) · [`asset`](api/asset.md) · [`render`](api/render/README.md) · [`hook`](api/hook.md) · [`font`](api/font.md) · [`client`](api/client/README.md) |
-| **Data & network** | [`json`](api/json.md) · [`http`](api/http.md) *(gated)* |
+| **UI** | [`ui`](api/ui/README.md) · [the stylesheet](api/ui/style/README.md) · [`font`](api/font.md) · [`hook`](api/hook.md) · [`client`](api/client/README.md) |
+| **Your own content** | [`asset`](api/asset.md) · [`ghost`](api/ghost.md) · [`render`](api/render/README.md) |
+| **Data and network** | [`json`](api/json.md) · [`http`](api/http.md) *(gated by your manifest)* |
 | **Infrastructure** | [`events`](api/events.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash`](api/slash.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |
 
-See [conventions](api/conventions.md), [data types](api/types.md), and the [event catalogue](api/events.md)
-for the cross-cutting rules — including how you address things: a [Gob](api/gob.md) or a
-[Kin](api/kin.md) by object, an item by handle, and a piece of the UI by
-[selector](api/ui/selectors.md) (`hafen.ui("window[title=Cupboard]")`) — which is also the
-key of the [stylesheet](api/ui/style/README.md) that says what the client looks like:
-its fonts and colours, the [backgrounds, borders and window chrome](api/ui/style/chrome.md)
-it draws, and [where its windows sit](api/ui/style/geometry.md) — absolutely, or
-[anchored](api/ui/style/geometry.md#anchor) to a screen edge or another widget. A whole theme can be
-a data file rather than code; [where the skinning system ends](api/ui/style/README.md#where-the-skinning-system-ends) says what
-it deliberately leaves alone.
+The three pages every other page assumes are [conventions](api/conventions.md), how you address a thing
+and what a read gives back, [data types](api/types.md), every snapshot shape, and
+[events](api/events.md), the catalogue of what the client tells you about.

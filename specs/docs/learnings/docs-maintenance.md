@@ -188,3 +188,22 @@
   A grep-driven audit reads what `docs/` **claims**; it is structurally blind to a surface that exists only
   in `src/`. Only enumerating the real thing, field by field, finds those — which is an argument for
   writing the owning page early rather than last.
+
+- **(001.7) A matrix's prose totals drift from its own table, and the summary is what everyone quotes.**
+  001.1's table held 117 OK · 8 THIN · 2 GAP · 4 N/A · 9 CUT; the "Totals" line under it read
+  *107 · 11 · 3 · 8 · 11*, and `STATE.md` carried those numbers forward through five tasks. Both sum to
+  140, which is exactly why nobody caught it — the check that would have (does each verdict count match
+  the rows?) is one `awk` away and was never run, while the check that was run (do the rows add up?)
+  passes on any distribution. The same close recounted the namespace total and found **36**, not the
+  audit's 37. **Re-derive every headline number at the close from the artefact itself**, never from the
+  sentence that summarised it, and prefer a count that a one-line command can reproduce over one a human
+  totalled once.
+
+- **(001.7) Two-click reachability is a graph property, so measure it as one — a hand-checked index
+  always reads complete.** The close had to prove every page sits within two clicks of the landing page,
+  and reading the index proves only that the links resolve, which the sweep already knew. A ten-line BFS
+  over the same link table answered it exactly (44 pages at depth 1, 26 at depth 2, 0 deeper) and, more
+  usefully, named the one page at no depth at all: `docs/README.md`, which nothing below it links. That
+  is correct for a root and a defect for anything else — and the distinction only exists once the metric
+  is a traversal rather than an impression. The link checker already builds the graph; the reachability
+  answer is three more lines on top of it.

@@ -184,3 +184,22 @@ they belong to an operator tier `docs/addons/` is not.
 **Consequences.** `runtime.md` states "ten million instructions" and "about ten milliseconds, sustained"
 flatly, with no escape hatch mentioned, and the omission is deliberate rather than an oversight: 001.7's
 matrix lists it with this reason, which is what keeps a later audit from re-filing it as a GAP.
+
+### D-012 — The landing page lists namespaces; the reference index lists every leaf
+
+**Context (001.7).** The migrated tree has 57 reference leaves, 21 of them nested two or three levels
+down (`api/ui/style/keys.md`, `api/client/profiling/counters.md`). Style guide §8 requires every page to
+sit within two clicks of `docs/addons/README.md`, and there are only two indexes between a reader and a
+leaf. Either index could carry the flat list, and carrying it in both means one 57-row table maintained
+twice.
+
+**Decision.** The landing page's "API at a glance" links **namespaces only** — the hub of a nested
+namespace, never its leaves — and `api/README.md` lists **every leaf page that exists**, grouped, with a
+one-line purpose each. Landing → reference index → leaf is exactly two clicks, and the flat list has one
+owner. A hub page still gives the reading order for its own subtree; that is a third path, not a
+duplicate of the index.
+
+**Consequences.** A new reference page is added to `api/README.md` and nowhere else, unless it introduces
+a whole namespace, which also earns a cell on the landing table. `docs/README.md` — the site root — is
+linked by nothing below it: it is where a reader arrives from the repository, not somewhere the tree
+navigates back to, so it is outside the two-click measurement rather than an orphan.

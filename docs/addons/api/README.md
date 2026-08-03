@@ -1,82 +1,124 @@
 # hafen API reference
 
-The complete `hafen.*` API available to addons. Start with the [conventions](conventions.md) — they
-apply everywhere — then jump to a section below. Shared data shapes are in [types](types.md); all
-events are in [events](events.md).
+Every `hafen.*` namespace, one page each, and a directory of pages where a namespace is large. Start with
+the conventions — how you address a thing, what a read gives back, what a write costs — then take the name
+you came for from the tables below. Every page in the tree is listed here.
 
-- **[Conventions](conventions.md)** — references (objects, handles, [UI selectors](conventions.md#selector-naming-a-piece-of-the-ui)),
-  snapshots vs handles, filters, coordinates, gating.
-- **[Data types](types.md)** — every snapshot shape (Gob, Item, Buff, …).
-- **[Events](events.md)** — `hafen.events` + the full event catalogue.
-
-## Sections
-
-### Reading the world
-
-| Section | Purpose |
+| Page | What it holds |
 |---|---|
-| [`hafen.gob`](gob.md) | game objects — `hafen.gob(id)` gives a Gob object you read with methods |
-| [`hafen.world`](world.md) | enumerate / scan game objects |
-| [`hafen.map`](map.md) | terrain reads and coordinate conversions |
-| [`hafen.markers`](markers.md) | map markers (read / add / remove) |
-| [`hafen.radar`](radar.md) | minimap icon categories |
+| [conventions](conventions.md) | references, snapshots vs handles, filters, coordinates, colours, `nil`, threading, gating |
+| [data types](types.md) | every snapshot shape a read hands back, field by field |
+| [events](events.md) | `hafen.events`, and the catalogue of everything the client tells you about |
 
-### The player & character
+## Reading the world
 
-| Section | Purpose |
+| Page | What it holds |
 |---|---|
-| [`hafen.player`](player.md) | local player data — the anchor for your own Gob |
-| [`hafen.time`](time.md) | game clock & astronomy |
-| [`hafen.char`](char.md) | attributes, LP, food, skills, credos, lore |
-| [`hafen.study`](study.md) | curiosities being studied |
-| [`hafen.party`](party.md) | party roster |
-| [`hafen.buff`](buff.md) | buffs — `hafen.buff()` is the bar, `hafen.buff(needle)` is one of them |
-| [`hafen.meter`](meter.md) | the HUD meter bars — health, stamina, energy and whatever else the server puts there |
+| [`hafen.gob`](gob.md) | one object in the world — `hafen.gob(id)` gives a Gob you read with methods |
+| [`hafen.world`](world.md) | enumerate and scan every object the client has loaded |
+| [`hafen.map`](map.md) | terrain reads, coordinate conversions, and a position that survives a relog |
+| [`hafen.markers`](markers.md) | the map database's player and system markers: read, add, remove |
+| [`hafen.radar`](radar.md) | minimap icon categories, and their show and notify flags |
 
-### Character-sheet subsystems
+## The player and character
 
-| Section | Purpose |
+| Page | What it holds |
 |---|---|
-| [`hafen.kin`](kin.md) | kin / buddy roster (read + gated writes) |
-| [`hafen.speed`](speed.md) | movement speed (read + gated write) |
-| [`hafen.craft`](craft.md) | crafting (read + gated craft) |
-| [`hafen.quests`](quests.md) | quest log |
-| [`hafen.wounds`](wounds.md) | wounds |
-| [`hafen.fight`](fight.md) | combat schools |
-| [`hafen.actionbar`](actionbar.md) | action bar / hotbar (read + gated use/set) |
+| [`hafen.player`](player.md) | the character you are logged in as, and the anchor for your own Gob |
+| [`hafen.time`](time.md) | the game clock, the day, the night and the season |
+| [`hafen.char`](char.md) | attributes, learning points, weight, food, skills, credos, lore |
+| [`hafen.study`](study.md) | the study window: the curiosities in it, and their LP and attention |
+| [`hafen.party`](party.md) | the party roster, in party sequence order |
+| [`hafen.buff`](buff.md) | the buffs on the buff bar |
+| [`hafen.meter`](meter.md) | the HUD meter bars — health, stamina, energy, and whatever else the server puts there |
 
-### Acting
+## Character-sheet subsystems
 
-| Section | Purpose |
+| Page | What it holds |
 |---|---|
-| [`hafen.act`](act.md) | drive the character — move, click, use items, menus. Requires the `actions` permission |
-| [`hafen.menugrid`](menugrid.md) | the action menu — enumerate every action the character knows, and invoke one |
+| [`hafen.kin`](kin.md) | the kin roster, and the writes that add, rename and re-group |
+| [`hafen.speed`](speed.md) | the crawl, walk, run and sprint selector |
+| [`hafen.craft`](craft.md) | the open recipe window, and its Craft button |
+| [`hafen.quests`](quests.md) | the quest log, current and completed |
+| [`hafen.wounds`](wounds.md) | the wounds on the Health and Wounds tab |
+| [`hafen.fight`](fight.md) | the out-of-combat maneuver-deck builder |
+| [`hafen.actionbar`](actionbar.md) | the hotbar: read a slot, use it, set it |
 
-### UI & input
+## Acting
 
-| Section | Purpose |
+| Page | What it holds |
 |---|---|
-| [`hafen.ui`](ui/README.md) | the Widget object — [selectors](ui/selectors.md), custom windows, overlays, the items in any container, replacing native widgets, [laying them out](ui/native.md), the [stylesheet](ui/style/README.md) that restyles the client (text, the [chrome it draws](ui/style/chrome.md), and [where its widgets sit](ui/style/geometry.md), [anchored](ui/style/geometry.md#anchor) or absolute — and [where all of that ends](ui/style/README.md#where-the-skinning-system-ends)), and walking + hit-testing the tree |
-| [`hafen.ghost`](ghost.md) | client-only world props ("ghosts") — base/city planning |
-| [`hafen.asset`](asset.md) | load the files your addon ships — images, fonts, glTF models, data — through one door |
-| [`hafen.render`](render/README.md) | stand your own (non-`.res`) images and glTF models **in the world** |
-| [`hafen.hook`](hook.md) | intercept & alter input / actions / server messages |
-| [`hafen.client`](client/README.md) | client settings (interface / video / audio / camera / client), hotkeys, the frame profiler, its counters, per-addon, per-widget and per-render-pass cost, your own named scopes, and what the profiler itself costs |
-| [`hafen.font`](font.md) | per-addon typography — get a font handle, draw with it, restyle one widget with [`widget:skin{…}`](ui/style/README.md#restyle-one-widget), and what each client surface does when a [stylesheet](ui/style/README.md) rule lands on it |
+| [`hafen.act`](act.md) | drive the character — move, click, use items, pick menu entries. Gated by the `actions` permission |
+| [`hafen.menugrid`](menugrid.md) | the action menu: every action the character knows, and invoking one |
 
-### Audio & infrastructure
+## The UI
 
-| Section | Purpose |
+| Page | What it holds |
 |---|---|
-| [`hafen.sound`](sound.md) | play sound effects by resource name — stop them, ask what is still playing (there is no `hafen.music`) |
-| [`hafen.events`](events.md) | subscribe to events |
-| [`hafen.timer`](timer.md) | schedule one-shot / repeating callbacks |
-| [`hafen.store`](store.md) | saved variables (persistent storage) |
-| [`hafen.json`](json.md) | parse / encode JSON |
-| [`hafen.http`](http.md) | external HTTP requests (gated by a `network` allowlist) |
-| [`hafen.slash`](slash.md) | console (`:name`) commands |
-| [`hafen.log`](log.md) | logging |
+| [`hafen.ui`](ui/README.md) | the hub: what is on screen, and the order to read these pages in |
+| [custom](ui/custom.md) | your own windows, bare rectangles and overlays |
+| [the Widget object](ui/widget.md) | what every widget answers, and which writes owned and borrowed ones take |
+| [selectors](ui/selectors.md) | naming a widget: the grammar, roles, hit-testing, and the inspector |
+| [items](ui/items.md) | the items inside a container, while the window stays live |
+| [native widgets](ui/native.md) | placing and hiding the client's own widgets, and the restore that comes with it |
+| [replace](ui/replace.md) | waiting for a widget to appear, and standing your own window in its place |
+| [drawing](ui/drawing.md) | the `g` wrapper: shapes, images, text, and the cache text goes through |
+
+## The stylesheet
+
+| Page | What it holds |
+|---|---|
+| [the sheet](ui/style/README.md) | `hafen.ui.skin{…}`, one widget's own skin, the cascade, and where skinning ends |
+| [keys](ui/style/keys.md) | site keys and tree keys: which surfaces a rule reaches, and what each honours |
+| [surfaces](ui/style/surfaces.md) | every surface the client ships, and what it does with a rule |
+| [text](ui/style/text.md) | `font` and `color` |
+| [chrome](ui/style/chrome.md) | `bg`, `border` and `pad` |
+| [geometry](ui/style/geometry.md) | `pos`, `size` and `anchor` |
+
+## The files your addon ships
+
+| Page | What it holds |
+|---|---|
+| [`hafen.asset`](asset.md) | one loader for every file in your folder — images, fonts, models, data |
+| [`hafen.font`](font.md) | a font handle: the built-ins, your own `.ttf`, and drawing with it |
+
+## Your own things in the world
+
+| Page | What it holds |
+|---|---|
+| [`hafen.ghost`](ghost.md) | the game's own props, standing where you put them, translucent and tinted |
+| [`hafen.render`](render/README.md) | the hub: your own images and models in the 3D world, and the handle-only rule |
+| [sprites](render/sprites.md) | a PNG in the world: fixed or camera-facing, clickable, anchored |
+| [models](render/models.md) | a glTF model: the subset that loads, the handle, and clicks |
+
+## Intercepting what the client does
+
+| Page | What it holds |
+|---|---|
+| [`hafen.hook`](hook.md) | pre-hooks over input, actions and server messages, each one cancellable |
+
+## The client itself
+
+| Page | What it holds |
+|---|---|
+| [`hafen.client`](client/README.md) | the settings the Options window edits: interface, video, audio, camera, client |
+| [keybindings](client/keybindings.md) | the hotkey registry: declare your own, read or remap any |
+| [profiling](client/profiling/README.md) | arming the frame profiler, and reading a frame, a history and its overhead |
+| [the counters](client/profiling/counters.md) | memory, net, loader, render and text-cache counters, readable with it off |
+| [attribution](client/profiling/attribution.md) | who spent the frame: addons, your own scopes, widgets, passes, GL |
+
+## Infrastructure
+
+| Page | What it holds |
+|---|---|
+| [`hafen.timer`](timer.md) | run a function later, once or repeatedly |
+| [`hafen.store`](store.md) | saved variables, per character and per account |
+| [`hafen.json`](json.md) | parse and encode JSON |
+| [`hafen.http`](http.md) | fetch a URL, against the host allowlist your manifest declares |
+| [`hafen.slash`](slash.md) | register a `:name` console command |
+| [`hafen.log`](log.md) | print a line to the console and the terminal |
+| [`hafen.sound`](sound.md) | play a sound effect, stop it, ask what is still playing |
 
 ---
 
-New to addons? Read the [getting-started guide](../getting-started.md) first.
+New to addons? Write one first: [getting started](../getting-started.md) takes about ten minutes.

@@ -37,10 +37,19 @@
            on the cascade's page). 917 links, 0 broken, 0 leaving docs/. D-008/D-009 decided here
            and folded into the style guide, so 001.5 does not re-litigate them. -->
 
-- [ ] 001.4b — **`api/README.md` interim listing** (only if the maintainer wants it before the
+- [x] 001.4b — **`api/README.md` interim listing** (only if the maintainer wants it before the
       close): the nested leaves (`ui/**`, `ui/style/**`, `client/**`, `render/**`) currently sit
       three clicks from the landing page, since the index still lists hubs only. 001.7 regenerates
       it anyway; this exists so the gap is recorded rather than forgotten.
+      <!-- absorbed by 001.7: the index lists all 57 leaves; measured, not assumed — 44 pages at one
+           click, 26 at two, none deeper. -->
+
+- [x] 001.5b — **The last six `&` headings** (001.5's widened grep): `api/README.md` (3) and
+      `getting-started.md` (3) still hold ` & ` headings, which slug to a double hyphen. Nothing
+      links their anchors today, so this is not a break — 001.6 and 001.7 rewrite both pages and
+      fix them there. Recorded so the grep result is not lost between tasks.
+      <!-- done: 001.6 took `getting-started.md`'s three, 001.7's regeneration took
+           `api/README.md`'s three. The tree holds 0 slugger-trap headings. -->
 
 - [x] 001.5 — **Reference, group C — cross-cutting & infrastructure.** `conventions`, `types`,
       `events`, `timer`, `store`, `json`, `http`, `console`, `audio`. These are the pages every
@@ -51,13 +60,6 @@
            (`gob.name` → `gob:name()`, `char.attrs().lp` → `char.lp()`, the "per-addon log" file).
            D-010 decided here (a client-local write group carries `(ungated)`), folded into the
            style guide with the widened heading grep, so 001.6 does not re-litigate either. -->
-
-- [ ] 001.5b — **The last six `&` headings** (001.5's widened grep): `api/README.md` (3) and
-      `getting-started.md` (3) still hold ` & ` headings, which slug to a double hyphen. Nothing
-      links their anchors today, so this is not a break — 001.6 and 001.7 rewrite both pages and
-      fix them there. Recorded so the grep result is not lost between tasks.
-      <!-- half done: 001.6's rewrite took `getting-started.md`'s three; `api/README.md`'s three
-           are 001.7's, which regenerates that page anyway. -->
 
 
 - [x] 001.6 — **The learning path.** `getting-started.md` rewritten as a real first-addon
@@ -76,7 +78,12 @@
            `dependencies`/`optional_dependencies` are parsed and never used. -->
       
 
-- [ ] 001.7 — **The close.** `docs/README.md`, `docs/addons/README.md` and `api/README.md`
+- [x] 001.7 — **The close.** `docs/README.md`, `docs/addons/README.md` and `api/README.md`
       regenerated to list exactly what exists; full link + anchor sweep over `docs/` reported as
       a count with zero broken; **the coverage matrix re-run — every row covered**, with any
       deliberate omission listed and reasoned, and any engine gap found filed to area `addons`.
+      <!-- landed: 4 files (docs/README.md new, the two indexes regenerated, close.md). The re-run
+           is `close.md`: 140 rows, 127 OK · 4 N/A · 9 CUT, 0 THIN / 0 GAP, the omissions reasoned.
+           Sweep: 72 pages, 1,112 links, 0 broken; 36/36 namespaces documented. D-012 decided here.
+           Corrected two of 001.1's figures (36 namespaces, and the matrix's own totals line). -->
+
