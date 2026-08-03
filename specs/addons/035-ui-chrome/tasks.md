@@ -27,7 +27,7 @@
       exact previous numbers; a `pad` on a surface that cannot re-lay-out leaves its numbers untouched and
       raises nothing. `[manual]`: content sits where the padding says, and nothing overlaps the frame.
 
-- [ ] **035.3 — the window-less panels (`IBox`).**
+- [x] **035.3 — the window-less panels (`IBox`).**
       `IBox` is an interface with `draw(g, tl, sz)`, so a sheet-fed implementation drops in where the panels
       build theirs. **Survey first** which panels are actually reachable (`Frame`, `FlowerMenu`, `GItem`,
       `BuddyWnd`, `FightWnd`, `Partyview`, `SListMenu`, `Speaking`) and cover the ones that are, then record

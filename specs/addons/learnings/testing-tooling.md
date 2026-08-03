@@ -402,3 +402,31 @@
   *first* stage fails and every later one passes, which reads like a warm-up problem rather than an off-by-one.
   Write it as `timer.after(0.35, function() f(); next() end)` so the delay is a property of the step, not of the
   gap between steps. Headless pre-checking cannot catch this — a probe calls `SkinDeco.check(wnd)` itself.
+
+- **(035.3) A suite that starts itself needs a schedule, and the schedule is the bug.** Per-task suites used to
+  auto-run on `OnEnterWorld` + a timer, so each needed a *slot* (`+3`, `+6`, `+9`, `+12`…) to stay out of the
+  others' way: every suite installs a client-wide sheet and bumps `Fonts.gen()` while it runs, and 034.2's last
+  check counts text-cache keys for one string — key `(string, font, Fonts.gen())` — so any other suite skinning
+  something mid-round makes it read 2 where it expects 1. 034.2 staged 3.4 s from `+6` and 034.3 started at
+  `+9`: a **0.4 s overlap**, i.e. a race that passed for two whole features and then reddened a line in a suite
+  nobody had touched. Two `/implement` rounds were spent moving constants. The fix was to delete the category:
+  **suites now run only on their slash command** (`:t<NNN>-<X>`), the regression is typing them one at a time,
+  and the single ordering rule left ("let a staged suite finish") belongs to the operator. Generalisation worth
+  keeping: *when a test harness needs a schedule to avoid itself, remove the auto-start, not the overlap.*
+- **(035.3) A red line in a suite that is NOT the task under test is diagnosed by running that suite ALONE.**
+  `:t034-2` on its own was green, which distinguished "the schedule collided" from "035.3 broke the mechanism"
+  in one command — cheaper and more conclusive than any amount of reasoning about the change. Do that before
+  touching either the suite or the code.
+- **(035.3) A same-package Java probe can drive the real sheet parser with NO Lua source file.** Build a
+  throwaway `Addon` (`new Addon(Manifest.internal(id), Paths.get("."), Sandbox.create())`), hand-build the sheet
+  as a `LuaTable` and call `Sheet.skin(addon, table)` — the real `Selector.parse`, `siteOf` and `propsOf` all
+  run, so key classification, the `*` cascade, per-property folding, two-addon last-wins and teardown are all
+  headless. A `LuaImage` needs no GL either: `new LuaImage(owner, name, new TexI(new BufferedImage(w,h,…)))`
+  and wrap it as `LuaValue.userdataOf(img)` under the `LuaImage.KEY` field, which is exactly what
+  `Chrome.parseBorder` resolves. 36/36 for 035.3 this way. `haven.Frame`/`ISBox`/`Window.wbox` all `<clinit>`
+  fine with `lib/ext/hafen-res.jar` on the classpath (the F3 note), so the probe can measure real stock boxes.
+- **(035.3) Expose the RULE as a named method rather than an inline branch, and the probe can assert it without
+  a `GOut`.** `SkinBox.drawbg` needed a real graphics context to test directly; splitting the "where does the
+  background stop" decision into `bgul(tl)`/`bgsz(sz)` made both branches assertable as plain `Coord`s, cost no
+  allocation (the `Coord` arithmetic was already there), and named the rule in the source. Falsifying the two
+  branches turned 4 checks red, which is what proved they were load-bearing.

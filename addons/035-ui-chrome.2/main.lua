@@ -201,12 +201,10 @@ local function look()
   end
 end
 
--- +12s: the login round is a SEQUENCE of slots, not a scramble (033.3/034.1/035.1 at +3, 034.2 at +6, 034.3 at
--- +9). This suite keeps a skinned, re-laid-out window alive for its whole run and bumps Fonts.gen() a dozen
--- times doing it, so overlapping anything else would redden the other suite, not this one -- which is what a
--- +3.5s start did: 035.1 counted this window's SkinDeco among the client's, and 034.2's textcache probe saw a
--- second key for its own string.
-hafen.events.on("OnEnterWorld", function() hafen.timer.after(12, run) end)   -- after the other suites' round
+-- ON DEMAND ONLY. A suite does not start itself: the maintainer runs it when they want it. This one keeps a
+-- skinned, re-laid-out window alive for its whole round and bumps Fonts.gen() a dozen times doing it, so when
+-- suites started themselves it reddened lines in the OTHER suite: 035.1 counted this window's SkinDeco among
+-- the client's, and 034.2's textcache probe saw a second key for its own string. Its round stages ~2.5s.
 hafen.slash.register("t035-2", function(args)
   if (args and args[1]) == "look" then look() else run() end
 end)

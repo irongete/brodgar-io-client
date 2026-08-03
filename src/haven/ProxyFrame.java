@@ -43,7 +43,7 @@ public class ProxyFrame<T extends Widget> extends Frame {
     public void drawframe(GOut g) {
 	if(color != null) {
 	    g.chcolor(color);
-	    box.draw(g, Coord.z, sz);
+	    skinbox().draw(g, Coord.z, sz);   // addon: (035.3) was box.draw(...) -- the server's tint still applies
 	}
     }
 

@@ -473,3 +473,79 @@ cost is honest and already documented for images: on a DPI-scaled client a theme
 the stock chrome it replaced, so an addon authors its art and its padding at the weight it wants to see.
 
 **See.** [D-080](#d-080), [D-012](architecture-api.md), [`api/ui.md`](../../../docs/addons/api/ui.md).
+
+### D-082 — a heterogeneous family of surfaces is named as a SITE, not as a role
+
+**Context.** 035.3 had to name the client's window-**less** framed surfaces so a sheet could reach them: the
+boxes around lists and info panes, the HUD portrait, party avatars, the map's view and marker list,
+flower-menu petals, dropdown menus, an item-stock box. Unlike a window's chrome (a child with role `nil`,
+D-078), these surfaces genuinely **are** widgets — `Frame`, `SListMenu`, `FlowerMenu.Petal`, `ISBox` — so a
+`panel` **role** was available in a way it never was for `window.frame`, and it would have made
+`hafen.ui.all("panel")` find them.
+
+**Decision.** `panel` joins `Fonts.SCOPES` and `Selector.SITE_ROLES` as a **site key** — valid grammar
+everywhere a selector is, classifying **no** widget — and the classifier (`LuaWidget.role`) is not touched.
+It names *the 9-slice those widgets draw*, not what they are.
+
+**Consequences.** The family is the point: a `Frame` is a container, a `SListMenu` is a menu, a `Petal` is a
+menu entry. Answering `"panel"` to `widget:role()` for all of them would make the classifier lie about three
+different things at once, which is exactly what D-067 forbids — *a role is claimed only where the class
+genuinely IS that thing*. Naming the site instead costs nothing an author needs: `["panel"]` styles them all,
+`["*"]` cascades to it like any site key, and a **tree key** (`["@Frame"]`, `[title=…]`, `widget:skin`)
+refines one of them — the same two-halves cascade every other key already has. The generalisation is worth
+keeping: **when the thing you want to name is a surface several unrelated classes happen to draw, name the
+surface.** A role is a claim about identity; a site key is a claim about pixels.
+
+**See.** [D-067](#d-067), [D-078](#d-078), [`api/fonts.md`](../../../docs/addons/api/fonts.md),
+[`api/ui.md`](../../../docs/addons/api/ui.md).
+
+### D-083 — the sheet replaces a surface the client paints; it does not invent one
+
+**Context.** `bg` on a panel took three rounds in-game and two of them shipped a rule that looked right and
+was not. Round 1 filled every panel: the character sheet's attribute list went **unreadable**, because
+`Frame.around` adds the frame to the *parent* after the rows, so the frame draws **on top** of content it does
+not own. Round 2 narrowed it to "fill where the frame has children" — which is true of `Frame.with` and false
+of `Frame.around` — and the maintainer's eye killed that too: the same theme then filled the map window's
+boxes and not the character sheet's, arbitrary because it *is* arbitrary, an accident of how each call site
+was built rather than anything an author could predict.
+
+**Decision.** A rule's `bg` reaches only a surface that **already paints one, before its content**: the
+petals, the dropdown menus, the item-stock box, a window's stock deco. A `Frame` paints none — it is a border
+placed *around* a region and drawn *after* it — so on every boxed panel `bg` is **inert** and `border` is the
+whole of what a rule can say. Inert, never an error.
+
+**Consequences.** This is the same sentence as D-078 (*replace only what the engine itself would have built*)
+one level down, and it is now the general form for the whole chrome half of the sheet. It also gives the
+property × key table a line it can state per **kind** rather than per instance, which is the difference
+between a rule an author can hold in their head and a coincidence they have to test for. The visible cost is
+that a themed boxed panel changes only ~5 px of edge art: a theme that wants those to read differently must
+say it in the border image, because there is no fill behind it to carry the difference.
+
+**Two rounds of green assertions did not find either mistake, and a person looking at a screen found both** —
+the same lesson D-079 recorded, and the reason the geometry and the vocabulary are asserted while the *look*
+stays a `[manual]` line with an exact expected result.
+
+**See.** [D-078](#d-078), [D-079](#d-079), [D-084](#d-084),
+[`api/ui.md`](../../../docs/addons/api/ui.md), [learnings/ui-widgets.md](../learnings/ui-widgets.md).
+
+### D-084 — a size-changing property applies where the surface can RE-LAY-OUT, and a panel cannot
+
+**Context.** D-080 gave a window's frame margins to whoever paints them, so on `window.frame` a `pad` and a
+border's own insets genuinely move the client's layout. The same two properties reach `panel`, and the
+question is what they should do there.
+
+**Decision.** **Nothing.** A sheet-fed panel box (`Chrome.SkinBox`) delegates all six of `IBox`'s measuring
+methods — `btloff`/`ctloff`/`bbroff`/`cbroff`/`bisz`/`cisz` — to the stock box it stands in for, so `pad` and
+a border's insets are inert on every panel and the art is drawn *into* the room the stock frame had.
+
+**Consequences.** It is measured, not assumed: a panel fixes its size and places its contents when it is
+**built** (`Frame`'s constructor adds `box.bisz()` to its content size; `SListMenu` lays its list out in its
+own), and nothing re-runs that when a sheet changes. A box whose insets differed from the stock ones would
+move a panel's frame without moving anything inside it — worse than inert. So the doctrine's geometry row now
+reads with both halves present: `window.frame` moves things because a window re-lays itself out; `panel` does
+not because a panel cannot. The one caveat an author must know is the mirror of D-081: since the insets are
+the stock box's (~5 px), a much fatter border image **overlaps** the panel's contents instead of pushing them
+aside — author to the stock weight.
+
+**See.** [D-080](#d-080), [D-081](#d-081), [D-083](#d-083),
+[`api/ui.md`](../../../docs/addons/api/ui.md), [`specs/codebase/gameui-windows.md`](../../codebase/gameui-windows.md).

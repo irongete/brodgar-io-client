@@ -1,10 +1,12 @@
 package io.brodgar.addon;
 
 import haven.Coord;
+import haven.Fonts;
 import haven.GOut;
 import haven.IBox;
 import haven.Tex;
 import haven.TexSI;
+import haven.Widget;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -12,6 +14,9 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 import java.awt.Color;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * The <b>chrome</b> properties of a stylesheet rule (spec {@code 035-ui-chrome}, feature C2): {@code bg} and
@@ -36,8 +41,9 @@ import java.awt.Color;
  * <p><b>Where they resolve is the sheet's business, not this class's.</b> These values ride the same cascade
  * {@code font} and {@code color} do — folded per property by {@code Fonts.combine} (D-076), carried by a site
  * rule ({@code "window.frame"}) or a tree rule / {@code widget:skin} alike — and this class only says what one
- * of them <i>is</i> and how it paints. The one consumer in 035.1 is {@link SkinDeco}, the sheet-fed window
- * chrome; 035.3 adds the window-less {@code IBox} panels through the very {@link Border#box} built here.
+ * of them <i>is</i> and how it paints. The two consumers are {@link SkinDeco}, the sheet-fed window chrome
+ * (035.1), and {@link SkinBox}, the sheet-fed 9-slice the window-less panels draw with (035.3) — both built
+ * from the very {@link Border#box} below.
  *
  * <p><b>A border costs no texture.</b> Its nine slices are {@link TexSI} views over the addon's <i>one</i>
  * uploaded image, so a border neither uploads a second copy nor owns anything to dispose — the image's own
@@ -179,6 +185,118 @@ final class Chrome {
             s.set("b", LuaValue.valueOf(this.b));
             t.set("slice", s);
             return t;
+        }
+    }
+
+    // ---- the window-LESS panels (035.3) ------------------------------------------------------------
+
+    /**
+     * The <b>sheet-fed panel box</b> (035.3): the {@link IBox} a routed window-less panel — a {@code Frame}
+     * around a list, a flower-menu petal, a dropdown menu, an {@code ISBox} — draws with while a rule names it.
+     *
+     * <p><b>It is the twin of {@link SkinDeco}, one level down.</b> A window's chrome is a widget of its own and
+     * could therefore be <i>replaced</i>; a panel's chrome is an {@code IBox} the panel draws itself, and
+     * {@code IBox} is already an interface, so here the replacement is the box rather than the widget. Same
+     * source (the rule this widget resolves through {@code Fonts.styleFor}), same two properties, same rule for
+     * where a background stops (D-079): with a {@code border} in the rule the {@code bg} fills the whole panel,
+     * because our 9-slice is now the entire frame and is transparent between its slices; with no border the
+     * stock box still paints the panel's edge, so the {@code bg} stays inside it.
+     *
+     * <p><b>A {@code bg} reaches only a panel that paints its own surface BEFORE its content</b> — the petals,
+     * the dropdowns, an {@code ISBox}, a {@code DynresWindow.Image}. A {@code Frame} is not one: it is a border
+     * placed <i>around</i> a region and drawn <i>after</i> what it frames (and {@code Frame.around} leaves that
+     * content a sibling of the frame entirely), so a fill would bury it. There a rule's {@code border} applies
+     * and its {@code bg} is inert — the same doctrine as everywhere else in this feature, and the same reason:
+     * the sheet replaces a surface the client already paints, it does not invent one.
+     *
+     * <p><b>Geometry is stock, and that is a finding rather than a shortcut.</b> All six measuring methods
+     * delegate to the box this one stands in for, because a panel decides its size and places its children when
+     * it is <i>built</i> — {@code Frame}'s constructor adds {@code box.bisz()} to its content, {@code SListMenu}
+     * lays its list out in its own — and nothing re-runs that when a sheet changes. A box whose insets differed
+     * from the stock ones would move a panel's frame without moving anything inside it. So {@code pad} is inert
+     * on a panel, and so are a border's own insets: a border image is drawn <i>into</i> the room the stock art
+     * had. Which is the doctrine's geometry row applied honestly — a size-changing property applies only where
+     * the surface owns its geometry and re-lays-out, and a panel does neither.
+     */
+    static final class SkinBox implements Fonts.Box {
+        private final IBox stock;
+        private final Bg bg;
+        private final Border border;
+
+        private SkinBox(IBox stock, Bg bg, Border border) {
+            this.stock = stock;
+            this.bg = bg;
+            this.border = border;
+        }
+
+        // The measurements are the STOCK box's, always -- see the class comment.
+        public Coord btloff() {return stock.btloff();}
+        public Coord ctloff() {return stock.ctloff();}
+        public Coord bbroff() {return stock.bbroff();}
+        public Coord cbroff() {return stock.cbroff();}
+        public Coord bisz()   {return stock.bisz();}
+        public Coord cisz()   {return stock.cisz();}
+
+        /*
+         * Where the bg stops -- D-079 one level down, written as the two halves of a rectangle rather than
+         * inline, because it is the rule and not an implementation detail: with our own border the bg fills the
+         * WHOLE panel (a 9-slice is transparent between its slices, so anything less would show through), and
+         * with the stock box still framing the panel it stays inside that box's own pixels (filling over them
+         * would square off their shaped corners). No allocation beyond the Coord arithmetic itself.
+         */
+        Coord bgul(Coord tl) {return (border != null) ? tl : tl.add(stock.btloff());}
+        Coord bgsz(Coord sz) {return (border != null) ? sz : sz.sub(stock.bisz());}
+
+        public boolean drawbg(GOut g, Coord tl, Coord sz) {
+            Bg b = this.bg;
+            if(b == null)
+                return false;                          // a border-only rule leaves the panel's own surface alone
+            b.draw(g, bgul(tl), bgsz(sz));
+            return true;
+        }
+
+        public void draw(GOut g, Coord tl, Coord sz) {
+            if(border != null)
+                border.draw(g, tl, sz);
+            else
+                stock.draw(g, tl, sz);                 // a bg-only rule keeps the panel's stock frame
+        }
+    }
+
+    /**
+     * One {@link SkinBox} per (resolved style, stock box) pair — the interning that lets a panel ask on every
+     * frame and allocate nothing. The outer keys are {@code Fonts}' own interned style objects, held weakly
+     * because they stop existing when the rules change (a {@code WeakHashMap} over a type that overrides neither
+     * {@code equals} nor {@code hashCode} is an identity map for free, the same trick {@link Sheet}'s per-widget
+     * cache uses); the inner ones are the panels' {@code static final} stock boxes. Guarded by {@code Chrome.class}.
+     */
+    private static final Map<Fonts.Style, Map<IBox, SkinBox>> boxes =
+        new WeakHashMap<Fonts.Style, Map<IBox, SkinBox>>();
+
+    /**
+     * {@code Fonts.box(scope, wdg, stock)} — the box {@code wdg}'s panel should draw with, or {@code null} when
+     * no rule paints it (the overwhelmingly common case, and the one that keeps a stock client stock).
+     *
+     * <p>A rule that names only <i>text</i> answers {@code null} too: a {@code ["*"] = {font = body}} sheet
+     * cascades into every scope, this one included, and a panel must not start drawing a box of its own because
+     * somebody set a font.
+     */
+    static Fonts.Box box(String scope, Widget wdg, IBox stock) {
+        Fonts.Style st = Fonts.styleFor(scope, wdg);
+        if((st == null) || (stock == null))
+            return null;
+        Bg bg = (Bg)st.bg();
+        Border border = (Border)st.border();
+        if((bg == null) && (border == null))
+            return null;                    // nothing to paint -- hand the site its own box back
+        synchronized(Chrome.class) {
+            Map<IBox, SkinBox> m = boxes.get(st);
+            if(m == null)
+                boxes.put(st, m = new IdentityHashMap<IBox, SkinBox>(2));
+            SkinBox b = m.get(stock);
+            if(b == null)
+                m.put(stock, b = new SkinBox(stock, bg, border));
+            return b;
         }
     }
 

@@ -117,14 +117,17 @@ public abstract class SListMenu<I, W extends Widget> extends Widget {
     }
 
     public void draw(GOut g) {
-	Coord bgc = new Coord();
-	Coord ctl = obox.btloff();
-	Coord cbr = sz.sub(obox.cisz()).add(ctl);
-	for(bgc.y = ctl.y; bgc.y < cbr.y; bgc.y += bg.sz().y) {
-	    for(bgc.x = ctl.x; bgc.x < cbr.x; bgc.x += bg.sz().x)
-		g.image(bg, bgc, ctl, cbr);
+	IBox obx = Fonts.box("panel", this, obox);   // addon: (035.3) sheet-fed menu chrome, else the stock box
+	if(!Fonts.drawbg(obx, g, Coord.z, sz)) {     // addon: (035.3) a `bg` rule replaces the tiled stock surface
+	    Coord bgc = new Coord();
+	    Coord ctl = obox.btloff();
+	    Coord cbr = sz.sub(obox.cisz()).add(ctl);
+	    for(bgc.y = ctl.y; bgc.y < cbr.y; bgc.y += bg.sz().y) {
+		for(bgc.x = ctl.x; bgc.x < cbr.x; bgc.x += bg.sz().x)
+		    g.image(bg, bgc, ctl, cbr);
+	    }
 	}
-	obox.draw(g, Coord.z, sz);
+	obx.draw(g, Coord.z, sz);                    // addon: (035.3) was obox.draw(...)
 	super.draw(g);
     }
 

@@ -477,6 +477,14 @@ final class Sheet {
                 return specOf(w);
             }
         });
+        // 035.3 — and where the SITE half meets a window-less panel's own IBox. Registered here, beside the
+        // draw-pass source, because both are the same answer read at two different moments: a text site resolves
+        // through the ambient frame, a panel names itself. Neither can exist before this class is touched.
+        Fonts.boxes(new Fonts.Boxes() {
+            public Fonts.Box box(String scope, Widget w, haven.IBox stock) {
+                return Chrome.box(scope, w, stock);
+            }
+        });
     }
 
     private static synchronized void register(Sheet s) {

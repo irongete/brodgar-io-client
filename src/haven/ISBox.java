@@ -70,7 +70,11 @@ public class ISBox extends Widget implements DTarget {
     }
 
     public void draw(GOut g) {
-	box.draw(g, Coord.z, sz);
+	// addon: (035.3) sheet-fed panel chrome, else the stock box. This one's stock box paints its own tinted
+	// surface inside the frame, so a rule that replaces the box replaces that too -- write the `bg` you want.
+	IBox skin = Fonts.box("panel", this, box);
+	Fonts.drawbg(skin, g, Coord.z, sz);
+	skin.draw(g, Coord.z, sz);   // addon: (035.3) was box.draw(...)
 	try {
             Tex t = res.get().flayer(Resource.imgc).tex();
             Coord dc = Coord.of(UI.scale(6), (sz.y - t.sz().y) / 2);

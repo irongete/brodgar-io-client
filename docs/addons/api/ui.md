@@ -578,13 +578,14 @@ handle; its Lua never names a surface, a font, a size or a colour. A theme with 
 ### Site keys — the surfaces this ships
 
 A key is [a selector](#selectors--naming-a-widget), and it resolves one of two ways. A **site key** names a
-place the client *draws*, and is resolved there — these are the twelve that work today:
+place the client *draws*, and is resolved there — these are the thirteen that work today:
 
 | Key | What it styles |
 |---|---|
 | `*` | the global fallback — most UI text, and the cascade for every rule you do not write |
 | `window.title` | window captions |
-| `window.frame` | the window **chrome** — the frame drawn around a window and the surface it sits on. The only key that draws no text: it takes [`bg` and `border`](#bg-and-border--the-window-chrome) and [`pad`](#pad--the-one-property-that-moves-things), not `font`/`color` |
+| `window.frame` | the window **chrome** — the frame drawn around a window and the surface it sits on. Draws no text: it takes [`bg` and `border`](#bg-and-border--the-surfaces-that-paint) and [`pad`](#pad--the-one-property-that-moves-things), not `font`/`color` |
+| `panel` | the window-**less** framed surfaces — the boxes around lists and info panes (character sheet, skills, quests, wounds, fight, buddies, the map), the HUD portrait, party avatars, flower-menu petals, dropdown menus. Draws no text either: `bg`/`border`, and see [what a panel does with them](#bg-and-border--the-surfaces-that-paint) |
 | `heading` | in-window section headings (the embossed fraktur ones) |
 | `button` | button captions |
 | `label` | body text — attribute rows, list items, explicit-foundry labels |
@@ -700,15 +701,17 @@ Two things still win over a rule, and one surface ignores it:
 > own widgets. One question, "what colour is this surface", has exactly one answer, and it is written as a
 > `color` where you can see it.
 
-#### `bg` and `border` — the window chrome
+#### `bg` and `border` — the surfaces that paint
 
-These are the properties that **paint** rather than write, and today exactly one key consumes them:
-`window.frame`. Point it at the client's windows and every one of them is restyled live.
+These are the properties that **paint** rather than write, and two keys consume them: `window.frame` for the
+client's window chrome, and `panel` for every framed surface that is *not* a window. Point them at the client
+and it is restyled live.
 
 ```lua
 hafen.ui.skin{
   ["window.frame"] = { bg     = { color = {26, 26, 28, 240} },
                        border = { image = hafen.asset("img/panel.png"), slice = {8, 8, 8, 8} } },
+  ["panel"]        = { border = { image = hafen.asset("img/panel.png"), slice = {8, 8, 8, 8} } },
 }
 ```
 
@@ -729,7 +732,31 @@ hafen.ui.skin{
 - **A window whose chrome is its own is left alone** — a few build a decoration for a reason (an item's hover
   window, for one), and a rule never overrides that.
 
-Dropping the sheet, disabling the addon or `:reload` puts the stock chrome back on every window.
+##### `panel` — the framed surfaces that are not windows
+
+A great deal of the client is framed without being a window: the boxes around lists and info panes in the
+character sheet, skills, quests, wounds, fight and buddy windows; the HUD portrait; party avatars; the map's
+view and marker list; flower-menu petals; dropdown menus. They draw a 9-slice of their own rather than
+carrying a window's decoration, and `panel` is the key for all of them.
+
+- **`border` reaches every one of them. `bg` does not, and the split is per kind.** A rule's `bg` replaces a
+  surface the client *already paints*; it never invents one. The petals, the dropdown menus and an item-stock
+  box each paint their own surface before their contents, so a `bg` lands there. The **boxed panels are a
+  border drawn *around* content that is not theirs** — the attribute rows in the character sheet belong to the
+  window, not to the box — so a fill would bury the very rows the box is drawn around. On those, `bg` is
+  **inert** and `border` is what you style with. Nothing is refused and nothing warns.
+- **A panel never moves.** Its size, and where its contents sit, were decided when it was built, and no rule
+  re-runs that. So [`pad`](#pad--the-one-property-that-moves-things) is inert here — and so are your
+  **border's own insets**: the art is drawn *into* the room the stock frame had, not around it. The stock
+  boxes are about **5 px** of edge, so author your image to roughly that weight; a much fatter one will
+  overlap the panel's contents rather than pushing them aside. (This is the opposite of `window.frame`, where
+  the insets *are* the margins — a window re-lays itself out and a panel cannot.)
+- **The change is deliberately small.** A border rule on a boxed panel swaps ~5 px of edge art inside geometry
+  that stays put. If you want a panel to read differently, say it in the border image; there is no fill behind
+  it to carry the difference.
+
+Dropping the sheet, disabling the addon or `:reload` puts the stock chrome back on every window and every
+panel.
 
 #### `pad` — the one property that moves things
 
@@ -756,7 +783,10 @@ hafen.ui.skin{ ["window.frame"] = { pad = 6 } }   -- every window keeps 6 px mor
   pixel.
 
 Everything else ignores it: a surface that does not own its own layout cannot honour a `pad`, so nothing is
-refused and nothing warns. [The table below](#what-each-key-accepts) says which is which, measured.
+refused and nothing warns. That includes every [`panel`](#panel--the-framed-surfaces-that-are-not-windows) —
+a panel's size and the places of its contents were fixed when it was built, and no rule re-runs that. **A
+window is the only thing a `pad` moves.** [The table below](#what-each-key-accepts) says which is which,
+measured.
 
 ### What each key accepts
 
@@ -779,22 +809,30 @@ differs is what the surface *does* with it, and this is the honest table. First 
 | any tree key | ✅ | ⚠️ **per surface** | [resolved per widget](#tree-keys--which-widgets-not-what-kind-of-surface), readable through `widget:style()` and drawn over that widget's whole subtree. It reaches the same surfaces as the rows above and carries their caveats **unchanged**: a rule on a window covers the window's own caption, where `font` works and `color` is inert. `:style()` reports the colour a rule set even where the surface then throws it away |
 | `widget:skin{…}` | ✅ | ⚠️ **per surface** | the same, one widget at a time and [named by hand](fonts.md#restyle-one-widget--widgetskin) rather than matched. Being the top of the cascade changes *who wins*, never *what a surface can do*: an embossed caption inside a skinned window still ignores `color` |
 
-And the three that draw the chrome. Only one *surface* wears them today — the window decoration — so the table
-is short and says so rather than implying coverage it does not have:
+And the three that draw the chrome. Two *kinds* of surface wear them — the window decoration and the
+window-less panels — and each cell below is measured, including the ones that say no:
 
 | Key | `bg` | `border` | `pad` | Worth knowing |
 |---|---|---|---|---|
-| `window.frame` | ✅ | ✅ | ✅ | every window whose chrome is the client's own stock decoration |
-| `*` | ⚠️ **cascades** | ⚠️ **cascades** | ⚠️ **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches `window.frame` — and only that, since it is the only site that wears chrome. Text surfaces ignore it entirely and stay byte-for-byte stock |
+| `window.frame` | ✅ | ✅ | ✅ | every window whose chrome is the client's own stock decoration. The only surface where `pad` and a border's insets actually **move** anything, because a window re-lays itself out |
+| `panel`, on a **boxed** panel | ❌ **inert** | ✅ | ❌ **inert** | the list/info boxes, the HUD portrait, party avatars, the map's view and marker list. A border drawn *around* content that is not the panel's, so a fill would bury it — [why](#panel--the-framed-surfaces-that-are-not-windows) |
+| `panel`, on a **self-painting** panel | ✅ | ✅ | ❌ **inert** | flower-menu petals, dropdown menus, an item-stock box: each paints its own surface before its contents, so a `bg` lands on it |
+| `*` | ⚠️ **cascades** | ⚠️ **cascades** | ⚠️ **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches `window.frame` **and** `panel` — every surface that wears chrome, each subject to its own row here. Text surfaces ignore it entirely and stay byte-for-byte stock |
 | every other site key | ❌ **inert** | ❌ **inert** | ❌ **inert** | a text site has no surface of its own to paint and no layout of its own to move. Nothing is refused and nothing warns |
 | a tree key **matching a window** | ✅ | ✅ | ✅ | it reaches *that* window's chrome, because a window's decoration resolves through the window it belongs to. This is how you theme one window rather than all of them |
-| a tree key matching anything else | ❌ **inert** | ❌ **inert** | ❌ **inert** | readable back through [`widget:style()`](#reads--they-answer-on-every-widget), but nothing else in the client wears chrome yet |
-| `widget:skin{…}` | ✅ / ❌ | ✅ / ❌ | ✅ / ❌ | exactly as the two rows above, one widget at a time: on a window it dresses that window's frame, anywhere else it is inert |
+| a tree key **matching a panel** | ✅ / ❌ | ✅ | ❌ **inert** | likewise: a panel asks *itself* what style it resolves, so `["@Frame"]` or `[title=…]` themes those panels alone. `bg` follows the same two panel rows above |
+| a tree key matching anything else | ❌ **inert** | ❌ **inert** | ❌ **inert** | readable back through [`widget:style()`](#reads--they-answer-on-every-widget), but nothing else in the client wears chrome |
+| `widget:skin{…}` | ✅ / ❌ | ✅ / ❌ | ✅ / ❌ | exactly as the rows above, one widget at a time: on a window it dresses that window's frame, on a panel that panel's box, anywhere else it is inert |
+
+> **`pad` moves exactly one thing: a window.** A panel decided its size, and where its contents sit, when it
+> was *built*; nothing re-runs that when a rule changes, so `pad` — and a border's own insets — are inert on
+> every panel. That is the doctrine's geometry rule applied honestly, not an omission: a size-changing property
+> applies only where the surface owns its layout and can re-lay it out.
 
 > **Corrected.** Until this was measured the table claimed a tree key and `widget:skin` were inert for `bg` and
 > `border`. They are not, and never were: a window's chrome asks *the window* what style it resolves, so any
-> level of the cascade that names that window reaches its frame. What is genuinely inert is a rule matching
-> something that is not a window — including a rule matching a widget *inside* one.
+> level of the cascade that names that window reaches its frame. The same is true of a panel. What is
+> genuinely inert is a rule matching something that wears no chrome at all.
 
 > **A site key does not compose with `*` per property.** Within the site half of the cascade a key either has a
 > rule of its own or falls back to `*` — it does not take half of each. So `["*"] = {bg = …}` beside
@@ -817,7 +855,7 @@ Three more limits are structural rather than per-key, and none of them is a bug 
   colour as everything else. Style one key rather than `*` when that matters.
 
 **The only property that changes geometry is [`pad`](#pad--the-one-property-that-moves-things)**, and only where
-a surface owns its own layout — the window chrome, per the table above. A `font` rule never moves anything, but
+a surface owns its own layout — the window chrome alone, per the table above. A `font` rule never moves anything, but
 a larger `size=` can still *clip* where a surface's box was measured from the stock font; the per-surface notes
 in [`hafen.font`](fonts.md#site-keys) say which ones, and why.
 

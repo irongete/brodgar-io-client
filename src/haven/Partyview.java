@@ -81,7 +81,7 @@ public class Partyview extends Widget {
 
 	public void drawframe(GOut g) {
 	    g.chcolor(color);
-	    box.draw(g, Coord.z, sz);
+	    skinbox().draw(g, Coord.z, sz);   // addon: (035.3) was box.draw(...) -- the party colour still tints it
 	}
 
 	public Object tooltip(Coord c, Widget prev) {

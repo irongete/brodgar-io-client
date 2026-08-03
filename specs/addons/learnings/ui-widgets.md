@@ -437,3 +437,25 @@
   and `widget:skin` were **inert** for `bg`/`border`, was wrong on the day it shipped. Corrected in
   `api/ui.md#what-each-key-accepts`. What *is* inert is a rule matching anything that is not a window, including
   a widget **inside** one: `styleFor` asks about that one widget, and there is no ancestor walk.
+
+- **(035.3) `Frame.around` does NOT put the content inside the frame — the frame is a SIBLING drawn after it.**
+  `Frame.around(parent, area)` does `parent.add(new Frame(...))`: the widgets being framed stay children of
+  `parent`, and the frame is appended *after* them, so it draws **on top** of the content it appears to
+  contain. `Frame.with(child)` is the opposite (`ret.add(child)` — a real child), and `Frame.addin` is a third
+  shape (resizes the child, then adds it to `parent`). The stock 9-slice never noticed the difference, because
+  an `IBox` paints only its four edges and its middle is transparent — but anything that FILLS the interior
+  (035.3's `bg`) buries the rows on an `around` frame and not on a `with` one. Both spellings are in constant
+  use, often in the same window (`SAttrWnd` uses `around` for its attribute list; `GameUI` uses `with` for the
+  portrait). **Never assume a `Frame`'s visual children are its tree children** — and note that "does it have
+  children" is a *real* distinction that is still the wrong thing to branch on, because it is an accident of
+  the call site rather than anything an addon author can predict (D-083).
+- **(035.3) `IBox` is an interface, and its six measuring methods are read at CONSTRUCTION.**
+  `btloff`/`ctloff`/`bbroff`/`cbroff`/`bisz`/`cisz` feed `Frame`'s constructor (`sz.add(box.bisz())`),
+  `getpos`, `xlate`, `checkhit` and `addin`, and `SListMenu`'s own layout — all at build time. So a box swapped
+  in later can paint differently but must **measure identically**, or the frame moves while its contents do
+  not (D-084). This is the exact mirror of `Window.Deco`, where `iresize`/`contarea` are re-run on demand and a
+  replacement deco therefore *can* change the geometry (D-080).
+- **(035.3) Two `Frame` subclasses paint their own frame and must be routed separately**: `ProxyFrame` and
+  `Partyview.MemberView` both override `drawframe` to `g.chcolor(color)` + `box.draw(...)` (a server-set tint
+  and the party colour). `MapWnd.ViewFrame` overrides `draw` but calls `super.draw`, so it inherits whatever
+  the base does. A grep for `IBox` alone misses the first two — grep for the field name (`box.draw`) as well.

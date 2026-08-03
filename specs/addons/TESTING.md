@@ -95,14 +95,20 @@ local function run()
   hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
-hafen.events.on("OnEnterWorld", function() hafen.timer.after(3, run) end)  -- HUD data streams in
-hafen.slash.register("t033-2", run)                                       -- re-run on demand
+hafen.slash.register("t033-2", run)   -- the only way in: a suite does not start itself
 ```
 
-- **Runs itself on every login** (`OnEnterWorld`, which also re-fires on `:reload`), after the short
-  delay the streaming HUD/character data needs.
-- **Re-runnable on demand** via one short command, `:t<NNN>-<X>` (`:t033-2`) — unique per task, so
-  suites never collide.
+- **A suite NEVER starts itself.** No `OnEnterWorld`, no login timer. The maintainer runs it when they want
+  it, and that is the whole scheduling model.
+- **One short command, `:t<NNN>-<X>`** (`:t033-2`) — unique per task, so suites never collide.
+- **Why (035.3, learned the hard way).** Suites used to auto-run on login and therefore needed a *slot*
+  (`+3`, `+6`, `+9`, …) to stay out of each other's way, because every suite installs a client-wide sheet and
+  bumps `Fonts.gen()` while it runs. 034.2's round staged 3.4 s from `+6` and 034.3 started at `+9`, so a
+  0.4 s overlap made 034.2 read two text-cache keys where it expects one — a **race** that passed for two
+  whole features and then reddened a line in a suite nobody had touched. Each fix was one more constant to
+  get wrong. Auto-start created the schedule, the schedule created the race; running by hand deletes both.
+- **The one ordering rule left is the operator's**: let a staged suite finish before starting the next
+  (034.2 ~3.4 s, 035.2 ~2.5 s). It is no longer a number in a file.
 - Keep a suite short (roughly ≤ 15 lines of output). If a task needs more, it was two tasks.
 
 ## manifest.json
@@ -125,14 +131,21 @@ hafen.slash.register("t033-2", run)                                       -- re-
   that the **gate refuses**; the firing demo belongs in an example addon (`walker`) or a `[manual]`
   line.
 - **Never mutate persistent state** — real client settings, map markers, another addon's saved
-  variables. A suite runs on every login, on the maintainer's real character.
+  variables. A suite runs on the maintainer's real character, as often as they care to ask.
 
 ## Regression
 
-Every past suite stays installed and re-runs on every login, so **one login is still the full
-regression** — but now it is per-task, and a red line names the task that broke. Never edit an old
-suite to make it green: that line is the regression doing its job. Only the maintainer removes or
-disables a suite (the AddOns panel is the escape hatch if a login ever gets too noisy).
+Every past suite stays installed, and **the regression is running their commands** — one at a time, in any
+order:
+
+```
+:t033-3  :t034-1  :t034-2  :t034-3  :t035-1  :t035-2  :t035-3
+```
+
+A red line names the task that broke. Never edit an old suite to make it green: that line is the regression
+doing its job. (A suite's *schedule* is not an assertion — 035.3 removed every suite's auto-start, with a
+version bump each, and that is the only kind of edit an old suite takes without a reason of its own.) Only
+the maintainer removes or disables a suite.
 
 ## Headless pre-check
 

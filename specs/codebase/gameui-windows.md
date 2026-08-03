@@ -1,9 +1,9 @@
 # Subsystem: GameUI's own windows (the HUD wrappers, the menu bars, the toggle path)
 
 > `file:line` anchors for the windows **the client itself opens and closes** — distinct from
-> [widgets.md](widgets.md), which covers the generic tree and the server's create/place/destroy seams. Lines are
-> indicative; the **class + method/field name is the stable anchor**. Max 70 lines — currently over, because 035
-> added the `Deco` contract; split it out if it grows again.
+> [widgets.md](widgets.md), which covers the generic tree and the server's create/place/destroy seams, and from
+> [ui-chrome.md](ui-chrome.md), which owns `Window.Deco` and `IBox` (split out at 035.3, when this file went
+> over budget). Lines are indicative; the **class + method/field name is the stable anchor**. Max 70 lines.
 
 ## The windows GameUI owns — fields on [`GameUI`](src/haven/GameUI.java:55): `invwnd`, `equwnd`, `makewnd`, `srchwnd`, `iconwnd`, `chrwdg`, `zerg`, `opts`, `mapfile`
 
@@ -51,22 +51,8 @@ px stays inside `GameUI.sz`; cheaper re-derived (`UiApi.fitView`) than widened.
 **A fading-out window already reads `visible() == false`**, so a menu tick can read one directly, no debounce.
 [`RootWidget`](src/haven/RootWidget.java:41) sets `focusctl`, which is why `parent.setfocus(w)` terminates.
 
-## The `Deco` contract — a window's chrome is a swappable CHILD (035)
-
-| What | Where |
-|---|---|
-| The field + the live swap | [`Window.deco`](src/haven/Window.java:77) · [`chdeco(Deco)`](src/haven/Window.java:131) — public; `uimsg "dhide"` ([:429](src/haven/Window.java:429)) already drives it |
-| The contract, and the stock one | [`Window.Deco`](src/haven/Window.java:152) — `z(-100)`, `abstract iresize(Coord)` + `contarea()`; [`DragDeco`](src/haven/Window.java:161) adds the caption drag; [`DefaultDeco`](src/haven/Window.java:177) adds `drawbg`/`drawframe`, the close `IButton`, the sizer, `checkhit` and the margins (`dlmrgn`/`dsmrgn` + `tlm`/`brm`) |
-| Who builds their own | [`Window.makedeco()`](src/haven/Window.java:116) (**`protected`**) · [`MapWnd`](src/haven/MapWnd.java:827) `DefaultDeco(true).dragsize(true)`, and `compact()` sets it **null** · [`GItem.ContentsWindow`](src/haven/GItem.java:453) swaps `HoverDeco`/`DefaultDeco` per state |
-| Geometry flows one way | [`resize2`](src/haven/Window.java:407) — `deco.iresize(sz)`, `deco.c = contarea().ul.inv()`, `this.sz = deco.sz`. **The ctor's `sz` is the CONTENT size**; `ca()`/`csz()`/`xlate` all read `contarea()` |
-| The stock layout formula | [`DefaultDeco.iresize`](src/haven/Window.java:214) — `content + mrgn*2 + tlm + brm`: an inner **margin** (`dlmrgn` 23x14 / `dsmrgn` 9x9, all `UI.scale`d) and outer **frame insets** (`tlm` 18x30, `brm` 13x22). `ca` = the bg box, `aa` = `contarea()`, `cbtn` pinned to the top right |
-
-**`chdeco` destroys what it displaces** (`reqdestroy()`), so a swap can never put the *same* object back; it reads
-the old `contarea()` first, re-runs the layout, and folds the difference into the **window's own `c`** — so a
-swap anchors the *content*, not the window's corner, and an equal-geometry swap leaves `sz`, `c` and the content
-area untouched (D-078). A deco that re-lays itself out **while installed** must copy those three steps
-(`Window.c` is public); skipping the last one drifts every window by the change. `Window.draw` renders children into `gbuf` and blits, clearing it to `FColor.BLACK_T` — so
-anything the chrome does not paint is transparent black, not a background (D-079).
+**The chrome itself is [ui-chrome.md](ui-chrome.md)** — `Window.deco`/`chdeco`, the `Deco` contract and its
+`iresize`/`contarea` geometry, plus `IBox` and the window-less panels that draw one.
 
 ## The addon seam (031, 035)
 
@@ -76,9 +62,5 @@ one file that knows the addon layer exists. `togglewnd` asks `toggleWnd(wnd)` fi
 window alone) and `wndstate` asks `wndState(wnd)` (`null` = not owned, read the window as usual); ownership is
 029's hide record (`Addon.hiddenNative`) matched by **widget identity**, which also disposes of the fading-corpse
 case from [widgets.md](widgets.md#core-tree), and since 031.2 that record carries the addon's **view**, so
-`wndState` answers `view.visible()`. 035 adds `chrome(wnd)` at the top of
-[`Window.tick`](src/haven/Window.java:525) — install/drop the sheet-fed deco, in `tick` because `chdeco` destroys
-a widget and re-lays out. Its only other `haven` edit is an **extraction**: `DefaultDeco.drawframe`'s caption
-block became `protected checkcap()` ([:253](src/haven/Window.java:253)) so a replacement deco renders the caption
-through F3a's routed furnace instead of duplicating it. **035.2 added no core edit at all** — the geometry half
-overrides `iresize` in the addon's own subclass, and `chdeco`/`resize`/`tlm`/`dsmrgn`/`c` are already public.
+`wndState` answers `view.visible()`. The third is 035's `chrome(wnd)` in
+[`Window.tick`](src/haven/Window.java:525) — see [ui-chrome.md](ui-chrome.md) for it and for the chrome edits.

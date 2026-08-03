@@ -373,7 +373,8 @@ public class DynresWindow extends Window {
 
 	private TexRender tex = null;
 	public void draw(GOut g) {
-	    IBox b = Window.wbox;
+	    IBox b = Fonts.box("panel", this, Window.wbox);   // addon: (035.3) was Window.wbox
+	    Fonts.drawbg(b, g, Coord.z, sz);                  // addon: (035.3) under the image, like every panel
 	    try {
 		if(tex == null)
 		    tex = res.get().flayer(TexR.class).tex();

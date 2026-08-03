@@ -202,4 +202,7 @@ hafen.slash.register("t034-2", function(args)
   end
 end)
 
-hafen.events.on("OnEnterWorld", function() hafen.timer.after(6, run) end)   -- after the other suites' round
+-- ON DEMAND ONLY. A suite does not start itself: the maintainer runs it when they want it. That is also what
+-- removed the whole class of login races between suites -- this one's last check counts text-cache keys for ONE
+-- string, and a key is (string, font, Fonts.gen()), so ANY other suite skinning something mid-round made it
+-- read two keys where it expects one. Its round stages 3.4s; give it that before running the next one.

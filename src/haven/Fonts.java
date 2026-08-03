@@ -83,6 +83,7 @@ public class Fonts {
         "default",        // F1  — global fallback (Text.std / Text.render / Label default)
         "window.title",   // F3  — window captions (Window.DefaultDeco)
         "window.frame",   // C2  — the window CHROME the deco paints (035; bg/border, not a text site)
+        "panel",          // C2  — the window-LESS 9-slice panels (035.3; an IBox, not a text site)
         "heading",        // F3e — in-window section headings (CharWnd.catf/failf, GridList.dcatf)
         "button",         // F3  — button captions
         "label",          // F3  — explicit non-default labels
@@ -324,6 +325,76 @@ public class Fonts {
      */
     public static boolean styled() {
         return active;
+    }
+
+    /* ---- the window-LESS panels (035.3/C2) ---------------------------------------------------------------
+     *
+     * 035.1 gave the window chrome to the sheet through Window.Deco, a seam that only windows have. The rest of
+     * the client's framed surfaces -- a Frame around a list, a flower-menu petal, a dropdown menu, an ISBox --
+     * own no Deco: they draw an IBox themselves, and IBox is ALREADY an interface (draw(g, tl, sz)), so 9-slice
+     * is a first-class engine concept here and a sheet-fed implementation simply drops in where they build
+     * theirs. That is the whole mechanism: a routed panel asks box() for the box it should draw with, and gets
+     * its OWN stock one back whenever no rule names it.
+     *
+     * Two things it deliberately does NOT do. It does not move anything: the six geometry methods of the
+     * returned box answer exactly what the stock box answers, because a panel's size and its children's places
+     * were decided when it was built and nothing re-lays it out -- so `pad`, and a border's own insets, are
+     * inert here (the doctrine's geometry row: a size-changing property applies only where the surface owns its
+     * geometry). And it does not paint the SURFACE at the same moment as the frame: several panels draw their
+     * contents before their box (Frame draws its children first), so the `bg` half is a separate call the site
+     * places where its own draw order needs it.
+     */
+
+    /**
+     * The sheet-fed 9-slice a routed panel draws with (035.3). It is an {@link IBox}, so the site's own
+     * {@code box.draw(g, tl, sz)} is unchanged; what it adds is the {@code bg} half, which a panel has to paint
+     * at a different moment than its frame.
+     */
+    public interface Box extends IBox {
+        /**
+         * Paint the rule's {@code bg} over this panel and answer {@code true}; {@code false} when the rule names
+         * none, which is the site's cue to draw its own stock surface exactly as before.
+         */
+        public boolean drawbg(GOut g, Coord tl, Coord sz);
+    }
+
+    /** The panel-box source (035.3) — installed once by the addon layer; {@code null} in a stock client. */
+    public interface Boxes {
+        /** The box {@code wdg}'s panel should draw with, or {@code null} when no rule names it. */
+        public Box box(String scope, Widget wdg, IBox stock);
+    }
+    private static volatile Boxes boxes = null;
+
+    /** Install the panel-box source (the addon layer, once). */
+    public static void boxes(Boxes src) {
+        boxes = src;
+    }
+
+    /**
+     * The box a routed panel should draw with: a sheet-fed one when a rule names this widget's panel, else
+     * {@code stock} <b>itself</b> — so an addon-less client draws byte-for-byte the box it always drew, after a
+     * single {@code volatile} read. Resolution is the same chain the window chrome uses
+     * ({@link #styleFor(String, Widget)}): the widget's own per-widget style over the scope's stack, folded per
+     * property. Never {@code null}, and the sheet-fed boxes are <b>interned</b> per (style, stock box), so a
+     * panel that asks every frame allocates nothing.
+     */
+    public static IBox box(String scope, Widget wdg, IBox stock) {
+        if(!active)
+            return stock;                 // fast path: no override anywhere
+        Boxes src = boxes;
+        if(src == null)
+            return stock;
+        Box b = src.box(scope, wdg, stock);
+        return (b == null) ? stock : b;
+    }
+
+    /**
+     * Paint the sheet's own surface under a panel, if its rule names one — {@code false} means it does not, and
+     * the site draws whatever background it always drew. Written as a static over the {@link IBox} the site is
+     * already holding so a routed panel needs no null test and no cast of its own.
+     */
+    public static boolean drawbg(IBox box, GOut g, Coord tl, Coord sz) {
+        return (box instanceof Box) && ((Box)box).drawbg(g, tl, sz);
     }
 
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {

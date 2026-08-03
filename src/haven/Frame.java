@@ -104,11 +104,27 @@ public class Frame extends Widget {
 	}
     }
 
+    /* addon: (035.3/C2) the sheet-fed 9-slice for this panel, or the stock {@link #box} when no rule names it.
+     * `Frame` is by far the most reachable IBox panel in the client -- the portrait, the party views, and the
+     * list/info boxes in the character, skill, quest, wound, fight and buddy windows all are one -- so the
+     * lookup lives here once and its two subclasses that paint their own frame (ProxyFrame, Partyview.MemberView)
+     * ask for it rather than repeating it. The stock box is handed straight back when nothing is installed. */
+    protected IBox skinbox() {
+	return(Fonts.box("panel", this, box));
+    }
+
     public void drawframe(GOut g) {
-	box.draw(g, Coord.z, sz);
+	skinbox().draw(g, Coord.z, sz);   // addon: (035.3) was box.draw(...)
     }
 
     public void draw(GOut g) {
+	/* addon: (035.3) NO `bg` here, deliberately -- a Frame takes `border` and nothing else. A sheet's `bg`
+	 * replaces a surface the panel already paints, and this one paints none: a Frame is a border placed
+	 * AROUND a region, drawn AFTER what it frames (`Frame.around`/`addin` leave that content a sibling of the
+	 * frame entirely). A stock 9-slice never noticed, painting only its edges; a filled bg would bury the very
+	 * rows the frame is drawn around -- the character sheet's attribute list, found in-game. The other routed
+	 * panels (Petal, SListMenu, ISBox, DynresWindow.Image) each paint their own surface BEFORE their content,
+	 * which is exactly where a bg can go and where it is honoured. Inert, never an error. */
 	super.draw(g);
 	drawframe(g);
     }

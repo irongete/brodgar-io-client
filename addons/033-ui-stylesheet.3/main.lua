@@ -102,5 +102,7 @@ local function run()
   hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
-hafen.events.on("OnEnterWorld", function() hafen.timer.after(3, run) end)  -- HUD data streams in
-hafen.slash.register("t033-3", run)                                       -- re-run on demand
+-- ON DEMAND ONLY. A suite does not start itself: the maintainer runs it when they want it. That is also what
+-- removed the whole class of login races between suites -- each one installs a client-wide sheet and bumps
+-- Fonts.gen() while it runs, so two rounds overlapping reddened lines in the OTHER suite.
+hafen.slash.register("t033-3", run)                                       -- the only way in

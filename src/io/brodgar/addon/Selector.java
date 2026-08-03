@@ -65,7 +65,7 @@ final class Selector {
      * than a widget, so nothing is ever classified as one. Kept valid so the vocabulary stays single.
      */
     static final String[] SITE_ROLES = {
-        "window.title", "window.frame", "heading", "tooltip", "world.nick", "world.speech",
+        "window.title", "window.frame", "panel", "heading", "tooltip", "world.nick", "world.speech",
     };
 
     /** The selector as written (trimmed) — what the errors and {@code tostring} quote. */

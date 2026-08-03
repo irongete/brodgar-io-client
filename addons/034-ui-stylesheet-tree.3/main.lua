@@ -174,4 +174,10 @@ hafen.slash.register("t034-3", function(args)
   end
 end)
 
-hafen.events.on("OnEnterWorld", function() hafen.timer.after(9, run) end)   -- after the other suites' round
+-- ON DEMAND ONLY. A suite does not start itself: the maintainer runs it when they want it.
+--
+-- This one is why. It used to start at +9 and run fifteen checks synchronously, each widget:skin{}/skin(nil)
+-- bumping Fonts.gen(); 034.2 started at +6 and staged 3.4s, so it was still drawing at ~+9.4 and read two
+-- text-cache keys where it expects one. A 0.4s overlap makes that a RACE, which is why it passed for two whole
+-- features and then reddened -- and every fix was another number in a schedule nobody asked for. Running a
+-- suite by hand deletes the schedule and the race with it.

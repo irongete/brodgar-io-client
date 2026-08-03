@@ -106,8 +106,10 @@ public class FlowerMenu extends Widget {
 	    if(textgen != Fonts.gen())   // addon: re-render the caption when the "menu" font override moves (F3d)
 		render();
 	    g.chcolor(new Color(255, 255, 255, (int)(255 * a)));
-	    g.image(pbg, new Coord(3, 3), new Coord(3, 3), sz.add(new Coord(-6, -6)), UI.scale(pbg.sz()));
-	    pbox.draw(g, Coord.z, sz);
+	    IBox box = Fonts.box("panel", this, pbox);   // addon: (035.3) sheet-fed petal chrome, else the stock box
+	    if(!Fonts.drawbg(box, g, Coord.z, sz))       // addon: (035.3) a `bg` rule replaces the stock surface...
+		g.image(pbg, new Coord(3, 3), new Coord(3, 3), sz.add(new Coord(-6, -6)), UI.scale(pbg.sz()));
+	    box.draw(g, Coord.z, sz);                    // addon: (035.3) was pbox.draw(...)
 	    g.image(text.tex(), sz.div(2).sub(text.sz().div(2)));
 	}
 
