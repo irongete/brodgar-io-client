@@ -15,5 +15,5 @@ java ^
   --enable-native-access=ALL-UNNAMED ^
   -Dsun.java2d.uiScale.enabled=false ^
   -Djava.net.preferIPv6Addresses=system ^
-  -jar hafen.jar %*
+  -jar hafen.jar -U http://brodgar.io/res/ %*
 if errorlevel 1 pause
