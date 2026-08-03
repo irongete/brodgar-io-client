@@ -167,3 +167,20 @@ own frame stay plain, because they change nothing at all. So `sound.md` reads
 information — `markers`, `radar`, `menugrid`, `sound` — and the rule is stated as a property of the
 verb (does it change state?) rather than as a list of exempt shapes, which is what made the third
 case ambiguous.
+
+### D-011 — Launcher flags and system properties are not part of the user-facing tier
+
+**Context (001.6).** `runtime.md` documents the sandbox, the two CPU budgets and the AddOns panel from
+`src/`. Three of the numbers it states are overridable at launch by JVM system properties (the addons
+directory, the per-call instruction cap, the per-tick budget). They are shipped and real, and D-008 says an
+enforced budget belongs on the page — so the question arrives: if the number is documentation, is the flag
+that changes it documentation too?
+
+**Decision.** No. `docs/` addresses the person **writing an addon**; a `-D` flag addresses the person
+**launching the client**. The enforced number stays, because an author branches on it; the switch that
+changes it does not appear. The same holds for any future command-line switch or environment variable —
+they belong to an operator tier `docs/addons/` is not.
+
+**Consequences.** `runtime.md` states "ten million instructions" and "about ten milliseconds, sustained"
+flatly, with no escape hatch mentioned, and the omission is deliberate rather than an oversight: 001.7's
+matrix lists it with this reason, which is what keeps a later audit from re-filing it as a GAP.

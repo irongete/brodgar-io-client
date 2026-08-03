@@ -56,8 +56,11 @@
       `getting-started.md` (3) still hold ` & ` headings, which slug to a double hyphen. Nothing
       links their anchors today, so this is not a break — 001.6 and 001.7 rewrite both pages and
       fix them there. Recorded so the grep result is not lost between tasks.
+      <!-- half done: 001.6's rewrite took `getting-started.md`'s three; `api/README.md`'s three
+           are 001.7's, which regenerates that page anyway. -->
 
-- [ ] 001.6 — **The learning path.** `getting-started.md` rewritten as a real first-addon
+
+- [x] 001.6 — **The learning path.** `getting-started.md` rewritten as a real first-addon
       tutorial (zero context → a working addon, every code block runs as written), plus
       `guides/`: the tasks a new author has — custom UI, events & timers, saved data, actions &
       permissions, theming, reading the world, debugging, hotkeys & commands. Guides link into
@@ -65,6 +68,13 @@
       (001.2, IA §6): `runtime.md` — the sandbox, the budgets and watchdog, `:reload`, the AddOns
       panel, the manifest fields and the console commands, which closes the four THIN engine/dev
       rows — and `examples.md`, which describes all ten shipped addons and closes G-1..G-3.
+      <!-- landed: 12 pages, 1,336 lines (tutorial 218, runtime 186, examples 127, guides/ 9 pages).
+           The eight guides are the ones listed above. 1,106 links / 0 broken; the only 10 links
+           leaving docs/ are examples.md → addons/<id>/main.lua (D-009). D-011 decided here (launcher
+           flags stay out of docs/), so 001.7's matrix lists that omission with its reason. Fixed in
+           passing: log.md's See-also named `hafen.client:options():profiling()`. Filed to `addons`:
+           `dependencies`/`optional_dependencies` are parsed and never used. -->
+      
 
 - [ ] 001.7 — **The close.** `docs/README.md`, `docs/addons/README.md` and `api/README.md`
       regenerated to list exactly what exists; full link + anchor sweep over `docs/` reported as

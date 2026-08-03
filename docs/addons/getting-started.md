@@ -1,255 +1,218 @@
 # Getting started
 
-An addon is a folder of Lua files plus a manifest, dropped into the client's `addons/` directory. This
-guide covers the anatomy of an addon; the [API reference](api/README.md) covers what your code can do.
+You are going to write one addon, from an empty folder to a window with a hotkey that remembers whether it
+was open. It takes about ten minutes and no setup beyond the client you already run. Every block below goes
+into the same two files, in the order they appear.
 
-## Your first addon
+## Step 1: make the folder
 
-Create a folder under `addons/` whose name matches the addon's `id`:
+An addon is a folder of Lua files plus a manifest, and it lives in the client's `addons/` directory, next
+to the addons that already ship. Create one called `myaddon`:
 
-```
+```text
 addons/
   myaddon/
     manifest.json
     main.lua
 ```
 
-`manifest.json`:
+The folder name is the addon's **id**, and `manifest.json` has to repeat it. Write the manifest:
 
 ```json
 {
   "id": "myaddon",
   "name": "My Addon",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "author": "you",
   "description": "My first addon.",
   "files": ["main.lua"]
 }
 ```
 
-`main.lua`:
+`id` and `files` are the two required fields; the rest is what the AddOns panel shows about you. Every
+field the manifest accepts is listed in [the runtime](runtime.md#the-manifest).
+
+## Step 2: write a line of Lua
+
+Put one line in `main.lua`:
 
 ```lua
-hafen.log("my addon loaded")
+hafen.log("myaddon loaded")
+```
+
+Everything an addon can do hangs off the global `hafen` table. [`hafen.log`](api/log.md) prints to the
+in-game console and to the terminal the client was started from, tagged with your addon's id.
+
+## Step 3: run it
+
+Start the client, or — if it is already running — press `:` to open the command line and type:
+
+```text
+:reload
+```
+
+`:reload` rebuilds the addon layer from disk without touching your session: you stay logged in, and your
+edits are live. A newly discovered addon is enabled, so `myaddon loaded` appears in the console straight
+away. If it does not, [`:addons`](runtime.md#the-console-commands) lists what the client found and what it
+made of it.
+
+> Every code change from here on is the same loop: edit the file, `:reload`, look at the console.
+
+## Step 4: react to entering the world
+
+Your file body runs once, before you are in the world, so there is nothing to read yet. The rest of an
+addon hangs off [events](api/events.md). Replace the line from step 2 with:
+
+```lua
+hafen.log("myaddon loaded")
 
 hafen.events.on("OnEnterWorld", function()
-  hafen.log("entered the world as " .. (hafen.player():name() or "?"))
+  hafen.log("in the world as " .. (hafen.player():name() or "?"))
 end)
 ```
 
-Launch the client (or run `:reload` if it's already running) and your addon runs. Enable/disable it in
-**Options → AddOns**, or with `:addons`.
+`OnEnterWorld` fires when the HUD is up, at login and again on every `:reload` while you are in-world — so
+it is where an addon starts its real work. [`hafen.player`](api/player.md) is your own character.
 
-## The manifest
+## Step 5: draw a window
 
-`manifest.json` describes the addon. Fields:
-
-| Key | Required | Meaning |
-|---|---|---|
-| `id` | yes | unique id; **must equal the folder name** |
-| `files` | yes | array of `.lua` files to run, in order |
-| `name` | no | display name (defaults to `id`) |
-| `version` | no | version string |
-| `author` | no | author |
-| `description` | no | shown in the AddOns panel |
-| `api_version` | no | API level the addon targets (default `1`) |
-| `dependencies` | no | array of addon ids required first |
-| `optional_dependencies` | no | array of addon ids to load first if present |
-| `saved_variables` | no | persistent tables — see [saved variables](#saved-variables) |
-| `permissions` | no | capabilities the addon requests — see [actions](#actions--permissions) |
-
-## The lifecycle
-
-Your files run once when the addon loads. From there, drive everything off
-[events](api/events.md):
-
-| Event | When |
-|---|---|
-| `OnLoad` | the addon loaded (before entering the world) |
-| `OnEnterWorld` | you entered the world (and re-fired on `:reload` in-world) |
-| `OnUpdate(dt)` | every frame |
-| `OnDisable` | the addon is disabled, reloaded, or the session ends |
+`hafen.ui.window{…}` gives you a draggable, titled window whose content you paint yourself. Build it when
+you enter the world, and keep the handle:
 
 ```lua
-hafen.events.on("OnUpdate", function(dt)
-  -- runs every frame — keep it cheap
+local window                                    -- the window, once we are in the world
+local trees = 0                                 -- what it displays
+
+hafen.events.on("OnEnterWorld", function()
+  hafen.log("in the world as " .. (hafen.player():name() or "?"))
+  window = hafen.ui.window{
+    title = "My Addon",
+    size  = {150, 24},
+    pos   = {60, 60},
+    onDraw = function(g, w, h)
+      g:color(255, 220, 120)
+      g:text("trees nearby: " .. trees, 6, 4)
+    end,
+  }
 end)
 ```
 
-Much character data (HUD meters, food, skills, quests, …) streams in a beat *after* `OnEnterWorld`. Read it
-on a short [timer](api/timer.md) or subscribe to the matching `*Changed` event rather than reading it
-immediately on enter-world.
+`onDraw` runs every frame, and `g` is the [drawing surface](api/ui/drawing.md): a colour, then a string at
+a widget-local pixel. `trees` is still `0` — step 6 fills it in. Reload, and the window is on screen.
 
-## The sandbox
+## Step 6: count something
 
-Addon code runs in a restricted Lua environment. The standard `string`, `table`, and `math` libraries
-are available, plus a safe subset of `os` (time/date). **Not** available: `io`, `os.execute`, `require`
-/ `package`, `load`/`loadfile`/`dofile`, `debug`, `coroutine`, and the Java bridge — an addon interacts
-with the client only through the `hafen.*` API. An instruction watchdog aborts a runaway loop, and an
-addon that consistently overruns its per-frame budget is auto-disabled.
-
-## Reading & reacting
-
-The bulk of the API is read access + events. A quick tour:
+A draw callback should draw and nothing else, so do the counting on a [timer](api/timer.md) and let the
+window read the result. Add this below the block from step 5:
 
 ```lua
--- read the world
-local nearby = hafen.world.within(20, "gfx/borka/body")   -- players within 20 units (Gob objects)
-local me     = hafen.player():gob()                       -- your own Gob (nil before enter-world)
-local pos    = me and me:pos()
-
--- react to changes
-hafen.events.on("MeterChanged", function(m)
-  if m:res() == "gfx/hud/meter/hp" and (m:value() or 1) < 0.3 then hafen.log("low health!") end
+hafen.timer.every(1, function()
+  trees = hafen.world.count("terobjs/tree")
 end)
 ```
 
-See the [API reference](api/README.md) for every section.
+[`hafen.world.count`](api/world.md) counts the game objects whose resource name contains what you passed —
+every tree the client has loaded around you. Reload, and the number moves as you walk.
 
-## Saved variables
+## Step 7: add a hotkey
 
-Declare persistent tables in the manifest, then use them like any table:
+An addon hotkey is declared by name and starts **unbound**: you name the action, the user assigns the key.
+Add this at the end of the file:
+
+```lua
+hafen.client:options():keybindings():register("toggle", function()
+  if not window then return end
+  if window:visible() then window:hide() else window:show() end
+end)
+```
+
+Reload, then open Options ▸ Keybindings: there is a **My Addon** section holding one action, `toggle`.
+Assign a key to it, and it hides and shows your window. Because your addon owns the window, both verbs
+answer on it — see [owned vs borrowed](api/ui/widget.md#owned-vs-borrowed).
+
+## Step 8: remember it across sessions
+
+The window should come back the way you left it. Declare a saved variable in `manifest.json`, next to
+`files`:
 
 ```json
-"saved_variables": ["settings", { "name": "account", "scope": "account" }]
+"saved_variables": ["settings"]
 ```
 
+`hafen.store.settings` is then an ordinary table that the engine fills before `OnEnterWorld` and writes
+back to disk for you. Record the state in the hotkey, and apply it when the window is built:
+
 ```lua
-hafen.store.settings.count = (hafen.store.settings.count or 0) + 1
+  if hafen.store.settings.open == false then window:hide() end
 ```
 
-A bare name is per-character; `{"name": ..., "scope": "account"}` is shared across your characters. See
-[`hafen.store`](api/store.md).
-
-## Custom UI & hotkeys
-
-Draw your own windows and overlays with [`hafen.ui`](api/ui/README.md), declare hotkeys with
-[`hafen.client:options():keybindings()`](api/client/keybindings.md), and add console commands with [`hafen.slash`](api/slash.md):
+goes at the end of the `OnEnterWorld` handler, and the hotkey's body becomes:
 
 ```lua
-hafen.client:options():keybindings():register("panic", function() hafen.log("panic!") end)
-hafen.slash.register("myaddon", function(args) hafen.log("hi " .. (args[1] or "")) end)
+  if window:visible() then window:hide() else window:show() end
+  hafen.store.settings.open = window:visible()
 ```
 
-An addon hotkey starts **unbound**: you name the action, the user assigns the key under
-**Options ▸ Keybindings**, in a section named after your addon. Advertise a *suggested* key in your
-README rather than claiming one.
+Reload, hide the window, log out and back in: it stays hidden. See [`hafen.store`](api/store.md) for the
+account-wide scope and for what a saved table may hold.
 
-## Reading the client's own UI
+## The whole addon
 
-The window you just created and the client's own windows are the **same kind of object** — a
-[Widget](api/ui/widget.md). `hafen.ui("window[title=Cupboard]")` names one with a
-[selector](api/ui/selectors.md), `hafen.ui()` is the top of the tree, `hafen.ui.at(x, y)`
-is whatever is under a point, and a container answers for what is inside it:
+`addons/myaddon/manifest.json`:
 
-```lua
-for _, it in ipairs(hafen.ui.inventory():items()) do   -- a chest works the same way
-  hafen.log(it.name or it.res or "?")
-end
-```
-
-Reading costs nothing and hides nothing — the window stays open and usable. Widgets are interned, so `==`
-tells you whether two lookups found the same one. You may **write** only to widgets your addon created
-(move, resize, destroy); on the client's own the one write is `:hide()`/`:show()`, and it is undone for
-you on reload/disable.
-
-**Hiding one of the client's own windows takes its toggle**: hide the inventory and Tab no longer brings it
-back, with the menu button's tick going off with it. Put your own window in its place with
-[`w:replace(view)`](api/ui/replace.md) — a verb on the widget, and the one that hides the
-**enclosing** window rather than the widget you point at — and that same key and button drive **your** view
-instead; nothing to wire, since the verb knows both halves. Reload or disable and both come back, the
-stock window ending up [as the user was seeing it](api/ui/native.md#hiding-a-native-widget-carries-a-restore):
-open if your view was on screen, closed if nothing was.
-
-The same string also names a widget that **is not there yet**, so you never have to poll for a window:
-
-```lua
-hafen.ui.on("window[title=Cupboard]", "appear", function(w)
-  hafen.log(("cupboard open: %d item(s)"):format(#w:items()))
-end)
-```
-
-`appear` also fires for what is **already** open when you subscribe, so a `:reload` with the window up still
-reaches your handler.
-
-**Don't guess a selector — hover for it.** Enable the bundled **`widgetstack`** addon and point at any part of the
-client: it reports that widget's role, class, title and resource, and offers the selectors that actually match it
-(each one resolved before it is shown), ready to paste into `:lua`. That is the fastest way to learn the
-vocabulary — see [selectors](api/ui/selectors.md).
-
-## Restyling the client
-
-The same selector is the key of a **stylesheet**: one table that says what the client looks like, applied live
-and owned by your addon.
-
-```lua
-hafen.ui.skin{
-  ["*"]            = { font = hafen.font("serif"):derive{ size = 11 } },   -- most UI text
-  ["chat"]         = { color = {190, 210, 190} },                          -- one surface
-  ["window.frame"] = { bg = { color = {26, 26, 28, 240} },                 -- the window chrome
-                       border = { image = hafen.asset("frame.png"), slice = {12, 40, 12, 12} },
-                       pad = 4 },
-  ["window[title=Inventory]"] =                                           -- ...and where it sits
-                     { anchor = { to = "screen", at = "bottomright", offset = {-8, -8} } },
+```json
+{
+  "id": "myaddon",
+  "name": "My Addon",
+  "version": "0.1.0",
+  "author": "you",
+  "description": "My first addon.",
+  "files": ["main.lua"],
+  "saved_variables": ["settings"]
 }
 ```
 
-A key names either a **surface the client draws** (`chat`, `window.title`, `window.frame`, `panel`, …) or, being
-an ordinary selector, **the widgets it matches** — `["window[title=Cupboard]"]` styles that window and everything
-inside it. Rules cascade most-specific-first and compose property by property, so a narrow rule never silently
-drops a broad one. `hafen.ui.skin(nil)`, `:reload` or disabling your addon puts the stock client back.
-
-Nothing here is code the client calls: a rule is plain data — a font handle, a colour, an image, a number of
-pixels, a corner to hang off — which is why a whole theme can *be* a file. The bundled **`theme`** addon is
-exactly that, a `theme.json` its Lua reads without ever naming a surface or a place; it also shows how an addon
-keeps a layout of its own, since [`hafen.store`](api/store.md) persists tables and a layout is one. See
-[the stylesheet](api/ui/style/README.md) and the
-[property × key table](api/ui/style/keys.md#what-each-key-accepts) for what each key does with each property, and
-[where the skinning system ends](api/ui/style/README.md#where-the-skinning-system-ends) for what it deliberately leaves alone.
-
-## Files your addon ships
-
-Drop an image, a font, a glTF model or a data file in your addon's folder and load it with
-[`hafen.asset(path)`](api/asset.md) — one door for all four, the type coming from the extension:
+`addons/myaddon/main.lua`:
 
 ```lua
-local icon = hafen.asset("icon.png")                 -- draw with g:image / stand with hafen.render.sprite
-local face = hafen.asset("fonts/Inter.ttf")          -- font= on a window, or hafen.ui.skin{…}
-local chair = hafen.asset("props/chair.glb")         -- stand with hafen.render.object
-local conf = hafen.asset("theme.json")               -- its :text(), for hafen.json.parse
+local window                                    -- the window, once we are in the world
+local trees = 0                                 -- what it displays
+
+hafen.log("myaddon loaded")
+
+hafen.events.on("OnEnterWorld", function()
+  hafen.log("in the world as " .. (hafen.player():name() or "?"))
+  window = hafen.ui.window{
+    title = "My Addon",
+    size  = {150, 24},
+    pos   = {60, 60},
+    onDraw = function(g, w, h)
+      g:color(255, 220, 120)
+      g:text("trees nearby: " .. trees, 6, 4)
+    end,
+  }
+  if hafen.store.settings.open == false then window:hide() end
+end)
+
+hafen.timer.every(1, function()
+  trees = hafen.world.count("terobjs/tree")
+end)
+
+hafen.client:options():keybindings():register("toggle", function()
+  if not window then return end
+  if window:visible() then window:hide() else window:show() end
+  hafen.store.settings.open = window:visible()
+end)
 ```
 
-Paths are **relative to your own folder** (absolute paths and `..` are rejected), the same path always
-returns the **same handle**, and everything is freed for you on reload/disable. Load from setup code
-(`OnLoad`), never inside a draw. Engine `.res` content is *addressed*, not loaded — that is
-[`g:resource`](api/ui/drawing.md), [`hafen.sound(name)`](api/sound.md),
-[`hafen.ghost`](api/ghost.md) and [`hafen.font(name)`](api/font.md#the-built-ins).
+That is an addon: a manifest, a lifecycle, a read, a surface of its own, an input the user controls, and
+data that outlives the session.
 
-## Actions & permissions
+## Where to go next
 
-Reading the game needs no permission. **Acting on the game** — moving, clicking, using items — is gated:
-the addon must declare it and the user must opt in.
-
-```json
-"permissions": ["actions"]
-```
-
-A write-declaring addon is **disabled by default**; enabling it (Options → AddOns) prompts a consent
-dialog. Once enabled, [`hafen.act`](api/act.md) and the per-subsystem write verbs
-([`hafen.speed.set`](api/speed.md), [`hafen.craft.make`](api/craft.md),
-[`slot:use`](api/actionbar.md), [the kin write verbs](api/kin.md)) work.
-`hafen.act.enabled()` tells you whether you're allowed, without throwing.
-
-## Developing
-
-The client provides a developer loop:
-
-| Command | Does |
-|---|---|
-| `:reload` | rebuild the addon layer — reloads your Lua without restarting the client |
-| `:addons` | list discovered addons and their status |
-| `:addons enable\|disable <id>` | toggle an addon (applied on the next `:reload`) |
-| `:lua <expr>` | evaluate a Lua expression against the live API (results shown as JSON) |
-
-`:lua` is the fastest way to explore — e.g. `:lua hafen.meter("hp"):value()` or
-`:lua hafen.world.count("tree")`.
+- [the guides](guides/README.md) — one page per task: reading the world, events and timers, custom UI,
+  saved data, hotkeys and commands, actions and permissions, theming, debugging
+- [the API reference](api/README.md) — every `hafen.*` verb, one page per namespace
+- [the runtime](runtime.md) — the manifest in full, the sandbox, the budgets, the AddOns panel and the
+  console commands
+- [the example addons](examples.md) — ten addons that ship with the client, and what each one demonstrates

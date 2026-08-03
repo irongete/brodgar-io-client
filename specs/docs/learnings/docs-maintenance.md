@@ -165,3 +165,26 @@
   inbound link was anchored; `events.md` (137 lines) stayed one page but its two heading renames cost
   twenty-six. The migration map should carry the inbound-anchor count per page next to the line count:
   it is the number that predicts the work, and it is one grep away before anything moves.
+
+- **(001.6) A fenced block can pass the symbol sweep and still not compile.** The five checks catch wrong
+  *names*; they say nothing about Lua *semantics*. The permissions guide's first draft opened a file-body
+  example with `if not hafen.act.enabled() then … return end` and carried on below it — every symbol real,
+  every link resolving, and a **syntax error**, because `return` must be the last statement of its block.
+  A tutorial or guide block is code the reader pastes, so it needs one read for "does this run", separate
+  from the read for "does this name exist". The cheap version of that read: any block with a top-level
+  `return`, a redeclared upvalue, or a value used before the moment it is filled.
+
+- **(001.6) Writing the task tier is what audits the reference tier from the outside.** Group A to C each
+  swept its own pages and passed; writing the guides *over* those pages immediately found
+  `log.md` pointing at `hafen.client:options():profiling()` for what is `hafen.client:profiling()`. No
+  earlier check could have caught it — the link resolved, the target page was right, and the wrong string
+  was link **text**, which no sweep reads. Link text is an unchecked claim: when a page names a call it
+  does not own, that name wants the same `src/` check as one inside a fence.
+
+- **(001.6) The missing page is itself an audit instrument.** `runtime.md` had to state the manifest field
+  by field, which is how two shipped-but-inert fields surfaced (`dependencies` / `optional_dependencies`,
+  parsed and validated, never used — the loader runs folders in listing order and each addon has its own
+  Lua environment, so there is nothing to import) and how the undocumented global `ADDON` table surfaced.
+  A grep-driven audit reads what `docs/` **claims**; it is structurally blind to a surface that exists only
+  in `src/`. Only enumerating the real thing, field by field, finds those — which is an argument for
+  writing the owning page early rather than last.

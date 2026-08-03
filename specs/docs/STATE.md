@@ -3,60 +3,59 @@
 > Maintained by REPLACING (max 60 lines, never accumulate). One line per subsystem.
 > Branch: see `AREA.md`. Detail per feature: its `NNN-` folder; history: git + LEARNINGS.md.
 
-**Active feature:** `001-docs-overhaul` — audit, restructure and teach: make `docs/addons/` true,
-navigable and learnable. **001.1..001.5 DONE**; 001.6 and 001.7 open (plus two recorded leftovers,
-001.4b and 001.5b). The evidence and the standard are written, and **the whole reference tree is
-rewritten and landed at its target paths** — link-clean at every task boundary.
+**Active feature:** `001-docs-overhaul` — make `docs/addons/` true, navigable and learnable.
+**001.1..001.6 DONE**; only 001.7 is open (plus 001.4b and the `api/README.md` half of 001.5b). The
+evidence and the standard are written, **the whole reference tree is landed at its target paths**, and
+**the learning path exists** — tutorial, guides, runtime, examples. Link-clean at every task boundary.
 
 **001.1 DONE — the audit** (`001-docs-overhaul/audit.md`), the evidence every later task is measured
 against: 36 feature rows + all 140 tasks of `addons` 001–036 with five verdicts (**107 OK · 11 THIN ·
-3 GAP · 8 N/A · 11 CUT**), the 39-page inventory, and 14 drift entries each checked against `src/`. Its
-findings: five shipped example addons named nowhere under `docs/`; four pages holding 45% of all lines;
-the stylesheet documented twice; no owning page for the engine/dev tier. Sweeps: 695 internal links,
-**0 broken**; 16 leaving `docs/`; 26/26 events and 18/18 gated verbs documented.
+3 GAP · 8 N/A · 11 CUT**), the 39-page inventory, 14 drift entries each checked against `src/`, and the
+sweeps — 695 links **0 broken**, 16 leaving `docs/`, 26/26 events and 18/18 gated verbs documented.
 
 **001.2 DONE — the standard**, written from that evidence: `design/style-guide.md` (voice, the three page
-kinds with a literal reference template, heading and anchor rules, example rules, how facts are stated,
-the no-history rule + a 13-name retired grep list, link rules, the ceiling, the six checks every docs task
-runs) and `design/information-architecture.md` (the **72-page target tree**, each hub's reading order, the
-migration map for all 39 pages, which task lands what, and the link discipline).
+kinds with a literal template, heading/anchor and example rules, how facts are stated, the no-history rule +
+a 13-name retired grep list, link rules, the ceiling, the six checks every docs task runs) and
+`design/information-architecture.md` (the **72-page target tree**, the reading orders, the migration map for
+all 39 pages, which task lands what, and the link discipline).
 
-**001.3 DONE — reference group A, the read side.** 21 pages rewritten in one pass each: `gob world map
+**001.3 DONE — reference group A, the read side.** 21 pages rewritten in one pass each — `gob world map
 markers radar player time char study party buff meter kin speed craft quests wounds fight actionbar act
-menugrid`. `char.md` split into `char` + `study`; `buffs`, `meters`, `actions` renamed to `buff`, `meter`,
-`act` (D-002). Drift **D-2**, **D-3** (two ungated *write* groups), **D-13** and **D-4** closed, plus one
-accuracy fix (`hafen.speed.set` throws client-side). Decisions **D-006** (granularity per verb; the gating
-annotation on write groups only) and **D-007** (a call heading carries its parameters, without `[ ]`).
+menugrid`, with `char.md` split into `char` + `study` and `buffs`/`meters`/`actions` renamed (D-002). Drift
+**D-2**, **D-3**, **D-13**, **D-4** closed. Decisions **D-006** and **D-007**.
 
 **001.4 DONE — reference group B, the UI stack.** The four oversized pages are gone, split by subject into
-**22 new pages**: `api/ui/{README custom widget selectors items native replace drawing}`,
-`api/ui/style/{README keys surfaces text chrome geometry}`, `api/client/{README keybindings,
-profiling/{README counters attribution}}`, `api/render/{README sprites models}`, plus `api/font.md` and
-`api/hook.md`; `ghost.md` and `asset.md` rewritten in place. The stylesheet now has **one owner** (D-003)
-and `widget:skin{…}` a section on the page that owns the cascade — the 034.3 THIN row and its eight
-cross-links are both gone. Drift **D-1, D-5, D-7, D-8, D-9, D-12, D-13, D-14** closed; one accuracy fix
-(`sprite{follow=}`/`object{follow=}` require a **Gob object**). Decisions **D-008** and **D-009**.
+**22 new pages** — `api/ui/**` (custom widget selectors items native replace drawing + `style/**`),
+`api/client/**` (keybindings + `profiling/**`), `api/render/**`, `api/font.md`, `api/hook.md` — with
+`ghost.md` and `asset.md` rewritten in place. The stylesheet has **one owner** (D-003) and `widget:skin{…}`
+a section on the page that owns the cascade. Drift **D-1, D-5, D-7, D-8, D-9, D-12, D-13, D-14** closed.
+Decisions **D-008** and **D-009**.
 
 **001.5 DONE — reference group C, cross-cutting and infrastructure.** 10 pages: `conventions types events
 timer store json http` rewritten in place, `console.md` split into **`log` + `slash`**, `audio.md` renamed
-to **`sound`** (IA §5.3, D-002). Links re-pointed in 24 further pages in the same task. The tree now has
-**0 em-dash headings and 0 retired names** — both grep lists are empty for the first time, `events.md`'s
-D-10 obituary and `sound.md`'s D-6 history being the last two. Four accuracy fixes against `src/`, three
-of them **inside examples** (`gob.name` on a Gob object, `char.attrs().lp`, a "per-addon log" file that
-never existed) and one an omission (`slot:set` missing from the gated list — all 18 now named). Decision
-**D-010**: a client-local write group carries `(ungated)`; only reads, subscriptions and your own drawing
-stay plain. The style guide's heading check was widened, because the em-dash grep read clean while six
-` / ` and ` & ` anchors were live.
+to **`sound`** (D-002), links re-pointed in 24 further pages in the same task. The tree reached **0 em-dash
+headings and 0 retired names**; four accuracy fixes against `src/`, three inside examples. Decision
+**D-010**: a client-local write group carries `(ungated)`.
 
-**What the remaining two execute.** 001.6 the learning path (`getting-started.md`, `guides/**`, **plus
-`runtime.md` and `examples.md`**, where the deferred example-addon links land) · 001.7 the close (the three
-indexes — including the leaf listing that puts every nested page two clicks from the landing page — the
-full sweep, the matrix re-run). Carried: **001.4b** (the interim leaf listing, regenerated by 001.7 anyway)
-and **001.5b** (six unlinked ` & ` headings in the two pages those tasks rewrite).
+**001.6 DONE — the learning path.** 12 pages, 1,336 lines: `getting-started.md` rewritten as a real
+tutorial (one path, eight steps, ending in the whole addon as one paste-able listing), the **`guides/`
+tier** (`README` + `reading-the-world events-and-timers custom-ui saved-data hotkeys-and-commands
+actions-and-permissions theming debugging`), and the two pages the tree never had: **`runtime.md`**, closing
+the four THIN engine/dev rows (the manifest field by field, the sandbox, both CPU budgets, the AddOns
+panel's vocabulary, the console commands, what `:reload` keeps and drops), and **`examples.md`**, which
+describes all ten shipped addons and closes **G-1, G-2, G-3**. Writing `runtime.md` found two shipped
+surfaces named nowhere under `docs/`, now documented: the global `ADDON` table, and the manifest's
+`dependencies`/`optional_dependencies` as recorded-but-not-enforced, whose engine half is **filed to area
+`addons`**. Decision **D-011**: launcher flags stay out of the user-facing tier.
+
+**What 001.7 executes.** The close: the three indexes — `docs/README.md`, `docs/addons/README.md` and
+`api/README.md`, the last listing every leaf page so nothing sits over two clicks from the landing page —
+the full sweep, and the matrix re-run with every deliberate omission listed and reasoned (D-011's launcher
+flags among them). It absorbs **001.4b** and 001.5b's three remaining ` & ` headings on the way.
 
 ## docs/addons
-- **60 pages, 6,315 lines.** The whole reference is landed: nothing over the 300-line ceiling (largest
-  page 250), and the bimodal distribution is gone. Still missing: the site root, the guides tier,
-  `runtime.md`, `examples.md`.
-- **Sweep at this boundary: 947 links checked, 0 broken** (checker falsified both ways). **0 links leave
-  `docs/`.** Retired names: 0 hits. Em-dash headings: 0.
+- **71 pages, 7,396 lines** — the target tree but for `docs/README.md` and the indexes' regeneration, both
+  001.7's. Nothing over the 300-line ceiling (largest 250); the bimodal distribution is gone.
+- **Sweep at this boundary: 1,106 links checked, 0 broken** (falsified both ways). **10 leave `docs/`** —
+  `examples.md` → `addons/<id>/main.lua`, the one allowed exception. Retired names: 0. Slugger-trap
+  headings: 3, all in `api/README.md`, which 001.7 rewrites.

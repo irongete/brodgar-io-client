@@ -77,3 +77,16 @@ measured, not guessed. `com.sun.management.ThreadMXBean.getThreadAllocatedBytes(
 (~20 ns) and brackets **the seams 019 already brackets** — per phase, per widget, per addon, per pass — so this
 is `p:frame().allocBytes` + an `allocBytes` column in the existing tables, not a new subsystem. Prerequisite for
 any renderer work, and it pays the `haven/render/gl` coverage toll (`BGL`, `GLDrawList`, `BufPipe`) on the way.
+
+## `dependencies` / `optional_dependencies` are parsed and then ignored — `Manifest`, `AddonRegistry`
+Filed by area `docs` (001.6), which had to state the manifest field by field for `docs/addons/runtime.md`.
+`Manifest.load` validates both arrays and keeps them on the object; **nothing reads them again**:
+`AddonRegistry.loadAll` iterates `addonDir().listFiles()` in directory order, skips the disabled set, and
+runs whatever it finds — no topological sort, no "required addon missing" refusal, no deferral. The docs
+therefore describe them as recorded but neither ordered nor enforced, which is accurate and unsatisfying.
+Two honest resolutions, and the choice is a design call: **drop the fields** (each addon has its own
+`Globals`, so there is no import to sequence — a dependency can only mean "load me after that one", which
+matters solely for cross-addon side effects through the client), or **implement them** (order the load,
+refuse an addon whose hard dependency is missing or errored, and surface that as an error row + an
+`:addons` status, the way a manifest error already is). Whichever wins, `runtime.md`'s manifest table and
+`docs/addons/examples.md` need one line changed with it.
