@@ -52,7 +52,7 @@ field for either.
 
 ## Tile
 
-From [`hafen.map.tile`](map.md). `{ id = number, name = string? }` — tileset id plus resource name.
+From [`hafen.world.tile`](world.md#terrain-and-coordinates). `{ id = number, name = string? }` — tileset id plus resource name.
 
 ## Attr
 
@@ -213,7 +213,7 @@ it: the entry is gone, or its resource has not loaded. The live reads are `pag:r
 
 ## Marker
 
-From [`hafen.markers`](markers.md) and `MarkersChanged`.
+From [`hafen.map.markers`](map.md#markers) and `MarkersChanged`.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -228,11 +228,12 @@ From [`hafen.markers`](markers.md) and `MarkersChanged`.
 | `x`, `y` | number | session-local world position; present only while the marker is in your current segment |
 | `dist` | number | distance from the player; present with `x`, `y` |
 
-## RadarCategory
+## IconCategory
 
-From [`hafen.radar.categories`](radar.md).
-`{ name = string, res = string, show = bool, notify = bool }` — `res` is the stable id, `name` the
-icon tooltip, and `show` and `notify` the minimap-draw and spawn-notify flags.
+From [`cat:info()`](map.md#the-iconcat-object), the snapshot escape hatch for a minimap icon category.
+`{ name = string, res = string, show = bool, notify = bool }` — `res` is the identity, `name` the
+icon tooltip, and `show` and `notify` the minimap-draw and spawn-notify flags. The live reads are
+`cat:res()`, `:name()`, `:show()` and `:notify()`.
 
 ## Color
 

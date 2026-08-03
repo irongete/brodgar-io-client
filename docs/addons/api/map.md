@@ -1,105 +1,125 @@
-# hafen.map: terrain and coordinates
+# hafen.map: the map database
 
-Read the terrain and convert between coordinate spaces. Reach for it to ask what is under a point, to
-turn a screen pixel into a ground position, or to save a place so it still means something next login.
+The map you have **explored**. The client keeps it on disk and it outlives the session: your markers, and
+the minimap icon settings that decide what is drawn on it. Reach for it to read or drop a pin, and to ask
+or change which kinds of thing show up on the minimap.
 
 ```lua
 local p = hafen.player():gob():pos()
-local t = hafen.map.tile(p.x, p.y)
-if t then hafen.log("standing on " .. (t.name or t.id)) end
+local ref = hafen.map.markers.add("Camp", p.x, p.y, { color = {0, 200, 0}, onmap = true })
+hafen.map.markers.remove(ref)
 ```
 
-Positional arguments are **world units**, the same space [`gob:pos()`](gob.md) returns. Terrain reads
-return `nil` when the map for that spot has not streamed in yet; the conversions are pure arithmetic
-and always answer. Nothing on this page is gated, and nothing throws on a coordinate that is simply
-off-map.
+> **Recorded, not live.** Nothing on this page reads the terrain streamed around you — that is
+> [`hafen.world`](world.md), which owns `tile`, `height`, `grid`, `gridPos` and the rest of the
+> coordinate space. `hafen.map` is the database behind the map window and the corner minimap.
+>
+> **`hafen.markers` and `hafen.radar` are gone.** A marker lives in the map database, so it is
+> `hafen.map.markers` with the surface it always had; the icon registry is `hafen.map.icons`, re-shaped
+> (below) — the engine has no "radar", it has icon settings. Both old names read plain `nil`.
 
-## Read
+## Markers
+
+Read, add and remove markers in the map database — the same markers the map window shows. Two kinds
+exist: **player** markers, your own pins, which carry a name and a colour, and **system** markers, the
+server and quest pins, which carry a name and an icon.
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.map.tile(x, y)` | [`Tile`](types.md#tile) \| nil | tileset id and resource name at a world point |
-| `hafen.map.height(x, y)` | number \| nil | terrain height at a world point |
-| `hafen.map.grid(x, y)` | `{id, gc}` \| nil | the map grid at a point: `id` is the stable global grid id (a string), `gc` the session-local grid coord `{x, y}` |
-| `hafen.map.gridPos(x, y)` | `{gridId, x, y}` \| nil | the **shareable, persistent** position; with no arguments, the player's |
-| `hafen.map.fromGridPos(anchor)` | `{x, y}` \| nil | the inverse of `gridPos`: a saved anchor becomes a world coord in this session, or `nil` if that grid is not loaded |
-| `hafen.map.worldToTile(x, y)` | `{x, y}` | world to tile coord, flooring |
-| `hafen.map.tileToWorld(tx, ty)` | `{x, y}` | tile coord to world, at its upper-left corner |
-| `hafen.map.tileToGrid(tx, ty)` | `{x, y}` | tile coord to grid coord |
-| `hafen.map.screenToWorld(sx, sy, fn)` | nothing, calls `fn` | raycast the ground under a screen pixel; asynchronous |
-| `hafen.map.snapPlace(x, y, fine)` | `{x, y}` | snap a world coord to the client's placement grid |
-| `hafen.map.placeGrid()` | number | the current placement-grid setting: sub-tile divisions, `0` for free |
-| `hafen.map.snapAngle(a, fine)` | number | snap a facing in radians to the client's placement-angle grid |
-| `hafen.map.placeAngle()` | number | the current placement-angle setting: the fine rotation divisions |
+| `hafen.map.markers.list(filter)` | [`Marker`](types.md#marker)`[]` | every marker matching the [filter](conventions.md#the-filter-argument) |
+| `hafen.map.markers.nearest(filter)` | [`Marker`](types.md#marker) \| nil | the closest match to the player, within your current segment |
 
-## Screen to world, and placement snapping
+Both answer an empty array or `nil` before the map database is ready, and neither throws.
 
-These are the inverse of [`hafen.player():worldToScreen`](player.md) plus the client's own placement
-snapper — the primitives a [ghost](ghost.md) gizmo, or any drag-on-the-ground tool, is built from.
+### Write (ungated)
 
-**`screenToWorld` is asynchronous.** It reads the true terrain point from the GPU, the same pass the
-client uses to place a building, so the answer cannot come back inline: it arrives a frame later
-through `fn`.
+| Function | Returns | Description |
+|---|---|---|
+| `hafen.map.markers.add(name, x, y, opts)` | ref (number) \| nil | create a **player** marker at world `x, y`; `nil` when the map is not ready |
+| `hafen.map.markers.remove(ref)` | bool | remove a marker by the ref `list` or `add` gave you; whether one was removed |
 
-```lua
-hafen.map.screenToWorld(sx, sy, function(w)
-  if w then hafen.log(("ground under cursor: %.1f, %.1f"):format(w.x, w.y)) end
-  -- w is nil if the pixel hit no terrain (sky, or off-map)
-end)
-```
+`opts` for `add`, all optional:
 
-`(sx, sy)` are game-window pixels, the space `worldToScreen` returns. During a drag, feed it the cursor
-coords from [`hafen.hook.grab`](hook.md#hafenhookgrabmove-up) and coalesce — issue the next raycast only
-after the previous `fn` fired — so at most one is in flight per frame.
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `color` | `{r, g, b, a}`, `0..255` | gold | pin colour |
+| `onmap` | bool | `false` | also show it on the main map |
 
-**`snapPlace(x, y, fine)`** snaps a world coord exactly as placing a building does, honouring the live
-placement-grid setting: without `fine`, the tile centre; with `fine = true`, the sub-tile grid
-(`placeGrid()` divisions, or free when that is `0`). It is the engine's own snapper, so a ghost dropped
-through it lands where a real building would.
+> **These two verbs write, and they need no permission.** Unlike the [`hafen.act`](act.md) tier, adding
+> and removing markers is not gated: it edits the user's own on-disk map database, which is
+> client-local and reversible by hand. Remove only what your addon added.
+
+The [`MarkersChanged`](events.md#roster-quests-markers) event, payload `{ count }`, fires on any add or
+remove, including ones the player makes.
+
+> **A marker's position is persistent, not session-local.** Its stable anchor is `seg`, the segment id,
+> a string, plus `tc`, the segment tile coord — those survive a relog. The `x`, `y` and `dist` fields
+> are session-local conveniences, present only while the marker is in your current segment.
+
+## Icon categories
+
+Read and toggle the minimap icon registry — the same categories the client's Icon settings window edits.
+A **category** is one kind of gob icon (a boar, a fir tree, a player) with two flags: `show`, draw it on
+the minimap, and `notify`, play a sound and a chat message when one appears.
 
 ```lua
-local s = hafen.map.snapPlace(w.x, w.y, mods.shift)   -- SHIFT picks the fine grid
-ghost:move(s.x, s.y)
+-- stop drawing boars, then put it back
+local boars = hafen.map.icons("gfx/terobjs/mm/boar")
+if boars then boars:show(false) end
+-- …
+if boars then boars:show(true) end
 ```
 
-**`snapAngle(a, fine)`** is the rotation counterpart: without `fine`, 45° steps; with `fine = true`,
-the finer placement-angle grid (`placeAngle()` divisions). It honours the live setting just as
-`snapPlace` does, so a ghost rotate feels identical to rotating a real building. The result is
-normalized to `(-π, π]`.
+**`hafen.map.icons` is callable, and the argument splits by shape** — the same rule
+[`hafen.menugrid`](menugrid.md) uses:
+
+| Call | Returns | Description |
+|---|---|---|
+| `hafen.map.icons()` | `IconCat[]` | every category, in resource-name order |
+| `hafen.map.icons(filter)` | `IconCat[]` | a name substring or a predicate — the canonical [filter](conventions.md#the-filter-argument) |
+| `hafen.map.icons(res)` | `IconCat` \| nil | one category, by its icon **resource name** — the string with a `/` in it |
+
+A category's **identity is its icon resource name**, so `hafen.map.icons(res)` hands back the same
+interned object every time and `seen[cat] = true` works. There is no addressing by position: the
+registry grows as the character sees new icon types, so a number is refused rather than pretended.
+
+### The IconCat object
+
+| Method | Returns | Description |
+|---|---|---|
+| `cat:res()` | string | the icon resource name — the identity; answers from the handle alone |
+| `cat:name()` | string \| nil | the icon's tooltip, falling back to the resource name |
+| `cat:exists()` | bool | is the registry still carrying this resource? |
+| `cat:show()` / `cat:show(on)` | bool \| nil / self | draw it on the minimap — read, or write and chain |
+| `cat:notify()` / `cat:notify(on)` | bool \| nil / self | sound and chat line when one appears |
+| `cat:info()` | [`IconCategory`](types.md#iconcategory) \| nil | the snapshot escape hatch |
+
+**Arity is the verb**: no argument reads, an argument writes and returns the category itself, so writes
+chain — `cat:show(true):notify(true)`. A write to a resource the registry does not carry is an error,
+not a silent no-op; `cat:exists()` is how you ask first.
 
 ```lua
-local a = hafen.map.snapAngle(math.atan2(w.y - c.y, w.x - c.x), mods.shift)
-ghost:rotate(a)
+for _, c in ipairs(hafen.map.icons(function(c) return c:res():find("borka") end)) do
+  c:notify(true)                                   -- announce every player-type icon
+end
 ```
 
-## Saving a world position across sessions
+> **These writes need no permission either.** They change a client-local display setting, nothing the
+> server sees. They persist per character and take effect immediately, exactly as the settings window's
+> checkboxes do — so a broad sweep rewrites configuration the user set by hand.
 
-Raw world coords reset each login, so persist a position as a **grid anchor** from `gridPos` and
-re-resolve it with `fromGridPos` on load. `fromGridPos` takes the exact table `gridPos` returns, so the
-round trip needs no reshaping.
+The registry is empty until the HUD is up, and it grows as the character sees new icon types. It changes
+rarely, so there is no `*Changed` event — read it on demand.
 
-```lua
--- save a stable anchor, not raw x,y ("spot" is a saved variable this addon declared)
-hafen.store.spot.anchor = hafen.map.gridPos(wx, wy)   -- {gridId, x, y}
-
--- load, next session: back to a world coord in THIS session
-local a = hafen.store.spot.anchor
-local w = a and hafen.map.fromGridPos(a)              -- {x, y}, or nil if not streamed in
-if w then hafen.ghost.new{ res = "…", x = w.x, y = w.y } end
-```
-
-`fromGridPos` returns `nil` until the anchored grid is loaded, and a grid loads when you are near where
-it was saved — so re-resolve at `OnEnterWorld` and retry for a few seconds as the map streams in. The
-`planner` example addon does exactly this for a whole layout of [ghosts](ghost.md).
-
-> **There is no global position, and grid ids are strings.** Raw world coordinates are session-local:
-> they reset each login and are not comparable across players, so anything you save or share goes
-> through `gridPos`. A grid id is a 64-bit number and Lua numbers are doubles, so it comes back as an
-> exact decimal **string** — the only form safe to store and compare across sessions.
+> **A category is a resource.** Where an icon resource publishes several variants of itself, they are
+> one category here and a write reaches all of them: the engine keys them by resource *plus* an opaque
+> sub-id that no name could address, and on the minimap they are one thing to a player anyway.
 
 ## See also
 
-- [`hafen.gob`](gob.md) — the world coordinates every read here shares
-- [`hafen.ghost`](ghost.md) — what placement snapping is usually for
-- [`hafen.store`](store.md) — where a grid anchor is saved
-- [coordinates](conventions.md#coordinates) — the spaces, side by side
+- [`hafen.world`](world.md) — the live half: terrain, the coordinate spaces, and the grid anchor
+- [`Marker`](types.md#marker) — the snapshot shape both marker readers return
+- [`IconCategory`](types.md#iconcategory) — what `cat:info()` hands back
+- [coordinates](conventions.md#coordinates) — why `seg` and `tc` are a marker's anchor
+- [`hafen.gob`](gob.md) — `gob:icon()`, the category name on a live object
+- [events](events.md#roster-quests-markers) — `MarkersChanged`

@@ -15,10 +15,8 @@ you came for from the tables below. Every page in the tree is listed here.
 | Page | What it holds |
 |---|---|
 | [`hafen.gob`](gob.md) | one object in the world — `hafen.gob(id)` gives a Gob you read with methods |
-| [`hafen.world`](world.md) | enumerate and scan every object the client has loaded |
-| [`hafen.map`](map.md) | terrain reads, coordinate conversions, and a position that survives a relog |
-| [`hafen.markers`](markers.md) | the map database's player and system markers: read, add, remove |
-| [`hafen.radar`](radar.md) | minimap icon categories, and their show and notify flags |
+| [`hafen.world`](world.md) | the live world: every object loaded, the terrain, and a position that survives a relog |
+| [`hafen.map`](map.md) | the map you have explored: its markers, and the minimap icon categories |
 
 ## The player and character
 

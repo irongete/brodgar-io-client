@@ -38,7 +38,7 @@ One page per namespace, and a directory where a namespace is large. The
 
 | Area | Namespaces |
 |---|---|
-| **World** | [`gob`](api/gob.md) · [`world`](api/world.md) · [`map`](api/map.md) · [`markers`](api/markers.md) · [`radar`](api/radar.md) |
+| **World** | [`gob`](api/gob.md) · [`world`](api/world.md) · [`map`](api/map.md) |
 | **Character** | [`player`](api/player.md) · [`time`](api/time.md) · [`char`](api/char.md) · [`study`](api/study.md) · [`party`](api/party.md) · [`buff`](api/buff.md) · [`meter`](api/meter.md) |
 | **Subsystems** | [`kin`](api/kin.md) · [`speed`](api/speed.md) · [`craft`](api/craft.md) · [`quests`](api/quests.md) · [`wounds`](api/wounds.md) · [`fight`](api/fight.md) · [`actionbar`](api/actionbar.md) |
 | **Acting** | [`act`](api/act.md) *(gated)* · [`menugrid`](api/menugrid.md) |

@@ -85,19 +85,19 @@ end
 
 ## The ground
 
-[`hafen.map`](../api/map.md) answers for terrain at a world point, and converts between the coordinate
+[`hafen.world`](../api/world.md#terrain-and-coordinates) answers for terrain at a world point, and converts between the coordinate
 spaces — world units, tiles, grids and screen pixels. Terrain reads answer `nil` while that part of the map
 is still streaming in, which is normal rather than an error.
 
 ```lua
 local p = hafen.player():gob():pos()
-local t = hafen.map.tile(p.x, p.y)
+local t = hafen.world.tile(p.x, p.y)
 hafen.log(t and (t.name or t.id) or "not loaded yet")
 ```
 
 > **World coordinates are session-local.** They reset at every login and mean nothing to another player, so
 > a position you save or share goes through
-> [`hafen.map.gridPos`](../api/map.md#saving-a-world-position-across-sessions), which anchors it to a map
+> [`hafen.world.gridPos`](../api/world.md#saving-a-world-position-across-sessions), which anchors it to a map
 > grid, and comes back through `fromGridPos` next session.
 
 ## What the client does not know

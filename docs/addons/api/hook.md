@@ -94,8 +94,8 @@ nor clicks, so a drag leaves the **camera put**.
 
 Both handlers are optional. It returns a handle with `:release()` to end the grab early; the `up` handler
 releases automatically. Pair it with
-[`hafen.map.screenToWorld`](map.md#screen-to-world-and-placement-snapping), pixel to world, and
-[`snapPlace`](map.md#screen-to-world-and-placement-snapping), placement-grid snapping, to drag something
+[`hafen.world.screenToWorld`](world.md#screen-to-world-and-placement-snapping), pixel to world, and
+[`snapPlace`](world.md#screen-to-world-and-placement-snapping), placement-grid snapping, to drag something
 along the ground:
 
 ```lua
@@ -105,10 +105,10 @@ local g = hafen.hook.grab{
   move = function(sx, sy, mods)
     if pending then return end                 -- coalesce: one raycast in flight at a time
     pending = true
-    hafen.map.screenToWorld(sx, sy, function(w)
+    hafen.world.screenToWorld(sx, sy, function(w)
       pending = false
       if w then
-        local s = hafen.map.snapPlace(w.x, w.y, mods.shift)   -- Shift = fine grid
+        local s = hafen.world.snapPlace(w.x, w.y, mods.shift)   -- Shift = fine grid
         ghost:move(s.x, s.y)
       end
     end)
@@ -121,7 +121,7 @@ local g = hafen.hook.grab{
 
 - [`hafen.client:options():keybindings()`](client/keybindings.md) — global hotkeys, which are not a hook
   level: they run through the client's binding registry, after the client's own bindings
-- [`hafen.map`](map.md#screen-to-world-and-placement-snapping) — the coordinate half of a drag
+- [`hafen.world`](world.md#screen-to-world-and-placement-snapping) — the coordinate half of a drag
 - [`hafen.ghost`](ghost.md#the-transform-gizmo) — what a grab is normally dragging
 - [events](events.md) — the observe-only bus, for everything a hook does not need to cancel
 - [`hafen.act`](act.md) — sending an action yourself, which is gated

@@ -322,6 +322,16 @@ public final class Addon {
     final LuaWidget.Cache widgetObjs = new LuaWidget.Cache(this);
 
     /**
+     * This addon's <b>minimap icon-category interning cache</b> ({@code hafen.map.icons(res)}, spec
+     * {@code 037-map-database}): the weak-valued {@code icon resource name → IconCat object} map, its
+     * {@link java.lang.ref.ReferenceQueue} and the per-addon metatable. Same contract as {@link #paginae},
+     * whose {@code String} key it copies — per-addon so no Lua value crosses a sandbox boundary (D-017) and
+     * the whole cache dies with this {@link Addon} on {@code :reload}/disable; nothing to tear down (weak
+     * entries, and a handle holds only the resource name).
+     */
+    final LuaIconCat.Cache iconCats = new LuaIconCat.Cache(this);
+
+    /**
      * This addon's <b>asset intern cache</b> ({@code hafen.asset(path)}, spec {@code 028-asset-loader}): the
      * {@code resolved path → loaded asset} map behind the one loader for the files this addon ships — images,
      * fonts and glTF meshes alike, replacing the two linear scans over {@link #images}/{@link #meshes} and

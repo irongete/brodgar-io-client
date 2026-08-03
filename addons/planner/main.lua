@@ -9,8 +9,8 @@
 -- WHY GRID ANCHORING. World coords (gob.rc, ghost x/y) are LOGIN-RELATIVE: the origin is re-randomized every
 -- login, so a raw (x,y) saved this session points somewhere else next session. The persistent anchor is the GRID
 -- ID — a stable 64-bit id, the same for every session and every player (see the hafen-positioning rule). So we
--- save each ghost as hafen.map.gridPos(x,y) => {gridId, x, y} (grid id + within-grid offset) and, on load,
--- re-resolve it with the V4 inverse hafen.map.fromGridPos(anchor) => {x,y} world (nil until that grid streams in
+-- save each ghost as hafen.world.gridPos(x,y) => {gridId, x, y} (grid id + within-grid offset) and, on load,
+-- re-resolve it with the V4 inverse hafen.world.fromGridPos(anchor) => {x,y} world (nil until that grid streams in
 -- — we retry as the map loads). This is the same rule map markers follow (coverage-gaps C4).
 --
 -- COMMANDS (:planner <sub>):
@@ -30,7 +30,7 @@
 --
 -- V5 (grab / move): ":planner grab" starts a drag of the SELECTED ghost. The engine's own placement primitives are
 -- reused so it feels IDENTICAL to placing a building: each mouse move raycasts the ground under the cursor
--- (hafen.map.screenToWorld) and snaps it to the client's :placegrid (hafen.map.snapPlace) -- tile centre by default,
+-- (hafen.world.screenToWorld) and snaps it to the client's :placegrid (hafen.world.snapPlace) -- tile centre by default,
 -- SHIFT = the fine sub-tile grid (D-033). The mouse is captured (hafen.hook.grab) so the CAMERA STAYS PUT while you
 -- drag; a CLICK drops it (re-anchored to the new grid + persisted). This is the "drag the body" move-mode.
 --
@@ -223,7 +223,7 @@ local function resolvePending()
   local pending = 0
   for _, it in ipairs(items) do
     if not it.entity then
-      local w = hafen.map.fromGridPos(it.anchor)           -- {x,y} world, or nil if that grid is not loaded yet
+      local w = hafen.world.fromGridPos(it.anchor)           -- {x,y} world, or nil if that grid is not loaded yet
       if w then
         spawn(it, w.x, w.y)
       else
@@ -245,7 +245,7 @@ local function commitDrag()
   local it = d.it
   if it and it.entity then
     local p = it.entity:pos()                                -- {x,y,a} -- the snapped drop position
-    local anchor = hafen.map.gridPos(p.x, p.y)              -- re-anchor to the grid it now sits on (persistent id)
+    local anchor = hafen.world.gridPos(p.x, p.y)              -- re-anchor to the grid it now sits on (persistent id)
     if anchor then it.anchor = anchor end
     persist()
     hafen.log((":planner grab -> dropped #%d at %.0f,%.0f (grid %s, persisted)")
@@ -341,7 +341,7 @@ hafen.slash.register("planner", function(args)
       hafen.log((":planner place -> unknown blueprint '%s' (palette: %s, or a raw res path)"):format(tostring(args[2]), paletteNames()))
       return
     end
-    local anchor = hafen.map.gridPos(p.x, p.y)             -- {gridId, x, y} -- the persistent anchor
+    local anchor = hafen.world.gridPos(p.x, p.y)             -- {gridId, x, y} -- the persistent anchor
     if not anchor then hafen.log(":planner place -> no map grid loaded here yet; move a moment and retry"); return end
     local it = { kind = "ghost", res = res, a = 0, scale = 1, anchor = anchor }
     items[#items + 1] = it
@@ -362,7 +362,7 @@ hafen.slash.register("planner", function(args)
     if args[2] and not billboard then
       hafen.log((":planner sprite [billboard] -> the only option is 'billboard' (camera-facing); got '%s'"):format(tostring(args[2]))); return
     end
-    local anchor = hafen.map.gridPos(p.x, p.y)             -- {gridId, x, y} -- the persistent anchor (like a ghost)
+    local anchor = hafen.world.gridPos(p.x, p.y)             -- {gridId, x, y} -- the persistent anchor (like a ghost)
     if not anchor then hafen.log(":planner sprite -> no map grid loaded here yet; move a moment and retry"); return end
     local it = { kind = "sprite", img = SPRITE_IMG, billboard = billboard, a = 0, scale = billboard and 2 or 3, anchor = anchor }
     items[#items + 1] = it
@@ -381,7 +381,7 @@ hafen.slash.register("planner", function(args)
     local me = hafen.player():gob()                        -- your character's Gob OBJECT (nil before enter-world)
     local p = me and me:pos()
     if not p then hafen.log(":planner object -> no player position yet"); return end
-    local anchor = hafen.map.gridPos(p.x, p.y)             -- {gridId, x, y} -- the persistent anchor (like a ghost)
+    local anchor = hafen.world.gridPos(p.x, p.y)             -- {gridId, x, y} -- the persistent anchor (like a ghost)
     if not anchor then hafen.log(":planner object -> no map grid loaded here yet; move a moment and retry"); return end
     local it = { kind = "object", model = OBJECT_MODEL, a = 0, scale = 1, anchor = anchor }   -- cube.glb = ~1 tile at scale 1
     items[#items + 1] = it
@@ -435,11 +435,11 @@ hafen.slash.register("planner", function(args)
         if not drag or drag.pending then return end
         drag.pending = true
         local fine = mods.shift                            -- SHIFT = the fine sub-tile placegrid (D-033)
-        hafen.map.screenToWorld(sx, sy, function(w)
+        hafen.world.screenToWorld(sx, sy, function(w)
           if not drag then return end                      -- released mid-flight
           drag.pending = false
           if not w then return end                         -- cursor hit no terrain (sky/off-map)
-          local s = hafen.map.snapPlace(w.x, w.y, fine)
+          local s = hafen.world.snapPlace(w.x, w.y, fine)
           if it.entity then it.entity:move(s.x, s.y, it.a) end   -- keep facing; :move is snapped
         end)
       end,
@@ -447,7 +447,7 @@ hafen.slash.register("planner", function(args)
       up = function() commitDrag() end,
     }
     hafen.log((":planner grab -> moving #%d: cursor drags it (placegrid=%s, SHIFT=fine); CLICK to drop. Camera stays put.")
-      :format(indexOf(it), tostring(hafen.map.placeGrid())))
+      :format(indexOf(it), tostring(hafen.world.placeGrid())))
 
   elseif sub == "gizmo" then
     -- V5b/V6: attach the Unity-style TRANSFORM GIZMO (gizmo.lua) to the selected ghost. DRAG the RED(X)/GREEN(Y)
@@ -476,7 +476,7 @@ hafen.slash.register("planner", function(args)
           if (it ~= selected) or (not it.entity) then return end
           it.a = p.a or it.a                               -- V6: persist a gizmo rotate
           it.scale = p.scale or it.scale                   -- V6: persist a gizmo scale
-          local anchor = hafen.map.gridPos(p.x, p.y)
+          local anchor = hafen.world.gridPos(p.x, p.y)
           if anchor then it.anchor = anchor end
           persist()
           hafen.log((":planner gizmo -> dropped #%d at %.0f,%.0f a=%.2f s=%.2f (grid %s, persisted)")

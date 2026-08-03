@@ -11,7 +11,7 @@ hafen.log(#rabbits .. " in view")
 ## The hafen namespace
 
 Every function lives under a namespaced table, `hafen.<section>.<verb>(...)`. There are no flat
-globals. A section groups the verbs of one subsystem (`hafen.map`, `hafen.char`, …) and owns one
+globals. A section groups the verbs of one subsystem (`hafen.world`, `hafen.char`, …) and owns one
 reference page; a section large enough to need several pages owns a folder with a hub instead.
 
 ## References: how you address things
@@ -124,8 +124,8 @@ against the *enclosing window*, and you hold your result rather than re-selectin
 
 ## The filter argument
 
-Every enumerating verb — `hafen.world.gobs`, `hafen.markers.list`, `hafen.kin():list`,
-`hafen.radar.categories`, `hafen.quests.list`, `hafen.wounds.list`, `hafen.fight.maneuvers`, … — takes
+Every enumerating verb — `hafen.world.gobs`, `hafen.map.markers.list`, `hafen.kin():list`,
+`hafen.map.icons`, `hafen.quests.list`, `hafen.wounds.list`, `hafen.fight.maneuvers`, … — takes
 one optional **filter**, always in the same form:
 
 | `filter` | Keeps |
@@ -142,18 +142,19 @@ snapshot table in the flat sections and an **object** in the object-oriented one
 hafen.world.gobs("rabbit")                                       -- name contains "rabbit"
 hafen.world.gobs(function(g) return (g:health() or 1) < 1 end)   -- injured gobs (a Gob object)
 hafen.kin():list(function(k) return k:online() end)              -- online kin (a Kin object)
-hafen.markers.list(function(m) return m.type == "player" end)    -- a snapshot elsewhere
+hafen.map.markers.list(function(m) return m.type == "player" end)  -- a snapshot elsewhere
 ```
 
 ## Coordinates
 
 Positional arguments and returned positions are Lua numbers in **world units** unless a page says
-otherwise. [`hafen.map`](map.md) converts between world, tile and grid space.
+otherwise. [`hafen.world`](world.md#terrain-and-coordinates) converts between world, tile and grid space.
 
 > **There is no global position.** A gob's world position is session-local — it starts near the origin
 > each login — and is not comparable across players or logins. The stable, shareable anchor is a
-> **grid id** plus a within-grid offset, [`hafen.map.gridPos`](map.md). Map markers anchor on segment
-> id plus segment tile coord instead; see [`hafen.markers`](markers.md).
+> **grid id** plus a within-grid offset, [`hafen.world.gridPos`](world.md#saving-a-world-position-across-sessions) — the id comes from the
+> server, so it means the same thing to every player. Map markers anchor on segment id plus segment tile
+> coord instead; see [`hafen.map.markers`](map.md#markers).
 
 ## Colours
 
@@ -165,7 +166,7 @@ A colour is a table of **0..255 components**, written either way:
 ```
 
 Both are accepted everywhere a colour goes in: `hafen.ui.skin{…}`'s `color`, `g:text{color=…}`,
-`hafen.markers.add`, a ghost or sprite `tint`, `font:derive{color=…}`. So a colour you *read* —
+`hafen.map.markers.add`, a ghost or sprite `tint`, `font:derive{color=…}`. So a colour you *read* —
 `kin:color()`, `meter:color()` — passes straight back. Alpha defaults to `255`, and a component
 outside `0..255` is clamped rather than refused.
 

@@ -96,7 +96,7 @@ g:show()                                      -- ...and put it back
 
 - **`alpha`** is opacity `0..1`. Below `1` the prop becomes see-through; a translucent 3D object does not
   self-occlude, so you see its far faces through its near ones, the usual hologram appearance.
-- **`tint`** is a colour overlay in the **same shape** [`hafen.markers`](markers.md),
+- **`tint`** is a colour overlay in the **same shape** [`hafen.map.markers`](map.md#markers),
   [`hafen.party`](party.md) and [`hafen.kin`](kin.md) use. Its `a` is the blend strength, how strongly the
   colour is mixed in, and it is independent of `alpha`.
 - **`:setRes`** swaps the resource; like `new`, the new visual resolves on a loader thread and streams in a
@@ -171,9 +171,9 @@ local g = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin",
 > persistent as they stand.
 
 To save a layout across sessions, anchor each ghost on a **grid id** with
-[`hafen.map.gridPos()`](map.md) and re-resolve it on load with
-[`hafen.map.fromGridPos()`](map.md#saving-a-world-position-across-sessions) — the same rule
-[markers](markers.md) follow. The bundled **`planner`** addon is a small base planner built on exactly
+[`hafen.world.gridPos()`](world.md#saving-a-world-position-across-sessions) and re-resolve it on load with
+[`hafen.world.fromGridPos()`](world.md#saving-a-world-position-across-sessions) — the same rule
+[markers](map.md#markers) follow. The bundled **`planner`** addon is a small base planner built on exactly
 this: it places clickable blueprint ghosts, saves them grid-anchored through
 [`hafen.store`](store.md), and reloads them at the same physical spot after a relog, retrying as the map
 streams in.
@@ -184,9 +184,9 @@ You can drag a ghost along the terrain, snapping exactly as placing a real build
 primitives and then `ghost:move`:
 
 1. [`hafen.hook.grab`](hook.md#hafenhookgrabmove-up) captures the mouse, so the camera stays put.
-2. [`hafen.map.screenToWorld`](map.md#screen-to-world-and-placement-snapping) turns the cursor pixel into a
+2. [`hafen.world.screenToWorld`](world.md#screen-to-world-and-placement-snapping) turns the cursor pixel into a
    ground coordinate.
-3. [`hafen.map.snapPlace`](map.md#screen-to-world-and-placement-snapping) snaps it to the placement grid,
+3. [`hafen.world.snapPlace`](world.md#screen-to-world-and-placement-snapping) snaps it to the placement grid,
    with Shift for the fine grid.
 
 `planner` wires these into a move mode: select a ghost, start the grab, and it follows the cursor snapped
@@ -213,9 +213,9 @@ The gizmo is a **bundled Lua library over the ghost, map and hook primitives**, 
 function: [`hafen.ui.overlay`](ui/custom.md#overlays) to draw,
 [`hafen.hook.input`](hook.md#hafenhookinputtarget-event-fn) to pick a handle,
 [`hafen.hook.grab`](hook.md#hafenhookgrabmove-up) with
-[`screenToWorld`](map.md#screen-to-world-and-placement-snapping),
-[`snapPlace`](map.md#screen-to-world-and-placement-snapping) and
-[`snapAngle`](map.md#screen-to-world-and-placement-snapping) to drag, and `g:move`, `g:rotate` and
+[`screenToWorld`](world.md#screen-to-world-and-placement-snapping),
+[`snapPlace`](world.md#screen-to-world-and-placement-snapping) and
+[`snapAngle`](world.md#screen-to-world-and-placement-snapping) to drag, and `g:move`, `g:rotate` and
 `g:scale` to apply. It ships inside the `planner` addon, and its shape is:
 
 ```lua
@@ -237,7 +237,7 @@ Because the gizmo drives any handle with `:pos`, `:move`, `:rotate` and `:scale`
 ## See also
 
 - [`hafen.render`](render/README.md) — the same world entity for your own images and models
-- [`hafen.map`](map.md#saving-a-world-position-across-sessions) — grid anchoring, and the snapping the gizmo uses
+- [`hafen.world`](world.md#saving-a-world-position-across-sessions) — grid anchoring, and the snapping the gizmo uses
 - [`hafen.hook`](hook.md#hafenhookgrabmove-up) — the mouse-capture primitive behind a drag
 - [`hafen.act.place`](act.md) — committing a real build, which is gated
 - [events](events.md#world-ghosts-and-sprites) — `GhostClicked`

@@ -25,8 +25,8 @@ hotkey or type their command — so having them all on costs you an untouched lo
 
 The broad one: [events](api/events.md) and [timers](api/timer.md), [saved variables](api/store.md), a
 window, a HUD overlay and per-gob overlays drawn with [the `g` wrapper](api/ui/drawing.md),
-[world ghosts](api/ghost.md), [the kin roster](api/kin.md), [markers](api/markers.md),
-[radar categories](api/radar.md), [container reads](api/ui/items.md) and the
+[world ghosts](api/ghost.md), [the kin roster](api/kin.md), [markers](api/map.md#markers),
+[icon categories](api/map.md#icon-categories), [container reads](api/ui/items.md) and the
 [hide and replace](api/ui/replace.md) rules. It reads only — it declares no permissions — and it asserts
 each surface at login rather than merely demonstrating it, so its console output is a pass list.
 
@@ -59,7 +59,7 @@ carry — a font face and an image — and it maps those two. It also keeps a wi
 A base planner over the real terrain: translucent [ghosts](api/ghost.md) of the game's own props, your own
 PNGs as [sprites](api/render/sprites.md) and a glTF [model](api/render/models.md), all placed, selected by
 clicking, transformed and saved as one layout. The layout is anchored by
-[grid position](api/map.md#saving-a-world-position-across-sessions), so it comes back at the same spot,
+[grid position](api/world.md#saving-a-world-position-across-sessions), so it comes back at the same spot,
 facing and scale after a relog.
 
 `:planner gizmo` gives it a drag gizmo — move, rotate, scale — built in Lua over the drawing and snapping

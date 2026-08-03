@@ -532,3 +532,18 @@
   link/anchor checker in Java; it is a 40-line Python script again (GitHub's slug rule: lowercase, drop
   everything but word chars/space/hyphen, spaces → hyphens — so an em dash leaves **two** hyphens). Still
   self-verify it against planted breaks each time: 693 links, 0 broken, 3 planted, 3 caught.
+- **A falsification only bites if the FIXTURE forces the two behaviours apart (037.1).** The probe for
+  "a write reaches ALL of a resource's settings" was built on a deliberately *mixed* pair (one shown, one
+  not) because that same pair proves the ANY-read beside it — and the partial-write falsification then
+  **passed**, because touching whichever setting happened to be first still reached the asserted end state.
+  The fix is not a better assertion but a better premise: **normalise the fixture so both agree before the
+  write**, and assert both directions (all-true → write false, all-false → write true); a partial write then
+  leaves a disagreement whatever the iteration order, and the falsification bit 2 red deterministically. Read
+  generally: when a check says *"every X took the value"*, start from a state where **no** single X can
+  satisfy it alone — otherwise the test is measuring `HashMap` order.
+- **A debounced persist lands on ANOTHER thread — settle before counting it (037.1).** `GobIcon.Settings
+  .dsave()` is `Defer.later(this::dsave0)`, so the no-op `save()` sink (the subclass trick above) increments
+  *after* the call returns. A `saves == 1` assertion straight after the write is a race that passes on a warm
+  JVM and reddens on a cold one; and the twin assertion — *a write that changes nothing does NOT persist* —
+  needs the same settle or it passes for the wrong reason (nothing has had time to fire yet). One
+  `Thread.sleep(250)` helper before each count, `>= 1` rather than `== 1` where the debounce may coalesce.

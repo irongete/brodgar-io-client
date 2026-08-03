@@ -64,7 +64,7 @@ ignores it, and nothing comes back to say so.
 
 Place the object on your cursor at world `x, y`, rotated by `angle` **radians**. `button` is optional,
 1 = confirm (default). To land where a real building would, snap the coordinate first with
-[`hafen.map.snapPlace`](map.md).
+[`hafen.world.snapPlace`](world.md#screen-to-world-and-placement-snapping).
 
 ### `hafen.act.select(x1, y1, x2, y2, mods)`
 
@@ -127,5 +127,5 @@ resolves to no live widget raises an error, as does a non-string `msg`.
 
 - [`hafen.menugrid`](menugrid.md) — the action catalogue, enumerable and addressable by name
 - [`hafen.gob`](gob.md) — the objects `clickGob` takes
-- [`hafen.map`](map.md) — snapping a coordinate before you place on it
+- [`hafen.world`](world.md#screen-to-world-and-placement-snapping) — snapping a coordinate before you place on it
 - [gating](conventions.md#gating-the-actions-permission) — how the permission reads across the API

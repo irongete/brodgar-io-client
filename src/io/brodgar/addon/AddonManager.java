@@ -256,7 +256,7 @@ public final class AddonManager {
         reloadPending = false;        // drop any :reload queued against the previous session
 
         UiApi.resetSession();         // 2b/3a/3b/3c: reset overlay sweep + per-session widget registries
-        WorldApi.resetMarkers();      // A1: drop per-session marker maps + re-prime MarkersChanged
+        MapApi.resetMarkers();      // A1: drop per-session marker maps + re-prime MarkersChanged
         CharApi.resetSession();       // re-register the change-detection adapters
 
         attachRoot(ui_);              // invisible per-frame tick widget (drives the engine)
@@ -386,7 +386,7 @@ public final class AddonManager {
             // 1d. Map markers (A1): fire MarkersChanged when the on-disk map DB's markerseq changes (a
             //     marker add/remove is not a uimsg — the server pushes SMarkers via markobj, the player/
             //     addon adds PMarkers, and segment merges re-key them; all bump markerseq). Global event.
-            WorldApi.pollMarkers();
+            MapApi.pollMarkers();
 
             // 2. "Entered the world" — fire OnEnterWorld once the HUD (GameUI) is not just built but
             //    ATTACHED to ui.root. The map view sets enterWorldPending from its ctor (loader thread),
@@ -918,41 +918,37 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // Loading-guarded, so a scan right at OnEnterWorld may be short and fills in sub-second.
         hafen.set("menugrid", LuaPagina.factory(owner));
 
-        // hafen.world.* — enumerate gobs as Gob OBJECTS (count() is still a number). nearest/within measure
-        // from the player and skip the player's own gob; a function filter is called with a Gob, a string
-        // filter still matches its resource name. Prefer GobAdded/GobRemoved over per-frame scanning.
+        // hafen.world.* — the LIVE world (037.1). Enumerate gobs as Gob OBJECTS (count() is still a number):
+        // nearest/within measure from the player and skip the player's own gob; a function filter is called
+        // with a Gob, a string filter still matches its resource name. Prefer GobAdded/GobRemoved over
+        // per-frame scanning. It also holds the thirteen TERRAIN + COORDINATE functions that used to be
+        // hafen.map.* — tile/height/grid/gridPos/fromGridPos, the three pure conversions, screenToWorld and
+        // the placement snappers — because every one of them reads MCache, the terrain streamed around the
+        // player (nil off-stream, gone at logout), and never the map database. Positional args are WORLD
+        // coords (matching gob:pos()); grid-backed reads swallow Loading → nil; grid ids are 64-bit and so
+        // are exposed as decimal STRINGS, the exact persistent/shareable anchor (see gridPos).
         WorldApi.installWorld(hafen, owner);
 
-        // hafen.map.* — terrain reads. Positional args are WORLD coords (matching gob:pos());
-        // convert with worldToTile/tileToWorld/tileToGrid. Grid-backed reads swallow Loading (the map
-        // for that spot isn't here yet) → nil. Grid ids are 64-bit → exposed as decimal STRINGS so the
-        // persistent/shareable anchor round-trips exactly (Lua numbers are doubles; see gridPos).
-        WorldApi.installMap(hafen, owner);
-
-        // hafen.markers.* — client-side map markers (A1), read/added/removed against the client's on-disk
-        // map DB (MapFile, owned by the map window / corner minimap — the same instance). Two kinds:
-        // PLAYER markers (user pins: a name + colour) and SYSTEM markers (server/quest pins: a name +
-        // icon). A snapshot is { id, name, type ("player"|"system"), seg (id string), tc={x,y} (the
-        // segment tile coord — the PERSISTENT anchor that survives a relog, coverage-gaps C4),
-        // color={r,g,b,a}+onmap (player) | icon (system), and x,y (world) + dist (from the player) which
-        // are SESSION-LOCAL, present only when the marker is in the player's current segment }. add()
-        // creates a PLAYER marker and persists it; remove() takes a ref from list()/add(). The DB streams
-        // in a beat after enter-world (nil/empty until then — read on a timer); MarkersChanged fires on any
-        // change. Coords are WORLD units (matching gob:pos()/hafen.map), converted to the persistent
-        // segment anchor at add time — there is no global position (anchor on grid ids / segment tc — C4).
-        WorldApi.installMarkers(hafen, owner);
-
-        // hafen.radar.* — the minimap icon registry (A2): each gob-icon "category" (a boar, a fir tree, a
-        // player, …) has a show flag (draw it on the minimap/radar) and a notify flag (a sound + chat msg
-        // when one appears). Backed by GobIcon.Settings (GameUI.iconconf) — the SAME registry the in-client
-        // "Icon settings" window drives, so changes show there too and persist per character. A category
-        // snapshot is { name (the icon tooltip), res (the resource name — the stable id), show, notify }.
-        // categories([filter]) reads the current set; setVisible(filter,on)/setNotify(filter,on) flip a flag
-        // on EVERY category the filter matches and persist it (debounced), returning the number matched. The
-        // filter is the canonical one used across the API (nil = all, string = name substring, function =
-        // predicate(snapshot)->truthy — use a predicate to match on res). The registry is empty until the
-        // HUD is up and grows as the character sees new icon types (read on demand — no *Changed event).
-        WorldApi.installRadar(hafen, owner);
+        // hafen.map.* — the RECORDED map (037): the client's on-disk map database (MapFile), the map the
+        // player has EXPLORED, as opposed to the live terrain above. 037.1 gives it the two surfaces that
+        // were always reading it while sitting beside it as namespaces of their own, as RELATIONS (D-066):
+        //   hafen.map.markers — the marker DB (the old hafen.markers, same surface). Two kinds: PLAYER
+        //     markers (user pins: a name + colour) and SYSTEM markers (server/quest pins: a name + icon).
+        //     A snapshot is { id, name, type ("player"|"system"), seg (id string), tc={x,y} (the segment
+        //     tile coord — the PERSISTENT anchor that survives a relog, coverage-gaps C4),
+        //     color={r,g,b,a}+onmap (player) | icon (system), and x,y (world) + dist (from the player)
+        //     which are SESSION-LOCAL, present only when the marker is in the player's current segment }.
+        //     add() creates a PLAYER marker and persists it; remove() takes a ref from list()/add(). The DB
+        //     streams in a beat after enter-world (empty until then); MarkersChanged fires on any change.
+        //   hafen.map.icons — the minimap icon registry (the old hafen.radar; the engine has no "radar",
+        //     it has GobIcon.Settings — D-061). CALLABLE-ONLY (D-056): hafen.map.icons() is the array of
+        //     categories, hafen.map.icons(res) one category by its icon RESOURCE NAME (the identity — a
+        //     string with a "/", the LuaPagina shape split), and the flags are arity-as-the-verb on the
+        //     entity: cat:show() / cat:show(v) / cat:notify() / cat:notify(v), plus :res/:name/:exists/:info.
+        //     The registry is the SAME one the in-client "Icon settings" window drives, so writes show
+        //     there too and persist per character; it is empty until the HUD is up and grows as the
+        //     character sees new icon types (read on demand — no *Changed event).
+        MapApi.installMap(hafen, owner);
 
         // hafen.player() — the Player object, purely the composition anchor for hafen.player():gob() (D-046):
         // position/health/moving/… of the player come from that Gob, and Player deliberately forwards NOTHING

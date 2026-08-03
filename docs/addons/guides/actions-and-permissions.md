@@ -16,8 +16,8 @@ several of them look like writes:
 
 | Ungated write | What it changes |
 |---|---|
-| [`hafen.markers.add`](../api/markers.md) | your own map database |
-| [`hafen.radar.setVisible`](../api/radar.md) | which icons your minimap draws |
+| [`hafen.map.markers.add`](../api/map.md#write-ungated) | your own map database |
+| [`cat:show(on)`](../api/map.md#the-iconcat-object) | which icons your minimap draws |
 | [`w:pos`, `w:size`, `w:hide`](../api/ui/native.md) | where the client's own windows sit |
 | [`w:replace(view)`](../api/ui/replace.md) | which window a client toggle opens |
 | [`hafen.ui.skin{…}`](theming.md) | what the client looks like |

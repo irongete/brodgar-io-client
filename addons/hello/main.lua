@@ -24,13 +24,13 @@
 -- hafen.kin reads the Kin window and is CALLABLE-ONLY (020-kin-oop): hafen.kin() is the roster (an array of
 -- interned Kin objects, plus :find/:list/:add), hafen.kin(idOrName) is one Kin (:id/:name/:group/:color/
 -- :online/:exists/:gob/:info, with gob:kin() as :gob()'s inverse); it fires KinChanged -- the whole roster
--- as Kin objects -- when a kin is added/removed, renamed/regrouped or flips online/offline. Built on gap subsystem A2: RADAR / MINIMAP ICONS — hafen.radar reads the character's gob-icon
--- registry (categories() -> {name,res,show,notify} per category) and can flip a category's show (draw it on
--- the minimap) or notify (sound + msg when one appears) flag over every match of a filter
--- (setVisible/setNotify(filter,on); filter = nil=all / name substring / predicate). It IS the same registry
+-- as Kin objects -- when a kin is added/removed, renamed/regrouped or flips online/offline. Built on gap subsystem A2: MINIMAP ICONS — hafen.map.icons reads the character's gob-icon
+-- registry (icons([filter]) -> IconCat objects, icons(res) -> one) and a category flips its own show (draw it
+-- on the minimap) or notify (sound + msg when one appears) flag through arity-as-the-verb (cat:show(v),
+-- cat:notify(v)). It IS the same registry
 -- the in-client "Icon settings" window edits, so hello only READS it here (mutating would persist to your real
--- radar config); try the setters from :lua (see docs/addons/a2-radar.md). Built on gap subsystem A1: MAP
--- MARKERS — hafen.markers reads the client's on-disk map DB
+-- icon config); try the verbs from :lua. Built on gap subsystem A1: MAP
+-- MARKERS — hafen.map.markers reads the client's on-disk map DB
 -- (list([filter]) / nearest([filter]) -> marker snapshots {id,name,type,seg,tc, color|icon, x,y,dist}),
 -- ADDS a persistent PLAYER marker at a WORLD position (add(name,x,y[,opts])) and REMOVES it (remove(ref)); the
 -- global MarkersChanged event fires when the marker set changes. A marker's PERSISTENT anchor is seg+tc (it
@@ -180,12 +180,12 @@ local function readPlace(tag)
   local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
   local p = me and me:pos()
   if not p then return end
-  local tile = hafen.map.tile(p.x, p.y)
-  local gp = hafen.map.gridPos()               -- no args = player: the persistent grid anchor
-  local t = hafen.map.worldToTile(p.x, p.y)
+  local tile = hafen.world.tile(p.x, p.y)
+  local gp = hafen.world.gridPos()               -- no args = player: the persistent grid anchor
+  local t = hafen.world.worldToTile(p.x, p.y)
   local s = hafen.player():worldToScreen(p.x, p.y)
   hafen.log(("[%s] tile=%s height=%s worldToTile=%d,%d"):format(tag,
-    tile and (tile.name or tile.id) or "nil", tostring(hafen.map.height(p.x, p.y)), t.x, t.y))
+    tile and (tile.name or tile.id) or "nil", tostring(hafen.world.height(p.x, p.y)), t.x, t.y))
   hafen.log(("[%s] gridPos=%s worldToScreen=%s"):format(tag,
     gp and (gp.gridId .. " @" .. ("%.0f,%.0f"):format(gp.x, gp.y)) or "nil",
     s and ("%.0f,%.0f"):format(s.x, s.y) or "nil"))
@@ -504,14 +504,14 @@ local function readSound(tag)
     okAmb and tostring(amb) or "n/a"))
 end
 
--- A1: map markers via hafen.markers. list()/nearest() read the client's on-disk map DB; each snapshot is
+-- A1: map markers via hafen.map.markers. list()/nearest() read the client's on-disk map DB; each snapshot is
 -- {id, name, type ("player"|"system"), seg, tc={x,y} (the persistent anchor), color|icon, and — when the
 -- marker is in your current segment — x,y (world) + dist (from you)}. The DB streams in a beat after
 -- enter-world (like the rest of the HUD), so read at now (often 0) and +3s. Most markers a character has are
 -- SYSTEM markers the server pushed (quest/tracked pins); a fresh spot may have none until you add one ('marker' key).
 local function readMarkers(tag)
-  local list = hafen.markers.list()
-  local near = hafen.markers.nearest()
+  local list = hafen.map.markers.list()
+  local near = hafen.map.markers.nearest()
   local first = list[1]
   hafen.log(("[%s] markers=%d, first=%s%s, nearest=%s%s"):format(tag, #list,
     first and tostring(first.name or first.type) or "none",
@@ -520,24 +520,26 @@ local function readMarkers(tag)
     (near and near.dist) and (" dist=%.1f"):format(near.dist) or ""))
 end
 
--- A2: RADAR / minimap icon categories via hafen.radar. categories([filter]) lists every gob-icon category the
--- character has seen as {name (tooltip), res (stable id), show, notify}; the registry (GobIcon.Settings) is the
--- SAME one the in-client "Icon settings" window edits. hello is READ-ONLY here: the setters
--- setVisible(filter,on)/setNotify(filter,on) PERSIST to your real radar config, so mutating from the harness
--- would disturb it -- test them yourself from :lua (e.g. `hafen.radar.setVisible("boar", false)`, watch the
--- minimap, then flip it back). Like the rest of the HUD the registry is empty until it streams in and grows as
--- new icon types are seen, so read at now (often 0) and +3s.
-local function readRadar(tag)
-  local cats = hafen.radar.categories()
+-- A2: MINIMAP ICON CATEGORIES via hafen.map.icons (037.1 -- hafen.radar is GONE; the engine has no "radar",
+-- it has GobIcon.Settings, and the icons are part of the MAP). CALLABLE-ONLY: hafen.map.icons() is the array
+-- of IconCat objects, hafen.map.icons(res) is one category by its icon resource name (the string with a "/").
+-- On the entity, arity IS the verb: cat:show() reads, cat:show(v) writes (same for :notify), plus
+-- :res/:name/:exists/:info. The registry is the SAME one the in-client "Icon settings" window edits, so hello
+-- is READ-ONLY here: a write PERSISTS to your real icon config and would disturb it -- try it yourself from
+-- :lua (e.g. `hafen.map.icons("gfx/terobjs/mm/boar"):show(false)`, watch the minimap, then flip it back).
+-- Like the rest of the HUD the registry is empty until it streams in and grows as new icon types are seen,
+-- so read at now (often 0) and +3s.
+local function readIcons(tag)
+  local cats = hafen.map.icons()
   local shown, notif = 0, 0
   for _, c in ipairs(cats) do
-    if c.show then shown = shown + 1 end
-    if c.notify then notif = notif + 1 end
+    if c:show() then shown = shown + 1 end
+    if c:notify() then notif = notif + 1 end
   end
   local first = cats[1]
-  hafen.log(("[%s] radar=%d categor(ies), %d shown, %d notify, first=%s%s"):format(tag, #cats, shown, notif,
-    first and tostring(first.name or first.res) or "none",
-    first and (" [show=%s notify=%s]"):format(tostring(first.show), tostring(first.notify)) or ""))
+  hafen.log(("[%s] icons=%d categor(ies), %d shown, %d notify, first=%s%s"):format(tag, #cats, shown, notif,
+    first and tostring(first:name() or first:res()) or "none",
+    first and (" [show=%s notify=%s]"):format(tostring(first:show()), tostring(first:notify())) or ""))
 end
 
 -- A6: KIN / BUDDY ROSTER via hafen.kin -- now OOP (020-kin-oop), and the arity IS the verb: hafen.kin() is
@@ -1126,10 +1128,10 @@ hafen.events.on("OnEnterWorld", function()
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readMeters("now")
-  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readMenu("now"); readBags("now"); readMarkers("now"); readRadar("now"); readKin("now"); readSpeed("now"); readCraft("now"); readQuests("now"); readWounds("now"); readFight("now")
+  readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readMenu("now"); readBags("now"); readMarkers("now"); readIcons("now"); readKin("now"); readSpeed("now"); readCraft("now"); readQuests("now"); readWounds("now"); readFight("now")
   hafen.timer.after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readMeters("+3s")
-    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readMenu("+3s"); readBags("+3s"); readMarkers("+3s"); readRadar("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s"); readWounds("+3s"); readFight("+3s")
+    readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readMenu("+3s"); readBags("+3s"); readMarkers("+3s"); readIcons("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s"); readWounds("+3s"); readFight("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
     if invWdg then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via the 'bags' key) and it logs") end
   end)
@@ -1849,14 +1851,14 @@ keys:register("bags", function()
 end)
 
 -- A1: a FOURTH hotkey ("marker", suggested Ctrl+Shift+M) — a TOGGLE that drops a persistent "Hello marker" at your
--- current position (hafen.markers.add at your gob's world coord), or removes it if already placed
--- (hafen.markers.remove). Watch it appear on the map (M) and the corner minimap. add() writes the shared
+-- current position (hafen.map.markers.add at your gob's world coord), or removes it if already placed
+-- (hafen.map.markers.remove). Watch it appear on the map (M) and the corner minimap. add() writes the shared
 -- on-disk map DB, so it PERSISTS — but hello removes its own marker on disable/reload (see OnDisable) so the
 -- regression harness never pollutes your map. Adds a fourth row to the "Hello" keybind section (2e-3 grouping).
 local helloMarker   -- the ref of the demo marker while placed (nil = not placed); session-local
 keys:register("marker", function()
   if helloMarker then
-    hafen.markers.remove(helloMarker)
+    hafen.map.markers.remove(helloMarker)
     helloMarker = nil
     hafen.log("A1: 'marker' -> removed the Hello marker")
     return
@@ -1864,7 +1866,7 @@ keys:register("marker", function()
   local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
   local p = me and me:pos()
   if not p then hafen.log("A1: 'marker' -> no player position yet"); return end
-  helloMarker = hafen.markers.add("Hello marker", p.x, p.y, { color = { r = 80, g = 220, b = 90 }, onmap = true })
+  helloMarker = hafen.map.markers.add("Hello marker", p.x, p.y, { color = { r = 80, g = 220, b = 90 }, onmap = true })
   if helloMarker then
     hafen.log(("A1: 'marker' -> dropped 'Hello marker' at %.0f,%.0f (ref %s) -- press again to remove")
       :format(p.x, p.y, tostring(helloMarker)))
@@ -2887,7 +2889,7 @@ end)
 
 hafen.events.on("OnDisable", function()
   if helloMarker then                                   -- A1: clean up our demo marker so the harness never
-    hafen.markers.remove(helloMarker)                   -- leaves 'Hello marker' pins on your persistent map DB
+    hafen.map.markers.remove(helloMarker)                   -- leaves 'Hello marker' pins on your persistent map DB
     helloMarker = nil
   end
   if demoGhost then demoGhost:destroy(); demoGhost = nil end   -- V1: drop the manual ghost (teardown also does)

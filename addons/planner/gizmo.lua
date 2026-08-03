@@ -10,14 +10,14 @@
 --              looks "in the world") + a FILLED triangle head (g:poly). The head/centre are a FIXED SCREEN size so
 --              they stay grabbable at any zoom (the "constant screen-size handles" polish).
 --   * ROTATE -- a cyan RING (a fixed-screen-radius circle) around the centre. Drag it to spin the ghost; the facing
---              snaps to the client's :placeangle (45° default, SHIFT = the fine grid) via hafen.map.snapAngle.
+--              snaps to the client's :placeangle (45° default, SHIFT = the fine grid) via hafen.world.snapAngle.
 --   * SCALE  -- a magenta BOX handle sticking up out of the ring. Drag it OUT to grow / IN to shrink the ghost
 --              (uniform scale via g:scale -> a scaling Location on the gob, V6). Fixed screen size.
 --   * "all"  -- everything at once (the planner default), so one gizmo does full move/rotate/scale.
 --
 -- HOW YOU DRAG IT. Press a handle -> the gizmo consumes that mousedown (hafen.hook.input + ev:preventDefault, so
 -- the map neither clicks nor pans nor V2-selects) and starts a mouse GRAB (hafen.hook.grab -- the camera stays put).
--- MOVE/ROTATE raycast the ground under the cursor each move (hafen.map.screenToWorld, async + coalesced) so they
+-- MOVE/ROTATE raycast the ground under the cursor each move (hafen.world.screenToWorld, async + coalesced) so they
 -- work in true WORLD space (snapping identical to placing a building, D-033); SCALE is pure screen math (drag
 -- distance from the centre). Release to drop. The handles re-project every frame, so they track the ghost + camera.
 --
@@ -295,7 +295,7 @@ local function startDrag(self, kind, mx, my)
       end
       if d.pending then return end
       d.pending = true
-      hafen.map.screenToWorld(mmx, mmy, function(w)
+      hafen.world.screenToWorld(mmx, mmy, function(w)
         if self.drag ~= d then return end              -- released / detached mid-flight
         d.pending = false
         if not w then return end                       -- cursor hit no terrain (sky / off-map)
@@ -306,16 +306,16 @@ local function startDrag(self, kind, mx, my)
           -- RELATIVE rotation: anchor the swept angle to the grab point (offset captured on the first raycast) so
           -- grabbing the ring doesn't snap the ghost to face the cursor -- it rotates BY how far you sweep.
           if not d.rotOffset then d.rotOffset = d.a - raw end
-          local na = hafen.map.snapAngle(raw + d.rotOffset, fine)
+          local na = hafen.world.snapAngle(raw + d.rotOffset, fine)
           applyRotate(self.target, d.sx, d.sy, na)
         else
           local nx, ny
           if kind == "x" then
-            local s = hafen.map.snapPlace(w.x, d.sy, fine); nx, ny = s.x, d.sy
+            local s = hafen.world.snapPlace(w.x, d.sy, fine); nx, ny = s.x, d.sy
           elseif kind == "y" then
-            local s = hafen.map.snapPlace(d.sx, w.y, fine); nx, ny = d.sx, s.y
+            local s = hafen.world.snapPlace(d.sx, w.y, fine); nx, ny = d.sx, s.y
           else
-            local s = hafen.map.snapPlace(w.x, w.y, fine); nx, ny = s.x, s.y
+            local s = hafen.world.snapPlace(w.x, w.y, fine); nx, ny = s.x, s.y
           end
           if self.target then self.target:move(nx, ny, d.a) end   -- keep facing; snapped along the axis
         end

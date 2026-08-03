@@ -26,7 +26,7 @@ gob, with no id comparison. Nothing here throws, and nothing is gated.
 
 `worldToScreen` returns coordinates relative to the map view, which is what a
 [gob overlay](ui/custom.md#overlays) or a HUD overlay wants. It answers `nil` before the map view exists, and
-for a point the view cannot project. The inverse is [`hafen.map.screenToWorld`](map.md).
+for a point the view cannot project. The inverse is [`hafen.world.screenToWorld`](world.md#screen-to-world-and-placement-snapping).
 
 > There is no `exists()` and no `id()` on Player: `hafen.player():gob()`, `nil` or not, and `gob:id()`
 > answer both questions.
@@ -39,4 +39,4 @@ per-player state, so they live in [`hafen.meter`](meter.md).
 - [`hafen.gob`](gob.md) — everything positional about your character
 - [`hafen.meter`](meter.md) — the HUD bars
 - [`hafen.char`](char.md) — attributes, skills and food
-- [`hafen.map`](map.md) — `screenToWorld`, the inverse projection
+- [`hafen.world`](world.md#screen-to-world-and-placement-snapping) — `screenToWorld`, the inverse projection

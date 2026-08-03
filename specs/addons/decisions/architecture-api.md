@@ -612,3 +612,27 @@ one extra call and one extra failure mode (a `pcall` around `parse` for a malfor
 place for it — the loader succeeded, the content was wrong.
 **See.** [D-012/D-013](architecture-api.md), [D-036](network-data.md), [D-060](architecture-api.md),
 [028-asset-loader](../028-asset-loader/spec.md), [033-ui-stylesheet](../033-ui-stylesheet/spec.md).
+
+### D-093 — an entity's identity is the key a NAME can address; a compound engine key collapses to it ✅ (2026-08-03)
+**Decision.** `hafen.map.icons` (037.1) keys a minimap icon category on its **icon resource name** alone,
+although the engine's own key is `GobIcon.Setting.ID` = (resource name, sub-id). A resource whose published
+code enumerates icon *variants* therefore has several `Setting`s under one category: a **read answers true
+when ANY of them carries the flag** and a **write sets ALL of them**, so the round trip stays exact and the
+entity keeps one string identity — `hafen.map.icons(res) == hafen.map.icons(res)`, and `seen[cat]` works.
+**Rationale.** (2026-08-03, 037.1.) D-063 says an entity's key is what the engine publishes, and the engine
+publishes a *pair*. But half of that pair is an opaque `Object[]` decoded out of a resource's own message —
+there is no string that addresses it, so honouring it fully would mean an entity Lua could hold but never
+*name*, and `hafen.map.icons(<what?>)` would have no first argument. The retired `hafen.radar` had already
+answered the question without stating it: `setVisible(filter, on)` flipped every setting the filter matched,
+so ALL-write is the shipped behaviour, not a new compromise. And on the minimap the variants **are** one
+thing to a player — "draw boars" is the question being asked. ANY-read plus ALL-write is the pair that makes
+the round trip a fixed point: write `v`, and every variant reads `v` back.
+**Consequences.** The rule generalises: *when the engine's key is a tuple whose tail no name can express,
+collapse to the head and make the verbs total over the collapsed set*. The cost is a real one and is in the
+docs — a resource whose variants disagreed loses that disagreement the first time an addon writes to the
+category, which is why the entity is a `res` and not a `Setting` object. Interning on the Java `Setting`
+would have been wrong for a second, independent reason: the loader thread **swaps the settings map
+wholesale** and mints fresh `Setting`s as icons resolve, so a handle held across one swap would write to an
+orphan — the same eviction hazard segments and grids have (037.2).
+**See.** [D-063](architecture-api.md), [D-056](architecture-api.md), [D-061](architecture-api.md),
+[D-066](architecture-api.md), [037-map-database](../037-map-database/spec.md).
