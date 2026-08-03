@@ -86,3 +86,20 @@
   need *this addon's* handle for the id, so the fan-out builds one per owner. Gate it on "does this owner actually
   subscribe?" first, or a busy spawn stream mints a handle for every addon that isn't listening. Accepted loss on
   `GobRemoved`: the gob is already out of the OCache, so only `:id()` answers — index the name on `GobAdded`.
+- **(037.2) The recorded map and the live world are two coordinate systems, and `sessloc` is the ONE bridge
+  between them.** `MiniMap.sessloc` is a `Location(seg, tc)` where `tc` is the **segment tile coord of
+  session tile (0,0)**, so segment tile = session tile + `sessloc.tc` and back. Everything in `hafen.map`
+  that answers in world units (`grid:pos()`, `marker:pos()`, `marker:anchor()`'s fast path) is that one
+  addition; everything that answers in segment space is raw database. The two must never be mixed silently:
+  `grid:tile(c)` therefore takes a **within-grid** coord `0..99` and *errors* on a segment tile coord rather
+  than reading it modulo, because the wrong space reads as "not loaded yet" (nil) forever otherwise.
+- **(037.2) The recorded grid under the player is FRESH, which is why the live/recorded cross-check is a
+  real assertion.** `GameUI.mapfilesave` re-records the 3×3 grids around the player whenever the grid or its
+  `seq` changes, so `grid:tile(c)` and `hafen.world.tile(x,y)` naming the same tileset is a genuine
+  agreement between `MapFile` and `MCache` rather than a tautology — and it stays true right after terrain
+  changes. Ground explored long ago is as old as `grid:mtime()` says; only the neighbourhood is current.
+- **(037.2) Compare the two halves by tileset NAME, never by tile id.** `hafen.world.tile(x,y).id` is an
+  index into the session's tileset table, while a recorded grid's `gettile(c)` is an index into **that
+  grid's own** `tilesets[]`. Both are called "the tile", both are small integers, and they mean nothing to
+  each other. The map file stores `Resource.Saved` (name + version), so the name is available with no
+  resource load at all — which is also why `grid:tile(c)` deliberately publishes no `id` field.

@@ -4,17 +4,21 @@ import haven.Coord;
 import haven.Coord2d;
 import haven.GameUI;
 import haven.GobIcon;
+import haven.Indir;
 import haven.MapFile;
 import haven.MCache;
 import haven.MiniMap;
 
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
+import org.luaj.vm2.lib.ZeroArgFunction;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -39,7 +43,17 @@ import static io.brodgar.addon.AddonManager.*;
  *       namespace over {@link LuaIconCat} entities (D-056).</li>
  * </ul>
  *
- * <p>The segments, grids, overlays and imagery that are the rest of the database arrive in 037.2–037.4.
+ * <p><b>037.2 opened the database itself</b>: {@code hafen.map.segment()}/{@code segments()}/{@code grid(id)},
+ * the {@link LuaSegment} and {@link LuaMapGrid} entities, and the <b>anchor bridge</b> both ways — a
+ * {@code {gridId, x, y}} anchor resolves into the recorded map through {@link #gridInfoIn}, and a marker
+ * converts out of it through {@code marker:anchor()} ({@link LuaMarker}). The overlays and imagery are 037.3–037.4.
+ *
+ * <p><b>One load model, everywhere: kick the load, answer nil.</b> The database is on disk and resolves
+ * through {@link haven.Defer}/{@link Indir}, so a read that needs a grid the client has not loaded yet
+ * <b>starts the load and answers {@code nil}</b> — the caller reads again next tick. Nothing blocks and
+ * nothing throws {@link haven.Loading} into Lua. The lock is taken the way {@code MiniMap.resolve} takes it,
+ * with a {@code tryLock}: the map file's write lock is held across disk I/O on the {@code MapFile} processor
+ * thread, and waiting for it would stall the UI thread for a read that is allowed to answer nil anyway.
  */
 final class MapApi {
     private MapApi() {}
@@ -49,51 +63,96 @@ final class MapApi {
         LuaTable map = new LuaTable();
         map.set("markers", markers(owner));
         map.set("icons", LuaIconCat.factory(owner));
+        installDatabase(map, owner);      // 037.2: segments and grids
         hafen.set("map", map);
     }
 
-    /** {@code hafen.map.markers} — the marker half of the DB (the old {@code hafen.markers}, unchanged). */
+    /**
+     * The database half of {@code hafen.map} (037.2): the three doors into {@link MapFile}'s own structure.
+     *
+     * <ul>
+     *   <li>{@code segment()} — the segment the player is standing in (the {@code MiniMap} session location),
+     *       {@code nil} until the map has streamed in; {@code segment(id)} — one segment by its decimal-string
+     *       id, {@code nil} when the database does not carry it.</li>
+     *   <li>{@code segments()} — every segment the character has explored, in id order.</li>
+     *   <li>{@code grid(gridId)} — the <b>anchor bridge</b>: the recorded grid for a <i>server</i> grid id, the
+     *       one in a {@code hafen.world.gridPos()} anchor. This is the only door that crosses from the live
+     *       world into the database, because the grid id is the only thing the two halves share.</li>
+     * </ul>
+     */
+    private static void installDatabase(LuaTable map, final Addon owner) {
+        map.set("segment", new OneArgFunction() {
+            public LuaValue call(LuaValue id) {
+                if(id.isnil()) {
+                    MiniMap.Location sl = sessloc();
+                    return (sl == null) ? LuaValue.NIL : LuaSegment.of(owner, sl.seg.id);
+                }
+                long sid = idArg(id, "hafen.map.segment(id)", "segment");
+                return (segIn(mapfile(), sid) == null) ? LuaValue.NIL : LuaSegment.of(owner, sid);
+            }
+        });
+        map.set("segments", new ZeroArgFunction() {
+            public LuaValue call() {
+                LuaTable out = new LuaTable();
+                int i = 0;
+                for(Long id : knownSegs())
+                    out.set(++i, LuaSegment.of(owner, id.longValue()));
+                return out;
+            }
+        });
+        map.set("grid", new OneArgFunction() {
+            public LuaValue call(LuaValue id) {
+                long gid = idArg(id, "hafen.map.grid(gridId)", "grid");
+                return (gridInfoIn(mapfile(), gid) == null) ? LuaValue.NIL : LuaMapGrid.of(owner, gid);
+            }
+        });
+    }
+
+    /**
+     * Parse a 64-bit id argument — a segment id or a grid id — from Lua. They are <b>decimal strings</b>
+     * because they do not fit in a double (&gt;2⁵³), so a <i>number</i> is refused loudly rather than
+     * silently rounded to a neighbouring id: that is the one mistake here that would answer plausibly and
+     * be wrong. Note the {@code type()} test — in LuaJ a numeric <i>string</i> also answers
+     * {@code isnumber()}, so {@code "1234"} must still be accepted.
+     */
+    static long idArg(LuaValue v, String where, String what) {
+        if(v.type() == LuaValue.TNUMBER)
+            throw new LuaError(where + ": a " + what + " id is a decimal STRING, not a number"
+                + " — a 64-bit id does not survive a Lua number");
+        if(v.type() != LuaValue.TSTRING)
+            throw new LuaError(where + ": expected a " + what + " id string, got " + v.typename());
+        try {
+            return Long.parseLong(v.tojstring());
+        } catch(NumberFormatException e) {
+            throw new LuaError(where + ": \"" + v.tojstring() + "\" is not a decimal " + what + " id");
+        }
+    }
+
+    /** {@code hafen.map.markers} — the marker half of the DB (the surface 037.1 moved; entities since 037.2). */
     private static LuaTable markers(final Addon owner) {
         LuaTable markers = new LuaTable();
         markers.set("list", new OneArgFunction() {
             public LuaValue call(LuaValue filter) {
-                LuaTable out = new LuaTable();
-                int i = 0;
-                for(LuaValue snap : markerSnapshots()) {
-                    if(matches(filter, snap))
-                        out.set(++i, snap);
-                }
-                return out;
+                return LuaMarker.collection(owner, null, filter);
             }
         });
         markers.set("nearest", new OneArgFunction() {
             public LuaValue call(LuaValue filter) {
-                LuaValue best = LuaValue.NIL;
-                double bestd = Double.POSITIVE_INFINITY;
-                for(LuaValue snap : markerSnapshots()) {
-                    if(!matches(filter, snap))
-                        continue;
-                    LuaValue d = snap.get("dist");
-                    if(!d.isnumber())
-                        continue;                        // cross-segment marker → no world distance
-                    double dd = d.todouble();
-                    if(dd < bestd) { bestd = dd; best = snap; }
-                }
-                return best;
+                return LuaMarker.nearest(owner, filter);
             }
         });
         markers.set("add", new VarArgFunction() {
-            // add(name, x, y [, opts{color={r,g,b[,a]}, onmap=bool}]) -> ref | nil  (world coords; player marker)
+            // add(name, x, y [, opts{color={r,g,b[,a]}, onmap=bool}]) -> Marker | nil  (world coords; player marker)
             public Varargs invoke(Varargs a) {
                 String nm = a.optjstring(1, null);
                 if((nm == null) || !a.arg(2).isnumber() || !a.arg(3).isnumber())
                     return LuaValue.NIL;
-                return addMarker(nm, a.arg(2).todouble(), a.arg(3).todouble(), a.arg(4));
+                return addMarker(owner, nm, a.arg(2).todouble(), a.arg(3).todouble(), a.arg(4));
             }
         });
         markers.set("remove", new OneArgFunction() {
-            public LuaValue call(LuaValue ref) {
-                return LuaValue.valueOf(removeMarker(ref));
+            public LuaValue call(LuaValue marker) {
+                return LuaValue.valueOf(removeMarker(marker));
             }
         });
         return markers;
@@ -153,7 +212,7 @@ final class MapApi {
     }
 
     /** Assign (or look up) a stable per-session ref id for a marker. Touched from UI + REPL threads → guarded. */
-    private static long markerId(MapFile.Marker m) {
+    static long markerId(MapFile.Marker m) {
         synchronized(markerById) {
             Long id = markerIds.get(m);
             if(id == null) {
@@ -164,73 +223,55 @@ final class MapApi {
             return id.longValue();
         }
     }
-    private static MapFile.Marker markerByRef(long id) {
+    static MapFile.Marker markerByRef(long id) {
         synchronized(markerById) {
             return markerById.get(Long.valueOf(id));
         }
     }
 
-    /** Snapshots of every marker in the DB (list copied under the read lock, snapshots built outside it). */
-    private static List<LuaValue> markerSnapshots() {
-        List<LuaValue> out = new ArrayList<LuaValue>();
+    /**
+     * The markers in the DB — the whole list, or only those in one segment ({@code seg != null}) — copied
+     * under the read lock, which is where the copy has to happen: a segment merge rewrites markers in place
+     * on a loader thread. Unlike the segment/grid reads this one <b>waits</b> for the lock rather than
+     * answering nil: an empty marker list and "the lock was busy" are indistinguishable to a caller, so
+     * answering nil here would be a lie where answering nil about a grid is the documented load model.
+     */
+    static List<MapFile.Marker> markerList(Long seg) {
+        List<MapFile.Marker> out = new ArrayList<MapFile.Marker>();
         MapFile file = mapfile();
         if(file == null)
             return out;
-        List<MapFile.Marker> copy = new ArrayList<MapFile.Marker>();
         file.lock.readLock().lock();
         try {
-            copy.addAll(file.markers);
+            for(MapFile.Marker m : file.markers) {
+                if((seg == null) || (m.seg == seg.longValue()))
+                    out.add(m);
+            }
         } finally {
             file.lock.readLock().unlock();
         }
-        MiniMap.Location sl = sessloc();
-        Coord2d prc = playerPos();   // player world pos (may be null before the player gob is up)
-        for(MapFile.Marker m : copy)
-            out.add(markerSnapshot(m, sl, prc));
         return out;
     }
 
-    /**
-     * One marker → a Lua snapshot: {@code {id, name, type, seg, tc}} plus type-specific fields
-     * ({@code color}/{@code onmap} for a player marker, {@code icon} for a system marker) and, when the
-     * marker shares the player's current segment, the session-local {@code x,y} (world, tile centre) +
-     * {@code dist} (from the player). {@code seg} is a decimal string (64-bit id); {@code tc} the segment
-     * tile coord — those two are the persistent anchor, {@code x,y}/{@code dist} the session convenience.
-     */
-    private static LuaValue markerSnapshot(MapFile.Marker m, MiniMap.Location sl, Coord2d prc) {
-        LuaTable t = new LuaTable();
-        t.set("id", LuaValue.valueOf((double)markerId(m)));
-        if(m.nm != null)
-            t.set("name", LuaValue.valueOf(m.nm));
-        t.set("seg", LuaValue.valueOf(Long.toString(m.seg)));   // 64-bit segment id (local anchor) → string
-        t.set("tc", xy(m.tc.x, m.tc.y));                        // segment tile coord (the persistent position)
-        if(m instanceof MapFile.PMarker) {
-            MapFile.PMarker pm = (MapFile.PMarker)m;
-            t.set("type", LuaValue.valueOf("player"));
-            if(pm.color != null)
-                t.set("color", color(pm.color));
-            t.set("onmap", LuaValue.valueOf(pm.onmap));
-        } else if(m instanceof MapFile.SMarker) {
-            MapFile.SMarker sm = (MapFile.SMarker)m;
-            t.set("type", LuaValue.valueOf("system"));
-            if((sm.res != null) && (sm.res.name != null))
-                t.set("icon", LuaValue.valueOf(sm.res.name));
+    /** Is this marker still in the DB? (An entity outlives the marker it names — a removal is not a destroy.) */
+    static boolean markerLives(MapFile.Marker m) {
+        MapFile file = mapfile();
+        if((file == null) || (m == null))
+            return false;
+        file.lock.readLock().lock();
+        try {
+            for(MapFile.Marker o : file.markers) {
+                if(o == m)
+                    return true;
+            }
+            return false;
+        } finally {
+            file.lock.readLock().unlock();
         }
-        // Session-local WORLD position (tile centre) + distance — only when the marker shares the player's
-        // segment (a marker in another explored area has no valid world coord this session).
-        if((sl != null) && (m.seg == sl.seg.id)) {
-            double wx = ((m.tc.x - sl.tc.x) * MCache.tilesz.x) + (MCache.tilesz.x / 2);
-            double wy = ((m.tc.y - sl.tc.y) * MCache.tilesz.y) + (MCache.tilesz.y / 2);
-            t.set("x", LuaValue.valueOf(wx));
-            t.set("y", LuaValue.valueOf(wy));
-            if(prc != null)
-                t.set("dist", LuaValue.valueOf(Math.hypot(wx - prc.x, wy - prc.y)));
-        }
-        return t;
     }
 
-    /** add(name, worldX, worldY, opts) — create a PLAYER marker at a world position; returns its ref or nil. */
-    private static LuaValue addMarker(String nm, double wx, double wy, LuaValue opts) {
+    /** add(name, worldX, worldY, opts) — create a PLAYER marker at a world position; returns it, or nil. */
+    private static LuaValue addMarker(Addon owner, String nm, double wx, double wy, LuaValue opts) {
         MapFile file = mapfile();
         MiniMap.Location sl = sessloc();
         if((file == null) || (sl == null))
@@ -249,17 +290,16 @@ final class MapApi {
         }
         MapFile.PMarker pm = new MapFile.PMarker(file, sl.seg.id, segTc, nm, col, onmap);
         file.add(pm);                             // takes the write lock, persists (defersave), bumps markerseq
-        return LuaValue.valueOf((double)markerId(pm));
+        return LuaMarker.of(owner, markerId(pm));
     }
 
-    /** remove(ref) — remove a marker by the ref id list()/add() handed out. Returns whether it was removed. */
-    private static boolean removeMarker(LuaValue ref) {
-        if(!ref.isnumber())
-            return false;
+    /** remove(marker) — remove a marker the API handed out. Returns whether one was removed. */
+    private static boolean removeMarker(LuaValue marker) {
+        LuaMarker h = LuaMarker.resolve(marker);
         MapFile file = mapfile();
-        if(file == null)
+        if((h == null) || (file == null))
             return false;
-        MapFile.Marker m = markerByRef((long)ref.todouble());
+        MapFile.Marker m = markerByRef(h.ref);
         if(m == null)
             return false;
         file.remove(m);                           // no-ops if already gone; bumps markerseq if it removed one
@@ -305,5 +345,161 @@ final class MapApi {
     static GobIcon.Settings iconconf() {
         GameUI g = gui();
         return (g == null) ? null : g.iconconf;
+    }
+
+    // ---- segments and grids (hafen.map.segment / segments / grid) ---------------------------------
+    // The database's own structure, 037.2. A SEGMENT is one contiguous explored area (the map window's
+    // "map"); a GRID is one 100x100-tile square inside it, keyed by the id the SERVER gave it. The two
+    // coordinate spaces are therefore different in kind: a grid id is the same number for every player and
+    // no merge ever moves it (it is the anchor an addon saves or sends), while a segment id is
+    // rnd.nextLong() minted by this client and a merge re-bases the loser's grids and rewrites every
+    // marker in it — so segment + tile coord is a READ-ONLY VIEW, never a stored position (spec 037).
+    //
+    // Every read below is under the map file's READ lock, taken with tryLock and never waited on: the
+    // MapFile processor thread holds the WRITE lock across disk I/O (segment saves, the index), and the UI
+    // thread must not stall on it for a read whose whole contract is that it may answer nil. A grid's DATA
+    // resolves through Defer (Segment.grid(...) hands back an Indir that throws Loading until the disk read
+    // lands), so gridDataIn kicks the load and answers null until the next call — the one load model, and
+    // the reason not one read here takes a callback (a minimap panel walks a dozen grids per frame; that
+    // would be a callback tree, plan.md).
+
+    /** The recorded {@link MapFile.Segment} for an id — null when unknown, busy, or the DB is not up. */
+    static MapFile.Segment segIn(MapFile file, long id) {
+        if((file == null) || !file.lock.readLock().tryLock())
+            return null;
+        try {
+            return file.segments.get(Long.valueOf(id));
+        } catch(RuntimeException e) {      // a torn/absent segment file warns and answers null
+            return null;
+        } finally {
+            file.lock.readLock().unlock();
+        }
+    }
+
+    /** Where a grid id sits: its segment and its grid coord inside it. The whole live→recorded bridge. */
+    static MapFile.GridInfo gridInfoIn(MapFile file, long id) {
+        if((file == null) || !file.lock.readLock().tryLock())
+            return null;
+        try {
+            return file.gridinfo.get(Long.valueOf(id));
+        } catch(RuntimeException e) {
+            return null;
+        } finally {
+            file.lock.readLock().unlock();
+        }
+    }
+
+    /** Every segment the character has explored, in id order (a copy — {@code knownsegs} is mutated live). */
+    static List<Long> knownSegs() {
+        List<Long> out = new ArrayList<Long>();
+        MapFile file = mapfile();
+        if((file == null) || !file.lock.readLock().tryLock())
+            return out;
+        try {
+            out.addAll(file.knownsegs);
+        } finally {
+            file.lock.readLock().unlock();
+        }
+        Collections.sort(out);
+        return out;
+    }
+
+    /**
+     * The loaded grid DATA for a grid id, or null — <b>kicking the load</b> on the way. The {@link Indir} is
+     * taken under the lock ({@code Segment.grid} asserts the caller holds it) and read <i>outside</i> it:
+     * the loader task itself takes the read lock, so holding ours across the wait would be pointless, and
+     * {@code get()} throws {@link haven.Loading} until {@link haven.Defer} has the grid off the disk.
+     */
+    static MapFile.Grid gridDataIn(MapFile file, long id) {
+        MapFile.GridInfo gi = gridInfoIn(file, id);
+        if(gi == null)
+            return null;
+        MapFile.Segment seg = segIn(file, gi.seg);
+        if(seg == null)
+            return null;
+        Indir<MapFile.Grid> ind;
+        if(!file.lock.readLock().tryLock())
+            return null;
+        try {
+            ind = seg.grid(id);
+        } catch(RuntimeException e) {
+            return null;
+        } finally {
+            file.lock.readLock().unlock();
+        }
+        return read(ind);
+    }
+
+    /** The loaded grid at a segment grid coord, or null (kicking the load). Null coord = null grid. */
+    static MapFile.Grid gridAtIn(MapFile file, MapFile.Segment seg, Coord sc) {
+        if((file == null) || (seg == null) || (sc == null) || !file.lock.readLock().tryLock())
+            return null;
+        Indir<MapFile.Grid> ind;
+        try {
+            ind = seg.grid(sc);
+        } catch(RuntimeException e) {
+            return null;
+        } finally {
+            file.lock.readLock().unlock();
+        }
+        return read(ind);
+    }
+
+    /** {@code Indir.get()} with the load model applied: Loading (or a broken grid file) is null, never a throw. */
+    private static MapFile.Grid read(Indir<MapFile.Grid> ind) {
+        if(ind == null)
+            return null;
+        try {
+            return ind.get();
+        } catch(RuntimeException e) {   // Loading until Defer lands it; an IOError if the file went away
+            return null;
+        }
+    }
+
+    /**
+     * The world coordinate of a recorded grid's upper-left corner <b>in this session</b>, or nil — the
+     * recorded→live direction of the bridge. It is pure {@code sessloc} arithmetic (segment tile =
+     * session tile + {@code sessloc.tc}, the conversion a marker's {@code x,y} already uses), so it answers
+     * for any grid in the player's current segment whether or not that ground is streamed in right now;
+     * a grid in a segment the player is not standing in has no world coordinate this session at all.
+     */
+    static LuaValue gridWorldUL(MapFile.GridInfo gi) {
+        MiniMap.Location sl = sessloc();
+        if((gi == null) || (sl == null) || (gi.seg != sl.seg.id))
+            return LuaValue.NIL;
+        return xy(((gi.sc.x * MCache.cmaps.x) - sl.tc.x) * MCache.tilesz.x,
+                  ((gi.sc.y * MCache.cmaps.y) - sl.tc.y) * MCache.tilesz.y);
+    }
+
+    /**
+     * A {@code {gridId, x, y}} anchor for the tile at within-grid tile coord {@code (gtx, gty)} of grid
+     * {@code id} — the shape {@code hafen.world.gridPos} returns and {@code fromGridPos} accepts, so an
+     * anchor read out of the map database goes straight back into the live world. {@code x,y} are the tile's
+     * CENTRE in world units, which is the same point a marker's session {@code x,y} reports (so the round
+     * trip lands on the tile it came from rather than on its corner).
+     */
+    static LuaValue anchor(long id, int gtx, int gty) {
+        LuaTable t = new LuaTable();
+        t.set("gridId", LuaValue.valueOf(Long.toString(id)));
+        t.set("x", LuaValue.valueOf((gtx * MCache.tilesz.x) + (MCache.tilesz.x / 2)));
+        t.set("y", LuaValue.valueOf((gty * MCache.tilesz.y) + (MCache.tilesz.y / 2)));
+        return t;
+    }
+
+    /**
+     * A within-grid tile coord argument ({@code grid:tile(c)}, {@code grid:height(c)}): a {@code {x,y}}
+     * table, both integral and both inside the grid. Out of range is an <b>error</b>, not nil — nil already
+     * means "not loaded yet" here, and a caller who confused a segment tile coord for a within-grid one
+     * would read that as a load that never lands (D-072: refuse what can never mean anything).
+     */
+    static Coord tileArg(LuaValue c, String method) {
+        if((c == null) || !c.istable() || !c.get("x").isnumber() || !c.get("y").isnumber())
+            throw new LuaError("grid:" + method + "(c): c is a within-grid tile coord {x=,y=}, 0.."
+                + (MCache.cmaps.x - 1));
+        int ix = c.get("x").toint(), iy = c.get("y").toint();
+        if((ix < 0) || (iy < 0) || (ix >= MCache.cmaps.x) || (iy >= MCache.cmaps.y))
+            throw new LuaError("grid:" + method + "(c): " + ix + "," + iy + " is outside the grid — c is a"
+                + " WITHIN-grid tile coord (0.." + (MCache.cmaps.x - 1) + "), not a segment tile coord");
+        return Coord.of(ix, iy);
     }
 }

@@ -547,3 +547,28 @@
   JVM and reddens on a cold one; and the twin assertion — *a write that changes nothing does NOT persist* —
   needs the same settle or it passes for the wrong reason (nothing has had time to fire yet). One
   `Thread.sleep(250)` helper before each count, `>= 1` rather than `== 1` where the debounce may coalesce.
+
+- **(037.2) A whole on-disk subsystem is headless-testable if you give it an in-memory `ResCache`.**
+  `MapFile` takes its store as a constructor argument (`new MapFile(cache, "")`), so a 10-line `ResCache`
+  over a `HashMap<String, byte[]>` — `store()` returns a `ByteArrayOutputStream` whose `close()` files the
+  bytes — gives you the **real** engine: real `Grid.save`/`Grid.load`, the real `BackCache`es, the real
+  `Defer` load, the real read/write lock. Build the fixture through the engine's own doors (`grid.save(file)`,
+  `gridinfo.put`, `segments.put` under the write lock); only `Segment.map` (private, coord → grid id) needs a
+  reflected `put`. That turns "verify the load model in-game" into an assertion: the FIRST `gridDataIn`
+  answers null, and a poll a few ms later answers — the exact behaviour the API promises.
+- **(037.2) `MapApi.mapfile()`/`sessloc()` resolve through `gui()`, and a fabricated `GameUI` is enough.**
+  Extending 036.1's recipe one class further: `Unsafe.allocateInstance` a `UI`, a `RootWidget`, a `GameUI`
+  **and a `MiniMap`**, reflect-set `MiniMap.file` (public **final** — a `setAccessible` `Field.set` still
+  works on a non-static final) and `UI.root`, assign `gui.parent = root; root.child = root.lchild = gui`,
+  point the static `AddonManager.ui` at it. `AddonManager.gui()`'s fallback scan finds the `GameUI` by
+  `instanceof`, and `MapApi.mapfile()` takes the `g.mmap.file` branch because the Unsafe-allocated `GameUI`
+  has a null `mapfile`. With `mm.sessloc = new MiniMap.Location(seg, tc)` set by hand, the *entire* Lua
+  surface runs headlessly — 55/55 for 037.2, including the anchor round trip. Neither `MiniMap` nor
+  `GameUI` needs its constructor, so neither needs GL.
+- **(037.2) A round trip through `floor()` cannot prove where inside the cell you are.** The anchor
+  falsification — pointing `marker:anchor()` at the tile's **corner** instead of its centre — left the
+  round-trip check ("the anchor lands back on the tile the marker reports") **green**, because
+  `math.floor(x / tilesz)` erases the half-tile either way. Exactly one check reddened: the explicit one
+  asserting the anchor's own numbers. Generalisation of 035.1's hollowness lesson: *a check that quantises
+  its input cannot guard anything finer than the quantum* — so where sub-cell placement matters, assert the
+  raw value beside the round trip, not instead of it.

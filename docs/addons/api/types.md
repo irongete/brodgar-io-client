@@ -213,15 +213,16 @@ it: the entry is gone, or its resource has not loaded. The live reads are `pag:r
 
 ## Marker
 
-From [`hafen.map.markers`](map.md#markers) and `MarkersChanged`.
+From [`marker:info()`](map.md#the-marker-object), the snapshot escape hatch for a map marker. The live
+reads are `marker:name()`, `:type()`, `:tc()`, `:pos()` and the rest — and `marker:anchor()` is the
+position to store, not the `seg` + `tc` below.
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | number | session-local marker ref (pass it to `remove`) |
 | `name` | string | marker label; optional |
 | `type` | string | `"player"`, a user pin, or `"system"`, a server or quest pin |
-| `seg` | string | segment id, a 64-bit value as a decimal string — the persistent anchor |
-| `tc` | `{x, y}` | segment tile coord — the persistent anchor |
+| `seg` | string | segment id, a 64-bit value as a decimal string — client-local, [never stored](map.md#saving-a-position) |
+| `tc` | `{x, y}` | segment tile coord — client-local, never stored |
 | `color` | [Color](#color) | player markers only; optional |
 | `onmap` | bool | player markers only |
 | `icon` | string | system markers only; optional |

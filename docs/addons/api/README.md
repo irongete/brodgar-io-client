@@ -16,7 +16,7 @@ you came for from the tables below. Every page in the tree is listed here.
 |---|---|
 | [`hafen.gob`](gob.md) | one object in the world — `hafen.gob(id)` gives a Gob you read with methods |
 | [`hafen.world`](world.md) | the live world: every object loaded, the terrain, and a position that survives a relog |
-| [`hafen.map`](map.md) | the map you have explored: its markers, and the minimap icon categories |
+| [`hafen.map`](map.md) | the map you have explored: its segments and grids, its markers, and the minimap icon categories |
 
 ## The player and character
 

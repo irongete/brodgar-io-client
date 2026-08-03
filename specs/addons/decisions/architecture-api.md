@@ -636,3 +636,68 @@ wholesale** and mints fresh `Setting`s as icons resolve, so a handle held across
 orphan — the same eviction hazard segments and grids have (037.2).
 **See.** [D-063](architecture-api.md), [D-056](architecture-api.md), [D-061](architecture-api.md),
 [D-066](architecture-api.md), [037-map-database](../037-map-database/spec.md).
+
+### D-094 — an intern key follows the engine's OWN stability: a published id where the object is rebuilt, object identity where it is not ✅ (2026-08-03)
+**Decision.** 037.2 interned three new entities and split them two ways. A **Segment** and a **Grid** are
+keyed on the id the engine publishes (D-063) — a segment lives in a `BackCache(5)` and a grid in a weak
+`CacheMap`, so the same segment comes back as a *different Java object* after an eviction. A **Marker** is
+keyed on a **per-session ref this bridge mints** over `IdentityHashMap`, because `MapFile` publishes no
+addressable id for one — and that is correct here for the opposite reason: a `MapFile.Marker` is loaded
+once and thereafter **mutated in place** (a segment merge rewrites its `seg`/`tc` fields), so its Java
+identity is the stable thing and nothing else is.
+**Rationale.** (2026-08-03, 037.2.) D-063 reads as "never intern on Java identity", and taken literally it
+has no answer for an engine object with no id. The rule underneath it is narrower and more useful: *ask what
+the engine does to the object*. If it re-mints it (a cache that evicts and reloads, a map the loader swaps
+wholesale — D-093's `Setting`s), identity is a lie and you must key on what it publishes. If it never
+re-mints it, identity is the only truth available and a bridge-minted ref over it is exact. Getting this
+backwards is invisible until the cache turns over, which is precisely when a stale handle would start
+writing to an orphan.
+**Consequences.** The marker ref is **session-scoped** and dies with the session (`MapApi.resetMarkers`),
+which is honest: markers are re-read from disk at login and a ref must not outlive the objects it names.
+The two kinds of key coexist in one namespace with no visible difference — every entity re-resolves through
+one funnel on every call, so a stale handle answers `nil` and `:exists() == false` rather than lying, which
+is what makes the key choice an implementation detail instead of a contract.
+**See.** [D-063](architecture-api.md), [D-064](architecture-api.md), [D-093](architecture-api.md),
+[037-map-database](../037-map-database/spec.md).
+
+### D-095 — a read of a STORED world kicks the load and answers nil; it never blocks and never takes a callback ✅ (2026-08-03)
+**Decision.** Every `hafen.map` read that needs data off the disk — `seg:grid(sc)`, `grid:tile(c)`,
+`marker:anchor()` for another segment — **starts the load and returns `nil`**; the caller reads again next
+tick and gets it. No callback argument, no "ready" event, no blocking wait. The lock is taken with
+`tryLock` and never waited on (`MiniMap.resolve`'s own rule): `MapFile`'s write lock is held across disk
+I/O on its processor thread, so waiting for it would stall the UI thread for a read that is allowed to
+answer `nil` anyway.
+**Rationale.** (2026-08-03, 037.2.) `hafen.world.fromGridPos` already had this shape and it was never
+written down. The alternative — a callback per read, `screenToWorld`'s shape — was rejected on the concrete
+case the feature exists for: a minimap panel walks a dozen grids per frame and would become a tree of
+callbacks whose completion order is the disk's. Answering `nil` makes the *frame* the retry loop, which is
+what a drawing addon already has.
+**Consequences.** `nil` is deliberately overloaded — "there is no grid there" and "not yet" are the same
+answer — and that is affordable only because re-asking is free and correct in both cases; `grid:info().loaded`
+is there when a caller genuinely needs to tell them apart. The rule has an explicit **exception**, and the
+exception is the test of it: the marker list takes the blocking read lock, because an empty marker list is
+a *lie* a caller cannot distinguish from "no markers", where a `nil` grid is a documented "ask again". So
+the rule is not "never block" — it is *answer nil only where nil already means something the caller must
+handle*.
+**See.** [D-050](architecture-api.md), [D-094](architecture-api.md),
+[037-map-database](../037-map-database/plan.md).
+
+### D-096 — a client-local id that a MERGE re-bases is worse than one that goes stale: it is a view, never a stored position ✅ (2026-08-03)
+**Decision.** The map database's own position — a segment id plus a segment tile coord — is **read-only**:
+an addon may look at it, compare it within a session and draw with it, and must never save or send it. The
+position that leaves the client is the `{gridId, x, y}` anchor, which is what `hafen.world.gridPos()`
+already returned and what `marker:anchor()` was added to produce. The API says so structurally, not only in
+prose: the anchor is the only shape both halves of the coordinate system accept.
+**Rationale.** (2026-08-03, 037.2.) The client's own rule for session-local data is "it goes `nil` and you
+re-resolve" — `rc`, `fromGridPos`, a widget id. A segment id breaks that rule in the dangerous direction:
+`MapFile` mints it with `rnd.nextLong()`, and when two explored areas turn out to touch, `merge` re-bases
+the loser's grids **and rewrites every marker inside it in place**. A stored `{seg, tc}` therefore does not
+fail — it silently names a different place. A grid id is the server's, identical for every player, and no
+merge moves it.
+**Consequences.** `marker:anchor()` is the feature's deliverable rather than a convenience, and its two
+halves differ (synchronous through `sessloc` in the current segment, D-095's asynchronous database read
+elsewhere) because only the anchor, not the marker, can be persisted. Generally: *before exposing an
+identifier, ask not whether it is stable but how it fails* — one that goes missing is safe to hand out with
+a caveat, one that is silently rewritten needs a converter and a refusal.
+**See.** [D-094](architecture-api.md), [D-095](architecture-api.md),
+[037-map-database](../037-map-database/spec.md).

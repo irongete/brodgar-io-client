@@ -10,7 +10,7 @@
       are nil; a marker added through `map.markers` is found by `list` and removed by ref; an icon
       category's `show`/`notify` round-trip and are **put back** (it is the user's configuration).
 
-- [ ] 037.2 — **Segments and grids.** `map.segment()` (the player's) / `map.segment(id)` /
+- [x] 037.2 — **Segments and grids.** `map.segment()` (the player's) / `map.segment(id)` /
       `map.segments()`; `seg:id/:grid(sc)/:grids(area)/:markers(filter)/:info`; `grid:id/:pos/:sc/
       :tile(c)/:height(c)/:mtime/:segment/:info`. The anchor bridge both ways, and `marker:anchor()`
       (sync in the current segment, async elsewhere — plan.md).

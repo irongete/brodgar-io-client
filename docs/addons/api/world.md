@@ -145,10 +145,15 @@ it was saved — so re-resolve at `OnEnterWorld` and retry for a few seconds as 
 > exact decimal **string** — the only form safe to store and compare across sessions. It is also the
 > only anchor that means the same thing to another player: a grid id comes from the **server**.
 
+An anchor also reaches the **recorded** map: `hafen.map.grid(anchor.gridId)` finds what the client wrote
+down about that ground, whether or not it is streamed in right now, and
+[`marker:anchor()`](map.md#the-marker-object) converts a map marker into the same shape. See
+[saving a position](map.md#saving-a-position) for why a marker's own `seg` + `tc` is not that shape.
+
 ## See also
 
 - [`hafen.gob`](gob.md) — what the object readers hand back, and the world coordinates they share
-- [`hafen.map`](map.md) — the recorded map: your markers and the minimap icon categories
+- [`hafen.map`](map.md) — the recorded map: its segments and grids, your markers, the icon categories
 - [the `filter` argument](conventions.md#the-filter-argument) — the three forms the object readers accept
 - [events](events.md#world) — `GobAdded` and `GobRemoved`
 - [`hafen.ghost`](ghost.md) — what placement snapping is usually for

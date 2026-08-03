@@ -332,6 +332,25 @@ public final class Addon {
     final LuaIconCat.Cache iconCats = new LuaIconCat.Cache(this);
 
     /**
+     * This addon's <b>map-database interning caches</b> ({@code hafen.map.segment/grid/markers}, spec
+     * {@code 037-map-database} task 037.2): weak-valued {@code id → Segment/Grid/Marker object} maps with
+     * their {@link java.lang.ref.ReferenceQueue}s and per-addon metatables. Same contract as {@link #gobs}
+     * — per-addon so no Lua value crosses a sandbox boundary (D-017) and the whole cache dies with this
+     * {@link Addon} on {@code :reload}/disable; nothing to tear down (weak entries, and a handle holds only
+     * an id).
+     *
+     * <p>The keys are the ids the <b>engine</b> publishes (D-063), never Java identity: a {@code Segment}
+     * lives in a {@code BackCache(5)} and a {@code Grid} in a weak {@code CacheMap}, so the same segment or
+     * grid comes back as a different object after an eviction and an identity map would go stale
+     * invisibly. A marker's key is the per-session ref {@link MapApi} already mints — a
+     * {@code MapFile.Marker} is loaded once and mutated in place, so that identity is stable for the session
+     * and is dropped with the rest of the session state on relog.
+     */
+    final LuaSegment.Cache mapSegments = new LuaSegment.Cache(this);
+    final LuaMapGrid.Cache mapGrids = new LuaMapGrid.Cache(this);
+    final LuaMarker.Cache mapMarkers = new LuaMarker.Cache(this);
+
+    /**
      * This addon's <b>asset intern cache</b> ({@code hafen.asset(path)}, spec {@code 028-asset-loader}): the
      * {@code resolved path → loaded asset} map behind the one loader for the files this addon ships — images,
      * fonts and glTF meshes alike, replacing the two linear scans over {@link #images}/{@link #meshes} and

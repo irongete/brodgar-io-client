@@ -504,20 +504,22 @@ local function readSound(tag)
     okAmb and tostring(amb) or "n/a"))
 end
 
--- A1: map markers via hafen.map.markers. list()/nearest() read the client's on-disk map DB; each snapshot is
--- {id, name, type ("player"|"system"), seg, tc={x,y} (the persistent anchor), color|icon, and — when the
--- marker is in your current segment — x,y (world) + dist (from you)}. The DB streams in a beat after
--- enter-world (like the rest of the HUD), so read at now (often 0) and +3s. Most markers a character has are
--- SYSTEM markers the server pushed (quest/tracked pins); a fresh spot may have none until you add one ('marker' key).
+-- A1: map markers via hafen.map.markers. list()/nearest() read the client's on-disk map DB and hand back
+-- Marker OBJECTS (037.2 — they gained a verb, marker:anchor(), and a verb belongs on the thing): :name(),
+-- :type() ("player"|"system"), :tc() (the segment tile coord it really lives at), :segment(), :color()/:onmap()
+-- or :icon(), and — when the marker is in your current segment — :pos() (world) + :dist() (from you). :info()
+-- is the old snapshot table. The DB streams in a beat after enter-world (like the rest of the HUD), so read at
+-- now (often 0) and +3s. Most markers a character has are SYSTEM markers the server pushed (quest/tracked
+-- pins); a fresh spot may have none until you add one ('marker' key).
 local function readMarkers(tag)
   local list = hafen.map.markers.list()
   local near = hafen.map.markers.nearest()
   local first = list[1]
   hafen.log(("[%s] markers=%d, first=%s%s, nearest=%s%s"):format(tag, #list,
-    first and tostring(first.name or first.type) or "none",
-    first and (" @tc %d,%d"):format(first.tc.x, first.tc.y) or "",
-    near and tostring(near.name or near.type) or "none",
-    (near and near.dist) and (" dist=%.1f"):format(near.dist) or ""))
+    first and tostring(first:name() or first:type()) or "none",
+    first and (" @tc %d,%d"):format(first:tc().x, first:tc().y) or "",
+    near and tostring(near:name() or near:type()) or "none",
+    (near and near:dist()) and (" dist=%.1f"):format(near:dist()) or ""))
 end
 
 -- A2: MINIMAP ICON CATEGORIES via hafen.map.icons (037.1 -- hafen.radar is GONE; the engine has no "radar",
@@ -1855,7 +1857,7 @@ end)
 -- (hafen.map.markers.remove). Watch it appear on the map (M) and the corner minimap. add() writes the shared
 -- on-disk map DB, so it PERSISTS — but hello removes its own marker on disable/reload (see OnDisable) so the
 -- regression harness never pollutes your map. Adds a fourth row to the "Hello" keybind section (2e-3 grouping).
-local helloMarker   -- the ref of the demo marker while placed (nil = not placed); session-local
+local helloMarker   -- the demo Marker object while placed (nil = not placed); session-local
 keys:register("marker", function()
   if helloMarker then
     hafen.map.markers.remove(helloMarker)
@@ -1868,7 +1870,7 @@ keys:register("marker", function()
   if not p then hafen.log("A1: 'marker' -> no player position yet"); return end
   helloMarker = hafen.map.markers.add("Hello marker", p.x, p.y, { color = { r = 80, g = 220, b = 90 }, onmap = true })
   if helloMarker then
-    hafen.log(("A1: 'marker' -> dropped 'Hello marker' at %.0f,%.0f (ref %s) -- press again to remove")
+    hafen.log(("A1: 'marker' -> dropped 'Hello marker' at %.0f,%.0f (%s) -- press again to remove")
       :format(p.x, p.y, tostring(helloMarker)))
   else
     hafen.log("A1: 'marker' -> could not add marker (map/session location not up yet)")

@@ -210,3 +210,15 @@
   `local t = math.floor(x * 1000 + 0.5); ("%d.%03d"):format(math.floor(t / 1000), t % 1000)`. Nothing errors
   and nothing fails — the verdict is still correct, it is merely 17 digits of noise in the block the
   maintainer pastes back — which is exactly why it survives every review that is not a real run.
+- **(037.2) Validate `istable()` BEFORE reading a field off an argument — `LuaValue.NIL.get("x")` throws.**
+  The natural spelling `LuaValue x = c.get("x"), y = c.get("y"); if(!c.istable() || …) throw new LuaError(<a
+  helpful message>)` never reaches the helpful message when the caller simply forgot the argument: the
+  `get` on `NIL` throws LuaJ's own *"attempt to index ? (a nil value)"* first, and the addon author gets a
+  stack trace instead of the shape they wanted. Test the container, then read it. Caught headlessly by the
+  refusal check for `grid:height()` — a "guiding error" is only guiding if the guard runs before the read.
+- **(037.2) In LuaJ a numeric STRING answers `isnumber()`, so "was a number passed?" is `type() ==
+  TNUMBER`.** 037.1's `LuaIconCat` already knew the reverse of this (it tests `isnumber()` *before*
+  `isstring()` to catch an index). The 64-bit-id arguments need the other direction: `hafen.map.grid(id)`
+  must **refuse a number** (a Lua double cannot carry a grid id) while accepting the decimal *string* the
+  API itself hands out — and `"48133101501480977"` answers `isnumber() == true`. Only `v.type()`
+  distinguishes them.
