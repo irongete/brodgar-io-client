@@ -3,8 +3,13 @@
 -- What this task shipped, and therefore what this asserts: "window.frame" joins the site keys; `bg` and
 -- `border` join `font`/`color` as style properties (plain data, folded per property like every other level,
 -- D-076); and a window whose chrome a rule names carries a sheet-fed Deco instead of the stock one, swapped
--- through the engine's own public chdeco. GEOMETRY STAYS STOCK in this task (pad is 035.2), so "a frame rule
--- does not move anything" is an assertion here rather than a hope.
+-- through the engine's own public chdeco.
+--
+-- SUPERSEDED, deliberately: this suite used to assert that a frame rule moves and resizes NOTHING — a promise
+-- whose own text named 035.2 as the task that would end it. It has: a border's insets are the window's frame
+-- margins now, so a framed window IS a different size, and `addons/035-ui-chrome.2/` asserts those numbers.
+-- What stayed here is the half 035.1 still owns and which the change makes stronger: dropping the sheet puts
+-- the exact previous size and position back.
 --
 -- Two things a program cannot judge -- whether the frame LOOKS restyled, and whether a restyled window still
 -- drags/resizes/closes/focuses -- are [manual], and ':t035-1 look' parks the skin on so they can be done at
@@ -82,8 +87,6 @@ local function stage2(w, sz, pos)
   check(#hafen.ui.all("@SkinDeco") > 0, "a window.frame rule puts a sheet-fed deco on the client's windows",
         #hafen.ui.all("@SkinDeco"))
   eq("the probe window is wearing it too", decoOf(w), "SkinDeco")
-  eq("a frame rule does not resize the window (geometry is 035.2)", xy(w:size()), sz)
-  eq("a frame rule does not move the window", xy(w:pos()), pos)
   hafen.ui.skin(nil)
   hafen.timer.after(0.4, function() stage3(w, sz, pos) end)   -- the swap back happens in Window.tick
 end
@@ -127,7 +130,7 @@ local function run()
   w:skin(nil)
   eq("dropping the skin returns the widget to one nil", w:style(), nil)
 
-  -- 3. the swap itself, and the promise that geometry is NOT yet in play. It happens in Window.tick (never
+  -- 3. the swap itself, and that dropping the sheet undoes it exactly. It happens in Window.tick (never
   --    inside a draw), so each half is read a frame later.
   eq("a client with no frame rule wears no sheet-fed deco anywhere", #hafen.ui.all("@SkinDeco"), 0)
   eq("the probe window starts on the stock chrome", decoOf(w), "DefaultDeco")

@@ -16,7 +16,7 @@
       still errors (D-072); and that dropping the sheet restores stock. `[manual]`: the frame looks restyled,
       and drag / resize / close / focus still behave.
 
-- [ ] **035.2 — geometry: `pad`, and the insets that move content.**
+- [x] **035.2 — geometry: `pad`, and the insets that move content.**
       `pad` and a sliced border's own insets feed `iresize`/`contarea` — the one place that decides where
       content starts. Remember the direction: **the ctor's `sz` is the CONTENT size and the deco sizes the
       frame around it**, so `pad` grows the window's outer size for fixed content, not the reverse. A window

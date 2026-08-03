@@ -420,3 +420,20 @@
   waiting to happen. `Scaled` stretches the edges and never paints the centre. Slicing one loaded image into
   eight `TexSI` sub-rect views shares the parent's single GPU texture, so a border uploads nothing and owns
   nothing to dispose — much better than eight `TexI`s from `getSubimage`, which would leak per `:reload`.
+- **(035.2) `Window`'s geometry flows ONE way, and `iresize` is the only place it turns around.**
+  `Window.resize(sz)`/`resize2` feed the deco the **content** size; the deco decides the window's outer size
+  (`this.sz = deco.sz`) and where content starts (`contarea()`). So padding a window makes it **bigger** — the
+  reverse (treating `isz` as the outer size) silently shrinks every window to its content, which is exactly what
+  the falsification produced: 8 red. `DefaultDeco.iresize` is `content + mrgn*2 + tlm + brm`, i.e. an inner
+  margin and outer frame insets, and a themed deco only has to substitute its own numbers into it (D-080).
+- **(035.2) Re-laying out a live deco means copying what `chdeco` does, not calling `resize` and hoping.**
+  `chdeco` reads the old `contarea()` **first**, re-runs the layout, then absorbs the difference into the
+  window's own `c` — which is why an install anchors the *content* rather than the window's corner. A repack
+  that skips that last line moves every window by the pad whenever the rule changes, and the drift is invisible
+  until you assert the position (3 red). `Window.c` is public, so a deco can do it from outside.
+- **(035.2) A window's chrome resolves through the WINDOW, so any cascade level that names the window reaches
+  its frame.** `Fonts.styleFor("window.frame", wnd)` folds `wnd`'s own tree rule / `widget:skin` over the site
+  stack, so `w:skin{border=…}` themes exactly one window — and 035.1's shipped docs table, which said a tree key
+  and `widget:skin` were **inert** for `bg`/`border`, was wrong on the day it shipped. Corrected in
+  `api/ui.md#what-each-key-accepts`. What *is* inert is a rule matching anything that is not a window, including
+  a widget **inside** one: `styleFor` asks about that one widget, and there is no ancestor walk.

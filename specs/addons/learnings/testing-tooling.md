@@ -388,3 +388,17 @@
 - **(035.1) `git-bash` `perl -0pi -e` is the reliable in-place editor for a throwaway probe** (no Python on this
   box, per 034.1). For a Java source file, remember the probe's own compile is the syntax check — a botched
   substitution shows up as a `javac` error immediately, so rebuild after every edit rather than batching them.
+- **(035.2) A login is ONE client, so the round is a sequence of SLOTS — a suite's writes are visible to every
+  other suite.** 035.2 started at +3.5 s, on top of 035.1's +3 s slot, and produced three `[fail]` lines of
+  which **none was in the task under test**: 035.1 counted this suite's still-skinned probe window in its
+  `#hafen.ui.all("@SkinDeco") == 0` restore check, and 034.2's text-cache probe saw a **second key** for its own
+  string because this suite was bumping `Fonts.gen()` a dozen times while it ran. The convention that already
+  existed in comments (+3 · +6 · +9, "after the other suites' round") is load-bearing and now carries +12. Rule:
+  **a suite that installs a sheet, keeps a styled widget alive, or bumps a global generation owns its slot
+  alone** — and when a suite reddens, read the *addon id on the line*, then ask what else was running.
+- **(035.2) A staged suite must WAIT FIRST — a step that runs inline with the write it checks reads the previous
+  frame.** The sequencer was `f(); timer.after(0.35, next)`, so `step(1)` executed in the same tick as the
+  `run()` that made the write, and only steps 2..n ever got their tick. The failure is maximally confusing: the
+  *first* stage fails and every later one passes, which reads like a warm-up problem rather than an off-by-one.
+  Write it as `timer.after(0.35, function() f(); next() end)` so the delay is a property of the step, not of the
+  gap between steps. Headless pre-checking cannot catch this — a probe calls `SkinDeco.check(wnd)` itself.

@@ -77,8 +77,8 @@ import java.util.WeakHashMap;
  * <p>Immutable once parsed, package-private, and carries no Lua.
  */
 final class Sheet {
-    /** The style properties a rule may carry. {@code pad} arrives with the geometry half of C2 (035.2). */
-    private static final String PROPS = "\"font\", \"color\", \"bg\" and \"border\"";
+    /** The style properties a rule may carry. */
+    private static final String PROPS = "\"font\", \"color\", \"bg\", \"border\" and \"pad\"";
 
     /**
      * One kept rule and the properties it fills. Each property is independently optional. A rule is either a
@@ -93,8 +93,10 @@ final class Sheet {
         final Color color;        // the rule's `color` property, or null (a rule may carry only a font)
         final Chrome.Bg bg;       // the rule's `bg` property (035.1), or null
         final Chrome.Border border;   // the rule's `border` property (035.1), or null
+        final Integer pad;        // the rule's `pad` property (035.2), or null
 
-        Rule(String site, Selector sel, FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border) {
+        Rule(String site, Selector sel, FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border,
+             Integer pad) {
             this.site = site;
             this.sel = sel;
             this.rank = (sel == null) ? 0
@@ -104,11 +106,12 @@ final class Sheet {
             this.color = color;
             this.bg = bg;
             this.border = border;
+            this.pad = pad;
         }
 
         /** Does this rule say anything at all? A rule that names no property styles nothing, anywhere. */
         boolean empty() {
-            return (font == null) && (color == null) && (bg == null) && (border == null);
+            return (font == null) && (color == null) && (bg == null) && (border == null) && (pad == null);
         }
     }
 
@@ -205,7 +208,7 @@ final class Sheet {
                        (f == null) ? null : f.font,
                        (f == null) ? null : f.size,
                        (f == null) ? null : f.aa,
-                       r.color, r.bg, r.border);
+                       r.color, r.bg, r.border, r.pad);
         }
     }
 
@@ -258,7 +261,8 @@ final class Sheet {
     }
 
     /**
-     * The properties of one rule ({@code font}, {@code color}), each {@code null} when the rule carries none. An
+     * The properties of one rule ({@code font}, {@code color}, {@code bg}, {@code border}, {@code pad}), each
+     * {@code null} when the rule carries none. An
      * unknown property is an <b>error</b> — unlike an unresolved key, a misspelt property has no future meaning to
      * wait for, and silently doing nothing is the worst way to answer a typo (D-072). It is checked for <b>every</b>
      * key, site or tree alike: the two kinds of key differ in where they resolve, never in what a rule may say —
@@ -270,6 +274,7 @@ final class Sheet {
         Color color = null;
         Chrome.Bg bg = null;
         Chrome.Border border = null;
+        Integer pad = null;
         LuaValue pk = LuaValue.NIL;
         while(true) {
             Varargs n = props.next(pk);
@@ -292,12 +297,14 @@ final class Sheet {
                 bg = Chrome.parseBg(ctx, pv);
             } else if("border".equals(p)) {
                 border = Chrome.parseBorder(ctx, pv);
+            } else if("pad".equals(p)) {
+                pad = Chrome.parsePad(ctx, pv);
             } else {
                 throw new LuaError(ctx + ": \"" + pk.tojstring()
                     + "\" is not a style property — the properties this client ships are " + PROPS);
             }
         }
-        return new Rule(site, sel, font, color, bg, border);
+        return new Rule(site, sel, font, color, bg, border, pad);
     }
 
     // ---- the PER-WIDGET cascade: tree rules (034.1) + widget:skin (034.3) ---------------------------
@@ -326,6 +333,8 @@ final class Sheet {
         final Chrome.Bg bg;
         /** The winning {@code border} property (035.1), or {@code null}. */
         final Chrome.Border border;
+        /** The winning {@code pad} property (035.2), or {@code null}. */
+        final Integer pad;
         /** The {@link #treegen} this was resolved at — a bump makes the entry stale on its next touch. */
         final int gen;
         /**
@@ -344,17 +353,19 @@ final class Sheet {
          */
         int recheck;
 
-        Resolved(FontHandle font, Addon fontOwner, Color color, Chrome.Bg bg, Chrome.Border border, int gen) {
+        Resolved(FontHandle font, Addon fontOwner, Color color, Chrome.Bg bg, Chrome.Border border, Integer pad,
+                 int gen) {
             this.font = font;
             this.fontOwner = fontOwner;
             this.color = color;
             this.bg = bg;
             this.border = border;
+            this.pad = pad;
             this.gen = gen;
         }
 
         boolean empty() {
-            return (font == null) && (color == null) && (bg == null) && (border == null);
+            return (font == null) && (color == null) && (bg == null) && (border == null) && (pad == null);
         }
     }
 
@@ -403,17 +414,19 @@ final class Sheet {
         final Color color;
         final Chrome.Bg bg;
         final Chrome.Border border;
+        final Integer pad;
 
-        Skin(Addon owner, FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border) {
+        Skin(Addon owner, FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border, Integer pad) {
             this.owner = owner;
             this.font = font;
             this.color = color;
             this.bg = bg;
             this.border = border;
+            this.pad = pad;
         }
 
         boolean empty() {
-            return (font == null) && (color == null) && (bg == null) && (border == null);
+            return (font == null) && (color == null) && (bg == null) && (border == null) && (pad == null);
         }
     }
 
@@ -423,17 +436,20 @@ final class Sheet {
         final Color color;
         final Chrome.Bg bg;
         final Chrome.Border border;
+        final Integer pad;
 
-        SKey(FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border) {
+        SKey(FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border, Integer pad) {
             this.font = font;
             this.color = color;
             this.bg = bg;
             this.border = border;
+            this.pad = pad;
         }
 
         public int hashCode() {
             return (System.identityHashCode(font) * 31) + ((color == null) ? 0 : color.hashCode())
-                + ((bg == null) ? 0 : bg.hashCode() * 7) + ((border == null) ? 0 : border.hashCode() * 13);
+                + ((bg == null) ? 0 : bg.hashCode() * 7) + ((border == null) ? 0 : border.hashCode() * 13)
+                + ((pad == null) ? 0 : pad.hashCode() * 23);
         }
 
         public boolean equals(Object o) {
@@ -443,7 +459,8 @@ final class Sheet {
             return (font == k.font)
                 && ((color == null) ? (k.color == null) : color.equals(k.color))
                 && ((bg == null) ? (k.bg == null) : bg.equals(k.bg))
-                && ((border == null) ? (k.border == null) : border.equals(k.border));
+                && ((border == null) ? (k.border == null) : border.equals(k.border))
+                && ((pad == null) ? (k.pad == null) : pad.equals(k.pad));
         }
     }
 
@@ -526,7 +543,7 @@ final class Sheet {
         }
         if(w == null)
             return;                       // a write on a stale widget: nothing to style (029.2)
-        setSkin(owner, w, (r == null) ? null : new Skin(owner, r.font, r.color, r.bg, r.border));
+        setSkin(owner, w, (r == null) ? null : new Skin(owner, r.font, r.color, r.bg, r.border, r.pad));
     }
 
     /** Install (or, with {@code s} empty or {@code null}, drop) {@code owner}'s entry on {@code w}. */
@@ -582,6 +599,8 @@ final class Sheet {
             t.set("bg", s.bg.toLua(reader));
         if(s.border != null)
             t.set("border", s.border.toLua(reader));
+        if(s.pad != null)
+            t.set("pad", LuaValue.valueOf(s.pad.intValue()));
         return t;
     }
 
@@ -651,7 +670,7 @@ final class Sheet {
      * site every frame). Caller holds {@code Sheet.class}.
      */
     private static Fonts.Style specFor(Resolved r) {
-        SKey k = new SKey(r.font, r.color, r.bg, r.border);
+        SKey k = new SKey(r.font, r.color, r.bg, r.border, r.pad);
         Fonts.Style s = specs.get(k);
         if(s == null) {
             FontHandle font = r.font;
@@ -661,7 +680,7 @@ final class Sheet {
                                             (font == null) ? null : font.font,
                                             (font == null) ? null : font.size,
                                             (font == null) ? null : font.aa,
-                                            r.color, r.bg, r.border));
+                                            r.color, r.bg, r.border, r.pad));
         }
         return s;
     }
@@ -680,7 +699,8 @@ final class Sheet {
         Color color = null;
         Chrome.Bg bg = null;
         Chrome.Border border = null;
-        int frank = -1, crank = -1, grank = -1, brank = -1;
+        Integer pad = null;
+        int frank = -1, crank = -1, grank = -1, brank = -1, prank = -1;
         for(int i = 0; i < installed.size(); i++) {
             Sheet s = installed.get(i);
             for(int j = 0; j < s.tree.size(); j++) {
@@ -699,6 +719,9 @@ final class Sheet {
                 if((r.border != null) && (r.rank >= brank)) {
                     border = r.border; brank = r.rank;
                 }
+                if((r.pad != null) && (r.rank >= prank)) {
+                    pad = r.pad; prank = r.rank;
+                }
             }
         }
         List<Skin> sk = skins.get(w);                     // 034.3: the per-instance level, above every rule
@@ -713,8 +736,10 @@ final class Sheet {
                 bg = s.bg;
             if(s.border != null)
                 border = s.border;
+            if(s.pad != null)
+                pad = s.pad;
         }
-        return new Resolved(font, fontOwner, color, bg, border, treegen);
+        return new Resolved(font, fontOwner, color, bg, border, pad, treegen);
     }
 
     /**
@@ -743,6 +768,8 @@ final class Sheet {
             t.set("bg", r.bg.toLua(reader));
         if(r.border != null)
             t.set("border", r.border.toLua(reader));
+        if(r.pad != null)
+            t.set("pad", LuaValue.valueOf(r.pad.intValue()));
         return t;
     }
 }

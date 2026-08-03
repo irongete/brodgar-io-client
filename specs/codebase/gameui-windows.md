@@ -59,10 +59,13 @@ px stays inside `GameUI.sz`; cheaper re-derived (`UiApi.fitView`) than widened.
 | The contract, and the stock one | [`Window.Deco`](src/haven/Window.java:152) — `z(-100)`, `abstract iresize(Coord)` + `contarea()`; [`DragDeco`](src/haven/Window.java:161) adds the caption drag; [`DefaultDeco`](src/haven/Window.java:177) adds `drawbg`/`drawframe`, the close `IButton`, the sizer, `checkhit` and the margins (`dlmrgn`/`dsmrgn` + `tlm`/`brm`) |
 | Who builds their own | [`Window.makedeco()`](src/haven/Window.java:116) (**`protected`**) · [`MapWnd`](src/haven/MapWnd.java:827) `DefaultDeco(true).dragsize(true)`, and `compact()` sets it **null** · [`GItem.ContentsWindow`](src/haven/GItem.java:453) swaps `HoverDeco`/`DefaultDeco` per state |
 | Geometry flows one way | [`resize2`](src/haven/Window.java:407) — `deco.iresize(sz)`, `deco.c = contarea().ul.inv()`, `this.sz = deco.sz`. **The ctor's `sz` is the CONTENT size**; `ca()`/`csz()`/`xlate` all read `contarea()` |
+| The stock layout formula | [`DefaultDeco.iresize`](src/haven/Window.java:214) — `content + mrgn*2 + tlm + brm`: an inner **margin** (`dlmrgn` 23x14 / `dsmrgn` 9x9, all `UI.scale`d) and outer **frame insets** (`tlm` 18x30, `brm` 13x22). `ca` = the bg box, `aa` = `contarea()`, `cbtn` pinned to the top right |
 
 **`chdeco` destroys what it displaces** (`reqdestroy()`), so a swap can never put the *same* object back; it reads
-the old `contarea()` first and re-applies it, so an equal-geometry swap leaves `sz`, `c` and the content area
-untouched (D-078). `Window.draw` renders children into `gbuf` and blits, clearing it to `FColor.BLACK_T` — so
+the old `contarea()` first, re-runs the layout, and folds the difference into the **window's own `c`** — so a
+swap anchors the *content*, not the window's corner, and an equal-geometry swap leaves `sz`, `c` and the content
+area untouched (D-078). A deco that re-lays itself out **while installed** must copy those three steps
+(`Window.c` is public); skipping the last one drifts every window by the change. `Window.draw` renders children into `gbuf` and blits, clearing it to `FColor.BLACK_T` — so
 anything the chrome does not paint is transparent black, not a background (D-079).
 
 ## The addon seam (031, 035)
@@ -77,4 +80,5 @@ case from [widgets.md](widgets.md#core-tree), and since 031.2 that record carrie
 [`Window.tick`](src/haven/Window.java:525) — install/drop the sheet-fed deco, in `tick` because `chdeco` destroys
 a widget and re-lays out. Its only other `haven` edit is an **extraction**: `DefaultDeco.drawframe`'s caption
 block became `protected checkcap()` ([:253](src/haven/Window.java:253)) so a replacement deco renders the caption
-through F3a's routed furnace instead of duplicating it.
+through F3a's routed furnace instead of duplicating it. **035.2 added no core edit at all** — the geometry half
+overrides `iresize` in the addon's own subclass, and `chdeco`/`resize`/`tlm`/`dsmrgn`/`c` are already public.

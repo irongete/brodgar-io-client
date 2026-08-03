@@ -1,8 +1,10 @@
 package io.brodgar.addon;
 
+import haven.Area;
 import haven.Coord;
 import haven.Fonts;
 import haven.GOut;
+import haven.Widget;
 import haven.Window;
 
 /**
@@ -21,15 +23,16 @@ import haven.Window;
  * {@code haven.Window}'s constants instead: one skin, not selectable, not revertible. We use the seam.)
  *
  * <p><b>It extends {@code DefaultDeco} on purpose.</b> The chrome is not just a background and a frame — it is
- * also the close button, the sizer, the caption plate's hit-test and, above all, {@code iresize}/{@code contarea},
- * the one place that decides where a window's content starts. Subclassing keeps every one of them identical
- * (035.1 leaves geometry entirely stock; {@code pad} is 035.2), so the whole diff is <i>which pixels</i>
- * {@code drawbg}/{@code drawframe} put down. It also keeps the caption alive: a skinned frame still renders
+ * also the close button, the sizer, the caption plate's hit-test and {@code iresize}/{@code contarea}, the one
+ * place that decides where a window's content starts. Subclassing keeps every one of them identical except the
+ * two draws and, since 035.2, that one geometry method — whose formula is the stock one with the <i>theme's</i>
+ * numbers rather than a formula of its own. It also keeps the caption alive: a skinned frame still renders
  * {@code cap} through {@code DefaultDeco.checkcap()}, which is F3a's routed blur/tex furnace — paint it any other
  * way and {@code window.title} would silently stop working the moment a theme was installed.
  *
- * <p><b>No Lua runs to paint a frame.</b> The resolved {@link Chrome.Bg}/{@link Chrome.Border} are plain parsed
- * data, refreshed by {@link #check} once per window per tick; the draw reads two fields. Chrome has no raster
+ * <p><b>No Lua runs to paint a frame, or to lay one out.</b> The resolved {@link Chrome.Bg}/{@link Chrome.Border}
+ * and {@code pad} are plain parsed data, refreshed by {@link #check} once per window per tick — and only a change
+ * to the two that decide geometry re-lays anything out; the draw reads fields. Chrome has no raster
  * cache (unlike text, which got 026's), so it is redrawn every frame and a per-frame Lua callback was rejected on
  * cost at design time.
  *
@@ -45,9 +48,70 @@ final class SkinDeco extends Window.DefaultDeco {
 
     private Chrome.Bg bg;
     private Chrome.Border border;
+    private int pad;
 
     private SkinDeco(boolean lg) {
         super(lg);
+    }
+
+    // ---- geometry (035.2) --------------------------------------------------------------------------
+
+    /**
+     * Where this window's content starts and how big the frame around it is — the one method that can <b>move</b>
+     * the client's own layout, and the reason {@code pad} is a new risk class rather than another paint property.
+     *
+     * <p><b>The formula is the stock one with the theme's numbers in it</b>, not a formula of its own.
+     * {@code DefaultDeco} computes {@code content + margin*2 + tlm + brm}: an inner <i>margin</i> (breathing room
+     * between the frame art and the content) and an outer pair of <i>frame insets</i> (the room the art itself
+     * needs). A rule replaces exactly the half it owns:
+     * <ul>
+     *   <li><b>{@code pad} takes the margin's place</b> — it is the breathing room, so it is added to the stock
+     *       margin when the stock art is still there, and <i>is</i> the whole margin when a {@code border} has
+     *       replaced that art.</li>
+     *   <li><b>A {@code border}'s slice insets take {@code tlm}/{@code brm}'s place</b>, because they are the same
+     *       quantity: the room the frame art needs. This is the geometry twin of D-079 — <i>the margin belongs to
+     *       whoever paints the frame</i>. A theme whose caption needs room says so in its own top inset; the
+     *       engine adds no hidden minimum, which is what keeps every number here predictable from the rule alone.</li>
+     * </ul>
+     *
+     * <p><b>{@code isz} is the CONTENT size.</b> So padding a window grows it <i>outward</i> around fixed content;
+     * it never shrinks the content to fit. Everything else — {@code contarea()} answering {@code aa}, the close
+     * button at the top right, the sizer inside {@code ca} — is stock and inherited, so a themed window resizes,
+     * drags and closes with exactly the stock code.
+     */
+    public void iresize(Coord isz) {
+        Chrome.Border b = this.border;
+        int p = this.pad;
+        Coord ftl, fbr, mrgn;
+        if(b == null) {
+            ftl = Window.tlm; fbr = Window.brm;                    // the stock art still owns the frame insets
+            mrgn = (lg ? Window.dlmrgn : Window.dsmrgn).add(p, p); // ...and pad simply widens its margin
+        } else {
+            ftl = Coord.of(b.l, b.t); fbr = Coord.of(b.r, b.b);    // our 9-slice owns them instead
+            mrgn = Coord.of(p, p);                                 // ...and pad IS the whole margin
+        }
+        Coord csz = isz.add(mrgn.mul(2));
+        resize(csz.add(ftl).add(fbr));
+        ca = Area.sized(ftl, csz);
+        aa = Area.sized(ca.ul.add(mrgn), isz);
+        cbtn.c = Coord.of(sz.x - cbtn.sz.x, 0);
+    }
+
+    /**
+     * Re-run the geometry in place after a rule changed the insets or the pad, <b>keeping the content where it
+     * is</b> — which is exactly what {@link Window#chdeco} does around a swap, and the only reason installing and
+     * then re-tuning a theme do not disagree about where a window sits. The content size is preserved (it is what
+     * {@code iresize} is fed) and the window's own {@code c} absorbs the change in {@code contarea().ul}, so the
+     * frame grows outward around the content rather than dragging it across the screen.
+     */
+    private void repack() {
+        Widget p = parent;
+        if(!(p instanceof Window))
+            return;                        // detached mid-swap: the next chdeco/iresize will do it anyway
+        Window wnd = (Window)p;
+        Area prev = contarea();
+        wnd.resize(prev.sz());             // Window.resize takes the CONTENT size -- see iresize
+        wnd.c = wnd.c.add(prev.ul.sub(contarea().ul));
     }
 
     // ---- painting ----------------------------------------------------------------------------------
@@ -123,12 +187,23 @@ final class SkinDeco extends Window.DefaultDeco {
         Fonts.Style st = Fonts.styleFor(SCOPE, wnd);
         Chrome.Bg bg = (st == null) ? null : (Chrome.Bg)st.bg();
         Chrome.Border bd = (st == null) ? null : (Chrome.Border)st.border();
-        boolean want = (bg != null) || (bd != null);
+        Integer pv = (st == null) ? null : st.pad();
+        int pad = (pv == null) ? 0 : pv.intValue();
+        // A pad of zero says the same thing as no pad at all, so it alone never dresses a window: the deco would
+        // then draw stock pixels at stock coordinates, and installing one for that is a swap nobody asked for.
+        boolean want = (bg != null) || (bd != null) || (pad != 0);
         if(have) {
             SkinDeco sd = (SkinDeco)d;
             if(want) {
+                // Only these two decide the geometry. Compared BY VALUE: re-applying the same sheet parses a
+                // fresh Border, and a repack per tick would be a real cost for a rule that did not change.
+                boolean moved = (sd.pad != pad)
+                    || ((sd.border == null) ? (bd != null) : !sd.border.equals(bd));
                 sd.bg = bg;                                 // a changed rule repaints; the deco itself stays put
                 sd.border = bd;
+                sd.pad = pad;
+                if(moved)
+                    sd.repack();                            // ...but a changed GEOMETRY has to re-lay the window out
             } else {
                 wnd.chdeco(new Window.DefaultDeco(sd.lg).dragsize(sd.dragsize));
             }
@@ -138,6 +213,7 @@ final class SkinDeco extends Window.DefaultDeco {
             sd.dragsize(od.dragsize);
             sd.bg = bg;
             sd.border = bd;
+            sd.pad = pad;                                   // BEFORE the swap: chdeco lays the window out with it
             wnd.chdeco(sd);
         }
     }

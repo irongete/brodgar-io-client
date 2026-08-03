@@ -431,3 +431,45 @@ beside it.
 
 **See.** [D-076](fonts.md) (a cascade level takes the properties it names), [D-078](#d-078),
 [learnings/ui-widgets.md](../learnings/ui-widgets.md).
+
+### D-080 — the margin belongs to whoever paints the frame
+
+**Context.** 035.2 gave the sheet `pad`, and with it the question `iresize` had to answer: when a rule's
+9-slice `border` has replaced the stock chrome, whose margins does the window keep? `DefaultDeco` computes
+`content + margin*2 + tlm + brm` — an inner *margin* (`dlmrgn`/`dsmrgn`, breathing room between art and
+content) and outer *frame insets* (`tlm` = 18x30, `brm` = 13x22, the room the stock art needs). Keeping those
+around a 12-px 9-slice would have left the theme's frame floating in a band of nothing it never asked for.
+
+**Decision.** A rule replaces exactly the half it owns. A `border`'s **slice insets take `tlm`/`brm`'s place**,
+because they are the same quantity — the room the frame art needs — and **`pad` takes the margin's place**:
+added to the stock margin while the stock art is still there, and *is* the whole margin once a border has
+replaced it. So `SkinDeco.iresize` is the **stock formula with the theme's numbers in it**, not a formula of
+its own, and a framed window measures `content + insets + 2*pad` **exactly**.
+
+**Consequences.** Every number is predictable from the rule alone, which is what let 035.2 assert absolute
+sizes on any client instead of eyeballing a screenshot. The engine adds **no hidden minimum** — notably none
+for the caption, which is drawn ~16 px down, so **a theme that wants a title bar says so in its own top
+inset** (a top inset under ~38 px puts the caption over the content). This is the geometry twin of
+[D-079](#d-079): that one says a background reaches wherever its frame reaches, this one says the margins
+belong to the same owner. It also dates 035.1's own suite, whose "a frame rule moves and resizes nothing"
+named 035.2 as the task that would end it — the two lines were retired rather than greened.
+
+**See.** [D-079](#d-079), [D-081](#d-081), [`035-ui-chrome/spec.md`](../035-ui-chrome/spec.md),
+[learnings/ui-widgets.md](../learnings/ui-widgets.md).
+
+### D-081 — a rule's pixels are raw pixels; only a type size is scaled
+
+**Context.** `pad` is a number, and the client's own layout constants are all `UI.scale`d (`tlm`, `dsmrgn`).
+The obvious move was to scale `pad` too, which would have made it agree with the client and disagree with
+every other number an addon writes.
+
+**Decision.** `pad` is **raw px**, like a border's `slice`, like `hafen.ui.window{size = …}` and like every
+coordinate `g:image`/`render.sprite` take (`AddonWidget`: UI scaling is not applied). A font's `size` stays
+scaled, because a type size is **not a coordinate**.
+
+**Consequences.** One rule covers the whole API — *a coordinate you write is a pixel you get* — and a rule's
+geometry is exact on any client, which is what makes 035.2's suite arithmetic rather than a tolerance. The
+cost is honest and already documented for images: on a DPI-scaled client a themed frame reads thinner than
+the stock chrome it replaced, so an addon authors its art and its padding at the weight it wants to see.
+
+**See.** [D-080](#d-080), [D-012](architecture-api.md), [`api/ui.md`](../../../docs/addons/api/ui.md).

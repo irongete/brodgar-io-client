@@ -154,7 +154,7 @@ A **site key** is a bare selector naming a place the client draws. All of them a
 |---|---|
 | `*` | global fallback — most UI text (`Text.std` / `Text.render` / `RichText.render` / default `Label`) |
 | `"window.title"` | window captions |
-| `"window.frame"` | the window **chrome** — the only site that draws no text, so it takes [`bg`/`border`](ui.md#bg-and-border--the-window-chrome) and nothing here |
+| `"window.frame"` | the window **chrome** — the only site that draws no text, so it takes [`bg`/`border`](ui.md#bg-and-border--the-window-chrome) and [`pad`](ui.md#pad--the-one-property-that-moves-things), and nothing here |
 | `"heading"` | in-window section headings (embossed fraktur) |
 | `"button"` | button captions |
 | `"label"` | body text — attribute rows, list items, explicit-foundry labels |

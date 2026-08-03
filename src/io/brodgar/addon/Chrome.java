@@ -14,14 +14,16 @@ import org.luaj.vm2.Varargs;
 import java.awt.Color;
 
 /**
- * The two <b>painting</b> properties of a stylesheet rule (spec {@code 035-ui-chrome}, feature C2):
- * {@code bg} and {@code border}. Everything C1 shipped is text — {@code font} and {@code color}; these are the
- * first properties that put pixels of their own on a surface.
+ * The <b>chrome</b> properties of a stylesheet rule (spec {@code 035-ui-chrome}, feature C2): {@code bg} and
+ * {@code border}, which paint, and {@code pad}, which <b>moves</b>. Everything C1 shipped is text — {@code font}
+ * and {@code color}; these are the first properties that put pixels of their own on a surface, and the first that
+ * can change where the client's own content sits.
  *
  * <pre>
  *   hafen.ui.skin{
  *     ["window.frame"] = { bg     = { color = {26, 26, 28, 240} },
- *                          border = { image = hafen.asset("img/panel.png"), slice = {8, 8, 8, 8} } },
+ *                          border = { image = hafen.asset("img/panel.png"), slice = {8, 8, 8, 8} },
+ *                          pad    = 6 },
  *   }
  * </pre>
  *
@@ -270,6 +272,28 @@ final class Chrome {
                 + "} leaves no middle in a " + w + "x" + h + " image — left+right must be under its width and"
                 + " top+bottom under its height");
         return new Border(image, s[0], s[1], s[2], s[3]);
+    }
+
+    /**
+     * Parse a rule's {@code pad = 6} — the space a surface keeps between its frame and its content, in <b>raw</b>
+     * px and a single number for all four sides (one canonical way per operation).
+     *
+     * <p><b>Raw, not {@code UI.scale}d.</b> It is a coordinate, and every coordinate this API takes is raw: an
+     * addon's window is {@code size = {90, 40}} of real pixels, a border's slice is the image's own pixels, and
+     * {@code g:image} draws where it is told. Only a {@code font}'s {@code size} is scaled, because a type size is
+     * not a coordinate. A scaled {@code pad} would be the one number in a rule that did not mean what it said.
+     */
+    static Integer parsePad(String ctx, LuaValue v) {
+        // type() rather than isnumber(): in LuaJ a STRING that looks like a number answers isnumber() (the 028
+        // asset lesson, and why a sheet key is type-checked the same way). `pad = "6"` is a typo, not a pad.
+        if(v.type() != LuaValue.TNUMBER)
+            throw new LuaError(ctx + ".pad: expected a number of pixels — pad = 6, the space between a surface's"
+                + " frame and its content, got " + v.typename());
+        int p = v.toint();
+        if(p < 0)
+            throw new LuaError(ctx + ".pad: padding cannot be negative (got " + p + ")"
+                + " — a rule adds space between a frame and its content, it does not take it away");
+        return Integer.valueOf(p);
     }
 
     /**
