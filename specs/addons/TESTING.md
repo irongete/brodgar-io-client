@@ -15,6 +15,14 @@ The suite **tests itself**. It asserts through the very `hafen.*` API the task s
 under test is also the test tooling — and prints one verdict line per check. What a program cannot
 do it hands to the maintainer as an explicit `[manual]` line.
 
+**And it stands ALONE (D-085).** Running `:t<NNN>-<X>` and nothing else is the whole verification of that
+task: the suite installs what it needs, asserts what its task claims, and cleans up after itself. It never
+asks for an earlier task's command to be run first, and it never rests on an assertion that lives only in
+another suite. **Where its own proof needs something an earlier suite already checks, DUPLICATE the
+assertion** — a repeated line costs one line and buys a suite you can run in isolation, which is the only
+kind worth having when one task is what you are testing. So the suites are independent by construction:
+any order, one at a time, or one alone.
+
 ## What a suite prints
 
 Three markers, one line per check, nothing else:
@@ -50,7 +58,10 @@ format: nothing needs interpreting.
 - `[manual]` is only for what a program genuinely cannot do — press a key, judge how something
   looks, confirm a server-side effect, drive a gated action on the maintainer's real character.
   Everything else is a missing assertion, not a manual step.
-- Cheap re-checks of *prior* features belong in their own task's suite; do not re-assert them here.
+- **Re-assert whatever your own proof rests on, however old it is.** A suite is read alone and must convince
+  alone, so a check another task's suite also makes is not a duplicate to delete — it is *this* task's
+  premise, stated where it can fail. What does not belong here is coverage of a prior feature none of this
+  task's claims rest on: that is the other suite's job, and it still runs.
 
 ## Skeleton (copy this into a new suite)
 
@@ -135,14 +146,17 @@ hafen.slash.register("t033-2", run)   -- the only way in: a suite does not start
 
 ## Regression
 
-Every past suite stays installed, and **the regression is running their commands** — one at a time, in any
-order:
+Every past suite stays installed, and **the full regression is running their commands** — one at a time, in
+any order:
 
 ```
-:t033-3  :t034-1  :t034-2  :t034-3  :t035-1  :t035-2  :t035-3
+:t033-3  :t034-1  :t034-2  :t034-3  :t035-1  :t035-2  :t035-3  :t035-4
 ```
 
-A red line names the task that broke. Never edit an old suite to make it green: that line is the regression
+A red line names the task that broke. **But verifying ONE task is running ONE command** — no suite is a
+precondition for another, and none has to be run to make a different one meaningful. That is what the
+duplication rule above buys, and it is the difference between a regression you *choose* to run and a
+protocol you have to obey. Never edit an old suite to make it green: that line is the regression
 doing its job. (A suite's *schedule* is not an assertion — 035.3 removed every suite's auto-start, with a
 version bump each, and that is the only kind of edit an old suite takes without a reason of its own.) Only
 the maintainer removes or disables a suite.

@@ -280,3 +280,18 @@
   foreign ownership** (with `bags` replaced, or after a `:lua` hide, the check reports the owner by name and
   stops instead of asserting against a HUD somebody else is driving — the 028 "gate an assertion whose
   precondition is not guaranteed" rule, now with the refusal message as the gate).
+- **(035.4) A doc claim rots in a NOTE, never in a table.** The property × key table needed nothing at the
+  close: 033–035 rewrote it row by row *with the code*, because a table is where you look when you change the
+  code. What had gone stale was prose nobody re-read — a `>` note saying *"a `window` rule does not reach the
+  window's frame"* (true when written, wrong since 035.2: you cannot *select* the chrome, but any cascade level
+  naming the window dresses it), a "Limits" paragraph still calling window chrome "a later feature", and a
+  count of eleven site keys. This is 032.3's finding one turn further: that one said a retired *vocabulary*
+  hides in prose; this one says a **superseded claim** does, and the sweep that finds it is grepping the docs
+  for the *promise* ("later feature", a count, "does not reach") rather than for the API name.
+- **(035.4) The last coupling between tests is the one nobody wrote down.** 035.3 deleted every suite's
+  auto-start after a race and thought the class was closed; what survived was the *ordering rule* it left
+  behind, plus an unwritten assumption that verifying a task meant running the older suites too. The maintainer
+  named it at the close — *"I don't want to have to run old addons to test tasks"* — and the fix is D-085:
+  duplicate the premise into the suite that needs it. Worth generalising: when you delete a mechanism because
+  it created a coupling, check what the coupling left behind as a *convention* — that residue is invisible
+  precisely because it is no longer implemented anywhere.

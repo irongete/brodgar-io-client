@@ -1,0 +1,23 @@
+{
+  "name": "035.4 fixture",
+
+  "_comment": [
+    "A whole sheet as data -- text AND chrome -- shaped exactly like the bundled `theme` example's file.",
+    "Everything here is a JSON value the sheet already understands (a colour array, a 9-slice's four insets,",
+    "a pad in pixels); the only two things it cannot hold are handles, a font's `face` and an image path.",
+    "The suite asserts the geometry these numbers predict, so the file is what drives the window's size.",
+    "The last rule is a TREE key, and it is here because a file can carry one: it names one window rather",
+    "than a kind of surface, and widget:style() reads back what it resolved to."
+  ],
+
+  "rules": {
+    "*":            { "font": { "face": "serif", "size": 11 } },
+    "chat":         { "color": [190, 210, 190] },
+    "window.frame": { "bg":     { "color": [26, 26, 28, 240] },
+                      "border": { "image": "frame.png", "slice": [12, 40, 12, 12] },
+                      "pad":    4 },
+    "panel":        { "border": { "image": "panel.png", "slice": [8, 8, 8, 8] } },
+
+    "window[title=035.4 probe]": { "bg": { "color": [40, 30, 20, 255] } }
+  }
+}

@@ -10,6 +10,23 @@
 documents, the docs, and the code and its comments.
 **Rationale.** Maintainer preference.
 
+### D-085 — A suite proves its own task ALONE; duplication beats delegation ✅
+**Decision.** Every per-task suite ([../TESTING.md](../TESTING.md)) must be a complete verification of its
+own task when run **by itself** — `:t<NNN>-<X>` and nothing else. It may not require an earlier task's
+command to have been run first, and it may not rest on an assertion that lives only in another suite. Where
+its proof needs something an older suite already checks, the assertion is **duplicated, not delegated**.
+Running every command is still the *full* regression and every suite stays installed; what changed is that
+it is no longer a precondition for verifying one task.
+**Rationale.** The maintainer, closing 035.4: *"no quiero tener que ejecutar addons antiguos para probar
+tareas"*. Verifying one task had grown into eight commands, and the dependency was **invisible** — nothing
+in a suite says which other suite its premises live in, so the coupling could only be discovered by a
+failure. A duplicated line costs one line; a delegated premise costs a protocol. It is also the last of the
+shared-state couplings between suites: 035.3 deleted their auto-start after a race (the schedule was the
+mechanism, the ordering rule was the residue), and this deletes the residue.
+**Consequence.** Old suites are **not** retrofitted — the rule binds new ones, and an old suite is still
+only edited when it breaks. A suite that would need a large premise from elsewhere is evidence the task was
+two tasks, not a reason to delegate.
+
 ### D-026 — Gap design/build order ✅ (closes Q-014)
 Order: **widget-tree-read mechanism** ([14-widget-tree-reads.md](../design/14-widget-tree-reads.md), foundational)
 → A5 overlays (done) → A1 map/markers → A4 study/curiosity/FEP → A3 action bar → A2 radar/GobIcon settings

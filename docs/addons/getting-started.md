@@ -177,6 +177,32 @@ client: it reports that widget's role, class, title and resource, and offers the
 (each one resolved before it is shown), ready to paste into `:lua`. That is the fastest way to learn the
 vocabulary — see [selectors](api/ui.md#selectors--naming-a-widget).
 
+## Restyling the client
+
+The same selector is the key of a **stylesheet**: one table that says what the client looks like, applied live
+and owned by your addon.
+
+```lua
+hafen.ui.skin{
+  ["*"]            = { font = hafen.font("serif"):derive{ size = 11 } },   -- most UI text
+  ["chat"]         = { color = {190, 210, 190} },                          -- one surface
+  ["window.frame"] = { bg = { color = {26, 26, 28, 240} },                 -- the window chrome
+                       border = { image = hafen.asset("frame.png"), slice = {12, 40, 12, 12} },
+                       pad = 4 },
+}
+```
+
+A key names either a **surface the client draws** (`chat`, `window.title`, `window.frame`, `panel`, …) or, being
+an ordinary selector, **the widgets it matches** — `["window[title=Cupboard]"]` styles that window and everything
+inside it. Rules cascade most-specific-first and compose property by property, so a narrow rule never silently
+drops a broad one. `hafen.ui.skin(nil)`, `:reload` or disabling your addon puts the stock client back.
+
+Nothing here is code the client calls: a rule is plain data — a font handle, a colour, an image, a number of
+pixels — which is why a whole theme can *be* a file. The bundled **`theme`** addon is exactly that, a
+`theme.json` its Lua reads without ever naming a surface. See
+[the stylesheet](api/ui.md#the-stylesheet--restyling-the-client) and the
+[property × key table](api/ui.md#what-each-key-accepts) for what each key does with each property.
+
 ## Files your addon ships
 
 Drop an image, a font, a glTF model or a data file in your addon's folder and load it with

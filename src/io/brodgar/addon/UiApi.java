@@ -280,20 +280,21 @@ final class UiApi {
         // restorable. hafen.font.setFont / .reset / .scopes are a HARD CUT (they read as plain nil): a font is one
         // PROPERTY of a rule now, not an API of its own. hafen.font(name) is untouched — it still names an engine
         // font (D-060), and a .ttf this addon ships is still hafen.asset(path):derive{…}.
-        //   Keys resolve one of two ways, and this feature ships the first: a SITE key — `*` (the global fallback)
-        //   or one of the eleven routed surfaces (window.title / heading / button / label / textentry / tooltip /
-        //   menu / chat / world.nick / world.speech) — is resolved where that site DRAWS, exactly as the font
-        //   scopes always were, so no render site is re-routed and no drawing code changed: what changed is who
-        //   fills the provider stack. A TREE key (@Class, [title=…], [res=…], or a role that classifies a widget
-        //   rather than a site, like `window`/`inventory`) is resolved per widget against the live tree — that is
-        //   C1b, next — so here it parses fine and is SILENTLY INERT, never an error, and a sheet written for C1b
-        //   loads today unstyled instead of blowing up. A malformed key errors exactly as hafen.ui(sel) does.
+        //   Keys resolve one of two ways. A SITE key — `*` (the global fallback) or one of the twelve routed
+        //   surfaces (window.title / window.frame / panel / heading / button / label / textentry / tooltip / menu /
+        //   chat / world.nick / world.speech) — is resolved where that site DRAWS, exactly as the font scopes
+        //   always were, so no render site is re-routed and no drawing code changed: what changed is who fills the
+        //   provider stack. A TREE key (@Class, [title=…], [res=…], or a role that classifies a widget rather than
+        //   a site, like `window`/`inventory`) is resolved per widget against the live tree (034, C1b) and folded
+        //   over the site half per property. A malformed key errors exactly as hafen.ui(sel) does.
         //   Conflict between addons is D-043 reused literally: last applied wins, an addon's entries are pulled on
         //   its teardown, the surface falls back to the next owner beneath and finally to stock.
-        // Properties: `font` (a handle from hafen.font(name) or hafen.asset(path), optionally :derive{size=,bold=,…})
-        // and `color` ({200,210,200} or {r=200,g=210,b=200[,a=255]}, 0..255). Either may stand alone: a colour-only
-        // rule keeps the site's own font, a font-only rule keeps its colour. An unknown property is an ERROR naming
-        // the ones that exist — a key may mean something later, a misspelt property never will (D-072).
+        // Properties: `font` (a handle from hafen.font(name) or hafen.asset(path), optionally :derive{size=,bold=,…}),
+        // `color` ({200,210,200} or {r=200,g=210,b=200[,a=255]}, 0..255), and the chrome three of 035 — `bg`
+        // ({color=…} or {image=<asset>}), `border` ({image=<asset>, slice={l,t,r,b}}) and `pad` (pixels). Any may
+        // stand alone: a colour-only rule keeps the site's own font, a border-only rule keeps its background. An
+        // unknown property is an ERROR naming the ones that exist — a key may mean something later, a misspelt
+        // property never will (D-072).
         //   033.2 settles a duplication: a SURFACE's colour comes from the SHEET; a font handle's own `color`
         //   (hafen.font("serif"):derive{color=…}) applies only to YOUR OWN drawing — g:text and your own widgets —
         //   and is ignored when that handle is installed on a surface (here or via widget:setFont). Otherwise there

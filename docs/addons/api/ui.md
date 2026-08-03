@@ -485,8 +485,11 @@ in for), one of your *own* windows, and a window another addon already holds.
 **Limits.** A widget's Java state is otherwise read-only — mutating it desyncs from the server. `:text()`
 is best-effort over a known type set (unknown → nil, never throws). The whole client tree is reachable via
 `hafen.ui()`/`:parent()` (all client-side data — actions stay separately gated); which child is a price vs. a
-spacer is upstream-defined knowledge your Lua adapter supplies. Restyling native widgets beyond `:skin{}`
-(backgrounds, borders, window chrome), and moving them, are later features.
+spacer is upstream-defined knowledge your Lua adapter supplies. **Restyling** a native widget — its text, its
+background, its border, a window's whole chrome — is [the stylesheet's](#the-stylesheet--restyling-the-client)
+job rather than a write; **placing** one is not here yet. The single exception is
+[`pad`](#pad--the-one-property-that-moves-things), which re-lays a window out around its own content: moving or
+anchoring widgets by rule is a later feature.
 
 ### Hit-testing — what is under the cursor (the WoW `/framestack` enabler)
 
@@ -565,9 +568,12 @@ automatically on your addon's `:reload`/disable, so the stock client is always r
 
 **A sheet is an ordinary table, so it can come from anywhere — including a file.** The bundled
 [`theme`](../../../addons/theme) example addon reads a `theme.json` through
-[`hafen.asset`](asset.md#data--text) + [`hafen.json`](json.md) and maps each rule's font descriptor to a
-handle; its Lua never names a surface, a font, a size or a colour. A theme with no code of its own is one
-`:theme on` away.
+[`hafen.asset`](asset.md#data--text) + [`hafen.json`](json.md); its Lua never names a surface, a font, a size,
+a colour or a pixel. **Exactly two values in a rule are things JSON cannot carry, and both because they are
+handles**: a font's face and an [image](#bg-and-border--the-surfaces-that-paint). Map those two and everything
+else — a colour array, a border's four slice insets, a `pad` — is already the sheet's own shape and travels
+verbatim, so a theme's window frames cost the same three lines its fonts do. A whole client look with no code
+of its own is one `:theme on` away.
 
 > `hafen.font.setFont`, `hafen.font.reset` and `hafen.font.scopes` are **gone** — they read as plain `nil`. A
 > font is now one *property* of a rule, and the key is a *selector*, so there is one vocabulary for "which part
@@ -628,11 +634,15 @@ its rows, and any widget created inside it *later*. That is the same mechanism
 [`widget:skin{…}`](fonts.md#restyle-one-widget--widgetskin) uses, so a tree rule reaches every
 surface a site key does, including text drawn by the game's own resource code.
 
-> **A `window` rule does not reach the window's *frame*.** The chrome — the border, the title bar's background,
-> the close button — is a **child** of the window, not part of it, and it classifies as nothing
-> (`@DefaultDeco`, role `nil` — [030's inspector](#hit-testing--what-is-under-the-cursor-the-wow-framestack-enabler)
-> shows it when you hover a border). The caption *text* drawn on that bar follows the rule, because it is drawn
-> inside the window's subtree; the frame's own pixels are textures, and styling those is a later feature.
+> **You cannot *select* a window's frame — but a rule that names the window still dresses it.** The chrome —
+> the border, the title bar's background, the close button — is a **child** of the window, not part of it, and it
+> classifies as nothing (`@DefaultDeco`, role `nil` —
+> [030's inspector](#hit-testing--what-is-under-the-cursor-the-wow-framestack-enabler) shows it when you hover a
+> border), so no selector ever finds it and `window.frame` names the **site** instead. What a `["window…"]` tree
+> rule does reach is both halves: its text, because the caption and everything else is drawn inside the window's
+> subtree, **and** its chrome, because a window's decoration asks *the window* what style it resolved
+> ([`bg`/`border`/`pad`](#bg-and-border--the-surfaces-that-paint) — which is how you theme one window rather than
+> all of them).
 
 Three rules decide what one widget resolves to:
 
@@ -644,7 +654,7 @@ Three rules decide what one widget resolves to:
 - **A refiner alone reaches everything *inside* that window.** `[title=Cupboard]` matches every widget whose
   nearest enclosing window is captioned `Cupboard` — the same [enclosing-window rule](#two-rules-that-are-easy-to-get-wrong)
   every selector follows — while `window[title=Cupboard]` matches only the window itself.
-- **A site key is not a widget's style.** `*` and the eleven [site keys](#site-keys--the-surfaces-this-ships)
+- **A site key is not a widget's style.** `*` and the twelve [site keys](#site-keys--the-surfaces-this-ships)
   resolve where they *draw*, so `widget:style()` never reports one: a window contains buttons, labels and chat,
   each drawn at its own site, and answering with one of them would be a guess. Which is why `:style()` is a read
   of the tree half alone, while the two halves meet at the draw — the next rule.
@@ -731,6 +741,12 @@ hafen.ui.skin{
   the image at the weight you want to see.
 - **A window whose chrome is its own is left alone** — a few build a decoration for a reason (an item's hover
   window, for one), and a rule never overrides that.
+- **Painting chrome runs no Lua.** Your rule is parsed **once** into plain data — a colour, an image, four
+  insets — and the engine paints from that every frame; there is no per-frame callback here and no way to write
+  one. That is deliberate: text has a [raster cache](#text-is-cached-across-frames) behind it and a frame does
+  not, so chrome is redrawn every frame and a declarative property is the only shape that stays free. A fully
+  themed client costs the widget tree what the stock chrome cost it — measure it yourself with
+  [`profiling()`](client.md#profiling).
 
 ##### `panel` — the framed surfaces that are not windows
 

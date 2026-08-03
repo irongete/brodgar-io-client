@@ -202,3 +202,11 @@
   widget always yields the same `LuaValue` anyway. Verified against `luaj-jse-3.0.1.jar` with `javap` rather than
   assumed: a wrapper that DID override `equals`/`hashCode` (e.g. one keyed by a snapshot's fields) would silently
   collapse distinct entities into one table slot.
+- **(035.4) LuaJ 3.0.1's `string.format` IGNORES a float precision — `%.3f` prints the whole double.**
+  `("%.3f"):format(1.5739000000039027)` returns `1.5739000000039027`, not `1.574`. `%d` and its width/zero
+  flags (`%03d`) *are* honoured, and `%s` prints LuaJ's own shortened `tostring` (`1.5739`) — which is a
+  different number of digits than you asked for, so it is not a fix either. Any suite line carrying a
+  measurement must therefore round in integer arithmetic:
+  `local t = math.floor(x * 1000 + 0.5); ("%d.%03d"):format(math.floor(t / 1000), t % 1000)`. Nothing errors
+  and nothing fails — the verdict is still correct, it is merely 17 digits of noise in the block the
+  maintainer pastes back — which is exactly why it survives every review that is not a real run.

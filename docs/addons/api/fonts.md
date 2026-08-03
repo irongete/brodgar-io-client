@@ -339,7 +339,7 @@ n:skin(nil)                                   -- drop it again
 
 | Call | Returns | Description |
 |---|---|---|
-| `widget:skin{…}` | (self) | install **your** style on that widget — the same `{font=, color=}` properties a [sheet rule](ui.md#properties) carries |
+| `widget:skin{…}` | (self) | install **your** style on that widget — the same `{font=, color=, bg=, border=, pad=}` properties a [sheet rule](ui.md#properties) carries |
 | `widget:skin()` | table \| nil | read **your own** entry back, exactly as you wrote it — `nil` if you have none |
 | `widget:skin(nil)` | (self) | drop **your** entry; another addon's on the same widget is untouched |
 
@@ -368,6 +368,12 @@ a table sets, `nil` clears.
   ordinary button caption take their colour from a texture tiled through the glyph mask. `:style()` still reports
   the colour you set — it is honest about the rule, not about the pixels. See the
   [property × key table](ui.md#what-each-key-accepts).
+- **On a window, it dresses that window's chrome.** `skin{bg=…, border=…, pad=…}` on a `Window` reaches the
+  frame around it, because a window's decoration asks *the window* what style it resolved — which is how you
+  theme **one** window where `["window.frame"]` themes all of them. The same holds one level down for a
+  [`panel`](ui.md#panel--the-framed-surfaces-that-are-not-windows). On anything that wears no chrome the three
+  are inert (still readable through `:style()`), and `pad` moves a window only: a panel fixed its size when it
+  was built.
 - **Sizes are inherited unless your handle carries one**, exactly as with a site key: each site keeps its own stock
   size, so the layout does not move. If you *do* pass `size=`, remember the geometry caveats of the surfaces it
   overlaps (a text field's height is fixed by its background texture, list-row heights were measured at
@@ -411,9 +417,10 @@ end)
 -- or explicitly: hafen.ui.skin(nil)
 ```
 
-The bundled **`theme`** example addon goes one step further: its whole look is a `theme.json` read through
+The bundled **`theme`** example addon goes one step further: its whole look — text *and*
+[chrome](ui.md#bg-and-border--the-surfaces-that-paint) — is a `theme.json` read through
 [`hafen.asset`](asset.md#data--text) and [`hafen.json`](json.md), so its Lua never names a font, a size, a
-colour or a surface — a theme with no code of its own.
+colour, a surface or a pixel. A theme with no code of its own.
 
 ## See also
 

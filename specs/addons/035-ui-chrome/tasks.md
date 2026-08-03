@@ -36,7 +36,7 @@
       its neighbours; assert the un-named case is untouched; assert teardown restores. `[manual]`: one panel
       (a flower menu is the easiest to summon) looks restyled and still clicks through correctly.
 
-- [ ] **035.4 — cost, docs, the theme, close.**
+- [x] **035.4 — cost, docs, the theme, close.**
       **Measure** (`hafen.client:profiling()`, the 029/030 method): the per-frame draw cost of a fully restyled
       client against stock, reported in the handoff, and confirm **no Lua runs per frame** to paint chrome.
       Docs: `ui.md`'s **property × key table** gains `bg`/`border`/`pad` columns and the `window.frame` row,

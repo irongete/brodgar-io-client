@@ -430,3 +430,22 @@
   background stop" decision into `bgul(tl)`/`bgsz(sz)` made both branches assertable as plain `Coord`s, cost no
   allocation (the `Coord` arithmetic was already there), and named the rule in the source. Falsifying the two
   branches turned 4 checks red, which is what proved they were load-bearing.
+- **(035.4) Slice the ADAPTER, not the round — a suite that builds windows can still be half dry-run.**
+  034.1 recorded that a suite calling `hafen.ui.window{}` cannot be loaded and driven headlessly, and left it
+  there. What still works is slicing the *pure* part out of the SHIPPING `main.lua` by its own banner comments
+  (`indexOf("-- ---- the file → a sheet")` … `indexOf("-- ---- the run")`), concatenating a driver onto it and
+  running that under `Sandbox.create()` + `installHafen` — so the adapter under test is the one that ships, not
+  a re-typed copy, and a marker rename fails loudly instead of silently testing nothing. The engine half is then
+  driven separately over a real parentless `haven.Window` + `SkinDeco.check`, and the two together cover
+  everything except frame timing: 18/18 for 035.4. Falsifying both halves bit differently — removing the border
+  mapping **crashed** the Lua half (a path string has no `:type()`), while making `SkinDeco` ignore `pad` turned
+  exactly the 2 geometry checks red.
+- **(035.4) A per-frame cost comparison must stand up its OWN scene.** Measuring "themed vs stock" against
+  whatever windows the maintainer happens to have open makes the two halves incomparable, and on a bare HUD it
+  can dress **zero** windows and measure nothing while still printing a pass. The cost round opens four windows
+  of its own, samples stock, applies the sheet, samples again — the same scene twice — and prints both medians
+  inside the verdict line so the number travels with the claim. It came back at the noise floor (1.574 vs 1.574
+  ms; 1.600 vs 1.782 on a second run, the themed client *cheaper*), which is why the load-bearing assertion is
+  the categorical one beside it: this addon's own `addons()` row must read `calls.draw + calls.widgets == 0`
+  while the chrome paints. The sampling timer is charged to `timers` and never to `draw`, which is what keeps
+  that check clean — a measurement that ran from an `OnUpdate` would have been charged to the thing it measures.

@@ -1,9 +1,10 @@
--- theme — an EXAMPLE addon (033-ui-stylesheet, feature C1a): a client theme that is DATA, not code.
+-- theme — an EXAMPLE addon (033-ui-stylesheet C1a, extended by 035-ui-chrome C2): a client theme that is
+-- DATA, not code.
 --
 -- Everything this addon LOOKS like lives in theme.json, next to this file. Nothing below names a surface, a
--- font, a size or a colour: it reads the file, maps each rule's font descriptor to a handle, and hands the
--- whole table to hafen.ui.skin{…}. To make a different theme you edit the JSON — that is the claim this addon
--- exists to prove, and it is why the loop over the rules never looks at a key.
+-- font, a size, a colour or a pixel: it reads the file, maps the values JSON cannot hold to handles, and hands
+-- the whole table to hafen.ui.skin{…}. To make a different theme you edit the JSON — that is the claim this
+-- addon exists to prove, and it is why the loop over the rules never looks at a key.
 --
 -- Three ordinary doors, one line each:
 --   hafen.asset("theme.json")   the file THIS addon ships — a "data" asset, read as UTF-8 (:text()), sandboxed
@@ -13,9 +14,13 @@
 --   hafen.ui.skin{…}            the sheet: [selector] = {properties}, applied live and OWNED by this addon —
 --                               :reload/disable drops it and the stock client comes back.
 --
--- A rule's `font` is the one value JSON cannot carry, because a font is a handle. Its `face` is mapped here:
--- a bare name ("serif") is one of the client's built-ins, anything with a dot ("fonts/demo.ttf") is a FILE this
--- addon ships and goes through hafen.asset — the same door as the JSON itself.
+-- EXACTLY TWO values in a rule are things JSON cannot carry, and both for the same reason: they are HANDLES.
+-- A font's `face` — a bare name ("serif") is one of the client's built-ins, anything with a dot
+-- ("fonts/demo.ttf") is a FILE this addon ships — and a border's or background's `image`, always a file. Both
+-- go through hafen.asset, the same door theme.json itself came through. Everything else in a rule — a colour
+-- array, a 9-slice's four insets, a pad in pixels — is already the sheet's own shape and is copied untouched,
+-- which is why the whole chrome half of this theme (the window frame, its title band, the panels) costs the
+-- three lines of ruleOf() below and no more.
 --
 -- DORMANT until you ask for it: ':theme on' applies the sheet, ':theme off' drops it. A theme installed at login
 -- would restyle the whole client on every login, which is not something an example addon should decide for you.
@@ -27,11 +32,11 @@
 local FILE = "theme.json"
 
 local name          -- the theme's display name, from the JSON
-local sheet         -- the built sheet: [selector] = { font = <handle>, color = {r,g,b} }
+local sheet         -- the built sheet: [selector] = { font = <handle>, color = {r,g,b}, bg/border/pad … }
 local count = 0     -- how many rules it carries
 local on = false    -- is our sheet currently installed?
 
--- A font descriptor's `face` → a font handle. This is the ONE place a string becomes something JSON cannot hold.
+-- A font descriptor's `face` → a font handle. One of the two places a string becomes something JSON cannot hold.
 local function faceOf(face)
   if type(face) ~= "string" then
     error(FILE .. ": a font's `face` is a string — a built-in name (\"serif\") or a path to a font this addon"
@@ -55,16 +60,27 @@ local function fontOf(f)
   return h
 end
 
--- Read theme.json and build the sheet. Note what is NOT here: no key is inspected and no property is special-
--- cased apart from `font`, so a theme may style any surface the client's grammar accepts.
+-- A rule as the JSON holds it → a rule the sheet accepts. The default is to copy: a colour array, a 9-slice's
+-- four insets and a pad are already the sheet's own shapes, so they travel verbatim (which also means a typo in
+-- the file is refused by the sheet, naming the property — the file is not pre-filtered into silence). What is
+-- mapped is only where a HANDLE has to stand: the font's face, and an image path.
+local function ruleOf(props)
+  local rule = {}
+  for k, v in pairs(props) do rule[k] = v end
+  if props.font then rule.font = fontOf(props.font) end
+  if props.bg and props.bg.image then rule.bg = { image = hafen.asset(props.bg.image) } end
+  if props.border then rule.border = { image = hafen.asset(props.border.image), slice = props.border.slice } end
+  return rule
+end
+
+-- Read theme.json and build the sheet. Note what is NOT here: no key is inspected and no property is named
+-- except the two that carry a handle, so a theme may style any surface the client's grammar accepts, with any
+-- property this client ships — the file decides, not this file.
 local function build()
   local doc = hafen.json.parse(hafen.asset(FILE):text())
   local rules, n = {}, 0
   for key, props in pairs(doc.rules or {}) do
-    local rule = {}
-    if props.font  then rule.font  = fontOf(props.font) end
-    if props.color then rule.color = props.color end
-    rules[key], n = rule, n + 1
+    rules[key], n = ruleOf(props), n + 1
   end
   return doc.name or "(unnamed)", rules, n
 end
@@ -101,9 +117,14 @@ hafen.slash.register("theme", function(args)
   elseif sub == "dump" then
     hafen.log(("theme: '%s' from %s"):format(name, FILE))
     for key, rule in pairs(sheet) do
-      hafen.log(("  [\"%s\"] font=%s color=%s"):format(key,
+      hafen.log(("  [\"%s\"] font=%s color=%s bg=%s border=%s pad=%s"):format(key,
         rule.font and (rule.font:family() .. "/" .. tostring(rule.font:size() or "stock")) or "-",
-        rule.color and ("{" .. table.concat(rule.color, ",") .. "}") or "-"))
+        rule.color and ("{" .. table.concat(rule.color, ",") .. "}") or "-",
+        rule.bg and (rule.bg.image and rule.bg.image:path()
+                     or ("{" .. table.concat(rule.bg.color, ",") .. "}")) or "-",
+        rule.border and (rule.border.image:path()
+                         .. " {" .. table.concat(rule.border.slice, ",") .. "}") or "-",
+        rule.pad or "-"))
     end
   else
     hafen.log(("theme: '%s', %d rules, currently %s -- ':theme on' / ':theme off' / ':theme dump'")
