@@ -13,7 +13,7 @@
       <!-- extra context: `specs/addons/FEATURES.md`, `specs/addons/STATE.md`,
            `specs/addons/learnings/process-method.md` (docs-sweep prior art) -->
 
-- [ ] 001.2 — **The standard.** `design/style-guide.md` (page template, voice, how examples are
+- [x] 001.2 — **The standard.** `design/style-guide.md` (page template, voice, how examples are
       written and where they come from, the ~300-line ceiling, link and anchor rules, the
       no-history rule) and `design/information-architecture.md` (the target tree: root, tutorial,
       `guides/`, `api/`; plus the migration map — every current page and section → its target
@@ -36,8 +36,11 @@
 - [ ] 001.6 — **The learning path.** `getting-started.md` rewritten as a real first-addon
       tutorial (zero context → a working addon, every code block runs as written), plus
       `guides/`: the tasks a new author has — custom UI, events & timers, saved data, actions &
-      permissions, theming, reading the world, debugging. Guides link into the reference and
-      never restate it.
+      permissions, theming, reading the world, debugging, hotkeys & commands. Guides link into
+      the reference and never restate it. **Also the two pages the tree does not have yet**
+      (001.2, IA §6): `runtime.md` — the sandbox, the budgets and watchdog, `:reload`, the AddOns
+      panel, the manifest fields and the console commands, which closes the four THIN engine/dev
+      rows — and `examples.md`, which describes all ten shipped addons and closes G-1..G-3.
 
 - [ ] 001.7 — **The close.** `docs/README.md`, `docs/addons/README.md` and `api/README.md`
       regenerated to list exactly what exists; full link + anchor sweep over `docs/` reported as

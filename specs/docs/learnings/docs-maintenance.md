@@ -57,3 +57,21 @@
   other document that claims the same facts — so when a sweep finds the docs *more* accurate than
   the specs, file the finding rather than discarding it. Ground truth being `src/` is what makes the
   audit able to say which of two disagreeing documents is wrong.
+
+- **(001.2) An audit verdict is evidence, not truth: re-check a name against `src/` before writing
+  it into a rule.** 001.1's matrix marked 015.1 `CUT` — correctly, at task level — and that task had
+  shipped `ui.root()`, `ui.node(id)` and the `WidgetNode` type together. Turning the row into a
+  retired-name grep list retired all three, but **`hafen.ui.node(id)` is live** (`UiApi.java:240`)
+  and correctly documented in `ui.md`; only `root` and the transient node type are gone. A
+  task-level verdict says what the *feature* did, and a hard cut that replaces two names out of
+  three leaves the third standing. Any rule that operates on names is checked at name level,
+  against the registration site, before it is allowed to delete anything.
+
+- **(001.2) The only reliable oracle for "does this Lua name exist" is the registration string, not
+  a grep for the name.** Grepping `src/` for the retired list hit 4–7 files each for `adopt`,
+  `setFont`, `items`, `vitals` and `root` — nearly all of them `haven`'s own Java methods and
+  javadoc, with nothing to do with the addon API (`Widget.adopt`; `WidgetNode` survives only inside
+  a comment). The addon surface is exactly what the installers register, so the query is
+  `grep -rn 'set("<name>"' src/io/brodgar/addon/`; the same sweep over the `hafen` facade and
+  `uiT.set(` lists the whole namespace set in one shot, which is what a docs tree's page names
+  should be derived from.

@@ -7,4 +7,6 @@
 > entry to its `decisions/<category>.md` file; add a line here only when a new category file
 > is created.
 
-- `decisions/<category>.md` — D-001..D-00N — <what this category covers>
+- `decisions/docs-standard.md` — D-001..D-005 — the page standard and the shape of the tree: the
+  300-line ceiling, one namespace per path, who owns the stylesheet, headings and anchors, and the
+  rule that `docs/` never links `specs/`
