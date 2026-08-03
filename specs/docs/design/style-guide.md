@@ -57,7 +57,12 @@ What it gives back when the data is not there.
 needs an argument table, its own error cases or an example gets a `###` call heading. One page may use
 both. The **gating annotation sits on the group heading and only on a write group**:
 `## Write (gated: \`actions\`)` or `## Write (ungated)`. `## Read` stays plain — a read is ungated by
-construction, and annotating every reader buries the write that is surprisingly ungated.
+construction, and annotating every reader buries the write that is surprisingly ungated. **A
+subscription and your own drawing are not writes** for this purpose (`hafen.ui.on`, `:onItemAdded`,
+`hafen.ui.overlay`, the `g:` verbs): they change no client state, so their group heading stays plain and
+the page's opening lines say the namespace is ungated. That also keeps their anchors stable — an
+annotation appended to a heading *is* an anchor change, and 001.4 broke 18 inbound links that way before
+the sweep caught it.
 
 **Guide** (`guides/**`) — one *task* per page, start to finish, and it **never restates a
 signature**: it shows the shape of the solution and links each verb to its reference page. A
@@ -100,9 +105,10 @@ carries no explanation that its pages do not carry.
 - **Only symbols that exist.** Every `hafen.*` name in an example is in the reference and in
   `src/`. A task's report says it checked this.
 - **The example addon is the source.** Where a shipped addon under `addons/` demonstrates the
-  surface, the page's example is cut down from it and the page names it
-  (`addons/bags/main.lua`) and links `docs/addons/examples.md`. Nothing under `docs/` may be the
-  *only* place a piece of working code exists.
+  surface, the page's example is cut down from it and the page **names** it in bold backticks
+  (**`bags`**), saying what it demonstrates. The **link belongs to `examples.md` alone** (D-009) — a
+  reference page names, it does not link out. Nothing under `docs/` may be the *only* place a piece
+  of working code exists.
 - The naming convention in invented examples: the addon is `myaddon`, the file
   `addons/myaddon/main.lua`, variables are lowercase words. Never `foo`, `bar`, `test`.
 - Reference blocks show **one verb**; guide blocks show **one task**; the tutorial's blocks build
@@ -126,6 +132,15 @@ notes were wrong). So:
   (D-3). Silence is not a statement.
 - **Every verb states its absence case** — what it returns when the thing is not there (usually
   `nil`, per `conventions.md`) — and whether it can throw, and on what.
+- **A measured figure stays out; a documented cap or budget stays in** (D-008). The test is who owns
+  the number. "174 of 625 widgets classified", "0.08 ms for 625 widgets", "50x what the geometry calls
+  cost" are one machine on one day — the sentence works without them. The text cache's `512 entries /
+  8 MiB`, `overhead().budget` = 5%, a valid range like `2..17` are enforced or reported by the engine,
+  so an author branches on them and they stay.
+- **A claim made twice on one page is a claim that will disagree with itself.** `render.md` described
+  `follow` in an options table *and* in a prose section, and the two had drifted apart (001.4). The
+  audit's greps look across pages; a same-page duplicate is invisible to them. State an argument once,
+  and link to it from the other place.
 - A claim about behaviour is backed by `src/` or by the `NNN-` folder that shipped it. The
   citation goes in the **task's report**, never on the page.
 

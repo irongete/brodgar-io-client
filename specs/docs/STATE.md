@@ -4,52 +4,56 @@
 > Branch: see `AREA.md`. Detail per feature: its `NNN-` folder; history: git + LEARNINGS.md.
 
 **Active feature:** `001-docs-overhaul` — audit, restructure and teach: make `docs/addons/` true,
-navigable and learnable. **001.1, 001.2 and 001.3 DONE**; 001.4..001.7 open. The evidence and the
-standard are written; the migration has started and the reference tree is being rewritten group by
-group, link-clean at every task boundary.
+navigable and learnable. **001.1..001.4 DONE**; 001.5..001.7 open. The evidence and the standard are
+written, and the reference tree is rewritten and landed at its target paths except group C — link-clean
+at every task boundary.
 
 **001.1 DONE — the audit** (`001-docs-overhaul/audit.md`), the evidence every later task is measured
-against: a coverage matrix of 36 feature rows + all 140 tasks of `addons` 001–036 with five verdicts
-(**107 OK · 11 THIN · 3 GAP · 8 N/A · 11 CUT**), the 39-page inventory, and 14 drift entries each
-checked against `src/`. Its findings: five shipped example addons named nowhere under `docs/`; four
-pages holding 45% of all lines; the stylesheet documented twice (`fonts.md` and `ui.md`), whose
-sharpest symptom is `widget:skin{…}` having no section in `ui.md` while it links out for it 8 times;
-no owning page for the engine/dev tier. Sweeps: 695 internal links, **0 broken**; 16 leaving `docs/`;
-26/26 events and 18/18 gated verbs documented.
+against: 36 feature rows + all 140 tasks of `addons` 001–036 with five verdicts (**107 OK · 11 THIN ·
+3 GAP · 8 N/A · 11 CUT**), the 39-page inventory, and 14 drift entries each checked against `src/`. Its
+findings: five shipped example addons named nowhere under `docs/`; four pages holding 45% of all lines;
+the stylesheet documented twice; no owning page for the engine/dev tier. Sweeps: 695 internal links,
+**0 broken**; 16 leaving `docs/`; 26/26 events and 18/18 gated verbs documented.
 
-**001.2 DONE — the standard**, written from that evidence: `design/style-guide.md` (voice, the three
-page kinds with a literal reference template, heading and anchor rules, example rules, how facts are
-stated, the no-history rule + a 13-name retired grep list, link rules, the ceiling, the six checks
-every docs task runs) and `design/information-architecture.md` (the **72-page target tree**, each
-hub's reading order, the section-level migration map for all 39 current pages, which task lands what,
-and the link discipline). Decisions **D-001..D-005** (`decisions/docs-standard.md`).
+**001.2 DONE — the standard**, written from that evidence: `design/style-guide.md` (voice, the three page
+kinds with a literal reference template, heading and anchor rules, example rules, how facts are stated,
+the no-history rule + a 13-name retired grep list, link rules, the ceiling, the six checks every docs task
+runs) and `design/information-architecture.md` (the **72-page target tree**, each hub's reading order, the
+section-level migration map for all 39 current pages, which task lands what, and the link discipline).
 
-**001.3 DONE — reference group A, the read side.** 21 pages rewritten in one pass each and landed at
-their target paths: `gob world map markers radar player time char study party buff meter kin speed
-craft quests wounds fight actionbar act menugrid`. `char.md` split into `char` + `study`; `buffs`,
-`meters`, `actions` renamed to `buff`, `meter`, `act` (D-002), every inbound link re-pointed in the
-same task across `types ghost hooks ui conventions events` and the three indexes. Drift closed:
-**D-2** (`pag:use()` stated as an ungated fact, not a promise), **D-3** (`markers` and `radar` each
-gained a `## Write (ungated)` group — the omission the audit called the one with teeth), **D-13** and
-**D-4** on `map.md`. One accuracy fix against `src/`: `hafen.speed.set` throws for `n` outside `0..3`
-and before the selector exists, where the page implied the server refused it.
-Two new decisions, folded back into the style guide so 001.4 does not re-litigate them: **D-006**
-granularity is per verb (a table row by default, a `###` call heading when a verb needs prose; the
-gating annotation sits on write groups only) and **D-007** a call heading carries its parameters
-without `[ ]`, generalising D-004 to *any* slugger-deleted character between two spaces.
-**Filed to area `addons`** (`audit.md`, findings section): `pag:use()` sends a real action and is the
-one write verb outside the `actions` model.
+**001.3 DONE — reference group A, the read side.** 21 pages rewritten in one pass each and landed at their
+target paths: `gob world map markers radar player time char study party buff meter kin speed craft quests
+wounds fight actionbar act menugrid`. `char.md` split into `char` + `study`; `buffs`, `meters`, `actions`
+renamed to `buff`, `meter`, `act` (D-002). Drift closed: **D-2**, **D-3** (the omission with teeth: two
+ungated *write* groups), **D-13** and **D-4** on `map.md`, plus one accuracy fix (`hafen.speed.set` throws
+client-side). Decisions **D-006** (granularity per verb; the gating annotation on write groups only) and
+**D-007** (a call heading carries its parameters, without `[ ]`).
 
-**What the remaining four execute.** 001.4 group B (the whole anchor-rot surface: `api/ui/**`,
-`api/client/**`, `api/font.md`, `api/render/**`, `ghost`, `asset`, `hook` — it carries the largest
-share of the re-pointing, and the 15 remaining links out of `docs/` are all on its pages) · 001.5
-group C (`conventions` `types` `events` `timer` `store` `json` `http` `log` `slash` `sound`) · 001.6
-the learning path (`getting-started.md`, `guides/**`, **plus `runtime.md` and `examples.md`**) ·
-001.7 the close (the three indexes, the full sweep, the matrix re-run).
+**001.4 DONE — reference group B, the UI stack.** The four oversized pages are gone, split by subject into
+**22 new pages**: `api/ui/{README custom widget selectors items native replace drawing}`,
+`api/ui/style/{README keys surfaces text chrome geometry}`, `api/client/{README keybindings,
+profiling/{README counters attribution}}`, `api/render/{README sprites models}`, plus `api/font.md` (was
+`fonts.md`) and `api/hook.md` (was `hooks.md`); `ghost.md` and `asset.md` rewritten in place. The
+stylesheet now has **one owner** (D-003) and `widget:skin{…}` a section on the page that owns the cascade
+— the 034.3 THIN row, and the eight cross-links that were its symptom, are both gone. 012.7's lighting
+clause is a paragraph, verified against `Gltf.java` + `MeshSprite.java`. Drift closed: **D-1, D-5, D-7,
+D-8, D-9, D-12, D-13, D-14**. One accuracy fix against `src/`: `render.sprite{follow=}`/`object{follow=}`
+require a **Gob object** — `RenderApi.java:994` rejects the ids and `"player"`/`"me"` tokens the old
+options tables advertised. Two decisions: **D-008** (a measured figure stays out, a documented cap or
+budget stays in) and **D-009** (a reference page names the example addon; only `examples.md` links it),
+both folded into the style guide.
+
+**What the remaining three execute.** 001.5 group C (`conventions` `types` `events` `timer` `store` `json`
+`http` `log` `slash` `sound`) — it also carries the last two ` — ` heading violations and the last retired
+name in the tree (`events.md`'s **D-10** obituary) · 001.6 the learning path (`getting-started.md`,
+`guides/**`, **plus `runtime.md` and `examples.md`**, which is where the deferred example-addon links land)
+· 001.7 the close (the three indexes — including the leaf listing that puts every nested page two clicks
+from the landing page — the full sweep, the matrix re-run).
 
 ## docs/addons
-- **40 pages, 5,986 lines.** Group A is done: 21 reference pages averaging ~67 lines, none over 131.
-  Untouched and oversized: `ui.md` 1,171 · `client.md` 688 · `fonts.md` 436 · `render.md` 336.
-  Still missing: the site root, the guides tier, `runtime.md`, `examples.md`.
-- **Sweep at this boundary: 779 links checked, 0 broken** (checker falsified both ways). 15 links
-  leave `docs/`, all on 001.4's pages. Retired names: 0 outside `events fonts render ui`.
+- **59 pages, 6,203 lines.** Groups A and B are done: nothing is over the 300-line ceiling (largest page
+  250), and the bimodal distribution is gone. Untouched: the ten group-C pages, of which `types` (230) and
+  `conventions` (200) are the largest. Still missing: the site root, the guides tier, `runtime.md`,
+  `examples.md`.
+- **Sweep at this boundary: 917 links checked, 0 broken** (checker falsified both ways). **0 links leave
+  `docs/`** — the last 15 went with group B. Retired names: 1 hit, `events.md`'s D-10 obituary, 001.5's.

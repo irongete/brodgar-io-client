@@ -72,7 +72,7 @@ bar with more shows them all in `:segments()`.
 
 There is no write side. Meters are server-pushed presentation and there is nothing to set. You can
 freeze the bars client-side by swallowing their updates with an
-[`IMeter` message hook](hooks.md#hafenhookmessagemsg-fn) — purely cosmetic, since the server still
+[`IMeter` message hook](hook.md#hafenhookmessagemsg-fn) — purely cosmetic, since the server still
 knows your real values.
 
 ## Events

@@ -56,13 +56,13 @@ events are in [events](events.md).
 
 | Section | Purpose |
 |---|---|
-| [`hafen.ui`](ui.md) | the Widget object — [selectors](ui.md#selectors--naming-a-widget), custom windows, overlays, the items in any container, replacing native widgets, [laying them out](ui.md#laying-out-a-native-widget), the [stylesheet](ui.md#the-stylesheet--restyling-the-client) that restyles the client (text, the [chrome it draws](ui.md#bg-and-border--the-surfaces-that-paint), and [where its widgets sit](ui.md#pos-and-size--laying-widgets-out-from-the-sheet), [anchored](ui.md#anchor--a-position-that-is-derived) or absolute — and [where all of that ends](ui.md#where-the-skinning-system-ends)), and walking + hit-testing the tree |
+| [`hafen.ui`](ui/README.md) | the Widget object — [selectors](ui/selectors.md), custom windows, overlays, the items in any container, replacing native widgets, [laying them out](ui/native.md), the [stylesheet](ui/style/README.md) that restyles the client (text, the [chrome it draws](ui/style/chrome.md), and [where its widgets sit](ui/style/geometry.md), [anchored](ui/style/geometry.md#anchor) or absolute — and [where all of that ends](ui/style/README.md#where-the-skinning-system-ends)), and walking + hit-testing the tree |
 | [`hafen.ghost`](ghost.md) | client-only world props ("ghosts") — base/city planning |
 | [`hafen.asset`](asset.md) | load the files your addon ships — images, fonts, glTF models, data — through one door |
-| [`hafen.render`](render.md) | stand your own (non-`.res`) images and glTF models **in the world** |
-| [`hafen.hook`](hooks.md) | intercept & alter input / actions / server messages |
-| [`hafen.client`](client.md) | client settings (interface / video / audio / camera / client), hotkeys, the frame profiler, its counters, per-addon, per-widget and per-render-pass cost, your own named scopes, and what the profiler itself costs |
-| [`hafen.font`](fonts.md) | per-addon typography — get a font handle, draw with it, restyle one widget with [`widget:skin{…}`](fonts.md#restyle-one-widget--widgetskin), and what each client surface does when a [stylesheet](ui.md#the-stylesheet--restyling-the-client) rule lands on it |
+| [`hafen.render`](render/README.md) | stand your own (non-`.res`) images and glTF models **in the world** |
+| [`hafen.hook`](hook.md) | intercept & alter input / actions / server messages |
+| [`hafen.client`](client/README.md) | client settings (interface / video / audio / camera / client), hotkeys, the frame profiler, its counters, per-addon, per-widget and per-render-pass cost, your own named scopes, and what the profiler itself costs |
+| [`hafen.font`](font.md) | per-addon typography — get a font handle, draw with it, restyle one widget with [`widget:skin{…}`](ui/style/README.md#restyle-one-widget), and what each client surface does when a [stylesheet](ui/style/README.md) rule lands on it |
 
 ### Audio & infrastructure
 

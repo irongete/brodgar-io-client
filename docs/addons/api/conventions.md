@@ -23,7 +23,7 @@ References re-resolve on every call, so they are always fresh.
 A game object is an **object**: `hafen.gob(id)` (or anything [`hafen.world`](world.md) hands you) gives
 you a Gob whose methods read it live, and `hafen.player():gob()` is your own. Every method re-resolves
 the gob, so a handle you keep is always fresh and answers `nil` once the gob is gone. Anywhere a single
-gob is addressed — `hafen.act.clickGob`, `follow=` in [`hafen.render`](render.md) — you pass the Gob
+gob is addressed — `hafen.act.clickGob`, `follow=` in [`hafen.render`](render/README.md) — you pass the Gob
 itself, never an id. See [gob.md](gob.md).
 
 ### Kin — a roster entry
@@ -77,16 +77,16 @@ verb raises a clear error.
 
 A widget is an **object**, and there is only one kind: a window you create with `hafen.ui.window{}`, a
 native one you name with `hafen.ui(selector)`/`node(id)`/`at(x, y)`/`inventory()`, and the one
-[`hafen.ui.on`](ui.md#watching-for-a-widget) hands your callback are all the same
-[Widget](ui.md#the-widget-object). It is interned per addon, so
+[`hafen.ui.on`](ui/replace.md#watching-for-a-widget) hands your callback are all the same
+[Widget](ui/widget.md). It is interned per addon, so
 `hafen.ui.at(x, y) == hafen.ui.at(x, y)` and `==` is the identity test; it re-reads the tree on every call
 and answers `nil`/empty with `:exists()` false once its widget is gone. What you may *write* depends on
-whether your addon created it — see [owned vs borrowed](ui.md#owned-vs-borrowed--which-writes-answer).
+whether your addon created it — see [owned vs borrowed](ui/widget.md#owned-vs-borrowed).
 A **server widget id** (`:id()`) is the number the gated [`hafen.act.raw`](act.md) takes.
 
 Its two write verbs read the **arity as the verb**, like every callable namespace above:
-[`w:replace()`](ui.md#replacing-a-native-window) reads / `w:replace(view)` installs / `w:replace(nil)` undoes,
-and [`w:skin()`](fonts.md#restyle-one-widget--widgetskin) reads your own style / `w:skin{…}` installs it /
+[`w:replace()`](ui/replace.md) reads / `w:replace(view)` installs / `w:replace(nil)` undoes,
+and [`w:skin()`](ui/style/README.md#restyle-one-widget) reads your own style / `w:skin{…}` installs it /
 `w:skin(nil)` drops it. Each answers for **your** addon: what you wrote comes back unchanged, what you drop
 leaves another addon's alone.
 
@@ -104,19 +104,19 @@ Three properties make it a convention rather than a lookup helper:
 
 - **One string, three uses.** The same selector names a widget for a lookup (`hafen.ui(sel)`), for a listing
   (`hafen.ui.all(sel)`) and for something that does not exist yet
-  ([`hafen.ui.on(sel, "appear"|"disappear", fn)`](ui.md#watching-for-a-widget)) — so waiting for a window and then
+  ([`hafen.ui.on(sel, "appear"|"disappear", fn)`](ui/replace.md#watching-for-a-widget)) — so waiting for a window and then
   reading it no longer take two different vocabularies.
 - **One string, two resolutions.** The same selector is also the key of a
-  [stylesheet](ui.md#the-stylesheet--restyling-the-client): a **role** that names a render *site* restyles it
-  ([the site keys](fonts.md#site-keys)), while every other selector resolves against the live tree. `w:role()`
+  [stylesheet](ui/style/README.md): a **role** that names a render *site* restyles it
+  ([the site keys](ui/style/surfaces.md)), while every other selector resolves against the live tree. `w:role()`
   reports a widget's role, or an honest `nil`.
 - **Arity is the verb**, as everywhere else: `hafen.ui(sel)` is one widget, `hafen.ui.all(sel)` is all of them, and
   `hafen.ui()` with no argument is the root of the whole tree.
 
 The grammar, the role table and the two rules worth knowing before you write one (`[title=]` resolves against the
 *enclosing window*; hold your result rather than re-selecting every frame) are in
-[selectors](ui.md#selectors--naming-a-widget). You never have to guess a role — the bundled `widgetstack` addon
-[tells you by hovering](ui.md#dont-guess--the-inspector-tells-you).
+[selectors](ui/selectors.md). You never have to guess a role — the bundled `widgetstack` addon
+[tells you by hovering](ui/selectors.md#the-inspector).
 
 ## Snapshots vs handles
 

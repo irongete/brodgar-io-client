@@ -49,7 +49,7 @@ end)
 ```
 
 `(sx, sy)` are game-window pixels, the space `worldToScreen` returns. During a drag, feed it the cursor
-coords from [`hafen.hook.grab`](hooks.md#hafenhookgrab) and coalesce — issue the next raycast only
+coords from [`hafen.hook.grab`](hook.md#hafenhookgrabmove-up) and coalesce — issue the next raycast only
 after the previous `fn` fired — so at most one is in flight per frame.
 
 **`snapPlace(x, y, fine)`** snaps a world coord exactly as placing a building does, honouring the live

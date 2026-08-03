@@ -70,8 +70,8 @@ in-game, and removed whole.
 What you actually hear as "music" in the world is something else: an **ambient loop**
 (`ActAudio.Ambience`) published by the world resources around you, on the `amb` channel — the same
 mechanism as the crickets, and what Options ▸ Audio ▸ "Ambient volume" governs
-([`hafen.client:options():audio()`](client.md)). That is a render-tree node with a lifetime rather than
+([`hafen.client:options():audio()`](client/README.md)). That is a render-tree node with a lifetime rather than
 a clip handle, so it does not fit a Sound; if it is ever exposed it will be its own section
 (`hafen.ambience`), not a retrofit here.
 
-To *set* volumes (master, UI, event, ambient), see [`hafen.client:options():audio()`](client.md).
+To *set* volumes (master, UI, event, ambient), see [`hafen.client:options():audio()`](client/README.md).

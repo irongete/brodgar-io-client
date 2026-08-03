@@ -105,6 +105,31 @@
   is precisely the audit's finding. A completeness rule aimed at an omission needs a scope, or it
   buries the thing it was written to expose.
 
+- **(001.4) Splitting a page is cheap; the expensive half is that every heading you touch is an
+  anchor, including the ones you touch by accident.** Group B replaced 5 pages with 22 and the
+  rewriting was the small part — 917 links had to resolve at the task boundary, up from 695 across
+  the whole tree. The instructive failure was self-inflicted: adding `(ungated)` to four group
+  headings (`## Overlays` → `## Overlays (ungated)`) re-slugged them and broke **18** inbound links
+  I had written correctly minutes earlier. Nothing about the edit *looked* like a rename. Two rules
+  fall out: run the sweep after the last cosmetic pass, not after the last structural one; and when
+  a heading carries an annotation, ask whether the annotation is worth the anchor (it was not — the
+  gating went into prose, which is now D-006's scope in the style guide).
+
+- **(001.4) A mechanical link re-point needs the longest pattern first and the bare page link last,
+  or it eats its own output.** 96 distinct old link targets became 22 pages. As an ordered `sed`
+  script that is one pass, but only if `ui.md#tree-keys--which-widgets-not-what-kind-of-surface`
+  is substituted before `ui.md#tree-keys…`'s prefix-mates and `ui.md)` comes last of all —
+  otherwise the bare rule rewrites `ui.md` inside an anchored target and leaves a link that resolves
+  to the wrong page. Anchoring the bare pattern on the closing `)` is what makes it safe. The same
+  script then works unchanged on the pages that reach the tier through a prefix
+  (`api/ui.md#…` → `api/ui/widget.md`), because the prefix is never part of the match.
+
+- **(001.4) `sed -i` on a CRLF working tree rewrites every line ending, so `git status` shows files
+  the task never changed.** Three group-C pages were flagged modified with a zero-line content diff.
+  Harmless — git normalises on commit — but it destroys the one signal `/end` relies on, "report
+  anything that is NOT part of this task". `git diff --numstat` distinguishes them in one command
+  (no rows = line endings only); `git checkout --` puts them back.
+
 - **(001.3) Re-derive an "it works like the client does" sentence from the source, because the
   plausible version is usually the wrong one.** `speed.md` said the write drives the client's own
   control, which is true, and a reader would reasonably conclude the server refuses a bad value.

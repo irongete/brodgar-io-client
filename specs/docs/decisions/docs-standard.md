@@ -113,3 +113,38 @@ produces a double hyphen.
 **Consequences.** `docs/` anchors are derivable from the heading by one rule (lowercase, drop
 punctuation, spaces to hyphens) with no double-hyphen special case outside the four oversized pages
 001.4 still owns.
+
+### D-008 — A measured figure stays out of `docs/`; a documented cap or budget stays in
+
+**Context (001.4).** The UI stack carried a dozen numbers that came out of a measurement session:
+"174 of 625 widgets classified", "about 0.08 ms for 625 widgets", "roughly 50x what the geometry
+calls cost", "overhead 0.54%". Every one was true when it was written, and style guide §11 already
+bans "measurement results and benchmark figures" — but the same pages also carry numbers that look
+identical and are not measurements at all: the text cache's `512 entries / 8 MiB`, `overhead().budget`
+= 5%, the placement granularity range `2..17`.
+
+**Decision.** The test is **who owns the number**. A figure produced by measuring *this* client on
+*that* machine is not the reader's business: it rots silently, it cannot be checked by grep, and the
+sentence around it works without it ("walking the whole tree once per event is nothing; sixty times a
+second it is a real slice of your frame budget"). A figure the **engine enforces or reports** — a cap,
+a ceiling, a valid range, the value behind an API key — is part of the contract and stays, because an
+addon author branches on it.
+
+**Consequences.** Prose keeps the *shape* of a cost ("far more expensive than any geometry call")
+and drops the multiplier. Where a number is a budget, the page says which key reads it, so a reader
+who wants the measurement takes it themselves.
+
+### D-009 — A reference page **names** the example addon; only `examples.md` links it
+
+**Context (001.4).** D-005 permits exactly one link out of `docs/`: to a shipped addon under
+`addons/`, and only from a page that also describes it. Group B's pages held fifteen such links —
+`planner`, `theme`, `profiler`, `widgetstack` — and not one of those pages describes the addon; they
+link out mid-sentence for a *demonstration*, which is the audit's G-3 gap seen from the other side.
+
+**Decision.** A reference page names the addon in prose, in bold backticks (**`theme`**), and says
+what it demonstrates. The link is `examples.md`'s alone, because that is the only page that describes
+what ships. Until `examples.md` exists (001.6), the name stands without a link — a page never links a
+path a later task will create (style guide §8).
+
+**Consequences.** Group B went from fifteen outbound links to zero without losing a single mention,
+and 001.6 gains a concrete list of which pages want an `examples.md` link once it exists.

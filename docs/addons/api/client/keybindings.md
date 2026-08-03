@@ -1,0 +1,90 @@
+# hafen.client: keybindings
+
+`hafen.client:options():keybindings()` is the client's hotkey registry: declare your addon's hotkeys, and
+read or remap any binding, yours or the client's own. Ungated.
+
+```lua
+local keys = hafen.client:options():keybindings()
+
+keys:register("toggle", function()
+  hafen.log("toggled")
+end)
+```
+
+| Method | Returns | Description |
+|---|---|---|
+| `register(name, fn)` | the handle | declare a hotkey owned by your addon; `fn` runs when it fires |
+| `get(name)` | string \| nil | current key as a display string (`"Ctrl+M"`), or `nil` if unbound or unknown |
+| `set(name, key)` | the handle | remap a binding; `"None"` unbinds it |
+| `unregister(name)` | the handle | drop one of *your* hotkeys |
+| `list()` | `{ [id] = key }` | every binding in the client, unbound ones reading `"None"` |
+
+`register`, `set` and `unregister` return the handle, so they chain.
+
+## Addon hotkeys start unbound
+
+`register` takes **no default key**. Your addon names an action; **the user assigns the key** in
+Options ▸ Keybindings, where every addon that registered a hotkey gets its own section, listed by addon
+name. That is the only model consistent with the client's one-key-one-action exclusivity: an addon-chosen
+default could not claim a key already in use, so it would lose the collision and leave you with a hotkey
+that never fires.
+
+So **advertise a suggested key in your README instead of claiming one**:
+
+> *Suggested key: `Ctrl+H` — assign it in Options ▸ Keybindings ▸ hello.*
+
+The user's assignment is persisted by the client and survives `:reload` and restarts; re-registering the
+same name after a reload picks the existing binding back up.
+
+## Names
+
+Your own hotkeys are namespaced to your addon, so `register("test", fn)` and `get("test")` refer to the
+same binding without you ever spelling your addon id. A name that is not one of yours falls back to the
+client's own registry id — that is how you reach a built-in hotkey, `get("inv")` or `set("inv", "Ctrl+I")`.
+Your scope is tried first, so a client binding can never shadow yours.
+
+`list()` uses the **full registry ids**, so your hotkeys appear there as `addon/<your-addon-id>/<name>`.
+
+`set` on a name that matches no binding is an error. `unregister` only touches your own hotkeys: client
+bindings are not an addon's to drop.
+
+## Key strings
+
+A key is the last `+`-separated token, with optional modifiers before it: `Ctrl`/`Control`/`Ctl`, `Shift`,
+`Alt`/`Meta`, case-insensitive. Named keys are `F1`..`F12`, `Space`, `Enter`/`Return`, `Tab`, `Esc`,
+`Backspace`, `Delete`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right`;
+anything else is a single character. `"None"` means unbound.
+
+```lua
+"F5"   "Ctrl+M"   "Shift+Alt+Left"   "None"
+```
+
+Modifier matching is exact: `"M"` fires only on a bare `M`, never on `Ctrl+M`.
+
+## Example
+
+```lua
+local keys = hafen.client:options():keybindings()
+
+keys:register("toggle", function() hafen.log("toggled") end)
+
+hafen.log("my key: " .. tostring(keys:get("toggle")))     -- nil until the user assigns one
+hafen.log("inventory: " .. tostring(keys:get("inv")))     -- a client binding, e.g. "Tab"
+
+for id, key in pairs(keys:list()) do
+  if key ~= "None" then hafen.log(id .. " = " .. key) end
+end
+```
+
+Hotkeys are torn down with your addon on reload or disable, so you do not need to `unregister` in
+`OnDisable`. Use `unregister` only to drop a hotkey while your addon keeps running.
+
+> Global hotkeys are not an input hook: they run through the client's binding registry, after the client's
+> own bindings. To intercept raw keys and mouse input before any widget sees them, use
+> [`hafen.hook`](../hook.md).
+
+## See also
+
+- [`hafen.client:options()`](README.md) — the rest of the settings surface
+- [`hafen.hook`](../hook.md) — intercepting input before the client's own bindings
+- [`hafen.slash`](../console.md) — a console command, the other way an addon is invoked by hand

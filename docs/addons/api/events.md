@@ -71,22 +71,22 @@ The payload is a live [Gob object](gob.md). On `GobRemoved` the gob is **already
 
 Items entering or leaving a **container** are not on this bus — a chest is not a global fact, so you
 subscribe to the container itself:
-[`widget:onItemAdded/:onItemRemoved/:onDestroy`](ui.md#the-container-lifecycle). `EquipChanged` above
+[`widget:onItemAdded/:onItemRemoved/:onDestroy`](ui/items.md#the-container-lifecycle). `EquipChanged` above
 stays global because your worn gear is one fixed surface.
 
 ### Parts of the UI appearing & disappearing *(not on this bus)*
 
 There is no `WidgetCreated` event, and `hafen.ui.onWidgetCreate` — which reported the server's own
 widget-creation vocabulary — is gone. A widget is not a global fact either — you say *which* one you care
-about, with the same [selector](ui.md#selectors--naming-a-widget) a lookup uses:
+about, with the same [selector](ui/selectors.md) a lookup uses:
 
 ```lua
 hafen.ui.on("window[title=Cupboard]", "appear", function(w) hafen.log(#w:items() .. " items") end)
 ```
 
-`fn` receives the [Widget](ui.md#the-widget-object) itself, and **`appear` also covers what is already open** —
+`fn` receives the [Widget](ui/widget.md) itself, and **`appear` also covers what is already open** —
 registering scans the live tree — so an addon reloaded with the window up still sees it. See
-[watching for a widget](ui.md#watching-for-a-widget) for the two rules that matter: neither event is about
+[watching for a widget](ui/replace.md#watching-for-a-widget) for the two rules that matter: neither event is about
 *visibility*, and at `disappear` the widget is a key to match, not something to read.
 
 ### Roster, quests, markers
@@ -116,15 +116,15 @@ At login the occupied slots stream in as a burst, one fire each.
 | Event | Payload | Fires |
 |---|---|---|
 | `GhostClicked` | `{ ghost, button, x, y }` | a **clickable** [ghost](ghost.md) of *your* addon is clicked |
-| `SpriteClicked` | `{ sprite, button, x, y }` | a **clickable** fixed [sprite](render.md#clickability--the-spriteclicked-event) of *your* addon is clicked |
-| `ObjectClicked` | `{ object, button, x, y }` | a **clickable** [glTF object](render.md#clickability--the-objectclicked-event) of *your* addon is clicked |
+| `SpriteClicked` | `{ sprite, button, x, y }` | a **clickable** fixed [sprite](render/sprites.md#clickability) of *your* addon is clicked |
+| `ObjectClicked` | `{ object, button, x, y }` | a **clickable** [glTF object](render/models.md#clickability) of *your* addon is clicked |
 
 All three are **owner-scoped** — they fire only to the addon that owns the clicked entity (a ghost/sprite/object
 is private to its addon, so its handle never leaks to others), unlike the world/roster events above which
-broadcast to everyone. `ghost`/`sprite`/`object` = the clicked [handle](render.md#sprite-handle); `button` = 1
+broadcast to everyone. `ghost`/`sprite`/`object` = the clicked [handle](render/sprites.md#sprite-handle); `button` = 1
 (left) / 3 (right); `x, y` = the world point the click resolved to. The click is **consumed** (no server
-click, no character walk) — see [`hafen.ghost`](ghost.md#clickability--the-ghostclicked-event-v2) /
-[`hafen.render`](render.md#clickability--the-spriteclicked-event). An entity fires this only while
+click, no character walk) — see [`hafen.ghost`](ghost.md#clickability) /
+[`hafen.render`](render/sprites.md#clickability). An entity fires this only while
 **clickable**; a non-clickable one is click-through and never fires it. (A **billboard** sprite has no
 world mesh, so it is never picked — only ghosts and **fixed** sprites fire these events.)
 

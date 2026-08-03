@@ -31,17 +31,17 @@ end)
 | **Character** | [`player`](api/player.md) · [`time`](api/time.md) · [`char`](api/char.md) · [`study`](api/study.md) · [`party`](api/party.md) · [`buff`](api/buff.md) · [`meter`](api/meter.md) |
 | **Subsystems** | [`kin`](api/kin.md) · [`speed`](api/speed.md) · [`craft`](api/craft.md) · [`quests`](api/quests.md) · [`wounds`](api/wounds.md) · [`fight`](api/fight.md) · [`actionbar`](api/actionbar.md) |
 | **Acting** | [`act`](api/act.md) *(gated)* · [`menugrid`](api/menugrid.md) |
-| **UI & input** | [`ui`](api/ui.md) · [`ghost`](api/ghost.md) · [`asset`](api/asset.md) · [`render`](api/render.md) · [`hook`](api/hooks.md) · [`font`](api/fonts.md) · [`client`](api/client.md) |
+| **UI & input** | [`ui`](api/ui/README.md) · [`ghost`](api/ghost.md) · [`asset`](api/asset.md) · [`render`](api/render/README.md) · [`hook`](api/hook.md) · [`font`](api/font.md) · [`client`](api/client/README.md) |
 | **Data & network** | [`json`](api/json.md) · [`http`](api/http.md) *(gated)* |
 | **Infrastructure** | [`events`](api/events.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash` / `log`](api/console.md) · [`sound`](api/audio.md) |
 
 See [conventions](api/conventions.md), [data types](api/types.md), and the [event catalogue](api/events.md)
 for the cross-cutting rules — including how you address things: a [Gob](api/gob.md) or a
 [Kin](api/kin.md) by object, an item by handle, and a piece of the UI by
-[selector](api/ui.md#selectors--naming-a-widget) (`hafen.ui("window[title=Cupboard]")`) — which is also the
-key of the [stylesheet](api/ui.md#the-stylesheet--restyling-the-client) that says what the client looks like:
-its fonts and colours, the [backgrounds, borders and window chrome](api/ui.md#bg-and-border--the-surfaces-that-paint)
-it draws, and [where its windows sit](api/ui.md#pos-and-size--laying-widgets-out-from-the-sheet) — absolutely, or
-[anchored](api/ui.md#anchor--a-position-that-is-derived) to a screen edge or another widget. A whole theme can be
-a data file rather than code; [where the skinning system ends](api/ui.md#where-the-skinning-system-ends) says what
+[selector](api/ui/selectors.md) (`hafen.ui("window[title=Cupboard]")`) — which is also the
+key of the [stylesheet](api/ui/style/README.md) that says what the client looks like:
+its fonts and colours, the [backgrounds, borders and window chrome](api/ui/style/chrome.md)
+it draws, and [where its windows sit](api/ui/style/geometry.md) — absolutely, or
+[anchored](api/ui/style/geometry.md#anchor) to a screen edge or another widget. A whole theme can be
+a data file rather than code; [where the skinning system ends](api/ui/style/README.md#where-the-skinning-system-ends) says what
 it deliberately leaves alone.

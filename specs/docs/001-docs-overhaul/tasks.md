@@ -27,10 +27,20 @@
            Drift D-2, D-3, D-13(map) and D-4(map) fixed. D-006/D-007 decided here and folded into
            the style guide, so 001.4 does not re-litigate the page shape. -->
 
-- [ ] 001.4 — **Reference, group B — the UI stack.** The oversized set: `ui.md` (1171) split into
+- [x] 001.4 — **Reference, group B — the UI stack.** The oversized set: `ui.md` (1171) split into
       topic pages with a hub and a reading order, `client.md` (688), `fonts.md` (436),
       `render.md` (336), plus `ghost`, `asset`, `hooks`. Same single pass. This is where the
       anchor rot risk is concentrated — the sweep here covers *every* page that links inward.
+      <!-- landed: 22 new pages (api/ui/**, api/ui/style/**, api/client/**, api/render/**,
+           font.md, hook.md) + ghost/asset rewritten; the 5 sources deleted. Drift D-1, D-5, D-7,
+           D-8, D-9, D-12, D-13, D-14 closed; the 034.3 THIN row closed (widget:skin owns a section
+           on the cascade's page). 917 links, 0 broken, 0 leaving docs/. D-008/D-009 decided here
+           and folded into the style guide, so 001.5 does not re-litigate them. -->
+
+- [ ] 001.4b — **`api/README.md` interim listing** (only if the maintainer wants it before the
+      close): the nested leaves (`ui/**`, `ui/style/**`, `client/**`, `render/**`) currently sit
+      three clicks from the landing page, since the index still lists hubs only. 001.7 regenerates
+      it anyway; this exists so the gap is recorded rather than forgotten.
 
 - [ ] 001.5 — **Reference, group C — cross-cutting & infrastructure.** `conventions`, `types`,
       `events`, `timer`, `store`, `json`, `http`, `console`, `audio`. These are the pages every

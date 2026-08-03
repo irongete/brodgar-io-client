@@ -94,7 +94,7 @@ either. Typically used after `clickGob(gob, 3)`. A non-string `label` raises an 
 ### `hafen.act.item(item, verb, n)`
 
 Act on an item. `item` is an [`Item`](types.md#item) snapshot from a container's
-[`:items()`](ui.md#items-inside-a-container), or its raw `handle` number; the live item is re-resolved
+[`:items()`](ui/items.md), or its raw `handle` number; the live item is re-resolved
 on every call, so a moved, used or vanished item raises an error rather than acting on the wrong thing.
 
 | `verb` | Effect |
@@ -118,8 +118,8 @@ if first then hafen.act.item(first, "take") end
 ### `hafen.act.raw(target, msg, ...)`
 
 Send an arbitrary widget message from a bound widget, for what the typed verbs do not cover. `target`
-is a widget id — a number, such as a [widget's `:id()`](ui.md#the-widget-object) — or the token
-`"mapview"` or `"gameui"`. Trailing arguments are marshalled the way [hook](hooks.md) arguments are: a
+is a widget id — a number, such as a [widget's `:id()`](ui/widget.md) — or the token
+`"mapview"` or `"gameui"`. Trailing arguments are marshalled the way [hook](hook.md) arguments are: a
 `{x=, y=}` table becomes a coordinate, and numbers, strings and booleans pass through. A target that
 resolves to no live widget raises an error, as does a non-string `msg`.
 

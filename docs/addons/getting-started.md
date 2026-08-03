@@ -123,8 +123,8 @@ A bare name is per-character; `{"name": ..., "scope": "account"}` is shared acro
 
 ## Custom UI & hotkeys
 
-Draw your own windows and overlays with [`hafen.ui`](api/ui.md), declare hotkeys with
-[`hafen.client:options():keybindings()`](api/client.md#keybindings), and add console commands with [`hafen.slash`](api/console.md):
+Draw your own windows and overlays with [`hafen.ui`](api/ui/README.md), declare hotkeys with
+[`hafen.client:options():keybindings()`](api/client/keybindings.md), and add console commands with [`hafen.slash`](api/console.md):
 
 ```lua
 hafen.client:options():keybindings():register("panic", function() hafen.log("panic!") end)
@@ -138,8 +138,8 @@ README rather than claiming one.
 ## Reading the client's own UI
 
 The window you just created and the client's own windows are the **same kind of object** — a
-[Widget](api/ui.md#the-widget-object). `hafen.ui("window[title=Cupboard]")` names one with a
-[selector](api/ui.md#selectors--naming-a-widget), `hafen.ui()` is the top of the tree, `hafen.ui.at(x, y)`
+[Widget](api/ui/widget.md). `hafen.ui("window[title=Cupboard]")` names one with a
+[selector](api/ui/selectors.md), `hafen.ui()` is the top of the tree, `hafen.ui.at(x, y)`
 is whatever is under a point, and a container answers for what is inside it:
 
 ```lua
@@ -155,10 +155,10 @@ you on reload/disable.
 
 **Hiding one of the client's own windows takes its toggle**: hide the inventory and Tab no longer brings it
 back, with the menu button's tick going off with it. Put your own window in its place with
-[`w:replace(view)`](api/ui.md#replacing-a-native-window) — a verb on the widget, and the one that hides the
+[`w:replace(view)`](api/ui/replace.md) — a verb on the widget, and the one that hides the
 **enclosing** window rather than the widget you point at — and that same key and button drive **your** view
 instead; nothing to wire, since the verb knows both halves. Reload or disable and both come back, the
-stock window ending up [as the user was seeing it](api/ui.md#hiding-a-native-widget-carries-a-restore):
+stock window ending up [as the user was seeing it](api/ui/native.md#hiding-a-native-widget-carries-a-restore):
 open if your view was on screen, closed if nothing was.
 
 The same string also names a widget that **is not there yet**, so you never have to poll for a window:
@@ -175,7 +175,7 @@ reaches your handler.
 **Don't guess a selector — hover for it.** Enable the bundled **`widgetstack`** addon and point at any part of the
 client: it reports that widget's role, class, title and resource, and offers the selectors that actually match it
 (each one resolved before it is shown), ready to paste into `:lua`. That is the fastest way to learn the
-vocabulary — see [selectors](api/ui.md#selectors--naming-a-widget).
+vocabulary — see [selectors](api/ui/selectors.md).
 
 ## Restyling the client
 
@@ -203,9 +203,9 @@ Nothing here is code the client calls: a rule is plain data — a font handle, a
 pixels, a corner to hang off — which is why a whole theme can *be* a file. The bundled **`theme`** addon is
 exactly that, a `theme.json` its Lua reads without ever naming a surface or a place; it also shows how an addon
 keeps a layout of its own, since [`hafen.store`](api/store.md) persists tables and a layout is one. See
-[the stylesheet](api/ui.md#the-stylesheet--restyling-the-client) and the
-[property × key table](api/ui.md#what-each-key-accepts) for what each key does with each property, and
-[where the skinning system ends](api/ui.md#where-the-skinning-system-ends) for what it deliberately leaves alone.
+[the stylesheet](api/ui/style/README.md) and the
+[property × key table](api/ui/style/keys.md#what-each-key-accepts) for what each key does with each property, and
+[where the skinning system ends](api/ui/style/README.md#where-the-skinning-system-ends) for what it deliberately leaves alone.
 
 ## Files your addon ships
 
@@ -222,8 +222,8 @@ local conf = hafen.asset("theme.json")               -- its :text(), for hafen.j
 Paths are **relative to your own folder** (absolute paths and `..` are rejected), the same path always
 returns the **same handle**, and everything is freed for you on reload/disable. Load from setup code
 (`OnLoad`), never inside a draw. Engine `.res` content is *addressed*, not loaded — that is
-[`g:resource`](api/ui.md#the-g-draw-wrapper), [`hafen.sound(name)`](api/audio.md),
-[`hafen.ghost`](api/ghost.md) and [`hafen.font(name)`](api/fonts.md#the-built-ins--hafenfontname).
+[`g:resource`](api/ui/drawing.md), [`hafen.sound(name)`](api/audio.md),
+[`hafen.ghost`](api/ghost.md) and [`hafen.font(name)`](api/font.md#the-built-ins).
 
 ## Actions & permissions
 
