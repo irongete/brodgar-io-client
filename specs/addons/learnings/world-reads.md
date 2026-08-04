@@ -103,3 +103,19 @@
   grid's own** `tilesets[]`. Both are called "the tile", both are small integers, and they mean nothing to
   each other. The map file stores `Resource.Saved` (name + version), so the name is available with no
   resource load at all — which is also why `grid:tile(c)` deliberately publishes no `id` field.
+- **(039.2) `MCache.getgrid` REQUESTS the grid it cannot find — a locating read must not use it.** On a miss
+  it calls `request(gc)`, which queues a `mapreq` the session re-sends up to five times, and then throws
+  `LoadingMap`. That is right for "draw this ground" and wrong for "where is this place": a Position's
+  durability lookup runs in loops (a panel over saved places, a sweep probing outward) and would have put
+  requests on the wire for ground nobody is near. `AddonWidgets.loadedGrid(mc, gc)` is the plain lookup —
+  `synchronized(mc.grids)`, skip `removed`, answer null (D-110).
+- **(039.2) The two grid-UL derivations agree, which is what lets one lookup have two halves.** `MCache.Grid.ul`
+  is `gc * cmaps` in session tiles; the recorded side is `(sc * cmaps) - sessloc.tc`. They are the same point,
+  so an anchor computed while a grid is streamed and the same anchor computed from the database after it
+  unloads carry identical `x, y` — 037.2 proved it to the millimetre, and 039.2 depends on it: without it
+  `p:info()` would flip its offsets as ground streams in and out.
+- **(039.2) `MapFile.Segment`'s whole coord→id map is loaded WITH the segment.** The `seg-%x` file is a flat
+  list of `(coord, grid id)` pairs read in one go, so `Segment.gridid(sc)` (the `// addon:` accessor) answers
+  from memory for every grid of that segment. `Segment.grid(sc)` is the expensive door — it returns an
+  `Indir` backed by `Defer` and needs the grid's tiles off the disk — and is the wrong one when all you want
+  is the id (D-111).

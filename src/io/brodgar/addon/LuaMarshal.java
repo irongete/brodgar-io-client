@@ -74,6 +74,17 @@ final class LuaMarshal {
      * is the standard, documented Lua-JSON trade-off (no {@code json.null} sentinel).
      */
     static LuaValue jsonToLua(Object o) {
+        return jsonToLua(o, null);
+    }
+
+    /**
+     * {@link #jsonToLua(Object)} that also rebuilds a <b>Position</b> for {@code owner}: an object carrying
+     * exactly {@code gridId} (a string), {@code x} and {@code y} (numbers) is the durable form {@link Json}
+     * writes for one, and reading it back as a plain table would make a saved place come out as data that
+     * merely looks right. It is a shape test rather than a tag, deliberately: that shape <i>is</i> the wire
+     * form of a place, so a document that carries one carries a place, wherever it came from.
+     */
+    static LuaValue jsonToLua(Object o, Addon owner) {
         if(o == null)
             return LuaValue.NIL;
         if(o instanceof Boolean)
@@ -87,21 +98,39 @@ final class LuaMarshal {
         if(o instanceof String)
             return LuaValue.valueOf((String)o);
         if(o instanceof Map) {
-            LuaTable t = new LuaTable();
             @SuppressWarnings("unchecked")
             Map<String, Object> m = (Map<String, Object>)o;
+            LuaValue pos = position(m, owner);
+            if(pos != null)
+                return pos;
+            LuaTable t = new LuaTable();
             for(Map.Entry<String, Object> e : m.entrySet())
-                t.set(e.getKey(), jsonToLua(e.getValue()));  // null value → set(k, NIL) = absent key
+                t.set(e.getKey(), jsonToLua(e.getValue(), owner));  // null value → set(k, NIL) = absent key
             return t;
         }
         if(o instanceof List) {
             LuaTable t = new LuaTable();
             int i = 1;
             for(Object e : (List<?>)o)
-                t.set(i++, jsonToLua(e));                    // null → set(i, NIL) = a hole; index still advances
+                t.set(i++, jsonToLua(e, owner));             // null → set(i, NIL) = a hole; index still advances
             return t;
         }
         return LuaValue.NIL;                                  // unknown type → drop
+    }
+
+    /** The Position a parsed object describes, or {@code null} when it is an ordinary object. */
+    private static LuaValue position(Map<String, Object> m, Addon owner) {
+        if((owner == null) || (m.size() != 3))
+            return null;
+        Object id = m.get("gridId"), x = m.get("x"), y = m.get("y");
+        if(!(id instanceof String) || !(x instanceof Number) || !(y instanceof Number))
+            return null;
+        try {
+            return LuaPosition.ofAnchor(owner, Long.parseLong((String)id),
+                                        ((Number)x).doubleValue(), ((Number)y).doubleValue());
+        } catch(NumberFormatException e) {   // "gridId" that is not an id — an ordinary object after all
+            return null;
+        }
     }
 
     /**

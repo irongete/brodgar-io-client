@@ -149,7 +149,7 @@ final class StoreApi {
                             tgt = new LuaTable();
                             a.store.set(sv.name, tgt);
                         }
-                        fillTable(tgt, m.get(sv.name));  // object or array; absent/scalar → left empty
+                        fillTable(tgt, m.get(sv.name), a);  // object or array; absent/scalar → left empty
                     }
                 }
             } catch(RuntimeException e) {
@@ -217,17 +217,20 @@ final class StoreApi {
      * delegating each value to the canonical {@link LuaMarshal#jsonToLua} marshal (D-013). Filling in
      * place (rather than replacing the table) preserves the addon's cached {@code hafen.store} table
      * reference. Anything but a Map/List is a no-op (a missing/scalar value leaves the table empty).
+     *
+     * <p>The marshal is handed {@code owner} so a saved <b>place</b> comes back as a Position rather than as
+     * the {@code {gridId, x, y}} table it is written as — the read half of what makes a Position storable.
      */
-    private static void fillTable(LuaTable t, Object o) {
+    private static void fillTable(LuaTable t, Object o, Addon owner) {
         if(o instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> m = (Map<String, Object>)o;
             for(Map.Entry<String, Object> e : m.entrySet())
-                t.set(e.getKey(), LuaMarshal.jsonToLua(e.getValue()));   // null value → absent key
+                t.set(e.getKey(), LuaMarshal.jsonToLua(e.getValue(), owner));   // null value → absent key
         } else if(o instanceof List) {
             int i = 1;
             for(Object e : (List<?>)o)
-                t.set(i++, LuaMarshal.jsonToLua(e));    // our writes never put null in an array (no holes)
+                t.set(i++, LuaMarshal.jsonToLua(e, owner));  // our writes never put null in an array (no holes)
         }
     }
 

@@ -126,7 +126,7 @@ The guard is the point: `OnUpdate` fires every frame, but the walk and the relay
 hovered widget changes** — and because widgets are interned, that guard is a plain `==`, which covers
 "still hovering nothing" too, since `nil == nil`. Reading the cursor and the geometry is ungated
 client-side data; acting on the resolved widget still goes through the gated
-[`hafen.act.raw`](../act.md) on its `:id()`.
+[`hafen.act():raw`](../act.md) on its `:id()`.
 
 ## See also
 

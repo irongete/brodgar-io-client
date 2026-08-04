@@ -13,7 +13,7 @@ ground the client wrote down, and to turn a position into something you can stor
 
 `hafen.map.grid` is the only call that crosses from the live world into the database, because a grid id
 is the only thing the two halves share: hand it the `gridId` out of a
-[`hafen.world.gridPos()`](../world.md#saving-a-world-position-across-sessions) and you get the recorded
+[`gob:position():info()`](../world.md#the-position-type) and you get the recorded
 ground under that spot.
 
 > **A 64-bit id is a decimal string, and a number is refused.** Segment and grid ids do not survive a
@@ -38,7 +38,7 @@ rectangle rather than reading a thousand files behind your back.
 
 ```lua
 local seg = hafen.map.segment()
-local here = hafen.map.grid(hafen.world.gridPos().gridId)
+local here = hafen.map.grid(hafen.player():gob():position():info().gridId)
 local sc = here:sc()
 for _, g in ipairs(seg:grids{ x = sc.x - 2, y = sc.y - 2, w = 5, h = 5 }) do
   local at = g:pos()                                 -- where to draw it, this session
@@ -63,15 +63,15 @@ end
 | `grid:info()` | table | `{ id, seg, sc, pos?, mtime?, loaded, size }` — the snapshot escape hatch |
 
 `grid:tile` gives you the tileset **resource name**, not a tile id: the live
-[`hafen.world.tile`](../world.md#terrain-and-coordinates) `id` is a session-local number, so the name is
+[`hafen.world():tile`](../world.md#terrain-and-coordinates) `id` is a session-local number, so the name is
 the thing the two halves can be compared on — and they agree.
 
 ```lua
-local p  = hafen.player():gob():pos()
-local gp = hafen.world.gridPos()                     -- where the player is, anchored
+local p  = hafen.player():gob():position()
+local gp = p:info()                                  -- where the player is, anchored
 local g  = hafen.map.grid(gp.gridId)
 local c  = { x = math.floor(gp.x / 11), y = math.floor(gp.y / 11) }
-print(g:tile(c).name, hafen.world.tile(p.x, p.y).name)   -- the same tileset
+print(g:tile(c).name, hafen.world():tile(p.x, p.y).name)   -- the same tileset
 ```
 
 A within-grid tile coord is `0..99`; anything else is refused rather than read as a segment coord.
@@ -90,11 +90,11 @@ merge ever moves it.
 
 | Read it as | From | Then |
 |---|---|---|
-| `{gridId, x, y}` | [`hafen.world.gridPos()`](../world.md#saving-a-world-position-across-sessions), [`marker:anchor()`](markers.md#the-marker-object) | **save this, send this** |
+| `{gridId, x, y}` | [`p:info()`](../world.md#the-position-type), [`marker:anchor()`](markers.md#the-marker-object) | **save this, send this** |
 | segment id + tile coord | `seg:id()`, `marker:tc()`, `grid:sc()` | look at it, compare it this session, never store it |
 
 An anchor goes back to a world position with
-[`hafen.world.fromGridPos`](../world.md#saving-a-world-position-across-sessions), and back into the
+[`hafen.world():position(saved)`](../world.md#the-position-type), and back into the
 database with `hafen.map.grid(anchor.gridId)`.
 
 ## See also

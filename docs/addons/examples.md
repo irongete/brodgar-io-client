@@ -60,7 +60,7 @@ carry — a font face and an image — and it maps those two. It also keeps a wi
 
 A live minimap panel built from the [map database](api/map/README.md) alone. The only thing it reads from
 the live world is *where am I* —
-[`hafen.world.gridPos()`](api/world.md#saving-a-world-position-across-sessions), the anchor the two
+[a Position's durable form](api/world.md#the-position-type), the anchor the two
 halves share; everything it shows comes out of `hafen.map`, and the picture is
 [`grid:image(lvl)`](api/map/drawings.md), which answers `nil` while it renders, so its four-per-second
 timer is both the retry loop and the "did the picture change?" test.
@@ -80,7 +80,7 @@ invented, and `mark [name]` drops a pin.
 A base planner over the real terrain: translucent [ghosts](api/ghost.md) of the game's own props, your own
 PNGs as [sprites](api/render/sprites.md) and a glTF [model](api/render/models.md), all placed, selected by
 clicking, transformed and saved as one layout. The layout is anchored by
-[grid position](api/world.md#saving-a-world-position-across-sessions), so it comes back at the same spot,
+[grid position](api/world.md#the-position-type), so it comes back at the same spot,
 facing and scale after a relog.
 
 `:planner gizmo` gives it a drag gizmo — move, rotate, scale — built in Lua over the drawing and snapping

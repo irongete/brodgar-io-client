@@ -32,6 +32,9 @@
     levels; `lvl 0` delegates) all hand back an `Indir<Grid>` and all `checklock()`. `get()` on it throws
     `Loading` until `Defer` has the file (`loadgrid`, `:1219`) — take the `Indir` under the lock, call
     `get()` outside it, catch `RuntimeException` to nil.
+  - `gridid(Coord sc)` (`// addon:`) reads `map` directly: the WHOLE coord→id map arrives with the segment
+    (the `seg-%x` file is a flat pair list, `:1485`), so an id is answerable **from memory** where
+    `grid(sc)` would wait on a disk read for tiles nobody wants — the durability predicate's one door (D-111).
   - `include(Grid, sc)` (`:1325`) is how a grid enters a segment; it also invalidates the zoom cache.
 - `DataGrid` (`:473`): `tilesets[]` (`TileInfo` = `Resource.Saved` + `prio`), `tiles[]` (indices **into
   this grid's own tilesets** — unrelated to `MCache`'s tile ids), `zmap[]`, `ols`, `mtime`. `gettile(c)`

@@ -243,6 +243,14 @@ public final class Addon {
     final LuaGob.Cache gobs = new LuaGob.Cache(this);
 
     /**
+     * This addon's <b>Position metatable</b> ({@link LuaPosition}). A Position is a <b>value</b>, not an entity:
+     * it is never interned and has no lifetime, so unlike every cache around it this holds nothing but the
+     * metatable — built once, lazily, and per addon for the one reason the caches are (no Lua value crosses a
+     * sandbox boundary, D-017; a shared metatable would be reachable through {@code getmetatable}).
+     */
+    final LuaPosition.Meta positions = new LuaPosition.Meta(this);
+
+    /**
      * This addon's <b>Kin interning cache</b> ({@code hafen.kin(idOrName)}, spec {@code 020-kin-oop}): the
      * weak-valued {@code buddy id → Kin object} map, its {@link java.lang.ref.ReferenceQueue}, and the two
      * per-addon metatables (the Kin one and the roster's). Same contract as {@link #gobs} — per-addon so no

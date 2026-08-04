@@ -3,7 +3,7 @@
 -- It DECLARES "permissions": ["actions"] in its manifest, so it is DISABLED BY DEFAULT when first discovered
 -- (write-actions are a PER-ADDON permission, opt-in per addon — D-027/D-028). To use it, enable it in
 -- Options > AddOns: because it can act on your behalf, the panel asks you to CONFIRM first (the consent dialog,
--- slice 4c). Once you enable it and Reload UI it loads like any addon, and hafen.act.enabled() is true here
+-- slice 4c). Once you enable it and Reload UI it loads like any addon, and hafen.act():enabled() is true here
 -- (it declared the permission). There is NO global switch (D-028): the permission is granted purely by YOUR
 -- enabling this one addon. hafen.act is the ONE part of hafen.* that DRIVES the character: it sends
 -- player-action wdgmsgs to the server (everything else only observes). It stays server-authoritative — an addon
@@ -11,8 +11,8 @@
 -- Kept SEPARATE from the always-on read-only `hello` regression harness (which declares no permissions).
 --
 -- Slice 4d adds the rest of the MapView action verbs on top of moveTo (4a); slice 4e adds menu + flower;
--- slice 4f adds the ITEM verbs (hafen.act.item); slice 4g adds the PER-SUBSYSTEM gated verbs that live in
--- their own namespace (not hafen.act.*): hafen.speed.set, hafen.craft.make, the Slot's :use, and
+-- slice 4f adds the ITEM verbs (hafen.act():item); slice 4g adds the PER-SUBSYSTEM gated verbs that live in
+-- their own namespace (not hafen.act()): hafen.speed.set, hafen.craft.make, the Slot's :use, and
 -- the kin verbs on the Kin object (hafen.kin():add(secret) and kin:rename/:setGroup/:endkin/:forget)
 -- — all behind the SAME "actions" permission.
 -- Each is a DELIBERATE, opt-in trigger — a `:walker <sub>` command — so nothing acts unless you ask.
@@ -43,26 +43,26 @@
 --                       -- kin:setGroup/:rename a named kin (reversible), OR the two-step drop: endkin = End
 --                          kinship (stays memorized), then forget = drop the memorized kin from the list
 
-hafen.log():write("walker loaded (v0.8.0) -- write-actions demo (4d MapView verbs + 4e menu/flower + 4f item + 4g speed/craft/bar/setbar/kin + menugrid)")
+hafen.log():write("walker loaded (v0.10.0) -- write-actions demo (4d MapView verbs + 4e menu/flower + 4f item + 4g speed/craft/bar/setbar/kin + menugrid)")
 
 -- At login, confirm we're granted (we only load once YOU enabled us, and we declared the permission).
 hafen.event():on("OnEnterWorld", function()
   hafen.log():write(("walker: write-actions %s -- run  :walker  for the list of action demos")
-    :format(hafen.act.enabled() and "GRANTED" or "NOT granted"))
+    :format(hafen.act():enabled() and "GRANTED" or "NOT granted"))
 end)
 
 local SOUTH = 22   -- world units ~ 2 tiles (tilesz = 11) to the south
 
--- One command with sub-verbs, each exercising one gated hafen.act.* MapView verb.
+-- One command with sub-verbs, each exercising one gated hafen.act() MapView verb.
 hafen.slash():register("walker", function(args)
   local sub = args[1] or "help"
 
   if sub == "help" then
     hafen.log():write(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | item | speed | craft | bar | setbar | menugrid | kin")
     hafen.log():write("   walk=moveTo  click=clickGob(right)  use=useItemOn  sel=select  place=place  raw=raw escape hatch")
-    hafen.log():write("   menu=hafen.act.menu(path...)  e.g. ':walker menu lo cs' = log out to char select (reversible)")
-    hafen.log():write("   flower=hafen.act.flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
-    hafen.log():write("   item [verb]=hafen.act.item(firstInvItem, verb)  default take (lifts to cursor); take|drop|transfer|iact|itemact")
+    hafen.log():write("   menu=hafen.act():menu(path...)  e.g. ':walker menu lo cs' = log out to char select (reversible)")
+    hafen.log():write("   flower=hafen.act():flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
+    hafen.log():write("   item [verb]=hafen.act():item(firstInvItem, verb)  default take (lifts to cursor); take|drop|transfer|iact|itemact")
     hafen.log():write("   -- 4g per-subsystem gated verbs (own namespace, same permission):")
     hafen.log():write("   speed [n]=hafen.speed.set(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
     hafen.log():write("   craft [all]=hafen.craft.make(all)  press Craft on the OPEN recipe (CONSUMES ingredients; 'all'=Craft All)")
@@ -75,35 +75,38 @@ hafen.slash():register("walker", function(args)
 
   -- Every verb is gated: bail with a clear hint if this addon somehow isn't granted (it declared the perm,
   -- so this only trips if you edited the manifest). enabled() never throws, so no pcall is needed.
-  if not hafen.act.enabled() then
+  if not hafen.act():enabled() then
     hafen.log():write((":walker %s -> write-actions not granted (enable this addon + confirm the consent dialog)."):format(sub))
     return
   end
 
   local me = hafen.player():gob()                    -- the Gob OBJECT for your character (nil before enter-world)
-  local p = me and me:pos()
+  local p = me and me:position()                     -- a POSITION: computable (p:offset) and durable (p:info)
   if not p then hafen.log():write(":walker -> no player position yet"); return end
 
   if sub == "walk" then
-    hafen.act.moveTo(p.x, p.y + SOUTH)                 -- the MapView "click" a left-click on that spot sends
-    hafen.log():write((":walker walk -> moveTo(%.1f, %.1f)  [~2 tiles south -- watch your character walk]"):format(p.x, p.y + SOUTH))
+    -- p:offset asks the ENGINE for the point 22 units south. A grid is 1100 units wide, so `p.y + SOUTH`
+    -- was only ever right until it was not: past the edge the answer is a different grid.
+    local to = p:offset(0, SOUTH)
+    hafen.act():moveTo(to)                             -- the MapView "click" a left-click on that spot sends
+    hafen.log():write((":walker walk -> moveTo(%.1f, %.1f)  [~2 tiles south -- watch your character walk]"):format(to:x(), to:y()))
 
   elseif sub == "click" then
-    local g = hafen.world.nearest(function(g) return not g:isplayer() end)  -- nearest non-player Gob OBJECT
+    local g = hafen.world():gob():nearest(function(g) return not g:isPlayer() end)  -- nearest non-player Gob OBJECT
     if not g then hafen.log():write(":walker click -> no object nearby"); return end
-    hafen.act.clickGob(g, 3)                            -- clickGob takes the Gob itself; 3 = RIGHT-click (safe/cancelable)
+    hafen.act():clickGob(g, 3)                            -- clickGob takes the Gob itself; 3 = RIGHT-click (safe/cancelable)
     hafen.log():write((":walker click -> right-clicked %s (id %d) -- its context menu should open"):format(g:name() or "?", g:id()))
 
   elseif sub == "use" then
-    hafen.act.useItemOn(p.x, p.y)                       -- apply the cursor item to the ground under you
+    hafen.act():useItemOn(p)                           -- apply the cursor item to the ground under you
     hafen.log():write(":walker use -> useItemOn at your feet (hold something on your cursor first, else the server ignores it)")
 
   elseif sub == "sel" then
-    hafen.act.select(p.x - 11, p.y - 11, p.x + 11, p.y + 11)   -- ~3x3 tiles centred on you
+    hafen.act():select(p:offset(-11, -11), p:offset(11, 11))   -- ~3x3 tiles centred on you
     hafen.log():write(":walker sel -> area-selected the ~3x3 tiles around you (visible only with a tile-area tool active)")
 
   elseif sub == "place" then
-    hafen.act.place(p.x, p.y, 0)                        -- angle 0 rad = north; no-op unless something is on your cursor
+    hafen.act():place(p, 0)                            -- angle 0 rad = north; no-op unless something is on your cursor
     hafen.log():write(":walker place -> place at your feet facing north (start building something first, else nothing happens)")
 
   elseif sub == "raw" then
@@ -111,8 +114,8 @@ hafen.slash():register("walker", function(args)
     -- Server units = world * 1024/11 (posres = 11/1024 world-units per server-unit), floored — exactly what
     -- moveTo does internally. So this walks ~2 tiles south too, proving raw(target, msg, ...) reaches the widget.
     local su = 1024 / 11
-    local mc = { x = math.floor(p.x * su), y = math.floor((p.y + SOUTH) * su) }
-    hafen.act.raw("mapview", "click", { x = 0, y = 0 }, mc, 1, 0)
+    local mc = { x = math.floor(p:x() * su), y = math.floor((p:y() + SOUTH) * su) }
+    hafen.act():raw("mapview", "click", { x = 0, y = 0 }, mc, 1, 0)
     hafen.log():write((":walker raw -> raw('mapview','click', pc, {x=%d,y=%d}, 1, 0)  [== moveTo ~2 tiles south]"):format(mc.x, mc.y))
 
   elseif sub == "menu" then
@@ -125,8 +128,8 @@ hafen.slash():register("walker", function(args)
     end
     local path = {}
     for i = 2, #args do path[#path + 1] = args[i] end
-    hafen.act.menu(table.unpack(path))                 -- table.unpack (Lua 5.2 / LuaJ); the sandbox has no global unpack
-    hafen.log():write((":walker menu -> hafen.act.menu(%s)"):format(table.concat(path, ", ")))
+    hafen.act():menu(table.unpack(path))                 -- table.unpack (Lua 5.2 / LuaJ); the sandbox has no global unpack
+    hafen.log():write((":walker menu -> hafen.act():menu(%s)"):format(table.concat(path, ", ")))
 
   elseif sub == "flower" then
     -- A flower menu grabs the mouse+keyboard while open, so you can't type a command to pick a petal by hand.
@@ -137,13 +140,13 @@ hafen.slash():register("walker", function(args)
       hafen.log():write(":walker flower <label> -> right-clicks the nearest object, then auto-picks that petal (e.g. ':walker flower Harvest').")
       return
     end
-    local g = hafen.world.nearest(function(g) return not g:isplayer() end)
+    local g = hafen.world():gob():nearest(function(g) return not g:isPlayer() end)
     if not g then hafen.log():write(":walker flower -> no object nearby"); return end
-    hafen.act.clickGob(g, 3)                            -- button 3 = RIGHT-click => opens its flower menu (after a round-trip)
+    hafen.act():clickGob(g, 3)                            -- button 3 = RIGHT-click => opens its flower menu (after a round-trip)
     hafen.log():write((":walker flower -> right-clicked %s (id %d); auto-picking petal '%s' in 0.5s..."):format(g:name() or "?", g:id(), label))
     hafen.timer():after(0.5, function()
-      local ok = hafen.act.flower(label)               -- returns true iff a matching petal was selected
-      hafen.log():write((":walker flower -> hafen.act.flower('%s') => %s"):format(
+      local ok = hafen.act():flower(label)               -- returns true iff a matching petal was selected
+      hafen.log():write((":walker flower -> hafen.act():flower('%s') => %s"):format(
         label, ok and "chosen" or "no such petal / no menu open (right-click gave a direct action, or retry)"))
     end)
 
@@ -158,8 +161,8 @@ hafen.slash():register("walker", function(args)
     local inv = invw and invw:items() or {}            -- array of Item snapshots, each with a `handle`
     local it = inv[1]
     if not it then hafen.log():write(":walker item -> your inventory is empty (put something in it, then retry)"); return end
-    hafen.act.item(it, verb)                            -- gated; resolves it.handle -> the live GItem, sends `verb`
-    hafen.log():write((":walker item -> hafen.act.item('%s' [handle %s], '%s')")
+    hafen.act():item(it, verb)                            -- gated; resolves it.handle -> the live GItem, sends `verb`
+    hafen.log():write((":walker item -> hafen.act():item('%s' [handle %s], '%s')")
       :format(it.name or it.res or "?", tostring(it.handle), verb))
     if verb == "take" then
       hafen.log():write("   (take lifts the item onto your cursor -- left-click an empty inventory slot to put it back)")
@@ -167,7 +170,7 @@ hafen.slash():register("walker", function(args)
 
   -- 4g: per-subsystem gated verbs. These live in their OWN namespace (hafen.speed/craft/actionbar/kin) — on the
   -- OBJECT itself where the subsystem is OOP (a Slot, a Kin) — not
-  -- under hafen.act.*, but share the exact same "actions" permission gate (requireActions) as the verbs above.
+  -- under hafen.act(), but share the exact same "actions" permission gate (requireActions) as the verbs above.
   elseif sub == "speed" then
     -- speed.set(n): pick a movement speed 0..3. Fully reversible (just set another), so a safe default is fine.
     local n = tonumber(args[2]) or 2                   -- default 2 = run

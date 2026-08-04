@@ -35,9 +35,9 @@ w:title()                          -- reads
 w:title("Scout"):size(180, 48)     -- writes, and chains
 ```
 
-There is one name per property: no `getX`, no `setX`, no `clearX`. A boolean is a property like any
-other, so a window is shown with `w:visible(true)` rather than with a second verb. `coll:get(key)` is
-not an exception to the one-name rule, because it addresses a member rather than reading a property.
+There is one name per property: no `getX`, no `setX`, no `clearX`. A boolean is a property like any other,
+so a window is shown with `w:visible(true)` rather than a second verb. `coll:get(key)` is no exception: it
+addresses a member rather than reading a property.
 
 ### Collections: the noun is the kind, the verb is how many
 
@@ -64,10 +64,8 @@ A distinguished member is a verb on its collection rather than a second accessor
 
 A read hands back a **live object** rather than a copy. It re-resolves on every call, answers `nil`
 once the thing it names is gone, and reports `:exists()`. Objects are interned per addon, so `==` is
-the identity test and one works as a table key.
-
-A point-in-time copy is what `:info()` gives you, and nothing else does. Every shape it returns is in
-[data types](types.md).
+the identity test and one works as a table key. A point-in-time copy is what `:info()` gives you, and
+nothing else does; every shape it returns is in [data types](types.md).
 
 ### nil is an error unless it means something
 
@@ -90,11 +88,10 @@ is inherent to it: `f(g())` where `g` returns *nothing* arrives as no argument a
 
 A table you pass in is **data**: a colour, a coordinate, a document to encode. A thing you build is
 constructed bare and configured by chained setters instead of by a table of named arguments, so the
-configuration reads in the order it happens and a setter can refuse what it cannot do.
-
-The boundary is deliberate rather than missing. It is why a request carries `req:header(name, value)`
-rather than an options table, and it does not reach what a verb *returns*: a `:list()` array and an
-`:info()` table are ordinary Lua tables you index normally.
+configuration reads in the order it happens and a setter can refuse what it cannot do. The boundary is
+deliberate rather than missing: it is why a request carries `req:header(name, value)` rather than an
+options table, and it does not reach what a verb *returns* — a `:list()` array and an `:info()` table are
+ordinary Lua tables you index normally.
 
 ### A retired name says what replaced it
 
@@ -109,11 +106,11 @@ call, so a handle you keep is always fresh and never a stale copy.
 
 ### Gob: a game object
 
-`hafen.gob(id)` — or anything [`hafen.world`](world.md) hands you — gives a **Gob object** whose
-methods read the live game object; `hafen.player():gob()` is your own. Every method re-resolves, so
-the object answers `nil` once the gob is gone, while `:id()` still answers. Anywhere a single gob is
-addressed — [`hafen.act.clickGob`](act.md), [`gob:overlay`](gob.md#overlays) — you pass
-the Gob itself, never an id. See [`hafen.gob`](gob.md).
+`hafen.world():gob()` is the collection of loaded game objects, and everything on it hands back a **Gob
+object** whose methods read the live one; `hafen.player():gob()` is your own. Every method re-resolves,
+so the object answers `nil` once the gob is gone, while `:id()` still answers. Anywhere a single gob is
+addressed — [`hafen.act():clickGob`](act.md), [`gob:overlay`](gob.md#overlays) — you pass the Gob
+itself, never an id. See [Gob](gob.md).
 
 ### Kin: a roster entry
 
@@ -131,28 +128,27 @@ position. A stashed `Slot` goes `:empty()` the moment the slot is cleared. See
 
 ### Needle-keyed objects: Buff, Meter, Action, Sound
 
-The same callable namespace, keyed by a **string** instead of an id; the no-argument call is always
-the collection. [`hafen.buff(needle)`](buff.md) and [`hafen.meter(needle)`](meter.md) are *substring*
-lookups — the first object whose resource, or for a buff its display name, contains the needle —
-while [`hafen.menugrid(key)`](menugrid.md) and [`hafen.sound(name)`](sound.md) name one outright.
-Either way the strings are **server-published**, not keys the API defines: read them off a live client
-with `:res()` rather than trusting a list. A miss is plain `nil`, and addressing one by **position**
-is an error — a position is not an address, so index the collection instead.
+The same callable namespace, keyed by a **string** instead of an id; the no-argument call is always the
+collection. [`hafen.buff(needle)`](buff.md) and [`hafen.meter(needle)`](meter.md) are *substring* lookups
+— the first object whose resource, or for a buff its display name, contains the needle — while
+[`hafen.menugrid(key)`](menugrid.md) and [`hafen.sound(name)`](sound.md) name one outright. Either way the
+strings are **server-published**, not keys the API defines: read them off a live client with `:res()`
+rather than trusting a list. A miss is plain `nil`, and addressing one by **position** is an error.
 
 ### Asset: a file your addon ships
 
 [`hafen.asset`](asset.md) is callable on the same pattern, keyed by an **addon-relative path**:
 `hafen.asset(path)` is one asset, `hafen.asset()` the ones this addon holds. It is the one callable
-namespace that hands back an **owned resource** rather than a view of client state — the type comes
-from the file's extension, the handle is interned per path, and it is freed on reload or disable, or
-by `:dispose()`, after which the same path loads as a *new* object. Wherever a local file is used —
+namespace that hands back an **owned resource** rather than a view of client state — the type comes from
+the file's extension, the handle is interned per path, and it is freed on reload or disable, or by
+`:dispose()`, after which the same path loads as a *new* object. Wherever a local file is used —
 `hafen.render.sprite{image=}`, `object{model=}`, `font=` — you pass the **handle**, never a path.
 
 ### ItemRef: an inventory or equipment item
 
 An item has no stable content id, so it is addressed by a **handle**: its server widget id. Every
 [Item snapshot](types.md#item) carries a `handle` field. The gated
-[`hafen.act.item`](act.md#hafenactitemitem-verb-n) takes the snapshot, or the raw `handle` number, and
+[`hafen.act():item`](act.md#hafenactitemitem-verb-n) takes the snapshot, or the raw `handle` number, and
 re-resolves the live item on each call; an item that has moved, been used or gone no longer resolves,
 and the verb raises an error saying so.
 
@@ -165,7 +161,7 @@ native one you name with `hafen.ui(selector)`, `node(id)`, `at(x, y)` or `invent
 is the identity test; it re-reads the tree on every call and answers `nil` or empty, with `:exists()`
 false, once its widget is gone. What you may *write* depends on whether your addon created it — see
 [owned vs borrowed](ui/widget.md#owned-vs-borrowed). A **server widget id**, `:id()`, is the number the
-gated [`hafen.act.raw`](act.md) takes.
+gated [`hafen.act():raw`](act.md) takes.
 
 Its write verbs answer for **your** addon: what you wrote comes back unchanged, and what you drop
 leaves another addon's alone. [`w:replace(view)`](ui/replace.md) installs a stand-in and
@@ -207,12 +203,12 @@ against the *enclosing window*, and you hold your result rather than re-selectin
   caching one across ticks. Every snapshot shape is in [data types](types.md).
 - **Handles** are live, bridge-owned proxies with methods (`hafen.ui.window`, `hafen.timer():every`,
   `hafen.event():on`, …), released for you when the addon is disabled or reloaded.
-- **Objects** are live as well, and they are what a read hands you: they re-resolve rather than
-  holding a value, so one you keep tracks the thing it names.
+- **Objects** are live too, and are what a read hands you: they re-resolve rather than holding a value,
+  so one you keep tracks the thing it names.
 
 ## The filter argument
 
-Every enumerating verb — `hafen.world.gobs`, `hafen.map.markers.list`, `hafen.kin():list`,
+Every enumerating verb — `hafen.world():gob():list`, `hafen.map.markers.list`, `hafen.kin():list`,
 `hafen.map.icons`, `hafen.quests.list`, `hafen.wounds.list`, `hafen.fight.maneuvers`, … — takes
 one optional **filter**, always in the same form:
 
@@ -223,29 +219,32 @@ one optional **filter**, always in the same form:
 | a **function** | entries for which `filter(entry)` returns truthy |
 
 Use the function form to match on any field other than `name`. The entry your predicate receives is a
-snapshot table in the flat sections and an **object** in the object-oriented ones:
-[`hafen.world`](world.md) hands it a [Gob](gob.md), [`hafen.kin`](kin.md) a `Kin`.
+snapshot table in the flat sections and an **object** in the object-oriented ones.
 
 ```lua
-hafen.world.gobs("rabbit")                                       -- name contains "rabbit"
-hafen.world.gobs(function(g) return (g:health() or 1) < 1 end)   -- injured gobs (a Gob object)
-hafen.kin():list(function(k) return k:online() end)              -- online kin (a Kin object)
-hafen.map.markers.list(function(m) return m.type == "player" end)  -- a snapshot elsewhere
+local gobs = hafen.world():gob()
+gobs:list("rabbit")                                        -- name contains "rabbit"
+gobs:list(function(g) return (g:health() or 1) < 1 end)    -- injured gobs (a Gob object)
+hafen.kin():list(function(k) return k:online() end)        -- online kin (a Kin object)
+hafen.map.markers.list(function(m) return m.type == "player" end)   -- a snapshot elsewhere
 ```
 
 ## Coordinates
 
-Positional arguments and returned positions are Lua numbers in **world units** unless a page says
-otherwise. [`hafen.world`](world.md#terrain-and-coordinates) converts between world, tile and grid space.
+A place in the world is a **[Position](world.md#the-position-type)**, not a pair of numbers: one type,
+carried by every spatial verb, and the only thing `position()` ever answers. It is computable —
+`p:offset(dx, dy)` moves it in world units and the engine crosses grid boundaries for you — and durable,
+so it goes into [`hafen.store`](store.md) and comes back unchanged. Everything else that counts is a
+**lattice** and keeps its own name: tile, grid and segment coords are indices, not places, and screen
+pixels are plain `{x, y}` numbers.
 
-> **There is no global position.** A gob's world position is session-local — it starts near the origin
-> each login — and is not comparable across players or logins. The stable, shareable anchor is a
-> **grid id** plus a within-grid offset,
-> [`hafen.world.gridPos`](world.md#saving-a-world-position-across-sessions) — the id comes from the
-> server, so it means the same thing to every player. A map marker stores its position differently — a
-> segment id plus a segment tile coord, both of which this client invented and a map merge rewrites — so
-> a marker you want to keep or share goes through [`marker:anchor()`](map/markers.md#the-marker-object)
-> first; see [saving a position](map/grids.md#saving-a-position).
+> **There is no global position.** A world coordinate is session-local — it starts near the origin each
+> login — and is not comparable across players or logins. What a Position saves is a **grid id** plus an
+> offset inside that grid, and the id comes from the **server**, so it means the same thing to every
+> player. A map marker stores its position differently — a segment id plus a segment tile coord, both of
+> which this client invented and a map merge rewrites — so a marker you want to keep or share goes
+> through [`marker:anchor()`](map/markers.md#the-marker-object) first; see
+> [saving a position](map/grids.md#saving-a-position).
 
 ## Colours
 
@@ -263,28 +262,28 @@ outside `0..255` is clamped rather than refused.
 
 ## Missing data returns nil
 
-A read returns `nil`, or an empty table for a list verb, when the data is not available yet: before
-the world loads, before a HUD widget streams in, or while a resource is still resolving. Reads never
-throw a loading error into Lua — the bridge swallows it. Much character-sheet data (meters, food,
-skills, quests, wounds, …) streams in a beat *after* `OnEnterWorld`, so read it on a short timer or
-subscribe to the matching [event](event.md).
+A read returns `nil`, or an empty table for a list verb, when the data is not available yet: before the
+world loads, before a HUD widget streams in, or while a resource is still resolving. Reads never throw a
+loading error into Lua — the bridge swallows it. Much character-sheet data (meters, food, skills, quests,
+wounds, …) streams in a beat *after* `OnEnterWorld`, so read it on a short timer or subscribe to the
+matching [event](event.md).
 
 ## Threading
 
-Every `hafen.*` call, every event handler, every timer and every draw callback runs on the client's
-**UI thread**. You never need locks, and you must never block: a long-running handler stalls the
-client, and the sandbox's instruction watchdog aborts a runaway one.
+Every `hafen.*` call, every event handler, every timer and every draw callback runs on the client's **UI
+thread**. You never need locks, and you must never block: a long-running handler stalls the client, and
+the sandbox's instruction watchdog aborts a runaway one.
 
 ## Gating: the actions permission
 
-Everything in the API observes except one section, [`hafen.act`](act.md), which **drives the
+Everything in the API observes except one section, [`hafen.act()`](act.md), which **drives the
 character** by sending actions to the server. The same gate covers the per-subsystem write verbs that
 do the same thing from their own page: `hafen.speed.set`, `hafen.craft.make`, `slot:use`, `slot:set`,
 and the kin verbs `hafen.kin():add`, `kin:rename`, `kin:setGroup`, `kin:endkin` and `kin:forget`.
 
 A gated verb runs only if the addon **declared** `"permissions": ["actions"]` in its manifest and the
 user enabled the addon — such an addon is disabled by default, and enabling it raises a consent
-dialog. An undeclared addon calling one gets an error naming the verb. `hafen.act.enabled()` reports
+dialog. An undeclared addon calling one gets an error naming the verb. `hafen.act():enabled()` reports
 the grant without throwing.
 
 Writing is not the same as being gated. A verb that changes something **client-local** — a map marker,
@@ -297,4 +296,5 @@ host allowlist in the manifest.
 - [data types](types.md) — every snapshot shape the readers return
 - [events](event.md) — the bus, and what each event hands your handler
 - [`hafen.act`](act.md) — the gated tier, and the permission itself
+- [the Position type](world.md#the-position-type) — the one place type every spatial verb takes
 - [`hafen.ui`](ui/README.md) — where selectors, widgets and the stylesheet are documented in full

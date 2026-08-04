@@ -5,7 +5,7 @@
 -- SHOWS comes out of hafen.map — the recorded ground, and the markers recorded on it.
 --
 -- Four ordinary doors, one line each:
---   hafen.world.gridPos()        where the player is, as the anchor {gridId, x, y} — the ONLY thing this
+--   gob:position():info()        where the player is, as the anchor {gridId, x, y} — the ONLY thing this
 --                                addon takes from the live world, and the only thing the two halves share.
 --   hafen.map.grid(gridId)       that anchor's grid IN THE DATABASE. The door in.
 --   grid:image(lvl)              the recorded ground as an IMAGE HANDLE — nil while it renders, so asking
@@ -36,8 +36,17 @@
 local TITLE = "Atlas"              -- the caption, and how the 037.5 suite finds this panel: window[title=Atlas]
 local SIDE  = 100                  -- MCache.cmaps: a grid is 100x100 tiles and every drawing is 100x100 px,
                                    -- so a content area of exactly SIDE draws the picture 1:1 and untiled
+local TILE  = 11                   -- MCache.tilesz: one tile is 11x11 world units
 local MAXLVL = 8
 local RATE  = 0.25                 -- how often the panel asks the database whether its picture changed
+
+-- Where the player is, in the durable {gridId, x, y} form. The ONE thing this addon takes from the live
+-- world, and the one thing the live world and the recorded map share.
+local function anchor()
+  local me = hafen.player() and hafen.player():gob()
+  local p = me and me:position()
+  return p and p:info()
+end
 
 local panel                        -- the window, or nil when it is closed
 local shown                        -- the image handle currently installed as the panel's background
@@ -78,8 +87,9 @@ local function drawPins(g, w, h)
   end
 
   -- ...and the player, from the very anchor the panel is centred on
-  local gp = hafen.world.gridPos()
-  local wt = gp and hafen.world.worldToTile(gp.x, gp.y)     -- the within-grid tile, 0..99
+  local gp = anchor()
+  -- The anchor's x,y are WITHIN-grid world units, so the tile inside the grid is arithmetic on them.
+  local wt = gp and { x = math.floor(gp.x / TILE), y = math.floor(gp.y / TILE) }   -- 0..99
   local sc = grid:sc()
   if wt then
     local px = math.floor((((sc.x * SIDE) + wt.x) - ox) / step)
@@ -117,7 +127,7 @@ end
 -- nil while it renders and the SAME handle once it has, so this is both the retry loop and the change test.
 refresh = function()
   if not (panel and panel:exists()) then return end
-  local gp = hafen.world.gridPos()
+  local gp = anchor()
   here = gp and hafen.map.grid(gp.gridId)
   local img = here and here:image(lvl)
   if img ~= shown then
@@ -168,7 +178,7 @@ hafen.slash():register("atlas", function(args)
                                                      or "OFF — the panel is painted by the engine alone"))
 
   elseif sub == "where" then
-    local gp = hafen.world.gridPos()
+    local gp = anchor()
     local g = gp and hafen.map.grid(gp.gridId)
     if not g then return hafen.log():write("atlas: the map has not streamed in here yet") end
     local sc, mt = g:sc(), g:mtime()
@@ -180,10 +190,11 @@ hafen.slash():register("atlas", function(args)
                       mt and ("%.0f"):format(mt) or "unknown"))
 
   elseif sub == "mark" then
-    local p = hafen.player() and hafen.player():gob() and hafen.player():gob():pos()
+    local me = hafen.player() and hafen.player():gob()
+    local p = me and me:position()
     if not p then return hafen.log():write("atlas: no player position yet") end
     local nm = args[2] or "Atlas"
-    local m = hafen.map.markers.add(nm, p.x, p.y, { color = { 90, 220, 120 }, onmap = true })
+    local m = hafen.map.markers.add(nm, p:x(), p:y(), { color = { 90, 220, 120 }, onmap = true })
     hafen.log():write(m and ("atlas: dropped the marker \"" .. nm .. "\" -- ':atlas pins' to see it on the panel")
                 or "atlas: the map database is not ready")
 

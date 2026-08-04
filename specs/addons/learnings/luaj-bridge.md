@@ -254,3 +254,16 @@
   It must become `pcall(function() return hafen.json():parse(body) end)`. Grep for `pcall(hafen\.` before
   trusting a scripted port — the automated sweep cannot see the difference, and the failure only shows on the
   error path, which is the path nobody runs.
+- **(039.2) 029.1's shadowing trap fires on `arg` too, and the compiler catches this one.** A static helper
+  named `arg` on a bridge class resolves against `LuaValue.arg(int)` from inside an anonymous
+  `VarArgFunction` body, so `arg(a, 2, "verb", "p")` failed to compile with *"method arg in class LuaValue
+  cannot be applied to given types"* — nothing about shadowing. The forbidden-name list is longer than
+  `get`/`set`/`type`/`len`/`call`/`tostring`: **anything `LuaValue` declares**, `arg` and `arg1` included.
+  Renaming to `posArg` fixed it. This one is cheap because it is a type error; the 019.4 kind (a name that
+  *does* resolve, to the wrong thing) is the expensive one.
+- **(039.2) A retired ENTITY method needs its own `__index`, because an entity's is the methods table.** A
+  section's refusal hangs off the callable table's metatable, but `LuaGob`'s metatable sets `__index` to the
+  methods table *directly*, so a removed method reads as plain `nil` however complete the retired-name table
+  is. `Retired.methodIndex(entity, methods)` wraps it: a live verb answers, a row keyed `"gob:pos"` throws,
+  anything else stays `nil` so a feature probe still works. Any entity that renames a verb needs the wrapper,
+  not just a row.

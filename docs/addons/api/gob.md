@@ -1,11 +1,11 @@
-# hafen.gob: game objects
+# Gob: game objects
 
-A **Gob** is one thing in the world — a tree, a boulder, an animal, another player's body. Reach for
-`hafen.gob(id)` when you have an id and want to read or act on that one object; to find objects in the
-first place, use [`hafen.world`](world.md).
+A **Gob** is one thing in the world — a tree, a boulder, an animal, another player's body. A gob lives in
+the world, so that is where you address one: [`hafen.world():gob()`](world.md#objects) is the collection,
+`:get(id)` names one by id, and the rest of that collection finds the ones you do not have an id for.
 
 ```lua
-local tree = hafen.world.nearest("terobjs/tree")
+local tree = hafen.world():gob():nearest("terobjs/tree")
 if tree then
   hafen.log():write(string.format("%s is %.1f away", tree:name(), tree:distance()))
 end
@@ -16,21 +16,21 @@ cache, so a handle you keep in a variable is always fresh: it tracks a gob as it
 return `nil` once the gob is gone. Nothing is cached and nothing goes stale — see
 [snapshots vs handles](conventions.md#snapshots-vs-handles).
 
-`hafen.gob(id)` always returns a Gob, even for an id that is not loaded or never existed. That is what
-lets you anchor to a gob before it streams in; `:exists()` is the liveness test. A non-number argument
-raises an error.
+`:get(id)` always returns a Gob, even for an id that is not loaded or never existed. That is what lets you
+anchor to a gob before it streams in; `:exists()` is the liveness test. A non-number argument raises an
+error.
 
 ## Getting a Gob
 
 | Expression | Returns |
 |---|---|
-| `hafen.gob(id)` | the Gob for that id — never `nil` |
+| `hafen.world():gob():get(id)` | the Gob for that id — never `nil` |
 | `hafen.player():gob()` | your own Gob, or `nil` before you are in the world — see [`hafen.player`](player.md) |
-| `hafen.world.gobs(filter)` | an array of Gobs |
-| `hafen.world.nearest(filter)` | the nearest Gob, or `nil` |
-| `hafen.world.within(radius, filter)` | an array of Gobs |
+| `hafen.world():gob():list(filter)` | an array of Gobs |
+| `hafen.world():gob():nearest(filter)` | the nearest Gob, or `nil` |
+| `hafen.world():gob():within(radius, filter)` | an array of Gobs |
 | a `GobAdded` or `GobRemoved` handler | the Gob that spawned or despawned — see [events](event.md#world) |
-| `hafen.gob(m.id)` for a [party](party.md) member `m` | that member's Gob |
+| `hafen.world():gob():get(m.id)` for a [party](party.md) member `m` | that member's Gob |
 
 ## Read
 
@@ -41,7 +41,7 @@ None of them throws.
 |---|---|---|
 | `gob:id()` | number | the gob id — answers even after the gob is gone |
 | `gob:exists()` | bool | whether the gob is currently loaded |
-| `gob:pos()` | `{x, y}` \| nil | world position |
+| `gob:position()` | [Position](world.md#the-position-type) \| nil | where it is: a place you can offset, measure and save |
 | `gob:facing()` | number \| nil | facing angle, radians |
 | `gob:name()` | string \| nil | resource identity, not a display name |
 | `gob:health()` | number \| nil | remaining object integrity, `0..1`, where `1` is undamaged |
@@ -49,13 +49,13 @@ None of them throws.
 | `gob:speed()` | number \| nil | movement speed, `nil` when it is not moving |
 | `gob:speech()` | string \| nil | the floating speech text above it |
 | `gob:icon()` | string \| nil | minimap icon category name |
-| `gob:isplayer()` | bool \| nil | whether it is a player body |
+| `gob:isPlayer()` | bool \| nil | whether it is a player body |
 | `gob:kin()` | [`Kin`](kin.md) \| nil | the kin standing here, if this gob is one of your kin |
 | `gob:distance(other)` | number \| nil | world distance to `other`, another Gob; defaults to the player |
 | `gob:info()` | [`GobInfo`](types.md#gobinfo) \| nil | everything above as one plain snapshot table |
 
 > `gob:name()` is the **type** resource — `"gfx/borka/body"` for any player body — not a character's
-> display name. Display names are not available for arbitrary gobs; `gob:isplayer()` is the test for a
+> display name. Display names are not available for arbitrary gobs; `gob:isPlayer()` is the test for a
 > player body.
 
 `:info()` is the snapshot escape hatch: use it for logging, serialising, or passing gob data around as
@@ -119,7 +119,7 @@ them silently stops meaning anything. A spec is read **once**, at attach.
 
 `clickable`/`onClick` are **not** overlay properties: a world-space spec carrying either **raises**, and a
 screen-space one ignores them. The thing under an overlay is the gob, and clicking a gob is the client's
-own — [`hafen.act.clickGob`](act.md).
+own — [`hafen.act():clickGob`](act.md).
 
 ### The verbs on a world overlay
 
@@ -197,7 +197,8 @@ Both halves of this read are also **events**:
 for what the game attaches, so you can watch a gob become decorated instead of polling it.
 
 > There is no filter form. "Every player gets a label" is a [`GobAdded`](event.md#world) handler plus a
-> loop over [`hafen.world.gobs()`](world.md) — you name the gob, so nothing is searched per frame.
+> loop over [`hafen.world():gob():list()`](world.md#objects) — you name the gob, so nothing is searched
+> per frame.
 
 > A `draw` callback runs inside the client's draw pass, which is **outside** the per-tick CPU budget.
 > Keep it short; a `text` overlay never enters Lua at all and is the cheaper way to put a label up.
@@ -207,7 +208,7 @@ for what the game attaches, so you can watch a gob become decorated instead of p
 `gob:kin()` answers the [`Kin`](kin.md) this gob belongs to, and `kin:gob()` goes back the other way.
 
 ```lua
-local g = hafen.world.nearest(function(g) return g:isplayer() end)
+local g = hafen.world():gob():nearest(function(g) return g:isPlayer() end)
 local k = g and g:kin()
 hafen.log():write(k and ("that is " .. k:name()) or "nobody you know")
 ```
@@ -224,26 +225,27 @@ attribute read and never guesses from a name. A kin's **hearth fire** carries th
 Two Gobs for the same id are **the same object**, so equality and table keys work directly:
 
 ```lua
-hafen.gob(4711) == hafen.gob(4711)            --> true
-hafen.player():gob() == hafen.gob(myId)       --> true
+local gobs = hafen.world():gob()
+gobs:get(4711) == gobs:get(4711)              --> true
+hafen.player():gob() == gobs:get(myId)        --> true
 
 local seen = {}
-for _, g in ipairs(hafen.world.gobs()) do
+for _, g in ipairs(gobs:list()) do
   if not seen[g] then seen[g] = true end      -- de-dupes across sweeps, no id juggling
 end
 ```
 
 Identity is per addon: your Gob objects are yours, never shared with another addon.
 
-A Gob is read-only. `gob.foo = 1` raises an error, and `gob.pos` is the method itself, so call it with
-a colon: `gob:pos()`. `tostring(gob)` gives `Gob(<id>)`.
+A Gob is read-only. `gob.foo = 1` raises an error, and `gob.position` is the method itself, so call it
+with a colon: `gob:position()`. `tostring(gob)` gives `Gob(<id>)`.
 
 ## Passing a Gob to the rest of the API
 
 Anything that acts on a gob takes the **Gob object**, not an id:
 
 ```lua
-hafen.act.clickGob(tree, 3)
+hafen.act():clickGob(tree, 3)
 me:overlay("tag", { text = "here" })
 me:overlay("mark", { image = icon, offset = { z = 18 } })
 ```

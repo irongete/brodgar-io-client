@@ -72,7 +72,7 @@ end
 
 -- The first gob in the world carrying one of the GAME's own overlays, and that overlay's key.
 local function anyNative()
-  for _, g in ipairs(hafen.world.gobs()) do
+  for _, g in ipairs(hafen.world():gob():list()) do
     for _, ov in ipairs(g:overlay()) do
       if ov:native() then return g, ov:key(), ov end
     end
@@ -168,7 +168,7 @@ local function run(args)
   --    publishes. gob:info().overlays is the RAW list (one entry per engine overlay) and gob:overlay() the
   --    keyed one, so the check is that the counts RECONCILE on every gob: sum(ov:count()) == #raw.
   local seen, dup, worst, bad = 0, 0, 0, 0
-  for _, g in ipairs(hafen.world.gobs()) do
+  for _, g in ipairs(hafen.world():gob():list()) do
     if seen >= CENSUS then break end
     local raw = g:info() and g:info().overlays
     raw = raw and #raw or 0
@@ -195,7 +195,7 @@ local function run(args)
 
   -- 10. grid:overlays() is a DIFFERENT verb and is untouched -- the map database records which tiles a claim
   --     covers, and that read is not this one. (Staged: the tags live in resources that may still be loading.)
-  local gp = hafen.world.gridPos()
+  local gp = me:position() and me:position():info()
   hafen.timer():after(1.5, function()
     local grid = gp and hafen.map.grid(gp.gridId)
     local tags = grid and grid:overlays()

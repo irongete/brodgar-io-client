@@ -40,9 +40,12 @@ the file body and in `OnLoad`. Per-character tables are filled just before `OnEn
 because the character's folder is not known until then: read them there, not in `OnLoad`.
 
 **What survives.** The tables are stored as JSON, so tables, strings, numbers and booleans round-trip
-and nothing else does. A function or a userdata is written as a placeholder string and comes back as
-that string. Keys become strings unless the table is a `1..n` array, and a `nil` value is simply an
-absent key. Store plain data, and rebuild anything live from it on load.
+and nothing else does — with one exception, and it is the one worth having: a
+[Position](world.md#the-position-type) is written as its durable form and comes back **a Position**, so
+a place you save is a place you get. A position on ground you have never visited has no durable form and
+is not written at all; `p:durable()` is how you know. Anything else live — a function, a widget handle —
+is written as a placeholder string and comes back as that string. Keys become strings unless the table is
+a `1..n` array, and a `nil` value is simply an absent key. Store plain data and a rebuild on load.
 
 ## When it is written
 

@@ -4,10 +4,10 @@
 -- The task opens the map DATABASE — the map the player has explored, on disk — and the claim worth proving
 -- is not that it answers but that it lines up with the world you are standing in:
 --
---   * THE CROSS-CHECK NO OTHER TASK CAN MAKE. hafen.world.tile(x,y) reads the terrain streamed around the
+--   * THE CROSS-CHECK NO OTHER TASK CAN MAKE. hafen.world():tile(p) reads the terrain streamed around the
 --     player; grid:tile(c) reads what the client WROTE DOWN about that same ground. They come from two
 --     different subsystems and they must name the same tileset for the tile under the player's feet.
---   * THE ANCHOR BRIDGE, BOTH WAYS. Live -> recorded: hafen.world.gridPos() hands out a grid id the SERVER
+--   * THE ANCHOR BRIDGE, BOTH WAYS. Live -> recorded: p:info() hands out a grid id the SERVER
 --     minted, and hafen.map.grid(id) finds that grid in the database. Recorded -> live: grid:pos() says
 --     where that grid's corner is in this session, so the player's own within-grid offset lands back on the
 --     player. Two independent coordinate paths (MCache's live grids and the map file's sessloc arithmetic)
@@ -78,13 +78,13 @@ local function relogCheck()
     return summary()
   end
   local g = hafen.map.grid(a.gridId)
-  local w = hafen.world.fromGridPos(a)
+  local w = hafen.world():position(a)
   check((g ~= nil) and (g:id() == a.gridId) and (g:segment() ~= nil),
         "the anchor stored before the relog still resolves in the map database, on the same grid id",
         (g == nil) and ("no grid for " .. tostring(a.gridId)) or g:id())
-  check((w ~= nil) and (type(w.x) == "number"),
+  check((w ~= nil) and (type(w:x()) == "number"),
         "...and back to a world position in THIS session, where the raw coordinate could not have",
-        w and ("%.1f,%.1f"):format(w.x, w.y))
+        w and ("%.1f,%.1f"):format(w:x(), w:y()))
   summary()
 end
 
@@ -94,7 +94,7 @@ local function run(args)
   pass, fail, manual = 0, 0, 0
 
   local me = hafen.player() and hafen.player():gob()
-  local p = me and me:pos()
+  local p = me and me:position()
   local seg = hafen.map.segment()
   if (not p) or (not seg) then
     check(false, "the player and the map database are both up (every check below stands on them)",
@@ -109,7 +109,7 @@ local function run(args)
         sid)
 
   -- 2. a marker of our own, and the id it publishes is that same segment's
-  local m = hafen.map.markers.add(NAME, p.x, p.y)
+  local m = hafen.map.markers.add(NAME, p:x(), p:y())
   local inSeg
   for _, x in ipairs(seg:markers(NAME)) do inSeg = x end
   check((m ~= nil) and (inSeg == m) and (m:segment() == seg) and (m:info().seg == sid),
@@ -117,22 +117,22 @@ local function run(args)
         (m == nil) and "add answered nil" or ((inSeg ~= m) and "not in seg:markers()" or m:info().seg))
 
   -- 3. the bridge, live -> recorded: the server's grid id finds the grid in the database
-  local gp = hafen.world.gridPos()                     -- no args = the player
+  local gp = p:info()                                  -- the player's own position, in its durable form
   local g = gp and hafen.map.grid(gp.gridId)
   check((g ~= nil) and (g:id() == gp.gridId) and (g:segment() == seg),
         "the player's LIVE grid id resolves into the recorded map, in that same segment",
-        (gp == nil) and "no gridPos" or ((g == nil) and ("the DB carries no grid " .. gp.gridId) or g:id()))
+        (gp == nil) and "not durable here" or ((g == nil) and ("the DB carries no grid " .. gp.gridId) or g:id()))
 
   -- 4. ...and back: the grid's own corner plus the player's within-grid offset IS the player
   local ul = g and g:pos()
-  check(near(ul and (ul.x + gp.x), p.x, 0.001) and near(ul and (ul.y + gp.y), p.y, 0.001),
+  check(near(ul and (ul.x + gp.x), p:x(), 0.001) and near(ul and (ul.y + gp.y), p:y(), 0.001),
         "grid:pos() puts that grid where the player's own offset says it is (recorded -> live)",
-        ul and ("%.1f,%.1f + %.1f,%.1f vs %.1f,%.1f"):format(ul.x, ul.y, gp.x, gp.y, p.x, p.y))
+        ul and ("%.1f,%.1f + %.1f,%.1f vs %.1f,%.1f"):format(ul.x, ul.y, gp.x, gp.y, p:x(), p:y()))
 
   -- 5. THE CROSS-CHECK: the recorded ground and the live ground name the same tile
   local c = gp and { x = math.floor(gp.x / TILE), y = math.floor(gp.y / TILE) }
   local rec = (g and c) and g:tile(c)
-  local live = hafen.world.tile(p.x, p.y)
+  local live = hafen.world():tile(p)
   check((rec ~= nil) and (live ~= nil) and (rec.name ~= nil) and (rec.name == live.name)
           and (type(g:mtime()) == "number"),
         "the RECORDED grid and the LIVE terrain name the same tile under the player",
@@ -159,11 +159,11 @@ local function run(args)
                       or "no grid for the anchor")
 
   -- 8. ...and through the LIVE half too, onto the marker's own world position
-  local back = a and hafen.world.fromGridPos(a)
+  local back = a and hafen.world():position(a)
   local mp = m and m:pos()
-  check(near(back and back.x, mp and mp.x, 0.001) and near(back and back.y, mp and mp.y, 0.001),
-        "world.fromGridPos on that same anchor lands on the marker's world position",
-        (back and mp) and ("%.1f,%.1f vs %.1f,%.1f"):format(back.x, back.y, mp.x, mp.y) or "nil")
+  check(near(back and back:x(), mp and mp.x, 0.001) and near(back and back:y(), mp and mp.y, 0.001),
+        "world:position(anchor) on that same anchor lands on the marker's world position",
+        (back and mp) and ("%.1f,%.1f vs %.1f,%.1f"):format(back:x(), back:y(), mp.x, mp.y) or "nil")
 
   -- 9./10. the two refusals that guard the two coordinate spaces
   refuses("a 64-bit id is a decimal STRING, and a number is refused rather than rounded",

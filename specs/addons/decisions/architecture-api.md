@@ -953,3 +953,62 @@ down per addon. `hafen.http()` was rejected for it: its `get`/`post` are HTTP me
 already proven. Generally: *a shared mechanism with no first consumer is a design, not an implementation —
 give it the smallest honest one in the same task, or do not claim it is built.*
 **See.** [D-056](architecture-api.md), [D-085](process.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-109 — a value with two forms derives, never converts, and offers no equality it cannot keep ✅ (2026-08-04)
+**Decision.** A **Position** holds *either* a session world coordinate *or* a durable anchor (a
+server-published grid id plus the offset inside that grid) and derives the other on demand. Neither form is
+primary: `gob:position()` and `hafen.world():position(x, y)` mint the first, the store and
+`hafen.world():position(saved)` mint the second, and both answer the same verbs. A place recorded in a
+segment the character is not standing in keeps `:info()`/`:durable()` and answers **nil** for `:x()`,
+`:y()`, `:offset()` and `:tileCoord()`. There is **no `__eq`**: two Positions are equal only if they are the
+same object, and the page says to compare what one *names* — `:info()`, `:tileCoord()`, `:distance()`.
+**Rationale.** (2026-08-04, 039.2.) The type exists because a place must be two things a plain `{x, y}` can
+only be one of, so "convert one into the other at construction" would have thrown half of it away at the
+door: a Position built from a saved anchor whose grid is elsewhere has no session coordinate at all, and
+converting eagerly would have made it `nil` — which is exactly the silent loss the store marshalling exists
+to prevent. `__eq` was refused for a measurable reason rather than a stylistic one: the store round trip is
+`ul + (wx - ul)`, which is exact to the tile and **not** to the last bit of a double, so an equality over the
+numbers would report two names for one place as different — and an equality that compares the *anchors*
+instead would report the same place as different whenever one side happens to be located and the other not.
+The acceptance criterion itself says "resolves to the same **tile**", which is the honest granularity.
+**Consequences.** Every verb documents its own nil, and the two "not the same numbers" facts (`:info()` is
+within-grid, `:x()` is session world) are stated on the page rather than inferred. Generally: *a value with
+two representations derives lazily and publishes the boundary where one of them is unavailable; and it
+offers `==` only if it can keep it for every pair the API can hand you.*
+**See.** [D-063](architecture-api.md), [D-094](architecture-api.md), [D-092](process.md),
+[039-uniform-api](../039-uniform-api/spec.md).
+
+### D-110 — a read that asks WHERE something is must not put traffic on the wire ✅ (2026-08-04)
+**Decision.** The live half of a Position's durability lookup is a **plain lookup** into the streamed-grid
+map (`AddonWidgets.loadedGrid`), never `MCache.getgrid`. The engine's own accessor *requests* the grid from
+the server on a miss and throws; here a grid being absent is the **answer**, and the recorded map is asked
+next.
+**Rationale.** (2026-08-04, 039.2.) `p:durable()` and `p:info()` are ordinary reads an addon may run in a
+loop — a panel asking about a dozen saved places, a sweep probing outward for explored ground. Through
+`getgrid` each of those would have queued a map request for ground nobody is standing near, up to five
+re-sends apiece, for a question that was only ever *about* that ground. The suite's own outward sweep is the
+case that made it concrete: twelve probe points, each a request the player never asked for.
+**Consequences.** One more accessor in the one `haven` file that carries this surface, and a read model that
+is genuinely free. Generally: *asking where a thing is is not asking for it — a locating read looks at what
+the client already has and answers nil, and only a verb that means "fetch this" may make the client fetch.*
+**See.** [D-095](architecture-api.md), [D-011](architecture-api.md),
+[039-uniform-api](../039-uniform-api/spec.md).
+
+### D-111 — a PREDICATE about the stored world answers from memory, because "not yet" and "no" are one word ✅ (2026-08-04)
+**Decision.** `:durable()` resolves a segment coord to a grid id through a new one-line accessor,
+`MapFile.Segment.gridid(sc)`, which reads the segment's own coord→id map — already wholly in memory once the
+segment is loaded. It deliberately does **not** go through `Segment.grid(sc)`, the {@code Indir} every other
+recorded read uses.
+**Rationale.** (2026-08-04, 039.2.) D-095's load model — kick the load, answer nil, ask again next tick — is
+right for a read that hands back *data*, because nil is readable as "ask again". A **boolean** has no such
+spelling: `false` from a still-loading grid and `false` from ground never visited are the same word, and the
+first is a lie about ground the character has walked over. Going through the `Indir` would also have made a
+durability check pay a `Defer` disk read for tiles it never looks at. The id is the one thing the segment
+already knows without touching the disk, so the predicate is exact and immediate.
+**Consequences.** A second `haven` seam (tagged `// addon:`), and `:durable()` is a fact rather than a
+timing artefact — which is what let the suite assert *"explored but not streamed is durable"* as a plain
+check instead of a staged one. Generally: *before applying a load model, ask what shape the answer is — a
+value may say "not yet", a boolean cannot, so a predicate over stored state must be answerable from what is
+already in memory or it must not be a predicate.*
+**See.** [D-095](architecture-api.md), [D-109](architecture-api.md), [D-011](architecture-api.md),
+[039-uniform-api](../039-uniform-api/spec.md).

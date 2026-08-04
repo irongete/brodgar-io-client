@@ -1,13 +1,13 @@
 # hafen.act: acting on the world
 
-`hafen.act` drives the character: it sends player actions to the server. Reach for it when your addon
+`hafen.act()` drives the character: it sends player actions to the server. Reach for it when your addon
 has to *do* something rather than watch — walk somewhere, click an object, use an item, pick a menu
 entry. Every verb on this page is gated by the `actions` permission.
 
 ```lua
-if hafen.act.enabled() then
-  local tree = hafen.world.nearest("terobjs/tree")
-  if tree then hafen.act.clickGob(tree, 3) end       -- right-click it: opens the flower menu
+if hafen.act():enabled() then
+  local tree = hafen.world():gob():nearest("terobjs/tree")
+  if tree then hafen.act():clickGob(tree, 3) end     -- right-click it: opens the flower menu
 end
 ```
 
@@ -28,6 +28,12 @@ The same permission gates the write verbs that live in their own namespaces:
 [`hafen.speed.set`](speed.md), [`hafen.craft.make`](craft.md), [`slot:use` and
 `slot:set`](actionbar.md), and the roster verbs on [`hafen.kin`](kin.md).
 
+**Places.** The four verbs that act on the ground take a
+[Position](world.md#the-position-type) — `gob:position()`, `hafen.world():position(x, y)`, or one you
+saved. A plain `{x, y}` table is refused, and so is a widget's pixel position: a place in the world and a
+point on the screen are different kinds of thing, and this is where confusing them used to walk you
+somewhere wrong.
+
 > Every verb below except `enabled` needs a live map view or game UI, and **throws** before you are in
 > the world. Guard the first action of a session on `OnEnterWorld`, not on addon load.
 
@@ -36,45 +42,45 @@ adding. It defaults to `0`.
 
 ## Feature detection (ungated)
 
-### `hafen.act.enabled()`
+### `hafen.act():enabled()`
 
 Whether **this** addon may act — that is, whether it declared the permission. Returns a boolean, never
 throws, and answers before you are in the world, which is what makes it safe to branch on.
 
 ## Movement and the world (gated: `actions`)
 
-### `hafen.act.moveTo(x, y)`
+### `hafen.act():moveTo(p)`
 
-Walk to a **world** position, the same space [`gob:pos()`](gob.md) returns. Off-screen destinations are
-fine. Non-number coordinates raise an error.
+Walk to a [Position](world.md#the-position-type). Off-screen destinations are fine. Anything that is not
+a Position raises an error, as does a Position this session cannot locate.
 
-### `hafen.act.clickGob(gob, button, mods)`
+### `hafen.act():clickGob(gob, button, mods)`
 
 Click a game object — exactly the click a left- or right-click on it sends. `gob` is a
 [Gob object](gob.md); a raw id is not accepted. `button` is optional, 1 = left (default), 3 = right
 (the context/flower click). It throws when the Gob is not in view (check `gob:exists()`) or has no
 position yet.
 
-### `hafen.act.useItemOn(x, y, mods)`
+### `hafen.act():useItemOn(p, mods)`
 
-Use the item on your cursor on the **ground** at world `x, y`. With nothing on the cursor the server
+Use the item on your cursor on the **ground** at a Position. With nothing on the cursor the server
 ignores it, and nothing comes back to say so.
 
-### `hafen.act.place(x, y, angle, button, mods)`
+### `hafen.act():place(p, angle, button, mods)`
 
-Place the object on your cursor at world `x, y`, rotated by `angle` **radians**. `button` is optional,
-1 = confirm (default). To land where a real building would, snap the coordinate first with
-[`hafen.world.snapPlace`](world.md#screen-to-world-and-placement-snapping).
+Place the object on your cursor at a Position, rotated by `angle` **radians**. `button` is optional,
+1 = confirm (default). To land where a real building would, snap the place first with
+[`hafen.world():snapPlace`](world.md#screen-to-world-and-placement-snapping).
 
-### `hafen.act.select(x1, y1, x2, y2, mods)`
+### `hafen.act():select(p1, p2, mods)`
 
-Area-select the tile rectangle spanned by two world corners. This is what drives the tile-area tools.
+Area-select the tile rectangle spanned by two Positions. This is what drives the tile-area tools.
 
 ## Menus (gated: `actions`)
 
-### `hafen.act.menu(path)`
+### `hafen.act():menu(path)`
 
-Invoke a menu action by its path tokens — `hafen.act.menu("lo", "cs")` logs out to character select.
+Invoke a menu action by its path tokens — `hafen.act():menu("lo", "cs")` logs out to character select.
 Tokens are strings and at least one is required; anything else raises an error.
 
 > Pagina paths are server-fetched, content-defined, localized and versioned, and a path resolves only
@@ -83,7 +89,7 @@ Tokens are strings and at least one is required; anything else raises an error.
 [`hafen.menugrid`](menugrid.md) is the better door: it hands you the action menu as objects you can
 enumerate first, and it reaches the entries that have no path at all.
 
-### `hafen.act.flower(label)`
+### `hafen.act():flower(label)`
 
 Select a petal of the open radial (flower) menu by its `label`, matched case-insensitively. Returns
 `true` when a petal matched and `false` when no menu is open or nothing matched — it does not throw for
@@ -91,7 +97,7 @@ either. Typically used after `clickGob(gob, 3)`. A non-string `label` raises an 
 
 ## Items (gated: `actions`)
 
-### `hafen.act.item(item, verb, n)`
+### `hafen.act():item(item, verb, n)`
 
 Act on an item. `item` is an [`Item`](types.md#item) snapshot from a container's
 [`:items()`](ui/items.md), or its raw `handle` number; the live item is re-resolved
@@ -110,12 +116,12 @@ all, and is ignored by the other three verbs. An unknown `verb` raises an error.
 
 ```lua
 local first = hafen.ui.inventory():items()[1]
-if first then hafen.act.item(first, "take") end
+if first then hafen.act():item(first, "take") end
 ```
 
 ## Escape hatch (gated: `actions`)
 
-### `hafen.act.raw(target, msg, ...)`
+### `hafen.act():raw(target, msg, ...)`
 
 Send an arbitrary widget message from a bound widget, for what the typed verbs do not cover. `target`
 is a widget id — a number, such as a [widget's `:id()`](ui/widget.md) — or the token
@@ -126,6 +132,6 @@ resolves to no live widget raises an error, as does a non-string `msg`.
 ## See also
 
 - [`hafen.menugrid`](menugrid.md) — the action catalogue, enumerable and addressable by name
-- [`hafen.gob`](gob.md) — the objects `clickGob` takes
-- [`hafen.world`](world.md#screen-to-world-and-placement-snapping) — snapping a coordinate before you place on it
+- [Gob](gob.md) — the objects `clickGob` takes
+- [`hafen.world`](world.md#screen-to-world-and-placement-snapping) — building a place, and snapping one before you place on it
 - [gating](conventions.md#gating-the-actions-permission) — how the permission reads across the API

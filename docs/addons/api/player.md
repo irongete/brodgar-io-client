@@ -5,7 +5,8 @@ being the anchor for your own [Gob](gob.md).
 
 ```lua
 local me = hafen.player():gob()          -- nil until you are in the world
-if me then hafen.log():write(string.format("at %.0f, %.0f", me:pos().x, me:pos().y)) end
+local p = me and me:position()
+if p then hafen.log():write(string.format("at %.0f, %.0f", p:x(), p:y())) end
 ```
 
 Player deliberately forwards **nothing** from the Gob: position, health, movement and facing are read
@@ -21,12 +22,12 @@ only what has no per-gob equivalent.
 | `hafen.player():worldToScreen(x, y)` | `{x, y}` \| nil | project a world point to a map-view screen pixel |
 
 `hafen.player()` always hands back the same object, and `hafen.player():gob()` is the same object as
-`hafen.gob(<your id>)` — so `gob == hafen.player():gob()` is how you tell "is this me?" from any other
+`hafen.world():gob():get(<your id>)` — so `gob == hafen.player():gob()` is how you tell "is this me?" from any other
 gob, with no id comparison. Nothing here throws, and nothing is gated.
 
 `worldToScreen` returns coordinates relative to the map view, which is what a
 [gob overlay](gob.md#overlays) or a HUD overlay wants. It answers `nil` before the map view exists, and
-for a point the view cannot project. The inverse is [`hafen.world.screenToWorld`](world.md#screen-to-world-and-placement-snapping).
+for a point the view cannot project. The inverse is [`hafen.world():screenToWorld`](world.md#screen-to-world-and-placement-snapping).
 
 > There is no `exists()` and no `id()` on Player: `hafen.player():gob()`, `nil` or not, and `gob:id()`
 > answer both questions.
@@ -36,7 +37,7 @@ per-player state, so they live in [`hafen.meter`](meter.md).
 
 ## See also
 
-- [`hafen.gob`](gob.md) — everything positional about your character
+- [Gob](gob.md) — everything positional about your character
 - [`hafen.meter`](meter.md) — the HUD bars
 - [`hafen.char`](char.md) — attributes, skills and food
 - [`hafen.world`](world.md#screen-to-world-and-placement-snapping) — `screenToWorld`, the inverse projection

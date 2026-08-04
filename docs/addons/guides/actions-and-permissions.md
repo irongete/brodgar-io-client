@@ -52,21 +52,21 @@ not a silent no-op, and it is not a crash.
 
 ```lua
 hafen.slash():register("gotree", function()
-  if not hafen.act.enabled() then
+  if not hafen.act():enabled() then
     hafen.log():write("this addon needs the actions permission")
     return
   end
-  local tree = hafen.world.nearest("terobjs/tree")
+  local tree = hafen.world():gob():nearest("terobjs/tree")
   if tree then
-    local p = tree:pos()
-    hafen.act.moveTo(p.x, p.y)
+    local p = tree:position()
+    hafen.act():moveTo(p:x(), p:y())
   end
 end)
 ```
 
 Three habits, in the order they bite:
 
-- **Branch on [`hafen.act.enabled()`](../api/act.md), not on a `pcall`.** It answers before you are in the
+- **Branch on [`hafen.act():enabled()`](../api/act.md), not on a `pcall`.** It answers before you are in the
   world and never throws, so it is the one call you can make at load time to find out where you stand.
 - **Act from `OnEnterWorld` onwards.** Every verb except `enabled` needs a live map view and throws before
   there is one, so an action fired from a file body is an error rather than an early start.

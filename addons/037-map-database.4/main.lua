@@ -47,6 +47,14 @@ local function manualCheck(step, expect)
 end
 
 local CMAPS = 100          -- MCache.cmaps: a grid is 100x100 tiles, and every rendering is 100x100 pixels
+
+-- Where the player is, in the durable {gridId, x, y} form: the one thing the live world and the recorded
+-- map share, and the door into the database.
+local function playerAnchor()
+  local me = hafen.player() and hafen.player():gob()
+  local p = me and me:position()
+  return p and p:info()
+end
 local SWEEP = 2            -- half-width, in grids, of the neighbourhood searched for a recorded overlay
 local ID = "037-map-database.4"
 local TITLE_BG, TITLE_DRAW = "037.4 painted by the sheet", "037.4 painted by Lua"
@@ -100,12 +108,12 @@ local function run(args)
   pass, fail, manual = 0, 0, 0     -- a re-run reports its own counts, not the last one's
   cleanup()
 
-  local gp = hafen.world.gridPos()
+  local gp = playerAnchor()
   local seg = hafen.map.segment()
   local grid = gp and hafen.map.grid(gp.gridId)
   if (not gp) or (not seg) or (not grid) then
     check(false, "the player's own grid is in the map database (every check below stands on it)",
-          (gp == nil) and "no gridPos -- no player, or the map has not streamed in yet"
+          (gp == nil) and "no anchor -- no player, or the map has not streamed in yet"
                        or "the grid the player stands on is not recorded yet")
     return summary()
   end
@@ -270,10 +278,10 @@ end
 showRound = function()
   pass, fail, manual = 0, 0, 0
   cleanup()
-  local gp = hafen.world.gridPos()
+  local gp = playerAnchor()
   local grid = gp and hafen.map.grid(gp.gridId)
   if not grid then
-    check(false, "the player's own grid is in the map database", "no gridPos / not recorded yet")
+    check(false, "the player's own grid is in the map database", "no anchor / not recorded yet")
     return summary()
   end
   -- kick all three and wait for the slowest (level 2 composites sixteen grids): the frame is the retry loop

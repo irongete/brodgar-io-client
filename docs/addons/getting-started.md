@@ -107,11 +107,11 @@ window read the result. Add this below the block from step 5:
 
 ```lua
 hafen.timer():every(1, function()
-  trees = hafen.world.count("terobjs/tree")
+  trees = hafen.world():gob():count("terobjs/tree")
 end)
 ```
 
-[`hafen.world.count`](api/world.md) counts the game objects whose resource name contains what you passed —
+[`hafen.world():gob():count`](api/world.md) counts the game objects whose resource name contains what you passed —
 every tree the client has loaded around you. Reload, and the number moves as you walk.
 
 ## Step 7: add a hotkey
@@ -195,7 +195,7 @@ hafen.event():on("OnEnterWorld", function()
 end)
 
 hafen.timer():every(1, function()
-  trees = hafen.world.count("terobjs/tree")
+  trees = hafen.world():gob():count("terobjs/tree")
 end)
 
 hafen.client:options():keybindings():register("toggle", function()

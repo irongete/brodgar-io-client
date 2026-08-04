@@ -21,8 +21,8 @@ import java.util.Map;
 
 /**
  * A <b>Gob object</b> — the OOP successor of the flat {@code hafen.gob.*(ref)} accessor (spec
- * {@code 017-gob-oop}, D-044). {@code hafen.gob(id)} mints one; {@code gob:pos()} / {@code gob:name()} /
- * {@code gob:health()} … read it. It wraps <b>only the id</b>: every method re-resolves against the
+ * {@code 017-gob-oop}, D-044). {@code hafen.world():gob():get(id)} mints one; {@code gob:position()} /
+ * {@code gob:name()} / {@code gob:health()} … read it. It wraps <b>only the id</b>: every method re-resolves against the
  * {@link haven.OCache} through {@link AddonManager#getgob} and returns {@code nil} if the gob is gone, so the
  * freshness semantics of D-012 survive verbatim — what changed is that the reference stopped being an argument
  * and became the object.
@@ -31,14 +31,14 @@ import java.util.Map;
  * {@code LuaValue.userdataOf(luaGob, mt)} with a <b>per-addon</b> metatable ({@code __index} = the shared
  * methods table, {@code __tostring}, {@code __name}) — the R1 handle pattern of {@code luaj-bridge.md}. The
  * interned object is shared by all of the addon's own code, so it must be <b>immutable from Lua</b> (a LuaTable
- * handle could be scribbled on: {@code gob.pos = nil}); userdata with no {@code __newindex} rejects writes, and
- * the raw {@link Gob} never crosses the facade. Field access is methods-only — {@code gob.id} is the function,
- * {@code gob:id()} the number.
+ * handle could be scribbled on: {@code gob.position = nil}); userdata with no {@code __newindex} rejects writes,
+ * and the raw {@link Gob} never crosses the facade. Field access is methods-only — {@code gob.id} is the
+ * function, {@code gob:id()} the number, and a retired spelling ({@code gob.pos}) throws naming its replacement.
  *
  * <p><b>Identity by interning (D-045).</b> Each addon's {@link Cache} (held in {@link Addon#gobs}) is a
- * {@code Map<Long, WeakReference<LuaValue>>} + a {@link ReferenceQueue}, so {@code hafen.gob(id) ==
- * hafen.gob(id)} and {@code seen[gob] = true} are reliable, and {@code hafen.player():gob()} is literally the
- * same object as {@code hafen.gob(<player id>)}. Weak <b>values</b> (not a {@code WeakHashMap}: that is weak
+ * {@code Map<Long, WeakReference<LuaValue>>} + a {@link ReferenceQueue}, so two reads of one id are {@code ==}
+ * and {@code seen[gob] = true} is reliable, and {@code hafen.player():gob()} is literally the
+ * same object as {@code hafen.world():gob():get(<player id>)}. Weak <b>values</b> (not a {@code WeakHashMap}: that is weak
  * <i>keys</i>) so an entry dies when the addon drops its last reference; the queue is drained on every access
  * (amortised, no sweep timer) because the {@code Long} key + the dead {@code WeakReference} would otherwise
  * accumulate — a per-tick world sweep sees tens of thousands of ids over a session. The cache is
@@ -148,7 +148,7 @@ public final class LuaGob {
     /** The per-addon metatable: {@code __index} = the methods table, plus {@code __tostring}/{@code __name}. */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(owner));
+        mt.set(LuaValue.INDEX, Retired.methodIndex("gob", methods(owner)));
         mt.set("__name", LuaValue.valueOf("Gob"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -182,19 +182,17 @@ public final class LuaGob {
                 return AddonManager.gobSnapshot(gob(self, "info"));
             }
         });
-        m.set("pos", new OneArgFunction() {
+        // position() — where the gob is, as a Position (039.2): computable (p:offset(dx, dy) crosses grid
+        // boundaries) and durable (p:info() is the {gridId, x, y} form hafen.store keeps). nil once the gob is
+        // gone, or before it has a position at all.
+        m.set("position", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                Gob g = gob(self, "pos");
+                Gob g = gob(self, "position");
                 if(g == null)
                     return LuaValue.NIL;
                 Coord2d rc;
                 synchronized(g) { rc = g.rc; }
-                if(rc == null)
-                    return LuaValue.NIL;
-                LuaTable t = new LuaTable();
-                t.set("x", LuaValue.valueOf(rc.x));
-                t.set("y", LuaValue.valueOf(rc.y));
-                return t;
+                return LuaPosition.of(owner, rc);
             }
         });
         m.set("facing", new OneArgFunction() {
@@ -333,9 +331,9 @@ public final class LuaGob {
                 return LuaOverlay.of(owner, h.id, key, false);
             }
         });
-        m.set("isplayer", new OneArgFunction() {
+        m.set("isPlayer", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                Gob g = gob(self, "isplayer");
+                Gob g = gob(self, "isPlayer");
                 // nil only when the gob is GONE; a gob whose name hasn't resolved yet is simply not a player.
                 return (g == null) ? LuaValue.NIL : LuaValue.valueOf(AddonManager.gobIsPlayer(g));
             }
@@ -360,7 +358,7 @@ public final class LuaGob {
                 } else {
                     LuaGob h = resolve(other);
                     if(h == null)
-                        throw new LuaError("gob:distance([other]) -- 'other' must be a Gob object (hafen.gob(id)), or nil for the player");
+                        throw new LuaError("gob:distance([other]) -- 'other' must be a Gob object (hafen.world():gob():get(id)), or nil for the player");
                     b = AddonManager.getgob(h.id);
                 }
                 if((a == null) || (b == null))
@@ -382,33 +380,12 @@ public final class LuaGob {
     private static LuaGob handle(LuaValue self, String method) {
         LuaGob h = resolve(self);
         if(h == null)
-            throw new LuaError("gob:" + method + "() -- use a COLON call on a Gob object (hafen.gob(id), hafen.world.nearest(...), hafen.player():gob())");
+            throw new LuaError("gob:" + method + "() -- use a COLON call on a Gob object (hafen.world():gob():get(id), hafen.world():gob():nearest(...), hafen.player():gob())");
         return h;
     }
 
     /** The LIVE gob behind a method's {@code self}: re-resolved every call, {@code null} once it is gone. */
     private static Gob gob(LuaValue self, String method) {
         return AddonManager.getgob(handle(self, method).id);
-    }
-
-    /**
-     * {@code hafen.gob} itself: a <b>callable table</b> ({@code __call}) so {@code hafen.gob(id)} mints a handle
-     * while {@code hafen.gob.health} reads as plain {@code nil} — the hard cut is visible from Lua (D-044). Any
-     * number id is accepted, loaded or not ({@code gob:exists()} is the liveness test, and {@code follow=} needs
-     * a handle for a gob that hasn't streamed in yet); a non-number is a guiding error.
-     */
-    static LuaValue factory(final Addon owner) {
-        LuaTable gob = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.CALL, new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue idv = a.arg(2);        // arg1 = the callable table itself
-                if(!idv.isnumber())
-                    throw new LuaError("hafen.gob(id) expects a gob id (a number) -- the \"player\"/\"me\"/\"partyN\" tokens are gone; use hafen.player():gob()");
-                return of(owner, (long)idv.todouble());
-            }
-        });
-        gob.setmetatable(mt);
-        return gob;
     }
 }

@@ -154,7 +154,7 @@ it is the fastest way to try a call before you write it, and the fastest way to 
 instruction watchdog still applies, so a stray infinite loop aborts instead of freezing the client.
 
 ```text
-:lua hafen.world.count("terobjs/tree")
+:lua hafen.world():gob():count("terobjs/tree")
 :lua hafen.ui("window[title=Inventory]"):size()
 ```
 

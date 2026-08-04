@@ -12,8 +12,8 @@ is gated. Two forms, chosen by `billboard`:
 
 ```lua
 local icon = hafen.asset("icon.png")
-local p = hafen.player():gob():pos()
-local s = hafen.render.sprite{ image = icon, x = p.x, y = p.y, scale = 3 }  -- ~3 tiles tall, at your feet
+local p = hafen.player():gob():position()
+local s = hafen.render.sprite{ image = icon, x = p:x(), y = p:y(), scale = 3 }  -- ~3 tiles tall, at your feet
 s:rotate(math.pi / 2):alpha(0.8)     -- face 90 degrees, slightly translucent
 s:destroy()                          -- or just let reload or disable clean it up
 ```
@@ -26,7 +26,7 @@ yet, since there is no map view to stand it in.
 | Option | Default | Meaning |
 |---|---|---|
 | `image` | *required* | a [`hafen.asset`](../asset.md) **image handle** — [handle-only](README.md#handle-only); a path string is an error |
-| `x`, `y` | *required* | world coordinates, like [`gob:pos()`](../gob.md) |
+| `x`, `y` | *required* | world coordinates, like [`gob:position()`](../gob.md) |
 | `a` | `0` | facing angle in **radians**; a billboard ignores it, because it faces the camera |
 | `scale` | `1` | uniform scale. A **fixed** sprite is about a tile tall at `1`, width following the image aspect; a **billboard** is its native pixel size times `scale` |
 | `alpha` | `1` | opacity `0..1`, combined with the PNG's own transparency |
@@ -63,7 +63,7 @@ square-on and the same number of pixels. It is the ergonomic, gob-anchored versi
 it draws **on top** of the 3D scene, with no depth occlusion.
 
 ```lua
-local b = hafen.render.sprite{ image = icon, x = p.x, y = p.y, billboard = true, scale = 2 }
+local b = hafen.render.sprite{ image = icon, x = p:x(), y = p:y(), billboard = true, scale = 2 }
 ```
 
 A billboard is drawn at the image's **native pixel size**, DPI-scaled like the HUD, times `scale`, and
@@ -104,7 +104,7 @@ reads back through `gob:overlay()`, carries the same `scale`/`alpha`/`tint`/`bil
 ```lua
 -- a marker that floats above a creature and follows it around
 local icon = hafen.asset("marker.png")
-local prey = hafen.world.nearest(function(g) return (g:name() or ""):find("rabbit") end)
+local prey = hafen.world():gob():nearest(function(g) return (g:name() or ""):find("rabbit") end)
 if prey then
   prey:overlay("hunt", { image = icon, scale = 1.5, offset = { z = 14 } })
 end

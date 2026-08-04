@@ -6,8 +6,8 @@ to lay something out over the real terrain before you build it. To stand your *o
 instead, use [`hafen.render`](render/README.md).
 
 ```lua
-local p = hafen.player():gob():pos()
-local g = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin", x = p.x, y = p.y, alpha = 0.5 }
+local p = hafen.player():gob():position()
+local g = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin", x = p:x(), y = p:y(), alpha = 0.5 }
 g:move(p.x + 33, p.y)                       -- 3 tiles east; a tile is 11 world units
 g:rotate(math.pi)
 ```
@@ -18,7 +18,7 @@ HUD overlay.
 
 > **Ungated.** Because nothing reaches the server, ghosts need no `actions` permission and no consent
 > dialog. They sit alongside [`hafen.ui.overlay`](ui/custom.md#overlays), not [`hafen.act`](act.md).
-> Committing a *real* build is still the gated [`hafen.act.place`](act.md).
+> Committing a *real* build is still the gated [`hafen.act():place`](act.md).
 
 Everything here is **bridge-owned**: every ghost your addon creates is torn down automatically on reload,
 disable and relogin, leaking nothing.
@@ -35,7 +35,7 @@ disable and relogin, leaking nothing.
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `res` | string | *required* | resource name, e.g. `"gfx/terobjs/arch/logcabin"`, resolved through the game resource pool, so any server or client resource works |
-| `x`, `y` | number | *required* | world coordinates, login-relative, the same as [`gob:pos()`](gob.md) |
+| `x`, `y` | number | *required* | world coordinates, login-relative, the same as [`gob:position()`](gob.md) |
 | `a` | number | `0` | facing, in radians |
 | `sdt` | byte array | *none* | spawn-data bytes selecting a resource variant or state, e.g. `{0x01, 0x00}`; rarely needed |
 | `alpha` | number | `1` | opacity `0..1`; below `1` gives the translucent ghost look |
@@ -169,8 +169,8 @@ naming `gob:overlay`, rather than standing the prop somewhere you did not ask fo
 > persistent as they stand.
 
 To save a layout across sessions, anchor each ghost on a **grid id** with
-[`hafen.world.gridPos()`](world.md#saving-a-world-position-across-sessions) and re-resolve it on load with
-[`hafen.world.fromGridPos()`](world.md#saving-a-world-position-across-sessions) — the same rule
+[`gob:position()`](world.md#the-position-type) — which persists as a grid anchor and comes back as a
+Position — and place the ghost at its `:x()`/`:y()` once it resolves. The same rule
 [markers](map/markers.md) follow. The bundled **`planner`** addon is a small base planner built on exactly
 this: it places clickable blueprint ghosts, saves them grid-anchored through
 [`hafen.store`](store.md), and reloads them at the same physical spot after a relog, retrying as the map
@@ -182,9 +182,9 @@ You can drag a ghost along the terrain, snapping exactly as placing a real build
 primitives and then `ghost:move`:
 
 1. [`hafen.hook():grab`](hook.md#hafenhookgrabmove-up) captures the mouse, so the camera stays put.
-2. [`hafen.world.screenToWorld`](world.md#screen-to-world-and-placement-snapping) turns the cursor
+2. [`hafen.world():screenToWorld`](world.md#screen-to-world-and-placement-snapping) turns the cursor
    pixel into a ground coordinate.
-3. [`hafen.world.snapPlace`](world.md#screen-to-world-and-placement-snapping) snaps it to the placement grid,
+3. [`hafen.world():snapPlace`](world.md#screen-to-world-and-placement-snapping) snaps it to the placement grid,
    with Shift for the fine grid.
 
 `planner` wires these into a move mode: select a ghost, start the grab, and it follows the cursor snapped
@@ -235,8 +235,8 @@ Because the gizmo drives any handle with `:pos`, `:move`, `:rotate` and `:scale`
 ## See also
 
 - [`hafen.render`](render/README.md) — the same world entity for your own images and models
-- [`hafen.world`](world.md#saving-a-world-position-across-sessions) — grid anchoring, and the snapping
+- [`hafen.world`](world.md#the-position-type) — grid anchoring, and the snapping
   the gizmo uses
 - [`hafen.hook`](hook.md#hafenhookgrabmove-up) — the mouse-capture primitive behind a drag
-- [`hafen.act.place`](act.md) — committing a real build, which is gated
+- [`hafen.act():place`](act.md) — committing a real build, which is gated
 - [events](event.md#world-ghosts-and-sprites) — `GhostClicked`

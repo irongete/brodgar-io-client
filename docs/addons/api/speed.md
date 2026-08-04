@@ -36,4 +36,4 @@ the server decides whether the speed is currently allowed — a locked sprint is
 ## See also
 
 - [`hafen.act`](act.md) — the permission this write shares
-- [`hafen.gob`](gob.md) — `gob:speed()`, the speed a body is actually moving at
+- [Gob](gob.md) — `gob:speed()`, the speed a body is actually moving at

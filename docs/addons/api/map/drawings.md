@@ -13,7 +13,7 @@ Because it is an image handle, everything that already draws an image draws a ma
 widget, [`hafen.render.sprite`](../render/sprites.md), and a stylesheet's `bg = { image = … }`.
 
 ```lua
-local g = hafen.map.grid(hafen.world.gridPos().gridId)
+local g = hafen.map.grid(hafen.player():gob():position():info().gridId)
 hafen.ui.window{ title = "Here", size = { 100, 100 },
                  onDraw = function(gc)
                    local img = g:image(0)              -- nil while it renders; ask again next frame

@@ -1,7 +1,7 @@
 # hafen.party: the party roster
 
 Read the party you are in. Members come back in party sequence order, and each snapshot carries the
-member's gob `id` — so `hafen.gob(m.id)` gives you that member's live [Gob](gob.md).
+member's gob `id` — so `hafen.world():gob():get(m.id)` gives you that member's live [Gob](gob.md).
 
 ```lua
 for i, m in ipairs(hafen.party.members()) do
@@ -26,10 +26,10 @@ leaving a party is a menu action, reachable through [`hafen.act`](act.md).
 
 A member's `x` and `y` are the live gob position while they are in view and the last-known one
 otherwise, and they may be absent entirely. For a position you can rely on, go through
-`hafen.gob(m.id)` and check `:exists()`.
+`hafen.world():gob():get(m.id)` and check `:exists()`.
 
 ## See also
 
 - [`PartyMember`](types.md#partymember) — the snapshot shape all three readers return
-- [`hafen.gob`](gob.md) — turning a member id into a live object
+- [Gob](gob.md) — turning a member id into a live object
 - [`hafen.kin`](kin.md) — the roster that does carry names

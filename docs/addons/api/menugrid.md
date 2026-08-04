@@ -110,7 +110,7 @@ ground-targeted action enters targeting mode, just as the click would, and the t
 
 Because it goes through the client's own button code, `use` sends the action **by path when it has one
 and by id when it does not** — so it reaches the id-only entries, such as server-pushed abilities, that
-no path can express and that [`hafen.act.menu`](act.md) therefore cannot invoke.
+no path can express and that [`hafen.act():menu`](act.md) therefore cannot invoke.
 
 ## See also
 

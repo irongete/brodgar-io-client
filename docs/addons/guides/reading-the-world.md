@@ -11,10 +11,10 @@ same [filter](../api/conventions.md#the-filter-argument): nothing, a substring o
 predicate.
 
 ```lua
-local trees   = hafen.world.count("terobjs/tree")            -- how many, by name
-local nearest = hafen.world.nearest("terobjs/tree")          -- the closest one, or nil
-local players = hafen.world.within(50, function(g)           -- everything matching, within a radius
-  return g:isplayer()
+local trees   = hafen.world():gob():count("terobjs/tree")            -- how many, by name
+local nearest = hafen.world():gob():nearest("terobjs/tree")          -- the closest one, or nil
+local players = hafen.world():gob():within(50, function(g)           -- everything matching, within a radius
+  return g:isPlayer()
 end)
 ```
 
@@ -24,7 +24,7 @@ log what is around you once and read the list:
 
 ```lua
 hafen.slash():register("what", function()
-  for _, g in ipairs(hafen.world.within(15)) do
+  for _, g in ipairs(hafen.world():gob():within(15)) do
     hafen.log():write(g:name() or "?")
   end
 end)
@@ -37,10 +37,10 @@ on every call, so one you keep in a variable tracks its object as it moves and a
 object is gone. Nothing goes stale, and nothing has to be refreshed.
 
 ```lua
-local tree = hafen.world.nearest("terobjs/tree")
+local tree = hafen.world():gob():nearest("terobjs/tree")
 if tree and tree:exists() then
-  local p = tree:pos()
-  hafen.log():write(("tree at %.0f, %.0f, %.1f away"):format(p.x, p.y, tree:distance()))
+  local p = tree:position()
+  hafen.log():write(("tree at %.0f, %.0f, %.1f away"):format(p:x(), p:y(), tree:distance()))
 end
 ```
 
@@ -76,8 +76,8 @@ Gob, exactly as it is on any other object:
 ```lua
 local me = hafen.player():gob()          -- nil until you are in the world
 if me then
-  local p = me:pos()
-  hafen.log():write(("standing at %.0f, %.0f"):format(p.x, p.y))
+  local p = me:position()
+  hafen.log():write(("standing at %.0f, %.0f"):format(p:x(), p:y()))
 end
 ```
 
@@ -90,15 +90,15 @@ converts between the coordinate spaces — world units, tiles, grids and screen 
 answer `nil` while that part of the map is still streaming in, which is normal rather than an error.
 
 ```lua
-local p = hafen.player():gob():pos()
-local t = hafen.world.tile(p.x, p.y)
+local p = hafen.player():gob():position()
+local t = hafen.world():tile(p)
 hafen.log():write(t and (t.name or t.id) or "not loaded yet")
 ```
 
-> **World coordinates are session-local.** They reset at every login and mean nothing to another player, so
-> a position you save or share goes through
-> [`hafen.world.gridPos`](../api/world.md#saving-a-world-position-across-sessions), which anchors it to a map
-> grid, and comes back through `fromGridPos` next session.
+> **World coordinates are session-local.** They reset at every login and mean nothing to another player,
+> which is why a place is a [Position](../api/world.md#the-position-type) rather than a pair of numbers:
+> it anchors itself to a map grid, so it goes into [`hafen.store`](../api/store.md) and comes back the
+> same place next session.
 
 ## The map you explored
 
@@ -109,7 +109,7 @@ minimap paints.
 The anchor is the door between the two halves, in both directions:
 
 ```lua
-local gp = hafen.world.gridPos()             -- where I am, as {gridId, x, y}
+local gp = hafen.player():gob():position():info()   -- where I am, as {gridId, x, y}
 local g  = hafen.map.grid(gp.gridId)         -- ...and that same ground in the database
 local t  = g and g:tile{ x = 0, y = 0 }      -- nil until the grid is read off the disk
 hafen.log():write(t and t.name or "not loaded yet — ask again next tick")
@@ -117,12 +117,12 @@ hafen.log():write(t and t.name or "not loaded yet — ask again next tick")
 
 A read that needs a grid the client has not loaded off the disk **starts the load and answers `nil`** — call
 again next tick and it answers. There is no callback and no ready event: re-asking is the whole protocol, the
-same way `fromGridPos` retries as the map streams in. The [`atlas`](../examples.md#atlas) example addon is a
+same way a rebuilt Position resolves as the map streams in. The [`atlas`](../examples.md#atlas) example addon is a
 minimap panel built on exactly that loop.
 
 ## What the client does not know
 
-A gob's name is its *type*, so there is no display name for an arbitrary player; `gob:isplayer()` is the
+A gob's name is its *type*, so there is no display name for an arbitrary player; `gob:isPlayer()` is the
 test, and [`gob:kin()`](../api/kin.md) names the ones on your roster. Beyond that, reading tells you what
 the client itself has been told: an object outside your view has not been loaded and does not exist as far
 as your addon is concerned.

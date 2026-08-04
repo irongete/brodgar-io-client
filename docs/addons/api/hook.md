@@ -94,7 +94,7 @@ nor clicks, so a drag leaves the **camera put**.
 
 Both handlers are optional. It returns a handle with `:release()` to end the grab early; the `up` handler
 releases automatically. Pair it with
-[`hafen.world.screenToWorld`](world.md#screen-to-world-and-placement-snapping), pixel to world, and
+[`hafen.world():screenToWorld`](world.md#screen-to-world-and-placement-snapping), pixel to world, and
 [`snapPlace`](world.md#screen-to-world-and-placement-snapping), placement-grid snapping, to drag something
 along the ground:
 
@@ -105,10 +105,10 @@ local g = hafen.hook():grab{
   move = function(sx, sy, mods)
     if pending then return end                 -- coalesce: one raycast in flight at a time
     pending = true
-    hafen.world.screenToWorld(sx, sy, function(w)
+    hafen.world():screenToWorld(sx, sy, function(w)
       pending = false
       if w then
-        local s = hafen.world.snapPlace(w.x, w.y, mods.shift)   -- Shift = fine grid
+        local s = hafen.world():snapPlace(w.x, w.y, mods.shift)   -- Shift = fine grid
         ghost:move(s.x, s.y)
       end
     end)

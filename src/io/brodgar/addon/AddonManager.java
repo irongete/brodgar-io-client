@@ -1031,13 +1031,9 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
     static void installHafen(Globals g, final Addon owner) {
         LuaTable hafen = new LuaTable();
 
-        // hafen.gob(id) — the Gob CLASS (D-044): the factory mints an interned Gob OBJECT for an id and
-        // gob:pos()/:name()/:health()/… read it. A Gob wraps only the id, so every method re-resolves →
-        // always fresh, nil once the gob is gone (:id() still answers). Identity is by per-addon weak
-        // interning (D-045), so hafen.gob(id) == hafen.gob(id) and seen[gob] works. The flat
-        // hafen.gob.*(ref) table and the "player"/"me"/"partyN" GobRef tokens are GONE (hard cut, no
-        // shim, D-013): the player's gob is hafen.player():gob().
-        hafen.set("gob", LuaGob.factory(owner));
+        // hafen.gob is GONE into hafen.world():gob() (039.2, D-066): a gob lives IN the world, so the by-id
+        // door is the world's Gob collection, :get(id) — still never nil, still interned per addon, and the
+        // Gob OBJECT itself (gob:position()/:name()/:health()/…) is unchanged. See WorldApi.
 
         // hafen.menugrid(key) — the ACTION MENU (the 4x4 "scm" grid) as Pagina OBJECTS: the catalogue of
         // everything this character can do, in the grid's own order and category tree. Arity is the verb:
@@ -1048,15 +1044,15 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // Loading-guarded, so a scan right at OnEnterWorld may be short and fills in sub-second.
         hafen.set("menugrid", LuaPagina.factory(owner));
 
-        // hafen.world.* — the LIVE world (037.1). Enumerate gobs as Gob OBJECTS (count() is still a number):
-        // nearest/within measure from the player and skip the player's own gob; a function filter is called
-        // with a Gob, a string filter still matches its resource name. Prefer GobAdded/GobRemoved over
-        // per-frame scanning. It also holds the thirteen TERRAIN + COORDINATE functions that used to be
-        // hafen.map.* — tile/height/grid/gridPos/fromGridPos, the three pure conversions, screenToWorld and
-        // the placement snappers — because every one of them reads MCache, the terrain streamed around the
-        // player (nil off-stream, gone at logout), and never the map database. Positional args are WORLD
-        // coords (matching gob:pos()); grid-backed reads swallow Loading → nil; grid ids are 64-bit and so
-        // are exposed as decimal STRINGS, the exact persistent/shareable anchor (see gridPos).
+        // hafen.world():* — the LIVE world (037.1, re-shaped in 039.2). hafen.world():gob() is the read-only
+        // Gob collection and the ONE by-id door (:get/:list/:count/:find/:nearest/:within); nearest/within
+        // measure from the player and skip the player's own gob; a function filter is called with a Gob, a
+        // string filter matches its resource name. Prefer GobAdded/GobRemoved over per-frame scanning. The
+        // section also holds the terrain + coordinate half — tile/height/grid, the two lattice conversions,
+        // screenToWorld and the placement snappers — because every one reads MCache, the terrain streamed
+        // around the player (nil off-stream, gone at logout), never the map database. Every spatial verb takes
+        // a POSITION (LuaPosition): computable and durable at once, so gridPos/fromGridPos are gone and there
+        // is nothing left to convert. Grid ids are 64-bit and so are exposed as decimal STRINGS.
         WorldApi.installWorld(hafen, owner);
 
         // hafen.map.* — the RECORDED map (037): the client's on-disk map database (MapFile), the map the
@@ -1261,7 +1257,7 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // the button does) — supply the target with the MapView verbs.
         CharApi.installActionbar(hafen, owner);
 
-        // hafen.act.* — the GATED write-actions surface (spec 12 / D-010 / D-025 / D-027; D-028), the ONLY part of
+        // hafen.act():* — the GATED write-actions surface (spec 12 / D-010 / D-025 / D-027; D-028), the ONLY part of
         // hafen.* that DRIVES the character: it sends player-action wdgmsgs to the server. Everything else observes;
         // this acts. A verb runs only when THIS addon declared the "actions" permission in its manifest (else
         // requireActions throws a guiding error) — a PER-ADDON permission (D-028: no global master switch; the tier
@@ -1270,15 +1266,16 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // permitted. It stays server-authoritative: an addon can only send what a player click could send.
         //   enabled()   -> bool; is THIS addon allowed to act (did it declare the "actions" permission)? Reports
         //                  WITHOUT throwing, so an addon can adapt (no pcall needed).
-        //   moveTo(x,y) -> walk the character to a WORLD position (the same coords gob:pos() returns). This is
-        //                  exactly the MapView "click" a left-click on that ground spot sends; the screen coord it
+        //   moveTo(p)   -> walk the character to a POSITION (what gob:position() hands back). This is exactly
+        //                  the MapView "click" a left-click on that ground spot sends; the screen coord it
         //                  carries is a dummy (the current mouse pos), like MiniMap.mvclick when you click the
         //                  minimap to walk. Off-screen destinations are fine (the server uses the world coord).
         //   clickGob/useItemOn/place/select (4d) -> the rest of the MapView action verbs; all send a Widget.wdgmsg
         //                  from the MapView, sharing moveTo's coord encoding (world → Coord via moveClickCoord; the
-        //                  dummy pc). raw(target,msg,…) is the escape hatch (send any wdgmsg from a bound widget).
-        // Later Phase-4 slices add menu/flower/item + the per-subsystem gated verbs (speed.set, craft.make,
-        // actionbar.use, kin.*); they all share this same gate (requireActions(owner, …)).
+        //                  dummy pc), and the three spatial ones take Positions too. raw(target,msg,…) is the
+        //                  escape hatch (send any wdgmsg from a bound widget).
+        // The per-subsystem gated verbs (speed.set, craft.make, slot:use, the kin writes) share this same gate
+        // (requireActions(owner, …)).
         ActApi.installAct(hafen, owner);
 
         // hafen.ui — custom client-side UI (spec 07, Phase 2a). window(opts) = a draggable, titled window;
@@ -1382,7 +1379,7 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
                 } catch(RuntimeException e) {
                     throw new LuaError(e.getMessage());  // "JSON: <msg> at offset <n>" -> pcall-able
                 }
-                return LuaMarshal.jsonToLua(parsed);
+                return LuaMarshal.jsonToLua(parsed, owner);
             }
         });
         json.set("encode", new VarArgFunction() {

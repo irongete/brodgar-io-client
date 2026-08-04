@@ -109,12 +109,12 @@ local function run(args)
   pass, fail, manual = 0, 0, 0
 
   local me = hafen.player() and hafen.player():gob()
-  local p = me and me:pos()
-  local gp = hafen.world.gridPos()
+  local p = me and me:position()
+  local gp = p and p:info()
   local seg = hafen.map.segment()
   if (not p) or (not seg) or (not gp) then
     check(false, "the player and the map database are both up (every check below stands on them)",
-          (not p) and "no player gob" or "no segment/gridPos yet -- the map DB streams in a beat after login")
+          (not p) and "no player gob" or "no segment/anchor yet -- the map DB streams in a beat after login")
     return summary()
   end
 

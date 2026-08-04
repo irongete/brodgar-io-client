@@ -6,14 +6,14 @@ the minimap icon settings that decide what is drawn on it. Reach for it to read 
 the client wrote down about a piece of ground, and to turn a position into something you can save or send.
 
 ```lua
-local p = hafen.player():gob():pos()
-local pin = hafen.map.markers.add("Camp", p.x, p.y, { color = {0, 200, 0}, onmap = true })
+local p = hafen.player():gob():position()
+local pin = hafen.map.markers.add("Camp", p:x(), p:y(), { color = {0, 200, 0}, onmap = true })
 local anchor = pin:anchor()                          -- {gridId, x, y} — safe to save or share
 hafen.map.markers.remove(pin)
 ```
 
 > **Recorded, not live.** Nothing under `hafen.map` reads the terrain streamed around you — that is
-> [`hafen.world`](../world.md), which owns `tile`, `height`, `grid`, `gridPos` and the rest of the
+> [`hafen.world`](../world.md), which owns `tile`, `height`, `grid`, the Position type and the rest of the
 > coordinate space. `hafen.map` is the database behind the map window and the corner minimap.
 
 ## Reads answer nil until the disk answers
@@ -21,7 +21,7 @@ hafen.map.markers.remove(pin)
 The database is on disk. **A read that needs a grid the client has not loaded starts the load and
 returns `nil`; call again next tick and it answers.** Nothing blocks, and nothing ever throws a loading
 error at you — the same rule
-[`hafen.world.fromGridPos`](../world.md#saving-a-world-position-across-sessions) already follows. So a
+[a Position](../world.md#the-position-type) already follows. So a
 panel that draws the map simply re-asks every frame and fills in as the ground arrives; there is no
 callback to register and no "ready" event to wait for.
 
@@ -63,5 +63,5 @@ that decides which gob icons the minimap draws.
 
 - [`hafen.world`](../world.md) — the live half: terrain, the coordinate spaces, and the grid anchor
 - [coordinates](../conventions.md#coordinates) — why the anchor is the only position worth storing
-- [`hafen.gob`](../gob.md) — `gob:icon()`, the category name on a live object
+- [Gob](../gob.md) — `gob:icon()`, the category name on a live object
 - [`atlas`](../../examples.md#atlas) — the example addon: a live minimap panel out of these pages alone

@@ -49,7 +49,7 @@ handlers cheap: they run on the UI thread on every frame.
 | `GobOverlayAdded` | `{ gob, key, native }` | something is attached to a game object — see [`gob:overlay`](gob.md#overlays) |
 | `GobOverlayRemoved` | `{ gob, key, native }` | something attached to a game object goes away |
 
-Prefer these over scanning [`hafen.world.gobs`](world.md) every frame. The payload is a live
+Prefer these over scanning [`hafen.world():gob():list`](world.md) every frame. The payload is a live
 [Gob object](gob.md). On `GobRemoved` the gob is **already gone**, so only `gob:id()` answers there; if
 you need its name, index it on `GobAdded`.
 

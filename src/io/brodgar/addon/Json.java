@@ -217,7 +217,10 @@ public final class Json {
     }
 
     private static void write(LuaValue v, StringBuilder sb, java.util.Set<LuaValue> seen, boolean strict) {
-        if(v.isnil()) {
+        LuaPosition pos = LuaPosition.resolve(v);
+        if(pos != null) {
+            writePos(pos, sb, strict);
+        } else if(v.isnil()) {
             sb.append("null");
         } else if(v.isboolean()) {
             sb.append(v.toboolean() ? "true" : "false");
@@ -227,10 +230,8 @@ public final class Json {
                 if(strict)
                     throw new LuaError("hafen.json():encode: cannot encode a non-finite number");
                 sb.append("null");                       // JSON has no NaN/Infinity
-            } else if((d == Math.rint(d)) && (Math.abs(d) < 1e15)) {
-                sb.append(Long.toString((long)d));       // clean integers (no trailing .0)
             } else {
-                sb.append(Double.toString(d));
+                writeNum(d, sb);
             }
         } else if(v instanceof LuaString) {
             writeStr(v.tojstring(), sb);
@@ -241,6 +242,42 @@ public final class Json {
         } else {
             writeStr(v.tojstring(), sb);                 // function/userdata/thread → quoted tostring
         }
+    }
+
+    /**
+     * A <b>Position</b> as its durable form, {@code {"gridId": "<decimal>", "x": …, "y": …}} — the one
+     * userdata this writer understands, and it has to: without this a saved place would go through the
+     * forgiving path below and persist as a quoted {@code tostring}, which is garbage that looks like data.
+     * {@link LuaMarshal#jsonToLua} reads the shape back as a Position, so the round trip is closed.
+     *
+     * <p>A position on ground the character has <b>never visited</b> has no grid to anchor to and therefore no
+     * durable form. Strict ({@code hafen.json():encode}) refuses it naming {@code :durable()}; forgiving (the
+     * store) writes {@code null}, because one unsaveable value must not cost an addon the rest of its file.
+     */
+    private static void writePos(LuaPosition pos, StringBuilder sb, boolean strict) {
+        LuaPosition.Anchor an = pos.anchor();
+        if(an == null) {
+            if(strict)
+                throw new LuaError("hafen.json():encode: this position cannot be saved — it is on ground you"
+                    + " have never visited, so there is no grid to anchor it to (p:durable() reports it)");
+            sb.append("null");
+            return;
+        }
+        sb.append("{\"gridId\":");
+        writeStr(Long.toString(an.id), sb);
+        sb.append(",\"x\":");
+        writeNum(an.x, sb);
+        sb.append(",\"y\":");
+        writeNum(an.y, sb);
+        sb.append('}');
+    }
+
+    /** A number, with clean integers (no trailing {@code .0}) — the one place numbers are formatted. */
+    private static void writeNum(double d, StringBuilder sb) {
+        if((d == Math.rint(d)) && (Math.abs(d) < 1e15))
+            sb.append(Long.toString((long)d));
+        else
+            sb.append(Double.toString(d));
     }
 
     private static void writeTab(LuaTable t, StringBuilder sb, java.util.Set<LuaValue> seen, boolean strict) {

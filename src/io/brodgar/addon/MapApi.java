@@ -488,11 +488,44 @@ final class MapApi {
      * a grid in a segment the player is not standing in has no world coordinate this session at all.
      */
     static LuaValue gridWorldUL(MapFile.GridInfo gi) {
+        Coord2d ul = gridUL(gi);
+        return (ul == null) ? LuaValue.NIL : xy(ul.x, ul.y);
+    }
+
+    /**
+     * {@link #gridWorldUL} as a coordinate rather than a Lua table — the recorded→live half of the Position
+     * lookup ({@link LuaPosition}), which needs to do arithmetic on it rather than hand it out.
+     */
+    static Coord2d gridUL(MapFile.GridInfo gi) {
         MiniMap.Location sl = sessloc();
         if((gi == null) || (sl == null) || (gi.seg != sl.seg.id))
-            return LuaValue.NIL;
-        return xy(((gi.sc.x * MCache.cmaps.x) - sl.tc.x) * MCache.tilesz.x,
-                  ((gi.sc.y * MCache.cmaps.y) - sl.tc.y) * MCache.tilesz.y);
+            return null;
+        return segGridUL(sl, gi.sc);
+    }
+
+    /** The world upper-left of a segment grid coord in this session — the same arithmetic, without a lookup. */
+    static Coord2d segGridUL(MiniMap.Location sl, Coord sc) {
+        return Coord2d.of(((sc.x * MCache.cmaps.x) - sl.tc.x) * MCache.tilesz.x,
+                          ((sc.y * MCache.cmaps.y) - sl.tc.y) * MCache.tilesz.y);
+    }
+
+    /**
+     * The grid id the database recorded at a segment coord, or {@code null} — the live→recorded half of the
+     * Position lookup, and the one step {@code Segment.grid(sc)} cannot take without a disk load. A durability
+     * check that had to wait for {@link haven.Defer} would report ground the character has walked as not
+     * durable until the tiles landed; the id is already in memory with the segment, so this answers now.
+     */
+    static Long recordedGridId(MapFile file, long segId, Coord sc) {
+        MapFile.Segment seg = segIn(file, segId);
+        if((seg == null) || !file.lock.readLock().tryLock())
+            return null;
+        try {
+            return seg.gridid(sc);
+        } catch(RuntimeException e) {
+            return null;
+        } finally {
+            file.lock.readLock().unlock();
+        }
     }
 
     /**

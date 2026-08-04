@@ -31,7 +31,7 @@ filter matches the marker's name; a function filter is called with the Marker it
 
 **`marker:anchor()` is how a marker leaves this client.** It converts the marker's own position — which
 is client-local and re-based by a merge, see [saving a position](grids.md#saving-a-position) — into the
-same `{gridId, x, y}` [`hafen.world.gridPos`](../world.md#saving-a-world-position-across-sessions) hands
+same `{gridId, x, y}` [a Position's `:info()`](../world.md#the-position-type) hands
 out. For a marker in your current segment it answers straight away; for one in another explored area it
 has to read that grid off the disk, so it answers `nil` and then answers.
 
@@ -67,4 +67,4 @@ remove, including ones the player makes.
 - [segments and grids](grids.md) — `seg:markers()`, and why the anchor is what you store
 - [`Marker`](../types.md#marker) — the snapshot `marker:info()` hands back
 - [events](../event.md#roster-quests-markers) — `MarkersChanged`
-- [`hafen.world`](../world.md#saving-a-world-position-across-sessions) — the other source of an anchor
+- [`hafen.world`](../world.md#the-position-type) — the other source of an anchor

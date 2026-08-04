@@ -25,6 +25,7 @@ Parses a JSON document and returns the equivalent Lua value.
 | `true` / `false` | boolean |
 | number | Lua number; an integral value comes back as an **integer**, so `{"n":5}` is `5`, not `5.0` |
 | `null` | **`nil`**, with the consequence below |
+| `{"gridId": …, "x": …, "y": …}` | a [Position](world.md#the-position-type) — the durable form of a place, and the one object this parser rebuilds |
 
 **A JSON `null` disappears.** Lua cannot hold `nil` as a live table value, so inside an object the key
 is simply **absent** — `parse('{"a":1,"b":null}').b` is `nil` — and inside an array it leaves a
@@ -38,6 +39,10 @@ Malformed input raises a Lua error reading `JSON: <message> at offset <n>`, so w
 local ok, result = pcall(function() return hafen.json():parse(untrusted) end)
 if not ok then hafen.log():write("bad JSON: " .. tostring(result)); return end
 ```
+
+`encode` writes a Position back as that same three-key object, so a place survives a file or a message.
+One that is not `:durable()` cannot be written and raises saying so, rather than going out as something
+that reads like a place and is not one.
 
 Input longer than **8 million characters**, or nested deeper than **256** levels, raises instead of
 risking the stack or the heap. Both caps are set at launch with `-Dhaven.addon.json.maxlen=<chars>` and

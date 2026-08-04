@@ -11,8 +11,8 @@ hafen.event():on("OnLoad", function()
 end)
 
 -- later, in the world:
-local p = hafen.player():gob():pos()
-local o = hafen.render.object{ model = mdl, x = p.x, y = p.y, a = 0, scale = 1 }
+local p = hafen.player():gob():position()
+local o = hafen.render.object{ model = mdl, x = p:x(), y = p:y(), a = 0, scale = 1 }
 o:rotate(math.pi / 4):scale(1.5)                   -- face 45 degrees, 1.5 times bigger; chained
 ```
 
@@ -64,7 +64,7 @@ yet. The options mirror [`hafen.render.sprite`](sprites.md), with `model` in pla
 | Option | Default | Meaning |
 |---|---|---|
 | `model` | *required* | a [`hafen.asset`](../asset.md) **mesh handle** — [handle-only](README.md#handle-only); a path string is an error |
-| `x`, `y` | *required* | world coordinates, like [`gob:pos()`](../gob.md) |
+| `x`, `y` | *required* | world coordinates, like [`gob:position()`](../gob.md) |
 | `a` | `0` | facing angle in **radians**, about the vertical |
 | `scale` | `1` | uniform scale **on top of** the baked model-to-world size |
 | `alpha` | `1` | opacity `0..1` |

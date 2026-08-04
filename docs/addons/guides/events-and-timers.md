@@ -44,7 +44,7 @@ Ask for the cheapest thing that answers the question.
 
 ```lua
 hafen.timer():every(2, function()                  -- polling, twice as slow as it feels
-  hafen.log():write("trees: " .. hafen.world.count("terobjs/tree"))
+  hafen.log():write("trees: " .. hafen.world():gob():count("terobjs/tree"))
 end)
 
 local handle = hafen.timer():after(5, function() end)

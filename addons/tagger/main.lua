@@ -44,7 +44,7 @@ hafen.event():on("OnLoad", function() icon = hafen.asset("icon.png") end)
 -- One player, two overlays under two keys of our own. A key is per addon, so "name" here can never collide
 -- with another addon's "name" -- and gob:overlay() below will list ours and the game's, never a third party's.
 local function tag(g)
-  if not (g and g:exists() and g:isplayer()) then return end
+  if not (g and g:exists() and g:isPlayer()) then return end
   local kin = g:kin()
   g:overlay(LABEL, { text = kin and kin:name() or "player",
                      color = kin and {120, 220, 120} or {220, 220, 120},
@@ -65,11 +65,11 @@ local function untag(g)
 end
 
 local function tagAll()
-  for _, g in ipairs(hafen.world.gobs()) do tag(g) end
+  for _, g in ipairs(hafen.world():gob():list()) do tag(g) end
 end
 
 local function untagAll()
-  for id in pairs(tagged) do untag(hafen.gob(id)) end
+  for id in pairs(tagged) do untag(hafen.world():gob():get(id)) end
   tagged = {}
 end
 
@@ -82,17 +82,17 @@ hafen.event():on("GobRemoved", function(g) tagged[g:id()] = nil end)
 
 -- ---- the world pin ------------------------------------------------------------------------------------
 
--- hafen.world.nearest already measures from the player and skips the player's own gob, so a bare call is the
+-- hafen.world():gob():nearest already measures from the player and skips the player's own gob, so a bare call is
 -- nearest OTHER thing in the world.
 local function nearestObject()
-  return hafen.world.nearest()
+  return hafen.world():gob():nearest()
 end
 
 -- What ':tagger read' and ':tagger pin' talk about. The PINNED gob wins when there is one -- otherwise the two
 -- commands would drift apart the moment you take a step, and 'read' would report an object 'pin' never touched.
 local function target()
   if pinned then
-    local g = hafen.gob(pinned)
+    local g = hafen.world():gob():get(pinned)
     if g:exists() then return g, true end
   end
   return nearestObject(), false
@@ -108,7 +108,7 @@ local function pin()
   if not icon then return hafen.log():write("tagger: icon.png did not load") end
   local g = nearestObject()
   if not g then return hafen.log():write("tagger: nothing near you to pin") end
-  if pinned then local old = hafen.gob(pinned) if old:exists() then old:overlay(PIN, nil) end end
+  if pinned then local old = hafen.world():gob():get(pinned) if old:exists() then old:overlay(PIN, nil) end end
   -- A WORLD-space overlay: offset is in world units with z up, so {z = 18} floats it overhead. It carries the
   -- look verbs its entity already had, and they CHAIN.
   local ov = g:overlay(PIN, { image = icon, scale = 2, offset = { z = 18 } })
@@ -121,7 +121,7 @@ end
 
 local function unpin()
   if not pinned then return hafen.log():write("tagger: nothing is pinned") end
-  local g = hafen.gob(pinned)
+  local g = hafen.world():gob():get(pinned)
   if g:exists() then g:overlay(PIN, nil) end   -- and if it does NOT exist, the overlay went with it
   pinned = nil
   hafen.log():write("tagger: pin removed")

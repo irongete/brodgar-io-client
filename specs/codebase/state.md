@@ -43,5 +43,10 @@
 - **`addol(ol)` is `addol(ol, true)` = ASYNC** — it defers through `Gob.defer` onto a loader thread, so
   the one-arg and two-arg forms are the same event: hook the two-arg **body** or every add fires twice.
   Overlays also arrive from server messages off the UI thread; nothing may call into Lua from there.
+- **`MCache.getgrid` REQUESTS what it cannot find** ([:909](src/haven/MCache.java:909)): a miss calls
+  `request(gc)` (:1176, re-sent up to five times) and throws `LoadingMap`. Right for "draw this ground",
+  wrong for "where is this place" — a locating read uses a plain `synchronized(grids)` lookup instead, which
+  is what `AddonWidgets.loadedGrid` is (D-110). `Grid.ul` is `gc * cmaps` in session tiles, the same point
+  the map file derives as `(sc * cmaps) - sessloc.tc`, which is why one anchor survives a grid unloading.
 - **Several overlays may share one resource** — measured 13 of 33 gobs carrying overlays (038.1), so a
   resource name identifies a *set*, not one overlay (D-101).

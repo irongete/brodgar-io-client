@@ -39,6 +39,10 @@ final class Retired {
         // ---- sections whose NAME changed (§2.3: the three surviving plurals go singular) ----------------
         put("hafen.events", "hafen.events is now hafen.event() — subscribe with hafen.event():on(name, fn)");
 
+        // ---- hafen.gob is DELETED into the live world (D-066): a gob lives IN the world ------------------
+        put("hafen.gob", "hafen.gob(id) is now hafen.world():gob():get(id) — still never nil, and"
+            + " gob:exists() is still the liveness test");
+
         // ---- the eight verb-only sections: every dotted verb is now a colon call on the section ---------
         section("time", "clock", "dayFraction", "isNight", "season", "moon", "yearFraction");
         section("slash", "register");
@@ -53,6 +57,54 @@ final class Retired {
         put("hafen.http.post", "hafen.http.post(url, body, opts, cb) is now hafen.http():post(url, body, cb)"
             + " — opts.headers and opts.timeout are setters on the request it hands back:"
             + " req:header(name, value), req:timeout(ms)");
+
+        // ---- hafen.world: the gob verbs fold into one read-only collection, and every spatial verb -------
+        // ---- takes a Position instead of a pair of numbers (§2.7).
+        put("hafen.world.gobs", "hafen.world.gobs(filter) is now hafen.world():gob():list(filter)");
+        put("hafen.world.count", "hafen.world.count(filter) is now hafen.world():gob():count(filter)");
+        put("hafen.world.nearest", "hafen.world.nearest(filter) is now hafen.world():gob():nearest(filter)");
+        put("hafen.world.within", "hafen.world.within(r, filter) is now hafen.world():gob():within(r, filter)");
+        put("hafen.world.tile", "hafen.world.tile(x, y) is now hafen.world():tile(p), where p is a Position"
+            + " (gob:position(), or hafen.world():position(x, y))");
+        put("hafen.world.height", "hafen.world.height(x, y) is now hafen.world():height(p), where p is a"
+            + " Position (gob:position(), or hafen.world():position(x, y))");
+        put("hafen.world.grid", "hafen.world.grid(x, y) is now hafen.world():grid():at(p), where p is a"
+            + " Position (gob:position(), or hafen.world():position(x, y))");
+        put("hafen.world.gridPos", "hafen.world.gridPos(x, y) is gone: a Position IS the anchor."
+            + " hafen.world():position(x, y) builds one and p:info() is the {gridId, x, y} form —"
+            + " and hafen.store keeps a Position itself, so there is nothing to convert");
+        put("hafen.world.fromGridPos", "hafen.world.fromGridPos(saved) is now hafen.world():position(saved)"
+            + " — and a Position read back out of hafen.store is already one, so there is nothing to convert");
+        put("hafen.world.worldToTile", "hafen.world.worldToTile(x, y) is now p:tileCoord(), on the Position"
+            + " itself");
+        put("hafen.world.tileToWorld", "hafen.world.tileToWorld(tx, ty) is now"
+            + " hafen.world():tileToWorld(tx, ty)");
+        put("hafen.world.tileToGrid", "hafen.world.tileToGrid(tx, ty) is now hafen.world():tileToGrid(tx, ty)");
+        put("hafen.world.screenToWorld", "hafen.world.screenToWorld(sx, sy, fn) is now"
+            + " hafen.world():screenToWorld(sx, sy, fn), and fn receives a Position");
+        put("hafen.world.snapPlace", "hafen.world.snapPlace(x, y, fine) is now"
+            + " hafen.world():snapPlace(p, fine), and it hands back a Position");
+        put("hafen.world.snapAngle", "hafen.world.snapAngle(a, fine) is now hafen.world():snapAngle(a, fine)");
+        put("hafen.world.placeGrid", "hafen.world.placeGrid() is gone — it read the same setting as"
+            + " hafen.client():options():interface():posGran(), which also writes it");
+        put("hafen.world.placeAngle", "hafen.world.placeAngle() is gone — it read the same setting as"
+            + " hafen.client():options():interface():angGran(), which also writes it (in DEGREES per step)");
+
+        // ---- hafen.act: R1 throughout, and the four spatial verbs take Positions -----------------------
+        section("act", "enabled", "clickGob", "item", "menu", "flower", "raw");
+        put("hafen.act.moveTo", "hafen.act.moveTo(x, y) is now hafen.act():moveTo(p), where p is a Position"
+            + " (gob:position(), or hafen.world():position(x, y))");
+        put("hafen.act.useItemOn", "hafen.act.useItemOn(x, y, mods) is now hafen.act():useItemOn(p, mods),"
+            + " where p is a Position");
+        put("hafen.act.place", "hafen.act.place(x, y, angle, button, mods) is now"
+            + " hafen.act():place(p, angle, button, mods), where p is a Position");
+        put("hafen.act.select", "hafen.act.select(x1, y1, x2, y2, mods) is now"
+            + " hafen.act():select(p1, p2, mods), where p1 and p2 are Positions");
+
+        // ---- entity methods (keyed "<entity>:<verb>", hung off that entity's own metatable) -------------
+        put("gob:pos", "gob:pos() is now gob:position(), and it hands back a Position rather than a"
+            + " {x, y} table: p:x()/p:y() are the components, p:offset(dx, dy) moves, p:info() saves");
+        put("gob:isplayer", "gob:isplayer() is now gob:isPlayer()");
     }
 
     /** Register the plain {@code hafen.<section>.<verb>(…)} → {@code hafen.<section>():<verb>(…)} rows. */
@@ -87,6 +139,28 @@ final class Retired {
      */
     static LuaValue sectionIndex(String section) {
         return index("hafen." + section);
+    }
+
+    /**
+     * The {@code __index} for one <b>entity</b>'s metatable: a live verb answers, a retired one throws naming
+     * its replacement, and anything else reads as plain {@code nil} — the same three outcomes a section has,
+     * one level down. The retired rows are keyed {@code "<entity>:<verb>"} ({@code "gob:pos"}), which is how
+     * they are spelled at the call site that has to be fixed.
+     */
+    static LuaValue methodIndex(final String entity, final LuaTable methods) {
+        return new TwoArgFunction() {
+            public LuaValue call(LuaValue self, LuaValue key) {
+                LuaValue m = methods.rawget(key);
+                if(!m.isnil())
+                    return m;
+                if(key.isstring()) {
+                    String msg = NAMES.get(entity + ":" + key.tojstring());
+                    if(msg != null)
+                        throw new LuaError(msg);
+                }
+                return LuaValue.NIL;
+            }
+        };
     }
 
     /** The shared metamethod: {@code prefix + "." + key} in the table throws, anything else reads nil. */

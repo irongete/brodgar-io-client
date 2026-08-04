@@ -102,8 +102,8 @@ local function run(args)
           function() hafen.render.sprite{ image = icon, follow = me } end, "gob:overlay(key, {image = <asset>})")
 
   -- 2. The cut took ONLY the anchor: a FIXED sprite still builds, and its handle has no :follow/:offset left.
-  local p = me:pos()
-  local fixed = hafen.render.sprite{ image = icon, x = p.x + 6, y = p.y + 6, scale = 1 }
+  local p = me:position()
+  local fixed = hafen.render.sprite{ image = icon, x = p:x() + 6, y = p:y() + 6, scale = 1 }
   check(fixed ~= nil, "a FIXED world sprite still builds -- the cut took the anchor, not the namespace", tostring(fixed))
   check((fixed == nil) or ((fixed.follow == nil) and (fixed.offset == nil)),
         "...and the handle's :follow/:offset are gone, reading as plain nil",
@@ -199,7 +199,7 @@ parkRound = function()
   end
   local me = hafen.player() and hafen.player():gob()
   for _, id in ipairs(parked) do
-    local g = hafen.gob(id)
+    local g = hafen.world():gob():get(id)
     if g and g:exists() then g:overlay(PARK, nil) end
   end
   parked, gone = {}, {}
@@ -207,7 +207,7 @@ parkRound = function()
     check(false, "a player gob and icon.png are what the park round hangs", "not ready")
     return summary()
   end
-  for _, g in ipairs(hafen.world.gobs()) do
+  for _, g in ipairs(hafen.world():gob():list()) do
     if (#parked < 3) and (g:id() ~= me:id()) and g:exists() then
       local o = g:overlay(PARK, { image = icon, scale = 2, offset = { z = 14 } })
       if o then parked[#parked + 1] = g:id() end
@@ -225,7 +225,7 @@ goneRound = function()
   pass, fail, manual = 0, 0, 0
   local dead, alive = 0, 0
   for _, id in ipairs(parked) do
-    local g = hafen.gob(id)
+    local g = hafen.world():gob():get(id)
     if g:exists() then alive = alive + 1 g:overlay(PARK, nil) else dead = dead + 1 end
   end
   check(#parked > 0, ("the park round hung an icon on %d object(s)"):format(#parked),

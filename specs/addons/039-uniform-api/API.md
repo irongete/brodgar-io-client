@@ -59,6 +59,8 @@ sub-collections were plural (`gob:overlays()`, `char():attrs()`). Now both are s
 
 ## `hafen.act()` — the gated tier (unchanged in meaning, R1 only)
 
+> **Shipped in 039.2** — and the four spatial verbs now take a Position.
+
 | before | after | does |
 |---|---|---|
 | `hafen.act.enabled()` | `hafen.act():enabled()` | is the `actions` grant held (never throws) |
@@ -163,6 +165,8 @@ precedent, D-056) or the page documents the guard. Decide before the task is wri
 | `g:destroy()` | `hafen.ghost():remove(g)` | end one (R7 — the collection owns it) |
 
 ## `hafen.gob` — **DELETED into `hafen.world()`** *(spec §3.3, D-066)*
+
+> **Shipped in 039.2.**
 
 | before | after |
 |---|---|
@@ -379,6 +383,9 @@ because a timer ends with `t:cancel()` and two spellings for one operation is th
 
 ## `hafen.world()` — the LIVE world
 
+> **Shipped in 039.2**, except `:grid()`, whose members are still the `{id, gc}` value the live query
+> always answered: 039.4 makes them the unified Grid entity when it opens the other door.
+
 | before | after | does |
 |---|---|---|
 | `hafen.gob(id)` | `hafen.world():gob():get(id)` | one object by id — **never nil**, see below |
@@ -552,6 +559,8 @@ plan.md should carry it as a known edge, not discover it.
 
 ## The Position type — one `position()`, everywhere, durable
 
+> **Shipped in 039.2.**
+
 A position was a plain `{x, y}` table, which can only be **one** of the two things a position needs to
 be: a point you can do arithmetic on, or a place you can save and send. An **object can be both**, and
 everything else in this API is already an object.
@@ -602,6 +611,8 @@ also ground you cannot act on. `:durable()` reports it and the docs must state t
   id plus the *within-grid* offset), `:x()`/`:y()` are *session world* components. Both pages must say so.
 
 ### What is NOT a Position
+
+> **Shipped in 039.2** — the lattice verbs keep their names, and a screen point stays a plain table.
 
 A **lattice cell** is an index, not a place, and keeps its own name because the two are genuinely
 different kinds of thing:

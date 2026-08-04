@@ -78,7 +78,7 @@ in view still has a `kin:gob()`. `kin:gob()` prefers their body whenever it is l
 theirs, filter the world by the inverse:
 
 ```lua
-local mine = hafen.world.gobs(function(g) return g:kin() == k end)
+local mine = hafen.world():gob():list(function(g) return g:kin() == k end)
 ```
 
 > **`nil` is ambiguous, both ways.** `kin:gob()` is `nil` for a kin who is offline, out of view, or
@@ -111,7 +111,7 @@ which is [`hafen.act`](act.md)'s `clickGob` followed by `flower`.
 
 ## See also
 
-- [`hafen.gob`](gob.md) — the object side of `kin:gob()`
+- [Gob](gob.md) — the object side of `kin:gob()`
 - [`hafen.act`](act.md) — the permission every write verb here shares
 - [`KinEntry`](types.md#kinentry) — the snapshot shape `:info()` returns
 - [`hafen.party`](party.md) — the other roster, which carries no names

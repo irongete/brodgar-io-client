@@ -43,7 +43,7 @@ An item inside a container. From any widget's [`:items()`](ui/items.md) — your
 | `name` | string | display name |
 | `num` | number | stack count (absent for a non-stack) |
 | `wear` | number | 0..100 wear or progress percentage (absent when 0) |
-| `handle` | number | the item's server widget id — the [ItemRef](conventions.md#itemref-an-inventory-or-equipment-item) [`hafen.act.item`](act.md) takes |
+| `handle` | number | the item's server widget id — the [ItemRef](conventions.md#itemref-an-inventory-or-equipment-item) [`hafen.act():item`](act.md) takes |
 | `pos` | table \| string | inventory: the `{x, y}` grid cell. equipment: the slot name. Absent for the cursor item. |
 | `slot` | number | equipment only: the raw equipment slot index |
 
@@ -52,7 +52,7 @@ field for either.
 
 ## Tile
 
-From [`hafen.world.tile`](world.md#terrain-and-coordinates). `{ id = number, name = string? }` —
+From [`hafen.world():tile`](world.md#terrain-and-coordinates). `{ id = number, name = string? }` —
 tileset id plus resource name.
 
 ## Attr
@@ -246,4 +246,4 @@ positionally wherever a colour goes in; see [colours](conventions.md#colours).
 
 - [conventions](conventions.md#snapshots-vs-handles) — why some readers hand back an object instead
 - [events](event.md) — which of these shapes arrives as an event payload
-- [`hafen.gob`](gob.md) — the live-object counterpart of `GobInfo`, and the usual way to read a gob
+- [Gob](gob.md) — the live-object counterpart of `GobInfo`, and the usual way to read a gob

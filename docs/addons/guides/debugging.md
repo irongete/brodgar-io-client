@@ -28,7 +28,7 @@ find out what a verb actually answers, and it runs as your own console rather th
 nothing is sandboxed and every gated verb works there.
 
 ```text
-:lua hafen.world.count("terobjs/tree")
+:lua hafen.world():gob():count("terobjs/tree")
 :lua hafen.ui("window[title=Inventory]"):info()
 :lua for _, m in ipairs(hafen.meter()) do hafen.log():write(tostring(m:res())) end
 ```

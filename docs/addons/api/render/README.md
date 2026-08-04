@@ -7,14 +7,14 @@ transform handle.
 
 ```lua
 local icon = hafen.asset("icon.png")
-local p = hafen.player():gob():pos()
-hafen.render.sprite{ image = icon, x = p.x, y = p.y, scale = 3 }
+local p = hafen.player():gob():position()
+hafen.render.sprite{ image = icon, x = p:x(), y = p:y(), scale = 3 }
 ```
 
 > **Ungated.** A custom image or mesh is a client-side texture that never reaches the server and grants no
 > gameplay advantage, so it needs no `actions` permission — exactly like a
 > [HUD overlay](../ui/custom.md#overlays) or a ghost. Committing a *real* build is still the gated
-> [`hafen.act.place`](../act.md).
+> [`hafen.act():place`](../act.md).
 
 Everything here is **bridge-owned**: every sprite, object and asset is disposed automatically on reload,
 disable and relogin, so it never leaks a GPU texture.

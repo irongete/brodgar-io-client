@@ -30,7 +30,7 @@ local cursor = hafen.ui.hand()                              -- the item on the c
 - There is no `find` verb: it is a one-liner over `:items()`, and it would have to pick a container for you.
 
 To **move** an item — take, drop, transfer, use — pass its `handle` to the gated
-[`hafen.act.item`](../act.md#hafenactitemitem-verb-n).
+[`hafen.act():item`](../act.md#hafenactitemitem-verb-n).
 
 ## The container lifecycle
 
@@ -64,7 +64,7 @@ whole new list.
 ## See also
 
 - [`Item`](../types.md#item) — the snapshot shape every verb here returns
-- [`hafen.act.item`](../act.md#hafenactitemitem-verb-n) — the gated verb that moves one
+- [`hafen.act():item`](../act.md#hafenactitemitem-verb-n) — the gated verb that moves one
 - [widget](widget.md) — the object `:items()` is a method on
 - [replace](replace.md#watching-for-a-widget) — waiting for a container to open in the first place
 - [events](../event.md#character-and-status) — `EquipChanged` and the other global lists

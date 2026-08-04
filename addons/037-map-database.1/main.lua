@@ -38,9 +38,14 @@ end
 
 local TILE, CMAPS = 11, 100         -- MCache.tilesz / MCache.cmaps, the two constants the checks derive from
 
--- The thirteen names 037.1 moved, in the order the docs list them.
+-- The thirteen names 037.1 moved off hafen.map, in the order the docs listed them. Four of them have since
+-- been spelled away entirely (a position is an object now, and the two placement settings had a second door
+-- that also writes), so what lives on the world SECTION is the nine below -- but all thirteen must still read
+-- nil on hafen.map, which is the claim this suite exists to make.
 local THIRTEEN = { "tile", "height", "grid", "gridPos", "fromGridPos", "worldToTile", "tileToWorld",
                    "tileToGrid", "screenToWorld", "snapPlace", "placeGrid", "snapAngle", "placeAngle" }
+local ONWORLD = { "tile", "height", "grid", "position", "tileToWorld", "tileToGrid", "screenToWorld",
+                  "snapPlace", "snapAngle" }
 
 local function names(t)
   return (#t == 0) and "<none>" or table.concat(t, " ")
@@ -59,76 +64,81 @@ local function run()
   local left, missing = {}, {}
   for _, n in ipairs(THIRTEEN) do
     if hafen.map[n] ~= nil then left[#left + 1] = n end
-    if type(hafen.world[n]) ~= "function" then missing[#missing + 1] = n end
+  end
+  for _, n in ipairs(ONWORLD) do
+    if type(hafen.world()[n]) ~= "function" then missing[#missing + 1] = n end
   end
   check(#left == 0, "all thirteen terrain names read nil on hafen.map", names(left))
-  check(#missing == 0, "all thirteen are functions on hafen.world", names(missing))
+  check(#missing == 0, "the nine survivors are verbs on the hafen.world() section object", names(missing))
   check((type(hafen.map.markers) == "table") and (hafen.map.icons ~= nil),
         "hafen.map carries the two relations instead: markers and icons",
         ("markers=%s icons=%s"):format(type(hafen.map.markers), type(hafen.map.icons)))
 
   -- ---- the thirteen, at the player's own position ---------------------------------------------------
   local me = hafen.player() and hafen.player():gob()
-  local p = me and me:pos()
+  local p = me and me:position()
   if not p then
     check(false, "the player's position is readable (every check below stands on it)", "no player gob")
     hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
     return
   end
 
-  local t = hafen.world.tile(p.x, p.y)
+  local px, py = p:x(), p:y()
+
+  local t = hafen.world():tile(p)
   check((t ~= nil) and (type(t.id) == "number"),
-        "world.tile answers under the player" .. (t and (" (" .. tostring(t.name or t.id) .. ")") or ""),
+        "world:tile answers under the player" .. (t and (" (" .. tostring(t.name or t.id) .. ")") or ""),
         t and t.id)
 
-  local h = hafen.world.height(p.x, p.y)
-  check(type(h) == "number", "world.height answers under the player", h)
+  local h = hafen.world():height(p)
+  check(type(h) == "number", "world:height answers under the player", h)
 
-  local g = hafen.world.grid(p.x, p.y)
+  local g = hafen.world():grid():at(p)
   check((g ~= nil) and (type(g.id) == "string") and (tonumber(g.id) ~= nil) and (g.gc ~= nil),
-        "world.grid answers a decimal-string id and a grid coord",
+        "world:grid():at answers a decimal-string id and a grid coord",
         g and (tostring(g.id) .. " gc=" .. tostring(g.gc and g.gc.x)))
 
-  local gp = hafen.world.gridPos()          -- no args = the player
+  local gp = p:info()                       -- the durable form of the player's own position
   check((gp ~= nil) and (gp.gridId == (g and g.id))
           and (gp.x >= 0) and (gp.x < TILE * CMAPS) and (gp.y >= 0) and (gp.y < TILE * CMAPS),
-        "world.gridPos anchors the player on that same grid, offset inside it",
+        "p:info() anchors the player on that same grid, offset inside it",
         gp and ("%s @%.0f,%.0f"):format(gp.gridId, gp.x, gp.y))
 
-  local back = gp and hafen.world.fromGridPos(gp)
-  check(near(back and back.x, p.x, 0.001) and near(back and back.y, p.y, 0.001),
-        "world.fromGridPos round-trips that anchor back to the player's world position",
-        back and ("%.2f,%.2f vs %.2f,%.2f"):format(back.x, back.y, p.x, p.y))
+  local back = gp and hafen.world():position(gp)
+  check(near(back and back:x(), px, 0.001) and near(back and back:y(), py, 0.001),
+        "world:position(saved) round-trips that anchor back to the player's world position",
+        back and ("%.2f,%.2f vs %.2f,%.2f"):format(back:x(), back:y(), px, py))
 
   -- The three pure conversions are ONE claim: they compose into the tile and grid the player stands on.
-  local tc = hafen.world.worldToTile(p.x, p.y)
-  local ul = tc and hafen.world.tileToWorld(tc.x, tc.y)
-  local gc = tc and hafen.world.tileToGrid(tc.x, tc.y)
+  local tc = p:tileCoord()
+  local ul = tc and hafen.world():tileToWorld(tc.x, tc.y)
+  local gc = tc and hafen.world():tileToGrid(tc.x, tc.y)
   check(tc and ul and gc and g
-          and (tc.x == math.floor(p.x / TILE)) and (tc.y == math.floor(p.y / TILE))
+          and (tc.x == math.floor(px / TILE)) and (tc.y == math.floor(py / TILE))
           and (ul.x == tc.x * TILE) and (ul.y == tc.y * TILE)
           and (gc.x == math.floor(tc.x / CMAPS)) and (gc.y == math.floor(tc.y / CMAPS))
           and (gc.x == g.gc.x) and (gc.y == g.gc.y),
-        "world.worldToTile / tileToWorld / tileToGrid compose onto the tile and grid under the player",
+        "p:tileCoord / world:tileToWorld / :tileToGrid compose onto the tile and grid under the player",
         tc and ("tile %d,%d ul %s grid %d,%d vs %d,%d"):format(tc.x, tc.y, ul and ul.x or "nil",
                                                                gc.x, gc.y, g.gc.x, g.gc.y))
 
-  local s = hafen.world.snapPlace(p.x, p.y)
-  check(near(s and s.x, (math.floor(p.x / TILE) * TILE) + (TILE / 2), 0.001)
-          and near(s and s.y, (math.floor(p.y / TILE) * TILE) + (TILE / 2), 0.001)
-          and (type(hafen.world.placeGrid()) == "number"),
-        "world.snapPlace snaps to the tile centre, and placeGrid reads the live setting",
-        s and ("%.2f,%.2f grid=%s"):format(s.x, s.y, tostring(hafen.world.placeGrid())))
+  local iface = hafen.client:options():interface()
+  local s = hafen.world():snapPlace(p)
+  check(near(s and s:x(), (math.floor(px / TILE) * TILE) + (TILE / 2), 0.001)
+          and near(s and s:y(), (math.floor(py / TILE) * TILE) + (TILE / 2), 0.001)
+          and (type(iface:posGran()) == "number"),
+        "world:snapPlace snaps to the tile centre, and the interface option reads the live setting",
+        s and ("%.2f,%.2f gran=%s"):format(s:x(), s:y(), tostring(iface:posGran())))
 
-  local a = hafen.world.snapAngle(1.0)      -- 1.0 rad snaps to pi/4 on the coarse grid
-  check(near(a, math.pi / 4, 0.0001) and (type(hafen.world.placeAngle()) == "number"),
-        "world.snapAngle snaps to the 45 degree grid, and placeAngle reads the live setting",
-        tostring(a) .. " angle=" .. tostring(hafen.world.placeAngle()))
+  local a = hafen.world():snapAngle(1.0)      -- 1.0 rad snaps to pi/4 on the coarse grid
+  check(near(a, math.pi / 4, 0.0001) and (type(iface:angGran()) == "number"),
+        "world:snapAngle snaps to the 45 degree grid, and the interface option reads the live setting",
+        tostring(a) .. " angGran=" .. tostring(iface:angGran()))
 
   -- ---- hafen.map.markers: add, find, remove, and leave the DB as we found it ------------------------
   local NAME = "037.1 suite marker"
   local before = #hafen.map.markers.list()
-  local ref = hafen.map.markers.add(NAME, p.x, p.y)
+  local ref = hafen.map.markers.add(NAME, px, py)
   local found
   for _, m in ipairs(hafen.map.markers.list()) do
     if m.name == NAME then found = m end
@@ -183,16 +193,16 @@ local function run()
   -- It reads the terrain point from the GPU, so the answer arrives a frame later. Fire it at the player's
   -- own pixel and wait BEFORE judging (035.2: a step that runs inline with what it checks reads the frame
   -- before). The summary closes the run from inside the callback's wake.
-  local px = hafen.player():worldToScreen(p.x, p.y)
+  local sc = hafen.player():worldToScreen(px, py)
   local hit, fired = nil, false
-  if px then
-    hafen.world.screenToWorld(px.x, px.y, function(w) fired = true; hit = w end)
+  if sc then
+    hafen.world():screenToWorld(sc.x, sc.y, function(w) fired = true; hit = w end)
   end
   hafen.timer():after(0.6, function()
-    check(fired and hit and near(hit.x, p.x, 2 * TILE) and near(hit.y, p.y, 2 * TILE),
-          "world.screenToWorld called back with the ground under the player",
-          (not px) and "the player is not on screen" or
-            (fired and (hit and ("%.1f,%.1f vs %.1f,%.1f"):format(hit.x, hit.y, p.x, p.y) or "nil")
+    check(fired and hit and near(hit:x(), px, 2 * TILE) and near(hit:y(), py, 2 * TILE),
+          "world:screenToWorld called back with a Position on the ground under the player",
+          (not sc) and "the player is not on screen" or
+            (fired and (hit and ("%.1f,%.1f vs %.1f,%.1f"):format(hit:x(), hit:y(), px, py) or "nil")
                    or "no callback"))
     hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
   end)

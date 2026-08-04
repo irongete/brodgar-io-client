@@ -216,8 +216,8 @@ hafen.ui.window{
 }
 
 hafen.slash():register("stand", function()
-  local p = hafen.player():gob():pos()
-  hafen.render.object{ model = chair, x = p.x, y = p.y }   -- the handle, again
+  local p = hafen.player():gob():position()
+  hafen.render.object{ model = chair, x = p:x(), y = p:y() }   -- the handle, again
 end)
 ```
 

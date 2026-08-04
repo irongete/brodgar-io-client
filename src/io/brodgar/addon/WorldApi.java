@@ -13,64 +13,200 @@ import haven.Resource;
 import haven.UI;
 import haven.Utils;
 
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
-import org.luaj.vm2.lib.ThreeArgFunction;
-import org.luaj.vm2.lib.TwoArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
+import org.luaj.vm2.lib.VarArgFunction;
 
+import java.util.ArrayList;
 import java.util.List;
 
 
 import static io.brodgar.addon.AddonManager.*;
 
 /**
- * The LIVE half of the world: {@code hafen.world} — gob enumeration (the per-gob reads are the Gob class,
- * {@link LuaGob}) plus, since 037.1, the terrain and coordinate functions that used to be {@code hafen.map.*}
- * — and {@code hafen.time}. The low-level gob-read substrate (getgob/gobMatches/gobSnapshot/allGobs/oc/
- * mcache/astro) lives in {@link AddonManager}.
+ * The LIVE half of the world — {@code hafen.world()} — and {@code hafen.time()}. Gobs (the per-gob reads are
+ * the Gob class, {@link LuaGob}), the terrain under them, and the coordinate spaces they live in. The
+ * low-level gob-read substrate (getgob/gobMatches/gobSnapshot/allGobs/oc/mcache/astro) lives in
+ * {@link AddonManager}.
  *
  * <p><b>The axis is LIVE vs RECORDED</b> (037): everything here answers against {@link haven.MCache}, the
  * terrain streamed around the player — {@code nil} off-stream, gone at logout. The <i>explored</i> map, the
  * on-disk {@link MapFile} database (segments, grids, overlays, images, markers and the minimap icon registry),
- * is {@code hafen.map} and lives in {@link MapApi}. {@code hafen.markers} and {@code hafen.radar} are hard cuts
- * — they became {@code hafen.map.markers} and {@code hafen.map.icons}.
+ * is {@code hafen.map} and lives in {@link MapApi}.
+ *
+ * <p><b>{@code hafen.gob} is gone into this section</b> (spec {@code 039-uniform-api} §3.3, D-066): a gob lives
+ * in the world, so {@code hafen.world():gob()} is the one read-only Gob collection and absorbs all five entry
+ * points, {@code :get(id)} included. Keeping {@code :gob(id)} beside {@code :gobs(filter)} would have left
+ * standing the exact singular/plural pair the grammar removes everywhere else.
+ *
+ * <p><b>Every spatial verb takes a {@link LuaPosition}</b> rather than a pair of numbers, and the four position
+ * verbs the API used to have — {@code gridPos}, {@code fromGridPos}, {@code marker:anchor()} and the plain
+ * {@code {x, y}} table — collapse into it. {@code placeGrid()}/{@code placeAngle()} are cut outright: they read
+ * the same two {@link MapView} fields as {@code options():interface():posGran()}/{@code :angGran()}, which also
+ * write them, and the two doors did not even agree on units.
  */
 final class WorldApi {
     private WorldApi() {}
 
-    /** Build {@code hafen.world} for {@code owner}. From installHafen. */
+    /** Build {@code hafen.world()} for {@code owner}. From installHafen. */
     static void installWorld(LuaTable hafen, final Addon owner) {
-        LuaTable world = new LuaTable();
-        // gobs/nearest/within hand out Gob OBJECTS (D-044) — live handles, not snapshots; call :info() on one
-        // for the old snapshot table. The gob list is copied under the OCache lock by allGobs(); the filters are
-        // evaluated OUT here, because a function filter re-enters Lua (world-reads.md).
-        world.set("gobs", new OneArgFunction() {
-            public LuaValue call(LuaValue filter) {
-                LuaTable out = new LuaTable();
-                int i = 0;
-                for(Gob g : allGobs()) {
-                    if(gobMatches(filter, owner, g))
-                        out.set(++i, LuaGob.of(owner, g.id));
+        // Both collections are minted ONCE and handed back by identity, like the section object itself: a
+        // draw callback writing hafen.world():gob():nearest(...) runs 60x/s and must allocate nothing.
+        final LuaValue gobs = gobCollection(owner);
+        final LuaValue grids = gridCollection(owner);
+        LuaTable m = new LuaTable();
+        // gob() — the read-only Gob collection. :get(id) is NEVER nil (it is what lets you anchor to a gob
+        // before it streams in; :exists() is the liveness test), while :find/:nearest answer nil and :list
+        // answers an empty array. A collection needs no :add/:remove to be one.
+        m.set("gob", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "world", "gob");
+                return gobs;
+            }
+        });
+        // grid() — the grids streamed in right now, addressed by the point they cover.
+        m.set("grid", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "world", "grid");
+                return grids;
+            }
+        });
+        // position(x, y) — a Position from session world components; position(saved) — one rebuilt from the
+        // {gridId, x, y} durable form. A Position read back out of hafen.store is already a Position, so the
+        // second form is for a shape that arrived some other way (a message, a file, another player).
+        m.set("position", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "world", "position");
+                LuaValue first = Args.required(a, 2, "hafen.world():position", "x (or a saved position)");
+                if(first.istable())
+                    return savedPosition(owner, first);
+                if(!first.isnumber())
+                    throw new LuaError("hafen.world():position(x, y): x and y are session world components,"
+                        + " or pass the one table p:info() gave you");
+                LuaValue yv = Args.required(a, 3, "hafen.world():position", "y");
+                if(!yv.isnumber())
+                    throw new LuaError("hafen.world():position(x, y): y must be a number");
+                return LuaPosition.ofWorld(owner, first.todouble(), yv.todouble());
+            }
+        });
+        // tile(p) — the tileset id + resource name under a Position; nil off-stream.
+        m.set("tile", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "world", "tile");
+                Coord2d rc = here(a, 2, "hafen.world():tile");
+                MCache mc = mcache();
+                if((mc == null) || (rc == null))
+                    return LuaValue.NIL;
+                try {
+                    int id = mc.gettile(rc.floor(MCache.tilesz));
+                    LuaTable t = new LuaTable();
+                    t.set("id", LuaValue.valueOf(id));
+                    Resource r = mc.tilesetr(id);
+                    if(r != null)
+                        t.set("name", LuaValue.valueOf(r.name));
+                    return t;
+                } catch(RuntimeException e) {   // Loading etc.
+                    return LuaValue.NIL;
                 }
-                return out;
             }
         });
-        world.set("count", new OneArgFunction() {
-            public LuaValue call(LuaValue filter) {
-                List<Gob> all = allGobs();
-                if(filter.isnil())
-                    return LuaValue.valueOf(all.size());
-                int n = 0;
-                for(Gob g : all)
-                    if(gobMatches(filter, owner, g))
-                        n++;
-                return LuaValue.valueOf(n);
+        // height(p) — terrain height under a Position; nil off-stream.
+        m.set("height", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "world", "height");
+                Coord2d rc = here(a, 2, "hafen.world():height");
+                MCache mc = mcache();
+                if((mc == null) || (rc == null))
+                    return LuaValue.NIL;
+                try {
+                    return LuaValue.valueOf(mc.getcz(rc.x, rc.y));
+                } catch(RuntimeException e) {
+                    return LuaValue.NIL;
+                }
             }
         });
-        world.set("nearest", new OneArgFunction() {
-            public LuaValue call(LuaValue filter) {
+        // Pure coordinate conversions between the two lattice spaces (no map data needed). The world<->tile
+        // direction lives on the Position itself (p:tileCoord()), because that one is about a place.
+        m.set("tileToWorld", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "world", "tileToWorld");
+                double tx = number(a, 2, "hafen.world():tileToWorld", "tx");
+                double ty = number(a, 3, "hafen.world():tileToWorld", "ty");
+                return xy(tx * MCache.tilesz.x, ty * MCache.tilesz.y);
+            }
+        });
+        m.set("tileToGrid", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "world", "tileToGrid");
+                double tx = number(a, 2, "hafen.world():tileToGrid", "tx");
+                double ty = number(a, 3, "hafen.world():tileToGrid", "ty");
+                Coord gc = Coord.of((int)tx, (int)ty).div(MCache.cmaps);
+                return xy(gc.x, gc.y);
+            }
+        });
+        // screenToWorld(sx, sy, fn) — the RAYCAST INVERSE of hafen.player():worldToScreen: fn(p) is called with
+        // a Position on the ground under game-window pixel (sx,sy), or fn(nil) if the pixel hit no terrain
+        // (sky/off-map). ASYNCHRONOUS by necessity — the engine reads the true terrain point from the GPU
+        // (MapView.Maptest, the pass the client's own building placement uses), so a synchronous return would
+        // stall the UI thread on a GPU fence; the answer arrives a frame later, exactly the lag a placement
+        // ghost has. (sx,sy) is the same pixel space worldToScreen returns. Requires being in the world.
+        m.set("screenToWorld", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "world", "screenToWorld");
+                double sx = number(a, 2, "hafen.world():screenToWorld", "sx");
+                double sy = number(a, 3, "hafen.world():screenToWorld", "sy");
+                LuaValue fn = Args.required(a, 4, "hafen.world():screenToWorld", "fn");
+                if(!fn.isfunction())
+                    throw new LuaError("hafen.world():screenToWorld(sx, sy, fn): fn must be a function — the"
+                        + " answer comes back a frame later, so there is nothing to return here");
+                MapView mv = view;
+                if(mv != null)
+                    screenToWorld(owner, mv, (int)Math.round(sx), (int)Math.round(sy), fn);
+                return LuaValue.NIL;   // async — the answer arrives through fn
+            }
+        });
+        // snapPlace(p [, fine]) — snap a Position to the client's PLACEMENT grid, IDENTICALLY to placing a
+        // building (D-033): no fine -> the tile centre; fine=true -> the sub-tile grid the interface option
+        // posGran() sets (free when it is 0). Pure static math shared with the engine's own StdPlace, so it
+        // always honours the live setting; no map data needed.
+        m.set("snapPlace", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "world", "snapPlace");
+                Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.world():snapPlace", "p");
+                int modflags = a.arg(3).toboolean() ? UI.MOD_SHIFT : 0;
+                Coord2d s = MapView.placeSnap(new Coord2d(rc.x, rc.y), modflags);
+                return LuaPosition.ofWorld(owner, s.x, s.y);
+            }
+        });
+        // snapAngle(a [, fine]) — snap a facing angle (RADIANS) to the client's placement-ANGLE grid, so a
+        // gizmo rotate feels IDENTICAL to rotating a building: no fine -> 45 degree steps; fine=true -> the
+        // finer grid the interface option angGran() sets. Normalized to (-pi, pi].
+        m.set("snapAngle", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "world", "snapAngle");
+                double ang = number(a, 2, "hafen.world():snapAngle", "a");
+                return LuaValue.valueOf(snapPlaceAngle(ang, a.arg(3).toboolean()));
+            }
+        });
+        Section.install(hafen, "world", m);
+    }
+
+    /**
+     * {@code hafen.world():gob()} — every loaded game object, as a read-only collection of Gob objects (D-044:
+     * live handles, never snapshots). The gob list is copied under the {@code OCache} lock by {@link
+     * AddonManager#allGobs}; the filters run outside it, because a function filter re-enters Lua.
+     */
+    private static LuaValue gobCollection(final Addon owner) {
+        LuaTable extra = new LuaTable();
+        // nearest(filter) / within(r, filter) measure from the player and skip the player's own gob — the one
+        // thing that makes them different from :find()/:list() over the same members.
+        extra.set("nearest", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), "nearest");
+                LuaValue filter = a.arg(2);
                 Gob pl = playerGob();
                 if(pl == null)
                     return LuaValue.NIL;
@@ -95,9 +231,11 @@ final class WorldApi {
                 return (best == null) ? LuaValue.NIL : LuaGob.of(owner, best.id);
             }
         });
-        world.set("within", new TwoArgFunction() {
-            public LuaValue call(LuaValue radius, LuaValue filter) {
-                double r = radius.optdouble(0);
+        extra.set("within", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), "within");
+                double r = number(a, 2, "hafen.world():gob():within", "radius");
+                LuaValue filter = a.arg(3);
                 LuaTable out = new LuaTable();
                 Gob pl = playerGob();
                 if(pl == null)
@@ -121,196 +259,105 @@ final class WorldApi {
                 return out;
             }
         });
-        installTerrain(world, owner);   // 037.1: the live terrain + coordinate half moved here from hafen.map
-        hafen.set("world", world);
+        return LuaCollection.create("hafen.world():gob()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>();
+                for(Gob g : allGobs())
+                    out.add(LuaGob.of(owner, g.id));
+                return out;
+            }
+
+            public String needle(LuaValue member) {
+                LuaGob h = LuaGob.resolve(member);
+                Gob g = (h == null) ? null : getgob(h.id);
+                return (g == null) ? null : gobName(g);
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                if(!key.isnumber())
+                    throw new LuaError("hafen.world():gob():get(id) expects a gob id (a number) — the"
+                        + " \"player\"/\"me\"/\"partyN\" tokens are gone; your own gob is hafen.player():gob()");
+                return LuaGob.of(owner, (long)key.todouble());
+            }
+        }, extra);
     }
 
     /**
-     * The LIVE terrain + coordinate half of {@code hafen.world} (037.1): the thirteen functions that used to be
-     * {@code hafen.map.*} and answer against {@link MCache} — the terrain streamed around the player, {@code nil}
-     * off-stream and gone at logout. They moved here <b>unchanged</b>, because the axis the area is on is LIVE vs
-     * RECORDED: {@code hafen.map} is now the on-disk map database ({@link MapFile}), and none of these ever read it.
+     * {@code hafen.world():grid()} — the map grids streamed in right now, each {@code {id, gc}}: the stable
+     * server-published grid id (a decimal string, because 64 bits do not survive a Lua number) and the
+     * session-local grid coord. {@code :at(p)} is how you address one, since a grid has no name to search.
      */
-    private static void installTerrain(LuaTable world, final Addon owner) {
-        world.set("tile", new TwoArgFunction() {
-            public LuaValue call(LuaValue x, LuaValue y) {
+    private static LuaValue gridCollection(final Addon owner) {
+        LuaTable extra = new LuaTable();
+        extra.set("at", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), "at");
+                Coord2d rc = here(a, 2, "hafen.world():grid():at");
                 MCache mc = mcache();
-                if((mc == null) || !x.isnumber() || !y.isnumber())
+                if((mc == null) || (rc == null))
                     return LuaValue.NIL;
                 try {
-                    Coord tc = Coord2d.of(x.todouble(), y.todouble()).floor(MCache.tilesz);
-                    int id = mc.gettile(tc);
-                    LuaTable t = new LuaTable();
-                    t.set("id", LuaValue.valueOf(id));
-                    Resource r = mc.tilesetr(id);
-                    if(r != null)
-                        t.set("name", LuaValue.valueOf(r.name));
-                    return t;
-                } catch(RuntimeException e) {   // Loading etc.
-                    return LuaValue.NIL;
-                }
-            }
-        });
-        world.set("height", new TwoArgFunction() {
-            public LuaValue call(LuaValue x, LuaValue y) {
-                MCache mc = mcache();
-                if((mc == null) || !x.isnumber() || !y.isnumber())
-                    return LuaValue.NIL;
-                try {
-                    return LuaValue.valueOf(mc.getcz(x.todouble(), y.todouble()));
+                    return gridValue(mc.getgrid(rc.floor(MCache.tilesz).div(MCache.cmaps)));
                 } catch(RuntimeException e) {
                     return LuaValue.NIL;
                 }
             }
         });
-        world.set("grid", new TwoArgFunction() {
-            public LuaValue call(LuaValue x, LuaValue y) {
-                MCache mc = mcache();
-                if((mc == null) || !x.isnumber() || !y.isnumber())
-                    return LuaValue.NIL;
-                try {
-                    Coord tc = Coord2d.of(x.todouble(), y.todouble()).floor(MCache.tilesz);
-                    MCache.Grid g = mc.getgrid(tc.div(MCache.cmaps));
-                    LuaTable t = new LuaTable();
-                    t.set("id", LuaValue.valueOf(Long.toString(g.id)));   // 64-bit → string (exact anchor)
-                    t.set("gc", xy(g.gc.x, g.gc.y));
-                    return t;
-                } catch(RuntimeException e) {
-                    return LuaValue.NIL;
-                }
+        return LuaCollection.create("hafen.world():grid()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>();
+                for(MCache.Grid g : AddonWidgets.loadedGrids(mcache()))
+                    out.add(gridValue(g));
+                return out;
             }
-        });
-        // gridPos([x,y]) — the shareable/persistent position: stable grid id + within-grid WORLD offset
-        // (0..1100). No args = the player. Use this, not raw rc, across sessions/players.
-        world.set("gridPos", new TwoArgFunction() {
-            public LuaValue call(LuaValue x, LuaValue y) {
-                MCache mc = mcache();
-                if(mc == null)
-                    return LuaValue.NIL;
-                Coord2d wc = (x.isnumber() && y.isnumber())
-                    ? Coord2d.of(x.todouble(), y.todouble())
-                    : playerPos();   // no args = the player
-                if(wc == null)
-                    return LuaValue.NIL;
-                try {
-                    MCache.Grid g = mc.getgrid(wc.floor(MCache.tilesz).div(MCache.cmaps));
-                    LuaTable t = new LuaTable();
-                    t.set("gridId", LuaValue.valueOf(Long.toString(g.id)));
-                    t.set("x", LuaValue.valueOf(wc.x - (g.ul.x * MCache.tilesz.x)));
-                    t.set("y", LuaValue.valueOf(wc.y - (g.ul.y * MCache.tilesz.y)));
-                    return t;
-                } catch(RuntimeException e) {
-                    return LuaValue.NIL;
-                }
-            }
-        });
-        // fromGridPos({gridId, x, y}) — the INVERSE of gridPos: resolve a saved grid-anchored position back to
-        // a login-relative WORLD coord in THIS session, or nil if that grid is not currently loaded here (the
-        // caller retries as the map streams in). Persist a layout by storing gridPos(...) verbatim and reloading
-        // through this — grid ids are the stable cross-session anchor, raw world coords are login-relative and do
-        // not survive a relog (the marker/ghost rule). Accepts the exact {gridId=<string>, x=, y=} table gridPos
-        // returns, so fromGridPos(gridPos(x,y)) round-trips to (x,y) whenever the grid is loaded.
-        world.set("fromGridPos", new OneArgFunction() {
-            public LuaValue call(LuaValue anchor) {
-                MCache mc = mcache();
-                if((mc == null) || !anchor.istable())
-                    return LuaValue.NIL;
-                LuaValue idv = anchor.get("gridId"), xv = anchor.get("x"), yv = anchor.get("y");
-                if(!idv.isstring() || !xv.isnumber() || !yv.isnumber())
-                    return LuaValue.NIL;
-                long id;
-                try {
-                    id = Long.parseLong(idv.tojstring());
-                } catch(NumberFormatException e) {   // gridId is not a valid 64-bit id string
-                    return LuaValue.NIL;
-                }
-                Coord2d ul = AddonWidgets.gridWorldUL(mc, id);   // that grid's current UL, or null if not loaded
-                if(ul == null)
-                    return LuaValue.NIL;
-                return xy(ul.x + xv.todouble(), ul.y + yv.todouble());
-            }
-        });
-        // Pure coordinate conversions (no map data needed). worldToTile floors; tileToWorld returns the
-        // tile's upper-left world corner; tileToGrid floor-divides into grid coords.
-        world.set("worldToTile", new TwoArgFunction() {
-            public LuaValue call(LuaValue x, LuaValue y) {
-                if(!x.isnumber() || !y.isnumber())
-                    return LuaValue.NIL;
-                Coord tc = Coord2d.of(x.todouble(), y.todouble()).floor(MCache.tilesz);
-                return xy(tc.x, tc.y);
-            }
-        });
-        world.set("tileToWorld", new TwoArgFunction() {
-            public LuaValue call(LuaValue tx, LuaValue ty) {
-                if(!tx.isnumber() || !ty.isnumber())
-                    return LuaValue.NIL;
-                return xy(tx.todouble() * MCache.tilesz.x, ty.todouble() * MCache.tilesz.y);
-            }
-        });
-        world.set("tileToGrid", new TwoArgFunction() {
-            public LuaValue call(LuaValue tx, LuaValue ty) {
-                if(!tx.isnumber() || !ty.isnumber())
-                    return LuaValue.NIL;
-                Coord gc = Coord.of((int)tx.todouble(), (int)ty.todouble()).div(MCache.cmaps);
-                return xy(gc.x, gc.y);
-            }
-        });
-        // screenToWorld(sx, sy, fn) — the RAYCAST INVERSE of hafen.player():worldToScreen (spec 16 §3, V5): fn({x,y})
-        // is called with the WORLD ground coord under game-window pixel (sx,sy), or fn(nil) if the pixel hit no
-        // terrain (sky/off-map). It is ASYNCHRONOUS by necessity — the engine reads the true terrain point from the
-        // GPU (MapView.Maptest, the same pass the client's own building placement uses), so a synchronous return
-        // would stall the UI thread on a GPU fence; instead the result arrives a frame later via fn (exactly the
-        // one-frame lag a placement ghost has). (sx,sy) are the same pixel space worldToScreen returns (top-left
-        // origin; for the standard fullscreen MapView these are screen pixels). Requires being in the world.
-        world.set("screenToWorld", new ThreeArgFunction() {
-            public LuaValue call(LuaValue sx, LuaValue sy, LuaValue fn) {
-                MapView m = view;
-                if((m == null) || !sx.isnumber() || !sy.isnumber() || !fn.isfunction())
-                    return LuaValue.NIL;
-                screenToWorld(owner, m, (int)Math.round(sx.todouble()), (int)Math.round(sy.todouble()), fn);
-                return LuaValue.NIL;   // async — the answer arrives through fn
-            }
-        });
-        // snapPlace(x, y [, fine]) — snap a WORLD coord to the client's PLACEMENT grid, IDENTICALLY to placing a
-        // building (spec 16 §4.1, D-033): no fine -> the tile centre; fine=true -> the sub-tile :placegrid
-        // (MapView.plobpgran divisions, or free when placegrid is 0). Returns {x,y}. Pure static math shared with
-        // the engine's StdPlace (MapView.placeSnap), so it always honours the live :placegrid; no map data needed.
-        world.set("snapPlace", new ThreeArgFunction() {
-            public LuaValue call(LuaValue x, LuaValue y, LuaValue fine) {
-                if(!x.isnumber() || !y.isnumber())
-                    return LuaValue.NIL;
-                int modflags = fine.toboolean() ? UI.MOD_SHIFT : 0;
-                Coord2d s = MapView.placeSnap(new Coord2d(x.todouble(), y.todouble()), modflags);
-                return xy(s.x, s.y);
-            }
-        });
-        // placeGrid() — the current :placegrid setting (MapView.plobpgran, the sub-tile divisions snapPlace(...,true)
-        // uses; default 8, 0 = free). Read it to label a gizmo / mirror the user's placement preference (V5).
-        world.set("placeGrid", new ZeroArgFunction() {
-            public LuaValue call() {
-                return LuaValue.valueOf(MapView.plobpgran);
-            }
-        });
-        // snapAngle(a [, fine]) — snap a facing angle (RADIANS) to the client's placement-ANGLE grid, so a gizmo
-        // rotate feels IDENTICAL to rotating a building (spec 16 §4.1, D-033): no fine -> 45° (π/4) steps; fine=true
-        // -> the finer :placeangle grid (π/MapView.plobagran). Returns the snapped angle in radians, normalized to
-        // (-π, π]. The absolute-angle analog of the client's (wheel-relative) StdPlace.rotate — see snapPlaceAngle;
-        // reads the live public plobagran so it always honours :placeangle.
-        world.set("snapAngle", new TwoArgFunction() {
-            public LuaValue call(LuaValue a, LuaValue fine) {
-                if(!a.isnumber())
-                    return LuaValue.NIL;
-                return LuaValue.valueOf(snapPlaceAngle(a.todouble(), fine.toboolean()));
-            }
-        });
-        // placeAngle() — the current :placeangle setting (MapView.plobagran, the FINE rotation divisions
-        // snapAngle(...,true) uses; default 12). The coarse 45° default is independent of it; this is the fine grain.
-        world.set("placeAngle", new ZeroArgFunction() {
-            public LuaValue call() {
-                return LuaValue.valueOf(MapView.plobagran);
-            }
-        });
+        }, extra);
     }
+
+    /** One streamed grid as the value it has always been: its id, and where it sits this session. */
+    private static LuaValue gridValue(MCache.Grid g) {
+        LuaTable t = new LuaTable();
+        t.set("id", LuaValue.valueOf(Long.toString(g.id)));   // 64-bit -> string (the exact anchor)
+        t.set("gc", xy(g.gc.x, g.gc.y));
+        return t;
+    }
+
+    /** Rebuild a Position from the {@code {gridId, x, y}} durable form, refusing a shape that is not one. */
+    private static LuaValue savedPosition(Addon owner, LuaValue saved) {
+        LuaValue idv = saved.get("gridId"), xv = saved.get("x"), yv = saved.get("y");
+        if((idv.type() != LuaValue.TSTRING) || !xv.isnumber() || !yv.isnumber())
+            throw new LuaError("hafen.world():position(saved): expected the table p:info() gives you —"
+                + " {gridId = \"<decimal string>\", x = <number>, y = <number>}");
+        long id;
+        try {
+            id = Long.parseLong(idv.tojstring());
+        } catch(NumberFormatException e) {
+            throw new LuaError("hafen.world():position(saved): \"" + idv.tojstring() + "\" is not a decimal"
+                + " grid id");
+        }
+        return LuaPosition.ofAnchor(owner, id, xv.todouble(), yv.todouble());
+    }
+
+    /**
+     * A Position argument for a <b>read</b>: the world coordinate it names, or {@code null} when this session
+     * cannot locate it — which for a terrain read is the same {@code nil} as off-stream. The act verbs use
+     * {@link LuaPosition#worldArg} instead and refuse, because there is no acting on a place that is not here.
+     */
+    private static Coord2d here(Varargs a, int i, String verb) {
+        return LuaPosition.posArg(a, i, verb, "p").world();
+    }
+
+    /** A required number argument, refusing an explicit nil like every other write does (§2.9). */
+    static double number(Varargs a, int i, String verb, String param) {
+        LuaValue v = Args.required(a, i, verb, param);
+        if(!v.isnumber())
+            throw new LuaError(verb + ": " + param + " must be a number");
+        return v.todouble();
+    }
+
     /**
      * Build {@code hafen.time} for {@code owner}. From installHafen. A plain section object: {@code
      * hafen.time()} is the per-addon singleton and every reader is a colon call on it. {@code clock()} always
@@ -369,20 +416,20 @@ final class WorldApi {
         Section.install(hafen, "time", m);
     }
 
-    // ---- hafen.map raycast/snap helpers (screenToWorld / snapAngle, V5/V6) ----
+    // ---- raycast/snap helpers (screenToWorld / snapAngle) ----
     /**
-     * {@code hafen.map.screenToWorld} (V5): raycast the terrain under game-window pixel {@code (px,py)} via the
-     * engine's own {@link haven.MapView.Maptest} (the pass the client's building placement uses), then call {@code fn}
-     * with the world {@code {x,y}} (or nil for no terrain). Asynchronous: {@code Maptest.run()} submits a GPU readback
-     * and its callback fires later under {@code synchronized(ui)} (so {@link #callLua} is safe there, serialized with
-     * every other addon Lua — same as the V2 ghost-click dispatch). Errors installing the test are swallowed (nil).
+     * {@code hafen.world():screenToWorld}: raycast the terrain under game-window pixel {@code (px,py)} via the
+     * engine's own {@link haven.MapView.Maptest} (the pass the client's building placement uses), then call
+     * {@code fn} with the ground {@link LuaPosition} (or nil for no terrain). Asynchronous: {@code Maptest.run()}
+     * submits a GPU readback and its callback fires later under {@code synchronized(ui)} (so {@link #callLua} is
+     * safe there, serialized with every other addon Lua). Errors installing the test are swallowed (no callback).
      */
     static void screenToWorld(final Addon owner, MapView mv, int px, int py, final LuaValue fn) {
         final Coord pc = new Coord(px, py);
         try {
             mv.new Maptest(pc) {
                 protected void hit(Coord pc, Coord2d mc) {
-                    callLua(owner, Addon.C_EVENT, fn, xy(mc.x, mc.y));
+                    callLua(owner, Addon.C_EVENT, fn, LuaPosition.ofWorld(owner, mc.x, mc.y));
                 }
                 protected void nohit(Coord pc) {
                     callLua(owner, Addon.C_EVENT, fn, LuaValue.NIL);
@@ -394,17 +441,16 @@ final class WorldApi {
     }
 
     /**
-     * {@code hafen.map.snapAngle} (V6): snap a facing angle (radians) to the client's placement-angle grid — the
+     * {@code hafen.world():snapAngle}: snap a facing angle (radians) to the client's placement-angle grid — the
      * <b>absolute</b> analog of {@code MapView.StdPlace.rotate} (which is wheel-<i>relative</i>, so there is no
-     * verbatim engine code to share, unlike position's {@link haven.MapView#placeSnap}). Coarse (no {@code fine}) =
-     * 45° (π/4) steps; {@code fine} = the {@code :placeangle} grid (π/{@code MapView.plobagran}). Normalized to
-     * (-π, π] via {@link haven.Utils#cangle}. Reads the live public {@code MapView.plobagran} so it honours
-     * {@code :placeangle} with no drift — the §4.1 zero-{@code haven}-edit mirror.
+     * verbatim engine code to share, unlike position's {@link haven.MapView#placeSnap}). Coarse (no {@code fine})
+     * = 45° (π/4) steps; {@code fine} = the finer grid ({@code MapView.plobagran}). Normalized to (-π, π] via
+     * {@link haven.Utils#cangle}. Reads the live public field so it honours the setting with no drift.
      */
     static double snapPlaceAngle(double a, boolean fine) {
         double step = fine ? (Math.PI / MapView.plobagran) : (Math.PI / 4);
         if(step <= 0)
-            return Utils.cangle(a);                 // guard a pathological :placeangle (console clamps it >= 2)
+            return Utils.cangle(a);                 // guard a pathological setting (the console clamps it >= 2)
         return Utils.cangle(Math.round(a / step) * step);
     }
 }

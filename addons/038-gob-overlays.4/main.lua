@@ -110,7 +110,7 @@ end
 
 -- Any gob in sight carrying one of the GAME's own overlays, and that overlay's key (its resource name).
 local function anyNative()
-  for _, g in ipairs(hafen.world.gobs()) do
+  for _, g in ipairs(hafen.world():gob():list()) do
     local all = g:overlay()
     if all then
       for _, ov in ipairs(all) do
@@ -135,7 +135,7 @@ local function teardownVerdict()
   if p == nil then return false end
   hafen.store.state.pending = nil
   hafen.store.flush()
-  local g = hafen.gob(p.gob)
+  local g = hafen.world():gob():get(p.gob)
   if not g:exists() then
     manualCheck("the gob the last run marked (" .. tostring(p.gob) .. ") is not loaded now -- run ':t038-4'"
                 .. " again to re-park the marker, then ':reload', then ':t038-4'",
@@ -186,13 +186,13 @@ local function docsRound(me)
   -- guides/custom-ui.md, "Overlays" -- the filter form's replacement, in the two lines the page shows.
   local tagged = 0
   local function tag(gob)
-    if gob:isplayer() then gob:overlay("tag", { text = "player", color = {0, 255, 0} }) tagged = tagged + 1 end
+    if gob:isPlayer() then gob:overlay("tag", { text = "player", color = {0, 255, 0} }) tagged = tagged + 1 end
   end
-  for _, g in ipairs(hafen.world.gobs()) do tag(g) end
+  for _, g in ipairs(hafen.world():gob():list()) do tag(g) end
   check(tagged > 0, ("the custom-ui.md tagging loop runs and labelled %d player body/bodies"):format(tagged),
         "no player gob in sight, not even your own")
 
-  for _, g in ipairs(hafen.world.gobs()) do g:overlay("tag", nil) end
+  for _, g in ipairs(hafen.world():gob():list()) do g:overlay("tag", nil) end
   clear(me, DOCS)
   eq("the docs round leaves nothing of its own behind", mine(me), 0)
 end
@@ -302,7 +302,7 @@ end
 
 local function parkRound()
   pass, fail, manual = 0, 0, 0
-  for id in pairs(parked) do unpark(hafen.gob(id)) end
+  for id in pairs(parked) do unpark(hafen.world():gob():get(id)) end
   parked, dropped = {}, {}
   if icon == nil then
     check(false, "the suite's own icon.png loaded", "nil")
@@ -310,7 +310,7 @@ local function parkRound()
   end
   local me = hafen.player() and hafen.player():gob()
   local n = 0
-  for _, g in ipairs(hafen.world.gobs()) do
+  for _, g in ipairs(hafen.world():gob():list()) do
     if (n < 3) and g:exists() and (not me or (g:id() ~= me:id())) then
       g:overlay(PARK, { image = icon, scale = 2, offset = { z = 14 } })
       parked[g:id()] = true
@@ -332,7 +332,7 @@ local function goneRound()
   local total, told, trip, stillGone, errs, bare = 0, 0, 0, 0, 0, 0
   for id in pairs(parked) do
     total = total + 1
-    local g = hafen.gob(id)
+    local g = hafen.world():gob():get(id)
     -- The read after the despawn must be a clean nil, never an error: a Gob is a re-resolving view, and the
     -- thing it points at going away is a moment, not a mistake.
     local ok, v = pcall(function() return g:overlay(PARK) end)

@@ -67,10 +67,10 @@ public final class AddonWidgets {
     /**
      * Resolve a stable grid id ({@link MCache.Grid#id} — the cross-session, cross-player map anchor) to the
      * world coordinate of that grid's upper-left corner in the CURRENT session, or {@code null} if no loaded
-     * grid has that id. Backs {@code hafen.map.fromGridPos}, the inverse of {@code hafen.map.gridPos}: raw
-     * world coords are login-relative and cannot be persisted, so a saved layout anchors on grid ids plus a
-     * within-grid offset and re-resolves to login-relative world coords on load (the marker/ghost rule). The
-     * same {@code g.ul} basis {@code gridPos} subtracts is added back here, so the round-trip is exact.
+     * grid has that id. Backs the recorded&rarr;live half of a Position: raw world coords are login-relative
+     * and cannot be persisted, so a saved place anchors on a grid id plus a within-grid offset and re-resolves
+     * to login-relative world coords on load (the marker/ghost rule). The same {@code g.ul} basis the anchor
+     * subtracts is added back here, so the round-trip is exact.
      *
      * <p>The grid map is a {@code haven}-package field (audit B5), so the bridge reaches it through this one
      * accessor rather than reflection (decision D-017). Pure read; tolerates a {@code null} cache; never throws.
@@ -85,6 +85,40 @@ public final class AddonWidgets {
             }
         }
         return null;
+    }
+
+    /**
+     * The streamed grid at a grid coord, or {@code null} — a <b>plain lookup</b>, backing the live half of a
+     * Position's durable form. Deliberately not {@link MCache#getgrid}: that one <i>requests</i> the grid from
+     * the server on a miss, and asking "where is this place" must never put traffic on the wire for ground the
+     * caller is only asking about. A grid being absent is an answer here, not a load to kick.
+     */
+    public static MCache.Grid loadedGrid(MCache mc, Coord gc) {
+        if(mc == null)
+            return null;
+        synchronized(mc.grids) {
+            MCache.Grid g = mc.grids.get(gc);
+            return ((g == null) || g.removed) ? null : g;
+        }
+    }
+
+    /**
+     * The map grids streamed in right now, backing {@code hafen.world():grid():list()}. A copy taken under the
+     * cache's own monitor, the way {@link MCache} takes it itself; grids being removed are left out, so what
+     * comes back is what is actually on the map. The grid map is a {@code haven}-package field (audit B5), so
+     * the bridge reaches it through this one accessor rather than reflection (decision D-017).
+     */
+    public static List<MCache.Grid> loadedGrids(MCache mc) {
+        List<MCache.Grid> out = new java.util.ArrayList<MCache.Grid>();
+        if(mc == null)
+            return out;
+        synchronized(mc.grids) {
+            for(MCache.Grid g : mc.grids.values()) {
+                if(!g.removed)
+                    out.add(g);
+            }
+        }
+        return out;
     }
 
     /**

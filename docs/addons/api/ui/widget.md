@@ -78,7 +78,7 @@ end)
 ```
 
 **`:id()` is the pivot for acting.** To *act*, read a **server-bound** widget's `:id()` and pass it to the
-gated [`hafen.act.raw(id, msg, …)`](../act.md) with the message a client-side button would have sent. A
+gated [`hafen.act():raw(id, msg, …)`](../act.md) with the message a client-side button would have sent. A
 message from an unbound widget is dropped, so you never target the button itself but its nearest
 server-bound ancestor.
 

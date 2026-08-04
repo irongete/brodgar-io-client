@@ -1275,6 +1275,13 @@ public class MapFile {
 	    }
 	}
 
+	// addon: the grid id this segment recorded at `sc`, or null — the whole map is loaded with the
+	// segment, so this answers from memory where grid(sc) would have to wait for the tiles off the disk.
+	public Long gridid(Coord sc) {
+	    checklock();
+	    return(map.get(sc));
+	}
+
 	public Indir<Grid> grid(Coord gc) {
 	    checklock();
 	    synchronized(ccache) {

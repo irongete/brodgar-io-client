@@ -90,7 +90,7 @@ below") · `src/io/brodgar/addon/Sandbox.java` (`installHafen`) · `HookApi.java
 
 ---
 
-## 039.2 — The Position type, and `hafen.world()`
+## 039.2 — The Position type, and `hafen.world()` ✅ DONE
 
 **Depends on:** 039.1 (section object, collection, refusal).
 

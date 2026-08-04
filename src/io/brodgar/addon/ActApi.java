@@ -43,26 +43,32 @@ import java.util.List;
 final class ActApi {
     private ActApi() {}
 
-    /** Build {@code hafen.act} (the gated MapView/menu/flower/item verbs) for {@code owner}. From installHafen. */
+    /**
+     * Build {@code hafen.act()} (the gated MapView/menu/flower/item verbs) for {@code owner}. From installHafen.
+     * A plain section object, and the four <b>spatial</b> verbs take a {@link LuaPosition} rather than a pair of
+     * numbers: a place in this API is a type now, so handing one a widget's pixel position <i>throws</i> where it
+     * used to walk the character somewhere wrong.
+     */
     static void installAct(LuaTable hafen, final Addon owner) {
         LuaTable act = new LuaTable();
-        act.set("enabled", new ZeroArgFunction() {
-            public LuaValue call() {
+        act.set("enabled", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "act", "enabled");
                 return LuaValue.valueOf(AddonManager.actionsGranted(owner));
             }
         });
-        act.set("moveTo", new TwoArgFunction() {
-            public LuaValue call(LuaValue x, LuaValue y) {
-                AddonManager.requireActions(owner, "hafen.act.moveTo");
-                if(!x.isnumber() || !y.isnumber())
-                    throw new LuaError("hafen.act.moveTo(x, y): x and y must be numbers (world coordinates)");
-                actMoveTo(x.todouble(), y.todouble());
+        act.set("moveTo", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "act", "moveTo");
+                AddonManager.requireActions(owner, "hafen.act():moveTo");
+                Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.act():moveTo", "p");
+                actMoveTo(rc.x, rc.y);
                 return LuaValue.NIL;
             }
         });
         // clickGob(gob [, button [, mods]]) — click a game object: exactly the MapView "click" that a
-        // left/right-click on that gob sends. gob = a Gob OBJECT from the read API (hafen.gob(id),
-        // hafen.world.nearest(...), hafen.player():gob()); raw ids and the old GobRef tokens are NOT accepted
+        // left/right-click on that gob sends. gob = a Gob OBJECT from the read API (hafen.world():gob():get(id),
+        // :nearest(...), hafen.player():gob()); raw ids and the old GobRef tokens are NOT accepted
         // (D-044 — one canonical way). button: 1 = left (default; select/interact), 3 = right (the context/
         // flower-menu click). mods = a modifier bitfield (0 default; Shift=1 Ctrl=2 Alt=4, matching the keybind syntax).
         // Sends the bare gob-click encoding {…, 0, gobid, gobrc, 0, -1} — a generic "click the whole object",
@@ -70,56 +76,57 @@ final class ActApi {
         // targeted (deferred). Throws if the gob is out of view or the map view is gone.
         act.set("clickGob", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                AddonManager.requireActions(owner, "hafen.act.clickGob");
-                actClickGob(a.arg1(), a.arg(2).optint(1), a.arg(3).optint(0));
+                Section.self(a.arg1(), "act", "clickGob");
+                AddonManager.requireActions(owner, "hafen.act():clickGob");
+                actClickGob(a.arg(2), a.arg(3).optint(1), a.arg(4).optint(0));
                 return LuaValue.NIL;
             }
         });
-        // useItemOn(x, y [, mods]) — use the item on your cursor on the GROUND at world (x, y): the MapView
+        // useItemOn(p [, mods]) — use the item on your cursor on the GROUND at a Position: the MapView
         // "itemact". With nothing on the cursor the server ignores it. mods optional (0 default).
         act.set("useItemOn", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                AddonManager.requireActions(owner, "hafen.act.useItemOn");
-                if(!a.arg1().isnumber() || !a.arg(2).isnumber())
-                    throw new LuaError("hafen.act.useItemOn(x, y): x and y must be numbers (world coordinates)");
-                actUseItemOn(a.arg1().todouble(), a.arg(2).todouble(), a.arg(3).optint(0));
+                Section.self(a.arg1(), "act", "useItemOn");
+                AddonManager.requireActions(owner, "hafen.act():useItemOn");
+                Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.act():useItemOn", "p");
+                actUseItemOn(rc.x, rc.y, a.arg(3).optint(0));
                 return LuaValue.NIL;
             }
         });
-        // place(x, y, angle [, button [, mods]]) — place the object currently on your cursor at world (x, y),
+        // place(p, angle [, button [, mods]]) — place the object currently on your cursor at a Position,
         // rotated by `angle` RADIANS (the MapView "place"; the engine encodes angle as round(angle*32768/PI)).
         // With nothing being placed the server ignores it. button 1 = confirm (default); mods 0 default.
         act.set("place", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                AddonManager.requireActions(owner, "hafen.act.place");
-                if(!a.arg1().isnumber() || !a.arg(2).isnumber() || !a.arg(3).isnumber())
-                    throw new LuaError("hafen.act.place(x, y, angle): x, y and angle must be numbers");
-                actPlace(a.arg1().todouble(), a.arg(2).todouble(), a.arg(3).todouble(),
-                         a.arg(4).optint(1), a.arg(5).optint(0));
+                Section.self(a.arg1(), "act", "place");
+                AddonManager.requireActions(owner, "hafen.act():place");
+                Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.act():place", "p");
+                double ang = WorldApi.number(a, 3, "hafen.act():place", "angle");
+                actPlace(rc.x, rc.y, ang, a.arg(4).optint(1), a.arg(5).optint(0));
                 return LuaValue.NIL;
             }
         });
-        // select(x1, y1, x2, y2 [, mods]) — area-select the tile rectangle spanned by world corners
-        // (x1,y1)–(x2,y2): the MapView "sel" (world → tile via hafen.map.worldToTile). Drives tile-area tools.
+        // select(p1, p2 [, mods]) — area-select the tile rectangle spanned by two Positions: the MapView "sel"
+        // (world → tile, the same conversion p:tileCoord() exposes). Drives tile-area tools.
         act.set("select", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                AddonManager.requireActions(owner, "hafen.act.select");
-                if(!a.arg1().isnumber() || !a.arg(2).isnumber() || !a.arg(3).isnumber() || !a.arg(4).isnumber())
-                    throw new LuaError("hafen.act.select(x1, y1, x2, y2): all four must be numbers (world coordinates)");
-                actSelect(a.arg1().todouble(), a.arg(2).todouble(), a.arg(3).todouble(), a.arg(4).todouble(),
-                          a.arg(5).optint(0));
+                Section.self(a.arg1(), "act", "select");
+                AddonManager.requireActions(owner, "hafen.act():select");
+                Coord2d p1 = LuaPosition.worldArg(a, 2, "hafen.act():select", "p1");
+                Coord2d p2 = LuaPosition.worldArg(a, 3, "hafen.act():select", "p2");
+                actSelect(p1.x, p1.y, p2.x, p2.y, a.arg(4).optint(0));
                 return LuaValue.NIL;
             }
         });
         // raw(target, msg, ...) — the escape hatch: send an arbitrary wdgmsg from a BOUND widget. target = a
-        // server widget id (number; e.g. model:raw() from hafen.ui.adopt, or a 3a desc.id) or a token
-        // "mapview"/"gameui". The trailing args are marshalled exactly like the action/message hooks
-        // (a {x=,y=} table ↔ Coord; numbers/strings/bools direct). For power users — the typed verbs above
-        // cover the common cases; raw covers messages they don't.
+        // server widget id (number; e.g. widget:id()) or a token "mapview"/"gameui". The trailing args are
+        // marshalled exactly like the action/message hooks (a {x=,y=} table ↔ Coord; numbers/strings/bools
+        // direct). For power users — the typed verbs above cover the common cases; raw covers the rest.
         act.set("raw", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                AddonManager.requireActions(owner, "hafen.act.raw");
-                actRaw(a);
+                Section.self(a.arg1(), "act", "raw");
+                AddonManager.requireActions(owner, "hafen.act():raw");
+                actRaw(a.subargs(2));
                 return LuaValue.NIL;
             }
         });
@@ -131,8 +138,9 @@ final class ActApi {
         // actions (e.g. "lo" logs out), so the addon supplies the tokens deliberately.
         act.set("menu", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                AddonManager.requireActions(owner, "hafen.act.menu");
-                actMenu(a);
+                Section.self(a.arg1(), "act", "menu");
+                AddonManager.requireActions(owner, "hafen.act():menu");
+                actMenu(a.subargs(2));
                 return LuaValue.NIL;
             }
         });
@@ -143,16 +151,18 @@ final class ActApi {
         // addon can just test the result). The classic use is automation: an addon right-clicks a target
         // (clickGob button 3) and then auto-picks a petal — while a flower menu is open it grabs the mouse +
         // keyboard, so a programmatic pick (from a timer / event) is the only way to select without a click.
-        act.set("flower", new OneArgFunction() {
-            public LuaValue call(LuaValue label) {
-                AddonManager.requireActions(owner, "hafen.act.flower");
+        act.set("flower", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "act", "flower");
+                AddonManager.requireActions(owner, "hafen.act():flower");
+                LuaValue label = Args.required(a, 2, "hafen.act():flower", "label");
                 if(!label.isstring())
-                    throw new LuaError("hafen.act.flower(label): label must be a string (a petal name)");
+                    throw new LuaError("hafen.act():flower(label): label must be a string (a petal name)");
                 return LuaValue.valueOf(actFlower(label.tojstring()));
             }
         });
         // item(item, verb [, n]) — the gated item verbs. `item` = an item you got from a READ: a snapshot from
-        // hafen.items.* (inventory/equipment/hand/find) or model:items(), OR its numeric `handle` field directly.
+        // a container's :items(), from hafen.ui.hand(), OR its numeric `handle` field directly.
         // The handle (the item's server widget id) re-resolves the LIVE GItem each call (a stale/used/moved item →
         // a guiding error, like a GobRef that no longer resolves), then sends exactly the GItem.wdgmsg a click on
         // the item sends (WItem.mousedown / iteminteract) — so the client stays server-authoritative. `verb`:
@@ -162,19 +172,20 @@ final class ActApi {
         //   "iact"     right-click / activate it (its default context action: eat, open, light, …).
         //   "itemact"  apply the item on your cursor ONTO this item (e.g. pour a waterskin onto a plant).
         // `n` is ignored for take/iact/itemact (no count). iact/itemact send no modifiers; for a MODIFIED item
-        // interaction use the escape hatch: hafen.act.raw(item.handle, "iact", {x=0,y=0}, mods).
+        // interaction use the escape hatch: hafen.act():raw(item.handle, "iact", {x=0,y=0}, mods).
         act.set("item", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                AddonManager.requireActions(owner, "hafen.act.item");
-                LuaValue verb = a.arg(2);
+                Section.self(a.arg1(), "act", "item");
+                AddonManager.requireActions(owner, "hafen.act():item");
+                LuaValue verb = a.arg(3);
                 if(!verb.isstring())
-                    throw new LuaError("hafen.act.item(item, verb): verb must be a string"
+                    throw new LuaError("hafen.act():item(item, verb): verb must be a string"
                         + " (\"take\", \"drop\", \"transfer\", \"iact\" or \"itemact\")");
-                actItem(a.arg1(), verb.tojstring(), a.arg(3).optint(-1));
+                actItem(a.arg(2), verb.tojstring(), a.arg(4).optint(-1));
                 return LuaValue.NIL;
             }
         });
-        hafen.set("act", act);
+        Section.install(hafen, "act", act);
     }
 
     /** Build {@code hafen.craft} (crafting read + gated make) for {@code owner}. From installHafen. */
@@ -257,11 +268,11 @@ final class ActApi {
         return new Coord2d(x, y).floor(OCache.posres);
     }
 
-    /** {@code hafen.act.moveTo} backing — send the ground-"click" that walks the character to world (x, y). */
+    /** {@code hafen.act():moveTo} backing — send the ground-"click" that walks the character to world (x, y). */
     private static void actMoveTo(double x, double y) {
         MapView m = AddonManager.view;
         if(m == null)
-            throw new LuaError("hafen.act.moveTo: no map view (not in the world yet)");
+            throw new LuaError("hafen.act():moveTo: no map view (not in the world yet)");
         Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;   // dummy screen coord (current mouse), like MiniMap.mvclick
         m.wdgmsg("click", pc, moveClickCoord(x, y), 1, 0);
     }
@@ -286,21 +297,21 @@ final class ActApi {
         return new Object[] {pc, gobRc, button, mods, 0, gobId, gobRc, 0, -1};
     }
 
-    /** {@code hafen.act.clickGob} backing — click the gob a read-API {@link LuaGob} object names (D-044). */
+    /** {@code hafen.act():clickGob} backing — click the gob a read-API {@link LuaGob} object names (D-044). */
     private static void actClickGob(LuaValue ref, int button, int mods) {
         MapView m = AddonManager.view;
         if(m == null)
-            throw new LuaError("hafen.act.clickGob: no map view (not in the world yet)");
+            throw new LuaError("hafen.act():clickGob: no map view (not in the world yet)");
         LuaGob h = LuaGob.resolve(ref);
         if(h == null)
-            throw new LuaError("hafen.act.clickGob(gob [, button, mods]): expected a Gob object (hafen.gob(id) / hafen.world.nearest(...)) — raw ids and the old GobRef tokens are gone");
+            throw new LuaError("hafen.act():clickGob(gob [, button, mods]): expected a Gob object (hafen.world():gob():get(id) / :nearest(...)) — raw ids and the old GobRef tokens are gone");
         Gob g = AddonManager.getgob(h.id);
         if(g == null)
-            throw new LuaError("hafen.act.clickGob: no such gob (that Gob is not in view — check gob:exists())");
+            throw new LuaError("hafen.act():clickGob: no such gob (that Gob is not in view — check gob:exists())");
         Coord2d rc;
         synchronized(g) { rc = g.rc; }                   // OCache discipline: copy under the gob lock
         if(rc == null)
-            throw new LuaError("hafen.act.clickGob: the gob has no position yet");
+            throw new LuaError("hafen.act():clickGob: the gob has no position yet");
         Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;
         m.wdgmsg("click", clickGobArgs(pc, button, mods, (int)g.id, rc.floor(OCache.posres)));
     }
@@ -310,11 +321,11 @@ final class ActApi {
         return new Object[] {pc, moveClickCoord(x, y), mods};
     }
 
-    /** {@code hafen.act.useItemOn} backing — apply the cursor item to the ground at world (x, y). */
+    /** {@code hafen.act():useItemOn} backing — apply the cursor item to the ground at world (x, y). */
     private static void actUseItemOn(double x, double y, int mods) {
         MapView m = AddonManager.view;
         if(m == null)
-            throw new LuaError("hafen.act.useItemOn: no map view (not in the world yet)");
+            throw new LuaError("hafen.act():useItemOn: no map view (not in the world yet)");
         Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;
         m.wdgmsg("itemact", itemactArgs(pc, x, y, mods));
     }
@@ -329,17 +340,17 @@ final class ActApi {
         return new Object[] {moveClickCoord(x, y), placeAngle(angle), button, mods};
     }
 
-    /** {@code hafen.act.place} backing — place the cursor object at world (x, y) rotated by {@code angle} rad. */
+    /** {@code hafen.act():place} backing — place the cursor object at world (x, y) rotated by {@code angle} rad. */
     private static void actPlace(double x, double y, double angle, int button, int mods) {
         MapView m = AddonManager.view;
         if(m == null)
-            throw new LuaError("hafen.act.place: no map view (not in the world yet)");
+            throw new LuaError("hafen.act():place: no map view (not in the world yet)");
         m.wdgmsg("place", placeArgs(x, y, angle, button, mods));
     }
 
     /**
      * The MapView {@code "sel"} args ({@code {tc1, tc2, mods}}) — world corners floored to TILE coords, the
-     * same conversion {@code hafen.map.worldToTile} exposes ({@code Coord2d.floor(MCache.tilesz)}). Pure/testable.
+     * same conversion {@code p:tileCoord()} exposes ({@code Coord2d.floor(MCache.tilesz)}). Pure/testable.
      */
     static Object[] selArgs(double x1, double y1, double x2, double y2, int mods) {
         Coord tc1 = Coord2d.of(x1, y1).floor(MCache.tilesz);
@@ -347,16 +358,16 @@ final class ActApi {
         return new Object[] {tc1, tc2, mods};
     }
 
-    /** {@code hafen.act.select} backing — area-select the tile rectangle between world corners. */
+    /** {@code hafen.act():select} backing — area-select the tile rectangle between world corners. */
     private static void actSelect(double x1, double y1, double x2, double y2, int mods) {
         MapView m = AddonManager.view;
         if(m == null)
-            throw new LuaError("hafen.act.select: no map view (not in the world yet)");
+            throw new LuaError("hafen.act():select: no map view (not in the world yet)");
         m.wdgmsg("sel", selArgs(x1, y1, x2, y2, mods));
     }
 
     /**
-     * {@code hafen.act.raw} backing — send an arbitrary wdgmsg from a bound widget. {@code a.arg1()} = the
+     * {@code hafen.act():raw} backing — send an arbitrary wdgmsg from a bound widget. {@code a.arg1()} = the
      * target (a numeric server widget id, or a "mapview"/"gameui"/"root" token); {@code a.arg(2)} = the message
      * name; the rest are the message args (marshalled via {@link LuaMarshal#toJava}). "Bound widgets only" — a
      * looked-up widget id and the core-widget tokens are all server-bound.
@@ -364,15 +375,15 @@ final class ActApi {
     private static void actRaw(Varargs a) {
         LuaValue msgv = a.arg(2);
         if(!msgv.isstring())
-            throw new LuaError("hafen.act.raw(target, msg, ...): msg must be a string");
+            throw new LuaError("hafen.act():raw(target, msg, ...): msg must be a string");
         Widget w = rawTarget(a.arg1());
         if(w == null)
-            throw new LuaError("hafen.act.raw: target did not resolve to a live widget"
+            throw new LuaError("hafen.act():raw: target did not resolve to a live widget"
                 + " (expected a bound widget id, \"mapview\", or \"gameui\")");
         int n = a.narg();
         Object[] args = new Object[Math.max(0, n - 2)];
         for(int i = 3; i <= n; i++)
-            args[i - 3] = LuaMarshal.toJava(a.arg(i), "hafen.act.raw");
+            args[i - 3] = LuaMarshal.toJava(a.arg(i), "hafen.act():raw");
         w.wdgmsg(msgv.tojstring(), args);
     }
 
@@ -402,22 +413,22 @@ final class ActApi {
     static String[] menuPath(Varargs a) {
         int n = a.narg();
         if(n < 1)
-            throw new LuaError("hafen.act.menu(path...): at least one path token is required");
+            throw new LuaError("hafen.act():menu(path...): at least one path token is required");
         String[] path = new String[n];
         for(int i = 1; i <= n; i++) {
             LuaValue v = a.arg(i);
             if(!v.isstring())
-                throw new LuaError("hafen.act.menu(path...): every path token must be a string");
+                throw new LuaError("hafen.act():menu(path...): every path token must be a string");
             path[i - 1] = v.tojstring();
         }
         return path;
     }
 
-    /** {@code hafen.act.menu} backing — send the "act" menu-path message via {@link GameUI#act(String...)}. */
+    /** {@code hafen.act():menu} backing — send the "act" menu-path message via {@link GameUI#act(String...)}. */
     private static void actMenu(Varargs a) {
         GameUI g = AddonManager.gui();
         if(g == null)
-            throw new LuaError("hafen.act.menu: no game UI (not in the world yet)");
+            throw new LuaError("hafen.act():menu: no game UI (not in the world yet)");
         g.act(menuPath(a));
     }
 
@@ -443,7 +454,7 @@ final class ActApi {
     }
 
     /**
-     * {@code hafen.act.flower} backing — select the open flower menu's petal whose name equals {@code label}
+     * {@code hafen.act():flower} backing — select the open flower menu's petal whose name equals {@code label}
      * (case-insensitive), via the client's own {@link FlowerMenu#choose}. Returns whether a petal matched.
      */
     private static boolean actFlower(String label) {
@@ -463,7 +474,7 @@ final class ActApi {
         return true;
     }
 
-    // -- 4f: item verbs (hafen.act.item) ---------------------------------------------------------------
+    // -- 4f: item verbs (hafen.act():item) ---------------------------------------------------------------
     // The item half of the gated tier. Unlike the MapView verbs (which act on world coords) an item verb acts
     // on a specific item, addressed by a HANDLE = the item's server widget id (GItem.wdgid(), carried on every
     // item snapshot as `handle` — D-022: handle-only). We re-resolve the live GItem from that id each call
@@ -479,7 +490,7 @@ final class ActApi {
      * The {@link GItem} {@code wdgmsg} args for an item {@code verb}, or {@code null} for an unknown verb.
      * {@code n} is the stack count for {@code drop}/{@code transfer} ({@code -1} = the whole stack). The others
      * carry no count: {@code take} is a bare grab; {@code iact}/{@code itemact} send modifiers {@code 0} (a
-     * modified interaction goes through {@code hafen.act.raw}). Pure/testable — the grab coord is a fixed corner.
+     * modified interaction goes through {@code hafen.act():raw}). Pure/testable — the grab coord is a fixed corner.
      */
     static Object[] itemVerbArgs(String verb, int n) {
         switch(verb) {
@@ -505,11 +516,11 @@ final class ActApi {
         } else if(item.istable()) {
             LuaValue h = item.get("handle");
             if(!h.isnumber())
-                throw new LuaError("hafen.act.item: the item table has no numeric 'handle' field"
-                    + " (pass an item from hafen.items.* / model:items(), or its .handle)");
+                throw new LuaError("hafen.act():item: the item table has no numeric 'handle' field"
+                    + " (pass an item from a container's :items(), or its .handle)");
             id = h.toint();
         } else {
-            throw new LuaError("hafen.act.item(item, verb): item must be an item snapshot (a table) or a"
+            throw new LuaError("hafen.act():item(item, verb): item must be an item snapshot (a table) or a"
                 + " handle id (a number)");
         }
         UI u = AddonManager.ui;
@@ -519,16 +530,16 @@ final class ActApi {
         return (w instanceof GItem) ? (GItem)w : null;
     }
 
-    /** {@code hafen.act.item} backing — resolve the live {@link GItem} by its handle and send the verb's wdgmsg. */
+    /** {@code hafen.act():item} backing — resolve the live {@link GItem} by its handle and send the verb's wdgmsg. */
     private static void actItem(LuaValue item, String verb, int n) {
         Object[] args = itemVerbArgs(verb, n);
         if(args == null)
-            throw new LuaError("hafen.act.item(item, verb): verb must be one of \"take\", \"drop\","
+            throw new LuaError("hafen.act():item(item, verb): verb must be one of \"take\", \"drop\","
                 + " \"transfer\", \"iact\", \"itemact\" (got \"" + verb + "\")");
         GItem g = resolveItemHandle(item);
         if(g == null)
-            throw new LuaError("hafen.act.item: the item did not resolve to a live item — its handle is stale"
-                + " (it was moved/used/consumed, or you are not in the world). Re-read hafen.items.* and retry.");
+            throw new LuaError("hafen.act():item: the item did not resolve to a live item — its handle is stale"
+                + " (it was moved/used/consumed, or you are not in the world). Re-read the container and retry.");
         g.wdgmsg(verb, args);
     }
 

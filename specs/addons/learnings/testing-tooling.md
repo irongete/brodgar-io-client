@@ -773,3 +773,22 @@
   dispatcher. With it, all of a suite's verdict lines are known before the client starts. It needs an owner
   whose manifest declares **nothing** (`Manifest.internal` is the trusted REPL owner: it declares `actions`
   and allow-all network, so every gate passes and no refusal can be asserted) — hence `Manifest.test(id)`.
+- **(039.2) `luac -p` exits 0 on a syntax error — check the OUTPUT, not the status.** The 030.4 note says to
+  verify the checker against a deliberately broken file, and doing so is what caught this: a sweep over 35
+  addon files reported "0 failed" while `luac` was printing a `LuaError` stack for a planted `x = = 1` and
+  still returning 0. The sweep has to be `out=$(java -cp … luac -p "$f" 2>&1); [ -n "$out" ] && fail`. Same
+  lesson as always, one tool along: a checker that has never been seen to fail proves nothing.
+- **(039.2) The map DATABASE fabricates without a session, and that is what makes the RECORDED path
+  testable alone.** `new MapFile(new MemCache(), "probe")` over a 10-line in-memory `ResCache`, then
+  `file.new Segment(id)` with its private `map` reflect-filled (`sc → grid id`) and `file.gridinfo.put` /
+  `file.segments.put` under the **write lock** (`BackCache.put` calls `checklock`). Add an `Unsafe`-allocated
+  `GameUI` + `MiniMap` with `file` reflect-set and `mm.sessloc = new MiniMap.Location(seg, Coord.of(0,0))`,
+  and an `Unsafe`-allocated `MapView` whose `parent` is that `GameUI` so `AddonManager.gui()`'s fast path
+  answers. With **no `MCache` at all**, every live lookup misses and the recorded half of a Position is the
+  only thing under test — which is the one path an in-game round cannot isolate, because in-game the ground
+  under the player is always streamed.
+- **(039.2) A falsification that ABORTS the probe is still a falsification, but say so.** Removing the
+  Position branch from `Json.write` turned the strict `encode` into a throw, which one check caught and the
+  *next* one (an unguarded `lua(...)` whose result is read) propagated out of `main` — 1 red and no summary
+  line. Report it as "1 + abort" rather than "1 red": the run stopped early, so the checks after it were
+  never evidence either way.

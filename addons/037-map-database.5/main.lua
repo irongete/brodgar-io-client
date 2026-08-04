@@ -46,6 +46,7 @@ local function manualCheck(step, expect)
 end
 
 local CMAPS = 100                       -- MCache.cmaps: a grid is 100x100 tiles, a drawing 100x100 pixels
+local TILE = 11                         -- MCache.tilesz: one tile is 11x11 world units
 local ID    = "037-map-database.5"
 local ATLAS = "atlas"                   -- the example addon this feature ships, and its row in addons()
 local PANEL = "window[title=Atlas]"     -- ...and how to tell that its panel is actually on screen
@@ -85,12 +86,14 @@ local function run()
   pass, fail, manual = 0, 0, 0          -- a re-run reports its own counts, not the last one's
   cleanup()
 
-  local gp = hafen.world.gridPos()
+  local me = hafen.player() and hafen.player():gob()
+  local pp = me and me:position()
+  local gp = pp and pp:info()
   local grid = gp and hafen.map.grid(gp.gridId)
   local seg = grid and grid:segment()
   if not (gp and grid and seg) then
     check(false, "the player's own grid is in the map database (every check below stands on it)",
-          (gp == nil) and "no gridPos -- no player, or the map has not streamed in yet"
+          (gp == nil) and "no anchor -- no player, or the map has not streamed in yet"
                        or "the grid the player stands on is not recorded yet")
     return summary()
   end
@@ -99,12 +102,12 @@ local function run()
   --    id is the only thing the two halves share." The anchor's gridId IS that grid's identity.
   eq("the anchor's gridId is the identity of the grid it names in the database", grid:id(), gp.gridId)
 
-  -- 2. "An anchor goes back to a world position with hafen.world.fromGridPos" -- and back to the same anchor.
-  local w = hafen.world.fromGridPos(gp)
-  local back = w and hafen.world.gridPos(w.x, w.y)
+  -- 2. "A stored anchor rebuilds into a Position" -- and that Position hands back the SAME anchor.
+  local w = hafen.world():position(gp)
+  local back = w and w:info()
   check(back and (back.gridId == gp.gridId) and (back.x == gp.x) and (back.y == gp.y),
-        "an anchor resolves to a world position this session and back to the SAME anchor -- exactly, not nearly",
-        (back == nil) and "fromGridPos answered nil"
+        "an anchor rebuilds into a Position this session and back to the SAME anchor -- exactly, not nearly",
+        (back == nil) and "the rebuilt position is not durable here"
                        or ("%s %.3f,%.3f"):format(back.gridId, back.x, back.y))
 
   -- 3. "A 64-bit id is a decimal string, and a number is refused" -- the one failure a silent lookup would hide.
@@ -126,12 +129,13 @@ local function run()
   -- 6./7. "marker:anchor() is how a marker leaves this client." The claim is that the anchor lands back on
   --    the tile the marker itself reports -- so the suite drops a pin in the REAL database, converts it, and
   --    removes it again in the same run, asserting the removal (this is the one write it makes).
-  local p = hafen.player() and hafen.player():gob() and hafen.player():gob():pos()
-  local mk = p and hafen.map.markers.add("037.5 anchor probe", p.x, p.y, { color = { 200, 80, 80 } })
+  local mk = pp and hafen.map.markers.add("037.5 anchor probe", pp:x(), pp:y(), { color = { 200, 80, 80 } })
   if mk then
     local a = mk:anchor()
     local ag = a and hafen.map.grid(a.gridId)
-    local at = ag and hafen.world.worldToTile(a.x, a.y)          -- the within-grid tile the anchor names
+    -- The anchor's x,y are WITHIN-grid world units, so the tile is plain arithmetic on them: p:tileCoord()
+    -- answers for a place in the session's own space, which this is not.
+    local at = ag and { x = math.floor(a.x / TILE), y = math.floor(a.y / TILE) }
     local tc = mk:tc()
     check(at and ag and (((ag:sc().x * CMAPS) + at.x) == tc.x) and (((ag:sc().y * CMAPS) + at.y) == tc.y),
           "marker:anchor() round-trips onto the very tile the marker reports -- a pin can be saved or sent",
