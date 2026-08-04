@@ -28,7 +28,7 @@ disable and relogin, leaking nothing.
 | Function | Returns | Description |
 |---|---|---|
 | `hafen.ghost.new(opts)` | [ghost handle](#the-ghost-handle) \| nil | create a client-only prop; `nil` if you are not in the world yet |
-| `hafen.ghost.list(filter)` | [ghost handle](#the-ghost-handle)`[]` | this addon's live ghosts |
+| `hafen.ghost.list(filter)` | [ghost handle](#the-ghost-handle)`[]` | this addon's live ghosts, the ones it stood at a world point |
 
 `new` options:
 
@@ -47,6 +47,11 @@ disable and relogin, leaking nothing.
 For `list`, `filter` is the canonical [filter](conventions.md#the-filter-argument) adapted to handles:
 `nil` is all of them, a **string** is a substring match on the ghost's `res`, and a **function** is called
 with the ghost **handle**, so it can call `g:pos()`, with a truthy return keeping it.
+
+`list` answers the ghosts **this namespace stands**. A `.res` prop hung on a game object belongs to that
+object instead — it is one of its [overlays](gob.md#overlays), owned by the record `gob:overlay` keeps —
+so it is not in `list` and has no handle of its own to `:destroy()`. Read it back through
+`gob:overlay(key)`, and end it by removing that key.
 
 > **The prop appears a beat after `new`.** The resource resolves on a loader thread, so `new` returns a
 > working handle immediately while the visual streams in shortly after. Every handle method works
@@ -155,8 +160,8 @@ through `gob:overlay()`, and **dies with the gob** instead of floating on where 
 hafen.player():gob():overlay("hat", { ghost = "gfx/terobjs/arch/logcabin", offset = { z = 20 } })
 ```
 
-> `follow =` and the handle's `:follow`/`:offset` are **gone**. Passing `follow` raises, naming
-> `gob:overlay`; the methods read as plain `nil`.
+> `follow =` and the handle's `:follow`/`:offset` are **gone**. Passing `follow` — or `offset` — to
+> `hafen.ghost.new` raises, naming `gob:overlay`; the methods read as plain `nil`.
 
 ## Layouts and persistence
 

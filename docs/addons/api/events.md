@@ -79,7 +79,9 @@ Four rules make these predictable:
   key, so a second one of that resource arriving is not an add — read
   [`ov:count()`](gob.md#overlays) for the multiplicity.
 
-When a gob leaves, each overlay on it is reported gone *before* that gob's own `GobRemoved`. A `:reload`
+When a gob leaves, **yours** on it are reported gone *before* that gob's own `GobRemoved`, so a handler
+already reads the truth. The game's are not: the client drops a departing gob whole rather than taking its
+overlays off one by one, and a native removal is reported only while the gob is still there. A `:reload`
 fires neither: the addon that would hear it is the one going away.
 
 ## Character and status

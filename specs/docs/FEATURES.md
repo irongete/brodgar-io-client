@@ -13,3 +13,8 @@
   obituary deleted, the §7 grep list extended to **22 names**, the IA and both `AREA.md` files widened to
   `docs/addons/**`, wrap drift zeroed on the 037 surface — **75 pages, 7,906 lines, 1,181 links, 0 broken**
   (`design/style-guide.md` §7/§9/§12, `design/information-architecture.md` rules 2–4) — tasks 002.1..002.2
+- `003-gob-overlays-review` — ACTIVE — area `addons`' `038-gob-overlays` brought back to the standard: four
+  claims corrected against `src/` (`ghost.list`'s exclusion, two raises, the arities' absence case,
+  `ov:info()`'s native shape), the four obituaries restated as present-tense boundaries, the three retired
+  names put on the §7 grep list, a measured figure and three prose counts removed, and `gob:overlay`
+  classified out of the `## Read` table (`design/style-guide.md` §4/§6/§7/§11/§12) — tasks 003.1..003.2

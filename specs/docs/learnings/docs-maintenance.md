@@ -238,3 +238,39 @@
   `perl -CSD -ne 'chomp; print "$ARGV:$.\n" if length($_)>110 && !/^\|/'`. The general form: **a count
   over text is a count of some unit, and a tool with no multibyte mode has silently chosen bytes** — so
   reproduce a known-good number with the new tool before believing either tool's answer.
+
+- **(003.1) The wrap check's unit problem has a second half: the line TERMINATOR, and this tree is mixed.**
+  002.2 fixed `awk 'length>110'` counting bytes and moved to `perl -CSD`, which measures characters — and
+  that check still over-reported by exactly one column on two of the five pages 003.1 touched.
+  `render/sprites.md` and `ghost.md` are **CRLF**; `gob.md`, `events.md`, `player.md` and the rest of the
+  tree are **LF**. `chomp` strips `$/`, which is `"\n"`, so on the CRLF half the surviving `\r` counts as a
+  column and a 111-column line reads 112 — one-sided again, and again it manufactures work rather than
+  hiding it. Worse, the check that should have settled it lied: `grep -c $'\r'` returned **0 on a file perl
+  proved carries `\r`**, so the first two hypotheses (a real edit, a `cp` that rewrote endings) were both
+  chased before `ord` on the last character ended it. Two rules: the wrap check is
+  `s/\r?\n?$//`, never `chomp`; and **a working tree's line endings are per file, not per repo** — check
+  with a byte count (`b.count(b'\r\n')` vs `b.count(b'\n')`), never with a `grep` whose pattern has to
+  survive a shell.
+
+- **(003.1) The registration grep proves a name EXISTS; it says nothing about what the call REFUSES — and
+  that second half is where the defects are.** 001.2's oracle (`grep 'set("<name>"' src/io/brodgar/addon/`)
+  answered every one of the 65 `hafen.*` names and all 13 `ov:` verbs on the 038 surface as correct, and
+  the sweep would have closed green. The second query — `grep 'spec.get("\|LuaError'` over the four owning
+  files — listed 14 spec fields and 16 error sites, and **five of those errors were on no page at all**
+  (the `Loading` raise on a gob not renderable yet, the no-map-view raise, the native read-only refusal of
+  the five composed verbs, and both halves of `refuseFollow`'s `follow`/`offset` test), while a sixth was
+  documented wider than it is: `clickable`/`onClick` raise in `RenderApi.overlayEntity`, which a
+  screen-space spec never reaches, so there they are silently ignored. **The oracle for a name is the
+  registration; the oracle for a contract is the `LuaError` string** — and a `spec.get("…")` read is a
+  field the docs owe a row. Every one of 003.1's nine corrections came from the second oracle.
+
+- **(003.1) When a feature MOVES a surface between namespaces, grep its PROSE NAME — the stale link is the
+  one that still resolves.** 038 moved gob overlays from `hafen.ui.gobOverlay` to `gob:overlay`, and
+  `player.md` was left saying `worldToScreen` gives what a "[gob overlay](ui/custom.md#overlays)" wants:
+  correct before 038, a live mis-point after it, and **invisible to every check the standard runs** — the
+  page resolves, the anchor exists, the symbol sweep sees no symbol because the link text is English. It is
+  001.6's finding one step further out: there the link text named a wrong *call*, here it names the right
+  *concept* at the wrong *page*. A symbol grep cannot find either. So a review of a moved surface greps for
+  what the surface is **called in prose** ("gob overlay", "the filter form") across the whole tier, not
+  only for the identifiers, and it does so on pages outside the feature's own file list — `player.md` was
+  on nobody's.

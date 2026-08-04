@@ -35,7 +35,7 @@ raises an error.
 ## Read
 
 Every method answers `nil` once the gob is gone, except `:id()` and `:exists()`, which always answer.
-None of them throws.
+None throws but `gob:overlay`, whose error cases are under [Overlays](#overlays).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -73,8 +73,11 @@ attached; the arity is the verb, and the key is your own name for it.
 |---|---|---|
 | `gob:overlay()` | `Overlay[]` \| nil | every overlay on the gob: yours first, then the game's own |
 | `gob:overlay(key)` | `Overlay` \| nil | that one |
-| `gob:overlay(key, spec)` | `Overlay` | attach it, or replace what that key already named |
-| `gob:overlay(key, nil)` | the gob | remove it |
+| `gob:overlay(key, spec)` | `Overlay` \| nil | attach it, or replace what that key already named |
+| `gob:overlay(key, nil)` | the gob \| nil | remove it |
+
+All four answer `nil` once the gob is gone, the attach and the remove included: there is nothing left to
+hang an overlay on, and one that was there died with the gob.
 
 ```lua
 me:overlay("hp", { text = "hurt", color = {255, 90, 90}, offset = {x = 0, y = -6} })
@@ -105,18 +108,21 @@ The rest of the table depends on which space you are in:
 | `offset = {x =, y =, z =}` | world | **world units** from the gob, `z` being up — `{z = 18}` floats it overhead |
 | `scale`, `alpha`, `tint`, `a` | world | the same look and facing options the world builders take |
 | `billboard = true` | world | with `image`: a camera-facing blit instead of an upright quad |
+| `sdt` | world | with `ghost`: spawn-data bytes picking a resource variant, as [`hafen.ghost.new`](ghost.md) takes |
 
 A spec naming none of the five is an error naming them all, and one naming two is an error naming both:
 an overlay that draws nothing is never what was meant, and picking a winner by table order is how one of
 them silently stops meaning anything. A spec is read **once**, at attach.
 
-`clickable`/`onClick` are **not** overlay properties and raise. The thing under an overlay is the gob,
-and clicking a gob is the client's own — [`hafen.act.clickGob`](act.md).
+`clickable`/`onClick` are **not** overlay properties: a world-space spec carrying either **raises**, and a
+screen-space one ignores them. The thing under an overlay is the gob, and clicking a gob is the client's
+own — [`hafen.act.clickGob`](act.md).
 
 ### The verbs on a world overlay
 
-A world-space overlay carries the look and facing verbs its entity already had. They **chain** (each
-answers the overlay), they are refused on a screen-space one naming the kinds, and they are quiet no-ops
+A world-space overlay carries the look and facing verbs its entity already had. The four setters
+**chain** — each answers the overlay — while `ov:pos()` hands back a table, and `nil` once the overlay is
+gone. All five are refused on a screen-space overlay, naming the kinds, and the setters are quiet no-ops
 once the overlay is gone. There is no `:move` — an overlay's position **is** its gob's, and the only
 thing you set is the `offset`, by re-attaching under the same key.
 
@@ -138,8 +144,14 @@ other's — `gob:overlay()` lists yours and the game's, never a third party's. A
 twice leaves **one** overlay, the second spec's.
 
 **The game's own overlays are read-only.** They come back from the same read with `native = true`, keyed
-by their **resource name**, and both an attach onto such a key and a remove of one **raise**, naming the
-key — never a silent no-op.
+by their **resource name**. An attach onto such a key **raises**, so does a remove of one, and so does
+each of the five verbs above — always naming the key, never a silent no-op.
+
+An attach raises in two more places, both of them about *when*. A gob the client cannot draw yet takes no
+overlay: attach from [`GobAdded`](events.md#world) or a timer instead. A **world-space** spec needs the 3D
+scene, so it raises while there is no map view — that is what attaching before you are in the world looks
+like. Both errors name what to do instead, and neither leaves anything half-attached: the spec is read,
+and a world entity built, before the gob is touched at all.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -150,7 +162,7 @@ key — never a silent no-op.
 | `ov:res()` | string \| nil | what it is drawn from — the resource name, the asset path; `nil` for a screen-space one, which draws Lua |
 | `ov:count()` | number \| nil | how many engine overlays this one entity stands for |
 | `ov:exists()` | bool | still attached? |
-| `ov:info()` | table \| nil | `{key, native, count, world, res?, kind?}` as a plain snapshot |
+| `ov:info()` | table \| nil | a plain snapshot; the shape follows what the overlay is |
 
 `:count()` is there because **a native overlay is a union**. A gob may carry several overlays of one
 resource — on a live world 13 of 33 gobs carrying overlays did — and the resource name is the only part
@@ -159,9 +171,16 @@ instead of lost. Yours always count 1. (`gob:info().overlays` is the raw list of
 per engine overlay, for when you want the uncollapsed view — and, like every other
 [`GobInfo`](types.md#gobinfo) field, it is **absent** rather than empty when the gob carries none.)
 
+`:info()` is the snapshot escape hatch, and it hands back **two shapes**. Both carry `key`, `native` and
+`count`. **Yours** adds `kind` and `world` — `world` is `true` for `image`, `model` and `ghost`, `false`
+for `draw` and `text` — plus `res` when what it stands is named by a resource or an asset path. **A native
+one** adds `res`, which is the key itself, and carries neither `kind` nor `world`: the game's overlays say
+only that they are the game's.
+
 An Overlay object is **interned on the key**, so `gob:overlay(key)` hands back the same object every
 time and a replace leaves the handle you were holding naming the *new* record. `:exists()` goes false
-when the overlay is removed, or when its gob is gone.
+when the overlay is removed, or when its gob is gone. `tostring(ov)` gives `Overlay(<key>@<gobid>)`, with
+a `*` in front of the key on the game's own.
 
 **An overlay dies with its gob.** The record lives on the game object, so a felled tree takes yours with
 it and nothing is kept in case it comes back — a gob that returns is bare, and re-attaching is your own

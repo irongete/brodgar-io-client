@@ -113,8 +113,8 @@ end
 The overlay keeps its **own** facing and scale, so `ov:rotate` and `ov:scale` work on it; its position is
 the gob's, and the only thing you set is the `offset`.
 
-> `follow =` and the handle's `:follow`/`:offset` are **gone**. Passing `follow` raises, naming
-> `gob:overlay`; the methods read as plain `nil`.
+> `follow =` and the handle's `:follow`/`:offset` are **gone**. Passing `follow` — or `offset` — to
+> `hafen.render.sprite` raises, naming `gob:overlay`; the methods read as plain `nil`.
 
 > **Gizmo.** A sprite is transformable by the [gizmo](../ghost.md#the-transform-gizmo) for free: it exposes
 > the same `:move`, `:rotate` and `:scale` handle a ghost does, and the gizmo drives any such handle.
