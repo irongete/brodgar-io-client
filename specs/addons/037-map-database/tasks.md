@@ -39,7 +39,7 @@
       hands back the same handle for the same (grid, level). `[manual]`: drawn in an addon window it
       is the minimap for that spot, and the zoomed level is the same ground at a coarser scale.
 
-- [ ] 037.5 — **The close.** `design/23-map-database.md`, `specs/codebase/mapfile.md`, the docs
+- [x] 037.5 — **The close.** `design/23-map-database.md`, `specs/codebase/mapfile.md`, the docs
       sweep (`map.md` rewritten, `world.md` grown, `markers.md`/`radar.md` deleted to one obituary
       line each, the two README tables, `conventions.md#coordinates` carrying the anchor rule and
       **why a segment id is never stored or sent**), the link/anchor checker over `docs/addons/`,

@@ -1,6 +1,6 @@
 # The example addons
 
-Ten addons ship with the client, in the same `addons/` folder yours goes into. They are working code for
+Eleven addons ship with the client, in the same `addons/` folder yours goes into. They are working code for
 every part of the API, and most of them are also the harness that keeps that part honest: they re-run their
 own checks on every login. Read one when a reference page tells you *what* a verb does and you want to see
 *how* it is used.
@@ -13,6 +13,7 @@ hotkey or type their command — so having them all on costs you an untouched lo
 | [`hello`](../../addons/hello/main.lua) | the read, event and UI tiers, all of them, on every login |
 | [`bags`](../../addons/bags/main.lua) | waiting for the client's own window, and standing yours in its place |
 | [`theme`](../../addons/theme/main.lua) | a whole client look as a data file |
+| [`atlas`](../../addons/atlas/main.lua) | a live minimap panel out of the map database, painted by the engine |
 | [`planner`](../../addons/planner/main.lua) | your own props, images and models in the 3D world |
 | [`widgetstack`](../../addons/widgetstack/main.lua) | what a widget is, and how to name it |
 | [`profiler`](../../addons/profiler/main.lua) | where the frame went |
@@ -53,6 +54,24 @@ carry — a font face and an image — and it maps those two. It also keeps a wi
 [`hafen.store`](api/store.md), account-wide.
 
 `:theme` applies, drops, saves and restores. To make a different theme, edit the JSON.
+
+## atlas
+
+A live minimap panel built from the [map database](api/map.md) alone. The only thing it reads from the live
+world is *where am I* — [`hafen.world.gridPos()`](api/world.md#saving-a-world-position-across-sessions), the
+anchor the two halves share; everything it shows comes out of `hafen.map`, and the picture is
+[`grid:image(lvl)`](api/map.md#drawings), which answers `nil` while it renders, so its four-per-second timer
+is both the retry loop and the "did the picture change?" test.
+
+**It is also the cost claim.** A grid drawing is an ordinary image handle, so it goes into the stylesheet as
+`bg = { image = … }` and the *engine* paints it: with its pin layer off, `atlas` runs **0 draw and 0 widget
+callbacks** while a live map is on the screen. `:atlas pins` draws your markers from Lua and the same row in
+[`profiling():addons()`](api/client/profiling/attribution.md) starts reading one a frame — which is what makes
+the zero a measurement rather than a blind spot.
+
+`:atlas` opens and closes it, `zoom <0..8>` changes the scale (never the size — every drawing is 100×100),
+`pins` toggles the marker layer, `where` prints your anchor beside the segment id and grid coord this client
+invented, and `mark [name]` drops a pin.
 
 ## planner
 

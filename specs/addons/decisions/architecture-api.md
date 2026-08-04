@@ -752,3 +752,26 @@ handing back a computed resource, ask what would ever free it* — if the answer
 remembers", the API owes it a bound.
 **See.** [D-095](architecture-api.md), [D-063](architecture-api.md), [D-043](fonts.md),
 [037-map-database](../037-map-database/spec.md).
+
+### D-099 — a CATEGORICAL cost claim is a property of the code's shape, never a branch inside the callback ✅ (2026-08-04)
+**Decision.** When an addon (or a feature) claims it costs *zero* of some measured category, the zero must
+be **structural**: the callback is not installed at all. `atlas` builds its panel with `onDraw = pins and
+drawPins or nil` and `:atlas pins` **rebuilds the window** rather than flipping a flag the draw callback
+tests, because an `onDraw` that only reads a boolean is still a callback the engine invokes every frame and
+still increments `calls.draw`. The same rule read backwards is what makes the claim assertable at all: the
+*other* state of the same addon must be able to read non-zero.
+**Rationale.** (2026-08-04, 037.5.) The measurement that closes 037 is "a recorded map on the screen costs 0
+draw and 0 widget callbacks of ours", and it is only true because a grid drawing is an image handle the
+stylesheet hands to the engine (D-098/D-043). A flag inside a draw callback would have made the claim false
+by one line — and false in the way that is hardest to see, since the panel would look identical and the
+counter would read 1 instead of 0 with no visible cause. This is 036.4 and 037.4's lesson ("a zero is only
+as good as the scene it is measured in") carried one step further: the scene must be able to read non-zero,
+**and** the zero must not depend on a runtime condition, or it is a coincidence of the current state rather
+than a property of the design.
+**Consequences.** A cost round asserts a pair, not a number: the engine-painted state at 0 and the Lua-drawn
+state above 0, read out of **one** sample so the two halves are comparable. An example addon that
+demonstrates a cost therefore ships both states as separate constructions, which is why `:atlas pins` is
+documented as the other half of the measurement rather than as a decoration. Generally: *if a claim of "this
+costs nothing" survives only while a flag is false, it is a measurement of the flag.*
+**See.** [D-098](architecture-api.md), [D-095](architecture-api.md), [D-043](fonts.md),
+[037-map-database](../037-map-database/spec.md).

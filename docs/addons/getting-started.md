@@ -215,4 +215,4 @@ data that outlives the session.
 - [the API reference](api/README.md) — every `hafen.*` verb, one page per namespace
 - [the runtime](runtime.md) — the manifest in full, the sandbox, the budgets, the AddOns panel and the
   console commands
-- [the example addons](examples.md) — ten addons that ship with the client, and what each one demonstrates
+- [the example addons](examples.md) — eleven addons that ship with the client, and what each one demonstrates

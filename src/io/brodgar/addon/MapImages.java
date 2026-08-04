@@ -48,8 +48,9 @@ import java.util.Map;
  * <p><b>Every image is 100&times;100 pixels, at every level</b> — {@code cmaps}, one pixel per tile at level
  * 0 and one pixel per {@code 2^lvl} tiles above it. So the level does not change the image's <i>size</i>, it
  * changes its <i>scale</i>: level 1 is the same 100&times;100 picture of four times the ground.
- * {@code image:info().tiles} is the number of tiles across that the handle covers, which is the quantity a
- * caller actually places on screen.
+ * A caller therefore sizes the picture from {@code image:size()} (always {@code cmaps}) and knows how much
+ * ground is in it from the level it asked for — {@code cmaps << lvl} tiles across. There is deliberately no
+ * {@code tiles} field on {@code :info()}: it would be that one multiplication, phrased as state.
  *
  * <p><b>Bounded, interned, owned.</b> The cache is <b>per addon</b> and keyed by what was rendered — (segment,
  * level, level-coord) for a map image, (grid id, tag) for an overlay image — so two grids under one level-1

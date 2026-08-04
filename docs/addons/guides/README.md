@@ -22,5 +22,5 @@ They are written to be read in that order, and each one ends by pointing at the 
 opening the one you need.
 
 Two pages sit beside them rather than in the list: [the runtime](../runtime.md), for the manifest, the
-sandbox and the console commands, and [the examples](../examples.md), for the ten addons that ship with the
+sandbox and the console commands, and [the examples](../examples.md), for the eleven addons that ship with the
 client.

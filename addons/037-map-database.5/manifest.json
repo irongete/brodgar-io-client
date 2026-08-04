@@ -1,0 +1,9 @@
+{
+  "name": "037.5 — the close: the anchor as assertions, and what the example costs",
+  "id": "037-map-database.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 037.5: the documentation's own claims about the grid anchor turned into checks (the anchor is the door from the live world into the database and round-trips through hafen.world exactly; a 64-bit id is a decimal string and a number is refused; a segment interns on the id it publishes; hafen.markers/hafen.radar and the live terrain reads on hafen.map are plain nil; marker:anchor() lands back on the tile the marker reports), plus the example addon's bill — with `atlas`'s panel on screen it runs 0 draw and 0 widget callbacks of its own, measured in the same sample as this suite drawing the identical picture from Lua and reading one a frame.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

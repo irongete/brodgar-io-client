@@ -290,6 +290,10 @@ picture alive.
 > description, not a file you could load. An asset is a file your addon shipped; this is a picture the
 > client drew of the database.
 
+The [`atlas`](../examples.md#atlas) example addon is this page end to end: a live minimap panel whose picture
+comes from `grid:image`, whose pins come from `seg:markers()`, and which hands the handle to the stylesheet so
+the **engine** paints it — `0` draw callbacks of its own while a map is on the screen.
+
 ## Markers
 
 Read, add and remove markers in the map database — the same markers the map window shows. Two kinds
@@ -429,3 +433,4 @@ it simply starts answering `nil` (and `:exists() == false`) if what it names goe
 - [`hafen.gob`](gob.md) — `gob:icon()`, the category name on a live object
 - [`hafen.asset`](asset.md) — the image handle a grid drawing is one of, and its `:size()`/`:dispose()`
 - [events](events.md#roster-quests-markers) — `MarkersChanged`
+- [`atlas`](../examples.md#atlas) — the example addon: a live minimap panel out of this page alone

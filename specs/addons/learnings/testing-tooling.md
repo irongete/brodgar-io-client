@@ -615,3 +615,21 @@
   and then asserting *that* handle is disposed **and** that re-reading its key answers nil made it bite. The
   rule: when two teardown paths both touch a resource, assert through the path under test — a count that the
   other path also drives to zero is not evidence about yours.
+- **A whole ADDON dry-runs under the LuaJ CLI against a Lua-only stub `hafen` — no Java probe needed (037.5).**
+  `java -cp lib/brodgar/luaj-jse-3.0.1.jar lua driver.lua <repo>` (with `MSYS_NO_PATHCONV=1
+  MSYS2_ARG_CONV_EXCL='*'`) runs a driver that builds a fake `hafen` in *Lua*, `dofile`s the shipping
+  `main.lua`, and then calls the slash handler the addon registered. Two pieces make it work: the stub's
+  `hafen.timer.after/every` just **queue** the callback, so a `drain()` loop that re-runs the queue until it
+  stops growing executes every staged round synchronously; and `hafen.ui.window{}` hands back a table that
+  keeps `opts`, so the driver can invoke `opts.onDraw(g, w, h)` with a `g` that **records** its calls and
+  assert the *pixels* an addon would have drawn. That is what pre-checked 037.5's pin arithmetic at level 0
+  and level 2 — including a negative segment coord, where `math.floor(sc/step)*step` is the only spelling that
+  aligns the way the engine's own `gc & ((1<<lvl)-1)` test demands. 28/28 across both shipping addons, every
+  branch (no panel / profiling off / a slow render) and four falsifications. Cheaper than a same-package Java
+  probe and it drives the *shipping* file, so it catches syntax, control flow and arithmetic before the client
+  starts; what it cannot see is anything behind the real bridge (interning, the load model's real timing).
+- **`hafen.log` is ASCII-only in practice: the console mangles anything else (037.5).** A runtime log string
+  containing an em-dash printed as `atlas: zoom 2 � one pixel is 4 tiles` on the terminal — the *comments* in
+  the same file are fine, and the suites had never shown it because their verdict lines were already plain
+  `--`. Keep `—`, `·`, `…` and friends out of every string that reaches `hafen.log`; they are free in code
+  comments, docs and manifests. Green verdicts do not cover the text beside them.
