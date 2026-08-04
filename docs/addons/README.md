@@ -29,7 +29,7 @@ a permission, a build step or a restart: drop the folder into `addons/`, type `:
 | [the guides](guides/README.md) | you know the shape and want to do a thing — read the world, schedule work, draw UI, save data, add hotkeys, act, theme, debug |
 | [the API reference](api/README.md) | you want a name: every namespace, verb, argument, return and error |
 | [the runtime](runtime.md) | the manifest field by field, the sandbox, the CPU budgets, the AddOns panel, and the console commands |
-| [the examples](examples.md) | twelve addons ship with the client, installed and running; read the one that already does what you are doing |
+| [the examples](examples.md) | example addons ship with the client, installed and running; read the one that already does what you are doing |
 
 ## The API at a glance
 

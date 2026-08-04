@@ -203,3 +203,26 @@ duplicate of the index.
 a whole namespace, which also earns a cell on the landing table. `docs/README.md` — the site root — is
 linked by nothing below it: it is where a reader arrives from the repository, not somewhere the tree
 navigates back to, so it is outside the two-click measurement rather than an orphan.
+
+### D-013 — The retired-name guard greps a spelling, not a name, when the name survives as a refusal
+
+**Context (003.2).** Style guide §7 says a retired name may not appear anywhere under `docs/`, and the
+grep list is the regression guard. 038 hard-cut the `follow` / `offset` anchor on `hafen.ghost.new`,
+`hafen.render.sprite` and `hafen.render.object` — but the cut is *enforced at runtime*: passing either key
+raises, naming `gob:overlay`. That refusal is live behaviour a reader who guesses the option name needs,
+so the page that refuses it has to write the word. Meanwhile bare `follow` has 30+ legitimate hits across
+the tier ("the ghost follows the cursor", "redirects are followed") and bare `offset` is a live
+`gob:overlay` spec field and a live style key. A list entry that fires on any of those cries wolf, and a
+list that cries wolf stops being run.
+
+**Decision.** A §7 entry is admitted only in a **spelling** that (a) reads zero on the healthy tree and
+(b) catches a planted reintroduction — both directions demonstrated in the admitting task's report, with
+the rejected candidates and their reason named. Where the bare name cannot do both, the entry is the
+spelling a *reintroduction* uses and a *refusal* does not: `follow =`, `follow=`, `:follow(`, `:offset(`,
+never bare `follow` or `offset`. A refusal is written in the form no entry hits — ``a `follow` key`` —
+and documenting one is a **boundary**, not history: it says what the API does today and why.
+
+**Consequences.** §7 carries two blocks: the name grid, and a second block for spellings that cannot live
+in it. A later task runs both blind, which is the point — the guard operates at name level (001.2) and
+must be checkable without knowing what the feature that wrote it was thinking. Adding an entry is not free:
+it costs the falsification run, and an entry that cannot be falsified is not added.

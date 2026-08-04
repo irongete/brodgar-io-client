@@ -78,8 +78,8 @@ A **fixed** sprite can be made clickable — `clickable = true` at create, or `s
 exactly like a [ghost](../ghost.md#clickability). It gains a pick surface, and a click on it is detected
 **client-side** and **consumed** before any server click, so you never walk or interact and nothing reaches
 the server. Both the per-sprite `onClick(s, button, x, y)` and the owner-scoped
-[`SpriteClicked`](../events.md#world-ghosts-and-sprites) event fire; `SpriteClicked` reaches only *your* addon,
-since a sprite is private to the addon that made it.
+[`SpriteClicked`](../events.md#world-ghosts-and-sprites) event fire; `SpriteClicked` reaches only *your*
+addon, since a sprite is private to the addon that made it.
 
 ```lua
 local s = hafen.render.sprite{
@@ -94,12 +94,12 @@ local s = hafen.render.sprite{
 > **Billboards are click-through.** A billboard has no world geometry, so it never wins a pick:
 > `clickable` and `onClick` on one are harmless no-ops. Use a fixed sprite when you need click selection.
 
-## An image ON a gob is an overlay
+## An image on a gob is an overlay
 
 `hafen.render.sprite` stands an image at a **fixed world point**. To hang one on a *game object* so it
 moves with it every frame, the verb is [`gob:overlay`](../gob.md#overlays): it keys the thing per addon,
 reads back through `gob:overlay()`, carries the same `scale`/`alpha`/`tint`/`billboard` options, and
-**dies with the gob** — where an anchored sprite used to float on forever after a felled tree was gone.
+**dies with the gob**, so a felled tree takes the image on it with it.
 
 ```lua
 -- a marker that floats above a creature and follows it around
@@ -113,8 +113,8 @@ end
 The overlay keeps its **own** facing and scale, so `ov:rotate` and `ov:scale` work on it; its position is
 the gob's, and the only thing you set is the `offset`.
 
-> `follow =` and the handle's `:follow`/`:offset` are **gone**. Passing `follow` — or `offset` — to
-> `hafen.render.sprite` raises, naming `gob:overlay`; the methods read as plain `nil`.
+`hafen.render.sprite` takes no anchor of its own: a `follow` or an `offset` key in its table **raises**,
+naming `gob:overlay`, rather than standing the image somewhere you did not ask for.
 
 > **Gizmo.** A sprite is transformable by the [gizmo](../ghost.md#the-transform-gizmo) for free: it exposes
 > the same `:move`, `:rotate` and `:scale` handle a ghost does, and the gizmo drives any such handle.

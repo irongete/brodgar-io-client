@@ -7,7 +7,8 @@
 > entry to its `decisions/<category>.md` file; add a line here only when a new category file
 > is created.
 
-- `decisions/docs-standard.md` — D-001..D-011 — the page standard and the shape of the tree: the
+- `decisions/docs-standard.md` — D-001..D-013 — the page standard and the shape of the tree: the
   300-line ceiling, one namespace per path, who owns the stylesheet, headings and anchors, the rule
   that `docs/` never links `specs/`, verb granularity and gating annotations, which numbers may
-  appear on a page, and how an example addon is cited
+  appear on a page, how an example addon is cited, which index owns the flat leaf list, and how a
+  retired name earns its place on the §7 grep list

@@ -35,7 +35,7 @@ raises an error.
 ## Read
 
 Every method answers `nil` once the gob is gone, except `:id()` and `:exists()`, which always answer.
-None throws but `gob:overlay`, whose error cases are under [Overlays](#overlays).
+None of them throws.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -52,7 +52,6 @@ None throws but `gob:overlay`, whose error cases are under [Overlays](#overlays)
 | `gob:isplayer()` | bool \| nil | whether it is a player body |
 | `gob:kin()` | [`Kin`](kin.md) \| nil | the kin standing here, if this gob is one of your kin |
 | `gob:distance(other)` | number \| nil | world distance to `other`, another Gob; defaults to the player |
-| `gob:overlay(…)` | see [Overlays](#overlays) | attach something to this gob, or read what is attached |
 | `gob:info()` | [`GobInfo`](types.md#gobinfo) \| nil | everything above as one plain snapshot table |
 
 > `gob:name()` is the **type** resource — `"gfx/borka/body"` for any player body — not a character's
@@ -69,6 +68,10 @@ An **overlay** is a thing attached to a game object — the game's own (a fire's
 stage) and yours alike. `gob:overlay` is the one way to attach one and the one way to read what is
 attached; the arity is the verb, and the key is your own name for it.
 
+It is **ungated**, the attach included: what you hang on a gob is your own drawing, and it changes nothing
+the server, the client or another addon owns — the same footing as
+[`hafen.ui.overlay`](ui/custom.md#overlays).
+
 | Call | Returns | Description |
 |---|---|---|
 | `gob:overlay()` | `Overlay[]` \| nil | every overlay on the gob: yours first, then the game's own |
@@ -76,7 +79,7 @@ attached; the arity is the verb, and the key is your own name for it.
 | `gob:overlay(key, spec)` | `Overlay` \| nil | attach it, or replace what that key already named |
 | `gob:overlay(key, nil)` | the gob \| nil | remove it |
 
-All four answer `nil` once the gob is gone, the attach and the remove included: there is nothing left to
+All of them answer `nil` once the gob is gone, the attach and the remove included: there is nothing left to
 hang an overlay on, and one that was there died with the gob.
 
 ```lua
@@ -88,8 +91,8 @@ me:overlay("hp", nil)
 
 ### One spec table, two spaces
 
-The **spec says what to draw**, and it must name exactly **one** of five things. Two of them paint on
-the screen at the gob's projected point; three of them stand in the 3D world, anchored to the gob:
+The **spec says what to draw**, and it must name exactly **one** of the fields below. A `screen` field
+paints at the gob's projected point; a `world` field stands in the 3D scene, anchored to the gob:
 
 | Field | Space | Meaning |
 |---|---|---|
@@ -110,7 +113,7 @@ The rest of the table depends on which space you are in:
 | `billboard = true` | world | with `image`: a camera-facing blit instead of an upright quad |
 | `sdt` | world | with `ghost`: spawn-data bytes picking a resource variant, as [`hafen.ghost.new`](ghost.md) takes |
 
-A spec naming none of the five is an error naming them all, and one naming two is an error naming both:
+A spec naming none of them is an error naming them all, and one naming two is an error naming both:
 an overlay that draws nothing is never what was meant, and picking a winner by table order is how one of
 them silently stops meaning anything. A spec is read **once**, at attach.
 
@@ -120,9 +123,9 @@ own — [`hafen.act.clickGob`](act.md).
 
 ### The verbs on a world overlay
 
-A world-space overlay carries the look and facing verbs its entity already had. The four setters
+A world-space overlay carries the look and facing verbs its entity already had. The setters below
 **chain** — each answers the overlay — while `ov:pos()` hands back a table, and `nil` once the overlay is
-gone. All five are refused on a screen-space overlay, naming the kinds, and the setters are quiet no-ops
+gone. All of them are refused on a screen-space overlay, naming the kinds, and the setters are quiet no-ops
 once the overlay is gone. There is no `:move` — an overlay's position **is** its gob's, and the only
 thing you set is the `offset`, by re-attaching under the same key.
 
@@ -145,7 +148,7 @@ twice leaves **one** overlay, the second spec's.
 
 **The game's own overlays are read-only.** They come back from the same read with `native = true`, keyed
 by their **resource name**. An attach onto such a key **raises**, so does a remove of one, and so does
-each of the five verbs above — always naming the key, never a silent no-op.
+each of the verbs above — always naming the key, never a silent no-op.
 
 An attach raises in two more places, both of them about *when*. A gob the client cannot draw yet takes no
 overlay: attach from [`GobAdded`](events.md#world) or a timer instead. A **world-space** spec needs the 3D
@@ -165,11 +168,11 @@ and a world entity built, before the gob is touched at all.
 | `ov:info()` | table \| nil | a plain snapshot; the shape follows what the overlay is |
 
 `:count()` is there because **a native overlay is a union**. A gob may carry several overlays of one
-resource — on a live world 13 of 33 gobs carrying overlays did — and the resource name is the only part
-of one a name can address, so they collapse to a single Overlay and the multiplicity is published here
-instead of lost. Yours always count 1. (`gob:info().overlays` is the raw list of resource names, one entry
-per engine overlay, for when you want the uncollapsed view — and, like every other
-[`GobInfo`](types.md#gobinfo) field, it is **absent** rather than empty when the gob carries none.)
+resource, and the resource name is the only part of one a name can address, so they collapse to a single
+Overlay and the multiplicity is published here instead of lost. Yours always count 1.
+(`gob:info().overlays` is the raw list of resource names, one entry per engine overlay, for when you want
+the uncollapsed view — and, like every other [`GobInfo`](types.md#gobinfo) field, it is **absent** rather
+than empty when the gob carries none.)
 
 `:info()` is the snapshot escape hatch, and it hands back **two shapes**. Both carry `key`, `native` and
 `count`. **Yours** adds `kind` and `world` — `world` is `true` for `image`, `model` and `ghost`, `false`

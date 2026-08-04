@@ -150,18 +150,18 @@ click, and `GhostClicked` reaches only *your* addon, since a ghost is private to
 > surface and never wins a pick, so it is click-through — clicks pass straight through it to the real object
 > or the ground behind it, and ordinary play is unaffected.
 
-## A ghost ON a gob is an overlay
+## A ghost on a gob is an overlay
 
 `hafen.ghost` stands a prop at a **fixed world point**. To hang one on a *game object* so it tracks that
 object every frame, the verb is [`gob:overlay`](gob.md#overlays) — it keys the thing per addon, reads back
-through `gob:overlay()`, and **dies with the gob** instead of floating on where a felled tree used to be.
+through `gob:overlay()`, and **dies with the gob**, so a felled tree takes the prop on it with it.
 
 ```lua
 hafen.player():gob():overlay("hat", { ghost = "gfx/terobjs/arch/logcabin", offset = { z = 20 } })
 ```
 
-> `follow =` and the handle's `:follow`/`:offset` are **gone**. Passing `follow` — or `offset` — to
-> `hafen.ghost.new` raises, naming `gob:overlay`; the methods read as plain `nil`.
+`hafen.ghost.new` takes no anchor of its own: a `follow` or an `offset` key in its table **raises**,
+naming `gob:overlay`, rather than standing the prop somewhere you did not ask for.
 
 ## Layouts and persistence
 

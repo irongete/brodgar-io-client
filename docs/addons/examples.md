@@ -1,9 +1,9 @@
 # The example addons
 
-Twelve addons ship with the client, in the same `addons/` folder yours goes into. They are working code for
-every part of the API, and most of them are also the harness that keeps that part honest: they re-run their
-own checks on every login. Read one when a reference page tells you *what* a verb does and you want to see
-*how* it is used.
+The addons below ship with the client, in the same `addons/` folder yours goes into. They are working code
+for every part of the API, and most of them are also the harness that keeps that part honest: they re-run
+their own checks on every login. Read one when a reference page tells you *what* a verb does and you want
+to see *how* it is used.
 
 Most are **dormant** — installed and enabled, but drawing nothing and doing nothing until you press their
 hotkey or type their command — so having them all on costs you an untouched login.

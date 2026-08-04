@@ -169,7 +169,23 @@ lives in git and in `specs/`.
   hafen.markers    hafen.radar      hafen.map.tile   hafen.map.gridPos
   hafen.map.fromGridPos             hafen.map.screenToWorld
   hafen.map.snapPlace               hafen.map.snapAngle
+  gobOverlay       gob:overlays
   ```
+
+  Three more are retired but cannot be grepped as bare names, because the bare word is ordinary English
+  or a live option elsewhere. They are on the list in the **spelling** that reads zero on a healthy tree
+  and still catches a reintroduction, and the grep is `grep -rnF`:
+
+  ```text
+  follow =         follow=          :follow(         :offset(
+  ```
+
+  Bare `follow` is **not** admitted: 30+ legitimate hits ("the ghost follows the cursor", "redirects are
+  followed"), and a list that cries wolf stops being run. Nor is bare `offset`, which is a live spec
+  field on `gob:overlay` and a live style key. What went is the `follow`/`offset` **anchor** on
+  `hafen.ghost.new`, `hafen.render.sprite` and `hafen.render.object`, and the handle methods of the same
+  names; anchoring to a game object is `gob:overlay`. Naming the refused option on the page that refuses
+  it is a boundary, not history — write it as `a \`follow\` key`, which no spelling above hits.
 
   The grep is the regression guard for the whole list: each name returns zero hits over `docs/`. Note
   what is **not** on the list: `hafen.ui.node(id)`, `hafen.ui.all`, `widget:items()` and

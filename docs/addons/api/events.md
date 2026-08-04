@@ -65,7 +65,7 @@ hafen.events.on("GobOverlayAdded", function(e)
 end)
 ```
 
-Four rules make these predictable:
+The rules below make these predictable:
 
 - **Yours are private, the game's are public.** An overlay key belongs to your addon, so a `native = false`
   event goes **only** to the addon that attached it — a key another addon cannot read is a name it cannot

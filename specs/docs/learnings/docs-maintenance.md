@@ -274,3 +274,24 @@
   what the surface is **called in prose** ("gob overlay", "the filter form") across the whole tier, not
   only for the identifiers, and it does so on pages outside the feature's own file list — `player.md` was
   on nobody's.
+
+- **(003.2) A callout whose content stops being a warning has to stop being a callout — converting an
+  obituary to a boundary is two edits, and the second one is invisible.** 038 wrote both `follow` cuts as
+  blockquotes (``> `follow =` … are **gone**``), which was right for what they then said: a reader with the
+  old API in their fingers needed stopping. Restating them in the present tense — *`hafen.render.sprite`
+  takes no anchor of its own: a `follow` or an `offset` key in its table raises* — turns them into ordinary
+  description, and ordinary description in a `>` block is exactly the "aside in a callout" §10 forbids. The
+  minimal edit (rewrite the words, keep the `>`) therefore *passes* the no-history test and still leaves
+  the page wrong, and on `ghost.md` it preserved a §10 violation the obituary had introduced: two
+  blockquotes with only a heading between them. **Ask what the paragraph now IS, not only what it says** —
+  a rewrite that changes a sentence's kind changes the block it belongs in.
+
+- **(003.2) Deleting text is a re-wrap job, the same way 002.1's substitutions were — because a deletion
+  JOINS lines.** 002.1 recorded that lengthening a link target pushes a line past 110 columns. The inverse
+  is less obvious and bit harder: removing the measured figure from a mid-paragraph sentence let the two
+  following lines close up, and the reflow produced **one 153-column line** in a paragraph whose remaining
+  words the task never touched. It is invisible to `wc -l`, to the link sweep and to a diff read for
+  meaning; only the `perl -CSD` run caught it, on the same pass that proved the *inherited* 111-column line
+  was gone. So run the wrap check after a deletion pass, not only after an insertion pass — and run it
+  **after the last edit**, since the run that cleared the inherited drift was two edits before the one that
+  introduced new drift.

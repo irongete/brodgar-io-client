@@ -25,7 +25,7 @@
       <!-- extra context: `src/io/brodgar/addon/LuaGob.java`, `LuaOverlay.java`, `LuaGobOverlay.java`,
            `RenderApi.java` — only this task reads them -->
 
-- [ ] **003.2 — the standard, and the close.** The four obituaries become present-tense boundaries
+- [x] **003.2 — the standard, and the close.** The four obituaries become present-tense boundaries
       (`ghost.md:158`, `render/sprites.md:116`, `ui/custom.md:77`, and the two "used to float / used to
       be" clauses), keeping the behaviour each carried. The measured figure leaves `gob.md`'s `:count()`
       paragraph; the counts leave `gob.md` ("one of five things"), `events.md` ("Four rules") and the
