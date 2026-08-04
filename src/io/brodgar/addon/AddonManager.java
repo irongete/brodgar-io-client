@@ -258,6 +258,8 @@ public final class AddonManager {
         UiApi.resetSession();         // 2b/3a/3b/3c: reset overlay sweep + per-session widget registries
         MapApi.resetMarkers();      // A1: drop per-session marker maps + re-prime MarkersChanged
         MapApi.resetOverlays();     // 037.3: forget the REPL owner's overlay holds — the MapView they named is gone
+        MapImages.teardown(consoleOwner);   // 037.4: ...and free the map drawings it rendered from the OLD session's
+                                            //   map file (the addons' went with the teardown above)
         CharApi.resetSession();       // re-register the change-detection adapters
 
         attachRoot(ui_);              // invisible per-frame tick widget (drives the engine)

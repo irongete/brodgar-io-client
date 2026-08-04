@@ -26,7 +26,7 @@
 | **The ref count** | [`MapView.oltags`](src/haven/MapView.java:825) — a **multiset** `Map<String,Integer>` (seeded `{"show":1}`); [`enol`/`disol`/`visol`](src/haven/MapView.java:531) are `+1` / `-1`-and-drop / `containsKey`. All three `synchronized(oltags)` |
 | Who counts | the user's three [`MenuCheckBox`es](src/haven/GameUI.java:1553) via the private `GameUI.MapMenu.toggleol` (`cplot`, `vlg`, **`prov`**), and the server's [`flashol`/`unflashol`](src/haven/MapView.java:1914) (hover a claim → on for `tm` seconds, then decremented) |
 | What it gates | [`MapView.oltick`](src/haven/MapView.java:828): for each `OverlayInfo` from `glob.map.getols(...)`, visible iff **any** of its [`ResOverlay.tags()`](src/haven/MCache.java:214) is in `oltags`; adds/drops the scene `Overlay` accordingly |
-| The **other** side | [`MapWnd.overlays`](src/haven/MapWnd.java:55) — a plain `CopyOnWriteArraySet<String>` fed by [`MapWnd.toggleol`](src/haven/MapWnd.java:149) from its own checkbox with **`realm`**, read by `MapWnd.View.drawgrid` to blit `DisplayGrid.olimg(tag)` from the RECORDED masks ([mapfile.md](mapfile.md)) |
+| The **other** side | [`MapWnd.overlays`](src/haven/MapWnd.java:55) — a plain `CopyOnWriteArraySet<String>` fed by [`MapWnd.toggleol`](src/haven/MapWnd.java:149) from its own checkbox with **`realm`**, read by `MapWnd.View.drawgrid` to blit `DisplayGrid.olimg(tag)` from the RECORDED masks ([mapfile.md](mapfile.md), [minimap.md](minimap.md)) |
 
 **Gotcha — two vocabularies for one feature.** Provinces are `prov` in the world and `realm` on the map; no
 tag reaches both. And because `oltags` is a *count* with several owners, nothing can turn an overlay off —

@@ -1,8 +1,9 @@
-# Subsystem — the map database (`MapFile`) and the minimap that reads it
+# Subsystem — the map database (`MapFile`)
 
 > The map the player has **explored**, on disk and persistent — as opposed to `MCache`, the terrain
-> streamed around them ([state.md](state.md)). Line numbers are indicative; the class + member name is
-> the stable anchor.
+> streamed around them ([state.md](state.md)). The client that reads it — the coordinate bridge and the
+> drawings — is [minimap.md](minimap.md). Line numbers are indicative; the class + member name is the
+> stable anchor.
 
 ## The file
 
@@ -34,9 +35,8 @@
   - `include(Grid, sc)` (`:1325`) is how a grid enters a segment; it also invalidates the zoom cache.
 - `DataGrid` (`:473`): `tilesets[]` (`TileInfo` = `Resource.Saved` + `prio`), `tiles[]` (indices **into
   this grid's own tilesets** — unrelated to `MCache`'s tile ids), `zmap[]`, `ols`, `mtime`. `gettile(c)`
-  / `getfz(c)` take a within-grid coord `0..cmaps`. `render(off)` (`:516`) and `olrender(off, tag)`
-  (`:566`) build a `BufferedImage` and **resolve tileset resources**, so they can throw `Loading`
-  (037.4's business). `Grid` (`:729`) adds the server `id`; `Grid.load` (`:857`) / `save` (`:834`).
+  / `getfz(c)` take a within-grid coord `0..cmaps`; `render(off)` (`:516`) / `olrender(off, tag)` (`:566`)
+  draw it ([minimap.md](minimap.md)). `Grid` (`:729`) adds the server `id`; `load` (`:857`) / `save` (`:834`).
 - `Overlay` (`:459`) is a per-grid boolean mask keyed by an overlay **resource**; `MCache.ResOverlay.tags()`
   says which tags it carries, several resources may share one (hence `olrender`'s composite), and `olid.get()`
   throws `Loading` — who *displays* them is in [world-3d.md](world-3d.md) (`realm` here, `prov` there).
@@ -51,18 +51,15 @@
   (`haven/GameUI.java:1315`) calls it whenever the player's grid or its `seq` changes — which is why the
   recorded grid under the player is current.
 
-## MiniMap — the live ⇄ recorded bridge
+## Zoom grids
 
-- `haven/MiniMap.java:50` `file`, `:53` `sessloc`, `:52` `curloc`. `GameUI.mmap` is the corner minimap and
-  `GameUI.mapfile` the big window; **both hold the same `MapFile`**.
-- `Location(seg, tc)` (`:83`): `sessloc.tc` is the **segment tile coord of session tile (0,0)**, so
-  segment tile = session tile + `sessloc.tc`. That single addition is the whole coordinate bridge.
-- `resolve(Locator)` (`:347`) is the rule to copy: **`tryLock` on the read lock, else throw `Loading`** —
-  never wait for a lock a disk write may be holding. `SessionLocator` (`:102`) derives `sessloc` from any
-  live `MCache.Grid` whose `gridinfo` is known; `MapLocator` (`:142`) and `SpecLocator` (`:162`) are the
-  other two. `tick` (`:373`) re-resolves `sessloc` every frame and swallows `Loading`.
-- `DisplayGrid` (`:597`) with `img()` (`:645`) and `olimg(tag)` (`:673`) is how the client turns a grid
-  into a `Tex`: `Defer.later(() -> new TexI(grid.render(...)))`, cached per grid — the shape 037.4 reuses.
+- `ZoomGrid` (`:893`) is a `DataGrid` covering `cmaps << lvl` tiles in the **same** `cmaps` array — a
+  level is a scale, not a size. `fetch` (`:905`) loads one from disk, else `from` (`:923`) builds it out of
+  the four grids one level down (recursively) and `save`s it. `from` resolves **no** resource: it merges
+  tileset *names* and versions, picks the majority tile of each 2×2 and the min z, then `zoomols` (`:1029`)
+  downsamples the overlay masks. `Segment.grid(lvl, gc)` (`:1289`) **requires `gc` aligned to `1<<lvl`**
+  and throws `IllegalArgumentException` otherwise; its `ByZCoord` (`:1252`) answers `null` (not `Loading`)
+  once it has run and found nothing there.
 
 ## Gotchas
 
@@ -70,5 +67,5 @@
   `RuntimeException`: catch broadly at the API boundary or it escapes into user code.
 - A grid id and a segment id are **64-bit**; expose them as decimal strings, never Lua numbers.
 - `markerseq` does **not** bump for markers loaded from disk at startup — prime the poll, do not fire it.
-- `new MapFile(null, "")` does no I/O, but a read through it NPEs *inside a `Defer` task* and surfaces
-  wrapped rather than clean — give a headless probe a real (in-memory) store instead.
+- `new MapFile(null, "")` does no I/O, but a read NPEs *inside a `Defer` task* and surfaces wrapped rather
+  than clean — give a headless probe a real (in-memory) store.

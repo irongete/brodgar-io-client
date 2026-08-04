@@ -31,7 +31,7 @@
       appears in the world and the provinces on the map, then both go back as they were.
       <!-- extra context: `src/haven/MapView.java` (enol/disol/visol, oltags) -->
 
-- [ ] 037.4 — **The imagery.** `grid:image(lvl)` and `grid:overlayImage(tag)` — a drawable handle,
+- [x] 037.4 — **The imagery.** `grid:image(lvl)` and `grid:overlayImage(tag)` — a drawable handle,
       rendered on `Defer`, bounded cache, disposed on teardown.
       Suite must prove: the first call answers nil and a later one answers (never blocks, never
       throws); the handle's size is what the level implies; drawing it costs **0 draw callbacks** of

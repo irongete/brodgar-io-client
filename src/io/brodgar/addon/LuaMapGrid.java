@@ -47,6 +47,11 @@ import java.util.Map;
  * {@link LuaMask} saying which of its tiles. Those are the <i>recorded</i> masks; the client's own display
  * switches for the same features are {@code hafen.map.overlay(tag)}, and they are a different thing entirely.
  *
+ * <p><b>And it can be DRAWN</b> (037.4): {@code :image(lvl)} is the recorded minimap drawing of this ground —
+ * the very render the corner minimap shows — as an ordinary image handle, and {@code :overlayImage(tag)} the
+ * same for one recorded mask. Both are built on {@link haven.Defer} and follow the load model above: the first
+ * call kicks the render and answers nil. See {@link MapImages}.
+ *
  * <p><b>Interned on the GRID ID</b> (D-063), not on the Java object: a {@code Grid} lives in a weak
  * {@code CacheMap} and is rebuilt from disk after an eviction, so identity interning would go stale
  * invisibly. Every method re-resolves through {@link MapApi}, so a stashed handle tracks the database.
@@ -249,6 +254,28 @@ public final class LuaMapGrid {
                 String t = tag.tojstring();
                 return (MapApi.maskIn(MapApi.mapfile(), h.id, t) == null)
                     ? LuaValue.NIL : LuaMask.of(owner, h.id, t);
+            }
+        });
+        // image(lvl) — the recorded MINIMAP DRAWING of this ground, as an ordinary image handle (037.4): the
+        // very render the corner minimap draws, built on Defer and answered nil until it lands. lvl defaults
+        // to 0 (the ground itself); each level above covers twice as much in each direction at the same
+        // 100x100 pixels, so a level changes the SCALE and never the size.
+        m.set("image", new TwoArgFunction() {
+            public LuaValue call(LuaValue self, LuaValue lvl) {
+                LuaMapGrid h = handle(self, "image");
+                return MapImages.gridImage(owner, h.id, MapImages.levelArg(lvl, "grid:image"));
+            }
+        });
+        // overlayImage(tag) — the same for one recorded overlay mask, drawn in the overlay's own colour
+        // (DataGrid.olrender, the image the map window composites over the ground). Nil for a tag this grid
+        // does not carry — grid:overlays() is the census — and nil while it renders.
+        m.set("overlayImage", new TwoArgFunction() {
+            public LuaValue call(LuaValue self, LuaValue tag) {
+                LuaMapGrid h = handle(self, "overlayImage");
+                if(tag.type() != LuaValue.TSTRING)      // in LuaJ a NUMBER also answers isstring()
+                    throw new LuaError("grid:overlayImage(tag): tag is an overlay tag string (\"cplot\","
+                        + " \"vlg\", \"realm\", …) — grid:overlays() lists the ones this grid carries");
+                return MapImages.gridOverlayImage(owner, h.id, tag.tojstring());
             }
         });
         // info() — the snapshot escape hatch, including `loaded`: whether the tile data is here YET.

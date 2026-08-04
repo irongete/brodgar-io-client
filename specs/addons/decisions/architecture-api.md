@@ -725,3 +725,30 @@ still being the same live object). Generally: *before designing a write, ask whe
 value or a count* — a value can be assigned and restored, a count can only be joined and left.
 **See.** [D-069](widgets-ui.md), [D-072](architecture-api.md),
 [037-map-database](../037-map-database/spec.md).
+
+### D-098 — a DERIVED resource is keyed by what it PRODUCED, and bounded, because nothing else ends it ✅ (2026-08-04)
+**Decision.** Where the API hands back an owned resource the client **computed** out of engine state
+rather than one an addon loaded from a file, three things follow together: the intern key is the
+**product**, not the receiver that asked for it; the cache is **bounded** and disposes what falls off;
+and the handle is **not an asset**, however identical its Lua surface. `grid:image(lvl)` is keyed by
+(segment, level, level-coord) — so the four grids under one level-1 zoom grid share ONE picture — never
+by the grid that asked; `Addon.mapImages` is an access-ordered LRU whose eviction runs
+`AssetApi.disposeImage`; and a drawing never appears in `hafen.asset()` and its `:path()` is a
+description.
+**Rationale.** (2026-08-04, 037.4.) An asset has a natural end: the addon shipped N files and disposes
+N textures. A derived resource has none — a panel scrolling a continent would mint a `TexI` per grid
+forever, which is a GL leak by a door the R1 teardown does not watch, so the *bound* is part of the
+design and not a tuning constant added later. And keying on the receiver would have been the obvious
+mistake: `grid:image(1)` for two neighbours is literally one `ZoomGrid`, so a per-grid key renders the
+same bitmap twice and holds two textures for one picture. The third clause is the honest half: the
+handle carries the same `LuaImage`, so `g:image`, `hafen.render.sprite` and the stylesheet's
+`bg = {image = …}` all take it for free (D-043's "no new code" again) — but calling it an asset would
+put a thing with no file in `hafen.asset()` and give it a `:path()` no loader accepts.
+**Consequences.** Asking is what keeps a picture alive, so the documented shape is *re-ask every frame*
+(which the load model already required, D-095) rather than *stash the handle*. `MapImages.teardown` runs
+**before** `AssetApi.teardownAssets` in `AddonRegistry.teardown` so the cache is empty before the images
+it names are freed, and the REPL owner gets the same call on `:reload` and on relog. Generally: *before
+handing back a computed resource, ask what would ever free it* — if the answer is "the caller
+remembers", the API owes it a bound.
+**See.** [D-095](architecture-api.md), [D-063](architecture-api.md), [D-043](fonts.md),
+[037-map-database](../037-map-database/spec.md).

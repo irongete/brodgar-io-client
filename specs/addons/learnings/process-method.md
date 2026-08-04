@@ -295,3 +295,16 @@
   duplicate the premise into the suite that needs it. Worth generalising: when you delete a mechanism because
   it created a coupling, check what the coupling left behind as a *convention* — that residue is invisible
   precisely because it is no longer implemented anywhere.
+- **(037.4) A `[manual]` line is a COMMAND to run, not a procedure to follow.** The first round's second manual
+  read *"in the ':lua' console run: local g = hafen.map.grid(...) then g:image(2) twice, a second apart, and
+  draw it"* — English prose with a Lua keyword (`then`) in the middle of it. The maintainer pasted it into
+  `:lua` three times, trimming it differently each time, and the console was right to refuse all three. Nothing
+  was wrong with the engine; the instruction was unrunnable. Two things came out of it. First, TESTING.md's
+  *"written so it can be executed without the conversation"* means **literally pasteable**: one line, one
+  command, no narration inside it. Second, most of that line should never have been manual at all — level 2 is
+  the same mechanism as level 1, which the suite already asserted, so it became an ordinary check (and a third
+  level is what turns "a level is a scale, not a size" from a coincidence of one pair into a rule), and the
+  genuinely human half — *does this look like the map?* — became a parked `show`/`drop` round (031's pattern),
+  where the suite puts the thing on screen and the human only has to look. Generally: when a `[manual]` needs
+  the reader to *type* something, either the suite should have typed it or the step is really two steps, one of
+  which is automatable.

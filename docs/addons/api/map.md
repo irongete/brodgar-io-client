@@ -91,6 +91,8 @@ end
 | `grid:tile(c)` | `{name, prio}` \| nil | the recorded tile at within-grid tile coord `{x, y}`, `0..99` |
 | `grid:height(c)` | number \| nil | the recorded height there |
 | `grid:mtime()` | number \| nil | when the client last recorded this grid, in milliseconds |
+| `grid:image(lvl)` | image \| nil | its [minimap drawing](#drawings) at zoom level `lvl` (default `0`) |
+| `grid:overlayImage(tag)` | image \| nil | one recorded [overlay mask](#drawings) drawn in its own colour |
 | `grid:info()` | table | `{ id, seg, sc, pos?, mtime?, loaded, size }` — the snapshot escape hatch |
 
 `grid:tile` gives you the tileset **resource name**, not a tile id: the live
@@ -224,6 +226,69 @@ hafen.map.overlay("cplot", false)                    -- and stop asking
 
 `held` in `hafen.map.overlays()` is *your* hold; `on` is what the screen is doing. They are different
 questions, and only the first one is yours to answer.
+
+## Drawings
+
+The picture a player recognises: the square the corner minimap paints for a piece of ground. A grid can
+render itself, and what you get back is an ordinary **image handle** — the same thing
+[`hafen.asset`](asset.md) hands you for a PNG of your own.
+
+| Call | Returns | Description |
+|---|---|---|
+| `grid:image(lvl)` | image \| nil | the recorded ground at zoom level `lvl` — `0` (the default) up to `8` |
+| `grid:overlayImage(tag)` | image \| nil | one recorded [mask](#the-recorded-masks) drawn in the overlay's own colour; `nil` for a tag this grid does not carry |
+
+Because it is an image handle, everything that already draws an image draws a map: `g:image` in your own
+widget, [`hafen.render.sprite`](render/sprites.md), and a stylesheet's `bg = { image = … }`.
+
+```lua
+local g = hafen.map.grid(hafen.world.gridPos().gridId)
+hafen.ui.window{ title = "Here", size = { 100, 100 },
+                 onDraw = function(gc)
+                   local img = g:image(0)              -- nil while it renders; ask again next frame
+                   if img then gc:image(img, 0, 0) end
+                 end }
+```
+
+### The first call renders, and answers nil
+
+Drawing a grid means reading every one of its 10 000 tiles out of the tileset art — milliseconds, not
+microseconds. So it happens **off the frame**, exactly where the client renders its own minimap, and the
+[nil rule](#reads-answer-nil-until-the-disk-answers) covers it: the first call starts the render and
+returns `nil`, a later one returns the handle. A draw callback that re-asks every frame is the intended
+shape, and it costs nothing once the picture is there — the same `(grid, level)` hands back the *same*
+handle, never a new render.
+
+### A level is a scale, not a size
+
+**Every drawing is 100×100 pixels, at every level.** What the level changes is how much ground fits in
+that square:
+
+| `lvl` | One pixel is | The square covers |
+|---|---|---|
+| `0` | one tile | 100×100 tiles — one grid |
+| `1` | 2×2 tiles | 200×200 tiles — four grids |
+| `n` | 2ⁿ×2ⁿ tiles | four times the ground of `n-1` |
+
+Which is why neighbouring grids **share** a drawing above level 0: the four grids under one level-1 square
+are one picture, and all four hand back the identical handle. Level 0 is drawn through the ground around
+it, so tile transitions blend across the grid border just as they do on the corner minimap.
+
+### The picture is yours, and it is bounded
+
+A drawing is an **owned resource** like a loaded image: `img:dispose()` frees its texture now, and a
+`:reload`, a disable or a logout frees everything you were holding. A disposed handle stays inert rather
+than becoming an error — it still answers `:size()`, drawing it simply draws nothing, and the next
+`grid:image(lvl)` renders a fresh one.
+
+You do not have to manage it. The cache keeps the most recently asked-for drawings and **disposes what
+falls off the end**, so a panel that scrolls across a continent frees the ground behind it by itself. That
+is also why a panel should re-ask each frame rather than stash a handle for later: asking is what keeps a
+picture alive.
+
+> **It is not an asset.** A map drawing never appears in `hafen.asset()` and its `:path()` is a
+> description, not a file you could load. An asset is a file your addon shipped; this is a picture the
+> client drew of the database.
 
 ## Markers
 
@@ -362,4 +427,5 @@ it simply starts answering `nil` (and `:exists() == false`) if what it names goe
 - [`IconCategory`](types.md#iconcategory) — what `cat:info()` hands back
 - [coordinates](conventions.md#coordinates) — why the anchor is the only position worth storing
 - [`hafen.gob`](gob.md) — `gob:icon()`, the category name on a live object
+- [`hafen.asset`](asset.md) — the image handle a grid drawing is one of, and its `:size()`/`:dispose()`
 - [events](events.md#roster-quests-markers) — `MarkersChanged`

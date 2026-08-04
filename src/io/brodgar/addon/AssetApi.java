@@ -371,7 +371,7 @@ final class AssetApi {
      * it from the addon's registry, and dispose the {@link TexI} (frees the GL texture). The {@code dead} flag is
      * what makes dispose final — {@code TexI.dispose()} only releases, it does not invalidate (R1). Idempotent.
      */
-    private static void disposeImage(LuaImage li) {
+    static void disposeImage(LuaImage li) {
         if(li.dead)
             return;
         li.dead = true;

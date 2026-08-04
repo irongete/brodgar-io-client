@@ -124,6 +124,11 @@ public final class AddonRegistry {
         RenderApi.teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
         RenderApi.teardownSprites(a);           // R2: destroy client-only world sprites (remove the slot + free the quad geometry)
         RenderApi.teardownObjects(a);           // R3: destroy client-only world objects (remove the slot + free the glTF Models; before the meshes)
+        MapImages.teardown(a);                  // 037.4: free the map drawings the client rendered for this addon
+                                                //   (grid:image / grid:overlayImage) — they are TexIs like any
+                                                //   other image and ride the same registry, so this only has to
+                                                //   drop the bounded cache; it runs BEFORE the asset teardown so
+                                                //   nothing is left pointing at a disposed texture
         AssetApi.teardownAssets(a);             // 028.1: dispose every loaded asset — images (each TexI's GL texture; after
                                                 //   the sprites that sampled it), then meshes (the shared base-colour TexIs;
                                                 //   AFTER the objects above, R3b), then the intern cache itself. Fonts own
@@ -211,6 +216,8 @@ public final class AddonRegistry {
                                                              //   036.2's re-fold hands a widget its own rule back
         MapApi.teardownOverlays(AddonManager.consoleOwner);  // 037.3: ...nor the overlays it was holding — :reload is
                                                              //   the escape hatch for a REPL line that took one
+        MapImages.teardown(AddonManager.consoleOwner);       // 037.4: ...nor the map drawings it rendered (each is a
+                                                             //   GL texture; the REPL owner has no other teardown)
         loadAll();                                   // re-scan disk + enabled set; re-run; fire OnLoad
         if(gui() != null) {                          // already in-world → re-init as a fresh login
             StoreApi.restorePerChar();                        // reload per-char saved vars (charScope still valid)

@@ -357,6 +357,17 @@ public final class Addon {
     final LuaMask.Cache mapMasks = new LuaMask.Cache(this);
 
     /**
+     * This addon's <b>rendered map images</b> ({@code grid:image(lvl)} / {@code grid:overlayImage(tag)}, task
+     * 037.4) — unlike the caches above this one holds an owned RESOURCE, so it is strong, bounded and torn
+     * down. Each entry is a {@link haven.TexI} the client's own renderer built on {@link haven.Defer} out of
+     * the map database, wrapped in an ordinary {@link LuaImage} that also sits in {@link #images}; the LRU
+     * bound is what keeps a panel that scrolls across a continent from holding every grid it ever drew.
+     * {@link MapImages#teardown} runs before {@link AssetApi#teardownAssets}, so the textures are freed once
+     * and by the path that already frees every other image.
+     */
+    final MapImages.Cache mapImages = new MapImages.Cache(this);
+
+    /**
      * Display overlays this addon is <b>holding</b> ({@code hafen.map.overlay(tag, true)}, task 037.3) — the
      * {@link #hiddenNative} shape one subsystem along: <i>what we asked the client to draw, and how to stop
      * asking</i>. One entry per tag at most, because a hold is idempotent (D-097).

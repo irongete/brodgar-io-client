@@ -66,6 +66,11 @@ import static io.brodgar.addon.AddonManager.*;
  *       never mean anything), and a write is a <b>HOLD</b> rather than a switch — see {@link #take}.</li>
  * </ul>
  *
+ * <p><b>037.4 added the imagery</b> — {@code grid:image(lvl)} and {@code grid:overlayImage(tag)}, the map
+ * database's minimap drawings as ordinary image handles, rendered on {@link haven.Defer} and cached per addon.
+ * That code lives in {@link MapImages}; nothing about it is a new load model, it is the same one at last
+ * applied to something that takes milliseconds rather than microseconds to produce.
+ *
  * <p><b>One load model, everywhere: kick the load, answer nil.</b> The database is on disk and resolves
  * through {@link haven.Defer}/{@link Indir}, so a read that needs a grid the client has not loaded yet
  * <b>starts the load and answers {@code nil}</b> — the caller reads again next tick. Nothing blocks and

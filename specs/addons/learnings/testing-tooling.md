@@ -594,3 +594,24 @@
   it is invisible unless the fixture has **another holder** — the probe calls `mv.enol("cplot")` first to
   stand in for the user's own checkbox, and only then does "two takes, one release" differ from "one take,
   one release". A ref count with a single owner cannot fail the way a ref count fails.
+- **(037.4) To make the engine RENDER headlessly, inject the resource into the pool's own cache.** 037.3
+  fabricated a resource and pointed one `Resource.Saved.loaded` at it, which dies at the next disk round trip.
+  The version that survives everything: `Resource.Pool.load(name, ver, prio)` checks its private
+  `Map<String,Resource> cache` **first** and returns `cur.indir()` when `cur.ver == ver`, so reflect-put a
+  fabricated `Resource` into `Resource.remote()`'s `cache` under the tileset's name and *every* `Saved` for
+  that name resolves instantly — including the fresh ones a `Grid.load` mints. Build the `Resource` with its
+  own private `(Pool, String, int)` constructor (reflection; `name`/`ver` are final and `Unsafe` is not needed
+  for them), then reflect-set the protected `layers` list. `DataGrid.render` needs only a `Resource.Image` with
+  `img` set (`Unsafe`-allocate it; the final `z`/`id`/`info` are never read); `MapSource.drawmap` — the level-0
+  path — additionally needs a `Tileset` layer, and there only `getres()` and `tfac()` are reached, so an
+  `Unsafe`-allocated `Tileset` with the synthetic `this$0` on `Resource.Layer` reflect-set and a `tfac`
+  returning a factory that answers **null** walks the whole render (`drawmap`'s transition pass wraps its
+  `tiler(t)` call in `catch(RuntimeException)`). The cache holds values weakly — pin the resources in a static
+  list or they vanish mid-run. Result: real `TexI`s, real 100×100 bitmaps, no network and no GL.
+- **(037.4) A teardown check must name a resource, not count a list something else empties.** The planted bug
+  "`MapImages.teardown` does nothing" came back **GREEN** twice, because the check was `owner.images.isEmpty()`
+  and `AssetApi.teardownAssets` empties that list whether or not the map-image cache was cleared — the two
+  teardowns overlap, and the assertion sat entirely inside the overlap. Standing up one known-live handle first
+  and then asserting *that* handle is disposed **and** that re-reading its key answers nil made it bite. The
+  rule: when two teardown paths both touch a resource, assert through the path under test — a count that the
+  other path also drives to zero is not evidence about yours.
