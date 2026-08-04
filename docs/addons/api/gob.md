@@ -79,20 +79,59 @@ attached; the arity is the verb, and the key is your own name for it.
 ```lua
 me:overlay("hp", { text = "hurt", color = {255, 90, 90}, offset = {x = 0, y = -6} })
 me:overlay("ring", { draw = function(g, gob, sx, sy) g:frect(sx - 2, sy - 2, 4, 4) end })
+me:overlay("mark", { image = hafen.asset("icon.png"), scale = 2, offset = { z = 18 } })
 me:overlay("hp", nil)
 ```
 
-The **spec says what to draw**, and it must say one of the two:
+### One spec table, two spaces
 
-| Field | Meaning |
+The **spec says what to draw**, and it must name exactly **one** of five things. Two of them paint on
+the screen at the gob's projected point; three of them stand in the 3D world, anchored to the gob:
+
+| Field | Space | Meaning |
+|---|---|---|
+| `draw = fn` | screen | `fn(g, gob, sx, sy)` runs every frame at the gob's projected point, just above the head |
+| `text = "…"` | screen | a label at that point — drawn by the engine, so it costs no Lua at the draw |
+| `image = <asset>` | world | a [`hafen.asset`](asset.md) image standing in the world, like a [sprite](render/sprites.md) |
+| `model = <asset>` | world | a [`hafen.asset`](asset.md) glTF mesh, like an [object](render/models.md) |
+| `ghost = "<res>"` | world | a game `.res` model, like a [ghost](ghost.md) |
+
+The rest of the table depends on which space you are in:
+
+| Field | Space | Meaning |
+|---|---|---|
+| `color = {r,g,b[,a]}` | screen | the label's colour (with `text`) |
+| `offset = {x =, y =}` | screen | **screen pixels** from the projected anchor point |
+| `offset = {x =, y =, z =}` | world | **world units** from the gob, `z` being up — `{z = 18}` floats it overhead |
+| `scale`, `alpha`, `tint`, `a` | world | the same look and facing options the world builders take |
+| `billboard = true` | world | with `image`: a camera-facing blit instead of an upright quad |
+
+A spec naming none of the five is an error naming them all, and one naming two is an error naming both:
+an overlay that draws nothing is never what was meant, and picking a winner by table order is how one of
+them silently stops meaning anything. A spec is read **once**, at attach.
+
+`clickable`/`onClick` are **not** overlay properties and raise. The thing under an overlay is the gob,
+and clicking a gob is the client's own — [`hafen.act.clickGob`](act.md).
+
+### The verbs on a world overlay
+
+A world-space overlay carries the look and facing verbs its entity already had. They **chain** (each
+answers the overlay), they are refused on a screen-space one naming the kinds, and they are quiet no-ops
+once the overlay is gone. There is no `:move` — an overlay's position **is** its gob's, and the only
+thing you set is the `offset`, by re-attaching under the same key.
+
+| Method | Description |
 |---|---|
-| `draw = fn` | `fn(g, gob, sx, sy)` runs every frame at the gob's projected screen point, just above the head |
-| `text = "…"` | a label at that point — drawn by the engine, so it costs no Lua at the draw |
-| `color = {r,g,b[,a]}` | the label's colour (with `text`) |
-| `offset = {x =, y =}` | screen pixels from the anchor point |
+| `ov:tint(color)` \| `ov:tint(nil)` | colour overlay `{r,g,b[,a]}`, or clear it |
+| `ov:alpha(a)` | opacity `0..1` (1 = opaque) |
+| `ov:scale(s)` | uniform scale (1 = original size) |
+| `ov:rotate(a)` | its **own** facing in radians — independent of the gob's |
+| `ov:pos()` | `{x, y, a, scale}` — where it actually is: the gob's live point plus your offset |
 
-A spec naming neither `draw` nor `text` is an error naming the field, and so is one naming both: an
-overlay that draws nothing is never what was meant. A spec is read **once**, at attach.
+```lua
+local ov = tree:overlay("mark", { image = icon, offset = { z = 20 } })
+ov:tint{ 255, 90, 90 }:alpha(0.7):scale(2)
+```
 
 **Keys are per addon.** Two addons using `"tag"` on one gob do not collide, and neither can see the
 other's — `gob:overlay()` lists yours and the game's, never a third party's. Attaching the same key
@@ -107,10 +146,11 @@ key — never a silent no-op.
 | `ov:key()` | string | what it answers to; the resource name for a native one |
 | `ov:gob()` | Gob | the gob it hangs on |
 | `ov:native()` | bool | is this the game's own rather than yours? |
-| `ov:res()` | string \| nil | the resource behind it; `nil` for one of yours |
+| `ov:kind()` | string \| nil | `"draw"`/`"text"`/`"image"`/`"model"`/`"ghost"`; `nil` for a native one |
+| `ov:res()` | string \| nil | what it is drawn from — the resource name, the asset path; `nil` for a screen-space one, which draws Lua |
 | `ov:count()` | number \| nil | how many engine overlays this one entity stands for |
 | `ov:exists()` | bool | still attached? |
-| `ov:info()` | table \| nil | `{key, native, count, res?, kind?}` as a plain snapshot |
+| `ov:info()` | table \| nil | `{key, native, count, world, res?, kind?}` as a plain snapshot |
 
 `:count()` is there because **a native overlay is a union**. A gob may carry several overlays of one
 resource — on a live world 13 of 32 gobs carrying overlays did — and the resource name is the only part
@@ -118,10 +158,16 @@ of one a name can address, so they collapse to a single Overlay and the multipli
 instead of lost. Yours always count 1. (`gob:info().overlays` is still the raw list of resource names,
 one entry per engine overlay, for when you want the uncollapsed view.)
 
+An Overlay object is **interned on the key**, so `gob:overlay(key)` hands back the same object every
+time and a replace leaves the handle you were holding naming the *new* record. `:exists()` goes false
+when the overlay is removed, or when its gob is gone.
+
 **An overlay dies with its gob.** The record lives on the game object, so a felled tree takes yours with
 it and nothing is kept in case it comes back — a gob that returns is bare, and re-attaching is your own
 call from [`GobAdded`](events.md#world). A `:reload` or a disable likewise removes every overlay you
-attached and leaves the game's untouched.
+attached and leaves the game's untouched. For a **world-space** overlay that is not just bookkeeping:
+its visual is a client-only object of its own, and it is destroyed with the gob rather than left
+floating where the target used to stand.
 
 > There is no filter form. "Every player gets a label" is a [`GobAdded`](events.md#world) handler plus a
 > loop over [`hafen.world.gobs()`](world.md) — you name the gob, so nothing is searched per frame.
@@ -171,8 +217,8 @@ Anything that acts on a gob takes the **Gob object**, not an id:
 
 ```lua
 hafen.act.clickGob(tree, 3)
-hafen.render.sprite{ image = icon, follow = me, offset = { z = 18 } }
 me:overlay("tag", { text = "here" })
+me:overlay("mark", { image = icon, offset = { z = 18 } })
 ```
 
 ## See also

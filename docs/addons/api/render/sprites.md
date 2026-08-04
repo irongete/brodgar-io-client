@@ -26,7 +26,7 @@ yet, since there is no map view to stand it in.
 | Option | Default | Meaning |
 |---|---|---|
 | `image` | *required* | a [`hafen.asset`](../asset.md) **image handle** — [handle-only](README.md#handle-only); a path string is an error |
-| `x`, `y` | *required* | world coordinates, like [`gob:pos()`](../gob.md); optional when `follow` is given, since the gob supplies the position |
+| `x`, `y` | *required* | world coordinates, like [`gob:pos()`](../gob.md) |
 | `a` | `0` | facing angle in **radians**; a billboard ignores it, because it faces the camera |
 | `scale` | `1` | uniform scale. A **fixed** sprite is about a tile tall at `1`, width following the image aspect; a **billboard** is its native pixel size times `scale` |
 | `alpha` | `1` | opacity `0..1`, combined with the PNG's own transparency |
@@ -34,8 +34,6 @@ yet, since there is no map view to stand it in.
 | `billboard` | `false` | `false` is a fixed upright quad, `true` a [camera-facing](#billboard) screen blit |
 | `clickable` | `false` | opt into [the click event](#clickability) — **fixed sprites only** |
 | `onClick` | *none* | `fn(s, button, x, y)` fired on click, also delivered as the [`SpriteClicked`](../events.md#world-ghosts-and-sprites) event |
-| `follow` | *none* | **anchor to a gob** so the sprite tracks it every frame — see [anchoring](#anchoring-to-a-gob) |
-| `offset` | *none* | fixed world offset `{x=, y=, z=}` from the followed gob, `z` being up |
 
 ## Sprite handle
 
@@ -45,16 +43,14 @@ The same transform surface as a [ghost handle](../ghost.md#the-ghost-handle), wi
 
 | Method | Description |
 |---|---|
-| `s:move(x, y, a)` | reposition in world coords, optionally re-facing — **detaches** any follow anchor |
+| `s:move(x, y, a)` | reposition in world coords, optionally re-facing |
 | `s:rotate(a)` | set facing in radians, keeping position; a billboard faces the camera, so this has no visible effect |
 | `s:scale(k)` | uniform scale — world size when fixed, a screen-size multiplier when a billboard |
 | `s:alpha(a)` | opacity `0..1` |
 | `s:tint(color)` | colour overlay `{r=, g=, b=, a=}`; `nil` clears it |
 | `s:clickable(bool)` | toggle the pick surface — [fixed sprites only](#clickability) |
 | `s:show()` / `s:hide()` | add to or remove from the scene, keeping the sprite |
-| `s:follow(gob, offset)` | [anchor](#anchoring-to-a-gob) to a gob and auto-follow it; `s:follow(nil)` detaches |
-| `s:offset{x=, y=, z=}` | move it relative to the followed gob, and keep following |
-| `s:pos()` | `{x, y, a, scale}`, plus `following` — the anchored gob id — when there is one |
+| `s:pos()` | `{x, y, a, scale}` |
 | `s:image()` | the addon-relative image path |
 | `s:destroy()` | remove it now; also automatic on reload, disable and relogin |
 
@@ -71,7 +67,7 @@ local b = hafen.render.sprite{ image = icon, x = p.x, y = p.y, billboard = true,
 ```
 
 A billboard is drawn at the image's **native pixel size**, DPI-scaled like the HUD, times `scale`, and
-bottom-centred on its world point, so it "stands" there; a `follow` offset with a `z` floats it overhead.
+bottom-centred on its world point, so it "stands" there.
 Because it is a flat 2D image, `:rotate` is stored but has no visible effect and `:scale` acts as a
 screen-size multiplier. `:alpha` and `:tint` work as they do on a fixed sprite. It has no world mesh, so it
 is never [clickable](#clickability); select it by other means, such as your own list.
@@ -98,32 +94,27 @@ local s = hafen.render.sprite{
 > **Billboards are click-through.** A billboard has no world geometry, so it never wins a pick:
 > `clickable` and `onClick` on one are harmless no-ops. Use a fixed sprite when you need click selection.
 
-## Anchoring to a gob
+## An image ON a gob is an overlay
 
-A sprite can be **anchored to a gob** so it moves with it automatically, every frame, with no per-tick code
-of your own — the world-space analog of a screen-space [`gob:overlay`](../gob.md#overlays). Give a `follow`
-target, a [Gob object](../gob.md), and an optional world `offset` where `z` is up.
-
-| Call | Does |
-|---|---|
-| `hafen.render.sprite{ image =, follow = gob, offset = {…} }` | create it already anchored; `x`/`y` are not needed |
-| `s:follow(gob, offset)` | anchor an existing sprite |
-| `s:follow(nil)` | detach — it stays where it currently is |
-| `s:offset{x=, y=, z=}` | change the offset while it keeps following |
-| `s:move(x, y)` | a manual move **detaches** the follow: you take control |
-
-The sprite keeps its **own** facing and scale while anchored, so `:rotate` and `:scale` still work. The
-target is re-resolved each frame, so it survives the gob unloading and reloading, and holds position while
-the gob is gone.
+`hafen.render.sprite` stands an image at a **fixed world point**. To hang one on a *game object* so it
+moves with it every frame, the verb is [`gob:overlay`](../gob.md#overlays): it keys the thing per addon,
+reads back through `gob:overlay()`, carries the same `scale`/`alpha`/`tint`/`billboard` options, and
+**dies with the gob** — where an anchored sprite used to float on forever after a felled tree was gone.
 
 ```lua
 -- a marker that floats above a creature and follows it around
 local icon = hafen.asset("marker.png")
 local prey = hafen.world.nearest(function(g) return (g:name() or ""):find("rabbit") end)
 if prey then
-  hafen.render.sprite{ image = icon, scale = 1.5, follow = prey, offset = { z = 14 } }
+  prey:overlay("hunt", { image = icon, scale = 1.5, offset = { z = 14 } })
 end
 ```
+
+The overlay keeps its **own** facing and scale, so `ov:rotate` and `ov:scale` work on it; its position is
+the gob's, and the only thing you set is the `offset`.
+
+> `follow =` and the handle's `:follow`/`:offset` are **gone**. Passing `follow` raises, naming
+> `gob:overlay`; the methods read as plain `nil`.
 
 > **Gizmo.** A sprite is transformable by the [gizmo](../ghost.md#the-transform-gizmo) for free: it exposes
 > the same `:move`, `:rotate` and `:scale` handle a ghost does, and the gizmo drives any such handle.

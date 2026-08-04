@@ -665,3 +665,32 @@
   `sum(ov:count())` must equal the raw overlay list on every sampled gob — plus a second line asserting
   the collapse is real *here*, or the reconciliation proved nothing stronger than `1 == 1`. A census
   belongs in a suite only once it has an invariant attached to it.
+- **(038.2) Subclass the fabricated `MapView` and COUNT the scene seam — that is what turns "destroyed, not left
+  floating" into an assertion.** 038.1's recipe reaches a real `OCache`, but a real `addClientGob` cannot run
+  headlessly: `basic.add(gob.placed)` builds a `Gob.Placed.Placement`, which calls `placer()`/`getmapstate()` and
+  therefore needs an `MCache`. Since `MapView.addClientGob`/`removeClientGob` are public and non-final, an
+  `Unsafe`-allocated **subclass** overriding both with `added++`/`removed++` (and a private no-arg ctor purely to
+  satisfy javac; `allocateInstance` never calls it) makes the whole world-entity lifecycle runnable *and*
+  observable — every attach is one add, and replace / remove / gob-death / teardown must each be exactly one
+  remove. 60/60 for 038.2.
+- **(038.2) A stub `Moving` on the TARGET is what makes anchor arithmetic readable headlessly.** `overlay:pos()`
+  came back `0,0` on the first run — not a bug: `FollowMoving.getc()` calls `target.getc()`, which falls through
+  to `placer()` and the absent `MCache`, and the production code's `catch(RuntimeException)` correctly falls back
+  to the entity's own `rc`. Hanging `new Moving(g){ getc() -> (5,6,0) }` on the target gob makes the offset
+  observable as `(5+dx, 6+dy)`. Generally: when a headless read answers the *fallback* value, fabricate the thing
+  the real path reads rather than weakening the check.
+- **(038.2) Drive the lifecycle through the REAL seam, or the wiring is untested.** The gob-death check first
+  called `LuaGobOverlay.gobGone(g)` directly, and deleting the call site in `AddonManager.tick` falsified **0**.
+  Reflecting the private `registerOcache(ui)`, then `oc.remove(g)` + `AddonManager.tick(0.05)`, made the same
+  falsification bite **4** — and it also proved the ordering claim (the overlay is gone before `GobRemoved`
+  reaches Lua). A probe that calls the method proves the method; only the seam proves the seam.
+- **(038.2) A refusal assertion must grep the sentence the refusal is ABOUT.** The three `follow=` checks matched
+  on `"gob:overlay"`, and silently ignoring `follow=` still falsified only 1 — because the *next* validation
+  (`x`/`y` missing) also names `gob:overlay` in its guidance. Matching `"'follow'/'offset' are GONE"` instead,
+  with one extra check that the message also names the replacement, took the falsification to **5**. When two
+  error paths share a keyword, the check is measuring the keyword.
+- **(038.2) A 420-byte hand-built `.glb` is enough to test the mesh path end to end.** `hello`'s `tank.glb` is
+  2 MB and a suite must stand alone, so `tri.glb` is generated in ~15 lines of Python: `asset.version 2.0`, one
+  scene → one node → one mesh → one primitive with a `POSITION` accessor over three `VEC3`s, no indices and no
+  material (`Gltf.build` requires only `meshes` + `accessors`, and `bakePrim` only `POSITION` with `mode 4`).
+  The probe parses it as its first check, so the fixture validates itself before anything rests on it.

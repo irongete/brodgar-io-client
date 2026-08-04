@@ -24,7 +24,7 @@ call, so a handle you keep is always fresh and never a stale copy.
 `hafen.gob(id)` — or anything [`hafen.world`](world.md) hands you — gives a **Gob object** whose
 methods read the live game object; `hafen.player():gob()` is your own. Every method re-resolves, so
 the object answers `nil` once the gob is gone, while `:id()` still answers. Anywhere a single gob is
-addressed — [`hafen.act.clickGob`](act.md), `follow=` in [`hafen.render`](render/README.md) — you pass
+addressed — [`hafen.act.clickGob`](act.md), [`gob:overlay`](gob.md#overlays) — you pass
 the Gob itself, never an id. See [`hafen.gob`](gob.md).
 
 ### Kin: a roster entry

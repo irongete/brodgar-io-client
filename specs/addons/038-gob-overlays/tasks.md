@@ -17,7 +17,7 @@ own and `false` on ours; an attach onto a native key **raises naming the key**, 
 map-database verb is a different one). `[manual]`: a label stands over the chosen gob and tracks it
 as the camera moves.
 
-## 038.2 — the world-space family, and `follow` is absorbed
+## 038.2 — the world-space family, and `follow` is absorbed ✅ DONE
 
 `{image = asset}`, `{model = asset}`, `{ghost = res}` and `offset = {x=,y=,z=}` on the same verb, over
 the existing `FollowMoving`; the Overlay object composes the entity's own verbs (`:tint`, `:rotate`,

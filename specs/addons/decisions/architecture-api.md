@@ -820,3 +820,51 @@ nothing stronger than `1 == 1`. Generally: *before collapsing a compound engine 
 collapse bites, then publish what it hides.*
 **See.** [D-093](architecture-api.md), [D-072](architecture-api.md),
 [038-gob-overlays](../038-gob-overlays/spec.md).
+
+### D-102 — the END of a derived thing rides the event its SOURCE already raises; a "report" needs a reporter ✅ (2026-08-04)
+**Decision.** A world-space `gob:overlay` — a client-only entity anchored to a target gob by a `FollowMoving`
+— is destroyed from the tick that drains the client's own `OCache` removal, `LuaGobOverlay.gobGone(gob)`
+running just before `GobRemoved` reaches Lua. The plan's design, "`FollowMoving` reports a lost target
+instead of holding position", is refused.
+**Rationale.** (2026-08-04, 038.2.) The plan was right that this is the one thing "an overlay dies with its
+gob" actually costs. For the screen-space kinds the death is free — the record lives in a `GAttrib` and the
+`Gob` takes it with it — but a world overlay's visual is *its own gob* in the scene, and nothing disposes it
+because the target left `OCache`. (Worth writing down precisely: **`OCache.remove` does NOT call
+`Gob.dispose()`**; it sets `removed` and drops the entry, so attribs go by GC. That is exactly why one half
+is free and the other is not.) The trouble with "report" is the missing second half: `getc()` runs on the
+render/loader threads and has nobody to report *to*. Giving it one means a list of anchored entities checked
+every frame — which is the 5 Hz sweep 038.1 deleted, re-introduced at 60 Hz and wearing a different name.
+The removal is already an event the client raises, already marshalled to the UI thread, and — because
+D-100 put the store **on the gob** — it arrives holding the exact records, so the fix is O(1) and needs no
+list of anything. `FollowMoving` keeps its hold-at-last-position, now bounded to the one frame between the
+removal and the tick that drains it.
+**Consequences.** No new core edit (the seam is the existing `GobRemoved` drain), no per-frame work, and the
+in-game proof is a two-command round with a walk between it (`:t038-2 park` … `:t038-2 gone`), because only
+a person can make a gob despawn; the deterministic half is the headless probe, whose fabricated `MapView`
+*counts* scene adds and removes. Generally: *when a derived thing must end with something else, look for the
+event that something already raises before inventing a watcher — a watcher is a sweep with better manners.*
+**See.** [D-100](architecture-api.md), [D-095](architecture-api.md),
+[038-gob-overlays](../038-gob-overlays/spec.md).
+
+### D-103 — an ABSORBED mechanism keeps one door: the old option is refused AND the old listing stops handing it back ✅ (2026-08-04)
+**Decision.** `follow =` on `hafen.render.sprite`/`object`/`hafen.ghost.new` and the handles'
+`:follow`/`:offset` are a hard cut — the option **raises naming `gob:overlay`**, the methods read plain
+`nil`. And the entity a world overlay owns is flagged `asOverlay`, so it never appears in
+`hafen.ghost.list()`. There is no `overlay:move` either: an overlay's position *is* its gob's, and the only
+thing an addon sets is the `offset`, by re-attaching under the same key.
+**Rationale.** (2026-08-04, 038.2.) Cutting the old *option* is routine (nothing is released; a removed
+symbol reads nil, a silently ignored one leaves a sprite standing at `0,0` on the far side of the world with
+nothing to say why — D-072). The non-obvious half is the **listing**: an overlay's ghost is a real
+`LuaGhost` in `Addon.ghosts`, so `hafen.ghost.list()` would have handed it back for free, and the handle it
+hands back carries `:destroy()` and `:move()`. That is a second door onto one thing, and worse than a
+duplicate: `:destroy()` would kill the visual behind a record that still reads as attached, and `:move()`
+would fight the anchor every frame. Hiding it costs one boolean and one condition. The same reasoning
+removes `overlay:move`: a verb that competes with the mechanism is not a convenience.
+**Consequences.** `hafen.ghost.list()` means *the ghosts this addon placed*, which is now a sharper answer
+than before; the composed verbs on an Overlay are the look and facing only (`:tint`/`:alpha`/`:scale`/
+`:rotate`) plus the read `:pos()`. Also refused, for the same reason: `clickable`/`onClick` in an overlay
+spec — the thing under an overlay is the gob, and clicking a gob is the client's own. Generally: *when one
+mechanism absorbs another, close the old constructor **and** audit every existing read that could still hand
+the new thing out under the old identity.*
+**See.** [D-013](architecture-api.md), [D-072](architecture-api.md), [D-102](architecture-api.md),
+[038-gob-overlays](../038-gob-overlays/spec.md).

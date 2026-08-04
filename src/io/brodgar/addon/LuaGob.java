@@ -266,12 +266,14 @@ public final class LuaGob {
         //   gob:overlay(key)          -- that one, or nil
         //   gob:overlay(key, spec)    -- attach or REPLACE (the same key twice leaves one overlay)
         //   gob:overlay(key, nil)     -- remove
-        // The spec says WHAT to draw: {draw = fn} (fn(g, gob, sx, sy) at the gob's projected screen point) or
-        // {text = "…", color = {r,g,b[,a]}, offset = {x=,y=}} (a label there). A spec naming neither is an
-        // error naming the field — an overlay that draws nothing is never what was meant. The game's own
+        // The spec says WHAT to draw, in ONE of the two spaces (038.2). SCREEN space, at the gob's projected
+        // point: {draw = fn} (fn(g, gob, sx, sy)) or {text = "…", color = {r,g,b[,a]}, offset = {x=,y=}}. The 3D
+        // WORLD, anchored to the gob every frame: {image = asset}, {model = asset} or {ghost = "<res>"}, with
+        // offset = {x=,y=,z=} in world units (z = up) and the entity's own scale/alpha/tint/a. A spec naming
+        // none of the five is an error naming them, and one naming two is an error naming both. The game's own
         // overlays are READ-ONLY: an attach onto a native key, or a remove of one, raises naming the key.
-        // hafen.ui.gobOverlay (the filter form and its 5 Hz sweep) and gob:overlays() are HARD CUT: the state
-        // lives on the gob now, so it dies with the gob and nothing is searched per frame.
+        // hafen.ui.gobOverlay (the filter form and its 5 Hz sweep), gob:overlays() and follow= are HARD CUT: the
+        // state lives on the gob now, so it dies with the gob and nothing is searched per frame.
         m.set("overlay", new VarArgFunction() {
             public Varargs invoke(Varargs a) {   // overlay() → narg 1 · (key) → 2 · (key, spec) / (key, nil) → 3
                 LuaValue self = a.arg1();
@@ -302,13 +304,25 @@ public final class LuaGob {
                 if(spec.isnil()) {                                // REMOVE
                     LuaGobOverlay store = LuaGobOverlay.on(g);
                     if(store != null) {
-                        store.remove(owner, key);
+                        LuaGobOverlay.Attach old = store.remove(owner, key);
+                        if(old != null)
+                            old.dispose();               // a world-space record owns a live entity; the map does not
                         LuaGobOverlay.prune(g);
                     }
                     return self;
                 }
-                LuaGobOverlay.Attach rec = LuaGobOverlay.Attach.of(owner, key, spec);   // parsed BEFORE attaching
-                LuaGobOverlay.ensure(g).put(rec);
+                // Parsed — and, for a world-space kind, BUILT — before anything is attached, so a bad spec or a
+                // disposed asset handle raises with the gob left exactly as it was.
+                LuaGobOverlay.Attach rec = LuaGobOverlay.Attach.of(owner, key, spec, h.id);
+                LuaGobOverlay.Attach old;
+                try {
+                    old = LuaGobOverlay.ensure(g).put(rec);
+                } catch(RuntimeException e) {
+                    rec.dispose();                       // the gob refused the attrib: do not leak the entity we built
+                    throw e;
+                }
+                if(old != null)
+                    old.dispose();                       // REPLACE: the same key twice leaves ONE overlay
                 return LuaOverlay.of(owner, h.id, key, false);
             }
         });

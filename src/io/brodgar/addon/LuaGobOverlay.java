@@ -80,78 +80,132 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
 
     /**
      * One thing an addon attached under one key. A spec is read ONCE, at attach — like a stylesheet rule, and
-     * unlike the old filter, which was re-evaluated per gob per frame. 038.1 carries the two <b>screen-space</b>
-     * kinds; the world-space ones ({@code image}/{@code model}/{@code ghost}) are 038.2 and do not live here at
-     * all (they are their own client-only gob anchored to the target).
+     * unlike the old filter, which was re-evaluated per gob per frame.
+     *
+     * <p><b>One spec table, two spaces</b> (038.2). {@code {draw = fn}} and {@code {text = …}} paint in
+     * <b>screen space</b> at the gob's projected point, and their record is painted from this attrib's own draw
+     * pass. {@code {image = asset}}, {@code {model = asset}} and {@code {ghost = res}} stand in the <b>3D world</b>
+     * anchored to the gob: their record holds a client-only {@link LuaWorldEntity} carrying a
+     * {@link FollowMoving}, which is not painted here at all — the render tree draws it as it draws any other
+     * world entity, and this record is what OWNS it (a replace, a remove and the gob's own death each end it).
+     * A spec naming none of the five is an error naming the fields, and one naming two is an error naming both.
      */
     static final class Attach {
         final Addon owner;
         final String key;
-        /** {@code {draw = fn}} — {@code fn(g, gob, sx, sy)}, or null when this is a {@code text} record. */
+        /** {@code "draw"}, {@code "text"}, {@code "image"}, {@code "model"} or {@code "ghost"} — what this record is. */
+        final String kind;
+        /** {@code {draw = fn}} — {@code fn(g, gob, sx, sy)}, or null for every other kind. */
         final LuaValue draw;
-        /** {@code {text = "…"}} — the label, or null when this is a {@code draw} record. */
+        /** {@code {text = "…"}} — the label, or null for every other kind. */
         final String text;
         /** {@code {color = {r,g,b[,a]}}} for a text record; null = the stock white. */
         final Color color;
-        /** {@code {offset = {x=,y=}}} in screen pixels from the projected anchor point; never null. */
+        /** {@code {offset = {x=,y=}}} in screen pixels from the projected anchor point; never null (screen kinds). */
         final Coord off;
+        /** The client-only entity a WORLD-space record owns, or null for a screen-space one. */
+        final LuaWorldEntity ent;
 
-        private Attach(Addon owner, String key, LuaValue draw, String text, Color color, Coord off) {
+        private Attach(Addon owner, String key, String kind, LuaValue draw, String text, Color color, Coord off,
+                       LuaWorldEntity ent) {
             this.owner = owner;
             this.key = key;
+            this.kind = kind;
             this.draw = draw;
             this.text = text;
             this.color = color;
             this.off = off;
+            this.ent = ent;
         }
 
-        /** {@code "draw"} or {@code "text"} — what this record paints (the {@code kind} of {@code overlay:info()}). */
+        /** What this record paints (the {@code kind} of {@code overlay:info()}). */
         String kind() {
-            return (draw != null) ? "draw" : "text";
+            return kind;
+        }
+
+        /** Is this one painted in the 3D world (rather than at the gob's projected screen point)? */
+        boolean world() {
+            return ent != null;
+        }
+
+        /** End this record: a world-space one destroys the entity it owns; a screen-space one has nothing to free. */
+        void dispose() {
+            if(ent != null)
+                RenderApi.destroyOverlayEntity(ent);
         }
 
         /**
-         * Parse one spec table. <b>A spec that names neither is an error naming the field</b> — an overlay that
-         * draws nothing is never what was meant, and a silent no-op is the one failure nothing else would report.
+         * Parse one spec table, building the world entity when it names one. <b>A spec naming none of the five
+         * is an error naming the fields</b> — an overlay that draws nothing is never what was meant, and a silent
+         * no-op is the one failure nothing else would report; a spec naming two is an error naming both, because
+         * picking a winner by table order is how one of them silently stops meaning anything.
          */
-        static Attach of(Addon owner, String key, LuaValue spec) {
+        static Attach of(Addon owner, String key, LuaValue spec, long gobId) {
             String where = "gob:overlay(key, spec)";
             if(!spec.istable())
                 throw new LuaError(where + ": spec must be a table, got " + spec.typename()
                     + " -- gob:overlay(key, nil) is the REMOVE arity");
-            LuaValue dv = spec.get("draw"), tv = spec.get("text");
-            if(!dv.isnil() && !tv.isnil())
-                throw new LuaError(where + ": a spec says ONE thing -- 'draw' and 'text' are two,"
-                    + " so pass a draw callback that draws the text itself");
-            LuaValue draw = null;
-            String text = null;
-            if(!dv.isnil()) {
+            String kind = specKind(spec, where);
+            if(kind.equals("draw")) {
+                LuaValue dv = spec.get("draw");
                 if(!dv.isfunction())
                     throw new LuaError(where + ": 'draw' must be a function draw(g, gob, sx, sy), got " + dv.typename());
-                draw = dv;
-            } else if(!tv.isnil()) {
-                text = tv.tojstring();
-            } else {
-                throw new LuaError(where + ": the spec must name WHAT to draw -- 'draw' (a callback"
-                    + " draw(g, gob, sx, sy)) or 'text' (a label at the gob's point)");
+                return new Attach(owner, key, kind, dv, null, luaColor(spec, where), screenOffset(spec, where), null);
             }
-            Color col = null;
-            LuaValue cv = spec.get("color");
-            if(!cv.isnil()) {
-                if(!cv.istable())
-                    throw new LuaError(where + ": 'color' must be {r, g, b[, a]}, got " + cv.typename());
-                col = AddonManager.luaColor(cv, null);
-            }
-            Coord off = Coord.z;
+            if(kind.equals("text"))
+                return new Attach(owner, key, kind, null, spec.get("text").tojstring(),
+                                  luaColor(spec, where), screenOffset(spec, where), null);
+            // A WORLD-space overlay: its own client-only gob, anchored to the target every frame. Built here, so a
+            // bad asset handle raises BEFORE anything is attached and the gob is left exactly as it was.
             LuaValue ov = spec.get("offset");
-            if(!ov.isnil()) {
-                if(!ov.istable())
-                    throw new LuaError(where + ": 'offset' must be {x = , y = } (screen pixels), got " + ov.typename());
-                off = Coord.of(ov.get("x").toint(), ov.get("y").toint());
+            if(!ov.isnil() && !ov.istable())
+                throw new LuaError(where + ": 'offset' must be {x = , y = , z = } (world units, z = up), got " + ov.typename());
+            return new Attach(owner, key, kind, null, null, null, Coord.z,
+                              RenderApi.overlayEntity(owner, gobId, spec, kind, RenderApi.luaOffset(ov)));
+        }
+
+        /** Exactly ONE of the five spec fields, or a guiding error naming all of them / the two that collided. */
+        private static String specKind(LuaValue spec, String where) {
+            String found = null, other = null;
+            for(String k : KINDS) {
+                if(spec.get(k).isnil())
+                    continue;
+                if(found == null)
+                    found = k;
+                else if(other == null)
+                    other = k;
             }
-            return new Attach(owner, key, draw, text, col, off);
+            if(other != null)
+                throw new LuaError(where + ": a spec says ONE thing -- '" + found + "' and '" + other + "' are two,"
+                    + " so attach them under two keys (or, for a label, a 'draw' callback that draws the text itself)");
+            if(found == null)
+                throw new LuaError(where + ": the spec must name WHAT to draw -- 'draw' (a callback"
+                    + " draw(g, gob, sx, sy)) or 'text' (a label at the gob's point) in SCREEN space, or 'image'"
+                    + " (an asset), 'model' (an asset) or 'ghost' (a .res name) standing in the 3D WORLD");
+            return found;
+        }
+
+        private static Color luaColor(LuaValue spec, String where) {
+            LuaValue cv = spec.get("color");
+            if(cv.isnil())
+                return null;
+            if(!cv.istable())
+                throw new LuaError(where + ": 'color' must be {r, g, b[, a]}, got " + cv.typename());
+            return AddonManager.luaColor(cv, null);
+        }
+
+        private static Coord screenOffset(LuaValue spec, String where) {
+            LuaValue ov = spec.get("offset");
+            if(ov.isnil())
+                return Coord.z;
+            if(!ov.istable())
+                throw new LuaError(where + ": 'offset' must be {x = , y = } (screen pixels), got " + ov.typename());
+            return Coord.of(ov.get("x").toint(), ov.get("y").toint());
         }
     }
+
+    /** The five spec fields, in the order an error lists them: the two screen-space kinds, then the three world ones. */
+    private static final String[] KINDS = { "draw", "text", "image", "model", "ghost" };
 
     // ---- the per-gob store ------------------------------------------------------------------------
 
@@ -181,28 +235,66 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         return (m == null) ? null : m.get(key);
     }
 
-    /** Attach or REPLACE — the same key twice leaves one overlay, which is what makes the verb idempotent. */
-    synchronized void put(Attach a) {
+    /**
+     * Attach or REPLACE — the same key twice leaves one overlay, which is what makes the verb idempotent. Answers
+     * the record it displaced (or null), which the caller must {@link Attach#dispose} : a replaced world-space
+     * record still owns a live entity in the scene, and dropping it from the map is not what ends it.
+     */
+    synchronized Attach put(Attach a) {
         Map<String, Attach> m = byAddon.get(a.owner);
         if(m == null)
             byAddon.put(a.owner, m = new LinkedHashMap<String, Attach>());
-        m.put(a.key, a);
+        return m.put(a.key, a);
     }
 
-    /** Drop one record; true if there was one. */
-    synchronized boolean remove(Addon owner, String key) {
+    /** Drop one record and answer it (or null) — the caller disposes it outside this monitor. */
+    synchronized Attach remove(Addon owner, String key) {
         Map<String, Attach> m = byAddon.get(owner);
         if(m == null)
-            return false;
-        boolean had = (m.remove(key) != null);
+            return null;
+        Attach had = m.remove(key);
         if(m.isEmpty())
             byAddon.remove(owner);
         return had;
     }
 
-    /** Drop every record this addon attached to this gob (teardown); true if there was one. */
-    synchronized boolean removeOwner(Addon owner) {
-        return byAddon.remove(owner) != null;
+    /** Drop every record this addon attached to this gob (teardown) and answer them, for the caller to dispose. */
+    synchronized List<Attach> removeOwner(Addon owner) {
+        Map<String, Attach> m = byAddon.remove(owner);
+        return (m == null) ? new ArrayList<Attach>() : new ArrayList<Attach>(m.values());
+    }
+
+    /** Drop EVERY record here, whoever owns it, and answer them all — the gob is going (see {@link #gobGone}). */
+    private synchronized List<Attach> removeAll() {
+        List<Attach> out = new ArrayList<Attach>();
+        for(Map<String, Attach> m : byAddon.values())
+            out.addAll(m.values());
+        byAddon.clear();
+        return out;
+    }
+
+    /**
+     * <b>An overlay dies with its gob</b> — called from the tick where the client's own {@code OCache} removal is
+     * dispatched ({@code GobRemoved}), before the event reaches Lua, so a handler already reads the truth.
+     *
+     * <p>For a screen-space overlay this is bookkeeping: the attrib goes when the {@link Gob} does. For a
+     * <b>world-space</b> one it is the whole of plan §2b, and it is the one thing "death with the gob" actually
+     * costs — the entity is its own client-only gob in the scene, and nothing disposes it just because the target
+     * left {@code OCache}. Today's {@code follow=} is exactly that bug: {@link FollowMoving#getc} holds at the
+     * last position, so a sprite following a felled tree floats there forever with no owner. The store being ON
+     * the gob is what makes the fix O(1): the removal hands us the records, and nothing is ever searched for.
+     */
+    static void gobGone(Gob g) {
+        LuaGobOverlay ol = on(g);
+        if(ol == null)
+            return;
+        for(Attach a : ol.removeAll()) {
+            try {
+                a.dispose();
+            } catch(RuntimeException e) {
+                /* best-effort: one bad record never stops the rest from being freed */
+            }
+        }
     }
 
     /** This addon's keys on this gob, in attach order. */
@@ -216,11 +308,19 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         return byAddon.isEmpty();
     }
 
-    /** A snapshot of every record, addon by addon — what the draw pass paints. */
-    private synchronized List<Attach> records() {
+    /**
+     * A snapshot of the SCREEN-space records, addon by addon — what the draw pass paints. A world-space record is
+     * not in it: its entity is drawn by the render tree like any other world thing, so a gob carrying only world
+     * overlays costs this attrib's draw one empty list and no projection at all.
+     */
+    private synchronized List<Attach> paintRecords() {
         List<Attach> out = new ArrayList<Attach>();
-        for(Map<String, Attach> m : byAddon.values())
-            out.addAll(m.values());
+        for(Map<String, Attach> m : byAddon.values()) {
+            for(Attach a : m.values()) {
+                if(!a.world())
+                    out.add(a);
+            }
+        }
         return out;
     }
 
@@ -298,7 +398,7 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
     // ---- the draw pass ----------------------------------------------------------------------------
 
     public void draw(GOut g, Pipe state) {
-        List<Attach> recs = records();
+        List<Attach> recs = paintRecords();
         if(recs.isEmpty())
             return;                                        // nothing attached (an idle attrib awaiting its prune)
         Coord sc;

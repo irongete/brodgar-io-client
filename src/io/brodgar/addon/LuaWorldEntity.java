@@ -61,8 +61,9 @@ public abstract class LuaWorldEntity {
     boolean hidden;                // V3: :hide() removed the scene slot (gob kept); :show() re-adds it; guarded by this
     LuaValue onClick;              // V2: per-entity click callback fn(handle, button, x, y), or null; set at create
 
-    long    followTgt;             // ANCHOR (:follow): the gob id this entity follows, or 0 = free (not anchored); guarded by this
-    Coord3f followOff;             // the world-space follow offset (x east, y north, z up), or null = none; guarded by this
+    long    followTgt;             // ANCHOR: the gob id this entity follows, or 0 = free (not anchored); set at create only
+    Coord3f followOff;             // the world-space follow offset (x east, y north, z up), or null = none; set at create only
+    boolean asOverlay;             // 038.2: this entity IS a gob:overlay record's visual — never listed as a free entity
 
     Gob gob;                       // the client-only Gob, or null until the (possibly deferred) create publishes it
     RenderTree.Slot slot;          // its scene slot, or null until added / while hidden; removed on destroy/teardown

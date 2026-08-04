@@ -64,15 +64,13 @@ yet. The options mirror [`hafen.render.sprite`](sprites.md), with `model` in pla
 | Option | Default | Meaning |
 |---|---|---|
 | `model` | *required* | a [`hafen.asset`](../asset.md) **mesh handle** — [handle-only](README.md#handle-only); a path string is an error |
-| `x`, `y` | *required* | world coordinates, like [`gob:pos()`](../gob.md); optional when `follow` is given |
+| `x`, `y` | *required* | world coordinates, like [`gob:pos()`](../gob.md) |
 | `a` | `0` | facing angle in **radians**, about the vertical |
 | `scale` | `1` | uniform scale **on top of** the baked model-to-world size |
 | `alpha` | `1` | opacity `0..1` |
 | `tint` | *none* | colour overlay `{r=, g=, b=, a=}`, `0..255`, where `a` is blend strength |
 | `clickable` | `false` | opt into [the click event](#clickability); the mesh renders into the pick surface |
 | `onClick` | *none* | `fn(o, button, x, y)` fired on click, also the owner-scoped [`ObjectClicked`](../events.md#world-ghosts-and-sprites) event |
-| `follow` | *none* | **anchor to a gob** so the object tracks it every frame, as a [sprite does](sprites.md#anchoring-to-a-gob) |
-| `offset` | *none* | fixed world offset `{x=, y=, z=}` from the followed gob, `z` being up |
 
 ## Object handle
 
@@ -82,16 +80,14 @@ so calls chain.
 
 | Method | Description |
 |---|---|
-| `o:move(x, y, a)` | reposition in world coords, optionally re-facing — **detaches** any follow anchor |
+| `o:move(x, y, a)` | reposition in world coords, optionally re-facing |
 | `o:rotate(a)` | set facing in radians, keeping position |
 | `o:scale(k)` | uniform scale on top of the baked size |
 | `o:alpha(a)` | opacity `0..1` |
 | `o:tint(color)` | colour overlay `{r=, g=, b=, a=}`; `nil` clears it |
 | `o:clickable(bool)` | toggle the pick surface |
 | `o:show()` / `o:hide()` | add to or remove from the scene, keeping the object |
-| `o:follow(gob, offset)` | anchor to a gob and auto-follow it; `o:follow(nil)` detaches |
-| `o:offset{x=, y=, z=}` | move it relative to the followed gob, and keep following |
-| `o:pos()` | `{x, y, a, scale}`, plus `following` — the anchored gob id — when there is one |
+| `o:pos()` | `{x, y, a, scale}` |
 | `o:mesh()` | the addon-relative model path |
 | `o:destroy()` | remove it now; also automatic on reload, disable and relogin |
 

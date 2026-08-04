@@ -345,8 +345,14 @@ public final class AddonManager {
 
             // 1. Gob spawn/despawn captured on network/loader threads → dispatch on the UI thread.
             GobEvent ge;
-            while((ge = gobEvents.poll()) != null)
+            while((ge = gobEvents.poll()) != null) {
+                // 038.2: an overlay dies with its gob. Done BEFORE the event reaches Lua, so a GobRemoved handler
+                // already reads the truth — and it is what a world-space overlay costs: its visual is a
+                // client-only gob of its own, which nothing disposes just because the target left OCache.
+                if(!ge.added)
+                    LuaGobOverlay.gobGone(ge.gob);
                 fireGob(ge.added ? "GobAdded" : "GobRemoved", ge.gob.id);
+            }
 
             // 1a. HTTP results (N2a): a pool worker finished a request → deliver its res table to the addon's
             //     callback on the UI thread (armed + isolated, like every other event). A cancelled/torn-down

@@ -31,6 +31,10 @@
   attrib, and a gob dropped from `OCache.objs` takes them with it — so state attached to a gob needs no
   prune, unlike an addon-side map keyed by gob id (D-100). `setattr` (:618) adds a `RenderTree.Node`
   attrib to the gob's slots and can throw **`Loading`**; it also `dispose()`s whatever it displaced.
+- **…but "for free" is GC, not `dispose()`**: [`OCache.remove`](src/haven/OCache.java:95) only calls
+  `ob.removed()` ([:477](src/haven/Gob.java:477), sets a flag) — `Gob.dispose()` is NOT on that path. So
+  anything a gob merely *points at* elsewhere (its own client gob in the scene, a GL resource) must be
+  ended on the `GobRemoved` seam: the screen-vs-world `gob:overlay` asymmetry, and `follow=`'s orphan (D-102).
 - **`ctick` self-removes a VIRTUAL gob** when `ols.isEmpty()` and it has no `Drawable`
   ([:463](src/haven/Gob.java:463)) — a client-only gob must keep something in one of the two, or it
   vanishes on the next tick. `ctick` also drops a finished overlay (`ol.tick(dt)` true, :456).

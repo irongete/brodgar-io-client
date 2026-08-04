@@ -174,3 +174,23 @@
 - **Pre-existing repo state:** `addons/planner/cube.glb` is byte-identical to `addons/hello/tank.glb` (both 2 MB), not the
   940-byte R3a cube the R3b-2 docs describe — flagged to the maintainer (it may make `:planner object` stand a tank; out
   of R3c scope, untouched). Worth a check before the next planner in-game test.
+- **(038.2) `OCache.remove` does NOT dispose a gob — which is why half of "dies with the gob" is free and half
+  is not.** `OCache.remove(ob)` ([:95](../../../src/haven/OCache.java:95)) drops the map entry and calls
+  `ob.removed()`, which only sets the `removed` flag; `Gob.dispose()` ([:561](../../../src/haven/Gob.java:561)),
+  the thing that disposes every `GAttrib`, is **not** on that path. So a screen-space overlay (a `GAttrib`) dies
+  by GC along with its `Gob`, costing nothing — while a world-space one, whose visual is a *separate* client-only
+  gob in the MapView scene, survives its target's despawn untouched. That is the latent bug `follow=` had: an
+  anchored sprite whose target was felled floated on forever with no owner, because `FollowMoving.getc()` holds
+  at the last position when `oc.getgob(tgt)` answers null. The fix hangs on the `GobRemoved` drain (D-102).
+- **(038.2) The world-space entity creators split cleanly into "public entry" + "make", and the anchor becomes a
+  parameter.** `newSprite`/`newObject`/`newGhost` each kept their option parsing and gained a `make*(owner, opts,
+  long tgt, Coord3f off)` body returning the `LuaWorldEntity` instead of the handle; the public entry demands
+  `x`/`y` and refuses `follow=`, and `gob:overlay`'s world half calls `make*` with the target gob id. The spec
+  table doubles as the entity's options table with **no adapter at all** — `image`/`model` are already the option
+  names, `scale`/`alpha`/`tint`/`a`/`billboard` are read where they always were, and only `ghost` → `res` needs a
+  parameter. A re-fronting that needs a mapping layer is usually re-fronting the wrong seam.
+- **(038.2) An absorbed entity must be hidden from the collection it still belongs to.** A world overlay's entity
+  is registered in `Addon.ghosts`/`sprites`/`objects` exactly like a free one — which is what makes teardown free
+  — so `hafen.ghost.list()` would have handed its raw handle (with `:destroy()`/`:move()`) straight back out. One
+  `asOverlay` boolean on `LuaWorldEntity` plus one condition in `ghostList` closes it (D-103). Falsifying it (the
+  flag ignored) reddened 2 probe checks.

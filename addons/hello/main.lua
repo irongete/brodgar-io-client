@@ -1889,7 +1889,7 @@ end)
 -- sound, ":hello sound" toggles a long clip through the 024.2 live set, and ":hello echo <text...>" shows the args rejoined (quoting survives — :hello echo "a b" c -> a b c).
 local demoGhost   -- V1: the handle of the manual :hello ghost demo while placed (nil = none); session-local
 local demoSprite  -- R2a: the handle of the manual :hello sprite demo while placed (nil = none); session-local
-local demoFollow  -- R2a anchor: the handle of the :hello follow demo (a sprite anchored to you); session-local
+local demoFollow  -- 038.2: the Overlay object of the :hello follow demo (an image ON your gob); session-local
 local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-facing sprite); session-local
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 -- 026.2: the text-cache bound check. The toggle is assigned beside the HUD overlay far below (that is where the
@@ -2012,20 +2012,23 @@ hafen.slash.register("hello", function(args)
         :format(p.x, p.y))
     end
   elseif sub == "follow" then
-    -- R2a ANCHOR: a world sprite anchored to a gob that FOLLOWS it automatically, like a gob overlay (no polling).
-    -- hafen.render.sprite{ follow = <Gob object>, offset = {x=,y=,z=} } -> the sprite tracks the gob every frame;
-    -- z = up, so offset {z=18} floats it ~1.6 tiles above your head. Since 017 `follow` takes the Gob OBJECT, not
-    -- an id or a token (D-044). It keeps its own facing/scale; :offset moves it relative to the gob (keeps
-    -- following) and a plain :move detaches. Here it anchors to YOU -- walk around and it follows.
+    -- 038.2: `follow=` is GONE. A drawn thing attached to a GAME OBJECT is gob:overlay(key, spec) -- the same one
+    -- verb that carries the screen-space kinds, now with the world-space ones: {image = asset}, {model = asset},
+    -- {ghost = "<res>"}, with offset = {x=,y=,z=} in WORLD units (z = up), so {z=18} floats it ~1.6 tiles over the
+    -- head. It is keyed per addon, reads back through gob:overlay(), and it DIES WITH THE GOB -- which is what the
+    -- old anchor could not do (a sprite following a felled tree floated there forever). Removal is the third
+    -- arity, gob:overlay(key, nil). Here it anchors to YOU -- walk around and it follows.
     if demoFollow then
-      demoFollow:destroy(); demoFollow = nil
-      hafen.log(":hello follow -> destroyed")
+      local me = hafen.player() and hafen.player():gob()
+      if me then me:overlay("hello-follow", nil) end
+      demoFollow = nil
+      hafen.log(":hello follow -> removed")
     else
       if not icon then hafen.log(":hello follow -> icon.png not loaded yet (OnLoad)"); return end
       local me = hafen.player():gob()
       if not me then hafen.log(":hello follow -> no player gob yet"); return end
-      demoFollow = hafen.render.sprite{ image = icon, scale = 2, follow = me, offset = { z = 18 } }
-      if not demoFollow then hafen.log(":hello follow -> hafen.render.sprite returned nil (not in the world yet?)"); return end
+      demoFollow = me:overlay("hello-follow", { image = icon, scale = 2, offset = { z = 18 } })
+      if not demoFollow then hafen.log(":hello follow -> gob:overlay returned nil (not in the world yet?)"); return end
       hafen.log(":hello follow -> icon.png now FLOATS above your head and FOLLOWS you -- walk around; :hello follow again to remove")
     end
   elseif sub == "object" then

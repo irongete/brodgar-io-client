@@ -1444,6 +1444,11 @@ final class UiApi {
      * state lives on the gob precisely so that nothing else ever sweeps — and it runs at a rare moment.
      * Mutating a gob's render slots is done under {@code synchronized(ui)} (like {@link #destroyWidgets})
      * because teardown may run off the UI thread (session bind). The game's own overlays are untouched.
+     *
+     * <p>Each record is <b>disposed</b> as it is dropped (038.2), because a world-space one owns a client-only
+     * entity in the 3D scene. In {@code AddonRegistry.teardown}'s order the per-kind entity teardowns have
+     * already destroyed it and {@code destroyEntity} is idempotent, so this is belt and braces — but it is what
+     * makes the sweep correct on its own terms rather than by standing behind three other sweeps.
      */
     static void teardownGobOverlays(Addon a) {
         UI u = ui;
@@ -1451,8 +1456,14 @@ final class UiApi {
             try {
                 for(Gob g : allGobs()) {
                     LuaGobOverlay ol = LuaGobOverlay.on(g);
-                    if((ol != null) && ol.removeOwner(a))
+                    if(ol == null)
+                        continue;
+                    List<LuaGobOverlay.Attach> gone = ol.removeOwner(a);
+                    if(!gone.isEmpty()) {
+                        for(LuaGobOverlay.Attach rec : gone)
+                            rec.dispose();
                         LuaGobOverlay.prune(g);
+                    }
                 }
             } catch(RuntimeException e) {
                 /* best-effort cleanup — a leftover idle attrib draws nothing anyway */

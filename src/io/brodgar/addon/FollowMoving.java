@@ -5,10 +5,19 @@ import haven.Gob;
 import haven.Moving;
 
 /**
- * A client-side {@link Moving} that anchors a client-only world entity (a {@link LuaGhost} or {@link LuaSprite})
- * to a <b>target gob</b>, so it <b>follows that gob automatically</b> — the {@code hafen.render.sprite}/
- * {@code hafen.ghost} {@code :follow} verb. It is the world-space analog of {@code hafen.ui.gobOverlay}: attach
- * once and it tracks the gob every frame, with no per-tick polling in Lua.
+ * A client-side {@link Moving} that anchors a client-only world entity (a {@link LuaGhost}, {@link LuaSprite} or
+ * {@link LuaObject}) to a <b>target gob</b>, so it <b>follows that gob automatically</b>. Since 038.2 it is the
+ * world-space half of {@code gob:overlay(key, spec)} — {@code {image = asset}}, {@code {model = asset}},
+ * {@code {ghost = res}} — and reachable from Lua no other way: the {@code follow = gob} option and the handles'
+ * {@code :follow}/{@code :offset} it used to serve are a hard cut, because an anchor belongs on the thing it is
+ * anchored to. Attach once and it tracks the gob every frame, with no per-tick polling in Lua.
+ *
+ * <p><b>A lost target is a MOMENT, not a state</b> (plan §2b). {@link #getc()} holds at the entity's last
+ * position when the target has left {@code OCache} — which, under {@code follow=}, was forever: a sprite
+ * following a felled tree floated there with no owner. It is now at most one frame, because the record that owns
+ * the entity lives on the target gob and {@code LuaGobOverlay.gobGone} destroys it from the same tick that
+ * dispatches the client's own {@code GobRemoved}. Reporting the loss from here instead would need someone to
+ * report it TO, and the only such someone is a sweep — which is the thing this feature deleted.
  *
  * <p><b>Mechanism.</b> The engine's {@code Gob.getc()} uses a gob's {@link Moving} attrib for its live position;
  * the render tree re-evaluates each client gob's placement every frame ({@code Gob.Placed.autotick} → a new
@@ -21,11 +30,11 @@ import haven.Moving;
  * <p>Unlike {@code Following} this is NOT a {@code Following} subclass, so {@code Gob.Placed} takes the plain
  * {@code getc()} path (translate to the followed point, then rotate by the entity's own {@code a}) rather than the
  * bone-transform path. {@code move(Coord2d)} is inherited as a no-op — while anchored the position is owned by the
- * target; the handle's {@code :move} detaches the follow (removing this attrib) to hand control back to Lua.
+ * target, and the only way to move an overlay is to re-attach it with a different {@code offset}.
  *
  * <p><b>Threading.</b> {@link #getc()} runs on the render/loader threads (the placement pass); {@code oc.getgob}
  * is {@code synchronized} and {@code Gob.getc()} is the engine's own thread-safe position read, so no extra
- * locking is needed. {@link #off} is {@code volatile} (set from the UI thread by {@code :offset}). Attaching /
+ * locking is needed. {@link #off} is {@code volatile} (a leftover from the retired :offset verb; it is now set once, at create). Attaching /
  * detaching this attrib is done under {@code synchronized(gob)} by {@link AddonManager}.
  */
 public final class FollowMoving extends Moving {

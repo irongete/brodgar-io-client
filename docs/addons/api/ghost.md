@@ -43,8 +43,6 @@ disable and relogin, leaking nothing.
 | `scale` | number | `1` | uniform scale; `1` is original size |
 | `clickable` | boolean | `false` | opt-in pick surface — see [clickability](#clickability) |
 | `onClick` | function | *none* | `fn(g, button, x, y)` fired on click, also delivered as the [`GhostClicked`](events.md#world-ghosts-and-sprites) event |
-| `follow` | Gob | *none* | **anchor** to a gob so it follows automatically — see [anchoring](#anchoring-to-a-gob) |
-| `offset` | `{x=, y=, z=}` | *none* | fixed world offset from the followed gob, `z` being up |
 
 For `list`, `filter` is the canonical [filter](conventions.md#the-filter-argument) adapted to handles:
 `nil` is all of them, a **string** is a substring match on the ghost's `res`, and a **function** is called
@@ -56,8 +54,7 @@ with the ghost **handle**, so it can call `g:pos()`, with a truthy return keepin
 
 ## The ghost handle
 
-Every method returns the handle except `:pos()` and `:res()`, so calls chain. A plain `g:move` **detaches**
-any follow.
+Every method returns the handle except `:pos()` and `:res()`, so calls chain.
 
 | Method | Description |
 |---|---|
@@ -68,9 +65,7 @@ any follow.
 | `g:tint(color)` | colour overlay `{r, g, b, a}`, `0..255`; `nil` clears it |
 | `g:scale(s)` | uniform scale, `1` being original size |
 | `g:show()` / `g:hide()` | add to or remove from the 3D scene, keeping the ghost |
-| `g:follow(gob, offset)` | [anchor](#anchoring-to-a-gob) to a gob; `g:follow(nil)` detaches |
-| `g:offset{x=, y=, z=}` | change the world offset from the followed gob, and keep following |
-| `g:pos()` | `{x, y, a, scale}`, plus `following` — the anchored gob id — when there is one |
+| `g:pos()` | `{x, y, a, scale}` |
 | `g:res()` | the resource name |
 | `g:clickable(bool)` | toggle the pick surface |
 | `g:destroy()` | remove it now; also automatic on reload and disable. Idempotent |
@@ -150,20 +145,18 @@ click, and `GhostClicked` reaches only *your* addon, since a ghost is private to
 > surface and never wins a pick, so it is click-through — clicks pass straight through it to the real object
 > or the ground behind it, and ordinary play is unaffected.
 
-## Anchoring to a gob
+## A ghost ON a gob is an overlay
 
-A ghost, like a [sprite](render/sprites.md#anchoring-to-a-gob), can be **anchored to a gob** so it follows
-it every frame with no per-tick code of your own — the world analog of a screen-space
-[`gob:overlay`](gob.md#overlays). Pass a `follow` target, a [Gob object](gob.md), to `new`, or
-call `g:follow(gob)` later; an optional world `offset` places it relative to the gob, `z` being up. It keeps
-its own facing and scale, `g:offset{…}` adjusts the offset while it keeps following, and a manual `g:move`
-detaches it.
+`hafen.ghost` stands a prop at a **fixed world point**. To hang one on a *game object* so it tracks that
+object every frame, the verb is [`gob:overlay`](gob.md#overlays) — it keys the thing per addon, reads back
+through `gob:overlay()`, and **dies with the gob** instead of floating on where a felled tree used to be.
 
 ```lua
-local g = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin",
-                           follow = hafen.player():gob(), offset = { z = 20 } }
--- the cabin now floats over your head and follows you; g:follow(nil) drops it in place
+hafen.player():gob():overlay("hat", { ghost = "gfx/terobjs/arch/logcabin", offset = { z = 20 } })
 ```
+
+> `follow =` and the handle's `:follow`/`:offset` are **gone**. Passing `follow` raises, naming
+> `gob:overlay`; the methods read as plain `nil`.
 
 ## Layouts and persistence
 

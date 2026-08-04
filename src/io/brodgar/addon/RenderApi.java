@@ -59,18 +59,16 @@ final class RenderApi {
         //   tint     = {r=,g=,b=[,a=]} -- V3: colour overlay 0..255 (a = blend strength, default 255)
         //   clickable = true         -- V2: opt-in pick-selectability (default false)
         //   onClick = fn(g,button,x,y) -- V2: fires on click (also via the GhostClicked event)
-        //   follow = gob             -- ANCHOR to a gob (id / "player" / "me"): the ghost tracks it every frame
-        //   offset = {x=,y=,z=}      -- fixed world offset from the followed gob (z = up)
+        // follow= is GONE (038.2, hard cut): a thing attached to a GAME OBJECT is gob:overlay(key, {ghost=...}).
+        // This namespace stands things at a FIXED world point; passing follow= RAISES naming the replacement.
         // Returns a handle:
-        //   :move(x, y [, a])  -- reposition (+ optional facing); DETACHES any :follow anchor
+        //   :move(x, y [, a])  -- reposition (+ optional facing)
         //   :rotate(a)         -- V3: set facing (radians), keeping position
         //   :setRes(res[,sdt]) -- V3: swap the visual (streams in like new)
         //   :alpha(a)          -- V3: opacity 0..1 (1 = opaque)
         //   :tint(color|nil)   -- V3: colour overlay {r=,g=,b=[,a=]} (nil clears)
         //   :show() / :hide()  -- V3: add / remove the scene slot (keeps the ghost)
-        //   :follow(gob[,{x=,y=,z=}]) -- ANCHOR to a gob and auto-track it (like a gob overlay); :follow(nil) detaches
-        //   :offset{x=,y=,z=}  -- move it relative to the followed gob (keeps following)
-        //   :pos()             -- {x, y, a, scale [, following]} (following = the anchored gob id, if any)
+        //   :pos()             -- {x, y, a, scale}
         //   :res()             -- the resource name (string)
         //   :clickable(bool)   -- V2: toggle the pick surface
         //   :destroy()         -- remove now (also automatic on reload/disable)
@@ -110,12 +108,10 @@ final class RenderApi {
         //   billboard = false       -- false (default) = a FIXED upright quad (R2a); true = a CAMERA-FACING screen blit (R2b)
         //   clickable = true        -- opt into the V2 pick (fixed sprites only; a billboard has no world mesh → never picked)
         //   onClick = fn(s,btn,x,y) -- per-sprite click callback (also delivered as the owner-scoped SpriteClicked event)
-        //   follow = gob            -- ANCHOR to a gob (id / "player" / "me"): the sprite tracks it every frame
-        //   offset = {x=,y=,z=}     -- fixed world offset from the followed gob (z = up; e.g. {z=10} floats it overhead)
+        // follow= is GONE (038.2, hard cut): an image ON A GOB is gob:overlay(key, {image = asset}), which keys it,
+        // reads it back and dies with the gob. Passing follow= here RAISES naming that replacement.
         // Returns a transform handle (gizmo-compatible), like a ghost but with :image() in place of :res():
         //   :move(x,y[,a]) :rotate(a) :scale(s) :alpha(a) :tint(color|nil) :clickable(bool) :show() :hide() :pos() :image() :destroy()
-        //   :follow(gob[, {x=,y=,z=}])  -- ANCHOR to a gob and auto-track it (like a gob overlay); :follow(nil) detaches
-        //   :offset{x=,y=,z=}           -- move it relative to the followed gob (it keeps following); a plain :move detaches
         // Returns nil only if there is no map view yet (not in the world). Both forms are resource-free visuals on the
         // shared core, so they get the full transform + look + gizmo for free (a billboard ignores world-rotate/scale).
         render.set("sprite", new OneArgFunction() {
@@ -123,18 +119,18 @@ final class RenderApi {
                 return newSprite(owner, opts);
             }
         });
-        // hafen.render.object{model, x, y [, a] [, scale] [, alpha] [, tint] [, clickable] [, onClick] [, follow]
-        // [, offset]} — stand a custom glTF MODEL in the 3D world (spec 18, R3). The mesh sibling of a sprite/ghost,
+        // hafen.render.object{model, x, y [, a] [, scale] [, alpha] [, tint] [, clickable] [, onClick]}
+        // — stand a custom glTF MODEL in the 3D world (spec 18, R3). The mesh sibling of a sprite/ghost,
         // on the SAME virtual-entity core + gizmo: a Gob with no server id (SAFE-tier, NOT gated, D-034). model = a
         // hafen.asset mesh HANDLE — handle-only (028.2, D-012): a path string raises an error naming hafen.asset;
         // x,y = world coords (like gob:pos()); a = facing radians (default 0). Options mirror hafen.render.sprite:
         //   scale = 2               -- uniform scale (default 1) on top of the baked model→world size
         //   alpha = 0.5             -- opacity 0..1 (default 1); tint = {r=,g=,b=[,a=]} colour overlay 0..255
         //   clickable = true        -- opt into the V2 pick (the mesh renders into the clickmap) → ObjectClicked / onClick
-        //   follow = gob / offset = {x=,y=,z=}   -- anchor to a gob and track it every frame (like a sprite)
+        // follow= is GONE (038.2, hard cut): a model ON A GOB is gob:overlay(key, {model = asset}); passing follow=
+        // here RAISES naming that replacement.
         // Returns a transform handle (gizmo-compatible), like a sprite but with :mesh() in place of :image():
         //   :move(x,y[,a]) :rotate(a) :scale(s) :alpha(a) :tint(color|nil) :clickable(bool) :show() :hide() :pos() :mesh() :destroy()
-        //   :follow(gob[, {x=,y=,z=}])  :offset{x=,y=,z=}
         // Returns nil only if there is no map view yet (not in the world). The glTF origin maps to the gob position, so
         // author a model with its base at Y=0 to stand on the ground.
         render.set("object", new OneArgFunction() {
@@ -162,36 +158,46 @@ final class RenderApi {
     private static LuaValue newGhost(final Addon owner, LuaValue opts) {
         if(!opts.istable())
             throw new LuaError("hafen.ghost.new{res=..., x=..., y=...} expects an options table");
+        refuseFollow(opts, "hafen.ghost.new", "{ghost = <res name>}");
         LuaValue resv = opts.get("res");
         if(!resv.isstring())
             throw new LuaError("hafen.ghost.new: 'res' must be a resource name string (e.g. \"gfx/terobjs/arch/logcabin\")");
         LuaValue xv = opts.get("x"), yv = opts.get("y");
         if(!xv.isnumber() || !yv.isnumber())
             throw new LuaError("hafen.ghost.new: 'x' and 'y' must be numbers (world coordinates, like gob:pos())");
+        LuaGhost gh = makeGhost(owner, opts, resv.tojstring(), 0, null);
+        return (gh == null) ? LuaValue.NIL : gh.handle;
+    }
+
+    /**
+     * Build a ghost and publish it — the body of {@link #newGhost}, shared with the world-space half of
+     * {@code gob:overlay(key, {ghost = res})} (038.2). {@code tgt != 0} anchors it to that gob id (a
+     * {@link FollowMoving}, applied at publish so a still-streaming visual is anchored the moment it lands);
+     * {@code tgt == 0} is the fixed placement {@code hafen.ghost.new} makes. Returns {@code null} when there is
+     * no map view (not in the world). Every other option is read from {@code opts} exactly as before.
+     */
+    private static LuaGhost makeGhost(final Addon owner, LuaValue opts, final String resName, long tgt, Coord3f off) {
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
-            return LuaValue.NIL;                       // not in the world yet — no scene to add to
+            return null;                               // not in the world yet — no scene to add to
         LuaValue av = opts.get("a");
         LuaValue clickablev = opts.get("clickable");   // V2: opt-in pick-selectability (default false)
         LuaValue onclickv = opts.get("onClick");       // V2: per-ghost click callback fn(g, button, x, y)
-        final String resName = resv.tojstring();
         // remote() = the game/server resource pool (terobjs, gobs, …), with local() as a fallback for
         // client-bundled resources — the pool the engine itself uses for gob drawables (Session/Music/Widget).
         // local() alone would only find the client jar, so a terobj like gfx/terobjs/arch/logcabin never resolves.
         final Indir<Resource> resid = Resource.remote().load(resName);
         final LuaGhost gh = new LuaGhost(owner, resid, resName,
-                                         new Coord2d(xv.todouble(), yv.todouble()),
+                                         new Coord2d(opts.get("x").optdouble(0.0), opts.get("y").optdouble(0.0)),
                                          av.isnumber() ? av.todouble() : 0.0);
         gh.sdt = luaSdt(opts.get("sdt"));              // V3: optional spawn-data bytes (null ⇒ MessageBuf.nil)
         gh.alpha = luaAlpha(opts.get("alpha"));        // V3: opacity 0..1 (default 1 = opaque)
         gh.tint = luaTint(opts.get("tint"));           // V3: colour overlay {r=,g=,b=[,a=]}, or null
         gh.scale = luaScale(opts.get("scale"));        // V6: uniform scale (default 1 = original size)
-        LuaValue gfollowv = opts.get("follow");        // ANCHOR: follow a gob (a Gob object), optional
-        if(!gfollowv.isnil()) {
-            gh.followTgt = followTargetId(gfollowv);
-            gh.followOff = luaOffset(opts.get("offset"));   // {x=,y=,z=} world offset from the gob (default none)
-        }
+        gh.followTgt = tgt;                            // 038.2: the ANCHOR, now reachable only through gob:overlay
+        gh.followOff = off;
+        gh.asOverlay = (tgt != 0);
         gh.clickable = clickablev.toboolean();         // V2: nil/false → not clickable; true → clickable
         if(onclickv.isfunction())
             gh.onClick = onclickv;
@@ -243,7 +249,7 @@ final class RenderApi {
                 }
             }
         }, null);
-        return handle;
+        return gh;
     }
 
     /**
@@ -264,14 +270,11 @@ final class RenderApi {
                     throw new LuaError(":move(x, y [, a]) expects world coordinates (numbers) — use a COLON call");
                 synchronized(e) {
                     if(!e.dead) {
-                        e.followTgt = 0;             // a manual move takes control back from any :follow anchor
                         e.rc = new Coord2d(xv.todouble(), yv.todouble());
                         if(av.isnumber())
                             e.a = av.todouble();
-                        if(e.gob != null) {
-                            detachFollowAttr(e.gob);  // drop the FollowMoving so the manual position sticks
+                        if(e.gob != null)
                             e.gob.move(e.rc, e.a);   // live gob → reposition now; else the deferred create applies it
-                        }
                     }
                 }
                 return a.arg1();
@@ -325,40 +328,11 @@ final class RenderApi {
         h.set("hide", new VarArgFunction() {            // V3: remove the scene slot (keeps the entity)
             public Varargs invoke(Varargs a) { hideEntity(e); return a.arg1(); }
         });
-        h.set("follow", new VarArgFunction() {          // ANCHOR: track a gob automatically (like a gob overlay)
-            public Varargs invoke(Varargs a) {
-                LuaValue ref = a.arg(2), offv = a.arg(3);
-                if(ref.isnil()) {                        // :follow(nil) → detach, hold current position
-                    setEntityFollow(e, 0, null);
-                } else {
-                    setEntityFollow(e, followTargetId(ref), luaOffset(offv));
-                }
-                return a.arg1();
-            }
-        });
-        h.set("offset", new VarArgFunction() {          // ANCHOR: the fixed world offset from the followed gob
-            public Varargs invoke(Varargs a) {
-                LuaValue ov = a.arg(2);
-                if(!ov.isnil() && !ov.istable())
-                    throw new LuaError(":offset{x=,y=,z=} expects a table of world-unit offsets (or nil to clear) — use a COLON call");
-                setEntityOffset(e, ov.isnil() ? null : luaOffset(ov));
-                return a.arg1();
-            }
-        });
+        // :follow / :offset are GONE (038.2, hard cut) — they read as plain nil. Anchoring a drawn thing to a game
+        // object is gob:overlay(key, spec), which keys it, reads it back and ends it with the gob; what is left
+        // here places something at a fixed world point, so there is no anchor to set or clear.
         h.set("pos", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable t = new LuaTable();
-                synchronized(e) {
-                    Coord2d rc = entityWorldPos(e);      // the LIVE position (the followed gob's, while anchored)
-                    t.set("x", LuaValue.valueOf(rc.x));
-                    t.set("y", LuaValue.valueOf(rc.y));
-                    t.set("a", LuaValue.valueOf(e.a));
-                    t.set("scale", LuaValue.valueOf((double)e.scale));   // V6: the full transform is {x,y,a,scale}
-                    if(e.followTgt != 0)
-                        t.set("following", LuaValue.valueOf((double)e.followTgt));   // the anchored gob id, if any
-                }
-                return t;
-            }
+            public LuaValue call() { return entityPos(e); }
         });
         h.set("destroy", new VarArgFunction() {
             public Varargs invoke(Varargs a) { destroyEntity(e); return a.arg1(); }
@@ -406,7 +380,7 @@ final class RenderApi {
         LuaTable out = new LuaTable();
         int i = 0;
         for(LuaGhost gh : owner.ghosts) {              // copy-on-write: a filter fn may create/destroy a ghost
-            if(gh.dead || (gh.handle == null))
+            if(gh.dead || (gh.handle == null) || gh.asOverlay)   // 038.2: an overlay's ghost is reached through gob:overlay
                 continue;
             if(entityMatches(filter, gh))
                 out.set(++i, gh.handle);
@@ -499,19 +473,29 @@ final class RenderApi {
     private static LuaValue newObject(Addon owner, LuaValue opts) {
         if(!opts.istable())
             throw new LuaError("hafen.render.object{model=..., x=..., y=...} expects an options table");
+        refuseFollow(opts, "hafen.render.object", "{model = <asset>}");
         LuaValue xv = opts.get("x"), yv = opts.get("y");
-        LuaValue followv = opts.get("follow");
-        boolean hasFollow = !followv.isnil();
-        if(!hasFollow && (!xv.isnumber() || !yv.isnumber()))
-            throw new LuaError("hafen.render.object: 'x' and 'y' must be numbers (world coordinates, like gob:pos()) — or pass follow=gob instead");
+        if(!xv.isnumber() || !yv.isnumber())
+            throw new LuaError("hafen.render.object: 'x' and 'y' must be numbers (world coordinates, like gob:pos())"
+                + " — to put a model ON a game object, use gob:overlay(key, {model = asset}) instead");
+        LuaObject ob = makeObject(owner, opts, 0, null);
+        return (ob == null) ? LuaValue.NIL : ob.handle;
+    }
+
+    /**
+     * Build an object and publish it — the body of {@link #newObject}, shared with the world-space half of
+     * {@code gob:overlay(key, {model = asset})} (038.2). {@code tgt != 0} anchors it to that gob id; {@code 0} is
+     * the fixed placement. Returns {@code null} when there is no map view (not in the world).
+     */
+    private static LuaObject makeObject(Addon owner, LuaValue opts, long tgt, Coord3f off) {
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
-            return LuaValue.NIL;                       // not in the world yet — no scene to add to
+            return null;                               // not in the world yet — no scene to add to
         LuaMesh mesh = resolveObjectMesh(opts.get("model"));   // AFTER the world check (don't validate when not in world)
         LuaValue av = opts.get("a");
         double a = av.isnumber() ? av.todouble() : 0.0;
-        Coord2d rc = new Coord2d(xv.optdouble(0.0), yv.optdouble(0.0));   // 0,0 placeholder when following
+        Coord2d rc = new Coord2d(opts.get("x").optdouble(0.0), opts.get("y").optdouble(0.0));   // 0,0 placeholder when anchored
         LuaObject ob = new LuaObject(owner, mesh, rc, a);
         ob.alpha = luaAlpha(opts.get("alpha"));
         ob.tint = luaTint(opts.get("tint"));
@@ -520,10 +504,9 @@ final class RenderApi {
         LuaValue onclickv = opts.get("onClick");
         if(onclickv.isfunction())
             ob.onClick = onclickv;
-        if(hasFollow) {
-            ob.followTgt = followTargetId(followv);
-            ob.followOff = luaOffset(opts.get("offset"));
-        }
+        ob.followTgt = tgt;                            // 038.2: the ANCHOR, now reachable only through gob:overlay
+        ob.followOff = off;
+        ob.asOverlay = (tgt != 0);
         owner.objects.add(ob);
         LuaValue handle = objectHandle(ob);
         ob.handle = handle;
@@ -537,14 +520,14 @@ final class RenderApi {
         gob.setattr(new SprDrawable(gob, MeshSprite.mill(mesh)));    // resource-free glTF-model visual (R3b: shared textures + per-material states)
         gob.move(rc, a);
         synchronized(ob) {
-            if(ob.dead) { gob.dispose(); return handle; }   // destroyed mid-build (defensive; all UI-thread)
+            if(ob.dead) { gob.dispose(); return ob; }   // destroyed mid-build (defensive; all UI-thread)
             ob.gob = gob;
             ob.mv = mv;
-            applyEntityFollow(ob, gob);                 // if follow= was given, start tracking the gob now
+            applyEntityFollow(ob, gob);                 // ANCHOR: an overlay's model starts tracking its gob now
             if(!ob.hidden)
                 ob.slot = mv.addClientGob(gob);         // the // addon: MapView seam (spec 16 §6); MapView now ticks it
         }
-        return handle;
+        return ob;
     }
 
     /**
@@ -618,20 +601,31 @@ final class RenderApi {
     private static LuaValue newSprite(Addon owner, LuaValue opts) {
         if(!opts.istable())
             throw new LuaError("hafen.render.sprite{image=..., x=..., y=...} expects an options table");
+        refuseFollow(opts, "hafen.render.sprite", "{image = <asset>}");
         LuaValue xv = opts.get("x"), yv = opts.get("y");
-        LuaValue followv = opts.get("follow");         // ANCHOR: follow a gob (a Gob object), optional
-        boolean hasFollow = !followv.isnil();
-        if(!hasFollow && (!xv.isnumber() || !yv.isnumber()))   // x/y are the placement; when following, the gob supplies it
-            throw new LuaError("hafen.render.sprite: 'x' and 'y' must be numbers (world coordinates, like gob:pos()) — or pass follow=gob instead");
+        if(!xv.isnumber() || !yv.isnumber())           // x/y are the placement — a sprite ON a gob is gob:overlay
+            throw new LuaError("hafen.render.sprite: 'x' and 'y' must be numbers (world coordinates, like gob:pos())"
+                + " — to put an image ON a game object, use gob:overlay(key, {image = asset}) instead");
+        LuaSprite sp = makeSprite(owner, opts, 0, null);
+        return (sp == null) ? LuaValue.NIL : sp.handle;
+    }
+
+    /**
+     * Build a sprite and publish it — the body of {@link #newSprite}, shared with the world-space half of
+     * {@code gob:overlay(key, {image = asset})} (038.2). {@code tgt != 0} anchors it to that gob id (a
+     * {@link FollowMoving} applied before the gob enters the scene); {@code tgt == 0} is the fixed placement.
+     * Returns {@code null} when there is no map view (not in the world).
+     */
+    private static LuaSprite makeSprite(Addon owner, LuaValue opts, long tgt, Coord3f off) {
         boolean billboard = opts.get("billboard").toboolean();   // R2b: true = camera-facing screen blit; false = fixed world quad
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
-            return LuaValue.NIL;                       // not in the world yet — no scene to add to
+            return null;                               // not in the world yet — no scene to add to
         LuaImage img = resolveSpriteImage(opts.get("image"));   // AFTER the world check (don't validate when not in world)
         LuaValue av = opts.get("a");
         double a = av.isnumber() ? av.todouble() : 0.0;
-        Coord2d rc = new Coord2d(xv.optdouble(0.0), yv.optdouble(0.0));   // 0,0 placeholder when following (the gob overrides)
+        Coord2d rc = new Coord2d(opts.get("x").optdouble(0.0), opts.get("y").optdouble(0.0));   // 0,0 placeholder when anchored
         LuaSprite sp = new LuaSprite(owner, img, rc, a, billboard);
         sp.alpha = luaAlpha(opts.get("alpha"));        // opacity 0..1 (default 1); combines with the PNG's own alpha
         sp.tint = luaTint(opts.get("tint"));           // colour overlay {r=,g=,b=[,a=]}, or null
@@ -640,10 +634,9 @@ final class RenderApi {
         LuaValue onclickv = opts.get("onClick");       // R2b: per-sprite click callback fn(s, button, x, y) — like a ghost
         if(onclickv.isfunction())
             sp.onClick = onclickv;
-        if(hasFollow) {                                // ANCHOR: track a gob every frame (the gob-overlay analog)
-            sp.followTgt = followTargetId(followv);
-            sp.followOff = luaOffset(opts.get("offset"));   // {x=,y=,z=} world offset from the gob (default none)
-        }
+        sp.followTgt = tgt;                            // 038.2: the ANCHOR, now reachable only through gob:overlay
+        sp.followOff = off;
+        sp.asOverlay = (tgt != 0);
         owner.sprites.add(sp);
         LuaValue handle = spriteHandle(sp);
         sp.handle = handle;
@@ -663,14 +656,14 @@ final class RenderApi {
         }
         gob.move(rc, a);
         synchronized(sp) {
-            if(sp.dead) { gob.dispose(); return handle; }   // destroyed mid-build (defensive; all UI-thread) → discard
+            if(sp.dead) { gob.dispose(); return sp; }   // destroyed mid-build (defensive; all UI-thread) → discard
             sp.gob = gob;
             sp.mv = mv;
-            applyEntityFollow(sp, gob);                 // ANCHOR: if follow= was given, start tracking the gob now
+            applyEntityFollow(sp, gob);                 // ANCHOR: an overlay's sprite starts tracking its gob now
             if(!sp.hidden)                              // a sprite hidden before it published stays out of the scene
                 sp.slot = mv.addClientGob(gob);         // the // addon: MapView seam (spec 16 §6); MapView now ticks it
         }
-        return handle;
+        return sp;
     }
 
     /**
@@ -907,96 +900,108 @@ final class RenderApi {
         }
     }
 
-    // ---- ANCHOR: follow a gob (hafen.render.sprite / hafen.ghost :follow) — the world-space gob-overlay analog ---
+    // ---- ANCHOR: the world-space half of gob:overlay (038.2) ---------------------------------------------------
 
     /**
-     * Anchor an entity to a target gob ({@code :follow(gob[, offset])}) or detach it ({@code tgt == 0}). While
-     * anchored, a {@link FollowMoving} on the gob makes the render tree place the entity at the target's live
-     * position + {@code off} <b>every frame</b> — no Lua polling (the {@code hafen.ui.gobOverlay} analog for a
-     * world entity). Detaching freezes it at the current followed position. Records the desired state so a
-     * still-pending (deferred ghost) create attaches it on publish ({@link #applyEntityFollow}). Under the entity
-     * monitor; the attrib attach/detach is done under {@code synchronized(gob)} (the lock the live res-swap uses).
+     * Refuse a {@code follow=} option, <b>naming its replacement</b> (038.2, hard cut). The anchor did not go away
+     * — it moved onto the thing it anchors to, where it can be keyed, read back and ended with the gob. A silently
+     * ignored {@code follow=} would leave a sprite standing at {@code 0,0} on the far side of the world with
+     * nothing to say why, which is exactly the failure D-072 exists to refuse.
      */
-    private static void setEntityFollow(LuaWorldEntity e, long tgt, Coord3f off) {
+    private static void refuseFollow(LuaValue opts, String where, String spec) {
+        if(opts.get("follow").isnil() && opts.get("offset").isnil())
+            return;
+        throw new LuaError(where + ": 'follow'/'offset' are GONE — a drawn thing attached to a GAME OBJECT is now"
+            + " gob:overlay(key, " + spec + "), which keys it per addon, reads back through gob:overlay() and dies"
+            + " with the gob; this namespace stands things at a fixed world point");
+    }
+
+    /**
+     * Build the world-space half of {@code gob:overlay(key, spec)} (038.2): a client-only entity — a sprite
+     * ({@code image}), an object ({@code model}) or a ghost ({@code ghost}) — anchored to {@code tgt} by a
+     * {@link FollowMoving}, so the render tree places it at the gob's live interpolated position + {@code off}
+     * every frame with no Lua polling. The spec table doubles as the entity's own options table, so
+     * {@code scale}/{@code alpha}/{@code tint}/{@code a}/{@code billboard} all mean what they mean everywhere else.
+     *
+     * <p>The entity is registered in its addon's owned-resource registry exactly like any other, so {@code :reload}
+     * and disable free it through the teardown that already exists — but it is flagged {@link
+     * LuaWorldEntity#asOverlay}, so it never appears in {@code hafen.ghost.list()}: an overlay is reached through
+     * {@code gob:overlay}, and a second door handing out a raw handle with {@code :destroy()} on it would let an
+     * addon kill the visual behind a record that still reads as attached.
+     */
+    static LuaWorldEntity overlayEntity(Addon owner, long tgt, LuaValue spec, String kind, Coord3f off) {
+        if(!spec.get("clickable").isnil() || !spec.get("onClick").isnil())
+            throw new LuaError("gob:overlay(key, spec): 'clickable'/'onClick' are not overlay properties — the thing"
+                + " under an overlay is the GOB, and a click on a gob is the client's own (hafen.act.clickGob)");
+        LuaWorldEntity e;
+        if(kind.equals("image"))
+            e = makeSprite(owner, spec, tgt, off);
+        else if(kind.equals("model"))
+            e = makeObject(owner, spec, tgt, off);
+        else
+            e = makeGhost(owner, spec, spec.get("ghost").tojstring(), tgt, off);
+        if(e == null)
+            throw new LuaError("gob:overlay(key, spec): there is no map view yet — a world-space overlay needs the"
+                + " 3D scene, so attach it once you are in the world (OnEnterWorld / GobAdded)");
+        return e;
+    }
+
+    /** Destroy the entity behind a world-space overlay — the record's own end (replace / remove / the gob's death). */
+    static void destroyOverlayEntity(LuaWorldEntity e) {
+        destroyEntity(e);
+    }
+
+    /**
+     * {@code overlay:tint/:alpha/:scale/:rotate} on a world-space overlay — the look and facing verbs the entity
+     * already has, composed onto the Overlay object (plan §3) rather than re-implemented, so absorbing
+     * {@code follow=} takes nothing away. Position is NOT among them: an overlay's position is its gob's, and the
+     * only thing an addon sets is the {@code offset} its spec names.
+     */
+    static void overlayTint(LuaWorldEntity e, java.awt.Color c) { setEntityTint(e, c); }
+    static void overlayAlpha(LuaWorldEntity e, double a)        { setEntityAlpha(e, clampAlpha(a)); }
+    static void overlayScale(LuaWorldEntity e, double s)        { setEntityScale(e, clampScale(s)); }
+
+    /** {@code overlay:rotate(a)} — the entity keeps its OWN facing while it follows (FollowMoving supplies only the point). */
+    static void overlayRotate(LuaWorldEntity e, double a) {
         synchronized(e) {
             if(e.dead)
                 return;
-            e.followTgt = tgt;
-            e.followOff = off;
-            Gob gob = e.gob;
-            if(gob == null)
-                return;                                  // no live gob yet → the pending create applies the follow
-            synchronized(gob) {
-                if(tgt != 0) {
-                    gob.setattr(new FollowMoving(gob, tgt, off));   // start following — autotick picks it up next frame
-                } else {
-                    Moving m = gob.getattr(Moving.class);
-                    if(m instanceof FollowMoving) {                 // detach: freeze at the last followed point
-                        Coord3f cur;
-                        try { cur = gob.getc(); } catch(RuntimeException ex) { cur = null; }
-                        gob.delattr(Moving.class);
-                        if(cur != null)
-                            e.rc = new Coord2d(cur.x, cur.y);        // hold there (ground z re-derived at placement)
-                        gob.move(e.rc, e.a);
-                    }
-                }
-            }
+            e.a = a;
+            if(e.gob != null)
+                e.gob.move(e.rc, e.a);
         }
     }
 
     /**
-     * Update the fixed world offset of an anchored entity ({@code :offset{x=,y=,z=}}). Live on the
-     * {@link FollowMoving} (its {@code off} is {@code volatile}) → takes effect next frame with no re-attach; stored
-     * on the entity for a still-pending create too. This is the "move it relative to the gob while it keeps
-     * following" verb (a manual {@code :move} would instead detach). No-op if dead. Under the entity monitor.
+     * The transform of a live world entity as {@code {x, y, a, scale}} — the entity handle's {@code :pos()} and,
+     * composed, an Overlay object's. While anchored, {@code x}/{@code y} are the LIVE followed point (the gob's
+     * position + the overlay's offset), which is what makes {@code ov:pos()} answer where the thing actually is.
      */
-    private static void setEntityOffset(LuaWorldEntity e, Coord3f off) {
+    static LuaValue entityPos(LuaWorldEntity e) {
+        LuaTable t = new LuaTable();
         synchronized(e) {
-            if(e.dead)
-                return;
-            e.followOff = off;
-            if(e.gob != null) {
-                Moving m = e.gob.getattr(Moving.class);
-                if(m instanceof FollowMoving)
-                    ((FollowMoving)m).off = off;
-            }
+            Coord2d rc = entityWorldPos(e);
+            t.set("x", LuaValue.valueOf(rc.x));
+            t.set("y", LuaValue.valueOf(rc.y));
+            t.set("a", LuaValue.valueOf(e.a));
+            t.set("scale", LuaValue.valueOf((double)e.scale));   // V6: the full transform is {x,y,a,scale}
         }
-    }
-
-    /** Drop any {@link FollowMoving} from {@code gob} (a manual {@code :move} detaches the follow). Under {@code synchronized(gob)}. */
-    private static void detachFollowAttr(Gob gob) {
-        synchronized(gob) {
-            if(gob.getattr(Moving.class) instanceof FollowMoving)
-                gob.delattr(Moving.class);
-        }
+        return t;
     }
 
     /**
      * Attach the {@link FollowMoving} at (deferred/immediate) create time when the entity is anchored — called by
-     * {@code newSprite}/{@code newGhost} once the gob is built (before it enters the scene), so a {@code :follow}
-     * that landed before the visual streamed in is honoured. Caller holds the entity monitor; the fresh gob is not
-     * yet published, so no {@code synchronized(gob)} is needed.
+     * {@code makeSprite}/{@code makeObject}/{@code makeGhost} once the gob is built (before it enters the scene),
+     * so an overlay whose visual streams in a beat later is anchored the moment it lands. Caller holds the entity
+     * monitor; the fresh gob is not yet published, so no {@code synchronized(gob)} is needed.
      */
     private static void applyEntityFollow(LuaWorldEntity e, Gob gob) {
         if(e.followTgt != 0)
             gob.setattr(new FollowMoving(gob, e.followTgt, e.followOff));
     }
 
-    /**
-     * Resolve a {@code :follow} / {@code follow=} target to a gob id: a read-API <b>Gob object</b> (D-044). The gob
-     * need not be loaded — {@link FollowMoving} re-resolves each frame, and {@code hafen.gob(id)} builds a handle
-     * for a gob that hasn't streamed in yet, so the pre-load anchor still works. Raw ids and the old GobRef tokens
-     * are refused (that would be the dual style D-013 forbids).
-     */
-    private static long followTargetId(LuaValue ref) {
-        LuaGob h = LuaGob.resolve(ref);
-        if(h == null)
-            throw new LuaError("follow expects a Gob object (hafen.gob(id) / hafen.player():gob()) — raw ids and the \"player\"/\"me\"/\"partyN\" tokens are gone");
-        return h.id;
-    }
-
     /** Parse a {@code {x=,y=,z=}} world-offset table → a {@link Coord3f} (missing components 0), or {@code null} (not a table). */
-    private static Coord3f luaOffset(LuaValue v) {
+    static Coord3f luaOffset(LuaValue v) {
         if((v == null) || !v.istable())
             return null;
         float x = (float)v.get("x").optdouble(0.0);
