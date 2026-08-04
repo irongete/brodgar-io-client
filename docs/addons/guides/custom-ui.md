@@ -12,7 +12,7 @@ content you paint yourself. Build it when the world is up, and keep the handle:
 ```lua
 local window
 
-hafen.events.on("OnEnterWorld", function()
+hafen.event():on("OnEnterWorld", function()
   window = hafen.ui.window{
     title = "Scout",
     size  = {180, 48},
@@ -21,7 +21,7 @@ hafen.events.on("OnEnterWorld", function()
       g:color(220, 220, 220)
       g:text("players nearby: " .. hafen.world.count("gfx/borka/body"), 6, 6)
     end,
-    onClose = function() hafen.log("closed") end,
+    onClose = function() hafen.log():write("closed") end,
   }
 end)
 ```
@@ -76,7 +76,7 @@ and you name the gob rather than describing a set of them:
 local function tag(gob)
   if gob:isplayer() then gob:overlay("tag", { text = "player", color = {0, 255, 0} }) end
 end
-hafen.events.on("GobAdded", tag)                         -- everyone who walks in...
+hafen.event():on("GobAdded", tag)                         -- everyone who walks in...
 for _, g in ipairs(hafen.world.gobs()) do tag(g) end     -- ...and everyone already here
 ```
 

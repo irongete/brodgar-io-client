@@ -697,14 +697,14 @@ local function open()
     onClick = click,
     onClose = function()
       win = nil
-      hafen.log("profiler: closed -- ':profiler' or the 'toggle' hotkey brings it back")
+      hafen.log():write("profiler: closed -- ':profiler' or the 'toggle' hotkey brings it back")
     end,
   }
 end
 
 local function toggle()
   if win then win:destroy(); win = nil else open() end
-  hafen.log(("profiler: window %s"):format(win and "open" or "closed"))
+  hafen.log():write(("profiler: window %s"):format(win and "open" or "closed"))
 end
 
 -- Both hotkeys start UNBOUND (D-047): assign them under Options > Keybindings > Brodgar.io Profiler.
@@ -713,36 +713,36 @@ local keys = hafen.client:options():keybindings()
 keys:register("toggle", toggle)
 keys:register("pause", function()
   pause(not paused)
-  hafen.log(("profiler: %s"):format(paused and "PAUSED -- click a bar in the FRAME graph to inspect it" or "live"))
+  hafen.log():write(("profiler: %s"):format(paused and "PAUSED -- click a bar in the FRAME graph to inspect it" or "live"))
 end)
 
 -- :profiler [on|off|pause|live|clear|<tab>]
-hafen.slash.register("profiler", function(args)
+hafen.slash():register("profiler", function(args)
   local a = (args and args[1] or ""):lower()
   if a == "" then
     toggle()
   elseif a == "on" or a == "off" then
     client():profiling(a == "on")
-    hafen.log(("profiler: profiling %s"):format(a:upper()))
+    hafen.log():write(("profiler: profiling %s"):format(a:upper()))
   elseif a == "pause" or a == "live" then
     pause(a == "pause")
     open()
-    hafen.log(("profiler: %s"):format(paused and "PAUSED" or "live"))
+    hafen.log():write(("profiler: %s"):format(paused and "PAUSED" or "live"))
   elseif a == "clear" then
     p:reset()
     pause(false)
-    hafen.log("profiler: ring cleared -- it refills as the client draws")
+    hafen.log():write("profiler: ring cleared -- it refills as the client draws")
   else
     for i = 1, #TABS do
       if TABS[i] == a then
         tab = i
         open()
-        hafen.log("profiler: tab " .. a)
+        hafen.log():write("profiler: tab " .. a)
         return
       end
     end
-    hafen.log("profiler: usage -- :profiler [on|off|pause|live|clear|" .. table.concat(TABS, "|") .. "]")
+    hafen.log():write("profiler: usage -- :profiler [on|off|pause|live|clear|" .. table.concat(TABS, "|") .. "]")
   end
 end)
 
-hafen.log("profiler loaded (v0.2.0) -- dormant; ':profiler' or the 'toggle' hotkey opens the window")
+hafen.log():write("profiler loaded (v0.2.0) -- dormant; ':profiler' or the 'toggle' hotkey opens the window")

@@ -1,12 +1,12 @@
-# hafen.events: the event bus
+# hafen.event: the event bus
 
-Subscribe to something the client does, instead of polling for it every frame. `hafen.events` is
+Subscribe to something the client does, instead of polling for it every frame. `hafen.event()` is
 **ungated**: subscribing observes, it changes nothing. Handlers run on the UI thread, so keep them
 short.
 
 ```lua
-local sub = hafen.events.on("GobAdded", function(gob)
-  hafen.log("appeared: " .. (gob:name() or "?"))
+local sub = hafen.event():on("GobAdded", function(gob)
+  hafen.log():write("appeared: " .. (gob:name() or "?"))
 end)
 -- later:
 sub:off()
@@ -16,7 +16,7 @@ sub:off()
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.events.on(name, fn)` | subscription handle | run `fn(...)` each time the event `name` fires |
+| `hafen.event():on(name, fn)` | subscription handle | run `fn(...)` each time the event `name` fires |
 
 | Method | Description |
 |---|---|
@@ -60,8 +60,8 @@ you need its name, index it on `GobAdded`.
 the **game** put there (a lit fire's flame, a crop's growth stage), and `key` is then its resource name.
 
 ```lua
-hafen.events.on("GobOverlayAdded", function(e)
-  if e.native then hafen.log(e.gob:id() .. " now carries " .. e.key) end
+hafen.event():on("GobOverlayAdded", function(e)
+  if e.native then hafen.log():write(e.gob:id() .. " now carries " .. e.key) end
 end)
 ```
 
@@ -140,7 +140,7 @@ A widget is not a global fact either, so there is no `WidgetCreated` event. You 
 care about, with the same [selector](ui/selectors.md) a lookup uses:
 
 ```lua
-hafen.ui.on("window[title=Cupboard]", "appear", function(w) hafen.log(#w:items() .. " items") end)
+hafen.ui.on("window[title=Cupboard]", "appear", function(w) hafen.log():write(#w:items() .. " items") end)
 ```
 
 `fn` receives the [Widget](ui/widget.md) itself, and **`appear` also covers what is already open**,

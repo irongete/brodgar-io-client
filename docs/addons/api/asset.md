@@ -30,7 +30,7 @@ passing a path string to [`hafen.render.sprite`](render/sprites.md) or
 | `.png` `.jpg` `.jpeg` `.gif` `.bmp` | `"image"` | a GPU texture, alpha preserved | [`g:image`/`g:aimage`](ui/drawing.md), [`hafen.render.sprite`](render/sprites.md) |
 | `.ttf` `.otf` | `"font"` | a [`FontHandle`](font.md) whose family is registered, so `$font[…]` works | [`font =`](font.md#draw-with-it), [`hafen.ui.skin`](ui/style/README.md), [`widget:skin`](ui/style/README.md#restyle-one-widget) |
 | `.glb` `.gltf` | `"mesh"` | parsed glTF 2.0 static geometry and its textures | [`hafen.render.object`](render/models.md) |
-| `.json` `.txt` | `"data"` | the file's **text**, read as UTF-8 | [`hafen.json.parse`](json.md), and anything else that takes a string |
+| `.json` `.txt` | `"data"` | the file's **text**, read as UTF-8 | [`hafen.json():parse`](json.md), and anything else that takes a string |
 
 PNG is the recommended image format, for transparency, and `.glb` the recommended model format, being a
 single file. Any other extension is an error listing the ones above.
@@ -130,7 +130,7 @@ A `.json` or `.txt` file your addon ships — a config, a word list, a **theme**
 *content* stops being written in Lua:
 
 ```lua
-local theme = hafen.json.parse(hafen.asset("theme.json"):text())
+local theme = hafen.json():parse(hafen.asset("theme.json"):text())
 hafen.ui.skin(theme.rules)                        -- a stylesheet that is data
 ```
 
@@ -149,7 +149,7 @@ environment. Disposing a data asset frees nothing; it only drops that cache entr
 
 ```lua
 for _, a in ipairs(hafen.asset()) do
-  hafen.log(("%-5s %s"):format(a:type(), a:path()))
+  hafen.log():write(("%-5s %s"):format(a:type(), a:path()))
 end
 ```
 
@@ -199,12 +199,12 @@ namespace is *your files*; the table below is *the game's*.
 ```lua
 local icon, face, chair                     -- upvalues; a reload rebuilds the env, so they are nil again
 
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   icon  = hafen.asset("icon.png")
   face  = hafen.asset("fonts/Inter.ttf"):derive{ size = 12 }
   chair = hafen.asset("props/chair.glb")
   local s, b = icon:size(), chair:bounds()
-  hafen.log(("icon %dx%d, chair %.1f tiles tall"):format(s.w, s.h, b.size.z / 11))
+  hafen.log():write(("icon %dx%d, chair %.1f tiles tall"):format(s.w, s.h, b.size.z / 11))
 end)
 
 hafen.ui.window{
@@ -215,7 +215,7 @@ hafen.ui.window{
   end,
 }
 
-hafen.slash.register("stand", function()
+hafen.slash():register("stand", function()
   local p = hafen.player():gob():pos()
   hafen.render.object{ model = chair, x = p.x, y = p.y }   -- the handle, again
 end)

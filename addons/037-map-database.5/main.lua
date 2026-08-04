@@ -22,10 +22,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -42,7 +42,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local CMAPS = 100                       -- MCache.cmaps: a grid is 100x100 tiles, a drawing 100x100 pixels
@@ -62,14 +62,14 @@ end
 
 local function summary()
   cleanup()
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 -- Ask until it lands (the load model from the caller's side: the frame IS the retry loop) or give up.
 local function until_(get, tries, step, done)
   local v = get()
   if (v ~= nil) or (tries <= 0) then return done(v) end
-  hafen.timer.after(step, function() until_(get, tries - 1, step, done) end)
+  hafen.timer():after(step, function() until_(get, tries - 1, step, done) end)
 end
 
 local function rowOf(id)
@@ -186,7 +186,7 @@ costRound = function(grid)
     end
     wins[#wins + 1] = hafen.ui.window{ title = MINE, size = { CMAPS, CMAPS }, pos = { 260, 80 },
                                        onDraw = function(g) g:image(img, 0, 0) end }
-    hafen.timer.after(0.5, function()
+    hafen.timer():after(0.5, function()
       local a, m = rowOf(ATLAS), rowOf(ID)
       local painted = a and (a.calls.draw + a.calls.widgets)
       check(painted == 0,
@@ -207,4 +207,4 @@ costRound = function(grid)
   end)
 end
 
-hafen.slash.register("t037-5", run)   -- the only way in: a suite does not start itself
+hafen.slash():register("t037-5", run)   -- the only way in: a suite does not start itself

@@ -4,19 +4,19 @@ The in-game clock and the day, night and season state. Reach for it to schedule 
 label something with the game's own time rather than the wall clock.
 
 ```lua
-if hafen.time.isNight() then hafen.log("it's dark out") end
+if hafen.time():isNight() then hafen.log():write("it's dark out") end
 ```
 
 ## Read
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.time.clock()` | number \| nil | interpolated game-time seconds |
-| `hafen.time.dayFraction()` | number \| nil | time of day, `0..1` |
-| `hafen.time.isNight()` | bool \| nil | whether it is night |
-| `hafen.time.season()` | number \| nil | season index |
-| `hafen.time.moon()` | number \| nil | moon phase, `0..1` |
-| `hafen.time.yearFraction()` | number \| nil | position in the year, `0..1` |
+| `hafen.time():clock()` | number \| nil | interpolated game-time seconds |
+| `hafen.time():dayFraction()` | number \| nil | time of day, `0..1` |
+| `hafen.time():isNight()` | bool \| nil | whether it is night |
+| `hafen.time():season()` | number \| nil | season index |
+| `hafen.time():moon()` | number \| nil | moon phase, `0..1` |
+| `hafen.time():yearFraction()` | number \| nil | position in the year, `0..1` |
 
 `clock()` answers as soon as a session is up. The astronomy readers answer `nil` until the first
 astronomy update arrives from the server, which is a beat after entering the world. Nothing here throws
@@ -28,4 +28,4 @@ on a [timer](timer.md).
 ## See also
 
 - [`hafen.timer`](timer.md) — scheduling against real seconds rather than game time
-- [events](events.md#lifecycle) — `OnEnterWorld`, the point from which astronomy answers
+- [events](event.md#lifecycle) — `OnEnterWorld`, the point from which astronomy answers

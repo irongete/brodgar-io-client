@@ -6,7 +6,7 @@
 --   * A LAYOUT IS DATA, and unlike the chrome before it, it needs NO adapter. 035.4 proved a theme's frames can
 --     come out of a file at the cost of three lines of Lua, because an image and a font's face are HANDLES. A
 --     corner, an offset and a point are not handles: they are already the sheet's own shapes, so the table
---     hafen.json.parse hands back IS the sheet. This suite asserts that literally — it installs the parsed file
+--     hafen.json():parse hands back IS the sheet. This suite asserts that literally — it installs the parsed file
 --     unchanged and then checks the geometry the file's own numbers predict, to the pixel, and that dropping it
 --     restores what it found. The `theme` example gained its layout the same way, and its main.lua gained
 --     nothing for it.
@@ -32,10 +32,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -45,7 +45,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local function xy(p) return p and ("%d,%d"):format(p.x, p.y) or "nil" end
@@ -109,7 +109,7 @@ end
 -- timer itself is charged to this addon's `timers` bracket and never to `draw`, which is what keeps the zero the
 -- callback check reports honest.
 local function sample(n, acc, done)
-  hafen.timer.after(0.06, function()
+  hafen.timer():after(0.06, function()
     local f = hafen.client:profiling():frame()
     if f and f.ui then acc[#acc + 1] = f.ui end
     if #acc >= n then done(acc) else sample(n, acc, done) end
@@ -188,7 +188,7 @@ local function finish()
               "the inventory, equipment, character sheet, kin and map windows are where YOU last dragged them by"
               .. " hand — never where the theme put them. The client's own store belongs to the user, and an"
               .. " addon's layout is a layer over it that leaves nothing behind")
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 -- ---- cost, the unarmed half: does laying a widget out reach the DRAW? ------------------------------
@@ -199,12 +199,12 @@ local function costCache(after)
   local m0 = misses()
   local a = probe(ANCH, 4)                      -- the file's anchor rule names THIS one
   probe(PLAIN, 34)                              -- ...and nothing names this one
-  hafen.timer.after(0.7, function()
+  hafen.timer():after(0.7, function()
     -- 1. no sheet: the two windows draw the same string, so they share ONE key.
     eq("with no sheet the two windows draw one string under one key", misses() - m0, 1)
     hafen.ui.skin(doc.rules)                    -- ...a LAYOUT-ONLY sheet, straight out of the file
     local m1 = misses()
-    hafen.timer.after(0.7, function()
+    hafen.timer():after(0.7, function()
       -- 2. THE CLAIM: the rule reached the widget (it moved) without reaching the draw. One key, still shared —
       --    a rule change bumps the generation once for everybody, which is that one; a DRAWING rule would open
       --    a frame over the window it names and make it two.
@@ -214,7 +214,7 @@ local function costCache(after)
             "...on a window that does resolve the rule — so the key is shared because nothing DREW, not because"
             .. " nothing matched", a:style())
       local m2 = misses()
-      hafen.timer.after(1.1, function()
+      hafen.timer():after(1.1, function()
         -- 3. ...and nothing per frame. An anchor re-derives every tick over this whole second.
         eq("nothing per frame: ~60 frames with an anchor re-deriving each tick, nothing re-rasterised",
            misses() - m2, 0)
@@ -222,7 +222,7 @@ local function costCache(after)
         hafen.ui.skin{ [SEL_A] = { anchor = { to = "screen", at = "bottomright", offset = { -8, -8 } },
                                    font = hafen.font("serif"):derive{ size = 18 } } }
         local m3 = misses()
-        hafen.timer.after(0.7, function()
+        hafen.timer():after(0.7, function()
           eq("the very same rule with a font in it takes a second key — the check above can fail",
              misses() - m3, 2)
           hafen.ui.skin(nil)
@@ -244,12 +244,12 @@ local function run()
   -- 1. the file, and what a layout looks like inside it.
   local asset = hafen.asset(FILE)
   eq("a theme is a file: it loads as a data asset", asset:type(), "data")
-  doc = hafen.json.parse(asset:text())
+  doc = hafen.json():parse(asset:text())
   local an, pl = doc.rules[SEL_A].anchor, doc.rules[SEL_P]
   check((an.to == "screen") and (an.at == "bottomright") and (an.offset[1] == -8) and (an.offset[2] == -8)
         and (pl.pos[1] == 40) and (pl.pos[2] == 200) and (pl.size[1] == 180) and (pl.size[2] == 90),
         "a layout arrives as plain data — a named corner, a 1-indexed offset, and pos/size as {x, y} arrays",
-        hafen.json.encode(doc.rules))
+        hafen.json():encode(doc.rules))
 
   -- 2. THE DELIVERABLE: the parsed file IS the sheet. A theme's chrome needs three lines of Lua because an
   --    image is a handle; a place is not a handle, so the layout half needs no adapter at all.
@@ -258,7 +258,7 @@ local function run()
   local placed = win(hafen.ui.window{ title = PLACED, size = { 100, 50 }, pos = { 12, 130 } })
   local baseA, baseP, baseS = xy(anchored:pos()), xy(placed:pos()), placed:size()
   check(pcall(hafen.ui.skin, doc.rules),
-        "the table hafen.json.parse returned IS the sheet: a whole layout applies from a file, unmapped")
+        "the table hafen.json():parse returned IS the sheet: a whole layout applies from a file, unmapped")
 
   -- 3. ...and the geometry is the file's own numbers, derived where it says derived and absolute where it
   --    says absolute.
@@ -279,7 +279,7 @@ local function run()
   hafen.ui.skin(doc.rules)
   local saved = { [SEL_P] = { x = placed:pos().x, y = placed:pos().y } }
   hafen.ui.skin(nil)
-  local back = hafen.json.parse(hafen.json.encode(saved))
+  local back = hafen.json():parse(hafen.json():encode(saved))
   hafen.ui.skin{ [SEL_P] = { pos = back[SEL_P] } }
   eq("a saved layout is plain data: read back, encoded, re-parsed and re-applied lands on the same pixel",
      xy(placed:pos()), "40,200")
@@ -300,4 +300,4 @@ end
 -- ON DEMAND ONLY (D-085). A suite does not start itself, and running THIS command alone is the whole
 -- verification of task 036.4: it reads its own theme.json, stands up its own windows, and drops every sheet
 -- and destroys every window before it prints. Its round stages ~3.5 s, ~5.5 s with the cost half armed.
-hafen.slash.register("t036-4", run)
+hafen.slash():register("t036-4", run)

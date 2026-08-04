@@ -6,7 +6,7 @@ the arity is the verb.
 ```lua
 for _, slot in ipairs(hafen.actionbar()) do              -- every slot, occupied or not
   if not slot:empty() then
-    hafen.log(slot:index() .. ": " .. (slot:name() or slot:res()))
+    hafen.log():write(slot:index() .. ": " .. (slot:name() or slot:res()))
   end
 end
 hafen.actionbar(0):use()                                 -- gated: activate the first slot
@@ -54,7 +54,7 @@ none is gated.
 > A slot's `cooldown` is present only for an ability with a meter, and it is a `0..1` **fraction, not
 > seconds**.
 
-Subscribe to [`ActionbarChanged`](events.md#character-and-status), whose payload is the
+Subscribe to [`ActionbarChanged`](event.md#character-and-status), whose payload is the
 changed `Slot` itself, to react to a slot being set, cleared or changed. It does **not** fire on a
 cooldown ticking, which would be every frame; read `:cooldown()` live off the object instead.
 
@@ -87,7 +87,7 @@ pagina id, since those are session-local and opaque to addons.
 
 ```lua
 hafen.actionbar(0):set("gfx/hud/act/mine")               -- gated: put "Mine" on the first slot
-hafen.timer.after(0.5, function()
+hafen.timer():after(0.5, function()
   hafen.actionbar(0):use()
 end)
 ```
@@ -97,4 +97,4 @@ end)
 - [`hafen.menugrid`](menugrid.md) — where the resource names `set` takes come from
 - [`hafen.act`](act.md) — the permission both writes share, and the verbs that supply a target
 - [`ActionbarSlot`](types.md#actionbarslot) — the snapshot shape `:info()` returns
-- [events](events.md#character-and-status) — `ActionbarChanged`
+- [events](event.md#character-and-status) — `ActionbarChanged`

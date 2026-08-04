@@ -36,7 +36,7 @@ client's own registry — which is how you read or remap a built-in binding. The
 ## A command
 
 ```lua
-hafen.slash.register("scout", function(args)
+hafen.slash():register("scout", function(args)
   if args[1] == "off" then stop() else start(args[1]) end
 end)
 -- in the console:  :scout   ·   :scout off   ·   :scout "two words"

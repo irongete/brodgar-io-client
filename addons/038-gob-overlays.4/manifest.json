@@ -1,7 +1,7 @@
 {
   "name": "038.4 — the close: churn, the example, and the docs",
   "id": "038-gob-overlays.4",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 038.4: the churn end to end -- ':reload' removing every overlay this addon attached while the game's own are not even ours to remove (asserted across two runs, since no addon can watch its own teardown), 40 attach/replace/remove cycles leaving the gob bare with every add matched by a removal, a despawning gob destroying its overlay, firing GobOverlayRemoved and keeping NO record so a returning object reads bare, a read through a departed gob answering nil rather than raising -- plus every snippet in docs/addons/api/gob.md#overlays and guides/custom-ui.md run verbatim, because a documented example that does not execute is worse than no example.",
   "api_version": 1,

@@ -7,7 +7,7 @@ is registered. Reading is ungated.
 
 ```lua
 for _, it in ipairs(hafen.ui.inventory():items()) do
-  hafen.log((it.name or it.res or "?") .. " x" .. (it.num or 1))
+  hafen.log():write((it.name or it.res or "?") .. " x" .. (it.num or 1))
 end
 
 local cursor = hafen.ui.hand()                              -- the item on the cursor, or nil
@@ -44,9 +44,9 @@ Three subscriptions on the container itself. All chain, and passing `nil` unsubs
 
 ```lua
 local chest = hafen.ui("window[title=Chest]")
-chest:onItemAdded(function(item) hafen.log("in:  " .. (item.name or item.res or "?")) end)
-     :onItemRemoved(function(item) hafen.log("out: " .. (item.name or item.res or "?")) end)
-     :onDestroy(function() hafen.log("chest closed") end)
+chest:onItemAdded(function(item) hafen.log():write("in:  " .. (item.name or item.res or "?")) end)
+     :onItemRemoved(function(item) hafen.log():write("out: " .. (item.name or item.res or "?")) end)
+     :onDestroy(function() hafen.log():write("chest closed") end)
 ```
 
 **The subscription is the registration.** A container nobody subscribed to is never polled, so leaving
@@ -56,9 +56,9 @@ There is no `:watch()`/`:unwatch()` pair because there is nothing extra to say.
 An item entering or leaving is a widget create or destroy rather than a server message, so these are
 detected on a per-tick diff. Two consequences are worth knowing: the items **already** inside a container
 fire `onItemAdded` on the first poll after you subscribe, so the state arrives as events the way
-[`BuffAdded`](../events.md#character-and-status) does; and a container that is hidden still
+[`BuffAdded`](../event.md#character-and-status) does; and a container that is hidden still
 fires them, which is why you can [hide a grid](native.md) and keep reading it. Worn equipment additionally
-has the global [`EquipChanged`](../events.md#character-and-status) event, which carries the
+has the global [`EquipChanged`](../event.md#character-and-status) event, which carries the
 whole new list.
 
 ## See also
@@ -67,4 +67,4 @@ whole new list.
 - [`hafen.act.item`](../act.md#hafenactitemitem-verb-n) — the gated verb that moves one
 - [widget](widget.md) — the object `:items()` is a method on
 - [replace](replace.md#watching-for-a-widget) — waiting for a container to open in the first place
-- [events](../events.md#character-and-status) — `EquipChanged` and the other global lists
+- [events](../event.md#character-and-status) — `EquipChanged` and the other global lists

@@ -9,11 +9,11 @@ installed, and you never log out. This guide is what to do when the console does
 from, prefixed with your addon's id — which is what makes several addons logging at once readable.
 
 ```lua
-hafen.log("state: " .. hafen.json.encode(hafen.store.settings))
+hafen.log():write("state: " .. hafen.json():encode(hafen.store.settings))
 ```
 
 The in-game line is clipped at 500 characters, so print a big table and read it off the terminal;
-[`hafen.json.encode`](../api/json.md) is how you see inside one, since logging a table prints only that it
+[`hafen.json():encode`](../api/json.md) is how you see inside one, since logging a table prints only that it
 is a table.
 
 Errors your addon raises arrive on the same channel with the same prefix, wherever they came from — a
@@ -30,7 +30,7 @@ nothing is sandboxed and every gated verb works there.
 ```text
 :lua hafen.world.count("terobjs/tree")
 :lua hafen.ui("window[title=Inventory]"):info()
-:lua for _, m in ipairs(hafen.meter()) do hafen.log(tostring(m:res())) end
+:lua for _, m in ipairs(hafen.meter()) do hafen.log():write(tostring(m:res())) end
 ```
 
 Anything that reads is safe to try. Anything that writes is a real change to your client — that is the

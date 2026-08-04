@@ -32,7 +32,7 @@ both:
 
 ```lua
 hafen.ui.on("window[title=Cupboard]", "appear", function(w)
-  hafen.log(("cupboard open: %d item(s)"):format(#w:items()))
+  hafen.log():write(("cupboard open: %d item(s)"):format(#w:items()))
 end)
 ```
 
@@ -51,7 +51,7 @@ A `[title=]` or `[res=]` selector still fires exactly once for a window whose ca
 the window itself — such a candidate is re-checked for a short while rather than dropped.
 
 These are widget subscriptions rather than bus events: there is no `WidgetCreated` on
-[`hafen.events`](../events.md), because you say *which* widget you care about.
+[`hafen.event()`](../event.md), because you say *which* widget you care about.
 
 ## Replacing a native window (ungated)
 

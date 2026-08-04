@@ -4,7 +4,7 @@ Read and manage the Kin window, your buddy list. `hafen.kin` is a function, and 
 
 ```lua
 for _, k in ipairs(hafen.kin()) do                       -- the roster IS the array
-  hafen.log(k:name() .. " [" .. k:group() .. "]" .. (k:online() and " online" or ""))
+  hafen.log():write(k:name() .. " [" .. k:group() .. "]" .. (k:online() and " online" or ""))
 end
 hafen.kin("Bob"):setGroup(3):rename("Bobby")             -- gated, chainable
 ```
@@ -50,7 +50,7 @@ and call it on that. The rest are called on a `Kin`.
 Every reader answers `nil` once the kin is off the roster, except `:id()` and `:exists()`. No reader
 throws, and none is gated.
 
-Subscribe to [`KinChanged`](events.md#roster-quests-markers) to react to a kin being added, removed,
+Subscribe to [`KinChanged`](event.md#roster-quests-markers) to react to a kin being added, removed,
 renamed, regrouped, or flipping online.
 
 ### Kin and gob
@@ -62,8 +62,8 @@ either way between them.
 local k = hafen.kin("Bob")
 local g = k and k:gob()
 if g then
-  hafen.log(string.format("Bob is %.1f away", g:distance()))
-  hafen.log(tostring(g:kin() == k))                      -- true: the same interned Kin
+  hafen.log():write(string.format("Bob is %.1f away", g:distance()))
+  hafen.log():write(tostring(g:kin() == k))                      -- true: the same interned Kin
 end
 ```
 
@@ -115,4 +115,4 @@ which is [`hafen.act`](act.md)'s `clickGob` followed by `flower`.
 - [`hafen.act`](act.md) — the permission every write verb here shares
 - [`KinEntry`](types.md#kinentry) — the snapshot shape `:info()` returns
 - [`hafen.party`](party.md) — the other roster, which carries no names
-- [events](events.md#roster-quests-markers) — `KinChanged`
+- [events](event.md#roster-quests-markers) — `KinChanged`

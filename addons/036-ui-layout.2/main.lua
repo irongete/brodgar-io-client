@@ -17,10 +17,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -37,7 +37,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local function xy(p) return p and ("%d,%d"):format(p.x, p.y) or "nil" end
@@ -87,8 +87,8 @@ local function run()
   local w, sel = named()
   check(w ~= nil, "a native window a [title=] selector names uniquely, validated through hafen.ui.all()", sel)
   if w == nil then
-    hafen.log("[fail] no HUD: run this in-world -- every check below needs one of the client's own windows")
-    hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+    hafen.log():write("[fail] no HUD: run this in-world -- every check below needs one of the client's own windows")
+    hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
     return
   end
   eq("...and it is a widget this addon did NOT create", w:info().owned, false)
@@ -163,10 +163,10 @@ local function run()
     .. " sheet, kin and map windows",
     "each one is where YOU last dragged it -- a sheet rule is a new path into the same write 036.1 answered,"
     .. " and the client must still persist the user's position and never the rule's")
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 -- ON DEMAND ONLY (D-085). A suite does not start itself, and running THIS command alone is the whole
 -- verification of task 036.2: it installs its own sheets, asserts through the API it ships, and drops
 -- everything before it prints -- so a client it has run on is a stock client.
-hafen.slash.register("t036-2", run)
+hafen.slash():register("t036-2", run)

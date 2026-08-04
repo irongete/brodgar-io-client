@@ -25,10 +25,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -45,11 +45,11 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local function summary()
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 local KEEP = { "keep-text", "keep-draw", "keep-world" }   -- the three left behind for the reload check
@@ -61,7 +61,7 @@ local icon
 local adds, removes = 0, 0            -- OUR events, counted for the balance check
 local parked, dropped = {}, {}        -- the despawn round: gob ids we hung on, and the ones we were told died
 
-hafen.events.on("OnLoad", function() icon = hafen.asset("icon.png") end)
+hafen.event():on("OnLoad", function() icon = hafen.asset("icon.png") end)
 
 -- The despawn round listens for its own key's removal -- but the round ALSO takes those overlays off by hand,
 -- and a removal we asked for fires the same event. So a deliberate one is announced first and swallowed here;
@@ -69,8 +69,8 @@ hafen.events.on("OnLoad", function() icon = hafen.asset("icon.png") end)
 -- would report itself as a despawn on the next run: the events arrive a frame later, after the reset.)
 local expect = {}
 
-hafen.events.on("GobOverlayAdded", function(e) if not e.native then adds = adds + 1 end end)
-hafen.events.on("GobOverlayRemoved", function(e)
+hafen.event():on("GobOverlayAdded", function(e) if not e.native then adds = adds + 1 end end)
+hafen.event():on("GobOverlayRemoved", function(e)
   if e.native then return end
   removes = removes + 1
   if e.key ~= PARK then return end
@@ -256,14 +256,14 @@ local function run()
   -- The counters can only be zeroed from a LATER frame. Everything above queued events of its own, and the
   -- events are delivered on the tick, not inside the verb -- so resetting inline would zero the counters and
   -- then let the docs round's own burst land on top of the churn's. (The dry run bit exactly here: 85, not 80.)
-  hafen.timer.after(0.5, function()
+  hafen.timer():after(0.5, function()
     -- 40 cycles = 40 adds + 40 replaces (a removal AND an add each) + 40 removals = 80 and 80.
     adds, removes = 0, 0
     churn(me, 40)
     eq("nothing is left on the gob after 40 attach/replace/remove cycles", mine(me), 0)
     eq("...and the last removal really removed", me:overlay(CHURN), nil)
 
-    hafen.timer.after(0.5, function()
+    hafen.timer():after(0.5, function()
       -- The events are queued onto the tick and drained one frame's worth at a time (D-106); nothing here
       -- re-attaches from a handler, so one drain carries the whole burst.
       eq("every attach in the churn was reported exactly once", adds, 80)
@@ -368,7 +368,7 @@ local function goneRound()
   summary()
 end
 
-hafen.slash.register("t038-4", function(args)
+hafen.slash():register("t038-4", function(args)
   local sub = args and args[1]
   if sub == "park" then return parkRound() end
   if sub == "gone" then return goneRound() end

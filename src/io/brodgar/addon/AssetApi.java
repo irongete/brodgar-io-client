@@ -577,7 +577,7 @@ final class AssetApi {
     /**
      * Load a <b>data</b> asset — a {@code .json}/{@code .txt} file this addon ships, read as UTF-8 and handed to
      * Lua as its {@code :text()}. It is the door a <b>theme</b> comes through ({@code 033-ui-stylesheet}, C1a):
-     * {@code hafen.json.parse(hafen.asset("theme.json"):text())} is a stylesheet as <i>data</i>, its font strings
+     * {@code hafen.json():parse(hafen.asset("theme.json"):text())} is a stylesheet as <i>data</i>, its font strings
      * mapped through {@code hafen.asset} in Lua — an addon whose look is a file, not code.
      *
      * <p><b>It hands back the TEXT, not a parsed table</b>, and that is the one canonical way rule doing its job:

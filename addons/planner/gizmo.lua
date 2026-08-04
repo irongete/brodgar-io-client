@@ -15,8 +15,8 @@
 --              (uniform scale via g:scale -> a scaling Location on the gob, V6). Fixed screen size.
 --   * "all"  -- everything at once (the planner default), so one gizmo does full move/rotate/scale.
 --
--- HOW YOU DRAG IT. Press a handle -> the gizmo consumes that mousedown (hafen.hook.input + ev:preventDefault, so
--- the map neither clicks nor pans nor V2-selects) and starts a mouse GRAB (hafen.hook.grab -- the camera stays put).
+-- HOW YOU DRAG IT. Press a handle -> the gizmo consumes that mousedown (hafen.hook():input + ev:preventDefault, so
+-- the map neither clicks nor pans nor V2-selects) and starts a mouse GRAB (hafen.hook():grab -- the camera stays put).
 -- MOVE/ROTATE raycast the ground under the cursor each move (hafen.world.screenToWorld, async + coalesced) so they
 -- work in true WORLD space (snapping identical to placing a building, D-033); SCALE is pure screen math (drag
 -- distance from the centre). Release to drop. The handles re-project every frame, so they track the ghost + camera.
@@ -279,7 +279,7 @@ local function startDrag(self, kind, mx, my)
     d.startDist = math.max(math.sqrt((dx * dx) + (dy * dy)), 8)   -- reference distance (no jump at grab)
   end
   self.drag = d
-  d.grab = hafen.hook.grab{
+  d.grab = hafen.hook():grab{
     move = function(mmx, mmy, mods)
       if self.drag ~= d then return end
       local fine = mods.shift                          -- SHIFT = the fine :placegrid / :placeangle (D-033)
@@ -368,7 +368,7 @@ gizmo = function(target, opts)
 
   -- Press a handle -> consume the click (no map click / camera / ghost-select) and start the drag. On a MISS we
   -- return without preventDefault, so ordinary map clicks (and the ghost's V2 selection) still work.
-  self.downHook = hafen.hook.input("mapview", "mousedown", function(ev)
+  self.downHook = hafen.hook():input("mapview", "mousedown", function(ev)
     if (not self.alive) or self.drag then return end
     if ev.button and (ev.button ~= 1) then return end       -- left button only (middle=camera, right=menu pass)
     local kind = hitGeom(computeGeom(self), ev.x, ev.y, self.mode, self.canScale)
@@ -379,7 +379,7 @@ gizmo = function(target, opts)
 
   -- Track the cursor for the hover highlight (never preventDefault -> normal hovering/camera is untouched). The
   -- grab captures moves DURING a drag, so this only feeds the idle hover state.
-  self.moveHook = hafen.hook.input("mapview", "mousemove", function(ev)
+  self.moveHook = hafen.hook():input("mapview", "mousemove", function(ev)
     if self.alive then self.cursor = { x = ev.x, y = ev.y } end
   end)
 

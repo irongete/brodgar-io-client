@@ -1,7 +1,7 @@
 {
   "name": "036.1 — the layout verbs, and the client's memory",
   "id": "036-ui-layout.1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 036.1: widget:pos(x,y) and widget:size(w,h) stop refusing on a NATIVE widget and move c/sz for real. Asserts: the row 029 promised is corrected in behaviour, not just in prose (the two verbs no longer throw the 'layout, a later feature' error on a widget the addon did not create); a native window moves and reads back exactly; the equipment window resizes and its outer box comes back byte-for-byte on undo; widget:pos(nil)/:size(nil) are the third arity and restore the stock numbers; hafen.ui.at() finds a moved widget at its NEW place and no longer at the corner it used to cover, so hit-testing follows the move rather than a draw-time offset; a write on a stale widget still chains and changes nothing (029.2); widget:pos(x) is refused naming all three arities; :pack()/:destroy() still refuse on a native widget, and their error now points at the layout verbs instead of at a later feature; and widget:pos(nil) on a widget this addon never touched is a silent no-op. It also states the round's finding rather than stepping around it: the MAIN INVENTORY's window is built with cresize -> pack(), so it re-packs itself around its grid the moment anything resizes it — pos always lands, size does not overrule a window that owns its own, inert and never an error. One [manual] line for the only thing a program cannot see — that the client's own window-position store still holds what the USER placed after a logout with the addon disabled. READ-ONLY: declares no permissions, and puts every widget it touches back before it finishes.",
   "api_version": 1,

@@ -117,6 +117,13 @@ public final class Manifest {
         return new Manifest(id, id, "0", "brodgar", "engine-internal owner", 1, none, none, none, novars, allperms, allnet);
     }
 
+    /** A synthetic manifest declaring NOTHING — the shape of an ordinary read-only addon. Probes only. */
+    static Manifest test(String id) {
+        List<String> none = Collections.emptyList();
+        List<SavedVar> novars = Collections.emptyList();
+        return new Manifest(id, id, "0", "brodgar", "probe owner", 1, none, none, none, novars, none, none);
+    }
+
     /** Read and validate {@code <dir>/manifest.json}. Throws with a clear message on any problem. */
     public static Manifest load(Path dir) throws Exception {
         Path mf = dir.resolve("manifest.json");

@@ -760,3 +760,16 @@
   This is 038.3's "a stub that always succeeds cannot catch a missing fixture" in its other form — there the
   stub invented a *file*, here it invented a *field*. When a stub stands in for an engine read, make it as
   stingy as the engine: omit what the engine omits, and the check that depends on it will fail honestly.
+- **(039.1) A headless dry run cannot assert a value the SESSION owns — assert that the call is routed.** The
+  suite's first `hafen.time():clock()` check demanded a number and went red headlessly, where there is no
+  `Glob` and the honest answer is nil. Rewriting it as *every reader answers through the section object
+  (6/6)*, printing the clock in the pass text, made it true in both places and actually stronger: what the
+  task ships is the routing, not the clock, and the maintainer still sees the real number
+  (`clock = 1.0255606E8` in-game vs `nil` headless). Rule: *when a check reads red headlessly and green
+  in-game, ask whether it is asserting the task's claim or the session's existence.*
+- **(039.1) A same-package probe runs the SHIPPING suite by pulling the handler off the addon.** Load
+  `addons/<id>/main.lua` into a `Sandbox.create()` env with `installHafen`, then walk
+  `Addon.slashCommands` for the registered name and `fn.call(new LuaTable())` — no console, no UI, no
+  dispatcher. With it, all of a suite's verdict lines are known before the client starts. It needs an owner
+  whose manifest declares **nothing** (`Manifest.internal` is the trusted REPL owner: it declares `actions`
+  and allow-all network, so every gate passes and no refusal can be asserted) — hence `Manifest.test(id)`.

@@ -2,11 +2,11 @@
 
 Register a `:name`-style console command, so the user can drive your addon by typing at it. This is
 WoW's `SlashCmdList` pattern: the addon names a command, the engine routes it, and your function gets
-the words that followed. `hafen.slash` is **ungated** — it adds a way to call your own code.
+the words that followed. `hafen.slash()` is **ungated** — it adds a way to call your own code.
 
 ```lua
-hafen.slash.register("greet", function(args)
-  hafen.log("hello, " .. (args[1] or "world"))
+hafen.slash():register("greet", function(args)
+  hafen.log():write("hello, " .. (args[1] or "world"))
 end)
 -- in the console:  :greet Alice
 ```
@@ -15,7 +15,7 @@ end)
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.slash.register(name, fn)` | [handle](#the-command-handle) | route the console command `:name args…` to `fn(args)` |
+| `hafen.slash():register(name, fn)` | [handle](#the-command-handle) | route the console command `:name args…` to `fn(args)` |
 
 `name` is a single word: no spaces, and not empty. `fn(args)` receives `args`, a 1-based table of the
 whitespace-split words *after* the command name — `"quoted words"` group into one, and `\` escapes the

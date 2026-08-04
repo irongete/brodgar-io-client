@@ -6,7 +6,7 @@ everything your character can *do*: every unlocked action, or "pagina", arranged
 
 ```lua
 local dig = hafen.menugrid("Dig")             -- or "paginae/act/dig" (a "/" means a resource name)
-hafen.log(dig:parent():name() .. " > " .. dig:name())    -- "Dig" lives under a category
+hafen.log():write(dig:parent():name() .. " > " .. dig:name())    -- "Dig" lives under a category
 dig:use()                                                -- fire it: exactly a click on that button
 ```
 
@@ -83,9 +83,9 @@ The catalogue is **flat and complete**: it holds every action *plus* the categor
 
 ```lua
 for _, cat in ipairs(hafen.menugrid():roots()) do
-  hafen.log(cat:name() or cat:res())
+  hafen.log():write(cat:name() or cat:res())
   for _, child in ipairs(cat:children()) do
-    hafen.log("   " .. (child:name() or child:res()))
+    hafen.log():write("   " .. (child:name() or child:res()))
   end
 end
 ```

@@ -30,7 +30,7 @@
 -- Item MOVING (take/transfer/drop) is an outbound gameplay action -> the gated Phase-4 actions tier (hafen.act),
 -- so this view is READ-ONLY: it draws the real items and logs the one you click. `hafen` is the API facade.
 
-hafen.log("bags loaded (v0.3.0) -- assign the 'toggle' hotkey in Options > Keybindings > Bags, then press it in-world"
+hafen.log():write("bags loaded (v0.3.0) -- assign the 'toggle' hotkey in Options > Keybindings > Bags, then press it in-world"
   .. " (once replaced, Tab and the inventory menu button drive the CUSTOM window)")
 
 -- The selector that names the MAIN inventory and nothing else (032.1, measured in-game with `widgetstack`'s
@@ -99,18 +99,18 @@ local function buildBagsView(w)
       for _, it in ipairs(w:items()) do
         local p = it.pos
         if p and p.x == cx and p.y == cy then
-          hafen.log(("bags: clicked %s x%s @cell %d,%d -- moving items is the gated Phase-4 tier (read-only here)")
+          hafen.log():write(("bags: clicked %s x%s @cell %d,%d -- moving items is the gated Phase-4 tier (read-only here)")
             :format(tostring(it.name or it.res), tostring(it.num or 1), cx, cy))
           return true
         end
       end
-      hafen.log(("bags: clicked empty cell %d,%d"):format(cx, cy))
+      hafen.log():write(("bags: clicked empty cell %d,%d"):format(cx, cy))
       return true                                                       -- truthy = consume
     end,
     onClose = function()
       -- The X fires while this window is still on screen, so the one restore rule ("as the user was seeing it")
       -- hands back an OPEN stock inventory -- which is what closing a window you were looking at should give you.
-      hafen.log("bags: view closed (X) -- the stock inventory is back OPEN (you were seeing a window), and Tab"
+      hafen.log():write("bags: view closed (X) -- the stock inventory is back OPEN (you were seeing a window), and Tab"
         .. " toggles it again; press the toggle key to replace once more")
       stopReplace()                                                   -- X also restores the native inventory
     end,
@@ -127,7 +127,7 @@ local keys = hafen.client:options():keybindings()
 keys:register("toggle", function()
   if watch then
     stopReplace()
-    hafen.log("bags: RESTORED the native inventory (and its Tab/menu toggle) -- left as you were seeing it:"
+    hafen.log():write("bags: RESTORED the native inventory (and its Tab/menu toggle) -- left as you were seeing it:"
       .. " open if the custom window was on screen, closed if you had toggled it away")
   else
     local seen                                    -- did the subscription match anything at all? (see the log below)
@@ -141,26 +141,26 @@ keys:register("toggle", function()
       local ok, err = pcall(w.replace, w, view)
       if not ok then
         view:destroy()
-        hafen.log(("bags: could not replace the inventory -- %s"):format((tostring(err):gsub("^.-%.lua:%d+:%s*", ""))))
+        hafen.log():write(("bags: could not replace the inventory -- %s"):format((tostring(err):gsub("^.-%.lua:%d+:%s*", ""))))
         return
       end
       grid = w
-      hafen.log("bags: REPLACED the native inventory with the custom view (drag it; click an item to log it)."
+      hafen.log():write("bags: REPLACED the native inventory with the custom view (drag it; click an item to log it)."
         .. " Tab and the inventory menu button now open and close THIS window, and the menu tick follows it")
     end)
     -- Only when the subscription matched NOTHING is "not open yet" the honest report: a match that was refused has
     -- already said why, and saying "no inventory yet" on top of it would be a lie about a window that is right there.
     if not seen then
-      hafen.log("bags: ARMED -- no inventory in the tree yet; it will be replaced the moment one appears"
+      hafen.log():write("bags: ARMED -- no inventory in the tree yet; it will be replaced the moment one appears"
         .. " (press the toggle key again to disarm)")
     end
   end
 end)
 -- keybindings:get(name) resolves THIS addon's binding first (addon/bags/toggle), so the log always reports the
 -- key the user actually assigned -- nil until they do.
-hafen.log(("bags: toggle hotkey = %s (assign it under Options > Keybindings > Bags; suggested Ctrl+Shift+I)")
+hafen.log():write(("bags: toggle hotkey = %s (assign it under Options > Keybindings > Bags; suggested Ctrl+Shift+I)")
   :format(keys:get("toggle") or "unassigned"))
 
-hafen.events.on("OnDisable", function()
-  hafen.log("bags: OnDisable -- native inventory restored + custom view destroyed on teardown")
+hafen.event():on("OnDisable", function()
+  hafen.log():write("bags: OnDisable -- native inventory restored + custom view destroyed on teardown")
 end)

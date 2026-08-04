@@ -9,6 +9,10 @@
 - **Docs tier (ONE)**: `docs/addons/**` — the user-facing reference, nested where a namespace is
   a directory (`api/map/grids.md`), plus `runtime.md` and `examples.md`. A new section updates its
   `api/README.md` row and the `docs/addons/README.md` "API at a glance" table. No narrative notes.
+- **Docs STANDARD — read before writing any page, not after**: area `docs` owns it. It is **~30 lines
+  to load, not 500** — `style-guide.md` **§9-§12** (size, mechanics, what never appears, and **the six
+  checks every docs task runs and reports**) plus `grep "^### D-" specs/docs/decisions/docs-standard.md`
+  for the thirteen one-liners. Open a whole file only for the *why* behind a rule you mean to break.
 - **Build check**: `ant hafen-client` → `BUILD SUCCESSFUL` (`ant get-luaj` for deps,
   `ant bin` to package, `ant run` to launch).
 - **Verification**: in-game, by the maintainer. Java (engine) changes require an `ant` rebuild

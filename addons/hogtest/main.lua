@@ -22,14 +22,14 @@ local function hog()
   while os.clock() - t0 < BURN do end
 end
 
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   local cfg = hafen.store.cfg           -- account-scope vars are loaded before OnLoad (Phase 1e)
   if cfg.arm == nil then cfg.arm = false end   -- seed the file on first run
   if cfg.arm then
-    hafen.log("hogtest ARMED -- burning ~" .. math.floor(BURN * 1000)
+    hafen.log():write("hogtest ARMED -- burning ~" .. math.floor(BURN * 1000)
               .. "ms/OnUpdate; expect an auto-disable + AddOns-panel warning shortly")
-    hafen.events.on("OnUpdate", hog)
+    hafen.event():on("OnUpdate", hog)
   else
-    hafen.log("hogtest dormant -- set arm=true in savedata/account/hogtest.json then :reload to test the soft-budget watchdog")
+    hafen.log():write("hogtest dormant -- set arm=true in savedata/account/hogtest.json then :reload to test the soft-budget watchdog")
   end
 end)

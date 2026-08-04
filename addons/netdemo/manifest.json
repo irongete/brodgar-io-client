@@ -1,7 +1,7 @@
 {
   "name": "NetDemo",
   "id": "netdemo",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "brodgar",
   "description": "Networking demo — exercises hafen.http (external HTTP GET + POST) + hafen.json (parse/encode). It DECLARES a 'network' block (D-037): the manifest's hosts list IS the allowlist, so this addon may reach ONLY api.github.com, httpbin.org and localtest.me; anything else is refused synchronously at call. Network is gated by declaration (unlike default-disabled write addons, a network addon loads normally), and the AddOns panel shows the [net] badge + the exact hosts before you enable it. Nothing hits the network at login — every request is a deliberate ':netdemo <sub>' trigger: get=GET api.github.com + hafen.json.parse the reply; post=POST a JSON table to httpbin.org and read the echo back (N2b); redirect=follow a 3xx to an allowlisted host (N2b, ok); escape=a redirect to a NON-allowlisted host is blocked mid-hop (N2b); bad=try a NON-allowlisted host (errors at call, pcall'd); lan=GET localtest.me which resolves to 127.0.0.1 (refused by the private/loopback-IP block, ok=false). Requests are async (a :cancel() handle) and cancelled on :reload/disable — nothing leaks.",
   "api_version": 1,

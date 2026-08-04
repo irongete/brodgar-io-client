@@ -9,7 +9,7 @@ import org.luaj.vm2.LuaValue;
  * bridge-owned handle (registered in {@link Addon#requests}) plus the immutable job parameters the worker
  * needs — the same owned-resource pattern as {@link AddonManager.Sub}/{@link AddonManager.Timer}/ghosts.
  *
- * <p><b>Async model (the gob-delta pattern, reused).</b> The call ({@code hafen.http.get}) validates +
+ * <p><b>Async model (the gob-delta pattern, reused).</b> The call ({@code hafen.http():get}) validates +
  * gates on the UI thread, creates this handle, and registers it. {@link AddonManager} then submits the
  * blocking I/O to a bounded pool thread ({@link LuaHttp#perform}); the worker enqueues the
  * {@link LuaHttp.Result} onto {@link AddonManager}'s result queue, which {@code tick} drains on the UI
@@ -19,7 +19,8 @@ import org.luaj.vm2.LuaValue;
  * started, its in-flight result is discarded on drain, and its callback <b>never fires</b> (no "cancelled"
  * callback in v1) — the explicit no-callback-after-cancel guarantee of §3.3.
  *
- * <p>All mutable fields except {@link #dead} are touched only on the UI thread (call + drain + scheduler);
+ * <p>All mutable fields except {@link #dead} are touched only on the UI thread (call + setters + drain +
+ * scheduler);
  * {@link #dead} is {@code volatile} because a pool worker reads it to short-circuit before enqueueing.
  */
 final class LuaHttpRequest {
@@ -28,7 +29,7 @@ final class LuaHttpRequest {
     final String url;
     final byte[] body;        // request body, or null (GET / empty POST)
     final Map<String, String> headers;   // caller headers, already hygiene-filtered (may be empty)
-    final int timeout;        // ms
+    int timeout;              // ms; a setter on the request object until it goes out (UI thread only)
     final LuaValue cb;        // function(res), or NIL
 
     volatile boolean dead;    // cancelled / torn down — callback suppressed, result discarded

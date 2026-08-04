@@ -8,7 +8,7 @@ did this frame go", in your own addon or across the whole client. Ungated.
 local p = hafen.client:profiling()
 
 local f = p:frame()
-hafen.log(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)", f.fps, f.ms, f.ui, f.addons))
+hafen.log():write(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)", f.fps, f.ms, f.ui, f.addons))
 ```
 
 The bundled **`profiler`** addon is a worked example of everything on these three pages: a six-tab window

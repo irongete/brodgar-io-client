@@ -26,7 +26,7 @@ disagree. Iterate the rows with `ipairs` — `total` is not part of the array.
 ```lua
 local rows = hafen.client:profiling():addons()
 for _, r in ipairs(rows) do
-  hafen.log(string.format("%-12s %.2f ms (%.0f%%)  draw=%d events=%d",
+  hafen.log():write(string.format("%-12s %.2f ms (%.0f%%)  draw=%d events=%d",
                           r.id, r.ms, (r.share or 0) * 100, r.calls.draw, r.calls.events))
 end
 ```
@@ -85,7 +85,7 @@ unmatched `finish()` is ignored, and a scope left open by an erroring handler cl
 ```lua
 local w = hafen.client:profiling():widgets()
 for _, r in ipairs(w.byType) do
-  hafen.log(string.format("%-20s x%d  self %.2f ms", r.type, r.count, r.selfMs))
+  hafen.log():write(string.format("%-20s x%d  self %.2f ms", r.type, r.count, r.selfMs))
 end
 ```
 
@@ -133,7 +133,7 @@ fixed list of named sections with **CPU and GPU time side by side**.
 
 ```lua
 for _, r in ipairs(hafen.client:profiling():passes()) do
-  hafen.log(string.format("%-8s cpu %.2f ms  gpu %.2f ms", r.name, r.cpuMs, r.gpuMs))
+  hafen.log():write(string.format("%-8s cpu %.2f ms  gpu %.2f ms", r.name, r.cpuMs, r.gpuMs))
 end
 ```
 
@@ -191,10 +191,10 @@ rather than dragging the whole feature down.
 
 ```lua
 local o = hafen.client:profiling():overhead()
-hafen.log(string.format("profiling costs %.4f ms/frame = %.2f%% (%s)",
+hafen.log():write(string.format("profiling costs %.4f ms/frame = %.2f%% (%s)",
                         o.totalMs, o.shareOfFrame * 100, o.method))
 for _, r in ipairs(o.tiers) do
-  hafen.log(string.format("  %-8s %.4f ms", r.name, r.ms))
+  hafen.log():write(string.format("  %-8s %.4f ms", r.name, r.ms))
 end
 ```
 

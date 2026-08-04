@@ -24,10 +24,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -37,7 +37,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local function xy(p) return ("%d,%d"):format(p.x, p.y) end
@@ -116,13 +116,13 @@ local function finish()
               .. " and close it",
               "every window wears the theme's frame with its caption still on the band; drag, resize and close"
               .. " behave exactly as stock, and the client reads as ONE theme rather than a mix")
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 -- Every step waits first: the swap and the repack happen in Window.tick, so a step running inline with the
 -- write it checks would read the previous frame (035.2's lesson).
 local function step(i)
-  hafen.timer.after(0.35, function()
+  hafen.timer():after(0.35, function()
     local f = steps[i]
     if not f then return finish() end
     f()
@@ -152,7 +152,7 @@ end
 -- sample is a different frame; the timer itself is charged to this addon's `timers` bracket and never to
 -- `draw`, which is the very distinction the no-Lua check below rests on.
 local function sample(n, acc, done)
-  hafen.timer.after(0.06, function()
+  hafen.timer():after(0.06, function()
     local f = hafen.client:profiling():frame()
     if f and f.ui then acc[#acc + 1] = f.ui end
     if #acc >= n then done(acc) else sample(n, acc, done) end
@@ -176,7 +176,7 @@ local function costRound(after)
   end
   sample(SAMPLES, stock, function()
     hafen.ui.skin(sheet)
-    hafen.timer.after(0.35, function()
+    hafen.timer():after(0.35, function()
       local dressed = #hafen.ui.all("@SkinDeco")
       local themed = {}
       sample(SAMPLES, themed, function()
@@ -237,11 +237,11 @@ local function run()
   -- 1. the file, and the one thing a file cannot carry.
   local a = hafen.asset(FILE)
   eq("a theme is a file: it loads as a data asset", a:type(), "data")
-  doc = hafen.json.parse(a:text())
+  doc = hafen.json():parse(a:text())
   local f = doc.rules["window.frame"]
   check((f.bg.color[1] == 26) and (f.border.slice[2] == 40) and (f.pad == 4),
         "the chrome arrives as plain data — a 1-indexed colour array, four slice insets and a pad in pixels",
-        hafen.json.encode(f))
+        hafen.json():encode(f))
   eq("an image is the one value in a rule JSON cannot hold: in the file it is a path",
      type(f.border.image), "string")
   art = { slice = f.border.slice, pad = f.pad }     -- the numbers the geometry below is predicted from
@@ -264,4 +264,4 @@ end
 -- ON DEMAND ONLY. A suite does not start itself: the maintainer runs it when they want it. This one themes
 -- every window in the client twice — once for the round, once more for the cost samples — so it is the last
 -- one that should share a login with anything else. Its round stages ~1.5 s, ~4 s with the cost half armed.
-hafen.slash.register("t035-4", run)
+hafen.slash():register("t035-4", run)

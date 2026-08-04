@@ -51,9 +51,9 @@ not a silent no-op, and it is not a crash.
 ## Writing an addon that acts
 
 ```lua
-hafen.slash.register("gotree", function()
+hafen.slash():register("gotree", function()
   if not hafen.act.enabled() then
-    hafen.log("this addon needs the actions permission")
+    hafen.log():write("this addon needs the actions permission")
     return
   end
   local tree = hafen.world.nearest("terobjs/tree")

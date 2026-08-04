@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Queue;
@@ -36,6 +37,9 @@ final class HttpApi {
     // worker enqueues its result onto results, drained on the tick (the exact gob-delta pattern).
     private static volatile ExecutorService pool;   // lazily created on first request; engine-lifetime
     private static final Queue<HttpCompletion> results = new ConcurrentLinkedQueue<HttpCompletion>();
+    // Addons with a request created since the last tick. UI thread only; drained by startPending(), which is
+    // what actually sends a request — see newHttpRequest for why the call that creates one does not.
+    private static final Queue<Addon> starts = new ConcurrentLinkedQueue<Addon>();
 
     /** A finished HTTP request (its result) captured on a pool thread, awaiting UI-thread delivery (N2a). */
     private static final class HttpCompletion {
@@ -48,53 +52,51 @@ final class HttpApi {
         }
     }
 
-    /** Build the {@code hafen.http} table (get/post) for {@code owner}. Called from {@code installHafen}. */
+    /**
+     * Build the {@code hafen.http} section object (get/post) for {@code owner}. Called from
+     * {@code installHafen}. A plain section: {@code hafen.http():get(url, cb)}, so the receiver is argument 1
+     * and the URL is argument 2.
+     *
+     * <p><b>There is no options table.</b> A request is constructed bare and configured by chained setters on
+     * the object it hands back — {@code req:header(name, value)}, {@code req:timeout(ms)} — which is why the
+     * request does not leave the client in the call that created it: it is sent on the next tick, so
+     * everything chained onto it is applied first. A cancelled request is never sent at all.
+     */
     static void install(LuaTable hafen, final Addon owner) {
         LuaTable http = new LuaTable();
+        // get(url, cb) — async GET. cb(res) is optional (the result is discarded without one).
         http.set("get", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                String url = a.checkjstring(1);
-                LuaValue opts = LuaValue.NIL, cb = LuaValue.NIL;
-                if(a.arg(2).isfunction()) {                       // get(url, cb)
-                    cb = a.arg(2);
-                } else {                                          // get(url, opts, cb) / get(url) / get(url, opts)
-                    opts = a.arg(2);
-                    cb = a.arg(3);
-                }
+                Section.self(a.arg1(), "http", "get");
+                String url = a.checkjstring(2);
+                LuaValue cb = a.arg(3);
                 if(!cb.isnil() && !cb.isfunction())
-                    throw new LuaError("hafen.http.get: callback must be a function");
-                String host = httpHost(url, "hafen.http.get");
-                requireNetwork(owner, host, "hafen.http.get");
-                Map<String, String> headers = httpHeaders(opts, "hafen.http.get");
-                int timeout = httpTimeout(opts);
-                return newHttpRequest(owner, "GET", url, null, headers, timeout, cb);
+                    throw new LuaError("hafen.http():get: callback must be a function");
+                String host = httpHost(url, "hafen.http():get");
+                requireNetwork(owner, host, "hafen.http():get");
+                return newHttpRequest(owner, "GET", url, null,
+                                      new LinkedHashMap<String, String>(), LuaHttp.DEFAULT_TIMEOUT, cb);
             }
         });
-        // post(url, body[, opts], cb) — send + read (N2b). body = a string (verbatim) or a table (→ JSON,
-        // application/json unless opts.headers sets its own Content-Type). Same gate/limits/res table as get;
-        // both verbs now follow up to 5 redirects, re-validating the allowlist + private-IP block per hop.
+        // post(url, body, cb) — send + read (N2b). body = a string (verbatim) or a table (→ JSON, tagged
+        // application/json unless the addon sets its own Content-Type). Same gate/limits/res table as get;
+        // both verbs follow up to 5 redirects, re-validating the allowlist + private-IP block per hop.
         http.set("post", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                String url = a.checkjstring(1);
-                LuaValue body = a.arg(2);
-                LuaValue opts = LuaValue.NIL, cb = LuaValue.NIL;
-                if(a.arg(3).isfunction()) {                       // post(url, body, cb)
-                    cb = a.arg(3);
-                } else {                                          // post(url, body, opts, cb) / (url, body[, opts])
-                    opts = a.arg(3);
-                    cb = a.arg(4);
-                }
+                Section.self(a.arg1(), "http", "post");
+                String url = a.checkjstring(2);
+                LuaValue body = a.arg(3);
+                LuaValue cb = a.arg(4);
                 if(!cb.isnil() && !cb.isfunction())
-                    throw new LuaError("hafen.http.post: callback must be a function");
-                String host = httpHost(url, "hafen.http.post");
-                requireNetwork(owner, host, "hafen.http.post");
-                Map<String, String> headers = httpHeaders(opts, "hafen.http.post");
-                int timeout = httpTimeout(opts);
-                byte[] bytes = httpBody(body, headers, "hafen.http.post");
-                return newHttpRequest(owner, "POST", url, bytes, headers, timeout, cb);
+                    throw new LuaError("hafen.http():post: callback must be a function");
+                String host = httpHost(url, "hafen.http():post");
+                requireNetwork(owner, host, "hafen.http():post");
+                Map<String, String> headers = new LinkedHashMap<String, String>();
+                byte[] bytes = httpBody(body, headers, "hafen.http():post");
+                return newHttpRequest(owner, "POST", url, bytes, headers, LuaHttp.DEFAULT_TIMEOUT, cb);
             }
         });
-        hafen.set("http", http);
+        Section.install(hafen, "http", http);
     }
 
     /**
@@ -135,8 +137,14 @@ final class HttpApi {
     }
 
     /**
-     * Build + register a request, enforcing the per-addon queue cap, then kick the scheduler. On the UI thread
-     * (the call path). {@code cb} may be NIL (result discarded). Returns the Lua handle ({@code :cancel()}).
+     * Build + register a request, enforcing the per-addon queue cap, and queue the addon for the tick's
+     * scheduler run. On the UI thread (the call path). {@code cb} may be NIL (result discarded). Returns the
+     * Lua request object: {@code :header(name, value)}, {@code :timeout(ms)} and {@code :cancel()}.
+     *
+     * <p><b>The request is not started here</b>, and that is what makes the setters honest: the call that
+     * creates it returns first, everything chained onto it is applied, and the tick sends it. Starting it
+     * inside this method would race a {@code :timeout(5000)} written one character later against a pool
+     * thread already reading the field.
      */
     private static LuaValue newHttpRequest(final Addon owner, String method, String url, byte[] body,
                                            Map<String, String> headers, int timeout, LuaValue cb) {
@@ -150,20 +158,66 @@ final class HttpApi {
 
         final LuaHttpRequest req = new LuaHttpRequest(owner, method, url, body, headers, timeout, cb);
         owner.requests.add(req);
-        maybeStartHttp(owner);
+        queueStart(owner);
 
-        LuaTable h = new LuaTable();
+        final LuaTable h = new LuaTable();
+        // header(name) reads, header(name, value) writes and returns SELF so it chains. Case-insensitive:
+        // one header has one value however it is spelled, which is also what the wire means by it.
+        h.set("header", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                String name = Args.required(a, 2, "request:header", "name").tojstring();
+                LuaValue value = Args.written(a, 3, "request:header", "value");
+                if(value == null) {
+                    String v = headerOf(req.headers, name);
+                    return (v == null) ? LuaValue.NIL : LuaValue.valueOf(v);
+                }
+                requireUnsent(req, "header");
+                if(!value.isstring())
+                    throw new LuaError("request:header(name, value): value must be a string, got "
+                        + value.typename());
+                putHeader(req.headers, name, value.tojstring());
+                return h;
+            }
+        });
+        // timeout() reads the milliseconds this request will wait, timeout(ms) writes it and returns SELF.
+        h.set("timeout", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue ms = Args.written(a, 2, "request:timeout", "ms");
+                if(ms == null)
+                    return LuaValue.valueOf(req.timeout);
+                requireUnsent(req, "timeout");
+                if(!ms.isnumber())
+                    throw new LuaError("request:timeout(ms): expected a number of milliseconds, got "
+                        + ms.typename());
+                req.timeout = clampTimeout(ms.toint());
+                return h;
+            }
+        });
+        // cancel() — never sent if it has not gone yet, and its callback never fires if it has.
         h.set("cancel", new ZeroArgFunction() {
             public LuaValue call() {
                 if(!req.dead) {
                     req.dead = true;
                     owner.requests.remove(req);
-                    maybeStartHttp(owner);   // freeing a slot may let a queued request start
+                    queueStart(owner);   // freeing a slot may let a queued request start
                 }
                 return LuaValue.NIL;
             }
         });
         return h;
+    }
+
+    /** A setter refuses once the request has gone out: the wire has it, so writing the field would lie. */
+    private static void requireUnsent(LuaHttpRequest req, String verb) {
+        if(req.started || req.dead)
+            throw new LuaError("request:" + verb + ": this request has already been sent — configure it in"
+                + " the same call that created it (the request goes out on the next tick)");
+    }
+
+    /** This addon has an unstarted request; the tick's {@link #startPending()} will run its scheduler. */
+    private static void queueStart(Addon owner) {
+        if(owner != null)
+            starts.add(owner);
     }
 
     /**
@@ -201,8 +255,21 @@ final class HttpApi {
         });
     }
 
+    /**
+     * Send the requests created since the last tick (UI thread). This is the other half of the setters: a
+     * request spends the rest of the frame that created it being configured, and goes out here.
+     */
+    static void startPending() {
+        if(starts.isEmpty())
+            return;
+        Addon a;
+        while((a = starts.poll()) != null)
+            maybeStartHttp(a);
+    }
+
     /** Drain completed HTTP requests on the UI thread: deliver each live one's res table + advance the scheduler. */
     static void drainHttp() {
+        startPending();
         HttpCompletion hc;
         while((hc = results.poll()) != null) {
             LuaHttpRequest req = hc.req;
@@ -267,43 +334,29 @@ final class HttpApi {
         return host;
     }
 
-    /** Read {@code opts.headers} (a string→string table) into a Java map, or an empty map. Validates types. */
-    private static Map<String, String> httpHeaders(LuaValue opts, String verb) {
-        Map<String, String> out = new LinkedHashMap<String, String>();
-        if((opts == null) || !opts.istable())
-            return out;
-        LuaValue h = opts.get("headers");
-        if(h.isnil())
-            return out;
-        if(!h.istable())
-            throw new LuaError(verb + ": opts.headers must be a table of string keys/values");
-        LuaValue k = LuaValue.NIL;
-        while(true) {
-            Varargs n = h.next(k);
-            k = n.arg1();
-            if(k.isnil())
-                break;
-            LuaValue v = n.arg(2);
-            if(!k.isstring() || !v.isstring())
-                throw new LuaError(verb + ": opts.headers keys and values must be strings");
-            out.put(k.tojstring(), v.tojstring());
+    /** The value a request carries for {@code name}, matched case-insensitively, or {@code null}. */
+    private static String headerOf(Map<String, String> headers, String name) {
+        for(Map.Entry<String, String> e : headers.entrySet()) {
+            if(e.getKey().equalsIgnoreCase(name))
+                return e.getValue();
         }
-        return out;
+        return null;
     }
 
-    /** Read {@code opts.timeout} (ms), defaulting + clamping to {@link LuaHttp}'s bounds. */
-    private static int httpTimeout(LuaValue opts) {
-        int t = LuaHttp.DEFAULT_TIMEOUT;
-        if((opts != null) && opts.istable()) {
-            LuaValue to = opts.get("timeout");
-            if(to.isnumber())
-                t = to.toint();
+    /** Set {@code name} to {@code value}, replacing whatever spelling of it the request already carries. */
+    private static void putHeader(Map<String, String> headers, String name, String value) {
+        for(Iterator<Map.Entry<String, String>> i = headers.entrySet().iterator(); i.hasNext();) {
+            if(i.next().getKey().equalsIgnoreCase(name))
+                i.remove();
         }
-        if(t <= 0)
-            t = LuaHttp.DEFAULT_TIMEOUT;
-        if(t > LuaHttp.MAX_TIMEOUT)
-            t = LuaHttp.MAX_TIMEOUT;
-        return t;
+        headers.put(name, value);
+    }
+
+    /** A timeout in milliseconds, defaulted and clamped to {@link LuaHttp}'s bounds. */
+    private static int clampTimeout(int ms) {
+        if(ms <= 0)
+            return LuaHttp.DEFAULT_TIMEOUT;
+        return (ms > LuaHttp.MAX_TIMEOUT) ? LuaHttp.MAX_TIMEOUT : ms;
     }
 
     /**

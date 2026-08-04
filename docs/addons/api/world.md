@@ -12,7 +12,7 @@ local prey = hafen.world.nearest(function(g)
 end)
 if prey then
   local p = prey:pos()
-  hafen.log(string.format("nearest rabbit at %.0f,%.0f", p.x, p.y))
+  hafen.log():write(string.format("nearest rabbit at %.0f,%.0f", p.x, p.y))
 end
 ```
 
@@ -48,7 +48,7 @@ Because Gobs are interned per addon you can use them as table keys directly — 
 across repeated sweeps without touching ids. See [identity](gob.md#identity).
 
 > For reacting to objects rather than polling, prefer the `GobAdded` and `GobRemoved`
-> [events](events.md#world) over scanning every frame.
+> [events](event.md#world) over scanning every frame.
 
 ## Terrain and coordinates
 
@@ -60,7 +60,7 @@ nothing throws on a coordinate that is simply off-map.
 ```lua
 local p = hafen.player():gob():pos()
 local t = hafen.world.tile(p.x, p.y)
-if t then hafen.log("standing on " .. (t.name or t.id)) end
+if t then hafen.log():write("standing on " .. (t.name or t.id)) end
 ```
 
 | Function | Returns | Description |
@@ -90,13 +90,13 @@ through `fn`.
 
 ```lua
 hafen.world.screenToWorld(sx, sy, function(w)
-  if w then hafen.log(("ground under cursor: %.1f, %.1f"):format(w.x, w.y)) end
+  if w then hafen.log():write(("ground under cursor: %.1f, %.1f"):format(w.x, w.y)) end
   -- w is nil if the pixel hit no terrain (sky, or off-map)
 end)
 ```
 
 `(sx, sy)` are game-window pixels, the space `worldToScreen` returns. During a drag, feed it the cursor
-coords from [`hafen.hook.grab`](hook.md#hafenhookgrabmove-up) and coalesce — issue the next raycast only
+coords from [`hafen.hook():grab`](hook.md#hafenhookgrabmove-up) and coalesce — issue the next raycast only
 after the previous `fn` fired — so at most one is in flight per frame.
 
 **`snapPlace(x, y, fine)`** snaps a world coord exactly as placing a building does, honouring the live
@@ -155,7 +155,7 @@ down about that ground, whether or not it is streamed in right now, and
 - [`hafen.gob`](gob.md) — what the object readers hand back, and the world coordinates they share
 - [`hafen.map`](map/README.md) — the recorded map: its segments and grids, your markers, the icon categories
 - [the `filter` argument](conventions.md#the-filter-argument) — the three forms the object readers accept
-- [events](events.md#world) — `GobAdded` and `GobRemoved`
+- [events](event.md#world) — `GobAdded` and `GobRemoved`
 - [`hafen.ghost`](ghost.md) — what placement snapping is usually for
 - [`hafen.store`](store.md) — where a grid anchor is saved
 - [coordinates](conventions.md#coordinates) — the spaces, side by side

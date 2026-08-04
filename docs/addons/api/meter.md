@@ -5,7 +5,7 @@ there. `hafen.meter` is a function, and the arity is the verb.
 
 ```lua
 local hp = hafen.meter("hp")
-if hp and (hp:value() or 1) < 0.3 then hafen.log("low health!") end
+if hp and (hp:value() or 1) < 0.3 then hafen.log():write("low health!") end
 ```
 
 | Call | Returns |
@@ -29,7 +29,7 @@ key this API knows: it is a substring that happens to identify a bar on this ser
 you read the real names off a live client:
 
 ```lua
-:lua for _, m in ipairs(hafen.meter()) do hafen.log(tostring(m:res())) end
+:lua for _, m in ipairs(hafen.meter()) do hafen.log():write(tostring(m:res())) end
 ```
 
 What this server publishes:
@@ -79,9 +79,9 @@ knows your real values.
 
 | Event | Payload | Fires |
 |---|---|---|
-| [`MeterAdded`](events.md#character-and-status) | `Meter` | a bar appears in the HUD slot |
-| [`MeterRemoved`](events.md#character-and-status) | `Meter` | a bar goes away; the object still reads, and `:exists()` is false |
-| [`MeterChanged`](events.md#character-and-status) | `Meter` | a bar's value **or** colour changes |
+| [`MeterAdded`](event.md#character-and-status) | `Meter` | a bar appears in the HUD slot |
+| [`MeterRemoved`](event.md#character-and-status) | `Meter` | a bar goes away; the object still reads, and `:exists()` is false |
+| [`MeterChanged`](event.md#character-and-status) | `Meter` | a bar's value **or** colour changes |
 
 The meters stream in a beat after `OnEnterWorld`, so `hafen.meter()` is legitimately empty for a moment
 and the bars arrive as a burst of `MeterAdded`. Mounting a horse adds two more mid-session and
@@ -91,8 +91,8 @@ dismounting removes them, which is what the lifecycle pair is for.
 and a pure recolour count, and standing still is silent.
 
 ```lua
-hafen.events.on("MeterChanged", function(m)
-  if m:res() == "gfx/hud/meter/hp" then hafen.log(("hp %.0f%%"):format((m:value() or 0) * 100)) end
+hafen.event():on("MeterChanged", function(m)
+  if m:res() == "gfx/hud/meter/hp" then hafen.log():write(("hp %.0f%%"):format((m:value() or 0) * 100)) end
 end)
 ```
 
@@ -112,4 +112,4 @@ exactly the predicate `hafen.meter()` filters on.
 - [`Meter`](types.md#meter) — the snapshot shape `:info()` returns
 - [`hafen.char`](char.md) — `food()`, the one absolute reading about your character
 - [`hafen.buff`](buff.md) — the other needle-keyed status surface
-- [events](events.md#character-and-status) — the three meter events
+- [events](event.md#character-and-status) — the three meter events

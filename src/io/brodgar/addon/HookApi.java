@@ -17,19 +17,18 @@ import haven.Widget;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.lib.OneArgFunction;
-import org.luaj.vm2.lib.ThreeArgFunction;
-import org.luaj.vm2.lib.TwoArgFunction;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 /**
  * The interception + input subsystem. Owns the five ways an addon reaches into client behaviour beyond the
  * read API:
  * <ul>
- *   <li><b>L1 input hooks</b> ({@code hafen.hook.input}) — {@link Widget#listen} pre-hooks on mapview/gameui/root;</li>
- *   <li><b>L2 action hooks</b> ({@code hafen.hook.action}) — the outbound {@code UI.wdgmsg} choke point ({@link #dispatchAction});</li>
- *   <li><b>L3 message hooks</b> ({@code hafen.hook.message}) — the inbound {@code UI.uimsg} choke point ({@link #dispatchMessage});</li>
- *   <li><b>mouse grab</b> ({@code hafen.hook.grab}) — a modal drag capture (V5, the gizmo primitive);</li>
+ *   <li><b>L1 input hooks</b> ({@code hafen.hook():input}) — {@link Widget#listen} pre-hooks on mapview/gameui/root;</li>
+ *   <li><b>L2 action hooks</b> ({@code hafen.hook():action}) — the outbound {@code UI.wdgmsg} choke point ({@link #dispatchAction});</li>
+ *   <li><b>L3 message hooks</b> ({@code hafen.hook():message}) — the inbound {@code UI.uimsg} choke point ({@link #dispatchMessage});</li>
+ *   <li><b>mouse grab</b> ({@code hafen.hook():grab}) — a modal drag capture (V5, the gizmo primitive);</li>
  *   <li><b>slash commands</b> ({@code hafen.slash}) — WoW-style {@code :name} console commands (A11);</li>
  *   <li><b>global hotkeys</b> ({@code hafen.client:options():keybindings()}) — remappable keys over the
  *       {@link KeyBinding} registry ({@link #dispatchKey}); the Lua surface is {@link KeybindingsOptions}.</li>
@@ -91,56 +90,70 @@ final class HookApi {
         KEYCODES.put("RIGHT",     KeyEvent.VK_RIGHT);
     }
 
-    /** Build {@code hafen.hook} / {@code hafen.slash} for {@code owner}. From {@code installHafen}. */
+    /**
+     * Build {@code hafen.hook} / {@code hafen.slash} for {@code owner}. From {@code installHafen}. Both are
+     * plain section objects: the section is called and every verb is a colon call on it, so the receiver is
+     * argument 1 and a hook's own arguments start at 2.
+     */
     static void install(LuaTable hafen, final Addon owner) {
         LuaTable hook = new LuaTable();
-        hook.set("input", new ThreeArgFunction() {
-            public LuaValue call(LuaValue target, LuaValue event, LuaValue fn) {
-                return newInputHook(owner, target, event, fn);
+        // input(target, event, fn) — L1: a keyboard/mouse gesture on mapview/gameui/root, before the client.
+        hook.set("input", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "hook", "input");
+                return newInputHook(owner, a.arg(2), a.arg(3), a.arg(4));
             }
         });
-        hook.set("action", new TwoArgFunction() {
-            public LuaValue call(LuaValue msg, LuaValue fn) {
-                return newActionHook(owner, msg, fn);
+        // action(msg, fn) — L2: an outgoing wdgmsg, before it reaches the server.
+        hook.set("action", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "hook", "action");
+                return newActionHook(owner, a.arg(2), a.arg(3));
             }
         });
-        hook.set("message", new TwoArgFunction() {
-            public LuaValue call(LuaValue msg, LuaValue fn) {
-                return newMessageHook(owner, msg, fn);
+        // message(msg, fn) — L3: an incoming uimsg, before it reaches the widget.
+        hook.set("message", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "hook", "message");
+                return newMessageHook(owner, a.arg(2), a.arg(3));
             }
         });
-        hook.set("grab", new OneArgFunction() {
-            public LuaValue call(LuaValue handlers) {
-                return newMouseGrab(owner, handlers);
+        // grab{move=fn, up=fn} — take the mouse for a modal drag.
+        hook.set("grab", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "hook", "grab");
+                return newMouseGrab(owner, a.arg(2));
             }
         });
-        hafen.set("hook", hook);
+        Section.install(hafen, "hook", hook);
 
         LuaTable slash = new LuaTable();
-        slash.set("register", new TwoArgFunction() {
-            public LuaValue call(LuaValue name, LuaValue fn) {
-                return newSlashCommand(owner, name, fn);
+        // register(name, fn) — route the console command :name to fn(args).
+        slash.set("register", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "slash", "register");
+                return newSlashCommand(owner, a.arg(2), a.arg(3));
             }
         });
-        hafen.set("slash", slash);
+        Section.install(hafen, "slash", slash);
     }
 
-    // ================================================================= L1 input hooks (hafen.hook.input, 2c)
+    // ================================================================= L1 input hooks (hafen.hook():input, 2c)
 
     private static LuaValue newInputHook(final Addon owner, LuaValue target, LuaValue event, LuaValue fn) {
         if(!event.isstring() || !fn.isfunction())
-            throw new LuaError("hafen.hook.input(target, event, fn) expects (target, string, function)");
+            throw new LuaError("hafen.hook():input(target, event, fn) expects (target, string, function)");
         Class<? extends Widget.Event> cls = eventClass(event.tojstring());
         if(cls == null)
-            throw new LuaError("hafen.hook.input: unknown event '" + event.tojstring()
+            throw new LuaError("hafen.hook():input: unknown event '" + event.tojstring()
                                + "' (expected mousedown / mouseup / mousemove / mousewheel)");
         String tok = target.isstring() ? target.tojstring().toLowerCase() : null;
         if(!isKnownTarget(tok))
-            throw new LuaError("hafen.hook.input: target must be \"mapview\", \"gameui\", or \"root\" (got "
+            throw new LuaError("hafen.hook():input: target must be \"mapview\", \"gameui\", or \"root\" (got "
                                + (target.isnil() ? "nil" : target.tojstring()) + ")");
         Widget w = hookTarget(tok);
         if(w == null)
-            throw new LuaError("hafen.hook.input: the " + tok
+            throw new LuaError("hafen.hook():input: the " + tok
                                + " is not up yet — register this hook in OnEnterWorld");
         final LuaInputHook h = new LuaInputHook(owner, w, event.tojstring(), fn);
         listenHook(w, cls, h);
@@ -219,16 +232,16 @@ final class HookApi {
         a.hooks.clear();
     }
 
-    // ================================================================= mouse grab (hafen.hook.grab, V5)
+    // ================================================================= mouse grab (hafen.hook():grab, V5)
 
     /**
-     * {@code hafen.hook.grab{move=fn, up=fn}} (V5) — start a modal mouse-drag capture: a {@link LuaMouseGrab} widget
+     * {@code hafen.hook():grab{move=fn, up=fn}} (V5) — start a modal mouse-drag capture: a {@link LuaMouseGrab} widget
      * on {@code ui.root} that forwards mouse move/up to Lua while the grab captures the drag (so the MapView neither
      * pans nor clicks). Returns a handle {@code { :release() }}; bridge-owned for teardown. Nil if the UI is not up.
      */
     private static LuaValue newMouseGrab(final Addon owner, LuaValue handlers) {
         if(!handlers.istable())
-            throw new LuaError("hafen.hook.grab{move=fn, up=fn} expects a handlers table");
+            throw new LuaError("hafen.hook():grab{move=fn, up=fn} expects a handlers table");
         UI u = AddonManager.ui;
         if((u == null) || (u.root == null))
             return LuaValue.NIL;                        // no UI yet
@@ -254,11 +267,11 @@ final class HookApi {
         a.mouseGrabs.clear();
     }
 
-    // ================================================================= L2 action hooks (hafen.hook.action, 2d)
+    // ================================================================= L2 action hooks (hafen.hook():action, 2d)
 
     private static LuaValue newActionHook(final Addon owner, LuaValue msg, LuaValue fn) {
         if(!msg.isstring() || !fn.isfunction())
-            throw new LuaError("hafen.hook.action(msg, fn) expects (string, function)");
+            throw new LuaError("hafen.hook():action(msg, fn) expects (string, function)");
         final LuaActionHook h = new LuaActionHook(owner, msg.tojstring(), fn);
         registerActionHook(h);
         owner.actionHooks.add(h);
@@ -310,7 +323,7 @@ final class HookApi {
 
     /**
      * The outbound-{@code wdgmsg} action dispatch (spec 13 §L2 / Phase 2d) — the body behind
-     * {@link AddonManager#onWdgmsg}. Runs every matching {@code hafen.hook.action} hook before the message
+     * {@link AddonManager#onWdgmsg}. Runs every matching {@code hafen.hook():action} hook before the message
      * reaches the server; returns whether the default send should proceed ({@code false} once a hook called
      * {@code preventDefault}/{@code resend}/{@code send}). Runs Lua only when the calling thread already holds
      * the UI monitor ({@code Thread.holdsLock}); the re-entrancy guard passes a hook-triggered wdgmsg through.
@@ -339,11 +352,11 @@ final class HookApi {
         return !prevented[0];
     }
 
-    // ================================================================= L3 message hooks (hafen.hook.message, 2e)
+    // ================================================================= L3 message hooks (hafen.hook():message, 2e)
 
     private static LuaValue newMessageHook(final Addon owner, LuaValue msg, LuaValue fn) {
         if(!msg.isstring() || !fn.isfunction())
-            throw new LuaError("hafen.hook.message(msg, fn) expects (string, function)");
+            throw new LuaError("hafen.hook():message(msg, fn) expects (string, function)");
         final LuaMessageHook h = new LuaMessageHook(owner, msg.tojstring(), fn);
         registerMessageHook(h);
         owner.messageHooks.add(h);
@@ -395,7 +408,7 @@ final class HookApi {
 
     /**
      * The inbound-{@code uimsg} message dispatch (spec 13 §L3 / Phase 2e) — the body behind
-     * {@link AddonManager#onMessage}. Runs every matching {@code hafen.hook.message} hook before the widget
+     * {@link AddonManager#onMessage}. Runs every matching {@code hafen.hook():message} hook before the widget
      * applies the update, and returns what to apply: the original {@code args} (unchanged / no hook), a
      * rewritten {@code Object[]} ({@code ev:rewrite(t)}), or {@code null} ({@code ev:preventDefault()} — swallow).
      * {@code preventDefault} wins over {@code rewrite}. Reached only under {@code synchronized(ui)}.
@@ -421,12 +434,12 @@ final class HookApi {
 
     private static LuaValue newSlashCommand(final Addon owner, LuaValue name, LuaValue fn) {
         if(!name.isstring() || !fn.isfunction())
-            throw new LuaError("hafen.slash.register(name, fn) expects (string, function)");
+            throw new LuaError("hafen.slash():register(name, fn) expects (string, function)");
         final String cmd = name.tojstring();
         if((cmd.length() == 0) || hasWhitespace(cmd))
-            throw new LuaError("hafen.slash.register: name must be a non-empty word with no spaces (got '" + cmd + "')");
+            throw new LuaError("hafen.slash():register: name must be a non-empty word with no spaces (got '" + cmd + "')");
         if(isReservedSlash(cmd))
-            throw new LuaError("hafen.slash.register: ':" + cmd + "' is a reserved engine command");
+            throw new LuaError("hafen.slash():register: ':" + cmd + "' is a reserved engine command");
         final LuaSlashCommand h = new LuaSlashCommand(owner, cmd, fn);
         synchronized(slashDispatched) {
             if(!slashDispatched.contains(cmd)) {
@@ -441,7 +454,7 @@ final class HookApi {
                     /* best-effort collision check — proceed if the console can't be queried right now */
                 }
                 if(exists)
-                    throw new LuaError("hafen.slash.register: ':" + cmd + "' is already a client command");
+                    throw new LuaError("hafen.slash():register: ':" + cmd + "' is already a client command");
                 Console.setscmd(cmd, new Console.Command() {
                     public void run(Console cons, String[] args) {
                         dispatchSlash(cmd, args);

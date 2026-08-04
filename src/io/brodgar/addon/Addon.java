@@ -51,14 +51,14 @@ public final class Addon {
      * a single sweep of the object cache at a rare moment.
      */
     /**
-     * Live input/gesture hooks owned by this addon ({@code hafen.hook.input}, Phase 2c): pre-hooks registered
+     * Live input/gesture hooks owned by this addon ({@code hafen.hook():input}, Phase 2c): pre-hooks registered
      * on a client widget via {@link haven.Widget#listen}. Teardown deafens each ({@link haven.Widget#deafen})
      * and marks it dead, so a {@code :reload}/disable (which keeps the engine widgets alive) never leaves a
      * listener firing into a torn-down env (principle P2). Copy-on-write: a firing hook may {@code :remove()}.
      */
     public final List<LuaInputHook> hooks = new CopyOnWriteArrayList<LuaInputHook>();
     /**
-     * Live action hooks owned by this addon ({@code hafen.hook.action}, Phase 2d): pre-hooks on the outbound
+     * Live action hooks owned by this addon ({@code hafen.hook():action}, Phase 2d): pre-hooks on the outbound
      * {@link haven.UI#wdgmsg} choke point, keyed by action name in {@link AddonManager}'s dispatch map.
      * Teardown marks each dead and unregisters it from that map (principle P2) — unlike an input hook there is
      * no widget to deafen; the hook lives only in the engine's dispatcher. Copy-on-write: a firing hook may
@@ -66,7 +66,7 @@ public final class Addon {
      */
     public final List<LuaActionHook> actionHooks = new CopyOnWriteArrayList<LuaActionHook>();
     /**
-     * Live message hooks owned by this addon ({@code hafen.hook.message}, Phase 2e): pre-hooks on the inbound
+     * Live message hooks owned by this addon ({@code hafen.hook():message}, Phase 2e): pre-hooks on the inbound
      * {@link haven.UI#uimsg} choke point, keyed by message name in {@link AddonManager}'s dispatch map.
      * Teardown marks each dead and unregisters it from that map (principle P2) — like an action hook (and
      * unlike an input hook) there is no widget to deafen; the hook lives only in the engine's dispatcher, which
@@ -131,7 +131,7 @@ public final class Addon {
      */
     public final List<LuaWidget.Watch> itemWatches = new CopyOnWriteArrayList<LuaWidget.Watch>();
     /**
-     * Live addon slash commands owned by this addon ({@code hafen.slash.register}, gap subsystem A11): each routes
+     * Live addon slash commands owned by this addon ({@code hafen.slash():register}, gap subsystem A11): each routes
      * a console command {@code :name} to a Lua handler. Unlike the hook lists, the engine's {@link haven.Console}
      * dispatcher for a name is <b>engine-lifetime</b> and is deliberately <b>not</b> removed on teardown (coverage-
      * gaps C1: {@code Console.setscmd} has no unregister, so a single dispatcher per name routes to the current live
@@ -195,7 +195,7 @@ public final class Addon {
      */
     public final List<LuaObject> objects = new CopyOnWriteArrayList<LuaObject>();
     /**
-     * Live modal mouse-drag captures owned by this addon ({@code hafen.hook.grab}, V5): each is a
+     * Live modal mouse-drag captures owned by this addon ({@code hafen.hook():grab}, V5): each is a
      * {@link LuaMouseGrab} widget on {@code ui.root} that forwards mouse move/up to Lua while capturing the drag
      * (the gizmo's drag primitive). Normally transient (one per active drag) and self-releasing on mouse-up;
      * teardown ({@link HookApi#teardownMouseGrabs}) releases any still-active grab so a {@code :reload}/disable
@@ -203,7 +203,7 @@ public final class Addon {
      */
     public final List<LuaMouseGrab> mouseGrabs = new CopyOnWriteArrayList<LuaMouseGrab>();
     /**
-     * Live in-flight HTTP requests owned by this addon ({@code hafen.http.get}/{@code post}, N2a): each is a
+     * Live in-flight HTTP requests owned by this addon ({@code hafen.http():get}/{@code post}, N2a): each is a
      * {@link LuaHttpRequest} submitted to {@link HttpApi}'s shared bounded pool, whose result is drained on
      * the tick and delivered to the request's callback (the gob-delta async pattern). Bridge-owned like every
      * other owned resource; teardown ({@link HttpApi#teardownRequests}) marks each dead so a

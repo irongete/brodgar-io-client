@@ -23,10 +23,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -43,7 +43,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 -- The deco is a CHILD of its window (030's finding, and the whole reason window.frame is a SITE key rather
@@ -80,7 +80,7 @@ local function stage3(w, sz, pos)
   manualCheck("with ':t035-1 look' still on: drag a window by its caption, resize the map window from its"
     .. " corner, close one with its X, and click between two windows",
     "all four behave exactly as stock -- then ':t035-1 look' again puts the stock chrome back")
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 local function stage2(w, sz, pos)
@@ -88,7 +88,7 @@ local function stage2(w, sz, pos)
         #hafen.ui.all("@SkinDeco"))
   eq("the probe window is wearing it too", decoOf(w), "SkinDeco")
   hafen.ui.skin(nil)
-  hafen.timer.after(0.4, function() stage3(w, sz, pos) end)   -- the swap back happens in Window.tick
+  hafen.timer():after(0.4, function() stage3(w, sz, pos) end)   -- the swap back happens in Window.tick
 end
 
 local function run()
@@ -136,7 +136,7 @@ local function run()
   eq("the probe window starts on the stock chrome", decoOf(w), "DefaultDeco")
   local sz, pos = xy(w:size()), xy(w:pos())
   hafen.ui.skin(theme())
-  hafen.timer.after(0.4, function() stage2(w, sz, pos) end)
+  hafen.timer():after(0.4, function() stage2(w, sz, pos) end)
 end
 
 -- ---- the parked state, for the two [manual] lines ------------------------------------------------
@@ -147,17 +147,17 @@ local function look()
   looking = not looking
   if looking then
     hafen.ui.skin(theme())
-    hafen.log(":t035-1 look -> the frame theme is ON. Drag / resize / close / focus a window, then"
+    hafen.log():write(":t035-1 look -> the frame theme is ON. Drag / resize / close / focus a window, then"
       .. " ':t035-1 look' again (or :reload, or disabling this addon) for stock chrome.")
   else
     hafen.ui.skin(nil)
-    hafen.log(":t035-1 look -> stock chrome restored.")
+    hafen.log():write(":t035-1 look -> stock chrome restored.")
   end
 end
 
 -- ON DEMAND ONLY. A suite does not start itself: the maintainer runs it when they want it. That is also what
 -- removed the whole class of login races between suites -- each one installs a client-wide sheet and bumps
 -- Fonts.gen() while it runs, so two rounds overlapping reddened lines in the OTHER suite.
-hafen.slash.register("t035-1", function(args)
+hafen.slash():register("t035-1", function(args)
   if (args and args[1]) == "look" then look() else run() end
 end)

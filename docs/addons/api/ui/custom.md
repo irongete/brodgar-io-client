@@ -9,7 +9,7 @@ local win = hafen.ui.window{
   title = "Clock", size = {160, 40}, pos = {50, 50},
   onDraw = function(g, w, h)
     g:color(255, 255, 0)
-    g:text(string.format("%.0f", hafen.time.clock() or 0), 6, 12)
+    g:text(string.format("%.0f", hafen.time():clock() or 0), 6, 12)
   end,
 }
 win:pos(320, 200)                        -- the same object hafen.ui.at() would give you
@@ -45,7 +45,7 @@ Sizes and positions are raw pixels, not DPI-scaled. `pos` is within the parent; 
 
 **`mods`** is the trailing `{shift, ctrl, alt}` boolean table on every mouse callback — the modifier state
 **at press time**, so you can branch a Shift-drag against a plain click. It is additive: a handler that
-ignores the extra argument is unaffected. Same shape as [`hafen.hook.grab`](../hook.md#hafenhookgrabmove-up)'s
+ignores the extra argument is unaffected. Same shape as [`hafen.hook():grab`](../hook.md#hafenhookgrabmove-up)'s
 `mods`.
 
 ### `onDrop` makes a widget a drop target

@@ -111,7 +111,7 @@ rectangle to outline it.
 
 ```lua
 local last                                             -- the leaf we last built the stack for
-hafen.events.on("OnUpdate", function(dt)
+hafen.event():on("OnUpdate", function(dt)
   local m    = hafen.ui.mouse()
   local leaf = hafen.ui.at(m.x, m.y)                   -- deepest widget under the cursor, or nil
   if leaf == last then return end                      -- hover unchanged: no walk, no rebuild

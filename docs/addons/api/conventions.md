@@ -4,15 +4,103 @@ The rules that hold across the whole `hafen.*` API: how you address a thing, wha
 what a write costs you. Read this once — every reference page assumes it.
 
 ```lua
-local rabbits = hafen.world.gobs("rabbit")      -- a filter, the same everywhere
-hafen.log(#rabbits .. " in view")
+hafen.timer():every(5, function()
+  hafen.log():write("still here")
+end)
 ```
 
-## The hafen namespace
+## The grammar
 
-Every function lives under a namespaced table, `hafen.<section>.<verb>(...)`. There are no flat
-globals. A section groups the verbs of one subsystem (`hafen.world`, `hafen.char`, …) and owns one
-reference page; a section large enough to need several pages owns a folder with a hub instead.
+One shape, learned once: **a section is called, everything after it is a colon verb, and arity is the
+verb.** A section groups one subsystem and owns one reference page; a section large enough to need
+several pages owns a folder with a hub instead.
+
+### Sections: you call one
+
+`hafen.time` is the section. `hafen.time()` is the **section object**, and every verb of that
+subsystem is a colon call on it, as in `hafen.time():clock()`. The object is the same one every time,
+so `hafen.time() == hafen.time()` and calling a section inside a draw callback allocates nothing.
+
+A section takes no arguments. Where a section holds exactly one thing, the section object **is** that
+thing rather than a wrapper around it: `hafen.timer()` is the collection of your timers, and
+`hafen.player()` is your character.
+
+### Verbs: arity is the verb
+
+A verb with no argument **reads**. The same verb with one **writes**, and hands the object back, so
+writes chain.
+
+```lua
+w:title()                          -- reads
+w:title("Scout"):size(180, 48)     -- writes, and chains
+```
+
+There is one name per property: no `getX`, no `setX`, no `clearX`. A boolean is a property like any
+other, so a window is shown with `w:visible(true)` rather than with a second verb. `coll:get(key)` is
+not an exception to the one-name rule, because it addresses a member rather than reading a property.
+
+### Collections: the noun is the kind, the verb is how many
+
+A set you can address into is reached by the **singular** kind name and hands back a collection
+object, never a bare array. The plural belongs to the verb.
+
+| Verb | Gives you |
+|---|---|
+| `:list(filter)` | a plain array of members, empty rather than `nil` |
+| `:count(filter)` | how many |
+| `:find(filter)` | the first member that matches, or `nil` |
+| `:get(key)` | one member by its key, or `nil`, where the members have keys |
+| `:add(...)` | a new member, where the collection can create one |
+| `:remove(keyOrMember)` | the collection, so removals chain, where it can destroy one |
+
+A distinguished member is a verb on its collection rather than a second accessor: `:current()`,
+`:selected()`, `:leader()`, `:available()`.
+
+> **A collection is an object, not a sequence.** `#coll`, `coll[1]` and `ipairs(coll)` are refused,
+> naming what to write instead. Two ways to enumerate one thing is the ambiguity this API does not
+> have: `coll:list()` is the array, and you index that.
+
+### Objects, and the snapshot hatch
+
+A read hands back a **live object** rather than a copy. It re-resolves on every call, answers `nil`
+once the thing it names is gone, and reports `:exists()`. Objects are interned per addon, so `==` is
+the identity test and one works as a table key.
+
+A point-in-time copy is what `:info()` gives you, and nothing else does. Every shape it returns is in
+[data types](types.md).
+
+### nil is an error unless it means something
+
+An explicit `nil` argument raises. Arity is the verb, so a value you meant to write but that arrived
+as `nil` would otherwise turn the write into a read, silently. Two meanings are documented, each on
+the page that carries it: **undo your layer** (`w:position(nil)`, `w:size(nil)`, `w:replace(nil)`) and
+**none** (a `tint(nil)`). Everywhere else it is an accident, and there is nothing to undo.
+
+```lua
+w:position(x, y)          -- with an x you forgot to compute, this raises
+w:position()              -- the read is the same verb with no argument
+```
+
+The bridge separates the two cases by counting arguments, and it is exact for a value you pass
+directly, a table field included: `w:size(cfg.width, cfg.height)` with a missing key raises. One gap
+is inherent to it: `f(g())` where `g` returns *nothing* arrives as no argument at all and is read as
+`f()`. A `g` that returns an explicit `nil` is refused like any other value.
+
+### A table is a value, never named arguments
+
+A table you pass in is **data**: a colour, a coordinate, a document to encode. A thing you build is
+constructed bare and configured by chained setters instead of by a table of named arguments, so the
+configuration reads in the order it happens and a setter can refuse what it cannot do.
+
+The boundary is deliberate rather than missing. It is why a request carries `req:header(name, value)`
+rather than an options table, and it does not reach what a verb *returns*: a `:list()` array and an
+`:info()` table are ordinary Lua tables you index normally.
+
+### A retired name says what replaced it
+
+A spelling this API has replaced does not read as `nil`. It raises, at the line that wrote it, naming
+what to write instead. A name that was never part of this API still reads as plain `nil`, so testing
+whether something exists still works.
 
 ## References: how you address things
 
@@ -37,10 +125,9 @@ call, so a stashed one tracks renames, regroups and online flips, and `hafen.kin
 ### Slot: an action-bar slot
 
 Same pattern: `hafen.actionbar()` is all 144 slots, a 1-based array of `Slot`; `hafen.actionbar(n)` is
-the one at the **raw 0-based game index**. A `Slot` wraps only that index and re-reads the bar every
-call, so a stashed one goes `:empty()` the moment the slot is cleared, and
-`hafen.actionbar(0) == hafen.actionbar(0)`. `slot:index()` gives the game index back from an array
-position. See [`hafen.actionbar`](actionbar.md).
+the one at the **raw 0-based game index**, and `slot:index()` gives that index back from an array
+position. A stashed `Slot` goes `:empty()` the moment the slot is cleared. See
+[`hafen.actionbar`](actionbar.md).
 
 ### Needle-keyed objects: Buff, Meter, Action, Sound
 
@@ -80,11 +167,10 @@ false, once its widget is gone. What you may *write* depends on whether your add
 [owned vs borrowed](ui/widget.md#owned-vs-borrowed). A **server widget id**, `:id()`, is the number the
 gated [`hafen.act.raw`](act.md) takes.
 
-Its two write verbs read the **arity as the verb**, like every callable namespace above:
-[`w:replace()`](ui/replace.md) reads, `w:replace(view)` installs, `w:replace(nil)` undoes; and
-[`w:skin()`](ui/style/README.md#restyle-one-widget) reads your own style, `w:skin{…}` installs it,
-`w:skin(nil)` drops it. Each answers for **your** addon: what you wrote comes back unchanged, and what
-you drop leaves another addon's alone.
+Its write verbs answer for **your** addon: what you wrote comes back unchanged, and what you drop
+leaves another addon's alone. [`w:replace(view)`](ui/replace.md) installs a stand-in and
+`w:replace(nil)` undoes it; [`w:skin{…}`](ui/style/README.md#restyle-one-widget) installs your style
+and `w:skin(nil)` drops it.
 
 ### Selector: naming a piece of the UI
 
@@ -119,8 +205,10 @@ against the *enclosing window*, and you hold your result rather than re-selectin
 - **Snapshots** are plain Lua tables, point-in-time copies returned by the escape-hatch readers
   (`gob:info()`, `widget:items()`, `buff:info()`, …). They do **not** update, so re-read rather than
   caching one across ticks. Every snapshot shape is in [data types](types.md).
-- **Handles** are live, bridge-owned proxies with methods (`hafen.ui.window`, `hafen.timer.every`,
-  `hafen.events.on`, …), released for you when the addon is disabled or reloaded.
+- **Handles** are live, bridge-owned proxies with methods (`hafen.ui.window`, `hafen.timer():every`,
+  `hafen.event():on`, …), released for you when the addon is disabled or reloaded.
+- **Objects** are live as well, and they are what a read hands you: they re-resolve rather than
+  holding a value, so one you keep tracks the thing it names.
 
 ## The filter argument
 
@@ -179,7 +267,7 @@ A read returns `nil`, or an empty table for a list verb, when the data is not av
 the world loads, before a HUD widget streams in, or while a resource is still resolving. Reads never
 throw a loading error into Lua — the bridge swallows it. Much character-sheet data (meters, food,
 skills, quests, wounds, …) streams in a beat *after* `OnEnterWorld`, so read it on a short timer or
-subscribe to the matching [event](events.md).
+subscribe to the matching [event](event.md).
 
 ## Threading
 
@@ -207,6 +295,6 @@ host allowlist in the manifest.
 ## See also
 
 - [data types](types.md) — every snapshot shape the readers return
-- [events](events.md) — the bus, and what each event hands your handler
+- [events](event.md) — the bus, and what each event hands your handler
 - [`hafen.act`](act.md) — the gated tier, and the permission itself
 - [`hafen.ui`](ui/README.md) — where selectors, widgets and the stylesheet are documented in full

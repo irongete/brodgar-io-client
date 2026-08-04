@@ -139,11 +139,11 @@ To restyle **one** widget you already hold rather than a family of surfaces, use
 
 ```lua
 local h
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   h = hafen.asset("fonts/Inter.ttf"):derive{ size = 11 }   -- or hafen.font("serif"):derive{ size = 11 }
 end)
 
-hafen.slash.register("bigserif", function()
+hafen.slash():register("bigserif", function()
   hafen.ui.skin{ ["*"] = { font = h } }   -- most UI text becomes serif, live
 end)
 -- reverted automatically when the addon is reloaded or disabled, or explicitly with hafen.ui.skin(nil)

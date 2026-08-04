@@ -1,7 +1,7 @@
 -- 033.3 — docs, the `theme` example, close. Self-checking suite; see specs/addons/TESTING.md.
 --
 -- What this task shipped and therefore what this asserts: the `data` asset (.json/.txt through hafen.asset,
--- the door a theme.json comes through), the sheet AS DATA end to end (file -> hafen.json.parse -> skin{}),
+-- the door a theme.json comes through), the sheet AS DATA end to end (file -> hafen.json():parse -> skin{}),
 -- and the C1a contract the docs now publish -- a site key, `*`, an inert tree key, and the hard cut.
 -- The two-addon fallback and the look of a restyled surface are the two things a program cannot see: they
 -- are [manual] lines with the exact steps.
@@ -14,10 +14,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -34,7 +34,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 -- Build a sheet the way the `theme` addon does: the JSON carries a font DESCRIPTOR, Lua maps it to a handle.
@@ -62,9 +62,9 @@ local function run()
   refuses("an unsupported extension is refused, listing the ones that load",
           function() hafen.asset("sheet.yaml") end, ".json/.txt (data)")
 
-  -- 2. the sheet IS data: file -> hafen.json.parse -> hafen.ui.skin. A JSON array arrives as the sheet's own
+  -- 2. the sheet IS data: file -> hafen.json():parse -> hafen.ui.skin. A JSON array arrives as the sheet's own
   --    positional colour shape, so nothing between the file and the client converts a thing.
-  local doc = hafen.json.parse(a:text())
+  local doc = hafen.json():parse(a:text())
   local rules = sheetOf(doc)
   check(doc.rules.chat.color[1] == 90, "a JSON colour array arrives 1-indexed, as the sheet's own shape",
         doc.rules.chat.color[1])
@@ -99,10 +99,10 @@ local function run()
               "chat turns RED (the last sheet applied wins), then falls back to the theme's GREEN"
               .. " -- not to stock; ':theme off' then leaves stock")
 
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 -- ON DEMAND ONLY. A suite does not start itself: the maintainer runs it when they want it. That is also what
 -- removed the whole class of login races between suites -- each one installs a client-wide sheet and bumps
 -- Fonts.gen() while it runs, so two rounds overlapping reddened lines in the OTHER suite.
-hafen.slash.register("t033-3", run)                                       -- the only way in
+hafen.slash():register("t033-3", run)                                       -- the only way in

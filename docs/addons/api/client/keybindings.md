@@ -7,7 +7,7 @@ read or remap any binding, yours or the client's own. Ungated.
 local keys = hafen.client:options():keybindings()
 
 keys:register("toggle", function()
-  hafen.log("toggled")
+  hafen.log():write("toggled")
 end)
 ```
 
@@ -66,13 +66,13 @@ Modifier matching is exact: `"M"` fires only on a bare `M`, never on `Ctrl+M`.
 ```lua
 local keys = hafen.client:options():keybindings()
 
-keys:register("toggle", function() hafen.log("toggled") end)
+keys:register("toggle", function() hafen.log():write("toggled") end)
 
-hafen.log("my key: " .. tostring(keys:get("toggle")))     -- nil until the user assigns one
-hafen.log("inventory: " .. tostring(keys:get("inv")))     -- a client binding, e.g. "Tab"
+hafen.log():write("my key: " .. tostring(keys:get("toggle")))     -- nil until the user assigns one
+hafen.log():write("inventory: " .. tostring(keys:get("inv")))     -- a client binding, e.g. "Tab"
 
 for id, key in pairs(keys:list()) do
-  if key ~= "None" then hafen.log(id .. " = " .. key) end
+  if key ~= "None" then hafen.log():write(id .. " = " .. key) end
 end
 ```
 

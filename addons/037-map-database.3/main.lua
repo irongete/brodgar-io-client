@@ -24,10 +24,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -40,11 +40,11 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local function summary()
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 local SWEEP = 2          -- half-width, in grids, of the neighbourhood searched for a recorded overlay
@@ -178,7 +178,7 @@ local function run(args)
   --     kicking those loads. (035.2: wait FIRST, then judge.)
   local sc = hafen.map.grid(gp.gridId)
   sc = sc and sc:sc()
-  hafen.timer.after(1.5, function()
+  hafen.timer():after(1.5, function()
     local here = hafen.map.grid(gp.gridId)
     local tags = here and here:overlays()
     check((tags ~= nil) and (type(tags) == "table"),
@@ -243,4 +243,4 @@ local function run(args)
   end)
 end
 
-hafen.slash.register("t037-3", run)   -- the only way in: a suite does not start itself
+hafen.slash():register("t037-3", run)   -- the only way in: a suite does not start itself

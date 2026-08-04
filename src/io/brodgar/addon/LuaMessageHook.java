@@ -10,7 +10,7 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 
 /**
  * A <b>message hook</b> (Level 3, spec {@code 13-hooks-and-interception.md} §L3) — the Java half of
- * {@code hafen.hook.message(msg, fn)}, Phase 2e. It is the inbound mirror of the L2 action hook
+ * {@code hafen.hook():message(msg, fn)}, Phase 2e. It is the inbound mirror of the L2 action hook
  * ({@link LuaActionHook}): server&rarr;client UI updates all funnel through {@link UI#uimsg}, which queues a
  * {@code UiMessage} that (on a Loader thread, under {@code synchronized(ui)}) applies the update to the target
  * widget. The one core edit in {@code UI.UiMessage.run} calls {@link AddonManager#onMessage} <b>before</b> the
@@ -75,7 +75,7 @@ public final class LuaMessageHook {
         });
         ev.set("rewrite", new TwoArgFunction() {          // ev:rewrite(t) — colon-call: self=arg1, the table=arg2
             public LuaValue call(LuaValue self, LuaValue nargs) {
-                rewritten[0] = LuaMarshal.luaToArgs(nargs, "hafen.hook.message ev:rewrite");
+                rewritten[0] = LuaMarshal.luaToArgs(nargs, "hafen.hook():message ev:rewrite");
                 return LuaValue.NIL;
             }
         });

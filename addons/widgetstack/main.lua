@@ -42,7 +42,7 @@
 -- into the window to click a row. That hotkey starts UNBOUND: assign it under Options > Keybindings >
 -- Widgetstack (suggested: Ctrl+Shift+F).
 
-hafen.log("widgetstack loaded (v0.4.0)")
+hafen.log():write("widgetstack loaded (v0.4.0)")
 
 local win                 -- the floating stack window (created at OnEnterWorld)
 local overlay             -- the HUD overlay handle drawing the highlight box
@@ -215,7 +215,7 @@ openInspector = function(node)
     onClick = function(x, y, button)
       local n = st.node
       if y >= I_SEL_Y and y < I_SEL_Y + LINE then                 -- the selector line: log it (copyable)
-        if st_sel.offer then hafen.log(pasteLine(st_sel.offer)) end
+        if st_sel.offer then hafen.log():write(pasteLine(st_sel.offer)) end
       elseif y >= I_PARENT_Y and y < I_PARENT_Y + LINE then       -- parent link
         openInspector(n:parent())
       elseif y >= I_CHILD_Y0 then                                 -- a child row
@@ -265,7 +265,7 @@ local function rebuild()
 end
 
 -- OnUpdate: the per-frame poll + the guard. This is the WoW-OnUpdate analog (the engine tick pump, 09).
-hafen.events.on("OnUpdate", function(dt)
+hafen.event():on("OnUpdate", function(dt)
   if frozen then return end                         -- held still: keep the last stack + box
   local m = hafen.ui.mouse()
   if not m then return end                          -- no UI yet
@@ -386,9 +386,9 @@ local function stackClick(x, y, button)
     local k = math.floor((y - SEL_Y0) / LINE) + 1
     local c = insp.cands[k]
     if (k <= SEL_MAXROWS) and c then
-      hafen.log(pasteLine(c))
+      hafen.log():write(pasteLine(c))
     elseif insp.offer then
-      hafen.log(pasteLine(insp.offer))
+      hafen.log():write(pasteLine(insp.offer))
     end
   end
   return true                                                       -- consume
@@ -401,7 +401,7 @@ local function drawOutline(g, w, h)
   end
 end
 
-hafen.events.on("OnEnterWorld", function()
+hafen.event():on("OnEnterWorld", function()
   if not win then
     win = hafen.ui.window{
       title   = "Widget Stack",
@@ -409,9 +409,9 @@ hafen.events.on("OnEnterWorld", function()
       pos     = { 60, 60 },
       onDraw  = drawStack,
       onClick = stackClick,
-      onClose = function() hafen.log("widgetstack: window closed (X) -- :widgetstack to bring it back") end,
+      onClose = function() hafen.log():write("widgetstack: window closed (X) -- :widgetstack to bring it back") end,
     }
-    hafen.log("widgetstack: window up -- hover the UI; click a row to inspect; :selector logs the hovered widget's selector; :widgetstack toggles it, the freeze hotkey holds it")
+    hafen.log():write("widgetstack: window up -- hover the UI; click a row to inspect; :selector logs the hovered widget's selector; :widgetstack toggles it, the freeze hotkey holds it")
   end
   if not overlay then
     overlay = hafen.ui.overlay(drawOutline)
@@ -419,26 +419,26 @@ hafen.events.on("OnEnterWorld", function()
 end)
 
 -- :widgetstack -- toggle the window (WoW /framestack on/off).
-hafen.slash.register("widgetstack", function(args)
-  if not win then hafen.log(":widgetstack -> not up yet (enter the world first)"); return end
+hafen.slash():register("widgetstack", function(args)
+  if not win then hafen.log():write(":widgetstack -> not up yet (enter the world first)"); return end
   local show = not win:visible()
   if show then win:show() else win:hide() end
-  hafen.log((":widgetstack -> window %s"):format(show and "shown" or "hidden"))
+  hafen.log():write((":widgetstack -> window %s"):format(show and "shown" or "hidden"))
 end)
 
 -- :selector -- log the hovered widget's full selector report. The window shows it too, but a logged line is
 -- SELECTABLE, which is how the string actually gets out of the client and into your addon.
-hafen.slash.register("selector", function(args)
-  if not insp then hafen.log(":selector -> nothing hovered yet (move the mouse over the UI)"); return end
-  hafen.log((":selector -> class=%s role=%s title=%s res=%s")
+hafen.slash():register("selector", function(args)
+  if not insp then hafen.log():write(":selector -> nothing hovered yet (move the mouse over the UI)"); return end
+  hafen.log():write((":selector -> class=%s role=%s title=%s res=%s")
     :format(insp.cls or "?", insp.role or "nil",
             (insp.title and insp.title ~= "") and ("'" .. insp.title .. "'") or "-", insp.res or "-"))
   for i = 1, #insp.cands do
     local c = insp.cands[i]
-    hafen.log(("  %s%s   (%d match%s, this one is #%d)")
+    hafen.log():write(("  %s%s   (%d match%s, this one is #%d)")
       :format((i == 1) and "* " or "  ", c.sel, c.count, (c.count == 1) and "" or "es", c.idx))
   end
-  if insp.offer then hafen.log(pasteLine(insp.offer)) end
+  if insp.offer then hafen.log():write(pasteLine(insp.offer)) end
 end)
 
 -- "freeze" -- freeze/unfreeze the stack so you can move the mouse INTO the window to read + click it without
@@ -447,5 +447,5 @@ end)
 -- the choice is persisted exactly like a built-in binding.
 hafen.client:options():keybindings():register("freeze", function()
   frozen = not frozen
-  hafen.log((":widgetstack freeze %s"):format(frozen and "ON" or "OFF"))
+  hafen.log():write((":widgetstack freeze %s"):format(frozen and "ON" or "OFF"))
 end)

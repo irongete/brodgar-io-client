@@ -104,7 +104,7 @@ local function open(at)
   }
   shown = nil
   refresh()
-  ticker = hafen.timer.every(RATE, refresh)
+  ticker = hafen.timer():every(RATE, refresh)
 end
 
 close = function()
@@ -140,54 +140,54 @@ local function rebuild()
 end
 
 -- ---- the command ------------------------------------------------------------------------------------
-hafen.slash.register("atlas", function(args)
+hafen.slash():register("atlas", function(args)
   local sub = args and args[1]
 
   if sub == nil then
     if panel and panel:exists() then
       close()
-      hafen.log("atlas: closed")
+      hafen.log():write("atlas: closed")
     else
       open()
-      hafen.log(("atlas: the recorded map at zoom %d, pins %s"):format(lvl, pins and "on" or "off"))
+      hafen.log():write(("atlas: the recorded map at zoom %d, pins %s"):format(lvl, pins and "on" or "off"))
     end
 
   elseif sub == "zoom" then
     local n = tonumber(args[2])
     if (n == nil) or (n < 0) or (n > MAXLVL) or (n ~= math.floor(n)) then
-      return hafen.log("atlas: ':atlas zoom <0.." .. MAXLVL .. ">' -- 0 is one grid, each level four times the ground")
+      return hafen.log():write("atlas: ':atlas zoom <0.." .. MAXLVL .. ">' -- 0 is one grid, each level four times the ground")
     end
     lvl, shown = n, nil
     refresh()
-    hafen.log(("atlas: zoom %d -- one pixel is %d tiles, the panel covers %d"):format(n, 2 ^ n, SIDE * (2 ^ n)))
+    hafen.log():write(("atlas: zoom %d -- one pixel is %d tiles, the panel covers %d"):format(n, 2 ^ n, SIDE * (2 ^ n)))
 
   elseif sub == "pins" then
     pins = not pins
     rebuild()
-    hafen.log("atlas: the marker layer is " .. (pins and "ON -- drawn from Lua, one draw callback a frame"
+    hafen.log():write("atlas: the marker layer is " .. (pins and "ON -- drawn from Lua, one draw callback a frame"
                                                      or "OFF — the panel is painted by the engine alone"))
 
   elseif sub == "where" then
     local gp = hafen.world.gridPos()
     local g = gp and hafen.map.grid(gp.gridId)
-    if not g then return hafen.log("atlas: the map has not streamed in here yet") end
+    if not g then return hafen.log():write("atlas: the map has not streamed in here yet") end
     local sc, mt = g:sc(), g:mtime()
     -- The anchor is the line worth reading twice: gridId is the SERVER's and means the same thing to every
     -- player, while the segment id and the grid coord beside it are this client's own bookkeeping — look at
     -- them, never store them (docs/addons/api/map.md#saving-a-position).
-    hafen.log(("atlas: anchor {gridId=%s, x=%.0f, y=%.0f} -- segment %s, grid coord %d,%d, recorded at %s")
+    hafen.log():write(("atlas: anchor {gridId=%s, x=%.0f, y=%.0f} -- segment %s, grid coord %d,%d, recorded at %s")
               :format(gp.gridId, gp.x, gp.y, g:segment():id(), sc.x, sc.y,
                       mt and ("%.0f"):format(mt) or "unknown"))
 
   elseif sub == "mark" then
     local p = hafen.player() and hafen.player():gob() and hafen.player():gob():pos()
-    if not p then return hafen.log("atlas: no player position yet") end
+    if not p then return hafen.log():write("atlas: no player position yet") end
     local nm = args[2] or "Atlas"
     local m = hafen.map.markers.add(nm, p.x, p.y, { color = { 90, 220, 120 }, onmap = true })
-    hafen.log(m and ("atlas: dropped the marker \"" .. nm .. "\" -- ':atlas pins' to see it on the panel")
+    hafen.log():write(m and ("atlas: dropped the marker \"" .. nm .. "\" -- ':atlas pins' to see it on the panel")
                 or "atlas: the map database is not ready")
 
   else
-    hafen.log("atlas: ':atlas' opens or closes the panel | 'zoom <0..8>' | 'pins' | 'where' | 'mark [name]'")
+    hafen.log():write("atlas: ':atlas' opens or closes the panel | 'zoom <0..8>' | 'pins' | 'where' | 'mark [name]'")
   end
 end)

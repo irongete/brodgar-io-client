@@ -179,7 +179,8 @@
   IS `load`, and `LuaValue.load(LuaValue)` exists — so `load(owner, path)` inside `new VarArgFunction(){…}`
   fails to compile with a *misleading* "method load in class LuaValue cannot be applied to given types".
   Qualify it (`AssetApi.load(...)`) and comment why; `FontApi` had carried exactly that comment since F1.
-- **(028.3) An explicit `nil` argument to a D-056 callable namespace is the COLLECTION form, not an error.**
+- **(028.3, SUPERSEDED by 039.1 — see the `narg()` entry below) An explicit `nil` argument to a D-056
+  callable namespace was the COLLECTION form, not an error.**
   The `__call` handlers all branch `if(key.isnil()) return <the collection>` — and LuaJ cannot distinguish
   "called with no argument" from "called with an argument that happens to be `nil`" (both arrive as `NIL` at
   `a.arg(2)`). So `hafen.asset(maybeNil)` quietly hands back the *list* instead of raising, and the same is
@@ -222,3 +223,34 @@
   must **refuse a number** (a Lua double cannot carry a grid id) while accepting the decimal *string* the
   API itself hands out — and `"48133101501480977"` answers `isnumber() == true`. Only `v.type()`
   distinguishes them.
+- **(039.1) `narg()` DOES separate `f()` from `f(x)` when `x` is nil — 028.3's "it cannot be fixed" was
+  wrong, and the whole `nil` discipline rests on this.** A Lua caller writing `f(x)` emits a CALL with one
+  argument whatever `x` holds, so `Varargs.narg()` is 1; `f()` is 0. A **table field** (`f(cfg.enabled)`) is
+  such an argument, which is where both hazards measured in shipped code lived. The one case that genuinely
+  cannot be separated is `f(g())` where `g` returns **nothing**: varargs expansion makes it `narg == 0`,
+  identical to `f()`. (A `g` that returns an explicit `nil` is `narg == 1` and is refused like any other.) So
+  the rule is: **an explicit `nil` is an error, exactly, for a direct argument, and degrades to "read" for a
+  zero-return call** — document the hole and assert it, rather than claiming exactness or giving up on the
+  check. On a colon call the receiver is argument 1 and on a `__call` metamethod the table is argument 1, so a
+  verb's first real argument is index 2 in both.
+- **(039.1) LuaJ userdata gets `__len`, and WITHOUT one `#u` still throws — with a message that guides
+  nobody.** `LuaUserdata` inherits `LuaValue.len()`, so `#coll` on a metatabled userdata with no `__len`
+  raises `attempt to get length of userdata`: technically a refusal, and useless to the person porting. Set
+  `__len` to a function that throws the sentence you want read (`coll:count() is how many, coll:list() is the
+  array`). Same for numeric keys: an `__index` that is a **function** can refuse `coll[1]` by name, while an
+  `__index` that is a **table** silently answers nil. The falsification is the proof — removing both made the
+  suite red on `coll[1]` only, because `#coll` kept throwing for the wrong reason.
+- **(039.1) The 019.4 `name`-shadowing trap bites a captured METHOD PARAMETER, not just a local, and its
+  symptom is a plausible string.** `static void mount(LuaTable hafen, final String name, …)` with
+  `new VarArgFunction() { … "hafen." + name + "()" … }` reads LuaJ's inherited `LibFunction.name` field
+  (null), so every error message and every `tostring` came out as `hafen.null()` — it compiles, it runs, and
+  nothing crashes; you notice only if something asserts the text. The headless probe caught it on
+  `tostring(hafen.time()) == 'hafen.time()'`, which is worth having for that reason alone. Name the parameter
+  `nm`. The trap now has three recorded victims (019.4, 025.1, 039.1); treat `name`, `opcode`, `get`, `set`,
+  `type`, `len`, `call` and `tostring` as reserved inside an anonymous `LuaValue` subclass.
+- **(039.1) Porting a dotted verb to a colon verb breaks every `pcall(f, args…)` site.**
+  `pcall(hafen.json.parse, body)` becomes `pcall(hafen.json():parse, body)` under a mechanical rewrite, which
+  compiles and then fails at run time with "use a COLON call": the method was fetched without its receiver.
+  It must become `pcall(function() return hafen.json():parse(body) end)`. Grep for `pcall(hafen\.` before
+  trusting a scripted port — the automated sweep cannot see the difference, and the failure only shows on the
+  error path, which is the path nobody runs.

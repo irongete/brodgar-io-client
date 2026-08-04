@@ -32,7 +32,7 @@ are until you are in the world.
 | per character | `OnEnterWorld` onwards |
 
 ```lua
-hafen.events.on("OnEnterWorld", function()
+hafen.event():on("OnEnterWorld", function()
   local pos = hafen.store.settings.window
   if pos then window:pos(pos.x, pos.y) end
 end)
@@ -52,7 +52,7 @@ of positions, a chosen action is [a resource name](../api/ui/custom.md#ondrop-ma
 you can draw again. Rebuild the live objects from that on load.
 
 ```lua
-hafen.events.on("OnEnterWorld", function()
+hafen.event():on("OnEnterWorld", function()
   for _, p in ipairs(hafen.store.settings.props or {}) do
     local w = hafen.world.fromGridPos(p.anchor)                 -- nil until that grid streams in
     if w then hafen.ghost.new{ res = p.res, x = w.x, y = w.y } end

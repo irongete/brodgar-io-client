@@ -20,10 +20,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -40,7 +40,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local KEY   = "world"                 -- this suite's one key on the player's gob
@@ -53,13 +53,13 @@ local parked = {}                     -- gob ids the ':t038-2 park' round put an
 local gone   = {}                     -- of those, the ones the client has since dropped (GobRemoved)
 local watching = false
 
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   icon = hafen.asset("icon.png")
   mesh = hafen.asset("tri.glb")
 end)
 
 local function summary()
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 -- How many of THIS addon's overlays does gob:overlay() list, and under which keys?
@@ -190,7 +190,7 @@ end
 parkRound = function()
   pass, fail, manual = 0, 0, 0
   if not watching then
-    hafen.events.on("GobRemoved", function(g)      -- the payload IS the Gob object; after removal only :id() answers
+    hafen.event():on("GobRemoved", function(g)      -- the payload IS the Gob object; after removal only :id() answers
       for _, id in ipairs(parked) do
         if g:id() == id then gone[#gone + 1] = id end
       end
@@ -244,7 +244,7 @@ goneRound = function()
   summary()
 end
 
-hafen.slash.register("t038-2", function(args)
+hafen.slash():register("t038-2", function(args)
   if args and (args[1] == "drop") then return dropRound() end
   return run(args)
 end)   -- the only way in: a suite does not start itself

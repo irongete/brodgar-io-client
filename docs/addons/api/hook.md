@@ -1,16 +1,16 @@
 # hafen.hook: intercept and alter
 
 Hooks let you intercept client behaviour *before* it happens and cancel or change it, rather than only
-observing it. Reach for one when an event on the [bus](events.md) would arrive too late to matter. Every
+observing it. Reach for one when an event on the [bus](event.md) would arrive too late to matter. Every
 hook is a **pre-hook**: your `fn(ev)` runs before the default, and `ev:preventDefault()` cancels that
 default.
 
 | Function | Level | Intercepts |
 |---|---|---|
-| [`hafen.hook.input(target, event, fn)`](#hafenhookinputtarget-event-fn) | widget input | a client widget's mouse input, before the widget handles it |
-| [`hafen.hook.action(msg, fn)`](#hafenhookactionmsg-fn) | outbound action | a player action, before it is sent to the server |
-| [`hafen.hook.message(msg, fn)`](#hafenhookmessagemsg-fn) | inbound message | a server update, before the widget applies it |
-| [`hafen.hook.grab{move, up}`](#hafenhookgrabmove-up) | mouse capture | *not a pre-hook*: capture the mouse for a press-drag-release loop |
+| [`hafen.hook():input(target, event, fn)`](#hafenhookinputtarget-event-fn) | widget input | a client widget's mouse input, before the widget handles it |
+| [`hafen.hook():action(msg, fn)`](#hafenhookactionmsg-fn) | outbound action | a player action, before it is sent to the server |
+| [`hafen.hook():message(msg, fn)`](#hafenhookmessagemsg-fn) | inbound message | a server update, before the widget applies it |
+| [`hafen.hook():grab{move, up}`](#hafenhookgrabmove-up) | mouse capture | *not a pre-hook*: capture the mouse for a press-drag-release loop |
 
 Each returns a handle with `:remove()`, and each is removed automatically on reload or disable. Register
 hooks in `OnEnterWorld`, since an input target widget must exist by then. Handlers run on the UI thread, so
@@ -20,7 +20,7 @@ Hooking is **ungated**: it observes and cancels the client's own behaviour rathe
 Re-sending an action through [`ev:send`](#hafenhookactionmsg-fn) reissues what the client was already
 about to send.
 
-## `hafen.hook.input(target, event, fn)`
+## `hafen.hook():input(target, event, fn)`
 
 Fires before a client widget's own input handler. `target` is `"mapview"` (alias `"map"`), `"gameui"`
 (alias `"hud"`) or `"root"`; `event` is `"mousedown"`, `"mouseup"`, `"mousemove"` or `"mousewheel"`.
@@ -31,12 +31,12 @@ separate propagation verb.
 
 ```lua
 -- swallow map clicks while "locked":
-hafen.hook.input("mapview", "mousedown", function(ev)
+hafen.hook():input("mapview", "mousedown", function(ev)
   if locked then ev:preventDefault() end
 end)
 ```
 
-## `hafen.hook.action(msg, fn)`
+## `hafen.hook():action(msg, fn)`
 
 Fires when a widget is about to send an action `msg` to the server, with the arguments **fully resolved** —
 for a move `"click"`, that is the destination world coordinate, which does not exist yet at input time.
@@ -54,13 +54,13 @@ for a move `"click"`, that is the destination world coordinate, which does not e
 move, do something, then move" pattern.
 
 ```lua
-hafen.hook.action("click", function(ev)
-  hafen.log("moving to " .. ev.args[2].x .. "," .. ev.args[2].y)
+hafen.hook():action("click", function(ev)
+  hafen.log():write("moving to " .. ev.args[2].x .. "," .. ev.args[2].y)
   ev:resend()   -- let the move happen anyway
 end)
 ```
 
-## `hafen.hook.message(msg, fn)`
+## `hafen.hook():message(msg, fn)`
 
 The inbound mirror of `action`: fires when a server update `msg` is about to be applied to a widget.
 
@@ -76,12 +76,12 @@ The inbound mirror of `action`: fires when a server update `msg` is about to be 
 
 ```lua
 -- freeze the HUD meter bars by swallowing their updates:
-hafen.hook.message("set", function(ev)
+hafen.hook():message("set", function(ev)
   if frozen and ev.target == "IMeter" then ev:preventDefault() end
 end)
 ```
 
-## `hafen.hook.grab{move, up}`
+## `hafen.hook():grab{move, up}`
 
 Not a pre-hook: it takes over the mouse for a press-drag-release loop, the drag primitive a
 [ghost](ghost.md#the-transform-gizmo) gizmo is built on. While a grab is active the map view neither pans
@@ -101,7 +101,7 @@ along the ground:
 ```lua
 -- move `ghost` with the mouse, snapped to the placement grid; click to drop:
 local pending = false
-local g = hafen.hook.grab{
+local g = hafen.hook():grab{
   move = function(sx, sy, mods)
     if pending then return end                 -- coalesce: one raycast in flight at a time
     pending = true
@@ -113,7 +113,7 @@ local g = hafen.hook.grab{
       end
     end)
   end,
-  up = function() hafen.log("dropped") end,    -- the grab auto-releases here
+  up = function() hafen.log():write("dropped") end,    -- the grab auto-releases here
 }
 ```
 
@@ -123,5 +123,5 @@ local g = hafen.hook.grab{
   level: they run through the client's binding registry, after the client's own bindings
 - [`hafen.world`](world.md#screen-to-world-and-placement-snapping) — the coordinate half of a drag
 - [`hafen.ghost`](ghost.md#the-transform-gizmo) — what a grab is normally dragging
-- [events](events.md) — the observe-only bus, for everything a hook does not need to cancel
+- [events](event.md) — the observe-only bus, for everything a hook does not need to cancel
 - [`hafen.act`](act.md) — sending an action yourself, which is gated

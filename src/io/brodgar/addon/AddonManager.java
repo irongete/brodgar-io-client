@@ -104,9 +104,9 @@ import javax.imageio.ImageIO;
  * The AddOn engine (see {@code specs/addons/04-engine.md}).
  *
  * <p>Phase 0 proved a Lua VM (LuaJ) reads live state on the UI thread. Phase 1a added loading addons
- * from disk (per-addon Lua envs, {@code hafen.log}, the {@code :lua}/{@code :addons} console). Phase
+ * from disk (per-addon Lua envs, {@code hafen.log():write}, the {@code :lua}/{@code :addons} console). Phase
  * 1b adds the <b>runtime</b>: a per-frame <b>tick pump</b> (via an invisible {@link AddonRoot}
- * widget), a synthesized <b>event bus</b> ({@code hafen.events}), core lifecycle/update/gob events,
+ * widget), a synthesized <b>event bus</b> ({@code hafen.event()}), core lifecycle/update/gob events,
  * and <b>timers</b> ({@code hafen.timer}). All of it is <b>zero core edit</b> — it reuses the
  * existing {@code RemoteUI.init} and {@code MapView} hooks plus the public {@link OCache#callback}.
  *
@@ -589,7 +589,7 @@ public final class AddonManager {
 
     /**
      * The outbound-{@code wdgmsg} action hook (spec 13 §L2 / Phase 2d) — the core edit in
-     * {@link UI#wdgmsg(Widget, String, Object...)}. Runs every registered {@code hafen.hook.action(msg, fn)}
+     * {@link UI#wdgmsg(Widget, String, Object...)}. Runs every registered {@code hafen.hook():action(msg, fn)}
      * whose name matches, <b>before</b> the message reaches the server, and reports whether the default send
      * should proceed: {@code false} once any hook called {@code ev:preventDefault()} (or {@code ev:resend}/
      * {@code ev:send}, which take over the send themselves via {@link UI#rawWdgmsg}).
@@ -611,7 +611,7 @@ public final class AddonManager {
 
     /**
      * The inbound-{@code uimsg} message hook (spec 13 §L3 / Phase 2e) — the core edit in {@code UI.UiMessage.run}.
-     * Runs every registered {@code hafen.hook.message(msg, fn)} whose name matches, <b>before</b> the target
+     * Runs every registered {@code hafen.hook():message(msg, fn)} whose name matches, <b>before</b> the target
      * widget applies the server update, and reports what to apply:
      * <ul>
      *   <li>the original {@code args} — no hook matched, or none altered the message (apply as normal);</li>
@@ -1087,7 +1087,7 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // names are not reliably available. :worldToScreen is MAP-VIEW-relative pixels.
         CharApi.installPlayer(hafen, owner);
 
-        // hafen.time.* — game clock + astronomy. clock() is always available; the astronomy readers are
+        // hafen.time():* — game clock + astronomy. clock() is always available; the astronomy readers are
         // nil until the first "astro" update lands (Glob.ast is nil before then).
         WorldApi.installTime(hafen, owner);
 
@@ -1343,12 +1343,20 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // (cosmetic, client-only — no server traffic).
         FontApi.installFont(hafen, owner);
 
-        hafen.set("log", new OneArgFunction() {
-            public LuaValue call(LuaValue msg) {
-                log(owner, msg.isnil() ? "nil" : msg.tojstring());
-                return LuaValue.NIL;
+        // hafen.log():write(msg) — one line to the in-game console and the terminal, tagged with the addon id.
+        // The section has no shortcut form: hafen.log(msg) throws naming this one, because an exception in
+        // the busiest verb in the API is the exception every reader would meet first. Returns SELF so a run of
+        // lines chains, and an explicit nil is refused (§2.9) rather than printing "nil".
+        LuaTable logm = new LuaTable();
+        logm.set("write", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                Section.self(self, "log", "write");
+                log(owner, Args.required(a, 2, "hafen.log():write", "msg").tojstring());
+                return self;
             }
         });
+        Section.install(hafen, "log", logm, "hafen.log(msg) is now hafen.log():write(msg)");
 
         // hafen.json — parse/encode JSON (N1 / D-036). Ungated (pure CPU), independent of the network.
         // parse(str) -> Lua value: objects -> string-keyed tables, arrays -> 1-based tables; a JSON null
@@ -1358,13 +1366,15 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // JSON and is STRICT (a function/userdata/thread, a reference cycle, or a non-finite number throws)
         // so the result is always valid JSON — unlike the REPL echo's forgiving Json.write.
         LuaTable json = new LuaTable();
-        json.set("parse", new OneArgFunction() {
-            public LuaValue call(LuaValue str) {
+        json.set("parse", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "json", "parse");
+                LuaValue str = Args.required(a, 2, "hafen.json():parse", "text");
                 if(!str.isstring())
-                    throw new LuaError("hafen.json.parse(str) expects a string");
+                    throw new LuaError("hafen.json():parse(text) expects a string");
                 String s = str.tojstring();
                 if(s.length() > Json.MAX_INPUT)
-                    throw new LuaError("hafen.json.parse: input too large (" + s.length()
+                    throw new LuaError("hafen.json():parse: input too large (" + s.length()
                         + " > " + Json.MAX_INPUT + " chars)");
                 Object parsed;
                 try {
@@ -1375,23 +1385,29 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
                 return LuaMarshal.jsonToLua(parsed);
             }
         });
-        json.set("encode", new OneArgFunction() {
-            public LuaValue call(LuaValue v) {
+        json.set("encode", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "json", "encode");
+                LuaValue v = Args.required(a, 2, "hafen.json():encode", "value");
                 return LuaValue.valueOf(Json.write(v, true));   // strict: non-serializable -> LuaError
             }
         });
-        hafen.set("json", json);
+        Section.install(hafen, "json", json);
 
         // hafen.http — external HTTP requests (N2a / D-037), gated by a manifest "network" host allowlist.
         HttpApi.install(hafen, owner);
 
-        // hafen.events.on(name, fn) -> handle; handle:off() unsubscribes.
-        LuaTable events = new LuaTable();
-        events.set("on", new TwoArgFunction() {
-            public LuaValue call(LuaValue name, LuaValue fn) {
-                if(!name.isstring() || !fn.isfunction())
-                    throw new LuaError("hafen.events.on(name, fn) expects (string, function)");
-                final Sub sub = new Sub(owner, name.tojstring(), fn);
+        // hafen.event():on(name, fn) -> a Subscription; sub:off() unsubscribes. The section is singular like
+        // every other one: an event NAME keeps its plural (MarkersChanged is a sentence), the section does not.
+        LuaTable event = new LuaTable();
+        event.set("on", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "event", "on");
+                LuaValue nm = Args.required(a, 2, "hafen.event():on", "name");
+                LuaValue fn = Args.required(a, 3, "hafen.event():on", "fn");
+                if(!nm.isstring() || !fn.isfunction())
+                    throw new LuaError("hafen.event():on(name, fn) expects (string, function)");
+                final Sub sub = new Sub(owner, nm.tojstring(), fn);
                 owner.subs.add(sub);
                 if(sub.event.startsWith("GobOverlay"))   // 038.3: arm the two Gob seams (see `overlaySubs`)
                     overlaySubs = true;
@@ -1406,22 +1422,36 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
                 return h;
             }
         });
-        hafen.set("events", events);
+        Section.install(hafen, "event", event);
 
-        // hafen.timer.after(sec, fn) one-shot · hafen.timer.every(sec, fn) repeating.
-        // Both return a handle; handle:cancel() stops it.
-        LuaTable timer = new LuaTable();
-        timer.set("after", new TwoArgFunction() {
-            public LuaValue call(LuaValue sec, LuaValue fn) {
-                return newTimer(owner, sec, fn, false);
+        // hafen.timer() — the addon's own scheduling, and a section that contains exactly ONE thing is that
+        // thing (§2.1): the section object IS the collection of this addon's live timers. :after(s, fn) runs
+        // once and :every(s, fn) repeatedly, both handing back a handle whose :cancel() stops it; :list(),
+        // :count() and :find(pred) read what is still scheduled. A timer has no name, so a string filter is
+        // refused rather than silently matching nothing.
+        LuaTable timerVerbs = new LuaTable();
+        timerVerbs.set("after", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), "after");
+                return newTimer(owner, a.arg(2), a.arg(3), false);
             }
         });
-        timer.set("every", new TwoArgFunction() {
-            public LuaValue call(LuaValue sec, LuaValue fn) {
-                return newTimer(owner, sec, fn, true);
+        timerVerbs.set("every", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), "every");
+                return newTimer(owner, a.arg(2), a.arg(3), true);
             }
         });
-        hafen.set("timer", timer);
+        Section.mount(hafen, "timer", LuaCollection.create("hafen.timer()", new LuaCollection.Source() {
+            public java.util.List<LuaValue> members() {
+                java.util.List<LuaValue> out = new java.util.ArrayList<LuaValue>();
+                for(Timer t : owner.timers) {
+                    if(t.alive && (t.handle != null))
+                        out.add(t.handle);
+                }
+                return out;
+            }
+        }, timerVerbs), null);
 
         // hafen.store — saved variables (1e / D-002 / D-023). One Lua table per manifest-declared
         // saved variable (read/written like any table), persisted to JSON under savedata/. hafen.store.
@@ -1431,12 +1461,17 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // addon's whole life (restore fills it in place), so a cached reference stays valid.
         StoreApi.installStore(hafen, owner);
 
+        // Every retired spelling throws naming its replacement rather than reading as nil (§2.10). The section
+        // tables carry their own verbs' rows; this one carries the sections whose NAME changed.
+        Retired.install(hafen);
+
         g.set("hafen", hafen);
     }
 
     private static LuaValue newTimer(final Addon owner, LuaValue sec, LuaValue fn, boolean repeat) {
         if(!sec.isnumber() || !fn.isfunction())
-            throw new LuaError("hafen.timer expects (seconds, function)");
+            throw new LuaError("hafen.timer():" + (repeat ? "every" : "after")
+                + " expects (seconds, function)");
         double s = sec.todouble();
         if(s < 0)
             s = 0;
@@ -1450,10 +1485,11 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
                 return LuaValue.NIL;
             }
         });
+        t.handle = h;    // so hafen.timer():list() hands back the SAME handle the caller holds
         return h;
     }
 
-    // ------------------------------------------------------------- logging (hafen.log + console output)
+    // ------------------------------------------------------------- logging (hafen.log():write + console output)
 
     /**
      * Build a custom UI element for {@code hafen.ui.window}/{@code widget} (spec 07): a {@link AddonWidget}
@@ -1498,7 +1534,7 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         return ((a != null) && (a.manifest != null)) ? a.manifest.id : "addon";
     }
 
-    /** Addon-level output ({@code hafen.log} + handler errors): tagged with the addon id. */
+    /** Addon-level output ({@code hafen.log():write} + handler errors): tagged with the addon id. */
     static void log(Addon owner, String msg) {
         String id = ownerName(owner);
         System.out.println("[" + id + "] " + msg);
@@ -1918,7 +1954,7 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
 
     // ------------------------------------------------------------- owned-resource records
 
-    /** A live event subscription: {@code hafen.events.on(event, fn)} in addon {@code owner}. */
+    /** A live event subscription: {@code hafen.event():on(event, fn)} in addon {@code owner}. */
     public static final class Sub {
         final Addon owner;
         final String event;
@@ -1939,6 +1975,8 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         final double interval;
         final LuaValue fn;
         boolean alive = true;
+        /** The Lua handle this timer was handed out as, so {@code hafen.timer():list()} answers by identity. */
+        LuaValue handle;
 
         Timer(Addon owner, double due, double interval, LuaValue fn) {
             this.owner = owner;
@@ -2051,5 +2089,5 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
 
     // -------------------------------------------------- compact JSON
     // The compact JSON serializer is Json.write (N1/D-013): one canonical writer shared by the REPL echo,
-    // hafen.store persistence, and hafen.json.encode. See io.brodgar.addon.Json.
+    // hafen.store persistence, and hafen.json():encode. See io.brodgar.addon.Json.
 }

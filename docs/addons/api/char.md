@@ -5,9 +5,9 @@ and lore. The curiosities being studied are next door, in [`hafen.study`](study.
 
 ```lua
 local str = hafen.char.attr("str")
-if str then hafen.log("strength " .. str.base .. " (" .. str.comp .. " buffed)") end
+if str then hafen.log():write("strength " .. str.base .. " (" .. str.comp .. " buffed)") end
 
-if hafen.char.skill("Alchemy") then hafen.log("I know Alchemy") end
+if hafen.char.skill("Alchemy") then hafen.log():write("I know Alchemy") end
 ```
 
 The sheet lives in HUD widgets that build after login, so it streams in a beat after `OnEnterWorld`: an
@@ -35,7 +35,7 @@ readers answer an empty array rather than `nil`. Nothing here throws and nothing
 `hafen.char.food()` is the one place in the client with **absolute** numbers about your character —
 everywhere else, a bar is a fraction. See [`hafen.meter`](meter.md).
 
-Subscribe to [`FepChanged`](events.md#character-and-status) for food and hunger. Skills,
+Subscribe to [`FepChanged`](event.md#character-and-status) for food and hunger. Skills,
 credos and lore change only on a buy, a pursue or quest progress, and have no event — read them on
 demand.
 

@@ -28,10 +28,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -44,11 +44,11 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local function summary()
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 local TILE, CMAPS = 11, 100         -- MCache.tilesz / MCache.cmaps, the two constants every check derives from
@@ -179,7 +179,7 @@ local function run(args)
   -- wait for the rest; a second sweep a moment later answers more. (035.2: wait FIRST, then judge.)
   local sc = g and g:sc()
   local seen1, n1 = sweep(seg, sc or { x = 0, y = 0 })
-  hafen.timer.after(1.5, function()
+  hafen.timer():after(1.5, function()
     local seen2, n2 = sweep(seg, sc or { x = 0, y = 0 })
     local lost = 0
     for id in pairs(seen1) do if not seen2[id] then lost = lost + 1 end end
@@ -205,4 +205,4 @@ local function run(args)
   end)
 end
 
-hafen.slash.register("t037-2", run)   -- the only way in: a suite does not start itself
+hafen.slash():register("t037-2", run)   -- the only way in: a suite does not start itself

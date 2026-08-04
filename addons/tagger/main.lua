@@ -37,7 +37,7 @@ local tagged    = {}                  -- gob id -> true, the players we have lab
 local pinned                          -- the gob id the pin is on, if any
 local icon
 
-hafen.events.on("OnLoad", function() icon = hafen.asset("icon.png") end)
+hafen.event():on("OnLoad", function() icon = hafen.asset("icon.png") end)
 
 -- ---- the labels ---------------------------------------------------------------------------------------
 
@@ -74,11 +74,11 @@ local function untagAll()
 end
 
 -- The filter form's replacement, in two lines: everyone who walks in, and everyone already here.
-hafen.events.on("GobAdded", function(g) if labelling then tag(g) end end)
+hafen.event():on("GobAdded", function(g) if labelling then tag(g) end end)
 
 -- Nothing to prune here, and that is the point: an overlay dies with its gob, so this handler exists only to
 -- keep OUR bookkeeping table from growing. The overlay itself is already gone.
-hafen.events.on("GobRemoved", function(g) tagged[g:id()] = nil end)
+hafen.event():on("GobRemoved", function(g) tagged[g:id()] = nil end)
 
 -- ---- the world pin ------------------------------------------------------------------------------------
 
@@ -105,9 +105,9 @@ local function label(g)
 end
 
 local function pin()
-  if not icon then return hafen.log("tagger: icon.png did not load") end
+  if not icon then return hafen.log():write("tagger: icon.png did not load") end
   local g = nearestObject()
-  if not g then return hafen.log("tagger: nothing near you to pin") end
+  if not g then return hafen.log():write("tagger: nothing near you to pin") end
   if pinned then local old = hafen.gob(pinned) if old:exists() then old:overlay(PIN, nil) end end
   -- A WORLD-space overlay: offset is in world units with z up, so {z = 18} floats it overhead. It carries the
   -- look verbs its entity already had, and they CHAIN.
@@ -115,16 +115,16 @@ local function pin()
   ov:tint{ 255, 200, 90 }:alpha(0.85)
   pinned = g:id()
   local p = ov:pos()
-  hafen.log(string.format("tagger: pinned %s%s -- ':tagger read' now reads THAT object", label(g),
+  hafen.log():write(string.format("tagger: pinned %s%s -- ':tagger read' now reads THAT object", label(g),
                           p and string.format(", at %.1f %.1f", p.x, p.y) or ""))
 end
 
 local function unpin()
-  if not pinned then return hafen.log("tagger: nothing is pinned") end
+  if not pinned then return hafen.log():write("tagger: nothing is pinned") end
   local g = hafen.gob(pinned)
   if g:exists() then g:overlay(PIN, nil) end   -- and if it does NOT exist, the overlay went with it
   pinned = nil
-  hafen.log("tagger: pin removed")
+  hafen.log():write("tagger: pin removed")
 end
 
 -- ---- the read -----------------------------------------------------------------------------------------
@@ -134,16 +134,16 @@ end
 -- a gob may carry several overlays of one resource -- so ov:count() publishes how many it stands for.
 local function read()
   local g, isPinned = target()
-  if not g then return hafen.log("tagger: nothing near you to read") end
+  if not g then return hafen.log():write("tagger: nothing near you to read") end
   local all = g:overlay()
-  hafen.log(string.format("tagger: %s (%s) carries %d overlay(s)", label(g),
+  hafen.log():write(string.format("tagger: %s (%s) carries %d overlay(s)", label(g),
                           isPinned and "the pinned one" or "the nearest object", #all))
   for _, ov in ipairs(all) do
-    hafen.log(string.format("  %-22s %s%s x%d", ov:key(),
+    hafen.log():write(string.format("  %-22s %s%s x%d", ov:key(),
                             ov:native() and "the game's" or ("yours, " .. tostring(ov:kind())),
                             ov:res() and (" [" .. ov:res() .. "]") or "", ov:count() or 0))
   end
-  if #all == 0 then hafen.log("  (nothing -- try ':tagger pin' first, or stand next to a fire)") end
+  if #all == 0 then hafen.log():write("  (nothing -- try ':tagger pin' first, or stand next to a fire)") end
 end
 
 -- ---- the events ---------------------------------------------------------------------------------------
@@ -153,27 +153,27 @@ end
 local function onEvent(what)
   return function(e)
     if watching then
-      hafen.log(string.format("tagger: %s %s on gob %d (%s)", what, e.key, e.gob:id(),
+      hafen.log():write(string.format("tagger: %s %s on gob %d (%s)", what, e.key, e.gob:id(),
                               e.native and "the game's" or "ours"))
     end
   end
 end
-hafen.events.on("GobOverlayAdded", onEvent("+"))
-hafen.events.on("GobOverlayRemoved", onEvent("-"))
+hafen.event():on("GobOverlayAdded", onEvent("+"))
+hafen.event():on("GobOverlayRemoved", onEvent("-"))
 
 -- ---- the command --------------------------------------------------------------------------------------
 
-hafen.slash.register("tagger", function(args)
+hafen.slash():register("tagger", function(args)
   local sub = args and args[1]
   if sub == "pin" then return pin() end
   if sub == "unpin" then return unpin() end
   if sub == "read" then return read() end
   if sub == "watch" then
     watching = not watching
-    return hafen.log("tagger: overlay events " .. (watching and "ON" or "off"))
+    return hafen.log():write("tagger: overlay events " .. (watching and "ON" or "off"))
   end
   labelling = not labelling
   if labelling then tagAll() else untagAll() end
-  hafen.log("tagger: player labels " .. (labelling and "ON" or "off")
+  hafen.log():write("tagger: player labels " .. (labelling and "ON" or "off")
             .. " -- ':tagger pin' hangs one in the world, ':tagger read' lists what is on a gob")
 end)

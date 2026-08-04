@@ -7,7 +7,7 @@ first place, use [`hafen.world`](world.md).
 ```lua
 local tree = hafen.world.nearest("terobjs/tree")
 if tree then
-  hafen.log(string.format("%s is %.1f away", tree:name(), tree:distance()))
+  hafen.log():write(string.format("%s is %.1f away", tree:name(), tree:distance()))
 end
 ```
 
@@ -29,7 +29,7 @@ raises an error.
 | `hafen.world.gobs(filter)` | an array of Gobs |
 | `hafen.world.nearest(filter)` | the nearest Gob, or `nil` |
 | `hafen.world.within(radius, filter)` | an array of Gobs |
-| a `GobAdded` or `GobRemoved` handler | the Gob that spawned or despawned — see [events](events.md#world) |
+| a `GobAdded` or `GobRemoved` handler | the Gob that spawned or despawned — see [events](event.md#world) |
 | `hafen.gob(m.id)` for a [party](party.md) member `m` | that member's Gob |
 
 ## Read
@@ -151,7 +151,7 @@ by their **resource name**. An attach onto such a key **raises**, so does a remo
 each of the verbs above — always naming the key, never a silent no-op.
 
 An attach raises in two more places, both of them about *when*. A gob the client cannot draw yet takes no
-overlay: attach from [`GobAdded`](events.md#world) or a timer instead. A **world-space** spec needs the 3D
+overlay: attach from [`GobAdded`](event.md#world) or a timer instead. A **world-space** spec needs the 3D
 scene, so it raises while there is no map view — that is what attaching before you are in the world looks
 like. Both errors name what to do instead, and neither leaves anything half-attached: the spec is read,
 and a world entity built, before the gob is touched at all.
@@ -187,16 +187,16 @@ a `*` in front of the key on the game's own.
 
 **An overlay dies with its gob.** The record lives on the game object, so a felled tree takes yours with
 it and nothing is kept in case it comes back — a gob that returns is bare, and re-attaching is your own
-call from [`GobAdded`](events.md#world). A `:reload` or a disable likewise removes every overlay you
+call from [`GobAdded`](event.md#world). A `:reload` or a disable likewise removes every overlay you
 attached and leaves the game's untouched. For a **world-space** overlay that is not just bookkeeping:
 its visual is a client-only object of its own, and it is destroyed with the gob rather than left
 floating where the target used to stand.
 
 Both halves of this read are also **events**:
-[`GobOverlayAdded`/`GobOverlayRemoved`](events.md#overlays-coming-and-going) fire for what you attach and
+[`GobOverlayAdded`/`GobOverlayRemoved`](event.md#overlays-coming-and-going) fire for what you attach and
 for what the game attaches, so you can watch a gob become decorated instead of polling it.
 
-> There is no filter form. "Every player gets a label" is a [`GobAdded`](events.md#world) handler plus a
+> There is no filter form. "Every player gets a label" is a [`GobAdded`](event.md#world) handler plus a
 > loop over [`hafen.world.gobs()`](world.md) — you name the gob, so nothing is searched per frame.
 
 > A `draw` callback runs inside the client's draw pass, which is **outside** the per-tick CPU budget.
@@ -209,7 +209,7 @@ for what the game attaches, so you can watch a gob become decorated instead of p
 ```lua
 local g = hafen.world.nearest(function(g) return g:isplayer() end)
 local k = g and g:kin()
-hafen.log(k and ("that is " .. k:name()) or "nobody you know")
+hafen.log():write(k and ("that is " .. k:name()) or "nobody you know")
 ```
 
 The link is **server-side**: the game marks a kinned player's gob for you, so `gob:kin()` is a single
@@ -254,4 +254,4 @@ me:overlay("mark", { image = icon, offset = { z = 18 } })
 - [`hafen.kin`](kin.md) — the roster side of `gob:kin()`
 - [`hafen.act`](act.md) — clicking a gob and walking to it
 - [`GobInfo`](types.md#gobinfo) — the shape `:info()` returns
-- [events](events.md#world) — reacting to gobs appearing and leaving instead of polling
+- [events](event.md#world) — reacting to gobs appearing and leaving instead of polling

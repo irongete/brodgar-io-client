@@ -33,7 +33,7 @@ yet, since there is no map view to stand it in.
 | `tint` | *none* | colour overlay `{r=, g=, b=, a=}`, `0..255`, where `a` is blend strength |
 | `billboard` | `false` | `false` is a fixed upright quad, `true` a [camera-facing](#billboard) screen blit |
 | `clickable` | `false` | opt into [the click event](#clickability) — **fixed sprites only** |
-| `onClick` | *none* | `fn(s, button, x, y)` fired on click, also delivered as the [`SpriteClicked`](../events.md#world-ghosts-and-sprites) event |
+| `onClick` | *none* | `fn(s, button, x, y)` fired on click, also delivered as the [`SpriteClicked`](../event.md#world-ghosts-and-sprites) event |
 
 ## Sprite handle
 
@@ -78,7 +78,7 @@ A **fixed** sprite can be made clickable — `clickable = true` at create, or `s
 exactly like a [ghost](../ghost.md#clickability). It gains a pick surface, and a click on it is detected
 **client-side** and **consumed** before any server click, so you never walk or interact and nothing reaches
 the server. Both the per-sprite `onClick(s, button, x, y)` and the owner-scoped
-[`SpriteClicked`](../events.md#world-ghosts-and-sprites) event fire; `SpriteClicked` reaches only *your*
+[`SpriteClicked`](../event.md#world-ghosts-and-sprites) event fire; `SpriteClicked` reaches only *your*
 addon, since a sprite is private to the addon that made it.
 
 ```lua
@@ -86,7 +86,7 @@ local s = hafen.render.sprite{
   image = icon, x = wx, y = wy,
   clickable = true,
   onClick = function(s, button, x, y)          -- 1 = left, 3 = right; x, y = the clicked world point
-    hafen.log(("clicked my sprite (button %d)"):format(button))
+    hafen.log():write(("clicked my sprite (button %d)"):format(button))
   end,
 }
 ```
@@ -125,4 +125,4 @@ naming `gob:overlay`, rather than standing the image somewhere you did not ask f
 - [`hafen.asset`](../asset.md) — loading the PNG a sprite takes
 - [`hafen.ghost`](../ghost.md) — the game's own props, and the gizmo that moves any of these handles
 - [drawing](../ui/drawing.md) — the same image drawn on screen instead of in the world
-- [events](../events.md#world-ghosts-and-sprites) — `SpriteClicked`
+- [events](../event.md#world-ghosts-and-sprites) — `SpriteClicked`

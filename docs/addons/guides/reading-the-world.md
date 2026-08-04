@@ -23,9 +23,9 @@ A **name is a resource path**, not a display name: `"gfx/borka/body"` is any pla
 log what is around you once and read the list:
 
 ```lua
-hafen.slash.register("what", function()
+hafen.slash():register("what", function()
   for _, g in ipairs(hafen.world.within(15)) do
-    hafen.log(g:name() or "?")
+    hafen.log():write(g:name() or "?")
   end
 end)
 ```
@@ -40,7 +40,7 @@ object is gone. Nothing goes stale, and nothing has to be refreshed.
 local tree = hafen.world.nearest("terobjs/tree")
 if tree and tree:exists() then
   local p = tree:pos()
-  hafen.log(("tree at %.0f, %.0f, %.1f away"):format(p.x, p.y, tree:distance()))
+  hafen.log():write(("tree at %.0f, %.0f, %.1f away"):format(p.x, p.y, tree:distance()))
 end
 ```
 
@@ -50,17 +50,17 @@ directly — which is how you remember what you have already seen without juggli
 ## Do not scan every frame
 
 A sweep of every loaded object is cheap once and expensive sixty times a second. Prefer the
-[events](../api/events.md#world) `GobAdded` and `GobRemoved`, which hand you the Gob as it arrives, and
+[events](../api/event.md#world) `GobAdded` and `GobRemoved`, which hand you the Gob as it arrives, and
 keep your own index:
 
 ```lua
 local boars = {}
 
-hafen.events.on("GobAdded", function(gob)
+hafen.event():on("GobAdded", function(gob)
   if (gob:name() or ""):find("boar") then boars[gob] = true end
 end)
 
-hafen.events.on("GobRemoved", function(gob)
+hafen.event():on("GobRemoved", function(gob)
   boars[gob] = nil                     -- the gob is already gone here: only :id() answers
 end)
 ```
@@ -77,7 +77,7 @@ Gob, exactly as it is on any other object:
 local me = hafen.player():gob()          -- nil until you are in the world
 if me then
   local p = me:pos()
-  hafen.log(("standing at %.0f, %.0f"):format(p.x, p.y))
+  hafen.log():write(("standing at %.0f, %.0f"):format(p.x, p.y))
 end
 ```
 
@@ -92,7 +92,7 @@ answer `nil` while that part of the map is still streaming in, which is normal r
 ```lua
 local p = hafen.player():gob():pos()
 local t = hafen.world.tile(p.x, p.y)
-hafen.log(t and (t.name or t.id) or "not loaded yet")
+hafen.log():write(t and (t.name or t.id) or "not loaded yet")
 ```
 
 > **World coordinates are session-local.** They reset at every login and mean nothing to another player, so
@@ -112,7 +112,7 @@ The anchor is the door between the two halves, in both directions:
 local gp = hafen.world.gridPos()             -- where I am, as {gridId, x, y}
 local g  = hafen.map.grid(gp.gridId)         -- ...and that same ground in the database
 local t  = g and g:tile{ x = 0, y = 0 }      -- nil until the grid is read off the disk
-hafen.log(t and t.name or "not loaded yet — ask again next tick")
+hafen.log():write(t and t.name or "not loaded yet — ask again next tick")
 ```
 
 A read that needs a grid the client has not loaded off the disk **starts the load and answers `nil`** — call

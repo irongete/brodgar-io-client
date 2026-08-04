@@ -3,10 +3,10 @@
 Read the buffs on the player's buff bar. `hafen.buff` is a function, and the arity is the verb.
 
 ```lua
-if hafen.buff("poison") then hafen.log("poisoned!") end
+if hafen.buff("poison") then hafen.log():write("poisoned!") end
 
 for _, buff in ipairs(hafen.buff()) do
-  hafen.log(buff:name() or buff:res())
+  hafen.log():write(buff:name() or buff:res())
 end
 ```
 
@@ -55,13 +55,13 @@ on, so there is nothing to expose.
 a buff you stashed, worth holding on to. `:exists()` is exactly the predicate `hafen.buff()` filters on.
 
 Subscribe to [`BuffAdded`, `BuffRemoved` and
-`BuffChanged`](events.md#character-and-status); each payload is the `Buff` object
+`BuffChanged`](event.md#character-and-status); each payload is the `Buff` object
 itself. The buffs the character already has arrive as a burst of `BuffAdded` shortly after entering the
 world.
 
 ```lua
-hafen.events.on("BuffRemoved", function(buff)
-  hafen.log((buff:name() or buff:res()) .. " wore off")   -- still readable, and :exists() is false
+hafen.event():on("BuffRemoved", function(buff)
+  hafen.log():write((buff:name() or buff:res()) .. " wore off")   -- still readable, and :exists() is false
 end)
 ```
 
@@ -70,4 +70,4 @@ end)
 - [`Buff`](types.md#buff) — the snapshot shape `:info()` returns
 - [`hafen.meter`](meter.md) — the HUD bars, read the same way
 - [snapshots vs handles](conventions.md#snapshots-vs-handles) — why a stashed `Buff` stays current
-- [events](events.md#character-and-status) — the three buff events
+- [events](event.md#character-and-status) — the three buff events

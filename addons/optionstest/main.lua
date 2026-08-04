@@ -20,9 +20,9 @@ local TAG = "optionstest: "
 
 local function log(fmt, ...)
   if select("#", ...) > 0 then
-    hafen.log(TAG .. fmt:format(...))
+    hafen.log():write(TAG .. fmt:format(...))
   else
-    hafen.log(TAG .. fmt)
+    hafen.log():write(TAG .. fmt)
   end
 end
 
@@ -173,11 +173,11 @@ end
 
 -- ----------------------------------------------------------------- wiring
 
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   dump("OnLoad")
 end)
 
-hafen.events.on("OnEnterWorld", function()
+hafen.event():on("OnEnterWorld", function()
   dump("OnEnterWorld")
 end)
 
@@ -187,7 +187,7 @@ opts():keybindings():register("ping", function()
       tostring(i:scale()), tostring(opts():audio():masterVolume()))
 end)
 
-hafen.slash.register("opttest", function(args)
+hafen.slash():register("opttest", function(args)
   local sub = args[1] or "dump"
   if     sub == "dump" or sub == "" then dump("on demand")
   elseif sub == "write"             then write()

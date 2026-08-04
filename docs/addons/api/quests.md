@@ -6,7 +6,7 @@ abandon or complete a quest from an addon.
 ```lua
 -- active quests only
 for _, q in ipairs(hafen.quests.list(function(q) return q.status == "pending" end)) do
-  hafen.log(q.name)
+  hafen.log():write(q.name)
 end
 ```
 
@@ -28,16 +28,16 @@ neither is gated.
 ```lua
 local sel = hafen.quests.selected()
 if sel then
-  for _, c in ipairs(sel.conds) do hafen.log(" - [" .. c.status .. "] " .. (c.desc or "")) end
+  for _, c in ipairs(sel.conds) do hafen.log():write(" - [" .. c.status .. "] " .. (c.desc or "")) end
 end
 ```
 
-Subscribe to [`QuestAdded`](events.md#roster-quests-markers), a new active quest, and
-[`QuestDone`](events.md#roster-quests-markers), an active quest completed or failed. Each carries the
+Subscribe to [`QuestAdded`](event.md#roster-quests-markers), a new active quest, and
+[`QuestDone`](event.md#roster-quests-markers), an active quest completed or failed. Each carries the
 quest snapshot.
 
 ## See also
 
 - [`Quest` and `Condition`](types.md#quest-and-condition) — the snapshot shapes
 - [`hafen.map.markers`](map/markers.md) — the map pins a quest puts down
-- [events](events.md#roster-quests-markers) — `QuestAdded` and `QuestDone`
+- [events](event.md#roster-quests-markers) — `QuestAdded` and `QuestDone`

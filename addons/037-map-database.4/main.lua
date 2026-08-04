@@ -27,10 +27,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -43,7 +43,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local CMAPS = 100          -- MCache.cmaps: a grid is 100x100 tiles, and every rendering is 100x100 pixels
@@ -68,7 +68,7 @@ local function cleanup()
 end
 
 local function summary()
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 local function sz(img)
@@ -81,7 +81,7 @@ end
 local function until_(get, tries, step, done)
   local v = get()
   if (v ~= nil) or (tries <= 0) then return done(v) end
-  hafen.timer.after(step, function() until_(get, tries - 1, step, done) end)
+  hafen.timer():after(step, function() until_(get, tries - 1, step, done) end)
 end
 
 local function ownRow()
@@ -235,7 +235,7 @@ costRound = function(img)
   end
   win(hafen.ui.window{ title = TITLE_BG, size = { CMAPS, CMAPS }, pos = { 40, 40 } })
   hafen.ui.skin{ ["window[title=" .. TITLE_BG .. "]"] = { bg = { image = img } } }
-  hafen.timer.after(0.5, function()
+  hafen.timer():after(0.5, function()
     local row = ownRow()
     local paints = row and (row.calls.draw + row.calls.widgets)
     check(paints == 0,
@@ -244,7 +244,7 @@ costRound = function(img)
           (row == nil) and "no addons() row for this suite" or paints)
     win(hafen.ui.window{ title = TITLE_DRAW, size = { CMAPS, CMAPS }, pos = { 40 + CMAPS + 20, 40 },
                          onDraw = function(g) g:image(img, 0, 0) end })
-    hafen.timer.after(0.5, function()
+    hafen.timer():after(0.5, function()
       local r2 = ownRow()
       local drew = r2 and r2.calls.draw
       check((drew ~= nil) and (drew > 0),
@@ -313,4 +313,4 @@ dropRound = function()
   summary()
 end
 
-hafen.slash.register("t037-4", run)   -- the only way in: a suite does not start itself
+hafen.slash():register("t037-4", run)   -- the only way in: a suite does not start itself

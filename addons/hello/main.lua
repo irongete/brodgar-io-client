@@ -64,10 +64,10 @@
 -- client's KeyBinding registry) that fires when no widget consumed the keypress first; here 'toggle' shows/hides
 -- the custom window, plus 'ping'. Addon hotkeys start UNBOUND: this addon's "Hello" section under
 -- Options > Keybindings is where you assign the keys.
--- On top of the THREE hook levels — 2c hafen.hook.input (L1:
--- intercept a widget's raw input BEFORE its own handler), 2d hafen.hook.action (L2: intercept the OUTBOUND
+-- On top of the THREE hook levels — 2c hafen.hook():input (L1:
+-- intercept a widget's raw input BEFORE its own handler), 2d hafen.hook():action (L2: intercept the OUTBOUND
 -- action a widget sends to the server, arguments already RESOLVED — e.g. a move's destination world coord),
--- and 2e-1 hafen.hook.message (L3: intercept an INBOUND server update BEFORE the widget applies it — swallow
+-- and 2e-1 hafen.hook():message (L3: intercept an INBOUND server update BEFORE the widget applies it — swallow
 -- it with ev:preventDefault() or rewrite its args with ev:rewrite()). Plus 2b overlays (hafen.ui.overlay on
 -- the HUD + gob:overlay(key, spec) on game objects) and 2a custom windows/widgets + the GOut wrapper. It runs
 -- inside the Lua SANDBOX (D-017 strict env + D-018 instruction watchdog) over 1e hafen.store (saved
@@ -92,7 +92,7 @@
 -- all (this server has no MIDI content; the "music" you hear is ambient audio, on the ambientVolume slider).
 -- hello checks that contract at login (readSound), pings with ':hello ping' and toggles a long clip through
 -- the live set with ':hello sound'.
-hafen.log("hello loaded (v0.64.0)")
+hafen.log():write("hello loaded (v0.64.0)")
 
 -- LuaJ 3.0.1's string.format is NOT C's: it ignores the PRECISION of %f/%g/%e ("%.3f" prints
 -- 10.852199999987988, the raw double) and the WIDTH of %s ("%-12s" pads nothing); only %d honours a
@@ -125,10 +125,10 @@ end
 -- every OnLoad (incl. reloads) and is persisted, proving saved variables survive a reload. Enabling/
 -- disabling is operator-driven from the console and applies on reload (D-006):  :addons  (list + status) ·
 -- :addons disable hello  +  :reload  (hello stops loading) ·  :addons enable hello  +  :reload  (loads again).
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   local a = hafen.store.acct
   a.loads = (a.loads or 0) + 1
-  hafen.log(("OnLoad fired — reload marker: edit me and :reload  [OnLoad #%d]"):format(a.loads))
+  hafen.log():write(("OnLoad fired — reload marker: edit me and :reload  [OnLoad #%d]"):format(a.loads))
 end)
 
 -- 1f-1: self-check the sandbox from inside the live client. Addons get a STRICT environment (D-017):
@@ -139,7 +139,7 @@ end)
 -- what is locked down, proving the sandbox is active in-game. The other half — the instruction watchdog
 -- (D-018) — is best tested manually: run  :lua while true do end  in the console; it aborts (~35 ms)
 -- with an "addon watchdog" error instead of freezing the client. (Do NOT bake such a loop into an addon.)
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   local blocked = {}
   local function chk(name, v) if v == nil then blocked[#blocked + 1] = name end end
   chk("io", io); chk("require", require); chk("load", load); chk("loadfile", loadfile)
@@ -149,7 +149,7 @@ hafen.events.on("OnLoad", function()
     or os.time == nil or pcall == nil or tostring == nil)
   -- Prove a shell-exec attempt is genuinely unusable (not merely absent) and is catchable:
   local ranExec = pcall(function() return os.execute("echo pwned") end)   -- os.execute is nil -> errors
-  hafen.log(("sandbox: withheld={%s}; safe-stdlib=%s; os.execute usable=%s")
+  hafen.log():write(("sandbox: withheld={%s}; safe-stdlib=%s; os.execute usable=%s")
     :format(table.concat(blocked, ","), tostring(safe), tostring(ranExec)))
 end)
 
@@ -158,17 +158,17 @@ end)
 -- (objects, a numeric array, a boolean, a float), the null->nil caveat (a JSON null yields an ABSENT key,
 -- not a false value), integer cleanliness ({"n":5} -> 5, not 5.0), and that malformed input raises a
 -- pcall-able error instead of crashing the addon. Logged so one login re-verifies the serializer too.
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   local src = { iron = 5, name = "ore", frac = 2.5, nums = { 10, 20, 30 }, flag = true }
-  local enc = hafen.json.encode(src)
-  local back = hafen.json.parse(enc)
+  local enc = hafen.json():encode(src)
+  local back = hafen.json():parse(enc)
   local roundtrip = (back.iron == 5) and (back.name == "ore") and (back.frac == 2.5)
     and (#back.nums == 3) and (back.nums[2] == 20) and (back.flag == true)
-  local nul = hafen.json.parse('{"a":1,"b":null}')
+  local nul = hafen.json():parse('{"a":1,"b":null}')
   local nullhole = (nul.a == 1) and (nul.b == nil)                 -- JSON null -> absent key
-  local intclean = tostring(hafen.json.parse('{"n":5}').n) == "5"   -- integer, not "5.0"
-  local okParse = pcall(function() return hafen.json.parse("{bad}") end)   -- malformed -> error
-  hafen.log(("json: roundtrip=%s null->nil=%s int-clean=%s malformed-caught=%s enc=%s")
+  local intclean = tostring(hafen.json():parse('{"n":5}').n) == "5"   -- integer, not "5.0"
+  local okParse = pcall(function() return hafen.json():parse("{bad}") end)   -- malformed -> error
+  hafen.log():write(("json: roundtrip=%s null->nil=%s int-clean=%s malformed-caught=%s enc=%s")
     :format(tostring(roundtrip), tostring(nullhole), tostring(intclean), tostring(not okParse), enc))
 end)
 
@@ -184,9 +184,9 @@ local function readPlace(tag)
   local gp = hafen.world.gridPos()               -- no args = player: the persistent grid anchor
   local t = hafen.world.worldToTile(p.x, p.y)
   local s = hafen.player():worldToScreen(p.x, p.y)
-  hafen.log(("[%s] tile=%s height=%s worldToTile=%d,%d"):format(tag,
+  hafen.log():write(("[%s] tile=%s height=%s worldToTile=%d,%d"):format(tag,
     tile and (tile.name or tile.id) or "nil", tostring(hafen.world.height(p.x, p.y)), t.x, t.y))
-  hafen.log(("[%s] gridPos=%s worldToScreen=%s"):format(tag,
+  hafen.log():write(("[%s] gridPos=%s worldToScreen=%s"):format(tag,
     gp and (gp.gridId .. " @" .. ("%.0f,%.0f"):format(gp.x, gp.y)) or "nil",
     s and ("%.0f,%.0f"):format(s.x, s.y) or "nil"))
 end
@@ -206,11 +206,11 @@ local function readInv(tag)
   local eq = eqw and eqw:items() or {}      -- array of Item snapshots {..., slot, handle}
   local hand = hafen.ui.hand()              -- Item snapshot or nil (cursor item)
   local first = inv[1]
-  hafen.log(("[%s] inventory=%d item(s), first=%s x%s handle=%s")
+  hafen.log():write(("[%s] inventory=%d item(s), first=%s x%s handle=%s")
     :format(tag, #inv, first and tostring(first.name or first.res) or "nil",
             first and tostring(first.num or 1) or "-",
             first and tostring(first.handle) or "-"))
-  hafen.log(("[%s] equipment=%d slot(s), hand=%s")
+  hafen.log():write(("[%s] equipment=%d slot(s), hand=%s")
     :format(tag, #eq, hand and tostring(hand.name or hand.res) or "empty"))
 end
 
@@ -219,10 +219,10 @@ end
 -- OnEnterWorld (often still nil) and again after the delay (resolved).
 local function readChar(tag)
   local str = hafen.char.attr("str")   -- {base, comp} or nil
-  hafen.log(("[%s] char: str=%s lp=%s weight=%s"):format(tag,
+  hafen.log():write(("[%s] char: str=%s lp=%s weight=%s"):format(tag,
     str and (str.base .. "/" .. str.comp) or "nil",
     tostring(hafen.char.lp()), tostring(hafen.char.weight())))
-  hafen.log(("[%s] party: %d member(s)"):format(tag, #hafen.party.members()))
+  hafen.log():write(("[%s] party: %d member(s)"):format(tag, #hafen.party.members()))
 end
 
 -- 1d-1: the HUD meter bars, OOP since 027-meters-oop (hafen.player():vitals() is GONE). hafen.meter is
@@ -233,10 +233,10 @@ end
 -- beat after enter-world (like char/items), so the "now" pass is usually empty and "+3s" has the bars.
 local function readMeters(tag)
   local list = hafen.meter()
-  hafen.log(("[%s] meters=%d"):format(tag, #list))
+  hafen.log():write(("[%s] meters=%d"):format(tag, #list))
   for i = 1, #list do
     local m = list[i]
-    hafen.log(("[%s]   [%d] res=%s value=%s color=%s segments=%d"):format(tag, i,
+    hafen.log():write(("[%s]   [%d] res=%s value=%s color=%s segments=%d"):format(tag, i,
       tostring(m:res()), tostring(m:value()),
       m:color() and ("%d,%d,%d"):format(m:color().r, m:color().g, m:color().b) or "nil",
       #m:segments()))
@@ -255,7 +255,7 @@ local function readMeters(tag)
     local res = first and first:res()
     local byNeedle = res and hafen.meter(res:match("[^/]+$") or res)
     local info = first and first:info()
-    hafen.log(("[%s] meter oop: interned=%s miss=%s numErrors=%s emptyErrors=%s index=%s exists=%s info={res=%s value=%s segs=%d} vitalsGone=%s"):format(tag,
+    hafen.log():write(("[%s] meter oop: interned=%s miss=%s numErrors=%s emptyErrors=%s index=%s exists=%s info={res=%s value=%s segs=%d} vitalsGone=%s"):format(tag,
       res and tostring(byNeedle == first) or "n/a (no meter res yet)",
       tostring(hafen.meter("NoSuchMeterHere")),
       tostring(not okNum), tostring(not okEmpty),
@@ -277,7 +277,7 @@ end
 local function readBuffs(tag)
   local list = hafen.buff()
   local first = list[1]
-  hafen.log(("[%s] buffs=%d, first=%s%s"):format(tag, #list,
+  hafen.log():write(("[%s] buffs=%d, first=%s%s"):format(tag, #list,
     first and tostring(first:name() or first:res()) or "none",
     (first and first:duration()) and (" left=%.2f"):format(first:duration()) or ""))
   -- 025.3: the OOP contract itself, once per login (on the +3s scan, when the bar has streamed in) --
@@ -291,7 +291,7 @@ local function readBuffs(tag)
     local needle = first and first:res()
     local byNeedle = needle and hafen.buff(needle:sub(-6))
     local info = first and first:info()
-    hafen.log(("[%s] buff oop: interned=%s miss=%s numErrors=%s exists=%s info={res=%s name=%s} buffsGone=%s"):format(tag,
+    hafen.log():write(("[%s] buff oop: interned=%s miss=%s numErrors=%s exists=%s info={res=%s name=%s} buffsGone=%s"):format(tag,
       needle and tostring(byNeedle == first) or "n/a (no buff res yet)",
       tostring(hafen.buff("NoSuchBuffHere")),
       tostring(not okNum),
@@ -307,12 +307,12 @@ end
 local function readFood(tag)
   local f = hafen.char.food()
   if f and f.fep then
-    hafen.log(("[%s] food: fep=%.0f/%.0f (%d type(s)) hunger=%s efficacy=%s"):format(tag,
+    hafen.log():write(("[%s] food: fep=%.0f/%.0f (%d type(s)) hunger=%s efficacy=%s"):format(tag,
       f.fep.total or 0, f.fep.cap or 0, #f.fep.entries,
       f.hunger and tostring(f.hunger.label or f.hunger.level) or "nil",
       f.hunger and tostring(f.hunger.efficacy) or "nil"))
   else
-    hafen.log(("[%s] food: nil (char sheet not up yet)"):format(tag))
+    hafen.log():write(("[%s] food: nil (char sheet not up yet)"):format(tag))
   end
 end
 
@@ -324,11 +324,11 @@ local function readStudy(tag)
   local slots = hafen.study.slots()
   local sum = hafen.study.summary()
   local first = slots[1]
-  hafen.log(("[%s] study=%d slot(s), first=%s, totals=%s"):format(tag, #slots,
+  hafen.log():write(("[%s] study=%d slot(s), first=%s, totals=%s"):format(tag, #slots,
     first and tostring(first.name or first.res) or "none",
     sum and ("lp=%s att=%s cost=%s"):format(tostring(sum.lp), tostring(sum.attention), tostring(sum.cost)) or "nil"))
   local skills = hafen.char.skills()
-  hafen.log(("[%s] skills=%d known, first=%s"):format(tag, #skills,
+  hafen.log():write(("[%s] skills=%d known, first=%s"):format(tag, #skills,
     skills[1] and tostring(skills[1].name) or "none"))
 end
 
@@ -343,20 +343,20 @@ local function readLore(tag)
   local avail = hafen.char.skillsAvailable()
   local cr = hafen.char.credos()
   local lore = hafen.char.experiences()
-  hafen.log(("[%s] skillsAvailable=%d, first=%s%s"):format(tag, #avail,
+  hafen.log():write(("[%s] skillsAvailable=%d, first=%s%s"):format(tag, #avail,
     avail[1] and tostring(avail[1].name) or "none",
     avail[1] and (" cost=%s LP"):format(tostring(avail[1].cost)) or ""))
   if cr then
     local p = cr.pursuing
-    hafen.log(("[%s] credos: acquired=%d available=%d cost=%s, pursuing=%s%s"):format(tag,
+    hafen.log():write(("[%s] credos: acquired=%d available=%d cost=%s, pursuing=%s%s"):format(tag,
       #cr.acquired, #cr.available, tostring(cr.cost),
       p and tostring(p.name) or "none",
       p and (" (lvl %s/%s, quest %s/%s)"):format(
         tostring(p.level), tostring(p.levelTotal), tostring(p.quest), tostring(p.questTotal)) or ""))
   else
-    hafen.log(("[%s] credos: nil (Lore & Skills window not up yet)"):format(tag))
+    hafen.log():write(("[%s] credos: nil (Lore & Skills window not up yet)"):format(tag))
   end
-  hafen.log(("[%s] experiences=%d, first=%s%s"):format(tag, #lore,
+  hafen.log():write(("[%s] experiences=%d, first=%s%s"):format(tag, #lore,
     lore[1] and tostring(lore[1].name) or "none",
     lore[1] and (" score=%s"):format(tostring(lore[1].score)) or ""))
 end
@@ -378,7 +378,7 @@ local function readActionbar(tag)
     end
   end
   local cd = first and first:cooldown()
-  hafen.log(("[%s] actionbar=%d/%d slot(s), first[%s]=%s%s"):format(tag, occupied, #bar,
+  hafen.log():write(("[%s] actionbar=%d/%d slot(s), first[%s]=%s%s"):format(tag, occupied, #bar,
     first and tostring(first:index()) or "-",
     first and tostring(first:name() or first:res()) or "none",
     cd and (" cd=%.2f"):format(cd) or ""))
@@ -394,7 +394,7 @@ local function readActionbar(tag)
     -- so calling it must ERROR before anything reaches the server -- the bar is left untouched. That refusal
     -- IS the check here; the working write lives in the opt-in `walker` addon (':walker setbar <n> <res>').
     local okSet = pcall(function() return hafen.actionbar(0):set("gfx/hud/act/mine") end)
-    hafen.log(("[%s] actionbar OOP: interned=%s zeroBased=%s info=%s oobThrows=%s flatGone=%s setGated=%s"):format(tag,
+    hafen.log():write(("[%s] actionbar OOP: interned=%s zeroBased=%s info=%s oobThrows=%s flatGone=%s setGated=%s"):format(tag,
       tostring(bar[1] == hafen.actionbar(0)),
       tostring(bar[1]:index() == 0),
       info and tostring(info.res or info.name) or "none",
@@ -422,7 +422,7 @@ local function readMenu(tag)
   local cat = hafen.menugrid()
   local roots = cat:roots()
   local first = cat[1]
-  hafen.log(("[%s] menugrid=%d entr(ies), %d root(s), first=%s%s"):format(tag, #cat, #roots,
+  hafen.log():write(("[%s] menugrid=%d entr(ies), %d root(s), first=%s%s"):format(tag, #cat, #roots,
     first and tostring(first:name() or first:res()) or "none",
     first and (" [res=%s hotkey=%s]"):format(first:res(), tostring(first:hotkey())) or ""))
   if tag == "+3s" and first then
@@ -447,11 +447,11 @@ local function readMenu(tag)
       end
     end
     local info = first:info()
-    hafen.log(("[%s] menugrid oop: byRes=%s byName=%s noSuchRes=%s noSuchName=%s numErrors=%s"):format(tag,
+    hafen.log():write(("[%s] menugrid oop: byRes=%s byName=%s noSuchRes=%s noSuchName=%s numErrors=%s"):format(tag,
       tostring(byRes == first), tostring((byName == nil) and "n/a" or (byName == first)),
       tostring(hafen.menugrid("nope/nope")), tostring(hafen.menugrid("NoSuchActionHere")),
       tostring(not okNum)))
-    hafen.log(("[%s] menugrid tree: %s under %s (closes=%s, %d sibling(s)) | info.res=%s info.parent=%s exists=%s"):format(tag,
+    hafen.log():write(("[%s] menugrid tree: %s under %s (closes=%s, %d sibling(s)) | info.res=%s info.parent=%s exists=%s"):format(tag,
       kid and tostring(kid:name() or kid:res()) or "none",
       par and tostring(par:name() or par:res()) or "none",
       tostring(closes), par and #par:children() or 0,
@@ -460,16 +460,16 @@ local function readMenu(tag)
 end
 local function dumpMenu()                        -- :hello actions -- the action menu as a tree, one login's catalogue
   local cat = hafen.menugrid()
-  if #cat == 0 then hafen.log(":hello actions -> the action menu is empty (not in the world yet?)"); return end
+  if #cat == 0 then hafen.log():write(":hello actions -> the action menu is empty (not in the world yet?)"); return end
   local roots = cat:roots()
-  hafen.log((":hello actions -> %d entr(ies), %d root(s)  [pag:use() fires one -- ':walker menugrid <name>']"):format(#cat, #roots))
+  hafen.log():write((":hello actions -> %d entr(ies), %d root(s)  [pag:use() fires one -- ':walker menugrid <name>']"):format(#cat, #roots))
   for _, r in ipairs(roots) do
     local kids = r:children()
-    hafen.log(("  %s%s  [%s]"):format(tostring(r:name() or r:res()),
+    hafen.log():write(("  %s%s  [%s]"):format(tostring(r:name() or r:res()),
       (#kids > 0) and (" (category, %d)"):format(#kids) or "", r:res()))
     for i, c in ipairs(kids) do
-      if i > 6 then hafen.log(("      ... and %d more"):format(#kids - 6)); break end
-      hafen.log(("      %s%s"):format(tostring(c:name() or c:res()),
+      if i > 6 then hafen.log():write(("      ... and %d more"):format(#kids - 6)); break end
+      hafen.log():write(("      %s%s"):format(tostring(c:name() or c:res()),
         c:hotkey() and (" [alt-" .. c:hotkey() .. "]") or ""))
     end
   end
@@ -493,13 +493,13 @@ local function readSound(tag)
   -- client logs its own "addon: could not play ..." line a beat later, and that line is the expected proof.
   hafen.sound("no/such/sound/here"):play()
   local info = msg:info()
-  hafen.log(("[%s] sound: res=%s info={res=%s playing=%s} interned=%s badVolErrors=%s numErrors=%s missSilent=ok live=%d")
+  hafen.log():write(("[%s] sound: res=%s info={res=%s playing=%s} interned=%s badVolErrors=%s numErrors=%s missSilent=ok live=%d")
     :format(tag, msg:res(), tostring(info.res), tostring(info.playing),
       tostring(interned), tostring(not okVol), tostring(not okNum), #hafen.sound()))
   -- The hard cut (D-013), both halves: the flat hafen.sound.play is gone (hafen.sound is callable, and the
   -- old field reads as plain nil) and hafen.music is ABSENT ENTIRELY -- not flattened, not stubbed.
   local okAmb, amb = pcall(function() return hafen.client:options():audio():ambientVolume() end)
-  hafen.log(("[%s] sound contract: flatPlayGone=%s musicGone=%s ambientVolume=%s"):format(tag,
+  hafen.log():write(("[%s] sound contract: flatPlayGone=%s musicGone=%s ambientVolume=%s"):format(tag,
     tostring(hafen.sound.play == nil), tostring(hafen.music == nil),
     okAmb and tostring(amb) or "n/a"))
 end
@@ -515,7 +515,7 @@ local function readMarkers(tag)
   local list = hafen.map.markers.list()
   local near = hafen.map.markers.nearest()
   local first = list[1]
-  hafen.log(("[%s] markers=%d, first=%s%s, nearest=%s%s"):format(tag, #list,
+  hafen.log():write(("[%s] markers=%d, first=%s%s, nearest=%s%s"):format(tag, #list,
     first and tostring(first:name() or first:type()) or "none",
     first and (" @tc %d,%d"):format(first:tc().x, first:tc().y) or "",
     near and tostring(near:name() or near:type()) or "none",
@@ -539,7 +539,7 @@ local function readIcons(tag)
     if c:notify() then notif = notif + 1 end
   end
   local first = cats[1]
-  hafen.log(("[%s] icons=%d categor(ies), %d shown, %d notify, first=%s%s"):format(tag, #cats, shown, notif,
+  hafen.log():write(("[%s] icons=%d categor(ies), %d shown, %d notify, first=%s%s"):format(tag, #cats, shown, notif,
     first and tostring(first:name() or first:res()) or "none",
     first and (" [show=%s notify=%s]"):format(tostring(first:show()), tostring(first:notify())) or ""))
 end
@@ -561,7 +561,7 @@ local function readKin(tag)
   local online = #roster:list(function(k) return k:online() end)   -- a FUNCTION filter receives a Kin object
   local first = roster[1]
   local found = first and roster:find(first:name())                -- round-trip :find() by name
-  hafen.log(("[%s] kin=%d (%d online), first=%s%s, find(name)->%s"):format(tag, #roster, online,
+  hafen.log():write(("[%s] kin=%d (%d online), first=%s%s, find(name)->%s"):format(tag, #roster, online,
     first and tostring(first:name()) or "none",
     first and (" [group=%d online=%s color=%s]"):format(first:group(), tostring(first:online()),
       first:color() and "yes" or "nil") or "",
@@ -569,7 +569,7 @@ local function readKin(tag)
   if first then
     -- The OOP invariants, checked live: interning by id, :find() landing on that SAME object, an unknown
     -- name resolving to nil, and :info() still handing back the flat snapshot shape.
-    hafen.log(("[%s] kin oop: intern=%s find==roster[1]=%s noSuchName=%s info.name=%s"):format(tag,
+    hafen.log():write(("[%s] kin oop: intern=%s find==roster[1]=%s noSuchName=%s info.name=%s"):format(tag,
       tostring(hafen.kin(first:id()) == first), tostring(found == first),
       tostring(hafen.kin("NoSuchName")), tostring((first:info() or {}).name)))
   end
@@ -586,7 +586,7 @@ local function readKin(tag)
   local other = hafen.world.nearest(function(g) return g:isplayer() end)
   local okin = other and other:kin()
   local fgob = first and first:gob()
-  hafen.log(("[%s] kin<->gob: nearest player -> kin=%s%s | roster[1]:gob()=%s%s"):format(tag,
+  hafen.log():write(("[%s] kin<->gob: nearest player -> kin=%s%s | roster[1]:gob()=%s%s"):format(tag,
     okin and tostring(okin:name()) or "nil",
     okin and (" (interned=%s)"):format(tostring(okin == hafen.kin(okin:id()))) or "",
     fgob and tostring(fgob:name()) or "nil",
@@ -602,9 +602,9 @@ end
 local function readSpeed(tag)
   local cur = hafen.speed.get()
   if cur == nil then
-    hafen.log(("[%s] speed: nil (selector not up yet)"):format(tag)); return
+    hafen.log():write(("[%s] speed: nil (selector not up yet)"):format(tag)); return
   end
-  hafen.log(("[%s] speed: cur=%d (%s), max=%s"):format(tag, cur,
+  hafen.log():write(("[%s] speed: cur=%d (%s), max=%s"):format(tag, cur,
     tostring(hafen.speed.name()), tostring(hafen.speed.max())))
 end
 
@@ -622,20 +622,20 @@ local function craftLine(s)                     -- one input/output spec -> "nam
 end
 local function readCraft(tag)
   local c = hafen.craft.current()
-  if not c then hafen.log(("[%s] craft: none open"):format(tag)); return end
+  if not c then hafen.log():write(("[%s] craft: none open"):format(tag)); return end
   local i1 = c.inputs[1]
-  hafen.log(("[%s] craft '%s': %d input(s), %d output(s), %d qmod, %d tool(s)%s"):format(
+  hafen.log():write(("[%s] craft '%s': %d input(s), %d output(s), %d qmod, %d tool(s)%s"):format(
     tag, tostring(c.recipe), #c.inputs, #c.outputs, #c.qmod, #c.tools,
     i1 and (", in1=" .. craftLine(i1)) or ""))
 end
 local function dumpCraft()                       -- :hello craft -- the full breakdown of the open recipe
   local c = hafen.craft.current()
-  if not c then hafen.log(":hello craft -> no craft/recipe window open (open one first)"); return end
-  hafen.log((":hello craft -> recipe '%s'"):format(tostring(c.recipe)))
-  for i, s in ipairs(c.inputs)  do hafen.log(("  input[%d]  %s"):format(i, craftLine(s))) end
-  for i, s in ipairs(c.outputs) do hafen.log(("  output[%d] %s"):format(i, craftLine(s))) end
-  for i, r in ipairs(c.qmod)    do hafen.log(("  qmod[%d]   %s"):format(i, tostring(r.name or r.res))) end
-  for i, r in ipairs(c.tools)   do hafen.log(("  tool[%d]   %s"):format(i, tostring(r.name or r.res))) end
+  if not c then hafen.log():write(":hello craft -> no craft/recipe window open (open one first)"); return end
+  hafen.log():write((":hello craft -> recipe '%s'"):format(tostring(c.recipe)))
+  for i, s in ipairs(c.inputs)  do hafen.log():write(("  input[%d]  %s"):format(i, craftLine(s))) end
+  for i, s in ipairs(c.outputs) do hafen.log():write(("  output[%d] %s"):format(i, craftLine(s))) end
+  for i, r in ipairs(c.qmod)    do hafen.log():write(("  qmod[%d]   %s"):format(i, tostring(r.name or r.res))) end
+  for i, r in ipairs(c.tools)   do hafen.log():write(("  tool[%d]   %s"):format(i, tostring(r.name or r.res))) end
 end
 
 -- A9: QUEST LOG via hafen.quests. list([filter]) returns quest snapshots {id, name (the quest title), res
@@ -651,18 +651,18 @@ local function readQuests(tag)
   local active = hafen.quests.list(function(q) return q.status == "pending" or q.status == "disabled" end)
   local first  = all[1]
   local sel    = hafen.quests.selected()
-  hafen.log(("[%s] quests=%d (%d active), first=%s%s, selected=%s"):format(tag, #all, #active,
+  hafen.log():write(("[%s] quests=%d (%d active), first=%s%s, selected=%s"):format(tag, #all, #active,
     first and tostring(first.name) or "none",
     first and (" [%s]"):format(tostring(first.status)) or "",
     sel and ("'%s' (%d cond)"):format(tostring(sel.name), #sel.conds) or "none"))
 end
 local function dumpQuest()                       -- :hello quest -- the selected quest + its objectives
   local q = hafen.quests.selected()
-  if not q then hafen.log(":hello quest -> no quest selected (open the Quest Log and click a quest)"); return end
-  hafen.log((":hello quest -> '%s' [%s] -- %d condition(s)"):format(
+  if not q then hafen.log():write(":hello quest -> no quest selected (open the Quest Log and click a quest)"); return end
+  hafen.log():write((":hello quest -> '%s' [%s] -- %d condition(s)"):format(
     tostring(q.name), tostring(q.status), #q.conds))
   for i, c in ipairs(q.conds) do
-    hafen.log(("  cond[%d] [%s] %s%s"):format(i, tostring(c.status), tostring(c.desc),
+    hafen.log():write(("  cond[%d] [%s] %s%s"):format(i, tostring(c.status), tostring(c.desc),
       c.text and (" -- " .. c.text) or ""))
   end
 end
@@ -679,16 +679,16 @@ end
 local function readWounds(tag)
   local list = hafen.wounds.list()
   local first = list[1]
-  hafen.log(("[%s] wounds=%d, first=%s%s"):format(tag, #list,
+  hafen.log():write(("[%s] wounds=%d, first=%s%s"):format(tag, #list,
     first and tostring(first.name or first.res) or "none",
     (first and first.severity) and (" sev=%s"):format(tostring(first.severity)) or ""))
 end
 local function dumpWounds()                       -- :hello wound -- the full wound tree (name/severity, indented)
   local list = hafen.wounds.list()
-  if #list == 0 then hafen.log(":hello wound -> no wounds (nice)"); return end
-  hafen.log((":hello wound -> %d wound(s):"):format(#list))
+  if #list == 0 then hafen.log():write(":hello wound -> no wounds (nice)"); return end
+  hafen.log():write((":hello wound -> %d wound(s):"):format(#list))
   for _, w in ipairs(list) do
-    hafen.log(("  %s%s%s [id=%s parent=%s]"):format(("  "):rep(w.level or 0),
+    hafen.log():write(("  %s%s%s [id=%s parent=%s]"):format(("  "):rep(w.level or 0),
       tostring(w.name or w.res),
       w.severity and (" (sev " .. tostring(w.severity) .. ")") or "",
       tostring(w.id), tostring(w.parentid)))
@@ -708,27 +708,27 @@ end
 -- dumps the full deck (by hotkey) + your known maneuvers.
 local function readFight(tag)
   local s = hafen.fight.summary()
-  if not s then hafen.log(("[%s] fight: nil (combat-schools tab not up yet)"):format(tag)); return end
+  if not s then hafen.log():write(("[%s] fight: nil (combat-schools tab not up yet)"):format(tag)); return end
   local man  = hafen.fight.maneuvers()
   local deck = hafen.fight.deck()
-  hafen.log(("[%s] fight: %d maneuver(s), deck=%d/%d filled, used=%d/%d, school slot=%d/%d"):format(
+  hafen.log():write(("[%s] fight: %d maneuver(s), deck=%d/%d filled, used=%d/%d, school slot=%d/%d"):format(
     tag, #man, #deck, s.nact, s.used, s.maxact, s.usesave, s.nsave))
 end
 local function dumpFight()                        -- :hello fight -- the deck (by hotkey) + known maneuvers
   local s = hafen.fight.summary()
-  if not s then hafen.log(":hello fight -> combat-schools tab not up yet (enter the world first)"); return end
-  hafen.log((":hello fight -> used %d/%d action points, active school slot %d (of %d), deck size %d"):format(
+  if not s then hafen.log():write(":hello fight -> combat-schools tab not up yet (enter the world first)"); return end
+  hafen.log():write((":hello fight -> used %d/%d action points, active school slot %d (of %d), deck size %d"):format(
     s.used, s.maxact, s.usesave, s.nsave, s.nact))
   local deck = hafen.fight.deck()
-  if #deck == 0 then hafen.log("  deck: (empty -- nothing slotted)") end
+  if #deck == 0 then hafen.log():write("  deck: (empty -- nothing slotted)") end
   for _, d in ipairs(deck) do
-    hafen.log(("  [%s] %s x%d"):format(tostring(d.key), tostring(d.name or d.res), d.used or 0))
+    hafen.log():write(("  [%s] %s x%d"):format(tostring(d.key), tostring(d.name or d.res), d.used or 0))
   end
   local man = hafen.fight.maneuvers()
-  hafen.log(("  known maneuvers: %d"):format(#man))
+  hafen.log():write(("  known maneuvers: %d"):format(#man))
   for i, m in ipairs(man) do
-    if i > 8 then hafen.log(("  ... and %d more"):format(#man - 8)); break end
-    hafen.log(("    %s (avail %d, used %d)"):format(tostring(m.name or m.res), m.avail or 0, m.used or 0))
+    if i > 8 then hafen.log():write(("  ... and %d more"):format(#man - 8)); break end
+    hafen.log():write(("    %s (avail %d, used %d)"):format(tostring(m.name or m.res), m.avail or 0, m.used or 0))
   end
 end
 
@@ -754,9 +754,9 @@ local itemsAdded, itemsRemoved = 0, 0
 local bagsReady = false
 local function readBags(tag)
   local w = invWdg or hafen.ui.inventory()   -- either door leads to the SAME interned entity (==)
-  if not w then hafen.log(("[%s] bags: no inventory widget yet"):format(tag)); return end
+  if not w then hafen.log():write(("[%s] bags: no inventory widget yet"):format(tag)); return end
   local items = w:items()
-  hafen.log(("[%s] bags: %d item(s) via widget:items(), first=%s, grid-visible=%s"):format(tag, #items,
+  hafen.log():write(("[%s] bags: %d item(s) via widget:items(), first=%s, grid-visible=%s"):format(tag, #items,
     items[1] and tostring(items[1].name or items[1].res) or "none", tostring(w:visible())))
 end
 
@@ -773,7 +773,7 @@ end
 -- hafen.ui.adopt, :same, :move) are plain nil, not shims (D-013).
 local function readWidgets(tag)
   local root = hafen.ui()
-  if not root then hafen.log(("[%s] widget: no UI yet"):format(tag)); return end
+  if not root then hafen.log():write(("[%s] widget: no UI yet"):format(tag)); return end
   local function why(f, ...)
     local ok, err = pcall(f, ...)
     if ok then return "ACCEPTED (BUG)" end
@@ -787,7 +787,7 @@ local function readWidgets(tag)
   local byId = (inv and inv:id()) and hafen.ui.node(inv:id()) or nil
   local m = hafen.ui.mouse()
   local at = m and hafen.ui.at(m.x, m.y) or nil
-  hafen.log(("[%s] widget doors: root=%s inv=%s eq=%s at(mouse)=%s hand=%s | node(id)==inv=%s root()==root=%s at()==at=%s")
+  hafen.log():write(("[%s] widget doors: root=%s inv=%s eq=%s at(mouse)=%s hand=%s | node(id)==inv=%s root()==root=%s at()==at=%s")
     :format(tag, tostring(root), tostring(inv), tostring(eq), tostring(at),
             tostring(hafen.ui.hand() and "item" or nil),
             tostring((inv ~= nil) and (byId == inv)), tostring(hafen.ui() == root),
@@ -799,15 +799,15 @@ local function readWidgets(tag)
   local own = hafen.ui.widget{ size = {40, 20}, pos = {8, 8} }
   own:pos(12, 14):size(48, 24):pack()                  -- arity is the verb, and every write chains on self
   local p, s = own:pos(), own:size()
-  hafen.log(("[%s] owned: own.owned=%s root.owned=%s | chained pos(x,y)->%d,%d size(w,h)->%d,%d")
+  hafen.log():write(("[%s] owned: own.owned=%s root.owned=%s | chained pos(x,y)->%d,%d size(w,h)->%d,%d")
     :format(tag, tostring((own:info() or {}).owned), tostring((root:info() or {}).owned), p.x, p.y, s.x, s.y))
-  hafen.log(("[%s] borrowed refusals: root:pack() -> %s"):format(tag, why(root.pack, root)))
-  hafen.log(("[%s]                    root:destroy() -> %s"):format(tag, why(root.destroy, root)))
+  hafen.log():write(("[%s] borrowed refusals: root:pack() -> %s"):format(tag, why(root.pack, root)))
+  hafen.log():write(("[%s]                    root:destroy() -> %s"):format(tag, why(root.destroy, root)))
   -- STALENESS + the no-op write. Destroying our own widget makes every read answer nil/empty with :exists() false,
   -- while a WRITE on it is a silent no-op that STILL CHAINS: a write is not a question, so it does not error and no
   -- call site has to guard :exists() first.
   own:destroy()
-  hafen.log(("[%s] stale: exists=%s type=%s info=%s items=%d writeStillChains=%s")
+  hafen.log():write(("[%s] stale: exists=%s type=%s info=%s items=%d writeStillChains=%s")
     :format(tag, tostring(own:exists()), tostring(own:type()), tostring(own:info()),
             #own:items(), tostring(own:pos(1, 1) == own)))
   -- READ WITHOUT HIDING -- the point of the whole feature. Walk the live tree for every item container and report
@@ -823,10 +823,10 @@ local function readWidgets(tag)
       return false                                     -- prune: below a grid there is nothing but its items
     end
   end)
-  hafen.log(("[%s] containers readable with nothing hidden: %d [%s]")
+  hafen.log():write(("[%s] containers readable with nothing hidden: %d [%s]")
     :format(tag, #conts, table.concat(conts, ", ")))
   -- The hard cuts (D-013): all four read as plain nil -- not flattened, not stubbed, no deprecation alias.
-  hafen.log(("[%s] widget contract: itemsGone=%s adoptGone=%s sameGone=%s moveGone=%s (hafen.items=%s hafen.ui.adopt=%s)")
+  hafen.log():write(("[%s] widget contract: itemsGone=%s adoptGone=%s sameGone=%s moveGone=%s (hafen.items=%s hafen.ui.adopt=%s)")
     :format(tag, tostring(hafen.items == nil), tostring(hafen.ui.adopt == nil),
             tostring(root.same == nil), tostring(root.move == nil),
             tostring(hafen.items), tostring(hafen.ui.adopt)))
@@ -847,7 +847,7 @@ local SEL_ROLES = { "window", "inventory", "button", "label", "textentry", "chat
 local SEL_SITES = { "window.title", "heading", "tooltip", "world.nick", "world.speech" }
 local function readSelectors(tag)
   local root = hafen.ui()
-  if not root then hafen.log(("[%s] selector: no UI yet"):format(tag)); return end
+  if not root then hafen.log():write(("[%s] selector: no UI yet"):format(tag)); return end
   local function why(f, ...)
     local ok, err = pcall(f, ...)
     if ok then return "ACCEPTED (BUG)" end
@@ -865,7 +865,7 @@ local function readSelectors(tag)
   end
   local parts = {}
   for _, r in ipairs(SEL_ROLES) do parts[#parts + 1] = ("%s %d"):format(r, census[r] or 0) end
-  hafen.log(("[%s] selector *: %d widget(s), %d classified (%s), %d nil | ui('*')==ui()=%s interned=%s")
+  hafen.log():write(("[%s] selector *: %d widget(s), %d classified (%s), %d nil | ui('*')==ui()=%s interned=%s")
     :format(tag, #every, classified, table.concat(parts, " "), #every - classified,
             tostring(hafen.ui("*") == root), tostring(hafen.ui.all("*")[1] == every[1])))
   -- EACH GRAMMAR ELEMENT, and the first-vs-all contract: hafen.ui(sel) is exactly all(sel)[1] -- never a different
@@ -876,7 +876,7 @@ local function readSelectors(tag)
   local wnds, byCls = hafen.ui.all("window"), hafen.ui.all("@Window")
   local inv = hafen.ui.inventory()
   local invByCls = inv and hafen.ui("@" .. inv:type()) or nil
-  hafen.log(("[%s] grammar: window -> %s (#all=%d, first==all[1]=%s) | @Window -> %d (role window=%d: the rest are"
+  hafen.log():write(("[%s] grammar: window -> %s (#all=%d, first==all[1]=%s) | @Window -> %d (role window=%d: the rest are"
              .. " SUBCLASSES, @Class does not walk up) | @%s -> %s (==inventory()=%s) | miss 'textentry@Label' -> %s")
     :format(tag, tostring(hafen.ui("window")), #wnds, tostring(hafen.ui("window") == wnds[1]),
             #byCls, #wnds, inv and inv:type() or "?", tostring(invByCls),
@@ -887,7 +887,7 @@ local function readSelectors(tag)
   -- how you find out which you are holding, never a client-side alias list.
   local withRes, meters = 0, hafen.ui.all("[res=gfx/hud/meter]")
   for i = 1, #every do if every[i]:res() then withRes = withRes + 1 end end
-  hafen.log(("[%s] [res=]: %d of %d widget(s) carry one | [res=gfx/hud/meter] -> %d (first res=%s) | windows with a"
+  hafen.log():write(("[%s] [res=]: %d of %d widget(s) carry one | [res=gfx/hud/meter] -> %d (first res=%s) | windows with a"
              .. " res: %d (that is why [title=] is the key for windows)")
     :format(tag, withRes, #every, #meters, meters[1] and tostring(meters[1]:res()) or "none",
             (function() local n = 0; for i = 1, #wnds do if wnds[i]:res() then n = n + 1 end end; return n end)()))
@@ -904,13 +904,13 @@ local function readSelectors(tag)
   end
   if titled then
     local scoped = hafen.ui.all(("[title=%s]"):format(cap))
-    hafen.log(("[%s] [title=%s]: %d widget(s) inside that window's scope, first==the window itself=%s |"
+    hafen.log():write(("[%s] [title=%s]: %d widget(s) inside that window's scope, first==the window itself=%s |"
                .. " window[title=%s]==it=%s | inventory[title=%s] -> %s (the GRID, one hop below)")
       :format(tag, cap, #scoped, tostring(scoped[1] == titled), cap,
               tostring(hafen.ui(("window[title=%s]"):format(cap)) == titled), cap,
               tostring(hafen.ui(("inventory[title=%s]"):format(cap)))))
   else
-    hafen.log(("[%s] [title=]: no titled window open right now -- open a cupboard/chest and re-run ':hello selector'")
+    hafen.log():write(("[%s] [title=]: no titled window open right now -- open a cupboard/chest and re-run ':hello selector'")
       :format(tag))
   end
   -- THE FIVE RENDER-SITE ROLES (D-067). They are promoted Fonts.SCOPES names -- ONE vocabulary shared with the font
@@ -919,16 +919,16 @@ local function readSelectors(tag)
   -- NOTHING, because guessing that a Label is a "heading" is exactly the wrong answer.
   local sites = {}
   for _, r in ipairs(SEL_SITES) do sites[#sites + 1] = ("%s=%d"):format(r, #hafen.ui.all(r)) end
-  hafen.log(("[%s] render-site roles (valid grammar, classify nothing): %s"):format(tag, table.concat(sites, " ")))
+  hafen.log():write(("[%s] render-site roles (valid grammar, classify nothing): %s"):format(tag, table.concat(sites, " ")))
   -- THE PARSE-ERROR CATALOGUE -- every shape distinguishable, each naming the offending part, and a bad role listing
   -- every valid one (the one error worth spelling out in full: nobody guesses a role).
   local function sel(s) return function() return hafen.ui(s) end end
-  hafen.log(("[%s] selector errors: bad role -> %s"):format(tag, why(sel("windo"))))
-  hafen.log(("[%s]                  unclosed [ -> %s"):format(tag, why(sel("window[title=X"))))
-  hafen.log(("[%s]                  bad refiner key -> %s"):format(tag, why(sel("window[caption=X]"))))
-  hafen.log(("[%s]                  refiner twice -> %s"):format(tag, why(sel("window[title=A][title=B]"))))
-  hafen.log(("[%s]                  empty -> %s"):format(tag, why(sel("   "))))
-  hafen.log(("[%s]                  a number -> %s"):format(tag, why(hafen.ui.all, 1)))
+  hafen.log():write(("[%s] selector errors: bad role -> %s"):format(tag, why(sel("windo"))))
+  hafen.log():write(("[%s]                  unclosed [ -> %s"):format(tag, why(sel("window[title=X"))))
+  hafen.log():write(("[%s]                  bad refiner key -> %s"):format(tag, why(sel("window[caption=X]"))))
+  hafen.log():write(("[%s]                  refiner twice -> %s"):format(tag, why(sel("window[title=A][title=B]"))))
+  hafen.log():write(("[%s]                  empty -> %s"):format(tag, why(sel("   "))))
+  hafen.log():write(("[%s]                  a number -> %s"):format(tag, why(hafen.ui.all, 1)))
   -- hafen.ui.on() ROUND TRIP (030.2, D-068). "appear" does not mean "was created": registration SCANS the live tree,
   -- so it fires for every match ALREADY in it -- synchronously, inside this very call, which is why the counter below
   -- is already set when on() returns. That is the difference that killed onWidgetCreate: a creation feed could never
@@ -940,12 +940,12 @@ local function readSelectors(tag)
     if w == inv then sawInv = true end
   end)
   watch:remove()
-  hafen.log(("[%s] on() round trip: 'inventory' appear fired %d time(s) DURING registration (the live-tree scan --"
+  hafen.log():write(("[%s] on() round trip: 'inventory' appear fired %d time(s) DURING registration (the live-tree scan --"
              .. " containers open now: %d), payload==inventory()=%s; handle:remove() dropped the subscription")
     :format(tag, fired, #hafen.ui.all("inventory"), tostring(sawInv)))
   -- The hard cuts (D-013): both read as plain nil -- not flattened, not stubbed, no deprecation alias. hafen.ui() IS
   -- the root (the no-arg collection form is the tree), and a selector IS the discovery primitive.
-  hafen.log(("[%s] selector contract: rootGone=%s onWidgetCreateGone=%s (hafen.ui.root=%s hafen.ui.onWidgetCreate=%s)")
+  hafen.log():write(("[%s] selector contract: rootGone=%s onWidgetCreateGone=%s (hafen.ui.root=%s hafen.ui.onWidgetCreate=%s)")
     :format(tag, tostring(hafen.ui.root == nil), tostring(hafen.ui.onWidgetCreate == nil),
             tostring(hafen.ui.root), tostring(hafen.ui.onWidgetCreate)))
 end
@@ -967,11 +967,11 @@ end
 local swallowedWnd        -- the window ':hello wnd swallow' is holding hidden (nil = not parked); session-local
 local function readToggle(tag)
   local grid = hafen.ui.inventory()
-  if not grid then hafen.log(("[%s] toggle: no inventory widget yet (the HUD is not up)"):format(tag)); return end
+  if not grid then hafen.log():write(("[%s] toggle: no inventory widget yet (the HUD is not up)"):format(tag)); return end
   local wnd = grid:parent()                    -- the Hidewnd AROUND the grid: what the client's Tab toggles
-  if not wnd then hafen.log(("[%s] toggle: the inventory grid has no enclosing window"):format(tag)); return end
+  if not wnd then hafen.log():write(("[%s] toggle: the inventory grid has no enclosing window"):format(tag)); return end
   if swallowedWnd then
-    hafen.log((("[%s] toggle: ':hello wnd swallow' is parked on %s -- run it again to give the window back, then"
+    hafen.log():write((("[%s] toggle: ':hello wnd swallow' is parked on %s -- run it again to give the window back, then"
       .. " re-run this check"):format(tag, wnd:type())))
     return
   end
@@ -983,12 +983,12 @@ local function readToggle(tag)
   -- asserting against a HUD somebody else is driving.
   local ok, err = pcall(wnd.hide, wnd)
   if not ok then
-    hafen.log(("[%s] toggle: %s is already owned -- one window, one owner: %s")
+    hafen.log():write(("[%s] toggle: %s is already owned -- one window, one owner: %s")
       :format(tag, wnd:type(), (tostring(err):gsub("^.-%.lua:%d+:%s*", ""))))
     return
   end
   local again = pcall(wnd.hide, wnd)           -- ...but OUR own second hide is idempotent (one record, not two)
-  hafen.log(("[%s] toggle: hid %s '%s' (was visible=%s, now %s) -- nothing stands in for it, so the client's key AND"
+  hafen.log():write(("[%s] toggle: hid %s '%s' (was visible=%s, now %s) -- nothing stands in for it, so the client's key AND"
       .. " its menu button are SWALLOWED and the tick reads false; our own second hide is idempotent (no error=%s)")
     :format(tag, wnd:type(), tostring(wnd:text()), tostring(wasVis), tostring(wnd:visible()), tostring(again)))
   -- 2+3. BOTH HALVES OF THE ONE TEARDOWN RULE. Each round replaces the main inventory with grid:replace(view) --
@@ -1017,7 +1017,7 @@ local function readToggle(tag)
   local openA = round(true)
   if openA == nil then
     wnd:show()                                 -- release our record by hand; the window is back and so is the key
-    hafen.log(("[%s] toggle: grid:replace(view) refused (%s) -- gave %s back with :show() (it is OPEN now: press"
+    hafen.log():write(("[%s] toggle: grid:replace(view) refused (%s) -- gave %s back with :show() (it is OPEN now: press"
       .. " Tab to close it)"):format(tag, (tostring(replaceErr):gsub("^.-%.lua:%d+:%s*", "")), wnd:type()))
     return
   end
@@ -1025,13 +1025,13 @@ local function readToggle(tag)
   local openB = round(false)
   local afterB                                 -- NB a plain `and ... or nil` would collapse a false here
   if openB ~= nil then afterB = wnd:visible() end
-  hafen.log(("[%s] toggle: teardown rule (the window ends up AS THE USER WAS SEEING IT) -- view open=%s => stock"
+  hafen.log():write(("[%s] toggle: teardown rule (the window ends up AS THE USER WAS SEEING IT) -- view open=%s => stock"
       .. " window visible=%s (expected true) | view hidden=%s => visible=%s (expected false); one expression, no"
       .. " branches, and it is what makes a bare hide stay hidden through a :reload")
     :format(tag, tostring(openA), tostring(afterA), tostring(openB), tostring(afterB)))
   -- 3b. THE VERB'S OWN CONTRACT (032.3): three arities over ONE record, reached from either end of the hop, and the
   -- namespace function that used to do all of this in one call reading plain nil -- a hard cut, no alias (D-013).
-  hafen.log(("[%s] toggle: replace() arities -- installed via the GRID, read back=%s, and the same view read"
+  hafen.log():write(("[%s] toggle: replace() arities -- installed via the GRID, read back=%s, and the same view read"
       .. " through its enclosing %s=%s (one record: the verb hops to the window, which is why the whole stock"
       .. " frame goes and not just the grid); after replace(nil) the read is nil=%s. replaceGone=%s"
       .. " (hafen.ui.replace=%s -- the old namespace function is a hard cut; ui.on waits, w:replace replaces)")
@@ -1041,25 +1041,25 @@ local function readToggle(tag)
   -- state, so only a HUD that had the inventory open needs the last :show() (which owns nothing and records nothing).
   if wasVis and not wnd:visible() then wnd:show() end
   local now = wnd:visible()
-  hafen.log(("[%s] toggle: no verb for the TOGGLE itself (widget.onToggle=%s hafen.ui.toggle=%s -- ownership follows"
+  hafen.log():write(("[%s] toggle: no verb for the TOGGLE itself (widget.onToggle=%s hafen.ui.toggle=%s -- ownership follows"
       .. " the hide, and w:replace(view) binds the view); %s left visible=%s, as found=%s%s")
     :format(tag, tostring(grid.onToggle), tostring(hafen.ui.toggle), wnd:type(), tostring(now), tostring(wasVis),
             (now == wasVis) and "" or "  <-- MISMATCH (press Tab to put it right)"))
 end
 
-hafen.events.on("OnEnterWorld", function()
+hafen.event():on("OnEnterWorld", function()
   readWidgets("login")                        -- once per login, like readAssets/readMeters/readBuffs
   readSelectors("login")                      -- 030.4: the selector contract, same cadence
   readToggle("login")                         -- 031.3: the window-toggle contract, same cadence
-  hafen.timer.after(3, function()             -- ...and once the inventory/equipment widgets have streamed in
+  hafen.timer():after(3, function()             -- ...and once the inventory/equipment widgets have streamed in
     readWidgets("+3s")
     readSelectors("+3s")                      -- the HUD is fully built by now: the census is the real one
     readToggle("+3s")                         -- ...and the inventory wrapper exists, so this one really runs
   end)
 end)
 
-hafen.events.on("OnEnterWorld", function()
-  hafen.log("entered the world")
+hafen.event():on("OnEnterWorld", function()
+  hafen.log():write("entered the world")
 
   -- 1c-1 / 017: read the player through the Gob CLASS (D-044). hafen.player():gob() is the composition
   -- anchor (Player forwards nothing — D-046); every gob method re-resolves, so a handle is always fresh
@@ -1068,22 +1068,22 @@ hafen.events.on("OnEnterWorld", function()
   local me = hafen.player():gob()
   if me then
     local p = me:pos()
-    hafen.log(("player gob: %s name=%s health=%s isplayer=%s at %.1f,%.1f (info().name=%s)")
+    hafen.log():write(("player gob: %s name=%s health=%s isplayer=%s at %.1f,%.1f (info().name=%s)")
       :format(tostring(me), tostring(me:name()), tostring(me:health()), tostring(me:isplayer()),
               p and p.x or 0, p and p.y or 0, tostring((me:info() or {}).name)))
   else
-    hafen.log("017: hafen.player():gob() is nil -- the player gob isn't up yet")
+    hafen.log():write("017: hafen.player():gob() is nil -- the player gob isn't up yet")
   end
-  hafen.log(("world has %d gob(s)"):format(hafen.world.count()))
+  hafen.log():write(("world has %d gob(s)"):format(hafen.world.count()))
   local near = hafen.world.nearest(function(g) return not g:isplayer() end)   -- filter gets a Gob now
   if near then
-    hafen.log(("nearest non-player gob: id=%s name=%s dist=%s moving=%s")
+    hafen.log():write(("nearest non-player gob: id=%s name=%s dist=%s moving=%s")
       :format(tostring(near:id()), tostring(near:name()), tostring(near:distance()), tostring(near:moving())))
   end
 
   -- 1c-2: player identity (data with no per-gob equivalent — the local character name). exists()/id() are
   -- GONE (D-046): hafen.player():gob() and gob:id() already answer both.
-  hafen.log(("player: name=%s gob=%s"):format(tostring(hafen.player():name()), tostring(me)))
+  hafen.log():write(("player: name=%s gob=%s"):format(tostring(hafen.player():name()), tostring(me)))
 
   -- 017 HARNESS: the invariants the hard cut has to keep true. Identity by per-addon weak interning
   -- (D-045), freshness per method call (D-012 kept), and the flat table actually GONE (no shim, D-013).
@@ -1099,43 +1099,43 @@ hafen.events.on("OnEnterWorld", function()
     end
     local ghostId = 1                                            -- an id that (almost certainly) never existed
     local okTok = pcall(function() return hafen.gob("player") end)
-    hafen.log(("017: identity hafen.gob(id)==player:gob() -> %s | seen[gob] de-dup -> %d unique over 2 sweeps of %d")
+    hafen.log():write(("017: identity hafen.gob(id)==player:gob() -> %s | seen[gob] de-dup -> %d unique over 2 sweeps of %d")
       :format(tostring(same), uniq, sweep))
-    hafen.log(("017: hard cut -> hafen.gob.health=%s hafen.player.exists=%s hafen.gob('player') errors=%s | unloaded gob(%d): exists=%s pos=%s id=%d")
+    hafen.log():write(("017: hard cut -> hafen.gob.health=%s hafen.player.exists=%s hafen.gob('player') errors=%s | unloaded gob(%d): exists=%s pos=%s id=%d")
       :format(tostring(hafen.gob.health), tostring(hafen.player.exists), tostring(not okTok),
               ghostId, tostring(hafen.gob(ghostId):exists()), tostring(hafen.gob(ghostId):pos()),
               hafen.gob(ghostId):id()))
     -- Freshness: the SAME stashed handle, re-read 12s later. Walk in between -- the coords must change,
     -- proving the object holds only the id and re-resolves (a snapshot would be frozen).
     local p0 = me:pos()
-    hafen.timer.after(12, function()
+    hafen.timer():after(12, function()
       local p1 = me:pos()
       if p0 and p1 then
-        hafen.log(("017: stashed Gob freshness -> %.1f,%.1f => %.1f,%.1f (moved %.1f -- walk to see it change)")
+        hafen.log():write(("017: stashed Gob freshness -> %.1f,%.1f => %.1f,%.1f (moved %.1f -- walk to see it change)")
           :format(p0.x, p0.y, p1.x, p1.y, math.sqrt((p1.x - p0.x) ^ 2 + (p1.y - p0.y) ^ 2)))
       else
-        hafen.log("017: stashed Gob freshness -> pos() is nil now (gob gone: methods go quiet, :id() still answers "
+        hafen.log():write("017: stashed Gob freshness -> pos() is nil now (gob gone: methods go quiet, :id() still answers "
           .. tostring(me:id()) .. ")")
       end
     end)
   end
 
   -- 1c-2: time + astronomy (astronomy readers are nil until the first astro update).
-  hafen.log(("time: clock=%.1f day=%s night=%s season=%s moon=%s")
-    :format(hafen.time.clock() or 0, tostring(hafen.time.dayFraction()),
-            tostring(hafen.time.isNight()), tostring(hafen.time.season()),
-            tostring(hafen.time.moon())))
+  hafen.log():write(("time: clock=%.1f day=%s night=%s season=%s moon=%s")
+    :format(hafen.time():clock() or 0, tostring(hafen.time():dayFraction()),
+            tostring(hafen.time():isNight()), tostring(hafen.time():season()),
+            tostring(hafen.time():moon())))
 
   -- 1c-2/1c-3: map, projection, item and char/party reads — now (often still loading/streaming) and
   -- again after 3s (resolved). char attrs, lp/weight and the inventory all stream in shortly AFTER
   -- enter-world (same as the map data), so the "now" pass typically shows nil/0 and "+3s" the real data.
   readPlace("now"); readInv("now"); readChar("now"); readMeters("now")
   readBuffs("now"); readFood("now"); readStudy("now"); readLore("now"); readActionbar("now"); readMenu("now"); readBags("now"); readMarkers("now"); readIcons("now"); readKin("now"); readSpeed("now"); readCraft("now"); readQuests("now"); readWounds("now"); readFight("now")
-  hafen.timer.after(3, function()
+  hafen.timer():after(3, function()
     readPlace("+3s"); readInv("+3s"); readChar("+3s"); readMeters("+3s")
     readBuffs("+3s"); readFood("+3s"); readStudy("+3s"); readLore("+3s"); readActionbar("+3s"); readMenu("+3s"); readBags("+3s"); readMarkers("+3s"); readIcons("+3s"); readKin("+3s"); readSpeed("+3s"); readCraft("+3s"); readQuests("+3s"); readWounds("+3s"); readFight("+3s")
     bagsReady = true   -- 3b: initial item fill done -> now log EVERY live inventory add/remove
-    if invWdg then hafen.log("3b: bags ready -- move an item in/out now (even with the grid hidden via the 'bags' key) and it logs") end
+    if invWdg then hafen.log():write("3b: bags ready -- move an item in/out now (even with the grid hidden via the 'bags' key) and it logs") end
   end)
 
   -- 1c-2 / 024: an audible confirmation ping (a client-bundled sound), proving hafen.sound(name):play()
@@ -1155,30 +1155,30 @@ end)
 -- :rotates it (V3 res-swap DoD), at +5s :hide()s and +6s :show()s it, and auto-destroys it at +8s (watch the
 -- translucent rotated cabin appear, jump north, morph into another building, blink, then vanish — :reload/disable
 -- would remove it too).
-hafen.events.on("OnEnterWorld", function()
+hafen.event():on("OnEnterWorld", function()
   local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
   local p = me and me:pos()
-  if not p then hafen.log("V1: ghost demo skipped -- no player position yet"); return end
+  if not p then hafen.log():write("V1: ghost demo skipped -- no player position yet"); return end
   local g = hafen.ghost.new{
     res = "gfx/terobjs/arch/logcabin", x = p.x + 33, y = p.y,     -- +3 tiles E (tile=11)
     a = math.pi / 4,                                              -- V3: rotated 45°
     alpha = 0.5,                                                  -- V3: translucent "ghost" look (the DoD)
     tint = { r = 120, g = 180, b = 255, a = 110 },                -- V3: bluish colour overlay
   }
-  if not g then hafen.log("V1: hafen.ghost.new returned nil (no map view yet?)"); return end
+  if not g then hafen.log():write("V1: hafen.ghost.new returned nil (no map view yet?)"); return end
   local q = g:pos()
-  hafen.log(("V1+V3: ghost spawned (%s) at %.0f,%.0f a=%.2f -- list=%d; translucent+rotated, :move 2 tiles N")
+  hafen.log():write(("V1+V3: ghost spawned (%s) at %.0f,%.0f a=%.2f -- list=%d; translucent+rotated, :move 2 tiles N")
     :format(tostring(g:res()), q.x, q.y, q.a, #hafen.ghost.list()))
   g:move(p.x + 33, p.y + 22)                                     -- prove :move (2 tiles N); the prop follows
-  hafen.timer.after(3, function()
+  hafen.timer():after(3, function()
     g:setRes("gfx/terobjs/arch/timberhouse"):rotate(math.pi)     -- V3: live res-swap (DoD) + :rotate, chained
-    hafen.log(("V3: ghost res-swapped -> %s + rotated 180°"):format(tostring(g:res())))
+    hafen.log():write(("V3: ghost res-swapped -> %s + rotated 180°"):format(tostring(g:res())))
   end)
-  hafen.timer.after(5, function() g:hide(); hafen.log("V3: ghost :hide()") end)   -- V3: remove from scene
-  hafen.timer.after(6, function() g:show(); hafen.log("V3: ghost :show()") end)   -- V3: re-add
-  hafen.timer.after(8, function()
+  hafen.timer():after(5, function() g:hide(); hafen.log():write("V3: ghost :hide()") end)   -- V3: remove from scene
+  hafen.timer():after(6, function() g:show(); hafen.log():write("V3: ghost :show()") end)   -- V3: re-add
+  hafen.timer():after(8, function()
     g:destroy()                                                  -- prove :destroy; teardown would also do this
-    hafen.log(("V1: ghost auto-destroyed -- list=%d"):format(#hafen.ghost.list()))
+    hafen.log():write(("V1: ghost auto-destroyed -- list=%d"):format(#hafen.ghost.list()))
   end)
 end)
 
@@ -1189,8 +1189,8 @@ end)
 -- (normal play unaffected — e.g. the V1 auto-demo cabin above: clicking it walks you there). The ':hello ghost'
 -- cabin below is created CLICKABLE with its own onClick, so clicking it logs twice (its onClick + this event) and
 -- does NOT move you — that is the V2 DoD. ev.button: 1=left, 3=right; ev.x/ev.y = the clicked world point.
-hafen.events.on("GhostClicked", function(ev)
-  hafen.log((":GhostClicked -> button=%d at %.0f,%.0f (client-only detection; no server click was sent)")
+hafen.event():on("GhostClicked", function(ev)
+  hafen.log():write((":GhostClicked -> button=%d at %.0f,%.0f (client-only detection; no server click was sent)")
     :format(ev.button, ev.x, ev.y))
 end)
 
@@ -1202,7 +1202,7 @@ end)
 -- to prove the values survive a relog (per character) and are shared across all characters (account).
 -- s.recent is a small bounded array, demonstrating a nested JSON array round-tripping intact.
 -- (A second OnEnterWorld handler — the bus dispatches to every subscriber in order.)
-hafen.events.on("OnEnterWorld", function()
+hafen.event():on("OnEnterWorld", function()
   local s = hafen.store.persist
   s.logins = (s.logins or 0) + 1
   s.name = hafen.player():name() or s.name          -- remember the character name across sessions
@@ -1213,18 +1213,18 @@ hafen.events.on("OnEnterWorld", function()
   local a = hafen.store.acct
   a.logins = (a.logins or 0) + 1
 
-  hafen.log(("store: %s entered %d time(s) [account total %d]; recent: %s")
+  hafen.log():write(("store: %s entered %d time(s) [account total %d]; recent: %s")
     :format(tostring(s.name), s.logins, a.logins, table.concat(s.recent, ", ")))
   hafen.store.flush()                              -- write now (also autosaved + flushed on relog)
 end)
 
 -- OnUpdate fires every frame; throttle a heartbeat to once every 5 seconds so it is readable.
 -- local acc = 0
--- hafen.events.on("OnUpdate", function(dt)
+-- hafen.event():on("OnUpdate", function(dt)
 --   acc = acc + dt
 --   if acc >= 5 then
 --     acc = acc - 5
---     hafen.log(("tick heartbeat (dt=%.3f s)"):format(dt))
+--     hafen.log():write(("tick heartbeat (dt=%.3f s)"):format(dt))
 --   end
 -- end)
 
@@ -1232,16 +1232,16 @@ end)
 -- (D-044), so we read the type name live off it. On GobRemoved the gob is ALREADY gone, so only :id()
 -- answers there — index the name on GobAdded if you need it later.
 local spawned, despawned = 0, 0
-hafen.events.on("GobAdded", function(g)
+hafen.event():on("GobAdded", function(g)
   spawned = spawned + 1
   if spawned <= 3 then
-    hafen.log(("GobAdded %s name=%s (%d so far)"):format(tostring(g), tostring(g:name()), spawned))
+    hafen.log():write(("GobAdded %s name=%s (%d so far)"):format(tostring(g), tostring(g:name()), spawned))
   end
 end)
-hafen.events.on("GobRemoved", function(g)
+hafen.event():on("GobRemoved", function(g)
   despawned = despawned + 1
   if despawned <= 3 then                          -- name() is expected to be nil here — the gob is gone
-    hafen.log(("GobRemoved id=%d (name=%s -- nil is CORRECT, it already despawned) (%d so far)")
+    hafen.log():write(("GobRemoved id=%d (name=%s -- nil is CORRECT, it already despawned) (%d so far)")
       :format(g:id(), tostring(g:name()), despawned))
   end
 end)
@@ -1255,22 +1255,22 @@ end)
 -- can be younger than its resource -- :res() is nil AT FIRE TIME (tostring is "Meter(?)") and the SAME
 -- object answers a beat later, so never name-match inside the MeterAdded handler.
 local metersSeen, meterChanges = 0, 0
-hafen.events.on("MeterAdded", function(m)
+hafen.event():on("MeterAdded", function(m)
   metersSeen = metersSeen + 1
   if metersSeen <= 8 then
-    hafen.log(("MeterAdded: %s (res=%s -- nil here is NORMAL, it is still loading) value=%s (%d)")
+    hafen.log():write(("MeterAdded: %s (res=%s -- nil here is NORMAL, it is still loading) value=%s (%d)")
       :format(tostring(m), tostring(m:res()), tostring(m:value()), metersSeen))
   end
 end)
-hafen.events.on("MeterRemoved", function(m)
-  hafen.log(("MeterRemoved: %s (value=%s still readable, exists=%s)")
+hafen.event():on("MeterRemoved", function(m)
+  hafen.log():write(("MeterRemoved: %s (value=%s still readable, exists=%s)")
     :format(tostring(m), tostring(m:value()), tostring(m:exists())))
 end)
-hafen.events.on("MeterChanged", function(m)
+hafen.event():on("MeterChanged", function(m)
   meterChanges = meterChanges + 1
   if meterChanges <= 5 then
     local c = m:color()
-    hafen.log(("MeterChanged: %s value=%s color=%s (%d)"):format(tostring(m), tostring(m:value()),
+    hafen.log():write(("MeterChanged: %s value=%s color=%s (%d)"):format(tostring(m), tostring(m:value()),
       c and ("%d,%d,%d"):format(c.r, c.g, c.b) or "nil", meterChanges))
   end
 end)
@@ -1280,29 +1280,29 @@ end)
 -- BuffChanged. Log the first few of each so it does not flood. Since 025.2 the payload is the Buff
 -- OBJECT, so these read it with colon calls; a removed buff still answers, with :exists() false.
 local buffsSeen = 0
-hafen.events.on("BuffAdded", function(b)
+hafen.event():on("BuffAdded", function(b)
   buffsSeen = buffsSeen + 1
   if buffsSeen <= 5 then
-    hafen.log(("BuffAdded: %s (%s)"):format(tostring(b:name() or b:res()), tostring(b:res())))
+    hafen.log():write(("BuffAdded: %s (%s)"):format(tostring(b:name() or b:res()), tostring(b:res())))
   end
 end)
-hafen.events.on("BuffRemoved", function(b)
-  hafen.log(("BuffRemoved: %s (exists=%s)"):format(tostring(b:name() or b:res()), tostring(b:exists())))
+hafen.event():on("BuffRemoved", function(b)
+  hafen.log():write(("BuffRemoved: %s (exists=%s)"):format(tostring(b:name() or b:res()), tostring(b:exists())))
 end)
-hafen.events.on("BuffChanged", function(b)
-  hafen.log(("BuffChanged: %s amount=%s duration=%s"):format(
+hafen.event():on("BuffChanged", function(b)
+  hafen.log():write(("BuffChanged: %s amount=%s duration=%s"):format(
     tostring(b:name() or b:res()), tostring(b:amount()), tostring(b:duration())))
 end)
 
 -- 1d-2: FEP/hunger changes. The FEP bar and hunger level stream in as "food"/"glut" updates a beat
 -- after enter-world (so FepChanged fires a few times at login) and again whenever you eat.
 local fepSeen = 0
-hafen.events.on("FepChanged", function(f)
+hafen.event():on("FepChanged", function(f)
   fepSeen = fepSeen + 1
   if fepSeen <= 5 then
     local total = (f.fep and f.fep.total) or 0
     local hunger = f.hunger and (f.hunger.label or f.hunger.level)
-    hafen.log(("FepChanged: fep total=%.0f hunger=%s (%d)"):format(total, tostring(hunger), fepSeen))
+    hafen.log():write(("FepChanged: fep total=%.0f hunger=%s (%d)"):format(total, tostring(hunger), fepSeen))
   end
 end)
 
@@ -1310,10 +1310,10 @@ end)
 -- streaming in a beat after enter-world (a few fires at login). Payload is the same array as
 -- hafen.study.slots(). Log the first few so it does not flood.
 local studySeen = 0
-hafen.events.on("StudyChanged", function(slots)
+hafen.event():on("StudyChanged", function(slots)
   studySeen = studySeen + 1
   if studySeen <= 5 then
-    hafen.log(("StudyChanged: %d slot(s)%s (%d)"):format(#slots,
+    hafen.log():write(("StudyChanged: %d slot(s)%s (%d)"):format(#slots,
       slots[1] and (", first=" .. tostring(slots[1].name or slots[1].res)) or "", studySeen))
   end
 end)
@@ -1324,10 +1324,10 @@ end)
 -- verify live: put an item/action on a slot or clear one and you should see a line each time. The payload
 -- is the Slot OBJECT itself (021.2) — same interned object as hafen.actionbar(n), reading live.
 local actionbarSeen = 0
-hafen.events.on("ActionbarChanged", function(slot)
+hafen.event():on("ActionbarChanged", function(slot)
   actionbarSeen = actionbarSeen + 1
   local same = (slot == hafen.actionbar(slot:index()))   -- interning: the payload IS hafen.actionbar(n)
-  hafen.log(("ActionbarChanged: slot %d -> %s (interned=%s) (%d)"):format(slot:index(),
+  hafen.log():write(("ActionbarChanged: slot %d -> %s (interned=%s) (%d)"):format(slot:index(),
     (not slot:empty()) and tostring(slot:name() or slot:res()) or "empty",
     tostring(same), actionbarSeen))
 end)
@@ -1336,10 +1336,10 @@ end)
 -- as hafen.ui.equipment():items(). Equipment streams in at login (a few fires), then on any change. Log the
 -- first few so it does not flood.
 local equipSeen = 0
-hafen.events.on("EquipChanged", function(eq)
+hafen.event():on("EquipChanged", function(eq)
   equipSeen = equipSeen + 1
   if equipSeen <= 5 then
-    hafen.log(("EquipChanged: %d slot(s), first=%s (%d)"):format(#eq,
+    hafen.log():write(("EquipChanged: %d slot(s), first=%s (%d)"):format(#eq,
       eq[1] and tostring(eq[1].name or eq[1].res) or "none", equipSeen))
   end
 end)
@@ -1348,10 +1348,10 @@ end)
 -- (markobj), you or an addon adding/removing one, or a segment merge re-keying them. Payload is {count}.
 -- A few may fire at login as server markers stream in; log the first few so it does not flood.
 local markersSeen = 0
-hafen.events.on("MarkersChanged", function(ev)
+hafen.event():on("MarkersChanged", function(ev)
   markersSeen = markersSeen + 1
   if markersSeen <= 5 then
-    hafen.log(("MarkersChanged: %d marker(s) (%d)"):format(ev.count, markersSeen))
+    hafen.log():write(("MarkersChanged: %d marker(s) (%d)"):format(ev.count, markersSeen))
   end
 end)
 
@@ -1365,20 +1365,20 @@ end)
 -- name who flipped. A few fire at login as the roster streams in; log the first few of those.
 local kinSeen = 0
 local kinOnline = {}          -- Kin object -> true while we believe them online (so we can report transitions)
-hafen.events.on("KinChanged", function(roster)
+hafen.event():on("KinChanged", function(roster)
   kinSeen = kinSeen + 1
   local now = {}
   for _, k in ipairs(roster) do
     local on = k:online() or false
     now[k] = on                                      -- the Kin object itself as the key (interning makes it stable)
-    if on and not kinOnline[k] then hafen.log(("KinChanged: %s came ONLINE"):format(tostring(k:name()))) end
-    if (not on) and kinOnline[k] then hafen.log(("KinChanged: %s went offline"):format(tostring(k:name()))) end
+    if on and not kinOnline[k] then hafen.log():write(("KinChanged: %s came ONLINE"):format(tostring(k:name()))) end
+    if (not on) and kinOnline[k] then hafen.log():write(("KinChanged: %s went offline"):format(tostring(k:name()))) end
   end
   kinOnline = now
   if kinSeen <= 5 then
     local first = roster[1]
     -- ...and the payload objects ARE the interned ones: first == hafen.kin(first:id()) must be true.
-    hafen.log(("KinChanged: %d kin (%d)%s"):format(#roster, kinSeen,
+    hafen.log():write(("KinChanged: %d kin (%d)%s"):format(#roster, kinSeen,
       first and (" first=%s interned=%s"):format(tostring(first:name()),
         tostring(first == hafen.kin(first:id()))) or ""))
   end
@@ -1389,14 +1389,14 @@ end)
 -- may fire at login as active quests stream in (the completed HISTORY is recorded silently -- no event), so
 -- log only the first few of those, then narrate every completion in full.
 local questAddedSeen = 0
-hafen.events.on("QuestAdded", function(q)
+hafen.event():on("QuestAdded", function(q)
   questAddedSeen = questAddedSeen + 1
   if questAddedSeen <= 5 then
-    hafen.log(("QuestAdded: '%s' [%s] (%d)"):format(tostring(q.name), tostring(q.status), questAddedSeen))
+    hafen.log():write(("QuestAdded: '%s' [%s] (%d)"):format(tostring(q.name), tostring(q.status), questAddedSeen))
   end
 end)
-hafen.events.on("QuestDone", function(q)
-  hafen.log(("QuestDone: '%s' -> %s"):format(tostring(q.name), tostring(q.status)))
+hafen.event():on("QuestDone", function(q)
+  hafen.log():write(("QuestDone: '%s' -> %s"):format(tostring(q.name), tostring(q.status)))
 end)
 
 -- A9-2: WoundChanged fires when the wound set changes -- a wound added, healed/removed, or its severity
@@ -1405,11 +1405,11 @@ end)
 -- may fire at login as wounds resolve; log the first few (with the first wound's name/severity), then keep
 -- narrating the count on every later change.
 local woundsSeen = 0
-hafen.events.on("WoundChanged", function(list)
+hafen.event():on("WoundChanged", function(list)
   woundsSeen = woundsSeen + 1
   if woundsSeen <= 5 then
     local first = list[1]
-    hafen.log(("WoundChanged: %d wound(s)%s (%d)"):format(#list,
+    hafen.log():write(("WoundChanged: %d wound(s)%s (%d)"):format(#list,
       first and (", first=" .. tostring(first.name or first.res)
         .. (first.severity and (" sev " .. tostring(first.severity)) or "")) or "",
       woundsSeen))
@@ -1442,13 +1442,13 @@ hafen.ui.on("window", "appear", function(w)
   local title = w:text()                              -- may be nil here: a .res window's caption can land a tick late
   wndTitle[w] = title
   if windowsSeen <= 20 or title then                  -- cap the login burst; always log a titled window
-    hafen.log(("030.2: window APPEARED %s role=%s title=%s res=%s (%d seen)")
+    hafen.log():write(("030.2: window APPEARED %s role=%s title=%s res=%s (%d seen)")
       :format(tostring(w), tostring(w:role()), tostring(title), tostring(w:res()), windowsSeen))
   end
 end)
 hafen.ui.on("window", "disappear", function(w)
   windowsGone = windowsGone + 1
-  hafen.log(("030.2: window DISAPPEARED %s title=%s -- server-destroyed (id gone); still fading: intree=%s text=%s;"
+  hafen.log():write(("030.2: window DISAPPEARED %s title=%s -- server-destroyed (id gone); still fading: intree=%s text=%s;"
              .. " %d seen / %d gone")
     :format(tostring(w), tostring(wndTitle[w]), tostring(w:exists()), tostring(w:text()), windowsSeen, windowsGone))
   wndTitle[w] = nil
@@ -1461,11 +1461,11 @@ end)
 -- the role here and "inventory[title=Cupboard]" would hand you the GRID inside that same window.
 for _, cap in ipairs({ "Cupboard", "Chest" }) do
   hafen.ui.on(("window[title=%s]"):format(cap), "appear", function(w)
-    hafen.log(("030.2: [title=%s] APPEARED %s -- %d item(s) inside, grid=%s")
+    hafen.log():write(("030.2: [title=%s] APPEARED %s -- %d item(s) inside, grid=%s")
       :format(cap, tostring(w), #w:items(), tostring(hafen.ui(("inventory[title=%s]"):format(cap)))))
   end)
   hafen.ui.on(("window[title=%s]"):format(cap), "disappear", function(w)
-    hafen.log(("030.2: [title=%s] DISAPPEARED %s"):format(cap, tostring(w)))
+    hafen.log():write(("030.2: [title=%s] DISAPPEARED %s"):format(cap, tostring(w)))
   end)
 end
 
@@ -1479,12 +1479,12 @@ end
 hafen.ui.on("inventory", "appear", function(w)
   if invWdg or w ~= hafen.ui.inventory() then return end   -- containers also have this role; we want the player's own
   invWdg = w
-  hafen.log(("3b: watching the main inventory (id=%s, %s) -- items read with NOTHING hidden; the 'bags' hotkey"
+  hafen.log():write(("3b: watching the main inventory (id=%s, %s) -- items read with NOTHING hidden; the 'bags' hotkey"
              .. " hides/shows the grid and the reads keep working"):format(tostring(w:id()), tostring(invWdg)))
   invWdg:onItemAdded(function(item)
     itemsAdded = itemsAdded + 1
     if bagsReady or itemsAdded <= 3 then              -- initial fill: first few only; after +3s: every live add
-      hafen.log(("3b: item ADDED to inventory: %s x%s (total seen %d)%s")
+      hafen.log():write(("3b: item ADDED to inventory: %s x%s (total seen %d)%s")
         :format(tostring(item.name or item.res), tostring(item.num or 1), itemsAdded,
                 (invWdg and not invWdg:visible()) and " [grid hidden -- still readable]" or ""))
     end
@@ -1492,17 +1492,17 @@ hafen.ui.on("inventory", "appear", function(w)
   invWdg:onItemRemoved(function(item)
     itemsRemoved = itemsRemoved + 1
     if bagsReady or itemsRemoved <= 3 then
-      hafen.log(("3b: item REMOVED from inventory: %s (total seen %d)%s")
+      hafen.log():write(("3b: item REMOVED from inventory: %s (total seen %d)%s")
         :format(tostring(item.name or item.res), itemsRemoved,
                 (invWdg and not invWdg:visible()) and " [grid hidden -- still readable]" or ""))
     end
   end)
   invWdg:onDestroy(function()
-    hafen.log("3b: the inventory widget left the tree (server destroy)")
+    hafen.log():write("3b: the inventory widget left the tree (server destroy)")
     invWdg = nil
   end)
 end)
-hafen.log("030.2: selector subscriptions installed -- open a cupboard/chest to see appear/disappear log")
+hafen.log():write("030.2: selector subscriptions installed -- open a cupboard/chest to see appear/disappear log")
 
 -- 2a: CUSTOM UI (hafen.ui). Create a small DRAGGABLE window that draws live state through the GOut
 -- wrapper `g` and counts clicks — the Phase 2 "draggable custom window" DoD. The window is bridge-owned
@@ -1529,10 +1529,10 @@ local fontWin               -- F2: a small window rendered in the addon's OWN fo
 -- The handle exposes :size() -> {w,h} and :dispose(); it is disposed AUTOMATICALLY on :reload/disable (P2), so
 -- there is no GL leak (the Phase-R1 DoD). Loaded at OnLoad -> re-loaded on every reload (the env is rebuilt).
 local icon   -- the image handle (nil until loaded; a fresh reload rebuilds the env -> nil, re-loaded below)
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   icon = hafen.asset("icon.png")   -- 028.1: ONE loader for every file this addon ships (was hafen.render.image)
   local s = icon:size()
-  hafen.log(("R1: loaded icon.png (%dx%d) -- drawn in the 2a window (native + scaled) and the 2b HUD overlay")
+  hafen.log():write(("R1: loaded icon.png (%dx%d) -- drawn in the 2a window (native + scaled) and the 2b HUD overlay")
     :format(s.w, s.h))
 end)
 
@@ -1547,10 +1547,10 @@ end)
 -- {min,max,size} world units, :info() -> {prims,textured,lit,textures,verts,tris}, and :dispose() (also automatic
 -- on reload/disable, P2). Stand it with hafen.render.object{model=cube, x=, y=}; ':hello object' places one.
 local cube   -- the model handle (nil until loaded; a fresh reload rebuilds the env -> nil, re-loaded below)
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   cube = hafen.asset("tank.glb")   -- 028.1: same door as the image; the .glb extension picks the mesh loader
   local b, nfo = cube:bounds(), cube:info()
-  hafen.log(("R3c: loaded tank.glb -- %d prims (%d textured, %d LIT, %d textures), %d tris; baked size %.0f x %.0f x %.0f world units (~%.1f tiles tall); :hello object to place it (now shaded by the world lights)")
+  hafen.log():write(("R3c: loaded tank.glb -- %d prims (%d textured, %d LIT, %d textures), %d tris; baked size %.0f x %.0f x %.0f world units (~%.1f tiles tall); :hello object to place it (now shaded by the world lights)")
     :format(nfo.prims, nfo.textured, nfo.lit, nfo.textures, nfo.tris, b.size.x, b.size.y, b.size.z, b.size.z / 11))
 end)
 
@@ -1621,7 +1621,7 @@ end
 local function toggleSkin(key, props)
   return toggleProp(key, "font", props.font)
 end
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   skinRules = {}                                        -- a reload rebuilt the env; the sheet was torn down (P2)
   nodeFontApplied, nodeFontTarget = false, nil          -- F5: ...and so was the per-instance (widget:skin) style (P2)
   monoFont = hafen.font("mono"):derive{ size = 12 }     -- F2: a distinct font for the per-call g:text{font=} line
@@ -1629,17 +1629,17 @@ hafen.events.on("OnLoad", function()
   local ok, ttf = pcall(hafen.asset, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
   if ok and ttf then
     demoFont = ttf
-    hafen.log(("F1: loaded bundled font fonts/demo.ttf -- family '%s', size %s -- :hello font to flip the default font")
+    hafen.log():write(("F1: loaded bundled font fonts/demo.ttf -- family '%s', size %s -- :hello font to flip the default font")
       :format(demoFont:family(), tostring(demoFont:size() or "stock")))
   else
     demoFont = hafen.font("serif"):derive{ size = 11 }  -- ...else a built-in (no TTF shipped by default). size in logical px.
-    hafen.log(("F1: loaded built-in font 'serif' (size 11) -- family '%s'; drop a .ttf at addons/hello/fonts/demo.ttf to load a real TTF -- :hello font to flip the default font")
+    hafen.log():write(("F1: loaded built-in font 'serif' (size 11) -- family '%s'; drop a .ttf at addons/hello/fonts/demo.ttf to load a real TTF -- :hello font to flip the default font")
       :format(demoFont:family()))
   end
-  hafen.log(("C1a: hafen.ui.skin is the stylesheet; hafen.font.setFont is a hard cut -> %s. Site keys: *, window.title,"
+  hafen.log():write(("C1a: hafen.ui.skin is the stylesheet; hafen.font.setFont is a hard cut -> %s. Site keys: *, window.title,"
     .. " heading, button, label, textentry, tooltip, menu, chat, world.nick, world.speech -- :hello font|title|button|"
     .. "entry|label|heading|menu|tip|chat|speech|nick flip one rule each"):format(tostring(hafen.font.setFont)))
-  hafen.log("033.2: `color` is the second sheet property ({200,210,220} or {r=,g=,b=[,a=]}, 0..255) and stands alone"
+  hafen.log():write("033.2: `color` is the second sheet property ({200,210,220} or {r=,g=,b=[,a=]}, 0..255) and stands alone"
     .. " -- a colour-only rule keeps the site's font. ':hello color' installs three rules at once (the `*` cascade, a"
     .. " colour-only tooltip rule, and chat carrying a PINK handle that must come out GREEN -- a surface's colour is"
     .. " the sheet's, a handle's colour is for your own drawing)")
@@ -1662,32 +1662,32 @@ local function readSkin(tag)
   -- 1. the two colour SPELLINGS -- positional is what the docs and every literal write, keyed is what every
   --    reader in this API hands back (kin:color(), meter:color()), so a round-trip must work too.
   local kin = { r = 200, g = 210, b = 220, a = 255 }
-  hafen.log(("[%s] skin colour shapes: positional=%s keyed=%s alpha=%s"):format(tag,
+  hafen.log():write(("[%s] skin colour shapes: positional=%s keyed=%s alpha=%s"):format(tag,
     tostring(ok{ ["chat"] = { color = { 200, 210, 220 } } }),
     tostring(ok{ ["chat"] = { color = kin } }),
     tostring(ok{ ["chat"] = { color = { 200, 210, 220, 128 } } })))
   -- 2. the properties are INDEPENDENT: colour-only (the site keeps its own font), font-only (it keeps its own
   --    colour), both, and neither (an empty rule pushes nothing, so the client stays byte-for-byte stock).
-  hafen.log(("[%s] skin rule shapes: colourOnly=%s fontOnly=%s both=%s empty=%s"):format(tag,
+  hafen.log():write(("[%s] skin rule shapes: colourOnly=%s fontOnly=%s both=%s empty=%s"):format(tag,
     tostring(ok{ ["chat"] = { color = { 90, 235, 120 } } }),
     tostring(ok{ ["chat"] = { font = monoFont } }),
     tostring(ok{ ["chat"] = { font = monoFont, color = { 90, 235, 120 } } }),
     tostring(ok{ ["chat"] = {} })))
   -- 3. forgiven vs refused. A TREE key is inert WITH a colour too (C1b resolves that exact rule) -- but its
   --    properties are still read, so a typo inside one is caught today rather than in six months.
-  hafen.log(("[%s] skin treeKey: withColour=%s   (accepted + inert until C1b)"):format(tag,
+  hafen.log():write(("[%s] skin treeKey: withColour=%s   (accepted + inert until C1b)"):format(tag,
     tostring(ok{ ["@Inventory"] = { color = { 90, 235, 120 } } })))
-  hafen.log(("[%s] skin refuses: badProp -> %s"):format(tag, why{ ["chat"] = { colour = { 1, 2, 3 } } }))
-  hafen.log(("[%s]              badColour -> %s"):format(tag, why{ ["chat"] = { color = "green" } }))
-  hafen.log(("[%s]              badProp on a TREE key -> %s"):format(tag, why{ ["@Inventory"] = { fnt = 1 } }))
-  hafen.log(("[%s]              badKey -> %s"):format(tag, why{ ["window["] = { color = { 1, 2, 3 } } }))
+  hafen.log():write(("[%s] skin refuses: badProp -> %s"):format(tag, why{ ["chat"] = { colour = { 1, 2, 3 } } }))
+  hafen.log():write(("[%s]              badColour -> %s"):format(tag, why{ ["chat"] = { color = "green" } }))
+  hafen.log():write(("[%s]              badProp on a TREE key -> %s"):format(tag, why{ ["@Inventory"] = { fnt = 1 } }))
+  hafen.log():write(("[%s]              badKey -> %s"):format(tag, why{ ["window["] = { color = { 1, 2, 3 } } }))
   -- 4. the hard cut is still cut, and the sheet is still the only door (033.1).
-  hafen.log(("[%s] skin cut: setFont=%s reset=%s scopes=%s | hafen.font('serif') still answers=%s"):format(tag,
+  hafen.log():write(("[%s] skin cut: setFont=%s reset=%s scopes=%s | hafen.font('serif') still answers=%s"):format(tag,
     tostring(hafen.font.setFont), tostring(hafen.font.reset), tostring(hafen.font.scopes),
     tostring(hafen.font("serif") ~= nil)))
   applySkin()      -- give this addon's own sheet back (the checks above borrowed the one sheet we own)
 end
-hafen.events.on("OnEnterWorld", function() readSkin("login") end)
+hafen.event():on("OnEnterWorld", function() readSkin("login") end)
 
 -- 028.3: THE ASSET CONTRACT (hafen.asset), checked once per login. ONE door for every file this addon ships:
 -- hafen.asset(path) is one interned, typed handle (the TYPE comes from the EXTENSION: .png/.jpg/.jpeg/.gif/.bmp
@@ -1705,13 +1705,13 @@ local function readAssets(tag)
   local live = hafen.asset()
   local parts = {}
   for i = 1, #live do parts[#parts + 1] = ("%s:%s"):format(live[i]:type(), live[i]:path()) end
-  hafen.log(("[%s] assets: hafen.asset() = %d live [%s]"):format(tag, #live, table.concat(parts, ", ")))
+  hafen.log():write(("[%s] assets: hafen.asset() = %d live [%s]"):format(tag, #live, table.concat(parts, ", ")))
   -- Interning + the resolved-path key. icon.png and tank.glb are the two this addon always ships; the .ttf is
   -- optional (drop one at addons/hello/fonts/demo.ttf) so its type is reported rather than asserted.
   local interned = (icon == hafen.asset("icon.png")) and (cube == hafen.asset("tank.glb"))
   local resolved = (hafen.asset("./icon.png") == icon) and (hafen.asset("img/../icon.png") == icon)
   local fontAsset = (demoFont and demoFont.type) and demoFont:type() or "none (built-in serif -- not an asset)"
-  hafen.log(("[%s] asset types: icon=%s tank=%s font=%s | interned=%s resolvedKey=%s")
+  hafen.log():write(("[%s] asset types: icon=%s tank=%s font=%s | interned=%s resolvedKey=%s")
     :format(tag, icon and icon:type() or "?", cube and cube:type() or "?", fontAsset,
       tostring(interned), tostring(resolved)))
   -- The ERROR catalogue -- every shape distinguishable, and each one naming hafen.asset (028.1 acceptance).
@@ -1720,44 +1720,44 @@ local function readAssets(tag)
     if ok then return "ACCEPTED (BUG)" end
     return (tostring(err):gsub("^.-%.lua:%d+:%s*", ""))   -- drop the chunk:line prefix, keep the whole message
   end
-  hafen.log(("[%s] asset errors: absolute -> %s"):format(tag, why(hafen.asset, "/etc/passwd")))
-  hafen.log(("[%s]              '..' -> %s"):format(tag, why(hafen.asset, "../planner/main.lua")))
-  hafen.log(("[%s]              unknown ext -> %s"):format(tag, why(hafen.asset, "manifest.json")))
-  hafen.log(("[%s]              missing -> %s"):format(tag, why(hafen.asset, "nope.png")))
-  hafen.log(("[%s]              number key -> %s"):format(tag, why(hafen.asset, 1)))
+  hafen.log():write(("[%s] asset errors: absolute -> %s"):format(tag, why(hafen.asset, "/etc/passwd")))
+  hafen.log():write(("[%s]              '..' -> %s"):format(tag, why(hafen.asset, "../planner/main.lua")))
+  hafen.log():write(("[%s]              unknown ext -> %s"):format(tag, why(hafen.asset, "manifest.json")))
+  hafen.log():write(("[%s]              missing -> %s"):format(tag, why(hafen.asset, "nope.png")))
+  hafen.log():write(("[%s]              number key -> %s"):format(tag, why(hafen.asset, 1)))
   -- HANDLE-ONLY (D-012): the two world builders refuse a PATH STRING with an error naming hafen.asset. The option
   -- check runs AFTER the world check, so outside the world they simply answer nil -- gate on it, or the harness
   -- would report a refusal that never happened.
   local okp, mygob = pcall(function() return hafen.player():gob() end)
   if okp and mygob then
-    hafen.log(("[%s] handle-only: sprite{image='icon.png'} -> %s"):format(tag,
+    hafen.log():write(("[%s] handle-only: sprite{image='icon.png'} -> %s"):format(tag,
       why(function() return hafen.render.sprite{ image = "icon.png", x = 0, y = 0 } end)))
-    hafen.log(("[%s]              object{model='tank.glb'} -> %s"):format(tag,
+    hafen.log():write(("[%s]              object{model='tank.glb'} -> %s"):format(tag,
       why(function() return hafen.render.object{ model = "tank.glb", x = 0, y = 0 } end)))
   else
-    hafen.log(("[%s] handle-only: skipped -- not in the world yet (sprite/object answer nil before the option check)")
+    hafen.log():write(("[%s] handle-only: skipped -- not in the world yet (sprite/object answer nil before the option check)")
       :format(tag))
   end
   -- D-060: a BUILT-IN font is engine-owned -- addressed by name, interned, and carrying none of the asset verbs
   -- (that is also why hafen.asset() above lists 2, not 3, when no .ttf is shipped: the built-in is not a file).
   local serif = hafen.font("serif")
-  hafen.log(("[%s] builtin font: interned=%s noAssetVerbs=%s badName -> %s"):format(tag,
+  hafen.log():write(("[%s] builtin font: interned=%s noAssetVerbs=%s badName -> %s"):format(tag,
     tostring(serif == hafen.font("serif")),
     tostring((serif.type == nil) and (serif.path == nil) and (serif.dispose == nil)),
     (function() local ok, e = pcall(hafen.font, "comic"); return (not ok) and "refused" or "ACCEPTED (BUG)" end)()))
   -- The hard cut (D-013): all three old loaders read as plain nil -- not flattened, not stubbed.
-  hafen.log(("[%s] asset contract: loadersGone=%s (font.load=%s render.image=%s render.model=%s)"):format(tag,
+  hafen.log():write(("[%s] asset contract: loadersGone=%s (font.load=%s render.image=%s render.model=%s)"):format(tag,
     tostring((hafen.font.load == nil) and (hafen.render.image == nil) and (hafen.render.model == nil)),
     tostring(hafen.font.load), tostring(hafen.render.image), tostring(hafen.render.model)))
 end
 
-hafen.events.on("OnEnterWorld", function()
+hafen.event():on("OnEnterWorld", function()
   readAssets("login")   -- once per login: this whole section re-checked, like readSound/readMeters/readBuffs
 end)
 
 local function drawPanel(g, w, h)
   g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()          -- translucent backdrop
-  g:text(("clock %.0f"):format(hafen.time.clock() or 0), 6, 6)
+  g:text(("clock %.0f"):format(hafen.time():clock() or 0), 6, 6)
   g:text(("clicks %d"):format(clicks), 6, 22)
   -- 1d-1: EVERY HUD meter, drawn in its OWN colour (027-meters-oop) -- not a hard-coded hp/stam/en
   -- triple read by position. The label is the tail of the server-published res name, and the bar takes
@@ -1813,12 +1813,12 @@ end
 -- "Shift+Alt+Left", a bare letter/digit, or "None"; unregister(name) drops one of this addon's hotkeys.
 local keys = hafen.client:options():keybindings()
 keys:register("toggle", function()
-  if not panel then hafen.log("2e-2: 'toggle' pressed, but the window is not up yet"); return end
+  if not panel then hafen.log():write("2e-2: 'toggle' pressed, but the window is not up yet"); return end
   local show = not panel:visible()                                -- flip the current (settled/animating) state
   if show then panel:show() else panel:hide() end
-  hafen.log(("2e-2: 'toggle' -> window %s"):format(show and "shown" or "hidden"))
+  hafen.log():write(("2e-2: 'toggle' -> window %s"):format(show and "shown" or "hidden"))
 end)
-hafen.log(("2e-2: global hotkey 'toggle' registered (key = %s) -- assign/remap it in Options > Keybindings > Hello")
+hafen.log():write(("2e-2: global hotkey 'toggle' registered (key = %s) -- assign/remap it in Options > Keybindings > Hello")
   :format(keys:get("toggle") or "unassigned, suggested Ctrl+H"))
 
 -- 2e-3: a SECOND hotkey, "ping". Because this addon registered hotkeys, a "Hello" section appears in
@@ -1827,7 +1827,7 @@ hafen.log(("2e-2: global hotkey 'toggle' registered (key = %s) -- assign/remap i
 -- bound this one plays a sound on press, and the choice persists across restarts like every built-in keybinding.
 keys:register("ping", function()
   hafen.sound("sfx/msg"):play()
-  hafen.log("2e-3: ping hotkey fired (assigned in Options > Keybindings > Hello)")
+  hafen.log():write("2e-3: ping hotkey fired (assigned in Options > Keybindings > Hello)")
 end)
 
 -- 3b/029.2: a THIRD hotkey ("bags", suggested Ctrl+B) toggling the native inventory grid's visibility --
@@ -1844,11 +1844,11 @@ end)
 keys:register("bags", function()
   local w = hafen.ui.inventory()        -- the same interned entity the observer above subscribed to (==)
   if not w then
-    hafen.log("3b: 'bags' -- no inventory widget yet (the HUD isn't up)")
+    hafen.log():write("3b: 'bags' -- no inventory widget yet (the HUD isn't up)")
     return
   end
   if w:visible() then w:hide() else w:show() end
-  hafen.log(("3b: 'bags' -> inventory grid %s (%d item(s) still readable, nothing adopted)")
+  hafen.log():write(("3b: 'bags' -> inventory grid %s (%d item(s) still readable, nothing adopted)")
     :format(w:visible() and "shown" or "hidden", #w:items()))
 end)
 
@@ -1862,18 +1862,18 @@ keys:register("marker", function()
   if helloMarker then
     hafen.map.markers.remove(helloMarker)
     helloMarker = nil
-    hafen.log("A1: 'marker' -> removed the Hello marker")
+    hafen.log():write("A1: 'marker' -> removed the Hello marker")
     return
   end
   local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
   local p = me and me:pos()
-  if not p then hafen.log("A1: 'marker' -> no player position yet"); return end
+  if not p then hafen.log():write("A1: 'marker' -> no player position yet"); return end
   helloMarker = hafen.map.markers.add("Hello marker", p.x, p.y, { color = { r = 80, g = 220, b = 90 }, onmap = true })
   if helloMarker then
-    hafen.log(("A1: 'marker' -> dropped 'Hello marker' at %.0f,%.0f (%s) -- press again to remove")
+    hafen.log():write(("A1: 'marker' -> dropped 'Hello marker' at %.0f,%.0f (%s) -- press again to remove")
       :format(p.x, p.y, tostring(helloMarker)))
   else
-    hafen.log("A1: 'marker' -> could not add marker (map/session location not up yet)")
+    hafen.log():write("A1: 'marker' -> could not add marker (map/session location not up yet)")
   end
 end)
 
@@ -1896,20 +1896,20 @@ local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in t
 -- drawing happens); its two constants live here so `:hello textcache` can quote them in the same breath.
 local textcacheStress
 local STRESS_POOL, STRESS_PER_FRAME = 2000, 32
-hafen.slash.register("hello", function(args)
+hafen.slash():register("hello", function(args)
   if #args == 0 then
-    hafen.log("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | widget | selector | wnd [swallow] | prof | widgets | passes | textcache")
+    hafen.log():write("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | widget | selector | wnd [swallow] | prof | widgets | passes | textcache")
     return
   end
   local sub = args[1]
   if sub == "toggle" then
-    if not panel then hafen.log(":hello toggle -> the window is not up yet (enter the world first)"); return end
+    if not panel then hafen.log():write(":hello toggle -> the window is not up yet (enter the world first)"); return end
     local show = not panel:visible()
     if show then panel:show() else panel:hide() end
-    hafen.log((":hello toggle -> window %s"):format(show and "shown" or "hidden"))
+    hafen.log():write((":hello toggle -> window %s"):format(show and "shown" or "hidden"))
   elseif sub == "ping" then
     hafen.sound("sfx/msg"):play()
-    hafen.log(":hello ping -> played sfx/msg")
+    hafen.log():write(":hello ping -> played sfx/msg")
   elseif sub == "sound" then
     -- 024.2: the live set. A TOGGLE over the addon's OWN clips: hafen.sound() (no argument) is the array of
     -- the Sounds THIS addon still has in the air -- pruned as you ask, so it drops back to 0 by itself when a
@@ -1917,17 +1917,17 @@ hafen.slash.register("hello", function(args)
     local live = hafen.sound()
     if #live > 0 then
       for i = 1, #live do live[i]:stop() end                 -- :stop() cuts it mid-clip, and chains on self
-      hafen.log((":hello sound -> stopped %d live sound(s); now #hafen.sound()=%d"):format(#live, #hafen.sound()))
+      hafen.log():write((":hello sound -> stopped %d live sound(s); now #hafen.sound()=%d"):format(#live, #hafen.sound()))
     else
       local bell = hafen.sound("sfx/hud/mmap/bell3")         -- a long-ish client-bundled clip
       bell:play(0.6)                                          -- volume is the FIRST argument of the play call
-      hafen.log((":hello sound -> playing %s at 0.6 (playing=%s, #hafen.sound()=%d) -- :hello sound again to stop")
+      hafen.log():write((":hello sound -> playing %s at 0.6 (playing=%s, #hafen.sound()=%d) -- :hello sound again to stop")
         :format(bell:res(), tostring(bell:playing()), #hafen.sound()))
     end
   elseif sub == "echo" then
     local rest = {}
     for i = 2, #args do rest[#rest + 1] = args[i] end
-    hafen.log((":hello echo -> %q"):format(table.concat(rest, " ")))
+    hafen.log():write((":hello echo -> %q"):format(table.concat(rest, " ")))
   elseif sub == "craft" then
     dumpCraft()                                  -- A8: dump the currently-open recipe (open one first)
   elseif sub == "quest" then
@@ -1941,11 +1941,11 @@ hafen.slash.register("hello", function(args)
   elseif sub == "ghost" then
     if demoGhost then                            -- V1: TOGGLE a client-only ghost cabin at your position
       demoGhost:destroy(); demoGhost = nil
-      hafen.log((":hello ghost -> destroyed (list=%d)"):format(#hafen.ghost.list()))
+      hafen.log():write((":hello ghost -> destroyed (list=%d)"):format(#hafen.ghost.list()))
     else
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:pos()
-      if not p then hafen.log(":hello ghost -> no player position yet"); return end
+      if not p then hafen.log():write(":hello ghost -> no player position yet"); return end
       local spin, faded = 0, false                           -- V3: per-spawn live-look state (closed over by onClick)
       demoGhost = hafen.ghost.new{                            -- V2 clickable + V3 look: a translucent, tinted cabin
         res = "gfx/terobjs/arch/logcabin", x = p.x, y = p.y,
@@ -1956,14 +1956,14 @@ hafen.slash.register("hello", function(args)
           spin = spin + math.pi / 4                           -- V3: each click rotates 45°...
           faded = not faded                                   -- ...and toggles opacity
           g:rotate(spin):alpha(faded and 0.3 or 0.85)         -- chained V3 verbs, live on the clicked ghost
-          hafen.log((":hello ghost onClick -> button=%d -- CONSUMED (no walk); V3 live rotate a=%.2f alpha=%.2f")
+          hafen.log():write((":hello ghost onClick -> button=%d -- CONSUMED (no walk); V3 live rotate a=%.2f alpha=%.2f")
             :format(button, spin, faded and 0.3 or 0.85))
         end,
       }
       if demoGhost then
-        hafen.log((":hello ghost -> CLICKABLE translucent cabin at you (%.0f,%.0f) -- CLICK it (won't move; each click rotates + re-fades); :hello ghost again to remove"):format(p.x, p.y))
+        hafen.log():write((":hello ghost -> CLICKABLE translucent cabin at you (%.0f,%.0f) -- CLICK it (won't move; each click rotates + re-fades); :hello ghost again to remove"):format(p.x, p.y))
       else
-        hafen.log(":hello ghost -> hafen.ghost.new returned nil (not in the world yet?)")
+        hafen.log():write(":hello ghost -> hafen.ghost.new returned nil (not in the world yet?)")
       end
     end
   elseif sub == "sprite" then
@@ -1974,22 +1974,22 @@ hafen.slash.register("hello", function(args)
     -- prove the gizmo-compatible transform works live; :hello sprite again removes it. Torn down on reload/disable.
     if demoSprite then
       demoSprite:destroy(); demoSprite = nil
-      hafen.log(":hello sprite -> destroyed")
+      hafen.log():write(":hello sprite -> destroyed")
     else
-      if not icon then hafen.log(":hello sprite -> icon.png not loaded yet (OnLoad)"); return end
+      if not icon then hafen.log():write(":hello sprite -> icon.png not loaded yet (OnLoad)"); return end
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:pos()
-      if not p then hafen.log(":hello sprite -> no player position yet"); return end
+      if not p then hafen.log():write(":hello sprite -> no player position yet"); return end
       demoSprite = hafen.render.sprite{ image = icon, x = p.x, y = p.y, scale = 3 }  -- ~3 tiles tall so it's clearly visible
-      if not demoSprite then hafen.log(":hello sprite -> hafen.render.sprite returned nil (not in the world yet?)"); return end
+      if not demoSprite then hafen.log():write(":hello sprite -> hafen.render.sprite returned nil (not in the world yet?)"); return end
       local pos = demoSprite:pos()
-      hafen.log((":hello sprite -> icon.png STANDING at (%.0f,%.0f) scale=%.0f -- transforms in 2s; :hello sprite again to remove")
+      hafen.log():write((":hello sprite -> icon.png STANDING at (%.0f,%.0f) scale=%.0f -- transforms in 2s; :hello sprite again to remove")
         :format(pos.x, pos.y, pos.scale))
       local this = demoSprite                              -- capture, so a quick toggle-off/on doesn't transform the new one
-      hafen.timer.after(2.0, function()
+      hafen.timer():after(2.0, function()
         if demoSprite == this then
           this:move(p.x + 22, p.y):rotate(math.pi / 2):scale(4)   -- +2 tiles E, face 90°, grow x4 (chained handle verbs)
-          hafen.log(":hello sprite -> moved +2 tiles E, rotated 90 deg, scaled x4 (gizmo-compatible transform handle)")
+          hafen.log():write(":hello sprite -> moved +2 tiles E, rotated 90 deg, scaled x4 (gizmo-compatible transform handle)")
         end
       end)
     end
@@ -2000,15 +2000,15 @@ hafen.slash.register("hello", function(args)
     -- (world-rotate/scale do not: it's 2D). Same handle as a fixed sprite; :hello billboard again removes it.
     if demoBill then
       demoBill:destroy(); demoBill = nil
-      hafen.log(":hello billboard -> destroyed")
+      hafen.log():write(":hello billboard -> destroyed")
     else
-      if not icon then hafen.log(":hello billboard -> icon.png not loaded yet (OnLoad)"); return end
+      if not icon then hafen.log():write(":hello billboard -> icon.png not loaded yet (OnLoad)"); return end
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:pos()
-      if not p then hafen.log(":hello billboard -> no player position yet"); return end
+      if not p then hafen.log():write(":hello billboard -> no player position yet"); return end
       demoBill = hafen.render.sprite{ image = icon, x = p.x, y = p.y, billboard = true, scale = 2 }  -- 2x native px, faces camera
-      if not demoBill then hafen.log(":hello billboard -> hafen.render.sprite returned nil (not in the world yet?)"); return end
-      hafen.log((":hello billboard -> icon.png standing at (%.0f,%.0f) FACING THE CAMERA (screen-sized) -- rotate the camera to see; :hello billboard again to remove")
+      if not demoBill then hafen.log():write(":hello billboard -> hafen.render.sprite returned nil (not in the world yet?)"); return end
+      hafen.log():write((":hello billboard -> icon.png standing at (%.0f,%.0f) FACING THE CAMERA (screen-sized) -- rotate the camera to see; :hello billboard again to remove")
         :format(p.x, p.y))
     end
   elseif sub == "follow" then
@@ -2022,14 +2022,14 @@ hafen.slash.register("hello", function(args)
       local me = hafen.player() and hafen.player():gob()
       if me then me:overlay("hello-follow", nil) end
       demoFollow = nil
-      hafen.log(":hello follow -> removed")
+      hafen.log():write(":hello follow -> removed")
     else
-      if not icon then hafen.log(":hello follow -> icon.png not loaded yet (OnLoad)"); return end
+      if not icon then hafen.log():write(":hello follow -> icon.png not loaded yet (OnLoad)"); return end
       local me = hafen.player():gob()
-      if not me then hafen.log(":hello follow -> no player gob yet"); return end
+      if not me then hafen.log():write(":hello follow -> no player gob yet"); return end
       demoFollow = me:overlay("hello-follow", { image = icon, scale = 2, offset = { z = 18 } })
-      if not demoFollow then hafen.log(":hello follow -> gob:overlay returned nil (not in the world yet?)"); return end
-      hafen.log(":hello follow -> icon.png now FLOATS above your head and FOLLOWS you -- walk around; :hello follow again to remove")
+      if not demoFollow then hafen.log():write(":hello follow -> gob:overlay returned nil (not in the world yet?)"); return end
+      hafen.log():write(":hello follow -> icon.png now FLOATS above your head and FOLLOWS you -- walk around; :hello follow again to remove")
     end
   elseif sub == "object" then
     -- R3a/R3b: CLIENT-ONLY WORLD 3D MODEL (hafen.render.object). Stand our own glTF model (the tank.glb handle) in
@@ -2041,25 +2041,25 @@ hafen.slash.register("hello", function(args)
     -- tank is authored in big units) stands ~2 tiles tall.
     if demoObject then
       demoObject:destroy(); demoObject = nil
-      hafen.log(":hello object -> destroyed")
+      hafen.log():write(":hello object -> destroyed")
     else
-      if not cube then hafen.log(":hello object -> tank.glb not loaded yet (OnLoad)"); return end
+      if not cube then hafen.log():write(":hello object -> tank.glb not loaded yet (OnLoad)"); return end
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:pos()
-      if not p then hafen.log(":hello object -> no player position yet"); return end
+      if not p then hafen.log():write(":hello object -> no player position yet"); return end
       local b = cube:bounds()
       local tall = (b.size.z and b.size.z > 0.01) and b.size.z or 11       -- world-unit height
       local scale = (2 * 11) / tall                       -- stand ~2 tiles tall regardless of the model's authored units
       demoObject = hafen.render.object{ model = cube, x = p.x, y = p.y, scale = scale }
-      if not demoObject then hafen.log(":hello object -> hafen.render.object returned nil (not in the world yet?)"); return end
+      if not demoObject then hafen.log():write(":hello object -> hafen.render.object returned nil (not in the world yet?)"); return end
       local pos = demoObject:pos()
-      hafen.log((":hello object -> tank.glb (textured + LIT/R3c) STANDING at (%.0f,%.0f) scale=%.3f -- shaded by the world lights (rotate/relocate it to see the shading change); transforms in 2s; :hello object again to remove")
+      hafen.log():write((":hello object -> tank.glb (textured + LIT/R3c) STANDING at (%.0f,%.0f) scale=%.3f -- shaded by the world lights (rotate/relocate it to see the shading change); transforms in 2s; :hello object again to remove")
         :format(pos.x, pos.y, pos.scale))
       local this = demoObject                             -- capture, so a quick toggle-off/on doesn't transform the new one
-      hafen.timer.after(2.0, function()
+      hafen.timer():after(2.0, function()
         if demoObject == this then
           this:move(p.x + 22, p.y):rotate(math.pi / 4):scale(scale * 1.5)   -- +2 tiles E, face 45 deg, grow x1.5 (chained handle verbs)
-          hafen.log(":hello object -> moved +2 tiles E, rotated 45 deg, grew x1.5 (gizmo-compatible transform handle on a mesh)")
+          hafen.log():write(":hello object -> moved +2 tiles E, rotated 45 deg, grew x1.5 (gizmo-compatible transform handle on a mesh)")
         end
       end)
     end
@@ -2068,7 +2068,7 @@ hafen.slash.register("hello", function(args)
     -- and, with the 'dispose' argument, the one part that is DESTRUCTIVE and so cannot live in the login pass.
     readAssets("cmd")
     if (args[2] == "dispose") and not cube then
-      hafen.log("   dispose: tank.glb not loaded yet (OnLoad) -- skipped")
+      hafen.log():write("   dispose: tank.glb not loaded yet (OnLoad) -- skipped")
     elseif args[2] == "dispose" then
       -- ':hello assets dispose' -- what disposing a MESH under a LIVE object really does (measured 028.2): the
       -- object keeps drawing, textured and unchanged, because it captured the texture sampler when it was built.
@@ -2077,10 +2077,10 @@ hafen.slash.register("hello", function(args)
       local old = cube
       old:dispose()
       cube = hafen.asset("tank.glb")                    -- the same path, a NEW asset (the disposed one is never served)
-      hafen.log(("   dispose: tank.glb disposed -- a STANDING object keeps its textures (it captured the sampler"
+      hafen.log():write(("   dispose: tank.glb disposed -- a STANDING object keeps its textures (it captured the sampler"
         .. " at build time); re-load == the old handle -> %s (false = a NEW asset, as documented)")
         :format(tostring(cube == old)))
-      hafen.log(("   hafen.asset() still lists %d live asset(s) -- the disposed entry was DROPPED and the re-load"
+      hafen.log():write(("   hafen.asset() still lists %d live asset(s) -- the disposed entry was DROPPED and the re-load"
         .. " added a NEW one in its place; the corpse is never served and never listed"):format(#hafen.asset()))
     end
   elseif sub == "font" then
@@ -2089,21 +2089,21 @@ hafen.slash.register("hello", function(args)
     -- with a different font REPLACES this addon's previous sheet -- proved here by installing mono first and
     -- swapping to the real handle 3s later, which is the same last-wins stack the old setFont pushed onto.
     -- A TREE key rides along to show it is silently INERT in C1a (never an error, styled in C1b).
-    if not demoFont then hafen.log(":hello font -> font not loaded yet (OnLoad)"); return end
+    if not demoFont then hafen.log():write(":hello font -> font not loaded yet (OnLoad)"); return end
     if skinRules["*"] and skinRules["*"].font then
       setProp("@Inventory", "font", nil)
       setProp("*", "font", nil)                          -- drop both -> the stock font returns live
-      hafen.log((":hello font -> hafen.ui.skin(%s) -- the ['*'] rule's font left our sheet; stock font restored (also happens on :reload/disable)")
+      hafen.log():write((":hello font -> hafen.ui.skin(%s) -- the ['*'] rule's font left our sheet; stock font restored (also happens on :reload/disable)")
         :format((next(skinRules) == nil) and "nil" or "{...}"))
     else
       setProp("@Inventory", "font", demoFont)            -- a TREE key: valid grammar, resolves nowhere until C1b
       setProp("*", "font", hafen.font("mono"))           -- sheet #1 (mono)
-      hafen.timer.after(3.0, function()
+      hafen.timer():after(3.0, function()
         if not (skinRules["*"] and skinRules["*"].font) then return end   -- toggled off meanwhile -- nothing to replace
         setProp("*", "font", demoFont)                   -- sheet #2 REPLACES sheet #1 whole -> back to serif/ttf
-        hafen.log(":hello font -> a second skin{} replaced the first: was mono for 3s, now the loaded font")
+        hafen.log():write(":hello font -> a second skin{} replaced the first: was mono for 3s, now the loaded font")
       end)
-      hafen.log((":hello font -> hafen.ui.skin{ ['*'] = { font = %s }, ['@Inventory'] = {...} } -- most UI text should change; showing 'mono' for 3s first (a second skin{} then replaces the sheet), then '%s'. The @Inventory rule is a TREE key: accepted, inert until C1b. :hello font again to drop it")
+      hafen.log():write((":hello font -> hafen.ui.skin{ ['*'] = { font = %s }, ['@Inventory'] = {...} } -- most UI text should change; showing 'mono' for 3s first (a second skin{} then replaces the sheet), then '%s'. The @Inventory rule is a TREE key: accepted, inert until C1b. :hello font again to drop it")
         :format(demoFont:family(), demoFont:family()))
     end
   elseif sub == "color" then
@@ -2124,35 +2124,35 @@ hafen.slash.register("hello", function(args)
     -- a stylesheet, and it does flatten colour-coded text (a red warning goes amber too) while the rule is on.
     -- $col markup INSIDE rich text still wins, and a surface whose colour is not its font's (a window caption is
     -- tiled from a texture) simply ignores it. Owner-tagged and reverted on :reload/disable like every rule.
-    if not tintedFont then hafen.log(":hello color -> fonts not loaded yet (OnLoad)"); return end
+    if not tintedFont then hafen.log():write(":hello color -> fonts not loaded yet (OnLoad)"); return end
     local on = (skinRules["*"] ~= nil) and (skinRules["*"].color ~= nil)
     if on then
       setProp("chat", "font", nil)
       setProp("chat", "color", nil)
       setProp("tooltip", "color", nil)
       setProp("*", "color", nil)
-      hafen.log(":hello color -> the three colour rules left our sheet -- stock colours restored everywhere (also on :reload/disable)")
+      hafen.log():write(":hello color -> the three colour rules left our sheet -- stock colours restored everywhere (also on :reload/disable)")
     else
       setProp("*", "color", { 235, 215, 160 })            -- the cascade: every site with no colour of its own
       setProp("tooltip", "color", { 255, 150, 90 })       -- a COLOUR-ONLY rule: tooltips keep their font, change colour
       setProp("chat", "color", { 90, 235, 120 })          -- ...and chat refines it again
       setProp("chat", "font", tintedFont)                 -- the handle is PINK -- and chat must come out GREEN
-      hafen.log(":hello color -> skin{ ['*']={color={235,215,160}}, ['tooltip']={color={255,150,90}}, ['chat']={font=<pink handle>, color={90,235,120}} }")
-      hafen.log("   look at: most UI text pale amber (the `*` cascade) | a hovered item's TOOLTIP orange (a colour-only rule -- its font is unchanged) | CHAT green, NOT pink")
-      hafen.log("   the pink is the handle's own colour: it shows up ONLY on line 5 of the 'Hello F2 (fonts)' window (your own drawing), never on the surface it was installed on")
-      hafen.log("   two addons, one surface: paste  :lua hafen.ui.skin{ ['chat'] = { color = {255,80,80} } }  -- chat goes RED (last applied wins); :lua hafen.ui.skin(nil) drops it and chat falls back to hello's GREEN, not to stock; :hello color then restores stock")
+      hafen.log():write(":hello color -> skin{ ['*']={color={235,215,160}}, ['tooltip']={color={255,150,90}}, ['chat']={font=<pink handle>, color={90,235,120}} }")
+      hafen.log():write("   look at: most UI text pale amber (the `*` cascade) | a hovered item's TOOLTIP orange (a colour-only rule -- its font is unchanged) | CHAT green, NOT pink")
+      hafen.log():write("   the pink is the handle's own colour: it shows up ONLY on line 5 of the 'Hello F2 (fonts)' window (your own drawing), never on the surface it was installed on")
+      hafen.log():write("   two addons, one surface: paste  :lua hafen.ui.skin{ ['chat'] = { color = {255,80,80} } }  -- chat goes RED (last applied wins); :lua hafen.ui.skin(nil) drops it and chat falls back to hello's GREEN, not to stock; :hello color then restores stock")
     end
   elseif sub == "title" then
     -- F3: toggle a font override on the "window.title" scope (WINDOW CAPTIONS only) -- INDEPENDENT of "default".
     -- With ONLY "window.title" set, captions change but body text stays stock; with ONLY "default" set (:hello
     -- font), the cascade restyles captions too until a "window.title" override refines them. Owner-tagged,
     -- reverted automatically on :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
-    if not demoFont then hafen.log(":hello title -> font not loaded yet (OnLoad)"); return end
+    if not demoFont then hafen.log():write(":hello title -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("window.title", { font = demoFont:derive{ size = 15 } }) then   -- caption size ~= the stock fraktur 15
-      hafen.log((":hello title -> skin{ ['window.title'] = { font = %s } } -- open/focus any window: its CAPTION font changes (body text stays stock unless :hello font); :hello title again to drop the rule")
+      hafen.log():write((":hello title -> skin{ ['window.title'] = { font = %s } } -- open/focus any window: its CAPTION font changes (body text stays stock unless :hello font); :hello title again to drop the rule")
         :format(demoFont:family()))
     else
-      hafen.log(":hello title -> the ['window.title'] rule left our sheet -- stock window captions restored (also on :reload/disable)")
+      hafen.log():write(":hello title -> the ['window.title'] rule left our sheet -- stock window captions restored (also on :reload/disable)")
     end
   elseif sub == "button" then
     -- F3b: toggle a font override on the "button" scope (BUTTON CAPTIONS only) -- independent of "default" and of
@@ -2165,12 +2165,12 @@ hafen.slash.register("hello", function(args)
     -- serif handle is a no-op TO THE EYE even though the override is installed. We deliberately pick a visibly
     -- different family (mono) so the DoD is observable; the size stays 12 to keep the captions inside the buttons.
     local h = (monoFont or demoFont)
-    if not h then hafen.log(":hello button -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello button -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("button", { font = h:derive{ size = 12, bold = true } }) then   -- mono bold 12 vs the stock serif bold 12
-      hafen.log((":hello button -> skin{ ['button'] = { font = %s } } -- open the Options window: its BUTTON captions change (titles/body stay stock unless :hello title / :hello font); :hello button again to drop the rule")
+      hafen.log():write((":hello button -> skin{ ['button'] = { font = %s } } -- open the Options window: its BUTTON captions change (titles/body stay stock unless :hello title / :hello font); :hello button again to drop the rule")
         :format(h:family()))
     else
-      hafen.log(":hello button -> the ['button'] rule left our sheet -- stock button captions restored (also on :reload/disable)")
+      hafen.log():write(":hello button -> the ['button'] rule left our sheet -- stock button captions restored (also on :reload/disable)")
     end
   elseif sub == "entry" then
     -- F3c: toggle a font override on the "textentry" scope (TEXT-INPUT FIELDS only) -- independent of "default",
@@ -2183,12 +2183,12 @@ hafen.slash.register("hello", function(args)
     -- NOTE: an entry field's HEIGHT is fixed by its background texture, so keep the size near the stock 12 or tall
     -- glyphs will be clipped -- that is a client-geometry fact, not an API limit. See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
-    if not h then hafen.log(":hello entry -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello entry -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("textentry", { font = h:derive{ size = 12 } }) then   -- mono 12 vs the stock serif 12 (visibly different)
-      hafen.log((":hello entry -> skin{ ['textentry'] = { font = %s } } -- ONE rule fronting TWO sites: click any text field AND this console command line and type -- both change family, and each keeps its OWN stock size/colour (serif 12 entries, mono 12 console); :hello entry again to drop the rule")
+      hafen.log():write((":hello entry -> skin{ ['textentry'] = { font = %s } } -- ONE rule fronting TWO sites: click any text field AND this console command line and type -- both change family, and each keeps its OWN stock size/colour (serif 12 entries, mono 12 console); :hello entry again to drop the rule")
         :format(h:family()))
     else
-      hafen.log(":hello entry -> the ['textentry'] rule left our sheet -- stock text-field font restored (also on :reload/disable)")
+      hafen.log():write(":hello entry -> the ['textentry'] rule left our sheet -- stock text-field font restored (also on :reload/disable)")
     end
   elseif sub == "label" then
     -- F3c: toggle a font override on the "label" scope = the client's BODY TEXT. F1 already routed the DEFAULT
@@ -2204,12 +2204,12 @@ hafen.slash.register("hello", function(args)
     -- NOTE: we deliberately pass NO size here -- rows keep the HEIGHT they were built with (from the stock
     -- font), so a bigger size would clip; the family swap is the safe, observable demo. See api/fonts.md.
     local h = (monoFont or demoFont)
-    if not h then hafen.log(":hello label -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello label -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("label", { font = h }) then           -- no size -> every routed label keeps its own stock size
-      hafen.log((":hello label -> skin{ ['label'] = { font = %s } } -- open the character sheet (attribute rows) or Skills & Lore / Quests / Wounds (list items): the BODY TEXT changes family but keeps its sizes; :hello label again to drop the rule")
+      hafen.log():write((":hello label -> skin{ ['label'] = { font = %s } } -- open the character sheet (attribute rows) or Skills & Lore / Quests / Wounds (list items): the BODY TEXT changes family but keeps its sizes; :hello label again to drop the rule")
         :format(h:family()))
     else
-      hafen.log(":hello label -> the ['label'] rule left our sheet -- stock explicit-foundry labels restored (also on :reload/disable)")
+      hafen.log():write(":hello label -> the ['label'] rule left our sheet -- stock explicit-foundry labels restored (also on :reload/disable)")
     end
   elseif sub == "heading" then
     -- F3e: toggle a font override on the "heading" scope = the client's in-window SECTION HEADINGS, the big
@@ -2223,12 +2223,12 @@ hafen.slash.register("hello", function(args)
     -- NOTE: no size passed -- each heading keeps its own stock size (the big ones are 25px, the credo group
     -- captions 18px), so the layout around them does not move. See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
-    if not h then hafen.log(":hello heading -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello heading -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("heading", { font = h }) then         -- no size -> every heading keeps its own
-      hafen.log((":hello heading -> skin{ ['heading'] = { font = %s } } -- open the character sheet: 'Base Attributes' / 'Food Satiations' / 'Abilities' change (titles + body text stay stock); :hello heading again to drop the rule")
+      hafen.log():write((":hello heading -> skin{ ['heading'] = { font = %s } } -- open the character sheet: 'Base Attributes' / 'Food Satiations' / 'Abilities' change (titles + body text stay stock); :hello heading again to drop the rule")
         :format(h:family()))
     else
-      hafen.log(":hello heading -> the ['heading'] rule left our sheet -- stock section headings restored (also on :reload/disable)")
+      hafen.log():write(":hello heading -> the ['heading'] rule left our sheet -- stock section headings restored (also on :reload/disable)")
     end
   elseif sub == "menu" then
     -- F3d: toggle a font override on the "menu" scope = the client's ACTION MENUS. Two surfaces: the petal
@@ -2239,12 +2239,12 @@ hafen.slash.register("hello", function(args)
     -- text field). Independent of every other scope; with ONLY "default" set (:hello font) the cascade restyles
     -- menus too, until a "menu" override refines them. Owner-tagged, reverted on :reload/disable. SAFE-tier.
     local h = (monoFont or demoFont)
-    if not h then hafen.log(":hello menu -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello menu -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("menu", { font = h:derive{ size = 14 } }) then   -- mono 14 vs the stock sans 12 (bigger + different)
-      hafen.log((":hello menu -> skin{ ['menu'] = { font = %s } } -- right-click something: the PETAL captions are in the new font (and a petal already open re-sizes around its centre); :hello menu again to drop the rule")
+      hafen.log():write((":hello menu -> skin{ ['menu'] = { font = %s } } -- right-click something: the PETAL captions are in the new font (and a petal already open re-sizes around its centre); :hello menu again to drop the rule")
         :format(h:family()))
     else
-      hafen.log(":hello menu -> the ['menu'] rule left our sheet -- stock flower-menu font restored (also on :reload/disable)")
+      hafen.log():write(":hello menu -> the ['menu'] rule left our sheet -- stock flower-menu font restored (also on :reload/disable)")
     end
   elseif sub == "tip" then
     -- F3d: toggle a font override on the "tooltip" scope = every TOOLTIP the client pops up. The bulk of it is the
@@ -2258,12 +2258,12 @@ hafen.slash.register("hello", function(args)
     -- automatically on :reload/disable. SAFE-tier (cosmetic, client-only).
     -- NOTE: a tooltip sizes its own box around its text, so a bigger size is safe here -- unlike a text field.
     local h = (monoFont or demoFont)
-    if not h then hafen.log(":hello tip -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello tip -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("tooltip", { font = h:derive{ size = 13 } }) then   -- mono 13 vs the stock sans 10 (bigger + different)
-      hafen.log((":hello tip -> skin{ ['tooltip'] = { font = %s } } -- hover an INVENTORY ITEM (or a buff / a HUD meter / a craft input / an action-menu icon / a HUD button): the tooltip is in the new font, and it changes while you keep hovering; :hello tip again to drop the rule")
+      hafen.log():write((":hello tip -> skin{ ['tooltip'] = { font = %s } } -- hover an INVENTORY ITEM (or a buff / a HUD meter / a craft input / an action-menu icon / a HUD button): the tooltip is in the new font, and it changes while you keep hovering; :hello tip again to drop the rule")
         :format(h:family()))
     else
-      hafen.log(":hello tip -> the ['tooltip'] rule left our sheet -- stock tooltip font restored (also on :reload/disable)")
+      hafen.log():write(":hello tip -> the ['tooltip'] rule left our sheet -- stock tooltip font restored (also on :reload/disable)")
     end
   elseif sub == "chat" then
     -- F3d: toggle a font override on the "chat" scope = the whole CHAT window: every message line (area/party/
@@ -2273,12 +2273,12 @@ hafen.slash.register("hello", function(args)
     -- the chat's own link parser. Independent of every other scope; with ONLY "default" set (:hello font) the
     -- cascade restyles chat too, until a "chat" override refines it. Owner-tagged, reverted on :reload/disable.
     local h = (monoFont or demoFont)
-    if not h then hafen.log(":hello chat -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello chat -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("chat", { font = h:derive{ size = 13 } }) then   -- mono 13 vs the stock sans 12
-      hafen.log((":hello chat -> skin{ ['chat'] = { font = %s } } -- open the chat window (Ctrl+C): the message lines, the channel tabs and the line you type are in the new font; :hello chat again to drop the rule")
+      hafen.log():write((":hello chat -> skin{ ['chat'] = { font = %s } } -- open the chat window (Ctrl+C): the message lines, the channel tabs and the line you type are in the new font; :hello chat again to drop the rule")
         :format(h:family()))
     else
-      hafen.log(":hello chat -> the ['chat'] rule left our sheet -- stock chat font restored (also on :reload/disable)")
+      hafen.log():write(":hello chat -> the ['chat'] rule left our sheet -- stock chat font restored (also on :reload/disable)")
     end
   elseif sub == "speech" then
     -- F4: toggle a font override on the "world.speech" scope = the SPEECH BUBBLES that pop up over a character's
@@ -2289,12 +2289,12 @@ hafen.slash.register("hello", function(args)
     -- restyles bubbles too, until a "world.speech" override refines them. Owner-tagged, reverted automatically on
     -- :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
-    if not h then hafen.log(":hello speech -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello speech -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("world.speech", { font = h:derive{ size = 16 } }) then   -- mono 16 vs the stock sans 10 (clearly bigger)
-      hafen.log((":hello speech -> skin{ ['world.speech'] = { font = %s } } -- say something in area chat (Enter): the BUBBLE over your head is in the new font and its frame grows with it; :hello speech again to drop the rule")
+      hafen.log():write((":hello speech -> skin{ ['world.speech'] = { font = %s } } -- say something in area chat (Enter): the BUBBLE over your head is in the new font and its frame grows with it; :hello speech again to drop the rule")
         :format(h:family()))
     else
-      hafen.log(":hello speech -> the ['world.speech'] rule left our sheet -- stock speech-bubble font restored (also on :reload/disable)")
+      hafen.log():write(":hello speech -> the ['world.speech'] rule left our sheet -- stock speech-bubble font restored (also on :reload/disable)")
     end
   elseif sub == "nick" then
     -- F4: toggle a font override on the "world.nick" scope = the floating KIN NAMES drawn over the characters of
@@ -2305,12 +2305,12 @@ hafen.slash.register("hello", function(args)
     -- cascade restyles the names too, until a "world.nick" override refines them. Owner-tagged, reverted
     -- automatically on :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
-    if not h then hafen.log(":hello nick -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello nick -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("world.nick", { font = h:derive{ size = 16, bold = true } }) then  -- mono bold 16 vs stock sans bold 12
-      hafen.log((":hello nick -> skin{ ['world.nick'] = { font = %s } } -- look at a KIN standing nearby: the name floating over them is in the new font (its colour stays the kin-group colour); :hello nick again to drop the rule")
+      hafen.log():write((":hello nick -> skin{ ['world.nick'] = { font = %s } } -- look at a KIN standing nearby: the name floating over them is in the new font (its colour stays the kin-group colour); :hello nick again to drop the rule")
         :format(h:family()))
     else
-      hafen.log(":hello nick -> the ['world.nick'] rule left our sheet -- stock floating kin-name font restored (also on :reload/disable)")
+      hafen.log():write(":hello nick -> the ['world.nick'] rule left our sheet -- stock floating kin-name font restored (also on :reload/disable)")
     end
   elseif sub == "node" then
     -- F5 (034.3): a PER-INSTANCE style -- the last piece of the font system and the only one that is not a named
@@ -2323,14 +2323,14 @@ hafen.slash.register("hello", function(args)
     -- Owner-tagged like every other font override: reverted automatically on :reload/disable, and it dies with the
     -- widget (close the window and the override goes with it). SAFE-tier (cosmetic, client-only). See api/fonts.md.
     local h = (monoFont or demoFont)
-    if not h then hafen.log(":hello node -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello node -> font not loaded yet (OnLoad)"); return end
     if nodeFontApplied then
       if nodeFontTarget then nodeFontTarget:skin(nil) end     -- a no-op if that window was closed meanwhile
       nodeFontTarget, nodeFontApplied = nil, false
-      hafen.log(":hello node -> skin(nil) -- that window is back to the stock/scope font (a :reload/disable reverts it too)")
+      hafen.log():write(":hello node -> skin(nil) -- that window is back to the stock/scope font (a :reload/disable reverts it too)")
     else
       local root = hafen.ui()
-      if not root then hafen.log(":hello node -> no UI yet (try in-world)"); return end
+      if not root then hafen.log():write(":hello node -> no UI yet (try in-world)"); return end
       -- Collect the open captioned windows AND count the restylable text in each subtree. Picking "the first
       -- window" is a trap: the Inventory/Equipment windows contain only WItem icons, so their ONLY text is the
       -- caption -- styling one of those looks like the override reaches nothing but the title bar. So we score each
@@ -2346,7 +2346,7 @@ hafen.slash.register("hello", function(args)
         end
       end)
       if #wins == 0 then
-        hafen.log(":hello node -> no captioned window open. Open a TEXT-RICH window (the Character Sheet, or Options) plus any second one, then try again: only the richest restyles")
+        hafen.log():write(":hello node -> no captioned window open. Open a TEXT-RICH window (the Character Sheet, or Options) plus any second one, then try again: only the richest restyles")
         return
       end
       local best, report = 1, {}
@@ -2355,13 +2355,13 @@ hafen.slash.register("hello", function(args)
         report[#report + 1] = ("%s=%d"):format(w.name, w.texts)
       end
       if wins[best].texts == 0 then
-        hafen.log((":hello node -> the only open window(s) [%s] carry NO text but their caption (an Inventory holds item icons, not labels), so an override there would only show on the title bar. Open the CHARACTER SHEET (or Options) and try again")
+        hafen.log():write((":hello node -> the only open window(s) [%s] carry NO text but their caption (an Inventory holds item icons, not labels), so an override there would only show on the title bar. Open the CHARACTER SHEET (or Options) and try again")
           :format(table.concat(report, ", ")))
         return
       end
       wins[best].node:skin{ font = h:derive{ size = 13 } }     -- mono 13 (bigger + a different family, so it is obvious)
       nodeFontTarget, nodeFontApplied = wins[best].node, true
-      hafen.log((":hello node -> skin{} on ONE widget: the '%s' window (%d text bits inside) is now in %s 13 -- caption, labels, list rows and button captions included; every OTHER open window stays stock. Candidates+text counts: [%s]. That is the per-instance style; :hello node again to reset")
+      hafen.log():write((":hello node -> skin{} on ONE widget: the '%s' window (%d text bits inside) is now in %s 13 -- caption, labels, list rows and button captions included; every OTHER open window stays stock. Candidates+text counts: [%s]. That is the per-instance style; :hello node again to reset")
         :format(wins[best].name, wins[best].texts, h:family(), table.concat(report, ", ")))
     end
   elseif sub == "selector" then
@@ -2383,21 +2383,21 @@ hafen.slash.register("hello", function(args)
     if swallowedWnd then
       swallowedWnd:show()                     -- :show() gives the widget back AND drops the record: the key is the
       swallowedWnd = nil                      -- client's again (the same restore :reload/disable would have done)
-      hafen.log(":hello wnd swallow -> gave the window back: the stock inventory is OPEN again and Tab toggles it"
+      hafen.log():write(":hello wnd swallow -> gave the window back: the stock inventory is OPEN again and Tab toggles it"
         .. " as stock (press Tab to close it)")
       return
     end
     local grid = hafen.ui.inventory()
     local wnd = grid and grid:parent()
-    if not wnd then hafen.log(":hello wnd swallow -> no inventory window yet (enter the world first)"); return end
+    if not wnd then hafen.log():write(":hello wnd swallow -> no inventory window yet (enter the world first)"); return end
     local ok, err = pcall(wnd.hide, wnd)
     if not ok then
-      hafen.log((":hello wnd swallow -> refused, one window one owner: %s")
+      hafen.log():write((":hello wnd swallow -> refused, one window one owner: %s")
         :format((tostring(err):gsub("^.-%.lua:%d+:%s*", ""))))
       return
     end
     swallowedWnd = wnd
-    hafen.log((":hello wnd swallow -> %s is hidden with NOTHING standing in for it. Press Tab and click the"
+    hafen.log():write((":hello wnd swallow -> %s is hidden with NOTHING standing in for it. Press Tab and click the"
       .. " inventory button in the menu: nothing opens and the tick stays off -- the toggle is swallowed, because"
       .. " hiding is authoritative now. Every OTHER window (equipment, character sheet, kin, options, the map)"
       .. " toggles exactly as stock. ':hello wnd swallow' again hands it back OPEN; a :reload hands the KEY back"
@@ -2427,13 +2427,13 @@ hafen.slash.register("hello", function(args)
     local acc = 0
     for i = 1, 200000 do acc = acc + i end
     s:finish()
-    hafen.log((":hello prof -> measured a %d-gob scan + a %d-iteration spin; the numbers land NEXT frame (they are"
+    hafen.log():write((":hello prof -> measured a %d-gob scan + a %d-iteration spin; the numbers land NEXT frame (they are"
       .. " charged when the frame closes), so the row is dumped on a short timer -- by then the scopes' per-frame"
       .. " ms is back to 0 and their cost shows in peak/avg"):format(n or 0, acc > 0 and 200000 or 0))
-    hafen.timer.after(0.5, function()
+    hafen.timer():after(0.5, function()
       local rows = p:addons()
       if not rows[1] then
-        hafen.log(":hello prof -> p:addons() is empty: profiling is OFF (tick Options > Client > Enable profiling)")
+        hafen.log():write(":hello prof -> p:addons() is empty: profiling is OFF (tick Options > Client > Enable profiling)")
         return
       end
       for _, r in ipairs(rows) do                        -- sorted most expensive first
@@ -2444,13 +2444,13 @@ hafen.slash.register("hello", function(args)
           sc[#sc + 1] = ("%s=%sms/%d now, peak %sms, avg %sms")
             :format(scopeName, fx(e.ms, 3), e.calls, fx(e.msPeak, 3), fx(e.msAvg, 3))
         end
-        hafen.log(("  %s ms=%s avg=%s peak=%s share=%s%%  calls{ev=%d,tm=%d,dr=%d,hk=%d,wg=%d}%s")
+        hafen.log():write(("  %s ms=%s avg=%s peak=%s share=%s%%  calls{ev=%d,tm=%d,dr=%d,hk=%d,wg=%d}%s")
           :format(padr(r.id, 12), fx(r.ms, 3), fx(r.msAvg, 3), fx(r.msPeak, 3), fx((r.share or 0) * 100, 1),
                   r.calls.events, r.calls.timers, r.calls.draw, r.calls.hooks, r.calls.widgets,
                   (#sc > 0) and ("  scopes{" .. table.concat(sc, ", ") .. "}") or ""))
       end
       local f = p:frame()
-      hafen.log(("  total=%sms (%s%% of the frame) -- p:frame().addons=%sms, the SAME accounting")
+      hafen.log():write(("  total=%sms (%s%% of the frame) -- p:frame().addons=%sms, the SAME accounting")
         :format(fx(rows.total.ms, 3), fx((rows.total.share or 0) * 100, 1), fx(f.addons or 0, 3)))
     end)
   elseif sub == "widgets" then
@@ -2462,23 +2462,23 @@ hafen.slash.register("hello", function(args)
     local p = hafen.client:profiling()
     local w = p:widgets()
     if not w.byType then
-      hafen.log(":hello widgets -> p:widgets() is empty: profiling is OFF (tick Options > Client > Enable profiling)")
+      hafen.log():write(":hello widgets -> p:widgets() is empty: profiling is OFF (tick Options > Client > Enable profiling)")
       return
     end
     local tot = w.total or {}
-    hafen.log((":hello widgets -> the whole widget tree cost %sms last frame (tick %s + draw %s) over %d"
+    hafen.log():write((":hello widgets -> the whole widget tree cost %sms last frame (tick %s + draw %s) over %d"
       .. " live widgets; heaviest TYPES first, self time (children subtracted):")
       :format(fx(tot.ms or 0, 3), fx(tot.tickMs or 0, 3), fx(tot.drawMs or 0, 3), tot.count or 0))
     local sumself = 0
     for i, r in ipairs(w.byType) do
       sumself = sumself + r.selfMs
       if i <= 8 then
-        hafen.log(("  %s x%s self=%sms (tick %s + draw %s)   inclusive=%sms")
+        hafen.log():write(("  %s x%s self=%sms (tick %s + draw %s)   inclusive=%sms")
           :format(padr(r.type, 24), padr(r.count, 3), fx(r.selfMs, 3), fx(r.tickSelfMs, 3),
                   fx(r.drawSelfMs, 3), fx(r.tickMs + r.drawMs, 3)))
       end
     end
-    hafen.log(("  ... %d types in all, their self times summing to %sms vs the root's inclusive %sms")
+    hafen.log():write(("  ... %d types in all, their self times summing to %sms vs the root's inclusive %sms")
       :format(#w.byType, fx(sumself, 3), fx(tot.ms or 0, 3)))
     -- The heaviest individual widgets, and the owner link: a widget an ADDON put in the tree carries the
     -- addon's id, so the same cost shows up itemised here and rolled up in that addon's p:addons() row --
@@ -2488,7 +2488,7 @@ hafen.slash.register("hello", function(args)
       if r.owner then mine[#mine + 1] = ("%s owned by '%s' self=%sms"):format(r.type, r.owner, fx(r.selfMs, 3)) end
     end
     local t1 = w.top[1]
-    hafen.log(("  heaviest single widget: %s (self=%sms%s)  |  addon-owned in the top list: %s")
+    hafen.log():write(("  heaviest single widget: %s (self=%sms%s)  |  addon-owned in the top list: %s")
       :format(t1 and t1.type or "-", fx(t1 and t1.selfMs or 0, 3), (t1 and t1.id) and (", server id " .. t1.id) or "",
               (#mine > 0) and table.concat(mine, ", ") or "none this frame (look for the LuaWidget row above)"))
   elseif sub == "passes" then
@@ -2502,27 +2502,27 @@ hafen.slash.register("hello", function(args)
     local p = hafen.client:profiling()
     local ps = p:passes()
     if not ps[1] then
-      hafen.log(":hello passes -> p:passes() is empty: profiling is OFF (tick Options > Client > Enable"
+      hafen.log():write(":hello passes -> p:passes() is empty: profiling is OFF (tick Options > Client > Enable"
         .. " profiling), or no frame's GL timestamps have come back yet -- they arrive several frames late")
       return
     end
     local sum = 0
     for _, r in ipairs(ps) do sum = sum + r.gpuMs end
-    hafen.log((":hello passes -> frame #%d cost %sms on the CPU / %sms on the GPU; the named passes:")
+    hafen.log():write((":hello passes -> frame #%d cost %sms on the CPU / %sms on the GPU; the named passes:")
       :format(ps.frameno, fx(ps.ms, 3), fx(ps.gpuMs, 3)))
     for _, r in ipairs(ps) do
-      hafen.log(("  %s cpu=%sms  gpu=%sms  (%s%% of the GPU frame)")
+      hafen.log():write(("  %s cpu=%sms  gpu=%sms  (%s%% of the GPU frame)")
         :format(padr(r.name, 8), fx(r.cpuMs, 3), fx(r.gpuMs, 3),
                 fx((ps.gpuMs > 0) and (r.gpuMs / ps.gpuMs * 100) or 0, 1)))
     end
-    hafen.log(("  the three sum to %sms of the %sms GPU frame -- turn Video > Shadows OFF and the"
+    hafen.log():write(("  the three sum to %sms of the %sms GPU frame -- turn Video > Shadows OFF and the"
       .. " `shadow` row falls to zero and the GPU frame drops by about what it was reporting")
       :format(fx(sum, 3), fx(ps.gpuMs, 3)))
     -- The armed-only submission counters: unlike p:render(), which exposes numbers the client already keeps
     -- (so it answers with profiling off), NOTHING counts these -- they are new counting behind the switch.
     -- programBinds far below drawCalls is the draw list's program sort doing its job.
     local g = p:gl()
-    hafen.log(("  p:gl() frame #%d: %d draw calls, %d program binds, %s vertices, %s triangles")
+    hafen.log():write(("  p:gl() frame #%d: %d draw calls, %d program binds, %s vertices, %s triangles")
       :format(g.frameno, g.drawCalls, g.programBinds,
               ("%d"):format(g.vertices), ("%d"):format(g.triangles)))
   elseif sub == "overhead" then
@@ -2543,28 +2543,28 @@ hafen.slash.register("hello", function(args)
     local p = hafen.client:profiling()
     local o = p:overhead()
     if not o.totalMs then
-      hafen.log(":hello overhead -> p:overhead() is empty: profiling is OFF (tick Options > Client > Enable"
+      hafen.log():write(":hello overhead -> p:overhead() is empty: profiling is OFF (tick Options > Client > Enable"
         .. " profiling)")
       return
     end
-    hafen.log((":hello overhead -> %sms/frame of a %sms frame = %s%% (budget %s%%: %s), method=%s")
+    hafen.log():write((":hello overhead -> %sms/frame of a %sms frame = %s%% (budget %s%%: %s), method=%s")
       :format(fx(o.totalMs, 4), fx(o.frameMs or 0, 2), fx((o.shareOfFrame or 0) * 100, 2),
               fx(o.budget * 100, 0), (o.withinBudget == false) and "OVER" or "ok", o.method))
-    hafen.log(("  aggregator=%sms (timed)  gpuQuery=%sms (timed)  probes=%sms (modelled)")
+    hafen.log():write(("  aggregator=%sms (timed)  gpuQuery=%sms (timed)  probes=%sms (modelled)")
       :format(fx(o.aggregatorMs, 4), fx(o.gpuQueryMs, 4), fx(o.probeMs, 4)))
     if o.measuredMs then
-      hafen.log(("  control frames measure %s +/- %s ms/frame (spread %s) -> %s")
+      hafen.log():write(("  control frames measure %s +/- %s ms/frame (spread %s) -> %s")
         :format(((o.measuredMs >= 0) and "+" or "") .. fx(o.measuredMs, 4), fx(o.measuredErrorMs, 4),
                 fx(o.measuredSpreadMs, 4),
                 (o.method == "control") and "resolved, and it has the say"
                   or "inside its own error bar: too cheap to measure, so the model has the say"))
     end
     for _, r in ipairs(o.tiers) do
-      hafen.log(("  %s %sms  (%s%% of frame, modelled %sms, %s%s)")
+      hafen.log():write(("  %s %sms  (%s%% of frame, modelled %sms, %s%s)")
         :format(padr(r.name, 8), fx(r.ms, 4), fx((r.share or 0) * 100, 2), fx(r.modelledMs, 4), r.method,
                 r.hits and (", %s probe hits/frame"):format(fx(r.hits, 0)) or ""))
     end
-    hafen.log(("  %d armed frames, %d control frames, %d paired periods%s")
+    hafen.log():write(("  %d armed frames, %d control frames, %d paired periods%s")
       :format(o.armedFrames, o.controlFrames, o.periods,
               (o.periodsNeeded > 0)
                 and (" -- %d more period(s) before the measurement counts, ~%ss")
@@ -2587,31 +2587,31 @@ hafen.slash.register("hello", function(args)
       -- cap and then STOP, bytes stop rising with them, and evictions start counting: bounded, not growing.
       -- It is genuinely expensive while it runs (32 fresh rasterisations a frame is the pre-026 cost, by
       -- design), so it is a toggle and it is off by default.
-      hafen.log(textcacheStress())
+      hafen.log():write(textcacheStress())
       return
     end
     local c = p:textcache()
     local function pct(v) return (v ~= nil) and (fx(v * 100, 1) .. "%") or "-" end
     local function mib(v) return fx(v / 1048576, 2) .. " MiB" end
-    hafen.log((":hello textcache -> hello's own cache: %d entries / %s held, %d hits + %d misses = %s hit rate,"
+    hafen.log():write((":hello textcache -> hello's own cache: %d entries / %s held, %d hits + %d misses = %s hit rate,"
       .. " %d evictions"):format(c.entries, mib(c.bytes), c.hits, c.misses, pct(c.hitRate), c.evictions))
-    hafen.log(("  bounded by %d entries AND %s -- entries stop at the cap, they do not grow (`:hello textcache"
+    hafen.log():write(("  bounded by %d entries AND %s -- entries stop at the cap, they do not grow (`:hello textcache"
       .. " stress` proves it: %d distinct strings, %d a frame, invisible)")
       :format(c.maxEntries, mib(c.maxBytes), STRESS_POOL, STRESS_PER_FRAME))
-    hafen.log(("  every Lua owner together (%d): %d entries / %s, %s hit rate, %d evictions -- disable every"
+    hafen.log():write(("  every Lua owner together (%d): %d entries / %s, %s hit rate, %d evictions -- disable every"
       .. " addon and this drops to ~0 bytes (teardown disposes each cache: the leak check)")
       :format(c.total.owners, c.total.entries, mib(c.total.bytes), pct(c.total.hitRate), c.total.evictions))
-    hafen.log("  a MISS is not a fault: it is a string never drawn before in that font. The HUD's `026 static"
+    hafen.log():write("  a MISS is not a fault: it is a string never drawn before in that font. The HUD's `026 static"
       .. " line` hits every frame; `026 volatile line` misses every frame because its text changes every frame"
       .. " -- budget a live readout by how often its TEXT changes, not by how many lines it has.")
   else
-    hafen.log((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets | passes | overhead | textcache)")
+    hafen.log():write((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets | passes | overhead | textcache)")
       :format(#args, table.concat(args, " | ")))
   end
 end)
-hafen.log("A11: slash command registered -- type  :hello  in the console (chat) to try it")
+hafen.log():write("A11: slash command registered -- type  :hello  in the console (chat) to try it")
 
-hafen.events.on("OnEnterWorld", function()
+hafen.event():on("OnEnterWorld", function()
   if panel then return end                                        -- defensive: create the window once
   panel = hafen.ui.window{
     title   = "Hello 3a",
@@ -2622,20 +2622,20 @@ hafen.events.on("OnEnterWorld", function()
       clicks = clicks + 1
       if button == 3 then                                        -- RIGHT-click -> 2d: toggle the action hook
         moveIntercept = not moveIntercept
-        hafen.log(("panel RMB #%d -> move-intercept %s"):format(clicks, moveIntercept and "ON" or "OFF"))
+        hafen.log():write(("panel RMB #%d -> move-intercept %s"):format(clicks, moveIntercept and "ON" or "OFF"))
       elseif button == 2 then                                     -- MIDDLE-click -> 2e: toggle the message hook
         meterFreeze = not meterFreeze
-        hafen.log(("panel MMB #%d -> meter-freeze %s"):format(clicks, meterFreeze and "ON" or "OFF"))
+        hafen.log():write(("panel MMB #%d -> meter-freeze %s"):format(clicks, meterFreeze and "ON" or "OFF"))
       else                                                        -- LEFT/other -> 2c: toggle the input hook
         mapLock = not mapLock
-        hafen.log(("panel click #%d at %d,%d (button %d) -> map-lock %s")
+        hafen.log():write(("panel click #%d at %d,%d (button %d) -> map-lock %s")
           :format(clicks, x, y, button, mapLock and "ON" or "OFF"))
       end
       return true                                                 -- truthy = consume the click
     end,
-    onClose = function() hafen.log("panel closed (X) -- :reload to bring it back") end,
+    onClose = function() hafen.log():write("panel closed (X) -- :reload to bring it back") end,
   }
-  hafen.log("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, MMB=meter-freeze, X=close, 'toggle' key=show/hide")
+  hafen.log():write("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, MMB=meter-freeze, X=close, 'toggle' key=show/hide")
 
   -- U1: DROP TARGET + g:resource + mouse mods. A borderless custom widget (hafen.ui.widget) that is a
   -- DROP TARGET for the client's own drag gesture (D-038): open the menu grid (bottom-right), drag an
@@ -2663,21 +2663,21 @@ hafen.events.on("OnEnterWorld", function()
     onDrop = function(x, y, drop)
       if drop.res then
         droppedRes = drop.res
-        hafen.log(("U1: onDrop at %d,%d -> kind=%s res=%s (drawing its icon via g:resource)")
+        hafen.log():write(("U1: onDrop at %d,%d -> kind=%s res=%s (drawing its icon via g:resource)")
           :format(x, y, tostring(drop.kind), tostring(drop.res)))
       else
-        hafen.log(("U1: onDrop at %d,%d -> kind=%s (id-only pagina, no stable res -- not persistable)")
+        hafen.log():write(("U1: onDrop at %d,%d -> kind=%s (id-only pagina, no stable res -- not persistable)")
           :format(x, y, tostring(drop.kind)))
       end
       return true                                                  -- truthy = consume the drop
     end,
     onClick = function(x, y, button, mods)
-      hafen.log(("U1: drop-widget click at %d,%d btn=%d mods={shift=%s,ctrl=%s,alt=%s}")
+      hafen.log():write(("U1: drop-widget click at %d,%d btn=%d mods={shift=%s,ctrl=%s,alt=%s}")
         :format(x, y, button, tostring(mods.shift), tostring(mods.ctrl), tostring(mods.alt)))
       return true
     end,
   }
-  hafen.log("U1: drop-target widget up -- open the menu grid, drag an action onto the box (icon draws via g:resource); Shift+click logs shift=true")
+  hafen.log():write("U1: drop-target widget up -- open the menu grid, drag an action onto the box (icon draws via g:resource); Shift+click logs shift=true")
 
   -- F2: OWN-WIDGET FONTS + $font MIXING. This window declares font = demoFont (the F1-loaded handle), so EVERY
   -- g:text/g:atext inside it defaults to the addon's OWN font -- fully ISOLATED (no global override, nothing the
@@ -2708,34 +2708,34 @@ hafen.events.on("OnEnterWorld", function()
         g:text("handle colour: own drawing only", 6, 94, { font = tintedFont })
         g:color(150, 150, 150); g:rect(0, 0, w, h); g:color()
       end,
-      onClose = function() hafen.log("F2: font window closed (X) -- :reload to bring it back") end,
+      onClose = function() hafen.log():write("F2: font window closed (X) -- :reload to bring it back") end,
     }
-    hafen.log(("F2: font window up -- rendered in font '%s'; one line mixes two fonts via $font (disable/:reload restores stock)")
+    hafen.log():write(("F2: font window up -- rendered in font '%s'; one line mixes two fonts via $font (disable/:reload restores stock)")
       :format(fam))
   else
-    hafen.log("F2: demoFont not loaded (OnLoad) -- font window skipped")
+    hafen.log():write("F2: demoFont not loaded (OnLoad) -- font window skipped")
   end
 
-  -- 2c: INPUT HOOK (hafen.hook.input, L1). Pre-hook MapView's mousedown through the engine's built-in
+  -- 2c: INPUT HOOK (hafen.hook():input, L1). Pre-hook MapView's mousedown through the engine's built-in
   -- Widget.listen seam (ZERO core edit): fn(ev) runs BEFORE MapView's own mousedown, at SCREEN coords, before
   -- any hit-test. While map-lock is ON (LEFT-click the window to toggle), ev:preventDefault() cancels the click
   -- so it never reaches MapView -- your character does NOT move (the Phase-2c DoD). While OFF the hook only
   -- observes (logs the first few). ev.x/ev.y are MapView-local pixels; ev.button is 1=left/2=middle/3=right.
   -- The handle (returned, with :remove()) is bridge-owned, so :reload/disable removes the hook automatically.
-  hafen.hook.input("mapview", "mousedown", function(ev)
+  hafen.hook():input("mapview", "mousedown", function(ev)
     mapDowns = mapDowns + 1
     if mapLock then
       ev:preventDefault()                                         -- MapView.mousedown never runs
-      hafen.log(("2c: map click CANCELLED at %d,%d btn=%d (map-lock ON) [#%d]")
+      hafen.log():write(("2c: map click CANCELLED at %d,%d btn=%d (map-lock ON) [#%d]")
         :format(ev.x, ev.y, ev.button, mapDowns))
     elseif mapDowns <= 3 then
-      hafen.log(("2c: map mousedown observed at %d,%d btn=%d (passed through) [#%d]")
+      hafen.log():write(("2c: map mousedown observed at %d,%d btn=%d (passed through) [#%d]")
         :format(ev.x, ev.y, ev.button, mapDowns))
     end
   end)
-  hafen.log("2c: MapView mousedown hook installed -- LEFT-click the window to toggle map-lock, then click the map")
+  hafen.log():write("2c: MapView mousedown hook installed -- LEFT-click the window to toggle map-lock, then click the map")
 
-  -- 2d: ACTION HOOK (hafen.hook.action, L2). Intercept the OUTBOUND "click" action MapView sends to the
+  -- 2d: ACTION HOOK (hafen.hook():action, L2). Intercept the OUTBOUND "click" action MapView sends to the
   -- server to move -- the UI.wdgmsg choke point, where the arguments are ALREADY RESOLVED: ev.args[2] is the
   -- destination WORLD coordinate (impossible to know at 2c's L1 mousedown, before the hit-test). RIGHT-click
   -- the window to arm move-intercept. While ON, a plain move-to-ground click is intercepted: ev:preventDefault()
@@ -2746,24 +2746,24 @@ hafen.events.on("OnEnterWorld", function()
   -- args). resend()/send() bypass the hook chain, so re-issuing cannot loop. NB: if map-lock (2c) is ON, the L1
   -- hook cancels the click before any hit-test, so no "click" is ever sent and this L2 hook never fires -- turn
   -- map-lock OFF to see move-intercept. The handle is bridge-owned (:reload/disable removes it -- no leak).
-  hafen.hook.action("click", function(ev)
+  hafen.hook():action("click", function(ev)
     if ev.sender ~= "MapView" or #ev.args ~= 4 then return end    -- only plain MapView move-to-ground clicks
     local w = ev.args[2]                                          -- resolved destination (world coord {x,y})
     if moveIntercept then
       ev:preventDefault()                                         -- do NOT send the move to the server...
-      hafen.log(("2d: MOVE intercepted -> %d,%d (btn %s) -- resending")
+      hafen.log():write(("2d: MOVE intercepted -> %d,%d (btn %s) -- resending")
         :format(w.x, w.y, tostring(ev.args[3])))
       ev:resend()                                                 -- ...then issue it myself (unchanged) -> still moves
     else
       moveHookSeen = moveHookSeen + 1
       if moveHookSeen <= 3 then
-        hafen.log(("2d: move observed -> %d,%d (passed through) [#%d]"):format(w.x, w.y, moveHookSeen))
+        hafen.log():write(("2d: move observed -> %d,%d (passed through) [#%d]"):format(w.x, w.y, moveHookSeen))
       end
     end
   end)
-  hafen.log("2d: MapView 'click' action hook installed -- RIGHT-click the window to arm move-intercept, then click the map")
+  hafen.log():write("2d: MapView 'click' action hook installed -- RIGHT-click the window to arm move-intercept, then click the map")
 
-  -- 2e: MESSAGE HOOK (hafen.hook.message, L3). Intercept an INBOUND server update at the UI.uimsg choke point,
+  -- 2e: MESSAGE HOOK (hafen.hook():message, L3). Intercept an INBOUND server update at the UI.uimsg choke point,
   -- BEFORE the target widget applies it -- the mirror of 2d's outbound L2. We hook the "set" message and scope it
   -- to the HUD meter bars (ev.target == "IMeter"; "set" is what LayerMeter uses to update a bar). MIDDLE-click
   -- the window to arm meter-freeze. While ON, ev:preventDefault() SWALLOWS the meter update, so it never reaches
@@ -2773,17 +2773,17 @@ hafen.events.on("OnEnterWorld", function()
   -- "set" messages, proving L3 sees inbound traffic. ev.args is a 1-based snapshot (ev:rewrite(t) could apply new
   -- args instead -- not used here). NB: this handler runs on a Loader thread under the UI lock, so keep it light.
   -- The handle is bridge-owned (:reload/disable removes the hook -- no leak).
-  hafen.hook.message("set", function(ev)
+  hafen.hook():message("set", function(ev)
     if ev.target ~= "IMeter" then return end                     -- only the HUD meter bars, not every "set"       
     if meterFreeze then
       ev:preventDefault()                                        -- swallow it -> the meter never updates (bar freezes)
     elseif msgHookSeen < 3 then
       msgHookSeen = msgHookSeen + 1
-      hafen.log(("2e: meter 'set' observed (target=%s, %d arg(s)) (passed through) [#%d]")
+      hafen.log():write(("2e: meter 'set' observed (target=%s, %d arg(s)) (passed through) [#%d]")
         :format(ev.target, #ev.args, msgHookSeen))
     end
   end)
-  hafen.log("2e: IMeter 'set' message hook installed -- MIDDLE-click the window to freeze the HUD meter bars")
+  hafen.log():write("2e: IMeter 'set' message hook installed -- MIDDLE-click the window to freeze the HUD meter bars")
 end)
 
 -- 2b: HUD OVERLAY (hafen.ui.overlay). Paint on top of the HUD WITHOUT owning a widget — fn(g, w, h) runs
@@ -2793,7 +2793,7 @@ end)
 -- the exact screen centre. The gob count is refreshed once a second by a timer (NOT scanned every frame —
 -- draw callbacks should stay cheap; the per-frame draw time is not covered by the soft CPU budget).
 local gobCount = 0
-hafen.timer.every(1, function() gobCount = hafen.world.count() end)
+hafen.timer():every(1, function() gobCount = hafen.world.count() end)
 
 -- 026.2: THE TEXT CACHE, made visible. g:text/g:atext hold their rendered raster across frames now (a per-addon,
 -- content-keyed, bounded LRU), so a line whose STRING is unchanged is rasterised once and blitted thereafter --
@@ -2883,27 +2883,27 @@ end
 local function tagPlayer(gob)                                     -- one gob, keyed: attaching twice is a no-op
   if gob:isplayer() then gob:overlay("hello.tag", { draw = drawPlayerTag }) end
 end
-hafen.events.on("GobAdded", tagPlayer)                            -- the players who walk in after us
+hafen.event():on("GobAdded", tagPlayer)                            -- the players who walk in after us
 
 local overlaysUp = false
-hafen.events.on("OnEnterWorld", function()
+hafen.event():on("OnEnterWorld", function()
   if overlaysUp then return end                                   -- register the overlays once
   overlaysUp = true
   hafen.ui.overlay(drawHud)                                       -- returns a handle with :remove() (also auto)
   for _, g in ipairs(hafen.world.gobs()) do tagPlayer(g) end      -- ...and the ones already standing here
-  hafen.log("2b: HUD overlay (top-centre + crosshair) + player gob-tags up -- :reload/disable removes them")
+  hafen.log():write("2b: HUD overlay (top-centre + crosshair) + player gob-tags up -- :reload/disable removes them")
 end)
 
 -- One-shot timer: proves the timer wheel fires exactly once, ~2s after load.
-hafen.timer.after(2, function()
-  hafen.log("timer.after(2) fired once")
+hafen.timer():after(2, function()
+  hafen.log():write("timer.after(2) fired once")
 end)
 
-hafen.events.on("OnDisable", function()
+hafen.event():on("OnDisable", function()
   if helloMarker then                                   -- A1: clean up our demo marker so the harness never
     hafen.map.markers.remove(helloMarker)                   -- leaves 'Hello marker' pins on your persistent map DB
     helloMarker = nil
   end
   if demoGhost then demoGhost:destroy(); demoGhost = nil end   -- V1: drop the manual ghost (teardown also does)
-  hafen.log("OnDisable fired")
+  hafen.log():write("OnDisable fired")
 end)

@@ -1,19 +1,19 @@
 # hafen.json: parsing and encoding JSON
 
-Convert between JSON strings and Lua values. `hafen.json` is **ungated** — it is pure computation, with
+Convert between JSON strings and Lua values. `hafen.json()` is **ungated** — it is pure computation, with
 no I/O — and independent of the network: parse a string you loaded from [`hafen.store`](store.md) or
 got from anywhere, and encode a table to send or save.
 
 ```lua
-local s = hafen.json.encode({ name = "ore", qty = 5, tags = { "raw", "metal" } })
+local s = hafen.json():encode({ name = "ore", qty = 5, tags = { "raw", "metal" } })
 -- s == '{"name":"ore","qty":5,"tags":["raw","metal"]}'
-local t = hafen.json.parse(s)
-hafen.log(t.name .. " x" .. t.qty)        -- ore x5
+local t = hafen.json():parse(s)
+hafen.log():write(t.name .. " x" .. t.qty)        -- ore x5
 ```
 
 ## Convert
 
-### `hafen.json.parse(str)`
+### `hafen.json():parse(str)`
 
 Parses a JSON document and returns the equivalent Lua value.
 
@@ -35,15 +35,15 @@ the two languages; there is no sentinel value standing in for `null`.
 Malformed input raises a Lua error reading `JSON: <message> at offset <n>`, so wrap untrusted input:
 
 ```lua
-local ok, result = pcall(hafen.json.parse, untrusted)
-if not ok then hafen.log("bad JSON: " .. tostring(result)); return end
+local ok, result = pcall(function() return hafen.json():parse(untrusted) end)
+if not ok then hafen.log():write("bad JSON: " .. tostring(result)); return end
 ```
 
 Input longer than **8 million characters**, or nested deeper than **256** levels, raises instead of
 risking the stack or the heap. Both caps are set at launch with `-Dhaven.addon.json.maxlen=<chars>` and
 `-Dhaven.addon.json.maxdepth=<levels>`.
 
-### `hafen.json.encode(value)`
+### `hafen.json():encode(value)`
 
 Serializes a Lua value to **compact**, single-line JSON.
 
@@ -57,8 +57,8 @@ Serializes a Lua value to **compact**, single-line JSON.
 Wrap it if the value might hold one:
 
 ```lua
-local ok, s = pcall(hafen.json.encode, value)
-if not ok then hafen.log("cannot encode: " .. tostring(s)); return end
+local ok, s = pcall(function() return hafen.json():encode(value) end)
+if not ok then hafen.log():write("cannot encode: " .. tostring(s)); return end
 ```
 
 Encoding and then parsing round-trips a table of scalars, arrays and objects faithfully, apart from the

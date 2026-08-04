@@ -6,7 +6,7 @@ with no server id, so nothing reaches the server and nothing here is gated.
 
 ```lua
 local mdl                                          -- upvalue
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   mdl = hafen.asset("props/chair.glb")             -- load once from addons/<me>/props/chair.glb
 end)
 
@@ -70,7 +70,7 @@ yet. The options mirror [`hafen.render.sprite`](sprites.md), with `model` in pla
 | `alpha` | `1` | opacity `0..1` |
 | `tint` | *none* | colour overlay `{r=, g=, b=, a=}`, `0..255`, where `a` is blend strength |
 | `clickable` | `false` | opt into [the click event](#clickability); the mesh renders into the pick surface |
-| `onClick` | *none* | `fn(o, button, x, y)` fired on click, also the owner-scoped [`ObjectClicked`](../events.md#world-ghosts-and-sprites) event |
+| `onClick` | *none* | `fn(o, button, x, y)` fired on click, also the owner-scoped [`ObjectClicked`](../event.md#world-ghosts-and-sprites) event |
 
 ## Object handle
 
@@ -97,7 +97,7 @@ An object can be made clickable — `clickable = true` at create, or `o:clickabl
 a [clickable sprite](sprites.md#clickability). Its mesh gains a pick surface, and a click on it is detected
 **client-side** and **consumed** before any server click, so you never walk or interact and nothing reaches
 the server. Both the per-object `onClick(o, button, x, y)` and the owner-scoped
-[`ObjectClicked`](../events.md#world-ghosts-and-sprites) event fire, and `ObjectClicked` reaches only *your*
+[`ObjectClicked`](../event.md#world-ghosts-and-sprites) event fire, and `ObjectClicked` reaches only *your*
 addon.
 
 > **Gizmo.** An object is transformable by the [gizmo](../ghost.md#the-transform-gizmo) for free: the same
@@ -112,4 +112,4 @@ grid-anchored persistence, so it reloads at the same spot after a relog.
 - [sprites](sprites.md) — an image in the world, and the anchoring both share
 - [`hafen.asset`](../asset.md#mesh) — loading a `.glb`, and what `:bounds()` and `:info()` answer
 - [`hafen.ghost`](../ghost.md) — the game's own props, and the transform gizmo
-- [events](../events.md#world-ghosts-and-sprites) — `ObjectClicked`
+- [events](../event.md#world-ghosts-and-sprites) — `ObjectClicked`

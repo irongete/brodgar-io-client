@@ -20,32 +20,30 @@ D-021) and **post-hooks** (observe after the default ran). Also widget-*type* in
 Deferred from 1f-2/1f-3: **`:reload <id>`** (single-addon reload) and **live enable/disable**
 (apply without a full addon-layer reload; today it's WoW apply-on-reload, D-006).
 
-## Item handles & rich item data — [design/06-lua-api.md](design/06-lua-api.md)
-Deferred from 1c-3: item **`quality`/`contents`** and per-item accessor functions (item handles
-instead of snapshots). Also finer event granularity deferred from 1d-4: **per-slot
-`EquipChanged`**, a **`SkillsChanged`** event.
+## Item handles & rich item data — mostly ABSORBED by 039 — [design/06-lua-api.md](design/06-lua-api.md)
+Deferred from 1c-3: item **`quality`/`contents`** and per-item accessor functions (item handles instead of
+snapshots). **[039-uniform-api](039-uniform-api/) task 039.14 takes the handles half** — `widget:items()` and
+`hafen.ui():hand()` stop handing back snapshots and hand back an interned **Item** entity — and it carries the
+question that was always the hard part: an item has **no stable content id**, it is addressed by a server widget id
+that is *reused* when an item moves, so a stale handle must refuse its writes rather than act on whatever now holds
+that id. `quality`/`contents` ride along only if `learnings/client-limits.md` says the protocol gives them; that file
+already records typed quality as something the client does **not** get, so check before promising it.
+What is left here after 039: finer event granularity deferred from 1d-4 — **per-slot `EquipChanged`**, a
+**`SkillsChanged`** event.
 
-## `hafen.render` / `hafen.ghost` belong under `hafen.world` — raised while planning 038, DEFERRED
+## `hafen.render` / `hafen.ghost` belong under `hafen.world` — DEFERRED again by 039
 The maintainer's framing, and 038 makes it visible rather than causing it: after 038 there are exactly
 three places a drawn thing can live — **in the world at a fixed place** (`hafen.render.sprite/object`,
 `hafen.ghost`), **on a gob** (`gob:overlay`, which follows by definition — there is no `follow` option
 left anywhere), and **on the HUD** (`hafen.ui.overlay`). The first of those is named after the
 *mechanism* (rendering) while the other two are named after the *place*, which is the inconsistency.
 037 already split LIVE (`hafen.world`) from RECORDED (`hafen.map`) on exactly this axis, so the shape
-of the move is known. Not started, and it is a rename of two whole sections plus their docs.
-
-## Collection objects instead of arity-as-verb — raised while planning 038, DEFERRED
-The maintainer's question, worth keeping because the window closes at release: should a collection be
-an **object with verbs** (`gob:overlay():add(key, spec)`, `:remove(key)`) rather than the arity triple
-(`gob:overlay(key, spec)` / `(key, nil)` / `(key)`)? It is **not** unprecedented — `hafen.kin()` is
-already an array that carries `:add`/`:list`/`:find` — and "nothing is released, change everything" is
-a real option. **038 keeps arity-as-verb** for one reason that is about gobs rather than consistency:
-a collection *handle* has a lifetime, and since an overlay now dies with its gob, holding one would be
-a second object that can go stale on top of the Gob — where `hafen.kin()` gets away with it because the
-roster never disappears. If it is ever taken up it is an AREA-WIDE feature that must land **before** the
-sections it rewrites, not one section at a time: every callable namespace (D-056/D-057), every
-arity-as-verb entity verb (`w:replace`, `w:skin`, `cat:show`, `:pos`/`:size`, D-089),
-`conventions.md`'s headline rule, ~40 doc pages, 30+ suites, the example addons and frozen `hello`.
+of the move is known. Not started, and it is a rename of two whole sections plus their docs. **[039-uniform-api](039-uniform-api/)
+gave both the new shape but deliberately NOT the move** (its spec §10): unlike `hafen.gob` — which 039 *had* to
+resolve, because the shape change forced a decision on what a no-argument `hafen.gob()` means — these two already
+have a coherent form and want only a relocation, so doing both at once would make neither reviewable. After 039 the
+move is cheap: `hafen.render()` and `hafen.ghost()` are ~64 Lua sites between them, and D-066 (a thing that lives
+inside another is a relation on it) is the rule that decides it, exactly as it decided `hafen.gob` and 037's markers.
 
 ## Render polish — [design/17-custom-rendering.md](design/17-custom-rendering.md)
 Possible R-series follow-ons (animated glTF was explicitly out of the static-subset scope,
@@ -53,15 +51,6 @@ Possible R-series follow-ons (animated glTF was explicitly out of the static-sub
 *(2b's other two deferrals — per-overlay **anchor/offset** and a per-gob match cache for the
 gob-overlay sweep — went to [038-gob-overlays/](038-gob-overlays/), which gives the first one and
 deletes the sweep the second was polish on.)*
-
-## Finish the OOP migration (the exit path opened by 017-gob-oop) — [017-gob-oop/](017-gob-oop/)
-`017` migrates **only** Gob and leaves the rest flat *on purpose*; that coexistence is debt with a
-deadline, not a resting state. Two follow-ons close it: **Fight + Party to OOP**, which is what
-restores the retired GobRef tokens as `hafen.target():gob()` and `hafen.party()[1]:gob()` (until
-then the combat target's gob is unreachable — an accepted regression); and then the **final
-demolition**, which migrates whatever namespaces remain and deletes the transitional markers 017
-plants (the `design/06-lua-api.md` banner, the `(SUPERSEDED by D-044)` headers, and the
-"Gob is the only OO section, the rest is flat" paragraph in `docs/addons/api/conventions.md`).
 
 ## Minor client subsystems (the old audit's "A12" tier) — design on demand (`specs/codebase/`)
 No design doc yet; each would get one when picked up: **Screenshooter** (programmatic screenshot),

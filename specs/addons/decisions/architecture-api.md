@@ -918,3 +918,38 @@ model (both events are queued, since `addol` runs on the loader threads and noth
 there). Generally: *the moment a queue's consumers can produce for it, "drain until empty" is an unbounded
 loop wearing a for-statement — snapshot the length.*
 **See.** [D-018](security-sandbox.md), [D-102](architecture-api.md), [038-gob-overlays](../038-gob-overlays/spec.md).
+
+### D-107 — when a config table becomes chained setters, the action moves off the constructing call ✅ (2026-08-04)
+**Decision.** `hafen.http():get(url, cb)` hands back the request **without sending it**. The request goes out
+on the next tick, so `req:header(name, value)` and `req:timeout(ms)` chained onto it are applied first; a
+setter called after it has gone throws, and a request cancelled in the same call is never sent at all.
+**Rationale.** (2026-08-04, 039.1.) R4 replaces an options table with setters on the returned object, and that
+changes *when* the object is complete: with a table the constructor received everything it would ever know, so
+sending inside the call was correct. With setters the object is finished one or more calls later, and the old
+code path submitted it to a pool thread that reads `timeout` and `headers` — a data race whose loser is
+silent, since a request that went out with the default timeout looks exactly like one that took the setter.
+Deferring by one tick costs nothing against network latency and makes the setters mean what they say. The
+scheduler already ran on the tick (`HttpApi.drainHttp`), so this is a queue and a drain, not a new mechanism.
+**Consequences.** Every later builder in this feature inherits the rule: the verb that *acts* cannot be the
+verb that *constructs*, or the setters between them are decoration. Generally: *de-tabling a constructor is
+not a syntax change — it moves the moment the object is complete, and anything the constructor used to do
+immediately has to move with it.*
+**See.** [D-013](architecture-api.md), [D-099](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-108 — a mechanism built for later tasks ships with a consumer, or it ships unproven ✅ (2026-08-04)
+**Decision.** `hafen.timer()` is both the section object and a **collection** of that addon's live timers
+(`:list/:count/:find` beside `:after`/`:every`), so the collection type built in the machinery task has a real
+home in the same task. It carries no `:remove` — a timer ends with `t:cancel()`, and two spellings for one
+operation is the dual style the grammar removes.
+**Rationale.** (2026-08-04, 039.1.) The machinery task's whole job is to build once what thirty sections will
+consume, and its acceptance is a suite that asserts through the API it just shipped. A collection type with no
+section using it cannot be asserted at all: the refusals that define it (`#coll`, `coll[1]`, a string filter
+over nameless members) are unreachable from Lua, and it would land in the first section that needs it with its
+first test. Of the eight sections here it is the only honest fit — a section that holds exactly one thing IS
+that thing, and what `hafen.timer()` holds is the addon's timers, already tracked per addon and already torn
+down per addon. `hafen.http()` was rejected for it: its `get`/`post` are HTTP methods, and a collection's
+`:get(key)` would collide.
+**Consequences.** One row of surface that no page asked for, in exchange for a type that arrives at task two
+already proven. Generally: *a shared mechanism with no first consumer is a design, not an implementation —
+give it the smallest honest one in the same task, or do not claim it is built.*
+**See.** [D-056](architecture-api.md), [D-085](process.md), [039-uniform-api](../039-uniform-api/spec.md).

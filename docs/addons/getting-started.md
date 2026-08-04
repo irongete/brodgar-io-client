@@ -37,7 +37,7 @@ field the manifest accepts is listed in [the runtime](runtime.md#the-manifest).
 Put one line in `main.lua`:
 
 ```lua
-hafen.log("myaddon loaded")
+hafen.log():write("myaddon loaded")
 ```
 
 Everything an addon can do hangs off the global `hafen` table. [`hafen.log`](api/log.md) prints to the
@@ -61,13 +61,13 @@ made of it.
 ## Step 4: react to entering the world
 
 Your file body runs once, before you are in the world, so there is nothing to read yet. The rest of an
-addon hangs off [events](api/events.md). Replace the line from step 2 with:
+addon hangs off [events](api/event.md). Replace the line from step 2 with:
 
 ```lua
-hafen.log("myaddon loaded")
+hafen.log():write("myaddon loaded")
 
-hafen.events.on("OnEnterWorld", function()
-  hafen.log("in the world as " .. (hafen.player():name() or "?"))
+hafen.event():on("OnEnterWorld", function()
+  hafen.log():write("in the world as " .. (hafen.player():name() or "?"))
 end)
 ```
 
@@ -83,8 +83,8 @@ you enter the world, and keep the handle:
 local window                                    -- the window, once we are in the world
 local trees = 0                                 -- what it displays
 
-hafen.events.on("OnEnterWorld", function()
-  hafen.log("in the world as " .. (hafen.player():name() or "?"))
+hafen.event():on("OnEnterWorld", function()
+  hafen.log():write("in the world as " .. (hafen.player():name() or "?"))
   window = hafen.ui.window{
     title = "My Addon",
     size  = {150, 24},
@@ -106,7 +106,7 @@ A draw callback should draw and nothing else, so do the counting on a [timer](ap
 window read the result. Add this below the block from step 5:
 
 ```lua
-hafen.timer.every(1, function()
+hafen.timer():every(1, function()
   trees = hafen.world.count("terobjs/tree")
 end)
 ```
@@ -178,10 +178,10 @@ account-wide scope and for what a saved table may hold.
 local window                                    -- the window, once we are in the world
 local trees = 0                                 -- what it displays
 
-hafen.log("myaddon loaded")
+hafen.log():write("myaddon loaded")
 
-hafen.events.on("OnEnterWorld", function()
-  hafen.log("in the world as " .. (hafen.player():name() or "?"))
+hafen.event():on("OnEnterWorld", function()
+  hafen.log():write("in the world as " .. (hafen.player():name() or "?"))
   window = hafen.ui.window{
     title = "My Addon",
     size  = {150, 24},
@@ -194,7 +194,7 @@ hafen.events.on("OnEnterWorld", function()
   if hafen.store.settings.open == false then window:hide() end
 end)
 
-hafen.timer.every(1, function()
+hafen.timer():every(1, function()
   trees = hafen.world.count("terobjs/tree")
 end)
 

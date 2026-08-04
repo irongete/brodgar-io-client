@@ -10,7 +10,7 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 
 /**
  * An <b>action hook</b> (Level 2, spec {@code 13-hooks-and-interception.md} §L2) — the Java half of
- * {@code hafen.hook.action(msg, fn)}, Phase 2d. Every player action is a {@link Widget#wdgmsg} that funnels
+ * {@code hafen.hook():action(msg, fn)}, Phase 2d. Every player action is a {@link Widget#wdgmsg} that funnels
  * through the single outbound choke point {@link UI#wdgmsg(Widget, String, Object...)}; the one core edit
  * there calls {@link AddonManager#onWdgmsg}, which builds an {@code ev} for each registered hook whose
  * {@code msg} matches and runs it <b>before</b> the message reaches the server. Unlike an L1 input hook
@@ -80,7 +80,7 @@ public final class LuaActionHook {
         ev.set("send", new TwoArgFunction() {             // ev:send(t) — colon-call: self=arg1, the table=arg2
             public LuaValue call(LuaValue self, LuaValue nargs) {
                 prevented[0] = true;
-                u.rawWdgmsg(sender, message, LuaMarshal.luaToArgs(nargs, "hafen.hook.action ev:send"));
+                u.rawWdgmsg(sender, message, LuaMarshal.luaToArgs(nargs, "hafen.hook():action ev:send"));
                 return LuaValue.NIL;
             }
         });

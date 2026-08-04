@@ -1,15 +1,15 @@
 # hafen.http: external HTTP requests
 
-Fetch data from a URL outside the game. `hafen.http` is **gated by your manifest**: an addon reaches the
+Fetch data from a URL outside the game. `hafen.http()` is **gated by your manifest**: an addon reaches the
 network only if it declares a `network` block, and only the hosts that block lists — the declaration
 *is* the allowlist. Pair it with [`hafen.json`](json.md) to read a JSON API.
 
 ```lua
-hafen.http.get("https://api.example.com/prices", function(res)
-  if not res.ok then hafen.log("request failed: " .. res.error); return end
-  if res.status ~= 200 then hafen.log("HTTP " .. res.status); return end
-  local data = hafen.json.parse(res.body)
-  hafen.log("iron = " .. tostring(data.iron))
+hafen.http():get("https://api.example.com/prices", function(res)
+  if not res.ok then hafen.log():write("request failed: " .. res.error); return end
+  if res.status ~= 200 then hafen.log():write("HTTP " .. res.status); return end
+  local data = hafen.json():parse(res.body)
+  hafen.log():write("iron = " .. tostring(data.iron))
 end)
 ```
 
@@ -27,7 +27,7 @@ Add a `network` block to `manifest.json` whose `hosts` array lists every host yo
 }
 ```
 
-- **No `network` block means no network.** Any `hafen.http` call raises a Lua error telling you to add
+- **No `network` block means no network.** Any `hafen.http()` call raises a Lua error telling you to add
   one.
 - **`hosts` is an exact, case-insensitive allowlist**, with a `*.domain` wildcard for sub-domains:
   `*.example.com` matches `a.example.com` and `a.b.example.com`, but **not** the apex `example.com`,
@@ -42,50 +42,64 @@ Both verbs are **asynchronous**: the call returns immediately, and the callback 
 frame or more later. There is no blocking form — a request on the UI thread would freeze the client —
 so do your work inside the callback.
 
-### `hafen.http.get(url, opts, cb)`
+Each returns the **request object**, which you configure with chained setters. A request goes out on
+the next tick, not inside the call that created it, so everything you chain onto it is applied before
+it leaves; a request you cancel in the same call is never sent at all. Once it has gone, a setter
+raises rather than pretending to change what is already on the wire.
 
-Returns a request handle, `{ :cancel() }`. `opts` and `cb` are both optional.
+### `hafen.http():get(url, cb)`
 
 | Argument | Type | Meaning |
 |---|---|---|
 | `url` | string | scheme must be `http` or `https`, and the host must be in your allowlist |
-| `opts.headers` | table | string to string request headers, e.g. `{ Authorization = "Bearer …" }`. Transport-owned ones (`Host`, `Content-Length`, `Connection`, `User-Agent`, …) are ignored |
-| `opts.timeout` | number | milliseconds; default **10000**, capped at **60000** |
 | `cb` | function | `function(res)`, called with the [result table](#the-res-table). Omit it to fire and forget; a transport error is still logged |
 
 ```lua
-local req = hafen.http.get("https://api.example.com/slow",
-  { headers = { Authorization = "Bearer " .. hafen.store.cfg.token }, timeout = 5000 },
-  function(res) hafen.log(res.status) end)
+local req = hafen.http():get("https://api.example.com/slow",
+                             function(res) hafen.log():write(res.status) end)
+req:header("Authorization", "Bearer " .. hafen.store.cfg.token):timeout(5000)
 
 req:cancel()      -- the callback will NOT fire
 ```
 
-### `hafen.http.post(url, body, opts, cb)`
+### `hafen.http():post(url, body, cb)`
 
-`get` plus a request **body**; `opts` and `cb` behave exactly as above.
+`get` plus a request **body**; `cb` behaves exactly as above.
 
 `body` is either a **string**, sent verbatim, or a **table**, encoded to JSON with the same serializer
-as [`hafen.json.encode`](json.md) and sent as `Content-Type: application/json` unless you set your own
-in `opts.headers`. A table that cannot be serialized — a function or userdata value, a cycle — raises a
+as [`hafen.json():encode`](json.md) and sent as `Content-Type: application/json` unless you set your own
+with `:header`. A table that cannot be serialized — a function or userdata value, a cycle — raises a
 Lua error at call time. `nil` sends an empty POST.
 
 ```lua
 -- POST a Lua table as JSON, read JSON back
-hafen.http.post("https://api.example.com/report",
+hafen.http():post("https://api.example.com/report",
   { char = hafen.player():name(), lp = hafen.char.lp() },
-  { headers = { Authorization = "Bearer " .. hafen.store.cfg.token } },
   function(res)
     if res.ok and res.status == 200 then
-      local reply = hafen.json.parse(res.body)
-      hafen.log(reply.message)
+      local reply = hafen.json():parse(res.body)
+      hafen.log():write(reply.message)
     end
-  end)
+  end):header("Authorization", "Bearer " .. hafen.store.cfg.token)
 
 -- or a raw string body with your own content type
-hafen.http.post("https://api.example.com/ingest", "a,b,c\n1,2,3",
-  { headers = { ["Content-Type"] = "text/csv" } })
+hafen.http():post("https://api.example.com/ingest", "a,b,c\n1,2,3")
+  :header("Content-Type", "text/csv")
 ```
+
+## The request object
+
+| Method | Returns | Description |
+|---|---|---|
+| `req:header(name)` | string \| nil | the value this request carries for `name`, matched case-insensitively |
+| `req:header(name, value)` | the request | set a request header; setting it again replaces it, whatever the spelling |
+| `req:timeout()` | number | the milliseconds this request will wait |
+| `req:timeout(ms)` | the request | set the timeout; **10000** by default, capped at **60000** |
+| `req:cancel()` | nothing | stop it; the callback never fires |
+
+Transport-owned headers (`Host`, `Content-Length`, `Connection`, `User-Agent`, …) are ignored. A
+setter refuses an explicit `nil`: the read is the same name with no argument, so `req:timeout(t)` with
+a `t` you forgot to set would otherwise read the timeout and change nothing.
 
 ## The res table
 

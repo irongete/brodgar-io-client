@@ -5,7 +5,7 @@ yourself. It is the one type `hafen.ui` hands back, and every door below returns
 
 ```lua
 local inv = hafen.ui.inventory()
-if inv then hafen.log(inv:type() .. " holds " .. #inv:items() .. " items") end
+if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items") end
 ```
 
 ## Getting a Widget
@@ -70,7 +70,7 @@ Reading the tree is ungated client-side data.
 ```lua
 -- dump the client's full nested tree from the :lua console
 hafen.ui():walk(function(n, d)
-  hafen.log(string.rep("  ", d) .. n:type()
+  hafen.log():write(string.rep("  ", d) .. n:type()
     .. (n:role() and (" [" .. n:role() .. "]") or "")
     .. (n:id()   and (" #" .. n:id())          or "")
     .. (n:text() and (" '" .. n:text() .. "'") or ""))

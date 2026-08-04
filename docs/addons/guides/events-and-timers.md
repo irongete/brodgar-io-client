@@ -1,16 +1,16 @@
 # Events and timers
 
 An addon is a set of callbacks. Your files run once and then nothing happens until something asks for you:
-the client fires an [event](../api/events.md), a [timer](../api/timer.md) comes due, a hotkey is pressed, a
+the client fires an [event](../api/event.md), a [timer](../api/timer.md) comes due, a hotkey is pressed, a
 window draws. This guide is about picking the right one of those.
 
 ## The four moments every addon has
 
 ```lua
-hafen.events.on("OnLoad", function() end)          -- every file has run; not in the world yet
-hafen.events.on("OnEnterWorld", function() end)    -- the HUD, the map and the player exist
-hafen.events.on("OnUpdate", function(dt) end)      -- every frame; dt is seconds since the last one
-hafen.events.on("OnDisable", function() end)       -- reload, disable, or the session ending
+hafen.event():on("OnLoad", function() end)          -- every file has run; not in the world yet
+hafen.event():on("OnEnterWorld", function() end)    -- the HUD, the map and the player exist
+hafen.event():on("OnUpdate", function(dt) end)      -- every frame; dt is seconds since the last one
+hafen.event():on("OnDisable", function() end)       -- reload, disable, or the session ending
 ```
 
 `OnEnterWorld` is where most addons really start: it fires at login **and again on every `:reload` while
@@ -20,12 +20,12 @@ login. `OnDisable` is your last chance to write anything you care about; the eng
 
 ## Subscribe once, and forget the cleanup
 
-`hafen.events.on(name, fn)` is called in your file body or in `OnLoad`, never inside another handler. The
+`hafen.event():on(name, fn)` is called in your file body or in `OnLoad`, never inside another handler. The
 subscription belongs to your addon and is released when it reloads or is disabled, so there is no
 unsubscribe to remember. Keep the handle only if you want to stop early:
 
 ```lua
-local sub = hafen.events.on("MeterChanged", function(m) end)
+local sub = hafen.event():on("MeterChanged", function(m) end)
 sub:off()
 ```
 
@@ -38,16 +38,16 @@ Ask for the cheapest thing that answers the question.
 
 | You want | Use |
 |---|---|
-| to know when something changed | the [event](../api/events.md) for it |
+| to know when something changed | the [event](../api/event.md) for it |
 | to know a value that has no event | a [timer](../api/timer.md), at the slowest interval you can live with |
 | to do something *per frame* | `OnUpdate`, and nothing that scans |
 
 ```lua
-hafen.timer.every(2, function()                  -- polling, twice as slow as it feels
-  hafen.log("trees: " .. hafen.world.count("terobjs/tree"))
+hafen.timer():every(2, function()                  -- polling, twice as slow as it feels
+  hafen.log():write("trees: " .. hafen.world.count("terobjs/tree"))
 end)
 
-local handle = hafen.timer.after(5, function() end)
+local handle = hafen.timer():after(5, function() end)
 handle:cancel()
 ```
 
@@ -67,15 +67,15 @@ kin roster stream in over the next few seconds, so a read at the top of `OnEnter
 `nil`. Two ways round it, both ordinary:
 
 ```lua
-hafen.events.on("OnEnterWorld", function()
-  hafen.timer.after(2, function()                       -- ask again in a moment...
+hafen.event():on("OnEnterWorld", function()
+  hafen.timer():after(2, function()                       -- ask again in a moment...
     local hp = hafen.meter("hp")
-    hafen.log("hp: " .. tostring(hp and hp:value()))
+    hafen.log():write("hp: " .. tostring(hp and hp:value()))
   end)
 end)
 
-hafen.events.on("MeterChanged", function(m)             -- ...or let the client tell you
-  if m:res() == "gfx/hud/meter/hp" then hafen.log("hp: " .. tostring(m:value())) end
+hafen.event():on("MeterChanged", function(m)             -- ...or let the client tell you
+  if m:res() == "gfx/hud/meter/hp" then hafen.log():write("hp: " .. tostring(m:value())) end
 end)
 ```
 
@@ -85,7 +85,7 @@ The second is better whenever an event exists, and one exists for most of what s
 
 The list events — `StudyChanged`, `EquipChanged`, `KinChanged`, `WoundChanged` — hand you the **new
 list**, not what changed in it. Read the initial state once from the section's own verb, then keep your
-own copy and diff it if you need to name the difference. The [catalogue](../api/events.md) says which
+own copy and diff it if you need to name the difference. The [catalogue](../api/event.md) says which
 events carry what.
 
 ## Widgets are not on the bus
@@ -97,7 +97,7 @@ open when you subscribe.
 
 ```lua
 hafen.ui.on("window[title=Cupboard]", "appear", function(w)
-  hafen.log(#w:items() .. " items")
+  hafen.log():write(#w:items() .. " items")
 end)
 ```
 

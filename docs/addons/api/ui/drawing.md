@@ -42,7 +42,7 @@ To draw your own PNGs, load them with [`hafen.asset`](../asset.md) and blit the 
 ```lua
 local icon                                     -- upvalue for the draw callbacks below
 
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   icon = hafen.asset("icon.png")               -- load once from addons/<me>/icon.png
 end)
 

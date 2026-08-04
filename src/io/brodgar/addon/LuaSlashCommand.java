@@ -5,7 +5,7 @@ import org.luaj.vm2.LuaValue;
 
 /**
  * An addon <b>slash command</b> (gap subsystem A11, spec {@code api-reference.md} &rarr; "hafen.slash") — the Java
- * half of {@code hafen.slash.register(name, fn)}. It routes the console command {@code :name} to a Lua handler,
+ * half of {@code hafen.slash():register(name, fn)}. It routes the console command {@code :name} to a Lua handler,
  * the WoW {@code SlashCmdList} pattern at Haven's {@link haven.Console}.
  *
  * <p><b>Reload-safety (coverage-gaps C1).</b> {@link haven.Console#setscmd} has <b>no unregister</b>, so

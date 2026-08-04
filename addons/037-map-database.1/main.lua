@@ -22,10 +22,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -72,7 +72,7 @@ local function run()
   local p = me and me:pos()
   if not p then
     check(false, "the player's position is readable (every check below stands on it)", "no player gob")
-    hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+    hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
     return
   end
 
@@ -188,14 +188,14 @@ local function run()
   if px then
     hafen.world.screenToWorld(px.x, px.y, function(w) fired = true; hit = w end)
   end
-  hafen.timer.after(0.6, function()
+  hafen.timer():after(0.6, function()
     check(fired and hit and near(hit.x, p.x, 2 * TILE) and near(hit.y, p.y, 2 * TILE),
           "world.screenToWorld called back with the ground under the player",
           (not px) and "the player is not on screen" or
             (fired and (hit and ("%.1f,%.1f vs %.1f,%.1f"):format(hit.x, hit.y, p.x, p.y) or "nil")
                    or "no callback"))
-    hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+    hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
   end)
 end
 
-hafen.slash.register("t037-1", run)   -- the only way in: a suite does not start itself
+hafen.slash():register("t037-1", run)   -- the only way in: a suite does not start itself

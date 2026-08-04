@@ -28,10 +28,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -48,7 +48,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local KEY    = "tag"                  -- deliberately a plain word: another addon may use the very same one
@@ -58,7 +58,7 @@ local CENSUS = 400                    -- gobs sampled for the native-key census 
 local parked                          -- the gob the ':t038-1 drop' round has to clean up
 
 local function summary()
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 -- How many of THIS addon's overlays (i.e. not the game's) does gob:overlay() list?
@@ -196,7 +196,7 @@ local function run(args)
   -- 10. grid:overlays() is a DIFFERENT verb and is untouched -- the map database records which tiles a claim
   --     covers, and that read is not this one. (Staged: the tags live in resources that may still be loading.)
   local gp = hafen.world.gridPos()
-  hafen.timer.after(1.5, function()
+  hafen.timer():after(1.5, function()
     local grid = gp and hafen.map.grid(gp.gridId)
     local tags = grid and grid:overlays()
     check(type(tags) == "table",
@@ -228,4 +228,4 @@ dropRound = function()
   summary()
 end
 
-hafen.slash.register("t038-1", run)   -- the only way in: a suite does not start itself
+hafen.slash():register("t038-1", run)   -- the only way in: a suite does not start itself

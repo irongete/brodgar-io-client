@@ -20,10 +20,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -40,7 +40,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local function xy(p) return p and ("%d,%d"):format(p.x, p.y) or "nil" end
@@ -88,8 +88,8 @@ local function run()
   local grid = hafen.ui.inventory()
   check(grid ~= nil, "the client's own inventory grid is reachable", grid)
   if grid == nil then
-    hafen.log("[fail] no HUD: run this in-world -- every check below needs the client's own widgets")
-    hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+    hafen.log():write("[fail] no HUD: run this in-world -- every check below needs the client's own widgets")
+    hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
     return
   end
   local wnd = grid:parent()
@@ -171,10 +171,10 @@ local function run()
     "each one is where YOU last dragged it, not 37/23 px away -- the client persists what the user placed,"
     .. " never what an addon's layout moved (GameUI.savewndpos writes those at logout AND every 60s, so a"
     .. " layer that only restored at teardown would already have lost this)")
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 -- ON DEMAND ONLY (D-085). A suite does not start itself: the maintainer runs it when they want it, and
 -- running THIS command alone is the whole verification of task 036.1. It restores every widget it touched
 -- before it prints its summary, so a client it has run on is a stock client.
-hafen.slash.register("t036-1", run)
+hafen.slash():register("t036-1", run)

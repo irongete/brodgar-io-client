@@ -25,10 +25,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -45,7 +45,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local function xy(p) return ("%d,%d"):format(p.x, p.y) end
@@ -102,13 +102,13 @@ local function finish()
     .. " rows, the map and the marker list are all exactly as readable and exactly where they were, because a"
     .. " Frame takes border and not bg. The WINDOWS around them are still stock: a panel rule is not a"
     .. " window.frame rule")
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 -- Every step waits first: a sheet reaches the screen on the next draw, so a step running inline with the
 -- write it checks would read the previous frame (035.2's lesson, which cost it a whole login round).
 local function step(i)
-  hafen.timer.after(0.35, function()
+  hafen.timer():after(0.35, function()
     local f = steps[i]
     if not f then return finish() end
     f()
@@ -155,7 +155,7 @@ local function run()
   panel = frames[1]
   check(panel ~= nil, "the client's own panels are reachable as widgets", panel)
   if panel == nil then
-    hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+    hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
     return
   end
   eq("a panel nothing styles resolves nothing", panel:style(), nil)
@@ -185,11 +185,11 @@ local function look()
   looking = not looking
   if looking then
     hafen.ui.skin(theme())
-    hafen.log(":t035-3 look -> the panel theme is ON. Look at the portrait frame, right-click for a flower"
+    hafen.log():write(":t035-3 look -> the panel theme is ON. Look at the portrait frame, right-click for a flower"
       .. " menu, open the character sheet -- then ':t035-3 look' again (or :reload, or disabling this addon).")
   else
     hafen.ui.skin(nil)
-    hafen.log(":t035-3 look -> stock panels restored.")
+    hafen.log():write(":t035-3 look -> stock panels restored.")
   end
 end
 
@@ -197,6 +197,6 @@ end
 -- client-wide sheet and bumps Fonts.gen() while it runs, so when suites started themselves it could only be
 -- kept out of the others' way with a number in a schedule -- and every such number was one more thing to get
 -- wrong. Its round stages ~0.7s.
-hafen.slash.register("t035-3", function(args)
+hafen.slash():register("t035-3", function(args)
   if (args and args[1]) == "look" then look() else run() end
 end)

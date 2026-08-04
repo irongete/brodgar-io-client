@@ -9,7 +9,7 @@
 -- Three ordinary doors, one line each:
 --   hafen.asset("theme.json")   the file THIS addon ships — a "data" asset, read as UTF-8 (:text()), sandboxed
 --                               like every asset (absolute paths and ".." are rejected, D-017)
---   hafen.json.parse(text)      the text → a Lua table. A JSON array is 1-indexed, so [190,210,190] arrives as
+--   hafen.json():parse(text)      the text → a Lua table. A JSON array is 1-indexed, so [190,210,190] arrives as
 --                               the sheet's own positional colour shape and needs no conversion at all.
 --   hafen.ui.skin{…}            the sheet: [selector] = {properties}, applied live and OWNED by this addon —
 --                               :reload/disable drops it and the stock client comes back.
@@ -95,7 +95,7 @@ end
 -- except the two that carry a handle, so a theme may style any surface the client's grammar accepts, with any
 -- property this client ships — the file decides, not this file.
 local function build()
-  local doc = hafen.json.parse(hafen.asset(FILE):text())
+  local doc = hafen.json():parse(hafen.asset(FILE):text())
   local rules, n = {}, 0
   for key, props in pairs(doc.rules or {}) do
     rules[key], n = ruleOf(props), n + 1
@@ -150,7 +150,7 @@ local function apply(want)
     hafen.ui.skin(nil)              -- every surface it styled falls back — to another addon's sheet, else stock
   end
   on = want
-  hafen.log(("theme: '%s' (%d rules) is now %s"):format(name, count, on and "ON" or "OFF"))
+  hafen.log():write(("theme: '%s' (%d rules) is now %s"):format(name, count, on and "ON" or "OFF"))
 end
 
 -- ':theme save' -- read every laid-out window's CURRENT position back through the same API that placed it, and
@@ -170,7 +170,7 @@ local function saveLayout()
   end
   hafen.store.flush()
   if on then apply(true) end        -- re-install so the pins take over from the anchors immediately
-  hafen.log(("theme: saved the layout of %d window%s (account-wide). They are pinned now, so you can drag them"
+  hafen.log():write(("theme: saved the layout of %d window%s (account-wide). They are pinned now, so you can drag them"
     .. " -- ':theme save' again to keep where you put them, ':theme forget' to go back to %s's own anchors.")
     :format(n, (n == 1) and "" or "s", FILE))
 end
@@ -196,27 +196,27 @@ local function forgetLayout()
   for key in pairs(saved) do saved[key] = nil end
   hafen.store.flush()
   if on then apply(true) end
-  hafen.log("theme: forgot the saved layout -- the windows go back where " .. FILE .. " anchors them")
+  hafen.log():write("theme: forgot the saved layout -- the windows go back where " .. FILE .. " anchors them")
 end
 
-hafen.events.on("OnLoad", function()
+hafen.event():on("OnLoad", function()
   on = false                        -- a reload rebuilt the env and tore the sheet down with it (owned resource)
   local ok, err = pcall(function() name, sheet, count = build() end)
   if not ok then
     sheet, count = nil, 0
-    hafen.log("theme: could not load " .. FILE .. " -- " .. tostring(err))
+    hafen.log():write("theme: could not load " .. FILE .. " -- " .. tostring(err))
     return
   end
   local n = 0
   for _ in pairs(pins()) do n = n + 1 end
-  hafen.log(("theme: '%s' loaded from %s -- %d rules%s, nothing applied yet. ':theme on' to wear it,"
+  hafen.log():write(("theme: '%s' loaded from %s -- %d rules%s, nothing applied yet. ':theme on' to wear it,"
     .. " ':theme off' to take it off, ':theme dump' to list what it styles, ':theme save' / ':theme forget'"
     .. " for where its windows sit."):format(name, FILE, count,
       (n > 0) and (" + " .. n .. " saved window position" .. ((n == 1) and "" or "s")) or ""))
 end)
 
-hafen.slash.register("theme", function(args)
-  if not sheet then hafen.log("theme: nothing loaded (see the error at login)"); return end
+hafen.slash():register("theme", function(args)
+  if not sheet then hafen.log():write("theme: nothing loaded (see the error at login)"); return end
   local sub = (args and args[1]) or ""
   if sub == "on" then
     apply(true)
@@ -227,9 +227,9 @@ hafen.slash.register("theme", function(args)
   elseif sub == "forget" then
     forgetLayout()
   elseif sub == "dump" then
-    hafen.log(("theme: '%s' from %s"):format(name, FILE))
+    hafen.log():write(("theme: '%s' from %s"):format(name, FILE))
     for key, rule in pairs(effective()) do
-      hafen.log(("  [\"%s\"] font=%s color=%s bg=%s border=%s pad=%s where=%s"):format(key,
+      hafen.log():write(("  [\"%s\"] font=%s color=%s bg=%s border=%s pad=%s where=%s"):format(key,
         rule.font and (rule.font:family() .. "/" .. tostring(rule.font:size() or "stock")) or "-",
         rule.color and ("{" .. table.concat(rule.color, ",") .. "}") or "-",
         rule.bg and (rule.bg.image and rule.bg.image:path()
@@ -239,7 +239,7 @@ hafen.slash.register("theme", function(args)
         rule.pad or "-", whereOf(rule)))
     end
   else
-    hafen.log(("theme: '%s', %d rules, currently %s -- ':theme on' / ':theme off' / ':theme dump' /"
+    hafen.log():write(("theme: '%s', %d rules, currently %s -- ':theme on' / ':theme off' / ':theme dump' /"
       .. " ':theme save' / ':theme forget'"):format(name, count, on and "ON" or "OFF"))
   end
 end)

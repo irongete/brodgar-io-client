@@ -8,7 +8,7 @@ you came for from the tables below. Every page in the tree is listed here.
 |---|---|
 | [conventions](conventions.md) | references, snapshots vs handles, filters, coordinates, colours, `nil`, threading, gating |
 | [data types](types.md) | every snapshot shape a read hands back, field by field |
-| [events](events.md) | `hafen.events`, and the catalogue of everything the client tells you about |
+| [`hafen.event`](event.md) | the bus, and the catalogue of everything the client tells you about |
 
 ## Reading the world
 

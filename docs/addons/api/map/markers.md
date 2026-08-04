@@ -59,12 +59,12 @@ if a then hafen.store.camp = a end                    -- survives the relog; mea
 > and removing markers is not gated: it edits the user's own on-disk map database, which is
 > client-local and reversible by hand. Remove only what your addon added.
 
-The [`MarkersChanged`](../events.md#roster-quests-markers) event, payload `{ count }`, fires on any add or
+The [`MarkersChanged`](../event.md#roster-quests-markers) event, payload `{ count }`, fires on any add or
 remove, including ones the player makes.
 
 ## See also
 
 - [segments and grids](grids.md) — `seg:markers()`, and why the anchor is what you store
 - [`Marker`](../types.md#marker) — the snapshot `marker:info()` hands back
-- [events](../events.md#roster-quests-markers) — `MarkersChanged`
+- [events](../event.md#roster-quests-markers) — `MarkersChanged`
 - [`hafen.world`](../world.md#saving-a-world-position-across-sessions) — the other source of an anchor

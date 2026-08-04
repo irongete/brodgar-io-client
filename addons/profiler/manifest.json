@@ -1,7 +1,7 @@
 {
   "name": "Brodgar.io Profiler",
   "id": "profiler",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "brodgar",
   "description": "The standing in-game harness for hafen.client:profiling() (spec 019): a Unity-Profiler-style window over the client's own frame profiler. DORMANT -- nothing is drawn until you open the window with the 'toggle' hotkey (unbound until you assign it under Options > Keybindings > Brodgar.io Profiler; suggested Ctrl+Shift+P) or with ':profiler', so a routine login is undisturbed. Six tabs: FRAME (fps / frame time / avg-min-max-p95 / idle / latency / GPU, a live frame graph over the 600-frame history ring, and the UI-thread + render-thread phase breakdowns), PASSES (the named render passes with CPU and GPU time side by side, plus the armed-only GL submission counters), WIDGETS (where the UI's frame time went, per widget type and per widget, inclusive vs self), ADDONS (what each addon's Lua cost, sorted most expensive first, with each addon's named scopes -- including this addon's own draw scopes), COUNTERS (memory / net / loader / render -- the pull-only counters, which answer with profiling OFF and match ':stats on' field by field) and OVERHEAD (what profiling itself costs, per tier, against its 5% budget). Read-only and UNGATED: it never touches the server. The status line is clickable to arm/disarm profiling, and ':profiler on|off' does the same from the console -- both write hafen.client:options():client():profiling(), the one switch the Options > Client checkbox and ':profile on' also flip. It instruments itself with p:measure() so its own draw shows up as scopes under its own row in the ADDONS tab.",
   "api_version": 1,

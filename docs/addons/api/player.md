@@ -5,7 +5,7 @@ being the anchor for your own [Gob](gob.md).
 
 ```lua
 local me = hafen.player():gob()          -- nil until you are in the world
-if me then hafen.log(string.format("at %.0f, %.0f", me:pos().x, me:pos().y)) end
+if me then hafen.log():write(string.format("at %.0f, %.0f", me:pos().x, me:pos().y)) end
 ```
 
 Player deliberately forwards **nothing** from the Gob: position, health, movement and facing are read

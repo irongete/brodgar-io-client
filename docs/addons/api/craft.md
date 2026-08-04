@@ -6,8 +6,8 @@ open — this namespace is a view of one window, not of everything you can make.
 ```lua
 local r = hafen.craft.current()
 if r then
-  hafen.log("recipe: " .. r.recipe)
-  for _, i in ipairs(r.inputs) do hafen.log("  needs " .. (i.name or i.res) .. " x" .. i.num) end
+  hafen.log():write("recipe: " .. r.recipe)
+  for _, i in ipairs(r.inputs) do hafen.log():write("  needs " .. (i.name or i.res) .. " x" .. i.num) end
 end
 ```
 

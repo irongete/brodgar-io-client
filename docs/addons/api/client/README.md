@@ -51,7 +51,7 @@ panel's own slider, and the client picks it up on the next launch. `angGran` cro
 the value the Options panel displays — not the divisor the client stores internally.
 
 ```lua
-hafen.log("ui scale: " .. opts:interface():scale())
+hafen.log():write("ui scale: " .. opts:interface():scale())
 opts:interface():angGran(15)                       -- 24 steps per full turn
 ```
 
@@ -73,7 +73,7 @@ message.
 
 ```lua
 local v = opts:video()
-hafen.log("shadows: " .. tostring(v:shadows()) .. ", lighting: " .. v:lightingMode())
+hafen.log():write("shadows: " .. tostring(v:shadows()) .. ", lighting: " .. v:lightingMode())
 v:lightingMode("zoned"):lightLimit(16)
 ```
 
@@ -139,7 +139,7 @@ from `OnEnterWorld`:
 
 ```lua
 local shadows = opts:video():shadows()
-if shadows ~= nil then hafen.log("shadows: " .. tostring(shadows)) end
+if shadows ~= nil then hafen.log():write("shadows: " .. tostring(shadows)) end
 ```
 
 ## See also
@@ -147,4 +147,4 @@ if shadows ~= nil then hafen.log("shadows: " .. tostring(shadows)) end
 - [keybindings](keybindings.md) — declaring your addon's hotkeys, and remapping any binding
 - [profiling](profiling/README.md) — the frame profiler this panel arms
 - [`hafen.sound`](../sound.md) — playing sounds, as opposed to setting levels
-- [events](../events.md) — `OnEnterWorld`, the guard for the options that are not up yet
+- [events](../event.md) — `OnEnterWorld`, the guard for the options that are not up yet

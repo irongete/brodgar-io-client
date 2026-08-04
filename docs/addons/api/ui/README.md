@@ -21,7 +21,7 @@ Client-side UI cannot send actions to the server — that is [`hafen.act`](../ac
 hafen.ui.window{
   title = "Clock", size = {160, 40}, pos = {50, 50},
   onDraw = function(g, w, h)
-    g:text(string.format("%.0f", hafen.time.clock() or 0), 6, 12)
+    g:text(string.format("%.0f", hafen.time():clock() or 0), 6, 12)
   end,
 }
 ```
@@ -61,4 +61,4 @@ and layout.
 - [`hafen.asset`](../asset.md) — the images and fonts your addon ships
 - [`hafen.act`](../act.md) — acting on a widget you found, through its `:id()`
 - [conventions](../conventions.md#widget-a-piece-of-the-ui) — where a Widget sits among the other references
-- [events](../events.md) — the bus, for everything that is not a widget subscription
+- [events](../event.md) — the bus, for everything that is not a widget subscription

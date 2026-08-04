@@ -5,7 +5,7 @@ The rest of the character sheet is next door, in [`hafen.char`](char.md).
 
 ```lua
 for _, s in ipairs(hafen.study.slots()) do
-  hafen.log((s.name or s.res) .. "  lp=" .. (s.lp or 0))
+  hafen.log():write((s.name or s.res) .. "  lp=" .. (s.lp or 0))
 end
 ```
 
@@ -25,10 +25,10 @@ answers an empty array.
 > A slot's `time` is the **total** study time for that curiosity, not what is left. The client is not
 > sent a per-item countdown, so there is none to read.
 
-Subscribe to [`StudyChanged`](events.md#character-and-status) for updates.
+Subscribe to [`StudyChanged`](event.md#character-and-status) for updates.
 
 ## See also
 
 - [`hafen.char`](char.md) — attributes, learning points and skills
 - [`StudySlot`](types.md#studyslot) — the snapshot shape `slots()` returns
-- [events](events.md#character-and-status) — `StudyChanged`
+- [events](event.md#character-and-status) — `StudyChanged`

@@ -25,7 +25,7 @@ hotkey or type their command — so having them all on costs you an untouched lo
 
 ## hello
 
-The broad one: [events](api/events.md) and [timers](api/timer.md), [saved variables](api/store.md), a
+The broad one: [events](api/event.md) and [timers](api/timer.md), [saved variables](api/store.md), a
 window, a HUD overlay and per-gob overlays drawn with [the `g` wrapper](api/ui/drawing.md),
 [world ghosts](api/ghost.md), [the kin roster](api/kin.md), [markers](api/map/markers.md),
 [icon categories](api/map/icons.md), [container reads](api/ui/items.md) and the
@@ -97,10 +97,10 @@ follows the gob and dies with it.
 `:tagger read` is the other half of the same verb — it prints yours beside **the game's own**, which come
 back `native = true`, keyed by resource name, read-only, and counted (`ov:count()`), because a native overlay
 is a union over that name. `:tagger watch` turns on
-[`GobOverlayAdded`/`GobOverlayRemoved`](api/events.md#overlays-coming-and-going).
+[`GobOverlayAdded`/`GobOverlayRemoved`](api/event.md#overlays-coming-and-going).
 
 It is also what the missing filter form looks like in practice: "label every player" is a
-[`GobAdded`](api/events.md#world) handler plus one loop over the players already here.
+[`GobAdded`](api/event.md#world) handler plus one loop over the players already here.
 
 ## widgetstack
 

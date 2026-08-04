@@ -1,0 +1,9 @@
+{
+  "name": "039.1 — the section machinery, and the eight verb-only sections",
+  "id": "039-uniform-api.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.1: the per-addon section object and its identity, the collection type and its refusals, the retired-name errors that name their replacement, and the nil discipline including the one case the bridge cannot separate.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -57,5 +57,5 @@ than raised: your addon starts with empty settings instead of not starting.
 ## See also
 
 - [`hafen.json`](json.md) — the same serializer, when you want the string yourself
-- [events](events.md#lifecycle) — `OnEnterWorld`, where per-character data becomes readable
+- [events](event.md#lifecycle) — `OnEnterWorld`, where per-character data becomes readable
 - [`hafen.http`](http.md) — fetching what you cache here

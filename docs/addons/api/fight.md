@@ -5,11 +5,11 @@ configuration editor, not a live in-combat view: there is nothing here about a f
 
 ```lua
 for _, c in ipairs(hafen.fight.deck()) do
-  hafen.log(c.key .. ": " .. (c.name or c.res))
+  hafen.log():write(c.key .. ": " .. (c.name or c.res))
 end
 
 local s = hafen.fight.summary()
-if s then hafen.log("used " .. s.used .. "/" .. s.maxact .. " action points") end
+if s then hafen.log():write("used " .. s.used .. "/" .. s.maxact .. " action points") end
 ```
 
 ## Read

@@ -10,7 +10,7 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 
 /**
  * An <b>input / gesture hook</b> (Level 1, spec {@code 13-hooks-and-interception.md} §L1) — the Java half
- * of {@code hafen.hook.input(target, event, fn)}, Phase 2c. It is a {@link haven.EventHandler} registered on
+ * of {@code hafen.hook():input(target, event, fn)}, Phase 2c. It is a {@link haven.EventHandler} registered on
  * a target {@link Widget} through the engine's built-in {@link Widget#listen}/{@link Widget#deafen} seam, so
  * it needs <b>zero core edit</b>: {@link Widget#handle} runs listeners <b>before</b> the widget's own handler,
  * and a listener returning {@code true} <b>short-circuits</b> the default ({@code Event.dispatch} returns

@@ -311,46 +311,62 @@ final class WorldApi {
             }
         });
     }
-    /** Build {@code hafen.time} for {@code owner}. From installHafen. */
+    /**
+     * Build {@code hafen.time} for {@code owner}. From installHafen. A plain section object: {@code
+     * hafen.time()} is the per-addon singleton and every reader is a colon call on it. {@code clock()} always
+     * answers; the astronomy readers are nil until the first "astro" update lands.
+     */
     static void installTime(LuaTable hafen, final Addon owner) {
-        LuaTable time = new LuaTable();
-        time.set("clock", new ZeroArgFunction() {
-            public LuaValue call() {
+        LuaTable m = new LuaTable();
+        // clock() — the game clock, in game-world seconds (Glob.globtime). Nil before the session exists.
+        m.set("clock", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "time", "clock");
                 Glob g = glob();
                 return (g == null) ? LuaValue.NIL : LuaValue.valueOf(g.globtime());
             }
         });
-        time.set("dayFraction", new ZeroArgFunction() {
-            public LuaValue call() {
+        // dayFraction() — 0..1 through the game day.
+        m.set("dayFraction", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "time", "dayFraction");
                 Astronomy a = astro();
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.dt);
             }
         });
-        time.set("isNight", new ZeroArgFunction() {
-            public LuaValue call() {
+        // isNight() — is it night right now?
+        m.set("isNight", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "time", "isNight");
                 Astronomy a = astro();
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.night);
             }
         });
-        time.set("season", new ZeroArgFunction() {
-            public LuaValue call() {
+        // season() — the season index the server publishes.
+        m.set("season", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "time", "season");
                 Astronomy a = astro();
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.is);
             }
         });
-        time.set("moon", new ZeroArgFunction() {
-            public LuaValue call() {
+        // moon() — the moon phase, 0..1.
+        m.set("moon", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "time", "moon");
                 Astronomy a = astro();
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.mp);
             }
         });
-        time.set("yearFraction", new ZeroArgFunction() {
-            public LuaValue call() {
+        // yearFraction() — 0..1 through the game year.
+        m.set("yearFraction", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "time", "yearFraction");
                 Astronomy a = astro();
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.yt);
             }
         });
-        hafen.set("time", time);
+        Section.install(hafen, "time", m);
     }
 
     // ---- hafen.map raycast/snap helpers (screenToWorld / snapAngle, V5/V6) ----

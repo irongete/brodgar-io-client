@@ -5,7 +5,7 @@ member's gob `id` — so `hafen.gob(m.id)` gives you that member's live [Gob](go
 
 ```lua
 for i, m in ipairs(hafen.party.members()) do
-  hafen.log("party" .. i .. (m.leader and " (leader)" or ""))
+  hafen.log():write("party" .. i .. (m.leader and " (leader)" or ""))
 end
 ```
 

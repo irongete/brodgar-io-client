@@ -19,10 +19,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -39,7 +39,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local function xy(p) return ("%d,%d"):format(p.x, p.y) end
@@ -90,13 +90,13 @@ local function finish()
   manualCheck("run ':t035-2 look', then open a window (Tab for the inventory) and read its edges",
     "content sits one pad inside the gold frame on every side, nothing overlaps the frame, and the caption"
     .. " still has its own band -- ':t035-2 look' again puts stock geometry back")
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 -- EVERY step waits first. The swap and the repack happen in Window.tick, so a step that ran inline with the
 -- write it is checking would read the state of the previous frame -- which is exactly what the first one did.
 local function step(i)
-  hafen.timer.after(0.35, function()
+  hafen.timer():after(0.35, function()
     local f = steps[i]
     if not f then return finish() end
     f()
@@ -193,11 +193,11 @@ local function look()
   looking = not looking
   if looking then
     hafen.ui.skin{ ["window.frame"] = { bg = { color = DARK }, border = border(), pad = P } }
-    hafen.log(":t035-2 look -> the framed theme is ON, geometry included. Look at where content sits, then"
+    hafen.log():write(":t035-2 look -> the framed theme is ON, geometry included. Look at where content sits, then"
       .. " ':t035-2 look' again (or :reload, or disabling this addon) for stock geometry.")
   else
     hafen.ui.skin(nil)
-    hafen.log(":t035-2 look -> stock geometry restored.")
+    hafen.log():write(":t035-2 look -> stock geometry restored.")
   end
 end
 
@@ -205,6 +205,6 @@ end
 -- skinned, re-laid-out window alive for its whole round and bumps Fonts.gen() a dozen times doing it, so when
 -- suites started themselves it reddened lines in the OTHER suite: 035.1 counted this window's SkinDeco among
 -- the client's, and 034.2's textcache probe saw a second key for its own string. Its round stages ~2.5s.
-hafen.slash.register("t035-2", function(args)
+hafen.slash():register("t035-2", function(args)
   if (args and args[1]) == "look" then look() else run() end
 end)

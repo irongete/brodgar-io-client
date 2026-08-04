@@ -679,7 +679,7 @@ public class UI {
     }
 	
     public void wdgmsg(Widget sender, String msg, Object... args) {
-	// addon: outbound-action hook (L2 — spec 13 §L2). A hafen.hook.action handler runs here, before the
+	// addon: outbound-action hook (L2 — spec 13 §L2). A hafen.hook():action handler runs here, before the
 	// message reaches the server, and may cancel the send (ev:preventDefault) or re-issue it via
 	// ev:resend()/ev:send() (which call rawWdgmsg to bypass this chain — no re-dispatch loop). Returns
 	// false to suppress. It only runs Lua when it already holds the UI monitor (the normal path), so this
@@ -717,7 +717,7 @@ public class UI {
 	    if(wdg != null) {
 		boolean applied = false;
 		synchronized(UI.this) {
-		    // addon: inbound-message hook (L3 — spec 13 §L3). A hafen.hook.message handler runs here, BEFORE
+		    // addon: inbound-message hook (L3 — spec 13 §L3). A hafen.hook():message handler runs here, BEFORE
 		    // the widget applies the server update, and may swallow it (ev:preventDefault -> null) or rewrite
 		    // its args (ev:rewrite). onMessage returns the args to apply, or null to swallow. It runs Lua under
 		    // this synchronized(ui) block (the monitor tick/draw hold), so hook Lua never races other Lua, and

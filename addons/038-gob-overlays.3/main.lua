@@ -25,10 +25,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -38,7 +38,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local KEY  = "evt"                    -- this suite's own key on the player's gob
@@ -51,7 +51,7 @@ local nativeN  = 0
 local foreign  = 0                    -- non-native events under a key this suite never attached: must stay 0
 local icon
 
-hafen.events.on("OnLoad", function() icon = hafen.asset("icon.png") end)
+hafen.event():on("OnLoad", function() icon = hafen.asset("icon.png") end)
 
 local function record(tag)
   return function(e)
@@ -74,8 +74,8 @@ local function record(tag)
   end
 end
 
-hafen.events.on("GobOverlayAdded", record("A"))
-hafen.events.on("GobOverlayRemoved", record("R"))
+hafen.event():on("GobOverlayAdded", record("A"))
+hafen.event():on("GobOverlayRemoved", record("R"))
 
 -- What arrived since the last stage: the event line, and what the handler's own read answered on the FIRST
 -- of them. Both are cleared, so each stage reads only its own events.
@@ -86,7 +86,7 @@ local function seen()
 end
 
 local function summary()
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
 local function run()
@@ -105,7 +105,7 @@ local function run()
   me:overlay(KEY, { text = "ev" })
   eq("an attach does not fire inside gob:overlay -- the event is queued onto the tick", #log, 0)
 
-  hafen.timer.after(0.4, function()
+  hafen.timer():after(0.4, function()
     -- 2. ONE ADD, and the payload says which gob, which key, and whose.
     local got, read = seen()
     eq("gob:overlay(key, spec) fires GobOverlayAdded exactly once, native = false", got, "A:" .. KEY .. ":false")
@@ -113,20 +113,20 @@ local function run()
        read, tostring(myId) .. "/there")
     me:overlay(KEY, nil)
 
-    hafen.timer.after(0.4, function()
+    hafen.timer():after(0.4, function()
       local gotR, readR = seen()
       eq("gob:overlay(key, nil) fires GobOverlayRemoved exactly once", gotR, "R:" .. KEY .. ":false")
       eq("...and the handler reads the TRUTH on that side too: the overlay is already gone",
          readR, tostring(myId) .. "/gone")
       me:overlay(KEY, { text = "ev" })
 
-      hafen.timer.after(0.4, function()
+      hafen.timer():after(0.4, function()
         seen()
         -- 3. A REPLACE reports BOTH, so a handler keeping its own set stays balanced: the key survives, but
         --    the thing under it is a different one -- and here it is even in the other SPACE.
         if icon then me:overlay(KEY, { image = icon, offset = { z = 18 } }) end
 
-        hafen.timer.after(0.4, function()
+        hafen.timer():after(0.4, function()
           if icon then
             eq("a REPLACE fires the removal AND the add -- and a WORLD-space kind fires the same pair",
                seen(), "R:" .. KEY .. ":false|A:" .. KEY .. ":false")
@@ -135,7 +135,7 @@ local function run()
           end
           me:overlay(KEY, nil)
 
-          hafen.timer.after(0.4, function()
+          hafen.timer():after(0.4, function()
             eq("...and the last removal is reported once, whichever space it was in", seen(), "R:" .. KEY .. ":false")
             eq("the suite leaves nothing of its own on the gob", me:overlay(KEY), nil)
 
@@ -165,4 +165,4 @@ local function run()
   end)
 end
 
-hafen.slash.register("t038-3", run)   -- the only way in: a suite does not start itself
+hafen.slash():register("t038-3", run)   -- the only way in: a suite does not start itself

@@ -20,10 +20,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -33,7 +33,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local LINE  = "034.2 stamp probe"          -- one string, drawn identically in every probe window
@@ -75,7 +75,7 @@ local function run()
   local a, b = probe(STYLED, 4), probe(PLAIN, 34)
   wins = { a, b }
 
-  hafen.timer.after(0.6, function()
+  hafen.timer():after(0.6, function()
     -- 1. no sheet yet: the two windows draw the SAME string, so they share ONE cache key.
     eq("with no sheet the two windows draw one string under one key", misses() - m0, 1)
     eq("and neither window resolves a style", a:style(), nil)
@@ -84,7 +84,7 @@ local function run()
     hafen.ui.skin{ ["window[title=" .. STYLED .. "]"] = { font = h, color = BIG } }
     local m1 = misses()
 
-    hafen.timer.after(0.6, function()
+    hafen.timer():after(0.6, function()
       -- 2. the rule reached the DRAW: the same string now takes two keys, one per subtree. (The unstyled
       --    window's key moved too — installing a rule bumps the generation for everyone, once.)
       eq("a tree rule reaches the draw: one string, two keys, one per subtree", misses() - m1, 2)
@@ -96,21 +96,21 @@ local function run()
       local c = probe(STYLED, 64)          -- created AFTER the rule was installed
       wins[#wins + 1] = c
 
-      hafen.timer.after(0.6, function()
+      hafen.timer():after(0.6, function()
         -- 3. F5's captured-generation case: a widget built after the override still draws inside the frame —
         --    it lands on the styled window's key, so it rasterised NOTHING new.
         eq("a window created after the rule draws under the styled key, not a new one", misses() - m2, 0)
         check(c:style() ~= nil, "and it resolves the rule too", c:style())
         local m3 = misses()
 
-        hafen.timer.after(1.0, function()
+        hafen.timer():after(1.0, function()
           -- 4. THE HEADLINE RISK: a stamp derived from the rule set is stable across frames. A stamp that
           --    varied would re-key every draw, so this count would climb by one per window per frame.
           eq("the stamp is stable across frames: ~60 frames, nothing re-rasterised", misses() - m3, 0)
           local m4 = misses()
           hafen.ui.skin(nil)
 
-          hafen.timer.after(0.6, function()
+          hafen.timer():after(0.6, function()
             -- 5. teardown is exact: no frame opens anywhere, so all three windows share ONE key again.
             eq("dropping the sheet returns all three windows to one shared key", misses() - m4, 1)
             eq("and every widget resolves nothing again", a:style(), nil)
@@ -128,7 +128,7 @@ local function run()
                         .. " installed, the difference well under 1 ms")
 
             killWins()
-            hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+            hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
           end)
         end)
       end)
@@ -152,18 +152,18 @@ end
 local function prof()
   pass, fail, manual = 0, 0, 0
   if not hafen.client:profiling():frame().ms then
-    hafen.log("[manual] :t034-2 prof needs the profiler armed -- expect: arm Options > Client >"
+    hafen.log():write("[manual] :t034-2 prof needs the profiler armed -- expect: arm Options > Client >"
               .. " \"Enable profiling\" and run it again")
-    hafen.log("[summary] 0 pass, 0 fail, 1 manual")
+    hafen.log():write("[summary] 0 pass, 0 fail, 1 manual")
     return
   end
   hafen.ui.skin(nil)
-  hafen.timer.after(1.5, function()
+  hafen.timer():after(1.5, function()
     local stock = avgDraw(60)
     -- Any tree rule at all makes the descent ask about EVERY widget it draws, which is the cost being measured;
     -- `window` matches the open ones, so the frame is really opened as well.
     hafen.ui.skin{ ["window"] = { color = BIG } }
-    hafen.timer.after(1.5, function()
+    hafen.timer():after(1.5, function()
       local tree = avgDraw(60)
       hafen.ui.skin(nil)
       if not (stock and tree) then
@@ -173,12 +173,12 @@ local function prof()
         check(d < 1.0, ("the descent costs %.3f ms/frame (draw %.3f -> %.3f) -- under 1 ms"):format(d, stock, tree), d)
         check(tree < 8.0, ("the draw phase with a sheet installed stays under 8 ms (%.3f)"):format(tree), tree)
       end
-      hafen.log(("[summary] %d pass, %d fail, 0 manual"):format(pass, fail))
+      hafen.log():write(("[summary] %d pass, %d fail, 0 manual"):format(pass, fail))
     end)
   end)
 end
 
-hafen.slash.register("t034-2", function(args)
+hafen.slash():register("t034-2", function(args)
   local sub = args[1]
   if sub == "demo" then
     if #wins == 0 or not wins[1]:exists() then
@@ -189,12 +189,12 @@ hafen.slash.register("t034-2", function(args)
       ["window[title=" .. STYLED .. "]"] = { font = h, color = BIG },
       ["window[title=Inventory]"]        = { font = h },
     }
-    hafen.log(":t034-2 demo -> a sheet is PARKED: the two \"" .. STYLED .. "\" windows and the inventory."
+    hafen.log():write(":t034-2 demo -> a sheet is PARKED: the two \"" .. STYLED .. "\" windows and the inventory."
               .. " Clear it with  :t034-2 off  (a :reload clears it too).")
   elseif sub == "off" then
     hafen.ui.skin(nil)
     killWins()
-    hafen.log(":t034-2 off -> sheet dropped, probe windows destroyed")
+    hafen.log():write(":t034-2 off -> sheet dropped, probe windows destroyed")
   elseif sub == "prof" then
     prof()
   else

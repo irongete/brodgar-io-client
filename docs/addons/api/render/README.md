@@ -49,4 +49,4 @@ gets its own error — re-load it, since the same path is a new asset.
 - [`hafen.asset`](../asset.md) — the one door for the files both builders take
 - [`hafen.ghost`](../ghost.md) — the same idea for the game's own `.res` props
 - [drawing](../ui/drawing.md) — the same images, drawn on screen instead
-- [events](../events.md#world-ghosts-and-sprites) — `SpriteClicked` and `ObjectClicked`
+- [events](../event.md#world-ghosts-and-sprites) — `SpriteClicked` and `ObjectClicked`

@@ -85,7 +85,7 @@ corner and an offset. So a whole look can live in a JSON file your addon ships, 
 but reading it:
 
 ```lua
-local sheet = hafen.json.parse(hafen.asset("theme.json"):text())
+local sheet = hafen.json():parse(hafen.asset("theme.json"):text())
 -- map the two values JSON cannot carry -- a font face and an image -- to handles, then:
 hafen.ui.skin(sheet)
 ```

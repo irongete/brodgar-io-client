@@ -8,7 +8,7 @@ import org.luaj.vm2.LuaValue;
 
 /**
  * A <b>modal mouse-drag capture</b> (spec {@code 16-virtual-entities.md} §2/§4, the "grab helper") — the Java
- * half of {@code hafen.hook.grab{move=fn, up=fn}}, V5. It is the drag primitive the ghost gizmo (and any addon
+ * half of {@code hafen.hook():grab{move=fn, up=fn}}, V5. It is the drag primitive the ghost gizmo (and any addon
  * that needs a press-drag-release loop) builds on: while a grab is active, mouse <b>move</b> and <b>up</b> are
  * forwarded to Lua and the map view neither pans nor clicks.
  *

@@ -70,7 +70,7 @@ on the render side and may be one frame stale.
 ```lua
 local r = hafen.client:profiling():render()
 if r.drawSlots then
-  hafen.log(string.format("%d slots, %d batches, %.1f MB textures",
+  hafen.log():write(string.format("%d slots, %d batches, %.1f MB textures",
                           r.drawSlots, r.batches, r.vram.textures.bytes / 1048576))
 end
 ```
@@ -104,7 +104,7 @@ zero, because teardown drops each cache and disposes its textures.
 
 ```lua
 local c = hafen.client:profiling():textcache()
-hafen.log(string.format("%d entries / %.2f MiB, %.1f%% hit rate (%d evictions)",
+hafen.log():write(string.format("%d entries / %.2f MiB, %.1f%% hit rate (%d evictions)",
                         c.entries, c.bytes / 1048576, (c.hitRate or 0) * 100, c.evictions))
 ```
 

@@ -1,7 +1,7 @@
 {
   "name": "036.2 — pos and size as sheet properties",
   "id": "036-ui-layout.2",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 036.2: a sheet rule lays a matched window out, the hand-named verb is the top level of that same fold, and dropping either restores the exact numbers.",
   "api_version": 1,

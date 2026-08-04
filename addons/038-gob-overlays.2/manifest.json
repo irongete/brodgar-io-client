@@ -1,7 +1,7 @@
 {
   "name": "038.2 — the world-space family, and follow is absorbed",
   "id": "038-gob-overlays.2",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 038.2: the three world-space spec kinds ({image = asset}, {model = asset}, {ghost = res}) on the one gob:overlay verb, each read back with its kind and its res; 'offset' shifting it in world units and overlay:pos() reading it back as a difference; the composed entity verbs (:tint/:alpha/:scale/:rotate) chaining on the Overlay object and refused on a screen-space one; a spec naming two kinds refused naming both and one naming none refused naming all five; the same key across the two spaces still leaving ONE overlay; the hard cut of follow= from hafen.render.sprite/object and hafen.ghost.new, each refused NAMING gob:overlay, with the handles' :follow/:offset reading nil and a fixed sprite still building; an overlay's ghost never appearing in hafen.ghost.list(); and the parked park/gone round for the one thing only a person can drive — an overlay dying with its gob when the target despawns.",
   "api_version": 1,

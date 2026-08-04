@@ -13,8 +13,8 @@ import org.luaj.vm2.LuaValue;
 /**
  * Shared Java&harr;Lua marshalling for the {@code wdgmsg}/{@code uimsg} argument arrays that the hook
  * levels expose to addons. Extracted from {@link LuaActionHook} (Phase 2d) so both the outbound
- * <b>action</b> hook (L2, {@code hafen.hook.action}) and the inbound <b>message</b> hook (L3,
- * {@code hafen.hook.message}, Phase 2e) convert arguments the one canonical way (D-013) and cannot
+ * <b>action</b> hook (L2, {@code hafen.hook():action}) and the inbound <b>message</b> hook (L3,
+ * {@code hafen.hook():message}, Phase 2e) convert arguments the one canonical way (D-013) and cannot
  * drift — the same reasoning as the shared {@link LuaGOut} (2b) and {@code readEquipment} (1d-4).
  *
  * <p>The mapping (see {@link #toLua}/{@link #toJava}):
@@ -66,7 +66,7 @@ final class LuaMarshal {
     /**
      * Convert a parsed-JSON value ({@link Json#parse} shapes: {@link Map}/{@link List}/{@link String}/
      * {@link Double}/{@link Boolean}/{@code null}) to a Lua value — the one canonical JSON&rarr;Lua
-     * marshal (D-013), shared by {@code hafen.store} restore and {@code hafen.json.parse}. Objects
+     * marshal (D-013), shared by {@code hafen.store} restore and {@code hafen.json():parse}. Objects
      * become string-keyed tables; arrays become 1-based tables; an integral number within Lua's int
      * range is returned as an int (so {@code {"n":5}} &rarr; {@code 5}, not {@code 5.0}). A JSON
      * {@code null} maps to {@code nil}: inside an object it yields an <b>absent key</b>, inside an array
@@ -107,7 +107,7 @@ final class LuaMarshal {
     /**
      * Convert a Lua argument table (from {@code ev:send}/{@code ev:rewrite}) back to a Java
      * {@code Object[]}. {@code ctx} names the caller for error messages (e.g.
-     * {@code "hafen.hook.action ev:send"}).
+     * {@code "hafen.hook():action ev:send"}).
      */
     static Object[] luaToArgs(LuaValue t, String ctx) {
         if(!t.istable())

@@ -1,7 +1,7 @@
 {
   "name": "037.3 — overlays: the recorded masks and the client's display toggles",
   "id": "037-map-database.3",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 037.3: grid:overlays()/grid:overlay(tag) read the claim, village-claim and province masks the client wrote down with a grid, while hafen.map.overlay(tag[, on]) drives the client's own display switches as an OWNED HOLD on a ref count it shares with the user's checkbox — taken once, released once, and released by the teardown. Stores the two stock toggle values (account scope) so the reload check can prove the teardown put them back.",
   "api_version": 1,

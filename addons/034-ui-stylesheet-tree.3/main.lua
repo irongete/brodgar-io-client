@@ -20,10 +20,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -41,7 +41,7 @@ end
 -- One printable line for a resolved style, so a [fail] carries the whole answer and not just "table".
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local function style(w)
@@ -129,13 +129,13 @@ local function run()
   -- 7. the DRAW: with A skinned and B not, ONE string takes TWO cache keys (034.2's method, new level).
   a:skin{ font = mono }
   local m1 = misses()
-  hafen.timer.after(0.7, function()
+  hafen.timer():after(0.7, function()
     eq("a skin reaches the draw: one string, two keys, one per subtree", misses() - m1, 2)
 
     -- 8. teardown is exact: dropping the skin returns the widget to nil and the two windows to one shared key.
     a:skin(nil)
     local m2 = misses()
-    hafen.timer.after(0.7, function()
+    hafen.timer():after(0.7, function()
       eq("dropping the skin returns the widget to nil", style(a), "nil")
       eq("and both windows draw under one shared key again", misses() - m2, 1)
 
@@ -146,12 +146,12 @@ local function run()
 
       killWins()
       hafen.ui.skin(nil)
-      hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+      hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
     end)
   end)
 end
 
-hafen.slash.register("t034-3", function(args)
+hafen.slash():register("t034-3", function(args)
   local sub = args[1]
   if sub == "demo" then
     if #wins == 0 or not wins[1]:exists() then
@@ -164,11 +164,11 @@ hafen.slash.register("t034-3", function(args)
       wins = { a, b }
       a:skin{ font = hafen.font("mono"):derive{ size = 18 } }
     end
-    hafen.log(":t034-3 demo -> probe A is SKINNED, probe B is not. Clear it with  :t034-3 off  (a :reload clears it too).")
+    hafen.log():write(":t034-3 demo -> probe A is SKINNED, probe B is not. Clear it with  :t034-3 off  (a :reload clears it too).")
   elseif sub == "off" then
     killWins()
     hafen.ui.skin(nil)
-    hafen.log(":t034-3 off -> probe windows destroyed, sheet dropped")
+    hafen.log():write(":t034-3 off -> probe windows destroyed, sheet dropped")
   else
     run()
   end

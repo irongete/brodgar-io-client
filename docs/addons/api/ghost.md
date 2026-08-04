@@ -42,7 +42,7 @@ disable and relogin, leaking nothing.
 | `tint` | `{r, g, b, a}` | *none* | colour overlay, `0..255`, where `a` is blend strength |
 | `scale` | number | `1` | uniform scale; `1` is original size |
 | `clickable` | boolean | `false` | opt-in pick surface — see [clickability](#clickability) |
-| `onClick` | function | *none* | `fn(g, button, x, y)` fired on click, also delivered as the [`GhostClicked`](events.md#world-ghosts-and-sprites) event |
+| `onClick` | function | *none* | `fn(g, button, x, y)` fired on click, also delivered as the [`GhostClicked`](event.md#world-ghosts-and-sprites) event |
 
 For `list`, `filter` is the canonical [filter](conventions.md#the-filter-argument) adapted to handles:
 `nil` is all of them, a **string** is a substring match on the ghost's `res`, and a **function** is called
@@ -133,16 +133,16 @@ local g = hafen.ghost.new{
   res = "gfx/terobjs/arch/logcabin", x = wx, y = wy,
   clickable = true,
   onClick = function(g, button, x, y)      -- 1 = left, 3 = right; x, y = the clicked world point
-    hafen.log("clicked my ghost with button " .. button)
+    hafen.log():write("clicked my ghost with button " .. button)
   end,
 }
 -- or globally, for every clickable ghost this addon owns:
-hafen.events.on("GhostClicked", function(ev)
+hafen.event():on("GhostClicked", function(ev)
   ev.ghost:destroy()                       -- ev = { ghost, button, x, y }
 end)
 ```
 
-Both the per-ghost `onClick` and the [`GhostClicked`](events.md#world-ghosts-and-sprites) event fire on every
+Both the per-ghost `onClick` and the [`GhostClicked`](event.md#world-ghosts-and-sprites) event fire on every
 click, and `GhostClicked` reaches only *your* addon, since a ghost is private to the addon that made it.
 
 > **Still ungated.** Clickability is pure client-side detection: the engine's pick pass returns the ghost
@@ -181,14 +181,14 @@ streams in.
 You can drag a ghost along the terrain, snapping exactly as placing a real building does, using three
 primitives and then `ghost:move`:
 
-1. [`hafen.hook.grab`](hook.md#hafenhookgrabmove-up) captures the mouse, so the camera stays put.
+1. [`hafen.hook():grab`](hook.md#hafenhookgrabmove-up) captures the mouse, so the camera stays put.
 2. [`hafen.world.screenToWorld`](world.md#screen-to-world-and-placement-snapping) turns the cursor
    pixel into a ground coordinate.
 3. [`hafen.world.snapPlace`](world.md#screen-to-world-and-placement-snapping) snaps it to the placement grid,
    with Shift for the fine grid.
 
 `planner` wires these into a move mode: select a ghost, start the grab, and it follows the cursor snapped
-to the grid until you click to drop it. See [`hafen.hook.grab`](hook.md#hafenhookgrabmove-up) for the drag
+to the grid until you click to drop it. See [`hafen.hook():grab`](hook.md#hafenhookgrabmove-up) for the drag
 pattern in full.
 
 ## The transform gizmo
@@ -209,8 +209,8 @@ resource is needed.
 
 The gizmo is a **bundled Lua library over the ghost, map and hook primitives**, not a built-in `hafen.*`
 function: [`hafen.ui.overlay`](ui/custom.md#overlays) to draw,
-[`hafen.hook.input`](hook.md#hafenhookinputtarget-event-fn) to pick a handle,
-[`hafen.hook.grab`](hook.md#hafenhookgrabmove-up) with
+[`hafen.hook():input`](hook.md#hafenhookinputtarget-event-fn) to pick a handle,
+[`hafen.hook():grab`](hook.md#hafenhookgrabmove-up) with
 [`screenToWorld`](world.md#screen-to-world-and-placement-snapping),
 [`snapPlace`](world.md#screen-to-world-and-placement-snapping) and
 [`snapAngle`](world.md#screen-to-world-and-placement-snapping) to drag, and `g:move`, `g:rotate` and
@@ -239,4 +239,4 @@ Because the gizmo drives any handle with `:pos`, `:move`, `:rotate` and `:scale`
   the gizmo uses
 - [`hafen.hook`](hook.md#hafenhookgrabmove-up) — the mouse-capture primitive behind a drag
 - [`hafen.act.place`](act.md) — committing a real build, which is gated
-- [events](events.md#world-ghosts-and-sprites) — `GhostClicked`
+- [events](event.md#world-ghosts-and-sprites) — `GhostClicked`
