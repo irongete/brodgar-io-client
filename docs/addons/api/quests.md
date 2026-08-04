@@ -39,5 +39,5 @@ quest snapshot.
 ## See also
 
 - [`Quest` and `Condition`](types.md#quest-and-condition) — the snapshot shapes
-- [`hafen.map.markers`](map.md#markers) — the map pins a quest puts down
+- [`hafen.map.markers`](map/markers.md) — the map pins a quest puts down
 - [events](events.md#roster-quests-markers) — `QuestAdded` and `QuestDone`

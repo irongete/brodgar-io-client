@@ -103,8 +103,9 @@ hafen.log(t and (t.name or t.id) or "not loaded yet")
 ## The map you explored
 
 Everything above is the world **streamed around you**. The ground you walked over last month is a different
-thing entirely — it is on disk, it outlives the session, and it is [`hafen.map`](../api/map.md): segments and
-grids, the claims and provinces that covered them, your markers, and the drawings the corner minimap paints.
+thing entirely — it is on disk, it outlives the session, and it is [`hafen.map`](../api/map/README.md):
+segments and grids, the claims and provinces that covered them, your markers, and the drawings the corner
+minimap paints.
 The anchor is the door between the two halves, in both directions:
 
 ```lua

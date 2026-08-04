@@ -207,3 +207,22 @@
   is correct for a root and a defect for anything else — and the distinction only exists once the metric
   is a traversal rather than an impression. The link checker already builds the graph; the reachability
   answer is three more lines on top of it.
+
+- **(002.1) Splitting a page is a rename only if you retype a heading — promoting `###` to `##` keeps the
+  slug, so the split costs path rewrites and nothing else.** 001.4's expensive lesson was that a heading
+  touched for cosmetics is an anchor change; the useful inverse is that the *structural* half of a split is
+  free. `map.md`'s five `##` subjects became five pages whose former `###` subsections became `##` — and
+  `#the-marker-object`, `#the-segment-object`, `#saving-a-position`, `#write-ungated` and the rest slug
+  identically at either level, because the slugger reads the heading text and not its depth. All 16 anchored
+  inbound links therefore needed `map.md#x` → `map/leaf.md#x`, a pure path substitution, and the 22-link
+  re-point landed with zero broken anchors on the first sweep. The rule to carry: **plan a split so that
+  every heading that owns an inbound anchor changes level, never wording.** Re-titling a section while you
+  move it turns a one-pass `sed` into a per-link audit, and it is entirely optional work.
+
+- **(002.1) A link re-point is a prose edit: lengthening a target pushes the line past the wrap column.**
+  `map.md)` → `map/README.md)` adds nine characters wherever it lands, and two of the eleven re-pointed
+  pages went from 106 and 111 columns to 114 and 118 — new drift, in files whose *content* the task never
+  touched, invisible to the link sweep and to `wc -l`. `awk 'length>110 && $0 !~ /^\|/'` over the touched
+  set, diffed against the same run on `HEAD`, separates the drift you introduced from the drift you
+  inherited; only the first is yours to fix inside the task. **Any mechanical substitution that grows a
+  string is a re-wrap job as well as a rewrite job.**

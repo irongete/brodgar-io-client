@@ -18,7 +18,7 @@ end
 
 > **Live, not recorded.** Everything on this page reads the world as it is streamed around you: it is
 > `nil` off-stream and gone at logout. The map you have *explored* — segments, grids, your markers, the
-> minimap icons — is on disk and persistent, and that is [`hafen.map`](map.md).
+> minimap icons — is on disk and persistent, and that is [`hafen.map`](map/README.md).
 
 ## Objects
 
@@ -147,13 +147,13 @@ it was saved — so re-resolve at `OnEnterWorld` and retry for a few seconds as 
 
 An anchor also reaches the **recorded** map: `hafen.map.grid(anchor.gridId)` finds what the client wrote
 down about that ground, whether or not it is streamed in right now, and
-[`marker:anchor()`](map.md#the-marker-object) converts a map marker into the same shape. See
-[saving a position](map.md#saving-a-position) for why a marker's own `seg` + `tc` is not that shape.
+[`marker:anchor()`](map/markers.md#the-marker-object) converts a map marker into the same shape. See
+[saving a position](map/grids.md#saving-a-position) for why a marker's own `seg` + `tc` is not that shape.
 
 ## See also
 
 - [`hafen.gob`](gob.md) — what the object readers hand back, and the world coordinates they share
-- [`hafen.map`](map.md) — the recorded map: its segments and grids, your markers, the icon categories
+- [`hafen.map`](map/README.md) — the recorded map: its segments and grids, your markers, the icon categories
 - [the `filter` argument](conventions.md#the-filter-argument) — the three forms the object readers accept
 - [events](events.md#world) — `GobAdded` and `GobRemoved`
 - [`hafen.ghost`](ghost.md) — what placement snapping is usually for

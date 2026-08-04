@@ -213,7 +213,7 @@ it: the entry is gone, or its resource has not loaded. The live reads are `pag:r
 
 ## Marker
 
-From [`marker:info()`](map.md#the-marker-object), the snapshot escape hatch for a map marker. The live
+From [`marker:info()`](map/markers.md#the-marker-object), the snapshot escape hatch for a map marker. The live
 reads are `marker:name()`, `:type()`, `:tc()`, `:pos()` and the rest — and `marker:anchor()` is the
 position to store, not the `seg` + `tc` below.
 
@@ -221,7 +221,7 @@ position to store, not the `seg` + `tc` below.
 |---|---|---|
 | `name` | string | marker label; optional |
 | `type` | string | `"player"`, a user pin, or `"system"`, a server or quest pin |
-| `seg` | string | segment id, a 64-bit value as a decimal string — client-local, [never stored](map.md#saving-a-position) |
+| `seg` | string | segment id, a 64-bit value as a decimal string — client-local, [never stored](map/grids.md#saving-a-position) |
 | `tc` | `{x, y}` | segment tile coord — client-local, never stored |
 | `color` | [Color](#color) | player markers only; optional |
 | `onmap` | bool | player markers only |
@@ -231,7 +231,7 @@ position to store, not the `seg` + `tc` below.
 
 ## IconCategory
 
-From [`cat:info()`](map.md#the-iconcat-object), the snapshot escape hatch for a minimap icon category.
+From [`cat:info()`](map/icons.md#the-iconcat-object), the snapshot escape hatch for a minimap icon category.
 `{ name = string, res = string, show = bool, notify = bool }` — `res` is the identity, `name` the
 icon tooltip, and `show` and `notify` the minimap-draw and spawn-notify flags. The live reads are
 `cat:res()`, `:name()`, `:show()` and `:notify()`.

@@ -155,8 +155,8 @@ otherwise. [`hafen.world`](world.md#terrain-and-coordinates) converts between wo
 > **grid id** plus a within-grid offset, [`hafen.world.gridPos`](world.md#saving-a-world-position-across-sessions) — the id comes from the
 > server, so it means the same thing to every player. A map marker stores its position differently — a
 > segment id plus a segment tile coord, both of which this client invented and a map merge rewrites — so
-> a marker you want to keep or share goes through [`marker:anchor()`](map.md#the-marker-object) first;
-> see [saving a position](map.md#saving-a-position).
+> a marker you want to keep or share goes through [`marker:anchor()`](map/markers.md#the-marker-object) first;
+> see [saving a position](map/grids.md#saving-a-position).
 
 ## Colours
 

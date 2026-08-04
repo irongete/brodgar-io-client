@@ -26,8 +26,8 @@ hotkey or type their command — so having them all on costs you an untouched lo
 
 The broad one: [events](api/events.md) and [timers](api/timer.md), [saved variables](api/store.md), a
 window, a HUD overlay and per-gob overlays drawn with [the `g` wrapper](api/ui/drawing.md),
-[world ghosts](api/ghost.md), [the kin roster](api/kin.md), [markers](api/map.md#markers),
-[icon categories](api/map.md#icon-categories), [container reads](api/ui/items.md) and the
+[world ghosts](api/ghost.md), [the kin roster](api/kin.md), [markers](api/map/markers.md),
+[icon categories](api/map/icons.md), [container reads](api/ui/items.md) and the
 [hide and replace](api/ui/replace.md) rules. It reads only — it declares no permissions — and it asserts
 each surface at login rather than merely demonstrating it, so its console output is a pass list.
 
@@ -57,10 +57,10 @@ carry — a font face and an image — and it maps those two. It also keeps a wi
 
 ## atlas
 
-A live minimap panel built from the [map database](api/map.md) alone. The only thing it reads from the live
-world is *where am I* — [`hafen.world.gridPos()`](api/world.md#saving-a-world-position-across-sessions), the
+A live minimap panel built from the [map database](api/map/README.md) alone. The only thing it reads from
+the live world is *where am I* — [`hafen.world.gridPos()`](api/world.md#saving-a-world-position-across-sessions), the
 anchor the two halves share; everything it shows comes out of `hafen.map`, and the picture is
-[`grid:image(lvl)`](api/map.md#drawings), which answers `nil` while it renders, so its four-per-second timer
+[`grid:image(lvl)`](api/map/drawings.md), which answers `nil` while it renders, so its four-per-second timer
 is both the retry loop and the "did the picture change?" test.
 
 **It is also the cost claim.** A grid drawing is an ordinary image handle, so it goes into the stylesheet as

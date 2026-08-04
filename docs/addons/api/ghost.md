@@ -96,7 +96,7 @@ g:show()                                      -- ...and put it back
 
 - **`alpha`** is opacity `0..1`. Below `1` the prop becomes see-through; a translucent 3D object does not
   self-occlude, so you see its far faces through its near ones, the usual hologram appearance.
-- **`tint`** is a colour overlay in the **same shape** [`hafen.map.markers`](map.md#markers),
+- **`tint`** is a colour overlay in the **same shape** [`hafen.map.markers`](map/markers.md),
   [`hafen.party`](party.md) and [`hafen.kin`](kin.md) use. Its `a` is the blend strength, how strongly the
   colour is mixed in, and it is independent of `alpha`.
 - **`:setRes`** swaps the resource; like `new`, the new visual resolves on a loader thread and streams in a
@@ -173,7 +173,7 @@ local g = hafen.ghost.new{ res = "gfx/terobjs/arch/logcabin",
 To save a layout across sessions, anchor each ghost on a **grid id** with
 [`hafen.world.gridPos()`](world.md#saving-a-world-position-across-sessions) and re-resolve it on load with
 [`hafen.world.fromGridPos()`](world.md#saving-a-world-position-across-sessions) — the same rule
-[markers](map.md#markers) follow. The bundled **`planner`** addon is a small base planner built on exactly
+[markers](map/markers.md) follow. The bundled **`planner`** addon is a small base planner built on exactly
 this: it places clickable blueprint ghosts, saves them grid-anchored through
 [`hafen.store`](store.md), and reloads them at the same physical spot after a relog, retrying as the map
 streams in.
