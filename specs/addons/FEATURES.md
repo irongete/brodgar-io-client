@@ -4,6 +4,7 @@
 > STATUS ∈ ACTIVE / DONE / PENDING. Folders are never archived — they are the addressable
 > history of the project; closed ones are only opened when named.
 
+- 038-gob-overlays — ACTIVE — `overlay` is the ENGINE's word for a thing attached to a gob (`Gob.ols`/`addol`), and the API spent it on `hafen.ui.gobOverlay` — a screen-space painter that is not one — while the real per-gob attachment hid behind `follow = gob` in `hafen.render` and `hafen.ghost`. All three collapse onto the entity that owns them (D-044): `gob:overlay(key, spec)` attaches or replaces, `(key, nil)` removes, `(key)` reads one, `()` reads all — keyed per addon, one spec table covering both the screen-space paint (`draw`/`text`) and the world-space anchor (`image`/`model`/`ghost` + `offset`). The game's OWN overlays appear in the same read with `native = true` and are read-only; `GobOverlayAdded`/`GobOverlayRemoved` are the first events over `Gob.ols`. Hard cut of `hafen.ui.gobOverlay`, `gob:overlays()` and every `follow=`/`:follow` (design/07,17) — tasks 038.1..038.4
 - 001-bootstrap-engine — DONE — LuaJ engine + `:lua` REPL, disk loading (manifest), tick pump + events + timers (design/01,02,03,04,09) — tasks 001.1..001.3
 - 002-read-api — DONE — Glob-backed read API: gob/world/map/player/time/sound/items/char/party + GobRef resolve (design/06) — tasks 002.1..002.3
 - 003-widget-tree-reads — DONE — adapter mechanism (uimsg tap + poll) + vitals/buffs/food/study/skills/actionbar/equip reads & events (design/14) — tasks 003.1..003.4

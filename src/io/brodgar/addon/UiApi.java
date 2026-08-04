@@ -42,7 +42,7 @@ import static io.brodgar.addon.AddonManager.*;
  * read-only widget-tree walk + hit-testing (W1/W2 node API). Owns the subscription registries + overlay paint
  * state. The widget-placement seam {@code onWidgetPlaced} (called from {@code haven.UI}) stays a facade in
  * {@link AddonManager} and delegates here; the tick drives {@link #pollReplaced}/{@link #pollWatches}/
- * {@link #pollSelectorWatches}/{@link #sweepGobOverlays}/{@link #anyHudOverlays}; {@code haven}-side
+ * {@link #pollSelectorWatches}/{@link #anyHudOverlays}; the per-gob overlay attrib
  * {@code LuaGobOverlay.draw} calls {@link #paintGobOverlays}. Shared gob-read/engine helpers stay in
  * {@link AddonManager}. Not instantiable.
  */
@@ -50,19 +50,17 @@ final class UiApi {
     private UiApi() {}
 
     // ===== registries + overlay paint state =====
-    // -- custom UI overlays (spec 07 / Phase 2b): HUD overlays + world-space gob overlays -----------------
-    // HUD overlays paint ON TOP of the HUD via a one-shot UI.drawafter re-registered each tick (drawafter
-    // is cleared every UI.draw; tick precedes draw in the frame loop, so the afterdraw runs this same frame
-    // after root.draw — above GameUI). Gob overlays attach a shared LuaGobOverlay attrib to each matching
-    // gob (the SpeakerIcon pattern); a THROTTLED sweep evaluates filters + attaches, the per-frame draw
-    // re-checks filters + paints. All on the UI thread (paint runs inside UI.draw).
+    // -- HUD overlays (spec 07 / Phase 2b) ----------------------------------------------------------------
+    // They paint ON TOP of the HUD via a one-shot UI.drawafter re-registered each tick (drawafter is cleared
+    // every UI.draw; tick precedes draw in the frame loop, so the afterdraw runs this same frame after
+    // root.draw — above GameUI). On the UI thread (paint runs inside UI.draw).
+    //   Their world-space sibling is GONE from here (038.1): hafen.ui.gobOverlay's filter list and its
+    // throttled sweep are deleted, the state lives ON THE GOB (LuaGobOverlay is now the store), and the only
+    // thing left in this file is paintGobOverlays — which no longer matches anything.
     private static final LuaGOut hudGout = new LuaGOut();                 // shared g wrapper for the HUD pass
     static final UI.AfterDraw hudAfterDraw = new UI.AfterDraw() { // one-shot afterdraw, re-queued each tick
         public void draw(GOut g) { paintHudOverlays(g); }
     };
-    private static double lastGobSweep;                                   // engine-clock of the last gob sweep
-    private static final double GOB_SWEEP_INTERVAL =                      // gob-overlay filter sweep period (s)
-        Double.parseDouble(System.getProperty("haven.addon.gobsweepsec", "0.2"));
 
     // -- selector subscriptions (030.2): hafen.ui.on(sel, "appear"|"disappear", fn) — the discovery primitive that
     // replaced onWidgetCreate. A FLAT global list (a subscription watches the whole tree, not one keyed target),
@@ -131,16 +129,12 @@ final class UiApi {
                 return newHudOverlay(owner, fn);
             }
         });
-        // hafen.ui.gobOverlay(filter, fn) — label/mark game objects in the 3D view (the SpeakerIcon pattern).
-        // filter(gob)->truthy (or a substring matched against the gob's resource name) selects gobs; fn(g, gob,
-        // sx, sy) draws at the gob's projected screen point (sx,sy = just above the head). gob is a live Gob
-        // OBJECT (D-044) — read it with gob:name()/gob:health()/… Returns a handle with :remove(); auto-removed
-        // on reload/disable (spec 07).
-        uiT.set("gobOverlay", new TwoArgFunction() {
-            public LuaValue call(LuaValue filter, LuaValue fn) {
-                return newGobOverlay(owner, filter, fn);
-            }
-        });
+        // hafen.ui.gobOverlay(filter, fn) is GONE (038.1, hard cut — it reads as plain nil). `overlay` is the
+        // engine's own word for a thing attached to a gob, and this spent it on a screen-space painter that was
+        // not one: a FILTER re-evaluated against every gob by a 5 Hz sweep, and once more per gob per frame.
+        // The verb is on the thing now (D-044) — gob:overlay(key, spec) attaches, gob:overlay() reads back what
+        // is attached (the game's own overlays included), and the state lives on the gob, so it dies with it.
+        // "Every player gets a label" is a GobAdded handler plus a loop; that trade is the point.
         // hafen.ui.on(selector, "appear"|"disappear", fn) — 030.2: WATCH the client's own UI for a part of it, named
         // with the same selector a lookup uses. fn(widget) receives the Widget ENTITY (the very value hafen.ui(sel)
         // would hand back, interned — so `==` and your own tables work across the two events). This is the discovery
@@ -396,8 +390,8 @@ final class UiApi {
 
     /** Session init: drop every per-session widget record (from AddonManager.init). */
     static void resetSession() {
-        lastGobSweep = 0;             // 2b: sweep gob overlays promptly on the new session
-        watches.clear();
+        watches.clear();              // (038.1: no gob-overlay sweep clock to reset — the sweep is gone, and the
+                                      //  overlays themselves went with the last session's gobs)
         selectorWatches.clear();      // 030.2: the tree of the session just ended; nothing matches any more
         pending.clear();
         if(consoleOwner != null) {
@@ -484,32 +478,6 @@ final class UiApi {
             public LuaValue call() {
                 ov.active = false;
                 owner.hudOverlays.remove(ov);
-                return LuaValue.NIL;
-            }
-        });
-        return h;
-    }
-
-    /**
-     * Register a world-space gob overlay ({@code hafen.ui.gobOverlay(filter, draw)}, spec 07): a filter that
-     * selects gobs (a function {@code filter(gob)->truthy}, or a string substring-matched on the gob's name)
-     * and a draw callback {@code draw(g, gob, sx, sy)} painted over each matching gob (the SpeakerIcon
-     * pattern via {@link LuaGobOverlay}). Bridge-owned (P2). Returns the Lua handle ({@code :remove()}).
-     */
-    private static LuaValue newGobOverlay(final Addon owner, LuaValue filter, LuaValue draw) {
-        if(!(filter.isfunction() || filter.isstring()))
-            throw new LuaError("hafen.ui.gobOverlay(filter, draw): filter must be a function or string");
-        if(!draw.isfunction())
-            throw new LuaError("hafen.ui.gobOverlay(filter, draw): draw must be a function");
-        final GobOverlay ov = new GobOverlay(owner, filter, draw);
-        owner.gobOverlays.add(ov);
-        LuaTable h = new LuaTable();
-        h.set("remove", new ZeroArgFunction() {
-            public LuaValue call() {
-                ov.active = false;
-                owner.gobOverlays.remove(ov);
-                if(!anyGobOverlays())      // last gob overlay gone → detach the idle attribs from all gobs
-                    detachGobOverlays();
                 return LuaValue.NIL;
             }
         });
@@ -1416,14 +1384,6 @@ final class UiApi {
         return false;
     }
 
-    /** Any addon currently has a gob overlay? (Gates the sweep and the idle-attrib cleanup.) */
-    static boolean anyGobOverlays() {
-        for(Addon a : addons)
-            if(!a.gobOverlays.isEmpty())
-                return true;
-        return false;
-    }
-
     /**
      * Paint every addon's HUD overlays. Runs as a one-shot {@link UI.AfterDraw} (re-queued from {@link #tick})
      * after {@code root.draw}, so overlays land ON TOP of the whole HUD. The {@code g} is the full-screen
@@ -1449,97 +1409,50 @@ final class UiApi {
     }
 
     /**
-     * Throttled gob-overlay sweep (2b): attach a shared {@link LuaGobOverlay} to every gob that matches at
-     * least one active filter — like {@code SpeakerIcon.sweep}, but with dynamic (Lua) filters, so it is
-     * rate-limited ({@link #GOB_SWEEP_INTERVAL}). Attach-only: a gob that later stops matching keeps an idle
-     * attrib that draws nothing (the per-frame draw re-checks filters); the attribs are detached wholesale
-     * once no addon wants gob overlays (handle {@code :remove()} / teardown). Runs in {@code tick} on the UI
-     * thread, so a gob's filter is watchdog-armed + CPU-accounted via {@link #callLua}.
+     * Paint the overlays attached to ONE gob — called from {@link LuaGobOverlay#draw} with that attrib's own
+     * records and the gob's projected screen point {@code sc}. Nothing is matched and nothing is searched here
+     * since 038.1: the records are the ones standing on this very gob, and each is painted for its own owner
+     * (its {@code g} wrapper carries that addon's text cache, its cost lands on that addon's row).
+     *
+     * <p>A {@code {draw = fn}} record calls back into Lua through {@link #callLua} (watchdog-armed,
+     * error-isolated, CPU-accounted) with the owner's interned {@link LuaGob} object (D-044), so the callback
+     * reads the gob LIVE rather than from a per-frame snapshot. A {@code {text = …}} record never enters Lua at
+     * all — it is drawn in Java through the same cached text path {@code g:text} uses, so a label costs one
+     * rasterisation for its lifetime instead of one per frame. On the UI thread (inside the Render2D pass of
+     * {@code UI.draw}).
      */
-    static void sweepGobOverlays() {
-        if(clock - lastGobSweep < GOB_SWEEP_INTERVAL)
-            return;
-        lastGobSweep = clock;
-        if(!anyGobOverlays())
-            return;
-        for(Gob g : allGobs()) {
-            if(g.getattr(LuaGobOverlay.class) != null)
-                continue;                       // already tracked (the draw pass re-checks filters)
-            if(!gobMatchesAny(g))
-                continue;
-            try {
-                g.setattr(new LuaGobOverlay(g));
-            } catch(Loading l) {
-                /* the gob's render slots aren't ready yet — retry on the next sweep */
-            } catch(RuntimeException e) {
-                /* never break the tick over a single gob */
-            }
-        }
-    }
-
-    /** Does {@code g} match any addon's active gob-overlay filter? (Used by the sweep.) */
-    private static boolean gobMatchesAny(Gob g) {
-        for(Addon a : addons)
-            for(GobOverlay o : a.gobOverlays)
-                if(o.active && gobFilterMatch(o, g))
-                    return true;
-        return false;
-    }
-
-    /**
-     * Evaluate one gob overlay's filter against a gob. A string filter is a cheap Java substring match on the
-     * gob's resource name; a function filter is called with the owner's interned {@link LuaGob} object (D-044)
-     * through {@link #callLua} (watchdog-armed, error-isolated, CPU-accounted) — an error drops the match.
-     */
-    private static boolean gobFilterMatch(GobOverlay o, Gob g) {
-        LuaValue f = o.filter;
-        if(f.isstring()) {
-            String name = gobName(g);
-            return (name != null) && name.contains(f.tojstring());
-        }
-        return callLua(o.owner, Addon.C_DRAW, f, LuaGob.of(o.owner, g.id)).arg1().toboolean();
-    }
-
-    /**
-     * Paint every matching addon's gob overlay for one gob — called from {@link LuaGobOverlay#draw} with the
-     * gob's projected screen point {@code sc}. Re-checks each filter and invokes the matching draw callbacks
-     * {@code draw(g, gob, sx, sy)} through {@link #callLua}, where {@code gob} is that addon's interned
-     * {@link LuaGob} object (D-044) — so the callback reads the gob LIVE instead of from a per-frame snapshot.
-     * On the UI thread (inside the Render2D pass of {@code UI.draw}).
-     */
-    static void paintGobOverlays(Gob gob, GOut g, LuaGOut gwrap, Coord sc) {
+    static void paintGobOverlays(Gob gob, List<LuaGobOverlay.Attach> recs, GOut g, LuaGOut gwrap, Coord sc) {
         LuaValue sx = LuaValue.valueOf(sc.x), sy = LuaValue.valueOf(sc.y);
-        for(Addon a : addons) {
-            if(a.gobOverlays.isEmpty())
-                continue;
-            for(GobOverlay o : a.gobOverlays) {
-                if(!o.active)
-                    continue;
-                if(!gobFilterMatch(o, gob))
-                    continue;
-                LuaTable gt = gwrap.bind(g, a);
-                try {
-                    callLua(a, Addon.C_DRAW, o.draw, gt, LuaGob.of(a, gob.id), sx, sy);
-                } finally {
-                    gwrap.unbind();
-                }
+        for(LuaGobOverlay.Attach o : recs) {
+            LuaTable gt = gwrap.bind(g, o.owner);
+            try {
+                if(o.draw != null)
+                    callLua(o.owner, Addon.C_DRAW, o.draw, gt, LuaGob.of(o.owner, gob.id), sx, sy);
+                else
+                    gwrap.label(g, o.text, sc.add(o.off), 0.5, 1.0, o.color);
+            } catch(RuntimeException e) {
+                /* never throw into the render pass — callLua already isolates a Lua error */
+            } finally {
+                gwrap.unbind();
             }
         }
     }
 
     /**
-     * Detach every {@link LuaGobOverlay} attrib from all live gobs (best-effort; no session/world → no-op).
-     * Mutating a gob's render slots is done under {@code synchronized(ui)} — like {@link #destroyWidgets} —
-     * because teardown may run off the UI thread (session bind), while the sweep's {@code setattr} is already
-     * on the UI thread (inside {@code tick}).
+     * Drop every overlay {@code a} attached to any gob, and detach the attrib from the gobs left with nothing
+     * ({@code :reload}/disable). This is the ONE place that has to find an addon's overlays across gobs — the
+     * state lives on the gob precisely so that nothing else ever sweeps — and it runs at a rare moment.
+     * Mutating a gob's render slots is done under {@code synchronized(ui)} (like {@link #destroyWidgets})
+     * because teardown may run off the UI thread (session bind). The game's own overlays are untouched.
      */
-    static void detachGobOverlays() {
+    static void teardownGobOverlays(Addon a) {
         UI u = ui;
         Runnable detach = () -> {
             try {
                 for(Gob g : allGobs()) {
-                    if(g.getattr(LuaGobOverlay.class) != null)
-                        g.delattr(LuaGobOverlay.class);
+                    LuaGobOverlay ol = LuaGobOverlay.on(g);
+                    if((ol != null) && ol.removeOwner(a))
+                        LuaGobOverlay.prune(g);
                 }
             } catch(RuntimeException e) {
                 /* best-effort cleanup — a leftover idle attrib draws nothing anyway */

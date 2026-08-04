@@ -20,9 +20,22 @@
 | Party | [`Glob.party`](src/haven/Party.java:32): `memb` (:33), `Member.getc()` (:60), `col` (:49) |
 | Time / astronomy | [`Glob.globtime`](src/haven/Glob.java:210) (`gtime` :39); [`Glob.ast`](src/haven/Glob.java:40) → [`Astronomy`](src/haven/Astronomy.java:32) `dt`/`night`/`mp`/`yt`/`is` ([:32–36](src/haven/Astronomy.java:32)); light fields (:42–47) |
 | Gob speech / icon | [`Speaking.text`](src/haven/Speaking.java:37) (reliable); [`GobIcon.Icon.name()`](src/haven/GobIcon.java:64) (Loading-guarded) |
+| Gob overlays | [`Gob.ols`](src/haven/Gob.java:42) (public `Collection<Overlay>`); [`Overlay`](src/haven/Gob.java:49) (`id` :50 = the SERVER's, `-1` when it gave none; `spr.res.name` is the only nameable identity), `addol` (:525 body / :534 one-arg / :537 / :540 / :543), `addolsync` (:546), `findol(id)` (:553), removal at [:118](src/haven/Gob.java:118) |
 
 ## Gotchas
 
 - **No global world position**: `rc` is login-relative; the shareable anchor is grid id +
   within-grid offset. Grid/segment ids are 64-bit → expose as decimal strings.
 - Any read here can throw **`Loading`** — swallow to a partial/absent value or defer.
+- **A `GAttrib` dies with its gob for free**: [`Gob.dispose()`](src/haven/Gob.java:561) disposes every
+  attrib, and a gob dropped from `OCache.objs` takes them with it — so state attached to a gob needs no
+  prune, unlike an addon-side map keyed by gob id (D-100). `setattr` (:618) adds a `RenderTree.Node`
+  attrib to the gob's slots and can throw **`Loading`**; it also `dispose()`s whatever it displaced.
+- **`ctick` self-removes a VIRTUAL gob** when `ols.isEmpty()` and it has no `Drawable`
+  ([:463](src/haven/Gob.java:463)) — a client-only gob must keep something in one of the two, or it
+  vanishes on the next tick. `ctick` also drops a finished overlay (`ol.tick(dt)` true, :456).
+- **`addol(ol)` is `addol(ol, true)` = ASYNC** — it defers through `Gob.defer` onto a loader thread, so
+  the one-arg and two-arg forms are the same event: hook the two-arg **body** or every add fires twice.
+  Overlays also arrive from server messages off the UI thread; nothing may call into Lua from there.
+- **Several overlays may share one resource** — measured 13 of 33 gobs carrying overlays (038.1), so a
+  resource name identifies a *set*, not one overlay (D-101).

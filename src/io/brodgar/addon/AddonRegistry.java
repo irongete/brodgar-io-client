@@ -147,12 +147,13 @@ public final class AddonRegistry {
                                       //   so an unreleased hold leaves an overlay drawn forever (D-097)
         LuaSound.teardownSounds(a);   // 024.2: silence anything the addon left in the air (a disabled addon making noise is a bug)
         LuaGOut.teardownTexts(a);     // 026.1: drop the addon's cached g:text renderings (frees their GL textures — we own them)
+        UiApi.teardownGobOverlays(a); // 038.1: drop everything this addon attached to a game object, wherever it
+                                      //   hangs — the ONE sweep of the object cache the feature costs, and the
+                                      //   only one left: an overlay's state lives on the gob, so nothing else
+                                      //   ever looks for it. The game's own overlays are untouched.
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
-        a.gobOverlays.clear();        // 2b: gob overlays stop painting immediately
         a.subs.clear();
         a.timers.clear();
-        if(!UiApi.anyGobOverlays())   // no addon wants gob overlays now → detach the idle attribs (reload-safe)
-            UiApi.detachGobOverlays();
     }
 
     /** Destroy every custom UI widget/window this addon owns (2a). Widget removal locks on {@code ui}. */

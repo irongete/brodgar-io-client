@@ -260,12 +260,56 @@ public final class LuaGob {
                 return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s);
             }
         });
-        // overlays() / isplayer() — the two snapshot fields that had no accessor, now methods, so the method
-        // set and info()'s fields line up 1:1.
-        m.set("overlays", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Gob g = gob(self, "overlays");
-                return (g == null) ? LuaValue.NIL : AddonManager.overlayNames(g);
+        // overlay([key[, spec]]) — THE ONE WAY to attach anything to a game object, and the one way to read what
+        // is already attached (038.1). ARITY IS THE VERB, and the key is per addon:
+        //   gob:overlay()             -- every overlay on the gob: yours, then the GAME's own (ov:native())
+        //   gob:overlay(key)          -- that one, or nil
+        //   gob:overlay(key, spec)    -- attach or REPLACE (the same key twice leaves one overlay)
+        //   gob:overlay(key, nil)     -- remove
+        // The spec says WHAT to draw: {draw = fn} (fn(g, gob, sx, sy) at the gob's projected screen point) or
+        // {text = "…", color = {r,g,b[,a]}, offset = {x=,y=}} (a label there). A spec naming neither is an
+        // error naming the field — an overlay that draws nothing is never what was meant. The game's own
+        // overlays are READ-ONLY: an attach onto a native key, or a remove of one, raises naming the key.
+        // hafen.ui.gobOverlay (the filter form and its 5 Hz sweep) and gob:overlays() are HARD CUT: the state
+        // lives on the gob now, so it dies with the gob and nothing is searched per frame.
+        m.set("overlay", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {   // overlay() → narg 1 · (key) → 2 · (key, spec) / (key, nil) → 3
+                LuaValue self = a.arg1();
+                LuaGob h = handle(self, "overlay");
+                Gob g = AddonManager.getgob(h.id);
+                if(a.narg() < 2)                                  // read ALL — nil once the gob is gone
+                    return (g == null) ? LuaValue.NIL : LuaOverlay.list(owner, g);
+                LuaValue kv = a.arg(2);
+                if(!kv.isstring() || kv.isnumber())    // LuaJ counts a number as a string: coerce nothing
+                    throw new LuaError("gob:overlay(key[, spec]): the key must be a string -- it is YOUR name for"
+                        + " this overlay (keys are per addon), and a native one is the overlay's resource name");
+                String key = kv.tojstring();
+                if(a.narg() < 3) {                                // read ONE
+                    if(g == null)
+                        return LuaValue.NIL;
+                    LuaGobOverlay store = LuaGobOverlay.on(g);
+                    if((store != null) && (store.get(owner, key) != null))
+                        return LuaOverlay.of(owner, h.id, key, false);
+                    return LuaGobOverlay.findNative(g, key) ? LuaOverlay.of(owner, h.id, key, true) : LuaValue.NIL;
+                }
+                LuaValue spec = a.arg(3);
+                if(g == null)                                     // the gob is gone: nothing to attach it to, and
+                    return LuaValue.NIL;                          //   nothing left to remove (it died with it)
+                if(LuaGobOverlay.findNative(g, key))
+                    throw new LuaError("gob:overlay(\"" + key + "\", ...): that key names one of the GAME's own"
+                        + " overlays, which are read-only -- pick a key of your own (a native key is a resource"
+                        + " name; gob:overlay() lists them)");
+                if(spec.isnil()) {                                // REMOVE
+                    LuaGobOverlay store = LuaGobOverlay.on(g);
+                    if(store != null) {
+                        store.remove(owner, key);
+                        LuaGobOverlay.prune(g);
+                    }
+                    return self;
+                }
+                LuaGobOverlay.Attach rec = LuaGobOverlay.Attach.of(owner, key, spec);   // parsed BEFORE attaching
+                LuaGobOverlay.ensure(g).put(rec);
+                return LuaOverlay.of(owner, h.id, key, false);
             }
         });
         m.set("isplayer", new OneArgFunction() {
@@ -295,7 +339,7 @@ public final class LuaGob {
                 } else {
                     LuaGob h = resolve(other);
                     if(h == null)
-                        throw new LuaError("gob:distance([other]) — 'other' must be a Gob object (hafen.gob(id)), or nil for the player");
+                        throw new LuaError("gob:distance([other]) -- 'other' must be a Gob object (hafen.gob(id)), or nil for the player");
                     b = AddonManager.getgob(h.id);
                 }
                 if((a == null) || (b == null))
@@ -317,7 +361,7 @@ public final class LuaGob {
     private static LuaGob handle(LuaValue self, String method) {
         LuaGob h = resolve(self);
         if(h == null)
-            throw new LuaError("gob:" + method + "() — use a COLON call on a Gob object (hafen.gob(id), hafen.world.nearest(...), hafen.player():gob())");
+            throw new LuaError("gob:" + method + "() -- use a COLON call on a Gob object (hafen.gob(id), hafen.world.nearest(...), hafen.player():gob())");
         return h;
     }
 
@@ -339,7 +383,7 @@ public final class LuaGob {
             public Varargs invoke(Varargs a) {
                 LuaValue idv = a.arg(2);        // arg1 = the callable table itself
                 if(!idv.isnumber())
-                    throw new LuaError("hafen.gob(id) expects a gob id (a number) — the \"player\"/\"me\"/\"partyN\" tokens are gone; use hafen.player():gob()");
+                    throw new LuaError("hafen.gob(id) expects a gob id (a number) -- the \"player\"/\"me\"/\"partyN\" tokens are gone; use hafen.player():gob()");
                 return of(owner, (long)idv.todouble());
             }
         });

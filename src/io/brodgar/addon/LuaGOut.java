@@ -458,8 +458,11 @@ final class LuaGOut {
         }
         if((col == null) && (fh != null))
             col = fh.color;
-        Coord c = Coord.of(x, y);
+        draw0(d, str, Coord.of(x, y), ax, ay, fh, col);
+    }
 
+    /** The cached render-and-blit itself, shared by {@link #drawText} and the Java-side {@link #label}. */
+    private void draw0(GOut d, String str, Coord c, double ax, double ay, FontHandle fh, Color col) {
         Cache cache = (owner != null) ? owner.texts : null;
         Key k = (cache != null) ? new Key(str, fh, Fonts.gen()) : null;
         Tex T = (cache != null) ? cache.get(k) : null;
@@ -479,6 +482,17 @@ final class LuaGOut {
                 t.dispose();
             }
         }
+    }
+
+    /**
+     * Draw a plain label from JAVA, through the very cache {@code g:text} uses (038.1). It is the
+     * {@code {text = …}} half of {@code gob:overlay}: an engine-drawn overlay never enters Lua, so it cannot
+     * call {@code g:text} itself, and {@link GOut#atext} would re-rasterise and re-upload the string every
+     * frame — the pre-026 cost, one label at a time. Same key, same LRU, same owner: a {@code text} overlay and
+     * a {@code g:text} of the same string in the same addon are ONE entry.
+     */
+    void label(GOut d, String str, Coord c, double ax, double ay, Color col) {
+        draw0(d, str, c, ax, ay, null, col);
     }
 
     /**

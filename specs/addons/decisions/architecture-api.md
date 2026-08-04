@@ -775,3 +775,48 @@ documented as the other half of the measurement rather than as a decoration. Gen
 costs nothing" survives only while a flag is false, it is a measurement of the flag.*
 **See.** [D-098](architecture-api.md), [D-095](architecture-api.md), [D-043](fonts.md),
 [037-map-database](../037-map-database/spec.md).
+
+### D-100 — the state belongs on the THING, and a sweep is the shape of having put it elsewhere ✅ (2026-08-04)
+**Decision.** When an addon attaches something to a game object, the record lives **on that object** (inside
+the shared `LuaGobOverlay` attrib, partitioned per addon), not in a list on the `Addon` that a sweep matches
+against the world. `gob:overlay(key, spec)` names the gob, so nothing is searched: the attach is O(1) and the
+draw pass paints the records it is already standing in. What that deletes is not one loop but a whole
+category — `hafen.ui.gobOverlay`'s filter list, its throttled 5 Hz world sweep, the per-frame re-match inside
+the draw, **and** the pruning an addon-side `gobId -> record` map would have needed.
+**Rationale.** (2026-08-04, 038.1.) The old surface registered a *predicate* over the world, so the engine
+had to keep asking every gob whether it still matched — twice, at two different rates, with the answers
+disagreeing in between. Once the state is an attribute of the gob, the engine ends it for us: `Gob.dispose()`
+disposes every `GAttrib` and a gob dropped from `OCache` takes its attribs with it, so "an overlay dies with
+its gob" costs **no code at all** — no `GobRemoved` handler, no prune, and no decision about whether to keep
+a record "in case it comes back" (a felled tree never does). The ROADMAP had this backwards: it listed a
+*per-gob match cache* as future polish, i.e. a cache for a search that should not exist.
+**Consequences.** The declarative form is gone and is not coming back as a second door: "every player gets a
+label" is a `GobAdded` handler plus a loop over what is already there, and that trade is deliberate. Teardown
+becomes the ONE caller that must find an addon's records across gobs — a single sweep of the object cache at
+`:reload`/disable, i.e. at a rare moment instead of 5 times a second. The general rule: *a sweep in an API is
+usually a symptom — ask what the state would have to be attached to for the engine to end it for you.*
+**See.** [D-044](../decisions/architecture-api.md), [D-098](architecture-api.md),
+[038-gob-overlays](../038-gob-overlays/spec.md).
+
+### D-101 — where a name cannot separate two engine objects, publish the COLLAPSE rather than reaching for the id ✅ (2026-08-04)
+**Decision.** The game's own overlays are keyed by their **resource name**, and where a gob carries several
+overlays of one resource they collapse to a single Overlay entity whose `:count()` publishes the
+multiplicity. The alternative on the table — `Gob.Overlay.id`, via `findol` — is refused.
+**Rationale.** (2026-08-04, 038.1.) This was the plan's one open point, and it was **measured, not assumed**
+(032.1's precedent): the suite compares the raw `gob:info().overlays` list against the keyed read over every
+live gob, and the first in-game run answered **13 of 33 gobs with overlays carry two of one resource, worst
+by four**. So the collapse is ordinary and had to be faced. It is still not an argument for the id: that id
+is `-1` whenever the server gave none, so it collides in exactly the same places, it is a *number* where
+every other key in this API is a name (`gob:overlay(3)` addresses nothing a reader can recognise), and it
+does not survive a re-add. What settles it is that a native overlay is **read-only** — there is no operation
+a finer identity would enable — so a union loses nothing except the count, and the count can simply be said.
+This is D-093 ("an entity's identity is the key a NAME can address") with 037.3's mask precedent, plus the
+half neither of them needed: the collapse is *visible* instead of implicit.
+**Consequences.** `ov:count()` answers 1 for an addon's own overlay and N for a native union, and
+`gob:info().overlays` stays as the raw, uncollapsed view for anyone who wants it. The suite keeps the census
+and turns it into an invariant — `sum(ov:count())` must reconcile with the raw list on every gob — with a
+second line asserting the collapse is *real where the player is standing*, or the reconciliation proved
+nothing stronger than `1 == 1`. Generally: *before collapsing a compound engine key, measure how often the
+collapse bites, then publish what it hides.*
+**See.** [D-093](architecture-api.md), [D-072](architecture-api.md),
+[038-gob-overlays](../038-gob-overlays/spec.md).

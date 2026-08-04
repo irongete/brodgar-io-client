@@ -633,3 +633,35 @@
   the same file are fine, and the suites had never shown it because their verdict lines were already plain
   `--`. Keep `—`, `·`, `…` and friends out of every string that reaches `hafen.log`; they are free in code
   comments, docs and manifests. Green verdicts do not cover the text beside them.
+
+- **(038.1) LuaJ counts a NUMBER as a string, so a `key` guard needs `isstring() && !isnumber()`.** The
+  probe planted `gob:overlay(7, {…})` expecting a refusal and got a silent coercion: `LuaValue.isstring()`
+  is true for numbers (they coerce), so a "keys are names" contract accepted `7` and stringified it. The
+  in-game suite would never have found it — a suite tests the API as documented, and nobody documents
+  passing a number. Any argument check that means *literally a string* has to say `!v.isnumber()` too.
+- **(038.1) The fabricated world extends all the way down to a real `OCache`, which makes an
+  id-resolving API fully headless.** 036.1's recipe stopped at a fabricated `UI`; four more `Unsafe`
+  allocations reach the object cache — `MapView`(→`AddonManager.view`) → its public `ui` → `UI.sess` →
+  reflect-set `Session.glob` → reflect-set `Glob.oc = new OCache(glob)` (the **constructor** matters:
+  `allocateInstance` skips the field initialisers, so a hand-allocated `OCache` has a null `objs`), then
+  reflect the private `objs` MultiMap and `put` real `new Gob(glob, Coord2d.z, id)`s into it. After that
+  `AddonManager.getgob` answers and every `hafen.*` verb keyed on a gob id runs. The game's own overlays
+  are fabricated the same way: `new Sprite(null, res){}` (Sprite is abstract with **no abstract methods**)
+  over an `Unsafe`-allocated `Resource` with `name` reflect-set, hung straight on the public `gob.ols` —
+  bypassing `addol`, which is what you want, since `init()` needs the render tree.
+- **(038.1) Two `Addon`s + one gob is the only way to prove a PER-ADDON partition, and no suite can do it
+  alone.** A suite is one addon, so "two addons' `"tag"` on one gob do not collide" is unassertable from
+  inside it; the probe installs `installHafen` on two and drives both, and falsifying the partition
+  (making the read return every addon's keys) reddened **6** checks. What the in-game side *can* do is
+  prove it from OUTSIDE: `:lua` runs as the console's own `Addon`, so a `[manual]` line reading
+  `:lua hafen.player():gob():overlay("tag")` → `nil` while the suite holds that very key is a genuine
+  one-line cross-addon proof. A `[manual]` that is a COMMAND rather than a procedure (037.4's lesson)
+  can reach places the suite cannot.
+- **(038.1) A census that only counts is a report; make it RECONCILE and it becomes a check.** The first
+  version asserted `duplicates == 0` over the live world and came back red with the real number (13 of 33
+  gobs carrying two overlays of one resource) — which is exactly what a measurement is for, but it left
+  the suite with a permanently-red line. The fix was not to lower the bar: the design absorbed the
+  measurement (the collapse is published as `ov:count()`), and the check became an **invariant** —
+  `sum(ov:count())` must equal the raw overlay list on every sampled gob — plus a second line asserting
+  the collapse is real *here*, or the reconciliation proved nothing stronger than `1 == 1`. A census
+  belongs in a suite only once it has an invariant attached to it.

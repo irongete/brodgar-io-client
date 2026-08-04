@@ -25,10 +25,34 @@ Deferred from 1c-3: item **`quality`/`contents`** and per-item accessor function
 instead of snapshots). Also finer event granularity deferred from 1d-4: **per-slot
 `EquipChanged`**, a **`SkillsChanged`** event.
 
-## Overlay/render polish — [design/17-custom-rendering.md](design/17-custom-rendering.md)
-Deferred from 2b: per-overlay **anchor/offset** and a per-gob match cache for the gob-overlay
-sweep. Possible R-series follow-ons (animated glTF was explicitly out of the static-subset scope,
+## `hafen.render` / `hafen.ghost` belong under `hafen.world` — raised while planning 038, DEFERRED
+The maintainer's framing, and 038 makes it visible rather than causing it: after 038 there are exactly
+three places a drawn thing can live — **in the world at a fixed place** (`hafen.render.sprite/object`,
+`hafen.ghost`), **on a gob** (`gob:overlay`, which follows by definition — there is no `follow` option
+left anywhere), and **on the HUD** (`hafen.ui.overlay`). The first of those is named after the
+*mechanism* (rendering) while the other two are named after the *place*, which is the inconsistency.
+037 already split LIVE (`hafen.world`) from RECORDED (`hafen.map`) on exactly this axis, so the shape
+of the move is known. Not started, and it is a rename of two whole sections plus their docs.
+
+## Collection objects instead of arity-as-verb — raised while planning 038, DEFERRED
+The maintainer's question, worth keeping because the window closes at release: should a collection be
+an **object with verbs** (`gob:overlay():add(key, spec)`, `:remove(key)`) rather than the arity triple
+(`gob:overlay(key, spec)` / `(key, nil)` / `(key)`)? It is **not** unprecedented — `hafen.kin()` is
+already an array that carries `:add`/`:list`/`:find` — and "nothing is released, change everything" is
+a real option. **038 keeps arity-as-verb** for one reason that is about gobs rather than consistency:
+a collection *handle* has a lifetime, and since an overlay now dies with its gob, holding one would be
+a second object that can go stale on top of the Gob — where `hafen.kin()` gets away with it because the
+roster never disappears. If it is ever taken up it is an AREA-WIDE feature that must land **before** the
+sections it rewrites, not one section at a time: every callable namespace (D-056/D-057), every
+arity-as-verb entity verb (`w:replace`, `w:skin`, `cat:show`, `:pos`/`:size`, D-089),
+`conventions.md`'s headline rule, ~40 doc pages, 30+ suites, the example addons and frozen `hello`.
+
+## Render polish — [design/17-custom-rendering.md](design/17-custom-rendering.md)
+Possible R-series follow-ons (animated glTF was explicitly out of the static-subset scope,
 [design/18-custom-models-gltf.md](design/18-custom-models-gltf.md)).
+*(2b's other two deferrals — per-overlay **anchor/offset** and a per-gob match cache for the
+gob-overlay sweep — went to [038-gob-overlays/](038-gob-overlays/), which gives the first one and
+deletes the sweep the second was polish on.)*
 
 ## Finish the OOP migration (the exit path opened by 017-gob-oop) — [017-gob-oop/](017-gob-oop/)
 `017` migrates **only** Gob and leaves the rest flat *on purpose*; that coexistence is debt with a

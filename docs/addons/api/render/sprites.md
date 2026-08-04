@@ -101,7 +101,7 @@ local s = hafen.render.sprite{
 ## Anchoring to a gob
 
 A sprite can be **anchored to a gob** so it moves with it automatically, every frame, with no per-tick code
-of your own — the world-space analog of a [`hafen.ui.gobOverlay`](../ui/custom.md#overlays). Give a `follow`
+of your own — the world-space analog of a screen-space [`gob:overlay`](../gob.md#overlays). Give a `follow`
 target, a [Gob object](../gob.md), and an optional world `offset` where `z` is up.
 
 | Call | Does |

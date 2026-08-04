@@ -42,13 +42,14 @@ public final class Addon {
      * immediately) — no widget, nothing else to release, so teardown is just {@code clear()}.
      */
     public final List<AddonManager.HudOverlay> hudOverlays = new CopyOnWriteArrayList<AddonManager.HudOverlay>();
-    /**
-     * Live world-space gob overlays owned by this addon ({@code hafen.ui.gobOverlay}, Phase 2b): a
-     * filter + draw callback painted over each matching gob (via a shared {@link LuaGobOverlay} attrib per
-     * gob). Clearing this list stops the overlays immediately; the engine detaches the idle attribs once no
-     * addon wants gob overlays at all (see {@link AddonRegistry#teardown}).
+    /*
+     * There is NO list of gob overlays here, and that is the point of 038.1. What an addon attaches to a
+     * game object (gob:overlay(key, spec)) lives on the gob itself, inside the shared LuaGobOverlay attrib,
+     * partitioned per addon — so the engine ends it: a gob's attribs are disposed with the gob and dropped with
+     * it from OCache, and nothing here has to be swept for a felled tree that will never come back. Teardown
+     * (UiApi.teardownGobOverlays) is the one caller that must find this addon's overlays across gobs, and it is
+     * a single sweep of the object cache at a rare moment.
      */
-    public final List<AddonManager.GobOverlay> gobOverlays = new CopyOnWriteArrayList<AddonManager.GobOverlay>();
     /**
      * Live input/gesture hooks owned by this addon ({@code hafen.hook.input}, Phase 2c): pre-hooks registered
      * on a client widget via {@link haven.Widget#listen}. Teardown deafens each ({@link haven.Widget#deafen})
@@ -355,6 +356,19 @@ public final class Addon {
      * lives inside a {@code Grid} that the weak {@code CacheMap} rebuilds from disk after an eviction.
      */
     final LuaMask.Cache mapMasks = new LuaMask.Cache(this);
+
+    /**
+     * This addon's <b>gob-overlay interning cache</b> ({@code gob:overlay(key)}, spec
+     * {@code 038-gob-overlays}): the weak-valued {@code (gob id, native?, key) → Overlay object} map, its
+     * {@link java.lang.ref.ReferenceQueue} and the per-addon metatable. Same contract as {@link #mapMasks},
+     * whose composite {@code String} key it copies — per-addon so no Lua value crosses a sandbox boundary
+     * (D-017) and the whole cache dies with this {@link Addon} on {@code :reload}/disable.
+     *
+     * <p>Nothing to tear down: the entries are weak and a handle holds only ids. The <b>overlays themselves</b>
+     * are not here at all — they live on the gob (see the note where {@code gobOverlays} used to be), which is
+     * what makes an Overlay object a view of engine state rather than a record of ours.
+     */
+    final LuaOverlay.Cache gobOverlayObjs = new LuaOverlay.Cache(this);
 
     /**
      * This addon's <b>rendered map images</b> ({@code grid:image(lvl)} / {@code grid:overlayImage(tag)}, task

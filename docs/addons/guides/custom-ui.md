@@ -60,25 +60,30 @@ its *text* changes, and round anything you do not need to the digit you do.
 ## Overlays
 
 An overlay paints without being in the tree: nothing to place, nothing to size, nothing for the user to
-drag. Two of them, both taking a draw function and returning a handle with `:remove()`:
+drag. On the **HUD** it is a draw function and a handle with `:remove()`:
 
 ```lua
 hafen.ui.overlay(function(g, w, h)                       -- over the whole HUD; w, h is the screen
   g:color(255, 255, 255)
   g:atext(os.date("%H:%M"), w - 8, 8, 1, 0)              -- anchored to the top-right corner
 end)
-
-hafen.ui.gobOverlay(function(gob) return gob:isplayer() end, function(g, gob, sx, sy)
-  g:color(0, 255, 0)
-  g:atext("player", sx, sy, 0.5, 1)                      -- centred just above each head
-end)
 ```
 
-A [gob overlay](../api/ui/custom.md#overlays) takes the usual
-[filter](../api/conventions.md#the-filter-argument) and is called once per matching object per frame, with
-the object's screen point already projected — so a nameplate is a filter and two draw calls, not a
-projection problem. Standing something **in** the world instead of over it is
-[`hafen.render`](../api/render/README.md) or [`hafen.ghost`](../api/ghost.md).
+Over a **game object** the verb is on the object — [`gob:overlay(key, spec)`](../api/gob.md#overlays) —
+and you name the gob rather than describing a set of them:
+
+```lua
+local function tag(gob)
+  if gob:isplayer() then gob:overlay("tag", { text = "player", color = {0, 255, 0} }) end
+end
+hafen.events.on("GobAdded", tag)                         -- everyone who walks in...
+for _, g in ipairs(hafen.world.gobs()) do tag(g) end     -- ...and everyone already here
+```
+
+The label is drawn at that object's projected screen point, just above the head, and it follows the gob
+because it is attached to it — no projection to do and nothing to poll. A `{draw = fn}` spec gets that
+point as `sx, sy` when you want to paint it yourself. Standing something **in** the world instead of over
+it is [`hafen.render`](../api/render/README.md) or [`hafen.ghost`](../api/ghost.md).
 
 ## Input
 

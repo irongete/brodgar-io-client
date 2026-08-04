@@ -153,8 +153,8 @@ click, and `GhostClicked` reaches only *your* addon, since a ghost is private to
 ## Anchoring to a gob
 
 A ghost, like a [sprite](render/sprites.md#anchoring-to-a-gob), can be **anchored to a gob** so it follows
-it every frame with no per-tick code of your own — the world analog of a
-[`hafen.ui.gobOverlay`](ui/custom.md#overlays). Pass a `follow` target, a [Gob object](gob.md), to `new`, or
+it every frame with no per-tick code of your own — the world analog of a screen-space
+[`gob:overlay`](gob.md#overlays). Pass a `follow` target, a [Gob object](gob.md), to `new`, or
 call `g:follow(gob)` later; an optional world `offset` places it relative to the gob, `z` being up. It keeps
 its own facing and scale, `g:offset{…}` adjusts the offset while it keeps following, and a manual `g:move`
 detaches it.

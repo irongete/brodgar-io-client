@@ -65,26 +65,22 @@ nothing in the tree.
 | Function | Returns | Description |
 |---|---|---|
 | `hafen.ui.overlay(fn)` | [handle](#overlay-and-observer-handles) | paint `fn(g, w, h)` on top of the HUD each frame; `w, h` is the screen size |
-| `hafen.ui.gobOverlay(filter, fn)` | [handle](#overlay-and-observer-handles) | paint `fn(g, gob, sx, sy)` over each matching gob |
-
-For `gobOverlay`, `filter` is the canonical [filter](../conventions.md#the-filter-argument) — a name
-substring, or a function receiving the [Gob](../gob.md). `gob` is that live Gob object and `sx, sy` is its
-projected screen point, just above the head.
 
 ```lua
-hafen.ui.gobOverlay(function(gob) return gob:isplayer() end, function(g, gob, sx, sy)
-  g:color(0, 255, 0)
-  local label = (gob == hafen.player():gob()) and "you" or "player"
-  g:atext(label, sx, sy, 0.5, 1)         -- centred just above the head
+hafen.ui.overlay(function(g, w, h)
+  g:color(255, 200, 0)
+  g:atext("hello", w / 2, 4, 0.5, 0)      -- centred along the top of the screen
 end)
 ```
 
-To stand something in the **world** rather than over it, use [`hafen.render`](../render/README.md) for your
-own images and models, or [`hafen.ghost`](../ghost.md) for the game's own props.
+This is the **HUD**. To paint over a **game object** instead, the verb is on the object:
+[`gob:overlay(key, spec)`](../gob.md#overlays) — `hafen.ui.gobOverlay` is gone, and with it the filter it
+took. To stand something in the **world** rather than over it, use [`hafen.render`](../render/README.md)
+for your own images and models, or [`hafen.ghost`](../ghost.md) for the game's own props.
 
 ## Overlay and observer handles
 
-`overlay`, `gobOverlay` and [`hafen.ui.on`](replace.md#watching-for-a-widget) each return a handle with a
+`overlay` and [`hafen.ui.on`](replace.md#watching-for-a-widget) each return a handle with a
 single method:
 
 | Method | Description |

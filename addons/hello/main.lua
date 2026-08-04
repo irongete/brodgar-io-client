@@ -69,7 +69,7 @@
 -- action a widget sends to the server, arguments already RESOLVED — e.g. a move's destination world coord),
 -- and 2e-1 hafen.hook.message (L3: intercept an INBOUND server update BEFORE the widget applies it — swallow
 -- it with ev:preventDefault() or rewrite its args with ev:rewrite()). Plus 2b overlays (hafen.ui.overlay on
--- the HUD + hafen.ui.gobOverlay over game objects) and 2a custom windows/widgets + the GOut wrapper. It runs
+-- the HUD + gob:overlay(key, spec) on game objects) and 2a custom windows/widgets + the GOut wrapper. It runs
 -- inside the Lua SANDBOX (D-017 strict env + D-018 instruction watchdog) over 1e hafen.store (saved
 -- variables), 1d-4 actionbar/equip, 1d-3 study/skills (+ A4: the full Lore & Skills window — buyable skills,
 -- credos, and experiences/lore via hafen.char.skillsAvailable/credos/experiences), 1d-2 buffs + FEP/food,
@@ -2863,24 +2863,31 @@ textcacheStress = function()
     :format(STRESS_POOL, STRESS_PER_FRAME, STRESS_PER_FRAME)
 end
 
--- 2b: WORLD-SPACE gob overlay (hafen.ui.gobOverlay). filter(gob) selects gobs (here: players — :isplayer()
--- is true when the base sprite is the borka body); draw(g, gob, sx, sy) paints at the gob's projected screen
--- point (just above the head). Your OWN gob always matches, so you will see at least your own tag. Since 017
--- the gob is a live Gob OBJECT (D-044), so the callbacks read it with methods — and self-identification is
--- plain identity now: gob == hafen.player():gob() (interning, D-045), no id compare. There is no display-name
--- field for other players (a client limitation), so we show the char name for self. Auto-removed on teardown.
+-- 038.1: an overlay is attached to a GOB, by key -- gob:overlay(key, spec). hafen.ui.gobOverlay and its
+-- filter (a sweep that re-checked every gob 5x a second, and once more per gob per frame) are a HARD CUT:
+-- you name the gob, so "every player gets a tag" is a GobAdded handler plus a loop over what is already
+-- there, which is exactly the trade the feature makes. The spec here is {draw = fn} -- fn(g, gob, sx, sy)
+-- paints at the gob's projected screen point (just above the head), the same callback as before. Your OWN
+-- gob is tagged too, so you will see at least your own. Self-identification is plain identity (interning,
+-- D-045), no id compare; there is no display-name field for other players (a client limitation), so we show
+-- the char name for self. The record lives ON THE GOB, so it dies with it -- and :reload/disable removes it.
 local function drawPlayerTag(g, gob, sx, sy)
   local label = (gob == hafen.player():gob()) and (hafen.player():name() or "you") or "player"
   g:color(80, 220, 90); g:frect(sx - 3, sy - 3, 6, 6); g:color()   -- a marker dot at the anchor
   g:atext(label, sx, sy - 6, 0.5, 1.0)                             -- name centred just above the marker
 end
 
+local function tagPlayer(gob)                                     -- one gob, keyed: attaching twice is a no-op
+  if gob:isplayer() then gob:overlay("hello.tag", { draw = drawPlayerTag }) end
+end
+hafen.events.on("GobAdded", tagPlayer)                            -- the players who walk in after us
+
 local overlaysUp = false
 hafen.events.on("OnEnterWorld", function()
   if overlaysUp then return end                                   -- register the overlays once
   overlaysUp = true
   hafen.ui.overlay(drawHud)                                       -- returns a handle with :remove() (also auto)
-  hafen.ui.gobOverlay(function(gob) return gob:isplayer() end, drawPlayerTag)
+  for _, g in ipairs(hafen.world.gobs()) do tagPlayer(g) end      -- ...and the ones already standing here
   hafen.log("2b: HUD overlay (top-centre + crosshair) + player gob-tags up -- :reload/disable removes them")
 end)
 

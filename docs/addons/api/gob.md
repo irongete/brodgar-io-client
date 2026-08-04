@@ -49,10 +49,10 @@ None of them throws.
 | `gob:speed()` | number \| nil | movement speed, `nil` when it is not moving |
 | `gob:speech()` | string \| nil | the floating speech text above it |
 | `gob:icon()` | string \| nil | minimap icon category name |
-| `gob:overlays()` | string[] \| nil | active overlay resource names |
 | `gob:isplayer()` | bool \| nil | whether it is a player body |
 | `gob:kin()` | [`Kin`](kin.md) \| nil | the kin standing here, if this gob is one of your kin |
 | `gob:distance(other)` | number \| nil | world distance to `other`, another Gob; defaults to the player |
+| `gob:overlay(…)` | see [Overlays](#overlays) | attach something to this gob, or read what is attached |
 | `gob:info()` | [`GobInfo`](types.md#gobinfo) \| nil | everything above as one plain snapshot table |
 
 > `gob:name()` is the **type** resource — `"gfx/borka/body"` for any player body — not a character's
@@ -62,6 +62,72 @@ None of them throws.
 `:info()` is the snapshot escape hatch: use it for logging, serialising, or passing gob data around as
 data, since [`hafen.json`](json.md) can encode a plain table and a Gob object cannot. For reading,
 prefer the methods — they are always fresh, while a snapshot is frozen at the moment you took it.
+
+## Overlays
+
+An **overlay** is a thing attached to a game object — the game's own (a fire's flame, a crop's growth
+stage) and yours alike. `gob:overlay` is the one way to attach one and the one way to read what is
+attached; the arity is the verb, and the key is your own name for it.
+
+| Call | Returns | Description |
+|---|---|---|
+| `gob:overlay()` | `Overlay[]` \| nil | every overlay on the gob: yours first, then the game's own |
+| `gob:overlay(key)` | `Overlay` \| nil | that one |
+| `gob:overlay(key, spec)` | `Overlay` | attach it, or replace what that key already named |
+| `gob:overlay(key, nil)` | the gob | remove it |
+
+```lua
+me:overlay("hp", { text = "hurt", color = {255, 90, 90}, offset = {x = 0, y = -6} })
+me:overlay("ring", { draw = function(g, gob, sx, sy) g:frect(sx - 2, sy - 2, 4, 4) end })
+me:overlay("hp", nil)
+```
+
+The **spec says what to draw**, and it must say one of the two:
+
+| Field | Meaning |
+|---|---|
+| `draw = fn` | `fn(g, gob, sx, sy)` runs every frame at the gob's projected screen point, just above the head |
+| `text = "…"` | a label at that point — drawn by the engine, so it costs no Lua at the draw |
+| `color = {r,g,b[,a]}` | the label's colour (with `text`) |
+| `offset = {x =, y =}` | screen pixels from the anchor point |
+
+A spec naming neither `draw` nor `text` is an error naming the field, and so is one naming both: an
+overlay that draws nothing is never what was meant. A spec is read **once**, at attach.
+
+**Keys are per addon.** Two addons using `"tag"` on one gob do not collide, and neither can see the
+other's — `gob:overlay()` lists yours and the game's, never a third party's. Attaching the same key
+twice leaves **one** overlay, the second spec's.
+
+**The game's own overlays are read-only.** They come back from the same read with `native = true`, keyed
+by their **resource name**, and both an attach onto such a key and a remove of one **raise**, naming the
+key — never a silent no-op.
+
+| Method | Returns | Description |
+|---|---|---|
+| `ov:key()` | string | what it answers to; the resource name for a native one |
+| `ov:gob()` | Gob | the gob it hangs on |
+| `ov:native()` | bool | is this the game's own rather than yours? |
+| `ov:res()` | string \| nil | the resource behind it; `nil` for one of yours |
+| `ov:count()` | number \| nil | how many engine overlays this one entity stands for |
+| `ov:exists()` | bool | still attached? |
+| `ov:info()` | table \| nil | `{key, native, count, res?, kind?}` as a plain snapshot |
+
+`:count()` is there because **a native overlay is a union**. A gob may carry several overlays of one
+resource — on a live world 13 of 32 gobs carrying overlays did — and the resource name is the only part
+of one a name can address, so they collapse to a single Overlay and the multiplicity is published here
+instead of lost. Yours always count 1. (`gob:info().overlays` is still the raw list of resource names,
+one entry per engine overlay, for when you want the uncollapsed view.)
+
+**An overlay dies with its gob.** The record lives on the game object, so a felled tree takes yours with
+it and nothing is kept in case it comes back — a gob that returns is bare, and re-attaching is your own
+call from [`GobAdded`](events.md#world). A `:reload` or a disable likewise removes every overlay you
+attached and leaves the game's untouched.
+
+> There is no filter form. "Every player gets a label" is a [`GobAdded`](events.md#world) handler plus a
+> loop over [`hafen.world.gobs()`](world.md) — you name the gob, so nothing is searched per frame.
+
+> A `draw` callback runs inside the client's draw pass, which is **outside** the per-tick CPU budget.
+> Keep it short; a `text` overlay never enters Lua at all and is the cheaper way to put a label up.
 
 ## Kin
 
@@ -106,7 +172,7 @@ Anything that acts on a gob takes the **Gob object**, not an id:
 ```lua
 hafen.act.clickGob(tree, 3)
 hafen.render.sprite{ image = icon, follow = me, offset = { z = 18 } }
-hafen.ui.gobOverlay(function(g) return g:isplayer() end, draw)
+me:overlay("tag", { text = "here" })
 ```
 
 ## See also

@@ -14,7 +14,7 @@ you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [`hafen.gob`](gob.md) | one object in the world — `hafen.gob(id)` gives a Gob you read with methods |
+| [`hafen.gob`](gob.md) | one object in the world — `hafen.gob(id)` gives a Gob you read with methods, and `gob:overlay` attaches things to it |
 | [`hafen.world`](world.md) | the live world: every object loaded, the terrain, and a position that survives a relog |
 | [`hafen.map`](map/README.md) | the hub: the map you have explored, kept on disk, and the order to read these pages in |
 | [segments and grids](map/grids.md) | the shape of the database, the Segment and Grid objects, and saving a position |
@@ -59,7 +59,7 @@ you came for from the tables below. Every page in the tree is listed here.
 | Page | What it holds |
 |---|---|
 | [`hafen.ui`](ui/README.md) | the hub: what is on screen, and the order to read these pages in |
-| [custom](ui/custom.md) | your own windows, bare rectangles and overlays |
+| [custom](ui/custom.md) | your own windows, bare rectangles and HUD overlays |
 | [the Widget object](ui/widget.md) | what every widget answers, and which writes owned and borrowed ones take |
 | [selectors](ui/selectors.md) | naming a widget: the grammar, roles, hit-testing, and the inspector |
 | [items](ui/items.md) | the items inside a container, while the window stays live |

@@ -1,9 +1,9 @@
 # hafen.ui: the g draw wrapper
 
-Every draw callback — [`onDraw`](custom.md), [`hafen.ui.overlay`](custom.md#overlays),
-[`hafen.ui.gobOverlay`](custom.md#overlays) — receives `g`, a drawing surface. Its coordinates are the
-callback's own local pixel space: widget-local for a widget, screen for a HUD overlay, the gob's screen
-point for a gob overlay. Every method is a colon call.
+Every draw callback — [`onDraw`](custom.md), [`hafen.ui.overlay`](custom.md#overlays), a
+[`gob:overlay`](../gob.md#overlays) `draw` spec — receives `g`, a drawing surface. Its coordinates are the
+callback's own local pixel space: widget-local for a widget, screen for a HUD overlay, and for a gob
+overlay the `sx, sy` you were handed is that gob's projected screen point. Every method is a colon call.
 
 ```lua
 hafen.ui.window{

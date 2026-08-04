@@ -416,11 +416,10 @@ public final class AddonManager {
             // 4. Due timers.
             runTimers();
 
-            // 4b. Custom UI overlays (2b). Sweep gob overlays (throttled): attach a shared LuaGobOverlay to
-            //     each gob matching an active filter — the per-frame Render2D pass then re-checks + paints.
-            //     Then queue the HUD-overlay afterdraw for THIS frame if any addon has one (see the field
-            //     note): UI.drawafter is one-shot, tick precedes draw, so it paints above the HUD this frame.
-            UiApi.sweepGobOverlays();
+            // 4b. Custom UI overlays (2b). Queue the HUD-overlay afterdraw for THIS frame if any addon has one
+            //     (see the field note): UI.drawafter is one-shot, tick precedes draw, so it paints above the
+            //     HUD this frame. The gob-overlay sweep that used to stand here is GONE (038.1) — the state
+            //     lives on the gob, so there is nothing to match and nothing to attach per tick.
             UI u = ui;
             if((u != null) && UiApi.anyHudOverlays())
                 u.drawafter(UiApi.hudAfterDraw);
@@ -1885,21 +1884,8 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         }
     }
 
-    /**
-     * A world-space gob overlay ({@code hafen.ui.gobOverlay}): a filter (function or name-substring string)
-     * that selects gobs and a draw fn painted over each matching gob (2b).
-     */
-    public static final class GobOverlay {
-        final Addon owner;
-        final LuaValue filter, draw;
-        boolean active = true;
-
-        GobOverlay(Addon owner, LuaValue filter, LuaValue draw) {
-            this.owner = owner;
-            this.filter = filter;
-            this.draw = draw;
-        }
-    }
+    /* The GobOverlay record (a filter + a draw fn, swept against every gob) is GONE — 038.1 moved the state
+     * onto the gob itself, where an overlay is keyed rather than matched. See LuaGobOverlay. */
 
     /** A gob spawn/despawn captured off-thread, awaiting UI-thread dispatch. */
     private static final class GobEvent {
