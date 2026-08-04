@@ -46,10 +46,41 @@ handlers cheap: they run on the UI thread on every frame.
 |---|---|---|
 | `GobAdded` | [Gob](gob.md) | a game object enters the world or your view |
 | `GobRemoved` | [Gob](gob.md) | a game object leaves |
+| `GobOverlayAdded` | `{ gob, key, native }` | something is attached to a game object — see [`gob:overlay`](gob.md#overlays) |
+| `GobOverlayRemoved` | `{ gob, key, native }` | something attached to a game object goes away |
 
 Prefer these over scanning [`hafen.world.gobs`](world.md) every frame. The payload is a live
 [Gob object](gob.md). On `GobRemoved` the gob is **already gone**, so only `gob:id()` answers there; if
 you need its name, index it on `GobAdded`.
+
+### Overlays coming and going
+
+`GobOverlayAdded` and `GobOverlayRemoved` cover both halves of what
+[`gob:overlay()`](gob.md#overlays) reads. `native = false` is one **you** attached; `native = true` is one
+the **game** put there (a lit fire's flame, a crop's growth stage), and `key` is then its resource name.
+
+```lua
+hafen.events.on("GobOverlayAdded", function(e)
+  if e.native then hafen.log(e.gob:id() .. " now carries " .. e.key) end
+end)
+```
+
+Four rules make these predictable:
+
+- **Yours are private, the game's are public.** An overlay key belongs to your addon, so a `native = false`
+  event goes **only** to the addon that attached it — a key another addon cannot read is a name it cannot
+  act on. Native events broadcast, because a resource name means the same thing to everyone.
+- **They arrive on the next frame**, not inside `gob:overlay(key, spec)` — the game's own overlays arrive on
+  loader threads, and both halves use one moment. A handler runs on the UI thread and reads the truth:
+  the overlay is already there on an add, already gone on a removal.
+- **Re-attaching under the same key fires both** — the removal, then the add. The key survives; the thing
+  under it does not.
+- **The game's overlays are counted by key.** Several of them may share one resource and collapse to one
+  key, so a second one of that resource arriving is not an add — read
+  [`ov:count()`](gob.md#overlays) for the multiplicity.
+
+When a gob leaves, each overlay on it is reported gone *before* that gob's own `GobRemoved`. A `:reload`
+fires neither: the addon that would hear it is the one going away.
 
 ## Character and status
 

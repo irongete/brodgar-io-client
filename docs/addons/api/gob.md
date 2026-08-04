@@ -169,6 +169,10 @@ attached and leaves the game's untouched. For a **world-space** overlay that is 
 its visual is a client-only object of its own, and it is destroyed with the gob rather than left
 floating where the target used to stand.
 
+Both halves of this read are also **events**:
+[`GobOverlayAdded`/`GobOverlayRemoved`](events.md#overlays-coming-and-going) fire for what you attach and
+for what the game attaches, so you can watch a gob become decorated instead of polling it.
+
 > There is no filter form. "Every player gets a label" is a [`GobAdded`](events.md#world) handler plus a
 > loop over [`hafen.world.gobs()`](world.md) — you name the gob, so nothing is searched per frame.
 

@@ -20,7 +20,7 @@
 | Party | [`Glob.party`](src/haven/Party.java:32): `memb` (:33), `Member.getc()` (:60), `col` (:49) |
 | Time / astronomy | [`Glob.globtime`](src/haven/Glob.java:210) (`gtime` :39); [`Glob.ast`](src/haven/Glob.java:40) → [`Astronomy`](src/haven/Astronomy.java:32) `dt`/`night`/`mp`/`yt`/`is` ([:32–36](src/haven/Astronomy.java:32)); light fields (:42–47) |
 | Gob speech / icon | [`Speaking.text`](src/haven/Speaking.java:37) (reliable); [`GobIcon.Icon.name()`](src/haven/GobIcon.java:64) (Loading-guarded) |
-| Gob overlays | [`Gob.ols`](src/haven/Gob.java:42) (public `Collection<Overlay>`); [`Overlay`](src/haven/Gob.java:49) (`id` :50 = the SERVER's, `-1` when it gave none; `spr.res.name` is the only nameable identity), `addol` (:525 body / :534 one-arg / :537 / :540 / :543), `addolsync` (:546), `findol(id)` (:553), removal at [:118](src/haven/Gob.java:118) |
+| Gob overlays | [`Gob.ols`](src/haven/Gob.java:42) (public `Collection<Overlay>`); [`Overlay`](src/haven/Gob.java:49) (`id` :50 = the SERVER's, `-1` when it gave none; `spr.res.name` is the only nameable identity), `addol` (:525 body / :536 one-arg / :539 / :542 / :545), `addolsync` (:548), `findol(id)` (:555), removal at [:118](src/haven/Gob.java:118). **Three removal paths and only two go through `Overlay.remove`** — the third is `ctick`'s own expiry (:459), which calls `remove0()` + `i.remove()` directly |
 
 ## Gotchas
 
@@ -36,8 +36,10 @@
   anything a gob merely *points at* elsewhere (its own client gob in the scene, a GL resource) must be
   ended on the `GobRemoved` seam: the screen-vs-world `gob:overlay` asymmetry, and `follow=`'s orphan (D-102).
 - **`ctick` self-removes a VIRTUAL gob** when `ols.isEmpty()` and it has no `Drawable`
-  ([:463](src/haven/Gob.java:463)) — a client-only gob must keep something in one of the two, or it
-  vanishes on the next tick. `ctick` also drops a finished overlay (`ol.tick(dt)` true, :456).
+  ([:465](src/haven/Gob.java:465)) — a client-only gob must keep something in one of the two, or it
+  vanishes on the next tick. `ctick` also drops a finished overlay (`ol.tick(dt)` true, :457) **without calling
+  `Overlay.remove`** — which is how most of the game's overlays actually end (they are transient sprites
+  nobody removes by hand), so anything watching removals must hook that line too (038.3).
 - **`addol(ol)` is `addol(ol, true)` = ASYNC** — it defers through `Gob.defer` onto a loader thread, so
   the one-arg and two-arg forms are the same event: hook the two-arg **body** or every add fires twice.
   Overlays also arrive from server messages off the UI thread; nothing may call into Lua from there.

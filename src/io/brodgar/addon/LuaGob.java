@@ -305,8 +305,10 @@ public final class LuaGob {
                     LuaGobOverlay store = LuaGobOverlay.on(g);
                     if(store != null) {
                         LuaGobOverlay.Attach old = store.remove(owner, key);
-                        if(old != null)
+                        if(old != null) {
                             old.dispose();               // a world-space record owns a live entity; the map does not
+                            AddonManager.queueGobOverlay(false, h.id, key, owner);   // 038.3: GobOverlayRemoved
+                        }
                         LuaGobOverlay.prune(g);
                     }
                     return self;
@@ -321,8 +323,13 @@ public final class LuaGob {
                     rec.dispose();                       // the gob refused the attrib: do not leak the entity we built
                     throw e;
                 }
-                if(old != null)
+                // 038.3: a REPLACE reports the removal AND the add, so add/remove stay balanced for a handler
+                // keeping its own set — the key survives, but the thing under it is a different one.
+                if(old != null) {
                     old.dispose();                       // REPLACE: the same key twice leaves ONE overlay
+                    AddonManager.queueGobOverlay(false, h.id, key, owner);
+                }
+                AddonManager.queueGobOverlay(true, h.id, key, owner);
                 return LuaOverlay.of(owner, h.id, key, false);
             }
         });

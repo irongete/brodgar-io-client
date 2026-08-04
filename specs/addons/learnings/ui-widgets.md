@@ -523,3 +523,15 @@
   the HUD draggable again — no mode, no flag, just the other spelling of the same property. A rule saying both
   is refused, so the pin must *replace* the anchor in the rule, not sit beside it (dropping that one line makes
   the whole sheet throw and the theme install nothing).
+- **(038.3) An event that mirrors a collapsed read must be edge-triggered on the KEY, and the seam pays a count
+  for it.** `Gob.ols` is the engine's list, but `gob:overlay()` collapses the game's overlays by resource name
+  (D-101), so hooking `addol`/`remove` naively would fire an add for the second `foo` while `gob:overlay("foo")`
+  had been answering all along. Each seam therefore counts the resource *after* the engine's own mutation and
+  fires only on 1 (first) or 0 (last) — D-105. Live figures for the cost: a normal session put **119–559**
+  native overlay events through the queue between two runs of one suite (mostly `sfx/terobjs/tick` and
+  `sfx/tiles/horse/hstep`), which is why the whole path sits behind a "does anybody subscribe" volatile read.
+- **(038.3) The console (`:lua`) is a different addon, which makes it the in-game proof of an owner-scoped
+  event.** Asserting "we are NOT told about another addon's overlay" is unassertable from inside one suite. The
+  `[manual]` is a COMMAND: `:lua hafen.player():gob():overlay("cross-lua", {text = "x"})`, then re-run the suite
+  and watch its foreign-event counter stay 0 — a real cross-addon check in one line, and the same trick 038.1
+  used for the per-addon key partition.

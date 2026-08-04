@@ -116,6 +116,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	    }
 	    remove0();
 	    gob.ols.remove(this);
+	    io.brodgar.addon.AddonManager.gobOverlayGone(gob, this);   // addon: 038.3 -> GobOverlayRemoved, queued onto the tick
 	    removed();
 	}
 
@@ -456,6 +457,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		if((!ol.delign || (ol.spr instanceof Sprite.CDel)) && done) {
 		    ol.remove0();
 		    i.remove();
+		    io.brodgar.addon.AddonManager.gobOverlayGone(this, ol);   // addon: 038.3 -> GobOverlayRemoved (a sprite that ended by itself)
 		}
 	    }
 	}
@@ -530,6 +532,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	ol.init();
 	ol.add0();
 	ols.add(ol);
+	io.brodgar.addon.AddonManager.gobOverlayCame(this, ol);   // addon: 038.3 -> GobOverlayAdded, queued onto the tick
     }
     public void addol(Overlay ol) {
 	addol(ol, true);

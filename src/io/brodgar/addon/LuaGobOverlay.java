@@ -294,6 +294,15 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
             } catch(RuntimeException e) {
                 /* best-effort: one bad record never stops the rest from being freed */
             }
+            // 038.3: and it is REPORTED. Fired straight, not queued: this already runs on the UI thread from the
+            // tick's GobRemoved drain, and firing here is what puts GobOverlayRemoved BEFORE the gob's own
+            // GobRemoved — an overlay is never reported dying after the thing it was attached to. The record is
+            // already out of the map, so a handler that reads gob:overlay(key) back sees the truth (nil).
+            try {
+                AddonManager.fireGobOverlay("GobOverlayRemoved", g.id, a.key, false, a.owner);
+            } catch(RuntimeException e) {
+                /* an addon's handler is isolated by fireTo; this guards only the dispatch itself */
+            }
         }
     }
 

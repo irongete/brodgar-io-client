@@ -128,6 +128,13 @@ public final class AddonManager {
     static volatile boolean reloadPending;      // set by :reload (any thread), applied on the UI tick
     static double clock;                        // seconds accumulated from tick dt (UI thread)
     private static final Queue<GobEvent> gobEvents = new ConcurrentLinkedQueue<GobEvent>();
+    // 038.3: the same marshalling for the two gob-overlay events. `overlaySubs` is a FAST PATH, not a
+    // correctness gate: Gob.addol runs on the loader threads for every decoration the server sends, so the
+    // seam must cost one volatile read when nobody listens. It is set by a subscription and cleared per
+    // session/reload; a stale `true` (someone unsubscribed) only means the drain finds no subscriber and drops
+    // the event, which is exactly what hasSub does for every other event here.
+    private static final Queue<OverlayEvent> overlayEvents = new ConcurrentLinkedQueue<OverlayEvent>();
+    static volatile boolean overlaySubs;
 
     // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
     // Adapters read a GameUI widget tree into a Lua snapshot and fire a semantic event on change. The
@@ -248,6 +255,8 @@ public final class AddonManager {
         clock = 0;
         enterWorldPending = false;
         gobEvents.clear();
+        overlayEvents.clear();        // 038.3: and the overlay queue with it — the gobs it named are the old session's
+        overlaySubs = false;          //   (loadAll below re-subscribes whoever listens, which re-arms the seams)
         HttpApi.reset();              // N2a: drop stale HTTP completions (their requests were torn down above)
         addonRoot = null;
         ocCb = null;
@@ -313,6 +322,8 @@ public final class AddonManager {
             //    frame (this frame's OnUpdate/timers belonged to the addons we just tore down).
             if(reloadPending) {
                 reloadPending = false;
+                overlayEvents.clear();   // 038.3: the addons that queued these are being torn down
+                overlaySubs = false;     //   (the reloaded ones re-subscribe inside reload())
                 AddonRegistry.reload();
                 return;
             }
@@ -353,6 +364,13 @@ public final class AddonManager {
                     LuaGobOverlay.gobGone(ge.gob);
                 fireGob(ge.added ? "GobAdded" : "GobRemoved", ge.gob.id);
             }
+
+            // 1'. The two gob-overlay events (038.3), captured on the loader threads (the game's own) and inside
+            //     gob:overlay (an addon's own). Drained AFTER the gob queue, so an overlay the server hangs on a
+            //     gob that just spawned is reported after the GobAdded that introduced it — and a removal caused
+            //     by the gob leaving has already been fired synchronously by LuaGobOverlay.gobGone above, before
+            //     that gob's own GobRemoved, so an overlay is never reported dying after the thing it was on.
+            drainOverlayEvents();
 
             // 1a. HTTP results (N2a): a pool worker finished a request → deliver its res table to the addon's
             //     callback on the UI thread (armed + isolated, like every other event). A cancelled/torn-down
@@ -736,6 +754,110 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
             fireTo(c, event, LuaGob.of(c, id));
+    }
+
+    /**
+     * Fire a gob-overlay event ({@code GobOverlayAdded}/{@code GobOverlayRemoved}, payload
+     * <code>{ gob, key, native }</code>) — 038.3. Two things fire it: the <b>game itself</b>, through the two
+     * {@code // addon:} seams in {@link Gob} ({@link #gobOverlayCame}/{@link #gobOverlayGone}), and an
+     * <b>addon's own</b> {@code gob:overlay(key, spec)} / {@code (key, nil)}.
+     *
+     * <p><b>The addon's half is OWNER-SCOPED, the game's broadcasts</b> — the {@code GhostClicked} shape, and for
+     * the same reason one level down: an overlay key is <i>per addon</i>, so a {@code native = false} event handed
+     * to a bystander would carry a key that addon cannot read ({@code gob:overlay(key)} answers nil for it). A
+     * name that addresses nothing is worse than no event. A native key is a resource name, which every addon can
+     * read, so those go to everyone.
+     *
+     * <p>Interning is per-addon (D-045) like every other payload here, so the Gob in the table is <i>that</i>
+     * owner's handle, minted only for an owner that actually subscribes.
+     */
+    static void fireGobOverlay(String event, long gobId, String key, boolean nat, Addon owner) {
+        if(owner != null) {                                   // one addon's own overlay: only that addon is told
+            if(hasSub(owner, event))
+                fireTo(owner, event, overlayPayload(owner, gobId, key, nat));
+            return;
+        }
+        for(Addon a : addons) {
+            if(hasSub(a, event))
+                fireTo(a, event, overlayPayload(a, gobId, key, nat));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, event))
+            fireTo(c, event, overlayPayload(c, gobId, key, nat));
+    }
+
+    /** One owner's gob-overlay payload: {@code { gob = <its Gob>, key = "…", native = <bool> }}. */
+    private static LuaValue overlayPayload(Addon owner, long gobId, String key, boolean nat) {
+        LuaTable t = new LuaTable();
+        t.set("gob", LuaGob.of(owner, gobId));
+        t.set("key", LuaValue.valueOf(key));
+        t.set("native", LuaValue.valueOf(nat));
+        return t;
+    }
+
+    /**
+     * <b>The game put an overlay on a gob</b> — the {@code // addon:} seam at the end of
+     * {@code Gob.addol(ol, async)}'s body. Only the two-arg body is hooked: every other {@code addol} overload
+     * delegates to it (the async one through {@code defer}), so an add fires exactly once however it arrived.
+     *
+     * <p>Called from the loader threads and from {@code Gob.ctick}, so it does the least possible: it never calls
+     * into Lua and never throws back into the engine's own overlay path — it appends to a queue the tick drains.
+     */
+    public static void gobOverlayCame(Gob g, Gob.Overlay ol) {
+        nativeOverlayEvent(g, ol, true);
+    }
+
+    /**
+     * <b>The game took one of its overlays off a gob</b> — the {@code // addon:} seams at
+     * {@code Gob.Overlay.remove}'s {@code gob.ols.remove(this)} and at {@code Gob.ctick}'s expiry of a sprite that
+     * has finished (which is how most of the game's overlays actually end: they are transient sprites nobody
+     * removes by hand). Same rules as {@link #gobOverlayCame}: queue only, never Lua, never throw.
+     */
+    public static void gobOverlayGone(Gob g, Gob.Overlay ol) {
+        nativeOverlayEvent(g, ol, false);
+    }
+
+    /**
+     * One of the game's own overlays came or went. <b>The event follows the KEY, not the engine object</b>: a
+     * native overlay is addressed by its <i>resource name</i> and is therefore a UNION (038.1 measured 13 of 33
+     * decorated gobs carrying two of one resource), so the second {@code foo} arriving is not an add and one of
+     * two {@code foo}s leaving is not a removal — either would contradict the read, which still answers that key.
+     * The count is taken after the engine's own mutation, so "first" is 1 and "last" is 0.
+     */
+    private static void nativeOverlayEvent(Gob g, Gob.Overlay ol, boolean added) {
+        if(!overlaySubs || (g == null) || (ol == null))
+            return;                     // nobody is listening: the seam costs one volatile read
+        try {
+            String key = LuaGobOverlay.nativeKey(ol);
+            if(key == null)
+                return;                 // its sprite has not resolved: no name to be addressed by, so not there yet
+            if(LuaGobOverlay.countNative(g, key) != (added ? 1 : 0))
+                return;                 // the union still has (or already had) another of this resource
+            overlayEvents.add(new OverlayEvent(added, g.id, key, true, null));
+        } catch(RuntimeException e) {
+            /* the engine's overlay path is not ours to break */
+        }
+    }
+
+    /** An addon's own attach/remove ({@code gob:overlay}), queued onto the tick like the game's. */
+    static void queueGobOverlay(boolean added, long gobId, String key, Addon owner) {
+        if(overlaySubs)
+            overlayEvents.add(new OverlayEvent(added, gobId, key, false, owner));
+    }
+
+    /**
+     * Deliver the overlay events captured since the last tick. <b>Bounded by what is in the queue right now</b>:
+     * a handler that attaches or removes an overlay of its own queues another event, and draining until empty
+     * would let a handler that re-attaches under the same key spin the frame forever. One frame's worth per
+     * frame turns that into a slow loop the addon can see and its watchdog can price, instead of a hang.
+     */
+    private static void drainOverlayEvents() {
+        for(int n = overlayEvents.size(); n > 0; n--) {
+            OverlayEvent oe = overlayEvents.poll();
+            if(oe == null)
+                break;
+            fireGobOverlay(oe.added ? "GobOverlayAdded" : "GobOverlayRemoved", oe.gobId, oe.key, oe.nat, oe.owner);
+        }
     }
 
     /**
@@ -1271,6 +1393,8 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
                     throw new LuaError("hafen.events.on(name, fn) expects (string, function)");
                 final Sub sub = new Sub(owner, name.tojstring(), fn);
                 owner.subs.add(sub);
+                if(sub.event.startsWith("GobOverlay"))   // 038.3: arm the two Gob seams (see `overlaySubs`)
+                    overlaySubs = true;
                 LuaTable h = new LuaTable();
                 h.set("off", new ZeroArgFunction() {
                     public LuaValue call() {
@@ -1892,6 +2016,27 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
 
     /* The GobOverlay record (a filter + a draw fn, swept against every gob) is GONE — 038.1 moved the state
      * onto the gob itself, where an overlay is keyed rather than matched. See LuaGobOverlay. */
+
+    /**
+     * A gob-overlay add/remove captured off-thread (or inside a Lua call), awaiting UI-thread dispatch — 038.3.
+     * {@code owner} is the addon whose overlay it is, or {@code null} for one of the game's own, which is also
+     * what decides who is told (see {@link #fireGobOverlay}). The <b>gob id</b> is held rather than the Gob: a
+     * removal is often the last thing that happens to it, and the payload's Gob is minted per subscriber anyway.
+     */
+    private static final class OverlayEvent {
+        final boolean added, nat;
+        final long gobId;
+        final String key;
+        final Addon owner;
+
+        OverlayEvent(boolean added, long gobId, String key, boolean nat, Addon owner) {
+            this.added = added;
+            this.gobId = gobId;
+            this.key = key;
+            this.nat = nat;
+            this.owner = owner;
+        }
+    }
 
     /** A gob spawn/despawn captured off-thread, awaiting UI-thread dispatch. */
     private static final class GobEvent {

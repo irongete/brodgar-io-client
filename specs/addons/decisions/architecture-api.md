@@ -868,3 +868,53 @@ mechanism absorbs another, close the old constructor **and** audit every existin
 the new thing out under the old identity.*
 **See.** [D-013](architecture-api.md), [D-072](architecture-api.md), [D-102](architecture-api.md),
 [038-gob-overlays](../038-gob-overlays/spec.md).
+
+### D-104 — an event's SCOPE follows its key's scope: owner-scoped where the name is private, broadcast where it is public ✅ (2026-08-04)
+**Decision.** `GobOverlayAdded`/`GobOverlayRemoved` carry `{ gob, key, native }`, and who is told depends on
+which half fired: an **addon's own** overlay (`native = false`) is reported **only to that addon**, while one of
+the **game's** (`native = true`) goes to every subscriber.
+**Rationale.** (2026-08-04, 038.3.) An overlay key is per addon (038.1), so a `native = false` event handed to
+a bystander would name a key that addon **cannot read** — `gob:overlay(key)` answers nil for it, and
+`gob:overlay()` never lists it. A name that addresses nothing is worse than no event at all: it invites a
+handler to act on something it has no door to. A native key is a *resource name*, which every addon reads
+identically, so there the broadcast is exactly right. This is `GhostClicked`'s shape one level down (an entity
+private to its addon fires only to it) arrived at from the *key* rather than from the handle.
+**Consequences.** The two halves of one read are two dispatch rules in one method, decided by whether the
+event carries an owner. Teardown (`:reload`/disable) fires **nothing** — the only addon that could hear it is
+the one going away — and a gob's death fires **synchronously** from the tick's `GobRemoved` drain, so an
+overlay is never reported dying *after* the thing it was attached to. Generally: *before broadcasting an event,
+ask whether every receiver can act on the name it carries; if not, the event is owner-scoped.*
+**See.** [D-045](architecture-api.md), [D-100](architecture-api.md), [D-105](architecture-api.md),
+[038-gob-overlays](../038-gob-overlays/spec.md).
+
+### D-105 — where the read COLLAPSES, the event follows the KEY, not the engine object ✅ (2026-08-04)
+**Decision.** A native overlay is a union over its resource name (D-101), so the engine seams report a change
+of the **key set**, not of `Gob.ols`: the second overlay of a resource arriving is **not** an add, and one of
+two leaving is **not** a removal. Counted after the engine's own mutation — first is `1`, last is `0`. The same
+rule read from the other side makes a **replace** fire the removal *and* the add.
+**Rationale.** (2026-08-04, 038.3.) An event that contradicts the read is worse than a missing one. Firing
+`GobOverlayRemoved` for a key `gob:overlay(key)` still answers teaches a handler that its own map may drift
+from the truth, which is precisely what the event exists to prevent. The replace is the mirror image: the key
+survives but the thing under it is a different one, so a handler keeping its own set must see one leave and one
+arrive or its counts drift the other way.
+**Consequences.** The seam pays one `countNative` per engine add/remove, which is why the whole path is behind
+a subscription flag. `ov:count()` is the surface where the collapsed multiplicity is still readable, and it
+moves without an event — deliberately, because the *key* did not change. Generally: *when a read collapses
+several engine objects into one name, the events over it are edges of the collapsed set, and its cardinality is
+a value to read, not an event to fire.*
+**See.** [D-093](architecture-api.md), [D-101](architecture-api.md), [D-104](architecture-api.md).
+
+### D-106 — a queue whose handlers write back into it is drained ONE FRAME'S WORTH, never to empty ✅ (2026-08-04)
+**Decision.** The gob-overlay event queue is drained by the count standing in it when the tick begins. An event
+a handler causes is delivered on the **next** frame.
+**Rationale.** (2026-08-04, 038.3.) This is the first event on this bus whose handler can trivially cause the
+same event: a `GobOverlayAdded` handler that re-attaches under the same key produces a removal and an add
+(D-105), so `while(poll() != null)` never terminates. Not a hang the addon watchdog catches either — each
+individual `callLua` is short and returns; it is the *engine's* loop that never ends. Bounding the drain turns
+the pathological addon into a slow loop that is visible in the profiler, priced against its own budget, and
+interruptible by `:reload`, instead of a frozen client. **Falsified**: unbounding the drain hung the probe JVM.
+**Consequences.** An addon may observe its own write one frame later than it made it, which is already the
+model (both events are queued, since `addol` runs on the loader threads and nothing may call into Lua from
+there). Generally: *the moment a queue's consumers can produce for it, "drain until empty" is an unbounded
+loop wearing a for-statement — snapshot the length.*
+**See.** [D-018](security-sandbox.md), [D-102](architecture-api.md), [038-gob-overlays](../038-gob-overlays/spec.md).

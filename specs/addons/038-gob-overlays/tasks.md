@@ -31,7 +31,7 @@ a fixed sprite still builds (the cut took only the anchor); a world overlay whos
 **destroyed**, not left floating (§2b — today's `follow=` orphans it). `[manual]`: an icon floats over
 your own character at `{z=18}` and follows you as you walk.
 
-## 038.3 — the two events, and the only core edits
+## 038.3 — the two events, and the only core edits ✅ DONE
 
 `GobOverlayAdded` / `GobOverlayRemoved`, payload `{ gob, key, native }`, on the two `// addon:` seams
 (`Gob.addol(ol, async)` body and `Gob.Overlay`'s `gob.ols.remove(this)`), `hasSub`-gated and **queued
@@ -48,8 +48,8 @@ the right key; removing fires `GobOverlayRemoved`; the one-arg `addol` overload 
 
 Teardown and churn hardening asserted end to end; `hello` edited (v-bump; `:2883` and `:2027`); one
 example addon demonstrating the verb; the docs sweep (`gob.md` gains the verb, `ui/custom.md` loses
-half of "Overlays", `render/sprites.md`/`models.md`/`ghost.md` lose `follow=`, `events.md` gains two
-rows, `conventions.md`'s "Passing a Gob to the rest of the API" is corrected, plus both READMEs where a
+half of "Overlays", `render/sprites.md`/`models.md`/`ghost.md` lose `follow=`, `events.md`'s two rows landed with
+038.3, `conventions.md`'s "Passing a Gob to the rest of the API" is corrected, plus both READMEs where a
 section's row moved); link/anchor check, self-verified against a planted break;
 `specs/codebase/state.md` extended (plan §"Files"); `design/24-gob-overlays.md` written.
 

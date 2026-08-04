@@ -694,3 +694,22 @@
   scene → one node → one mesh → one primitive with a `POSITION` accessor over three `VEC3`s, no indices and no
   material (`Gltf.build` requires only `meshes` + `accessors`, and `bakePrim` only `POSITION` with `mode 4`).
   The probe parses it as its first check, so the fixture validates itself before anything rests on it.
+- **(038.3) `Gob.ctick` only TICKS an overlay that has render slots — give it an empty list and the expiry path
+  runs headlessly.** The third core seam (a sprite that ends by itself) was untestable at first: with no render
+  tree `ol.slots` stays null, so `ctick` keeps retrying `init()` and never reaches `ol.tick(dt)`. Reflect-setting
+  the private `Gob.Overlay.slots` to an empty `ArrayList` — which is what the real one looks like on a gob with
+  no slots — takes the tick branch, and `remove0()`'s `multirem` over an empty list is a no-op. Falsifying that
+  seam then bit exactly 1. Generally: when a headless run skips a branch, look for the *guard* that a live scene
+  would have satisfied and satisfy it emptily, rather than calling the guarded code directly.
+- **(038.3) A falsification that HANGS is a result, not a failed run.** Unbounding the event drain
+  (`for(;;)` instead of the queue's length at entry) made the probe JVM spin forever — no red line, no summary,
+  the harness timed out. That *is* the proof the bound is load-bearing (D-106), and it is worth writing down as
+  its own outcome: budget a timeout for each falsification and treat "never finished" as a distinct verdict
+  beside "N red". It also cost the restore step of that round's script, so restore from the backup FIRST when a
+  falsification loop is killed.
+- **(038.3) A stub that always succeeds cannot catch a missing fixture.** The suite dry-ran 9/9 green under the
+  LuaJ driver and then went red in-game on `hafen.asset("icon.png")`: the driver's stub `asset()` answers a table
+  for any path, while the real one answers nil for a file the addon does not ship (a suite stands alone, D-085,
+  so it needs its OWN copy — 038.2's lived in 038.2's folder). Generalisation: a stub proves the *logic* that
+  consumes a resource, never that the resource EXISTS; for each `hafen.asset`/file a suite names, check the
+  folder, or have the driver stub answer nil for anything not actually on disk.
