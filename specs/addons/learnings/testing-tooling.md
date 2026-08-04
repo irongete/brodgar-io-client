@@ -713,3 +713,50 @@
   so it needs its OWN copy — 038.2's lived in 038.2's folder). Generalisation: a stub proves the *logic* that
   consumes a resource, never that the resource EXISTS; for each `hafen.asset`/file a suite names, check the
   folder, or have the driver stub answer nil for anything not actually on disk.
+- **(038.4) A suite cannot watch its own teardown, so the check SPANS TWO RUNS through the store.** `:reload`
+  removing every overlay an addon attached is the feature's own teardown claim, and D-104 says teardown fires
+  nothing — the only addon that could hear it is the one going away. The shape that works: run 1 attaches one
+  record per space, parks `{gob, keys, natives}` in the suite's **own account-scoped** `saved_variables`, and
+  prints a `[manual]` that is two keystrokes (`:reload`, then the same command); run 2 reads the marker back,
+  prints the verdict and clears it. Account scope matters — a per-character table is filled just before
+  `OnEnterWorld` and a `:reload` is not a relog. This is the one legitimate exception to "a suite stands alone
+  in one command" (D-085), and it is worth stating in the suite's own header so the next reader does not
+  "fix" it.
+- **(038.4) A cross-reload count of something the SERVER owns measures the world, not your teardown.** The
+  first version of "…and left the game's own overlays untouched" compared the native count before the reload
+  with the count after. Most of the game's overlays are transient sprites on their own schedule, so that check
+  reddens for reasons that have nothing to do with the code. What actually pins the claim is the **refusal**:
+  a native key is not ours to remove or attach onto, so no sweep of ours can take one — duplicated into this
+  suite from 038.1's per D-085, and asserted where it cannot drift. Generally: when a claim is "we did not
+  touch X" and X moves by itself, assert the *mechanism that makes touching impossible*, not a count of X.
+- **(038.4) "It still exists" is not the test for "it came back" — the EVENT is.** The despawn round counted a
+  parked gob as returned when `g:exists()`, which is trivially true of one that never left, so the line
+  "3 of them came back, and a returning object is BARE" passed a run in which nothing despawned at all. Keying
+  on the `GobOverlayRemoved` the despawn itself fired (`dropped[id]`) splits the three real states —
+  still gone / despawned and streamed back / never left — and only the second carries the claim. A pass that
+  cannot distinguish "the thing happened and was correct" from "the thing never happened" is not a check.
+- **(038.4) When a round both listens for an event and CAUSES it, announce the deliberate one and swallow it.**
+  The same round removes its parked overlays by hand, which fires the identical `GobOverlayRemoved` — and
+  because the events arrive a frame later, *after* the round has reset its bookkeeping, its own cleanup would
+  have been read as a despawn on the next run. One counter per gob id (`expect[id]`, incremented at the call
+  and decremented in the handler) separates "I did this" from "this happened to me". The dry run caught it by
+  re-parking and immediately asking `gone`, which must report nothing — worth adding wherever a test both
+  drives and observes one mechanism.
+- **(038.4) Counters reset INLINE are reset in the wrong frame when the events are queued.** The churn round
+  zeroed its add/remove counters and then ran 40 cycles — but everything before it had queued events of its
+  own, which land on the tick, so the docs round's burst arrived on top and the count read 85 where 80 was
+  expected. The reset has to happen from a *later* frame than the last thing that queued. This is the general
+  hazard of any tick-queued event: "clear, act, assert" only works when the clear is separated from the
+  previous act by a frame, and a headless driver that drains synchronously reproduces it exactly.
+- **(038.4) The docs' own snippets are a test — transcribe them VERBATIM and run them.** The suite copies each
+  example out of `gob.md#overlays` and `guides/custom-ui.md` and executes it, and that is what found the round's
+  only real defect: the page claimed `gob:info().overlays` "is still the raw list", but like every other
+  `GobInfo` field it is **absent, not empty**, when the gob carries none (`types.md` already said "optional").
+  The fix was to both correct the page and *upgrade the check* — a type test on a gob that may carry nothing
+  proves nothing, so it became 038.1's reconciliation invariant (`#info.overlays == sum(ov:count())`) taken on
+  a gob known to carry natives. A documented example that does not execute is worse than no example.
+- **(038.4) A stub cannot report a field the engine never sets.** The Lua-only driver modelled
+  `info().overlays` as always-present and went 19/19 green; the in-game run found the absent field in one line.
+  This is 038.3's "a stub that always succeeds cannot catch a missing fixture" in its other form — there the
+  stub invented a *file*, here it invented a *field*. When a stub stands in for an engine read, make it as
+  stingy as the engine: omit what the engine omits, and the check that depends on it will fail honestly.

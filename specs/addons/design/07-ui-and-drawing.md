@@ -1,7 +1,8 @@
 # UI & Drawing
 
 > **Status:** 🟠 Outline · **Spec:** AddOns
-> **Related:** [06-lua-api.md](06-lua-api.md), [08-widget-replacement.md](08-widget-replacement.md)
+> **Related:** [06-lua-api.md](06-lua-api.md), [08-widget-replacement.md](08-widget-replacement.md),
+> [24-gob-overlays.md](24-gob-overlays.md) — which **supersedes** §"World-space overlays over gobs" below
 
 How addons create their own UI: custom widgets/windows, HUD overlays, world-space overlays over
 gobs, input handling, and custom assets. Backed by [`Widget`](src/haven/Widget.java),
@@ -99,6 +100,11 @@ paints it from the addon-root widget's `draw` each frame; `hafen.ui.overlay` add
 ([05-lifecycle-and-reload.md](05-lifecycle-and-reload.md)).
 
 ## World-space overlays over gobs
+
+> **SUPERSEDED by [24-gob-overlays.md](24-gob-overlays.md)** (shipped as 038-gob-overlays). The
+> `SpeakerIcon` mechanism below is kept — it is `LuaGobOverlay` — but the *filter form* and its sweep are
+> gone: the verb is on the gob (`gob:overlay(key, spec)`), the state lives on the gob, and `hafen.ui.gobOverlay`
+> reads `nil`. The section is left as written for the record.
 
 For labels/markers pinned above game objects in the 3D view (health bars, names, timers),
 model on the existing voice **`SpeakerIcon`** pattern: a `GAttrib` that also implements

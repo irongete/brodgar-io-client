@@ -44,7 +44,7 @@ the right key; removing fires `GobOverlayRemoved`; the one-arg `addol` overload 
 `[manual]`: stand near a gob the server decorates (a lit fire, a curiosity) and confirm a
 `native = true` pair is logged — honestly skipped if nothing near the player carries one.
 
-## 038.4 — the close: churn, the example, and the docs
+## 038.4 — the close: churn, the example, and the docs ✅ DONE
 
 Teardown and churn hardening asserted end to end; `hello` edited (v-bump; `:2883` and `:2027`); one
 example addon demonstrating the verb; the docs sweep (`gob.md` gains the verb, `ui/custom.md` loses

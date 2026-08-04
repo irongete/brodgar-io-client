@@ -1,6 +1,6 @@
 # The example addons
 
-Eleven addons ship with the client, in the same `addons/` folder yours goes into. They are working code for
+Twelve addons ship with the client, in the same `addons/` folder yours goes into. They are working code for
 every part of the API, and most of them are also the harness that keeps that part honest: they re-run their
 own checks on every login. Read one when a reference page tells you *what* a verb does and you want to see
 *how* it is used.
@@ -15,6 +15,7 @@ hotkey or type their command — so having them all on costs you an untouched lo
 | [`theme`](../../addons/theme/main.lua) | a whole client look as a data file |
 | [`atlas`](../../addons/atlas/main.lua) | a live minimap panel out of the map database, painted by the engine |
 | [`planner`](../../addons/planner/main.lua) | your own props, images and models in the 3D world |
+| [`tagger`](../../addons/tagger/main.lua) | attaching things to a game object, and reading what is already on it |
 | [`widgetstack`](../../addons/widgetstack/main.lua) | what a widget is, and how to name it |
 | [`profiler`](../../addons/profiler/main.lua) | where the frame went |
 | [`optionstest`](../../addons/optionstest/main.lua) | reading and writing the client's own settings |
@@ -84,6 +85,22 @@ facing and scale after a relog.
 
 `:planner gizmo` gives it a drag gizmo — move, rotate, scale — built in Lua over the drawing and snapping
 primitives, in a second file the manifest loads beside the first. `:planner grab` moves a prop by its body.
+
+## tagger
+
+[`gob:overlay`](api/gob.md#overlays) from both ends. `:tagger` puts a green name and a ring over every player
+body — a `text` and a `draw` record in **screen space**, at the gob's projected point — and `:tagger pin`
+floats a PNG 18 world units over the nearest object, a **world-space** record whose composed verbs chain
+(`ov:tint{…}:alpha(0.85)`). Nothing is placed and nothing is polled: the record lives on the gob, so it
+follows the gob and dies with it.
+
+`:tagger read` is the other half of the same verb — it prints yours beside **the game's own**, which come
+back `native = true`, keyed by resource name, read-only, and counted (`ov:count()`), because a native overlay
+is a union over that name. `:tagger watch` turns on
+[`GobOverlayAdded`/`GobOverlayRemoved`](api/events.md#overlays-coming-and-going).
+
+It is also what the missing filter form looks like in practice: "label every player" is a
+[`GobAdded`](api/events.md#world) handler plus one loop over the players already here.
 
 ## widgetstack
 

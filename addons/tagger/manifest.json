@@ -1,0 +1,9 @@
+{
+  "name": "Tagger",
+  "id": "tagger",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Example addon (038-gob-overlays): EVERYTHING YOU ATTACH TO A GAME OBJECT, THROUGH ONE VERB. gob:overlay is the one way to hang a thing on a gob and the one way to read what is already hanging there, and the ARITY IS THE VERB: gob:overlay() lists them all, (key) reads one, (key, spec) attaches or replaces, (key, nil) removes. ONE SPEC TABLE, TWO SPACES -- {text=} and {draw=} paint in SCREEN space at the gob's projected point (':tagger' puts a green name and a ring over every player body), while {image=}, {model=} and {ghost=} stand in the 3D WORLD anchored to the gob with offset in world units (':tagger pin' floats icon.png 18 units over the nearest object and chains the composed verbs, ov:tint{...}:alpha(0.85)). YOU NEVER PLACE IT AND YOU NEVER POLL IT: the record lives ON the gob, so it follows the gob for free and it DIES WITH IT -- a felled tree takes your label with it, and a gob that comes back is bare. THERE IS NO FILTER FORM, and this addon is what that trade looks like: 'label every player' is a GobAdded handler plus one loop over the players already here, so nothing is searched per frame. ':tagger read' is the other half of the read -- it prints yours (native = false, with a kind) beside THE GAME'S OWN (native = true, keyed by their resource name, read-only, and a union over that name, which is why ov:count() exists). ':tagger watch' turns on the two events, GobOverlayAdded and GobOverlayRemoved, which arrive on the next frame rather than inside the verb: yours owner-scoped, the game's broadcast. SAFE tier: declares no permissions, sends nothing to the server, writes nothing persistent, and everything it attached is gone on ':reload' or on disable.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -153,10 +153,11 @@ key — never a silent no-op.
 | `ov:info()` | table \| nil | `{key, native, count, world, res?, kind?}` as a plain snapshot |
 
 `:count()` is there because **a native overlay is a union**. A gob may carry several overlays of one
-resource — on a live world 13 of 32 gobs carrying overlays did — and the resource name is the only part
+resource — on a live world 13 of 33 gobs carrying overlays did — and the resource name is the only part
 of one a name can address, so they collapse to a single Overlay and the multiplicity is published here
-instead of lost. Yours always count 1. (`gob:info().overlays` is still the raw list of resource names,
-one entry per engine overlay, for when you want the uncollapsed view.)
+instead of lost. Yours always count 1. (`gob:info().overlays` is the raw list of resource names, one entry
+per engine overlay, for when you want the uncollapsed view — and, like every other
+[`GobInfo`](types.md#gobinfo) field, it is **absent** rather than empty when the gob carries none.)
 
 An Overlay object is **interned on the key**, so `gob:overlay(key)` hands back the same object every
 time and a replace leaves the handle you were holding naming the *new* record. `:exists()` goes false
