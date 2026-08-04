@@ -62,7 +62,7 @@ public abstract class LuaWorldEntity {
     LuaValue onClick;              // V2: per-entity click callback fn(handle, button, x, y), or null; set at create
 
     long    followTgt;             // ANCHOR: the gob id this entity follows, or 0 = free (not anchored); set at create only
-    Coord3f followOff;             // the world-space follow offset (x east, y north, z up), or null = none; set at create only
+    Coord3f followOff;             // the world-space follow offset (x east, y north, z up), or null = none; live (overlay:offset)
     boolean asOverlay;             // 038.2: this entity IS a gob:overlay record's visual — never listed as a free entity
 
     Gob gob;                       // the client-only Gob, or null until the (possibly deferred) create publishes it

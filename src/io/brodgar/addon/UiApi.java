@@ -1429,7 +1429,7 @@ final class UiApi {
                 if(o.draw != null)
                     callLua(o.owner, Addon.C_DRAW, o.draw, gt, LuaGob.of(o.owner, gob.id), sx, sy);
                 else
-                    gwrap.label(g, o.text, sc.add(o.off), 0.5, 1.0, o.color);
+                    gwrap.label(g, o.text, sc.add(o.screenOffset()), 0.5, 1.0, o.color);
             } catch(RuntimeException e) {
                 /* never throw into the render pass — callLua already isolates a Lua error */
             } finally {

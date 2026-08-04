@@ -1,14 +1,16 @@
 -- Tagger: the EXAMPLE for gob:overlay -- the one way to attach anything to a game object, and the one way to
 -- read what is already attached (spec 038-gob-overlays).
 --
--- ARITY IS THE VERB, and the key is your own name for the thing you hung there:
---   gob:overlay()            -- every overlay on that gob: yours, then the GAME's own
---   gob:overlay(key)         -- that one, or nil
---   gob:overlay(key, spec)   -- attach it, or REPLACE whatever that key already named
---   gob:overlay(key, nil)    -- remove it
+-- gob:overlay() IS A COLLECTION, and the key is your own name for the thing you hung there:
+--   gob:overlay():list()     -- every overlay on that gob: yours, then the GAME's own
+--   gob:overlay():get(key)   -- that one, or nil
+--   gob:overlay():add(key)   -- attach a BARE one, or REPLACE whatever that key already named
+--   gob:overlay():remove(key)-- remove it
 --
--- ONE SPEC TABLE, TWO SPACES. {text=} and {draw=} paint on the SCREEN at the gob's projected point;
--- {image=}, {model=} and {ghost=} stand in the 3D WORLD, anchored to the gob, with offset in world units.
+-- THE OVERLAY SAYS WHAT IT DRAWS, TWO SPACES. :text(s) and :draw(fn) paint on the SCREEN at the gob's
+-- projected point; :image(a), :model(a) and :ghost(res) stand in the 3D WORLD, anchored to the gob, with a
+-- three-number :offset in world units. Every setter answers the overlay, so one statement configures the whole
+-- thing -- and until it names a kind it draws nothing, so a half-configured overlay never flickers.
 -- You never place either one and you never poll: the record lives ON the gob, so it follows the gob for free
 -- and it DIES WITH IT -- a felled tree takes your label with it and a gob that comes back is bare.
 --
@@ -42,26 +44,24 @@ hafen.event():on("OnLoad", function() icon = hafen.asset("icon.png") end)
 -- ---- the labels ---------------------------------------------------------------------------------------
 
 -- One player, two overlays under two keys of our own. A key is per addon, so "name" here can never collide
--- with another addon's "name" -- and gob:overlay() below will list ours and the game's, never a third party's.
+-- with another addon's "name" -- and the read below will list ours and the game's, never a third party's.
 local function tag(g)
   if not (g and g:exists() and g:isPlayer()) then return end
   local kin = g:kin()
-  g:overlay(LABEL, { text = kin and kin:name() or "player",
-                     color = kin and {120, 220, 120} or {220, 220, 120},
-                     offset = { x = 0, y = -4 } })
+  local ov = g:overlay():add(LABEL):text(kin and kin:name() or "player"):offset(0, -4)
+  if kin then ov:color(120, 220, 120) else ov:color(220, 220, 120) end
   -- A draw callback gets the SAME projected point as sx, sy and paints whatever it likes there. It runs inside
   -- the client's draw pass, which is outside the per-tick CPU budget -- so keep it to a few shapes.
-  g:overlay(RING, { draw = function(gout, gob, sx, sy)
-                      gout:color(120, 220, 120, 160)
-                      gout:rect(sx - 5, sy - 5, 10, 10)
-                    end })
+  g:overlay():add(RING):draw(function(gout, gob, sx, sy)
+                          gout:color(120, 220, 120, 160)
+                          gout:rect(sx - 5, sy - 5, 10, 10)
+                        end)
   tagged[g:id()] = true
 end
 
 local function untag(g)
   if not (g and g:exists()) then return end
-  g:overlay(LABEL, nil)
-  g:overlay(RING, nil)
+  g:overlay():remove(LABEL):remove(RING)   -- :remove answers the collection, so removals chain
 end
 
 local function tagAll()
@@ -108,34 +108,33 @@ local function pin()
   if not icon then return hafen.log():write("tagger: icon.png did not load") end
   local g = nearestObject()
   if not g then return hafen.log():write("tagger: nothing near you to pin") end
-  if pinned then local old = hafen.world():gob():get(pinned) if old:exists() then old:overlay(PIN, nil) end end
-  -- A WORLD-space overlay: offset is in world units with z up, so {z = 18} floats it overhead. It carries the
-  -- look verbs its entity already had, and they CHAIN.
-  local ov = g:overlay(PIN, { image = icon, scale = 2, offset = { z = 18 } })
-  ov:tint{ 255, 200, 90 }:alpha(0.85)
+  if pinned then local old = hafen.world():gob():get(pinned) if old:exists() then old:overlay():remove(PIN) end end
+  -- A WORLD-space overlay: the offset takes three numbers, in world units with z up, so 18 floats it overhead.
+  -- Every setter answers the overlay, so the whole thing is one statement -- and the visual is built once.
+  local ov = g:overlay():add(PIN):image(icon):scale(2):offset(0, 0, 18):tint(255, 200, 90):alpha(0.85)
   pinned = g:id()
-  local p = ov:pos()
+  local p = ov:position()
   hafen.log():write(string.format("tagger: pinned %s%s -- ':tagger read' now reads THAT object", label(g),
-                          p and string.format(", at %.1f %.1f", p.x, p.y) or ""))
+                          p and string.format(", at %.1f %.1f", p:x(), p:y()) or ""))
 end
 
 local function unpin()
   if not pinned then return hafen.log():write("tagger: nothing is pinned") end
   local g = hafen.world():gob():get(pinned)
-  if g:exists() then g:overlay(PIN, nil) end   -- and if it does NOT exist, the overlay went with it
+  if g:exists() then g:overlay():remove(PIN) end   -- and if it does NOT exist, the overlay went with it
   pinned = nil
   hafen.log():write("tagger: pin removed")
 end
 
 -- ---- the read -----------------------------------------------------------------------------------------
 
--- gob:overlay() is the one read, and it answers BOTH halves. ov:native() says which: ours are false and carry
--- a kind, the game's are true and are keyed by their RESOURCE NAME. A native one is a union over that name --
--- a gob may carry several overlays of one resource -- so ov:count() publishes how many it stands for.
+-- gob:overlay():list() is the one read, and it answers BOTH halves. ov:native() says which: ours are false and
+-- carry a kind, the game's are true and are keyed by their RESOURCE NAME. A native one is a union over that name
+-- -- a gob may carry several overlays of one resource -- so ov:count() publishes how many it stands for.
 local function read()
   local g, isPinned = target()
   if not g then return hafen.log():write("tagger: nothing near you to read") end
-  local all = g:overlay()
+  local all = g:overlay():list()
   hafen.log():write(string.format("tagger: %s (%s) carries %d overlay(s)", label(g),
                           isPinned and "the pinned one" or "the nearest object", #all))
   for _, ov in ipairs(all) do
@@ -149,7 +148,8 @@ end
 -- ---- the events ---------------------------------------------------------------------------------------
 
 -- The same read, pushed. Yours arrive owner-scoped (nobody else is told about a key only you can read); the
--- game's broadcast, keyed by resource name. Both arrive on the NEXT frame, not inside gob:overlay.
+-- game's broadcast, keyed by resource name. Both arrive on the NEXT frame, not inside the :add itself -- which
+-- is also why a handler reading the overlay back sees it fully configured.
 local function onEvent(what)
   return function(e)
     if watching then

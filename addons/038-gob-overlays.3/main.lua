@@ -68,7 +68,7 @@ local function record(tag)
     log[#log + 1] = tag .. ":" .. tostring(e.key) .. ":" .. tostring(e.native)
     -- The handler runs on the UI thread, so a hafen.* read inside it WORKS -- and reads the truth: on an add
     -- the overlay is already there, on a removal it is already gone.
-    local ok, v = pcall(function() return e.gob:overlay(e.key) end)
+    local ok, v = pcall(function() return e.gob:overlay():get(e.key) end)
     reads[#reads + 1] = (not ok) and ("error " .. tostring(v))
                         or (tostring(e.gob:id()) .. "/" .. ((v ~= nil) and "there" or "gone"))
   end
@@ -97,34 +97,34 @@ local function run()
     return summary()
   end
   local myId = me:id()
-  me:overlay(KEY, nil)                -- a re-run starts from a bare gob
+  me:overlay():remove(KEY)            -- a re-run starts from a bare gob
   log, reads = {}, {}
 
   -- 1. THE EVENT IS QUEUED ONTO THE TICK, not fired inside the verb. It has to be: the game's own half comes
   --    off the loader threads, and one mechanism means one moment for both halves.
-  me:overlay(KEY, { text = "ev" })
+  me:overlay():add(KEY):text("ev")
   eq("an attach does not fire inside gob:overlay -- the event is queued onto the tick", #log, 0)
 
   hafen.timer():after(0.4, function()
     -- 2. ONE ADD, and the payload says which gob, which key, and whose.
     local got, read = seen()
-    eq("gob:overlay(key, spec) fires GobOverlayAdded exactly once, native = false", got, "A:" .. KEY .. ":false")
+    eq("gob:overlay():add(key) fires GobOverlayAdded exactly once, native = false", got, "A:" .. KEY .. ":false")
     eq("...and a hafen.* read INSIDE the handler works -- it runs on the UI thread, on the payload's own gob",
        read, tostring(myId) .. "/there")
-    me:overlay(KEY, nil)
+    me:overlay():remove(KEY)
 
     hafen.timer():after(0.4, function()
       local gotR, readR = seen()
-      eq("gob:overlay(key, nil) fires GobOverlayRemoved exactly once", gotR, "R:" .. KEY .. ":false")
+      eq("gob:overlay():remove(key) fires GobOverlayRemoved exactly once", gotR, "R:" .. KEY .. ":false")
       eq("...and the handler reads the TRUTH on that side too: the overlay is already gone",
          readR, tostring(myId) .. "/gone")
-      me:overlay(KEY, { text = "ev" })
+      me:overlay():add(KEY):text("ev")
 
       hafen.timer():after(0.4, function()
         seen()
         -- 3. A REPLACE reports BOTH, so a handler keeping its own set stays balanced: the key survives, but
         --    the thing under it is a different one -- and here it is even in the other SPACE.
-        if icon then me:overlay(KEY, { image = icon, offset = { z = 18 } }) end
+        if icon then me:overlay():add(KEY):image(icon):offset(0, 0, 18) end
 
         hafen.timer():after(0.4, function()
           if icon then
@@ -133,11 +133,11 @@ local function run()
           else
             check(false, "the suite's own asset (icon.png) loaded, for the world-space half", "no icon")
           end
-          me:overlay(KEY, nil)
+          me:overlay():remove(KEY)
 
           hafen.timer():after(0.4, function()
             eq("...and the last removal is reported once, whichever space it was in", seen(), "R:" .. KEY .. ":false")
-            eq("the suite leaves nothing of its own on the gob", me:overlay(KEY), nil)
+            eq("the suite leaves nothing of its own on the gob", me:overlay():get(KEY), nil)
 
             -- 4. OWNER-SCOPED: an overlay key is per addon, so an event naming one is too.
             eq("no event ever arrived under a key this addon did not attach (the addon half is owner-scoped)",
@@ -153,10 +153,10 @@ local function run()
                           "the last line reads 'the game's own overlays fire the pair too' with a count and"
                           .. " resource names (gfx/...), instead of this [manual]")
             end
-            manualCheck("run ':lua hafen.player():gob():overlay(\"cross-lua\", {text = \"x\"})', then ':t038-3'",
+            manualCheck("run ':lua hafen.player():gob():overlay():add(\"cross-lua\"):text(\"x\")', then ':t038-3'",
                         "the owner-scoped line above still passes (foreign = 0) -- the console is a DIFFERENT"
                         .. " addon, so its overlay is none of our business; then clear it with"
-                        .. " ':lua hafen.player():gob():overlay(\"cross-lua\", nil)'")
+                        .. " ':lua hafen.player():gob():overlay():remove(\"cross-lua\")'")
             summary()
           end)
         end)

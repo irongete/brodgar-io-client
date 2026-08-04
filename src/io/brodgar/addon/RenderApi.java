@@ -158,7 +158,7 @@ final class RenderApi {
     private static LuaValue newGhost(final Addon owner, LuaValue opts) {
         if(!opts.istable())
             throw new LuaError("hafen.ghost.new{res=..., x=..., y=...} expects an options table");
-        refuseFollow(opts, "hafen.ghost.new", "{ghost = <res name>}");
+        refuseFollow(opts, "hafen.ghost.new", "ghost(<res name>)");
         LuaValue resv = opts.get("res");
         if(!resv.isstring())
             throw new LuaError("hafen.ghost.new: 'res' must be a resource name string (e.g. \"gfx/terobjs/arch/logcabin\")");
@@ -473,7 +473,7 @@ final class RenderApi {
     private static LuaValue newObject(Addon owner, LuaValue opts) {
         if(!opts.istable())
             throw new LuaError("hafen.render.object{model=..., x=..., y=...} expects an options table");
-        refuseFollow(opts, "hafen.render.object", "{model = <asset>}");
+        refuseFollow(opts, "hafen.render.object", "model(<asset>)");
         LuaValue xv = opts.get("x"), yv = opts.get("y");
         if(!xv.isnumber() || !yv.isnumber())
             throw new LuaError("hafen.render.object: 'x' and 'y' must be numbers (world coordinates, like gob:pos())"
@@ -601,7 +601,7 @@ final class RenderApi {
     private static LuaValue newSprite(Addon owner, LuaValue opts) {
         if(!opts.istable())
             throw new LuaError("hafen.render.sprite{image=..., x=..., y=...} expects an options table");
-        refuseFollow(opts, "hafen.render.sprite", "{image = <asset>}");
+        refuseFollow(opts, "hafen.render.sprite", "image(<asset>)");
         LuaValue xv = opts.get("x"), yv = opts.get("y");
         if(!xv.isnumber() || !yv.isnumber())           // x/y are the placement — a sprite ON a gob is gob:overlay
             throw new LuaError("hafen.render.sprite: 'x' and 'y' must be numbers (world coordinates, like gob:pos())"
@@ -912,8 +912,8 @@ final class RenderApi {
         if(opts.get("follow").isnil() && opts.get("offset").isnil())
             return;
         throw new LuaError(where + ": 'follow'/'offset' are GONE — a drawn thing attached to a GAME OBJECT is now"
-            + " gob:overlay(key, " + spec + "), which keys it per addon, reads back through gob:overlay() and dies"
-            + " with the gob; this namespace stands things at a fixed world point");
+            + " gob:overlay():add(key):" + spec + ", which keys it per addon, reads back through gob:overlay()"
+            + " and dies with the gob; this namespace stands things at a fixed world point");
     }
 
     /**
@@ -961,6 +961,27 @@ final class RenderApi {
     static void overlayAlpha(LuaWorldEntity e, double a)        { setEntityAlpha(e, clampAlpha(a)); }
     static void overlayScale(LuaWorldEntity e, double s)        { setEntityScale(e, clampScale(s)); }
 
+    /**
+     * {@code overlay:offset(x, y, z)} on a world-space overlay — move the anchored visual relative to its gob
+     * <b>in place</b>, which is what makes the offset a property like every other rather than a reason to detach
+     * and re-attach. Both halves are written: the entity's own desired offset (read by a create that has not
+     * published yet) and the live {@link FollowMoving}, whose {@code off} is volatile precisely so the placement
+     * pass can pick it up on the next frame without a lock.
+     */
+    static void overlayOffset(LuaWorldEntity e, Coord3f off) {
+        synchronized(e) {
+            if(e.dead)
+                return;
+            e.followOff = off;
+            Gob g = e.gob;
+            if(g == null)
+                return;
+            Moving mv = g.getattr(Moving.class);
+            if(mv instanceof FollowMoving)
+                ((FollowMoving)mv).off = off;
+        }
+    }
+
     /** {@code overlay:rotate(a)} — the entity keeps its OWN facing while it follows (FollowMoving supplies only the point). */
     static void overlayRotate(LuaWorldEntity e, double a) {
         synchronized(e) {
@@ -987,6 +1008,20 @@ final class RenderApi {
             t.set("scale", LuaValue.valueOf((double)e.scale));   // V6: the full transform is {x,y,a,scale}
         }
         return t;
+    }
+
+    /**
+     * {@code overlay:position()} — where a world-space overlay actually is, as a {@link LuaPosition}: the gob's
+     * live interpolated point plus the overlay's own offset. One position verb, one type (039.2/039.3), so the
+     * answer goes straight to {@code hafen.act():moveTo} or into {@code hafen.store} without conversion; the
+     * facing and size that used to ride in the same table are {@code ov:rotate()} and {@code ov:scale()}.
+     */
+    static LuaValue overlayPosition(Addon owner, LuaWorldEntity e) {
+        Coord2d rc;
+        synchronized(e) {
+            rc = entityWorldPos(e);
+        }
+        return (rc == null) ? LuaValue.NIL : LuaPosition.of(owner, rc);
     }
 
     /**
@@ -1030,7 +1065,7 @@ final class RenderApi {
     private static float luaAlpha(LuaValue v) {
         return v.isnumber() ? clampAlpha(v.todouble()) : 1f;
     }
-    private static float clampAlpha(double a) {
+    static float clampAlpha(double a) {
         return (a < 0.0) ? 0f : ((a > 1.0) ? 1f : (float)a);
     }
 
@@ -1038,7 +1073,7 @@ final class RenderApi {
     private static float luaScale(LuaValue v) {
         return v.isnumber() ? clampScale(v.todouble()) : 1f;
     }
-    private static float clampScale(double s) {
+    static float clampScale(double s) {
         return (s < 0.01) ? 0.01f : ((s > 100.0) ? 100f : (float)s);   // never 0/negative (would collapse/invert the mesh)
     }
 

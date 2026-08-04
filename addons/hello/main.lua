@@ -69,7 +69,7 @@
 -- action a widget sends to the server, arguments already RESOLVED — e.g. a move's destination world coord),
 -- and 2e-1 hafen.hook():message (L3: intercept an INBOUND server update BEFORE the widget applies it — swallow
 -- it with ev:preventDefault() or rewrite its args with ev:rewrite()). Plus 2b overlays (hafen.ui.overlay on
--- the HUD + gob:overlay(key, spec) on game objects) and 2a custom windows/widgets + the GOut wrapper. It runs
+-- the HUD + gob:overlay() on game objects) and 2a custom windows/widgets + the GOut wrapper. It runs
 -- inside the Lua SANDBOX (D-017 strict env + D-018 instruction watchdog) over 1e hafen.store (saved
 -- variables), 1d-4 actionbar/equip, 1d-3 study/skills (+ A4: the full Lore & Skills window — buyable skills,
 -- credos, and experiences/lore via hafen.char.skillsAvailable/credos/experiences), 1d-2 buffs + FEP/food,
@@ -2018,22 +2018,22 @@ hafen.slash():register("hello", function(args)
         :format(p:x(), p:y()))
     end
   elseif sub == "follow" then
-    -- 038.2: `follow=` is GONE. A drawn thing attached to a GAME OBJECT is gob:overlay(key, spec) -- the same one
-    -- verb that carries the screen-space kinds, now with the world-space ones: {image = asset}, {model = asset},
-    -- {ghost = "<res>"}, with offset = {x=,y=,z=} in WORLD units (z = up), so {z=18} floats it ~1.6 tiles over the
-    -- head. It is keyed per addon, reads back through gob:overlay(), and it DIES WITH THE GOB -- which is what the
-    -- old anchor could not do (a sprite following a felled tree floated there forever). Removal is the third
-    -- arity, gob:overlay(key, nil). Here it anchors to YOU -- walk around and it follows.
+    -- 038.2: `follow=` is GONE. A drawn thing attached to a GAME OBJECT is gob:overlay():add(key) -- the same
+    -- collection that carries the screen-space kinds, now with the world-space ones: :image(asset), :model(asset),
+    -- :ghost(res), with a three-number :offset in WORLD units (z = up), so 18 floats it ~1.6 tiles over the head.
+    -- It is keyed per addon, reads back through gob:overlay():get(key), and it DIES WITH THE GOB -- which is what
+    -- the old anchor could not do (a sprite following a felled tree floated there forever). Removal is the
+    -- collection's own verb, gob:overlay():remove(key). Here it anchors to YOU -- walk around and it follows.
     if demoFollow then
       local me = hafen.player() and hafen.player():gob()
-      if me then me:overlay("hello-follow", nil) end
+      if me then me:overlay():remove("hello-follow") end
       demoFollow = nil
       hafen.log():write(":hello follow -> removed")
     else
       if not icon then hafen.log():write(":hello follow -> icon.png not loaded yet (OnLoad)"); return end
       local me = hafen.player():gob()
       if not me then hafen.log():write(":hello follow -> no player gob yet"); return end
-      demoFollow = me:overlay("hello-follow", { image = icon, scale = 2, offset = { z = 18 } })
+      demoFollow = me:overlay():add("hello-follow"):image(icon):scale(2):offset(0, 0, 18)
       if not demoFollow then hafen.log():write(":hello follow -> gob:overlay returned nil (not in the world yet?)"); return end
       hafen.log():write(":hello follow -> icon.png now FLOATS above your head and FOLLOWS you -- walk around; :hello follow again to remove")
     end
@@ -2873,10 +2873,10 @@ textcacheStress = function()
     :format(STRESS_POOL, STRESS_PER_FRAME, STRESS_PER_FRAME)
 end
 
--- 038.1: an overlay is attached to a GOB, by key -- gob:overlay(key, spec). hafen.ui.gobOverlay and its
+-- 038.1: an overlay is attached to a GOB, by key -- gob:overlay():add(key). hafen.ui.gobOverlay and its
 -- filter (a sweep that re-checked every gob 5x a second, and once more per gob per frame) are a HARD CUT:
 -- you name the gob, so "every player gets a tag" is a GobAdded handler plus a loop over what is already
--- there, which is exactly the trade the feature makes. The spec here is {draw = fn} -- fn(g, gob, sx, sy)
+-- there, which is exactly the trade the feature makes. The kind here is :draw(fn) -- fn(g, gob, sx, sy)
 -- paints at the gob's projected screen point (just above the head), the same callback as before. Your OWN
 -- gob is tagged too, so you will see at least your own. Self-identification is plain identity (interning,
 -- D-045), no id compare; there is no display-name field for other players (a client limitation), so we show
@@ -2888,7 +2888,7 @@ local function drawPlayerTag(g, gob, sx, sy)
 end
 
 local function tagPlayer(gob)                                     -- one gob, keyed: attaching twice is a no-op
-  if gob:isPlayer() then gob:overlay("hello.tag", { draw = drawPlayerTag }) end
+  if gob:isPlayer() then gob:overlay():add("hello.tag"):draw(drawPlayerTag) end
 end
 hafen.event():on("GobAdded", tagPlayer)                            -- the players who walk in after us
 

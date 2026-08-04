@@ -1,0 +1,9 @@
+{
+  "name": "039.3 — gob:overlay() as a collection, and the Overlay builder",
+  "id": "039-uniform-api.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.3: gob:overlay() is the COLLECTION of everything attached to a game object (:list/:get/:add/:remove) and the four old arities throw naming it; the spec table is gone, so an overlay is attached BARE and says what it draws through chained setters that each answer the overlay and each have a bare read; an overlay that has not named a kind is attached and paints nothing; :add on a live key still REPLACES, firing the removal and the add; ov:pos() throws naming ov:position(), which now hands back a Position; the game's own overlays are still read-only, still keyed by resource name and still publish their multiplicity through ov:count(); gob:info().overlays is ABSENT rather than empty on a gob carrying none; and an overlay still dies with its gob, which the park/gone round measures with the event rather than with a read.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

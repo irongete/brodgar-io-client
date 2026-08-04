@@ -151,7 +151,7 @@ below") · `src/io/brodgar/addon/Sandbox.java` (`installHafen`) · `HookApi.java
 
 ---
 
-## 039.3 — `gob:overlay()` as a collection, and the Overlay builder
+## 039.3 — `gob:overlay()` as a collection, and the Overlay builder ✅ DONE
 
 **Depends on:** 039.1, 039.2 (Position — a world-space overlay's offset is one).
 

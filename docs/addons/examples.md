@@ -88,7 +88,7 @@ primitives, in a second file the manifest loads beside the first. `:planner grab
 
 ## tagger
 
-[`gob:overlay`](api/gob.md#overlays) from both ends. `:tagger` puts a green name and a ring over every player
+[`gob:overlay()`](api/gob.md#overlays) from both ends. `:tagger` puts a green name and a ring over every player
 body — a `text` and a `draw` record in **screen space**, at the gob's projected point — and `:tagger pin`
 floats a PNG 18 world units over the nearest object, a **world-space** record whose composed verbs chain
 (`ov:tint{…}:alpha(0.85)`). Nothing is placed and nothing is polled: the record lives on the gob, so it

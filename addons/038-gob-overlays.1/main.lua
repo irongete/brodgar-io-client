@@ -2,15 +2,15 @@
 --
 -- `overlay` is the engine's own word for a thing attached to a gob, and until now the API spent it on a
 -- screen-space painter that was not one: hafen.ui.gobOverlay took a FILTER, a 5 Hz sweep matched it against
--- every gob in the world, and the draw matched it again per gob per frame. gob:overlay(key, spec) puts the
--- verb on the thing (D-044) and the state ON the gob, so nothing is searched, nothing is swept, and the
--- overlay dies with the object it was attached to.
+-- every gob in the world, and the draw matched it again per gob per frame. gob:overlay() puts the verb on the
+-- thing (D-044) and the state ON the gob, so nothing is searched, nothing is swept, and the overlay dies with
+-- the object it was attached to.
 --
--- ARITY IS THE VERB and the KEY is per addon:
---   gob:overlay()            every overlay on the gob -- yours, then the GAME's own (ov:native())
---   gob:overlay(key)         that one, or nil
---   gob:overlay(key, spec)   attach or REPLACE (the same key twice leaves ONE overlay)
---   gob:overlay(key, nil)    remove
+-- gob:overlay() IS THE COLLECTION and the KEY is per addon:
+--   gob:overlay():list()      every overlay on the gob -- yours, then the GAME's own (ov:native())
+--   gob:overlay():get(key)    that one, or nil
+--   gob:overlay():add(key)    attach a BARE one, or REPLACE (the same key twice leaves ONE overlay)
+--   gob:overlay():remove(key) remove
 --
 -- The suite also MEASURED the thing the design had to decide rather than assume: a native overlay is keyed by
 -- its RESOURCE NAME, and the first run of this suite counted 13 of 33 gobs carrying two overlays of one
@@ -18,7 +18,7 @@
 -- an addon could act on except the multiplicity, which overlay:count() now publishes. (The alternative, the
 -- Gob.Overlay id, is -1 whenever the server gave none, so it collides in the same places while being a
 -- number nothing else in this API speaks.) Check 9 keeps the census and turns it into an invariant:
--- gob:info().overlays is the RAW list, gob:overlay() the keyed one, and sum(ov:count()) must reconcile them.
+-- gob:info().overlays is the RAW list, gob:overlay():list() the keyed one, and sum(ov:count()) reconciles them.
 --
 -- READ-ONLY: it declares no permissions, attaches only to the player's own gob, and removes what it attached
 -- (the parked label included, dropped by ':t038-1 drop').
@@ -61,10 +61,10 @@ local function summary()
   hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
--- How many of THIS addon's overlays (i.e. not the game's) does gob:overlay() list?
+-- How many of THIS addon's overlays (i.e. not the game's) does gob:overlay():list() answer?
 local function mine(gob)
   local n, keys = 0, {}
-  for _, ov in ipairs(gob:overlay()) do
+  for _, ov in ipairs(gob:overlay():list()) do
     if not ov:native() then n = n + 1 keys[#keys + 1] = ov:key() end
   end
   return n, table.concat(keys, ",")
@@ -73,7 +73,7 @@ end
 -- The first gob in the world carrying one of the GAME's own overlays, and that overlay's key.
 local function anyNative()
   for _, g in ipairs(hafen.world():gob():list()) do
-    for _, ov in ipairs(g:overlay()) do
+    for _, ov in ipairs(g:overlay():list()) do
       if ov:native() then return g, ov:key(), ov end
     end
   end
@@ -90,21 +90,33 @@ local function run(args)
     check(false, "the player's own gob is the thing every check below attaches to", "no player gob yet")
     return summary()
   end
-  if parked then me:overlay(KEY, nil) parked = nil end   -- a re-run starts from a bare gob
+  if parked then me:overlay():remove(KEY) parked = nil end   -- a re-run starts from a bare gob
 
-  -- 1. THE HARD CUTS, asserted as nil rather than described (TESTING.md).
+  -- 1. THE HARD CUTS, asserted as a refusal rather than described (TESTING.md).
   eq("the hard cut is cut: hafen.ui.gobOverlay", hafen.ui.gobOverlay, nil)
-  eq("the hard cut is cut: gob.overlays (the reader is subsumed by gob:overlay())", me.overlays, nil)
-  check(type(me.overlay) == "function", "...and gob:overlay is what replaced both", type(me.overlay))
+  refuses("the hard cut is cut: gob:overlays() throws naming the collection",
+          function() return me:overlays() end, "gob:overlay():list()")
+  refuses("...and so does the old four-arity form, naming every collection verb that replaced it",
+          function() return me:overlay(KEY, { text = "x" }) end, "gob:overlay():add(key)")
+  check(type(me.overlay) == "function", "...and gob:overlay is what replaced them all", type(me.overlay))
 
-  -- 2. ARITY 4 -- gob:overlay() answers a table even with nothing of ours on the gob.
-  local before = me:overlay()
-  check(type(before) == "table", "gob:overlay() answers every overlay on the gob", type(before))
+  -- 2. THE COLLECTION -- it answers even with nothing of ours on the gob, and it is not an array.
+  local before = me:overlay():list()
+  check(type(before) == "table", "gob:overlay():list() answers every overlay on the gob", type(before))
   eq("...and this addon has attached none of them yet", (mine(me)), 0)
+  refuses("the collection is an OBJECT, not a sequence: # is refused naming :count() and :list()",
+          function() return #me:overlay() end, ":count()")
 
-  -- 3. ATTACH. The overlay comes back as an entity, and it knows what it is.
-  local ov = me:overlay(KEY, { text = PARKED, color = { 255, 220, 120 }, offset = { x = 0, y = -6 } })
-  check(ov ~= nil, "gob:overlay(key, spec) attaches and hands back the Overlay", tostring(ov))
+  -- 3. ATTACH, and CONFIGURE. :add hands back a BARE overlay; the setters say what it draws, and each one
+  --    answers the overlay, so the whole thing is one statement.
+  local bare = me:overlay():add(KEY)
+  check(bare ~= nil, "gob:overlay():add(key) attaches and hands back the Overlay", tostring(bare))
+  eq("...and a bare one draws NOTHING until it says what it is", bare:kind(), nil)
+  check(bare:exists(), "...though it is already attached (a half-configured overlay is attached, not painted)",
+        bare:exists())
+  local ov = me:overlay():add(KEY):text(PARKED):color(255, 220, 120):offset(0, -6)
+  check(ov ~= nil, "the setters chain and answer the overlay", tostring(ov))
+  eq("...and a setter's bare read hands back what it was given", ov:text(), PARKED)
   eq("overlay:key() is the name you gave it", ov:key(), KEY)
   eq("overlay:native() is false on one of ours", ov:native(), false)
   eq("overlay:res() is nil for a screen-space overlay (it draws Lua, not a .res)", ov:res(), nil)
@@ -117,30 +129,34 @@ local function run(args)
         info and ("key=%s native=%s kind=%s"):format(tostring(info.key), tostring(info.native),
                                                      tostring(info.kind)) or "nil")
 
-  -- 4. ARITY 2 -- read one back, and it is the SAME object (interned per gob+key, D-045's shape).
-  check(me:overlay(KEY) == ov, "gob:overlay(key) reads that one back, interned", tostring(me:overlay(KEY)))
-  eq("gob:overlay(<a key nobody attached>) is plain nil", me:overlay("no-such-key"), nil)
+  -- 4. READ ONE BACK, and it is the SAME object (interned per gob+key, D-045's shape).
+  check(me:overlay():get(KEY) == ov, "gob:overlay():get(key) reads that one back, interned",
+        tostring(me:overlay():get(KEY)))
+  eq("gob:overlay():get(<a key nobody attached>) is plain nil", me:overlay():get("no-such-key"), nil)
 
-  -- 5. IDEMPOTENCE. The same key twice REPLACES: one overlay, the second spec's.
-  me:overlay(KEY, { draw = function(g, gob, sx, sy) g:frect(sx - 2, sy - 2, 4, 4) end })
+  -- 5. IDEMPOTENCE. The same key twice REPLACES: one overlay, the second one's.
+  me:overlay():add(KEY):draw(function(g, gob, sx, sy) g:frect(sx - 2, sy - 2, 4, 4) end)
   local n, keys = mine(me)
   eq("the same key twice leaves ONE overlay, not two", n, 1)
-  eq("...and it is the SECOND spec (an attach REPLACES)", me:overlay(KEY):info().kind, "draw")
-  check(keys == KEY, "gob:overlay() lists our one key and nothing else of ours", keys)
+  eq("...and it is the SECOND one (an :add on a live key REPLACES)", me:overlay():get(KEY):info().kind, "draw")
+  check(keys == KEY, "gob:overlay():list() lists our one key and nothing else of ours", keys)
 
-  -- 6. ARITY 3b -- remove, and everything that pointed at it goes quiet.
-  me:overlay(KEY, nil)
-  eq("gob:overlay(key, nil) removes it", me:overlay(KEY), nil)
+  -- 6. REMOVE, and everything that pointed at it goes quiet.
+  me:overlay():remove(KEY)
+  eq("gob:overlay():remove(key) removes it", me:overlay():get(KEY), nil)
   eq("...the Overlay object you held stops existing with it", ov:exists(), false)
-  eq("...and gob:overlay() no longer lists it", (mine(me)), 0)
+  eq("...and gob:overlay():list() no longer lists it", (mine(me)), 0)
 
-  -- 7. THE REFUSALS. A spec that draws nothing is never what was meant, and a silent no-op is the one
-  --    failure nothing else would ever report.
-  refuses("a spec naming neither 'draw' nor 'text' is refused NAMING the field",
-          function() me:overlay(KEY, { colour = { 1, 2, 3 } }) end, "must name WHAT to draw")
+  -- 7. THE REFUSALS. An overlay says ONE thing, and a silent no-op is the one failure nothing else would
+  --    ever report.
+  local two = me:overlay():add(KEY):text("a")
+  refuses("a second, DIFFERENT kind is refused naming the first",
+          function() two:draw(function() end) end, "already draws 'text'")
+  eq("...and the refused setter left the overlay exactly as it was", two:text(), "a")
   refuses("...and 'draw' has to be a function",
-          function() me:overlay(KEY, { draw = "paint it" }) end, "'draw' must be a function")
-  eq("...and neither refusal left anything attached", (mine(me)), 0)
+          function() me:overlay():add(KEY):draw("paint it") end, "expects a function")
+  me:overlay():remove(KEY)
+  eq("...and the removal leaves nothing of ours attached", (mine(me)), 0)
 
   -- 8. THE GAME'S OWN. Read-only: an attach onto a native key, and a remove of one, both RAISE naming it.
   local ng, nk, nov = anyNative()
@@ -151,10 +167,10 @@ local function run(args)
     check((nov:count() or 0) >= 1,
           "...and overlay:count() says how many engine overlays that one key stands for (it is a UNION)",
           nov:count())
-    refuses("an attach onto a native key RAISES naming the key",
-            function() ng:overlay(nk, { text = "mine now" }) end, nk)
-    refuses("...and so does gob:overlay(nativeKey, nil) -- never a silent no-op",
-            function() ng:overlay(nk, nil) end, nk)
+    refuses("an :add onto a native key RAISES naming the key",
+            function() ng:overlay():add(nk) end, nk)
+    refuses("...and so does a :remove of one -- never a silent no-op",
+            function() ng:overlay():remove(nk) end, nk)
   else
     manualCheck("no gob in sight carries one of the game's own overlays; stand near a lit fire, a growing"
                 .. " crop or a curiosity and run ':t038-1' again",
@@ -165,8 +181,8 @@ local function run(args)
   --    first run of this suite MEASURED what that costs: 13 of 33 gobs carrying overlays had two of one
   --    resource. So the collapse is ordinary, not a corner case -- and since a native overlay is read-only,
   --    a union loses nothing an addon could act on EXCEPT the multiplicity, which overlay:count() therefore
-  --    publishes. gob:info().overlays is the RAW list (one entry per engine overlay) and gob:overlay() the
-  --    keyed one, so the check is that the counts RECONCILE on every gob: sum(ov:count()) == #raw.
+  --    publishes. gob:info().overlays is the RAW list (one entry per engine overlay) and gob:overlay():list()
+  --    the keyed one, so the check is that the counts RECONCILE on every gob: sum(ov:count()) == #raw.
   local seen, dup, worst, bad = 0, 0, 0, 0
   for _, g in ipairs(hafen.world():gob():list()) do
     if seen >= CENSUS then break end
@@ -175,7 +191,7 @@ local function run(args)
     if raw > 0 then
       seen = seen + 1
       local keyed, counted = 0, 0
-      for _, o in ipairs(g:overlay()) do
+      for _, o in ipairs(g:overlay():list()) do
         if o:native() then keyed = keyed + 1 counted = counted + (o:count() or 0) end
       end
       if raw > keyed then dup = dup + 1 if (raw - keyed) > worst then worst = raw - keyed end end
@@ -205,13 +221,13 @@ local function run(args)
 
     -- 11. Park a label on the player's own gob for the two things only a person can judge.
     parked = me
-    me:overlay(KEY, { text = PARKED, color = { 255, 220, 120 }, offset = { x = 0, y = -6 } })
+    me:overlay():add(KEY):text(PARKED):color(255, 220, 120):offset(0, -6)
     manualCheck("look at your own character, then move the camera and walk a few steps",
                 "'038.1 label' stands just above your head in pale yellow and STAYS there as the camera turns"
                 .. " and as you walk -- it is attached to the gob, not painted at a screen coordinate")
-    manualCheck("run ':lua hafen.player():gob():overlay(\"tag\")'",
+    manualCheck("run ':lua hafen.player():gob():overlay():get(\"tag\")'",
                 "nil -- keys are PER ADDON: the console is another addon, so it cannot see the \"tag\" this"
-                .. " suite is holding on that very gob (':lua hafen.player():gob():overlay()' lists the"
+                .. " suite is holding on that very gob (':lua #hafen.player():gob():overlay():list()' counts the"
                 .. " game's own overlays and nothing of ours). Then run ':t038-1 drop'")
     summary()
   end)
@@ -220,11 +236,11 @@ end
 dropRound = function()
   pass, fail, manual = 0, 0, 0
   local gob = parked
-  if gob then gob:overlay(KEY, nil) end
+  if gob then gob:overlay():remove(KEY) end
   parked = nil
-  check(gob and (gob:overlay(KEY) == nil),
+  check(gob and (gob:overlay():get(KEY) == nil),
         "the parked label is gone and the suite left nothing attached to any gob",
-        (gob == nil) and "nothing was parked -- run ':t038-1' first" or tostring(gob:overlay(KEY)))
+        (gob == nil) and "nothing was parked -- run ':t038-1' first" or tostring(gob:overlay():get(KEY)))
   summary()
 end
 

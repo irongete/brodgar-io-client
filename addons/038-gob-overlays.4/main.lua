@@ -81,15 +81,15 @@ end)
 -- Take our park overlay off a gob, on purpose. Nothing happens to a gob that is already gone -- it took the
 -- overlay with it, which is the whole claim.
 local function unpark(g)
-  if not (g and g:exists() and (g:overlay(PARK) ~= nil)) then return end
+  if not (g and g:exists() and (g:overlay():get(PARK) ~= nil)) then return end
   expect[g:id()] = (expect[g:id()] or 0) + 1
-  g:overlay(PARK, nil)
+  g:overlay():remove(PARK)
 end
 
--- How many of the overlays on this gob are OURS. gob:overlay() lists ours and the game's; another addon's are
--- never in it (keys are per addon), so this is the whole of "did we leave anything behind".
+-- How many of the overlays on this gob are OURS. gob:overlay():list() answers ours and the game's; another
+-- addon's are never in it (keys are per addon), so this is the whole of "did we leave anything behind".
 local function mine(g)
-  local n, all = 0, g and g:exists() and g:overlay()
+  local n, all = 0, g and g:exists() and g:overlay():list()
   if all then
     for _, ov in ipairs(all) do
       if not ov:native() then n = n + 1 end
@@ -99,7 +99,7 @@ local function mine(g)
 end
 
 local function natives(g)
-  local n, all = 0, g and g:exists() and g:overlay()
+  local n, all = 0, g and g:exists() and g:overlay():list()
   if all then
     for _, ov in ipairs(all) do
       if ov:native() then n = n + 1 end
@@ -111,7 +111,7 @@ end
 -- Any gob in sight carrying one of the GAME's own overlays, and that overlay's key (its resource name).
 local function anyNative()
   for _, g in ipairs(hafen.world():gob():list()) do
-    local all = g:overlay()
+    local all = g:overlay():list()
     if all then
       for _, ov in ipairs(all) do
         if ov:native() then return g, ov:key() end
@@ -122,7 +122,7 @@ end
 
 local function clear(g, keys)
   if not (g and g:exists()) then return end
-  for _, k in ipairs(keys) do g:overlay(k, nil) end
+  for _, k in ipairs(keys) do g:overlay():remove(k) end
 end
 
 -- ---- 1. the teardown verdict, read back from the run before the reload -----------------------------------
@@ -144,7 +144,7 @@ local function teardownVerdict()
   end
   local left = 0
   for _, k in ipairs(p.keys) do
-    if g:overlay(k) ~= nil then left = left + 1 end
+    if g:overlay():get(k) ~= nil then left = left + 1 end
   end
   eq("':reload' removed every overlay this addon had attached -- " .. #p.keys .. " of them, in both spaces",
      left, 0)
@@ -165,34 +165,34 @@ end
 local function docsRound(me)
   local ok, err = pcall(function()
     -- gob.md, "Overlays":
-    me:overlay("hp", { text = "hurt", color = {255, 90, 90}, offset = {x = 0, y = -6} })
-    me:overlay("ring", { draw = function(g, gob, sx, sy) g:frect(sx - 2, sy - 2, 4, 4) end })
-    me:overlay("mark", { image = icon, scale = 2, offset = { z = 18 } })
-    me:overlay("hp", nil)
+    me:overlay():add("hp"):text("hurt"):color(255, 90, 90):offset(0, -6)
+    me:overlay():add("ring"):draw(function(g, gob, sx, sy) g:frect(sx - 2, sy - 2, 4, 4) end)
+    me:overlay():add("mark"):image(icon):scale(2):offset(0, 0, 18)
+    me:overlay():remove("hp")
   end)
   check(ok, "the four snippets on gob.md#overlays run exactly as written", err)
-  eq("...and the documented remove really removed that one", me:overlay("hp"), nil)
-  local ring, mark = me:overlay("ring"), me:overlay("mark")
+  eq("...and the documented remove really removed that one", me:overlay():get("hp"), nil)
+  local ring, mark = me:overlay():get("ring"), me:overlay():get("mark")
   eq("...while the other two are still there, each answering its documented kind",
      ring and ring:kind(), "draw")
   eq("...and the world-space one too", mark and mark:kind(), "image")
 
   -- gob.md, "The verbs on a world overlay" -- the chain is the claim, so assert it CHAINS.
-  local ov = me:overlay("mark", { image = icon, offset = { z = 20 } })
-  local chained = ov:tint{ 255, 90, 90 }:alpha(0.7):scale(2)
-  check(chained == ov, "the composed verbs chain, each answering the overlay (ov:tint{...}:alpha(0.7):scale(2))",
+  local ov = me:overlay():add("mark"):image(icon):offset(0, 0, 20)
+  local chained = ov:tint(255, 90, 90):alpha(0.7):scale(2)
+  check(chained == ov, "the composed verbs chain, each answering the overlay (ov:tint(...):alpha(0.7):scale(2))",
         tostring(chained))
 
   -- guides/custom-ui.md, "Overlays" -- the filter form's replacement, in the two lines the page shows.
   local tagged = 0
   local function tag(gob)
-    if gob:isPlayer() then gob:overlay("tag", { text = "player", color = {0, 255, 0} }) tagged = tagged + 1 end
+    if gob:isPlayer() then gob:overlay():add("tag"):text("player"):color(0, 255, 0) tagged = tagged + 1 end
   end
   for _, g in ipairs(hafen.world():gob():list()) do tag(g) end
   check(tagged > 0, ("the custom-ui.md tagging loop runs and labelled %d player body/bodies"):format(tagged),
         "no player gob in sight, not even your own")
 
-  for _, g in ipairs(hafen.world():gob():list()) do g:overlay("tag", nil) end
+  for _, g in ipairs(hafen.world():gob():list()) do g:overlay():remove("tag") end
   clear(me, DOCS)
   eq("the docs round leaves nothing of its own behind", mine(me), 0)
 end
@@ -201,9 +201,9 @@ end
 
 local function churn(me, n)
   for i = 1, n do
-    me:overlay(CHURN, { text = "c" .. i })                       -- add
-    me:overlay(CHURN, { text = "c" .. i, color = {1, 2, 3} })    -- REPLACE: a removal AND an add
-    me:overlay(CHURN, nil)                                       -- remove
+    me:overlay():add(CHURN):text("c" .. i)                       -- add
+    me:overlay():add(CHURN):text("c" .. i):color(1, 2, 3)        -- REPLACE: a removal AND an add
+    me:overlay():remove(CHURN)                                   -- remove
   end
 end
 
@@ -218,7 +218,7 @@ local function run()
     check(false, "the player's own gob is what every check below attaches to", "no player gob yet")
     return summary()
   end
-  clear(me, DOCS) clear(me, KEEP) me:overlay(CHURN, nil)     -- a re-run starts from a bare gob
+  clear(me, DOCS) clear(me, KEEP) me:overlay():remove(CHURN)   -- a re-run starts from a bare gob
   if icon == nil then
     check(false, "the suite's own icon.png loaded (a suite stands alone, so it ships its own asset)", "nil")
     return summary()
@@ -232,17 +232,17 @@ local function run()
   local ng, nk = anyNative()
   if ng then
     refuses("the game's own overlays are not this addon's to remove -- a remove of one raises, naming the key",
-            function() ng:overlay(nk, nil) end, nk)
+            function() ng:overlay():remove(nk) end, nk)
     refuses("...and a native key is not ours to attach onto either",
-            function() ng:overlay(nk, { text = "no" }) end, nk)
-    eq("...and after both refusals the game's overlay is still there, untouched", ng:overlay(nk) ~= nil, true)
+            function() ng:overlay():add(nk) end, nk)
+    eq("...and after both refusals the game's overlay is still there, untouched", ng:overlay():get(nk) ~= nil, true)
     -- gob.md: the raw, UNCOLLAPSED view is still there beside the keyed one -- and the honest test of that
     -- sentence is 038.1's invariant, not a type check: the raw list must reconcile with sum(ov:count()) over
     -- the keyed natives, since keying by resource name is exactly what collapses them. (The first version
     -- asserted `type(info.overlays) == "table"` on the PLAYER's gob and went red for the right reason: like
     -- every GobInfo field it is ABSENT, not empty, when the gob carries none. The page now says so.)
     local raw, sum = ng:info().overlays, 0
-    for _, ov in ipairs(ng:overlay()) do
+    for _, ov in ipairs(ng:overlay():list()) do
       if ov:native() then sum = sum + (ov:count() or 0) end
     end
     eq("gob:info().overlays is the raw uncollapsed list, and it reconciles with the keyed read",
@@ -261,7 +261,7 @@ local function run()
     adds, removes = 0, 0
     churn(me, 40)
     eq("nothing is left on the gob after 40 attach/replace/remove cycles", mine(me), 0)
-    eq("...and the last removal really removed", me:overlay(CHURN), nil)
+    eq("...and the last removal really removed", me:overlay():get(CHURN), nil)
 
     hafen.timer():after(0.5, function()
       -- The events are queued onto the tick and drained one frame's worth at a time (D-106); nothing here
@@ -272,9 +272,9 @@ local function run()
 
       -- Park the marker the NEXT run reads back: one overlay per space, so the teardown check covers both the
       -- screen-space record (bookkeeping on the gob) and the world-space one (its own client gob in the scene).
-      me:overlay(KEEP[1], { text = "reload me", color = {200, 200, 90} })
-      me:overlay(KEEP[2], { draw = function(g, gob, sx, sy) g:rect(sx - 4, sy - 4, 8, 8) end })
-      me:overlay(KEEP[3], { image = icon, scale = 2, offset = { z = 22 } })
+      me:overlay():add(KEEP[1]):text("reload me"):color(200, 200, 90)
+      me:overlay():add(KEEP[2]):draw(function(g, gob, sx, sy) g:rect(sx - 4, sy - 4, 8, 8) end)
+      me:overlay():add(KEEP[3]):image(icon):scale(2):offset(0, 0, 22)
       eq("three overlays are parked for the teardown check, in both spaces", mine(me), 3)
       hafen.store.state.pending = { gob = me:id(), keys = KEEP, natives = natives(me) }
       hafen.store.flush()
@@ -312,7 +312,7 @@ local function parkRound()
   local n = 0
   for _, g in ipairs(hafen.world():gob():list()) do
     if (n < 3) and g:exists() and (not me or (g:id() ~= me:id())) then
-      g:overlay(PARK, { image = icon, scale = 2, offset = { z = 14 } })
+      g:overlay():add(PARK):image(icon):scale(2):offset(0, 0, 14)
       parked[g:id()] = true
       n = n + 1
     end
@@ -335,7 +335,7 @@ local function goneRound()
     local g = hafen.world():gob():get(id)
     -- The read after the despawn must be a clean nil, never an error: a Gob is a re-resolving view, and the
     -- thing it points at going away is a moment, not a mistake.
-    local ok, v = pcall(function() return g:overlay(PARK) end)
+    local ok, v = pcall(function() return g:overlay():get(PARK) end)
     if not ok then errs = errs + 1 end
     if dropped[id] then
       told = told + 1

@@ -74,7 +74,7 @@ end)
 ```
 
 This is the **HUD**. To paint over a **game object** instead, the verb is on the object:
-[`gob:overlay(key, spec)`](../gob.md#overlays) — you name the gob it hangs on, so nothing is searched per
+[`gob:overlay()`](../gob.md#overlays) — you name the gob it hangs on, so nothing is searched per
 frame. To stand something in the **world** rather than over it, use [`hafen.render`](../render/README.md)
 for your own images and models, or [`hafen.ghost`](../ghost.md) for the game's own props.
 

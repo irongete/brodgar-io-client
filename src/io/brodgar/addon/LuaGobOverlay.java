@@ -13,6 +13,7 @@ import haven.render.Pipe;
 import haven.render.RenderTree;
 
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 import java.awt.Color;
@@ -33,7 +34,7 @@ import java.util.Map;
  * <p><b>It is now the STORE, not a stateless painter.</b> Before 038.1 an addon registered a <i>filter</i>
  * ({@code hafen.ui.gobOverlay}) and a throttled 5&nbsp;Hz sweep attached one of these to every gob that matched,
  * after which each draw re-evaluated every addon's filter for that gob. The verb names the gob instead, so
- * nothing is searched and nothing is swept: {@code gob:overlay(key, spec)} attaches the attrib to <i>that</i> gob
+ * nothing is searched and nothing is swept: {@code gob:overlay():add(key)} attaches the attrib to <i>that</i> gob
  * at once and puts the record in the per-addon map held here, and the draw pass paints the records it is already
  * standing in. One shared attrib per gob still serves every addon ({@code getattr} keys by the exact class, so a
  * per-addon subclass cannot be attached) — hence the map of maps, partitioned by {@link Addon} so two addons'
@@ -79,133 +80,143 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
     // ---- one attached record ----------------------------------------------------------------------
 
     /**
-     * One thing an addon attached under one key. A spec is read ONCE, at attach — like a stylesheet rule, and
-     * unlike the old filter, which was re-evaluated per gob per frame.
+     * One thing an addon attached under one key. Since 039.3 the record is <b>built bare and configured by the
+     * setters on the Overlay object</b> {@code gob:overlay():add(key)} hands back — the spec table is gone, and
+     * with it the one-shot parse: a record's own state IS the configuration, so {@code ov:text("…")} relabels a
+     * live overlay instead of replacing it.
      *
-     * <p><b>One spec table, two spaces</b> (038.2). {@code {draw = fn}} and {@code {text = …}} paint in
-     * <b>screen space</b> at the gob's projected point, and their record is painted from this attrib's own draw
-     * pass. {@code {image = asset}}, {@code {model = asset}} and {@code {ghost = res}} stand in the <b>3D world</b>
-     * anchored to the gob: their record holds a client-only {@link LuaWorldEntity} carrying a
-     * {@link FollowMoving}, which is not painted here at all — the render tree draws it as it draws any other
-     * world entity, and this record is what OWNS it (a replace, a remove and the gob's own death each end it).
-     * A spec naming none of the five is an error naming the fields, and one naming two is an error naming both.
+     * <p><b>A bare record draws nothing.</b> It has no {@link #kind} until one of the five kind setters names
+     * one, which is what makes "a half-configured overlay never paints" a property of the shape rather than a
+     * rule to remember: there is nothing to paint until the overlay says what it is. A second, different kind is
+     * refused — an overlay says ONE thing, and picking a winner is how one of them silently stops meaning
+     * anything.
+     *
+     * <p><b>Two spaces</b> (038.2, unchanged). {@code :draw(fn)} and {@code :text(s)} paint in <b>screen
+     * space</b> at the gob's projected point, from this attrib's own draw pass. {@code :image(a)},
+     * {@code :model(a)} and {@code :ghost(res)} stand in the <b>3D world</b> anchored to the gob: the record
+     * holds a client-only {@link LuaWorldEntity} carrying a {@link FollowMoving}, which is not painted here at
+     * all — the render tree draws it as it draws any other world entity, and this record is what OWNS it (a
+     * replace, a remove and the gob's own death each end it).
+     *
+     * <p><b>Mutable, and read from the draw pass</b>, so every configured field is {@code volatile}: the writes
+     * come from a Lua verb on the UI thread and the reads from {@link #paintRecords} one frame later, and a
+     * field is a whole value in either.
      */
     static final class Attach {
         final Addon owner;
         final String key;
-        /** {@code "draw"}, {@code "text"}, {@code "image"}, {@code "model"} or {@code "ghost"} — what this record is. */
-        final String kind;
-        /** {@code {draw = fn}} — {@code fn(g, gob, sx, sy)}, or null for every other kind. */
-        final LuaValue draw;
-        /** {@code {text = "…"}} — the label, or null for every other kind. */
-        final String text;
-        /** {@code {color = {r,g,b[,a]}}} for a text record; null = the stock white. */
-        final Color color;
-        /** {@code {offset = {x=,y=}}} in screen pixels from the projected anchor point; never null (screen kinds). */
-        final Coord off;
-        /** The client-only entity a WORLD-space record owns, or null for a screen-space one. */
-        final LuaWorldEntity ent;
+        /** The gob this record is attached to — what a rebuilt world entity anchors itself to again. */
+        final long gobId;
 
-        private Attach(Addon owner, String key, String kind, LuaValue draw, String text, Color color, Coord off,
-                       LuaWorldEntity ent) {
+        /** {@code "draw"}, {@code "text"}, {@code "image"}, {@code "model"} or {@code "ghost"}, or null while bare. */
+        volatile String kind;
+        /** {@code :draw(fn)} — {@code fn(g, gob, sx, sy)}, or null for every other kind. */
+        volatile LuaValue draw;
+        /** {@code :text(s)} — the label, or null for every other kind. */
+        volatile String text;
+        /** {@code :image(a)} / {@code :model(a)} — the asset handle the visual is milled from. */
+        volatile LuaValue visual;
+        /** {@code :ghost(res)} — the {@code .res} name of a game model. */
+        volatile String res;
+        /** {@code :spawnData(sdt)} — spawn-data bytes picking a resource variant (a ghost only). */
+        volatile LuaValue spawnData;
+        /** {@code :billboard(b)} — a camera-facing blit rather than an upright quad (an image only). */
+        volatile boolean billboard;
+        /** {@code :color(…)} for a text record; null = the stock white. */
+        volatile Color color;
+        /** {@code :offset(…)} — screen pixels on a screen kind, world units ({@code z} up) on a world one. */
+        volatile double offX, offY, offZ;
+        /** The look, kept here as well as on the entity so a rebuilt visual comes back looking the same. */
+        volatile double scale = 1.0, alpha = 1.0, rotate = 0.0;
+        volatile Color tint;
+        /** The client-only entity a WORLD-space record owns, or null while it is bare or screen-space. */
+        volatile LuaWorldEntity ent;
+
+        Attach(Addon owner, String key, long gobId) {
             this.owner = owner;
             this.key = key;
-            this.kind = kind;
-            this.draw = draw;
-            this.text = text;
-            this.color = color;
-            this.off = off;
-            this.ent = ent;
+            this.gobId = gobId;
         }
 
-        /** What this record paints (the {@code kind} of {@code overlay:info()}). */
+        /** What this record paints, or null while it is bare (the {@code kind} of {@code overlay:info()}). */
         String kind() {
             return kind;
         }
 
         /** Is this one painted in the 3D world (rather than at the gob's projected screen point)? */
         boolean world() {
-            return ent != null;
+            return worldKind(kind);
+        }
+
+        /** Is it configured enough to paint at all? A bare record is not, and that is its whole guarantee. */
+        boolean drawn() {
+            return kind != null;
+        }
+
+        /** The screen-space offset from the projected anchor point (the screen kinds). */
+        Coord screenOffset() {
+            return Coord.of((int)Math.round(offX), (int)Math.round(offY));
+        }
+
+        /** The world-space offset from the gob ({@code z} up) — what a {@link FollowMoving} adds every frame. */
+        Coord3f worldOffset() {
+            return new Coord3f((float)offX, (float)offY, (float)offZ);
         }
 
         /** End this record: a world-space one destroys the entity it owns; a screen-space one has nothing to free. */
         void dispose() {
-            if(ent != null)
-                RenderApi.destroyOverlayEntity(ent);
+            LuaWorldEntity e = ent;
+            ent = null;
+            if(e != null)
+                RenderApi.destroyOverlayEntity(e);
         }
 
         /**
-         * Parse one spec table, building the world entity when it names one. <b>A spec naming none of the five
-         * is an error naming the fields</b> — an overlay that draws nothing is never what was meant, and a silent
-         * no-op is the one failure nothing else would report; a spec naming two is an error naming both, because
-         * picking a winner by table order is how one of them silently stops meaning anything.
+         * Build (or REBUILD) the world entity from the record's current configuration, and hand the look back to
+         * it. The new one is built <b>before</b> the old one is destroyed, so a bad asset handle or a missing map
+         * view raises with the overlay left exactly as it was — the 038 property that a failed attach changes
+         * nothing, kept now that the configuration arrives one setter at a time.
+         *
+         * <p>Only the two <b>construction</b> properties force a rebuild after the fact ({@code :billboard},
+         * {@code :spawnData}): they pick which visual is milled, and nothing can change that in place. Everything
+         * else — scale, alpha, tint, facing, offset — is set on the live entity and merely remembered here.
          */
-        static Attach of(Addon owner, String key, LuaValue spec, long gobId) {
-            String where = "gob:overlay(key, spec)";
-            if(!spec.istable())
-                throw new LuaError(where + ": spec must be a table, got " + spec.typename()
-                    + " -- gob:overlay(key, nil) is the REMOVE arity");
-            String kind = specKind(spec, where);
-            if(kind.equals("draw")) {
-                LuaValue dv = spec.get("draw");
-                if(!dv.isfunction())
-                    throw new LuaError(where + ": 'draw' must be a function draw(g, gob, sx, sy), got " + dv.typename());
-                return new Attach(owner, key, kind, dv, null, luaColor(spec, where), screenOffset(spec, where), null);
+        void materialise() {
+            if(!world())
+                return;
+            LuaTable spec = new LuaTable();
+            if(kind.equals("ghost")) {
+                spec.set("ghost", LuaValue.valueOf(res));
+                if(spawnData != null)
+                    spec.set("sdt", spawnData);
+            } else {
+                spec.set(kind, visual);
+                if(billboard)
+                    spec.set("billboard", LuaValue.TRUE);
             }
-            if(kind.equals("text"))
-                return new Attach(owner, key, kind, null, spec.get("text").tojstring(),
-                                  luaColor(spec, where), screenOffset(spec, where), null);
-            // A WORLD-space overlay: its own client-only gob, anchored to the target every frame. Built here, so a
-            // bad asset handle raises BEFORE anything is attached and the gob is left exactly as it was.
-            LuaValue ov = spec.get("offset");
-            if(!ov.isnil() && !ov.istable())
-                throw new LuaError(where + ": 'offset' must be {x = , y = , z = } (world units, z = up), got " + ov.typename());
-            return new Attach(owner, key, kind, null, null, null, Coord.z,
-                              RenderApi.overlayEntity(owner, gobId, spec, kind, RenderApi.luaOffset(ov)));
-        }
-
-        /** Exactly ONE of the five spec fields, or a guiding error naming all of them / the two that collided. */
-        private static String specKind(LuaValue spec, String where) {
-            String found = null, other = null;
-            for(String k : KINDS) {
-                if(spec.get(k).isnil())
-                    continue;
-                if(found == null)
-                    found = k;
-                else if(other == null)
-                    other = k;
-            }
-            if(other != null)
-                throw new LuaError(where + ": a spec says ONE thing -- '" + found + "' and '" + other + "' are two,"
-                    + " so attach them under two keys (or, for a label, a 'draw' callback that draws the text itself)");
-            if(found == null)
-                throw new LuaError(where + ": the spec must name WHAT to draw -- 'draw' (a callback"
-                    + " draw(g, gob, sx, sy)) or 'text' (a label at the gob's point) in SCREEN space, or 'image'"
-                    + " (an asset), 'model' (an asset) or 'ghost' (a .res name) standing in the 3D WORLD");
-            return found;
-        }
-
-        private static Color luaColor(LuaValue spec, String where) {
-            LuaValue cv = spec.get("color");
-            if(cv.isnil())
-                return null;
-            if(!cv.istable())
-                throw new LuaError(where + ": 'color' must be {r, g, b[, a]}, got " + cv.typename());
-            return AddonManager.luaColor(cv, null);
-        }
-
-        private static Coord screenOffset(LuaValue spec, String where) {
-            LuaValue ov = spec.get("offset");
-            if(ov.isnil())
-                return Coord.z;
-            if(!ov.istable())
-                throw new LuaError(where + ": 'offset' must be {x = , y = } (screen pixels), got " + ov.typename());
-            return Coord.of(ov.get("x").toint(), ov.get("y").toint());
+            LuaWorldEntity built = RenderApi.overlayEntity(owner, gobId, spec, kind, worldOffset());
+            LuaWorldEntity old = ent;
+            ent = built;
+            if(old != null)
+                RenderApi.destroyOverlayEntity(old);
+            if(scale != 1.0)
+                RenderApi.overlayScale(built, scale);
+            if(alpha != 1.0)
+                RenderApi.overlayAlpha(built, alpha);
+            if(tint != null)
+                RenderApi.overlayTint(built, tint);
+            if(rotate != 0.0)
+                RenderApi.overlayRotate(built, rotate);
         }
     }
 
-    /** The five spec fields, in the order an error lists them: the two screen-space kinds, then the three world ones. */
-    private static final String[] KINDS = { "draw", "text", "image", "model", "ghost" };
+    /** The five kinds, in the order an error lists them: the two screen-space ones, then the three world ones. */
+    static final String[] KINDS = { "draw", "text", "image", "model", "ghost" };
+
+    /** Does {@code kind} stand in the 3D world (rather than at the gob's projected screen point)? */
+    static boolean worldKind(String kind) {
+        return "image".equals(kind) || "model".equals(kind) || "ghost".equals(kind);
+    }
 
     // ---- the per-gob store ------------------------------------------------------------------------
 
@@ -223,7 +234,7 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         try {
             g.setattr(ol);
         } catch(Loading l) {
-            throw new LuaError("gob:overlay(key, spec): that gob is not renderable yet -- attach it from"
+            throw new LuaError("gob:overlay():add(key): that gob is not renderable yet -- attach it from"
                 + " GobAdded or a timer, and read gob:exists() first");
         }
         return ol;
@@ -320,13 +331,14 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
     /**
      * A snapshot of the SCREEN-space records, addon by addon — what the draw pass paints. A world-space record is
      * not in it: its entity is drawn by the render tree like any other world thing, so a gob carrying only world
-     * overlays costs this attrib's draw one empty list and no projection at all.
+     * overlays costs this attrib's draw one empty list and no projection at all. Nor is a <b>bare</b> one, which
+     * has not yet said what it draws — that is how a half-configured overlay never paints.
      */
     private synchronized List<Attach> paintRecords() {
         List<Attach> out = new ArrayList<Attach>();
         for(Map<String, Attach> m : byAddon.values()) {
             for(Attach a : m.values()) {
-                if(!a.world())
+                if(a.drawn() && !a.world())
                     out.add(a);
             }
         }

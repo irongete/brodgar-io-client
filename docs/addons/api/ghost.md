@@ -49,9 +49,9 @@ For `list`, `filter` is the canonical [filter](conventions.md#the-filter-argumen
 with the ghost **handle**, so it can call `g:pos()`, with a truthy return keeping it.
 
 `list` answers the ghosts **this namespace stands**. A `.res` prop hung on a game object belongs to that
-object instead — it is one of its [overlays](gob.md#overlays), owned by the record `gob:overlay` keeps —
-so it is not in `list` and has no handle of its own to `:destroy()`. Read it back through
-`gob:overlay(key)`, and end it by removing that key.
+object instead — it is one of its [overlays](gob.md#overlays), owned by the record the gob keeps — so it
+is not in `list` and has no handle of its own to `:destroy()`. Read it back through
+`gob:overlay():get(key)`, and end it by removing that key.
 
 > **The prop appears a beat after `new`.** The resource resolves on a loader thread, so `new` returns a
 > working handle immediately while the visual streams in shortly after. Every handle method works
@@ -153,15 +153,15 @@ click, and `GhostClicked` reaches only *your* addon, since a ghost is private to
 ## A ghost on a gob is an overlay
 
 `hafen.ghost` stands a prop at a **fixed world point**. To hang one on a *game object* so it tracks that
-object every frame, the verb is [`gob:overlay`](gob.md#overlays) — it keys the thing per addon, reads back
-through `gob:overlay()`, and **dies with the gob**, so a felled tree takes the prop on it with it.
+object every frame, the verb is [`gob:overlay()`](gob.md#overlays) — it keys the thing per addon, reads
+back through that same collection, and **dies with the gob**, so a felled tree takes the prop on it with it.
 
 ```lua
-hafen.player():gob():overlay("hat", { ghost = "gfx/terobjs/arch/logcabin", offset = { z = 20 } })
+hafen.player():gob():overlay():add("hat"):ghost("gfx/terobjs/arch/logcabin"):offset(0, 0, 20)
 ```
 
 `hafen.ghost.new` takes no anchor of its own: a `follow` or an `offset` key in its table **raises**,
-naming `gob:overlay`, rather than standing the prop somewhere you did not ask for.
+naming the gob's own collection, rather than standing the prop somewhere you did not ask for.
 
 ## Layouts and persistence
 

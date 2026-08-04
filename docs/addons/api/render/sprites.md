@@ -97,8 +97,8 @@ local s = hafen.render.sprite{
 ## An image on a gob is an overlay
 
 `hafen.render.sprite` stands an image at a **fixed world point**. To hang one on a *game object* so it
-moves with it every frame, the verb is [`gob:overlay`](../gob.md#overlays): it keys the thing per addon,
-reads back through `gob:overlay()`, carries the same `scale`/`alpha`/`tint`/`billboard` options, and
+moves with it every frame, the verb is [`gob:overlay()`](../gob.md#overlays): it keys the thing per addon,
+reads back through that same collection, carries the same `scale`/`alpha`/`tint`/`billboard` setters, and
 **dies with the gob**, so a felled tree takes the image on it with it.
 
 ```lua
@@ -106,15 +106,15 @@ reads back through `gob:overlay()`, carries the same `scale`/`alpha`/`tint`/`bil
 local icon = hafen.asset("marker.png")
 local prey = hafen.world():gob():nearest(function(g) return (g:name() or ""):find("rabbit") end)
 if prey then
-  prey:overlay("hunt", { image = icon, scale = 1.5, offset = { z = 14 } })
+  prey:overlay():add("hunt"):image(icon):scale(1.5):offset(0, 0, 14)
 end
 ```
 
 The overlay keeps its **own** facing and scale, so `ov:rotate` and `ov:scale` work on it; its position is
-the gob's, and the only thing you set is the `offset`.
+the gob's, and what you set is `ov:offset`, which moves it where it stands.
 
 `hafen.render.sprite` takes no anchor of its own: a `follow` or an `offset` key in its table **raises**,
-naming `gob:overlay`, rather than standing the image somewhere you did not ask for.
+naming the gob's own collection, rather than standing the image somewhere you did not ask for.
 
 > **Gizmo.** A sprite is transformable by the [gizmo](../ghost.md#the-transform-gizmo) for free: it exposes
 > the same `:move`, `:rotate` and `:scale` handle a ghost does, and the gizmo drives any such handle.

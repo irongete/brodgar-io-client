@@ -46,7 +46,7 @@ handlers cheap: they run on the UI thread on every frame.
 |---|---|---|
 | `GobAdded` | [Gob](gob.md) | a game object enters the world or your view |
 | `GobRemoved` | [Gob](gob.md) | a game object leaves |
-| `GobOverlayAdded` | `{ gob, key, native }` | something is attached to a game object — see [`gob:overlay`](gob.md#overlays) |
+| `GobOverlayAdded` | `{ gob, key, native }` | something is attached to a game object — see [`gob:overlay()`](gob.md#overlays) |
 | `GobOverlayRemoved` | `{ gob, key, native }` | something attached to a game object goes away |
 
 Prefer these over scanning [`hafen.world():gob():list`](world.md) every frame. The payload is a live
@@ -70,7 +70,7 @@ The rules below make these predictable:
 - **Yours are private, the game's are public.** An overlay key belongs to your addon, so a `native = false`
   event goes **only** to the addon that attached it — a key another addon cannot read is a name it cannot
   act on. Native events broadcast, because a resource name means the same thing to everyone.
-- **They arrive on the next frame**, not inside `gob:overlay(key, spec)` — the game's own overlays arrive on
+- **They arrive on the next frame**, not inside the `:add` itself — the game's own overlays arrive on
   loader threads, and both halves use one moment. A handler runs on the UI thread and reads the truth:
   the overlay is already there on an add, already gone on a removal.
 - **Re-attaching under the same key fires both** — the removal, then the add. The key survives; the thing

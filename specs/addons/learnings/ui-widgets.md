@@ -535,3 +535,27 @@
   `[manual]` is a COMMAND: `:lua hafen.player():gob():overlay("cross-lua", {text = "x"})`, then re-run the suite
   and watch its foreign-event counter stay 0 — a real cross-addon check in one line, and the same trick 038.1
   used for the per-addon key partition.
+- **(039.3) `FollowMoving.off` is `volatile` and can be written LIVE**, so an anchored world overlay moves in
+  place rather than needing a re-attach. 038.2 left it "set once, at create" and its own comment said so; the
+  field was already the right shape and only the two writers were missing — the entity's desired `followOff`
+  (read by a create that has not published yet) and the attrib on the published gob, which the placement pass
+  picks up on the next frame with no lock (`RenderApi.overlayOffset`). Write BOTH: a ghost's create is
+  deferred, so writing only the live attrib loses the offset on a visual that streams in a beat later.
+- **(039.3) `RenderApi.overlayEntity` takes a spec TABLE, so a record-driven builder synthesizes a minimal
+  one.** When `gob:overlay`'s spec table became setters the record had to build the visual from its own
+  fields, and re-implementing `luaTint`/`luaScale`/`luaAlpha`'s parsing to do it would have been a second
+  reading of the same options. The cheap path is to synthesize a table carrying ONLY the construction keys
+  (`image`/`model`/`ghost`, `billboard`, `sdt`) and then apply the look through the live setters
+  (`overlayScale`/`overlayAlpha`/`overlayTint`/`overlayRotate`) the entity already had — which also makes a
+  rebuild preserve the look for free, because the record replays exactly what it replays on a first build.
+- **(039.3) A per-gob record read by the DRAW pass and written by Lua setters needs `volatile` fields and a
+  paint filter that skips an incomplete one.** The 038 record was immutable, so `paintRecords()` could hand
+  its snapshot straight to the painter; a mutable one is written on the UI thread and read one frame later, so
+  every configured field is `volatile` (each is a whole value in either). And the filter must skip a record
+  with no kind as well as a world-space one — otherwise a bare overlay reaches `gwrap.label(g, null, ...)`,
+  which is a null label in the render pass rather than a missing picture.
+- **(039.3) `Retired.methodIndex` is per ENTITY and has to be installed on each one.** 039.2 learned it for
+  `LuaGob`; `LuaOverlay` was the second instance, and its metatable still pointed `__index` straight at the
+  methods table — so `ov:pos` read as plain nil however complete the retired table was. Every entity whose
+  verbs this feature re-spells needs the same one-line swap, and the check is a suite line asserting the
+  MESSAGE, not the absence.

@@ -1012,3 +1012,61 @@ value may say "not yet", a boolean cannot, so a predicate over stored state must
 already in memory or it must not be a predicate.*
 **See.** [D-095](architecture-api.md), [D-109](architecture-api.md), [D-011](architecture-api.md),
 [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-112 — a builder that ATTACHES is attached INERT, and what it draws is the completion ✅ (2026-08-04)
+**Decision.** `gob:overlay():add(key)` attaches an overlay **at once** — it exists, it is in the collection,
+it fires `GobOverlayAdded` — and it **draws nothing** until one of `:draw/:text/:image/:model/:ghost` names
+what it is. An overlay says exactly one thing, so a second, different kind throws naming the first; the way to
+make it say another is `:add` on the same key, which is already a replace.
+**Rationale.** (2026-08-04, 039.3.) D-107 answered the *sending* case by deferring the action a tick. An
+attachment cannot be deferred that way: the caller holds the returned object and configures it through several
+statements, and a frame may fall between any two of them. The alternative — hold the record out of the store
+until it is complete — reintroduces the silent failure the grammar exists to remove, because an overlay you
+forgot to give a kind would simply never appear, with nothing to read back and nothing to blame. Attaching a
+record with no kind makes the incomplete state *visible* (`ov:kind()` is nil, `:exists()` is true) and makes
+"a half-configured thing never paints" a property of the shape rather than a rule: the draw pass skips a
+record that has not said what it draws, because there is nothing there to draw.
+**Consequences.** The events fire on the `:add`, one frame before a handler runs, so a handler still reads a
+fully configured overlay — the queue (D-106) is what buys that, not a rule. Generally: *when a config table
+becomes setters on a thing that is ATTACHED rather than sent, attach it inert and let the payload verb be the
+completion — an incomplete thing you can read beats a complete one you never got.*
+**See.** [D-107](architecture-api.md), [D-100](architecture-api.md), [D-106](architecture-api.md),
+[039-uniform-api](../039-uniform-api/spec.md).
+
+### D-113 — a setter that changes how the visual is BUILT rebuilds it; every other setter is live ✅ (2026-08-04)
+**Decision.** On a world-space overlay the visual is milled when the kind setter names it. Two setters change
+*which* visual is milled — `:billboard(b)` picks a camera-facing blit over an upright quad, `:spawnData(sdt)`
+picks a resource variant — and setting either after the overlay already stands **rebuilds** it; set them in
+the same statement as the kind and it is built once. Everything else (`:scale :alpha :tint :rotate :offset`)
+is applied to the live entity and *also* remembered on the record, so a rebuild comes back looking the same.
+The new visual is built before the old one is let go, and a setter that raises restores the record's own
+fields, so a bad asset handle or a missing map view leaves the overlay exactly as it was.
+**Rationale.** (2026-08-04, 039.3.) A config table was read once, so the distinction never had to exist:
+everything arrived together and construction-only versus live was invisible. With setters the two genuinely
+differ, and the three ways out are all worse than rebuilding. Requiring the construction properties *before*
+the kind inverts the natural reading order (`:image(a):billboard(true)` would throw). Refusing them after the
+kind makes the natural order illegal. Deferring the whole build to the next tick moves a "there is no map
+view" error off the call site that caused it, which is exactly what 038 built the eager parse to avoid. A
+rebuild costs one flicker in the uncommon case and keeps every order legal and every error local.
+**Consequences.** `FollowMoving.off` became live again (it had been set only at create), which is what makes
+`ov:offset` move an anchored thing in place instead of needing a re-attach. Generally: *de-tabling a
+constructor splits its keys into the ones that choose the object and the ones that dress it — name the split,
+rebuild for the first, and keep the second live, or the setters quietly mean different things.*
+**See.** [D-107](architecture-api.md), [D-112](architecture-api.md), [D-102](architecture-api.md),
+[039-uniform-api](../039-uniform-api/spec.md).
+
+### D-114 — on a departed owner a creation RAISES and a removal is INERT ✅ (2026-08-04)
+**Decision.** `gob:overlay():add(key)` on a gob that is gone **throws**, naming `gob:exists()`. `:remove(key)`
+there is a clean no-op, as is removing a key that was never attached, and `:list()`/`:get()` answer an empty
+collection and nil. The old four-arity verb answered `nil` for all of them.
+**Rationale.** (2026-08-04, 039.3.) The two are not symmetric even though they read that way. A removal on a
+departed gob has already happened — the overlay died with the gob, which is this feature's whole claim — so
+there is nothing to report and nothing a caller could do differently; that is D-084's *inert, never an error*.
+A creation has nowhere to go: it returns an object the caller is about to chain setters onto, and answering
+nil turns the very next `:text(...)` into "attempt to index a nil value" one line later, which is the failure
+mode the retired-name table exists to prevent. Raising at the `:add` names the gob and the test for it.
+**Consequences.** An addon attaching from a `GobAdded` handler for a gob that despawned in between now sees an
+error rather than a silent nil; it is `pcall`-able and the message says to read `gob:exists()` first.
+Generally: *a verb that hands back something to be chained cannot answer nil on a miss — either it raises, or
+the chain fails somewhere that no longer names the cause.*
+**See.** [D-084](widgets-ui.md), [D-100](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).

@@ -105,6 +105,16 @@ final class Retired {
         put("gob:pos", "gob:pos() is now gob:position(), and it hands back a Position rather than a"
             + " {x, y} table: p:x()/p:y() are the components, p:offset(dx, dy) moves, p:info() saves");
         put("gob:isplayer", "gob:isplayer() is now gob:isPlayer()");
+        put("gob:overlays", "gob:overlays() is now gob:overlay():list() — gob:overlay() is the collection of"
+            + " everything attached to the gob, and the verb says how many");
+        put("overlay:pos", "overlay:pos() is now overlay:position(), and it hands back a Position rather than"
+            + " an {x, y, a, scale} table: the facing and the size are ov:rotate() and ov:scale()");
+        put("overlay:clickable", "overlay:clickable(b) does not exist — the thing under an overlay is the GOB,"
+            + " and a click on a gob is the client's own (hafen.act():clickGob)");
+        put("overlay:onClick", "overlay:onClick(fn) does not exist — the thing under an overlay is the GOB, and"
+            + " a click on a gob is the client's own (hafen.act():clickGob)");
+        put("overlay:move", "overlay:move(x, y) does not exist — an overlay's position IS its gob's, and what"
+            + " you set is where it sits relative to the gob: ov:offset(x, y[, z])");
     }
 
     /** Register the plain {@code hafen.<section>.<verb>(…)} → {@code hafen.<section>():<verb>(…)} rows. */

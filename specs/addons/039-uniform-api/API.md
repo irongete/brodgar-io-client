@@ -643,6 +643,8 @@ grep finds it only in the 037.1 suite that tests it, in none of the eleven examp
 
 ## Gob — unchanged except its overlays
 
+> **Shipped in 039.2** (`:position()`, `:isPlayer()`) **and 039.3** (the overlay rows below).
+
 `:id() :exists() :facing() :name() :health() :moving() :speed() :speech() :icon() :kin() :info()`
 unchanged. `:pos()` -> **`:position()`** (a Position), `:isplayer()` -> `:isPlayer()` (N2), and
 `:distance(other)` stays — it is now the same verb Position carries.
@@ -659,6 +661,9 @@ becomes setters on the Overlay the `:add` returns — R4, and the maintainer's o
 spelt `spawnData` and `offset` takes the same units it does today (screen px or world units by kind).
 
 ## Overlay (`ov`)
+
+> **Shipped in 039.3** — the spec table's `a` is `:rotate(a)`, which the entity already carried, and
+> `:offset` takes positional numbers (two on a screen kind, three on a world one) rather than a table.
 
 `:key() :gob() :native() :kind() :res() :count() :exists() :info()` read;
 `:tint(c) :alpha(a) :scale(s) :rotate(a)` — already R2-shaped; `ov:pos()` -> **`ov:position()`**.

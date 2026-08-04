@@ -792,3 +792,14 @@
   *next* one (an unguarded `lua(...)` whose result is read) propagated out of `main` — 1 red and no summary
   line. Report it as "1 + abort" rather than "1 red": the run stopped early, so the checks after it were
   never evidence either way.
+- **(039.3) 038.4's "counters reset inline" trap has a second half: the STATE has to be cleared a frame early
+  too.** A round that counts add/remove events must not only zero its counters from a later frame — it must
+  also leave the gob bare *before* that frame, because an `:add` on a key that is still live is a REPLACE and
+  fires a removal nobody counted. Clearing the key inside the timer alongside the reset would have read 2 adds
+  against 3 removals; clearing it before the timer and resetting inside makes both 2. The rule generalises:
+  *when events are queued, everything the count is supposed to ignore has to have happened in an earlier
+  frame — the counters and the world both.*
+- **(039.3) The incremental build hides a FIELD becoming a METHOD, which is exactly what de-tabling does.**
+  Turning `Attach.off` into `screenOffset()` left `UiApi` reading the field; `ant hafen-client` said BUILD
+  SUCCESSFUL because `UiApi.java` had not changed, and only `rm -rf build/classes` found it. A task that
+  reshapes a record shared with another file should assume this is waiting, not hope it is not.

@@ -69,19 +69,19 @@ hafen.ui.overlay(function(g, w, h)                       -- over the whole HUD; 
 end)
 ```
 
-Over a **game object** the verb is on the object — [`gob:overlay(key, spec)`](../api/gob.md#overlays) —
-and you name the gob rather than describing a set of them:
+Over a **game object** the verb is on the object — [`gob:overlay()`](../api/gob.md#overlays) — and you
+name the gob rather than describing a set of them:
 
 ```lua
 local function tag(gob)
-  if gob:isPlayer() then gob:overlay("tag", { text = "player", color = {0, 255, 0} }) end
+  if gob:isPlayer() then gob:overlay():add("tag"):text("player"):color(0, 255, 0) end
 end
 hafen.event():on("GobAdded", tag)                         -- everyone who walks in...
 for _, g in ipairs(hafen.world():gob():list()) do tag(g) end     -- ...and everyone already here
 ```
 
 The label is drawn at that object's projected screen point, just above the head, and it follows the gob
-because it is attached to it — no projection to do and nothing to poll. A `{draw = fn}` spec gets that
+because it is attached to it — no projection to do and nothing to poll. A `:draw(fn)` overlay gets that
 point as `sx, sy` when you want to paint it yourself. Standing something **in** the world instead of over
 it is [`hafen.render`](../api/render/README.md) or [`hafen.ghost`](../api/ghost.md).
 

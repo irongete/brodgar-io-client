@@ -258,77 +258,29 @@ public final class LuaGob {
                 return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s);
             }
         });
-        // overlay([key[, spec]]) — THE ONE WAY to attach anything to a game object, and the one way to read what
-        // is already attached (038.1). ARITY IS THE VERB, and the key is per addon:
-        //   gob:overlay()             -- every overlay on the gob: yours, then the GAME's own (ov:native())
-        //   gob:overlay(key)          -- that one, or nil
-        //   gob:overlay(key, spec)    -- attach or REPLACE (the same key twice leaves one overlay)
-        //   gob:overlay(key, nil)     -- remove
-        // The spec says WHAT to draw, in ONE of the two spaces (038.2). SCREEN space, at the gob's projected
-        // point: {draw = fn} (fn(g, gob, sx, sy)) or {text = "…", color = {r,g,b[,a]}, offset = {x=,y=}}. The 3D
-        // WORLD, anchored to the gob every frame: {image = asset}, {model = asset} or {ghost = "<res>"}, with
-        // offset = {x=,y=,z=} in world units (z = up) and the entity's own scale/alpha/tint/a. A spec naming
-        // none of the five is an error naming them, and one naming two is an error naming both. The game's own
-        // overlays are READ-ONLY: an attach onto a native key, or a remove of one, raises naming the key.
-        // hafen.ui.gobOverlay (the filter form and its 5 Hz sweep), gob:overlays() and follow= are HARD CUT: the
-        // state lives on the gob now, so it dies with the gob and nothing is searched per frame.
+        // overlay() — THE ONE WAY to attach anything to a game object, and the one way to read what is already
+        // attached (038.1), as the collection of everything on this gob (039.3):
+        //   gob:overlay():list(filter)   -- every overlay: yours, then the GAME's own (ov:native())
+        //   gob:overlay():get(key)       -- that one, or nil
+        //   gob:overlay():add(key)       -- attach a BARE one, or REPLACE what that key already named
+        //   gob:overlay():remove(key)    -- remove it
+        // What it draws is said by the setters on the Overlay :add hands back, in ONE of the two spaces (038.2).
+        // SCREEN space, at the gob's projected point: :draw(fn) (fn(g, gob, sx, sy)) or :text(s) with :color and
+        // a two-number :offset. The 3D WORLD, anchored to the gob every frame: :image(asset), :model(asset) or
+        // :ghost(res), with a three-number :offset in world units (z = up) and :scale/:alpha/:tint/:rotate. An
+        // overlay says ONE thing: a second, different kind is refused naming the first. The game's own overlays
+        // are READ-ONLY: an :add onto a native key, or a :remove of one, raises naming the key.
+        // The collection is a VIEW — derived from the gob on every call, holding nothing — so it cannot outlive
+        // the gob, and the state it reads lives on the gob itself: nothing is searched and nothing is swept.
         m.set("overlay", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {   // overlay() → narg 1 · (key) → 2 · (key, spec) / (key, nil) → 3
-                LuaValue self = a.arg1();
-                LuaGob h = handle(self, "overlay");
-                Gob g = AddonManager.getgob(h.id);
-                if(a.narg() < 2)                                  // read ALL — nil once the gob is gone
-                    return (g == null) ? LuaValue.NIL : LuaOverlay.list(owner, g);
-                LuaValue kv = a.arg(2);
-                if(!kv.isstring() || kv.isnumber())    // LuaJ counts a number as a string: coerce nothing
-                    throw new LuaError("gob:overlay(key[, spec]): the key must be a string -- it is YOUR name for"
-                        + " this overlay (keys are per addon), and a native one is the overlay's resource name");
-                String key = kv.tojstring();
-                if(a.narg() < 3) {                                // read ONE
-                    if(g == null)
-                        return LuaValue.NIL;
-                    LuaGobOverlay store = LuaGobOverlay.on(g);
-                    if((store != null) && (store.get(owner, key) != null))
-                        return LuaOverlay.of(owner, h.id, key, false);
-                    return LuaGobOverlay.findNative(g, key) ? LuaOverlay.of(owner, h.id, key, true) : LuaValue.NIL;
-                }
-                LuaValue spec = a.arg(3);
-                if(g == null)                                     // the gob is gone: nothing to attach it to, and
-                    return LuaValue.NIL;                          //   nothing left to remove (it died with it)
-                if(LuaGobOverlay.findNative(g, key))
-                    throw new LuaError("gob:overlay(\"" + key + "\", ...): that key names one of the GAME's own"
-                        + " overlays, which are read-only -- pick a key of your own (a native key is a resource"
-                        + " name; gob:overlay() lists them)");
-                if(spec.isnil()) {                                // REMOVE
-                    LuaGobOverlay store = LuaGobOverlay.on(g);
-                    if(store != null) {
-                        LuaGobOverlay.Attach old = store.remove(owner, key);
-                        if(old != null) {
-                            old.dispose();               // a world-space record owns a live entity; the map does not
-                            AddonManager.queueGobOverlay(false, h.id, key, owner);   // 038.3: GobOverlayRemoved
-                        }
-                        LuaGobOverlay.prune(g);
-                    }
-                    return self;
-                }
-                // Parsed — and, for a world-space kind, BUILT — before anything is attached, so a bad spec or a
-                // disposed asset handle raises with the gob left exactly as it was.
-                LuaGobOverlay.Attach rec = LuaGobOverlay.Attach.of(owner, key, spec, h.id);
-                LuaGobOverlay.Attach old;
-                try {
-                    old = LuaGobOverlay.ensure(g).put(rec);
-                } catch(RuntimeException e) {
-                    rec.dispose();                       // the gob refused the attrib: do not leak the entity we built
-                    throw e;
-                }
-                // 038.3: a REPLACE reports the removal AND the add, so add/remove stay balanced for a handler
-                // keeping its own set — the key survives, but the thing under it is a different one.
-                if(old != null) {
-                    old.dispose();                       // REPLACE: the same key twice leaves ONE overlay
-                    AddonManager.queueGobOverlay(false, h.id, key, owner);
-                }
-                AddonManager.queueGobOverlay(true, h.id, key, owner);
-                return LuaOverlay.of(owner, h.id, key, false);
+            public Varargs invoke(Varargs a) {
+                LuaGob h = handle(a.arg1(), "overlay");
+                if(Args.passed(a, 2))
+                    throw new LuaError("gob:overlay(key[, spec]) is now a COLLECTION: gob:overlay():get(key)"
+                        + " reads one, gob:overlay():add(key) attaches one and its setters say what it draws"
+                        + " (:draw/:text/:image/:model/:ghost), gob:overlay():remove(key) removes one, and"
+                        + " gob:overlay():list() is every one of them");
+                return LuaOverlay.collection(owner, h.id);
             }
         });
         m.set("isPlayer", new OneArgFunction() {

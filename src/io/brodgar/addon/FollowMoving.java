@@ -30,11 +30,12 @@ import haven.Moving;
  * <p>Unlike {@code Following} this is NOT a {@code Following} subclass, so {@code Gob.Placed} takes the plain
  * {@code getc()} path (translate to the followed point, then rotate by the entity's own {@code a}) rather than the
  * bone-transform path. {@code move(Coord2d)} is inherited as a no-op — while anchored the position is owned by the
- * target, and the only way to move an overlay is to re-attach it with a different {@code offset}.
+ * target, and the only thing an addon moves is the offset, through {@code overlay:offset(x, y, z)}.
  *
  * <p><b>Threading.</b> {@link #getc()} runs on the render/loader threads (the placement pass); {@code oc.getgob}
  * is {@code synchronized} and {@code Gob.getc()} is the engine's own thread-safe position read, so no extra
- * locking is needed. {@link #off} is {@code volatile} (a leftover from the retired :offset verb; it is now set once, at create). Attaching /
+ * locking is needed. {@link #off} is {@code volatile} because {@code overlay:offset} writes it from the UI thread
+ * while the placement pass reads it. Attaching /
  * detaching this attrib is done under {@code synchronized(gob)} by {@link AddonManager}.
  */
 public final class FollowMoving extends Moving {

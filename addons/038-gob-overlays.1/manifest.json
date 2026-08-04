@@ -1,7 +1,7 @@
 {
   "name": "038.1 — the verb, the read, and the death of the sweep",
   "id": "038-gob-overlays.1",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 038.1: gob:overlay's four arities (read all, read one, attach/replace, remove), the same key twice leaving ONE overlay, the Overlay entity's base reads (key/gob/native/res/exists/info) and its interning, the game's own overlays reading native = true and REFUSING both an attach onto their key and a remove of it, a spec naming neither 'draw' nor 'text' refused naming the field, the two hard cuts (hafen.ui.gobOverlay and gob:overlays()) asserted as nil, grid:overlays() on the map database still answering — plus the census the native key rests on: how many live gobs carry two of the game's overlays of one resource.",
   "api_version": 1,
