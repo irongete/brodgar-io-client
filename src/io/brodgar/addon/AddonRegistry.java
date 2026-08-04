@@ -137,6 +137,9 @@ public final class AddonRegistry {
                                       //   is left behind for GameUI.savewndpos to persist as their preference.
                                       //   AFTER teardownFonts (036.2): the sheet's own pos/size rules have to have
                                       //   stopped resolving first, or re-running the cascade would put them back
+        MapApi.teardownOverlays(a);   // 037.3: give back every map/world overlay this addon was HOLDING — the
+                                      //   ref count is shared with the client's own checkbox and the server,
+                                      //   so an unreleased hold leaves an overlay drawn forever (D-097)
         LuaSound.teardownSounds(a);   // 024.2: silence anything the addon left in the air (a disabled addon making noise is a bug)
         LuaGOut.teardownTexts(a);     // 026.1: drop the addon's cached g:text renderings (frees their GL textures — we own them)
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
@@ -206,6 +209,8 @@ public final class AddonRegistry {
         UiApi.teardownMoved(AddonManager.consoleOwner);      // 036.1: ...nor the ones it moved, for the same reason.
                                                              //   Its SHEET survives a reload (like its site rules), so
                                                              //   036.2's re-fold hands a widget its own rule back
+        MapApi.teardownOverlays(AddonManager.consoleOwner);  // 037.3: ...nor the overlays it was holding — :reload is
+                                                             //   the escape hatch for a REPL line that took one
         loadAll();                                   // re-scan disk + enabled set; re-run; fire OnLoad
         if(gui() != null) {                          // already in-world → re-init as a fresh login
             StoreApi.restorePerChar();                        // reload per-char saved vars (charScope still valid)

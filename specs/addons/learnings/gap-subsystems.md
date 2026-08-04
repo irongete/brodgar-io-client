@@ -198,3 +198,21 @@
   categories, and a child whose resource has not resolved yet still makes its parent one. Testing against the
   `Loading`-filtered catalogue would let a category fire during the first second after login; scanning the raw
   parent closure needs no name resolved and is right immediately.
+- **(037.3) An overlay has TWO tag vocabularies and the client uses both — `prov` in the world, `realm` on
+  the map.** `GameUI.MapMenu`'s three checkboxes drive `MapView.enol/disol` with `cplot`/`vlg`/**`prov`**
+  (the 3D ground), while `MapWnd`'s own province checkbox puts **`realm`** into `MapWnd.overlays`, which
+  `MapWnd.View.drawgrid` reads to blit `DisplayGrid.olimg(tag)` from the RECORDED masks. Same feature to a
+  player, two engine tags, two sides, and no tag reaches both. Any API over this either names the pair or
+  gets it wrong once per reader.
+- **(037.3) `MapView.oltags` is a MULTISET, not a flag** — `enol` is `+1`, `disol` is `-1`-and-drop, `visol`
+  is `containsKey`. The counters are the user's checkbox, the server's `flashol` (a claim flashes on for a
+  few seconds on hover, then `unflashol` decrements), and anyone else. So an addon cannot express "off", only
+  "not by me" — and a second `enol` from the same owner is a leak the single `disol` of a teardown can never
+  balance (D-097). `MapWnd.overlays` is a plain `CopyOnWriteArraySet` instead, so THERE the stock value has
+  to be recorded or a release switches off what the user turned on.
+- **(037.3) A recorded overlay is keyed by RESOURCE and read by TAG, so a read is a union.** `MapFile.Overlay`
+  is (`Resource.Saved`, `boolean[100*100]`) and the tag lives in `MCache.ResOverlay.tags()` — several
+  resources may carry one tag, which is exactly why `DataGrid.olrender(off, tag)` composites every matching
+  overlay onto one image. Reading only the first match looks right on any grid with a single claim on it.
+  And `olid.get()` throws `Loading`: with one overlay unresolved the honest answer is nil for the whole
+  read, because a partial union under-reports silently where a nil says "ask again".

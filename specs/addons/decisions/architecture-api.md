@@ -701,3 +701,27 @@ identifier, ask not whether it is stable but how it fails* — one that goes mis
 a caveat, one that is silently rewritten needs a converter and a refusal.
 **See.** [D-094](architecture-api.md), [D-095](architecture-api.md),
 [037-map-database](../037-map-database/spec.md).
+
+### D-097 — a REF-COUNTED client toggle is a HOLD an addon takes and releases, never a switch it flips ✅ (2026-08-04)
+**Decision.** Where the client already counts how many things want a thing displayed, the API exposes
+**taking and releasing a hold**, not setting a state. `hafen.map.overlay(tag, true)` adds this addon's
+`+1` and `overlay(tag, false)` takes it away; the take is **idempotent** (one hold per addon per tag) and
+teardown releases each hold exactly once. The **read** is the client's own answer — *is this displayed at
+all* — never *do I hold it*; the record is published separately (`hafen.map.overlays()[n].held`).
+**Rationale.** (2026-08-04, 037.3.) `MapView.oltags` is a multiset (`enol`/`disol`/`visol`), and the
+counters are the user's own menu checkbox, the server's `flashol` (which flashes a claim on for a few
+seconds), and us. "Off" is therefore not a state an addon *can* express: an assignment would have to guess
+whose count to discard. Idempotence is not politeness but arithmetic — a second `enol` would leave the
+count standing after the single `disol` a teardown can make, i.e. an overlay drawn forever with no owner.
+The map window's `realm` is a plain `Collection<String>` instead, so its hold additionally records whether
+the tag was already there and a release skips the removal if it was; same verb, same undo, no branch in the
+API. This is D-069 one subsystem along — *an addon's write over client-owned state is an owned resource* —
+with the difference that a hidden window has ONE owner while a ref count has many, so the answer is a hold
+rather than a seizure.
+**Consequences.** The record (`Addon.overlayHolds`) is the `hiddenNative` shape and rides the same three
+paths: `AddonRegistry.teardown`, the REPL owner's release on `:reload`, and a session reset that *forgets*
+rather than releases (the `MapView` a hold named is gone after a relog, so `apply` is guarded on the side
+still being the same live object). Generally: *before designing a write, ask whether the engine stores a
+value or a count* — a value can be assigned and restored, a count can only be joined and left.
+**See.** [D-069](widgets-ui.md), [D-072](architecture-api.md),
+[037-map-database](../037-map-database/spec.md).

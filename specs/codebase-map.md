@@ -19,7 +19,7 @@
 | [mapfile.md](codebase/mapfile.md) | The **recorded** map (`MapFile`): the one RW lock and its processor thread, `gridinfo`/`segments` (`BackCache` — evicts and rebuilds), `Segment.grid(...)` handing back a `Defer`-backed `Indir`, `DataGrid`/`Grid`/`Overlay`, markers and the `merge` that **re-bases** them, and `MiniMap`'s `sessloc` bridge + its `tryLock` rule |
 | [state.md](codebase/state.md) | Where game state lives: `Glob`, `OCache`/`Gob`, `MCache`, player, inventory/`GItem`/`ItemInfo`, `CharWnd` attrs, party, time/astronomy |
 | [services.md](codebase/services.md) | Console, keybindings, `Resource` (+ code adoption), prefs + Options/`GSettings`, audio, chat, combat, buffs, kin, vitals, FEP/hunger, study, skills, crafting, action menu (`MenuGrid` paginae), minimap icon registry (`GobIcon.Settings`) |
-| [world-3d.md](codebase/world-3d.md) | `MapView` scene, client-only gobs, placement/snapping, pick pass + click intercept, `TexI`/`Material`/`TexRender`, billboards, world quads, Phong lighting, glTF geometry |
+| [world-3d.md](codebase/world-3d.md) | `MapView` scene, client-only gobs, placement/snapping, pick pass + click intercept, the **ref-counted ground-overlay tags** (`oltags`/`enol`/`disol`, and `prov` vs the map's `realm`), `TexI`/`Material`/`TexRender`, billboards, world quads, Phong lighting, glTF geometry |
 | [text-and-fonts.md](codebase/text-and-fonts.md) | `Text.Foundry` and every named surface that bakes one, `RichText` `$font`, DPI scaling, custom TTF loading |
 | [addon-engine.md](codebase/addon-engine.md) | *(area `addons`)* `src/io/brodgar/addon/` file layout, the `haven` seams it owns, extension points, and the voice-feature integration template |
 

@@ -349,6 +349,27 @@ public final class Addon {
     final LuaSegment.Cache mapSegments = new LuaSegment.Cache(this);
     final LuaMapGrid.Cache mapGrids = new LuaMapGrid.Cache(this);
     final LuaMarker.Cache mapMarkers = new LuaMarker.Cache(this);
+    /**
+     * ...and the same for the recorded overlay <b>masks</b> ({@code grid:overlay(tag)}, task 037.3), keyed on
+     * the pair the engine publishes — the grid id and the overlay <i>tag</i> — for the same reason: the mask
+     * lives inside a {@code Grid} that the weak {@code CacheMap} rebuilds from disk after an eviction.
+     */
+    final LuaMask.Cache mapMasks = new LuaMask.Cache(this);
+
+    /**
+     * Display overlays this addon is <b>holding</b> ({@code hafen.map.overlay(tag, true)}, task 037.3) — the
+     * {@link #hiddenNative} shape one subsystem along: <i>what we asked the client to draw, and how to stop
+     * asking</i>. One entry per tag at most, because a hold is idempotent (D-097).
+     *
+     * <p><b>A write here is a HOLD, not a switch.</b> {@code MapView.oltags} is a ref-counted multiset shared
+     * with the client's own menu checkbox and with the server's {@code flashol}, so an addon can only add its
+     * own {@code +1} and take it away again; {@link MapApi#teardownOverlays} releases every entry exactly once
+     * on {@code :reload}/disable, and an unbalanced write would otherwise leave an overlay on the screen
+     * forever. The {@code realm} tag is the map window's plain set instead, so its entry also remembers
+     * whether the tag was already there — releasing must never switch off what the user's checkbox turned on.
+     * Copy-on-write like the other owned lists.
+     */
+    public final List<MapApi.Hold> overlayHolds = new CopyOnWriteArrayList<MapApi.Hold>();
 
     /**
      * This addon's <b>asset intern cache</b> ({@code hafen.asset(path)}, spec {@code 028-asset-loader}): the

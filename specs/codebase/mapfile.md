@@ -37,9 +37,10 @@
   / `getfz(c)` take a within-grid coord `0..cmaps`. `render(off)` (`:516`) and `olrender(off, tag)`
   (`:566`) build a `BufferedImage` and **resolve tileset resources**, so they can throw `Loading`
   (037.4's business). `Grid` (`:729`) adds the server `id`; `Grid.load` (`:857`) / `save` (`:834`).
-- `Overlay` (`:459`) is a per-grid boolean mask keyed by an overlay resource; `MCache.ResOverlay.tags()`
-  says which tags it carries (037.3). Markers (`:277`–`:437`): `Marker{seg, tc, nm}`, `PMarker` (colour,
-  onmap), `SMarker` (oid, res, data).
+- `Overlay` (`:459`) is a per-grid boolean mask keyed by an overlay **resource**; `MCache.ResOverlay.tags()`
+  says which tags it carries, several resources may share one (hence `olrender`'s composite), and `olid.get()`
+  throws `Loading` — who *displays* them is in [world-3d.md](world-3d.md) (`realm` here, `prov` there).
+  Markers (`:277`–`:437`): `Marker{seg, tc, nm}`, `PMarker` (colour, onmap), `SMarker` (oid, res, data).
   `add`/`remove` take the write lock, `defersave()` and bump `markerseq` (`:48`) — the only change
   signal there is. **A `Marker` object is loaded once and mutated in place**, so its Java identity IS
   stable, unlike a segment's or a grid's.

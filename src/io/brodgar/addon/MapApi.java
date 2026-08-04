@@ -5,7 +5,10 @@ import haven.Coord2d;
 import haven.GameUI;
 import haven.GobIcon;
 import haven.Indir;
+import haven.Loading;
 import haven.MapFile;
+import haven.MapView;
+import haven.MapWnd;
 import haven.MCache;
 import haven.MiniMap;
 
@@ -14,10 +17,13 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -46,7 +52,19 @@ import static io.brodgar.addon.AddonManager.*;
  * <p><b>037.2 opened the database itself</b>: {@code hafen.map.segment()}/{@code segments()}/{@code grid(id)},
  * the {@link LuaSegment} and {@link LuaMapGrid} entities, and the <b>anchor bridge</b> both ways — a
  * {@code {gridId, x, y}} anchor resolves into the recorded map through {@link #gridInfoIn}, and a marker
- * converts out of it through {@code marker:anchor()} ({@link LuaMarker}). The overlays and imagery are 037.3–037.4.
+ * converts out of it through {@code marker:anchor()} ({@link LuaMarker}). The imagery is 037.4.
+ *
+ * <p><b>037.3 added the overlays</b>, and they come in two halves that share only a word:
+ *
+ * <ul>
+ *   <li>The <b>recorded masks</b> — {@code grid:overlays()} / {@code grid:overlay(tag)} ({@link LuaMask}),
+ *       which tiles of a recorded grid a claim / village / province covered when the client wrote it down.
+ *       The tag space here is <b>open</b>: an overlay's tags come from its own resource, so an unknown tag
+ *       is simply not carried.</li>
+ *   <li>The <b>display toggles</b> — {@code hafen.map.overlay(tag[, on])} / {@code hafen.map.overlays()},
+ *       the three switches the client's own menu owns. That set is <b>closed</b> (D-072: refuse what can
+ *       never mean anything), and a write is a <b>HOLD</b> rather than a switch — see {@link #take}.</li>
+ * </ul>
  *
  * <p><b>One load model, everywhere: kick the load, answer nil.</b> The database is on disk and resolves
  * through {@link haven.Defer}/{@link Indir}, so a read that needs a grid the client has not loaded yet
@@ -64,6 +82,7 @@ final class MapApi {
         map.set("markers", markers(owner));
         map.set("icons", LuaIconCat.factory(owner));
         installDatabase(map, owner);      // 037.2: segments and grids
+        installOverlays(map, owner);      // 037.3: the client's own display toggles
         hafen.set("map", map);
     }
 
@@ -487,19 +506,340 @@ final class MapApi {
     }
 
     /**
-     * A within-grid tile coord argument ({@code grid:tile(c)}, {@code grid:height(c)}): a {@code {x,y}}
-     * table, both integral and both inside the grid. Out of range is an <b>error</b>, not nil — nil already
-     * means "not loaded yet" here, and a caller who confused a segment tile coord for a within-grid one
-     * would read that as a load that never lands (D-072: refuse what can never mean anything).
+     * A within-grid tile coord argument ({@code grid:tile(c)}, {@code grid:height(c)}, {@code mask:covers(c)}):
+     * a {@code {x,y}} table, both integral and both inside the grid. Out of range is an <b>error</b>, not nil
+     * — nil already means "not loaded yet" here, and a caller who confused a segment tile coord for a
+     * within-grid one would read that as a load that never lands (D-072: refuse what can never mean anything).
+     * {@code method} is the whole receiver-and-verb label ({@code "grid:tile"}, {@code "mask:covers"}).
      */
     static Coord tileArg(LuaValue c, String method) {
         if((c == null) || !c.istable() || !c.get("x").isnumber() || !c.get("y").isnumber())
-            throw new LuaError("grid:" + method + "(c): c is a within-grid tile coord {x=,y=}, 0.."
+            throw new LuaError(method + "(c): c is a within-grid tile coord {x=,y=}, 0.."
                 + (MCache.cmaps.x - 1));
         int ix = c.get("x").toint(), iy = c.get("y").toint();
         if((ix < 0) || (iy < 0) || (ix >= MCache.cmaps.x) || (iy >= MCache.cmaps.y))
-            throw new LuaError("grid:" + method + "(c): " + ix + "," + iy + " is outside the grid — c is a"
+            throw new LuaError(method + "(c): " + ix + "," + iy + " is outside the grid — c is a"
                 + " WITHIN-grid tile coord (0.." + (MCache.cmaps.x - 1) + "), not a segment tile coord");
         return Coord.of(ix, iy);
+    }
+
+    // ---- recorded overlay masks (grid:overlays / grid:overlay -> LuaMask) --------------------------
+    // A recorded grid carries, beside its tiles and heights, a MASK per overlay that covered it when the
+    // client wrote it down: MapFile.Overlay = (the overlay's own resource, a boolean[100*100]). What a
+    // player calls "claims" is a TAG on that resource (MCache.ResOverlay.tags()), and several resources may
+    // share one tag — which is why a read here is the UNION of every overlay carrying the tag, exactly what
+    // DataGrid.olrender(off, tag) composites onto one image. The tag space is the RESOURCES', not ours: a
+    // tag a grid does not carry is nil, never an error (grid:overlays() is the census that makes the nil
+    // readable). Resolving an overlay resource may throw Loading and must never happen under the map file's
+    // lock — gridDataIn hands the grid back outside it, and every read below runs on the UI thread from there.
+
+    /**
+     * The tags of one recorded overlay — {@code null} while its resource is still coming (the one load
+     * model: the {@code get()} kicks the load and the next call answers), an empty list for a resource that
+     * is broken or carries no overlay layer at all.
+     */
+    private static Collection<String> olTags(MapFile.Overlay ol) {
+        try {
+            return ol.olid.get().flayer(MCache.ResOverlay.class).tags();
+        } catch(Loading l) {
+            return null;
+        } catch(RuntimeException e) {   // NoSuchLayerException, a load error — it carries no tags for us
+            return Collections.<String>emptyList();
+        }
+    }
+
+    /**
+     * Every overlay tag a recorded grid carries, sorted — or {@code null} until the grid (and every overlay
+     * resource on it) is resolved, because a census that is short by one is worse than no census.
+     */
+    static List<String> gridTags(MapFile file, long id) {
+        return tagsOf(gridDataIn(file, id));
+    }
+
+    /** {@link #gridTags} over a grid already in hand — the whole decision, with no map file in it. */
+    static List<String> tagsOf(MapFile.DataGrid g) {
+        if(g == null)
+            return null;
+        List<String> out = new ArrayList<String>();
+        for(MapFile.Overlay ol : g.ols) {
+            Collection<String> tags = olTags(ol);
+            if(tags == null)
+                return null;
+            for(String t : tags) {
+                if((t != null) && !out.contains(t))
+                    out.add(t);
+            }
+        }
+        Collections.sort(out);
+        return out;
+    }
+
+    /**
+     * The mask for one tag on one recorded grid — the <b>union</b> of every overlay on it whose resource
+     * carries that tag — or {@code null} for a tag the grid does not carry, a grid still coming off the
+     * disk, or an overlay resource still resolving. All three are the same {@code nil} to Lua by design:
+     * ask again next tick, and {@code grid:overlays()} says which tags are there.
+     */
+    static boolean[] maskIn(MapFile file, long id, String tag) {
+        return maskOf(gridDataIn(file, id), tag);
+    }
+
+    /** {@link #maskIn} over a grid already in hand — the union rule itself, testable without a map file. */
+    static boolean[] maskOf(MapFile.DataGrid g, String tag) {
+        if((g == null) || (tag == null))
+            return null;
+        boolean[] out = null;
+        for(MapFile.Overlay ol : g.ols) {
+            Collection<String> tags = olTags(ol);
+            if(tags == null)
+                return null;                  // still resolving: a partial union would under-report
+            if(!tags.contains(tag) || (ol.ol == null))
+                continue;
+            if(out == null)
+                out = new boolean[MCache.cmaps.x * MCache.cmaps.y];
+            for(int i = 0, n = Math.min(out.length, ol.ol.length); i < n; i++) {
+                if(ol.ol[i])
+                    out[i] = true;
+            }
+        }
+        return out;
+    }
+
+    // ---- the client's display toggles (hafen.map.overlay / overlays) -------------------------------
+    // The three switches the client's own map menu owns, and they live on TWO sides with TWO vocabularies:
+    // the 3D world draws cplot/vlg/prov through MapView's ref-counted oltags (enol/disol/visol), while the
+    // map window draws provinces from the RECORDED masks under the tag "realm" (MapWnd.overlays, a set).
+    // Same feature to a player, different tag in the engine — the one gotcha this half exists to name.
+    //
+    // D-097: A WRITE IS A HOLD, NOT A SWITCH. MapView.oltags is a MULTISET shared with the client's own
+    // checkbox and with the server's flashol, so "off" is not a state an addon can express: it can only
+    // stop asking. hafen.map.overlay(tag, true) takes this addon's hold (idempotent — one per addon per
+    // tag, or a single release would leave the count standing), false releases it, and teardown releases
+    // every hold exactly once. The READ is the client's own answer — is this displayed at all — never
+    // "do I hold it"; that is what hafen.map.overlays()'s `held` field is for.
+
+    /** The toggles the client itself owns: {tag, side, what it shows}. The set is closed (D-072). */
+    static final String[][] TOGGLES = {
+        {"cplot", "world", "personal claims"},
+        {"vlg",   "world", "village claims"},
+        {"prov",  "world", "provinces, in the world"},
+        {"realm", "map",   "provinces, on the map"},
+    };
+
+    /** One addon's hold on one display toggle — the {@code hiddenNative} shape, one subsystem along. */
+    static final class Hold {
+        final String tag;
+        /** {@code realm}: the map window's tag SET (so the stock value matters); otherwise MapView's refcount. */
+        final boolean recorded;
+        /** Recorded side only: was the tag already in the set when this hold was taken? */
+        final boolean stock;
+        /** The {@code MapView} / {@code MapWnd} the hold was taken on — weak, so a relog cannot pin the scene. */
+        final WeakReference<Object> on;
+
+        Hold(String tag, boolean recorded, boolean stock, Object on) {
+            this.tag = tag;
+            this.recorded = recorded;
+            this.stock = stock;
+            this.on = new WeakReference<Object>(on);
+        }
+    }
+
+    /** The toggle row for a tag, or null if the client has no such switch. */
+    static String[] toggle(String tag) {
+        for(String[] t : TOGGLES) {
+            if(t[0].equals(tag))
+                return t;
+        }
+        return null;
+    }
+
+    /** Is this tag the RECORDED (map-window) one? Only {@code realm} is; the rest are the live world's. */
+    private static boolean recorded(String tag) {
+        String[] t = toggle(tag);
+        return (t != null) && "map".equals(t[1]);
+    }
+
+    /** The live 3D map view (the {@code cplot}/{@code vlg}/{@code prov} side), or null before the HUD is up. */
+    static MapView mapview() {
+        GameUI g = gui();
+        return (g == null) ? null : g.map;
+    }
+
+    /** The map window (the {@code realm} side), or null before the HUD is up. */
+    static MapWnd mapwnd() {
+        GameUI g = gui();
+        return (g == null) ? null : g.mapfile;
+    }
+
+    /** The side that owns a tag, or null when it is not up yet — the one place the two are told apart. */
+    private static Object sideOf(String tag) {
+        return recorded(tag) ? (Object)mapwnd() : (Object)mapview();
+    }
+
+    /** Is this overlay displayed right now — by anyone? {@code null} when its side is not up. */
+    static Boolean displayed(String tag) {
+        if(recorded(tag)) {
+            MapWnd w = mapwnd();
+            return (w == null) ? null : Boolean.valueOf(w.overlays.contains(tag));
+        }
+        MapView m = mapview();
+        return (m == null) ? null : Boolean.valueOf(m.visol(tag));
+    }
+
+    /** Does {@code owner} hold this tag right now? (The record, not the screen.) */
+    static boolean held(Addon owner, String tag) {
+        return holdIn(owner, tag) != null;
+    }
+
+    private static Hold holdIn(Addon owner, String tag) {
+        if(owner == null)
+            return null;
+        List<Hold> hs = owner.overlayHolds;
+        for(int i = 0, n = hs.size(); i < n; i++) {
+            if(hs.get(i).tag.equals(tag))
+                return hs.get(i);
+        }
+        return null;
+    }
+
+    /**
+     * Take {@code owner}'s hold on a display toggle. <b>Idempotent</b>: an addon holds a tag once or not at
+     * all, because the release is a single {@code disol} and a second {@code enol} would leave the refcount
+     * standing forever. On the recorded side the hold also remembers whether the tag was <i>already</i> in
+     * the map window's set, so releasing it cannot switch off what the user's own checkbox turned on.
+     */
+    static void take(Addon owner, String tag) {
+        if((owner == null) || (holdIn(owner, tag) != null))
+            return;
+        Object side = sideOf(tag);
+        if(side == null)
+            return;                       // the HUD is not up: nothing to hold, and nothing recorded
+        if(side instanceof MapWnd) {
+            MapWnd w = (MapWnd)side;
+            boolean stock = w.overlays.contains(tag);
+            owner.overlayHolds.add(new Hold(tag, true, stock, w));
+            if(!stock)
+                w.overlays.add(tag);
+        } else {
+            MapView m = (MapView)side;
+            owner.overlayHolds.add(new Hold(tag, false, false, m));
+            m.enol(tag);                  // +1 on the multiset — never an assignment
+        }
+    }
+
+    /** Release {@code owner}'s hold, if it has one. A release without a hold is a no-op, never someone else's -1. */
+    static void release(Addon owner, String tag) {
+        Hold h = holdIn(owner, tag);
+        if(h == null)
+            return;
+        owner.overlayHolds.remove(h);
+        apply(h);
+    }
+
+    /**
+     * The undo of one hold, guarded on the side still being the <b>same live one</b> — a relog builds a new
+     * {@code MapView}/{@code MapWnd} whose overlay state was never ours, exactly as {@code teardownHidden}
+     * guards on the widget still being live.
+     */
+    private static void apply(Hold h) {
+        Object was = h.on.get(), now = sideOf(h.tag);
+        if((was == null) || (was != now))
+            return;
+        try {
+            if(h.recorded) {
+                if(!h.stock)
+                    ((MapWnd)now).overlays.remove(h.tag);
+            } else {
+                ((MapView)now).disol(h.tag);
+            }
+        } catch(RuntimeException e) {      // best-effort: never abort a teardown
+        }
+    }
+
+    /** Give back every display toggle this addon was holding — {@code :reload}/disable. */
+    static void teardownOverlays(Addon a) {
+        if((a == null) || a.overlayHolds.isEmpty())
+            return;
+        List<Hold> hs = new ArrayList<Hold>(a.overlayHolds);
+        a.overlayHolds.clear();
+        for(Hold h : hs)
+            apply(h);
+    }
+
+    /**
+     * Session init: drop the {@code :lua} REPL owner's holds <b>without</b> applying them. Its records
+     * outlive a relog (the addons' do not — they are torn down), and the {@code MapView} they name is gone,
+     * so the only thing left to do with them is forget them.
+     */
+    static void resetOverlays() {
+        Addon c = AddonManager.consoleOwner;
+        if(c != null)
+            c.overlayHolds.clear();
+    }
+
+    /**
+     * {@code hafen.map.overlay(tag)} / {@code overlay(tag, on)} and {@code hafen.map.overlays()} — the
+     * client's own display switches. Arity is the verb; the write answers the resulting <i>displayed</i>
+     * state so a take is self-reporting.
+     */
+    private static void installOverlays(LuaTable map, final Addon owner) {
+        map.set("overlay", new TwoArgFunction() {
+            public LuaValue call(LuaValue tag, LuaValue on) {
+                String t = toggleArg(tag);
+                if(!on.isnil()) {
+                    if(!on.isboolean())
+                        throw new LuaError("hafen.map.overlay(tag, on): on must be true or false — true takes"
+                            + " this addon's HOLD on the overlay, false releases it (the client's own"
+                            + " checkbox and the server both hold it too, so nothing can force it off)");
+                    if(on.toboolean())
+                        take(owner, t);
+                    else
+                        release(owner, t);
+                }
+                Boolean d = displayed(t);
+                return (d == null) ? LuaValue.NIL : LuaValue.valueOf(d.booleanValue());
+            }
+        });
+        map.set("overlays", new ZeroArgFunction() {
+            public LuaValue call() {
+                LuaTable out = new LuaTable();
+                int i = 0;
+                for(String[] t : TOGGLES) {
+                    LuaTable e = new LuaTable();
+                    e.set("tag", LuaValue.valueOf(t[0]));
+                    e.set("where", LuaValue.valueOf(t[1]));
+                    e.set("what", LuaValue.valueOf(t[2]));
+                    Boolean d = displayed(t[0]);
+                    if(d != null)
+                        e.set("on", LuaValue.valueOf(d.booleanValue()));
+                    e.set("held", LuaValue.valueOf(held(owner, t[0])));
+                    out.set(++i, e);
+                }
+                return out;
+            }
+        });
+    }
+
+    /**
+     * A display-toggle tag argument. The set is <b>closed</b> and an unknown tag is refused (D-072): the
+     * client owns exactly these three switches, and a typo that silently did nothing forever is the one
+     * failure here nothing else would ever report.
+     */
+    private static String toggleArg(LuaValue tag) {
+        if(tag.type() != LuaValue.TSTRING)      // in LuaJ a NUMBER also answers isstring()
+            throw new LuaError("hafen.map.overlay(tag): tag is one of " + toggleList());
+        String t = tag.tojstring();
+        if(toggle(t) == null)
+            throw new LuaError("hafen.map.overlay(\"" + t + "\"): the client displays no such overlay — the"
+                + " toggles it owns are " + toggleList() + " (note prov = provinces in the WORLD and realm ="
+                + " provinces on the MAP: same feature, two tags)");
+        return t;
+    }
+
+    private static String toggleList() {
+        StringBuilder sb = new StringBuilder();
+        for(String[] t : TOGGLES)
+            sb.append((sb.length() == 0) ? "" : ", ").append('"').append(t[0]).append('"');
+        return sb.toString();
     }
 }

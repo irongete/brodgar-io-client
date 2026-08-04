@@ -14,6 +14,7 @@ import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -40,6 +41,11 @@ import java.util.Map;
  * whenever they change), and for ground explored a year ago it is a year old. The live terrain is
  * {@code hafen.world.tile}, and where both answer they agree by NAME: a recorded tile carries the tileset
  * <i>resource</i>, not the session-local tile id the live half hands out.
+ *
+ * <p><b>A grid also carries its OVERLAYS</b> (037.3): {@code :overlays()} is the census of the tags that
+ * covered this ground — a personal claim, a village claim, a province — and {@code :overlay(tag)} is the
+ * {@link LuaMask} saying which of its tiles. Those are the <i>recorded</i> masks; the client's own display
+ * switches for the same features are {@code hafen.map.overlay(tag)}, and they are a different thing entirely.
  *
  * <p><b>Interned on the GRID ID</b> (D-063), not on the Java object: a {@code Grid} lives in a weak
  * {@code CacheMap} and is rebuilt from disk after an eviction, so identity interning would go stale
@@ -185,7 +191,7 @@ public final class LuaMapGrid {
         // name is the thing the two halves can be compared on.
         m.set("tile", new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue c) {
-                Coord tc = MapApi.tileArg(c, "tile");
+                Coord tc = MapApi.tileArg(c, "grid:tile");
                 MapFile.Grid g = data(handle(self, "tile"));
                 if(g == null)
                     return LuaValue.NIL;
@@ -203,7 +209,7 @@ public final class LuaMapGrid {
         // height(c) — the recorded z of a within-grid tile, or nil until the grid data lands.
         m.set("height", new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue c) {
-                Coord tc = MapApi.tileArg(c, "height");
+                Coord tc = MapApi.tileArg(c, "grid:height");
                 MapFile.Grid g = data(handle(self, "height"));
                 return (g == null) ? LuaValue.NIL : LuaValue.valueOf(g.getfz(tc));
             }
@@ -214,6 +220,35 @@ public final class LuaMapGrid {
             public LuaValue call(LuaValue self) {
                 MapFile.Grid g = data(handle(self, "mtime"));
                 return (g == null) ? LuaValue.NIL : LuaValue.valueOf((double)g.mtime);
+            }
+        });
+        // overlays() — every OVERLAY TAG this grid carries (a claim, a village claim, a province covered it
+        // when the client wrote the grid down), sorted; nil until the grid data — and every overlay resource
+        // on it — is resolved. It is the census that makes grid:overlay(tag)'s nil readable, because the tag
+        // space belongs to the server's resources and no client-side list of it can be complete.
+        m.set("overlays", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                List<String> tags = MapApi.gridTags(MapApi.mapfile(), handle(self, "overlays").id);
+                if(tags == null)
+                    return LuaValue.NIL;
+                LuaTable out = new LuaTable();
+                for(int i = 0; i < tags.size(); i++)
+                    out.set(i + 1, LuaValue.valueOf(tags.get(i)));
+                return out;
+            }
+        });
+        // overlay(tag) — the Mask of which tiles that overlay covers here, or nil for a tag this grid does
+        // not carry (and, as everywhere on this object, for data still coming off the disk). An unknown tag
+        // is NOT an error: the tags are declared by the overlay resources, not by the client.
+        m.set("overlay", new TwoArgFunction() {
+            public LuaValue call(LuaValue self, LuaValue tag) {
+                LuaMapGrid h = handle(self, "overlay");
+                if(tag.type() != LuaValue.TSTRING)      // in LuaJ a NUMBER also answers isstring()
+                    throw new LuaError("grid:overlay(tag): tag is an overlay tag string (\"cplot\", \"vlg\","
+                        + " \"realm\", …) — grid:overlays() lists the ones this grid carries");
+                String t = tag.tojstring();
+                return (MapApi.maskIn(MapApi.mapfile(), h.id, t) == null)
+                    ? LuaValue.NIL : LuaMask.of(owner, h.id, t);
             }
         });
         // info() — the snapshot escape hatch, including `loaded`: whether the tile data is here YET.

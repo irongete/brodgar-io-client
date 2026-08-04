@@ -572,3 +572,25 @@
   asserting the anchor's own numbers. Generalisation of 035.1's hollowness lesson: *a check that quantises
   its input cannot guard anything finer than the quantum* — so where sub-cell placement matters, assert the
   raw value beside the round trip, not instead of it.
+
+- **(037.3) A resource that exists only for the test: `Unsafe`-allocate the `Resource` AND its layer.** The
+  overlay resources (`ols/*`) come from the server, so no res jar has one — but nothing in the read path
+  needs a real resource. `Unsafe.allocateInstance(Resource.class)` + reflect-set `name` and the **protected
+  `layers`** collection, put an `Unsafe`-allocated `MCache.ResOverlay` in it with its public final `tags`
+  reflect-set, and `res.flayer(ResOverlay.class).tags()` answers. Point a `Resource.Saved` at it by
+  reflect-setting its private transient `loaded` and `get()` never touches a pool. Two variants come free
+  and are worth building: a resource with an **empty layers list** exercises the `NoSuchLayerException`
+  branch, and a `Saved` subclass whose `get(int)` throws `haven.Loading` exercises the load model.
+- **(037.3) A disk round trip rebuilds what you fabricated — patch AFTER the load, not before.**
+  `Grid.save`/`load` serialise an overlay as (resource name, version), so `loadols` mints a **fresh**
+  `Resource.Saved` against the real remote pool and the fabricated `loaded` is gone. Load the grid through
+  the engine first, then reflect-set `loaded` on the overlays of the grid you got back — which is exactly
+  the state a live client reaches once its pool has answered. Generalise: when a fixture crosses a
+  serialiser, fabricate on the far side of it.
+- **(037.3) Falsify the ARITHMETIC of an ownership record, not just its presence.** Five planted bugs over
+  43 checks bit 2/1/1/1/2 and each named a different mechanism: dropping the union (`break` after the first
+  matching overlay) **2**, a non-idempotent take **1**, no relog guard in the release **1**, the recorded
+  side ignoring its stock value **1**, `Loading` read as "no tags" **2**. The idempotence one is the keeper:
+  it is invisible unless the fixture has **another holder** — the probe calls `mv.enol("cplot")` first to
+  stand in for the user's own checkbox, and only then does "two takes, one release" differ from "one take,
+  one release". A ref count with a single owner cannot fail the way a ref count fails.

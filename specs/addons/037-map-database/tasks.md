@@ -20,7 +20,7 @@
       and the next call answers — without ever throwing or blocking; `marker:anchor()` round-trips
       to the tile the marker reports. `[manual]`: relog, the same stored anchor still resolves.
 
-- [ ] 037.3 — **Overlays: claims, village claims, provinces.** `grid:overlay(tag)` → which tiles the
+- [x] 037.3 — **Overlays: claims, village claims, provinces.** `grid:overlay(tag)` → which tiles the
       mask covers, nil for a tag the grid does not carry; and the client's own display toggles read
       and write through `hafen.map`, **owned and released** like a hidden window (the ref-counted
       `MapView.enol`/`disol`, plan.md).

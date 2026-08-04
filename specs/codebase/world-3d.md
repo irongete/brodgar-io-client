@@ -19,6 +19,22 @@
 | Follow-a-gob motion | subclass [`Moving`](src/haven/Moving.java) with `getc()` = [`target.getc()`](src/haven/Gob.java:584)`.add(offset)`, re-resolved via [`OCache.getgob`](src/haven/OCache.java:199) each frame; the render tree's per-frame [`Placed.autotick`](src/haven/Gob.java:942) tracks it. NOT a [`Following`](src/haven/Following.java:32) subclass (that steals facing) |
 | Ignore gob facing | [`Location.nullrot`](src/haven/render/Location.java:169) |
 
+## Ground overlays — who decides one is drawn
+
+| What | Where |
+|---|---|
+| **The ref count** | [`MapView.oltags`](src/haven/MapView.java:825) — a **multiset** `Map<String,Integer>` (seeded `{"show":1}`); [`enol`/`disol`/`visol`](src/haven/MapView.java:531) are `+1` / `-1`-and-drop / `containsKey`. All three `synchronized(oltags)` |
+| Who counts | the user's three [`MenuCheckBox`es](src/haven/GameUI.java:1553) via the private `GameUI.MapMenu.toggleol` (`cplot`, `vlg`, **`prov`**), and the server's [`flashol`/`unflashol`](src/haven/MapView.java:1914) (hover a claim → on for `tm` seconds, then decremented) |
+| What it gates | [`MapView.oltick`](src/haven/MapView.java:828): for each `OverlayInfo` from `glob.map.getols(...)`, visible iff **any** of its [`ResOverlay.tags()`](src/haven/MCache.java:214) is in `oltags`; adds/drops the scene `Overlay` accordingly |
+| The **other** side | [`MapWnd.overlays`](src/haven/MapWnd.java:55) — a plain `CopyOnWriteArraySet<String>` fed by [`MapWnd.toggleol`](src/haven/MapWnd.java:149) from its own checkbox with **`realm`**, read by `MapWnd.View.drawgrid` to blit `DisplayGrid.olimg(tag)` from the RECORDED masks ([mapfile.md](mapfile.md)) |
+
+**Gotcha — two vocabularies for one feature.** Provinces are `prov` in the world and `realm` on the map; no
+tag reaches both. And because `oltags` is a *count* with several owners, nothing can turn an overlay off —
+only stop asking; a caller that "sets" it must instead take and release exactly one reference.
+
+*(This file is at 75 lines, over the 70-line budget: the "Scene counters" + "GL submission" halves are the
+natural split when a task next needs them.)*
+
 ## Textures & materials (no `.res` required)
 
 | What | Where |
