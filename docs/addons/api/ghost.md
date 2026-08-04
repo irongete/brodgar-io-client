@@ -96,7 +96,7 @@ g:show()                                      -- ...and put it back
 
 - **`alpha`** is opacity `0..1`. Below `1` the prop becomes see-through; a translucent 3D object does not
   self-occlude, so you see its far faces through its near ones, the usual hologram appearance.
-- **`tint`** is a colour overlay in the **same shape** [`hafen.map.markers`](map/markers.md),
+- **`tint`** is a colour overlay in the **same shape** [`marker:color`](map/markers.md),
   [`hafen.party`](party.md) and [`hafen.kin`](kin.md) use. Its `a` is the blend strength, how strongly the
   colour is mixed in, and it is independent of `alpha`.
 - **`:setRes`** swaps the resource; like `new`, the new visual resolves on a loader thread and streams in a

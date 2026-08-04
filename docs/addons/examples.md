@@ -62,7 +62,7 @@ A live minimap panel built from the [map database](api/map/README.md) alone. The
 the live world is *where am I* —
 [a Position's durable form](api/world.md#the-position-type), the anchor the two
 halves share; everything it shows comes out of `hafen.map`, and the picture is
-[`grid:image(lvl)`](api/map/drawings.md), which answers `nil` while it renders, so its four-per-second
+[`grid:image(level)`](api/map/drawings.md), which answers `nil` while it renders, so its four-per-second
 timer is both the retry loop and the "did the picture change?" test.
 
 **It is also the cost claim.** A grid drawing is an ordinary image handle, so it goes into the stylesheet as

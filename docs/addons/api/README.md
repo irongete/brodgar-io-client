@@ -17,10 +17,10 @@ you came for from the tables below. Every page in the tree is listed here.
 | [`hafen.world`](world.md) | the live world: every object loaded, the terrain, and a position that survives a relog |
 | [Gob](gob.md) | one object in the world — `hafen.world():gob():get(id)` gives a Gob you read with methods, and `gob:overlay()` attaches things to it |
 | [`hafen.map`](map/README.md) | the hub: the map you have explored, kept on disk, and the order to read these pages in |
-| [segments and grids](map/grids.md) | the shape of the database, the Segment and Grid objects, and saving a position |
+| [segments and grids](map/grids.md) | the shape of the database, the one Grid entity both halves hand back, and storing a place |
 | [overlays](map/overlays.md) | the recorded claim and province masks, and the switches that draw them |
 | [drawings](map/drawings.md) | a grid as an image handle: the minimap picture, its levels and its cache |
-| [markers](map/markers.md) | the map pins: reading them, adding your own, and the anchor one travels as |
+| [markers](map/markers.md) | the map pins: reading them, adding your own, and the Position one travels as |
 | [icons](map/icons.md) | the minimap icon registry: which gob icons are drawn, and which announce themselves |
 
 ## The player and character

@@ -1,4 +1,4 @@
--- gizmo.lua -- a bundled Lua TRANSFORM-GIZMO library over the hafen.map / hafen.ghost primitives (spec
+-- gizmo.lua -- a bundled Lua TRANSFORM-GIZMO library over the hafen.world / hafen.ghost primitives (spec
 -- 16-virtual-entities §4, decision D-031: "Java exposes primitives, the gizmo BEHAVIOUR lives in a bundled Lua
 -- library, shipped in the planner example addon"). V5b shipped the MOVE gizmo; V6 adds ROTATE + SCALE + polish.
 --

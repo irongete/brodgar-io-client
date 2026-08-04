@@ -287,12 +287,20 @@ final class WorldApi {
     }
 
     /**
-     * {@code hafen.world():grid()} — the map grids streamed in right now, each {@code {id, gc}}: the stable
-     * server-published grid id (a decimal string, because 64 bits do not survive a Lua number) and the
-     * session-local grid coord. {@code :at(p)} is how you address one, since a grid has no name to search.
+     * {@code hafen.world():grid()} — the map grids <b>streamed in right now</b>, as {@link LuaMapGrid}
+     * objects. {@code :at(p)} addresses one by the point it covers and {@code :get(id)} by the id the server
+     * published; a grid has no name, so a string filter is refused rather than quietly matching nothing.
+     *
+     * <p><b>This is the same entity {@code hafen.map():grid()} hands back</b>, and that is not a tidy-up: the
+     * live half publishes {@code MCache.Grid.id} and the recorded half interns on the very same {@code long},
+     * so a grid was never two things. Each door answers {@code nil} for what its own half does not have —
+     * ground you are standing on that has not been written down yet is {@code :live()} true and
+     * {@code :exists()} false, and ground explored a year ago is the mirror.
      */
     private static LuaValue gridCollection(final Addon owner) {
         LuaTable extra = new LuaTable();
+        // at(p) — the grid covering a Position. A plain lookup of what is streamed, never MCache.getgrid:
+        // asking which grid a place is in must not send a map request for ground you only asked about.
         extra.set("at", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), "at");
@@ -300,29 +308,28 @@ final class WorldApi {
                 MCache mc = mcache();
                 if((mc == null) || (rc == null))
                     return LuaValue.NIL;
-                try {
-                    return gridValue(mc.getgrid(rc.floor(MCache.tilesz).div(MCache.cmaps)));
-                } catch(RuntimeException e) {
-                    return LuaValue.NIL;
-                }
+                MCache.Grid g = AddonWidgets.loadedGrid(mc, rc.floor(MCache.tilesz).div(MCache.cmaps));
+                return (g == null) ? LuaValue.NIL : LuaMapGrid.of(owner, g.id);
             }
         });
         return LuaCollection.create("hafen.world():grid()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
                 for(MCache.Grid g : AddonWidgets.loadedGrids(mcache()))
-                    out.add(gridValue(g));
+                    out.add(LuaMapGrid.of(owner, g.id));
                 return out;
             }
-        }, extra);
-    }
 
-    /** One streamed grid as the value it has always been: its id, and where it sits this session. */
-    private static LuaValue gridValue(MCache.Grid g) {
-        LuaTable t = new LuaTable();
-        t.set("id", LuaValue.valueOf(Long.toString(g.id)));   // 64-bit -> string (the exact anchor)
-        t.set("gc", xy(g.gc.x, g.gc.y));
-        return t;
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                long id = MapApi.idArg(key, "hafen.world():grid():get(id)", "grid");
+                return (AddonWidgets.gridWorldUL(mcache(), id) == null)
+                    ? LuaValue.NIL : LuaMapGrid.of(owner, id);
+            }
+        }, extra);
     }
 
     /** Rebuild a Position from the {@code {gridId, x, y}} durable form, refusing a shape that is not one. */

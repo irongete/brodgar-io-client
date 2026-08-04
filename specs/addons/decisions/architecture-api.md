@@ -1070,3 +1070,37 @@ error rather than a silent nil; it is `pcall`-able and the message says to read 
 Generally: *a verb that hands back something to be chained cannot answer nil on a miss — either it raises, or
 the chain fails somewhere that no longer names the cause.*
 **See.** [D-084](widgets-ui.md), [D-100](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-115 — a set that CANNOT be enumerated refuses to be, naming the two verbs that do work ✅ (2026-08-04)
+**Decision.** `hafen.map():grid()` and `seg:grid()` are collections whose `:list()`, `:count()` and `:find()`
+**throw**, naming `:get(id)` / `:get(sc)` and `seg:grid():list(area)`. Every other collection in the API
+enumerates; these two say out loud that they will not.
+**Rationale.** (2026-08-04, 039.4.) The recorded map is every grid the character has ever walked over — tens
+of thousands, each a file. There are exactly three things a collection can do when it cannot answer "all of
+them": hand back an empty array, hand back everything, or refuse. Empty is a **lie** a caller cannot tell
+from "no grids"; everything is a thousand disk reads nobody asked for; the refusal is the only one that
+leaves the reader better informed than before they called. It is also what the engine itself does — `MiniMap`
+never enumerates either, it walks the grid coords of the rectangle it is drawing — so the API is publishing
+the client's own access pattern rather than inventing a cheaper-looking one.
+**Consequences.** `LuaCollection.Source.members()` may throw, and `:list`/`:count`/`:find` propagate it
+unchanged, so one message covers all three with no machinery. A collection is therefore not a promise that
+every §2.3 verb applies — the ones that do not are a *documented refusal*, exactly as `#coll` is. Generally:
+*when a set is too large or too expensive to enumerate, the accessor that would enumerate it is where you say
+so; an empty array is the one answer that cannot be distinguished from the truth.*
+**See.** [D-072](widgets-ui.md), [D-095](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-116 — a REF-COUNTED hold is not a property, so it gets verbs rather than an arity ✅ (2026-08-04)
+**Decision.** The client's four claim/province display switches become an **entity**,
+`hafen.map():overlay():get(tag)`, whose verbs are `:shown()` (is it drawn, by anyone), `:held()` (do I hold
+it), `:hold()` and `:release()`. The old `hafen.map.overlay(tag)` / `(tag, on)` pair is cut.
+**Rationale.** (2026-08-04, 039.4.) Arity as the verb says `x:name()` reads what `x:name(v)` wrote — and that
+was never true here. D-097 established that `MapView.oltags` is a multiset shared with the user's own checkbox
+and the server's claim flash, so an addon can only add its `+1` and take it away: `(tag, false)` cannot turn an
+overlay off, and `(tag)` answers *the screen* rather than *your write*. Two different questions were being
+spelled as one property, and the arity form was actively claiming the opposite. Three verbs make the asymmetry
+unmissable and cost nothing, because a hold was already an owned resource with a teardown.
+**Consequences.** A settings UI reads `:where()`/`:what()` off the same object instead of a snapshot row, and
+`:held()` versus `:shown()` is now a distinction the page cannot fail to make. Generally: *before spelling
+something as a property, check that the read is the read OF that write — where it is not, the shape is lying
+and no amount of documentation makes it stop.*
+**See.** [D-097](architecture-api.md), [D-069](widgets-ui.md), [039-uniform-api](../039-uniform-api/spec.md).

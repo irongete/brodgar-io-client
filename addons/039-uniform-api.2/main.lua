@@ -208,7 +208,7 @@ local function run(args)
     if off then break end
   end
   if off then
-    check(off:durable() and (not streamed[offId]) and (hafen.map.grid(offId) ~= nil),
+    check(off:durable() and (not streamed[offId]) and (hafen.map():grid():get(offId) ~= nil),
           "a place on ground that is EXPLORED but not streamed is durable -- the recorded map answered,"
             .. " the live one could not",
           offId)

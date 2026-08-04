@@ -26,11 +26,11 @@ import java.util.Map;
  * of all of them — which is exactly what {@code DataGrid.olrender(off, tag)} composites onto one image, and
  * the only thing a name can address (D-093, as the icon categories collapse their sub-ids).
  *
- * <p><b>The tag space is the resources', so it is OPEN.</b> {@code grid:overlay("nosuchthing")} is
+ * <p><b>The tag space is the resources', so it is OPEN.</b> {@code grid:overlay():get("nosuchthing")} is
  * {@code nil}, not an error: the client cannot know what tags a server's overlay resources declare.
- * {@code grid:overlays()} is the census that makes a {@code nil} readable. That is deliberately the opposite
- * of {@code hafen.map.overlay(tag)}, whose three <i>display switches</i> the client itself owns and which
- * therefore refuses an unknown tag (D-072 both ways).
+ * {@code grid:overlay():list()} is the census that makes a {@code nil} readable. That is deliberately the
+ * opposite of {@code hafen.map():overlay()}, whose four <i>display switches</i> the client itself owns and
+ * which therefore refuses an unknown tag (D-072 both ways).
  *
  * <p><b>Nothing crosses but the answer.</b> A mask holds its grid id and its tag and re-resolves through
  * {@link MapApi#maskIn} on every call, so a stashed handle tracks the database (D-094 — a {@code Grid} lives
@@ -248,7 +248,7 @@ public final class LuaMask {
         LuaMask h = resolve(self);
         if(h == null)
             throw new LuaError("mask:" + method + "() — use a COLON call on a Mask object"
-                + " (grid:overlay(tag))");
+                + " (grid:overlay():get(tag), grid:overlay():list()[n])");
         return h;
     }
 }

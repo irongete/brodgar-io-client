@@ -1055,25 +1055,27 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // is nothing left to convert. Grid ids are 64-bit and so are exposed as decimal STRINGS.
         WorldApi.installWorld(hafen, owner);
 
-        // hafen.map.* — the RECORDED map (037): the client's on-disk map database (MapFile), the map the
-        // player has EXPLORED, as opposed to the live terrain above. 037.1 gives it the two surfaces that
-        // were always reading it while sitting beside it as namespaces of their own, as RELATIONS (D-066):
-        //   hafen.map.markers — the marker DB (the old hafen.markers, same surface). Two kinds: PLAYER
-        //     markers (user pins: a name + colour) and SYSTEM markers (server/quest pins: a name + icon).
-        //     A snapshot is { id, name, type ("player"|"system"), seg (id string), tc={x,y} (the segment
-        //     tile coord — the PERSISTENT anchor that survives a relog, coverage-gaps C4),
-        //     color={r,g,b,a}+onmap (player) | icon (system), and x,y (world) + dist (from the player)
-        //     which are SESSION-LOCAL, present only when the marker is in the player's current segment }.
-        //     add() creates a PLAYER marker and persists it; remove() takes a ref from list()/add(). The DB
-        //     streams in a beat after enter-world (empty until then); MarkersChanged fires on any change.
-        //   hafen.map.icons — the minimap icon registry (the old hafen.radar; the engine has no "radar",
-        //     it has GobIcon.Settings — D-061). CALLABLE-ONLY (D-056): hafen.map.icons() is the array of
-        //     categories, hafen.map.icons(res) one category by its icon RESOURCE NAME (the identity — a
-        //     string with a "/", the LuaPagina shape split), and the flags are arity-as-the-verb on the
-        //     entity: cat:show() / cat:show(v) / cat:notify() / cat:notify(v), plus :res/:name/:exists/:info.
-        //     The registry is the SAME one the in-client "Icon settings" window drives, so writes show
-        //     there too and persist per character; it is empty until the HUD is up and grows as the
-        //     character sees new icon types (read on demand — no *Changed event).
+        // hafen.map():* — the RECORDED map (037): the client's on-disk map database (MapFile), the map the
+        // player has EXPLORED, as opposed to the live terrain above. Five collections, re-shaped in 039.4:
+        //   :segment() — the contiguous explored areas, with :current() for the one you are standing in.
+        //   :grid() — the recorded 100x100-tile squares, addressed by the id the SERVER published. That id
+        //     is the only thing the live and recorded halves share, so this and hafen.world():grid() hand
+        //     back the SAME Grid object: :live() asks whether it is streamed in, :exists() whether it is
+        //     written down, and where both answer, grid:tile(c) and hafen.world():tile(p) agree by name.
+        //   :marker() — the pins (the old hafen.markers). Two kinds: PLAYER markers (user pins: a name +
+        //     colour) and SYSTEM markers (server/quest pins: a name + icon). :add(name, p) takes a Position
+        //     and hands back a bare pin whose colour and on-map flag are setters; :remove(m) takes it out.
+        //     Both writes are ungated — they edit the user's own on-disk database. The DB streams in a beat
+        //     after enter-world (empty until then); MarkersChanged fires on any change, ours or the user's.
+        //   :icon() — the minimap icon registry (the old hafen.radar; the engine has no "radar", it has
+        //     GobIcon.Settings — D-061). :get(res) is one category by its icon RESOURCE NAME (the identity),
+        //     :list/:find search by the display name, and the flags are arity-as-the-verb on the entity:
+        //     cat:show() / cat:show(v) / cat:notify() / cat:notify(v), plus :res/:name/:exists/:info. It is
+        //     the SAME registry the in-client "Icon settings" window drives, so writes show there too and
+        //     persist per character; empty until the HUD is up, growing as new icon types are seen.
+        //   :overlay() — the client's own four display switches for claims and provinces. A write is a HOLD
+        //     (t:hold()/t:release()), never a switch: the count is shared with the user's checkbox and the
+        //     server's claim flash, so an addon can stop asking and can never turn one off.
         MapApi.installMap(hafen, owner);
 
         // hafen.player() — the Player object, purely the composition anchor for hafen.player():gob() (D-046):
@@ -1676,7 +1678,7 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
 
     /**
      * Parse a Lua colour table (0..255 components) into a {@link java.awt.Color}, or {@code dflt}. Shared by
-     * {@code hafen.markers} pins (WorldApi), ghost/entity {@code tint} (RenderApi), the {@code g:text} draw
+     * map-marker pins (MapApi), ghost/entity {@code tint} (RenderApi), the {@code g:text} draw
      * wrapper and the stylesheet's {@code color} property (033.2) — a hub color util.
      *
      * <p><b>Two spellings, one shape.</b> The KEYED form {@code {r=,g=,b=[,a=]}} is what every reader in this API

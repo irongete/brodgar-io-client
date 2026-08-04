@@ -225,6 +225,8 @@ methods, not R2 accessors** — the `get`/`set` ban does not reach them.
 
 ## `hafen.map()` — the RECORDED map (on disk)
 
+> **Shipped in 039.4** — five collections, and the Grid entity is now the one both halves hand back.
+
 | before | after | does |
 |---|---|---|
 | `hafen.map.segment()` | `hafen.map():segment():current()` | **the segment you are in** (R8 — the row the first draft lost) |
@@ -383,8 +385,8 @@ because a timer ends with `t:cancel()` and two spellings for one operation is th
 
 ## `hafen.world()` — the LIVE world
 
-> **Shipped in 039.2**, except `:grid()`, whose members are still the `{id, gc}` value the live query
-> always answered: 039.4 makes them the unified Grid entity when it opens the other door.
+> **Shipped in 039.2**, and `:grid()` **in 039.4**: its members are the unified Grid entity, the very
+> object `hafen.map():grid()` hands back.
 
 | before | after | does |
 |---|---|---|
@@ -725,6 +727,10 @@ Window/widget **builder** setters (R4), replacing the 13-key `opts` table:
 | `rule:font(h) :color(c) :bg(…) :border(…) :pad(n) :position(…) :size(…) :anchor(…)` | the shipped properties, one setter each — the sheet key `pos` becomes `position` with the verb |
 
 ## Marker, Segment, Grid, Mask, IconCategory
+
+> **Shipped in 039.4**, plus one entity the first draft did not foresee: a display toggle is a
+> **OverlayToggle** object (`:tag() :where() :what() :shown() :held() :hold() :release() :info()`),
+> because `:shown()/:hold()/:release()` are three verbs and had nowhere else to live.
 
 - Marker: `:name() :type() :icon() :color() :segment() :exists() :info()`, plus
   **`:position()`** (was `:pos()` *and* `:anchor()` — the Position is both), **`:segmentTile()`**

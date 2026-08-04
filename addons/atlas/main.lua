@@ -7,7 +7,7 @@
 -- Four ordinary doors, one line each:
 --   gob:position():info()        where the player is, as the anchor {gridId, x, y} — the ONLY thing this
 --                                addon takes from the live world, and the only thing the two halves share.
---   hafen.map.grid(gridId)       that anchor's grid IN THE DATABASE. The door in.
+--   hafen.map():grid():get(id)   that anchor's grid IN THE DATABASE. The door in.
 --   grid:image(lvl)              the recorded ground as an IMAGE HANDLE — nil while it renders, so asking
 --                                again next tick IS the retry loop (there is no callback and no ready event).
 --   grid:segment():markers()     the pins recorded on that same explored area, in segment tile coords.
@@ -61,7 +61,7 @@ local ticker                       -- the timer handle
 -- the picture at all.
 local function origin(grid)
   local step = 2 ^ lvl                            -- grids per zoom grid, and tiles per pixel
-  local sc = grid:sc()
+  local sc = grid:segmentCoord()
   return math.floor(sc.x / step) * step * SIDE,   -- the picture's left edge, in SEGMENT tile coords
          math.floor(sc.y / step) * step * SIDE,
          step
@@ -75,7 +75,7 @@ local function drawPins(g, w, h)
   local seg = grid:segment()
 
   for _, m in ipairs(seg:markers()) do
-    local tc = m:tc()
+    local tc = m:segmentTile()
     local px, py = math.floor((tc.x - ox) / step), math.floor((tc.y - oy) / step)
     if (px >= 0) and (px < w) and (py >= 0) and (py < h) then
       local c = m:color()                          -- player markers carry one; system markers do not
@@ -90,7 +90,7 @@ local function drawPins(g, w, h)
   local gp = anchor()
   -- The anchor's x,y are WITHIN-grid world units, so the tile inside the grid is arithmetic on them.
   local wt = gp and { x = math.floor(gp.x / TILE), y = math.floor(gp.y / TILE) }   -- 0..99
-  local sc = grid:sc()
+  local sc = grid:segmentCoord()
   if wt then
     local px = math.floor((((sc.x * SIDE) + wt.x) - ox) / step)
     local py = math.floor((((sc.y * SIDE) + wt.y) - oy) / step)
@@ -128,7 +128,7 @@ end
 refresh = function()
   if not (panel and panel:exists()) then return end
   local gp = anchor()
-  here = gp and hafen.map.grid(gp.gridId)
+  here = gp and hafen.map():grid():get(gp.gridId)
   local img = here and here:image(lvl)
   if img ~= shown then
     shown = img
@@ -179,9 +179,9 @@ hafen.slash():register("atlas", function(args)
 
   elseif sub == "where" then
     local gp = anchor()
-    local g = gp and hafen.map.grid(gp.gridId)
+    local g = gp and hafen.map():grid():get(gp.gridId)
     if not g then return hafen.log():write("atlas: the map has not streamed in here yet") end
-    local sc, mt = g:sc(), g:mtime()
+    local sc, mt = g:segmentCoord(), g:modified()
     -- The anchor is the line worth reading twice: gridId is the SERVER's and means the same thing to every
     -- player, while the segment id and the grid coord beside it are this client's own bookkeeping — look at
     -- them, never store them (docs/addons/api/map.md#saving-a-position).
@@ -194,7 +194,10 @@ hafen.slash():register("atlas", function(args)
     local p = me and me:position()
     if not p then return hafen.log():write("atlas: no player position yet") end
     local nm = args[2] or "Atlas"
-    local m = hafen.map.markers.add(nm, p:x(), p:y(), { color = { 90, 220, 120 }, onmap = true })
+    -- A pin is created BARE and configured by chaining: the colour and the on-map flag are setters on the
+    -- marker itself, so there is no options table to look up and every one of them reads back.
+    local m = hafen.map():marker():add(nm, p)
+    if m then m:color(90, 220, 120):onMap(true) end
     hafen.log():write(m and ("atlas: dropped the marker \"" .. nm .. "\" -- ':atlas pins' to see it on the panel")
                 or "atlas: the map database is not ready")
 

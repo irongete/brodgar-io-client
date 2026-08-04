@@ -16,7 +16,7 @@ several of them look like writes:
 
 | Ungated write | What it changes |
 |---|---|
-| [`hafen.map.markers.add`](../api/map/markers.md#write-ungated) | your own map database |
+| [`hafen.map():marker():add`](../api/map/markers.md#write-ungated) | your own map database |
 | [`cat:show(on)`](../api/map/icons.md#the-iconcat-object) | which icons your minimap draws |
 | [`w:pos`, `w:size`, `w:hide`](../api/ui/native.md) | where the client's own windows sit |
 | [`w:replace(view)`](../api/ui/replace.md) | which window a client toggle opens |

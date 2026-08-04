@@ -109,8 +109,8 @@ local function run(args)
   cleanup()
 
   local gp = playerAnchor()
-  local seg = hafen.map.segment()
-  local grid = gp and hafen.map.grid(gp.gridId)
+  local seg = hafen.map():segment():current()
+  local grid = gp and hafen.map():grid():get(gp.gridId)
   if (not gp) or (not seg) or (not grid) then
     check(false, "the player's own grid is in the map database (every check below stands on it)",
           (gp == nil) and "no anchor -- no player, or the map has not streamed in yet"
@@ -134,7 +134,7 @@ local function run(args)
   refuses("grid:overlayImage takes a tag, not a number",
           function() return grid:overlayImage(3) end, "overlay tag string")
 
-  -- 5. an unknown tag is plain nil here, exactly as grid:overlay(tag) is: the tag space is the server's
+  -- 5. an unknown tag is plain nil here, exactly as grid:overlay():get(tag) is: the tags are the server's
   check(grid:overlayImage("no-such-overlay-tag") == nil,
         "an overlay tag the grid does not carry is nil, never an error -- the tags belong to the resources",
         tostring(grid:overlayImage("no-such-overlay-tag")))
@@ -152,7 +152,7 @@ local function run(args)
 
     -- 8. interned per (grid, level): the same ask is the same object, so a panel re-asking every frame
     --    allocates nothing and renders nothing
-    check((grid:image(0) == img) and (hafen.map.grid(gp.gridId):image(0) == img),
+    check((grid:image(0) == img) and (hafen.map():grid():get(gp.gridId):image(0) == img),
           "the same (grid, level) hands back the SAME handle -- a panel may ask every frame",
           tostring(grid:image(0)))
 
@@ -180,9 +180,9 @@ end
 afterLevels = function(grid, seg, img, zimg)
   -- 11. two grids under ONE level-1 zoom grid are one picture, so they share the handle. (Parked as a
   --     [manual] when the ground next door was never recorded — a pass there would say nothing.)
-  local sc = grid:sc()
+  local sc = grid:segmentCoord()
   local nx = ((sc.x % 2) == 0) and (sc.x + 1) or (sc.x - 1)
-  local nb = seg:grid{ x = nx, y = sc.y }
+  local nb = seg:grid():get{ x = nx, y = sc.y }
   if nb and zimg then
     check(nb:image(1) == zimg,
           "the neighbouring grid under that same level-1 zoom grid IS the same handle, not a second render",
@@ -204,10 +204,10 @@ afterLevels = function(grid, seg, img, zimg)
 
   -- 13. the recorded overlay masks, drawn. Staged like 037.3's: an overlay resource may still be loading.
   local found, ftag
-  for _, cand in ipairs(seg:grids{ x = sc.x - SWEEP, y = sc.y - SWEEP,
-                                   w = (SWEEP * 2) + 1, h = (SWEEP * 2) + 1 }) do
-    local ts = cand:overlays()
-    if ts and (#ts > 0) then found, ftag = cand, ts[1] break end
+  for _, cand in ipairs(seg:grid():list{ x = sc.x - SWEEP, y = sc.y - SWEEP,
+                                         w = (SWEEP * 2) + 1, h = (SWEEP * 2) + 1 }) do
+    local ts = cand:overlay():list()
+    if #ts > 0 then found, ftag = cand, ts[1]:tag() break end
   end
   if found then
     found:overlayImage(ftag)
@@ -279,7 +279,7 @@ showRound = function()
   pass, fail, manual = 0, 0, 0
   cleanup()
   local gp = playerAnchor()
-  local grid = gp and hafen.map.grid(gp.gridId)
+  local grid = gp and hafen.map():grid():get(gp.gridId)
   if not grid then
     check(false, "the player's own grid is in the map database", "no anchor / not recorded yet")
     return summary()

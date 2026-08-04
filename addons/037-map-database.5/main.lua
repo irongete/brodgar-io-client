@@ -14,7 +14,7 @@
 -- same picture from Lua in a window of its own and reads BOTH rows out of one sample.
 --
 -- READ-ONLY apart from one write it undoes in the same run: it drops a marker into the real map database to
--- prove marker:anchor() round-trips, then removes it and asserts the removal. It declares no permissions,
+-- prove marker:position() round-trips, then removes it and asserts the removal. It declares no permissions,
 -- destroys every window it opens and drops its sheet.
 
 local pass, fail, manual = 0, 0, 0
@@ -89,7 +89,7 @@ local function run()
   local me = hafen.player() and hafen.player():gob()
   local pp = me and me:position()
   local gp = pp and pp:info()
-  local grid = gp and hafen.map.grid(gp.gridId)
+  local grid = gp and hafen.map():grid():get(gp.gridId)
   local seg = grid and grid:segment()
   if not (gp and grid and seg) then
     check(false, "the player's own grid is in the map database (every check below stands on it)",
@@ -98,9 +98,12 @@ local function run()
     return summary()
   end
 
-  -- 1. "hafen.map.grid is the only call that crosses from the live world into the database, because a grid
-  --    id is the only thing the two halves share." The anchor's gridId IS that grid's identity.
+  -- 1. "A grid id is the only thing the two halves share", which is why they hand back ONE entity: the
+  --    anchor's gridId is that grid's identity, and the live door reaches the very same object.
   eq("the anchor's gridId is the identity of the grid it names in the database", grid:id(), gp.gridId)
+  check((hafen.world():grid():at(pp) == grid) and (grid:live() == true) and (grid:exists() == true),
+        "the live door and the recorded door hand back the SAME Grid -- live and written down at once",
+        ("live=%s exists=%s"):format(tostring(grid:live()), tostring(grid:exists())))
 
   -- 2. "A stored anchor rebuilds into a Position" -- and that Position hands back the SAME anchor.
   local w = hafen.world():position(gp)
@@ -111,54 +114,62 @@ local function run()
                        or ("%s %.3f,%.3f"):format(back.gridId, back.x, back.y))
 
   -- 3. "A 64-bit id is a decimal string, and a number is refused" -- the one failure a silent lookup would hide.
-  refuses("a 64-bit id passed as a Lua number is refused, saying why", function() return hafen.map.grid(1234) end,
-          "decimal STRING")
+  refuses("a 64-bit id passed as a Lua number is refused, saying why",
+          function() return hafen.map():grid():get(1234) end, "decimal STRING")
 
   -- 4. A segment id is a decimal string, and the segment it names is interned on it (D-094: the engine's own
   --    published id, because a Segment lives in a cache that evicts).
   local sid = seg:id()
-  check((type(sid) == "string") and (sid:match("^%-?%d+$") ~= nil) and (hafen.map.segment(sid) == seg),
+  check((type(sid) == "string") and (sid:match("^%-?%d+$") ~= nil)
+          and (hafen.map():segment():get(sid) == seg),
         "a segment id is an exact decimal string, and it is what the segment interns on",
-        tostring(sid) .. " / " .. tostring(hafen.map.segment(sid) == seg))
+        tostring(sid) .. " / " .. tostring(hafen.map():segment():get(sid) == seg))
 
   -- 5. The cut the page opens with: a marker lives in the map database, and the engine has no radar.
   check((hafen.markers == nil) and (hafen.radar == nil) and (hafen.map.tile == nil),
         "hafen.markers, hafen.radar and the live terrain reads on hafen.map are all plain nil",
         tostring(hafen.markers) .. " / " .. tostring(hafen.radar) .. " / " .. tostring(hafen.map.tile))
 
-  -- 6./7. "marker:anchor() is how a marker leaves this client." The claim is that the anchor lands back on
-  --    the tile the marker itself reports -- so the suite drops a pin in the REAL database, converts it, and
-  --    removes it again in the same run, asserting the removal (this is the one write it makes).
-  local mk = pp and hafen.map.markers.add("037.5 anchor probe", pp:x(), pp:y(), { color = { 200, 80, 80 } })
+  -- 6./7. "marker:position() is how a marker leaves this client." The claim is that its durable form lands
+  --    back on the tile the marker itself reports -- so the suite drops a pin in the REAL database, reads it
+  --    back and removes it again in the same run, asserting the removal (this is the one write it makes).
+  local mk = pp and hafen.map():marker():add("037.5 anchor probe", pp)
   if mk then
-    local a = mk:anchor()
-    local ag = a and hafen.map.grid(a.gridId)
-    -- The anchor's x,y are WITHIN-grid world units, so the tile is plain arithmetic on them: p:tileCoord()
-    -- answers for a place in the session's own space, which this is not.
+    mk:color(200, 80, 80)
+    local a = mk:position() and mk:position():info()
+    local ag = a and hafen.map():grid():get(a.gridId)
+    -- The durable x,y are WITHIN-grid world units, so the tile is plain arithmetic on them: p:tileCoord()
+    -- answers for a place in the session's own space, which this need not be.
     local at = ag and { x = math.floor(a.x / TILE), y = math.floor(a.y / TILE) }
-    local tc = mk:tc()
-    check(at and ag and (((ag:sc().x * CMAPS) + at.x) == tc.x) and (((ag:sc().y * CMAPS) + at.y) == tc.y),
-          "marker:anchor() round-trips onto the very tile the marker reports -- a pin can be saved or sent",
-          (a == nil) and "anchor answered nil (its grid was still loading)"
+    local tc = mk:segmentTile()
+    local asc = ag and ag:segmentCoord()
+    check(at and asc and (((asc.x * CMAPS) + at.x) == tc.x) and (((asc.y * CMAPS) + at.y) == tc.y),
+          "marker:position() round-trips onto the very tile the marker reports -- a pin can be saved or sent",
+          (a == nil) and "the marker's position answered nil (its grid was still loading)"
                       or ("grid %s tile %d,%d vs tc %d,%d"):format(a.gridId, at and at.x or -1,
                                                                    at and at.y or -1, tc.x, tc.y))
-    check((hafen.map.markers.remove(mk) == true) and (mk:exists() == false),
+    check((mk:color() ~= nil) and (mk:color().r == 200) and (mk:onMap() == false),
+          "the pin was created bare and the chained setter took: it reads back the colour it was given",
+          ("r=%s onMap=%s"):format(tostring(mk:color() and mk:color().r), tostring(mk:onMap())))
+    hafen.map():marker():remove(mk)
+    check(mk:exists() == false,
           "...and the pin this suite dropped is gone again -- the database is left as it was found",
           tostring(mk:exists()))
   else
     manualCheck("stand in the world (the map database must be ready) and run ':t037-5' again",
-                "one more [pass]: a marker dropped at your feet converts to a {gridId, x, y} anchor that"
-                .. " lands back on the tile the marker reports, and is then removed again")
+                "two more [pass]: a marker dropped at your feet has a Position that lands back on the tile"
+                .. " the marker reports, and is then removed again")
   end
 
   -- 8. "Segments, grids, masks, markers and icon categories are interned objects ... and any of them works as
   --    a table key." The identity claim the whole page's stash-a-handle advice rests on.
   local key = {}
   key[grid] = "yes"
-  check((hafen.map.grid(gp.gridId) == grid) and (key[hafen.map.grid(gp.gridId)] == "yes")
+  check((hafen.map():grid():get(gp.gridId) == grid) and (key[hafen.map():grid():get(gp.gridId)] == "yes")
           and (grid:segment() == seg),
         "a grid and its segment are interned handles -- the same id is the same object, and it keys a table",
-        tostring(hafen.map.grid(gp.gridId) == grid) .. " / " .. tostring(key[hafen.map.grid(gp.gridId)]))
+        tostring(hafen.map():grid():get(gp.gridId) == grid)
+          .. " / " .. tostring(key[hafen.map():grid():get(gp.gridId)]))
 
   costRound(grid)
 end

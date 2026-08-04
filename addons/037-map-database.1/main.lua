@@ -10,8 +10,8 @@
 --     engine back to itself, because "it answers" and "it answers the same thing it used to" are different
 --     claims and only the second one is the move being correct.
 --   * hafen.map is now the map DATABASE, and the two surfaces that were always reading it — the markers and
---     the minimap icon registry — are its relations rather than namespaces beside it. hafen.markers and
---     hafen.radar are hard cuts and must read plain nil.
+--     the minimap icon registry — are its relations rather than namespaces beside it (today, its :marker()
+--     and :icon() collections). hafen.markers and hafen.radar are hard cuts and must read plain nil.
 --
 -- IT PUTS EVERYTHING BACK. The marker check writes to the user's real on-disk map DB and the icon check to
 -- their real icon configuration, so each is undone in the same run and the restoration is itself asserted:
@@ -44,6 +44,14 @@ local TILE, CMAPS = 11, 100         -- MCache.tilesz / MCache.cmaps, the two con
 -- nil on hafen.map, which is the claim this suite exists to make.
 local THIRTEEN = { "tile", "height", "grid", "gridPos", "fromGridPos", "worldToTile", "tileToWorld",
                    "tileToGrid", "screenToWorld", "snapPlace", "placeGrid", "snapAngle", "placeAngle" }
+
+-- Reading a name off a section is not always safe now: a name the grammar RETIRED throws from the field read
+-- itself, which is the point of retiring it. So "not a live terrain verb here" is two outcomes, plain nil and
+-- a refusal, and never a function.
+local function absent(t, n)
+  local ok, v = pcall(function() return t[n] end)
+  return (not ok) or (v == nil)
+end
 local ONWORLD = { "tile", "height", "grid", "position", "tileToWorld", "tileToGrid", "screenToWorld",
                   "snapPlace", "snapAngle" }
 
@@ -63,16 +71,17 @@ local function run()
 
   local left, missing = {}, {}
   for _, n in ipairs(THIRTEEN) do
-    if hafen.map[n] ~= nil then left[#left + 1] = n end
+    if not absent(hafen.map, n) then left[#left + 1] = n end
   end
   for _, n in ipairs(ONWORLD) do
     if type(hafen.world()[n]) ~= "function" then missing[#missing + 1] = n end
   end
-  check(#left == 0, "all thirteen terrain names read nil on hafen.map", names(left))
+  check(#left == 0, "none of the thirteen terrain names is a verb on hafen.map", names(left))
   check(#missing == 0, "the nine survivors are verbs on the hafen.world() section object", names(missing))
-  check((type(hafen.map.markers) == "table") and (hafen.map.icons ~= nil),
-        "hafen.map carries the two relations instead: markers and icons",
-        ("markers=%s icons=%s"):format(type(hafen.map.markers), type(hafen.map.icons)))
+  check((hafen.map():marker() ~= nil) and (hafen.map():icon() ~= nil)
+          and (hafen.map():marker() == hafen.map():marker()),
+        "hafen.map carries the two relations instead, as collections: :marker() and :icon()",
+        tostring(hafen.map():marker()) .. " / " .. tostring(hafen.map():icon()))
 
   -- ---- the thirteen, at the player's own position ---------------------------------------------------
   local me = hafen.player() and hafen.player():gob()
@@ -94,12 +103,14 @@ local function run()
   check(type(h) == "number", "world:height answers under the player", h)
 
   local g = hafen.world():grid():at(p)
-  check((g ~= nil) and (type(g.id) == "string") and (tonumber(g.id) ~= nil) and (g.gc ~= nil),
-        "world:grid():at answers a decimal-string id and a grid coord",
-        g and (tostring(g.id) .. " gc=" .. tostring(g.gc and g.gc.x)))
+  local gid = g and g:id()
+  local gsc = g and g:segmentCoord()
+  check((g ~= nil) and (type(gid) == "string") and (tonumber(gid) ~= nil) and (g:live() == true),
+        "world:grid():at answers the Grid under the player, live, with a decimal-string id",
+        g and (tostring(gid) .. " live=" .. tostring(g:live())))
 
   local gp = p:info()                       -- the durable form of the player's own position
-  check((gp ~= nil) and (gp.gridId == (g and g.id))
+  check((gp ~= nil) and (gp.gridId == gid)
           and (gp.x >= 0) and (gp.x < TILE * CMAPS) and (gp.y >= 0) and (gp.y < TILE * CMAPS),
         "p:info() anchors the player on that same grid, offset inside it",
         gp and ("%s @%.0f,%.0f"):format(gp.gridId, gp.x, gp.y))
@@ -116,11 +127,9 @@ local function run()
   check(tc and ul and gc and g
           and (tc.x == math.floor(px / TILE)) and (tc.y == math.floor(py / TILE))
           and (ul.x == tc.x * TILE) and (ul.y == tc.y * TILE)
-          and (gc.x == math.floor(tc.x / CMAPS)) and (gc.y == math.floor(tc.y / CMAPS))
-          and (gc.x == g.gc.x) and (gc.y == g.gc.y),
+          and (gc.x == math.floor(tc.x / CMAPS)) and (gc.y == math.floor(tc.y / CMAPS)),
         "p:tileCoord / world:tileToWorld / :tileToGrid compose onto the tile and grid under the player",
-        tc and ("tile %d,%d ul %s grid %d,%d vs %d,%d"):format(tc.x, tc.y, ul and ul.x or "nil",
-                                                               gc.x, gc.y, g.gc.x, g.gc.y))
+        tc and ("tile %d,%d ul %s grid %d,%d"):format(tc.x, tc.y, ul and ul.x or "nil", gc.x, gc.y))
 
   local iface = hafen.client:options():interface()
   local s = hafen.world():snapPlace(p)
@@ -135,40 +144,38 @@ local function run()
         "world:snapAngle snaps to the 45 degree grid, and the interface option reads the live setting",
         tostring(a) .. " angGran=" .. tostring(iface:angGran()))
 
-  -- ---- hafen.map.markers: add, find, remove, and leave the DB as we found it ------------------------
+  -- ---- the marker collection: add, find, remove, and leave the DB as we found it --------------------
   local NAME = "037.1 suite marker"
-  local before = #hafen.map.markers.list()
-  local ref = hafen.map.markers.add(NAME, px, py)
-  local found
-  for _, m in ipairs(hafen.map.markers.list()) do
-    if m.name == NAME then found = m end
-  end
-  check((ref ~= nil) and (found ~= nil) and (type(found.seg) == "string") and (found.tc ~= nil),
-        "map.markers.add returned a ref and list found the marker, anchored on a segment",
-        (ref == nil) and "no ref" or (found and ("seg=" .. tostring(found.seg)) or "not in list"))
+  local markers = hafen.map():marker()
+  local before = markers:count()
+  local ref = markers:add(NAME, p)
+  local found = markers:find(NAME)
+  local finfo = found and found:info()
+  check((ref ~= nil) and (found == ref) and (finfo ~= nil) and (type(finfo.seg) == "string")
+          and (finfo.tc ~= nil),
+        "marker:add handed back the pin, :find(name) found that same object, anchored on a segment",
+        (ref == nil) and "no marker" or (found and ("seg=" .. tostring(finfo and finfo.seg))
+                                               or "not in the collection"))
 
-  local removed = ref and hafen.map.markers.remove(ref)
-  local still = false
-  for _, m in ipairs(hafen.map.markers.list()) do
-    if m.name == NAME then still = true end
-  end
-  check((removed == true) and (not still) and (#hafen.map.markers.list() == before),
-        "map.markers.remove took it back out, and the DB is exactly as it was found",
-        ("removed=%s still=%s count=%d vs %d"):format(tostring(removed), tostring(still),
-                                                      #hafen.map.markers.list(), before))
+  markers:remove(ref)
+  check((markers:find(NAME) == nil) and (ref:exists() == false) and (markers:count() == before),
+        "marker:remove took it back out, and the DB is exactly as it was found",
+        ("still=%s exists=%s count=%d vs %d"):format(tostring(markers:find(NAME)),
+                                                     tostring(ref:exists()), markers:count(), before))
 
-  -- ---- hafen.map.icons: the entity, and the user's configuration put back ---------------------------
-  local cats = hafen.map.icons()
+  -- ---- the icon collection: the entity, and the user's configuration put back -----------------------
+  local icons = hafen.map():icon()
+  local cats = icons:list()
   local cat = cats[1]
   check((cat ~= nil) and (type(cat:res()) == "string") and (cat:res():find("/") ~= nil)
           and (type(cat:name()) == "string") and (cat:exists() == true)
-          and (hafen.map.icons(cat:res()) == cat),
-        ("map.icons() answered %d categories; the first is an entity and icons(res) is the SAME object")
+          and (icons:get(cat:res()) == cat),
+        ("icon:list() answered %d categories; the first is an entity and :get(res) is the SAME object")
           :format(#cats),
         (cat == nil) and "the registry is empty (is the HUD up?)" or tostring(cat:res()))
 
-  refuses("map.icons refuses an index — a category's identity is its resource name",
-          function() return hafen.map.icons(1) end, "no index")
+  refuses("icon:get refuses an index — a category's identity is its resource name",
+          function() return icons:get(1) end, "no index")
 
   if cat then
     local wasShow, wasNotify = cat:show(), cat:notify()

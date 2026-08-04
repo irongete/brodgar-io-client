@@ -6,14 +6,14 @@ render itself, and what you get back is an ordinary **image handle** — the sam
 
 | Call | Returns | Description |
 |---|---|---|
-| `grid:image(lvl)` | image \| nil | the recorded ground at zoom level `lvl` — `0` (the default) up to `8` |
+| `grid:image(level)` | image \| nil | the recorded ground at zoom `level` — `0` (the default) up to `8` |
 | `grid:overlayImage(tag)` | image \| nil | one recorded [mask](overlays.md#the-recorded-masks) drawn in the overlay's own colour; `nil` for a tag this grid does not carry |
 
 Because it is an image handle, everything that already draws an image draws a map: `g:image` in your own
 widget, [`hafen.render.sprite`](../render/sprites.md), and a stylesheet's `bg = { image = … }`.
 
 ```lua
-local g = hafen.map.grid(hafen.player():gob():position():info().gridId)
+local g = hafen.map():grid():get(hafen.player():gob():position():info().gridId)
 hafen.ui.window{ title = "Here", size = { 100, 100 },
                  onDraw = function(gc)
                    local img = g:image(0)              -- nil while it renders; ask again next frame
@@ -35,7 +35,7 @@ intended shape, and it costs nothing once the picture is there — the same `(gr
 **Every drawing is 100×100 pixels, at every level.** What the level changes is how much ground fits in
 that square:
 
-| `lvl` | One pixel is | The square covers |
+| `level` | One pixel is | The square covers |
 |---|---|---|
 | `0` | one tile | 100×100 tiles — one grid |
 | `1` | 2×2 tiles | 200×200 tiles — four grids |
@@ -50,7 +50,7 @@ it, so tile transitions blend across the grid border just as they do on the corn
 A drawing is an **owned resource** like a loaded image: `img:dispose()` frees its texture now, and a
 `:reload`, a disable or a logout frees everything you were holding. A disposed handle stays inert rather
 than becoming an error — it still answers `:size()`, drawing it simply draws nothing, and the next
-`grid:image(lvl)` renders a fresh one.
+`grid:image(level)` renders a fresh one.
 
 You do not have to manage it. The cache keeps the most recently asked-for drawings and **disposes what
 falls off the end**, so a panel that scrolls across a continent frees the ground behind it by itself. That

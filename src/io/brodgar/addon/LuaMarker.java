@@ -9,12 +9,16 @@ import haven.MiniMap;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,22 +26,18 @@ import java.util.Map;
  * <b>player</b> marker (your own, with a colour) or a <b>system</b> marker (a server or quest pin, with an
  * icon). The same markers the map window shows. Spec {@code 037-map-database}, task 037.2.
  *
- * <p><b>Why it is an entity now.</b> Through 037.1 a marker was a snapshot table, which was enough while
- * reading it was all one could do. 037.2 gives it a verb — {@code marker:anchor()}, the conversion that
- * makes a marker <i>shareable</i> — and a verb belongs on the thing, not on a copy of it (D-044/D-066).
- * {@code hafen.map.markers.list/nearest/add/remove} keep the shape they had; what they hand back (and take)
- * is the Marker object, and {@code :info()} is the old snapshot, verbatim, as the escape hatch.
+ * <p><b>{@code marker:position()} is the whole point of the entity, and it is now just the type.</b> A
+ * marker's own coordinates are {@code seg}&nbsp;+&nbsp;{@code tc} — a segment id this client invented and a
+ * tile coord inside it — and a segment merge <b>rewrites both in place</b>. So that pair cannot be saved or
+ * sent: after a merge it would not go nil, it would point at the wrong place. What comes back instead is a
+ * {@link LuaPosition}, which is durable by construction because it holds the server's grid id. The
+ * conversion that used to be a second verb beside {@code :pos()} is therefore gone: one place type, one
+ * position verb, and nothing to convert.
  *
- * <p><b>{@code marker:anchor()} is the feature's point.</b> A marker's own position is
- * {@code seg}&nbsp;+&nbsp;{@code tc} — a segment id this client invented and a tile coord inside it — and a
- * segment merge <b>rewrites both in place</b>. So that position cannot be saved or sent: after a merge it
- * would not go nil, it would point at the wrong place. {@code :anchor()} converts it to
- * {@code {gridId, x, y}}, the same shape {@code hafen.world.gridPos()} returns, whose grid id comes from the
- * server. Its two halves differ, and the cheap one covers the common case: a marker in the player's
- * <b>current segment</b> converts through {@code sessloc} arithmetic to a world coord and reads the live
- * grid there — synchronous, no reverse lookup; a marker <b>anywhere else</b> has no world coord this
- * session, so it goes through the database ({@code tc / cmaps} &rarr; the segment's grid) and is
- * <b>asynchronous</b>: nil until that grid comes off the disk, and the call is what starts it.
+ * <p><b>The collection is {@code hafen.map():marker()}</b> — {@code :list} / {@code :count} / {@code :find}
+ * over the canonical filter, {@code :nearest(filter)}, and the two ungated writes {@code :add(name, p)} /
+ * {@code :remove(m)}. A pin is created <b>bare</b> and configured with {@code m:color(...)} /
+ * {@code m:onMap(b)}; those two are also reads, arity being the verb, and both persist immediately.
  *
  * <p><b>Interned on the per-session marker ref</b>, which is the identity the engine actually has: a
  * {@link MapFile.Marker} is loaded once and then mutated in place (a merge rewrites its fields; it is never
@@ -72,7 +72,7 @@ public final class LuaMarker {
         return (o instanceof LuaMarker) ? (LuaMarker)o : null;
     }
 
-    // ---- the collection (hafen.map.markers.list / nearest, seg:markers) ----------------------------
+    // ---- the members (hafen.map():marker(), seg:markers) -------------------------------------------
 
     /**
      * The markers of the whole database ({@code seg == null}) or of one segment, as interned Marker
@@ -89,6 +89,25 @@ public final class LuaMarker {
             out.set(++i, of(owner, MapApi.markerId(m)));
         }
         return out;
+    }
+
+    /**
+     * The same markers as {@link #collection}, unfiltered, as the member list {@code hafen.map():marker()}
+     * hands to {@link LuaCollection} — which owns the filtering there, so the canonical filter has one
+     * implementation across every collection in the API rather than one per section.
+     */
+    static List<LuaValue> members(Addon owner, Long seg) {
+        List<LuaValue> out = new ArrayList<LuaValue>();
+        for(MapFile.Marker m : MapApi.markerList(seg))
+            out.add(of(owner, MapApi.markerId(m)));
+        return out;
+    }
+
+    /** What a <b>string</b> filter matches on a Marker member: its label. Null for a marker with none. */
+    static String name(LuaValue member) {
+        LuaMarker h = resolve(member);
+        MapFile.Marker m = (h == null) ? null : MapApi.markerByRef(h.ref);
+        return (m == null) ? null : m.nm;
     }
 
     /** The closest matching marker to the player, or nil — only markers in the player's own segment have a distance. */
@@ -184,7 +203,7 @@ public final class LuaMarker {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(owner));
+        mt.set(LuaValue.INDEX, Retired.methodIndex("marker", methods(owner)));
         mt.set("__name", LuaValue.valueOf("Marker"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -215,29 +234,30 @@ public final class LuaMarker {
                 return LuaValue.NIL;
             }
         });
-        // tc() — the marker's SEGMENT tile coord, {x,y}: where it really lives in the database. Client-local
-        // (a merge rewrites it), so this is what you look at and :anchor() is what you save.
-        m.set("tc", new OneArgFunction() {
+        // segmentTile() — the marker's SEGMENT tile coord, {x,y}: where it really lives in the database. A
+        // lattice cell, not a place — client-local, since a merge rewrites it — so this is what you look at
+        // and :position() is what you save.
+        m.set("segmentTile", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                MapFile.Marker mk = marker(self, "tc");
+                MapFile.Marker mk = marker(self, "segmentTile");
                 return (mk == null) ? LuaValue.NIL : AddonManager.xy(mk.tc.x, mk.tc.y);
             }
         });
-        // pos() — the marker's WORLD position this session (the tile's centre), or nil for a marker outside
-        // the player's current segment: an explored area you are not standing in has no world coord today.
-        m.set("pos", new OneArgFunction() {
+        // position() — the marker's place, as a Position, at the CENTRE of the tile it names. It IS the old
+        // :anchor(): a Position is durable by construction, so the conversion that used to be a second verb
+        // is now the type. A marker in the player's own segment answers from sessloc arithmetic; one in
+        // another explored area has no world coord this session, so it comes back holding its anchor — it
+        // still saves, still names a tile, and :x() reports nil. Nil only for ground the database has no
+        // grid id for at all.
+        m.set("position", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                MapFile.Marker mk = marker(self, "pos");
-                MiniMap.Location sl = MapApi.sessloc();
-                if((mk == null) || (sl == null) || (mk.seg != sl.seg.id))
-                    return LuaValue.NIL;
-                return AddonManager.xy(worldX(mk, sl), worldY(mk, sl));
+                return positionOf(owner, marker(self, "position"));
             }
         });
-        // dist() — how far the player is from it, in world units; nil whenever pos() is nil.
-        m.set("dist", new OneArgFunction() {
+        // distance() — how far the player is from it, in world units; nil when it is not in this segment.
+        m.set("distance", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                MapFile.Marker mk = marker(self, "dist");
+                MapFile.Marker mk = marker(self, "distance");
                 MiniMap.Location sl = MapApi.sessloc();
                 Coord2d prc = AddonManager.playerPos();
                 if((mk == null) || (sl == null) || (prc == null) || (mk.seg != sl.seg.id))
@@ -245,22 +265,42 @@ public final class LuaMarker {
                 return LuaValue.valueOf(Math.hypot(worldX(mk, sl) - prc.x, worldY(mk, sl) - prc.y));
             }
         });
-        // color() — a player marker's pin colour, {r,g,b,a}; nil on a system marker.
-        m.set("color", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        // color() / color(r, g, b [, a]) / color(c) — a player marker's pin colour. Arity is the verb: no
+        // argument reads {r,g,b,a} (nil on a system marker), an argument writes and returns self so it
+        // chains off :add(). A colour VALUE passes straight back through (§2.8), so m:color(other:color())
+        // is the one canonical setter rather than a second style.
+        m.set("color", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
                 MapFile.Marker mk = marker(self, "color");
-                if(!(mk instanceof MapFile.PMarker) || (((MapFile.PMarker)mk).color == null))
-                    return LuaValue.NIL;
-                return AddonManager.color(((MapFile.PMarker)mk).color);
+                if(!Args.passed(a, 2)) {
+                    if(!(mk instanceof MapFile.PMarker) || (((MapFile.PMarker)mk).color == null))
+                        return LuaValue.NIL;
+                    return AddonManager.color(((MapFile.PMarker)mk).color);
+                }
+                MapFile.PMarker pm = player(mk, "color");
+                pm.color = colorArg(a);
+                pm.update(true);                 // persists (defersave) and bumps markerseq -> MarkersChanged
+                return self;
             }
         });
-        // onmap() — is a player marker also drawn on the main map? nil on a system marker.
-        m.set("onmap", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                MapFile.Marker mk = marker(self, "onmap");
-                if(!(mk instanceof MapFile.PMarker))
-                    return LuaValue.NIL;
-                return LuaValue.valueOf(((MapFile.PMarker)mk).onmap);
+        // onMap() / onMap(b) — is this player marker also drawn on the main map? Read, or write and chain.
+        m.set("onMap", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                MapFile.Marker mk = marker(self, "onMap");
+                LuaValue v = Args.written(a, 2, "marker:onMap", "on");
+                if(v == null) {
+                    if(!(mk instanceof MapFile.PMarker))
+                        return LuaValue.NIL;
+                    return LuaValue.valueOf(((MapFile.PMarker)mk).onmap);
+                }
+                if(!v.isboolean())
+                    throw new LuaError("marker:onMap(on): on must be true or false");
+                MapFile.PMarker pm = player(mk, "onMap");
+                pm.onmap = v.toboolean();
+                pm.update(true);
+                return self;
             }
         });
         // icon() — a system marker's icon resource name; nil on a player marker.
@@ -278,13 +318,6 @@ public final class LuaMarker {
             public LuaValue call(LuaValue self) {
                 MapFile.Marker mk = marker(self, "segment");
                 return (mk == null) ? LuaValue.NIL : LuaSegment.of(owner, mk.seg);
-            }
-        });
-        // anchor() — {gridId, x, y}: the position you may SAVE or SEND. See the class note; nil while the
-        // grid it needs is not there (the call kicks the load, so ask again next tick).
-        m.set("anchor", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                return anchorOf(marker(self, "anchor"));
             }
         });
         // exists() — is the marker still in the database? A removal does not destroy the handle.
@@ -338,7 +371,8 @@ public final class LuaMarker {
         LuaMarker h = resolve(self);
         if(h == null)
             throw new LuaError("marker:" + method + "() — use a COLON call on a Marker object"
-                + " (hafen.map.markers.list()[n], seg:markers()[n], markers.add(...))");
+                + " (hafen.map():marker():list()[n], seg:markers()[n],"
+                + " hafen.map():marker():add(name, p))");
         return MapApi.markerByRef(h.ref);
     }
 
@@ -353,32 +387,56 @@ public final class LuaMarker {
     }
 
     /**
-     * The {@code {gridId, x, y}} anchor of a marker — the whole point of the entity (see the class note).
-     * The live path first (synchronous, and the common case), the database path second (asynchronous, and
-     * the only one that can answer for another segment); nil when neither can answer <i>yet</i>.
+     * The <b>Position</b> of a marker — the centre of the tile it names, which is the point its own session
+     * {@code x,y} always reported, so the round trip lands on that tile and not on its corner.
+     *
+     * <p>Two paths, and which one runs is a fact about the player rather than about the marker. In the
+     * player's <b>own</b> segment it is {@code sessloc} arithmetic to a world coordinate, and the Position
+     * derives its durable form from there like any other. <b>Anywhere else</b> there is no world coordinate
+     * this session at all, so the Position is built holding its anchor: the segment grid coord it sits in,
+     * the grid id the database recorded there, and the offset within that grid. That second path reads the
+     * segment's own coord&rarr;id map and therefore answers <i>now</i> — where reading the grid's tiles off
+     * the disk would have reported an explored place as unlocatable until the file landed.
      */
-    static LuaValue anchorOf(MapFile.Marker m) {
+    static LuaValue positionOf(Addon owner, MapFile.Marker m) {
         MapFile file = MapApi.mapfile();
         if((m == null) || (file == null))
             return LuaValue.NIL;
         MiniMap.Location sl = MapApi.sessloc();
-        if((sl != null) && (m.seg == sl.seg.id)) {
-            MCache mc = AddonManager.mcache();
-            if(mc != null) {
-                Coord wt = m.tc.sub(sl.tc);                    // the marker's tile, in SESSION tile coords
-                try {
-                    MCache.Grid g = mc.getgrid(wt.div(MCache.cmaps));
-                    if(g != null)
-                        return MapApi.anchor(g.id, wt.x - g.ul.x, wt.y - g.ul.y);
-                } catch(RuntimeException e) {
-                    /* that ground is not streamed in — the database still knows it; fall through */
-                }
-            }
-        }
+        if((sl != null) && (m.seg == sl.seg.id))
+            return LuaPosition.ofWorld(owner, worldX(m, sl), worldY(m, sl));
         Coord sc = m.tc.div(MCache.cmaps);                     // floor-division: the segment GRID coord
-        MapFile.Grid g = MapApi.gridAtIn(file, MapApi.segIn(file, m.seg), sc);
-        if(g == null)
-            return LuaValue.NIL;                               // loading, or ground the DB never recorded
-        return MapApi.anchor(g.id, m.tc.x - (sc.x * MCache.cmaps.x), m.tc.y - (sc.y * MCache.cmaps.y));
+        Long id = MapApi.recordedGridId(file, m.seg, sc);
+        if(id == null)
+            return LuaValue.NIL;                               // ground the database has no grid id for
+        Coord gt = m.tc.sub(sc.mul(MCache.cmaps));             // the tile WITHIN that grid
+        return LuaPosition.ofAnchor(owner, id.longValue(),
+                                    (gt.x * MCache.tilesz.x) + (MCache.tilesz.x / 2),
+                                    (gt.y * MCache.tilesz.y) + (MCache.tilesz.y / 2));
+    }
+
+    /** The player marker behind a write, or a refusal: a system marker's colour and flag are the server's. */
+    private static MapFile.PMarker player(MapFile.Marker m, String verb) {
+        if(!(m instanceof MapFile.PMarker))
+            throw new LuaError("marker:" + verb + "(...): only a PLAYER marker can be written — a system"
+                + " marker is the server's own pin (marker:type() says which)");
+        return (MapFile.PMarker)m;
+    }
+
+    /** A colour write: positional components, or a colour value straight back out of a read (§2.8). */
+    private static java.awt.Color colorArg(Varargs a) {
+        LuaValue first = a.arg(2);
+        if(first.istable())
+            return AddonManager.luaColor(first, null);
+        if(!first.isnumber())
+            throw new LuaError("marker:color(r, g, b [, a]): the components are 0..255 — or pass a colour"
+                + " value straight back, as marker:color(other:color())");
+        int r = a.arg(2).toint(), g = a.arg(3).toint(), b = a.arg(4).toint();
+        int al = Args.passed(a, 5) ? a.arg(5).toint() : 255;
+        return new java.awt.Color(clamp(r), clamp(g), clamp(b), clamp(al));
+    }
+
+    private static int clamp(int v) {
+        return (v < 0) ? 0 : ((v > 255) ? 255 : v);
     }
 }

@@ -115,6 +115,43 @@ final class Retired {
             + " a click on a gob is the client's own (hafen.act():clickGob)");
         put("overlay:move", "overlay:move(x, y) does not exist — an overlay's position IS its gob's, and what"
             + " you set is where it sits relative to the gob: ov:offset(x, y[, z])");
+
+        // ---- hafen.map: five collections, and the two surfaces that sat beside it become two of them ----
+        put("hafen.map.segment", "hafen.map.segment() is now hafen.map():segment():current() and"
+            + " hafen.map.segment(id) is hafen.map():segment():get(id)");
+        put("hafen.map.segments", "hafen.map.segments() is now hafen.map():segment():list()");
+        put("hafen.map.grid", "hafen.map.grid(gridId) is now hafen.map():grid():get(gridId), and what it"
+            + " hands back is the same Grid object hafen.world():grid() does");
+        put("hafen.map.markers", "hafen.map.markers is now the collection hafen.map():marker():"
+            + " :list(filter) :find(filter) :nearest(filter) :add(name, p) :remove(m). The add takes a"
+            + " POSITION, and the colour and the on-map flag are setters on the marker it hands back:"
+            + " m:color(r, g, b), m:onMap(true)");
+        put("hafen.map.icons", "hafen.map.icons is now the collection hafen.map():icon(): :get(res) for one"
+            + " category by its resource name, :list(filter)/:find(filter) to search by display name — so"
+            + " there is no longer a rule about which argument shape means which");
+        put("hafen.map.overlay", "hafen.map.overlay(tag[, on]) is now hafen.map():overlay():get(tag), whose"
+            + " verbs are t:shown() (is it displayed, by anyone), t:hold() (ask for it) and t:release()"
+            + " (stop asking) — a hold was never a boolean you could write");
+        put("hafen.map.overlays", "hafen.map.overlays() is now hafen.map():overlay():list(), and each member"
+            + " is an object: t:tag() :where() :what() :shown() :held()");
+
+        // ---- the map entities: N1/N2/N3 renames, and the position verbs collapsing onto Position --------
+        put("segment:grids", "seg:grids(area) is now seg:grid():list(area) — seg:grid() is the collection of"
+            + " this segment's grids, and the verb says how many");
+        put("grid:sc", "grid:sc() is now grid:segmentCoord()");
+        put("grid:pos", "grid:pos() is now grid:position(), and it hands back a Position rather than an"
+            + " {x, y} table: p:x()/p:y() are this session's components, p:info() is what you save");
+        put("grid:mtime", "grid:mtime() is now grid:modified()");
+        put("grid:overlays", "grid:overlays() is now grid:overlay():list() — grid:overlay() is the collection"
+            + " of the recorded masks on this grid, and the verb says how many");
+        put("marker:tc", "marker:tc() is now marker:segmentTile()");
+        put("marker:pos", "marker:pos() is now marker:position(), and it hands back a Position rather than an"
+            + " {x, y} table — the same Position :anchor() used to have to build");
+        put("marker:anchor", "marker:anchor() is gone: marker:position() IS the anchor. A Position is durable"
+            + " by construction, so p:info() is the {gridId, x, y} form and hafen.store keeps the Position"
+            + " itself — there is nothing to convert");
+        put("marker:dist", "marker:dist() is now marker:distance()");
+        put("marker:onmap", "marker:onmap() is now marker:onMap(), and it writes too: marker:onMap(true)");
     }
 
     /** Register the plain {@code hafen.<section>.<verb>(…)} → {@code hafen.<section>():<verb>(…)} rows. */

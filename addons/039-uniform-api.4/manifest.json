@@ -1,0 +1,9 @@
+{
+  "name": "039.4 — hafen.map(), and the ONE Grid entity",
+  "id": "039-uniform-api.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.4: hafen.map() is a section of five collections (:segment/:grid/:marker/:icon/:overlay) and every old dotted spelling throws naming its replacement; the live and the recorded doors hand back ONE Grid entity, so hafen.world():grid():at(p) and hafen.map():grid():get(id) are the same object and :live()/:exists() are its two halves; a marker's :position() IS the old anchor and round-trips onto the tile the marker reports rather than onto its corner; a pin is created bare at a Position and configured by chained setters, and the one it drops in the real database is removed in the same run with the removal asserted; the display toggles stop pretending to be a boolean setter and become :shown()/:hold()/:release(), asserted with another holder already present because a ref count with a single owner cannot fail the way a ref count fails; and the icon registry's split-the-argument-by-shape heuristic is gone, replaced by :get(res) beside :list(filter).",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

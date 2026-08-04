@@ -803,3 +803,37 @@
   Turning `Attach.off` into `screenOffset()` left `UiApi` reading the field; `ant hafen-client` said BUILD
   SUCCESSFUL because `UiApi.java` had not changed, and only `rm -rf build/classes` found it. A task that
   reshapes a record shared with another file should assume this is waiting, not hope it is not.
+- **(039.4) A `[manual]` must be a STATE the maintainer can be in, not just an action they can take.** The
+  suite hunted for a grid that is streamed but not yet written down and, failing to find one, printed
+  *"walk into ground you have never explored and run it again"*. The maintainer did, twice, and it printed
+  the same line: `MapFile.update`'s `inout` records the **3×3 around the player every time their grid or its
+  seq changes**, so that state lasts a fraction of a second between a grid arriving from the server and the
+  next save tick. No typed command can stand in it. 037.4's lesson was that a manual line must be *runnable*;
+  this is the other half — it must also be *reachable*. The fix was to stop chasing the state and assert the
+  invariant underneath it (*every streamed grid is `:live()`, and its recorded reads answer exactly when
+  `:exists()` says so*), which is checkable over every streamed grid at once and bites if the two halves were
+  wired to each other. Generally: *before writing a `[manual]`, ask how long the world stays in the state it
+  asks for.*
+- **(039.4) A check that contradicts the grammar passes the probe and fails the client, because the probe
+  shares the mistake.** The suite asserted `grid:overlay() == grid:overlay()`. Spec §2.3 is explicit that a
+  collection owned by an **entity** is a *view* — re-derived per call, holding nothing, so it cannot outlive
+  the entity — while the section-level ones are singletons; identity belongs to the **members**. The headless
+  probe never caught it because the probe asserted the same wrong thing, and the rule turned out to be absent
+  from `docs/` altogether, which is why it was possible to get backwards twice. Two takeaways: *when a check
+  and its pre-check are written by the same hand in the same hour, the pre-check confirms the author, not the
+  code* — and *a grammar rule that only exists in `specs/` will be re-invented wrongly by whoever writes
+  against `docs/`*.
+- **(039.4) 037.2's quantisation lesson bites the FALSIFICATION as readily as the check.** Planting "a
+  marker's position lands on the tile CORNER instead of its centre" left the probe green: the check derives
+  the tile with `math.floor(x / 11)`, and a corner is inside the same tile as its centre, so the plant was
+  invisible to a tile-level claim by construction. What bit was a plant a *whole tile* off, plus driving the
+  other-segment path (which the in-segment fixture never reaches). *A falsification has to be wrong at the
+  granularity the check measures; one finer than the quantum proves the check is coarse, not that it is
+  broken.*
+- **(039.4) The map database fabricates one step further: a segment's private coord→id map.** 039.2's recipe
+  plus `MapFile.Segment`'s private `(MapFile, long)` constructor, `file.segments.put`/`knownsegs.add` under
+  the **write** lock, `Grid.save(file)` into the in-memory `ResCache`, `file.gridinfo.put(...)`, and the
+  segment's private `map` field reflect-filled with `sc → grid id` — which is what makes `seg:gridid(sc)`,
+  and therefore the durable half of every Position, answer without a disk read. `new Resource.Saved(pool,
+  name, ver)` builds a `TileInfo` with no network. Note the load model reaches the probe too: a cold
+  `grid:modified()` is **nil** and needs a poll loop, which is the caller's frame in miniature.

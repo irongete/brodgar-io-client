@@ -110,7 +110,7 @@ The anchor is the door between the two halves, in both directions:
 
 ```lua
 local gp = hafen.player():gob():position():info()   -- where I am, as {gridId, x, y}
-local g  = hafen.map.grid(gp.gridId)         -- ...and that same ground in the database
+local g  = hafen.map():grid():get(gp.gridId)   -- ...the same Grid, from the recorded side
 local t  = g and g:tile{ x = 0, y = 0 }      -- nil until the grid is read off the disk
 hafen.log():write(t and t.name or "not loaded yet — ask again next tick")
 ```

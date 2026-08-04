@@ -29,16 +29,14 @@ import java.util.Set;
  *
  * <p><b>It replaces {@code hafen.radar}, name and shape both.</b> The engine has no "radar" — it has
  * {@link GobIcon.Settings} (D-061) — and the icons are part of the <i>map</i>, so this is
- * {@code hafen.map.icons}, a relation of the map rather than a namespace beside it (D-066). The two
- * filter-mutators ({@code setVisible}/{@code setNotify}) are gone: <b>arity is the verb on the entity</b>
- * ({@code cat:show()} reads, {@code cat:show(v)} writes and returns self), and <b>arity is the verb on the
- * namespace</b> too (D-056), built exactly as {@link LuaKin} and {@link LuaPagina} built theirs.
+ * {@code hafen.map():icon()}, a relation of the map rather than a namespace beside it (D-066). The two
+ * filter-mutators ({@code setVisible}/{@code setNotify}) are gone: <b>arity is the verb on the entity</b> —
+ * {@code cat:show()} reads, {@code cat:show(v)} writes and returns self, so writes chain.
  *
- * <p><b>The argument splits by SHAPE, the {@link LuaPagina} rule verbatim.</b> A string containing a {@code /}
- * is a <b>resource name</b> — the identity — and answers <b>one</b> category, {@code nil} for a resource the
- * registry does not carry. No argument, a function, or any other string is the canonical
- * {@code filter} and answers the <b>array</b> of matching categories (a display name never contains a
- * {@code /}, so the two forms cannot collide).
+ * <p><b>Two questions, two verbs.</b> {@code hafen.map():icon():get(res)} addresses one category by its
+ * resource name and {@code :list(filter)}/{@code :find(filter)} search by the name a player sees. That pair
+ * replaces a callable that split its one argument <i>by shape</i> — a string with a {@code /} meant a
+ * resource — which was correct only for as long as no display name ever contained a slash.
  *
  * <p><b>A category IS a resource.</b> The engine's key is {@code Setting.ID} = (resource name, sub-id), and a
  * resource whose own code publishes icon <i>variants</i> therefore has more than one {@code Setting} — but the
@@ -61,7 +59,7 @@ import java.util.Set;
  * <p><b>Userdata + per-addon interning</b> (D-017 / D-045): the handle crosses as
  * {@code LuaValue.userdataOf(luaIconCat, mt)} so Lua cannot scribble on it, and the {@link Cache} on the owning
  * {@link Addon} (weak values + a {@link ReferenceQueue} drained on every access) makes
- * {@code hafen.map.icons(res) == hafen.map.icons(res)} and {@code seen[cat] = true} reliable.
+ * {@code hafen.map():icon():get(res)} hand back one object every time and {@code seen[cat] = true} reliable.
  *
  * <p><b>Threading.</b> Every read/write runs on the UI thread (addon tick / REPL / timer / slash command),
  * matching the settings window. {@code Settings.settings} is replaced wholesale by the loader thread, so a
@@ -250,12 +248,12 @@ public final class LuaIconCat {
         LuaIconCat h = resolve(self);
         if(h == null)
             throw new LuaError("cat:" + method + "() — use a COLON call on an IconCat object"
-                + " (hafen.map.icons(res), hafen.map.icons()[n])");
+                + " (hafen.map():icon():get(res), hafen.map():icon():list()[n])");
         return h;
     }
 
     /** Every {@link GobIcon.Setting} the registry carries under {@code res} (a resource may publish variants). */
-    private static List<GobIcon.Setting> settingsFor(String res) {
+    static List<GobIcon.Setting> settingsFor(String res) {
         return settingsIn(MapApi.iconconf(), res);
     }
 
@@ -307,7 +305,7 @@ public final class LuaIconCat {
     }
 
     /** A category's display name (the icon tooltip), falling back to the resource name; never throws. */
-    private static String catName(List<GobIcon.Setting> sets) {
+    static String catName(List<GobIcon.Setting> sets) {
         for(GobIcon.Setting set : sets) {
             try {
                 if(set.icon != null) {
@@ -321,81 +319,59 @@ public final class LuaIconCat {
         return sets.isEmpty() ? "" : sets.get(0).id.res;
     }
 
-    // ---- the collection --------------------------------------------------------------------------
+    // ---- the collection ------------------------------------------------------------------------
 
     /**
-     * {@code hafen.map.icons([filter])} — a fresh array of the interned IconCat objects the filter matches,
-     * one per <b>resource</b> (the identity), in resource-name order so two calls agree. Empty before the HUD
-     * is up; never throws. The filter is the canonical one: {@code nil} = all, a <b>string</b> = a substring of
-     * the display name (evaluated Java-side), a <b>function</b> = a predicate called with the <b>IconCat
-     * object</b> (the {@code hafen.world} shape, not a snapshot) — an error in it drops the entry.
+     * {@code hafen.map():icon()} — the registry, as a collection of interned IconCat objects, one per
+     * <b>resource</b> (the identity), in resource-name order so two calls agree. Empty before the HUD is up
+     * and growing as the character sees new icon types.
+     *
+     * <p><b>The verb says which you meant, so nothing has to guess.</b> The old callable split its argument
+     * <i>by shape</i> — a string with a {@code /} was a resource name, anything else a filter — which worked
+     * only because a display name never contains a slash. {@code :get(res)} beside {@code :list(filter)}
+     * deletes the heuristic outright: two questions, two verbs, and no rule about slashes to remember.
      */
-    private static LuaValue collection(Addon owner, LuaValue filter) {
-        LuaTable out = new LuaTable();
-        GobIcon.Settings conf = MapApi.iconconf();
-        if(conf == null)
-            return out;
-        Map<GobIcon.Setting.ID, GobIcon.Setting> m = conf.settings;
-        if(m == null)
-            return out;
-        Set<String> seen = new HashSet<String>();
-        List<String> names = new ArrayList<String>();
-        for(GobIcon.Setting set : m.values()) {
-            if((set == null) || (set.id == null) || (set.id.res == null))
-                continue;
-            if(seen.add(set.id.res))
-                names.add(set.id.res);
-        }
-        Collections.sort(names);
-        int i = 0;
-        for(String res : names) {
-            LuaValue cat = of(owner, res);
-            if(matches(filter, res, cat))
-                out.set(++i, cat);
-        }
-        return out;
-    }
-
-    /** Does the category under {@code res} pass a collection filter? See {@link #collection}. */
-    private static boolean matches(LuaValue filter, String res, LuaValue cat) {
-        if((filter == null) || filter.isnil())
-            return true;
-        if(filter.isfunction()) {
-            try {
-                return filter.call(cat).toboolean();
-            } catch(RuntimeException e) {   // LuaError is a RuntimeException
-                return false;
-            }
-        }
-        if(filter.isstring())
-            return catName(settingsFor(res)).contains(filter.tojstring());
-        return true;
-    }
-
-    /**
-     * {@code hafen.map.icons} itself: a <b>callable table</b> ({@code __call}) with the {@link LuaPagina}
-     * shape split — a string with a {@code /} is a resource name and answers ONE category ({@code nil} for a
-     * resource the registry does not carry), anything else is the filter and answers the array. Indexing it
-     * (the old {@code categories}/{@code setVisible}/{@code setNotify} fields) reads as plain {@code nil}:
-     * the hard cut (D-013) is visible from Lua.
-     */
-    static LuaValue factory(final Addon owner) {
-        LuaTable icons = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.CALL, new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue key = a.arg(2);            // arg1 = the callable table itself
-                if(key.isnumber())                  // BEFORE isstring(): in LuaJ a number IS a string
-                    throw new LuaError("hafen.map.icons(key): a category has no index — its identity is its icon"
-                        + " resource name (\"gfx/terobjs/mm/boar\"). No argument = every category.");
-                if(key.isstring() && (key.tojstring().indexOf('/') >= 0)) {
-                    String res = key.tojstring();
-                    return settingsFor(res).isEmpty() ? LuaValue.NIL : of(owner, res);
+    static LuaValue collection(final Addon owner) {
+        return LuaCollection.create("hafen.map():icon()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>();
+                GobIcon.Settings conf = MapApi.iconconf();
+                Map<GobIcon.Setting.ID, GobIcon.Setting> m = (conf == null) ? null : conf.settings;
+                if(m == null)
+                    return out;
+                Set<String> seen = new HashSet<String>();
+                List<String> names = new ArrayList<String>();
+                for(GobIcon.Setting set : m.values()) {
+                    if((set == null) || (set.id == null) || (set.id.res == null))
+                        continue;
+                    if(seen.add(set.id.res))
+                        names.add(set.id.res);
                 }
-                return collection(owner, key);      // nil / a name substring / a predicate
+                Collections.sort(names);
+                for(String res : names)
+                    out.add(of(owner, res));
+                return out;
             }
-        });
-        icons.setmetatable(mt);
-        return icons;
+
+            // A string filter matches the DISPLAY name (the icon's tooltip), which is what a person reading a
+            // list of them would type; :get(res) is how you address one, and it takes the resource name.
+            public String needle(LuaValue member) {
+                LuaIconCat h = resolve(member);
+                return (h == null) ? null : catName(settingsFor(h.res));
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                if(key.type() != LuaValue.TSTRING)   // in LuaJ a NUMBER also answers isstring()
+                    throw new LuaError("hafen.map():icon():get(res): a category has no index — its identity"
+                        + " is its icon RESOURCE name (\"gfx/terobjs/mm/boar\"). To search by the name a"
+                        + " player sees, use :find(needle) or :list(needle).");
+                String res = key.tojstring();
+                return settingsFor(res).isEmpty() ? LuaValue.NIL : of(owner, res);
+            }
+        }, null);
     }
 }

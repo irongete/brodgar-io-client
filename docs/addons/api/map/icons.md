@@ -6,24 +6,27 @@ the minimap, and `notify`, play a sound and a chat message when one appears.
 
 ```lua
 -- stop drawing boars, then put it back
-local boars = hafen.map.icons("gfx/terobjs/mm/boar")
+local boars = hafen.map():icon():get("gfx/terobjs/mm/boar")
 if boars then boars:show(false) end
 -- …
 if boars then boars:show(true) end
 ```
 
-**`hafen.map.icons` is callable, and the argument splits by shape** — the same rule
-[`hafen.menugrid`](../menugrid.md) uses:
-
 | Call | Returns | Description |
 |---|---|---|
-| `hafen.map.icons()` | `IconCat[]` | every category, in resource-name order |
-| `hafen.map.icons(filter)` | `IconCat[]` | a name substring or a predicate — the canonical [filter](../conventions.md#the-filter-argument) |
-| `hafen.map.icons(res)` | `IconCat` \| nil | one category, by its icon **resource name** — the string with a `/` in it |
+| `hafen.map():icon():get(res)` | `IconCat` \| nil | one category, by its icon **resource name** — the identity |
+| `hafen.map():icon():list(filter)` | `IconCat[]` | every category, in resource-name order |
+| `hafen.map():icon():find(filter)` | `IconCat` \| nil | the first match |
+| `hafen.map():icon():count(filter)` | number | how many match |
 
-A category's **identity is its icon resource name**, so `hafen.map.icons(res)` hands back the same
-interned object every time and `seen[cat] = true` works. There is no addressing by position: the
-registry grows as the character sees new icon types, so a number is refused rather than pretended.
+**Addressing and searching are different verbs.** `:get` takes the resource name, which is what a category
+*is*; `:list`, `:find` and `:count` take the canonical [filter](../conventions.md#the-filter-argument), and
+a string one matches the **display name** — the words a player reads in the settings window. A number is
+refused either way: the registry grows as the character sees new icon types, so there is no position to
+address by.
+
+A category's identity is its resource name, so `hafen.map():icon():get(res)` hands back the same interned
+object every time and `seen[cat] = true` works.
 
 ## The IconCat object
 
@@ -41,7 +44,7 @@ chain — `cat:show(true):notify(true)`. A write to a resource the registry does
 not a silent no-op; `cat:exists()` is how you ask first.
 
 ```lua
-for _, c in ipairs(hafen.map.icons(function(c) return c:res():find("borka") end)) do
+for _, c in ipairs(hafen.map():icon():list(function(c) return c:res():find("borka") end)) do
   c:notify(true)                                   -- announce every player-type icon
 end
 ```
@@ -62,4 +65,4 @@ rarely, so there is no `*Changed` event — read it on demand.
 - [`IconCategory`](../types.md#iconcategory) — what `cat:info()` hands back
 - [Gob](../gob.md) — `gob:icon()`, the category name on a live object
 - [the map database](README.md) — interning, which is why a stashed category never goes stale
-- [`hafen.menugrid`](../menugrid.md) — the other callable that splits its argument by shape
+- [`hafen.menugrid`](../menugrid.md) — the other registry addressed by resource name

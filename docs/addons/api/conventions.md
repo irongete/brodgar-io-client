@@ -208,8 +208,8 @@ against the *enclosing window*, and you hold your result rather than re-selectin
 
 ## The filter argument
 
-Every enumerating verb — `hafen.world():gob():list`, `hafen.map.markers.list`, `hafen.kin():list`,
-`hafen.map.icons`, `hafen.quests.list`, `hafen.wounds.list`, `hafen.fight.maneuvers`, … — takes
+Every enumerating verb — `hafen.world():gob():list`, `hafen.map():marker():list`, `hafen.kin():list`,
+`hafen.map():icon():list`, `hafen.quests.list`, `hafen.wounds.list`, `hafen.fight.maneuvers`, … — takes
 one optional **filter**, always in the same form:
 
 | `filter` | Keeps |
@@ -226,7 +226,7 @@ local gobs = hafen.world():gob()
 gobs:list("rabbit")                                        -- name contains "rabbit"
 gobs:list(function(g) return (g:health() or 1) < 1 end)    -- injured gobs (a Gob object)
 hafen.kin():list(function(k) return k:online() end)        -- online kin (a Kin object)
-hafen.map.markers.list(function(m) return m.type == "player" end)   -- a snapshot elsewhere
+hafen.map():marker():list(function(m) return m:type() == "player" end)   -- a Marker object
 ```
 
 ## Coordinates
@@ -241,10 +241,10 @@ pixels are plain `{x, y}` numbers.
 > **There is no global position.** A world coordinate is session-local — it starts near the origin each
 > login — and is not comparable across players or logins. What a Position saves is a **grid id** plus an
 > offset inside that grid, and the id comes from the **server**, so it means the same thing to every
-> player. A map marker stores its position differently — a segment id plus a segment tile coord, both of
-> which this client invented and a map merge rewrites — so a marker you want to keep or share goes
-> through [`marker:anchor()`](map/markers.md#the-marker-object) first; see
-> [saving a position](map/grids.md#saving-a-position).
+> player. A map marker records its own coordinates differently — a segment id plus a segment tile coord,
+> both of which this client invented and a map merge rewrites — so a marker you want to keep or share is
+> stored as its [`marker:position()`](map/markers.md#the-marker-object); see
+> [storing a place](map/grids.md#storing-a-place).
 
 ## Colours
 
@@ -256,7 +256,7 @@ A colour is a table of **0..255 components**, written either way:
 ```
 
 Both are accepted everywhere a colour goes in: `hafen.ui.skin{…}`'s `color`, `g:text{color=…}`,
-`hafen.map.markers.add`, a ghost or sprite `tint`, `font:derive{color=…}`. So a colour you *read* —
+`marker:color(…)`, a ghost or sprite `tint`, `font:derive{color=…}`. So a colour you *read* —
 `kin:color()`, `meter:color()` — passes straight back. Alpha defaults to `255`, and a component
 outside `0..255` is clamped rather than refused.
 

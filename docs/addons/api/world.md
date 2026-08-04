@@ -138,14 +138,16 @@ if home and home:x() then hafen.act():moveTo(home) end
 > **string** — the only form safe to store and compare. It is also the only anchor that means the same
 > thing to another player: a grid id comes from the **server**.
 
-A durable form also reaches the **recorded** map: `hafen.map.grid(p:info().gridId)` finds what the client
-wrote down about that ground, whether or not it is streamed in right now. See
-[saving a position](map/grids.md#saving-a-position) for why a marker's own `seg` + `tc` is not that shape.
+A durable form also reaches the **recorded** map: `hafen.map():grid():get(p:info().gridId)` hands back the
+very same [`Grid`](map/grids.md#the-grid-object) the live query does, and it answers what the client wrote
+down about that ground whether or not it is streamed in right now. See
+[storing a place](map/grids.md#storing-a-place) for why a marker's own segment coordinates are not that
+shape.
 
 ### What is not a Position
 
-A **lattice cell** is an index, not a place, and keeps its own name: `grid:sc()` counts grids,
-`marker:tc()` counts tiles, and the argument of `grid:tile(c)` is a within-grid tile coord `0..99`.
+A **lattice cell** is an index, not a place, and keeps its own name: `grid:segmentCoord()` counts grids,
+`marker:segmentTile()` counts tiles, and the argument of `grid:tile(c)` is a within-grid tile coord `0..99`.
 
 **Screen pixels are not Positions** either. A widget's `:pos()`, `:rootpos()` and
 [`worldToScreen`](player.md) answer plain `{x, y}` **pixels**. A screen point has no durable form because
@@ -170,8 +172,9 @@ if t then hafen.log():write("standing on " .. (t.name or t.id)) end
 | `hafen.world():position(saved)` | Position | a place rebuilt from a `{gridId, x, y}` table |
 | `hafen.world():tile(p)` | [`Tile`](types.md#tile) \| nil | tileset id and resource name at a Position |
 | `hafen.world():height(p)` | number \| nil | terrain height there |
-| `hafen.world():grid():at(p)` | `{id, gc}` \| nil | the map grid covering a Position: `id` is the stable global grid id (a string), `gc` the session-local grid coord `{x, y}` |
-| `hafen.world():grid():list()` | `{id, gc}[]` | every grid streamed in right now |
+| `hafen.world():grid():at(p)` | [`Grid`](map/grids.md#the-grid-object) \| nil | the map grid covering a Position |
+| `hafen.world():grid():get(id)` | [`Grid`](map/grids.md#the-grid-object) \| nil | that same grid by the server's id, if it is streamed in |
+| `hafen.world():grid():list()` | `Grid[]` | every grid streamed in right now |
 | `hafen.world():tileToWorld(tx, ty)` | `{x, y}` | tile coord to world, at its upper-left corner |
 | `hafen.world():tileToGrid(tx, ty)` | `{x, y}` | tile coord to grid coord |
 | `hafen.world():screenToWorld(sx, sy, fn)` | nothing, calls `fn` | raycast the ground under a screen pixel; asynchronous |

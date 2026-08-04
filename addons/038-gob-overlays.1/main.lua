@@ -209,14 +209,14 @@ local function run(args)
         "no gob in sight carries two overlays of one resource, so the reconciliation above proved nothing"
         .. " stronger than 1 == 1 (walk somewhere busier and re-run)")
 
-  -- 10. grid:overlays() is a DIFFERENT verb and is untouched -- the map database records which tiles a claim
+  -- 10. grid:overlay() is a DIFFERENT collection and is untouched -- the map database records which tiles a claim
   --     covers, and that read is not this one. (Staged: the tags live in resources that may still be loading.)
   local gp = me:position() and me:position():info()
   hafen.timer():after(1.5, function()
-    local grid = gp and hafen.map.grid(gp.gridId)
-    local tags = grid and grid:overlays()
+    local grid = gp and hafen.map():grid():get(gp.gridId)
+    local tags = grid and grid:overlay():list()
     check(type(tags) == "table",
-          "grid:overlays() on the MAP database still answers -- a different verb, untouched by this cut",
+          "grid:overlay() on the MAP database still answers -- a different collection, untouched by this cut",
           (grid == nil) and "no recorded grid under the player yet" or tostring(tags))
 
     -- 11. Park a label on the player's own gob for the two things only a person can judge.

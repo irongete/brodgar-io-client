@@ -16,10 +16,7 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.OneArgFunction;
-import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -33,42 +30,39 @@ import java.util.Map;
 import static io.brodgar.addon.AddonManager.*;
 
 /**
- * {@code hafen.map} — the <b>RECORDED</b> map: the client's on-disk map database ({@link MapFile}), the map the
- * player has <i>explored</i>, as opposed to the live terrain streamed around them ({@link haven.MCache}, which is
- * {@code hafen.world}). Spec {@code 037-map-database}.
+ * {@code hafen.map()} — the <b>RECORDED</b> map: the client's on-disk map database ({@link MapFile}), the map
+ * the player has <i>explored</i>, as opposed to the live terrain streamed around them ({@link haven.MCache},
+ * which is {@code hafen.world()}). Spec {@code 037-map-database}, re-shaped by {@code 039-uniform-api} §2.3.
  *
- * <p><b>037.1 is the restructure and nothing else.</b> The thirteen terrain/coordinate functions left for
- * {@code hafen.world} ({@link WorldApi#installWorld}) and this namespace took the two surfaces that were always
- * reading the map database while sitting beside it as namespaces of their own — as <b>relations</b>, D-066:
- *
- * <ul>
- *   <li>{@code hafen.map.markers} — the marker DB (the old {@code hafen.markers}, same surface), plus the
- *       {@code MarkersChanged} poll. Its fields and {@link #pollMarkers}/{@link #resetMarkers} moved here with it.</li>
- *   <li>{@code hafen.map.icons} — the minimap icon registry (the old {@code hafen.radar}; the engine has no
- *       "radar", it has {@link GobIcon.Settings} — D-061), re-shaped from two filter-mutators into a callable
- *       namespace over {@link LuaIconCat} entities (D-056).</li>
- * </ul>
- *
- * <p><b>037.2 opened the database itself</b>: {@code hafen.map.segment()}/{@code segments()}/{@code grid(id)},
- * the {@link LuaSegment} and {@link LuaMapGrid} entities, and the <b>anchor bridge</b> both ways — a
- * {@code {gridId, x, y}} anchor resolves into the recorded map through {@link #gridInfoIn}, and a marker
- * converts out of it through {@code marker:anchor()} ({@link LuaMarker}). The imagery is 037.4.
- *
- * <p><b>037.3 added the overlays</b>, and they come in two halves that share only a word:
+ * <p><b>The section is five collections</b>, one per kind of thing the database holds, and the verb on each
+ * says how many:
  *
  * <ul>
- *   <li>The <b>recorded masks</b> — {@code grid:overlays()} / {@code grid:overlay(tag)} ({@link LuaMask}),
- *       which tiles of a recorded grid a claim / village / province covered when the client wrote it down.
- *       The tag space here is <b>open</b>: an overlay's tags come from its own resource, so an unknown tag
- *       is simply not carried.</li>
- *   <li>The <b>display toggles</b> — {@code hafen.map.overlay(tag[, on])} / {@code hafen.map.overlays()},
- *       the three switches the client's own menu owns. That set is <b>closed</b> (D-072: refuse what can
- *       never mean anything), and a write is a <b>HOLD</b> rather than a switch — see {@link #take}.</li>
+ *   <li>{@code :segment()} — the contiguous explored areas ({@link LuaSegment}), with {@code :current()} for
+ *       the one the player is standing in. A <b>distinguished member is a verb on the collection</b>, never a
+ *       second spelling of the accessor, which is what the old zero-argument {@code segment()} had made it.</li>
+ *   <li>{@code :grid()} — the recorded 100&times;100-tile squares ({@link LuaMapGrid}), addressed by the id
+ *       the <b>server</b> published. That id is the only thing the live and recorded halves share, so this
+ *       door and {@code hafen.world():grid()} hand back the <b>same interned object</b>: one Grid entity, two
+ *       doors, each answering {@code nil} for what its own half does not have.</li>
+ *   <li>{@code :marker()} — the pins ({@link LuaMarker}), the old {@code hafen.markers}, with the two ungated
+ *       writes and the {@code MarkersChanged} poll ({@link #pollMarkers}) that reports them.</li>
+ *   <li>{@code :icon()} — the minimap icon registry ({@link LuaIconCat}; the engine has no "radar", it has
+ *       {@link GobIcon.Settings} — D-061). {@code :get(res)} beside {@code :list(filter)} <b>deletes</b> the
+ *       old split-the-argument-by-shape heuristic: the verb says which you meant, so nothing has to.</li>
+ *   <li>{@code :overlay()} — the client's own display switches ({@link LuaOverlayToggle}).</li>
  * </ul>
  *
- * <p><b>037.4 added the imagery</b> — {@code grid:image(lvl)} and {@code grid:overlayImage(tag)}, the map
- * database's minimap drawings as ordinary image handles, rendered on {@link haven.Defer} and cached per addon.
- * That code lives in {@link MapImages}; nothing about it is a new load model, it is the same one at last
+ * <p><b>"Overlay" names two things that share only a word</b>, and telling them apart is most of what the
+ * overlay half is for. The <b>recorded masks</b> hang off a grid — {@code grid:overlay():get(tag)}
+ * ({@link LuaMask}) — and their tag space is <b>open</b>, declared by the server's own overlay resources, so
+ * an unknown tag is plain {@code nil} and {@code grid:overlay():list()} is the census that makes it readable.
+ * The <b>display toggles</b> are {@code hafen.map():overlay()}, and that set is <b>closed</b> (D-072: refuse
+ * what can never mean anything) while a write is a <b>HOLD</b> rather than a switch — see {@link #take}.
+ *
+ * <p><b>A grid can also draw itself</b> — {@code grid:image(level)} and {@code grid:overlayImage(tag)}, the
+ * database's minimap drawings as ordinary image handles, rendered on {@link haven.Defer} and cached per
+ * addon. That code lives in {@link MapImages}; nothing about it is a new load model, it is the same one
  * applied to something that takes milliseconds rather than microseconds to produce.
  *
  * <p><b>One load model, everywhere: kick the load, answer nil.</b> The database is on disk and resolves
@@ -81,55 +75,186 @@ import static io.brodgar.addon.AddonManager.*;
 final class MapApi {
     private MapApi() {}
 
-    /** Build {@code hafen.map} for {@code owner}. From installHafen. */
+    /**
+     * Build {@code hafen.map()} for {@code owner}. From installHafen.
+     *
+     * <p><b>Five collections and nothing else</b> (spec {@code 039-uniform-api} §2.3, task 039.4): the noun
+     * names the kind and the verb says how many. Each one is minted <b>once</b> and handed back by identity,
+     * exactly as the section object is — a panel that walks the map writes
+     * {@code hafen.map():grid():get(id)} every frame and must allocate nothing to do it.
+     */
     static void installMap(LuaTable hafen, final Addon owner) {
-        LuaTable map = new LuaTable();
-        map.set("markers", markers(owner));
-        map.set("icons", LuaIconCat.factory(owner));
-        installDatabase(map, owner);      // 037.2: segments and grids
-        installOverlays(map, owner);      // 037.3: the client's own display toggles
-        hafen.set("map", map);
+        final LuaValue segments = segmentCollection(owner);
+        final LuaValue grids = gridCollection(owner);
+        final LuaValue markers = markerCollection(owner);
+        final LuaValue icons = LuaIconCat.collection(owner);
+        final LuaValue toggles = toggleCollection(owner);
+        LuaTable m = new LuaTable();
+        m.set("segment", section(owner, "segment", segments));
+        m.set("grid", section(owner, "grid", grids));
+        m.set("marker", section(owner, "marker", markers));
+        m.set("icon", section(owner, "icon", icons));
+        m.set("overlay", section(owner, "overlay", toggles));
+        Section.install(hafen, "map", m);
+    }
+
+    /** One of the five accessors: a colon call on the section object, no arguments, the collection back. */
+    private static LuaValue section(final Addon owner, final String nm, final LuaValue coll) {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "map", nm);
+                if(Args.passed(a, 2))
+                    throw new LuaError("hafen.map():" + nm + "() takes no arguments — it IS the collection,"
+                        + " and hafen.map():" + nm + "():get(...) addresses one member of it");
+                return coll;
+            }
+        };
     }
 
     /**
-     * The database half of {@code hafen.map} (037.2): the three doors into {@link MapFile}'s own structure.
-     *
-     * <ul>
-     *   <li>{@code segment()} — the segment the player is standing in (the {@code MiniMap} session location),
-     *       {@code nil} until the map has streamed in; {@code segment(id)} — one segment by its decimal-string
-     *       id, {@code nil} when the database does not carry it.</li>
-     *   <li>{@code segments()} — every segment the character has explored, in id order.</li>
-     *   <li>{@code grid(gridId)} — the <b>anchor bridge</b>: the recorded grid for a <i>server</i> grid id, the
-     *       one in a {@code hafen.world.gridPos()} anchor. This is the only door that crosses from the live
-     *       world into the database, because the grid id is the only thing the two halves share.</li>
-     * </ul>
+     * {@code hafen.map():segment()} — every contiguous explored area the character has walked, as
+     * {@link LuaSegment} objects. {@code :current()} is the one they are standing in: a <b>distinguished
+     * member is a verb on the collection</b> (§2.3), never a second spelling of the accessor, which is what
+     * the old zero-argument {@code hafen.map.segment()} had made it.
      */
-    private static void installDatabase(LuaTable map, final Addon owner) {
-        map.set("segment", new OneArgFunction() {
-            public LuaValue call(LuaValue id) {
-                if(id.isnil()) {
-                    MiniMap.Location sl = sessloc();
-                    return (sl == null) ? LuaValue.NIL : LuaSegment.of(owner, sl.seg.id);
-                }
-                long sid = idArg(id, "hafen.map.segment(id)", "segment");
-                return (segIn(mapfile(), sid) == null) ? LuaValue.NIL : LuaSegment.of(owner, sid);
+    private static LuaValue segmentCollection(final Addon owner) {
+        LuaTable extra = new LuaTable();
+        extra.set("current", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), "current");
+                MiniMap.Location sl = sessloc();
+                return (sl == null) ? LuaValue.NIL : LuaSegment.of(owner, sl.seg.id);
             }
         });
-        map.set("segments", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable out = new LuaTable();
-                int i = 0;
+        return LuaCollection.create("hafen.map():segment()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>();
                 for(Long id : knownSegs())
-                    out.set(++i, LuaSegment.of(owner, id.longValue()));
+                    out.add(LuaSegment.of(owner, id.longValue()));
                 return out;
             }
-        });
-        map.set("grid", new OneArgFunction() {
-            public LuaValue call(LuaValue id) {
-                long gid = idArg(id, "hafen.map.grid(gridId)", "grid");
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                long sid = idArg(key, "hafen.map():segment():get(id)", "segment");
+                return (segIn(mapfile(), sid) == null) ? LuaValue.NIL : LuaSegment.of(owner, sid);
+            }
+        }, extra);
+    }
+
+    /**
+     * {@code hafen.map():grid()} — the recorded grids, addressed by the id the <b>server</b> published. That
+     * id is the only thing the live and recorded halves share, so this and {@code hafen.world():grid()} hand
+     * back the <b>same interned object</b> and each answers {@code nil} for what its own half does not have:
+     * a grid you are standing on that has not been written down yet is {@code :live()} true and
+     * {@code :exists()} false, and one explored last year is the mirror.
+     *
+     * <p><b>It does not enumerate, and that is a decision.</b> The database holds every grid the character
+     * has ever walked over — tens of thousands — and the client's own minimap never lists them either: it
+     * walks the grid coords of the rectangle it is drawing. So {@code :list()}/{@code :count()}/{@code :find()}
+     * refuse, naming the two things that do work.
+     */
+    private static LuaValue gridCollection(final Addon owner) {
+        return LuaCollection.create("hafen.map():grid()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                throw new LuaError("hafen.map():grid() does not enumerate: the database holds every grid you"
+                    + " have ever walked over. Address one by its id with :get(id), or walk a rectangle of"
+                    + " one segment with seg:grid():list(area).");
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                long gid = idArg(key, "hafen.map():grid():get(gridId)", "grid");
                 return (gridInfoIn(mapfile(), gid) == null) ? LuaValue.NIL : LuaMapGrid.of(owner, gid);
             }
+        }, null);
+    }
+
+    /**
+     * {@code hafen.map():marker()} — the pins in the database, as {@link LuaMarker} objects: {@code :list} /
+     * {@code :count} / {@code :find} over the canonical filter, {@code :nearest(filter)} measured from the
+     * player, and the two writes. There is no {@code :get}: a marker's only id is a per-session ref this
+     * bridge mints, which is not a key anything outside the session could hold.
+     */
+    private static LuaValue markerCollection(final Addon owner) {
+        LuaTable extra = new LuaTable();
+        extra.set("nearest", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), "nearest");
+                return LuaMarker.nearest(owner, a.arg(2));
+            }
         });
+        return LuaCollection.create("hafen.map():marker()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                return LuaMarker.members(owner, null);
+            }
+
+            public String needle(LuaValue member) {
+                return LuaMarker.name(member);
+            }
+
+            public boolean creatable() {
+                return true;
+            }
+
+            // add(name, p) — drop a PLAYER pin at a Position, and hand it back for its setters (:color,
+            // :onMap). It goes into the user's own on-disk database, so it is a real write with no gate.
+            public LuaValue addMember(Varargs a) {
+                LuaValue nm = Args.required(a, 2, "hafen.map():marker():add", "name");
+                if(nm.type() != LuaValue.TSTRING)
+                    throw new LuaError("hafen.map():marker():add(name, p): name is the label the map shows");
+                Coord2d rc = LuaPosition.worldArg(a, 3, "hafen.map():marker():add", "p");
+                return addMarker(owner, nm.tojstring(), rc.x, rc.y);
+            }
+
+            public boolean destroyable() {
+                return true;
+            }
+
+            // remove(marker) — take a pin out of the database. Removing one that is already gone is INERT
+            // (D-084): it is a moment, not a mistake, and marker:exists() is the question if you want it.
+            public void removeMember(LuaValue x) {
+                if(LuaMarker.resolve(x) == null)
+                    throw new LuaError("hafen.map():marker():remove(m): m is a Marker object — the one"
+                        + " :list(), :find(), :nearest() or :add() handed you");
+                removeMarker(x);
+            }
+        }, extra);
+    }
+
+    /**
+     * {@code hafen.map():overlay()} — the client's own display switches, as {@link LuaOverlayToggle} objects.
+     * The set is <b>closed</b> and an unknown tag is refused (D-072), deliberately the opposite of the
+     * recorded masks a grid carries, whose tags are declared by the server's resources.
+     */
+    private static LuaValue toggleCollection(final Addon owner) {
+        return LuaCollection.create("hafen.map():overlay()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>();
+                for(String[] t : TOGGLES)
+                    out.add(LuaOverlayToggle.of(owner, t[0]));
+                return out;
+            }
+
+            public String needle(LuaValue member) {
+                LuaOverlayToggle h = LuaOverlayToggle.resolve(member);
+                return (h == null) ? null : h.tag;
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                return LuaOverlayToggle.of(owner, toggleArg(key));
+            }
+        }, null);
     }
 
     /**
@@ -152,36 +277,6 @@ final class MapApi {
         }
     }
 
-    /** {@code hafen.map.markers} — the marker half of the DB (the surface 037.1 moved; entities since 037.2). */
-    private static LuaTable markers(final Addon owner) {
-        LuaTable markers = new LuaTable();
-        markers.set("list", new OneArgFunction() {
-            public LuaValue call(LuaValue filter) {
-                return LuaMarker.collection(owner, null, filter);
-            }
-        });
-        markers.set("nearest", new OneArgFunction() {
-            public LuaValue call(LuaValue filter) {
-                return LuaMarker.nearest(owner, filter);
-            }
-        });
-        markers.set("add", new VarArgFunction() {
-            // add(name, x, y [, opts{color={r,g,b[,a]}, onmap=bool}]) -> Marker | nil  (world coords; player marker)
-            public Varargs invoke(Varargs a) {
-                String nm = a.optjstring(1, null);
-                if((nm == null) || !a.arg(2).isnumber() || !a.arg(3).isnumber())
-                    return LuaValue.NIL;
-                return addMarker(owner, nm, a.arg(2).todouble(), a.arg(3).todouble(), a.arg(4));
-            }
-        });
-        markers.set("remove", new OneArgFunction() {
-            public LuaValue call(LuaValue marker) {
-                return LuaValue.valueOf(removeMarker(marker));
-            }
-        });
-        return markers;
-    }
-
     /** Session init: drop the per-session marker-ref maps + re-prime MarkersChanged (from AddonManager.init). */
     static void resetMarkers() {
         synchronized(markerById) {
@@ -191,7 +286,7 @@ final class MapApi {
         markersPrimed = false;
     }
 
-    // ---- markers (hafen.map.markers) --------------------------------------------------------------
+    // ---- markers (hafen.map():marker()) ------------------------------------------------------------
     // Client-side map markers live in the on-disk map DB (MapFile), owned by the map window / corner
     // minimap (both hold the same MapFile). A marker's PERSISTENT identity is its segment id + segment
     // tile coord (survives a relog — coverage-gaps C4); the world x,y/dist a snapshot also carries are
@@ -294,25 +389,25 @@ final class MapApi {
         }
     }
 
-    /** add(name, worldX, worldY, opts) — create a PLAYER marker at a world position; returns it, or nil. */
-    private static LuaValue addMarker(Addon owner, String nm, double wx, double wy, LuaValue opts) {
+    /**
+     * {@code :add(name, p)} — create a PLAYER marker at a world position and hand it back, <b>bare</b>: the
+     * client's own defaults (a gold pin, not on the main map) and the two setters {@code m:color(...)} /
+     * {@code m:onMap(b)} say the rest. The old {@code opts} table is R4's config-table-as-arguments, and a
+     * marker takes the deferred-completion problem D-112 answered for an overlay the easy way: it is a
+     * <i>record in a database</i>, so a half-configured one is a gold pin that is visibly there and one
+     * setter away from right, never something that silently fails to appear.
+     *
+     * <p>{@code nil} when the map or the session location is not up yet, which is also when a Position could
+     * not have been located.
+     */
+    private static LuaValue addMarker(Addon owner, String nm, double wx, double wy) {
         MapFile file = mapfile();
         MiniMap.Location sl = sessloc();
         if((file == null) || (sl == null))
             return LuaValue.NIL;                  // map / session location not up yet
         // world → segment tile coord (mirrors MapWnd.FindMark.hit: sessloc.tc + floor(world / tilesz)).
         Coord segTc = sl.tc.add(Coord2d.of(wx, wy).floor(MCache.tilesz));
-        java.awt.Color col = DEFAULT_MARKER_COLOR;
-        boolean onmap = false;
-        if((opts != null) && opts.istable()) {
-            LuaValue c = opts.get("color");
-            if(c.istable())
-                col = luaColor(c, col);
-            LuaValue om = opts.get("onmap");
-            if(!om.isnil())
-                onmap = om.toboolean();
-        }
-        MapFile.PMarker pm = new MapFile.PMarker(file, sl.seg.id, segTc, nm, col, onmap);
+        MapFile.PMarker pm = new MapFile.PMarker(file, sl.seg.id, segTc, nm, DEFAULT_MARKER_COLOR, false);
         file.add(pm);                             // takes the write lock, persists (defersave), bumps markerseq
         return LuaMarker.of(owner, markerId(pm));
     }
@@ -353,7 +448,7 @@ final class MapApi {
         }
     }
 
-    // ---- icons (hafen.map.icons) ------------------------------------------------------------------
+    // ---- icons (hafen.map():icon()) ----------------------------------------------------------------
     // The minimap icon registry (GobIcon.Settings, GameUI.iconconf) — one "category" per gob-icon kind
     // (a boar, a fir tree, a player, …), each with a show flag (draw it on the minimap) and a notify flag
     // (sound + chat msg when one appears). This is the same registry the in-client "Icon settings" window
@@ -371,7 +466,7 @@ final class MapApi {
         return (g == null) ? null : g.iconconf;
     }
 
-    // ---- segments and grids (hafen.map.segment / segments / grid) ---------------------------------
+    // ---- segments and grids (hafen.map():segment() / :grid()) --------------------------------------
     // The database's own structure, 037.2. A SEGMENT is one contiguous explored area (the map window's
     // "map"); a GRID is one 100x100-tile square inside it, keyed by the id the SERVER gave it. The two
     // coordinate spaces are therefore different in kind: a grid id is the same number for every player and
@@ -529,21 +624,6 @@ final class MapApi {
     }
 
     /**
-     * A {@code {gridId, x, y}} anchor for the tile at within-grid tile coord {@code (gtx, gty)} of grid
-     * {@code id} — the shape {@code hafen.world.gridPos} returns and {@code fromGridPos} accepts, so an
-     * anchor read out of the map database goes straight back into the live world. {@code x,y} are the tile's
-     * CENTRE in world units, which is the same point a marker's session {@code x,y} reports (so the round
-     * trip lands on the tile it came from rather than on its corner).
-     */
-    static LuaValue anchor(long id, int gtx, int gty) {
-        LuaTable t = new LuaTable();
-        t.set("gridId", LuaValue.valueOf(Long.toString(id)));
-        t.set("x", LuaValue.valueOf((gtx * MCache.tilesz.x) + (MCache.tilesz.x / 2)));
-        t.set("y", LuaValue.valueOf((gty * MCache.tilesz.y) + (MCache.tilesz.y / 2)));
-        return t;
-    }
-
-    /**
      * A within-grid tile coord argument ({@code grid:tile(c)}, {@code grid:height(c)}, {@code mask:covers(c)}):
      * a {@code {x,y}} table, both integral and both inside the grid. Out of range is an <b>error</b>, not nil
      * — nil already means "not loaded yet" here, and a caller who confused a segment tile coord for a
@@ -567,7 +647,7 @@ final class MapApi {
     // player calls "claims" is a TAG on that resource (MCache.ResOverlay.tags()), and several resources may
     // share one tag — which is why a read here is the UNION of every overlay carrying the tag, exactly what
     // DataGrid.olrender(off, tag) composites onto one image. The tag space is the RESOURCES', not ours: a
-    // tag a grid does not carry is nil, never an error (grid:overlays() is the census that makes the nil
+    // tag a grid does not carry is nil, never an error (grid:overlay():list() is the census that makes it
     // readable). Resolving an overlay resource may throw Loading and must never happen under the map file's
     // lock — gridDataIn hands the grid back outside it, and every read below runs on the UI thread from there.
 
@@ -643,7 +723,7 @@ final class MapApi {
         return out;
     }
 
-    // ---- the client's display toggles (hafen.map.overlay / overlays) -------------------------------
+    // ---- the client's display toggles (hafen.map():overlay()) --------------------------------------
     // The three switches the client's own map menu owns, and they live on TWO sides with TWO vocabularies:
     // the 3D world draws cplot/vlg/prov through MapView's ref-counted oltags (enol/disol/visol), while the
     // map window draws provinces from the RECORDED masks under the tag "realm" (MapWnd.overlays, a set).
@@ -816,61 +896,18 @@ final class MapApi {
     }
 
     /**
-     * {@code hafen.map.overlay(tag)} / {@code overlay(tag, on)} and {@code hafen.map.overlays()} — the
-     * client's own display switches. Arity is the verb; the write answers the resulting <i>displayed</i>
-     * state so a take is self-reporting.
-     */
-    private static void installOverlays(LuaTable map, final Addon owner) {
-        map.set("overlay", new TwoArgFunction() {
-            public LuaValue call(LuaValue tag, LuaValue on) {
-                String t = toggleArg(tag);
-                if(!on.isnil()) {
-                    if(!on.isboolean())
-                        throw new LuaError("hafen.map.overlay(tag, on): on must be true or false — true takes"
-                            + " this addon's HOLD on the overlay, false releases it (the client's own"
-                            + " checkbox and the server both hold it too, so nothing can force it off)");
-                    if(on.toboolean())
-                        take(owner, t);
-                    else
-                        release(owner, t);
-                }
-                Boolean d = displayed(t);
-                return (d == null) ? LuaValue.NIL : LuaValue.valueOf(d.booleanValue());
-            }
-        });
-        map.set("overlays", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable out = new LuaTable();
-                int i = 0;
-                for(String[] t : TOGGLES) {
-                    LuaTable e = new LuaTable();
-                    e.set("tag", LuaValue.valueOf(t[0]));
-                    e.set("where", LuaValue.valueOf(t[1]));
-                    e.set("what", LuaValue.valueOf(t[2]));
-                    Boolean d = displayed(t[0]);
-                    if(d != null)
-                        e.set("on", LuaValue.valueOf(d.booleanValue()));
-                    e.set("held", LuaValue.valueOf(held(owner, t[0])));
-                    out.set(++i, e);
-                }
-                return out;
-            }
-        });
-    }
-
-    /**
      * A display-toggle tag argument. The set is <b>closed</b> and an unknown tag is refused (D-072): the
-     * client owns exactly these three switches, and a typo that silently did nothing forever is the one
+     * client owns exactly these four switches, and a typo that silently did nothing forever is the one
      * failure here nothing else would ever report.
      */
     private static String toggleArg(LuaValue tag) {
         if(tag.type() != LuaValue.TSTRING)      // in LuaJ a NUMBER also answers isstring()
-            throw new LuaError("hafen.map.overlay(tag): tag is one of " + toggleList());
+            throw new LuaError("hafen.map():overlay():get(tag): tag is one of " + toggleList());
         String t = tag.tojstring();
         if(toggle(t) == null)
-            throw new LuaError("hafen.map.overlay(\"" + t + "\"): the client displays no such overlay — the"
-                + " toggles it owns are " + toggleList() + " (note prov = provinces in the WORLD and realm ="
-                + " provinces on the MAP: same feature, two tags)");
+            throw new LuaError("hafen.map():overlay():get(\"" + t + "\"): the client displays no such overlay"
+                + " — the toggles it owns are " + toggleList() + " (note prov = provinces in the WORLD and"
+                + " realm = provinces on the MAP: same feature, two tags)");
         return t;
     }
 

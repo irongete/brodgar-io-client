@@ -215,14 +215,14 @@ it: the entry is gone, or its resource has not loaded. The live reads are `pag:r
 ## Marker
 
 From [`marker:info()`](map/markers.md#the-marker-object), the snapshot escape hatch for a map marker. The live
-reads are `marker:name()`, `:type()`, `:tc()`, `:pos()` and the rest — and `marker:anchor()` is the
-position to store, not the `seg` + `tc` below.
+reads are `marker:name()`, `:type()`, `:segmentTile()` and the rest — and `marker:position()` is the
+place to store, not the `seg` + `tc` below.
 
 | Field | Type | Notes |
 |---|---|---|
 | `name` | string | marker label; optional |
 | `type` | string | `"player"`, a user pin, or `"system"`, a server or quest pin |
-| `seg` | string | segment id, a 64-bit value as a decimal string — client-local, [never stored](map/grids.md#saving-a-position) |
+| `seg` | string | segment id, a 64-bit value as a decimal string — client-local, [never stored](map/grids.md#storing-a-place) |
 | `tc` | `{x, y}` | segment tile coord — client-local, never stored |
 | `color` | [Color](#color) | player markers only; optional |
 | `onmap` | bool | player markers only |

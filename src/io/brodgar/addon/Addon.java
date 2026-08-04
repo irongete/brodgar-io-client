@@ -331,7 +331,7 @@ public final class Addon {
     final LuaWidget.Cache widgetObjs = new LuaWidget.Cache(this);
 
     /**
-     * This addon's <b>minimap icon-category interning cache</b> ({@code hafen.map.icons(res)}, spec
+     * This addon's <b>minimap icon-category interning cache</b> ({@code hafen.map():icon():get(res)}, spec
      * {@code 037-map-database}): the weak-valued {@code icon resource name → IconCat object} map, its
      * {@link java.lang.ref.ReferenceQueue} and the per-addon metatable. Same contract as {@link #paginae},
      * whose {@code String} key it copies — per-addon so no Lua value crosses a sandbox boundary (D-017) and
@@ -341,7 +341,7 @@ public final class Addon {
     final LuaIconCat.Cache iconCats = new LuaIconCat.Cache(this);
 
     /**
-     * This addon's <b>map-database interning caches</b> ({@code hafen.map.segment/grid/markers}, spec
+     * This addon's <b>map-database interning caches</b> ({@code hafen.map()}'s segment/grid/marker collections, spec
      * {@code 037-map-database} task 037.2): weak-valued {@code id → Segment/Grid/Marker object} maps with
      * their {@link java.lang.ref.ReferenceQueue}s and per-addon metatables. Same contract as {@link #gobs}
      * — per-addon so no Lua value crosses a sandbox boundary (D-017) and the whole cache dies with this
@@ -364,6 +364,12 @@ public final class Addon {
      * lives inside a {@code Grid} that the weak {@code CacheMap} rebuilds from disk after an eviction.
      */
     final LuaMask.Cache mapMasks = new LuaMask.Cache(this);
+    /**
+     * ...and the same for the client's four <b>display toggles</b> ({@code hafen.map():overlay():get(tag)},
+     * task 039.4), keyed on the tag. The hold itself is <b>not</b> here — it lives in {@link #overlayHolds},
+     * because a handle is a name for a switch and a hold is a resource that has to be given back.
+     */
+    final LuaOverlayToggle.Cache overlayToggles = new LuaOverlayToggle.Cache(this);
 
     /**
      * This addon's <b>gob-overlay interning cache</b> ({@code gob:overlay(key)}, spec
@@ -390,7 +396,7 @@ public final class Addon {
     final MapImages.Cache mapImages = new MapImages.Cache(this);
 
     /**
-     * Display overlays this addon is <b>holding</b> ({@code hafen.map.overlay(tag, true)}, task 037.3) — the
+     * Display overlays this addon is <b>holding</b> ({@code toggle:hold()}, task 037.3) — the
      * {@link #hiddenNative} shape one subsystem along: <i>what we asked the client to draw, and how to stop
      * asking</i>. One entry per tag at most, because a hold is idempotent (D-097).
      *

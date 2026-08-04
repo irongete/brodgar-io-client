@@ -1,7 +1,7 @@
 {
   "name": "037.4 — the imagery of the map database",
   "id": "037-map-database.4",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 037.4: grid:image(lvl) and grid:overlayImage(tag) — a drawable handle rendered on Defer, interned per (grid, level), bounded and disposed, and painted by the engine for nothing.",
   "api_version": 1,

@@ -24,13 +24,13 @@
 -- hafen.kin reads the Kin window and is CALLABLE-ONLY (020-kin-oop): hafen.kin() is the roster (an array of
 -- interned Kin objects, plus :find/:list/:add), hafen.kin(idOrName) is one Kin (:id/:name/:group/:color/
 -- :online/:exists/:gob/:info, with gob:kin() as :gob()'s inverse); it fires KinChanged -- the whole roster
--- as Kin objects -- when a kin is added/removed, renamed/regrouped or flips online/offline. Built on gap subsystem A2: MINIMAP ICONS — hafen.map.icons reads the character's gob-icon
+-- as Kin objects -- when a kin is added/removed, renamed/regrouped or flips online/offline. Built on gap subsystem A2: MINIMAP ICONS — hafen.map():icon() reads the character's gob-icon
 -- registry (icons([filter]) -> IconCat objects, icons(res) -> one) and a category flips its own show (draw it
 -- on the minimap) or notify (sound + msg when one appears) flag through arity-as-the-verb (cat:show(v),
 -- cat:notify(v)). It IS the same registry
 -- the in-client "Icon settings" window edits, so hello only READS it here (mutating would persist to your real
 -- icon config); try the verbs from :lua. Built on gap subsystem A1: MAP
--- MARKERS — hafen.map.markers reads the client's on-disk map DB
+-- MARKERS — hafen.map():marker() reads the client's on-disk map DB
 -- (list([filter]) / nearest([filter]) -> marker snapshots {id,name,type,seg,tc, color|icon, x,y,dist}),
 -- ADDS a persistent PLAYER marker at a WORLD position (add(name,x,y[,opts])) and REMOVES it (remove(ref)); the
 -- global MarkersChanged event fires when the marker set changes. A marker's PERSISTENT anchor is seg+tc (it
@@ -505,35 +505,35 @@ local function readSound(tag)
     okAmb and tostring(amb) or "n/a"))
 end
 
--- A1: map markers via hafen.map.markers. list()/nearest() read the client's on-disk map DB and hand back
--- Marker OBJECTS (037.2 — they gained a verb, marker:anchor(), and a verb belongs on the thing): :name(),
--- :type() ("player"|"system"), :tc() (the segment tile coord it really lives at), :segment(), :color()/:onmap()
--- or :icon(), and — when the marker is in your current segment — :pos() (world) + :dist() (from you). :info()
--- is the old snapshot table. The DB streams in a beat after enter-world (like the rest of the HUD), so read at
--- now (often 0) and +3s. Most markers a character has are SYSTEM markers the server pushed (quest/tracked
--- pins); a fresh spot may have none until you add one ('marker' key).
+-- A1: map markers via hafen.map():marker(), the COLLECTION of pins in the client's on-disk map DB. :list()
+-- and :nearest() hand back Marker OBJECTS: :name(), :type() ("player"|"system"), :segmentTile() (the segment
+-- tile coord it really lives at), :segment(), :color()/:onMap() or :icon(), :position() (a Position -- the
+-- form you may save or send, since a segment tile coord is this client's own bookkeeping) and :distance().
+-- :info() is the old snapshot table. The DB streams in a beat after enter-world (like the rest of the HUD),
+-- so read at now (often 0) and +3s. Most markers a character has are SYSTEM markers the server pushed
+-- (quest/tracked pins); a fresh spot may have none until you add one ('marker' key).
 local function readMarkers(tag)
-  local list = hafen.map.markers.list()
-  local near = hafen.map.markers.nearest()
+  local list = hafen.map():marker():list()
+  local near = hafen.map():marker():nearest()
   local first = list[1]
   hafen.log():write(("[%s] markers=%d, first=%s%s, nearest=%s%s"):format(tag, #list,
     first and tostring(first:name() or first:type()) or "none",
-    first and (" @tc %d,%d"):format(first:tc().x, first:tc().y) or "",
+    first and (" @tc %d,%d"):format(first:segmentTile().x, first:segmentTile().y) or "",
     near and tostring(near:name() or near:type()) or "none",
-    (near and near:dist()) and (" dist=%.1f"):format(near:dist()) or ""))
+    (near and near:distance()) and (" dist=%.1f"):format(near:distance()) or ""))
 end
 
--- A2: MINIMAP ICON CATEGORIES via hafen.map.icons (037.1 -- hafen.radar is GONE; the engine has no "radar",
--- it has GobIcon.Settings, and the icons are part of the MAP). CALLABLE-ONLY: hafen.map.icons() is the array
--- of IconCat objects, hafen.map.icons(res) is one category by its icon resource name (the string with a "/").
--- On the entity, arity IS the verb: cat:show() reads, cat:show(v) writes (same for :notify), plus
--- :res/:name/:exists/:info. The registry is the SAME one the in-client "Icon settings" window edits, so hello
--- is READ-ONLY here: a write PERSISTS to your real icon config and would disturb it -- try it yourself from
--- :lua (e.g. `hafen.map.icons("gfx/terobjs/mm/boar"):show(false)`, watch the minimap, then flip it back).
+-- A2: MINIMAP ICON CATEGORIES via hafen.map():icon() (hafen.radar is GONE; the engine has no "radar", it
+-- has GobIcon.Settings, and the icons are part of the MAP). It is a collection: :list() is every category,
+-- :get(res) one by its icon resource name, :find(needle) the first whose DISPLAY name matches. On the entity,
+-- arity IS the verb: cat:show() reads, cat:show(v) writes (same for :notify), plus :res/:name/:exists/:info.
+-- The registry is the SAME one the in-client "Icon settings" window edits, so hello is READ-ONLY here: a
+-- write PERSISTS to your real icon config and would disturb it -- try it yourself from :lua (e.g.
+-- `hafen.map():icon():get("gfx/terobjs/mm/boar"):show(false)`, watch the minimap, then flip it back).
 -- Like the rest of the HUD the registry is empty until it streams in and grows as new icon types are seen,
 -- so read at now (often 0) and +3s.
 local function readIcons(tag)
-  local cats = hafen.map.icons()
+  local cats = hafen.map():icon():list()
   local shown, notif = 0, 0
   for _, c in ipairs(cats) do
     if c:show() then shown = shown + 1 end
@@ -1857,14 +1857,14 @@ keys:register("bags", function()
 end)
 
 -- A1: a FOURTH hotkey ("marker", suggested Ctrl+Shift+M) — a TOGGLE that drops a persistent "Hello marker" at your
--- current position (hafen.map.markers.add at your gob's world coord), or removes it if already placed
--- (hafen.map.markers.remove). Watch it appear on the map (M) and the corner minimap. add() writes the shared
+-- current position (hafen.map():marker():add at your gob's Position), or removes it if already placed
+-- (hafen.map():marker():remove). Watch it appear on the map (M) and the corner minimap. add() writes the shared
 -- on-disk map DB, so it PERSISTS — but hello removes its own marker on disable/reload (see OnDisable) so the
 -- regression harness never pollutes your map. Adds a fourth row to the "Hello" keybind section (2e-3 grouping).
 local helloMarker   -- the demo Marker object while placed (nil = not placed); session-local
 keys:register("marker", function()
   if helloMarker then
-    hafen.map.markers.remove(helloMarker)
+    hafen.map():marker():remove(helloMarker)
     helloMarker = nil
     hafen.log():write("A1: 'marker' -> removed the Hello marker")
     return
@@ -1872,8 +1872,10 @@ keys:register("marker", function()
   local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
   local p = me and me:position()
   if not p then hafen.log():write("A1: 'marker' -> no player position yet"); return end
-  helloMarker = hafen.map.markers.add("Hello marker", p:x(), p:y(), { color = { r = 80, g = 220, b = 90 }, onmap = true })
+  -- A pin is created BARE at a Position and configured by chaining -- there is no options table any more.
+  helloMarker = hafen.map():marker():add("Hello marker", p)
   if helloMarker then
+    helloMarker:color(80, 220, 90):onMap(true)
     hafen.log():write(("A1: 'marker' -> dropped 'Hello marker' at %.0f,%.0f (%s) -- press again to remove")
       :format(p:x(), p:y(), tostring(helloMarker)))
   else
@@ -2908,7 +2910,7 @@ end)
 
 hafen.event():on("OnDisable", function()
   if helloMarker then                                   -- A1: clean up our demo marker so the harness never
-    hafen.map.markers.remove(helloMarker)                   -- leaves 'Hello marker' pins on your persistent map DB
+    hafen.map():marker():remove(helloMarker)                -- leaves 'Hello marker' pins on your persistent map DB
     helloMarker = nil
   end
   if demoGhost then demoGhost:destroy(); demoGhost = nil end   -- V1: drop the manual ghost (teardown also does)

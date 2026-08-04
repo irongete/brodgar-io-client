@@ -192,7 +192,7 @@ and Overlay entity sections) · `src/io/brodgar/addon/LuaGob.java`, `LuaGobOverl
 
 ---
 
-## 039.4 — `hafen.map()`, and the ONE Grid entity
+## 039.4 — `hafen.map()`, and the ONE Grid entity ✅ DONE
 
 **Depends on:** 039.1, 039.2 (Position, and `hafen.world():grid()` — this task completes the other door).
 
