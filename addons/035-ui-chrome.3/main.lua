@@ -79,7 +79,7 @@ local KINDS = {
 local function census()
   local n, out = 0, {}
   for _, k in ipairs(KINDS) do
-    local c = #hafen.ui.all("@" .. k[1])
+    local c = #hafen.ui():all("@" .. k[1])
     n = n + c
     out[#out + 1] = k[1] .. "=" .. c .. (k[2] and "(bg+border)" or "(border)")
   end
@@ -119,16 +119,16 @@ end
 -- A panel rule is live: nothing moved, nothing was resized, and no window's chrome was swapped for it.
 steps[1] = function()
   eq("a panel rule moves and resizes nothing -- a panel owns no layout to re-run, so pad is inert here",
-     xy(panel:size()) .. " @ " .. xy(panel:pos()), base)
+     xy(panel:size()) .. " @ " .. xy(panel:position()), base)
   eq("...and it is a PANEL rule: it does not dress a single window's chrome",
-     #hafen.ui.all("@SkinDeco"), 0)
+     #hafen.ui():all("@SkinDeco"), 0)
   hafen.ui.skin(nil)
 end
 
 steps[2] = function()
   eq("dropping the sheet leaves every panel exactly as it found it",
-     xy(panel:size()) .. " @ " .. xy(panel:pos()), base)
-  eq("...and leaves no sheet-fed chrome behind anywhere", #hafen.ui.all("@SkinDeco"), 0)
+     xy(panel:size()) .. " @ " .. xy(panel:position()), base)
+  eq("...and leaves no sheet-fed chrome behind anywhere", #hafen.ui():all("@SkinDeco"), 0)
 end
 
 local function run()
@@ -137,9 +137,9 @@ local function run()
 
   -- 1. the vocabulary. "panel" is a SITE key, the sibling of window.frame: valid grammar everywhere a
   --    selector is, and -- like every site role -- classifying no widget rather than guessing at one.
-  eq("\"panel\" is a valid role that classifies no widget: an honest nothing", #hafen.ui.all("panel"), 0)
+  eq("\"panel\" is a valid role that classifies no widget: an honest nothing", #hafen.ui():all("panel"), 0)
   refuses("a misspelt role lists panel among the ones that exist",
-          function() hafen.ui("pannel") end, "panel")
+          function() hafen.ui():find("pannel") end, "panel")
   refuses("an unknown property on a panel rule is still an error (D-072)",
           function() hafen.ui.skin{ ["panel"] = { bordre = {} } } end, "bordre")
   check(pcall(hafen.ui.skin, theme(6)), "the sheet accepts a panel rule carrying bg, border and pad")
@@ -151,7 +151,7 @@ local function run()
   check(n > 0, "the live HUD draws " .. n .. " routed IBox panels right now -- " .. tally, tally)
 
   -- 3. the per-widget cascade reaches a panel, and only the one it names.
-  local frames = hafen.ui.all("@Frame")
+  local frames = hafen.ui():all("@Frame")
   panel = frames[1]
   check(panel ~= nil, "the client's own panels are reachable as widgets", panel)
   if panel == nil then
@@ -171,8 +171,8 @@ local function run()
   eq("dropping the skin returns the panel to one nil", panel:style(), nil)
 
   -- 4. geometry, and the site half going live. Both are read a frame later, in the steps above.
-  base = xy(panel:size()) .. " @ " .. xy(panel:pos())
-  eq("no window is wearing sheet-fed chrome before this suite starts", #hafen.ui.all("@SkinDeco"), 0)
+  base = xy(panel:size()) .. " @ " .. xy(panel:position())
+  eq("no window is wearing sheet-fed chrome before this suite starts", #hafen.ui():all("@SkinDeco"), 0)
   hafen.ui.skin(theme(6))
   step(1)
 end

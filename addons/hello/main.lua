@@ -44,20 +44,20 @@
 -- you could look in it, is GONE, and so are hafen.items, :same() and :move()). `==` is the identity test, arity is
 -- the verb on geometry, and the write verbs answer only on a widget THIS addon created — readWidgets (once per
 -- login, and ':hello widget') asserts that whole contract, refusals included. Here the container is the MAIN
--- INVENTORY: the 'bags' hotkey hides/shows its grid with w:hide()/:show() — the ONE write that answers on a native
+-- INVENTORY: the 'bags' hotkey hides/shows its grid with w:visible(b) — the ONE write that answers on a native
 -- widget — and the reads keep working, and :reload/disable gives the grid back. Item
 -- MUTATING verbs (take/drop/transfer/use) are NOT here — they are gameplay actions (the gated Phase-4 tier).
 -- Built on 031 WINDOW LIFECYCLE — hiding one of the windows the CLIENT itself opens now TAKES ITS TOGGLE (its key
 -- and its menu button stop reopening it, and the tick goes off), and w:replace(view) — THE VERB (032; the old
 -- hafen.ui.replace namespace function and its {id,type,place,caption,parentType} descriptor are a hard cut) — binds
 -- the view you pass to that same hide record, so the client's own key drives YOUR window and the tick reads it. The
--- verb hides the ENCLOSING window (w:hide() still hides exactly what you point at), and there is no verb for the
+-- verb hides the ENCLOSING window (w:visible(false) still hides exactly what you point at), and there is no verb for the
 -- toggle itself: ownership follows the hide, and the restore is ONE rule — the window ends up as the user was
 -- seeing it. readToggle (once per login, and ':hello wnd') asserts the swallow, the one-owner refusal, both
 -- halves of that rule, the verb's THREE ARITIES and the hop itself (install through the grid, read the same view
 -- back through its window: ONE record); ':hello wnd swallow' parks the swallowed state so you can press Tab at it
 -- yourself.
--- Built on 030.2 SELECTOR EVENTS — hafen.ui.on(selector, "appear"|"disappear", fn) watches the client's OWN UI for
+-- Built on 030.2 SELECTOR EVENTS — hafen.ui():on(selector, "appear"|"disappear", fn) watches the client's OWN UI for
 -- a part of it, named with the same selector a lookup uses, and hands the callback the Widget ENTITY (the old
 -- hafen.ui.onWidgetCreate and its {id,type,place,caption,parentType} descriptor are GONE). It also demonstrates GLOBAL HOTKEYS —
 -- hafen.client:options():keybindings():register(name, fn) declares a remappable, persisted hotkey (over the
@@ -193,19 +193,19 @@ local function readPlace(tag)
 end
 
 -- 1c-3: read the inventory / equipment / cursor. 029.3 HARD-CUT hafen.items: items are a RELATION on their
--- container now, so the backpack and the equipory are looked up as WIDGETS (hafen.ui.inventory() /
--- hafen.ui.equipment(), the same entity every other hafen.ui entry point hands back) and asked for :items().
--- The cursor item is the odd one out — it is not a widget you can walk — so hafen.ui.hand() stays a snapshot.
+-- container now, so the backpack and the equipory are looked up as WIDGETS (hafen.ui():inventory() /
+-- hafen.ui():equipment(), the same entity every other hafen.ui entry point hands back) and asked for :items().
+-- The cursor item is the odd one out — it is not a widget you can walk — so hafen.ui():hand() stays a snapshot.
 -- Item NAMES come from resolved item info, which (like the inventory widget itself) can stream in a beat after
 -- enter-world, so this is read twice — immediately and after a short delay — like the map reads above.
 -- 4f (read side): each Item snapshot still carries a `handle` (the item's server widget id) — the ItemRef the
 -- gated hafen.act():item(item, verb) verb takes. hello is READ-ONLY, so it just OBSERVES the handle here (the
 -- write demo lives in the opt-in `walker` addon); a handle proves the 4f plumbing.
 local function readInv(tag)
-  local invw, eqw = hafen.ui.inventory(), hafen.ui.equipment()   -- Widget objects, or nil before the HUD is up
+  local invw, eqw = hafen.ui():inventory(), hafen.ui():equipment()   -- Widget objects, or nil before the HUD is up
   local inv = invw and invw:items() or {}   -- array of Item snapshots {name,res,num,wear,pos,handle}
   local eq = eqw and eqw:items() or {}      -- array of Item snapshots {..., slot, handle}
-  local hand = hafen.ui.hand()              -- Item snapshot or nil (cursor item)
+  local hand = hafen.ui():hand()              -- Item snapshot or nil (cursor item)
   local first = inv[1]
   hafen.log():write(("[%s] inventory=%d item(s), first=%s x%s handle=%s")
     :format(tag, #inv, first and tostring(first.name or first.res) or "nil",
@@ -740,9 +740,9 @@ end
 -- (D-027/D-028). See docs/addons/phase-4c-enable-consent-dialog.md.
 
 -- 3b/029.3: CONTAINER READS + EVENTS, with NOTHING HIDDEN. hafen.ui.adopt is GONE (029.2) and with it the whole
--- "take the window over to look inside it" trade: hafen.ui.inventory() hands back the Widget entity for the main
+-- "take the window over to look inside it" trade: hafen.ui():inventory() hands back the Widget entity for the main
 -- backpack, w:items() reads it while the grid is VISIBLE and INTERACTIVE, and the lifecycle events are subscribed
--- on the entity itself (w:onItemAdded/:onItemRemoved/:onDestroy, wired in the hafen.ui.on("inventory","appear")
+-- on the entity itself (w:onItemAdded/:onItemRemoved/:onDestroy, wired in the hafen.ui():on("inventory","appear")
 -- subscription below to keep the discover -> read handoff). The property that made a hidden model work still holds and is now just a bonus: a
 -- hidden server widget stays bound to its id, so the reads and the events keep working with the grid hidden too
 -- (the 'bags' hotkey proves it). Like the rest of the inventory data, items stream in a beat after enter-world,
@@ -754,7 +754,7 @@ local itemsAdded, itemsRemoved = 0, 0
 -- and log EVERY live add/remove after that -- so a pick-up/drop while the grid is hidden is clear in the log.
 local bagsReady = false
 local function readBags(tag)
-  local w = invWdg or hafen.ui.inventory()   -- either door leads to the SAME interned entity (==)
+  local w = invWdg or hafen.ui():inventory()   -- either door leads to the SAME interned entity (==)
   if not w then hafen.log():write(("[%s] bags: no inventory widget yet"):format(tag)); return end
   local items = w:items()
   hafen.log():write(("[%s] bags: %d item(s) via widget:items(), first=%s, grid-visible=%s"):format(tag, #items,
@@ -766,14 +766,14 @@ end
 -- handle from adopt/replace, and the transient WidgetNode from root/node/at -- into ONE interned entity: what you
 -- CREATE and what you FIND are the same type. This asserts the whole collapse in one pass: every door hands back
 -- that type; `==` is the identity test (which is why :same() could be cut); arity is the verb on geometry
--- (:pos()/:size() read, :pos(x,y)/:size(w,h) write and chain, so :move() is gone); :pack()/:destroy() answer only on
+-- (:position()/:size() read, :position(x,y)/:size(w,h) write and chain, so :move() is gone); :pack()/:destroy() answer only on
 -- a widget THIS addon created and refuse on a native one naming the creation doors (the geometry writes used to
 -- refuse beside them, and since 036.1 they LAY A NATIVE WIDGET OUT instead -- 036-ui-layout.1 owns that coverage,
 -- and this frozen harness stopped poking the client's root with them); a stale entity reads nil/empty while a write on
 -- it is a silent chaining no-op; containers are readable with NOTHING hidden; and the four hard cuts (hafen.items,
 -- hafen.ui.adopt, :same, :move) are plain nil, not shims (D-013).
 local function readWidgets(tag)
-  local root = hafen.ui()
+  local root = hafen.ui():root()
   if not root then hafen.log():write(("[%s] widget: no UI yet"):format(tag)); return end
   local function why(f, ...)
     local ok, err = pcall(f, ...)
@@ -784,23 +784,23 @@ local function readWidgets(tag)
   -- doors all hand back the same entity, and two lookups of ONE live widget are the SAME Lua value. node(id) is the
   -- round-trip that proves it across doors: take the inventory's own :id() back through the id door. hand() is the
   -- deliberate exception -- the cursor item is not a widget, so it stays an Item snapshot.
-  local inv, eq = hafen.ui.inventory(), hafen.ui.equipment()
-  local byId = (inv and inv:id()) and hafen.ui.node(inv:id()) or nil
-  local m = hafen.ui.mouse()
-  local at = m and hafen.ui.at(m.x, m.y) or nil
+  local inv, eq = hafen.ui():inventory(), hafen.ui():equipment()
+  local byId = (inv and inv:id()) and hafen.ui():node(inv:id()) or nil
+  local m = hafen.ui():mouse()
+  local at = m and hafen.ui():at(m.x, m.y) or nil
   hafen.log():write(("[%s] widget doors: root=%s inv=%s eq=%s at(mouse)=%s hand=%s | node(id)==inv=%s root()==root=%s at()==at=%s")
     :format(tag, tostring(root), tostring(inv), tostring(eq), tostring(at),
-            tostring(hafen.ui.hand() and "item" or nil),
-            tostring((inv ~= nil) and (byId == inv)), tostring(hafen.ui() == root),
-            tostring((at == nil) or (hafen.ui.at(m.x, m.y) == at))))
+            tostring(hafen.ui():hand() and "item" or nil),
+            tostring((inv ~= nil) and (byId == inv)), tostring(hafen.ui():root() == root),
+            tostring((at == nil) or (hafen.ui():at(m.x, m.y) == at))))
   -- OWNED vs BORROWED. A throwaway widget of our own (destroyed at the end of this check) exercises the writes; the
   -- client's root exercises the two refusals. Provenance is DERIVED from the tree, never stored on the handle, so
   -- :info().owned is how you ASK instead of provoking the error -- and it is per-addon: the same root reads
   -- owned=false for us, while our own widget would read owned=false for any OTHER addon.
   local own = hafen.ui.widget{ size = {40, 20}, pos = {8, 8} }
-  own:pos(12, 14):size(48, 24):pack()                  -- arity is the verb, and every write chains on self
-  local p, s = own:pos(), own:size()
-  hafen.log():write(("[%s] owned: own.owned=%s root.owned=%s | chained pos(x,y)->%d,%d size(w,h)->%d,%d")
+  own:position(12, 14):size(48, 24):pack()                  -- arity is the verb, and every write chains on self
+  local p, s = own:position(), own:size()
+  hafen.log():write(("[%s] owned: own.owned=%s root.owned=%s | chained position(x,y)->%d,%d size(w,h)->%d,%d")
     :format(tag, tostring((own:info() or {}).owned), tostring((root:info() or {}).owned), p.x, p.y, s.x, s.y))
   hafen.log():write(("[%s] borrowed refusals: root:pack() -> %s"):format(tag, why(root.pack, root)))
   hafen.log():write(("[%s]                    root:destroy() -> %s"):format(tag, why(root.destroy, root)))
@@ -810,7 +810,7 @@ local function readWidgets(tag)
   own:destroy()
   hafen.log():write(("[%s] stale: exists=%s type=%s info=%s items=%d writeStillChains=%s")
     :format(tag, tostring(own:exists()), tostring(own:type()), tostring(own:info()),
-            #own:items(), tostring(own:pos(1, 1) == own)))
+            #own:items(), tostring(own:position(1, 1) == own)))
   -- READ WITHOUT HIDING -- the point of the whole feature. Walk the live tree for every item container and report
   -- what it holds AND whether it is visible: open a Cupboard/chest (or the study window) and re-run ':hello widget'
   -- -- it is listed here, read through the very same entity, with its window still open and usable. hafen.ui.adopt,
@@ -834,20 +834,20 @@ local function readWidgets(tag)
 end
 
 -- 030.4: THE SELECTOR CONTRACT, re-checked once per login (and on demand with ':hello selector'). 030 gave 029's ONE
--- entity the vocabulary to NAME one: a selector is a STRING and hafen.ui IS the lookup (D-056) -- hafen.ui(sel) is the
--- first match in tree order, hafen.ui.all(sel) every match (an empty array, never nil), hafen.ui() the root. This
+-- entity the vocabulary to NAME one: a selector is a STRING and the section IS the lookup -- hafen.ui():find(sel) is the
+-- first match in tree order, hafen.ui():all(sel) every match (an empty array, never nil), hafen.ui():root() the top. This
 -- asserts the whole grammar in one pass against the LIVE HUD: `*`, a role, @Class, [title=], [res=] and a combination;
 -- the classifier's CENSUS (:role() answers what a widget IS, or an honest nil -- never a guess in place of no answer,
 -- D-067); the two rules that are easiest to get wrong ([title=] resolves against the nearest ENCLOSING WINDOW, so it
 -- reaches the widgets INSIDE it; @Class is an EXACT typeName, not a superclass walk); the five promoted font-scope
--- names that are valid grammar and classify NOTHING; the parse-error catalogue; an hafen.ui.on() ROUND TRIP, whose
+-- names that are valid grammar and classify NOTHING; the parse-error catalogue; an hafen.ui():on() ROUND TRIP, whose
 -- point is D-068 -- registration SCANS the live tree, so `appear` fires for what is ALREADY open, synchronously,
 -- inside the on() call, handing back the very entity a lookup gives; interning, which is why "hold your result" is
 -- free advice; and the two hard cuts (hafen.ui.root, hafen.ui.onWidgetCreate) as plain nil.
 local SEL_ROLES = { "window", "inventory", "button", "label", "textentry", "chat", "menu" }
 local SEL_SITES = { "window.title", "heading", "tooltip", "world.nick", "world.speech" }
 local function readSelectors(tag)
-  local root = hafen.ui()
+  local root = hafen.ui():root()
   if not root then hafen.log():write(("[%s] selector: no UI yet"):format(tag)); return end
   local function why(f, ...)
     local ok, err = pcall(f, ...)
@@ -857,8 +857,8 @@ local function readSelectors(tag)
   -- `*` AND THE ROLE CENSUS. ONE walk of the whole tree (never a deep helper per node -- that is O(n^2)), asking
   -- :role() per widget: the counts below ARE the classifier's answer over a real HUD, and the nil majority is the
   -- honest one (layout containers, scroll ports, images and item icons are none of these things). `*` matches every
-  -- widget including the root, and tree order is pre-order -- so hafen.ui("*") IS hafen.ui().
-  local every = hafen.ui.all("*")
+  -- widget including the root, and tree order is pre-order -- so hafen.ui():find("*") IS hafen.ui():root().
+  local every = hafen.ui():all("*")
   local census, classified = {}, 0
   for i = 1, #every do
     local r = every[i]:role()
@@ -868,25 +868,25 @@ local function readSelectors(tag)
   for _, r in ipairs(SEL_ROLES) do parts[#parts + 1] = ("%s %d"):format(r, census[r] or 0) end
   hafen.log():write(("[%s] selector *: %d widget(s), %d classified (%s), %d nil | ui('*')==ui()=%s interned=%s")
     :format(tag, #every, classified, table.concat(parts, " "), #every - classified,
-            tostring(hafen.ui("*") == root), tostring(hafen.ui.all("*")[1] == every[1])))
-  -- EACH GRAMMAR ELEMENT, and the first-vs-all contract: hafen.ui(sel) is exactly all(sel)[1] -- never a different
+            tostring(hafen.ui():find("*") == root), tostring(hafen.ui():all("*")[1] == every[1])))
+  -- EACH GRAMMAR ELEMENT, and the first-vs-all contract: hafen.ui():find(sel) is exactly all(sel)[1] -- never a different
   -- widget -- and a miss is plain nil, never an error and never an empty stand-in. @Class goes through the same
   -- typeName :type() reports (Hafen builds most widgets as ANONYMOUS subclasses, so getSimpleName would match almost
   -- nothing) and is EXACT: the two counts below differ by exactly the Window SUBCLASSES open right now, which is the
   -- whole reason "any window" is the ROLE and not @Window.
-  local wnds, byCls = hafen.ui.all("window"), hafen.ui.all("@Window")
-  local inv = hafen.ui.inventory()
-  local invByCls = inv and hafen.ui("@" .. inv:type()) or nil
+  local wnds, byCls = hafen.ui():all("window"), hafen.ui():all("@Window")
+  local inv = hafen.ui():inventory()
+  local invByCls = inv and hafen.ui():find("@" .. inv:type()) or nil
   hafen.log():write(("[%s] grammar: window -> %s (#all=%d, first==all[1]=%s) | @Window -> %d (role window=%d: the rest are"
              .. " SUBCLASSES, @Class does not walk up) | @%s -> %s (==inventory()=%s) | miss 'textentry@Label' -> %s")
-    :format(tag, tostring(hafen.ui("window")), #wnds, tostring(hafen.ui("window") == wnds[1]),
+    :format(tag, tostring(hafen.ui():find("window")), #wnds, tostring(hafen.ui():find("window") == wnds[1]),
             #byCls, #wnds, inv and inv:type() or "?", tostring(invByCls),
-            tostring((inv ~= nil) and (invByCls == inv)), tostring(hafen.ui("textentry@Label"))))
+            tostring((inv ~= nil) and (invByCls == inv)), tostring(hafen.ui():find("textentry@Label"))))
   -- [res=] -- the STABLE key (D-063), and the honest scoping 030.1 measured in-game: NO window on this server carries
   -- a resource. What does: items (gfx/invobjs/...), the HUD meters, and the chat channels whose code ships inside a
   -- .res. So [res=] is the right key for everything item-shaped and [title=] the only one for windows -- w:res() is
   -- how you find out which you are holding, never a client-side alias list.
-  local withRes, meters = 0, hafen.ui.all("[res=gfx/hud/meter]")
+  local withRes, meters = 0, hafen.ui():all("[res=gfx/hud/meter]")
   for i = 1, #every do if every[i]:res() then withRes = withRes + 1 end end
   hafen.log():write(("[%s] [res=]: %d of %d widget(s) carry one | [res=gfx/hud/meter] -> %d (first res=%s) | windows with a"
              .. " res: %d (that is why [title=] is the key for windows)")
@@ -904,12 +904,12 @@ local function readSelectors(tag)
     if t and t ~= "" then titled, cap = wnds[i], t; break end
   end
   if titled then
-    local scoped = hafen.ui.all(("[title=%s]"):format(cap))
+    local scoped = hafen.ui():all(("[title=%s]"):format(cap))
     hafen.log():write(("[%s] [title=%s]: %d widget(s) inside that window's scope, first==the window itself=%s |"
                .. " window[title=%s]==it=%s | inventory[title=%s] -> %s (the GRID, one hop below)")
       :format(tag, cap, #scoped, tostring(scoped[1] == titled), cap,
-              tostring(hafen.ui(("window[title=%s]"):format(cap)) == titled), cap,
-              tostring(hafen.ui(("inventory[title=%s]"):format(cap)))))
+              tostring(hafen.ui():find(("window[title=%s]"):format(cap)) == titled), cap,
+              tostring(hafen.ui():find(("inventory[title=%s]"):format(cap)))))
   else
     hafen.log():write(("[%s] [title=]: no titled window open right now -- open a cupboard/chest and re-run ':hello selector'")
       :format(tag))
@@ -919,33 +919,33 @@ local function readSelectors(tag)
   -- rather than placed, and the world scopes live over the 3D view. So they stay VALID GRAMMAR (no error) and match
   -- NOTHING, because guessing that a Label is a "heading" is exactly the wrong answer.
   local sites = {}
-  for _, r in ipairs(SEL_SITES) do sites[#sites + 1] = ("%s=%d"):format(r, #hafen.ui.all(r)) end
+  for _, r in ipairs(SEL_SITES) do sites[#sites + 1] = ("%s=%d"):format(r, #hafen.ui():all(r)) end
   hafen.log():write(("[%s] render-site roles (valid grammar, classify nothing): %s"):format(tag, table.concat(sites, " ")))
   -- THE PARSE-ERROR CATALOGUE -- every shape distinguishable, each naming the offending part, and a bad role listing
   -- every valid one (the one error worth spelling out in full: nobody guesses a role).
-  local function sel(s) return function() return hafen.ui(s) end end
+  local function sel(s) return function() return hafen.ui():find(s) end end
   hafen.log():write(("[%s] selector errors: bad role -> %s"):format(tag, why(sel("windo"))))
   hafen.log():write(("[%s]                  unclosed [ -> %s"):format(tag, why(sel("window[title=X"))))
   hafen.log():write(("[%s]                  bad refiner key -> %s"):format(tag, why(sel("window[caption=X]"))))
   hafen.log():write(("[%s]                  refiner twice -> %s"):format(tag, why(sel("window[title=A][title=B]"))))
   hafen.log():write(("[%s]                  empty -> %s"):format(tag, why(sel("   "))))
-  hafen.log():write(("[%s]                  a number -> %s"):format(tag, why(hafen.ui.all, 1)))
-  -- hafen.ui.on() ROUND TRIP (030.2, D-068). "appear" does not mean "was created": registration SCANS the live tree,
+  hafen.log():write(("[%s]                  a number -> %s"):format(tag, why(function() return hafen.ui():all(1) end)))
+  -- hafen.ui():on() ROUND TRIP (030.2, D-068). "appear" does not mean "was created": registration SCANS the live tree,
   -- so it fires for every match ALREADY in it -- synchronously, inside this very call, which is why the counter below
   -- is already set when on() returns. That is the difference that killed onWidgetCreate: a creation feed could never
   -- fire for a widget that existed before the addon layer was rebuilt, so every :reload lost every open window. The
   -- payload is the SAME interned entity a lookup hands back, which is what makes `==` the join between the two events.
   local fired, sawInv = 0, false
-  local watch = hafen.ui.on("inventory", "appear", function(w)
+  local watch = hafen.ui():on("inventory", "appear", function(w)
     fired = fired + 1
     if w == inv then sawInv = true end
   end)
   watch:remove()
   hafen.log():write(("[%s] on() round trip: 'inventory' appear fired %d time(s) DURING registration (the live-tree scan --"
              .. " containers open now: %d), payload==inventory()=%s; handle:remove() dropped the subscription")
-    :format(tag, fired, #hafen.ui.all("inventory"), tostring(sawInv)))
-  -- The hard cuts (D-013): both read as plain nil -- not flattened, not stubbed, no deprecation alias. hafen.ui() IS
-  -- the root (the no-arg collection form is the tree), and a selector IS the discovery primitive.
+    :format(tag, fired, #hafen.ui():all("inventory"), tostring(sawInv)))
+  -- The hard cuts (D-013): both read as plain nil -- not flattened, not stubbed, no deprecation alias.
+  -- hafen.ui():root() IS the root (a verb, since hafen.ui() became the section), and a selector IS discovery.
   hafen.log():write(("[%s] selector contract: rootGone=%s onWidgetCreateGone=%s (hafen.ui.root=%s hafen.ui.onWidgetCreate=%s)")
     :format(tag, tostring(hafen.ui.root == nil), tostring(hafen.ui.onWidgetCreate == nil),
             tostring(hafen.ui.root), tostring(hafen.ui.onWidgetCreate)))
@@ -967,7 +967,7 @@ end
 -- parks the client in the swallowed state (the one thing Lua cannot observe: nothing here can press a key).
 local swallowedWnd        -- the window ':hello wnd swallow' is holding hidden (nil = not parked); session-local
 local function readToggle(tag)
-  local grid = hafen.ui.inventory()
+  local grid = hafen.ui():inventory()
   if not grid then hafen.log():write(("[%s] toggle: no inventory widget yet (the HUD is not up)"):format(tag)); return end
   local wnd = grid:parent()                    -- the Hidewnd AROUND the grid: what the client's Tab toggles
   if not wnd then hafen.log():write(("[%s] toggle: the inventory grid has no enclosing window"):format(tag)); return end
@@ -982,13 +982,13 @@ local function readToggle(tag)
   -- only ever drive one thing and two owners would leave the menu tick lying about both. That refusal is the check's
   -- gate as well: with 'bags' replaced (or after a :lua hide) this reports the owner by name and stops, rather than
   -- asserting against a HUD somebody else is driving.
-  local ok, err = pcall(wnd.hide, wnd)
+  local ok, err = pcall(function() wnd:visible(false) end)
   if not ok then
     hafen.log():write(("[%s] toggle: %s is already owned -- one window, one owner: %s")
       :format(tag, wnd:type(), (tostring(err):gsub("^.-%.lua:%d+:%s*", ""))))
     return
   end
-  local again = pcall(wnd.hide, wnd)           -- ...but OUR own second hide is idempotent (one record, not two)
+  local again = pcall(function() wnd:visible(false) end)   -- OUR own second hide is idempotent (one record)
   hafen.log():write(("[%s] toggle: hid %s '%s' (was visible=%s, now %s) -- nothing stands in for it, so the client's key AND"
       .. " its menu button are SWALLOWED and the tick reads false; our own second hide is idempotent (no error=%s)")
     :format(tag, wnd:type(), tostring(wnd:text()), tostring(wasVis), tostring(wnd:visible()), tostring(again)))
@@ -1007,18 +1007,18 @@ local function readToggle(tag)
     -- ARITY IS THE VERB (032.3): replace(view) installed above, replace() READS the view standing in for this
     -- window. Reading it back through `wnd` -- the ENCLOSING window we never pointed at -- is the hop itself: the
     -- record lives on the window the client toggles, so the grid and its window reach the SAME one view.
-    readBack = (grid:replace() == view)
-    hopRead  = (wnd:replace() == view)
-    if not open then view:hide() end           -- "nothing was on screen" -- an owned widget, so no record of its own
+    readBack = (grid:replacement() == view)
+    hopRead  = (wnd:replacement() == view)
+    if not open then view:visible(false) end           -- "nothing was on screen" -- an owned widget, so no record of its own
     local shown = view:visible()
     grid:replace(nil)                          -- the live undo: the one rule runs here, before the view is destroyed
-    readGone = (grid:replace() == nil)         -- ...and the read arity says so: nothing stands in for it any more
+    readGone = (grid:replacement() == nil)         -- ...and the read arity says so: nothing stands in for it any more
     return shown
   end
   local openA = round(true)
   if openA == nil then
-    wnd:show()                                 -- release our record by hand; the window is back and so is the key
-    hafen.log():write(("[%s] toggle: grid:replace(view) refused (%s) -- gave %s back with :show() (it is OPEN now: press"
+    wnd:visible(true)                          -- release our record by hand; the window is back and so is the key
+    hafen.log():write(("[%s] toggle: grid:replace(view) refused (%s) -- gave %s back with :visible(true) (it is OPEN now: press"
       .. " Tab to close it)"):format(tag, (tostring(replaceErr):gsub("^.-%.lua:%d+:%s*", "")), wnd:type()))
     return
   end
@@ -1039,8 +1039,8 @@ local function readToggle(tag)
     :format(tag, tostring(readBack), wnd:type(), tostring(hopRead), tostring(readGone),
             tostring(hafen.ui.replace == nil), tostring(hafen.ui.replace)))
   -- 4. LEAVE THE HUD AS WE FOUND IT -- with the rule itself: round B ended hidden, which is the wrapper's own default
-  -- state, so only a HUD that had the inventory open needs the last :show() (which owns nothing and records nothing).
-  if wasVis and not wnd:visible() then wnd:show() end
+  -- state, so only a HUD that had the inventory open needs the last :visible(true) (which owns nothing and records nothing).
+  if wasVis and not wnd:visible() then wnd:visible(true) end
   local now = wnd:visible()
   hafen.log():write(("[%s] toggle: no verb for the TOGGLE itself (widget.onToggle=%s hafen.ui.toggle=%s -- ownership follows"
       .. " the hide, and w:replace(view) binds the view); %s left visible=%s, as found=%s%s")
@@ -1337,7 +1337,7 @@ hafen.event():on("ActionbarChanged", function(slot)
 end)
 
 -- 1d-4: EquipChanged fires when worn equipment changes (equip/unequip) — the payload is the same array
--- as hafen.ui.equipment():items(). Equipment streams in at login (a few fires), then on any change. Log the
+-- as hafen.ui():equipment():items(). Equipment streams in at login (a few fires), then on any change. Log the
 -- first few so it does not flood.
 local equipSeen = 0
 hafen.event():on("EquipChanged", function(eq)
@@ -1420,10 +1420,10 @@ hafen.event():on("WoundChanged", function(list)
   end
 end)
 
--- 030.2: SELECTOR EVENTS (hafen.ui.on). WATCH the client's own UI for a part of it, named with the SAME selector a
+-- 030.2: SELECTOR EVENTS (hafen.ui():on). WATCH the client's own UI for a part of it, named with the SAME selector a
 -- lookup uses -- hafen.ui.onWidgetCreate and its {id, type, place, caption, parentType} descriptor are HARD CUT,
 -- and with them the second vocabulary you had to learn to say "wait for the cupboard". fn(w) receives the Widget
--- ENTITY (029): the very value hafen.ui(sel) hands back, interned -- so `==` identifies it and a plain Lua table
+-- ENTITY (029): the very value hafen.ui():find(sel) hands back, interned -- so `==` identifies it and a plain Lua table
 -- keyed by it carries state across the two events (used below to remember a window's title).
 --   "appear"    -- a matching widget was PLACED into the tree, or was ALREADY in it when you subscribed:
 --                  registration scans the live tree once, which is exactly what the old observer could NOT do
@@ -1441,7 +1441,7 @@ end)
 -- from the [title=] subscription; close it -> exactly one "DISAPPEARED" of each, naming the same window.
 local windowsSeen, windowsGone = 0, 0
 local wndTitle = {}                                   -- Widget entity -> its title at appear (a stable table key)
-hafen.ui.on("window", "appear", function(w)
+hafen.ui():on("window", "appear", function(w)
   windowsSeen = windowsSeen + 1
   local title = w:text()                              -- may be nil here: a .res window's caption can land a tick late
   wndTitle[w] = title
@@ -1450,7 +1450,7 @@ hafen.ui.on("window", "appear", function(w)
       :format(tostring(w), tostring(w:role()), tostring(title), tostring(w:res()), windowsSeen))
   end
 end)
-hafen.ui.on("window", "disappear", function(w)
+hafen.ui():on("window", "disappear", function(w)
   windowsGone = windowsGone + 1
   hafen.log():write(("030.2: window DISAPPEARED %s title=%s -- server-destroyed (id gone); still fading: intree=%s text=%s;"
              .. " %d seen / %d gone")
@@ -1464,24 +1464,24 @@ end)
 -- not twice. Remember: [title=] resolves against the nearest enclosing Window (030.1), which is why "window" is
 -- the role here and "inventory[title=Cupboard]" would hand you the GRID inside that same window.
 for _, cap in ipairs({ "Cupboard", "Chest" }) do
-  hafen.ui.on(("window[title=%s]"):format(cap), "appear", function(w)
+  hafen.ui():on(("window[title=%s]"):format(cap), "appear", function(w)
     hafen.log():write(("030.2: [title=%s] APPEARED %s -- %d item(s) inside, grid=%s")
-      :format(cap, tostring(w), #w:items(), tostring(hafen.ui(("inventory[title=%s]"):format(cap)))))
+      :format(cap, tostring(w), #w:items(), tostring(hafen.ui():find(("inventory[title=%s]"):format(cap)))))
   end)
-  hafen.ui.on(("window[title=%s]"):format(cap), "disappear", function(w)
+  hafen.ui():on(("window[title=%s]"):format(cap), "disappear", function(w)
     hafen.log():write(("030.2: [title=%s] DISAPPEARED %s"):format(cap, tostring(w)))
   end)
 end
 
 -- 3b/029.3: the discover -> read handoff. Every open container carries the `inventory` role, so pick the player's
--- OWN backpack by identity (hafen.ui.inventory() is the same interned entity, 029.3) and SUBSCRIBE to its item
+-- OWN backpack by identity (hafen.ui():inventory() is the same interned entity, 029.3) and SUBSCRIBE to its item
 -- lifecycle. Nothing is hidden and nothing is taken over: the grid stays visible and usable while we read it.
 -- Subscribing IS the registration (an unwatched widget is never polled), and passing nil to any of the three verbs
 -- unsubscribes. NB this is where 030.2 beats the old observer outright: a :reload does NOT recreate the existing
 -- inventory, so onWidgetCreate never re-fired for it -- the registration SCAN finds it anyway, so the handoff now
 -- survives a reload. onDestroy fires if the widget ever leaves the tree.
-hafen.ui.on("inventory", "appear", function(w)
-  if invWdg or w ~= hafen.ui.inventory() then return end   -- containers also have this role; we want the player's own
+hafen.ui():on("inventory", "appear", function(w)
+  if invWdg or w ~= hafen.ui():inventory() then return end   -- containers also have this role; we want the player's own
   invWdg = w
   hafen.log():write(("3b: watching the main inventory (id=%s, %s) -- items read with NOTHING hidden; the 'bags' hotkey"
              .. " hides/shows the grid and the reads keep working"):format(tostring(w:id()), tostring(invWdg)))
@@ -1571,7 +1571,7 @@ end)
 -- C1a (033-ui-stylesheet): APPLYING a font to a GLOBAL client surface is now the STYLESHEET's job.
 -- hafen.ui.skin{ [selector] = {properties} } is ONE table saying what the client looks like, applied live and
 -- owned by this addon; hafen.font.setFont / .reset / .scopes are a HARD CUT and read as plain nil. A font is one
--- PROPERTY of a rule, and the key is a SELECTOR -- the same string hafen.ui(sel) takes -- so there is one
+-- PROPERTY of a rule, and the key is a SELECTOR -- the same string hafen.ui():find(sel) takes -- so there is one
 -- vocabulary for "which part of the UI" instead of the old scope enum beside it. An addon owns exactly ONE sheet:
 -- a second skin{} REPLACES it whole, which is why the eleven ':hello font|title|button|...' toggles below all
 -- edit ONE table (skinRules) and re-apply it -- turning one surface off is a fresh skin{} carrying every rule
@@ -1819,7 +1819,7 @@ local keys = hafen.client:options():keybindings()
 keys:register("toggle", function()
   if not panel then hafen.log():write("2e-2: 'toggle' pressed, but the window is not up yet"); return end
   local show = not panel:visible()                                -- flip the current (settled/animating) state
-  if show then panel:show() else panel:hide() end
+  if show then panel:visible(true) else panel:visible(false) end
   hafen.log():write(("2e-2: 'toggle' -> window %s"):format(show and "shown" or "hidden"))
 end)
 hafen.log():write(("2e-2: global hotkey 'toggle' registered (key = %s) -- assign/remap it in Options > Keybindings > Hello")
@@ -1835,23 +1835,23 @@ keys:register("ping", function()
 end)
 
 -- 3b/029.2: a THIRD hotkey ("bags", suggested Ctrl+B) toggling the native inventory grid's visibility --
--- widget:hide()/:show(), the ONE write that answers on a widget you did NOT create. Open your inventory (Tab),
+-- widget:visible(b), the ONE write that answers on a widget you did NOT create. Open your inventory (Tab),
 -- press it: the item grid HIDES (it stays bound to its id, so :items() and the add/remove events keep working --
 -- drop something in and 3b still logs it); press again: it SHOWS. Hiding a native widget records the RESTORE -- what
 -- hafen.ui.adopt used to do implicitly, now explicit. 031: what you own is what you POINT AT, and the restore is one
 -- rule -- "the window ends up as the user was seeing it". This hides the GRID, not its window, so Tab keeps toggling
 -- the inventory exactly as stock (it just opens empty); and because nothing stands in for the grid, a :reload leaves
 -- it HIDDEN rather than replaying the visibility it had -- press the key again (or hide the WINDOW instead,
--- hafen.ui.inventory():parent(), which is what takes Tab over: ':hello wnd swallow'). A relog skips the restore
+-- hafen.ui():inventory():parent(), which is what takes Tab over: ':hello wnd swallow'). A relog skips the restore
 -- entirely, that session's widgets being gone. This adds a third row to the "Hello" keybind section (2e-3). If you
 -- assign a key a client binding already owns, the client wins (addon hotkeys are the fallback) -- pick another one.
 keys:register("bags", function()
-  local w = hafen.ui.inventory()        -- the same interned entity the observer above subscribed to (==)
+  local w = hafen.ui():inventory()        -- the same interned entity the observer above subscribed to (==)
   if not w then
     hafen.log():write("3b: 'bags' -- no inventory widget yet (the HUD isn't up)")
     return
   end
-  if w:visible() then w:hide() else w:show() end
+  w:visible(not w:visible())
   hafen.log():write(("3b: 'bags' -> inventory grid %s (%d item(s) still readable, nothing adopted)")
     :format(w:visible() and "shown" or "hidden", #w:items()))
 end)
@@ -1911,7 +1911,7 @@ hafen.slash():register("hello", function(args)
   if sub == "toggle" then
     if not panel then hafen.log():write(":hello toggle -> the window is not up yet (enter the world first)"); return end
     local show = not panel:visible()
-    if show then panel:show() else panel:hide() end
+    if show then panel:visible(true) else panel:visible(false) end
     hafen.log():write((":hello toggle -> window %s"):format(show and "shown" or "hidden"))
   elseif sub == "ping" then
     hafen.sound("sfx/msg"):play()
@@ -2326,7 +2326,7 @@ hafen.slash():register("hello", function(args)
     -- scope. widget:skin{font=h} restyles ONE native widget and everything drawn inside it (its title, its labels,
     -- its button captions, even text drawn by the game's own resource code), while its SIBLINGS keep the
     -- tree/scope/"default" cascade: it sits at the TOP of it. The node comes from
-    -- the W1 widget-tree walk (hafen.ui():walk), so any widget in the client can be targeted -- here we pick
+    -- the W1 widget-tree walk (hafen.ui():root():walk), so any widget in the client can be targeted -- here we pick
     -- the FIRST open window and leave the rest stock, which is exactly the thing to look at. A window is
     -- recognised as "has a caption AND has children" (a Label/Button/TextEntry has a caption but no children).
     -- Owner-tagged like every other font override: reverted automatically on :reload/disable, and it dies with the
@@ -2338,7 +2338,7 @@ hafen.slash():register("hello", function(args)
       nodeFontTarget, nodeFontApplied = nil, false
       hafen.log():write(":hello node -> skin(nil) -- that window is back to the stock/scope font (a :reload/disable reverts it too)")
     else
-      local root = hafen.ui()
+      local root = hafen.ui():root()
       if not root then hafen.log():write(":hello node -> no UI yet (try in-world)"); return end
       -- Collect the open captioned windows AND count the restylable text in each subtree. Picking "the first
       -- window" is a trap: the Inventory/Equipment windows contain only WItem icons, so their ONLY text is the
@@ -2390,16 +2390,16 @@ hafen.slash():register("hello", function(args)
       return
     end
     if swallowedWnd then
-      swallowedWnd:show()                     -- :show() gives the widget back AND drops the record: the key is the
+      swallowedWnd:visible(true)              -- visible(true) gives the widget back AND drops the record: the key is the
       swallowedWnd = nil                      -- client's again (the same restore :reload/disable would have done)
       hafen.log():write(":hello wnd swallow -> gave the window back: the stock inventory is OPEN again and Tab toggles it"
         .. " as stock (press Tab to close it)")
       return
     end
-    local grid = hafen.ui.inventory()
+    local grid = hafen.ui():inventory()
     local wnd = grid and grid:parent()
     if not wnd then hafen.log():write(":hello wnd swallow -> no inventory window yet (enter the world first)"); return end
-    local ok, err = pcall(wnd.hide, wnd)
+    local ok, err = pcall(function() wnd:visible(false) end)
     if not ok then
       hafen.log():write((":hello wnd swallow -> refused, one window one owner: %s")
         :format((tostring(err):gsub("^.-%.lua:%d+:%s*", ""))))

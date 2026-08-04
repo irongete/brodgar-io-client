@@ -267,3 +267,13 @@
   is. `Retired.methodIndex(entity, methods)` wraps it: a live verb answers, a row keyed `"gob:pos"` throws,
   anything else stays `nil` so a feature probe still works. Any entity that renames a verb needs the wrapper,
   not just a row.
+- **(039.5) A verb that moves is a call site AND a field site, and a scripted port only sees the first.**
+  Retiring `hafen.ui.all(sel)` for `hafen.ui():all(sel)` was a sweep of `hafen.ui.all(`, which is exactly the
+  sites with a paren after them. It missed `pcall(hafen.ui.all, s)` in `widgetstack` and three
+  `pcall(wnd.hide, wnd)` in `hello` — where the field is fetched **outside** the `pcall` and the guiding
+  refusal escapes the very guard written to contain it, turning a defensive call into a hard error. This is
+  039.1's `pcall(hafen.json.parse, x)` finding recurring at corpus scale, and the fix is a second grep with a
+  **word boundary and no paren**: `grep -rnE "hafen\.ui\.(all|node|at|…)\b"` and
+  `grep -rnE "\b[a-z]+\.(pos|show|hide|replace)\b"`. Rewrite each as `pcall(function() … end)`, which is the
+  form that survives the *next* rename too. The trap is worse than a plain miss: the ported code compiles,
+  runs, and fails only on the error path.

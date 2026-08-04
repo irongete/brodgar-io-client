@@ -76,7 +76,7 @@ a broad one. [`widget:style()`](../api/ui/widget.md) reads back what a widget ac
 is the answer to "why is that still the wrong colour".
 
 Layout resolves through the same cascade with a different top: the hand-named level for `pos` and `size` is
-the [verb](../api/ui/native.md), `w:pos(x, y)`, not a `skin` call.
+the [verb](../api/ui/native.md), `w:position(x, y)`, not a `skin` call.
 
 ## A theme is a file
 
@@ -92,7 +92,7 @@ hafen.ui.skin(sheet)
 
 That is exactly what the bundled **`theme`** addon does, and it is why making a different theme is editing
 a file rather than writing an addon. Saving a *layout* is the same trick from the other side: window
-positions read back with `widget:pos()` are a table of numbers, and [`hafen.store`](../api/store.md)
+positions read back with `widget:position()` are a table of numbers, and [`hafen.store`](../api/store.md)
 persists tables.
 
 ## Where it stops

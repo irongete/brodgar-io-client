@@ -1104,3 +1104,37 @@ unmissable and cost nothing, because a hold was already an owned resource with a
 something as a property, check that the read is the read OF that write — where it is not, the shape is lying
 and no amount of documentation makes it stop.*
 **See.** [D-097](architecture-api.md), [D-069](widgets-ui.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-117 — a section whose verbs move over SEVERAL tasks is mounted with the un-moved ones still on it ✅ (2026-08-04)
+**Decision.** `hafen.ui` becomes the section object while `window`, `widget`, `overlay` and `skin` stay plain
+fields on its callable table, until the tasks that own them cut them. `Section.mount` takes the pre-populated
+table; a field is found by `rawget`, so it never reaches the retired-name `__index` and the two halves need no
+rule between them.
+**Rationale.** (2026-08-04, 039.5.) "A hard cut is ONE task or it is a broken client" is about a *cut*, and
+these four are not renames: the builders lose their `opts` table for chained setters and the sheet becomes a
+Sheet of Rules. Moving them now would spell 130 `skin{` sites `hafen.ui():skin{`, then spell all 130 again a
+task later — churn that proves nothing and reviews as noise. The alternative, deleting them until their task
+lands, leaves the client unable to draw a window for two tasks.
+**Consequences.** A section can be half-migrated without a transitional alias, a shim or a deprecation
+period, because the un-moved half is not a compatibility layer — it is simply the code that has not been
+touched yet. The rule that makes it safe is the table lookup order, so it costs one overload and nothing at
+runtime. Generally: *when a subsystem's cut is genuinely several cuts, migrate it one verb-group at a time and
+let the untouched verbs keep their old shape — the transitional state is the OLD code, never new code written
+to be thrown away.*
+**See.** [D-013](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-118 — the retired-name table carries what THIS migration renamed, and nothing else ✅ (2026-08-04)
+**Decision.** `hafen.ui.root` is not in the retired-name table, even though `hafen.ui():root()` is now the
+live spelling of the tree's top. It was cut by an earlier feature and reads as plain `nil`, and it goes on
+reading `nil`.
+**Rationale.** (2026-08-04, 039.5.) The table is generated from one feature's before/after inventory, which is
+what makes its coverage mechanical: a row in the inventory with no entry is a porting error nobody is told
+about, and that check only works if membership means exactly one thing. Admitting names retired by earlier
+features makes the table a general obituary — unbounded, unverifiable, and in direct tension with the
+`__index` contract that anything *not* in it reads `nil` so a feature probe (`if hafen.something then`) keeps
+working. A shipped suite asserts `hafen.ui.root == nil` as a hard-cut contract, and that assertion is correct.
+**Consequences.** Someone typing a spelling three features dead still gets "attempt to call a nil value", and
+that is the accepted cost: the table exists to make *this* port possible, not to be a museum. Generally: *a
+guiding refusal is scoped to the migration that owns it — when the scope is a mechanical check, widening it
+for kindness destroys the check.*
+**See.** [D-013](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).

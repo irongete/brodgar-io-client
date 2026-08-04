@@ -151,6 +151,30 @@ final class Retired {
             + " by construction, so p:info() is the {gridId, x, y} form and hafen.store keeps the Position"
             + " itself — there is nothing to convert");
         put("marker:dist", "marker:dist() is now marker:distance()");
+
+        // ---- hafen.ui: the lookups move onto the section, and the ROOT stops being the call itself -------
+        // (window/widget/overlay/skin are not here: they are still plain fields on the callable table, because
+        //  they lose their config table rather than merely moving, and each is a cut of its own.)
+        put("hafen.ui.all", "hafen.ui.all(selector) is now hafen.ui():all(selector)");
+        put("hafen.ui.node", "hafen.ui.node(id) is now hafen.ui():node(id)");
+        put("hafen.ui.at", "hafen.ui.at(x, y) is now hafen.ui():at(x, y)");
+        put("hafen.ui.mouse", "hafen.ui.mouse() is now hafen.ui():mouse()");
+        put("hafen.ui.inventory", "hafen.ui.inventory() is now hafen.ui():inventory()");
+        put("hafen.ui.equipment", "hafen.ui.equipment() is now hafen.ui():equipment()");
+        put("hafen.ui.hand", "hafen.ui.hand() is now hafen.ui():hand()");
+        put("hafen.ui.on", "hafen.ui.on(selector, event, fn) is now hafen.ui():on(selector, event, fn)");
+        // hafen.ui.root is deliberately NOT here, though hafen.ui():root() now exists: 030.1 cut it, this feature
+        // did not move it, and the table's rule is that it carries what THIS grammar renamed. A name nothing here
+        // touched goes on reading nil, which is what keeps a feature probe (`if hafen.something then`) honest.
+
+        // ---- the Widget entity: two renames, one hard cut, and the read that needed a noun ---------------
+        put("widget:pos", "widget:pos() is now widget:position(), and it still answers in PIXELS within the"
+            + " parent — a widget lives on the screen, so this is not a Position and hafen.act():moveTo refuses it");
+        put("widget:rootpos", "widget:rootpos() is now widget:rootPos()");
+        put("widget:show", "widget:show() is now widget:visible(true) — a boolean property is a property, so the"
+            + " value is the argument rather than the verb's name");
+        put("widget:hide", "widget:hide() is now widget:visible(false) — a boolean property is a property, so the"
+            + " value is the argument rather than the verb's name");
         put("marker:onmap", "marker:onmap() is now marker:onMap(), and it writes too: marker:onMap(true)");
     }
 

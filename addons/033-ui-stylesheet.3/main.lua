@@ -79,7 +79,7 @@ local function run()
           function() hafen.ui.skin{ ["chat"] = { colour = { 1, 2, 3 } } } end, "not a style property")
   refuses("a typo inside a TREE key's rule is refused too -- what is deferred is the key, not the rule",
           function() hafen.ui.skin{ ["@Inventory"] = { fnt = 1 } } end, "not a style property")
-  refuses("a malformed key errors exactly as hafen.ui(sel) does",
+  refuses("a malformed key errors exactly as hafen.ui():find(sel) does",
           function() hafen.ui.skin{ ["window["] = { color = { 1, 2, 3 } } } end, "window[")
 
   -- 4. the hard cut, and what survived it.

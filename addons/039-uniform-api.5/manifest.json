@@ -1,0 +1,9 @@
+{
+  "name": "039.5 — hafen.ui() and the Widget entity",
+  "id": "039-uniform-api.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.5: hafen.ui() is the section and the root moved to :root(); the Widget entity takes :position/:rootPos/:visible(b)/:replacement(); a widget's position is pixels and a spatial verb refuses it.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

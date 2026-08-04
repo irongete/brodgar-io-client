@@ -126,7 +126,7 @@ public final class AddonWidgets {
      * which both the menu checkbox and its keybinding reach ({@code MenuCheckBox} calls {@code setgkey}, so the
      * key fires the button's own click). {@code true} = handled, leave the window alone.
      *
-     * <p>An addon that hid a native window with {@code widget:hide()} <b>owns</b> it (spec
+     * <p>An addon that hid a native window with {@code widget:visible(false)} <b>owns</b> it (spec
      * {@code 031-window-lifecycle}): without this the client would flip {@code visible} straight back on the very
      * window the addon hid, which is why the stock inventory used to reappear on Tab beside a replacement. A
      * window nobody owns — and every window at all when no addon is loaded — answers {@code false} here and the

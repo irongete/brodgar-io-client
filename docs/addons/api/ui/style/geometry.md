@@ -18,9 +18,10 @@ hafen.ui.skin{
   that silently does nothing. (`*` is the default *site*, not "every widget"; select widgets with
   `["window"]` or a refiner.)
 - **`widget:skin{pos = …}` is an error too**, for the opposite reason: the hand-named level of the layout
-  cascade already exists and is the **verb**, [`w:pos(x, y)`](../native.md). One way per operation.
+  cascade already exists and is the **verb**, [`w:position(x, y)`](../native.md). One way per operation.
 - **The rule and the verb are one cascade, not two mechanisms.** A `pos` from the verb outranks a `pos` from
-  any rule, however specific, and `w:pos(nil)` drops *your level*, falling back to the rule when one still
+  any rule, however specific, and `w:position(nil)` drops *your level*, falling back to the rule when one
+  still
   names the widget and only reaching the stock value when nothing does.
 - **Raw pixels**, like `pad` and a border's slice. `pos` is within the **parent**; `size` on a window is its
   **content** size, exactly as [the verb](../native.md) takes it.
@@ -30,13 +31,13 @@ hafen.ui.skin{
   client's own saved positions stay [the user's](../native.md).
 
 ```lua
-local w = hafen.ui("window[title=Equipment]")
+local w = hafen.ui():find("window[title=Equipment]")
 hafen.ui.skin{ ["window[title=Equipment]"] = { pos = {40, 200} } }
-w:pos()            --> {x = 40,  y = 200}    -- the rule
-w:pos(12, 12)      --                        -- named by hand: the top of the same fold
-w:pos()            --> {x = 12,  y = 12}
-w:pos(nil)         --                        -- your level goes...
-w:pos()            --> {x = 40,  y = 200}    -- ...and the RULE is what is underneath
+w:position()            --> {x = 40,  y = 200}    -- the rule
+w:position(12, 12)      --                        -- named by hand: the top of the same fold
+w:position()            --> {x = 12,  y = 12}
+w:position(nil)         --                        -- your level goes...
+w:position()            --> {x = 40,  y = 200}    -- ...and the RULE is what is underneath
 hafen.ui.skin(nil) --                        -- ...and now nothing is: back to where the user had it
 ```
 
@@ -53,7 +54,8 @@ that packed itself around new contents:
 ```lua
 hafen.ui.skin{
   ["window[title=Inventory]"] = { anchor = {to = "screen", at = "bottomright", offset = {-8, -8}} },
-  ["window[title=Equipment]"] = { anchor = {to = hafen.ui("window[title=Inventory]"), at = "topright"} },
+  ["window[title=Equipment]"] = { anchor = {to = hafen.ui():find("window[title=Inventory]"),
+                                            at = "topright"} },
   ["window[title=Cupboard]"]  = { anchor = {at = "center"} },   -- every field has a default
 }
 ```
@@ -68,7 +70,7 @@ The corner is the widget's **own** as well as the target's — `at = "bottomrigh
 corner on the target's, which is what makes `offset = {-8, -8}` read as *8 px in from the edge*.
 
 **`pos` is the degenerate anchor** — to the widget's own parent, at its top-left, with that offset — which
-is exactly the coordinate `:pos()` reads. So they are *one* property with two spellings: they compete for
+is exactly the coordinate `:position()` reads. So they are *one* property with two spellings: they compete for
 the same slot in the cascade, and a rule that says both is an error rather than a winner picked at random.
 
 ```lua
@@ -85,12 +87,12 @@ API — a verb, a rule — has moved everything hanging off it **by the time the
 
 **Off-screen is clamped, by the client's own rule.** A window the HUD or the root holds directly is handed
 to the same clamp the client uses when it places or toggles one, so at least a corner of it stays inside
-and a bad offset can never make a window unreachable. [`hafen.ui.at()`](../selectors.md#hit-testing) still
-finds it where it is drawn; read `:pos()` back if you need the number that survived. A widget *inside* a
+and a bad offset can never make a window unreachable. [`hafen.ui():at()`](../selectors.md#hit-testing) still
+finds it where it is drawn; read `:position()` back if you need the number that survived. A widget *inside* a
 window is laid out by that window and is not the client's to clamp — there you get the pixels you asked for.
 
 [`widget:style()`](README.md#restyle-one-widget) reports the property as it was **written** — `anchor` for
-an anchor, `pos` for a plain one — while [`widget:pos()`](../widget.md#read) answers where the widget
+an anchor, `pos` for a plain one — while [`widget:position()`](../widget.md#read) answers where the widget
 actually is right now.
 
 ## See also

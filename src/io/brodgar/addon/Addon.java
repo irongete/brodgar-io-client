@@ -95,7 +95,7 @@ public final class Addon {
      */
     public final List<LuaSelectorWatch> selectorWatches = new CopyOnWriteArrayList<LuaSelectorWatch>();
     /**
-     * Native widgets this addon has <b>hidden</b> with {@code widget:hide()} (029.2) — the restore list that
+     * Native widgets this addon has <b>hidden</b> with {@code widget:visible(false)} (029.2) — the restore list that
      * replaced {@code hafen.ui.adopt}, and <b>the one record a substitution lives on</b> since 031.2: a
      * {@code widget:replace(view)} joins the very entry a bare hide makes and fills in its view, so there is no
      * second bookkeeping object beside it (D-071, which is what let 032.2 delete {@code LuaModel} with the
@@ -104,11 +104,11 @@ public final class Addon {
      * {@code :reload}/disable under the one rule (<i>the window ends up as the user was seeing it</i>) and destroys
      * the stand-in with it, guarded on the widget still being the same live one (so a relog — which rebinds
      * {@code ui} before the teardown loop — correctly skips it while a same-session {@code :reload} performs it).
-     * {@code widget:show()} drops its own entry: nothing left to undo. Copy-on-write like the other owned lists.
+     * {@code widget:visible(true)} drops its own entry: nothing left to undo. Copy-on-write like the other owned lists.
      */
     public final List<LuaWidget.Hidden> hiddenNative = new CopyOnWriteArrayList<LuaWidget.Hidden>();
     /**
-     * Native widgets this addon has <b>moved or resized</b> with {@code widget:pos(x,y)}/{@code widget:size(w,h)}
+     * Native widgets this addon has <b>moved or resized</b> with {@code widget:position(x,y)}/{@code widget:size(w,h)}
      * (036.1, feature E) — the same shape as {@link #hiddenNative} one property along: <i>what it was before we
      * touched it</i>. One entry per widget, minted at the FIRST touch and carrying the stock position and the
      * stock size argument independently (an addon that only moved a window has nothing to say about its size).
@@ -117,7 +117,7 @@ public final class Addon {
      * that true in both directions: {@link UiApi#teardownMoved} puts every widget back on {@code :reload}/disable
      * (guarded on it still being the same live one, so a relog correctly skips it), and {@link UiApi#stockPos}
      * answers {@code GameUI.savewndpos} with the coordinate the <i>user</i> last placed, so the client never
-     * persists our layout as their preference. {@code widget:pos(nil)}/{@code :size(nil)} drop their own half and
+     * persists our layout as their preference. {@code widget:position(nil)}/{@code :size(nil)} drop their own half and
      * restore it there and then; an entry with neither half left is dropped. Copy-on-write like the lists above.
      */
     public final List<LuaWidget.Moved> movedNative = new CopyOnWriteArrayList<LuaWidget.Moved>();

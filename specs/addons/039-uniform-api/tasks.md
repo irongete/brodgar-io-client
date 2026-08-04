@@ -247,7 +247,7 @@ the Marker/Segment/Grid/Mask/IconCategory entity block) · `src/io/brodgar/addon
 
 ---
 
-## 039.5 — `hafen.ui()` and the Widget entity
+## 039.5 — `hafen.ui()` and the Widget entity ✅ DONE
 
 **Depends on:** 039.1.
 

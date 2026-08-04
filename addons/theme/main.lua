@@ -160,7 +160,7 @@ local function saveLayout()
   local saved, n = pins(), 0
   for key, rule in pairs(sheet) do
     if places(rule) then
-      local w = hafen.ui(key)
+      local w = hafen.ui():find(key)
       if w ~= nil then
         local p = w:pos()
         saved[key] = { x = p.x, y = p.y }

@@ -61,9 +61,20 @@ public final class Section {
 
     /** As {@link #install(LuaTable, String, LuaTable)}, with a hint appended to the takes-no-arguments error. */
     static LuaValue install(LuaTable hafen, String nm, LuaTable methods, String hint) {
-        LuaValue obj = LuaValue.userdataOf(new Section(nm), meta(nm, methods));
+        LuaValue obj = object(nm, methods);
         mount(hafen, nm, obj, hint);
         return obj;
+    }
+
+    /**
+     * Mint a section object over {@code methods} <b>without</b> mounting it, for a section whose callable table
+     * is not empty yet: a migration that moves a section's verbs one task at a time leaves the ones a later task
+     * owns standing as plain fields, and those go on the table handed to {@link #mount}. A field the table
+     * carries is found by {@code rawget} and never reaches {@link Retired}, so the two halves coexist without a
+     * rule between them — and the day the last field moves, the caller drops back to {@link #install}.
+     */
+    static LuaValue object(String nm, LuaTable methods) {
+        return LuaValue.userdataOf(new Section(nm), meta(nm, methods));
     }
 
     /**
@@ -76,7 +87,15 @@ public final class Section {
      *             ({@code hafen.log():write(msg)}); {@code null} for the rest.
      */
     static void mount(LuaTable hafen, final String nm, final LuaValue obj, final String hint) {
-        LuaTable t = new LuaTable();
+        mount(hafen, nm, obj, hint, new LuaTable());
+    }
+
+    /**
+     * As {@link #mount(LuaTable, String, LuaValue, String)}, over a callable table that already carries fields —
+     * the verbs of this section a later task still owns (see {@link #object}). Their presence changes nothing:
+     * {@code __index} is consulted on a miss only.
+     */
+    static void mount(LuaTable hafen, final String nm, final LuaValue obj, final String hint, LuaTable t) {
         LuaTable mt = new LuaTable();
         // `nm`, never `name`: LuaJ's LibFunction declares a `protected String name`, and an inherited field
         // shadows an enclosing method's parameter of the same name inside an anonymous subclass (019.4).

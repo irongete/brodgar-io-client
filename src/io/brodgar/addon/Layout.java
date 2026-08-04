@@ -24,14 +24,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *
  * <pre>
  *   hafen.ui.skin{ ["window[title=Equipment]"] = { pos = {40, 200} } }   -- matched
- *   hafen.ui("window[title=Equipment]"):pos(40, 200)                     -- named by hand
+ *   hafen.ui():find("window[title=Equipment]"):position(40, 200)          -- named by hand
  * </pre>
  *
  * <p><b>One fold, two levels</b> (D-077 verbatim, one property along): a tree rule that names a widget carries
  * its {@code pos}/{@code size} through the very fold {@link Sheet} already runs for {@code font}/{@code color}/
  * {@code bg}/{@code border}/{@code pad} — most specific rule wins, per property — and the <b>verbs sit on top of
- * it</b>, hand-named, latest applied winning. So {@code widget:pos(x, y)} on a widget a rule also names wins, and
- * {@code widget:pos(nil)} drops back to <i>the rule</i> rather than to the stock value: the undo removes a level,
+ * it</b>, hand-named, latest applied winning. So {@code widget:position(x, y)} on a widget a rule also names wins, and
+ * {@code widget:position(nil)} drops back to <i>the rule</i> rather than to the stock value: the undo removes a level,
  * it does not empty the cascade.
  *
  * <p><b>Layout is a WRITE, and that is the whole difference from every other property.</b> The five that came
@@ -66,7 +66,7 @@ final class Layout {
 
     /**
      * The apply-order stamp of the hand-named level. A rule's rank orders the levels below; between two addons
-     * that each called {@code widget:pos(x, y)} on one widget the last one wins (D-043, and D-087's <i>a position
+     * that each called {@code widget:position(x, y)} on one widget the last one wins (D-043, and D-087's <i>a position
      * is not a toggle</i>: two addons may layer over one widget, so the tie has to be broken rather than refused).
      */
     private static long seq = 0;
@@ -126,7 +126,7 @@ final class Layout {
     /**
      * <b>Where a widget goes</b> — the one value the position half of the cascade carries. {@code pos = {x, y}} is
      * not a second property beside {@code anchor}: it is the anchor whose target is the widget's <b>own parent</b>,
-     * at its top-left, with that offset. Which is exactly the coordinate {@code widget:pos()} reads and the client's
+     * at its top-left, with that offset. Which is exactly the coordinate {@code widget:position()} reads and the client's
      * own {@code c} — so the degenerate case is a real case, there is one resolution path rather than two, and a
      * rule saying {@code pos} and a rule saying {@code anchor} compete for the <i>same</i> half of the same fold
      * instead of each winning one of two.
@@ -171,7 +171,7 @@ final class Layout {
             this.plain = plain;
         }
 
-        /** {@code widget:pos(x, y)} and a rule's {@code pos = {x, y}}: the parent's top-left, plus that offset. */
+        /** {@code widget:position(x, y)} and a rule's {@code pos = {x, y}}: the parent's top-left, plus that offset. */
         static Anchor at(Coord c) {
             return new Anchor(PARENT, null, 0, 0, c, true);
         }
@@ -516,7 +516,7 @@ final class Layout {
     /**
      * Parse a rule's {@code pos = {x, y}} / {@code size = {w, h}} — the same two spellings a colour and a border's
      * slice take ({@code {40, 200}} or {@code {x = 40, y = 200}}), for the same reason: the positional form is what
-     * a hand-written rule and a {@code theme.json} say, the keyed form is what {@code widget:pos()} and
+     * a hand-written rule and a {@code theme.json} say, the keyed form is what {@code widget:position()} and
      * {@code widget:style()} hand back, so a read round-trips into a write unchanged.
      *
      * <p><b>Raw pixels</b> (D-081): a coordinate you write is a pixel you get, exactly as {@code pad}, a border's
@@ -582,7 +582,7 @@ final class Layout {
                     to = Anchor.SCREEN;
                 } else {
                     throw new LuaError(ctx + ".anchor.to: expected \"screen\" or a widget"
-                        + " — hafen.ui(\"window[title=Inventory]\"), got " + pv.typename());
+                        + " — hafen.ui():find(\"window[title=Inventory]\"), got " + pv.typename());
                 }
             } else if("at".equals(p)) {
                 corner = cornerOf(ctx, pv);

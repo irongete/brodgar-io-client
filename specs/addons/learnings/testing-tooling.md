@@ -837,3 +837,22 @@
   and therefore the durable half of every Position, answer without a disk read. `new Resource.Saved(pool,
   name, ver)` builds a `TileInfo` with no network. Note the load model reaches the probe too: a cold
   `grid:modified()` is **nil** and needs a poll loop, which is the caller's frame in miniature.
+- **(039.5) The fabricated UI reaches the HUD: a suite needing `hafen.ui():inventory()` is dry-runnable.**
+  036.3's recipe plus two `Unsafe`-allocated widgets hand-wired under the root — a `GameUI` (which
+  `AddonManager.gui()` finds by walking the tree, no session needed) with a `maininv` `Inventory`, both
+  `bind`ed into `UI.widgets`/`rwidgets` so `:id()` and `:node(id)` round-trip. `allocateInstance` skips field
+  initialisers, so a hand-allocated widget reads `visible == false` — which conveniently keeps the fake HUD
+  out of the hit-test while the real `root.add(new Window(...))` targets stay in it. With that, the shipping
+  suite ran end to end at 30/0/0 before the client started, and the in-game round confirmed the same 30.
+- **(039.5) A hit-test check must use a BARE widget, not a window — a window's corner is not hit-testable.**
+  The first draft probed `probe:children()[1]:rootPos() + 4` on an owned `hafen.ui.window{}` and came back 2
+  red: `DefaultDeco.checkhit` owns the caption strip and the content area, not the transparent pixels between,
+  and the first child's `rootPos()` is the window's own corner rather than the content's. `hafen.ui.widget{}`
+  is its own rectangle to the edge, so the negative probe can be the old **top-left + 2** exactly as 036.1's
+  lesson demands, instead of falling back to a centre the move has to be proved to vacate.
+- **(039.5) A picker that hunts for a NATIVE window must exclude the ones this addon owns.** 036.2's `named()`
+  helper takes the first uniquely-titled `window`, and the suite creates its own probe window before calling
+  it — so it can pick *itself*, at which point `:position(x, y)` takes the owned branch (a direct `move`, no
+  recorded level) and `:position(nil)` is a silent no-op that reddens the restore check for a reason that has
+  nothing to do with the feature. `not (w:info() or {}).owned` is the whole fix. Generally: *a self-validating
+  picker must exclude the suite's own furniture, because a suite is part of the client it is measuring.*

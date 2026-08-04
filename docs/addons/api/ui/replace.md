@@ -5,7 +5,7 @@ appear, and `widget:replace` stands your own window in its place. Both are ungat
 when your addon goes away. The bundled **`bags`** addon is this pair end to end.
 
 ```lua
-hafen.ui.on("inventory[title=Inventory]", "appear", function(inv)
+hafen.ui():on("inventory[title=Inventory]", "appear", function(inv)
   inv:replace(hafen.ui.window{
     title = "Bags", size = {200, 120},
     onDraw = function(g) g:text(#inv:items() .. " items", 6, 6) end,
@@ -15,7 +15,7 @@ end)
 
 | Call | Returns | Description |
 |---|---|---|
-| `hafen.ui.on(selector, event, fn)` | [handle](custom.md#overlay-and-observer-handles) | `fn(widget)` when a widget matching a [selector](selectors.md) appears or disappears |
+| `hafen.ui():on(selector, event, fn)` | [handle](custom.md#overlay-and-observer-handles) | `fn(widget)` when a widget matching a [selector](selectors.md) appears or disappears |
 | `widget:replace(view)` | the widget, chains | put your own window in place of the native one around it |
 
 ## Watching for a widget
@@ -31,7 +31,7 @@ both:
 | `"disappear"` | a widget that had matched is destroyed |
 
 ```lua
-hafen.ui.on("window[title=Cupboard]", "appear", function(w)
+hafen.ui():on("window[title=Cupboard]", "appear", function(w)
   hafen.log():write(("cupboard open: %d item(s)"):format(#w:items()))
 end)
 ```
@@ -55,21 +55,22 @@ These are widget subscriptions rather than bus events: there is no `WidgetCreate
 
 ## Replacing a native window (ungated)
 
-Replacing is a **verb on the widget**, and arity is the verb:
+Replacing is a **verb on the widget**. The read has a name of its own, because putting a view in place
+is an *act* and the thing standing there is a *replacement*:
 
 | Call | Does |
 |---|---|
-| `w:replace()` | reads the view standing in for this window, or `nil` |
+| `w:replacement()` | reads the view standing in for this window, or `nil` |
 | `w:replace(view)` | hides the native window and puts `view` in its place; chains |
 | `w:replace(nil)` | undoes it there and then — the window comes back, the view is destroyed; chains |
 
 **It hides the *enclosing* window, not the widget you point at.** That one line is why the verb exists.
 Point it at the inventory **grid** and the whole stock window goes, frame and caption and all, because a
 frame left standing around a hole is not a replacement. This is exactly where it differs from
-[`w:hide()`](native.md#hiding-a-native-widget-carries-a-restore), which hides precisely what you point at
-and nothing more. Two operations, two rules; pick by what you want left on screen.
+[`w:visible(false)`](native.md#hiding-a-native-widget-carries-a-restore), which hides precisely what you
+point at and nothing more. Two operations, two rules; pick by what you want left on screen.
 
-**Waiting is not part of it.** `hafen.ui.on(sel, "appear", fn)` already waits for anything and already
+**Waiting is not part of it.** `hafen.ui():on(sel, "appear", fn)` already waits for anything and already
 fires for what is open, so the whole pattern is the two together — the example at the top of this page is
 the complete shape.
 
@@ -104,7 +105,7 @@ which is a spacer is knowledge your Lua supplies, not something the tree declare
 The line between the three verbs on this page and the sheet is worth stating once. **Restyling** a native
 widget — its text, its background, its border, a window's whole chrome — is
 [the stylesheet's](style/README.md) job. **Placing** one is a write,
-[`:pos(x, y)`/`:size(w, h)`](native.md), which the sheet can also
+[`:position(x, y)`/`:size(w, h)`](native.md), which the sheet can also
 [say as a rule](style/geometry.md). **Rearranging what a window puts inside itself** is neither: that is
 replacing it.
 

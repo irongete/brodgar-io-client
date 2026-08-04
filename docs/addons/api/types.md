@@ -34,8 +34,8 @@ always fresh. [`hafen.world`](world.md) and the `GobAdded`/`GobRemoved` events h
 ## Item
 
 An item inside a container. From any widget's [`:items()`](ui/items.md) — your backpack
-(`hafen.ui.inventory()`), your worn gear (`hafen.ui.equipment()`), a chest, a cupboard — and from
-[`hafen.ui.hand()`](ui/widget.md) for the cursor item. Every field is optional.
+(`hafen.ui():inventory()`), your worn gear (`hafen.ui():equipment()`), a chest, a cupboard — and from
+[`hafen.ui():hand()`](ui/widget.md) for the cursor item. Every field is optional.
 
 | Field | Type | Notes |
 |---|---|---|

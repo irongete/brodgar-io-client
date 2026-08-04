@@ -6,11 +6,11 @@ window, an equipment grid — while the window stays visible and interactive. No
 is registered. Reading is ungated.
 
 ```lua
-for _, it in ipairs(hafen.ui.inventory():items()) do
+for _, it in ipairs(hafen.ui():inventory():items()) do
   hafen.log():write((it.name or it.res or "?") .. " x" .. (it.num or 1))
 end
 
-local cursor = hafen.ui.hand()                              -- the item on the cursor, or nil
+local cursor = hafen.ui():hand()                              -- the item on the cursor, or nil
 ```
 
 ## Read
@@ -18,12 +18,12 @@ local cursor = hafen.ui.hand()                              -- the item on the c
 | Method | Returns | Description |
 |---|---|---|
 | `widget:items()` | [`Item`](../types.md#item)`[]` | the items inside this widget, in the container's own order |
-| `hafen.ui.hand()` | [`Item`](../types.md#item) \| nil | the item on the cursor — a snapshot, since there is no widget to walk |
+| `hafen.ui():hand()` | [`Item`](../types.md#item) \| nil | the item on the cursor — a snapshot, since there is no widget to walk |
 
-- The search is **deep**, so a whole window answers for the grid inside it: `hafen.ui.node(chestId):items()`
+- The search is **deep**, so a whole window answers for the grid inside it: `hafen.ui():node(chestId):items()`
   works whether you point at the window or at its `Inventory` child.
 - Each entry's `pos` is shaped by its container — an inventory cell `{x, y}`, or, from
-  `hafen.ui.equipment()`, the slot name plus a numeric `slot`. A two-slot worn item appears as two entries
+  `hafen.ui():equipment()`, the slot name plus a numeric `slot`. A two-slot worn item appears as two entries
   with distinct `slot` values.
 - A non-container, or a stale widget, answers with an **empty array**, never `nil`. `quality` and a
   container's own `contents` are not exposed.
@@ -43,7 +43,7 @@ Three subscriptions on the container itself. All chain, and passing `nil` unsubs
 | `:onDestroy(fn)` | `fn()` once, when this widget leaves the tree |
 
 ```lua
-local chest = hafen.ui("window[title=Chest]")
+local chest = hafen.ui():find("window[title=Chest]")
 chest:onItemAdded(function(item) hafen.log():write("in:  " .. (item.name or item.res or "?")) end)
      :onItemRemoved(function(item) hafen.log():write("out: " .. (item.name or item.res or "?")) end)
      :onDestroy(function() hafen.log():write("chest closed") end)

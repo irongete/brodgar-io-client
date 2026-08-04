@@ -29,7 +29,7 @@ nothing is sandboxed and every gated verb works there.
 
 ```text
 :lua hafen.world():gob():count("terobjs/tree")
-:lua hafen.ui("window[title=Inventory]"):info()
+:lua hafen.ui():find("window[title=Inventory]"):info()
 :lua for _, m in ipairs(hafen.meter()) do hafen.log():write(tostring(m:res())) end
 ```
 
@@ -73,7 +73,8 @@ Four causes cover almost all of it:
   [event or a timer](events-and-timers.md).
 - **The hotkey is unbound.** An addon hotkey starts with no key at all, by design. Look in
   Options ▸ Keybindings for your addon's section.
-- **The selector matches nothing.** `hafen.ui(sel)` answers `nil` rather than throwing. Try it in `:lua`,
+- **The selector matches nothing.** `hafen.ui():find(sel)` answers `nil` rather than throwing. Try it in
+  `:lua`,
   and check the widget with the inspector.
 - **The handler threw.** Look at the console: an isolated error is a logged line, not a stopped client.
 

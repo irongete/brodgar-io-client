@@ -366,6 +366,11 @@ because a timer ends with `t:cancel()` and two spellings for one operation is th
 
 ## `hafen.ui()` — the UI (the section; **the root moves**)
 
+> **Shipped in 039.5** — the section, the root as `:root()`, and every lookup as a colon verb. The last
+> four rows (`window`, `widget`, `overlay`, `skin`) are **not** shipped: they do not merely move, so they
+> stay plain fields on the callable table until **039.6** (the builders) and **039.7** (the Sheet) cut
+> them. A field the table carries is found before `__index`, so the two halves coexist without a rule.
+
 | before | after | does |
 |---|---|---|
 | `hafen.ui()` | `hafen.ui():root()` | the top of the client tree — **36 sites**, the collision |
@@ -694,14 +699,19 @@ spelt `spawnData` and `offset` takes the same units it does today (screen px or 
 
 ## Widget — the biggest entity
 
+> **Shipped in 039.5**, except the `w:skin()` row, which is **039.7**'s (it becomes a Rule, not a rename)
+> and the builder setters below it, which are **039.6**'s. `:rootpos()` -> **`:rootPos()`** landed with the
+> rest (N2); the `:info()` snapshot keeps its own `pos` key, which no row here renames.
+
 Reads unchanged: `:type() :role() :res() :id() :children() :parent() :text() :items() :exists() :info()
-:walk(fn) :at(coord) :rootpos() :style()`.
+:walk(fn) :at(coord) :style()`.
 
 | before | after | does |
 |---|---|---|
 | `w:pos()` / `(x,y)` / `(nil)` | `w:position()` / `(x,y)` / `(nil)` | **pixels** within the parent — `nil` drops your layer (see below) |
+| `w:rootpos()` | `w:rootPos()` | **pixels** in root coords (N2) |
 | `w:size()` / `(w,h)` / `(nil)` | `w:size()` / `(w,h)` / `(nil)` | size — same three arities |
-| `w:visible()` | unchanged | is it visible |
+| `w:visible()` | `w:visible()` / `w:visible(b)` | is it visible — and the write, R6 |
 | `w:show()` / `w:hide()` | `w:visible(true)` / `w:visible(false)` | **CUT** — R6 |
 | `w:skin()` / `{…}` / `(nil)` | `w:rule()` → a Rule; `w:rule():remove()` undoes | this widget's own cascade level (D-077); removal is R7, not a `clear` verb |
 | `w:replace()` | `w:replacement()` | read the installed view |

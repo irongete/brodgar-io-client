@@ -34,7 +34,7 @@ are until you are in the world.
 ```lua
 hafen.event():on("OnEnterWorld", function()
   local pos = hafen.store.settings.window
-  if pos then window:pos(pos.x, pos.y) end
+  if pos then window:position(pos.x, pos.y) end
 end)
 ```
 

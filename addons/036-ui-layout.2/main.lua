@@ -4,7 +4,7 @@
 -- join the sheet, folded per property by the same fold as font/color/bg/border/pad (D-076), and the verbs become
 -- the hand-named TOP of that one fold (D-077) rather than a second mechanism beside it. So the two claims worth
 -- asserting are (a) a rule lays a window out and dropping it gives the exact numbers back, and (b) the levels
--- compose in the right order -- the verb wins over a rule, and :pos(nil) drops back to THE RULE, not to stock.
+-- compose in the right order -- the verb wins over a rule, and :position(nil) drops back to THE RULE, not to stock.
 --
 -- Everything here is a number, read back through the very verbs the task ships. The one thing no program can do
 -- is log out and back in, and that is where the feature's real risk lives: the client persists a few window
@@ -43,15 +43,15 @@ end
 local function xy(p) return p and ("%d,%d"):format(p.x, p.y) or "nil" end
 
 -- A native window a [title=] selector names UNIQUELY, picked rather than named and SELF-VALIDATING on both
--- axes (030.2's inspector trick): a candidate counts only after hafen.ui.all() has actually resolved the
+-- axes (030.2's inspector trick): a candidate counts only after hafen.ui():all() has actually resolved the
 -- selector to exactly this widget, so the rules below run against a key the engine agrees with on whatever
 -- HUD this happens to be. Captions carrying the grammar's own punctuation are skipped rather than escaped.
 local function named(skip)
-  for _, w in ipairs(hafen.ui.all("window")) do
+  for _, w in ipairs(hafen.ui():all("window")) do
     local cap = w:text()
     if w ~= skip and cap and cap ~= "" and not cap:find("[%[%]=]") then
       local sel = "window[title=" .. cap .. "]"
-      local all = hafen.ui.all(sel)
+      local all = hafen.ui():all(sel)
       if (#all == 1) and (all[1] == w) then return w, sel end
     end
   end
@@ -61,11 +61,11 @@ end
 -- (the inventory's Hidewnd, cresize(ch){pack()}) sizes itself straight back, so the size target is validated
 -- with the verb first and put back at once -- otherwise a green suite would prove nothing about `size`.
 local function resizable()
-  for _, w in ipairs(hafen.ui.all("window")) do
+  for _, w in ipairs(hafen.ui():all("window")) do
     local cap, was = w:text(), w:size()
     if cap and cap ~= "" and not cap:find("[%[%]=]") and was then
       local sel = "window[title=" .. cap .. "]"
-      local all = hafen.ui.all(sel)
+      local all = hafen.ui():all(sel)
       if (#all == 1) and (all[1] == w) then
         w:size(was.x + 40, was.y + 30)
         local took = xy(w:size()) ~= xy(was)
@@ -85,7 +85,7 @@ local function run()
   -- 1. the premise, re-asserted here because everything below rests on it (D-085): a native window is
   --    reachable, is BORROWED, and a selector names it and nothing else.
   local w, sel = named()
-  check(w ~= nil, "a native window a [title=] selector names uniquely, validated through hafen.ui.all()", sel)
+  check(w ~= nil, "a native window a [title=] selector names uniquely, validated through hafen.ui():all()", sel)
   if w == nil then
     hafen.log():write("[fail] no HUD: run this in-world -- every check below needs one of the client's own windows")
     hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
@@ -93,41 +93,41 @@ local function run()
   end
   eq("...and it is a widget this addon did NOT create", w:info().owned, false)
   local other = named(w)
-  local stock, ostock = w:pos(), other and other:pos()
+  local stock, ostock = w:position(), other and other:position()
 
   -- 2. THE TASK: pos is a sheet property, applied when the sheet is -- not a frame later, and not at the draw.
   hafen.ui.skin{ [sel] = { pos = {stock.x + 45, stock.y + 35} } }
-  eq("a sheet pos rule moves the window it names, read back through widget:pos()",
-     xy(w:pos()), ("%d,%d"):format(stock.x + 45, stock.y + 35))
+  eq("a sheet pos rule moves the window it names, read back through widget:position()",
+     xy(w:position()), ("%d,%d"):format(stock.x + 45, stock.y + 35))
   if other ~= nil then
-    eq("...and moves nothing it does not name", xy(other:pos()), xy(ostock))
+    eq("...and moves nothing it does not name", xy(other:position()), xy(ostock))
   end
   eq("widget:style() reports the layout the sheet resolved", xy(w:style().pos),
      ("%d,%d"):format(stock.x + 45, stock.y + 35))
 
   -- 3. ONE FOLD, TWO LEVELS (D-077): the hand-named verb outranks the rule, and its undo drops back to the
-  --    RULE rather than to stock -- widget:pos(nil) removes a level, it does not empty the cascade.
-  w:pos(stock.x + 7, stock.y + 9)
-  eq("the verb wins over a rule that also names the widget", xy(w:pos()),
+  --    RULE rather than to stock -- widget:position(nil) removes a level, it does not empty the cascade.
+  w:position(stock.x + 7, stock.y + 9)
+  eq("the verb wins over a rule that also names the widget", xy(w:position()),
      ("%d,%d"):format(stock.x + 7, stock.y + 9))
-  w:pos(nil)
-  eq("...and widget:pos(nil) falls back to THE RULE, not to the stock value", xy(w:pos()),
+  w:position(nil)
+  eq("...and widget:position(nil) falls back to THE RULE, not to the stock value", xy(w:position()),
      ("%d,%d"):format(stock.x + 45, stock.y + 35))
 
   -- 4. per property, most specific wins (D-076) -- and a role rule reaches every window, which is what makes
   --    the [title=] one above it worth having.
   hafen.ui.skin{ ["window"] = { pos = {60, 70} }, [sel] = { pos = {stock.x + 45, stock.y + 35} } }
-  eq("a [title=] rule outranks a role rule on the widget it names", xy(w:pos()),
+  eq("a [title=] rule outranks a role rule on the widget it names", xy(w:position()),
      ("%d,%d"):format(stock.x + 45, stock.y + 35))
   if other ~= nil then
-    eq("...while the role rule reaches the windows it does not", xy(other:pos()), "60,70")
+    eq("...while the role rule reaches the windows it does not", xy(other:position()), "60,70")
   end
 
   -- 5. dropping the sheet restores the EXACT numbers -- the 035.2 method, and the whole point of a layer.
   hafen.ui.skin(nil)
-  eq("dropping the sheet puts the window back exactly where the user had it", xy(w:pos()), xy(stock))
+  eq("dropping the sheet puts the window back exactly where the user had it", xy(w:position()), xy(stock))
   if other ~= nil then
-    eq("...and every other window the sheet reached with it", xy(other:pos()), xy(ostock))
+    eq("...and every other window the sheet reached with it", xy(other:position()), xy(ostock))
   end
 
   -- 6. size is the same property one axis along, on a window the client actually lets us resize.
@@ -144,18 +144,18 @@ local function run()
 
   -- 7. a rule naming nothing is inert, never an error.
   hafen.ui.skin{ ["@NoSuchWidgetClass"] = { pos = {11, 22} } }
-  eq("a rule naming nothing lays nothing out", xy(w:pos()), xy(stock))
+  eq("a rule naming nothing lays nothing out", xy(w:position()), xy(stock))
   hafen.ui.skin(nil)
 
   -- 8. the refusals, and both are about WHERE layout may be said: a site key names a render site, which has no
   --    position, and widget:skin says what a widget is drawn WITH -- the hand-named level is the verb.
   refuses("pos on a site key is refused, because \"*\" is the default SITE and not every widget",
           function() hafen.ui.skin{ ["*"] = { pos = {1, 1} } } end, "lays out a WIDGET")
-  refuses("widget:skin{pos=} is refused: the hand-named level of the layout cascade is widget:pos(x, y)",
-          function() w:skin{ pos = {1, 1} } end, "widget:pos(x, y)")
+  refuses("widget:skin{pos=} is refused: the hand-named level of the layout cascade is widget:position(x, y)",
+          function() w:skin{ pos = {1, 1} } end, "widget:position(x, y)")
   refuses("an unknown property is still an error, layout or not (D-072)",
           function() hafen.ui.skin{ [sel] = { positoin = {1, 1} } } end, "not a style property")
-  eq("...and a refused sheet leaves the client exactly as it was", xy(w:pos()), xy(stock))
+  eq("...and a refused sheet leaves the client exactly as it was", xy(w:position()), xy(stock))
 
   hafen.ui.skin(nil)
   manualCheck("log out to the character screen, disable \"036.2 — pos and size as sheet properties\" in the"

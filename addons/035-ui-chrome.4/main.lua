@@ -53,7 +53,7 @@ end
 
 local function contentStart(w)
   local d = decoOf(w)
-  return d and { x = -d:pos().x, y = -d:pos().y }
+  return d and { x = -d:position().x, y = -d:position().y }
 end
 
 -- ---- the file → a sheet ---------------------------------------------------------------------------
@@ -177,7 +177,7 @@ local function costRound(after)
   sample(SAMPLES, stock, function()
     hafen.ui.skin(sheet)
     hafen.timer():after(0.35, function()
-      local dressed = #hafen.ui.all("@SkinDeco")
+      local dressed = #hafen.ui():all("@SkinDeco")
       local themed = {}
       sample(SAMPLES, themed, function()
         local row = ownRow()
@@ -218,9 +218,9 @@ end
 -- 2. and the whole thing reverts.
 steps[2] = function()
   eq("dropping a sheet that came from a file restores the exact numbers it found",
-     xy(probe:size()) .. " @ " .. xy(probe:pos()), base .. " @ " .. basePos)
+     xy(probe:size()) .. " @ " .. xy(probe:position()), base .. " @ " .. basePos)
   eq("...and leaves the probe resolving nothing again", probe:style(), nil)
-  eq("...and no sheet-fed chrome anywhere in the client", #hafen.ui.all("@SkinDeco"), 0)
+  eq("...and no sheet-fed chrome anywhere in the client", #hafen.ui():all("@SkinDeco"), 0)
   if hafen.client:options():client():profiling() then
     costRound(finish)
   else
@@ -256,7 +256,7 @@ local function run()
 
   -- 3. the geometry the file predicts, read a frame after the write.
   probe = hafen.ui.window{ title = "035.4 probe", size = { W, H }, pos = { 8, 8 } }
-  base, basePos = xy(probe:size()), xy(probe:pos())
+  base, basePos = xy(probe:size()), xy(probe:position())
   hafen.ui.skin(sheet)
   step(1)
 end

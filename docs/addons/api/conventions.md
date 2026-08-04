@@ -155,9 +155,9 @@ and the verb raises an error saying so.
 ### Widget: a piece of the UI
 
 A widget is an object, and there is only one kind. A window you create with `hafen.ui.window{}`, a
-native one you name with `hafen.ui(selector)`, `node(id)`, `at(x, y)` or `inventory()`, and the one
+native one you name with `hafen.ui():find(selector)`, `node(id)`, `at(x, y)` or `inventory()`, and the one
 [`hafen.ui.on`](ui/replace.md#watching-for-a-widget) hands your callback are all the same
-[Widget](ui/widget.md). It is interned per addon, so `hafen.ui.at(x, y) == hafen.ui.at(x, y)` and `==`
+[Widget](ui/widget.md). It is interned per addon, so `hafen.ui():at(x, y) == hafen.ui():at(x, y)` and `==`
 is the identity test; it re-reads the tree on every call and answers `nil` or empty, with `:exists()`
 false, once its widget is gone. What you may *write* depends on whether your addon created it — see
 [owned vs borrowed](ui/widget.md#owned-vs-borrowed). A **server widget id**, `:id()`, is the number the
@@ -174,22 +174,22 @@ Ids and handles address a thing you already have. A **selector** addresses one y
 *describe*: a string that names a widget by what it **is**, resolved against the live tree.
 
 ```lua
-hafen.ui("window[title=Cupboard]")     -- the first match, or nil
-hafen.ui.all("inventory")              -- every match, in tree order (empty array, never nil)
+hafen.ui():find("window[title=Cupboard]")     -- the first match, or nil
+hafen.ui():all("inventory")              -- every match, in tree order (empty array, never nil)
 ```
 
 Three properties make it a convention rather than a lookup helper:
 
-- **One string, three uses.** The same selector names a widget for a lookup, `hafen.ui(sel)`, for a
-  listing, `hafen.ui.all(sel)`, and for one that does not exist yet,
-  [`hafen.ui.on(sel, "appear", fn)`](ui/replace.md#watching-for-a-widget) — so waiting for a window and
+- **One string, three uses.** The same selector names a widget for a lookup, `hafen.ui():find(sel)`, for a
+  listing, `hafen.ui():all(sel)`, and for one that does not exist yet,
+  [`hafen.ui():on(sel, "appear", fn)`](ui/replace.md#watching-for-a-widget) — so waiting for a window and
   then reading it are one vocabulary.
 - **One string, two resolutions.** The same selector is also the key of a
   [stylesheet](ui/style/README.md): a **role** names a render *site* and restyles it
   ([the site keys](ui/style/surfaces.md)), while every other selector resolves against the live tree.
   `w:role()` reports a widget's role, or an honest `nil`.
-- **Arity is the verb**, as everywhere else: `hafen.ui(sel)` is one widget, `hafen.ui.all(sel)` is all
-  of them, and `hafen.ui()` with no argument is the root of the tree.
+- **The verb says how many**: `hafen.ui():find(sel)` is one widget, `hafen.ui():all(sel)` is all of them,
+  and `hafen.ui():root()` is the root of the tree.
 
 The grammar, the role table and the two rules worth knowing before you write one — `[title=]` resolves
 against the *enclosing window*, and you hold your result rather than re-selecting every frame — are in

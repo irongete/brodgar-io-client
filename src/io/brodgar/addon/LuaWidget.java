@@ -42,7 +42,7 @@ import java.util.WeakHashMap;
  * userdata + a per-addon metatable + a per-addon intern cache, with {@code :info()} as the one snapshot hatch.
  *
  * <p><b>Interned, so {@code ==} is the identity test.</b> Two lookups of the same live widget are the same Lua
- * value ({@code hafen.ui.at(m.x,m.y) == hafen.ui.at(m.x,m.y)}), and a widget kept across frames stays {@code ==}.
+ * value ({@code hafen.ui():at(m.x,m.y) == hafen.ui():at(m.x,m.y)}), and a widget kept across frames stays {@code ==}.
  * That is what let {@code node:same(other)} be <b>hard cut</b> (D-012/D-013): it only ever existed because nothing
  * was interned.
  *
@@ -153,10 +153,16 @@ public final class LuaWidget {
 
     // ---- the Widget metatable ----------------------------------------------------------------------
 
-    /** The per-addon metatable: {@code __index} = the methods table, plus {@code __tostring}/{@code __name}. */
+    /**
+     * The per-addon metatable: {@code __index} = the methods table <b>through {@link Retired#methodIndex}</b>,
+     * plus {@code __tostring}/{@code __name}. The indirection is what makes a retired verb ({@code w:pos},
+     * {@code w:show}) throw naming its replacement instead of reading as plain {@code nil} and failing one line
+     * later as "attempt to call a nil value" — pointing {@code __index} straight at the methods table is the
+     * mistake that hid the cut on two earlier entities.
+     */
     private static LuaValue buildMeta(Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(owner));
+        mt.set(LuaValue.INDEX, Retired.methodIndex("widget", methods(owner)));
         mt.set("__name", LuaValue.valueOf("Widget"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -243,8 +249,8 @@ public final class LuaWidget {
                 return (p == null) ? LuaValue.NIL : of(owner, p);
             }
         });
-        // pos() / pos(x, y) / pos(nil) — ARITY IS THE VERB (the 018 options shape, 029.2; the same three arities as
-        // :replace and :skin): no args READS the position within the parent as {x=,y=} (widget-local px), two
+        // position() / position(x, y) / position(nil) — ARITY IS THE VERB (the 018 options shape, 029.2; the same
+        // three arities as :size): no args READS the position within the parent as {x=,y=} (widget-local px), two
         // numbers MOVE the widget, and nil DROPS your move and puts back what the widget was at before you first
         // touched it. Both writes chain. :move() is hard cut.
         //
@@ -255,18 +261,22 @@ public final class LuaWidget {
         //
         // AND SINCE 036.2 IT IS A LEVEL OF THE CASCADE, not a write beside it (D-077): the verb is the HAND-NAMED
         // top of the same fold a sheet's `pos` rule feeds, so it wins over every rule that merely matched the
-        // widget -- and pos(nil) drops back to THE RULE when one still names it, reaching the stock value only
-        // when no level does. Layout.apply is what decides; this verb only says what this addon wants.
-        m.set("pos", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:pos() → narg 1 · w:pos(nil) → narg 2 · w:pos(x,y) → narg 3
+        // widget -- and position(nil) drops back to THE RULE when one still names it, reaching the stock value
+        // only when no level does. Layout.apply is what decides; this verb only says what this addon wants.
+        // position() — PIXELS within the parent, and deliberately NOT a Position (spec 039 §2.7): the verb asks
+        // "where is this thing, in the space it lives in", and a widget lives on the screen. Now that a place in
+        // the world is a TYPE, handing this to hafen.act():moveTo throws instead of walking you somewhere wrong.
+        m.set("position", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // :position() → narg 1 · (nil) → narg 2 · (x,y) → narg 3
                 LuaValue self = a.arg1();
-                Widget w = live(handle(self, "pos"));
+                Widget w = live(handle(self, "position"));
                 if(a.narg() < 2)
                     return ((w == null) || (w.c == null)) ? LuaValue.NIL : xyTable(w.c);
-                if(a.narg() < 3) {                        // w:pos(nil) — undo OUR move, back to the stock value
-                    if(!a.arg(2).isnil())                 // w:pos(x) is a mistake, not an undo
-                        throw new LuaError("widget:pos(x, y) takes BOTH coordinates; widget:pos() reads the"
-                            + " position and widget:pos(nil) drops your addon's move and restores the stock one");
+                if(a.narg() < 3) {                        // w:position(nil) — undo OUR move, back to the stock value
+                    if(!a.arg(2).isnil())                 // w:position(x) is a mistake, not an undo
+                        throw new LuaError("widget:position(x, y) takes BOTH coordinates; widget:position() reads"
+                            + " the position and widget:position(nil) drops your addon's move and restores the"
+                            + " stock one");
                     if(w != null)                         // a stale widget: the 029.2 silent chaining no-op
                         UiApi.releaseMoved(owner, w, true);
                     return self;
@@ -327,26 +337,34 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // visible() — is it currently drawn? False once stale.
-        m.set("visible", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Widget w = live(handle(self, "visible"));
-                return LuaValue.valueOf((w != null) && w.visible());
-            }
-        });
-        // show() / hide() — the one visibility write, and the ONLY write that answers on a native widget (029.2).
-        // Hiding a NATIVE widget registers it on the addon's restore list, so :reload/disable puts it back exactly
-        // as it was (UiApi.teardownHidden) — that is what replaces hafen.ui.adopt, which used to hide a window just
-        // so you could read it. A hidden server widget stays bound to its id (still receiving uimsg/addchild), so it
-        // remains a perfectly live model. :show() gives it back and drops the record. Both chain.
-        m.set("hide", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
+        // visible() / visible(b) — A BOOLEAN PROPERTY IS A PROPERTY (spec 039 §2.2, R6): the read says whether it is
+        // currently drawn (false once stale) and the write says what it should be. :show() and :hide() are a HARD
+        // CUT — two spellings for one write is the dual style the grammar removes, and they were the last pair in
+        // the API where the value lived in the verb's NAME instead of its argument.
+        //
+        // It is the ONLY write that answers on a native widget (029.2). Hiding a NATIVE widget registers it on the
+        // addon's restore list, so :reload/disable puts it back exactly as it was (UiApi.teardownHidden) — that is
+        // what replaces hafen.ui.adopt, which used to hide a window just so you could read it. A hidden server
+        // widget stays bound to its id (still receiving uimsg/addchild), so it remains a perfectly live model.
+        // visible(true) gives it back and drops the record. The write chains; visible(nil) is refused (§2.9 — there
+        // is nothing here to undo, and a nil that silently became a READ is the bug that rule exists for).
+        m.set("visible", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:visible() → narg 1 · w:visible(b) → narg 2
                 LuaValue self = a.arg1();
-                Widget w = live(handle(self, "hide"));
-                if(w != null) {
+                Widget w = live(handle(self, "visible"));
+                LuaValue v = Args.written(a, 2, "widget:visible", "b");
+                if(v == null)
+                    return LuaValue.valueOf((w != null) && w.visible());
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                if(v.toboolean()) {
+                    UI u = AddonManager.ui;
+                    synchronized(u) { w.show(); }
+                    dropHidden(owner, w);                 // restored by hand: teardown has nothing left to undo
+                } else {
                     boolean borrowed = (ownedContent(owner, w) == null);
                     if(borrowed)
-                        refuseSecondOwner(owner, w, "widget:hide()");   // 031.2: one window, one owner
+                        refuseSecondOwner(owner, w, "widget:visible(false)");   // 031.2: one window, one owner
                     UI u = AddonManager.ui;
                     synchronized(u) { w.hide(); }
                     if(borrowed)                          // BORROWED: remember to give it back on teardown
@@ -355,25 +373,16 @@ public final class LuaWidget {
                 return self;
             }
         });
-        m.set("show", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
-                Widget w = live(handle(self, "show"));
-                if(w != null) {
-                    UI u = AddonManager.ui;
-                    synchronized(u) { w.show(); }
-                    dropHidden(owner, w);                 // restored by hand: teardown has nothing left to undo
-                }
-                return self;
-            }
-        });
-        // replace() / replace(view) / replace(nil) — 032.1: ARITY IS THE VERB (the :pos/:size shape). The one way to
-        // put your OWN window in place of one of the client's: replace() READS the view standing in for this window
-        // (or nil), replace(view) INSTALLS one, replace(nil) undoes it there and then. Both writes chain.
+        // replacement() / replace(view) / replace(nil) — 032.1, RENAMED at 039.5 (spec §2.2): the one place in the
+        // whole surface where the read and the write of one property do not mean the same thing. "Replace" is an
+        // ACT; the thing standing in is a replacement, so the read takes its own noun and the write keeps the verb.
+        // The one way to put your OWN window in place of one of the client's: replacement() READS the view standing
+        // in for this window (or nil), replace(view) INSTALLS one, replace(nil) undoes it there and then. Both
+        // writes chain, and replace() with no argument throws naming the read.
         //
         // THE TRAP IT OWNS, and the whole reason it is a verb of its own: installing hides the ENCLOSING WINDOW
         // (nativeWindowOf), not the widget you point at — replace the inventory GRID and the whole stock window
-        // goes, rather than leaving its frame around a hole. widget:hide() still hides exactly what you point at;
+        // goes, rather than leaving its frame around a hole. widget:visible(false) still hides exactly what you point at;
         // that is the difference between the two.
         //
         // Hiding a native window TAKES ITS TOGGLE (031, D-069), and from here that toggle drives YOUR view: Tab and
@@ -382,15 +391,22 @@ public final class LuaWidget {
         // custom window left standing over a container that is gone is worse than no window. One window has one
         // view: installing a different one ends the previous substitution (and destroys that view).
         //
-        // WAITING IS NOT PART OF IT: hafen.ui.on(selector, "appear", fn) already waits, and already fires for what
+        // WAITING IS NOT PART OF IT: hafen.ui():on(selector, "appear", fn) already waits, and already fires for what
         // is ALREADY open (D-068) — so the whole pattern is
-        //     hafen.ui.on("inventory[title=Inventory]", "appear", function(w) w:replace(buildMyView(w)) end)
+        //     hafen.ui():on("inventory[title=Inventory]", "appear", function(w) w:replace(buildMyView(w)) end)
+        m.set("replacement", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Widget w = live(handle(self, "replacement"));
+                return (w == null) ? LuaValue.NIL : UiApi.installedView(owner, w);
+            }
+        });
         m.set("replace", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:replace() → narg 1 · w:replace(view|nil) → narg 2
+            public Varargs invoke(Varargs a) {            // w:replace(view|nil) → narg 2
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "replace"));
                 if(a.narg() < 2)
-                    return (w == null) ? LuaValue.NIL : UiApi.installedView(owner, w);
+                    throw new LuaError("widget:replace() is now widget:replacement() — replace(view) installs a"
+                        + " view and replace(nil) undoes it, so the read has a name of its own");
                 if(w != null) {                           // a write on a stale widget: the 029.2 silent chaining no-op
                     LuaValue v = a.arg(2);
                     if(v.isnil())
@@ -520,10 +536,11 @@ public final class LuaWidget {
                 return (hit == null) ? LuaValue.NIL : of(owner, hit);
             }
         });
-        // rootpos() — W2: {x=,y=} this widget's top-left in root coords (with :size() = a highlight box).
-        m.set("rootpos", new OneArgFunction() {
+        // rootPos() — W2: {x=,y=} this widget's top-left in root coords (with :size() = a highlight box). PIXELS,
+        // like :position() and for the same reason: a widget's place is on the screen (spec 039 §2.7).
+        m.set("rootPos", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                Widget w = live(handle(self, "rootpos"));
+                Widget w = live(handle(self, "rootPos"));
                 if(w == null)
                     return LuaValue.NIL;
                 UI u = AddonManager.ui;
@@ -572,7 +589,7 @@ public final class LuaWidget {
         LuaWidget h = resolve(self);
         if(h == null)
             throw new LuaError("widget:" + method + "() — use a COLON call on a Widget object"
-                + " (hafen.ui(), hafen.ui(selector), hafen.ui.node(id), hafen.ui.at(x, y))");
+                + " (hafen.ui():root(), hafen.ui():find(selector), hafen.ui():node(id), hafen.ui():at(x, y))");
         return h;
     }
 
@@ -610,7 +627,7 @@ public final class LuaWidget {
 
     /**
      * The OWNED content behind {@code w}, or a clear error naming what the addon may do instead. One message
-     * since 036.1: the geometry writes stopped needing it — {@code :pos}/{@code :size} answer on a native widget
+     * since 036.1: the geometry writes stopped needing it — {@code :position}/{@code :size} answer on a native widget
      * now (feature E) and route through {@link Addon#movedNative} instead — leaving {@code :pack()} and
      * {@code :destroy()}, which are simply not the addon's to do on a widget the client owns.
      */
@@ -619,7 +636,7 @@ public final class LuaWidget {
         if(c == null)
             throw new LuaError("widget:" + verb + " — " + typeName(w) + " is a NATIVE widget (your addon did not"
                 + " create it); :pack()/:destroy() answer only on a widget you created with hafen.ui.window{} or"
-                + " hafen.ui.widget{}. To lay a native widget out, use widget:pos(x, y) / widget:size(w, h) —"
+                + " hafen.ui.widget{}. To lay a native widget out, use widget:position(x, y) / widget:size(w, h) —"
                 + " which restore themselves when your addon goes away.");
         return c;
     }
@@ -772,7 +789,7 @@ public final class LuaWidget {
      * One native widget an addon has <b>moved or resized</b> — {@link Hidden}'s shape one property along:
      * <i>what it was before we touched it</i>. Minted at the first touch, it carries the two halves
      * independently, because they are touched by different verbs and dropped by different calls: {@link #pos}
-     * is the widget's {@code c} before the first {@code widget:pos(x,y)}, {@link #size} is the argument that
+     * is the widget's {@code c} before the first {@code widget:position(x,y)}, {@link #size} is the argument that
      * reproduces its size through {@link Widget#resize(Coord)} before the first {@code widget:size(w,h)}. A
      * {@code null} half means <i>this addon never touched that</i> and there is nothing there to give back.
      *
@@ -791,13 +808,13 @@ public final class LuaWidget {
         Coord pos;       // the stock c   — null: this addon's layer is not standing on the position
         Coord size;      // the stock size ARGUMENT (a Window's content size) — null: nor on the size
         /**
-         * This addon's <b>hand-named</b> position (036.2) — what {@code widget:pos(x, y)} asked for, and the top
+         * This addon's <b>hand-named</b> position (036.2) — what {@code widget:position(x, y)} asked for, and the top
          * level of the layout cascade ({@link Layout}). Separate from {@link #pos} because they answer different
-         * questions: one is what the user had, one is what this addon wants. {@code widget:pos(nil)} clears this
+         * questions: one is what the user had, one is what this addon wants. {@code widget:position(nil)} clears this
          * and leaves the cascade to say what happens next — a rule that also names the widget takes over, and only
          * when nothing does at all is {@link #pos} given back and the half dropped.
          *
-         * <p>An {@link Layout.Anchor} since 036.3, and the degenerate one: {@code widget:pos(x, y)} is the anchor
+         * <p>An {@link Layout.Anchor} since 036.3, and the degenerate one: {@code widget:position(x, y)} is the anchor
          * to this widget's own parent's top-left. The verb keeps the whole hand-named level — a rule is where an
          * anchor to the screen or to another widget is said — but it goes down the one resolution path all the
          * same, which is what makes "the verb wins" a statement about a fold rather than about two mechanisms.
@@ -824,7 +841,7 @@ public final class LuaWidget {
      * Does <b>any</b> live owner hold a moved-native record right now? The global-empty fast path for the 036.1
      * persistence seam ({@link UiApi#stockPos}/{@link UiApi#stockSizeArg}), which {@code GameUI.savewndpos} asks
      * for six windows every 60 s and again at logout. A plain volatile read is the whole cost for a client no
-     * addon has laid out — which is every client until one calls {@code w:pos(x,y)} on a native widget.
+     * addon has laid out — which is every client until one calls {@code w:position(x,y)} on a native widget.
      *
      * <p>Maintained exactly like {@link #anyHidden}: recomputed at the places a layout list changes (the two
      * verbs, their {@code nil} undo, {@link UiApi#teardownMoved}, {@link UiApi#resetSession}). A stale
@@ -1259,7 +1276,7 @@ public final class LuaWidget {
     // ---- W2 hit-testing + the small shared helpers --------------------------------------------------
 
     /**
-     * The deepest widget under {@code c} (given in {@code from}'s local coords), for {@code hafen.ui.at} /
+     * The deepest widget under {@code c} (given in {@code from}'s local coords), for {@code hafen.ui():at} /
      * {@code widget:at} (spec 20, W2). It <b>mirrors the engine's own pointer dispatch</b>
      * ({@link Widget.PointerEvent#propagation}, {@code Widget.java:981}): walk children {@code lchild → prev}
      * (topmost-first — the last child draws on top), skip {@code !visible()}, descend by

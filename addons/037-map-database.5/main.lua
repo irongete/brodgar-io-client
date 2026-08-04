@@ -180,7 +180,7 @@ end
 -- measurement if the same sample can read a number that is not zero, so this suite draws the identical
 -- picture from Lua beside it.
 costRound = function(grid)
-  local up = hafen.ui(PANEL)
+  local up = hafen.ui():find(PANEL)
   if not (up and up:exists()) then
     manualCheck("run ':atlas' (the example addon this feature ships) and then ':t037-5' again",
                 "two more [pass] lines: with its panel on screen `atlas` runs 0 draw and 0 widget callbacks"

@@ -9,7 +9,7 @@
 --
 -- THE ONE THING THIS CLIENT CANNOT DO IS THE TASK'S OWN HEADLINE ASSERTION. `haven.UI.scale` is a static
 -- final read once at class load — the Options slider itself says "requires restart" — so no program can
--- change the UI scale and re-read :pos(). What a rescale actually does is change the sizes an anchor reads,
+-- change the UI scale and re-read :position(). What a rescale actually does is change the sizes an anchor reads,
 -- and that IS driven here (the target's size, below). The screen's own size is the maintainer's [manual].
 --
 -- READ-ONLY: declares no permissions, mutates no persistent state, and drops its sheet before it prints.
@@ -47,15 +47,15 @@ local function pt(x, y) return ("%d,%d"):format(x, y) end
 local function half(n) return math.floor(n / 2) end
 
 -- A native window a [title=] selector names UNIQUELY, picked rather than named and SELF-VALIDATING (030.2's
--- inspector trick): a candidate counts only after hafen.ui.all() has actually resolved the selector to
+-- inspector trick): a candidate counts only after hafen.ui():all() has actually resolved the selector to
 -- exactly this widget, so the rules below run against a key the engine agrees with on whatever HUD this
 -- happens to be. Captions carrying the grammar's own punctuation are skipped rather than escaped.
 local function named()
-  for _, w in ipairs(hafen.ui.all("window")) do
+  for _, w in ipairs(hafen.ui():all("window")) do
     local cap = w:text()
     if cap and cap ~= "" and not cap:find("[%[%]=]") then
       local sel = "window[title=" .. cap .. "]"
-      local all = hafen.ui.all(sel)
+      local all = hafen.ui():all(sel)
       if (#all == 1) and (all[1] == w) then return w, sel end
     end
   end
@@ -64,7 +64,7 @@ end
 -- Does the client's own pointer dispatch still reach `w` at this root-coord point? A window's chrome is a
 -- CHILD (030: hovering a frame never hands you the window), so the hit is walked up rather than compared.
 local function reaches(w, x, y)
-  local hit = hafen.ui.at(x, y)
+  local hit = hafen.ui():at(x, y)
   while hit ~= nil do
     if hit == w then return true end
     hit = hit:parent()
@@ -99,27 +99,27 @@ local function run(args)
 
   -- 1. the premise, re-asserted here because everything below rests on it (D-085): a native window is
   --    reachable, is BORROWED, and a selector names it and nothing else.
-  check(w ~= nil, "a native window a [title=] selector names uniquely, validated through hafen.ui.all()", sel)
+  check(w ~= nil, "a native window a [title=] selector names uniquely, validated through hafen.ui():all()", sel)
   eq("...and it is a widget this addon did NOT create", w:info().owned, false)
-  local stock, rsz = w:pos(), hafen.ui():size()
+  local stock, rsz = w:position(), hafen.ui():root():size()
 
   -- 2. THE TASK'S SHAPE: `pos` is not a property beside `anchor`, it is the DEGENERATE anchor -- to the
   --    widget's own parent, at its top-left. One resolution path, asserted from both ends.
   hafen.ui.skin{ [sel] = { pos = {stock.x + 31, stock.y + 17} } }
   eq("a pos rule is the anchor to the parent's top-left: c IS the offset",
-     xy(w:pos()), pt(stock.x + 31, stock.y + 17))
+     xy(w:position()), pt(stock.x + 31, stock.y + 17))
   hafen.ui.skin{ [sel] = { anchor = { to = "screen", at = "topleft", offset = {stock.x + 31, stock.y + 17} } } }
   eq("...and the same offset anchored to the SCREEN's top-left is that point in root coordinates",
-     xy(w:rootpos()), pt(stock.x + 31, stock.y + 17))
+     xy(w:rootPos()), pt(stock.x + 31, stock.y + 17))
 
   -- 3. ...and every other corner is the same arithmetic with the target's own: the widget's corner ON the
   --    target's, which is what makes offset = {-8,-8} read as "8 px in" rather than "mostly off-screen".
   hafen.ui.skin{ [sel] = { anchor = { to = "screen", at = "bottomright", offset = {-8, -8} } } }
   eq("an anchor derives its place from the LIVE root size: bottom-right, 8 px in",
-     xy(w:rootpos()), pt(rsz.x - w:size().x - 8, rsz.y - w:size().y - 8))
+     xy(w:rootPos()), pt(rsz.x - w:size().x - 8, rsz.y - w:size().y - 8))
   hafen.ui.skin{ [sel] = { anchor = { at = "center" } } }
   eq("...and centred, with every field on its default (the screen, no offset)",
-     xy(w:rootpos()), pt(half(rsz.x) - half(w:size().x), half(rsz.y) - half(w:size().y)))
+     xy(w:rootPos()), pt(half(rsz.x) - half(w:size().x), half(rsz.y) - half(w:size().y)))
 
   -- 4. widget:style() reports the property the rule was WRITTEN with -- the read round-trips into a write.
   hafen.ui.skin{ [sel] = { anchor = { to = "screen", at = "bottomright", offset = {-8, -8} } } }
@@ -133,20 +133,20 @@ local function run(args)
   --    MOVES and when it RESIZES -- both in the same call, because the move went through this API.
   local probe = hafen.ui.window{ title = "036.3 anchor target", size = {160, 110}, pos = {260, 200} }
   hafen.ui.skin{ [sel] = { anchor = { to = probe, at = "topright", offset = {6, 0} } } }
-  eq("a widget anchored to another sits on ITS corner", xy(w:rootpos()),
+  eq("a widget anchored to another sits on ITS corner", xy(w:rootPos()),
      pt(260 + probe:size().x - w:size().x + 6, 200))
-  probe:pos(340, 260)
+  probe:position(340, 260)
   eq("...and follows it the moment the target moves, in the same call and not a frame later",
-     xy(w:rootpos()), pt(340 + probe:size().x - w:size().x + 6, 260))
+     xy(w:rootPos()), pt(340 + probe:size().x - w:size().x + 6, 260))
   probe:size(240, 170)
   eq("...and re-derives from the target's SIZE too: an anchor reads geometry, it does not remember a point",
-     xy(w:rootpos()), pt(340 + probe:size().x - w:size().x + 6, 260))
+     xy(w:rootPos()), pt(340 + probe:size().x - w:size().x + 6, 260))
 
   -- 6. ...and a target that has left the tree is INERT, never a snap: the anchor holds it weakly, and the
   --    widget stays where it was rather than jumping back to stock the moment a window closed.
-  local held = xy(w:rootpos())
+  local held = xy(w:rootPos())
   probe:destroy()
-  eq("an anchor whose target is gone leaves the widget where it is", xy(w:rootpos()), held)
+  eq("an anchor whose target is gone leaves the widget where it is", xy(w:rootPos()), held)
 
   -- 7. NOTHING BECOMES UNREACHABLE. An off-screen rule is handed to the client's OWN clamp (GameUI.fitwdg's
   --    100 px margin, re-derived not exposed) rather than to a second answer to "is this on screen". Asserted
@@ -156,7 +156,7 @@ local function run(args)
   local edge = hafen.ui.window{ title = "036.3 clamp probe", size = {150, 100}, pos = {80, 80} }
   hafen.ui.skin{ ["window[title=036.3 clamp probe]"] =
                  { anchor = { to = "screen", at = "topleft", offset = {rsz.x + 4000, rsz.y + 4000} } } }
-  local p = edge:rootpos()
+  local p = edge:rootPos()
   check((p.x < rsz.x) and (p.y < rsz.y) and (p.x > 0) and (p.y > 0),
         "an off-screen anchor is clamped by the client's own rule, not by a second one", xy(p))
   -- ...and the point asked about is inside the window's CONTENT, not its corner: a window's chrome answers
@@ -166,7 +166,7 @@ local function run(args)
   for _, ch in ipairs(edge:children()) do
     if ch:type() == "AddonWidget" then inner = ch end
   end
-  local ip = inner and inner:rootpos()
+  local ip = inner and inner:rootPos()
   check((ip ~= nil) and reaches(edge, ip.x + 2, ip.y + 2),
         "...and the client's own hit dispatch still reaches the window there", xy(ip or p))
   edge:destroy()
@@ -174,28 +174,28 @@ local function run(args)
   -- 8. ONE FOLD, TWO LEVELS (D-077/D-089), now with an anchor underneath: the hand-named verb outranks it,
   --    and the undo drops back to THE ANCHOR rather than to stock.
   hafen.ui.skin{ [sel] = { anchor = { to = "screen", at = "bottomright", offset = {-8, -8} } } }
-  w:pos(stock.x + 5, stock.y + 3)
-  eq("the hand-named verb outranks an anchor rule", xy(w:pos()), pt(stock.x + 5, stock.y + 3))
-  w:pos(nil)
-  eq("...and widget:pos(nil) drops back to THE ANCHOR, re-derived, not to the stock value",
-     xy(w:rootpos()), pt(rsz.x - w:size().x - 8, rsz.y - w:size().y - 8))
+  w:position(stock.x + 5, stock.y + 3)
+  eq("the hand-named verb outranks an anchor rule", xy(w:position()), pt(stock.x + 5, stock.y + 3))
+  w:position(nil)
+  eq("...and widget:position(nil) drops back to THE ANCHOR, re-derived, not to the stock value",
+     xy(w:rootPos()), pt(rsz.x - w:size().x - 8, rsz.y - w:size().y - 8))
 
   -- 9. dropping the sheet restores the exact numbers -- the whole point of a layer.
   hafen.ui.skin(nil)
-  eq("dropping the sheet puts the window back exactly where the user had it", xy(w:pos()), xy(stock))
+  eq("dropping the sheet puts the window back exactly where the user had it", xy(w:position()), xy(stock))
 
   -- 10. the refusals. Two are about WHERE layout may be said (D-088, re-asserted because an anchor is a new
   --     way to say it), and two are about saying it wrong: one question asked twice, and a typo.
   refuses("anchor on a site key is refused, because \"*\" is the default SITE and not every widget",
           function() hafen.ui.skin{ ["*"] = { anchor = { at = "center" } } } end, "lays out a WIDGET")
-  refuses("widget:skin{anchor=} is refused: the hand-named level of the layout cascade is widget:pos(x, y)",
-          function() w:skin{ anchor = { at = "center" } } end, "widget:pos(x, y)")
+  refuses("widget:skin{anchor=} is refused: the hand-named level of the layout cascade is widget:position(x, y)",
+          function() w:skin{ anchor = { at = "center" } } end, "widget:position(x, y)")
   refuses("pos and anchor in one rule is one question asked twice, and is refused",
           function() hafen.ui.skin{ [sel] = { pos = {1, 1}, anchor = { at = "center" } } } end,
           "same property said two ways")
   refuses("a misspelt corner is an error naming all nine, not a silent top-left (D-072)",
           function() hafen.ui.skin{ [sel] = { anchor = { at = "bottomrigth" } } } end, "expected one of")
-  eq("...and a refused sheet leaves the client exactly as it was", xy(w:pos()), xy(stock))
+  eq("...and a refused sheet leaves the client exactly as it was", xy(w:position()), xy(stock))
 
   hafen.ui.skin(nil)
   manualCheck("run \":t036-3 hold\", then resize the client window (drag an edge, or maximise and restore),"

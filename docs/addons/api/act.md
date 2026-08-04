@@ -115,7 +115,7 @@ on every call, so a moved, used or vanished item raises an error rather than act
 all, and is ignored by the other three verbs. An unknown `verb` raises an error.
 
 ```lua
-local first = hafen.ui.inventory():items()[1]
+local first = hafen.ui():inventory():items()[1]
 if first then hafen.act():item(first, "take") end
 ```
 

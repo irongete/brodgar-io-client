@@ -49,7 +49,7 @@ local function run()
   -- Two OWNED probe windows: the only widgets whose captions this suite can be sure of. Hidden at once.
   local a = hafen.ui.window{ title = "034 probe A", size = { 60, 20 }, pos = { 4, 4 } }
   local b = hafen.ui.window{ title = "034 probe B", size = { 60, 20 }, pos = { 4, 4 } }
-  a:hide(); b:hide()
+  a:visible(false); b:visible(false)
   local kid = a:children()[1] or a     -- something INSIDE probe A (its content, or its chrome's deco)
 
   -- 1. nil means stock: with no sheet installed nothing resolves anywhere.

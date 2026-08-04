@@ -307,7 +307,7 @@ final class Sheet {
      *   <li>on a <b>site</b> key they are refused — a site is where the client draws text, and text has no
      *       position of its own to move ({@code "*"} is the {@code default} site, not "every widget");</li>
      *   <li>in {@code widget:skin{…}} they are refused too — the hand-named level of the layout cascade already
-     *       exists and is the <b>verb</b>, {@code widget:pos(x, y)} / {@code widget:size(w, h)}. One canonical way
+     *       exists and is the <b>verb</b>, {@code widget:position(x, y)} / {@code widget:size(w, h)}. One canonical way
      *       per operation: a second spelling of the same level is exactly what this API does not ship.</li>
      * </ul>
      *
@@ -383,7 +383,7 @@ final class Sheet {
                 + ("anchor".equals(prop) ? "{ at = \"bottomright\" } }" : "{40, 200} }"));
         if(sel == null)
             throw new LuaError(ctx + "." + prop + ": layout is not a skin property — the hand-named level of the"
-                + " cascade is the VERB: widget:pos(x, y) and widget:size(w, h), undone with widget:pos(nil)."
+                + " cascade is the VERB: widget:position(x, y) and widget:size(w, h), undone with widget:position(nil)."
                 + " widget:skin{…} says what a widget is drawn WITH; the verbs say where it is");
     }
 
@@ -934,7 +934,7 @@ final class Sheet {
         if(r.pad != null)
             t.set("pad", LuaValue.valueOf(r.pad.intValue()));
         if(r.pos != null)                             // 036.2: what the SHEET says this widget's layout is — the
-            r.pos.toLua(reader, t);                   //   verb above it is read with widget:pos(), which answers
+            r.pos.toLua(reader, t);                   //   verb above it is read with widget:position(), which answers
         if(r.size != null)                            //   where the widget actually IS. 036.3: `pos` or `anchor`,
             t.set("size", LuaWidget.xyTable(r.size)); //   whichever the rule was written with
         return t;

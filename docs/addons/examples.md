@@ -37,7 +37,8 @@ Hotkeys `toggle`, `ping`, `bags` and `marker`, plus `:hello <sub>` for the parts
 ## bags
 
 The two verbs that replace a piece of the client's UI, end to end:
-[`hafen.ui.on(selector, "appear", …)`](api/ui/replace.md#watching-for-a-widget) waits for the inventory —
+[`hafen.ui():on(selector, "appear", …)`](api/ui/replace.md#watching-for-a-widget) waits for the
+inventory —
 including one that is already open — and [`widget:replace(view)`](api/ui/replace.md) hides the stock window
 and puts a custom one in its place, drawing the **real** items at their real grid positions while the
 client keeps doing the work. The client's own Tab and menu button then drive your window.

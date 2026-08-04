@@ -1,4 +1,4 @@
--- Bags (032): the WIDGET-REPLACEMENT example — hafen.ui.on(selector, "appear") + widget:replace(view). Two ordinary
+-- Bags (032): the WIDGET-REPLACEMENT example — hafen.ui():on(selector, "appear") + widget:replace(view). Two ordinary
 -- pieces of API, no third one in between: `on` WAITS for the part of the UI you name with a selector (and fires for
 -- what is ALREADY open, D-068), and `replace` is a VERB ON THE WIDGET that puts your own window in place of the
 -- client's. hafen.ui.replace(type, opts, fn) is GONE (032.2, hard cut): it carried a second vocabulary for "which
@@ -6,7 +6,7 @@
 -- view to a hidden native window, which made every by-hand replacement strictly weaker.
 --
 -- THE TRAP THE VERB OWNS. It hides the ENCLOSING WINDOW, not the widget you point at: we replace the inventory GRID
--- and the whole stock window goes, rather than leaving its frame around a hole. (widget:hide() still hides exactly
+-- and the whole stock window goes, rather than leaving its frame around a hole. (widget:visible(false) still hides exactly
 -- what you point at — that is the difference between the two.) The real inventory stays server-bound while hidden,
 -- so w:items() keeps reading its live items — "wrap, don't reimplement" (D-009).
 --
@@ -40,7 +40,7 @@ hafen.log():write("bags loaded (v0.3.0) -- assign the 'toggle' hotkey in Options
 local SEL = "inventory[title=Inventory]"
 
 local CELL = 34             -- px per inventory cell in the custom view
-local watch                 -- the hafen.ui.on subscription while ARMED (nil = disarmed)
+local watch                 -- the hafen.ui():on subscription while ARMED (nil = disarmed)
 local grid                  -- the native inventory grid we replaced (nil = nothing replaced)
 local hover                 -- {x=,y=} grid cell under the mouse, for a highlight (or nil)
 
@@ -131,7 +131,7 @@ keys:register("toggle", function()
       .. " open if the custom window was on screen, closed if you had toggled it away")
   else
     local seen                                    -- did the subscription match anything at all? (see the log below)
-    watch = hafen.ui.on(SEL, "appear", function(w)
+    watch = hafen.ui():on(SEL, "appear", function(w)
       if grid then return end                     -- already standing in for one inventory; one window, one view
       seen = true
       local view = buildBagsView(w)

@@ -54,7 +54,8 @@ an [image](chrome.md). Map those two and everything else — a colour array, a b
 verbatim. A whole client look, windows included, with no code of its own, is one command away.
 
 **Saving a layout is your addon's business, not the engine's**, and it is small: a layout you can read back
-with [`widget:pos()`](../widget.md#read) is a table of numbers, and [`hafen.store`](../../store.md) already
+with [`widget:position()`](../widget.md#read) is a table of numbers, and [`hafen.store`](../../store.md)
+already
 persists tables. `theme` demonstrates the whole of it — one command reads where its windows currently are
 and keeps them account-wide, another re-applies them over the file's own placement, a third drops them.
 There is no profile system here because a sheet is data and an addon already has a store.
@@ -86,7 +87,7 @@ A [site key](keys.md#site-keys) restyles a *family* of surfaces across the whole
 already hold, call `skin` on its [Widget object](../widget.md):
 
 ```lua
-local n = hafen.ui.at(hafen.ui.mouse().x, hafen.ui.mouse().y)   -- the widget under the cursor
+local n = hafen.ui():at(hafen.ui():mouse().x, hafen.ui():mouse().y)   -- the widget under the cursor
 n:skin{ font = h, color = {200, 180, 140} }   -- this widget and everything inside it; its SIBLINGS untouched
 n:skin()                                      --> { font = h, color = {r=200, g=180, b=140, a=255} }
 n:skin(nil)                                   -- drop it again
@@ -110,7 +111,7 @@ n:skin(nil)                                   -- drop it again
   style inherited from an enclosing widget is applied at the *draw*, not resolved onto the child, so a child
   inside a skinned window still reads `nil`.
 - **`widget:skin{pos = …}` is an error**, and so are `size` and `anchor`: the hand-named level of the layout
-  cascade is the **verb**, [`w:pos(x, y)`](../native.md). One way per operation.
+  cascade is the **verb**, [`w:position(x, y)`](../native.md). One way per operation.
 - **On a window, it dresses that window's chrome**, and one level down, a [panel's](chrome.md#panels) box.
   On anything that wears no chrome the three chrome properties are inert, still readable through `:style()`.
 - **Owned and short-lived.** The entry is tagged with your addon and reverted on `:reload` or disable, and
@@ -119,7 +120,8 @@ n:skin(nil)                                   -- drop it again
 - **Some windows have no text to restyle.** An Inventory or Equipment window contains item *icons*; its
   only text is the caption, so a style there shows up on the title bar alone. Pick a text-rich window when
   you want to see the effect.
-- `hafen.ui():skin{…}` works and covers the entire client, but that is what a sheet's `["*"]` rule is for.
+- `hafen.ui():root():skin{…}` works and covers the entire client, but that is what a sheet's `["*"]` rule
+  is for.
 
 ## The cascade
 
@@ -134,7 +136,8 @@ in the client's stock font. Read the result for any one widget with [`widget:sty
 
 **Layout is the same cascade with a different top.** [`pos`, `size` and `anchor`](geometry.md) resolve
 through the very same fold — most-specific tree rule wins, per property — but the level above every rule is
-the **verb**, [`w:pos(x, y)`](../native.md), not `widget:skin{…}`. So `w:pos(nil)` removes one level and
+the **verb**, [`w:position(x, y)`](../native.md), not `widget:skin{…}`. So `w:position(nil)` removes one
+level and
 lands on the rule beneath, and dropping the sheet removes the last one and lands on what the user had.
 
 Two addons styling the same surface is shared client state, resolved the same way as
@@ -173,7 +176,8 @@ to the pixel; and since it is plain data, a whole look can be a **file** rather 
   moves things in one frame. Animation is a per-frame job, and the reason this system costs nothing per
   frame is that it does not have one.
 - **A configuration UI.** No drag-to-arrange editor, no docking, no profile manager. The engine ships the
-  mechanism — a layout is data, `widget:pos()` reads it back and [`hafen.store`](../../store.md) persists
+  mechanism — a layout is data, `widget:position()` reads it back and [`hafen.store`](../../store.md)
+  persists
   tables — and an addon ships the experience, as `theme` does.
 - **The 3D world.** The sheet is the UI. Terrain, objects, animations and their materials are game
   resources; what an addon adds there is [`hafen.render`](../../render/README.md) and

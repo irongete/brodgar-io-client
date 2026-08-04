@@ -56,7 +56,7 @@ end
 
 local function contentStart(w)
   local d = decoOf(w)
-  return d and { x = -d:pos().x, y = -d:pos().y }
+  return d and { x = -d:position().x, y = -d:position().y }
 end
 
 local function contentOf(w)
@@ -111,7 +111,7 @@ steps[1] = function()
   eq("a pad grows the window by twice itself, the content size unchanged",
      xy(w:size()), ("%d,%d"):format(base.x + 2 * P, base.y + 2 * P))
   eq("...and the content does not move while it happens: the frame grows OUTWARD",
-     xy(content:rootpos()), baseContent)
+     xy(content:rootPos()), baseContent)
   w:skin{ pad = 2 * P }                   -- a CHANGED pad: the deco stays, the window re-lays itself out
 end
 
@@ -123,7 +123,7 @@ end
 
 steps[3] = function()
   eq("dropping the pad restores the exact numbers it found",
-     xy(w:size()) .. " @ " .. xy(w:pos()), base.s .. " @ " .. basePos)
+     xy(w:size()) .. " @ " .. xy(w:position()), base.s .. " @ " .. basePos)
   w:skin{ bg = { color = DARK }, border = border(), pad = P }
 end
 
@@ -133,13 +133,13 @@ steps[4] = function()
      xy(w:size()), ("%d,%d"):format(W + SL[1] + SL[3] + 2 * P, H + SL[2] + SL[4] + 2 * P))
   eq("content starts one pad inside the border's own insets",
      xy(contentStart(w)), ("%d,%d"):format(SL[1] + P, SL[2] + P))
-  eq("...and it STILL has not moved on screen", xy(content:rootpos()), baseContent)
+  eq("...and it STILL has not moved on screen", xy(content:rootPos()), baseContent)
   w:skin(nil)
 end
 
 steps[5] = function()
   eq("dropping a framed rule restores the stock geometry exactly",
-     xy(w:size()) .. " @ " .. xy(w:pos()), base.s .. " @ " .. basePos)
+     xy(w:size()) .. " @ " .. xy(w:position()), base.s .. " @ " .. basePos)
   hafen.ui.skin{ ["window.frame"] = { pad = P } }     -- the SITE half: every window, not one named by hand
 end
 
@@ -151,9 +151,9 @@ end
 
 steps[7] = function()
   eq("a pad on a site that owns no geometry is inert, and the window is stock again",
-     xy(w:size()) .. " @ " .. xy(w:pos()), base.s .. " @ " .. basePos)
+     xy(w:size()) .. " @ " .. xy(w:position()), base.s .. " @ " .. basePos)
   eq("a widget with no chrome to re-lay-out ignores a pad rather than erroring",
-     xy(bare:size()) .. " @ " .. xy(bare:pos()), bareSz)
+     xy(bare:size()) .. " @ " .. xy(bare:position()), bareSz)
 end
 
 local function run()
@@ -172,9 +172,9 @@ local function run()
   bare = hafen.ui.widget{ size = { 40, 20 }, pos = { 8, 240 } }
   content = contentOf(w)
   base = { x = w:size().x, y = w:size().y, s = xy(w:size()) }
-  basePos = xy(w:pos())
-  baseContent = xy(content:rootpos())
-  bareSz = xy(bare:size()) .. " @ " .. xy(bare:pos())
+  basePos = xy(w:position())
+  baseContent = xy(content:rootPos())
+  bareSz = xy(bare:size()) .. " @ " .. xy(bare:position())
 
   eq("a widget nothing styles resolves nothing", w:style(), nil)
   w:skin{ pad = P }

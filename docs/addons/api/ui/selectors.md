@@ -1,16 +1,16 @@
 # hafen.ui: naming a widget
 
-A **selector is a string**, and `hafen.ui` itself is the lookup. Reach for one whenever you need a piece
-of the client's UI — to read it, to move it, to replace it, or as the key of a
+A **selector is a string**, and `hafen.ui():find` / `:all` are the lookups. Reach for one whenever you
+need a piece of the client's UI — to read it, to move it, to replace it, or as the key of a
 [stylesheet](style/keys.md) rule.
 
 ```lua
-hafen.ui("window[title=Cupboard]")     -- the first match, or nil
-hafen.ui.all("inventory")              -- every open container, in tree order
-hafen.ui("inventory[title=Cupboard]")  -- the grid inside that window
-hafen.ui("@Equipory")                  -- by widget class
-hafen.ui("[res=gfx/hud/meter/hp]")     -- by resource name
-hafen.ui()                             -- no argument: the root of the whole tree
+hafen.ui():find("window[title=Cupboard]")     -- the first match, or nil
+hafen.ui():all("inventory")                   -- every open container, in tree order
+hafen.ui():find("inventory[title=Cupboard]")  -- the grid inside that window
+hafen.ui():find("@Equipory")                  -- by widget class
+hafen.ui():find("[res=gfx/hud/meter/hp]")     -- by resource name
+hafen.ui():root()                             -- no selector at all: the root of the whole tree
 ```
 
 ## The grammar
@@ -80,8 +80,9 @@ Nobody guesses a widget's role. The bundled **`widgetstack`** addon answers it b
 panel reports the hovered widget's **role** (or an honest `nil`), its **class**, its `[title=]` and its
 `[res=]`, and then **every selector that actually matches it**, most specific first, with how many widgets
 each one matches and where this one falls among them. The bottom line is ready to paste into `:lua` — it is
-`hafen.ui("…")` when this widget is the **first** match and `hafen.ui.all("…")[i]` when it is not, because
-`hafen.ui(sel)` means *first match*. Every offered selector is resolved before it is offered, so it always
+`hafen.ui():find("…")` when this widget is the **first** match and `hafen.ui():all("…")[i]` when it is
+not, because `hafen.ui():find(sel)` means *first match*. Every offered selector is resolved before it is
+offered, so it always
 hands back the widget you were pointing at.
 
 Click a row, or run `:selector`, to log the line: chat-log text is selectable, which is how it reaches your
@@ -95,30 +96,30 @@ re-hovers.
 
 ## Hold the result
 
-`hafen.ui.all("*")` walks the whole tree. Once per event, or once when the hover changes, that is nothing;
+`hafen.ui():all("*")` walks the whole tree. Once per event, or once when the hover changes, that is nothing;
 sixty times a second it is a real slice of your frame budget. Because widgets are
 [interned](widget.md), holding the result costs nothing and the objects stay `==`-comparable — so select
 once, keep it, and use `:exists()` when you need to know it is still there.
 
 ## Hit-testing
 
-`hafen.ui.mouse()` and `hafen.ui.at(x, y)` answer *what widget is under a point*. `at()` **mirrors the
+`hafen.ui():mouse()` and `hafen.ui():at(x, y)` answer *what widget is under a point*. `at()` **mirrors the
 engine's own pointer dispatch**: it walks children topmost-first, skips invisible widgets, follows scroll
 offsets and honours non-rectangular hit areas, so it returns exactly the widget a real click would hit. A
 naive position-plus-size rectangle test is *wrong* inside scrolled lists and for custom hit shapes. Walk
-[`:parent()`](widget.md#read) up from the hit for the full stack; `:rootpos()` and `:size()` give the
+[`:parent()`](widget.md#read) up from the hit for the full stack; `:rootPos()` and `:size()` give the
 rectangle to outline it.
 
 ```lua
 local last                                             -- the leaf we last built the stack for
 hafen.event():on("OnUpdate", function(dt)
-  local m    = hafen.ui.mouse()
-  local leaf = hafen.ui.at(m.x, m.y)                   -- deepest widget under the cursor, or nil
+  local m    = hafen.ui():mouse()
+  local leaf = hafen.ui():at(m.x, m.y)                 -- deepest widget under the cursor, or nil
   if leaf == last then return end                      -- hover unchanged: no walk, no rebuild
   last = leaf
   local stack, n = {}, leaf
   while n do stack[#stack + 1] = n; n = n:parent() end  -- leaf to root
-  -- ... render `stack`; outline the leaf with leaf:rootpos() + leaf:size()
+  -- ... render `stack`; outline the leaf with leaf:rootPos() + leaf:size()
 end)
 ```
 

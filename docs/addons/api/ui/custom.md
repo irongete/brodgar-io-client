@@ -12,7 +12,7 @@ local win = hafen.ui.window{
     g:text(string.format("%.0f", hafen.time():clock() or 0), 6, 12)
   end,
 }
-win:pos(320, 200)                        -- the same object hafen.ui.at() would give you
+win:position(320, 200)                        -- the same object hafen.ui():at() would give you
 ```
 
 ## Windows and widgets

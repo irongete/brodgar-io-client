@@ -253,38 +253,38 @@ local function run()
 
   -- 2. THE DELIVERABLE: the parsed file IS the sheet. A theme's chrome needs three lines of Lua because an
   --    image is a handle; a place is not a handle, so the layout half needs no adapter at all.
-  local rsz = hafen.ui():size()
+  local rsz = hafen.ui():root():size()
   local anchored = win(hafen.ui.window{ title = ANCH, size = { 150, 90 }, pos = { 12, 12 } })
   local placed = win(hafen.ui.window{ title = PLACED, size = { 100, 50 }, pos = { 12, 130 } })
-  local baseA, baseP, baseS = xy(anchored:pos()), xy(placed:pos()), placed:size()
+  local baseA, baseP, baseS = xy(anchored:position()), xy(placed:position()), placed:size()
   check(pcall(hafen.ui.skin, doc.rules),
         "the table hafen.json():parse returned IS the sheet: a whole layout applies from a file, unmapped")
 
   -- 3. ...and the geometry is the file's own numbers, derived where it says derived and absolute where it
   --    says absolute.
   eq("the file's anchor holds a window 8 px in from the screen's bottom-right corner",
-     xy(anchored:rootpos()), pt(rsz.x - anchored:size().x - 8, rsz.y - anchored:size().y - 8))
+     xy(anchored:rootPos()), pt(rsz.x - anchored:size().x - 8, rsz.y - anchored:size().y - 8))
   eq("...and its pos and size are the point and the content box it names, to the pixel",
-     xy(placed:pos()) .. " " .. xy(placed:size()), "40,200 " .. pt(baseS.x + 80, baseS.y + 40))
+     xy(placed:position()) .. " " .. xy(placed:size()), "40,200 " .. pt(baseS.x + 80, baseS.y + 40))
 
   -- 4. and the whole thing reverts — the 035.2 method, one property along.
   hafen.ui.skin(nil)
   eq("dropping a layout that came from a file restores the exact numbers it found",
-     xy(anchored:pos()) .. " " .. xy(placed:pos()) .. " " .. xy(placed:size()),
+     xy(anchored:position()) .. " " .. xy(placed:position()) .. " " .. xy(placed:size()),
      baseA .. " " .. baseP .. " " .. xy(baseS))
 
-  -- 5. PROFILES ARE AN ADDON'S BUSINESS (the feature builds none). A layout read back through :pos() is a table
+  -- 5. PROFILES ARE AN ADDON'S BUSINESS (the feature builds none). A layout read back through :position() is a table
   --    of numbers: it survives JSON, and re-applying it puts the widget on the same pixel. That is the whole of
   --    what a profile store would have been, and hafen.store already holds tables like this one.
   hafen.ui.skin(doc.rules)
-  local saved = { [SEL_P] = { x = placed:pos().x, y = placed:pos().y } }
+  local saved = { [SEL_P] = { x = placed:position().x, y = placed:position().y } }
   hafen.ui.skin(nil)
   local back = hafen.json():parse(hafen.json():encode(saved))
   hafen.ui.skin{ [SEL_P] = { pos = back[SEL_P] } }
   eq("a saved layout is plain data: read back, encoded, re-parsed and re-applied lands on the same pixel",
-     xy(placed:pos()), "40,200")
+     xy(placed:position()), "40,200")
   hafen.ui.skin(nil)
-  eq("...and dropping that one restores the user's numbers too", xy(placed:pos()), baseP)
+  eq("...and dropping that one restores the user's numbers too", xy(placed:position()), baseP)
 
   -- 6. the cost round, then the armed one if the maintainer has the profiler on.
   costCache(function()

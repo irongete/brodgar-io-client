@@ -5,23 +5,23 @@
 -- entirely in pure Lua over W1/W2.
 --
 -- W2 adds the two reads that find *what is under the cursor* -- the only pieces missing from W1's tree:
---   hafen.ui.mouse()   -> { x=, y= }   the cursor in root coords (public UI.mc), polled each frame
---   hafen.ui.at(x, y)  -> the DEEPEST Widget object under that point, or nil. It mirrors the engine's own
+--   hafen.ui():mouse()   -> { x=, y= }   the cursor in root coords (public UI.mc), polled each frame
+--   hafen.ui():at(x, y)  -> the DEEPEST Widget object under that point, or nil. It mirrors the engine's own
 --                         pointer dispatch, so it resolves EXACTLY the widget a real click would hit --
 --                         correct under SCROLL offsets and non-rectangular hit areas (a naive rect test
 --                         is wrong there). Walk :parent() up from the hit for the full stack.
---   w:rootpos()        -> { x=, y= }   the widget's top-left in root coords, for the highlight box
+--   w:rootPos()        -> { x=, y= }   the widget's top-left in root coords, for the highlight box
 --
 -- 030.3 -- THE SELECTOR INSPECTOR (the bottom panel). A selector system without one is unusable: nobody guesses
 -- a widget's role. For the hovered widget the panel shows its role (or an honest nil), its class, the [title=]
 -- key (the ENCLOSING window's caption -- 030.1's rule, not the widget's own text) and its [res=], and then
 -- every selector built from those parts that ACTUALLY matches it, most specific first, each with how many
 -- widgets it matches and this one's index among them. The bottom line is ready to paste into `:lua`.
---   * The list is SELF-VALIDATING: each candidate is resolved with hafen.ui.all() and kept only if the hovered
+--   * The list is SELF-VALIDATING: each candidate is resolved with hafen.ui():all() and kept only if the hovered
 --     widget is in the result. So nothing is ever offered that does not resolve -- which is exactly the claim
 --     the offered line makes.
---   * `hafen.ui("sel")` is offered when the widget is the FIRST match; otherwise the line is
---     `hafen.ui.all("sel")[i]`, because "first match" is what hafen.ui(sel) means and pretending otherwise
+--   * `hafen.ui():find("sel")` is offered when the widget is the FIRST match; otherwise the line is
+--     `hafen.ui():all("sel")[i]`, because "first match" is what hafen.ui():find(sel) means and pretending otherwise
 --     would hand you a selector that returns a different widget.
 --   * "*" is deliberately omitted: it matches every widget, so it says nothing and it is the one walk that
 --     interns the whole tree.
@@ -53,7 +53,7 @@ local hoverPos            -- { x=, y= } the hovered leaf's top-left in root coor
 local hoverSize           -- { x=, y= } its size
 local rebuilds = 0        -- how many times we rebuilt the stack (proves the `==` guard: it should NOT
                           -- climb while the cursor sits still)
-local walks = 0           -- how many hafen.ui.all() walks the last rebuild cost (the honest price of the panel)
+local walks = 0           -- how many hafen.ui():all() walks the last rebuild cost (the honest price of the panel)
 local frozen = false      -- the "freeze" hotkey: hold the stack still so you can mouse into the window to read it
 
 local LINE = 14                     -- row height, shared by every list here
@@ -61,7 +61,7 @@ local STACK_Y0 = 22                 -- first stack row y (shared by draw + click
 local STACK_MAXROWS = 11            -- stack rows that fit above the selector panel
 
 -- ============================================================== the selector inspector (030.3), shared by
--- the hover panel and each Inspector window. Pure Lua over w:role()/:type()/:res() + hafen.ui.all().
+-- the hover panel and each Inspector window. Pure Lua over w:role()/:type()/:res() + hafen.ui():all().
 
 local function trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
 
@@ -79,15 +79,15 @@ local function windowTitle(w)
   return nil
 end
 
--- The ready-to-paste line for one candidate. hafen.ui(sel) is the FIRST match, so it is only honest when this
+-- The ready-to-paste line for one candidate. hafen.ui():find(sel) is the FIRST match, so it is only honest when this
 -- widget IS the first one; otherwise the index form is what actually hands back this widget.
 local function pasteLine(c)
-  if c.idx == 1 then return ('hafen.ui("%s")'):format(c.sel) end
-  return ('hafen.ui.all("%s")[%d]'):format(c.sel, c.idx)
+  if c.idx == 1 then return ('hafen.ui():find("%s")'):format(c.sel) end
+  return ('hafen.ui():all("%s")[%d]'):format(c.sel, c.idx)
 end
 
 -- Build the selector report for `w`: its parts, every combination of them that really matches it (verified by
--- resolving it), sorted most-specific-first, and the best one. Costs one hafen.ui.all() walk per combination
+-- resolving it), sorted most-specific-first, and the best one. Costs one hafen.ui():all() walk per combination
 -- (at most 15, usually 3 or 7) -- which is why it runs on a hover CHANGE, never per frame.
 local function selectorsFor(w)
   local rep = { role = w:role(), cls = w:type(), res = w:res(), walks = 0, cands = {} }
@@ -118,7 +118,7 @@ local function selectorsFor(w)
       end
     end
     rep.walks = rep.walks + 1
-    local ok, hits = pcall(hafen.ui.all, s)                 -- a malformed candidate is dropped, never raised
+    local ok, hits = pcall(function() return hafen.ui():all(s) end)   -- a malformed candidate is dropped
     if ok and hits then
       local idx
       for i = 1, #hits do
@@ -173,7 +173,7 @@ openInspector = function(node)
       g:color()
       g:text(("visible: %s    pos: %s    size: %s")
         :format(tostring(n:visible()), fmtCoord(n:pos()), fmtSize(n:size())), 6, 20)
-      g:text(("rootpos: %s"):format(fmtCoord(n:rootpos())), 6, 34)
+      g:text(("rootpos: %s"):format(fmtCoord(n:rootPos())), 6, 34)
       local txt = n:text()
       g:text(("text: %s"):format(txt and ("'" .. txt .. "'") or "(none)"), 6, 48)
       -- 030.3: what it IS in the selector vocabulary, and the selector that finds it again
@@ -258,7 +258,7 @@ local function rebuild()
   -- The highlight box tracks the leaf. Suppress it when the leaf is the root widget (hovering "nothing"
   -- resolves to the full-screen root -- faithful, but a whole-screen box is just noise).
   if last and (#out > 1) then
-    hoverPos, hoverSize = last:rootpos(), last:size()
+    hoverPos, hoverSize = last:rootPos(), last:size()
   else
     hoverPos, hoverSize = nil, nil
   end
@@ -267,9 +267,9 @@ end
 -- OnUpdate: the per-frame poll + the guard. This is the WoW-OnUpdate analog (the engine tick pump, 09).
 hafen.event():on("OnUpdate", function(dt)
   if frozen then return end                         -- held still: keep the last stack + box
-  local m = hafen.ui.mouse()
+  local m = hafen.ui():mouse()
   if not m then return end                          -- no UI yet
-  local leaf = hafen.ui.at(m.x, m.y)                -- deepest widget under the cursor (or nil)
+  local leaf = hafen.ui():at(m.x, m.y)                -- deepest widget under the cursor (or nil)
 
   -- GUARD: same widget as last frame? -> bail (skip the rebuild entirely). This is the whole point, and it
   -- is what keeps the selector panel affordable: without it every frame would cost a fistful of tree walks.
@@ -422,7 +422,7 @@ end)
 hafen.slash():register("widgetstack", function(args)
   if not win then hafen.log():write(":widgetstack -> not up yet (enter the world first)"); return end
   local show = not win:visible()
-  if show then win:show() else win:hide() end
+  if show then win:visible(true) else win:visible(false) end
   hafen.log():write((":widgetstack -> window %s"):format(show and "shown" or "hidden"))
 end)
 

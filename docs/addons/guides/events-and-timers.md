@@ -96,7 +96,7 @@ about, with a [selector](../api/ui/selectors.md), and
 open when you subscribe.
 
 ```lua
-hafen.ui.on("window[title=Cupboard]", "appear", function(w)
+hafen.ui():on("window[title=Cupboard]", "appear", function(w)
   hafen.log():write(#w:items() .. " items")
 end)
 ```

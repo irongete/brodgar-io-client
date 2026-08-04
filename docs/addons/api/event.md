@@ -140,7 +140,7 @@ A widget is not a global fact either, so there is no `WidgetCreated` event. You 
 care about, with the same [selector](ui/selectors.md) a lookup uses:
 
 ```lua
-hafen.ui.on("window[title=Cupboard]", "appear", function(w) hafen.log():write(#w:items() .. " items") end)
+hafen.ui():on("window[title=Cupboard]", "appear", function(w) hafen.log():write(#w:items() .. " items") end)
 ```
 
 `fn` receives the [Widget](ui/widget.md) itself, and **`appear` also covers what is already open**,

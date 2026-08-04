@@ -677,7 +677,7 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
     /**
      * The <b>window-toggle seam</b> (031.1) — called from {@code haven.AddonWidgets}, which is where
      * {@code GameUI.togglewnd} and {@code GameUI.wndstate} reach the addon layer. A native window an addon hid
-     * with {@code widget:hide()} is a window that addon <b>owns</b>, toggle included: {@link #toggleWnd} answers
+     * with {@code widget:visible(false)} is a window that addon <b>owns</b>, toggle included: {@link #toggleWnd} answers
      * whether the click was handled (so the client leaves the window alone), {@link #wndState} what the menu
      * checkbox's tick should say ({@code null} = not owned, read the window as usual).
      *

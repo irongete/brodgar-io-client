@@ -9,7 +9,7 @@ ungated, both are registered by name, and both are cleaned up when your addon re
 local keys = hafen.client:options():keybindings()
 
 keys:register("toggle", function()
-  if window:visible() then window:hide() else window:show() end
+  if window:visible() then window:visible(false) else window:visible(true) end
 end)
 ```
 

@@ -122,7 +122,7 @@ Add this at the end of the file:
 ```lua
 hafen.client:options():keybindings():register("toggle", function()
   if not window then return end
-  if window:visible() then window:hide() else window:show() end
+  if window:visible() then window:visible(false) else window:visible(true) end
 end)
 ```
 
@@ -143,13 +143,13 @@ The window should come back the way you left it. Declare a saved variable in `ma
 back to disk for you. Record the state in the hotkey, and apply it when the window is built:
 
 ```lua
-  if hafen.store.settings.open == false then window:hide() end
+  if hafen.store.settings.open == false then window:visible(false) end
 ```
 
 goes at the end of the `OnEnterWorld` handler, and the hotkey's body becomes:
 
 ```lua
-  if window:visible() then window:hide() else window:show() end
+  if window:visible() then window:visible(false) else window:visible(true) end
   hafen.store.settings.open = window:visible()
 ```
 
@@ -191,7 +191,7 @@ hafen.event():on("OnEnterWorld", function()
       g:text("trees nearby: " .. trees, 6, 4)
     end,
   }
-  if hafen.store.settings.open == false then window:hide() end
+  if hafen.store.settings.open == false then window:visible(false) end
 end)
 
 hafen.timer():every(1, function()
@@ -200,7 +200,7 @@ end)
 
 hafen.client:options():keybindings():register("toggle", function()
   if not window then return end
-  if window:visible() then window:hide() else window:show() end
+  if window:visible() then window:visible(false) else window:visible(true) end
   hafen.store.settings.open = window:visible()
 end)
 ```

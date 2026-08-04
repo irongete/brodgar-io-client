@@ -144,7 +144,7 @@ end
 -- different cost.
 local function rebuild()
   if not (panel and panel:exists()) then return end
-  local p = panel:pos()
+  local p = panel:position()
   close()
   open{ p.x, p.y }
 end

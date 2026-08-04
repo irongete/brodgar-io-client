@@ -149,7 +149,7 @@ shape.
 A **lattice cell** is an index, not a place, and keeps its own name: `grid:segmentCoord()` counts grids,
 `marker:segmentTile()` counts tiles, and the argument of `grid:tile(c)` is a within-grid tile coord `0..99`.
 
-**Screen pixels are not Positions** either. A widget's `:pos()`, `:rootpos()` and
+**Screen pixels are not Positions** either. A widget's `:position()`, `:rootPos()` and
 [`worldToScreen`](player.md) answer plain `{x, y}` **pixels**. A screen point has no durable form because
 the screen is not a place — and handing one to `hafen.act():moveTo()` raises, rather than walking you
 somewhere wrong.

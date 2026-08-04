@@ -157,7 +157,7 @@ hafen.slash():register("walker", function(args)
     -- exactly the GItem.wdgmsg a click sends. Demo: act on the FIRST inventory item; default 'take' is the
     -- safest + most visible (it lifts the item onto your cursor -- click an empty slot to put it back).
     local verb = args[2] or "take"
-    local invw = hafen.ui.inventory()                  -- the backpack's Widget object (029.3; hafen.items is GONE)
+    local invw = hafen.ui():inventory()                -- the backpack's Widget object (029.3; hafen.items is GONE)
     local inv = invw and invw:items() or {}            -- array of Item snapshots, each with a `handle`
     local it = inv[1]
     if not it then hafen.log():write(":walker item -> your inventory is empty (put something in it, then retry)"); return end

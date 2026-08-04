@@ -70,10 +70,10 @@ end
 -- ---- the automated run -------------------------------------------------------------------------
 
 local function stage3(w, sz, pos)
-  eq("dropping the sheet takes every skinned deco off", #hafen.ui.all("@SkinDeco"), 0)
+  eq("dropping the sheet takes every skinned deco off", #hafen.ui():all("@SkinDeco"), 0)
   eq("the window is back on the stock chrome", decoOf(w), "DefaultDeco")
   eq("the restore leaves the window the size it was", xy(w:size()), sz)
-  eq("the restore leaves the window where it was", xy(w:pos()), pos)
+  eq("the restore leaves the window where it was", xy(w:position()), pos)
   w:destroy()
   manualCheck("run ':t035-1 look', then open a window (Tab for the inventory)",
     "every window's frame is dark with a gold border, and its caption still reads in the stock title font")
@@ -84,8 +84,8 @@ local function stage3(w, sz, pos)
 end
 
 local function stage2(w, sz, pos)
-  check(#hafen.ui.all("@SkinDeco") > 0, "a window.frame rule puts a sheet-fed deco on the client's windows",
-        #hafen.ui.all("@SkinDeco"))
+  check(#hafen.ui():all("@SkinDeco") > 0, "a window.frame rule puts a sheet-fed deco on the client's windows",
+        #hafen.ui():all("@SkinDeco"))
   eq("the probe window is wearing it too", decoOf(w), "SkinDeco")
   hafen.ui.skin(nil)
   hafen.timer():after(0.4, function() stage3(w, sz, pos) end)   -- the swap back happens in Window.tick
@@ -132,9 +132,9 @@ local function run()
 
   -- 3. the swap itself, and that dropping the sheet undoes it exactly. It happens in Window.tick (never
   --    inside a draw), so each half is read a frame later.
-  eq("a client with no frame rule wears no sheet-fed deco anywhere", #hafen.ui.all("@SkinDeco"), 0)
+  eq("a client with no frame rule wears no sheet-fed deco anywhere", #hafen.ui():all("@SkinDeco"), 0)
   eq("the probe window starts on the stock chrome", decoOf(w), "DefaultDeco")
-  local sz, pos = xy(w:size()), xy(w:pos())
+  local sz, pos = xy(w:size()), xy(w:position())
   hafen.ui.skin(theme())
   hafen.timer():after(0.4, function() stage2(w, sz, pos) end)
 end

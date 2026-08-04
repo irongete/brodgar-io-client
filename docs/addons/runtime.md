@@ -155,7 +155,7 @@ instruction watchdog still applies, so a stray infinite loop aborts instead of f
 
 ```text
 :lua hafen.world():gob():count("terobjs/tree")
-:lua hafen.ui("window[title=Inventory]"):size()
+:lua hafen.ui():find("window[title=Inventory]"):size()
 ```
 
 Addons add commands of their own with [`hafen.slash`](api/slash.md); `lua`, `addons` and `reload` are
