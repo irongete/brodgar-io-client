@@ -152,11 +152,12 @@ otherwise. [`hafen.world`](world.md#terrain-and-coordinates) converts between wo
 
 > **There is no global position.** A gob's world position is session-local — it starts near the origin
 > each login — and is not comparable across players or logins. The stable, shareable anchor is a
-> **grid id** plus a within-grid offset, [`hafen.world.gridPos`](world.md#saving-a-world-position-across-sessions) — the id comes from the
+> **grid id** plus a within-grid offset,
+> [`hafen.world.gridPos`](world.md#saving-a-world-position-across-sessions) — the id comes from the
 > server, so it means the same thing to every player. A map marker stores its position differently — a
 > segment id plus a segment tile coord, both of which this client invented and a map merge rewrites — so
-> a marker you want to keep or share goes through [`marker:anchor()`](map/markers.md#the-marker-object) first;
-> see [saving a position](map/grids.md#saving-a-position).
+> a marker you want to keep or share goes through [`marker:anchor()`](map/markers.md#the-marker-object)
+> first; see [saving a position](map/grids.md#saving-a-position).
 
 ## Colours
 

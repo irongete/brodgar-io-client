@@ -226,3 +226,15 @@
   set, diffed against the same run on `HEAD`, separates the drift you introduced from the drift you
   inherited; only the first is yours to fix inside the task. **Any mechanical substitution that grows a
   string is a re-wrap job as well as a rewrite job.**
+
+- **(002.2) A "columns" check written as `awk 'length>110'` measures bytes, and this tree's own punctuation
+  is what makes the two disagree.** 002.1 filed nine over-wide lines on the pages the feature touched;
+  seven were real. The other two measured 107 and 110 columns and were flagged only because an em dash is
+  three bytes in UTF-8 and Git-Bash's `awk` has no multibyte `length` — a prose line carrying two of them
+  reads four columns wider than it is. ` — ` sits on nearly every `See also` bullet and in half the
+  callouts, so the error is systematic rather than occasional. It never produced a visible defect because
+  it is one-sided: an over-reporting wrap check keeps "zero drift" true while manufacturing work, exactly
+  as 001.1's slugger manufactured 208 broken anchors. The check that measures what §10 says is
+  `perl -CSD -ne 'chomp; print "$ARGV:$.\n" if length($_)>110 && !/^\|/'`. The general form: **a count
+  over text is a count of some unit, and a tool with no multibyte mode has silently chosen bytes** — so
+  reproduce a known-good number with the new tool before believing either tool's answer.

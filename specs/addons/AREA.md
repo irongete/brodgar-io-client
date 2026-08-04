@@ -6,9 +6,9 @@
 - **Scope**: WoW-style Lua AddOn system in `src/io/brodgar/addon/`, its `hafen.*` API, and the
   addons under `addons/`. Core `haven` edits stay minimal, centralized and tagged `// addon:`.
 - **Branch**: `feature/addons`.
-- **Docs tier (ONE)**: `docs/addons/api/*.md` — the user-facing API reference. Plus its
-  `api/README.md` index and the `docs/addons/README.md` "API at a glance" table when a new
-  section first ships. No per-task narrative notes; the devlog does not exist.
+- **Docs tier (ONE)**: `docs/addons/**` — the user-facing reference, nested where a namespace is
+  a directory (`api/map/grids.md`), plus `runtime.md` and `examples.md`. A new section updates its
+  `api/README.md` row and the `docs/addons/README.md` "API at a glance" table. No narrative notes.
 - **Build check**: `ant hafen-client` → `BUILD SUCCESSFUL` (`ant get-luaj` for deps,
   `ant bin` to package, `ant run` to launch).
 - **Verification**: in-game, by the maintainer. Java (engine) changes require an `ant` rebuild

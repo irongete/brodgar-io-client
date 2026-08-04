@@ -85,9 +85,9 @@ end
 
 ## The ground
 
-[`hafen.world`](../api/world.md#terrain-and-coordinates) answers for terrain at a world point, and converts between the coordinate
-spaces — world units, tiles, grids and screen pixels. Terrain reads answer `nil` while that part of the map
-is still streaming in, which is normal rather than an error.
+[`hafen.world`](../api/world.md#terrain-and-coordinates) answers for terrain at a world point, and
+converts between the coordinate spaces — world units, tiles, grids and screen pixels. Terrain reads
+answer `nil` while that part of the map is still streaming in, which is normal rather than an error.
 
 ```lua
 local p = hafen.player():gob():pos()

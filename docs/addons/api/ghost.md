@@ -184,8 +184,8 @@ You can drag a ghost along the terrain, snapping exactly as placing a real build
 primitives and then `ghost:move`:
 
 1. [`hafen.hook.grab`](hook.md#hafenhookgrabmove-up) captures the mouse, so the camera stays put.
-2. [`hafen.world.screenToWorld`](world.md#screen-to-world-and-placement-snapping) turns the cursor pixel into a
-   ground coordinate.
+2. [`hafen.world.screenToWorld`](world.md#screen-to-world-and-placement-snapping) turns the cursor
+   pixel into a ground coordinate.
 3. [`hafen.world.snapPlace`](world.md#screen-to-world-and-placement-snapping) snaps it to the placement grid,
    with Shift for the fine grid.
 
@@ -237,7 +237,8 @@ Because the gizmo drives any handle with `:pos`, `:move`, `:rotate` and `:scale`
 ## See also
 
 - [`hafen.render`](render/README.md) — the same world entity for your own images and models
-- [`hafen.world`](world.md#saving-a-world-position-across-sessions) — grid anchoring, and the snapping the gizmo uses
+- [`hafen.world`](world.md#saving-a-world-position-across-sessions) — grid anchoring, and the snapping
+  the gizmo uses
 - [`hafen.hook`](hook.md#hafenhookgrabmove-up) — the mouse-capture primitive behind a drag
 - [`hafen.act.place`](act.md) — committing a real build, which is gated
 - [events](events.md#world-ghosts-and-sprites) — `GhostClicked`

@@ -9,7 +9,7 @@
   (review, update, restructure, extend). It never touches `src/` or the `hafen.*` API — an audit
   that finds an engine bug or a missing API reports it and files it to the owning area.
 - **Boundary with `addons`**: area `addons` still writes the reference content for each surface
-  it ships (its docs tier stays `docs/addons/api/*.md`), following the style and page limits this
+  it ships (its docs tier stays `docs/addons/**`), following the style and page limits this
   area sets. Same rule for any future area with a docs tier.
 - **Branch**: `feature/addons` (same working branch; docs ride the same tree).
 - **Docs tier (ONE)**: `docs/**` — the site itself is this area's deliverable. Every feature

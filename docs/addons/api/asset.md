@@ -227,4 +227,5 @@ end)
 - [drawing](ui/drawing.md) — `g:image` and `g:aimage` draw an image asset on screen
 - [`hafen.font`](font.md) — what a font asset does once you have it, and the built-ins that are not assets
 - [`hafen.json`](json.md) — turning a data asset's `:text()` into a table
-- [conventions](conventions.md#asset-a-file-your-addon-ships) — callable namespaces, owned resources and teardown
+- [conventions](conventions.md#asset-a-file-your-addon-ships) — callable namespaces, owned resources
+  and teardown

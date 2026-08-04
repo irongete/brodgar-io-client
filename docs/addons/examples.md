@@ -58,10 +58,11 @@ carry — a font face and an image — and it maps those two. It also keeps a wi
 ## atlas
 
 A live minimap panel built from the [map database](api/map/README.md) alone. The only thing it reads from
-the live world is *where am I* — [`hafen.world.gridPos()`](api/world.md#saving-a-world-position-across-sessions), the
-anchor the two halves share; everything it shows comes out of `hafen.map`, and the picture is
-[`grid:image(lvl)`](api/map/drawings.md), which answers `nil` while it renders, so its four-per-second timer
-is both the retry loop and the "did the picture change?" test.
+the live world is *where am I* —
+[`hafen.world.gridPos()`](api/world.md#saving-a-world-position-across-sessions), the anchor the two
+halves share; everything it shows comes out of `hafen.map`, and the picture is
+[`grid:image(lvl)`](api/map/drawings.md), which answers `nil` while it renders, so its four-per-second
+timer is both the retry loop and the "did the picture change?" test.
 
 **It is also the cost claim.** A grid drawing is an ordinary image handle, so it goes into the stylesheet as
 `bg = { image = … }` and the *engine* paints it: with its pin layer off, `atlas` runs **0 draw and 0 widget

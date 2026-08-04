@@ -19,7 +19,7 @@
       **`[manual]`**: that the hub reads as a page and not as an index, and that each leaf's opening
       sentence needs no "and" — the maintainer's read, not a grep.
 
-- [ ] **002.2 — the close**: the standard and the contract catch up with what shipped. `style-guide.md`
+- [x] **002.2 — the close**: the standard and the contract catch up with what shipped. `style-guide.md`
       §7's grep list gains the eight names `037` retired (`hafen.markers`, `hafen.radar`, `hafen.map.tile`,
       `.gridPos`, `.fromGridPos`, `.screenToWorld`, `.snapPlace`, `.snapAngle`);
       `information-architecture.md` §3 records `api/map/` in the target tree and §7 marks the tier widening

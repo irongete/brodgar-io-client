@@ -8,7 +8,8 @@
   300), audited against `src/` and re-checked at the close (140 coverage rows, 0 GAP; 1,112 links, 0
   broken), plus a tutorial, a `guides/` tier, `runtime.md` and `examples.md`
   (`design/style-guide.md`, `design/information-architecture.md`) — tasks 001.1..001.7 + 001.4b, 001.5b
-- `002-map-database-review` — ACTIVE — area `addons`' `037-map-database` brought back to the standard:
-  the 436-line `api/map.md` split into `api/map/`, the obituary deleted, the retired-name grep list
-  extended, the §12 checks re-run over the 037 surface (`design/style-guide.md` §7/§9/§12,
-  `design/information-architecture.md` rules 2–4) — tasks 002.1..002.2
+- `002-map-database-review` — DONE — area `addons`' `037-map-database` brought back to the standard: the
+  436-line `api/map.md` split into `api/map/` (six pages, none over 106; 22 inbound links re-pointed), the
+  obituary deleted, the §7 grep list extended to **22 names**, the IA and both `AREA.md` files widened to
+  `docs/addons/**`, wrap drift zeroed on the 037 surface — **75 pages, 7,906 lines, 1,181 links, 0 broken**
+  (`design/style-guide.md` §7/§9/§12, `design/information-architecture.md` rules 2–4) — tasks 002.1..002.2

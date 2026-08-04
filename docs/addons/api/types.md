@@ -52,7 +52,8 @@ field for either.
 
 ## Tile
 
-From [`hafen.world.tile`](world.md#terrain-and-coordinates). `{ id = number, name = string? }` — tileset id plus resource name.
+From [`hafen.world.tile`](world.md#terrain-and-coordinates). `{ id = number, name = string? }` —
+tileset id plus resource name.
 
 ## Attr
 

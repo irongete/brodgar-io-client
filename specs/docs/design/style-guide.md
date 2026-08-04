@@ -166,12 +166,18 @@ lives in git and in `specs/`.
   hafen.ui.adopt   hafen.ui.replace hafen.ui.onWidgetCreate    hafen.ui.root
   WidgetNode       hafen.font.load  setFont          resetFont
   hafen.render.image                hafen.render.model
+  hafen.markers    hafen.radar      hafen.map.tile   hafen.map.gridPos
+  hafen.map.fromGridPos             hafen.map.screenToWorld
+  hafen.map.snapPlace               hafen.map.snapAngle
   ```
 
-  Seven of them are still written down today, in `fonts.md` (3), `ui.md` (2), `events.md` and
-  `render.md`; the rest are already absent and the grep is their regression guard. Note what is
-  **not** on the list: `hafen.ui.node(id)`, `hafen.ui.all`, `widget:items()` and `widget:replace()`
-  are live — the flat `hafen.items` section and the free `hafen.ui.replace` are what went.
+  The grep is the regression guard for the whole list: each name returns zero hits over `docs/`. Note
+  what is **not** on the list: `hafen.ui.node(id)`, `hafen.ui.all`, `widget:items()` and
+  `widget:replace()` are live — the flat `hafen.items` section and the free `hafen.ui.replace` are what
+  went. The map names divide the same way: `hafen.world.gridPos`, `hafen.world.fromGridPos`,
+  `hafen.world.screenToWorld`, `hafen.world.snapPlace`, `hafen.world.snapAngle` and `hafen.map.markers`
+  are live; what went is the top-level `hafen.markers` and `hafen.radar`, and the `hafen.map.*` spelling
+  of the live-world verbs.
 
 - **A boundary is allowed, and it is present tense.** A capability the reader would reasonably
   expect and that deliberately does not exist stays on the page, phrased as what the design does

@@ -40,9 +40,10 @@ subject, and pages small enough to be re-read.
 
 ## 3. The target tree
 
-72 pages, ~7,400 lines, average ~100 — up from 5,727 because the task tier, the runtime page and
-the examples page are new and three gaps get filled, while the duplicated stylesheet and the
-history come out. Sizes below are estimates from the source ranges in §5.
+75 pages, ~7,900 lines, average ~105 — up from 5,727 because the task tier, the runtime page and
+the examples page are new, three gaps get filled and `hafen.map` is a directory, while the
+duplicated stylesheet and the history come out. Sizes below are estimates from the source ranges
+in §5, except `api/map/`, whose sizes are the pages as they shipped.
 
 ```text
 docs/README.md                     the site root, one screen                             ~25
@@ -71,12 +72,20 @@ docs/addons/api/README.md          the reference index: every leaf page         
                    /types.md        every snapshot shape                                ~230
                    /events.md       the bus and the catalogue                           ~140
 
-                   /gob.md /world.md /map.md /markers.md /radar.md
+                   /gob.md /world.md
                    /player.md /time.md /char.md /study.md /party.md /buff.md /meter.md
                    /kin.md /speed.md /craft.md /quests.md /wounds.md /fight.md
                    /actionbar.md /act.md /menugrid.md
                    /ghost.md /asset.md /font.md /hook.md
                    /http.md /json.md /timer.md /store.md /log.md /slash.md /sound.md
+
+                   /map/README.md       hub: what the recorded database is, the
+                                        nil-until-loaded rule, interning, the order       ~70
+                       /grids.md        segments, grids, and saving an anchor            ~105
+                       /overlays.md     the recorded masks, and the display toggles      ~105
+                       /drawings.md     grid images: levels, ownership, the cache         ~75
+                       /markers.md      the Marker object, anchor(), the ungated writes   ~70
+                       /icons.md        the icon registry and the IconCat object          ~65
 
                    /ui/README.md        hub and reading order                            ~60
                       /custom.md        your own windows, widgets and overlays           ~90
@@ -116,6 +125,8 @@ docs/addons/api/README.md          the reference index: every leaf page         
 
 - **`docs/addons/README.md`**: new here → the tutorial; want to do a thing → guides; want a name
   → the reference. Then the at-a-glance table, regenerated from this tree.
+- **`api/map/README.md`**: the ground itself (`grids`) → what covered it (`overlays`) → what it looks
+  like (`drawings`) → what you and the server put on it (`markers`, `icons`).
 - **`api/ui/README.md`**: draw your own UI (`custom` → `drawing`) · point at the client's UI
   (`selectors` → `widget` → `items`) · change it (`native` → `replace`) · restyle it (`style/`).
 - **`api/ui/style/README.md`**: what a sheet is → `keys` (which widgets) → `surfaces` (what they
@@ -233,11 +244,11 @@ learning path's work rather than the reference's.
   `runtime.md` and `examples.md`.
 - Area `addons` keeps writing the reference content for each surface it ships, to this standard,
   and adds a row to `examples.md` when it ships an example addon.
-- **Two wordings need widening once this feature lands** (filed, not edited here — this task
-  changes no area contract): `specs/docs/AREA.md` and `specs/addons/AREA.md` both describe the
-  addons docs tier as `docs/addons/api/*.md`. After the migration the reference tree is nested
-  (`api/ui/style/keys.md`) and two reference-grade pages sit outside `api/` (`runtime.md`,
-  `examples.md`). The tier is `docs/addons/**`.
+- **The addons docs tier is `docs/addons/**`**, and both `specs/docs/AREA.md` and
+  `specs/addons/AREA.md` say so (widened by 002.2, the two wordings 001 filed and left open). The
+  older wording, `docs/addons/api/*.md`, describes neither half of the tree: the reference is nested
+  (`api/ui/style/keys.md`, `api/map/grids.md`) and two reference-grade pages sit outside `api/`
+  (`runtime.md`, `examples.md`).
 
 ## 8. Link discipline during the migration
 
