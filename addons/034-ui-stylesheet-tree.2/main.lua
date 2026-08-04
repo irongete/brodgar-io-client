@@ -50,10 +50,11 @@ end
 
 -- A probe window: it exists to DRAW one line every frame, which is what puts a key in the text cache.
 local function probe(title, y)
-  return hafen.ui.window{
-    title = title, size = { 170, 24 }, pos = { 4, y },
-    onDraw = function(g) g:text(LINE, 6, 4) end,
-  }
+  return hafen.ui():window()
+    :title(title)
+    :size(170, 24)
+    :position(4, y)
+    :onDraw(function(g) g:text(LINE, 6, 4) end)
 end
 
 local wins = {}

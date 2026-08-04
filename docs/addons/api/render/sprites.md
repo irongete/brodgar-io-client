@@ -59,7 +59,7 @@ The same transform surface as a [ghost handle](../ghost.md#the-ghost-handle), wi
 Pass `billboard = true` for a sprite that **always faces the camera** at a **constant screen size** — a
 screen-space blit anchored at the sprite's world point, so rotating the camera or zooming leaves it
 square-on and the same number of pixels. It is the ergonomic, gob-anchored version of drawing an image at
-[`hafen.player():worldToScreen`](../player.md) inside a [`hafen.ui.overlay`](../ui/custom.md#overlays), and
+[`hafen.player():worldToScreen`](../player.md) inside a [HUD overlay](../ui/custom.md#overlays), and
 it draws **on top** of the 3D scene, with no depth occlusion.
 
 ```lua

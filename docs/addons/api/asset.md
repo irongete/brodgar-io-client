@@ -207,13 +207,14 @@ hafen.event():on("OnLoad", function()
   hafen.log():write(("icon %dx%d, chair %.1f tiles tall"):format(s.w, s.h, b.size.z / 11))
 end)
 
-hafen.ui.window{
-  title = "My addon", size = {160, 80}, font = face,
-  onDraw = function(g, w, h)
+hafen.ui():window()
+  :title("My addon")
+  :size(160, 80)
+  :font(face)
+  :onDraw(function(g, w, h)
     g:image(icon, 4, 4, 16, 16)             -- the handle, not the path
     g:text("mine", 26, 6)
-  end,
-}
+  end)
 
 hafen.slash():register("stand", function()
   local p = hafen.player():gob():position()

@@ -14,12 +14,28 @@ import org.luaj.vm2.Varargs;
 
 /**
  * A <b>client-side</b> {@link Widget} whose lifecycle callbacks forward to an addon's Lua functions —
- * the Java half of {@code hafen.ui.widget} / {@code hafen.ui.window} (spec {@code 07-ui-and-drawing.md},
- * Phase 2a). It is a leaf widget: {@link #draw}, {@link #tick}, and the mouse handlers each call the
- * addon's matching callback ({@code onDraw}/{@code onTick}/{@code onClick}/{@code onMouseUp}/
- * {@code onMouseMove}/{@code onWheel}) through {@link AddonManager#callLua}, so every forward is
- * <b>watchdog-armed</b> (D-018 layer 1), <b>error-isolated</b> (a Lua error is logged, never thrown into
- * the render/tick loop), and CPU-accounted exactly like an event handler.
+ * the Java half of {@code hafen.ui():widget()} / {@code hafen.ui():window()} (spec
+ * {@code 07-ui-and-drawing.md}, Phase 2a). It is a leaf widget: {@link #draw}, {@link #tick}, and the mouse
+ * handlers each call the addon's matching callback ({@code onDraw}/{@code onTick}/{@code onClick}/
+ * {@code onMouseUp}/{@code onMouseMove}/{@code onWheel}) through {@link AddonManager#callLua}, so every
+ * forward is <b>watchdog-armed</b> (D-018 layer 1), <b>error-isolated</b> (a Lua error is logged, never
+ * thrown into the render/tick loop), and CPU-accounted exactly like an event handler.
+ *
+ * <p><b>Built bare, and every callback is a setter</b> (spec {@code 039-uniform-api} §2.5). The thirteen
+ * keys of the old {@code opts} table are chained setters on the Widget entity, so a callback is no longer
+ * fixed at construction: the slots live in a <b>copy-on-write volatile array</b> because the tick and draw
+ * passes read them while Lua writes them, and one volatile reference is cheaper to get right than eight
+ * volatile fields.
+ *
+ * <p><b>Attached INERT until its arming tick</b> (§2.5, and D-112 applied one level up). A bare widget exists
+ * for the length of the statement that builds it, with the client's own defaults and no title. It is in the
+ * tree from the first instant — so every lookup, {@code hafen.ui():at(x, y)} included, answers on it exactly
+ * as it did when the constructor took a table — but it <b>does not draw</b> until {@link UiApi#armPending()}
+ * arms it on the next {@link AddonManager#tick}. Holding it out of the tree instead was tried and is worse:
+ * it would make "find the widget I just built" quietly stop working, which is a capability, to buy a
+ * guarantee about painting that skipping the draw already gives. A window's chrome is skipped the same way,
+ * by an anonymous {@link haven.Window} subclass built in {@link UiApi} — anonymous so {@code w:type()} still
+ * climbs to {@code Window} and every selector that names one keeps matching.
  *
  * <p><b>Not bound to a server id</b> — an AddonWidget cannot {@code wdgmsg} the server (its
  * {@code wdgmsg} falls through to {@code ui.root} and is dropped). That is correct for custom UI; game
@@ -48,24 +64,72 @@ import org.luaj.vm2.Varargs;
  * the extra argument is unaffected.
  */
 final class AddonWidget extends Widget implements DropTarget {
+    /**
+     * The callback setters, in slot order — the Lua verb names, which are also the keys the retired
+     * {@code opts} table used. {@link #slot(String)} is the only mapping between the two.
+     */
+    static final String[] CALLBACKS = {
+        "onDraw", "onTick", "onClick", "onMouseUp", "onMouseMove", "onWheel", "onDrop", "onClose",
+    };
+    static final int ON_DRAW = 0, ON_TICK = 1, ON_CLICK = 2, ON_MOUSEUP = 3,
+                     ON_MOUSEMOVE = 4, ON_WHEEL = 5, ON_DROP = 6, ON_CLOSE = 7;
+
     private final Addon owner;
-    private final LuaValue onDraw, onTick, onClick, onMouseUp, onMouseMove, onWheel, onDrop;
-    private final FontHandle defaultFont;          // F2: opts.font — the default font for this widget's g:text draws
+    /** The callback slots. Copy-on-write: the draw/tick passes read this reference, Lua setters replace it. */
+    private volatile LuaValue[] cb = new LuaValue[CALLBACKS.length];
+    private volatile FontHandle defaultFont;       // :font(h) — the default font for this widget's g:text draws
+    private volatile LuaValue fontVal = LuaValue.NIL;   // ...and the handle itself, so :font() reads back what was set
     private final LuaGOut gwrap = new LuaGOut();   // the shared GOut draw wrapper `g`, bound per draw
     private Widget root = this;     // the widget to destroy on kill(): the window chrome, or this
     private boolean dead;           // set on teardown so a late tick/draw callback is a no-op
+    private volatile boolean pending = true;   // built, not yet drawing — armed on the next AddonManager tick
 
-    AddonWidget(Addon owner, Coord sz, LuaValue opts) {
+    AddonWidget(Addon owner, Coord sz) {
         super(sz);
         this.owner = owner;
-        this.onDraw      = fn(opts, "onDraw");
-        this.onTick      = fn(opts, "onTick");
-        this.onClick     = fn(opts, "onClick");
-        this.onMouseUp   = fn(opts, "onMouseUp");
-        this.onMouseMove = fn(opts, "onMouseMove");
-        this.onWheel     = fn(opts, "onWheel");
-        this.onDrop      = fn(opts, "onDrop");
-        this.defaultFont = FontHandle.resolve(opts.get("font"));   // F2: nil/typo/non-handle => null (stock font)
+    }
+
+    /** The slot of a callback verb, or {@code -1} — the one place the eight names are matched. */
+    static int slot(String name) {
+        for(int i = 0; i < CALLBACKS.length; i++) {
+            if(CALLBACKS[i].equals(name))
+                return i;
+        }
+        return -1;
+    }
+
+    /** The function in a slot, or {@code null} — what {@code w:onDraw()} reads back. */
+    LuaValue callback(int i) {
+        return cb[i];
+    }
+
+    /** Install a callback ({@code w:onDraw(fn)}). Copy-on-write, so a reader never sees a torn array. */
+    void callback(int i, LuaValue fn) {
+        LuaValue[] n = cb.clone();
+        n[i] = fn;
+        cb = n;
+    }
+
+    /** The widget's default font handle as Lua set it ({@code w:font()}), and the resolved half behind it. */
+    LuaValue font() {
+        return fontVal;
+    }
+
+    void font(LuaValue h) {
+        this.defaultFont = FontHandle.resolve(h);   // a non-handle resolves to null: the stock font
+        this.fontVal = h;
+    }
+
+    // ---------------------------------------------------------------- pending: built, not yet drawing
+
+    /** Is this widget still waiting for its arming tick? (Built and in the tree, but painting nothing.) */
+    boolean pending() {
+        return pending;
+    }
+
+    /** Cleared by {@link UiApi#armPending()} on the first tick after the statement that built it. */
+    void armed() {
+        this.pending = false;
     }
 
     /**
@@ -78,12 +142,6 @@ final class AddonWidget extends Widget implements DropTarget {
         return owner;
     }
 
-    /** An optional callback from the opts table, or {@code null} if the key is absent / not a function. */
-    private static LuaValue fn(LuaValue opts, String key) {
-        LuaValue v = opts.get(key);
-        return v.isfunction() ? v : null;
-    }
-
     /** Record the top-level widget that owns this content (a window's chrome) so {@link #kill} removes it. */
     void root(Widget root) {
         this.root = (root != null) ? root : this;
@@ -91,7 +149,7 @@ final class AddonWidget extends Widget implements DropTarget {
 
     /**
      * The top-level widget this content lives under — the window chrome, or this widget itself for a bare
-     * {@code hafen.ui.widget}. It is the widget the Lua entity is interned on (029.2), so
+     * {@code hafen.ui():widget()}. It is the widget the Lua entity is interned on (029.2), so
      * {@link LuaWidget#ownedContent} recognises an OWNED entity by matching it: {@code w} is owned by an addon
      * exactly when {@code w} is (or directly contains) that addon's content whose {@code root} is {@code w}.
      * Derived, not stored on the handle — the intern cache is weak on both axes, so a re-minted entity must be
@@ -111,6 +169,7 @@ final class AddonWidget extends Widget implements DropTarget {
         if(dead)
             return;
         dead = true;
+        pending = false;
         root.destroy();
     }
 
@@ -118,15 +177,19 @@ final class AddonWidget extends Widget implements DropTarget {
 
     public void tick(double dt) {
         super.tick(dt);
-        if(!dead && (onTick != null))
-            AddonManager.callLua(owner, Addon.C_WIDGET, onTick, LuaValue.valueOf(dt));
+        LuaValue fn = cb[ON_TICK];
+        if(!dead && (fn != null))
+            AddonManager.callLua(owner, Addon.C_WIDGET, fn, LuaValue.valueOf(dt));
     }
 
     public void draw(GOut g) {
-        if(!dead && (onDraw != null)) {
-            LuaTable gt = gwrap.bind(g, owner, defaultFont);   // F2: g:text with no per-call font uses this widget's font=
+        if(pending)     // built this frame and not armed yet: a half-configured widget paints NOTHING (§2.5)
+            return;
+        LuaValue fn = cb[ON_DRAW];
+        if(!dead && (fn != null)) {
+            LuaTable gt = gwrap.bind(g, owner, defaultFont);   // F2: g:text with no per-call font uses this widget's :font()
             try {
-                AddonManager.callLua(owner, Addon.C_DRAW, onDraw, gt, LuaValue.valueOf(sz.x), LuaValue.valueOf(sz.y));
+                AddonManager.callLua(owner, Addon.C_DRAW, fn, gt, LuaValue.valueOf(sz.x), LuaValue.valueOf(sz.y));
             } finally {
                 gwrap.unbind();   // invalidate the wrapper outside the callback (no stashing)
             }
@@ -135,30 +198,44 @@ final class AddonWidget extends Widget implements DropTarget {
     }
 
     public boolean mousedown(MouseDownEvent ev) {
-        if(!dead && (onClick != null)
-           && AddonManager.callLua(owner, Addon.C_WIDGET, onClick, ci(ev.c.x), ci(ev.c.y), ci(ev.b), mods()).arg1().toboolean())
+        LuaValue fn = cb[ON_CLICK];
+        if(!dead && (fn != null)
+           && AddonManager.callLua(owner, Addon.C_WIDGET, fn, ci(ev.c.x), ci(ev.c.y), ci(ev.b), mods()).arg1().toboolean())
             return true;   // a truthy return consumes the click (preventDefault)
         return super.mousedown(ev);
     }
 
     public boolean mouseup(MouseUpEvent ev) {
-        if(!dead && (onMouseUp != null)
-           && AddonManager.callLua(owner, Addon.C_WIDGET, onMouseUp, ci(ev.c.x), ci(ev.c.y), ci(ev.b), mods()).arg1().toboolean())
+        LuaValue fn = cb[ON_MOUSEUP];
+        if(!dead && (fn != null)
+           && AddonManager.callLua(owner, Addon.C_WIDGET, fn, ci(ev.c.x), ci(ev.c.y), ci(ev.b), mods()).arg1().toboolean())
             return true;
         return super.mouseup(ev);
     }
 
     public void mousemove(MouseMoveEvent ev) {
         super.mousemove(ev);
-        if(!dead && (onMouseMove != null))
-            AddonManager.callLua(owner, Addon.C_WIDGET, onMouseMove, ci(ev.c.x), ci(ev.c.y), mods());
+        LuaValue fn = cb[ON_MOUSEMOVE];
+        if(!dead && (fn != null))
+            AddonManager.callLua(owner, Addon.C_WIDGET, fn, ci(ev.c.x), ci(ev.c.y), mods());
     }
 
     public boolean mousewheel(MouseWheelEvent ev) {
-        if(!dead && (onWheel != null)
-           && AddonManager.callLua(owner, Addon.C_WIDGET, onWheel, ci(ev.c.x), ci(ev.c.y), ci(ev.a), mods()).arg1().toboolean())
+        LuaValue fn = cb[ON_WHEEL];
+        if(!dead && (fn != null)
+           && AddonManager.callLua(owner, Addon.C_WIDGET, fn, ci(ev.c.x), ci(ev.c.y), ci(ev.a), mods()).arg1().toboolean())
             return true;
         return super.mousewheel(ev);
+    }
+
+    /**
+     * The chrome close button ({@code :onClose(fn)}). Wired once by the builder, but read here, so a handler
+     * installed after the window was built is the one that runs.
+     */
+    void closed() {
+        LuaValue fn = cb[ON_CLOSE];
+        if(fn != null)
+            AddonManager.callLua(owner, Addon.C_WIDGET, fn);
     }
 
     // ---------------------------------------------------------------- drop target (D-038)
@@ -171,12 +248,13 @@ final class AddonWidget extends Widget implements DropTarget {
      * engine keeps looking for a handler.
      */
     public boolean dropthing(Coord cc, Object thing) {
-        if(dead || (onDrop == null))
+        LuaValue fn = cb[ON_DROP];
+        if(dead || (fn == null))
             return false;
         LuaValue drop = dropDescriptor(thing);
         if(drop == null)
             return false;   // not a kind we deliver → let the engine dispatch it elsewhere
-        return AddonManager.callLua(owner, Addon.C_WIDGET, onDrop, ci(cc.x), ci(cc.y), drop).arg1().toboolean();
+        return AddonManager.callLua(owner, Addon.C_WIDGET, fn, ci(cc.x), ci(cc.y), drop).arg1().toboolean();
     }
 
     /**

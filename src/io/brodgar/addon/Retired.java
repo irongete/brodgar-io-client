@@ -153,8 +153,8 @@ final class Retired {
         put("marker:dist", "marker:dist() is now marker:distance()");
 
         // ---- hafen.ui: the lookups move onto the section, and the ROOT stops being the call itself -------
-        // (window/widget/overlay/skin are not here: they are still plain fields on the callable table, because
-        //  they lose their config table rather than merely moving, and each is a cut of its own.)
+        // (skin is not here: it is still a plain field on the callable table, because it becomes a Sheet of
+        //  Rules rather than merely moving, and that is a cut of its own.)
         put("hafen.ui.all", "hafen.ui.all(selector) is now hafen.ui():all(selector)");
         put("hafen.ui.node", "hafen.ui.node(id) is now hafen.ui():node(id)");
         put("hafen.ui.at", "hafen.ui.at(x, y) is now hafen.ui():at(x, y)");
@@ -163,6 +163,18 @@ final class Retired {
         put("hafen.ui.equipment", "hafen.ui.equipment() is now hafen.ui():equipment()");
         put("hafen.ui.hand", "hafen.ui.hand() is now hafen.ui():hand()");
         put("hafen.ui.on", "hafen.ui.on(selector, event, fn) is now hafen.ui():on(selector, event, fn)");
+
+        // ---- the three UI builders: no config table survives, so each key is a setter on what you get back --
+        put("hafen.ui.window", "hafen.ui.window{…} is now hafen.ui():window() plus chained setters:"
+            + " :title(s) :parent(w) :position(x, y) :size(w, h) :font(h) and the callbacks :onDraw(fn)"
+            + " :onTick(fn) :onClick(fn) :onMouseUp(fn) :onMouseMove(fn) :onWheel(fn) :onDrop(fn) :onClose(fn)."
+            + " Each has a matching bare read, and `pos` is spelt `position`");
+        put("hafen.ui.widget", "hafen.ui.widget{…} is now hafen.ui():widget() plus chained setters:"
+            + " :parent(w) :position(x, y) :size(w, h) :font(h) and the callbacks :onDraw(fn) :onTick(fn)"
+            + " :onClick(fn) :onMouseUp(fn) :onMouseMove(fn) :onWheel(fn) :onDrop(fn). A bare widget has no"
+            + " caption, so :title(s) is the window builder's");
+        put("hafen.ui.overlay", "hafen.ui.overlay(fn) is now hafen.ui():overlay():onDraw(fn), and the overlay"
+            + " it hands back ends with :destroy() rather than :remove()");
         // hafen.ui.root is deliberately NOT here, though hafen.ui():root() now exists: 030.1 cut it, this feature
         // did not move it, and the table's rule is that it carries what THIS grammar renamed. A name nothing here
         // touched goes on reading nil, which is what keeps a feature probe (`if hafen.something then`) honest.
@@ -176,6 +188,10 @@ final class Retired {
         put("widget:hide", "widget:hide() is now widget:visible(false) — a boolean property is a property, so the"
             + " value is the argument rather than the verb's name");
         put("marker:onmap", "marker:onmap() is now marker:onMap(), and it writes too: marker:onMap(true)");
+
+        // ---- the HUD overlay: a two-line handle table became a builder, so it ends the way the other two do --
+        put("uioverlay:remove", "hafen.ui():overlay() hands back something you created and hold, so it ends with"
+            + " ov:destroy() — :remove() is the collection verb, and a HUD painter is in no collection");
     }
 
     /** Register the plain {@code hafen.<section>.<verb>(…)} → {@code hafen.<section>():<verb>(…)} rows. */

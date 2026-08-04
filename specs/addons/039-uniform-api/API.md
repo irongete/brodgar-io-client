@@ -366,10 +366,11 @@ because a timer ends with `t:cancel()` and two spellings for one operation is th
 
 ## `hafen.ui()` — the UI (the section; **the root moves**)
 
-> **Shipped in 039.5** — the section, the root as `:root()`, and every lookup as a colon verb. The last
-> four rows (`window`, `widget`, `overlay`, `skin`) are **not** shipped: they do not merely move, so they
-> stay plain fields on the callable table until **039.6** (the builders) and **039.7** (the Sheet) cut
-> them. A field the table carries is found before `__index`, so the two halves coexist without a rule.
+> **Shipped in 039.5** — the section, the root as `:root()`, and every lookup as a colon verb — and the
+> three builder rows (`window`, `widget`, `overlay`) in **039.6**, where they became verbs on the section
+> whose product is configured by chained setters. `skin` is the one row still a plain field on the callable
+> table: it becomes a Sheet of Rules in **039.7**, and a field is found before `__index`, so the two halves
+> coexist without a rule.
 
 | before | after | does |
 |---|---|---|
@@ -699,9 +700,10 @@ spelt `spawnData` and `offset` takes the same units it does today (screen px or 
 
 ## Widget — the biggest entity
 
-> **Shipped in 039.5**, except the `w:skin()` row, which is **039.7**'s (it becomes a Rule, not a rename)
-> and the builder setters below it, which are **039.6**'s. `:rootpos()` -> **`:rootPos()`** landed with the
-> rest (N2); the `:info()` snapshot keeps its own `pos` key, which no row here renames.
+> **Shipped in 039.5**, except the `w:skin()` row, which is **039.7**'s (it becomes a Rule, not a rename);
+> the thirteen builder setters below landed in **039.6**, each with its matching bare read, and `:parent(w)`
+> gained its write half there. `:rootpos()` -> **`:rootPos()`** landed with the rest (N2); the `:info()`
+> snapshot keeps its own `pos` key, which no row here renames.
 
 Reads unchanged: `:type() :role() :res() :id() :children() :parent() :text() :items() :exists() :info()
 :walk(fn) :at(coord) :style()`.
@@ -723,7 +725,11 @@ Reads unchanged: `:type() :role() :res() :id() :children() :parent() :text() :it
 
 Window/widget **builder** setters (R4), replacing the 13-key `opts` table:
 `:title(s) :parent(w) :position(x,y) :size(w,h) :font(h) :onDraw(fn) :onClick(fn) :onClose(fn) :onDrop(fn)
-:onMouseMove(fn) :onMouseUp(fn) :onTick(fn) :onWheel(fn)` — each with a matching bare read.
+:onMouseMove(fn) :onMouseUp(fn) :onTick(fn) :onWheel(fn)` — each with a matching bare read. All thirteen
+answer on an OWNED widget only; `:parent(w)` answers while the surface is still being built and refuses
+once it is on screen, where moving one is `:position(x, y)`. The HUD overlay `hafen.ui():overlay()` MINTS
+one rather than handing back a collection (a HUD painter has no key to `:get`), carries `:onDraw(fn)` /
+`:onDraw()` and `:exists()`, and ends with `:destroy()` (R7) — the old handle's `:remove()` is retired.
 
 ## Sheet and Rule — **NEW** (replacing `hafen.ui.skin{…}`, 141 sites)
 

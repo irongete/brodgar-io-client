@@ -76,7 +76,7 @@ it is where an addon starts its real work. [`hafen.player`](api/player.md) is yo
 
 ## Step 5: draw a window
 
-`hafen.ui.window{…}` gives you a draggable, titled window whose content you paint yourself. Build it when
+`hafen.ui():window()` gives you a draggable, titled window whose content you paint yourself. Build it when
 you enter the world, and keep the handle:
 
 ```lua
@@ -85,15 +85,14 @@ local trees = 0                                 -- what it displays
 
 hafen.event():on("OnEnterWorld", function()
   hafen.log():write("in the world as " .. (hafen.player():name() or "?"))
-  window = hafen.ui.window{
-    title = "My Addon",
-    size  = {150, 24},
-    pos   = {60, 60},
-    onDraw = function(g, w, h)
+  window = hafen.ui():window()
+    :title("My Addon")
+    :size(150, 24)
+    :position(60, 60)
+    :onDraw(function(g, w, h)
       g:color(255, 220, 120)
       g:text("trees nearby: " .. trees, 6, 4)
-    end,
-  }
+    end)
 end)
 ```
 
@@ -182,15 +181,14 @@ hafen.log():write("myaddon loaded")
 
 hafen.event():on("OnEnterWorld", function()
   hafen.log():write("in the world as " .. (hafen.player():name() or "?"))
-  window = hafen.ui.window{
-    title = "My Addon",
-    size  = {150, 24},
-    pos   = {60, 60},
-    onDraw = function(g, w, h)
+  window = hafen.ui():window()
+    :title("My Addon")
+    :size(150, 24)
+    :position(60, 60)
+    :onDraw(function(g, w, h)
       g:color(255, 220, 120)
       g:text("trees nearby: " .. trees, 6, 4)
-    end,
-  }
+    end)
   if hafen.store.settings.open == false then window:visible(false) end
 end)
 

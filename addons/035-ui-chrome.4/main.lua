@@ -172,7 +172,10 @@ local function costRound(after)
   local stock = {}
   hafen.ui.skin(nil)
   for i = 1, 4 do
-    extra[i] = hafen.ui.window{ title = "035.4 cost " .. i, size = { 120, 60 }, pos = { 20 + (i * 24), 20 + (i * 24) } }
+    extra[i] = hafen.ui():window()
+      :title("035.4 cost " .. i)
+      :size(120, 60)
+      :position(20 + (i * 24), 20 + (i * 24))
   end
   sample(SAMPLES, stock, function()
     hafen.ui.skin(sheet)
@@ -255,7 +258,10 @@ local function run()
   hafen.ui.skin(nil)
 
   -- 3. the geometry the file predicts, read a frame after the write.
-  probe = hafen.ui.window{ title = "035.4 probe", size = { W, H }, pos = { 8, 8 } }
+  probe = hafen.ui():window()
+    :title("035.4 probe")
+    :size(W, H)
+    :position(8, 8)
   base, basePos = xy(probe:size()), xy(probe:position())
   hafen.ui.skin(sheet)
   step(1)

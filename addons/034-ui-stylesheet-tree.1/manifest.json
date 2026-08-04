@@ -1,7 +1,7 @@
 {
   "name": "034.1 — resolve a tree key, and let Lua read it",
   "id": "034-ui-stylesheet-tree.1",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 034.1: a stylesheet TREE key stops being inert (033 parsed one and dropped it, D-072) and now resolves per widget, read back through widget:style(). Asserts, through w:style() alone and with zero [manual] lines: nil means stock on a client with no sheet; a [title=] tree key resolves on the widget it names and on no other, handing back the very font handle the rule named; resolution is PER WIDGET and keeps 030's enclosing-window rule (window[title=A] needs the widget to BE that window, [title=A] alone answers for everything inside it); the specificity fold picks the more specific of two competing keys and folds PER PROPERTY, so a specific colour does not take a broad rule's font; a SITE key is not a widget's style; dropping the sheet returns every widget to nil, and so does destroying a widget; and a misspelt property inside a tree key is still refused, naming it. Its two probe windows are hidden the moment they exist and destroyed before it finishes, and it drops its sheet, so a login that runs it leaves the client stock.",
   "api_version": 1,

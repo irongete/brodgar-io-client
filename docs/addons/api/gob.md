@@ -70,7 +70,7 @@ way to attach, the one way to read what is attached, and the key is your own nam
 
 It is **ungated**, the attach included: what you hang on a gob is your own drawing, and it changes nothing
 the server, the client or another addon owns — the same footing as
-[`hafen.ui.overlay`](ui/custom.md#overlays).
+[a HUD overlay](ui/custom.md#overlays).
 
 | Call | Returns | Description |
 |---|---|---|

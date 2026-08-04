@@ -147,7 +147,10 @@ local function run()
   end
 
   -- 6. a write on a STALE widget is the 029.2 silent chaining no-op, layout included.
-  local ghost = hafen.ui.window{ title = "036.1 probe", size = {60, 40}, pos = {-500, -500} }
+  local ghost = hafen.ui():window()
+    :title("036.1 probe")
+    :size(60, 40)
+    :position(-500, -500)
   ghost:destroy()
   eq("a destroyed widget is stale", ghost:exists(), false)
   eq("...and a layout write on it CHAINS rather than throwing", ghost:position(9, 9) == ghost, true)

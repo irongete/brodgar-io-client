@@ -47,8 +47,14 @@ local function run()
   pass, fail = 0, 0                    -- so a re-run through :t034-1 reports its own counts, not the login's
   local body = hafen.font("serif"):derive{ size = 13 }
   -- Two OWNED probe windows: the only widgets whose captions this suite can be sure of. Hidden at once.
-  local a = hafen.ui.window{ title = "034 probe A", size = { 60, 20 }, pos = { 4, 4 } }
-  local b = hafen.ui.window{ title = "034 probe B", size = { 60, 20 }, pos = { 4, 4 } }
+  local a = hafen.ui():window()
+    :title("034 probe A")
+    :size(60, 20)
+    :position(4, 4)
+  local b = hafen.ui():window()
+    :title("034 probe B")
+    :size(60, 20)
+    :position(4, 4)
   a:visible(false); b:visible(false)
   local kid = a:children()[1] or a     -- something INSIDE probe A (its content, or its chrome's deco)
 

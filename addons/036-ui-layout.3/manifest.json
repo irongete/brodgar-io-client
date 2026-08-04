@@ -1,7 +1,7 @@
 {
   "name": "036.3 — anchors, and surviving a rescale",
   "id": "036-ui-layout.3",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 036.3: `anchor` joins the sheet beside `pos`/`size`, a position is DERIVED from live geometry rather than remembered, and the client's own clamp keeps an off-screen rule reachable.",
   "api_version": 1,

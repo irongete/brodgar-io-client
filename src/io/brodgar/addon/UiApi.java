@@ -114,32 +114,13 @@ final class UiApi {
      * top is {@code hafen.ui():root()} and every lookup is a colon verb on the section. The collision is why the
      * root could not simply stay: one expression cannot be both the namespace and a member of it.
      *
-     * <p><b>Four verbs are still plain fields on the callable table</b> — {@code window}, {@code widget},
-     * {@code overlay} and {@code skin} — because they do not merely move: the builders lose their {@code opts}
-     * table for chained setters and the stylesheet becomes a Sheet of Rules, each a cut of its own with its own
-     * port. They ride {@link Section#mount(LuaTable, String, LuaValue, String, LuaTable)} until then, found by
-     * {@code rawget} and never reaching {@link Retired}.
+     * <p><b>One verb is still a plain field on the callable table</b> — {@code skin} — because it does not
+     * merely move: the stylesheet becomes a Sheet of Rules, a cut of its own with its own port. It rides
+     * {@link Section#mount(LuaTable, String, LuaValue, String, LuaTable)} until then, found by {@code rawget}
+     * and never reaching {@link Retired}.
      */
     static void installUi(LuaTable hafen, final Addon owner) {
         LuaTable uiT = new LuaTable();
-        uiT.set("window", new OneArgFunction() {
-            public LuaValue call(LuaValue opts) {
-                return newUi(owner, opts, true);
-            }
-        });
-        uiT.set("widget", new OneArgFunction() {
-            public LuaValue call(LuaValue opts) {
-                return newUi(owner, opts, false);
-            }
-        });
-        // hafen.ui.overlay(fn) — paint on top of the HUD without owning a widget. fn(g, w, h) runs every
-        // frame with the shared GOut wrapper and the screen size; draw at absolute screen coords. Returns a
-        // handle with :remove(); also auto-removed on reload/disable (spec 07).
-        uiT.set("overlay", new OneArgFunction() {
-            public LuaValue call(LuaValue fn) {
-                return newHudOverlay(owner, fn);
-            }
-        });
         // hafen.ui.gobOverlay(filter, fn) is GONE (038.1, hard cut — it reads as plain nil). `overlay` is the
         // engine's own word for a thing attached to a gob, and this spent it on a screen-space painter that was
         // not one: a FILTER re-evaluated against every gob by a 5 Hz sweep, and once more per gob per frame.
@@ -231,7 +212,7 @@ final class UiApi {
         //                       an item add is a widget create, not a uimsg). Pass nil to unsubscribe.
         //   :onDestroy(fn)   -- fn() once, when this widget leaves the tree. All three chain; subscribing is what
         //                       registers the widget for polling, so an unwatched widget costs nothing.
-        // OWNED-ONLY (a widget YOUR addon created with hafen.ui.window{} / hafen.ui.widget{}); on a native widget
+        // OWNED-ONLY (a widget YOUR addon created with hafen.ui():window() / hafen.ui():widget()); on a native widget
         // each raises a clear error, the geometry ones naming layout (feature E):
         //   :position(x, y)  -- move + chain (arity is the verb, the 018 shape; :move() is GONE)
         //   :size(w, h)      -- resize the content (+ repack a window's chrome) + chain
@@ -315,6 +296,43 @@ final class UiApi {
                 LuaValue x = Args.required(a, 2, "hafen.ui():at", "x");
                 LuaValue y = Args.required(a, 3, "hafen.ui():at", "y");
                 return nodeAt(owner, x, y);
+            }
+        });
+        // :window() / :widget() — YOUR OWN surface, built BARE and configured by chained setters (039.6, §2.5).
+        // The thirteen keys of the old opts table are verbs on the Widget the builder hands back, each with a
+        // matching bare read: :title(s) :parent(w) :position(x,y) :size(w,h) :font(h) and the eight callbacks
+        // :onDraw :onTick :onClick :onMouseUp :onMouseMove :onWheel :onDrop :onClose. Lua has no keyword
+        // arguments — f{…} is only sugar for f({…}) — so the config table was never a style choice, and chaining
+        // is the one other spelling of named arguments the language has.
+        //   The constructor itself takes NOTHING. A window is born with the client's own defaults (200x140 at
+        // 100,100, no caption) and, crucially, IS NOT IN THE TREE: it is added on the next tick (armPending),
+        // so a widget halfway through its own configuration cannot be drawn, hit-tested or laid out. That is a
+        // property of the shape rather than a rule to remember, and it is why the builder needs no "commit" verb.
+        m.set("window", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "window");
+                return newUi(owner, a, true);
+            }
+        });
+        m.set("widget", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "widget");
+                return newUi(owner, a, false);
+            }
+        });
+        // :overlay() — paint on top of the HUD without owning a widget: :onDraw(fn) runs fn(g, w, h) every frame
+        // with the shared GOut wrapper and the screen size, in absolute screen coords. It MINTS one rather than
+        // handing back a collection, which is the one place `overlay` is a builder and not a set — gob:overlay()
+        // and hafen.map():overlay() are collections because their members have keys (an overlay key, a tag), and
+        // a HUD painter has none: there is nothing to :get(). It ends with :destroy(), like the other two things
+        // this section builds; teardown on reload/disable drops it either way (P2).
+        m.set("overlay", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "overlay");
+                if(Args.passed(a, 2))
+                    throw new LuaError("hafen.ui():overlay() takes no arguments — the painter is a setter on the"
+                        + " overlay it hands back: hafen.ui():overlay():onDraw(fn)");
+                return newHudOverlay(owner);
             }
         });
         // hafen.ui.skin{ ["selector"] = { font = h }, … } — 033.1, feature C1a: THE STYLESHEET. One table says what
@@ -442,88 +460,116 @@ final class UiApi {
             consoleOwner.itemWatches.clear();    // 029.3: ...and so are the containers it was subscribed to
             consoleOwner.selectorWatches.clear();// 030.2: ...and the selectors it was watching for
         }
+        resetPending();                          // 039.6: ...and nothing built for the old tree is waiting to be placed
         LuaWidget.recountHidden();               // 031.1: nothing is hidden in a session that has not started
         LuaWidget.recountMoved();                // 036.1: ...and nothing is laid out in one either
         Layout.resetSession();                   // 036.2: ...and no widget of the old tree is awaiting its caption
     }
 
-    private static LuaValue newUi(final Addon owner, LuaValue opts, boolean window) {
+    /**
+     * Build one bare surface for {@code hafen.ui():window()} / {@code :widget()} (039.6): an
+     * {@link AddonWidget} content leaf, optionally wrapped in a draggable {@link Window} (chrome), with the
+     * client's own defaults, attached to {@code ui.root} at once and <b>painting nothing</b> until
+     * {@link #armPending()} arms it on the next tick. Registered in the addon's owned-resource registry
+     * (torn down on reload/disable, P2).
+     */
+    private static LuaValue newUi(final Addon owner, Varargs a, boolean window) {
         String what = window ? "window" : "widget";
-        if(!opts.istable())
-            throw new LuaError("hafen.ui." + what + "(opts) expects a table");
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():" + what + "() takes no arguments — it is built bare and configured"
+                + " by chained setters: hafen.ui():" + what + "()"
+                + (window ? ":title(\"…\")" : "") + ":size(w, h):position(x, y):onDraw(fn)");
         UI u = ui;
         if((u == null) || (u.root == null))
-            throw new LuaError("hafen.ui." + what + ": no UI is up yet");
+            throw new LuaError("hafen.ui():" + what + "(): no UI is up yet");
 
-        LuaValue sizev = opts.get("size");
-        int w = sizev.istable() ? sizev.get(1).optint(200) : 200;
-        int h = sizev.istable() ? sizev.get(2).optint(140) : 140;
-        LuaValue posv = opts.get("pos");
-        int px = posv.istable() ? posv.get(1).optint(100) : 100;
-        int py = posv.istable() ? posv.get(2).optint(100) : 100;
-
-        final AddonWidget content = new AddonWidget(owner, Coord.of(w, h), opts);
-
-        // Parent: default ui.root; "gameui" attaches under the HUD (falls back to root before it is up).
-        Widget parent = u.root;
-        if("gameui".equals(opts.get("parent").optjstring("root"))) {
-            GameUI g = gui();
-            if(g != null)
-                parent = g;
-            else
-                log(owner, "hafen.ui." + what + ": HUD not up yet; attaching to root");
-        }
-
+        final AddonWidget content = new AddonWidget(owner, Coord.of(DEF_W, DEF_H));
         final Widget rootw;
-        final boolean isWindow;
         if(window) {
-            final Window win = new Window(Coord.of(w, h), opts.get("title").optjstring(""));
+            // ANONYMOUS on purpose: the chrome must skip its own draw while the content is unarmed, and
+            // LuaWidget.typeName climbs past an anonymous subclass — so w:type() still reads "Window" and every
+            // selector, deco and toggle that names one keeps matching. A named subclass would rename the widget.
+            final Window win = new Window(Coord.of(DEF_W, DEF_H), "") {
+                public void draw(GOut g) {
+                    if(!content.pending())
+                        super.draw(g);
+                }
+            };
             win.add(content, Coord.z);
             content.root(win);
-            LuaValue oc = opts.get("onClose");
-            final LuaValue onClose = oc.isfunction() ? oc : null;
-            win.reqclose(() -> {                      // the chrome close button: fire onClose, then destroy
-                if(onClose != null)
-                    callLua(owner, Addon.C_WIDGET, onClose);
+            win.reqclose(() -> {                      // the chrome close button: fire :onClose(), then destroy
+                content.closed();                     //   read from the slot, so a handler set later is the one that runs
                 content.kill();
+                dropPending(content);
                 owner.widgets.remove(content);
             });
             rootw = win;
-            isWindow = true;
         } else {
             rootw = content;
-            isWindow = false;
         }
-        rootw.c = Coord.of(px, py);      // initial position (set before attach)
-        parent.add(rootw);               // add() locks on ui; content ticks/draws from the next frame
+        rootw.c = Coord.of(DEF_X, DEF_Y);   // the client's own default place, movable before it is ever painted
+        u.root.add(rootw);                  // add() locks on ui; :parent(w) re-homes it while it is still pending
         owner.widgets.add(content);
+        synchronized(unarmed) { unarmed.add(content); }
         // 029.2: what you CREATE and what you FIND are the same type. The entity is interned on the ROOT (the window
         // chrome, or the bare widget) — the widget the addon positions, shows and destroys — and LuaWidget derives
-        // OWNED from the tree, so hafen.ui.at(x,y) over this same window hands back this very value.
+        // OWNED from the tree, so hafen.ui():at(x, y) over this same window hands back this very value.
         return LuaWidget.of(owner, rootw);
+    }
+
+    // ---------------------------------------------------- the arming tick (039.6, spec 039-uniform-api §2.5)
+
+    /** The client's own defaults for a bare surface: what a window is before any setter touches it. */
+    private static final int DEF_W = 200, DEF_H = 140, DEF_X = 100, DEF_Y = 100;
+
+    /** Surfaces built since the last tick and not yet drawing. Written and drained on the UI thread only. */
+    private static final List<AddonWidget> unarmed = new ArrayList<AddonWidget>();
+
+    /**
+     * Arm every surface built since the last tick — the "arming tick" of §2.5, called first thing from
+     * {@link AddonManager#tick(double)}. Until this runs, a built widget answers every read and takes every
+     * setter, and paints nothing.
+     *
+     * <p><b>Attached inert, rather than held out of the tree</b> — D-112's answer, one level up. Deferring the
+     * <i>attach</i> was the other candidate and is worse: it would silently break "find the widget I just
+     * built" ({@code hafen.ui():at}, {@code :all}, a selector subscription), which is a capability, to buy a
+     * guarantee about painting that skipping the draw already gives in full. What the draw skips is the
+     * <b>whole</b> surface, chrome included, which is why {@link #newUi} builds an anonymous {@code Window}.
+     */
+    static void armPending() {
+        if(unarmed.isEmpty())
+            return;
+        List<AddonWidget> due;
+        synchronized(unarmed) {
+            due = new ArrayList<AddonWidget>(unarmed);
+            unarmed.clear();
+        }
+        for(AddonWidget c : due)
+            c.armed();
+    }
+
+    /** Drop a surface from the arming queue (destroyed, or torn down, before it ever painted). */
+    static void dropPending(AddonWidget c) {
+        synchronized(unarmed) { unarmed.remove(c); }
+    }
+
+    /** Reset the arming queue for a new session (nothing built for the old tree is armed in the new one). */
+    static void resetPending() {
+        synchronized(unarmed) { unarmed.clear(); }
     }
 
     // ------------------------------------------------------------- custom UI overlays (hafen.ui, 2b)
 
     /**
-     * Register a HUD overlay ({@code hafen.ui.overlay(fn)}, spec 07): a draw callback painted on top of the
-     * HUD each frame. Bridge-owned (P2) — added to the addon's registry so reload/disable drops it. Returns
-     * the Lua handle ({@code :remove()}).
+     * Build a HUD overlay ({@code hafen.ui():overlay()}, spec 07 / 039.6): a bare painter, its draw callback
+     * installed by {@code :onDraw(fn)}. Bridge-owned (P2) — added to the addon's registry so reload/disable
+     * drops it. A bare overlay paints nothing, which is the same "incomplete draws nothing" rule the widget
+     * builder gets from not being in the tree.
      */
-    private static LuaValue newHudOverlay(final Addon owner, LuaValue fn) {
-        if(!fn.isfunction())
-            throw new LuaError("hafen.ui.overlay(fn) expects a function");
-        final HudOverlay ov = new HudOverlay(owner, fn);
+    private static LuaValue newHudOverlay(final Addon owner) {
+        final HudOverlay ov = new HudOverlay(owner);
         owner.hudOverlays.add(ov);
-        LuaTable h = new LuaTable();
-        h.set("remove", new ZeroArgFunction() {
-            public LuaValue call() {
-                ov.active = false;
-                owner.hudOverlays.remove(ov);
-                return LuaValue.NIL;
-            }
-        });
-        return h;
+        return LuaHudOverlay.of(ov);
     }
 
 
@@ -1287,13 +1333,13 @@ final class UiApi {
     static void replaceWith(Addon owner, Widget w, LuaValue viewv) {
         AddonWidget view = LuaWidget.ownedContent(owner, LuaWidget.live(LuaWidget.resolve(viewv)));
         if(view == null)
-            throw new LuaError("widget:replace(view) expects a widget YOUR addon created (hafen.ui.window{} or"
-                + " hafen.ui.widget{}) to stand in for the native one — pass nil to undo a replacement.");
+            throw new LuaError("widget:replace(view) expects a widget YOUR addon created (hafen.ui():window() or"
+                + " hafen.ui():widget()) to stand in for the native one — pass nil to undo a replacement.");
         Widget wnd = LuaWidget.nativeWindowOf(w);
         if(!(wnd instanceof Window))
             throw new LuaError("widget:replace(view) — " + LuaWidget.typeName(w) + " is not inside a window, so"
                 + " there is nothing to stand in for (no window to hide, and no toggle to inherit). Point at a"
-                + " widget inside a client window, or just show your own with hafen.ui.window{}.");
+                + " widget inside a client window, or just show your own with hafen.ui():window().");
         if(LuaWidget.ownedContent(owner, wnd) != null)
             throw new LuaError("widget:replace(view) — " + LuaWidget.typeName(wnd) + " is a window your OWN addon"
                 + " created; replacing stands in for the CLIENT's windows. Move, resize or destroy yours instead.");
@@ -1441,8 +1487,9 @@ final class UiApi {
             LuaTable gt = hudGout.bind(g, a);
             try {
                 for(HudOverlay o : a.hudOverlays) {
-                    if(o.active)
-                        callLua(a, Addon.C_DRAW, o.fn, gt, w, h);
+                    LuaValue fn = o.fn;                 // 039.6: bare until :onDraw(fn) — an incomplete overlay
+                    if(o.active && (fn != null))        //   paints nothing rather than painting badly
+                        callLua(a, Addon.C_DRAW, fn, gt, w, h);
                 }
             } finally {
                 hudGout.unbind();

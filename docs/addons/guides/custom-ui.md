@@ -6,29 +6,28 @@ world. All of it is ungated, and all of it disappears cleanly when your addon do
 
 ## A window
 
-[`hafen.ui.window{…}`](../api/ui/custom.md) gives you chrome, a caption and a draggable frame around
+[`hafen.ui():window()`](../api/ui/custom.md) gives you chrome, a caption and a draggable frame around
 content you paint yourself. Build it when the world is up, and keep the handle:
 
 ```lua
 local window
 
 hafen.event():on("OnEnterWorld", function()
-  window = hafen.ui.window{
-    title = "Scout",
-    size  = {180, 48},
-    pos   = {80, 120},
-    onDraw = function(g, w, h)
+  window = hafen.ui():window()
+    :title("Scout")
+    :size(180, 48)
+    :position(80, 120)
+    :onDraw(function(g, w, h)
       g:color(220, 220, 220)
       g:text("players nearby: " .. hafen.world():gob():count("gfx/borka/body"), 6, 6)
-    end,
-    onClose = function() hafen.log():write("closed") end,
-  }
+    end)
+    :onClose(function() hafen.log():write("closed") end)
 end)
 ```
 
-`hafen.ui.widget{…}` is the same thing without the chrome, for something that should not look like a
-window. Every option is optional, and the handle you get back is a [Widget](../api/ui/widget.md) — the same
-type the client's own windows are, so `:pos`, `:size`, `:hide`, `:show` and `:destroy` all answer on it.
+`hafen.ui():widget()` is the same thing without the chrome, for something that should not look like a
+window. Every setter is optional, and what you get back is a [Widget](../api/ui/widget.md) — the same
+type the client's own windows are, so `:position`, `:size`, `:visible` and `:destroy` all answer on it.
 The difference between yours and the client's is
 [ownership](../api/ui/widget.md#owned-vs-borrowed), and it decides which writes are allowed.
 
@@ -60,10 +59,10 @@ its *text* changes, and round anything you do not need to the digit you do.
 ## Overlays
 
 An overlay paints without being in the tree: nothing to place, nothing to size, nothing for the user to
-drag. On the **HUD** it is a draw function and a handle with `:remove()`:
+drag. On the **HUD** it is a painter you build and end with `:destroy()`:
 
 ```lua
-hafen.ui.overlay(function(g, w, h)                       -- over the whole HUD; w, h is the screen
+hafen.ui():overlay():onDraw(function(g, w, h)            -- over the whole HUD; w, h is the screen
   g:color(255, 255, 255)
   g:atext(os.date("%H:%M"), w - 8, 8, 1, 0)              -- anchored to the top-right corner
 end)

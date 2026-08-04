@@ -36,7 +36,7 @@ import java.util.WeakHashMap;
 /**
  * A <b>Widget object</b> — the ONE entity {@code hafen.ui} hands back for a widget (spec {@code 029-widget-oop},
  * feature B1). It replaces the transient {@code WidgetNode} of spec {@code 20} and is, from 029.2 on, also what
- * {@code hafen.ui.window{}}/{@code widget{}} return: <b>what you create and what you find are the same type</b>.
+ * {@code hafen.ui():window()}/{@code :widget()} return: <b>what you create and what you find are the same type</b>.
  * Built on exactly the mechanism {@link LuaGob} (017), {@link LuaKin} (020), {@link LuaSlot} (021),
  * {@link LuaPagina} (023), {@link LuaSound} (024), {@link LuaBuff} (025) and {@link LuaMeter} (027) established:
  * userdata + a per-addon metatable + a per-addon intern cache, with {@code :info()} as the one snapshot hatch.
@@ -57,7 +57,7 @@ import java.util.WeakHashMap;
  * replaced on the next lookup.
  *
  * <p><b>Owned vs borrowed (029.2).</b> The same type covers a widget the addon <i>created</i>
- * ({@code hafen.ui.window{}}/{@code widget{}} — OWNED) and one it merely <i>found</i> (a native widget, or another
+ * ({@code hafen.ui():window()}/{@code :widget()} — OWNED) and one it merely <i>found</i> (a native widget, or another
  * addon's — BORROWED). Every read answers on both, and so do the visibility write ({@code :hide()}/{@code :show()})
  * and — since 036.1, feature E — the geometry writes ({@code :pos(x,y)}/{@code :size(w,h)}); {@code :pack()} and
  * {@code :destroy()} stay OWNED-only and raise a clear error otherwise, because destroying the client's own widget
@@ -239,14 +239,44 @@ public final class LuaWidget {
                 return out;
             }
         });
-        // parent() — the enclosing Widget object, or nil at the root / once stale.
-        m.set("parent", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        // parent() / parent(w) — the enclosing Widget object, and (039.6) the builder setter that chooses it.
+        // The read is unchanged: nil at the root and once stale. The write re-homes a surface this addon built,
+        // and it is what replaced the old `parent = "gameui"` string — a widget is named by a Widget, not by a
+        // word, which is the second vocabulary 032.2 deleted from this section for exactly the same reason.
+        // hafen.ui():root() is the default and hafen.ui():find("@GameUI") is the HUD.
+        //
+        // Legal only while the surface is still being BUILT (before its arming tick). Re-homing one the user is
+        // already looking at is a capability this API never had, and the honest place to refuse it is here: the
+        // message names widget:position(x, y), which is what moving a window on screen has always been.
+        m.set("parent", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:parent() → narg 1 · w:parent(p) → narg 2
+                LuaValue self = a.arg1();
                 Widget w = live(handle(self, "parent"));
-                if(w == null)
-                    return LuaValue.NIL;
-                Widget p = w.parent;
-                return (p == null) ? LuaValue.NIL : of(owner, p);
+                LuaValue v = Args.written(a, 2, "widget:parent", "w");
+                if(v == null) {
+                    Widget p = (w == null) ? null : w.parent;
+                    return (p == null) ? LuaValue.NIL : of(owner, p);
+                }
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                AddonWidget c = owned(owner, w, "parent(w)");
+                if(!c.pending())
+                    throw new LuaError("widget:parent(w) chooses the parent while the widget is being BUILT, and"
+                        + " this one is already on screen — move it with widget:position(x, y) instead");
+                LuaWidget h = resolve(v);
+                Widget p = (h == null) ? null : live(h);
+                if(p == null)
+                    throw new LuaError("widget:parent(w) expects a Widget that is in the tree — hafen.ui():root()"
+                        + " is the default, and hafen.ui():find(\"@GameUI\") is the HUD");
+                if(p == w.parent)
+                    return self;
+                UI u = AddonManager.ui;
+                synchronized(u) {
+                    Coord at = w.c;
+                    w.remove();                           // unlink from ui.root; nothing else holds a fresh widget
+                    p.add(w, at);                         // ...and re-home it, keeping the place it was given
+                }
+                return self;
             }
         });
         // position() / position(x, y) / position(nil) — ARITY IS THE VERB (the 018 options shape, 029.2; the same
@@ -417,7 +447,7 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // pack() — shrink the chrome to fit its content. OWNED-only; a no-op for a bare hafen.ui.widget (a leaf has
+        // pack() — shrink the chrome to fit its content. OWNED-only; a no-op for a bare hafen.ui():widget() (a leaf has
         // no children to fit). Chains.
         m.set("pack", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -442,11 +472,87 @@ public final class LuaWidget {
                     AddonWidget content = owned(owner, w, "destroy()");
                     UI u = AddonManager.ui;
                     synchronized(u) { content.kill(); }
+                    UiApi.dropPending(content);   // 039.6: one built and ended in the same statement is never placed
                     owner.widgets.remove(content);
                 }
                 return LuaValue.NIL;
             }
         });
+        // ---- the builder setters (039.6, spec 039-uniform-api §2.5) -----------------------------------------
+        // The thirteen keys of the retired opts table, as verbs on the widget the builder handed back — each
+        // with a matching bare read, so a surface's properties are readable after construction with no second
+        // vocabulary. :position/:size/:parent are above (they already existed as reads); the rest are here.
+        //
+        // All of them are OWNED-only, and the reason is not symmetry: a caption, a default font and eight Lua
+        // callbacks are things an AddonWidget HAS, and a native widget has nowhere to put them. The reads
+        // answer nil on a borrowed widget rather than throwing, which is what every other read here does.
+        //
+        // title() / title(s) — a window's caption. A bare :widget() has no chrome to write it on, so the write
+        // refuses naming the builder that does; the read answers nil there.
+        m.set("title", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:title() → narg 1 · w:title(s) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "title"));
+                LuaValue v = Args.written(a, 2, "widget:title", "s");
+                if(v == null) {
+                    if((w == null) || !(w instanceof Window))
+                        return LuaValue.NIL;
+                    String cap = ((Window)w).cap;
+                    return (cap == null) ? LuaValue.NIL : LuaValue.valueOf(cap);
+                }
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                owned(owner, w, "title(s)");
+                if(!(w instanceof Window))
+                    throw new LuaError("widget:title(s) is a WINDOW's caption and this is a bare widget —"
+                        + " hafen.ui():window() is the builder with chrome to write it on");
+                UI u = AddonManager.ui;
+                synchronized(u) { ((Window)w).chcap(v.tojstring()); }
+                return self;
+            }
+        });
+        // font() / font(h) — the default font for THIS widget's g:text/g:atext draws (F2), not for its caption.
+        // A handle from hafen.font(name) or hafen.asset(path), optionally derived; anything else resolves to the
+        // stock font, exactly as the old font= key did.
+        m.set("font", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:font() → narg 1 · w:font(h) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "font"));
+                LuaValue v = Args.written(a, 2, "widget:font", "h");
+                AddonWidget c = (w == null) ? null : ownedContent(owner, w);
+                if(v == null)
+                    return (c == null) ? LuaValue.NIL : c.font();
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                owned(owner, w, "font(h)").font(v);
+                return self;
+            }
+        });
+        // The eight callback setters, one loop rather than eight blocks: they differ only in which slot they
+        // write, and AddonWidget.CALLBACKS is the single list of the names (which are also the argument names
+        // the docs use). onDraw(fn) / onDraw() — arity is the verb here too, so a callback reads back.
+        for(int i = 0; i < AddonWidget.CALLBACKS.length; i++) {
+            final int slot = i;
+            final String verb = AddonWidget.CALLBACKS[i];
+            m.set(verb, new VarArgFunction() {
+                public Varargs invoke(Varargs a) {
+                    LuaValue self = a.arg1();
+                    Widget w = live(handle(self, verb));
+                    LuaValue v = Args.written(a, 2, "widget:" + verb, "fn");
+                    AddonWidget c = (w == null) ? null : ownedContent(owner, w);
+                    if(v == null) {
+                        LuaValue fn = (c == null) ? null : c.callback(slot);
+                        return (fn == null) ? LuaValue.NIL : fn;
+                    }
+                    if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
+                        return self;
+                    if(!v.isfunction())
+                        throw new LuaError("widget:" + verb + "(fn) expects a function, got " + v.typename());
+                    owned(owner, w, verb + "(fn)").callback(slot, v);
+                    return self;
+                }
+            });
+        }
         // items() — 029.3: the items INSIDE this widget, as an array of Item snapshots. A RELATION on the
         // container, exactly like :children() — an Inventory (the backpack, a chest, a cupboard), an Equipory
         // (each entry also carrying its `slot`), or any widget with WItems under it (children(WItem.class) is a
@@ -598,11 +704,11 @@ public final class LuaWidget {
     /**
      * The addon's own {@link AddonWidget} behind an <b>OWNED</b> widget — {@code null} when {@code w} is
      * <b>BORROWED</b> (a native widget, or another addon's). This is what decides whether the geometry writes,
-     * {@code :pack()} and {@code :destroy()} answer.
+     * {@code :pack()}, {@code :destroy()} and the builder setters answer.
      *
      * <p><b>Derived, never stored.</b> The intern cache is weak on both axes, so an entity can be collected and
      * re-minted at any time; a provenance flag on the handle would silently be lost. Instead the tree itself is
-     * the record: {@code hafen.ui.window{}}/{@code widget{}} intern the entity on the widget's <b>root</b> (the
+     * the record: {@code hafen.ui():window()}/{@code :widget()} intern the entity on the widget's <b>root</b> (the
      * chrome, or the content itself), and an {@link AddonWidget} already knows both its {@link AddonWidget#profOwner
      * owner} and its {@link AddonWidget#rootw root} — so {@code w} is owned exactly when {@code w} is, or directly
      * contains, this addon's content whose root is {@code w}. Per-addon by construction: addon B looking at addon
@@ -635,8 +741,8 @@ public final class LuaWidget {
         AddonWidget c = ownedContent(owner, w);
         if(c == null)
             throw new LuaError("widget:" + verb + " — " + typeName(w) + " is a NATIVE widget (your addon did not"
-                + " create it); :pack()/:destroy() answer only on a widget you created with hafen.ui.window{} or"
-                + " hafen.ui.widget{}. To lay a native widget out, use widget:position(x, y) / widget:size(w, h) —"
+                + " create it); the builder verbs answer only on a widget you created with hafen.ui():window()"
+                + " or hafen.ui():widget(). To lay a native widget out, use widget:position(x, y) / widget:size(w, h) —"
                 + " which restore themselves when your addon goes away.");
         return c;
     }

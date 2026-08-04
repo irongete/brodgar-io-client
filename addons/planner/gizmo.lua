@@ -3,7 +3,7 @@
 -- library, shipped in the planner example addon"). V5b shipped the MOVE gizmo; V6 adds ROTATE + SCALE + polish.
 --
 -- WHAT IT LOOKS LIKE. A Unity-style transform gizmo anchored at the target ghost, drawn entirely with the g:draw()
--- surface (NO game resources), on a hafen.ui.overlay so it is always ON TOP of the 3D scene (no depth occlusion --
+-- surface (NO game resources), on a hafen.ui():overlay() so it is always ON TOP of the 3D scene (no depth occlusion --
 -- the "draw-on-top" polish for free). Depending on the mode it shows:
 --   * MOVE   -- RED = world +X, GREEN = world +Y axis arrows (Unity's axis colours) + a yellow CENTRE square for a
 --              free ground-plane move. Each arrow = a shaft line (g:line, foreshortening with the camera so it
@@ -336,7 +336,7 @@ local function detach(self)
     if self.drag.grab then self.drag.grab:release() end
     self.drag = nil
   end
-  if self.overlay  then self.overlay:remove();  self.overlay  = nil end
+  if self.overlay  then self.overlay:destroy(); self.overlay  = nil end
   if self.downHook then self.downHook:remove(); self.downHook = nil end
   if self.moveHook then self.moveHook:remove(); self.moveHook = nil end
 end
@@ -363,7 +363,7 @@ gizmo = function(target, opts)
   }
 
   -- Draw on top of the HUD every frame (re-projects, so the handles track the ghost + the camera).
-  self.overlay = hafen.ui.overlay(function(g, w, h)
+  self.overlay = hafen.ui():overlay():onDraw(function(g, w, h)
     if self.alive then drawGizmo(self, g) end
   end)
 

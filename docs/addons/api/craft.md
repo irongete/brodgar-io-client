@@ -24,7 +24,7 @@ gated.
 
 There is no `CraftChanged` event, because a recipe changes only when the player opens one. To notice
 that, watch for the window with
-[`hafen.ui.on`](ui/replace.md): `hafen.ui():on("window", "appear", fn)`.
+[`hafen.ui():on`](ui/replace.md): `hafen.ui():on("window", "appear", fn)`.
 
 ## Write (gated: `actions`)
 

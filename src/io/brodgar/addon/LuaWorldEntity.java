@@ -27,7 +27,7 @@ import org.luaj.vm2.LuaValue;
  * states), a new visual only has to build a {@link haven.Drawable}; the transform/gizmo come for free.
  *
  * <p><b>Handle, not a ref.</b> A world entity has no server identity, so re-resolution is meaningless; it is
- * addressed by a bridge-owned <b>handle</b> (D-030), like a {@code hafen.ui.window}. The common handle verbs
+ * addressed by a bridge-owned <b>handle</b> (D-030), like a {@code hafen.ui():window()}. The common handle verbs
  * ({@code :move}/{@code :rotate}/{@code :scale}/{@code :alpha}/{@code :tint}/{@code :show}/{@code :hide}/
  * {@code :pos}/{@code :destroy}) are built by {@link AddonManager}'s {@code addEntityHandle}; each subclass adds
  * its own identity accessor ({@code :res()} for a ghost, {@code :image()} for a sprite).

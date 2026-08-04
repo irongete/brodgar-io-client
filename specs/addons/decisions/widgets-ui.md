@@ -691,3 +691,21 @@ task asked for and cannot exist — *change the UI scale and re-read `:pos()`* �
 derivation through the geometry a program **can** change, plus one `[manual]` for the screen itself.
 
 **See.** [D-081](#d-081), [D-086](#d-086), [D-090](#d-090), [`api/ui.md`](../../../docs/addons/api/ui.md).
+
+### D-121 — a widget is named by a WIDGET, and a parent is chosen while the surface is being built ✅ (2026-08-04)
+**Decision.** `widget:parent(w)` takes a Widget object — `hafen.ui():root()` by default,
+`hafen.ui():find("@GameUI")` for the HUD — replacing the `parent = "root" | "gameui"` string the config table
+took. It answers only while the surface is still being built (before its arming tick) and refuses afterwards,
+naming `widget:position(x, y)`.
+**Rationale.** (2026-08-04, 039.6.) That string was the last place in this section that named a widget with a
+word instead of a widget, which is the second vocabulary 032.2 deleted when `hafen.ui.replace`'s
+`{id,type,place,caption,parentType}` descriptor went. The read half already existed and already answered a
+Widget, so the write taking anything else would have been a read/write pair that disagree about their own
+type — and a selector is the one vocabulary this section has for "which widget". Refusing after the arming
+tick is where the honesty is: re-homing a surface the user is already looking at is a capability the config
+table never had, and inventing it here would smuggle a feature into a spelling change.
+**Consequences.** A magic-string enum with two values becomes an expression the reader can already write,
+and "attach under the HUD" stops being a special case the docs have to enumerate. The refusal costs a
+branch and names the verb that has always moved a window on screen. Generally: *when a second vocabulary
+exists for naming a thing the API already has a type for, delete the vocabulary rather than translating it.*
+**See.** [D-024](widgets-ui.md), [D-119](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).

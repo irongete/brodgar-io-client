@@ -60,10 +60,11 @@ local function misses()
 end
 
 local function probe(title, y)
-  return hafen.ui.window{
-    title = title, size = { 170, 24 }, pos = { 4, y },
-    onDraw = function(g) g:text(LINE, 6, 4) end,
-  }
+  return hafen.ui():window()
+    :title(title)
+    :size(170, 24)
+    :position(4, y)
+    :onDraw(function(g) g:text(LINE, 6, 4) end)
 end
 
 local wins = {}
@@ -156,10 +157,11 @@ hafen.slash():register("t034-3", function(args)
   if sub == "demo" then
     if #wins == 0 or not wins[1]:exists() then
       local red = hafen.font("mono"):derive{ size = 18, color = { 255, 60, 60 } }
-      local a = hafen.ui.window{
-        title = A, size = { 200, 28 }, pos = { 4, 4 },
-        onDraw = function(g) g:text(LINE, 6, 4, { font = red }) end,
-      }
+      local a = hafen.ui():window()
+        :title(A)
+        :size(200, 28)
+        :position(4, 4)
+        :onDraw(function(g) g:text(LINE, 6, 4, { font = red }) end)
       local b = probe(B, 40)
       wins = { a, b }
       a:skin{ font = hafen.font("mono"):derive{ size = 18 } }

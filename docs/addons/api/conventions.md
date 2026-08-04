@@ -154,9 +154,9 @@ and the verb raises an error saying so.
 
 ### Widget: a piece of the UI
 
-A widget is an object, and there is only one kind. A window you create with `hafen.ui.window{}`, a
+A widget is an object, and there is only one kind. A window you create with `hafen.ui():window()`, a
 native one you name with `hafen.ui():find(selector)`, `node(id)`, `at(x, y)` or `inventory()`, and the one
-[`hafen.ui.on`](ui/replace.md#watching-for-a-widget) hands your callback are all the same
+[`hafen.ui():on`](ui/replace.md#watching-for-a-widget) hands your callback are all the same
 [Widget](ui/widget.md). It is interned per addon, so `hafen.ui():at(x, y) == hafen.ui():at(x, y)` and `==`
 is the identity test; it re-reads the tree on every call and answers `nil` or empty, with `:exists()`
 false, once its widget is gone. What you may *write* depends on whether your addon created it — see
@@ -201,7 +201,7 @@ against the *enclosing window*, and you hold your result rather than re-selectin
 - **Snapshots** are plain Lua tables, point-in-time copies returned by the escape-hatch readers
   (`gob:info()`, `widget:items()`, `buff:info()`, …). They do **not** update, so re-read rather than
   caching one across ticks. Every snapshot shape is in [data types](types.md).
-- **Handles** are live, bridge-owned proxies with methods (`hafen.ui.window`, `hafen.timer():every`,
+- **Handles** are live, bridge-owned proxies with methods (`hafen.ui():window()`, `hafen.timer():every`,
   `hafen.event():on`, …), released for you when the addon is disabled or reloaded.
 - **Objects** are live too, and are what a read hands you: they re-resolve rather than holding a value,
   so one you keep tracks the thing it names.

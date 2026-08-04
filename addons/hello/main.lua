@@ -68,7 +68,7 @@
 -- intercept a widget's raw input BEFORE its own handler), 2d hafen.hook():action (L2: intercept the OUTBOUND
 -- action a widget sends to the server, arguments already RESOLVED — e.g. a move's destination world coord),
 -- and 2e-1 hafen.hook():message (L3: intercept an INBOUND server update BEFORE the widget applies it — swallow
--- it with ev:preventDefault() or rewrite its args with ev:rewrite()). Plus 2b overlays (hafen.ui.overlay on
+-- it with ev:preventDefault() or rewrite its args with ev:rewrite()). Plus 2b overlays (hafen.ui():overlay() on
 -- the HUD + gob:overlay() on game objects) and 2a custom windows/widgets + the GOut wrapper. It runs
 -- inside the Lua SANDBOX (D-017 strict env + D-018 instruction watchdog) over 1e hafen.store (saved
 -- variables), 1d-4 actionbar/equip, 1d-3 study/skills (+ A4: the full Lore & Skills window — buyable skills,
@@ -762,7 +762,7 @@ local function readBags(tag)
 end
 
 -- 029.4: THE WIDGET ENTITY CONTRACT, re-checked once per login (and on demand with ':hello widget'). 029 collapsed
--- the THREE objects hafen.ui used to hand back for one widget -- the window handle from hafen.ui.window{}, the model
+-- the THREE objects hafen.ui used to hand back for one widget -- the window handle from hafen.ui():window(), the model
 -- handle from adopt/replace, and the transient WidgetNode from root/node/at -- into ONE interned entity: what you
 -- CREATE and what you FIND are the same type. This asserts the whole collapse in one pass: every door hands back
 -- that type; `==` is the identity test (which is why :same() could be cut); arity is the verb on geometry
@@ -797,7 +797,9 @@ local function readWidgets(tag)
   -- client's root exercises the two refusals. Provenance is DERIVED from the tree, never stored on the handle, so
   -- :info().owned is how you ASK instead of provoking the error -- and it is per-addon: the same root reads
   -- owned=false for us, while our own widget would read owned=false for any OTHER addon.
-  local own = hafen.ui.widget{ size = {40, 20}, pos = {8, 8} }
+  local own = hafen.ui():widget()
+    :size(40, 20)
+    :position(8, 8)
   own:position(12, 14):size(48, 24):pack()                  -- arity is the verb, and every write chains on self
   local p, s = own:position(), own:size()
   hafen.log():write(("[%s] owned: own.owned=%s root.owned=%s | chained position(x,y)->%d,%d size(w,h)->%d,%d")
@@ -1000,8 +1002,11 @@ local function readToggle(tag)
   local replaceErr
   local readBack, hopRead, readGone            -- 032.3: the three arities, and the hop read from both ends
   local function round(open)
-    local view = hafen.ui.window{ title = "hello: toggle check", size = { 150, 28 }, pos = { 40, 40 },
-                                  onDraw = function(g) g:text("toggle check", 4, 4) end }
+    local view = hafen.ui():window()
+      :title("hello: toggle check")
+      :size(150, 28)
+      :position(40, 40)
+      :onDraw(function(g) g:text("toggle check", 4, 4) end)
     local ok, err = pcall(grid.replace, grid, view)   -- the verb REFUSES (throws) where the old function logged
     if not ok then replaceErr = err; view:destroy(); return nil end
     -- ARITY IS THE VERB (032.3): replace(view) installed above, replace() READS the view standing in for this
@@ -2622,12 +2627,12 @@ hafen.log():write("A11: slash command registered -- type  :hello  in the console
 
 hafen.event():on("OnEnterWorld", function()
   if panel then return end                                        -- defensive: create the window once
-  panel = hafen.ui.window{
-    title   = "Hello 3a",
-    size    = { 190, 166 },                                        -- 027.3: room for 5 meter rows (mounted) above the bottom-anchored hook lines
-    pos     = { 80, 120 },
-    onDraw  = drawPanel,
-    onClick = function(x, y, button)
+  panel = hafen.ui():window()
+    :title("Hello 3a")
+    :size(190, 166)                                                -- 027.3: room for 5 meter rows (mounted)
+    :position(80, 120)                                             --   above the bottom-anchored hook lines
+    :onDraw(drawPanel)
+    :onClick(function(x, y, button)
       clicks = clicks + 1
       if button == 3 then                                        -- RIGHT-click -> 2d: toggle the action hook
         moveIntercept = not moveIntercept
@@ -2641,12 +2646,11 @@ hafen.event():on("OnEnterWorld", function()
           :format(clicks, x, y, button, mapLock and "ON" or "OFF"))
       end
       return true                                                 -- truthy = consume the click
-    end,
-    onClose = function() hafen.log():write("panel closed (X) -- :reload to bring it back") end,
-  }
+    end)
+    :onClose(function() hafen.log():write("panel closed (X) -- :reload to bring it back") end)
   hafen.log():write("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, MMB=meter-freeze, X=close, 'toggle' key=show/hide")
 
-  -- U1: DROP TARGET + g:resource + mouse mods. A borderless custom widget (hafen.ui.widget) that is a
+  -- U1: DROP TARGET + g:resource + mouse mods. A borderless custom widget (hafen.ui():widget()) that is a
   -- DROP TARGET for the client's own drag gesture (D-038): open the menu grid (bottom-right), drag an
   -- action onto this box, and onDrop(x, y, drop) fires with drop = { kind="pagina", res="<name>" } (a
   -- neutral descriptor -- a resource name, plain data, so this is UNGATED). We remember the res and DRAW
@@ -2655,10 +2659,10 @@ hafen.event():on("OnEnterWorld", function()
   -- Bridge-owned (P2): :reload/disable destroys it. The DoD: drop an action -> icon renders + res logs;
   -- Shift+click -> shift=true; :reload leaks nothing.
   droppedRes = nil
-  dropWidget = hafen.ui.widget{
-    size = { 96, 96 },
-    pos  = { 80, 270 },
-    onDraw = function(g, w, h)
+  dropWidget = hafen.ui():widget()
+    :size(96, 96)
+    :position(80, 270)
+    :onDraw(function(g, w, h)
       g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()        -- own slot background (invsq is not a .res)
       g:color(150, 150, 170); g:rect(0, 0, w, h); g:color()
       if droppedRes then
@@ -2668,8 +2672,8 @@ hafen.event():on("OnEnterWorld", function()
         g:atext("drag an", w / 2, h / 2 - 8, 0.5, 0.5)
         g:atext("action here", w / 2, h / 2 + 6, 0.5, 0.5)
       end
-    end,
-    onDrop = function(x, y, drop)
+    end)
+    :onDrop(function(x, y, drop)
       if drop.res then
         droppedRes = drop.res
         hafen.log():write(("U1: onDrop at %d,%d -> kind=%s res=%s (drawing its icon via g:resource)")
@@ -2679,13 +2683,12 @@ hafen.event():on("OnEnterWorld", function()
           :format(x, y, tostring(drop.kind)))
       end
       return true                                                  -- truthy = consume the drop
-    end,
-    onClick = function(x, y, button, mods)
+    end)
+    :onClick(function(x, y, button, mods)
       hafen.log():write(("U1: drop-widget click at %d,%d btn=%d mods={shift=%s,ctrl=%s,alt=%s}")
         :format(x, y, button, tostring(mods.shift), tostring(mods.ctrl), tostring(mods.alt)))
       return true
-    end,
-  }
+    end)
   hafen.log():write("U1: drop-target widget up -- open the menu grid, drag an action onto the box (icon draws via g:resource); Shift+click logs shift=true")
 
   -- F2: OWN-WIDGET FONTS + $font MIXING. This window declares font = demoFont (the F1-loaded handle), so EVERY
@@ -2696,12 +2699,12 @@ hafen.event():on("OnEnterWorld", function()
   -- markup change). SAFE-tier, client-only. Disabling/:reload leaves the stock UI untouched. See api/fonts.md.
   if demoFont then
     local fam = demoFont:family()
-    fontWin = hafen.ui.window{
-      title = "Hello F2 (fonts)",
-      size  = { 240, 118 },
-      pos   = { 290, 120 },
-      font  = demoFont,                                            -- the window's DEFAULT font for its g:text draws
-      onDraw = function(g, w, h)
+    fontWin = hafen.ui():window()
+      :title("Hello F2 (fonts)")
+      :size(240, 118)
+      :position(290, 120)
+      :font(demoFont)                                            -- the window's DEFAULT font for its g:text draws
+      :onDraw(function(g, w, h)
         g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()
         -- 1) plain line -> uses the window's font= default (the addon's own font), no per-call opts:
         g:text("This line uses the window font=", 6, 6)
@@ -2716,9 +2719,8 @@ hafen.event():on("OnEnterWorld", function()
         --    surface's colour is the sheet's `color` property, a handle's colour is for your own pixels only.
         g:text("handle colour: own drawing only", 6, 94, { font = tintedFont })
         g:color(150, 150, 150); g:rect(0, 0, w, h); g:color()
-      end,
-      onClose = function() hafen.log():write("F2: font window closed (X) -- :reload to bring it back") end,
-    }
+      end)
+      :onClose(function() hafen.log():write("F2: font window closed (X) -- :reload to bring it back") end)
     hafen.log():write(("F2: font window up -- rendered in font '%s'; one line mixes two fonts via $font (disable/:reload restores stock)")
       :format(fam))
   else
@@ -2795,7 +2797,7 @@ hafen.event():on("OnEnterWorld", function()
   hafen.log():write("2e: IMeter 'set' message hook installed -- MIDDLE-click the window to freeze the HUD meter bars")
 end)
 
--- 2b: HUD OVERLAY (hafen.ui.overlay). Paint on top of the HUD WITHOUT owning a widget — fn(g, w, h) runs
+-- 2b: HUD OVERLAY (hafen.ui():overlay()). Paint on top of the HUD WITHOUT owning a widget — fn(g, w, h) runs
 -- every frame with the shared GOut wrapper and the SCREEN size, drawing at absolute screen coords. It is
 -- drawn AFTER the whole HUD (via a re-queued UI.drawafter), so it lands on top. Bridge-owned (P2): :reload
 -- or disabling the addon removes it automatically. Here: a small readout box at top-centre + a crosshair at
@@ -2898,7 +2900,7 @@ local overlaysUp = false
 hafen.event():on("OnEnterWorld", function()
   if overlaysUp then return end                                   -- register the overlays once
   overlaysUp = true
-  hafen.ui.overlay(drawHud)                                       -- returns a handle with :remove() (also auto)
+  hafen.ui():overlay():onDraw(drawHud)                                   -- the overlay ends with :destroy() (also auto)
   for _, g in ipairs(hafen.world():gob():list()) do tagPlayer(g) end      -- ...and the ones already standing here
   hafen.log():write("2b: HUD overlay (top-centre + crosshair) + player gob-tags up -- :reload/disable removes them")
 end)

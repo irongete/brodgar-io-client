@@ -92,7 +92,7 @@ events carry what.
 
 There is no `WidgetCreated` event, because a window is not a global fact: you say *which* widget you care
 about, with a [selector](../api/ui/selectors.md), and
-[`hafen.ui.on`](../api/ui/replace.md#watching-for-a-widget) waits for it — including one that is already
+[`hafen.ui():on`](../api/ui/replace.md#watching-for-a-widget) waits for it — including one that is already
 open when you subscribe.
 
 ```lua

@@ -856,3 +856,24 @@
   recorded level) and `:position(nil)` is a silent no-op that reddens the restore check for a reason that has
   nothing to do with the feature. `not (w:info() or {}).owned` is the whole fix. Generally: *a self-validating
   picker must exclude the suite's own furniture, because a suite is part of the client it is measuring.*
+- **(039.6) A "does not happen this frame" claim needs a build site the ARMING has already passed.** The
+  suite's own slash command is dispatched *before* `ui.tick()`, so a surface built there is armed and painted
+  in the same frame either way — the check passes with the mechanism removed and proves nothing. The
+  discriminating site is a widget's own `onTick`, which runs after `AddonManager.tick` has already armed
+  everything built this frame: without the guard the new surface is reached by that same frame's draw pass
+  (the draw traversal restarts from `child`, so it always reaches a new tail), with it the first paint lands
+  one frame later. A clock widget incrementing a counter in `onTick` and doing the building is the whole
+  fixture, and `firstPaint > builtAt` is the assertion. Generally: *a timing guarantee can only be measured
+  from a moment the guarantee is about; measure it from the wrong phase and you measure the call model.*
+- **(039.6) A staged round needs a DEADLINE or a red line silently becomes a missing block.** The paint round
+  reports from inside a timer that only fires once the clock has ticked; if the surface never draws, nothing
+  reports and the maintainer pastes back a block with no `[summary]` — which reads like a crash rather than a
+  failure. A second timer calling the same guarded `report()` closes the block with a real `[fail]` whatever
+  happens, and it is what let the headless dry run print `20 pass, 1 fail` (the one fail being the round that
+  genuinely cannot run without a draw pass) instead of hanging with 20 lines and no verdict.
+- **(039.6) The fabricated `GameUI` needs `meters` before anything is removed from under it.**
+  `GameUI.cdestroy` ends in `meters.remove(w)` unconditionally, so an `Unsafe`-allocated HUD NPEs the moment
+  a probe destroys a widget it re-homed there — a fabrication artefact that reads exactly like a teardown
+  bug. One reflect-set `LinkedList` fixes it; the general rule is that `Unsafe.allocateInstance` skips field
+  initialisers, so every collection the code under test touches *unconditionally* has to be fabricated too,
+  not just the ones on the path being asserted.

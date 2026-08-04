@@ -559,3 +559,24 @@
   methods table — so `ov:pos` read as plain nil however complete the retired table was. Every entity whose
   verbs this feature re-spells needs the same one-line swap, and the check is a suite line asserting the
   MESSAGE, not the absence.
+- **(039.6) An anonymous subclass is how you change a `haven` widget's behaviour without renaming it.** The
+  window builder needs the CHROME to skip its draw while the content is unarmed, and the only seam is
+  `Window.draw`. A named `AddonWindow extends Window` would have made `w:type()` read `"AddonWindow"` and
+  broken every `@Window` selector, `window` role and deco lookup in the client — but `LuaWidget.typeName`
+  climbs past anonymous classes (it was written for `haven`'s own `new TextEntry(...) {...}` idiom), so
+  `new Window(sz, "") { public void draw(GOut g) { ... } }` overrides the behaviour and keeps the name. The
+  anonymity is load-bearing, not stylistic; the same trick is available for any `haven` widget the bridge
+  builds.
+- **(039.6) `LuaWidget.live()` treats "not under `ui.root`" as DEAD, and it nulls the handle's reference.**
+  Anything that wants a widget to exist before it is in the tree fights that, and loses quietly: every setter
+  in a builder chain reads the handle as stale, becomes the 029.2 silent chaining no-op, and the entity is
+  permanently dead because `live()` clears `n.wdg` on the way out. That single line is why the pending
+  surface is attached at once (D-119) rather than held back — a design that needs an exception in `live()`
+  is a design fighting the identity model, not extending it.
+- **(039.6) A callback slot that the tick/draw passes read and Lua writes is one volatile array, not eight
+  volatile fields.** 039.3's rule (a record read by the draw and written by setters needs `volatile`) applied
+  to eight callbacks would be eight declarations and eight chances to forget one; a `volatile LuaValue[]`
+  replaced on write (`clone()`, set, assign) gives the same visibility through one field, and the setters
+  become a single loop over `AddonWidget.CALLBACKS` in `LuaWidget` instead of eight near-identical blocks.
+  The array of names is then also what the suite iterates, so "all thirteen return self" is two verdict
+  lines rather than twenty-six.

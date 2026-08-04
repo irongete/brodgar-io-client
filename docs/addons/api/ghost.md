@@ -17,7 +17,7 @@ server never learns it exists, and it grants no gameplay advantage. It is a visu
 HUD overlay.
 
 > **Ungated.** Because nothing reaches the server, ghosts need no `actions` permission and no consent
-> dialog. They sit alongside [`hafen.ui.overlay`](ui/custom.md#overlays), not [`hafen.act`](act.md).
+> dialog. They sit alongside [a HUD overlay](ui/custom.md#overlays), not [`hafen.act`](act.md).
 > Committing a *real* build is still the gated [`hafen.act():place`](act.md).
 
 Everything here is **bridge-owned**: every ghost your addon creates is torn down automatically on reload,
@@ -208,7 +208,7 @@ the axis shafts foreshorten with the camera, which is what anchors the arrows in
 resource is needed.
 
 The gizmo is a **bundled Lua library over the ghost, map and hook primitives**, not a built-in `hafen.*`
-function: [`hafen.ui.overlay`](ui/custom.md#overlays) to draw,
+function: [a HUD overlay](ui/custom.md#overlays) to draw,
 [`hafen.hook():input`](hook.md#hafenhookinputtarget-event-fn) to pick a handle,
 [`hafen.hook():grab`](hook.md#hafenhookgrabmove-up) with
 [`screenToWorld`](world.md#screen-to-world-and-placement-snapping),

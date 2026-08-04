@@ -89,7 +89,7 @@ hafen.ui.skin{ ["window.frame"] = { pad = 6 } }   -- every window keeps 6 px mor
   roomy as its image says, and nothing is added behind your back — including room for the caption. **A
   theme that wants a title bar puts it in its own top inset**: the caption is drawn a little way down, so a
   shallow top inset leaves it sitting over the content.
-- **Pixels are raw pixels**, like a border's slice and like [`hafen.ui.window{size = …}`](../custom.md).
+- **Pixels are raw pixels**, like a border's slice and like a window's own [`:size(w, h)`](../custom.md).
   `pad` is not DPI-scaled. A font's `size` is, because a type size is not a coordinate.
 - **`pad = 0` is the same as no `pad`**, so it alone never restyles anything.
 - **Removing the rule restores the exact numbers it found** — the same size, the same position, down to the

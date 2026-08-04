@@ -686,20 +686,19 @@ end
 
 local function open()
   if win then return end
-  win = hafen.ui.window{
-    title  = "Brodgar.io Profiler",
-    size   = { WIN_W, WIN_H },
-    pos    = { 80, 60 },
-    font   = FONT,
+  win = hafen.ui():window()
+    :title("Brodgar.io Profiler")
+    :size(WIN_W, WIN_H)
+    :position(80, 60)
+    :font(FONT)
     -- The whole draw is one scope, with the graph nested inside its own: this addon's cost and its two
     -- scopes appear in the ADDONS tab while you are reading it.
-    onDraw = function(g, w, h) p:measure("draw", draw, g, w, h) end,
-    onClick = click,
-    onClose = function()
+    :onDraw(function(g, w, h) p:measure("draw", draw, g, w, h) end)
+    :onClick(click)
+    :onClose(function()
       win = nil
       hafen.log():write("profiler: closed -- ':profiler' or the 'toggle' hotkey brings it back")
-    end,
-  }
+    end)
 end
 
 local function toggle()

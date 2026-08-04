@@ -291,7 +291,7 @@ layer undos) · `API.md` (`hafen.ui`, the Widget entity block) · `src/io/brodga
 
 ---
 
-## 039.6 — The UI builders: window, widget, overlay
+## 039.6 — The UI builders: window, widget, overlay ✅ DONE
 
 **Depends on:** 039.5.
 

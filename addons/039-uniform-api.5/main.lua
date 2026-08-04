@@ -113,7 +113,9 @@ local function run()
   -- A BARE widget, not a window: a window's transparent corner is not hit-testable at all (DefaultDeco.checkhit
   -- owns the caption strip and the content area, not the pixels between), and check 6 needs a top-left it can
   -- ask about. A bare one is its own rectangle all the way to the edge.
-  local probe = hafen.ui.widget{ size = {140, 60}, pos = {160, 160} }
+  local probe = hafen.ui():widget()
+    :size(140, 60)
+    :position(160, 160)
   eq("a widget is visible when it is built", probe:visible(), true)
   eq("widget:visible(false) hides it and chains on self", probe:visible(false) == probe, true)
   eq("...and the read says so", probe:visible(), false)

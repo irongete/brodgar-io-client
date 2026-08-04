@@ -131,7 +131,10 @@ local function run(args)
 
   -- 5. AN ANCHOR IS A RELATIONSHIP, not a point: hung off another widget, it re-derives when that widget
   --    MOVES and when it RESIZES -- both in the same call, because the move went through this API.
-  local probe = hafen.ui.window{ title = "036.3 anchor target", size = {160, 110}, pos = {260, 200} }
+  local probe = hafen.ui():window()
+    :title("036.3 anchor target")
+    :size(160, 110)
+    :position(260, 200)
   hafen.ui.skin{ [sel] = { anchor = { to = probe, at = "topright", offset = {6, 0} } } }
   eq("a widget anchored to another sits on ITS corner", xy(w:rootPos()),
      pt(260 + probe:size().x - w:size().x + 6, 200))
@@ -153,7 +156,10 @@ local function run(args)
   --    on a window of this addon's own, and for a reason: hit-testing answers with the TOPMOST widget under
   --    the point, so a check about reachability must not be able to redden because the HUD drew something
   --    over the corner the clamp chose. A widget added to the root last is the one thing nothing covers.
-  local edge = hafen.ui.window{ title = "036.3 clamp probe", size = {150, 100}, pos = {80, 80} }
+  local edge = hafen.ui():window()
+    :title("036.3 clamp probe")
+    :size(150, 100)
+    :position(80, 80)
   hafen.ui.skin{ ["window[title=036.3 clamp probe]"] =
                  { anchor = { to = "screen", at = "topleft", offset = {rsz.x + 4000, rsz.y + 4000} } } }
   local p = edge:rootPos()

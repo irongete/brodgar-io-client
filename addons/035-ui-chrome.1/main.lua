@@ -114,7 +114,10 @@ local function run()
                                                                     slice = { 40, 40, 40, 40 } } } } end, "24x24")
 
   -- 2. widget:style() reports the new properties, beside font and color and under the same one nil (D-075).
-  local w = hafen.ui.window{ title = "035 probe", size = { 90, 40 }, pos = { 8, 8 } }
+  local w = hafen.ui():window()
+    :title("035 probe")
+    :size(90, 40)
+    :position(8, 8)
   eq("a widget nothing styles resolves nothing", w:style(), nil)
   local panel = hafen.asset(PANEL)
   w:skin{ bg = { color = DARK }, border = { image = panel, slice = { 8, 8, 8, 8 } } }

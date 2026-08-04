@@ -223,7 +223,7 @@ final class LuaGOut {
      */
     private Addon owner;
     /**
-     * The widget's default font (F2), from {@code hafen.ui.window}/{@code widget}{@code {font=h}} — the base font
+     * The widget's default font (F2), from {@code widget:font(h)} — the base font
      * for {@code g:text}/{@code g:atext} when a call gives no per-call {@code opts.font}. {@code null} for a widget
      * with no {@code font=}, and always {@code null} for a HUD/gob overlay (they {@link #bind(GOut)} without one).
      * Set per draw callback beside {@link #cur}.

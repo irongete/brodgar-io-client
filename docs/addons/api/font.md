@@ -7,9 +7,9 @@ client's own surfaces.
 
 ```lua
 local body = hafen.font("serif"):derive{ size = 12 }
-hafen.ui.window{ title = "Mine", size = {200, 120}, font = body, onDraw = function(g, w, h)
+hafen.ui():window():title("Mine"):size(200, 120):font(body):onDraw(function(g, w, h)
   g:text("this text is in my font", 6, 6)
-end }
+end)
 ```
 
 There is **no shared cross-addon registry**: a handle is a value your addon keeps, and another addon cannot
@@ -80,14 +80,14 @@ no conflict and nothing to revert. The stock UI and every other addon are untouc
 
 ```lua
 local h = hafen.font("serif"):derive{ size = 12 }
-hafen.ui.window{ title = "Mine", size = {200, 120}, font = h, onDraw = function(g, w, h)
-  g:text("this text is in my font", 6, 6)   -- no per-call opts, so it uses the widget's font=
-end }
-hafen.ui.widget{ size = {80, 20}, font = h } -- same, for a bare widget
+hafen.ui():window():title("Mine"):size(200, 120):font(h):onDraw(function(g, w, h)
+  g:text("this text is in my font", 6, 6)   -- no per-call opts, so it uses the widget's own font
+end)
+hafen.ui():widget():size(80, 20):font(h)     -- same, for a bare widget
 ```
 
-`font =` sets the **default font** for every `g:text` and `g:atext` the widget draws that gives no per-call
-font. It does not restyle the window's *title bar* — that is the `window.title`
+`:font(h)` sets the **default font** for every `g:text` and `g:atext` the widget draws that gives no
+per-call font. It does not restyle the window's *title bar* — that is the `window.title`
 [site key](ui/style/keys.md#site-keys).
 
 ### The per-call option

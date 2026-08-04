@@ -33,7 +33,7 @@ import static io.brodgar.addon.AddonManager.*;
  *       that says what a client surface looks like. The {@link Fonts} provider and its owner-tagged stack are
  *       unchanged: only <i>who fills them</i> moved. Their teardown still runs from here
  *       ({@link #teardownFonts}) — the owned-resource model (spec 05).</li>
- *   <li><b>Own-widget application</b> (F2, shipped): a {@code font=} option on {@code hafen.ui.window}/{@code
+ *   <li><b>Own-widget application</b> (F2, shipped): the {@code :font(h)} setter on {@code hafen.ui():window()}/{@code
  *       widget} ({@link AddonWidget}) and a per-call {@code {font,color}} on the {@code g:text}/{@code g:atext} draw
  *       wrapper ({@link LuaGOut}) + a custom TTF in the {@code $font[…]} rich-text tag (family AWT-registered
  *       when the asset is loaded). Isolated — touches only the addon's own pixels; no global state, nothing to revert.</li>

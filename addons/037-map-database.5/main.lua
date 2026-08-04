@@ -199,8 +199,11 @@ costRound = function(grid)
             "still nil after 4 s")
       return summary()
     end
-    wins[#wins + 1] = hafen.ui.window{ title = MINE, size = { CMAPS, CMAPS }, pos = { 260, 80 },
-                                       onDraw = function(g) g:image(img, 0, 0) end }
+    wins[#wins + 1] = hafen.ui():window()
+      :title(MINE)
+      :size(CMAPS, CMAPS)
+      :position(260, 80)
+      :onDraw(function(g) g:image(img, 0, 0) end)
     hafen.timer():after(0.5, function()
       local a, m = rowOf(ATLAS), rowOf(ID)
       local painted = a and (a.calls.draw + a.calls.widgets)

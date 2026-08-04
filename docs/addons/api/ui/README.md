@@ -20,12 +20,13 @@ overlay you install, a sheet you apply and a widget you moved are all given back
 Client-side UI cannot send actions to the server — that is [`hafen.act`](../act.md).
 
 ```lua
-hafen.ui.window{
-  title = "Clock", size = {160, 40}, pos = {50, 50},
-  onDraw = function(g, w, h)
+hafen.ui():window()
+  :title("Clock")
+  :size(160, 40)
+  :position(50, 50)
+  :onDraw(function(g, w, h)
     g:text(string.format("%.0f", hafen.time():clock() or 0), 6, 12)
-  end,
-}
+  end)
 ```
 
 ## Reading order

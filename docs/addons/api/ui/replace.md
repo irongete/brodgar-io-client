@@ -1,26 +1,26 @@
 # hafen.ui: watching for a widget, and replacing it
 
-Two verbs, and they are meant to be used together: `hafen.ui.on` waits for a part of the client's UI to
+Two verbs, and they are meant to be used together: `hafen.ui():on` waits for a part of the client's UI to
 appear, and `widget:replace` stands your own window in its place. Both are ungated, and both are undone
 when your addon goes away. The bundled **`bags`** addon is this pair end to end.
 
 ```lua
 hafen.ui():on("inventory[title=Inventory]", "appear", function(inv)
-  inv:replace(hafen.ui.window{
-    title = "Bags", size = {200, 120},
-    onDraw = function(g) g:text(#inv:items() .. " items", 6, 6) end,
-  })
+  inv:replace(hafen.ui():window()
+    :title("Bags")
+    :size(200, 120)
+    :onDraw(function(g) g:text(#inv:items() .. " items", 6, 6) end))
 end)
 ```
 
 | Call | Returns | Description |
 |---|---|---|
-| `hafen.ui():on(selector, event, fn)` | [handle](custom.md#overlay-and-observer-handles) | `fn(widget)` when a widget matching a [selector](selectors.md) appears or disappears |
+| `hafen.ui():on(selector, event, fn)` | [handle](custom.md#observer-handles) | `fn(widget)` when a widget matching a [selector](selectors.md) appears or disappears |
 | `widget:replace(view)` | the widget, chains | put your own window in place of the native one around it |
 
 ## Watching for a widget
 
-`hafen.ui.on` names what it waits for with the same [selector](selectors.md) a lookup uses, and hands the
+`hafen.ui():on` names what it waits for with the same [selector](selectors.md) a lookup uses, and hands the
 match back as the same interned [Widget](widget.md), so `==` and a Lua table keyed by it work across both
 events. `event` is one of two strings, and a subscription carries exactly one — subscribe twice to watch
 both:

@@ -241,7 +241,10 @@ costRound = function(img)
     end
     return finish()
   end
-  win(hafen.ui.window{ title = TITLE_BG, size = { CMAPS, CMAPS }, pos = { 40, 40 } })
+  win(hafen.ui():window()
+    :title(TITLE_BG)
+    :size(CMAPS, CMAPS)
+    :position(40, 40))
   hafen.ui.skin{ ["window[title=" .. TITLE_BG .. "]"] = { bg = { image = img } } }
   hafen.timer():after(0.5, function()
     local row = ownRow()
@@ -250,8 +253,11 @@ costRound = function(img)
           "a recorded map painted every frame by the stylesheet ran 0 draw/widget callbacks of ours -- a grid"
           .. " image is a handle, so the engine paints it and no Lua is at the draw",
           (row == nil) and "no addons() row for this suite" or paints)
-    win(hafen.ui.window{ title = TITLE_DRAW, size = { CMAPS, CMAPS }, pos = { 40 + CMAPS + 20, 40 },
-                         onDraw = function(g) g:image(img, 0, 0) end })
+    win(hafen.ui():window()
+      :title(TITLE_DRAW)
+      :size(CMAPS, CMAPS)
+      :position(40 + CMAPS + 20, 40)
+      :onDraw(function(g) g:image(img, 0, 0) end))
     hafen.timer():after(0.5, function()
       local r2 = ownRow()
       local drew = r2 and r2.calls.draw
@@ -297,9 +303,11 @@ showRound = function()
       local im = grid:image(lvl)
       if im then
         up = up + 1
-        win(hafen.ui.window{ title = SHOW[lvl + 1], size = { CMAPS, CMAPS },
-                             pos = { 40 + (lvl * (CMAPS + 24)), 40 },
-                             onDraw = function(g) g:image(im, 0, 0) end })
+        win(hafen.ui():window()
+          :title(SHOW[lvl + 1])
+          :size(CMAPS, CMAPS)
+          :position(40 + (lvl * (CMAPS + 24)), 40)
+          :onDraw(function(g) g:image(im, 0, 0) end))
       end
     end
     check(up == 3, "the three levels are on screen and stay there until ':t037-4 drop'",

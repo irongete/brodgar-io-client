@@ -104,14 +104,16 @@ end
 -- ---- the panel --------------------------------------------------------------------------------------
 local close, refresh
 
-local function open(at)
-  panel = hafen.ui.window{
-    title = TITLE, size = { SIDE, SIDE }, pos = at or { 80, 80 },
-    -- NO onDraw unless the pin layer is on. An onDraw that only checks a flag would still be a callback
-    -- every frame, and the zero this addon claims would stop being a zero.
-    onDraw = pins and drawPins or nil,
-    onClose = function() close() end,
-  }
+local function open(x, y)
+  panel = hafen.ui():window()
+    :title(TITLE)
+    :size(SIDE, SIDE)
+    :position(x or 80, y or 80)
+    :onClose(function() close() end)
+  -- NO onDraw unless the pin layer is on. An onDraw that only checks a flag would still be a callback
+  -- every frame, and the zero this addon claims would stop being a zero -- which is why the setter is
+  -- inside the `if` rather than the flag inside the callback.
+  if pins then panel:onDraw(drawPins) end
   shown = nil
   refresh()
   ticker = hafen.timer():every(RATE, refresh)
@@ -146,7 +148,7 @@ local function rebuild()
   if not (panel and panel:exists()) then return end
   local p = panel:position()
   close()
-  open{ p.x, p.y }
+  open(p.x, p.y)
 end
 
 -- ---- the command ------------------------------------------------------------------------------------

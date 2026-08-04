@@ -328,6 +328,13 @@ public final class AddonManager {
                 return;
             }
 
+            // 0b. The arming tick (039.6): every surface a builder made since the last tick goes into the tree
+            //     now. Done FIRST, so a window built in an input handler — which the engine dispatches before
+            //     ui.tick() — is on screen in the very frame it was asked for, fully configured, rather than a
+            //     frame later. Not before the reload above: a widget whose addon is being torn down is never
+            //     placed at all.
+            UiApi.armPending();
+
             // Soft CPU-budget accounting (D-018 layer 2): zero every addon's per-tick Lua time before any
             // handler runs this tick; callLua accumulates into it, enforceSoftBudget() evaluates it at the
             // end. (Skipped on a reload tick, which returns above — its OnLoad/OnEnterWorld are one-offs.)
@@ -1490,16 +1497,6 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
 
     // ------------------------------------------------------------- logging (hafen.log():write + console output)
 
-    /**
-     * Build a custom UI element for {@code hafen.ui.window}/{@code widget} (spec 07): a {@link AddonWidget}
-     * content leaf, optionally wrapped in a draggable {@link Window} (chrome). Reads {@code size}/{@code
-     * pos} (both {@code {a,b}} arrays), {@code parent} ({@code "root"} default, or {@code "gameui"}), and
-     * {@code title} from {@code opts}; the callbacks live on the same table and are wired in the
-     * AddonWidget. Attaches to the tree (locks on {@code ui}), registers the content in the addon's
-     * owned-resource registry (torn down on reload/disable), and returns the Lua handle.
-     */
-
-
     /** The in-game notice sink ({@link UI#msg}/{@link UI#error}) renders a line as ONE text texture; a very
      *  long single line (a big compact-JSON REPL result, or an addon logging a large value) can exceed the
      *  GL max texture size and crash the render thread (GL_INVALID_VALUE, 1281). Clamp what we hand it — the
@@ -2039,15 +2036,19 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
             out.add(new KeyBindGroup(e.getKey().manifest.name, e.getValue()));
         return out;
     }
-    /** A HUD overlay ({@code hafen.ui.overlay}): a draw fn painted on top of the HUD each frame (2b). */
+    /**
+     * A HUD overlay ({@code hafen.ui():overlay()}): a draw fn painted on top of the HUD each frame (2b).
+     * Built <b>bare</b> since 039.6 — {@code fn} is installed by {@code :onDraw(fn)} and is {@code volatile}
+     * because the paint pass reads it while Lua writes it. A bare overlay paints nothing, which is the same
+     * "incomplete draws nothing" rule the widget builder gets from not yet being in the tree.
+     */
     public static final class HudOverlay {
         final Addon owner;
-        final LuaValue fn;
-        boolean active = true;
+        volatile LuaValue fn;
+        volatile boolean active = true;
 
-        HudOverlay(Addon owner, LuaValue fn) {
+        HudOverlay(Addon owner) {
             this.owner = owner;
-            this.fn = fn;
         }
     }
 

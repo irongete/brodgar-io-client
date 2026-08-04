@@ -64,11 +64,11 @@ local function buildBagsView(w)
     if p then cols = math.max(cols, p.x + 1); rows = math.max(rows, p.y + 1) end
   end
 
-  return hafen.ui.window{
-    title = "Bags (custom)",
-    size  = { cols * CELL + 8, rows * CELL + 24 },
-    pos   = { 150, 130 },
-    onDraw = function(g, ww, h)
+  return hafen.ui():window()
+    :title("Bags (custom)")
+    :size(cols * CELL + 8, rows * CELL + 24)
+    :position(150, 130)
+    :onDraw(function(g, ww, h)
       g:color(0, 0, 0, 175); g:frect(0, 0, ww, h); g:color()             -- translucent backdrop
       local items = w:items()                                           -- LIVE read off the hidden inventory's items
       for _, it in ipairs(items) do
@@ -90,11 +90,11 @@ local function buildBagsView(w)
       g:text(("%d item(s) -- Tab closes this window; the hotkey restores the stock one"):format(#items), 4, h - 15)
       g:color()
       g:color(150, 150, 150); g:rect(0, 0, ww, h); g:color()            -- outer border
-    end,
-    onMouseMove = function(x, y)
+    end)
+    :onMouseMove(function(x, y)
       hover = { x = math.floor((x - 4) / CELL), y = math.floor((y - 4) / CELL) }
-    end,
-    onClick = function(x, y, button)
+    end)
+    :onClick(function(x, y, button)
       local cx, cy = math.floor((x - 4) / CELL), math.floor((y - 4) / CELL)
       for _, it in ipairs(w:items()) do
         local p = it.pos
@@ -106,15 +106,14 @@ local function buildBagsView(w)
       end
       hafen.log():write(("bags: clicked empty cell %d,%d"):format(cx, cy))
       return true                                                       -- truthy = consume
-    end,
-    onClose = function()
+    end)
+    :onClose(function()
       -- The X fires while this window is still on screen, so the one restore rule ("as the user was seeing it")
       -- hands back an OPEN stock inventory -- which is what closing a window you were looking at should give you.
       hafen.log():write("bags: view closed (X) -- the stock inventory is back OPEN (you were seeing a window), and Tab"
         .. " toggles it again; press the toggle key to replace once more")
       stopReplace()                                                   -- X also restores the native inventory
-    end,
-  }
+    end)
 end
 
 -- The ARM/DISARM hotkey (031: it is not the show/hide key -- Tab is, once we are replacing). Arming subscribes to

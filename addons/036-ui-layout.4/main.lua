@@ -77,10 +77,11 @@ end
 
 -- A probe window that DRAWS one line every frame — which is what puts a key in the rendered-text cache.
 local function probe(title, y)
-  return win(hafen.ui.window{
-    title = title, size = { 190, 24 }, pos = { 4, y },
-    onDraw = function(g) g:text(LINE, 6, 4) end,
-  })
+  return win(hafen.ui():window()
+    :title(title)
+    :size(190, 24)
+    :position(4, y)
+    :onDraw(function(g) g:text(LINE, 6, 4) end))
 end
 
 local function misses()
@@ -134,7 +135,10 @@ local function costRound(after)
   hafen.ui.skin(nil)
   for i = 1, 4 do
     local title = "036.4 cost " .. i
-    win(hafen.ui.window{ title = title, size = { 120, 60 }, pos = { 20 + (i * 26), 20 + (i * 26) } })
+    win(hafen.ui():window()
+      :title(title)
+      :size(120, 60)
+      :position(20 + (i * 26), 20 + (i * 26)))
     rules["window[title=" .. title .. "]"] =
       { anchor = { to = "screen", at = CORNERS[i], offset = { (i * 12) - 40, (i * 12) - 40 } } }
   end
@@ -254,8 +258,14 @@ local function run()
   -- 2. THE DELIVERABLE: the parsed file IS the sheet. A theme's chrome needs three lines of Lua because an
   --    image is a handle; a place is not a handle, so the layout half needs no adapter at all.
   local rsz = hafen.ui():root():size()
-  local anchored = win(hafen.ui.window{ title = ANCH, size = { 150, 90 }, pos = { 12, 12 } })
-  local placed = win(hafen.ui.window{ title = PLACED, size = { 100, 50 }, pos = { 12, 130 } })
+  local anchored = win(hafen.ui():window()
+    :title(ANCH)
+    :size(150, 90)
+    :position(12, 12))
+  local placed = win(hafen.ui():window()
+    :title(PLACED)
+    :size(100, 50)
+    :position(12, 130))
   local baseA, baseP, baseS = xy(anchored:position()), xy(placed:position()), placed:size()
   check(pcall(hafen.ui.skin, doc.rules),
         "the table hafen.json():parse returned IS the sheet: a whole layout applies from a file, unmapped")

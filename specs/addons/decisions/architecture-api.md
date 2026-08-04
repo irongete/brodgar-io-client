@@ -1138,3 +1138,39 @@ that is the accepted cost: the table exists to make *this* port possible, not to
 guiding refusal is scoped to the migration that owns it — when the scope is a mechanical check, widening it
 for kindness destroys the check.*
 **See.** [D-013](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-119 — a builder is attached INERT and skips its DRAW; holding it out of the tree buys nothing and costs a capability ✅ (2026-08-04)
+**Decision.** `hafen.ui():window()`/`:widget()` add their surface to the tree at once and mark it *pending*:
+every lookup finds it, every setter answers on it, and it **paints nothing** until `UiApi.armPending()` clears
+the flag on the next `AddonManager.tick`. The window chrome is skipped by an **anonymous** `Window` subclass,
+so `LuaWidget.typeName`'s climb past anonymous classes keeps `w:type()` reading `Window`.
+**Rationale.** (2026-08-04, 039.6.) The other candidate — hold the surface out of the tree until the arming
+tick — was built first and reverted. It is strictly stronger on paper (not drawn, not hit-tested, not laid
+out) and that extra strength *is the defect*: "find the widget I just built" stops working, which 039.5's own
+suite asserts (`hafen.ui():at()` on a probe created in the same statement) and which any addon may reasonably
+do. It also made `live()` kill a pending handle — every setter in the chain a silent no-op — needing a
+`pendingRoot` walk to paper over. That is a capability spent to buy a guarantee about *painting* that skipping
+the draw already gives in full. D-112 answered the same question for an overlay and answered it this way.
+**Consequences.** A surface is clickable one frame before it is visible, which is the honest cost and lasts
+exactly one frame. `:parent(w)` becomes a real re-home (`remove()` + `add()`) rather than a field write, and
+is therefore refused once the surface is on screen. A named `Window` subclass would have renamed the widget
+for every selector in the client, so the *anonymity* is load-bearing rather than stylistic. Generally: *when
+two mechanisms both deliver a guarantee, prefer the one that removes less — a stronger invariant that also
+removes an ability is not stronger, it is a different feature.*
+**See.** [D-112](architecture-api.md), [D-107](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-120 — a set whose members have no key is a BUILDER, not a collection ✅ (2026-08-04)
+**Decision.** `hafen.ui():overlay()` **mints** a new HUD painter, where `gob:overlay()` and
+`hafen.map():overlay()` hand back collections. The object it returns carries `:onDraw(fn)`/`:onDraw()`,
+`:exists()` and `:destroy()` (R7), and the old handle's `:remove()` is a retired row naming `:destroy()`.
+**Rationale.** (2026-08-04, 039.6.) §2.3 makes a set you can *address into* a collection, and the addressing
+is the point: `gob:overlay()` keys on the overlay key, `hafen.map():overlay()` on the display tag. A HUD
+painter is anonymous — there is no key, so `:get()` has no question to answer and `:add()`/`:remove()` would
+be `:destroy()` spelled through a table that exists only to hold them. A collection of anonymous members
+offers `:list()` and nothing else, which is a handle list wearing a collection's name.
+**Consequences.** One word, `overlay`, has two shapes in the API, and the section it hangs on says which:
+`hafen.ui()` builds, the entity-owned ones collect. That is legible because the three things `hafen.ui()`
+builds — window, widget, overlay — all end the same way, with `:destroy()`. Generally: *the collection verbs
+are earned by having a key; without one, a "collection" is a list of handles and the honest shape is a builder
+whose product you hold.*
+**See.** [D-115](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).

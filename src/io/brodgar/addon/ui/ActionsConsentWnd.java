@@ -26,7 +26,7 @@ import haven.Window;
  * inside the AddOns panel; the {@link AddonPanel} closes it explicitly when that panel leaves the screen
  * (see {@code AddonPanel.tick}), so nothing is left orphaned. Being a client-side widget with no server
  * binding, its close box is redirected to a plain {@code destroy()} (there is no {@code wdgmsg("close")}
- * to send — cf. the 2a {@code hafen.ui.window}).
+ * to send — cf. the 2a {@code hafen.ui():window()}).
  */
 public class ActionsConsentWnd extends Window {
     private static final int WRAP = UI.scale(340);

@@ -168,8 +168,13 @@ local function run()
   refuses("an unknown property now names pad among the ones this client ships",
           function() hafen.ui.skin{ ["window.frame"] = { padding = 6 } } end, "\"pad\"")
 
-  w = hafen.ui.window{ title = "035.2 probe", size = { W, H }, pos = { 8, 8 } }
-  bare = hafen.ui.widget{ size = { 40, 20 }, pos = { 8, 240 } }
+  w = hafen.ui():window()
+    :title("035.2 probe")
+    :size(W, H)
+    :position(8, 8)
+  bare = hafen.ui():widget()
+    :size(40, 20)
+    :position(8, 240)
   content = contentOf(w)
   base = { x = w:size().x, y = w:size().y, s = xy(w:size()) }
   basePos = xy(w:position())

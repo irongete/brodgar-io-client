@@ -12,7 +12,7 @@ if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items
 
 | Expression | Returns |
 |---|---|
-| `hafen.ui.window(opts)` / `hafen.ui.widget(opts)` | one you [created](custom.md) — owned |
+| `hafen.ui():window()` / `hafen.ui():widget()` | one you [created](custom.md) — owned |
 | `hafen.ui():find(selector)` | the **first** widget matching a [selector](selectors.md), in tree order, or `nil` |
 | `hafen.ui():all(selector)` | **every** match, in tree order — an empty array, never `nil` |
 | `hafen.ui():root()` | the top of the whole client tree; walk down to any open window |
@@ -85,7 +85,7 @@ server-bound ancestor.
 
 ## Owned vs borrowed
 
-A widget is **owned** if *your* addon created it with [`hafen.ui.window{}`/`hafen.ui.widget{}`](custom.md),
+A widget is **owned** if *your* addon created it with [`hafen.ui():window()`/`:widget()`](custom.md),
 and **borrowed** otherwise — a native client widget, or another addon's. Reads answer on both;
 `:info().owned` tells you which you are holding, so you can ask rather than provoke the error.
 
@@ -110,7 +110,7 @@ the thing standing in is a *replacement*, so the two do not share a spelling: `w
 `w:replace(view)` installs and `w:replace(nil)` undoes.
 
 Provenance comes from the tree, not from how you obtained the object: find your own window with
-`hafen.ui():at(x, y)` and you get the very same value `hafen.ui.window{}` returned, writes and all. Addon B
+`hafen.ui():at(x, y)` and you get the very same value `hafen.ui():window()` returned, writes and all. Addon B
 looking at addon A's window holds a *borrowed* widget, which is the correct answer.
 
 **A widget's place is on the screen, not in the world.** `:position()` and `:rootPos()` answer in pixels

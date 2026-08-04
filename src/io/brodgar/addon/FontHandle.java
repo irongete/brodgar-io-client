@@ -41,7 +41,7 @@ public final class FontHandle {
     final Color   color;   // or null = inherit the surface's stock default colour
     LuaValue handle;       // the Lua handle table (set by FontApi.fontHandle)
 
-    // F2 own-widget drawing (g:text / hafen.ui.window|widget{font=h}): a cached RichText.Foundry per effective
+    // F2 own-widget drawing (g:text / a window's or widget's :font(h)): a cached RichText.Foundry per effective
     // px, so the per-frame draw wrapper does not rebuild one each call. Rendering through RichText (not a plain
     // Text.Foundry) is what makes a $font[family,sz]{…} tag work in an addon's own text (the family was
     // AWT-registered at load). Glyphs are rasterised WHITE (defcol) so the GOut draw colour / a per-call colour

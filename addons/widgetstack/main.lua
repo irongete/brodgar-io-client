@@ -159,11 +159,11 @@ openInspector = function(node)
   local st = { node = node, sel = selectorsFor(node) }   -- the selector is static enough to resolve once
   local st_sel = st.sel
 
-  st.win = hafen.ui.window{
-    title = "Inspector: " .. (node:type() or "?"),
-    size  = { I_W, I_H },
-    pos   = { 480 + inspCascade * 22, 70 + inspCascade * 22 },
-    onDraw = function(g, w, h)
+  st.win = hafen.ui():window()
+    :title("Inspector: " .. (node:type() or "?"))
+    :size(I_W, I_H)
+    :position(480 + inspCascade * 22, 70 + inspCascade * 22)
+    :onDraw(function(g, w, h)
       g:color(0, 0, 0, 175); g:frect(0, 0, w, h); g:color()
       local n = st.node
       local id = n:id()
@@ -172,7 +172,7 @@ openInspector = function(node)
       g:text(("%s%s"):format(n:type() or "?", id and (" #" .. id) or "  (client-only, no :id)"), 6, 4)
       g:color()
       g:text(("visible: %s    pos: %s    size: %s")
-        :format(tostring(n:visible()), fmtCoord(n:pos()), fmtSize(n:size())), 6, 20)
+        :format(tostring(n:visible()), fmtCoord(n:position()), fmtSize(n:size())), 6, 20)
       g:text(("rootpos: %s"):format(fmtCoord(n:rootPos())), 6, 34)
       local txt = n:text()
       g:text(("text: %s"):format(txt and ("'" .. txt .. "'") or "(none)"), 6, 48)
@@ -211,8 +211,8 @@ openInspector = function(node)
         g:color()
       end
       g:color(120, 120, 120); g:rect(0, 0, w, h); g:color()
-    end,
-    onClick = function(x, y, button)
+    end)
+    :onClick(function(x, y, button)
       local n = st.node
       if y >= I_SEL_Y and y < I_SEL_Y + LINE then                 -- the selector line: log it (copyable)
         if st_sel.offer then hafen.log():write(pasteLine(st_sel.offer)) end
@@ -226,9 +226,8 @@ openInspector = function(node)
         end
       end
       return true                                                  -- consume (don't fall through)
-    end,
-    onClose = function() end,   -- bridge-owned: also destroyed on :reload/disable
-  }
+    end)
+    :onClose(function() end)   -- bridge-owned: also destroyed on :reload/disable
 end
 
 -- ======================================================================================= the framestack HUD
@@ -403,18 +402,17 @@ end
 
 hafen.event():on("OnEnterWorld", function()
   if not win then
-    win = hafen.ui.window{
-      title   = "Widget Stack",
-      size    = { 470, 412 },
-      pos     = { 60, 60 },
-      onDraw  = drawStack,
-      onClick = stackClick,
-      onClose = function() hafen.log():write("widgetstack: window closed (X) -- :widgetstack to bring it back") end,
-    }
+    win = hafen.ui():window()
+      :title("Widget Stack")
+      :size(470, 412)
+      :position(60, 60)
+      :onDraw(drawStack)
+      :onClick(stackClick)
+      :onClose(function() hafen.log():write("widgetstack: window closed (X) -- :widgetstack to bring it back") end)
     hafen.log():write("widgetstack: window up -- hover the UI; click a row to inspect; :selector logs the hovered widget's selector; :widgetstack toggles it, the freeze hotkey holds it")
   end
   if not overlay then
-    overlay = hafen.ui.overlay(drawOutline)
+    overlay = hafen.ui():overlay():onDraw(drawOutline)
   end
 end)
 

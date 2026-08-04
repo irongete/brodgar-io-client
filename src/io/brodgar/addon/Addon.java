@@ -30,14 +30,14 @@ public final class Addon {
     /** Live timers owned by this addon (see {@link AddonManager.Timer}). */
     public final List<AddonManager.Timer> timers = new CopyOnWriteArrayList<AddonManager.Timer>();
     /**
-     * Live custom UI widgets/windows owned by this addon ({@code hafen.ui.widget}/{@code window}, Phase
+     * Live custom UI widgets/windows owned by this addon ({@code hafen.ui():widget()}/{@code :window()}, Phase
      * 2a). Each entry is the {@link AddonWidget} content; {@link AddonWidget#kill()} destroys its <i>root</i>
      * (the window chrome, or the widget itself), which cascades to children — so the addon's UI vanishes
      * cleanly on reload/disable.
      */
     public final List<AddonWidget> widgets = new CopyOnWriteArrayList<AddonWidget>();
     /**
-     * Live HUD overlays owned by this addon ({@code hafen.ui.overlay}, Phase 2b): draw callbacks painted on
+     * Live HUD overlays owned by this addon ({@code hafen.ui():overlay()}, Phase 2b): draw callbacks painted on
      * top of the HUD each frame. The engine iterates this list to paint (so clearing it stops the overlays
      * immediately) — no widget, nothing else to release, so teardown is just {@code clear()}.
      */

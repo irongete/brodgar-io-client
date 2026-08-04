@@ -1,19 +1,19 @@
 # hafen.ui: the g draw wrapper
 
-Every draw callback — [`onDraw`](custom.md), [`hafen.ui.overlay`](custom.md#overlays), a
+Every draw callback — [`onDraw`](custom.md), [a HUD overlay](custom.md#overlays), a
 [`gob:overlay()`](../gob.md#overlays) `draw` callback — receives `g`, a drawing surface. Its coordinates are the
 callback's own local pixel space: widget-local for a widget, screen for a HUD overlay, and for a gob
 overlay the `sx, sy` you were handed is that gob's projected screen point. Every method is a colon call.
 
 ```lua
-hafen.ui.window{
-  title = "My addon", size = {120, 60},
-  onDraw = function(g, w, h)
+hafen.ui():window()
+  :title("My addon")
+  :size(120, 60)
+  :onDraw(function(g, w, h)
     g:color(255, 200, 0)
     g:frect(0, 0, w, 3)
     g:text("mine", 6, 8)
-  end,
-}
+  end)
 ```
 
 ## Draw
@@ -46,7 +46,7 @@ hafen.event():on("OnLoad", function()
   icon = hafen.asset("icon.png")               -- load once from addons/<me>/icon.png
 end)
 
-hafen.ui.overlay(function(g, w, h)
+hafen.ui():overlay():onDraw(function(g, w, h)
   if icon then
     g:image(icon, 4, 4)                        -- native size
     g:image(icon, 4, 40, 16, 16)               -- the same image scaled to 16x16
