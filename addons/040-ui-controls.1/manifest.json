@@ -1,0 +1,9 @@
+{
+  "name": "040.1 — the ownership contract, and hafen.ui():button()",
+  "id": "040-ui-controls.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 040.1: provenance generalised from a class to a contract, and the first control built on it. It proves that hafen.ui():button() puts a REAL haven.Button in the tree -- :type() reads Button and not the bridge's adapter, :role() reads button, and both a role selector and an @Class one find it -- that the owned verbs (:parent, :position, :size, :visible, :text, :onPress, :destroy) answer on a button the addon built while every one of them refuses on a NATIVE button of the same class, that a control refuses the surface-only callbacks naming what does take them, that the builder refuses an argument (R4) and a nil write (R5), and that destroying what it built leaves the widget tree exactly the size it found it.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

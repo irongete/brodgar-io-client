@@ -597,3 +597,26 @@
   the HUD with a widget id — `GameUI.vhand` is only the `WItem` that draws it. It therefore interns, ages and
   goes stale exactly like a container's item; what it lacks is a container, so it is the one item with no
   cell and no slot.
+- **(040.1) `SIWidget` caches its rasterised face, and `Widget.resize` does not invalidate it.** Every
+  image-backed control (`Button`, `IButton`, `CheckBox`, …) draws through `SIWidget.draw(GOut)`, which builds
+  a `TexI` from `draw(BufferedImage)` **once** and blits it thereafter; `redraw()` is what disposes it, and
+  `Widget.resize(Coord)` never calls it. So an adapter that does not override `resize` gives you a control
+  whose box moved and whose picture did not — a bug that looks like a layout bug and is a cache bug. One
+  `resize` override calling `redraw()` per adapter, and it is not optional.
+- **(040.1) `Button`'s two-argument constructor sends the server a message, and its three-argument one
+  guesses its own height.** `new Button(w, text)` sets `action = () -> wdgmsg("activate")` — harmless on a
+  client-only widget (the message dies at `ui.root`) but exactly the wrong default for a control that must be
+  client-side by construction, so take the `Runnable` overload with `null` and override `click()`. And
+  `largep(w)` decides *short vs tall* by comparing the width against the button's own **UI-scaled** images:
+  the same default width builds the plain button on one client and the tall decorated one on another. Pass
+  `lg` explicitly, or a default has no fixed look.
+- **(040.1) Every window's chrome carries a native `IButton`, which is what makes "find a widget I do not
+  own" reliable in a suite.** `Window.DefaultDeco.cbtn` is the close box: a real `IButton`, added by the deco,
+  owned by nobody. A suite that has just built a window of its own therefore always has a borrowed
+  `role == "button"` in the tree to assert a refusal against — no dependence on which client windows happen to
+  be open, which is the difference between a check that runs and a check that is skipped on a quiet login.
+- **(040.1) Nineteen adapters cannot share a base class, so share an OBJECT and a default-method mixin.** Each
+  control adapter must extend the `haven` class it wraps, so the ownership state (owner, self, root, dead,
+  pending) lives in one small holder the adapter keeps as a field, and the contract's methods are `default`
+  implementations over it (Java 8 allows them at `source 1.8`). An adapter's whole ownership boilerplate is
+  then a field and a getter, which is what keeps "one adapter per control" from meaning thirty lines each.

@@ -30,12 +30,16 @@ public final class Addon {
     /** Live timers owned by this addon (see {@link AddonManager.Timer}). */
     public final List<AddonManager.Timer> timers = new CopyOnWriteArrayList<AddonManager.Timer>();
     /**
-     * Live custom UI widgets/windows owned by this addon ({@code hafen.ui():widget()}/{@code :window()}, Phase
-     * 2a). Each entry is the {@link AddonWidget} content; {@link AddonWidget#kill()} destroys its <i>root</i>
-     * (the window chrome, or the widget itself), which cascades to children — so the addon's UI vanishes
-     * cleanly on reload/disable.
+     * Live custom UI widgets/windows/controls owned by this addon ({@code hafen.ui():widget()}/{@code :window()},
+     * Phase 2a, and the control builders of 040). Each entry is the owned content; {@link Owned#kill()} destroys
+     * its <i>root</i> (the window chrome, or the widget itself), which cascades to children — so the addon's UI
+     * vanishes cleanly on reload/disable.
+     *
+     * <p>Typed by the {@link Owned} <b>contract</b> rather than by {@link AddonWidget} (040.1), which is what
+     * lets one teardown path reach a painted surface and a {@code haven} control an addon built without a
+     * second registry to keep in step.
      */
-    public final List<AddonWidget> widgets = new CopyOnWriteArrayList<AddonWidget>();
+    final List<Owned> widgets = new CopyOnWriteArrayList<Owned>();
     /**
      * Live HUD overlays owned by this addon ({@code hafen.ui():overlay()}, Phase 2b): draw callbacks painted on
      * top of the HUD each frame. The engine iterates this list to paint (so clearing it stops the overlays

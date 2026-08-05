@@ -726,3 +726,69 @@ is the honest read: it says *not written this way* rather than reporting a degen
 Generally: *a refusal that exists because the input has no order must be re-derived, not copied, when the input
 gains one.*
 **See.** [D-090](widgets-ui.md), [D-122](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-144 — a control is a WIDGET, not a nineteenth entity ✅ (2026-08-05)
+**Decision.** The client's own controls reach Lua as the existing Widget entity. A builder hands back a
+`LuaWidget`, and what a control *adds* is a verb on that one type, answering where it applies and reading
+`nil` where it does not — never a `Button` object, a `List` object and sixteen more.
+**Rationale.** (2026-08-05, 040.1.) `docs/addons/api/ui/README.md` opens with *"there is one type"*, and the
+whole owned/borrowed half, the geometry writes, the selectors, `:style()`/`:rule()` and the intern cache are
+written against it. A per-control entity would have re-implemented `:position`/`:size`/`:visible`/`:destroy`
+nineteen times, and every selector and role that names the engine's class would have had to learn a second
+answer. The alternative that looked cheapest — wrapping each control in an `AddonWidget` so provenance kept
+working unchanged — was worse in the one way that matters: it adds a tree level and makes `:type()` report
+the wrapper, which breaks every selector that names the real class.
+**Consequences.** 040.1 shipped `:button()` with two new names (`:text(s)`'s write half and `:onPress`) and
+nothing else; every other verb a control answers was already there and cost nothing. Generally: *when a new
+kind of thing is already an instance of a type the API has, extend the type's vocabulary, not the type list.*
+**See.** [D-061](architecture-api.md), [D-121](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-145 — provenance is a CONTRACT, not a class ✅ (2026-08-05)
+**Decision.** *Is this widget mine?* is decided by an `Owned` interface — owner, root, dead, plus the
+lifecycle the bridge already performs on an owned widget (`kill`, `pending`/`armed`, and the widget itself) —
+rather than by `instanceof AddonWidget`. `AddonWidget` implements it with the methods it already had; every
+control adapter implements it too, and the owned registry is typed by it.
+**Rationale.** (2026-08-05, 040.1.) 029.2's real decision was *derived from the tree, never stored*, because
+the entity intern cache is weak on both axes and a flag on a handle would silently be lost. That reasoning
+survives untouched; only the TYPE was too narrow, and it was too narrow for an accidental reason — at the time
+there was exactly one kind of owned widget, so the class and the contract were indistinguishable. A
+`haven.Button` an addon builds is the second kind, and under the old test it would have read as *borrowed*:
+`:destroy()` and every setter refusing on the addon's own button.
+**Consequences.** One test, one file, one type change — and a single teardown path that reaches a painted
+surface and a client control alike, with no second registry to keep in step. The contract needed four methods
+more than the plan's triple, and each is a thing the bridge already did to an owned widget rather than
+something invented for the interface. Generally: *when a rule was written against the only implementation
+that existed, widening it to the contract is a re-derivation, not a redesign — check which of the two the code
+actually needed.*
+**See.** [D-041](widgets-ui.md), [D-119](architecture-api.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-146 — where the bridge subclasses an engine widget, `:type()` reports the ENGINE's class ✅ (2026-08-05)
+**Decision.** A control adapter is climbed past by the widget→type-name walk, exactly as an anonymous
+subclass already is, so `:type()` reads `Button` whether the addon built the button or found one. The marker
+is the adapter contract itself, which is precisely the set of such classes.
+**Rationale.** (2026-08-05, 040.1.) Every control needs a thin subclass anyway (the engine wants overrides,
+not settable fields), and that subclass is an implementation detail of the bridge. If its name reached
+`:type()`, then `@Class` selectors, the role classifier, the stylesheet's tree keys and every addon that
+branches on a class name would quietly stop matching a control an addon built — a failure with no error
+message, in the direction that always looks like "it just didn't match". The precedent was already in the
+file: 039.6 builds the window chrome as an *anonymous* subclass for this exact reason.
+**Consequences.** The type-name walk grew one clause and the suite asserts the name twice — once directly,
+once through an `@Class` selector that has to find the control. Generally: *a name the bridge invents must
+never reach a vocabulary the user writes selectors in.*
+**See.** [D-063](widgets-ui.md), [D-144](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-147 — a control is not a SURFACE: the paint and input callbacks refuse on one 🔄 (2026-08-05)
+**Decision.** The eight draw/input callbacks (`:onDraw` … `:onClose`) and `:font(h)` answer only on a widget
+the addon *paints*. On a control the reads answer `nil` and a write throws, naming the surface builders — and
+naming `:onPress(fn)` as how a button reports that it fired.
+**Rationale.** (2026-08-05, 040.1.) They are things an `AddonWidget` HAS: eight callback slots and a default
+font for its own `g:text` draws. A control has nowhere to put them, because the client draws it and the
+stylesheet dresses it. Accepting the call and dropping it silently was never an option; the only real question
+was whether to *implement* them instead, which for the input three means a callback array plus four input
+overrides in every adapter.
+**Consequences.** Marked 🔄, not ✅: the feature's own review decided `:onClick(fn)` should stay the raw mouse
+event *on a button as on every other widget*, and that half is not built. The suite deliberately does not pin
+this refusal, so wiring it later needs no edit to a shipped suite — which is the only reason a 🔄 decision can
+sit in the tree without rotting. Generally: *record the boundary you shipped even when the design says it will
+move, and leave the assertion out of the suite exactly where you expect it to.*
+**See.** [D-144](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).

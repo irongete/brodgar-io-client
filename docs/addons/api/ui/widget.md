@@ -12,7 +12,8 @@ if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items
 
 | Expression | Returns |
 |---|---|
-| `hafen.ui():window()` / `hafen.ui():widget()` | one you [created](custom.md) — owned |
+| `hafen.ui():window()` / `hafen.ui():widget()` | a surface you [painted](custom.md) — owned |
+| `hafen.ui():button()` | a [control](controls.md) you built — owned, and drawn by the client |
 | `hafen.ui():find(selector)` | the **first** widget matching a [selector](selectors.md), in tree order, or `nil` |
 | `hafen.ui():all(selector)` | **every** match, in tree order — an empty array, never `nil` |
 | `hafen.ui():root()` | the top of the whole client tree; walk down to any open window |
@@ -55,7 +56,8 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:position()` | `{x=, y=}` | position within the parent, in widget-local px — [`:position(x, y)` moves it](native.md) |
 | `:size()` | `{x=, y=}` | size; for a window its **outer** box |
 | `:visible()` | boolean | whether it is visible — [`:visible(b)` writes it](native.md) |
-| `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, Window, TextEntry), else `nil` |
+| `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, Window, TextEntry), else `nil` — [`:text(s)` writes it on a control you built](controls.md#setters) |
+| `:onPress()` | function \| nil | the handler on a [control](controls.md#setters) that fires, or `nil` where there is nothing to press |
 | `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |
@@ -85,9 +87,10 @@ server-bound ancestor.
 
 ## Owned vs borrowed
 
-A widget is **owned** if *your* addon created it with [`hafen.ui():window()`/`:widget()`](custom.md),
-and **borrowed** otherwise — a native client widget, or another addon's. Reads answer on both;
-`:info().owned` tells you which you are holding, so you can ask rather than provoke the error.
+A widget is **owned** if *your* addon created it — a surface you [painted](custom.md) or a
+[control](controls.md) you built — and **borrowed** otherwise: a native client widget, or another addon's.
+Reads answer on both; `:info().owned` tells you which you are holding, so you can ask rather than provoke
+the error.
 
 | Method | Owned | Borrowed |
 |---|---|---|
@@ -95,6 +98,8 @@ and **borrowed** otherwise — a native client widget, or another addon's. Reads
 | `:size(w, h)` | resize the content, chrome repacks around it, and chain | **works**, same |
 | `:pack()` | shrink the chrome to fit its content (a no-op on a bare widget), and chain | **error** — that is not yours to do |
 | `:destroy()` | remove it and everything in it | **error**, same reason |
+| `:text(s)` | write the caption of a [control](controls.md) you built | **error** — that caption is the client's |
+| `:onPress(fn)` | handle a [control](controls.md) firing | **error**, same reason |
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |
 | `:rule()` | restyle it and its subtree through your own level | **works**, same |
@@ -122,6 +127,7 @@ coordinates instead of walking you somewhere that merely has the same two number
 
 ## See also
 
+- [controls](controls.md) — the client's own controls, built and owned by your addon
 - [selectors](selectors.md) — how to name the widget you want in the first place
 - [native](native.md) — what moving and hiding a borrowed widget actually does
 - [replace](replace.md) — standing your own window in place of a native one

@@ -4,6 +4,9 @@ Three builders make a surface of your own — a window with chrome, a bare recta
 whole HUD. Each is built **bare** and configured by chained setters. All three are ungated, and all three
 are torn down with your addon.
 
+This page is about the surfaces you **paint**. To put one of the client's own controls in one instead of
+drawing it, see [controls](controls.md).
+
 ```lua
 local win = hafen.ui():window()
   :title("Clock")
@@ -45,7 +48,8 @@ size it did not choose — and every property is a setter on the [Widget](widget
 
 Every setter returns the widget, so a whole surface is one expression; every one has a matching bare read,
 so nothing you configured needs a variable of its own to be readable later. All thirteen answer only on a
-widget **your** addon built — a native one has nowhere to put a caption or a callback of yours.
+surface **your** addon painted — a native widget has nowhere to put a caption or a callback of yours, and
+neither does a [control](controls.md), which the client draws and drives.
 
 Sizes and positions are raw pixels, not DPI-scaled. `:position` is within the parent; on a window `:size`
 is the **content** size, so the outer box it reads back is that plus the chrome.

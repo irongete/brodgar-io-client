@@ -260,7 +260,7 @@ public final class LuaWidget {
                 }
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
-                AddonWidget c = owned(owner, w, "parent(w)");
+                Owned c = owned(owner, w, "parent(w)");
                 if(!c.pending())
                     throw new LuaError("widget:parent(w) chooses the parent while the widget is being BUILT, and"
                         + " this one is already on screen — move it with widget:position(x, y) instead");
@@ -349,7 +349,7 @@ public final class LuaWidget {
                 }
                 Coord to = Coord.of(a.checkint(2), a.checkint(3));
                 if(w != null) {
-                    AddonWidget content = ownedContent(owner, w);
+                    Owned content = ownedContent(owner, w);
                     UI u = AddonManager.ui;
                     synchronized(u) {
                         if(content == null) {             // BORROWED (036.1): the layer remembers, then resizes
@@ -358,8 +358,8 @@ public final class LuaWidget {
                             rec.sizeSeq = Layout.nextSeq();
                             Layout.apply(w);
                         } else {
-                            content.resize(to);
-                            if(content != w)              // a window: refit the chrome around the resized content
+                            content.widget().resize(to);
+                            if(content.widget() != w)     // a window: refit the chrome around the resized content
                                 w.pack();
                             Layout.moved(w);              // 036.3: a corner anchor reads the box that just changed
                         }
@@ -455,8 +455,8 @@ public final class LuaWidget {
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "pack"));
                 if(w != null) {
-                    AddonWidget content = owned(owner, w, "pack()");
-                    if(content != w) {
+                    Owned content = owned(owner, w, "pack()");
+                    if(content.widget() != w) {
                         UI u = AddonManager.ui;
                         synchronized(u) { w.pack(); }
                     }
@@ -470,7 +470,7 @@ public final class LuaWidget {
             public LuaValue call(LuaValue self) {
                 Widget w = live(handle(self, "destroy"));
                 if(w != null) {
-                    AddonWidget content = owned(owner, w, "destroy()");
+                    Owned content = owned(owner, w, "destroy()");
                     UI u = AddonManager.ui;
                     synchronized(u) { content.kill(); }
                     UiApi.dropPending(content);   // 039.6: one built and ended in the same statement is never placed
@@ -505,8 +505,9 @@ public final class LuaWidget {
                     return self;
                 owned(owner, w, "title(s)");
                 if(!(w instanceof Window))
-                    throw new LuaError("widget:title(s) is a WINDOW's caption and this is a bare widget —"
-                        + " hafen.ui():window() is the builder with chrome to write it on");
+                    throw new LuaError("widget:title(s) is a WINDOW's caption, and " + typeName(w) + " has no"
+                        + " chrome to write it on — hafen.ui():window() is the builder that does. A control's"
+                        + " own caption is widget:text(s).");
                 UI u = AddonManager.ui;
                 synchronized(u) { ((Window)w).chcap(v.tojstring()); }
                 return self;
@@ -520,12 +521,12 @@ public final class LuaWidget {
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "font"));
                 LuaValue v = Args.written(a, 2, "widget:font", "h");
-                AddonWidget c = (w == null) ? null : ownedContent(owner, w);
+                AddonWidget c = surfaceOrNull(owner, w);
                 if(v == null)
                     return (c == null) ? LuaValue.NIL : c.font();
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
-                owned(owner, w, "font(h)").font(v);
+                surface(owner, w, "font(h)").font(v);
                 return self;
             }
         });
@@ -540,7 +541,7 @@ public final class LuaWidget {
                     LuaValue self = a.arg1();
                     Widget w = live(handle(self, verb));
                     LuaValue v = Args.written(a, 2, "widget:" + verb, "fn");
-                    AddonWidget c = (w == null) ? null : ownedContent(owner, w);
+                    AddonWidget c = surfaceOrNull(owner, w);
                     if(v == null) {
                         LuaValue fn = (c == null) ? null : c.callback(slot);
                         return (fn == null) ? LuaValue.NIL : fn;
@@ -549,7 +550,7 @@ public final class LuaWidget {
                         return self;
                     if(!v.isfunction())
                         throw new LuaError("widget:" + verb + "(fn) expects a function, got " + v.typename());
-                    owned(owner, w, verb + "(fn)").callback(slot, v);
+                    surface(owner, w, verb + "(fn)").callback(slot, v);
                     return self;
                 }
             });
@@ -593,14 +594,46 @@ public final class LuaWidget {
                 return a.arg1();
             }
         });
-        // text() — best-effort text for a text-bearing widget (Label/Button/Window/TextEntry), else nil.
-        m.set("text", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        // text() / text(s) — WHAT THE WIDGET DISPLAYS, and arity is the verb here as everywhere else (R2). The
+        // read is unchanged and answers on ANY text-bearing widget, the client's own included
+        // (Label/Button/Window/TextEntry), else nil. The write (040.1) is new and answers on a CONTROL your
+        // addon built — hafen.ui():button() is the first of them — because that is the only text in the tree
+        // that is yours to change. A window's caption is widget:title(s), and a widget that displays nothing
+        // refuses NAMING what does, rather than failing one line later as a nil call.
+        m.set("text", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:text() → narg 1 · w:text(s) → narg 2
+                LuaValue self = a.arg1();
                 Widget w = live(handle(self, "text"));
-                if(w == null)
-                    return LuaValue.NIL;
-                String t = text(w);
-                return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t);
+                LuaValue v = Args.written(a, 2, "widget:text", "s");
+                if(v == null) {
+                    if(w == null)
+                        return LuaValue.NIL;
+                    String t = text(w);
+                    return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t);
+                }
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                Controls.text(owned(owner, w, "text(s)"), w, v.tojstring());
+                return self;
+            }
+        });
+        // onPress(fn) / onPress() — 040.1: A BUTTON FIRED, and it holds nothing. Distinct from :onClick(fn) on
+        // purpose: :onClick is the raw mouse event every widget you built carries (x, y, button, mods), while
+        // :onPress is the ACTIVATION, which the keyboard raises too. Reads nil on anything with nothing to
+        // press; a write there throws naming the builder that has one.
+        m.set("onPress", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:onPress() → narg 1 · w:onPress(fn) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "onPress"));
+                LuaValue v = Args.written(a, 2, "widget:onPress", "fn");
+                if(v == null)
+                    return Controls.onPress((w == null) ? null : ownedContent(owner, w));
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                if(!v.isfunction())
+                    throw new LuaError("widget:onPress(fn) expects a function, got " + v.typename());
+                Controls.onPress(owned(owner, w, "onPress(fn)"), w, v);
+                return self;
             }
         });
         // exists() — is this widget still attached to the tree? The one read that always answers (D-060: a widget
@@ -708,26 +741,31 @@ public final class LuaWidget {
      *
      * <p><b>Derived, never stored.</b> The intern cache is weak on both axes, so an entity can be collected and
      * re-minted at any time; a provenance flag on the handle would silently be lost. Instead the tree itself is
-     * the record: {@code hafen.ui():window()}/{@code :widget()} intern the entity on the widget's <b>root</b> (the
-     * chrome, or the content itself), and an {@link AddonWidget} already knows both its {@link AddonWidget#profOwner
-     * owner} and its {@link AddonWidget#rootw root} — so {@code w} is owned exactly when {@code w} is, or directly
-     * contains, this addon's content whose root is {@code w}. Per-addon by construction: addon B looking at addon
-     * A's window gets a BORROWED entity, which is the correct answer.
+     * the record: {@code hafen.ui():window()}/{@code :widget()} and the control builders intern the entity on the
+     * widget's <b>root</b> (the chrome, or the content itself), and an {@link Owned} already knows both its
+     * {@link Owned#profOwner owner} and its {@link Owned#rootw root} — so {@code w} is owned exactly when
+     * {@code w} is, or directly contains, this addon's content whose root is {@code w}. Per-addon by
+     * construction: addon B looking at addon A's window gets a BORROWED entity, which is the correct answer.
+     *
+     * <p><b>The test is a CONTRACT, not a class</b> (040.1). It used to ask {@code instanceof AddonWidget}, which
+     * is the addon's own painted surface — so a {@code haven.Button} an addon built would have read as borrowed
+     * and the owned half would have refused on it. {@link Owned} is the same three questions against a wider
+     * type; the mechanism keeps its shape, and every control adapter answers them.
      */
-    static AddonWidget ownedContent(Addon owner, Widget w) {
+    static Owned ownedContent(Addon owner, Widget w) {
         if(w == null)
             return null;
-        if(w instanceof AddonWidget)
-            return isOwn(owner, (AddonWidget)w, w) ? (AddonWidget)w : null;
+        if(w instanceof Owned)
+            return isOwn(owner, (Owned)w, w) ? (Owned)w : null;
         for(Widget c = w.child; c != null; c = c.next) {   // the chrome case: our content is a direct child
-            if((c instanceof AddonWidget) && isOwn(owner, (AddonWidget)c, w))
-                return (AddonWidget)c;
+            if((c instanceof Owned) && isOwn(owner, (Owned)c, w))
+                return (Owned)c;
         }
         return null;
     }
 
     /** Is {@code c} this addon's live content, rooted at {@code root}? (A killed widget owns nothing any more.) */
-    private static boolean isOwn(Addon owner, AddonWidget c, Widget root) {
+    private static boolean isOwn(Addon owner, Owned c, Widget root) {
         return (c.profOwner() == owner) && (c.rootw() == root) && !c.dead();
     }
 
@@ -737,14 +775,37 @@ public final class LuaWidget {
      * now (feature E) and route through {@link Addon#movedNative} instead — leaving {@code :pack()} and
      * {@code :destroy()}, which are simply not the addon's to do on a widget the client owns.
      */
-    private static AddonWidget owned(Addon owner, Widget w, String verb) {
-        AddonWidget c = ownedContent(owner, w);
+    private static Owned owned(Addon owner, Widget w, String verb) {
+        Owned c = ownedContent(owner, w);
         if(c == null)
             throw new LuaError("widget:" + verb + " — " + typeName(w) + " is a NATIVE widget (your addon did not"
-                + " create it); the builder verbs answer only on a widget you created with hafen.ui():window()"
-                + " or hafen.ui():widget(). To lay a native widget out, use widget:position(x, y) / widget:size(w, h) —"
-                + " which restore themselves when your addon goes away.");
+                + " create it); the builder verbs answer only on a widget you created with hafen.ui():window(),"
+                + " hafen.ui():widget() or one of the control builders. To lay a native widget out, use"
+                + " widget:position(x, y) / widget:size(w, h) — which restore themselves when your addon goes away.");
         return c;
+    }
+
+    /**
+     * The addon's own <b>surface</b> behind {@code w} — an {@link AddonWidget}, the thing an addon <i>paints</i>
+     * — or a clear error. The narrower half of {@link #owned}: a caption, a default font and eight Lua draw/input
+     * callbacks are things a surface HAS, and a <b>control</b> has nowhere to put them, because the client draws
+     * and drives it (040.1). The matching reads answer {@code nil} on a control, exactly as they do on a native
+     * widget, rather than throwing.
+     */
+    private static AddonWidget surface(Addon owner, Widget w, String verb) {
+        Owned c = owned(owner, w, verb);
+        if(!(c instanceof AddonWidget))
+            throw new LuaError("widget:" + verb + " belongs to a SURFACE you painted yourself (hafen.ui():window()"
+                + " or hafen.ui():widget()); " + typeName(w) + " is a control, which the client draws and drives."
+                + " A button's activation is widget:onPress(fn), and a control's look comes from the stylesheet:"
+                + " hafen.ui():sheet():rule(selector).");
+        return (AddonWidget)c;
+    }
+
+    /** The surface behind {@code w} for a READ, or {@code null} — a native widget and a control both answer nil. */
+    private static AddonWidget surfaceOrNull(Addon owner, Widget w) {
+        Owned c = (w == null) ? null : ownedContent(owner, w);
+        return (c instanceof AddonWidget) ? (AddonWidget)c : null;
     }
 
     // ---- the hidden-native restore list (029.2, what replaced hafen.ui.adopt) -----------------------
@@ -1203,11 +1264,17 @@ public final class LuaWidget {
      * is the empty string; so for an anonymous/local class we climb to the nearest <b>named</b> superclass (a
      * {@code new Button(...){}} reports {@code "Button"}), which is the useful identity for building adapters.
      * Falls back to {@code "?"} only in the impossible case of no named ancestor.
+     *
+     * <p><b>A control adapter is climbed past for the same reason</b> (040.1): {@link CtlButton} is a
+     * {@link haven.Button}, and the {@code Ctl} prefix is an implementation detail of this bridge that must
+     * never become a name in the API — {@code w:type()} reads {@code "Button"} whether the addon built the
+     * button or found one, so every selector, role and stylesheet key that names the engine's class keeps
+     * matching. The marker is {@link Owned.Control}, which is exactly the set of adapter classes.
      */
     static String typeName(Widget w) {
         Class<?> c = w.getClass();
         String n = c.getSimpleName();
-        while(n.isEmpty() && (c.getSuperclass() != null)) {
+        while((n.isEmpty() || Owned.Control.class.isAssignableFrom(c)) && (c.getSuperclass() != null)) {
             c = c.getSuperclass();
             n = c.getSimpleName();
         }

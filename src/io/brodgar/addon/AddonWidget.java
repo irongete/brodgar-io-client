@@ -62,8 +62,14 @@ import org.luaj.vm2.Varargs;
  * table (from {@code ui.modflags()}, via {@link AddonManager#modsTable}) so an addon can branch on the
  * modifier state at press time (e.g. Shift+drag). Additive and back-compatible — a handler that ignores
  * the extra argument is unaffected.
+ *
+ * <p><b>{@link Owned} since 040.1, and nothing here changed to say so.</b> Provenance used to be <i>is this
+ * widget an {@code AddonWidget} of mine?</i>; it is now <i>does this widget carry the ownership contract?</i>,
+ * and this class already had every method the contract asks for. What that buys is a second kind of owned
+ * widget — a {@code haven} control an addon built ({@link CtlButton} and its siblings) — answering the owned
+ * verbs without this one growing a wrapper role it should not have.
  */
-final class AddonWidget extends Widget implements DropTarget {
+final class AddonWidget extends Widget implements DropTarget, Owned {
     /**
      * The callback setters, in slot order — the Lua verb names, which are also the keys the retired
      * {@code opts} table used. {@link #slot(String)} is the only mapping between the two.
@@ -123,12 +129,12 @@ final class AddonWidget extends Widget implements DropTarget {
     // ---------------------------------------------------------------- pending: built, not yet drawing
 
     /** Is this widget still waiting for its arming tick? (Built and in the tree, but painting nothing.) */
-    boolean pending() {
+    public boolean pending() {
         return pending;
     }
 
     /** Cleared by {@link UiApi#armPending()} on the first tick after the statement that built it. */
-    void armed() {
+    public void armed() {
         this.pending = false;
     }
 
@@ -138,7 +144,7 @@ final class AddonWidget extends Widget implements DropTarget {
      * appear itemised in {@code :widgets()} and rolled up in that addon's {@code :addons()} row instead of the
      * two views competing.
      */
-    Addon profOwner() {
+    public Addon profOwner() {
         return owner;
     }
 
@@ -155,17 +161,22 @@ final class AddonWidget extends Widget implements DropTarget {
      * Derived, not stored on the handle — the intern cache is weak on both axes, so a re-minted entity must be
      * able to rediscover its own provenance.
      */
-    Widget rootw() {
+    public Widget rootw() {
         return root;
     }
 
+    /** The content widget itself ({@link Owned#widget()}) — for a surface, this very widget. */
+    public Widget widget() {
+        return this;
+    }
+
     /** Already torn down? (guards a double kill from close-button + teardown.) */
-    boolean dead() {
+    public boolean dead() {
         return dead;
     }
 
     /** Mark torn-down (no further callbacks) and remove this widget's root from the tree. Bridge-only. */
-    void kill() {
+    public void kill() {
         if(dead)
             return;
         dead = true;

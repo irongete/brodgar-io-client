@@ -322,6 +322,23 @@ final class UiApi {
                 return newUi(owner, a, false);
             }
         });
+        // :button() — 040.1, THE CONTROLS. The client already has them — Button, TextEntry, SListBox and fifteen
+        // more, the same classes its own windows are built from — and until now nothing in the bridge so much as
+        // named one: an addon that wanted a button drew a rectangle, drew a caption in it, read :onClick, and
+        // reimplemented hover, press and focus outside the theme permanently. A real control is dressed by the
+        // stylesheet for free, which is the whole payoff.
+        //   A CONTROL IS A WIDGET, not a nineteenth entity: :position :size :parent :visible :destroy :style
+        // :type :role and every selector answer on one with nothing written for them, and a verb answers where
+        // it applies. What a button adds is :text(s) (its caption) and :onPress(fn) (it fired, and holds
+        // nothing) — :onClick(fn) stays what it always was, the raw mouse event. Built bare and configured by
+        // chained setters like every other builder, arming rule included, so it is findable from the first
+        // instant and never drawn half-built.
+        m.set("button", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "button");
+                return Controls.button(owner, a);
+            }
+        });
         // :overlay() — paint on top of the HUD without owning a widget: :onDraw(fn) runs fn(g, w, h) every frame
         // with the shared GOut wrapper and the screen size, in absolute screen coords. It MINTS one rather than
         // handing back a collection, which is the one place `overlay` is a builder and not a set — gob:overlay()
@@ -494,9 +511,7 @@ final class UiApi {
             throw new LuaError("hafen.ui():" + what + "() takes no arguments — it is built bare and configured"
                 + " by chained setters: hafen.ui():" + what + "()"
                 + (window ? ":title(\"…\")" : "") + ":size(w, h):position(x, y):onDraw(fn)");
-        UI u = ui;
-        if((u == null) || (u.root == null))
-            throw new LuaError("hafen.ui():" + what + "(): no UI is up yet");
+        UI u = requireUi(what);
 
         final AddonWidget content = new AddonWidget(owner, Coord.of(DEF_W, DEF_H));
         final Widget rootw;
@@ -522,13 +537,33 @@ final class UiApi {
         } else {
             rootw = content;
         }
+        return attach(u, owner, content);
+    }
+
+    /** The UI, or a clear error naming the builder that has nothing to attach to yet. */
+    static UI requireUi(String what) {
+        UI u = ui;
+        if((u == null) || (u.root == null))
+            throw new LuaError("hafen.ui():" + what + "(): no UI is up yet");
+        return u;
+    }
+
+    /**
+     * Put an owned thing in the tree — the tail every builder in this section shares (039.6's window and widget,
+     * 040.1's controls): the client's own default place, attached to {@code ui.root} at once, registered in the
+     * addon's owned-resource registry (torn down on reload/disable, P2) and queued for its arming tick.
+     *
+     * <p>029.2: what you CREATE and what you FIND are the same type. The entity is interned on the <b>root</b>
+     * (the window chrome, or the widget/control itself) — the widget the addon positions, shows and destroys —
+     * and {@link LuaWidget#ownedContent} derives OWNED from the tree, so {@code hafen.ui():at(x, y)} over this
+     * same widget hands back this very value.
+     */
+    static LuaValue attach(UI u, Addon owner, Owned c) {
+        Widget rootw = c.rootw();
         rootw.c = Coord.of(DEF_X, DEF_Y);   // the client's own default place, movable before it is ever painted
         u.root.add(rootw);                  // add() locks on ui; :parent(w) re-homes it while it is still pending
-        owner.widgets.add(content);
-        synchronized(unarmed) { unarmed.add(content); }
-        // 029.2: what you CREATE and what you FIND are the same type. The entity is interned on the ROOT (the window
-        // chrome, or the bare widget) — the widget the addon positions, shows and destroys — and LuaWidget derives
-        // OWNED from the tree, so hafen.ui():at(x, y) over this same window hands back this very value.
+        owner.widgets.add(c);
+        synchronized(unarmed) { unarmed.add(c); }
         return LuaWidget.of(owner, rootw);
     }
 
@@ -537,8 +572,8 @@ final class UiApi {
     /** The client's own defaults for a bare surface: what a window is before any setter touches it. */
     private static final int DEF_W = 200, DEF_H = 140, DEF_X = 100, DEF_Y = 100;
 
-    /** Surfaces built since the last tick and not yet drawing. Written and drained on the UI thread only. */
-    private static final List<AddonWidget> unarmed = new ArrayList<AddonWidget>();
+    /** Surfaces and controls built since the last tick and not yet drawing. Drained on the UI thread only. */
+    private static final List<Owned> unarmed = new ArrayList<Owned>();
 
     /**
      * Arm every surface built since the last tick — the "arming tick" of §2.5, called first thing from
@@ -554,17 +589,17 @@ final class UiApi {
     static void armPending() {
         if(unarmed.isEmpty())
             return;
-        List<AddonWidget> due;
+        List<Owned> due;
         synchronized(unarmed) {
-            due = new ArrayList<AddonWidget>(unarmed);
+            due = new ArrayList<Owned>(unarmed);
             unarmed.clear();
         }
-        for(AddonWidget c : due)
+        for(Owned c : due)
             c.armed();
     }
 
     /** Drop a surface from the arming queue (destroyed, or torn down, before it ever painted). */
-    static void dropPending(AddonWidget c) {
+    static void dropPending(Owned c) {
         synchronized(unarmed) { unarmed.remove(c); }
     }
 
@@ -1351,7 +1386,10 @@ final class UiApi {
      * a container it no longer represents. Re-installing the SAME view is a no-op that still re-hides the window.
      */
     static void replaceWith(Addon owner, Widget w, LuaValue viewv) {
-        AddonWidget view = LuaWidget.ownedContent(owner, LuaWidget.live(LuaWidget.resolve(viewv)));
+        Owned own = LuaWidget.ownedContent(owner, LuaWidget.live(LuaWidget.resolve(viewv)));
+        // A SURFACE, never a control (040.1): what stands in for a window is a window of yours, and a lone
+        // button inheriting a container's toggle would be a stand-in that stands for nothing.
+        AddonWidget view = (own instanceof AddonWidget) ? (AddonWidget)own : null;
         if(view == null)
             throw new LuaError("widget:replace(view) expects a widget YOUR addon created (hafen.ui():window() or"
                 + " hafen.ui():widget()) to stand in for the native one — pass nil to undo a replacement.");

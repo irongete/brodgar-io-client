@@ -156,15 +156,19 @@ public final class AddonRegistry {
         a.timers.clear();
     }
 
-    /** Destroy every custom UI widget/window this addon owns (2a). Widget removal locks on {@code ui}. */
+    /**
+     * Destroy every custom UI widget/window/control this addon owns (2a, and 040's controls). Widget removal
+     * locks on {@code ui}. The list is typed by the {@link Owned} contract, so one path reaches a painted
+     * surface and a {@code haven} control the addon built alike.
+     */
     private static void destroyWidgets(Addon a) {
         if(a.widgets.isEmpty())
             return;
         UI u = ui;
-        List<AddonWidget> ws = new ArrayList<AddonWidget>(a.widgets);
+        List<Owned> ws = new ArrayList<Owned>(a.widgets);
         a.widgets.clear();
         Runnable kill = () -> {
-            for(AddonWidget w : ws) {
+            for(Owned w : ws) {
                 try {
                     w.kill();   // stop callbacks + destroy its root (the window chrome, or the widget)
                 } catch(RuntimeException e) {
