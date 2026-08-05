@@ -12,10 +12,19 @@ Customized Haven & Hearth ("Hafen") client, a fork of `dolda2000/hafen-client`. 
   specs and the area's own trees — **after** the maintainer's verification. `/plan` and
   `/implement` commit nothing; outside `/end`, run `git commit` only when the maintainer
   explicitly says so.
-- **Documentation is ONE tier**, whichever the working area's `AREA.md` declares (for `addons`:
-  the user-facing **API reference** in **`docs/addons/api/*.md`**, + its `api/README.md` index and
-  the top `docs/addons/README.md` "API at a glance" table when a new section first ships). There
-  are no per-task narrative notes.
+- **Documentation is ONE tier**, whichever the working area's `AREA.md` declares (for `addons`: the
+  user-facing reference under **`docs/addons/**`** — nested where a namespace is a directory, plus
+  `runtime.md` and `examples.md` — with its `api/README.md` index and the top
+  `docs/addons/README.md` "API at a glance" table when a new section first ships). There are no
+  per-task narrative notes.
+- **An area whose docs tier lives under `docs/` writes to area `docs`'s standard**, which that area
+  owns and maintains. Read it BEFORE writing a page, not after: `specs/docs/design/style-guide.md`
+  — **§12 is the checklist every docs task runs and reports** (links and anchors falsified both
+  ways, `wc -l` <= 300, headings, the retired-name greps, every `hafen.*` name found in `src/`) —
+  and the one-liners from `grep "^### D-" specs/docs/decisions/docs-standard.md`. A page that does
+  not meet the standard when the task ends is a page a later review has to rewrite. **`docs/` never
+  mentions `specs/`, task or feature numbers, decision ids, `src/` paths or measured figures** — a
+  reader of `docs/` cannot tell that `specs/` exists.
 - **`specs/`, `docs/`, `src/` and the area's own trees all live in the project repo** and ride the
   same `/end` commit. A feature's specs (written by `/plan`) land with the first `/end` of that
   feature. Nothing is ever pushed. **`/archive` is a frozen backup — NEVER read it.**
