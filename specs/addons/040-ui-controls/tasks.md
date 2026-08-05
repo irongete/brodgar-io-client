@@ -77,7 +77,7 @@
       a child is clipped to the port's box. `[manual]`: wheel over it and confirm it scrolls.
       <!-- extra context: `src/haven/Scrollport.java`, `Scrollbar.java` -->
 
-- [ ] **040.9 — The row bridge, and `:list()`.** `LuaRows` implementing `SListWidget`'s `items()` /
+- [x] **040.9 — The row bridge, and `:list()`.** `LuaRows` implementing `SListWidget`'s `items()` /
       `makeitem(...)` over a Lua array, with the client's ready-made rows — `TextItem.of` for a string,
       `IconText.of` for `{icon =, text =}` — then `SListBox` with `:rows`, `:rowHeight`, `:value`,
       `:onChange`. The bridge ships with its consumer (D-108). **Suite proves**: a string table renders rows

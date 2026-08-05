@@ -736,3 +736,15 @@
   in `addons/` (not just this feature's own suites) for generic, class-agnostic calls to it — a tree-walking
   introspector is the shape of caller most likely to be silently broken, and it is never in the task's own
   suite to catch.
+- **(040.9) `SListBox` builds its row widgets LAZILY, from `update()` on the next tick — not synchronously
+  inside `:rows(t)` — and a suite's tree-size baseline has to be measured on the same side of that tick as
+  its final count, or it reddens over widgets that were never a leak.** The first in-game run of the
+  `:list()` suite failed its teardown check by exactly 6: `base` was captured right after building a
+  *persistent* demo list (the one the `[manual]` line needs), but that list's 3 rows' 2 widgets each
+  (an `ItemWidget` wrapper plus its `TextItem`/`IconText` content) had not been built yet at that instant —
+  they appeared between `base` and the final count, on the very next frame, and stayed there for the rest of
+  the run. Fixed by deferring the whole rest of the suite one tick (`hafen.timer():after(0.5, phase1)`)
+  so `base` is measured once every list built *before* it — including ones outside the teardown scope
+  entirely — has already had its lazy build. Generalise: a suite that measures `treeCount()` as a baseline
+  must let every `SListBox`/model-backed control already on screen finish its FIRST `update()` first, not
+  just the ones the teardown check itself covers.

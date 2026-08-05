@@ -42,12 +42,12 @@ one role and one stylesheet key point at both.
 | `hafen.ui():scroll()` | [Widget](widget.md) | a scrolling container for other controls |
 | `hafen.ui():scrollbar()` | [Widget](widget.md) | a bare scroll thumb, for driving something yourself |
 
-It takes no argument. A control is born bare, with the client's own defaults, and everything about it is a
-chained setter on the Widget it hands back — the same shape [`:window()` and `:widget()`](custom.md) have,
-including the rule that it **draws nothing until the tick after the statement that built it**. So a control
-configured across five lines is never seen half-built, and `:parent(w)` is a *building* verb: it chooses
-where the control hangs while it is being built, and once it is on screen the way to move it is
-`:position(x, y)`.
+Every builder here takes no argument. A control is born bare, with the client's own defaults, and everything
+about it is a chained setter on the Widget it hands back — the same shape [`:window()` and
+`:widget()`](custom.md) have, including the rule that it **draws nothing until the tick after the statement
+that built it**. So a control configured across five lines is never seen half-built, and `:parent(w)` is a
+*building* verb: it chooses where the control hangs while being built, and once on screen it moves by
+`:position(x, y)`. A row-source control has its own page: [lists](lists.md).
 
 ## Setters
 
@@ -59,7 +59,7 @@ where the control hangs while it is being built, and once it is on screen the wa
 | `:value(v)` | `:value()` | what the control **holds** |
 | `:onChange(fn)` | `:onChange()` | `fn(v)` — the control's value changed |
 | `:source(h)` | `:source()` | the picture a [picture control](#picture) shows |
-| `:rows(t)` | `:rows()` | the row labels a [radio](#radio) shows |
+| `:rows(t)` | `:rows()` | the row source a [radio](#radio) or a [list](lists.md) takes |
 | `:range(min, max)` | `:range()` | the value bounds of a [slider or scrollbar](#slider) |
 | `:onSubmit(fn)` | `:onSubmit()` | `fn(s)` — Enter was pressed in a [text entry](#text-entry) |
 

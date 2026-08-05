@@ -140,6 +140,18 @@ final class Controls {
         void onSubmit(LuaValue fn);
     }
 
+    /**
+     * <b>{@code :rowHeight(n)} — the ROW HEIGHT of a model-backed list, in pixels</b> (task 040.9). {@link CList}
+     * is its one implementor so far. Read-only as a capability — the WRITE is not a plain field assignment
+     * (unlike {@link Value}/{@link Rows}): {@code SListBox.itemh} is {@code final}, so choosing a different one
+     * is building-only and goes through a rebuild in {@link Controls#rowHeight}, the same shape {@link #image}
+     * already has for a button's face.
+     */
+    interface RowHeight {
+        /** The row height in pixels, as it stands right now. */
+        int rowHeight();
+    }
+
     // ------------------------------------------------------------------ the builders
 
     /**
@@ -292,6 +304,21 @@ final class Controls {
                 + " chained setters: hafen.ui():scroll():size(200, 160):position(x, y):parent(w)");
         UI u = UiApi.requireUi("scroll");
         return UiApi.attach(u, owner, new CScrollport(owner));
+    }
+
+    /**
+     * {@code hafen.ui():list()} — a real {@link haven.SListBox}, the client's own scrolling row list (task
+     * 040.9), the first of the model-backed five. Its row source is {@code :rows(t)} — the Lua-array bridge
+     * {@link LuaRows} every later model-backed control reuses (D-108) — its selection
+     * {@code :value()}/{@code :value(v)}, and {@code :onChange(fn)} fires on a real pick only, exactly the same
+     * spine every other value-bearing control in this feature already answers.
+     */
+    static LuaValue list(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():list() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():list():rowHeight(20):rows{\"A\", \"B\"}:onChange(fn)");
+        UI u = UiApi.requireUi("list");
+        return UiApi.attach(u, owner, new CList(owner, CList.DEF_SZ, CList.defaultItemHeight()));
     }
 
     // ------------------------------------------------------------------ the control verbs
@@ -590,7 +617,7 @@ final class Controls {
     }
 
     /** Does this string name a FILE rather than a client resource? (Resource names carry no extension.) */
-    private static boolean fileish(String name) {
+    static boolean fileish(String name) {
         String n = name.toLowerCase();
         return n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".gif")
             || n.endsWith(".bmp");
@@ -731,5 +758,43 @@ final class Controls {
         LuaValue minv = Args.required(a, 2, "widget:range", "min");
         LuaValue maxv = Args.required(a, 3, "widget:range", "max");
         ((Range)c).range(minv, maxv);
+    }
+
+    // ------------------------------------------------------------------ the rowHeight verb (040.9)
+
+    /** {@code widget:rowHeight()} — the row height in pixels, or {@code nil} on a control with no rows. */
+    static LuaValue rowHeight(Owned c) {
+        if(!(c instanceof RowHeight))
+            return LuaValue.NIL;
+        return LuaValue.valueOf(((RowHeight)c).rowHeight());
+    }
+
+    /**
+     * {@code widget:rowHeight(n)} — building-only, like {@link #image} (spec 040 decision G): the client's own
+     * {@code SListBox} fixes its row height at construction, so a different one is a different widget under the
+     * same Lua handle. Carries the current rows, selection and {@code :onChange} handler across the rebuild,
+     * exactly as {@link #image} carries a button's {@code :onPress}.
+     */
+    static void rowHeight(Addon owner, Widget w, Owned c, LuaValue v) {
+        if(!(c instanceof CList))
+            throw new LuaError("widget:rowHeight(n) sets a list's ROW HEIGHT, and hafen.ui():list() is the"
+                + " builder that takes one, in this feature so far — " + LuaWidget.typeName(w) + " has none.");
+        if(!v.isnumber())
+            throw new LuaError("widget:rowHeight(n) — n must be a NUMBER of pixels, got " + v.typename());
+        int n = v.toint();
+        if(n <= 0)
+            throw new LuaError("widget:rowHeight(n) — n must be a POSITIVE number of pixels, got " + n);
+        CList old = (CList)c;
+        if(!old.pending())
+            throw new LuaError("widget:rowHeight(n) chooses a list's ROW HEIGHT while the control is being"
+                + " BUILT, and this one is already on screen — the client's own row-list widget fixes its row"
+                + " height at construction, so set it in the same statement that builds the control.");
+        CList nu = new CList(owner, old.sz, n);
+        if(old.rows() != null)
+            nu.rows(old.rows());
+        if(old.value() != null)
+            nu.value(old.value());
+        nu.onChange(old.onChange());
+        UiApi.rebuild(owner, old, nu);
     }
 }

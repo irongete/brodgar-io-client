@@ -63,8 +63,9 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:onChange()` | function \| nil | the handler that fires when a [control](controls.md#setters)'s value changes, or `nil` where it has none |
 | `:onSubmit()` | function \| nil | the handler that fires when Enter is pressed in a [text entry](controls.md#text-entry), or `nil` where there is nothing to submit |
 | `:source()` | string \| userdata \| nil | the picture a [picture control](controls.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls.md#picture) |
-| `:rows()` | array \| nil | the row labels a [radio](controls.md#radio) shows, or `nil` where a control has no rows — [`:rows(t)` writes it](controls.md#radio) |
+| `:rows()` | array \| nil | the row source a [radio](controls.md#radio) or a [list](lists.md#list) takes, or `nil` where a control has no rows — [`:rows(t)` writes it](lists.md#rows) |
 | `:range()` | `{min=, max=}` \| nil | the value bounds of a [slider or scrollbar](controls.md#slider), or `nil` where a control has none — [`:range(min, max)` writes it](controls.md#slider) |
+| `:rowHeight()` | int \| nil | the height of a row in a [list](lists.md#list), in pixels, or `nil` where a control has no rows — [`:rowHeight(n)` writes it](lists.md#list) |
 | `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |
@@ -112,8 +113,9 @@ the error.
 | `:onChange(fn)` | handle a [control](controls.md#setters)'s value changing | **error**, same reason |
 | `:onSubmit(fn)` | handle Enter in a [text entry](controls.md#text-entry) you built | **error**, same reason |
 | `:source(h)` | give a [picture control](controls.md#picture) its content | **error**, same reason |
-| `:rows(t)` | give a [radio](controls.md#radio) its rows | **error**, same reason |
+| `:rows(t)` | give a [radio](controls.md#radio) or a [list](lists.md#rows) its rows | **error**, same reason |
 | `:range(min, max)` | set the bounds of a [slider or scrollbar](controls.md#slider) you built | **error**, same reason |
+| `:rowHeight(n)` | set a [list](lists.md#list)'s row height while it is being built | **error**, same reason |
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |
 | `:rule()` | restyle it and its subtree through your own level | **works**, same |
@@ -142,6 +144,7 @@ coordinates instead of walking you somewhere that merely has the same two number
 ## See also
 
 - [controls](controls.md) — the client's own controls, built and owned by your addon
+- [lists](lists.md) — the row-source controls, a scrolling list among them
 - [selectors](selectors.md) — how to name the widget you want in the first place
 - [native](native.md) — what moving and hiding a borrowed widget actually does
 - [replace](replace.md) — standing your own window in place of a native one

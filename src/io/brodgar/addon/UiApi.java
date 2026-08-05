@@ -440,6 +440,20 @@ final class UiApi {
                 return Controls.scroll(owner, a);
             }
         });
+        // :list() — 040.9, the first of the MODEL-BACKED five: a real haven.SListBox. :rows(t) is a plain Lua
+        // array -- a string becomes a text row, {icon=, text=} an icon+text row, and a table may mix both
+        // freely -- built through LuaRows, the bridge the later model-backed controls (040.10's dropdown/menu,
+        // 040.12's table) reuse rather than re-deriving. :value()/:value(v) is the selected row -- the SAME
+        // Lua value :rows(t) was given, so it can be handed straight back to :value(v) or compared with == --
+        // :onChange(fn) fires on a real pick only, and :rowHeight(n) -- defaulting to the client's own label
+        // height -- is building-only like a face setter, since the engine fixes a row-list's item height at
+        // construction.
+        m.set("list", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "list");
+                return Controls.list(owner, a);
+            }
+        });
         // :overlay() — paint on top of the HUD without owning a widget: :onDraw(fn) runs fn(g, w, h) every frame
         // with the shared GOut wrapper and the screen size, in absolute screen coords. It MINTS one rather than
         // handing back a collection, which is the one place `overlay` is a builder and not a set — gob:overlay()

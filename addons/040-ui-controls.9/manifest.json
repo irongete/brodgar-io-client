@@ -1,0 +1,9 @@
+{
+  "name": "040.9 — the row bridge, and :list()",
+  "id": "040-ui-controls.9",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 040.9: hafen.ui():list() builds a real client SListBox over LuaRows, the Lua-array->items()/makeitem() bridge the later model-backed controls (dropdown, menu, table) reuse. A plain string in :rows(t) becomes a text row, an {icon=, text=} table an icon+text row, and a table may mix both freely; :value()/:value(v) is the selected row (the same Lua value :rows(t) was given), :onChange(fn) fires on a real pick only, and :rowHeight(n) -- defaulting to the client's own label height -- chooses the row height while the control is being built.",
+  "api_version": 1,
+  "files": ["main.lua", "icon.png"]
+}

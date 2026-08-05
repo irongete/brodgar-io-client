@@ -816,6 +816,24 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // rowHeight(n) / rowHeight() — 040.9: the ROW HEIGHT of a model-backed list, in pixels — defaults to
+        // the client's own label height. Building-only, like :image() (spec 040 decision G): the client's own
+        // SListBox fixes its row height at construction, so choosing a different one rebuilds the widget under
+        // the same Lua handle exactly as a face setter does. A control with no rows reads nil on this and a
+        // write there throws naming what does.
+        m.set("rowHeight", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:rowHeight() → narg 1 · w:rowHeight(n) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "rowHeight"));
+                LuaValue v = Args.written(a, 2, "widget:rowHeight", "n");
+                if(v == null)
+                    return Controls.rowHeight((w == null) ? null : ownedContent(owner, w));
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                Controls.rowHeight(owner, w, owned(owner, w, "rowHeight(n)"), v);
+                return self;
+            }
+        });
         // exists() — is this widget still attached to the tree? The one read that always answers (D-060: a widget
         // HAS a lifetime, unlike a name-keyed Sound). False after a destroy and false across a relog.
         m.set("exists", new OneArgFunction() {

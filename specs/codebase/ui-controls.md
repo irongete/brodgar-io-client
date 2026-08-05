@@ -170,3 +170,22 @@ adapter instead rebuilds the shape from `Scrollport`'s own public pieces.
 > **The `:parent(w)` write is the one Java call site outside `Scrollport` itself that adds a child into one.**
 > It goes through `Widget.add(child, Coord)`, never `addchild`, so a parent-shaped like `Scrollport` needs its
 > OWN `instanceof` branch there redirecting into `cont` — the addchild override above does not cover it.
+
+## `SListWidget`/`SListBox` — the model-backed contract
+
+[`SListWidget<I, W>`](src/haven/SListWidget.java:33) demands exactly two overrides —
+[`items()`](src/haven/SListWidget.java:40) and [`makeitem(I, int, Coord)`](src/haven/SListWidget.java:41) —
+and [`sel`](src/haven/SListWidget.java:34) (`public I`) plus [`change(I)`](src/haven/SListWidget.java:47)
+(`this.sel = item`, nothing else) are the whole selection state. `SListBox<I, W>` adds scrolling over that.
+
+| What | Where |
+|---|---|
+| Row widgets are built LAZILY | [`SListBox.update()`](src/haven/SListBox.java:62), called from [`tick(dt)`](src/haven/SListBox.java:137) every frame — **not** from `items()`/`change()` directly, so a row from `:rows(t)` does not exist as a widget until the next tick |
+| The ready-made rows | [`TextItem.of(sz, Supplier<String>)`](src/haven/SListWidget.java:141) and [`IconText.of(sz, Supplier<BufferedImage>, Supplier<String>)`](src/haven/SListWidget.java:265) — both plain `Widget`s, neither wired to `change()` on their own |
+| The click-to-select wrapper | [`ItemWidget<I>`](src/haven/SListWidget.java:51) — its [`mousedown`](src/haven/SListWidget.java:61) calls `list.change(item)` directly; `makeitem` must wrap a bare `TextItem`/`IconText` in one (added as its own child) for a click to select anything |
+| Deselect on empty click | [`SListBox.unselect(button)`](src/haven/SListBox.java:207) calls `change(null)` for button 1 when [`mousedown`](src/haven/SListBox.java:217) finds no `slotclick` — a REAL interaction, not one an adapter's own `:value(v)` should suppress |
+
+> **A programmatic write must not call `change(I)`.** It is the single hook BOTH a real click
+> (`ItemWidget.mousedown`) and the click-away deselect reach, with no lower-level "just set `sel`, don't
+> notify" seam — so a control's `:value(v)` writes the `sel` field directly (D-153's rule again) and only a
+> real click's `ItemWidget.mousedown` → `change(item)` path fires the Lua `:onChange` handler.

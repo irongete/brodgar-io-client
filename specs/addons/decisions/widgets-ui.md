@@ -993,3 +993,40 @@ cutting both arities; if so, only the arity that actually collides with the new 
 asserts the READ equals `:value()` rather than asserting it throws.
 **See.** [D-013](architecture-api.md) (one canonical way), R2 (`039-uniform-api/API.md`, the read/write arity
 split this decision leans on), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-159 — a row is resolved WHOLE at `:rows(t)` time, and the resolved shape (not the raw value) is what `SListWidget` selects over ✅ (2026-08-08)
+**Decision.** `hafen.ui():list()`'s bridge (`LuaRows`) validates every row's shape AND resolves its icon
+(if any) to a `BufferedImage` inside `:rows(t)` itself, before any row widget exists — never lazily, when a
+row scrolls into view. The resolved `Row` object (raw value + text + icon), not the raw `LuaValue`, is what
+`SListWidget<I, W>`'s `I` is bound to; `:value()` unwraps it back to the raw value on the way out.
+**Rationale.** (040.9.) `SListBox.update()` — where `makeitem` actually runs — is called from the ordinary
+per-frame `tick()`, with none of the error isolation `AddonManager.callLua` gives a Lua callback; a bad
+icon resolving mid-frame there would throw off the UI thread with nothing to catch it. Resolving up front
+lets a bad `:rows(t)` refuse cleanly, at the one call that can still leave the existing rows untouched
+(the same "validate before tearing anything down" rule `CRadio.rows` already follows). Keeping the resolved
+object rather than the raw value as `I` is what then lets `makeitem` be a pure, non-throwing function of
+already-good data, and — since `SListWidget`'s own selection is identity-keyed (`IdentityHashMap`, `!=`
+comparisons in `update()`'s diff) — a stable wrapper object survives exactly as long as its row does.
+**Consequences.** An addon with a very large `:rows(t)` pays every icon's resolution cost up front rather
+than only for the rows it actually scrolls to — the honest trade for never risking an unhandled exception
+on the UI thread. The later model-backed controls (`:dropdown()`, `:menu()`, `:table()`) reuse `LuaRows.parse`
+rather than re-deriving the eager-resolve rule.
+**See.** [D-108](architecture-api.md) (a mechanism ships with its consumer), [D-150](widgets-ui.md)
+(`:value()` dispatched on a capability), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-160 — a list's row height is chosen while the control is being built, the same shape a face setter has ✅ (2026-08-08)
+**Decision.** `widget:rowHeight(n)` on `hafen.ui():list()` may be set — or changed — only while the control
+is still pending; once it has armed and drawn, it refuses, naming that. A write while pending REBUILDS the
+underlying `SListBox` under the same Lua handle, carrying its rows, selection and `:onChange` handler across
+the swap.
+**Rationale.** (040.9.) `SListBox.itemh` is `public final int`, read by every row-layout computation in
+`update()`/`draw()` — there is no live setter to call, so a different row height is, mechanically, a
+different `SListBox` instance, exactly the situation D-113 already names ("a setter that changes how the
+visual is BUILT rebuilds it") and D-148 already generalised for a button's face. `:rowHeight(n)` is the
+same rule reached from a plain `int` constructor argument instead of a second engine class.
+**Consequences.** A default (`CharWnd.attrfont().height()`, the same foundry `TextItem`/`IconText` already
+render through by default) is what lets `hafen.ui():list()` stay a bare builder (R4) despite the engine
+wanting the row height at construction — the addon only pays for `:rowHeight(n)` when it wants one other
+than the client's own. Generalise: D-113's rebuild is not specific to a face or a picture — any builder
+argument the engine only accepts at construction gets the same treatment, whatever its type.
+**See.** [D-113](architecture-api.md), [D-148](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
