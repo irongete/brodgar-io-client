@@ -66,7 +66,7 @@ sub-collections were plural (`gob:overlays()`, `char():attrs()`). Now both are s
 | `hafen.act.enabled()` | `hafen.act():enabled()` | is the `actions` grant held (never throws) |
 | `hafen.act.moveTo(x, y)` | `hafen.act():moveTo(p)` | walk to a **Position** |
 | `hafen.act.clickGob(gob, button, mods)` | `hafen.act():clickGob(gob, button, mods)` | click a game object |
-| `hafen.act.item(item, verb, n)` | `hafen.act():item(item, verb, n)` | `take`/`drop`/`transfer`/`iact`/`itemact` |
+| `hafen.act.item(item, verb, n)` | `hafen.act():item(item, verb, n)` | `take`/`drop`/`transfer`/`iact`/`itemact` — `item` is the Item **object**, never a handle number ✅ **039.14** |
 | `hafen.act.useItemOn(x, y, mods)` | `hafen.act():useItemOn(p, mods)` | apply the held item at a Position |
 | `hafen.act.place(x, y, angle, button, mods)` | `hafen.act():place(p, angle, button, mods)` | confirm a placement |
 | `hafen.act.select(x1, y1, x2, y2, mods)` | `hafen.act():select(p1, p2, mods)` | rectangle-select, corner to corner |
@@ -476,7 +476,7 @@ because a timer ends with `t:cancel()` and two spellings for one operation is th
 | `hafen.ui.mouse()` | `hafen.ui():mouse()` | the cursor in root coords |
 | `hafen.ui.inventory()` | `hafen.ui():inventory()` | your main backpack grid |
 | `hafen.ui.equipment()` | `hafen.ui():equipment()` | your worn-equipment grid |
-| `hafen.ui.hand()` | `hafen.ui():hand()` | the Item on the cursor *(becomes an entity, §4.8)* |
+| `hafen.ui.hand()` | `hafen.ui():hand()` | the Item on the cursor — an Item **object** ✅ **039.14** |
 | `hafen.ui.on(sel, ev, fn)` | `hafen.ui():on(sel, ev, fn)` | wait for `"appear"`/`"disappear"` |
 | `hafen.ui.window(opts)` | `hafen.ui():window()` + setters (R4) | your own window |
 | `hafen.ui.widget(opts)` | `hafen.ui():widget()` + setters | a bare rectangle |
@@ -950,7 +950,7 @@ and they gain only the R5 nil refusal.
 | Maneuver / DeckCard / FightSummary | `hafen.fight()` | Maneuver `:res() :name() :available() :used()`, DeckCard `:slot() :key() :maneuver() :res() :name() :used()`, FightSummary `:used() :maxActions() :deckSize() :saveCount() :activeSave()`; all `:exists() :info()` ✅ |
 | Opponent | `hafen.fight():target()` | `:id() :gob() :exists() :info()` — **added by 039.12**, the entity `:target()` needs ✅ |
 | **Position** | every `:position()`, `hafen.world():position(x,y)` | `:x() :y() :offset(dx,dy) :distance(o) :tileCoord() :durable() :info()` — a **value** object, not interned |
-| **Item** | `widget:items()`, `hafen.ui():hand()` | `:res() :name() :quality() :handle() :exists() :info()` — **intern key unsettled, §4.8** |
+| **Item** | `widget:items()`, `hafen.ui():hand()` | `:res() :name() :num() :wear() :quality() :cell() :slots() :handle() :exists() :info()` — interned on the ITEM, never on the re-used widget id ✅ **039.14** |
 
 ---
 
@@ -962,7 +962,7 @@ Subscription moves to `hafen.event():on(name, fn)`. Payloads that are still snap
 |---|---|---|
 | `FepChanged` | `Food` snapshot | Food entity ✅ |
 | `StudyChanged` | `StudySlot[]` snapshots | StudySlot entities ✅ |
-| `EquipChanged` | `Item[]` snapshots | Item entities |
+| `EquipChanged` | `Item[]` snapshots | Item entities ✅ |
 | `WoundChanged` | `Wound[]` snapshots | Wound entities ✅ |
 | `QuestAdded` / `QuestDone` | `Quest` snapshot | Quest entity ✅ |
 
@@ -1010,4 +1010,4 @@ every shipped call site uses them — verified against `hello`, `walker` and the
 | events re-payloaded | 6 | of 26 |
 | verbs CUT with no replacement | 2 | `w:show()` `w:hide()` (R6) |
 | verbs CUT with an existing replacement | 2 | `world.placeGrid`/`placeAngle` → `options():interface()` |
-| open questions for plan.md | 6 | Item identity (§4.8) · `g:text{…}`'s option table · `craft:make` on a nil `:current()` · `hafen.log` (§8.1) · Position allocation per call in a draw callback · whether the numeric converters `tileToWorld`/`tileToGrid` fold onto Position |
+| open questions for plan.md | 6 | Item identity (§4.8, settled by 039.14) · `g:text{…}`'s option table · `craft:make` on a nil `:current()` · `hafen.log` (§8.1) · Position allocation per call in a draw callback · whether the numeric converters `tileToWorld`/`tileToGrid` fold onto Position |

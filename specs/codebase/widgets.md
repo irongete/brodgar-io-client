@@ -28,7 +28,9 @@
 removal is deferred to the end of a fade. So a closing window has `getwidget(id) != wdg` while `hasparent(root)` is
 still true and its reads still answer. Any liveness/lifecycle check over widgets needs the **two-branch** test — by
 id when server-bound, by reachability otherwise — or it fires a whole animation late (or, on `hasparent` alone for
-a client-only widget, not at all sooner).
+a client-only widget, not at all sooner). **And the id goes back to the pool**: `removeid` drops both map entries,
+after which the server may issue the same number for a different widget — so a widget id is safe to *send* and
+unsafe to *store*, because a stored one does not go stale, it silently comes to mean something else (D-138).
 
 ## Tick & draw traversal (the two recursion seams)
 

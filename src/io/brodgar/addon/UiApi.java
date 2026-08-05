@@ -3,6 +3,7 @@ package io.brodgar.addon;
 import haven.Button;
 import haven.Coord;
 import haven.GameUI;
+import haven.GItem;
 import haven.Gob;
 import haven.GOut;
 import haven.Label;
@@ -267,7 +268,9 @@ final class UiApi {
         // The first two are LOOKUPS, not a section of their own: they hand back the Widget entity for the player's
         // backpack (GameUI.maininv) and Equipory, so the items are read the same way as any other container's —
         // hafen.ui():inventory():items() — and every other widget verb answers on them too. nil before the HUD is up.
-        // hand() is the odd one out and stays a plain Item snapshot: the cursor item is not a widget you can walk.
+        // hand() answers the SAME Item object those lists are made of: the cursor item is still a server-bound item
+        // widget, so it interns, it is addressable by the gated verbs, and it goes stale exactly as any other does.
+        // What it lacks is a container, so it is the one item whose :cell() is nil and whose :slots() is empty.
         m.set("inventory", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "ui", "inventory");
@@ -286,7 +289,7 @@ final class UiApi {
                 GameUI g = gui();
                 if((g == null) || (g.vhand == null))
                     return LuaValue.NIL;
-                return CharApi.itemSnapshot(g.vhand.item, LuaValue.NIL);
+                return LuaItem.of(owner, g.vhand.item);
             }
         });
         m.set("at", new VarArgFunction() {
@@ -850,24 +853,29 @@ final class UiApi {
         return (wa.id >= 0) ? (u.getwidget(wa.id) == wa.wdg) : wa.wdg.hasparent(u.root);
     }
 
-    /** Diff one watched container's {@link WItem} children against its cache, firing onItemAdded/onItemRemoved. */
+    /**
+     * Diff one watched container's items against its cache, firing onItemAdded/onItemRemoved. The diff is over
+     * the item WIDGETS rather than the {@link WItem} cells that draw them, so a worn item filling two equipment
+     * slots is one addition and not two, and what the callback receives is this owner's Item object — the same
+     * one {@code :items()} hands back, still answering after it left (with {@code :exists()} false).
+     */
     private static void pollWatchItems(LuaWidget.Watch wa) {
-        Set<WItem> present = new LinkedHashSet<WItem>(LuaWidget.witems(wa.wdg));
-        for(WItem w : present) {                        // additions (unseen items)
-            if(!wa.items.containsKey(w)) {
-                LuaValue snap = LuaWidget.itemSnap(wa.wdg, w);
-                wa.items.put(w, snap);
+        Set<GItem> present = new LinkedHashSet<GItem>(LuaItem.items(wa.wdg));
+        for(GItem g : present) {                        // additions (unseen items)
+            if(!wa.items.containsKey(g)) {
+                LuaValue item = LuaItem.of(wa.owner, g);
+                wa.items.put(g, item);
                 if(wa.onItemAdded != null)
-                    callLua(wa.owner, Addon.C_WIDGET, wa.onItemAdded, snap);
+                    callLua(wa.owner, Addon.C_WIDGET, wa.onItemAdded, item);
             }
         }
-        for(Iterator<Map.Entry<WItem, LuaValue>> it = wa.items.entrySet().iterator(); it.hasNext();) {
-            Map.Entry<WItem, LuaValue> e = it.next();   // removals (items that left)
+        for(Iterator<Map.Entry<GItem, LuaValue>> it = wa.items.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<GItem, LuaValue> e = it.next();   // removals (items that left)
             if(!present.contains(e.getKey())) {
-                LuaValue snap = e.getValue();
+                LuaValue item = e.getValue();
                 it.remove();
                 if(wa.onItemRemoved != null)
-                    callLua(wa.owner, Addon.C_WIDGET, wa.onItemRemoved, snap);
+                    callLua(wa.owner, Addon.C_WIDGET, wa.onItemRemoved, item);
             }
         }
     }

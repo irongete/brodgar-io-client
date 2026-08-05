@@ -16,7 +16,7 @@ import org.luaj.vm2.LuaValue;
  * ({@link #parse}) backs manifests, saved variables, and {@code hafen.json():parse}; the writer
  * ({@link #write}) backs the {@code :lua} REPL echo, {@code hafen.store} persistence, and
  * {@code hafen.json():encode}. Reader and writer live together so there is <b>one canonical serializer</b>
- * (no drift) — the shared-{@code LuaGOut}/{@code readEquipment}/{@code LuaMarshal} pattern. The writer
+ * (no drift) — the shared-{@code LuaGOut}/{@code LuaMarshal} pattern. The writer
  * moved here from {@code AddonManager} in task N1 (spec {@code 19-data-and-network.md} §2.3).
  *
  * <p><b>Reader.</b> {@link #parse} returns plain Java values: {@link Map} (object, insertion-ordered),

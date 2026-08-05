@@ -6,6 +6,7 @@ import haven.Coord;
 import haven.Equipory;
 import haven.FlowerMenu;
 import haven.FromResource;
+import haven.GItem;
 import haven.IButton;
 import haven.IMeter;
 import haven.Inventory;
@@ -553,20 +554,21 @@ public final class LuaWidget {
                 }
             });
         }
-        // items() — 029.3: the items INSIDE this widget, as an array of Item snapshots. A RELATION on the
+        // items() — 029.3: the items INSIDE this widget, as an array of Item OBJECTS. A RELATION on the
         // container, exactly like :children() — an Inventory (the backpack, a chest, a cupboard), an Equipory
-        // (each entry also carrying its `slot`), or any widget with WItems under it (children(WItem.class) is a
-        // DEEP traversal, so a whole window answers for its grid). Read with the window VISIBLE and interactive:
-        // nothing is hidden, nothing is registered — which is the whole point of deleting hafen.ui.adopt. Empty
-        // for a leaf, a non-container or a stale widget. Read-only: MOVING items is the gated hafen.act tier.
+        // (whose worn items say which slots they fill), or any widget with WItems under it (children(WItem.class)
+        // is a DEEP traversal, so a whole window answers for its grid). Each item appears ONCE however many slots
+        // it occupies. Read with the window VISIBLE and interactive: nothing is hidden, nothing is registered —
+        // which is the whole point of deleting hafen.ui.adopt. Empty for a leaf, a non-container or a stale
+        // widget. Read-only: MOVING items is the gated hafen.act tier.
         m.set("items", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Widget w = live(handle(self, "items"));
-                return (w == null) ? new LuaTable() : items(w);
+                return (w == null) ? new LuaTable() : items(owner, w);
             }
         });
         // onItemAdded(fn) / onItemRemoved(fn) / onDestroy(fn) — 029.3: the lifecycle of a container, on the entity
-        // itself. fn(item) gets the same Item snapshot :items() produces; onDestroy takes no argument and fires
+        // itself. fn(item) gets the same Item object :items() produces; onDestroy takes no argument and fires
         // once, when the widget leaves the tree (server-destroyed, window closed, relog). An item add/remove is a
         // WItem create/cdestroy and NOT a uimsg, so these are a per-tick diff (the BuffsAdapter shape) — but the
         // poll is hasSub-GATED: the subscription IS the registration, so a widget nobody subscribed to is never
@@ -1116,8 +1118,12 @@ public final class LuaWidget {
         final int id;
         LuaValue onItemAdded, onItemRemoved, onDestroy;   // null = unset (all three null ⇒ the Watch is dropped)
         boolean alive = true;
-        /** Present items → their last snapshot; identity-keyed ({@link WItem}s compare by object identity). */
-        final Map<WItem, LuaValue> items = new IdentityHashMap<WItem, LuaValue>();
+        /**
+         * Present items → this owner's Item object. Keyed by the item WIDGET, so an {@link Equipory}'s two-slot
+         * item is one member and fires once, and the value is the very object {@code :items()} hands back — held
+         * strongly here so that the {@code onItemRemoved} payload is the same object the add reported.
+         */
+        final Map<GItem, LuaValue> items = new IdentityHashMap<GItem, LuaValue>();
 
         Watch(Addon owner, Widget wdg, int id) {
             this.owner = owner;
@@ -1141,18 +1147,14 @@ public final class LuaWidget {
     }
 
     /**
-     * The items inside a container widget, as an array of Item snapshots ({@code widget:items()}). {@code
-     * children(WItem.class)} is a <b>deep</b> traversal, so a whole window answers for the grid inside it. The
-     * {@code pos} of each entry is what makes sense for the container: an {@link Equipory}'s worn items carry their
-     * slot (plus a {@code slot} index), everything else carries its inventory grid cell. Taken under the {@code ui}
-     * monitor, like every other tree read.
+     * The items inside a container widget, as an array of <b>Item objects</b> ({@code widget:items()}). {@code
+     * children(WItem.class)} is a <b>deep</b> traversal, so a whole window answers for the grid inside it, and
+     * {@link LuaItem#items} de-duplicates — an {@link Equipory} draws one worn item once per slot it fills, and
+     * two entries that are {@code ==} would make {@code #items} a lie. Where each one sits is read off the item
+     * ({@code :cell()}, {@code :slots()}). Taken under the {@code ui} monitor, like every other tree read.
      */
-    static LuaValue items(Widget w) {
-        LuaTable out = new LuaTable();
-        int i = 0;
-        for(WItem it : witems(w))
-            out.set(++i, itemSnap(w, it));
-        return out;
+    static LuaValue items(Addon owner, Widget w) {
+        return LuaItem.list(owner, w);
     }
 
     /** A copy of a container's {@link WItem} children (deep), taken under the {@code ui} monitor. */
@@ -1161,13 +1163,6 @@ public final class LuaWidget {
         if(u == null)
             return new ArrayList<WItem>();
         synchronized(u) { return new ArrayList<WItem>(w.children(WItem.class)); }
-    }
-
-    /** One item's snapshot in the shape its container gives it (equipment slot vs inventory cell). */
-    static LuaValue itemSnap(Widget container, WItem it) {
-        if(container instanceof Equipory)
-            return CharApi.equipSnapshot((Equipory)container, it);
-        return CharApi.itemSnapshot(it.item, AddonManager.cellPos(it));
     }
 
     // ---- liveness + the reads ----------------------------------------------------------------------

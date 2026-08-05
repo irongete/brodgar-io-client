@@ -366,6 +366,18 @@ public final class Addon {
      * different window rather than a change to this one. D-094 throughout. Same contract as {@link #gobs} —
      * per-addon, weak-valued, dead with this {@link Addon} on {@code :reload}/disable.
      */
+    /**
+     * This addon's <b>Item interning cache</b> (spec {@code 039-uniform-api} §4.8): {@code widget:items()},
+     * {@code hafen.ui():hand()} and {@code EquipChanged}, keyed by the <b>item widget's identity</b>. That key
+     * is the decision the type exists for: the server addresses an item by a widget id it recycles, so a cache
+     * keyed on the number would hand a stashed handle back pointing at whatever now holds it — and a gated
+     * write through that handle would move the wrong item. Keyed on the object, a departed item is departed
+     * ({@code :exists()} false) and can never become another one. Same contract as {@link #gobs} — per-addon
+     * so no Lua value crosses a sandbox boundary (D-017), weak-valued, dead with this {@link Addon} on
+     * {@code :reload}/disable.
+     */
+    final LuaItem.Cache items = new LuaItem.Cache(this);
+
     final LuaQuest.Cache quests = new LuaQuest.Cache(this);
     final LuaCondition.Cache conditions = new LuaCondition.Cache(this);
     final LuaWound.Cache wounds = new LuaWound.Cache(this);

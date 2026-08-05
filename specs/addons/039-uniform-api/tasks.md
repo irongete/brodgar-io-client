@@ -597,7 +597,7 @@ Craft/CraftSpec) · `009-gap-subsystems/`, `learnings/gap-subsystems.md` (grep `
 
 ---
 
-## 039.14 — OOP: the Item entity
+## 039.14 — OOP: the Item entity ✅ DONE
 
 **Depends on:** 039.5 (`widget:items()`), 039.11 (the adapter pattern).
 

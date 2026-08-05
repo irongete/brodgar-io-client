@@ -994,6 +994,32 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
             fireTo(c, "StudyChanged", studyPayload(c, items));
     }
 
+    /**
+     * Fire {@code EquipChanged} whose payload is an array of <b>Item objects</b> (039.14) — what is worn right
+     * now, each item once whatever number of slots it fills. Same shape as {@link #fireStudy}: interning is
+     * per-addon (D-045) and the array is minted only for an owner that actually subscribes.
+     *
+     * <p>Change <i>detection</i> stays in {@code CharApi}'s equipment adapter, which keeps a string rather than
+     * these objects: an interned item compares by identity, so it cannot see the very change the event reports.
+     */
+    static void fireEquip(java.util.List<GItem> items) {
+        for(Addon a : addons) {
+            if(hasSub(a, "EquipChanged"))
+                fireTo(a, "EquipChanged", itemPayload(a, items));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, "EquipChanged"))
+            fireTo(c, "EquipChanged", itemPayload(c, items));
+    }
+
+    /** One owner's {@code EquipChanged} payload: its own interned Item objects, in the window's order. */
+    private static LuaValue itemPayload(Addon owner, java.util.List<GItem> items) {
+        LuaTable t = new LuaTable();
+        for(int i = 0; i < items.size(); i++)
+            t.set(i + 1, LuaItem.of(owner, items.get(i)));
+        return t;
+    }
+
     /** One owner's {@code StudyChanged} payload: its own interned StudySlot objects, in window order. */
     private static LuaValue studyPayload(Addon owner, java.util.List<GItem> items) {
         LuaTable t = new LuaTable();
@@ -1214,10 +1240,11 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // out of scope here. The audio section is hafen.sound and nothing else.
 
         // hafen.items is GONE (029.3, hard cut D-013). Items are a RELATION on their container now:
-        // hafen.ui.inventory():items() / hafen.ui.equipment():items() / hafen.ui.hand(), and widget:items() answers
-        // on ANY container — a chest, a cupboard — with its window visible and interactive. The Item SHAPE is
-        // unchanged (name/res/num/wear/pos + the `handle` the gated hafen.act.item(item, verb) takes, D-022), and it
-        // is still CharApi.itemSnapshot that produces it.
+        // hafen.ui():inventory():items() / hafen.ui():equipment():items() / hafen.ui():hand(), and widget:items()
+        // answers on ANY container — a chest, a cupboard — with its window visible and interactive. What it hands
+        // back is an interned LuaItem keyed on the item WIDGET (039.14): a server widget id is recycled, so an
+        // entity keyed on the number would silently start naming a different item and a gated write through it
+        // would move the wrong thing. hafen.act():item takes the object and never the number.
 
         // hafen.char.* — character attributes (Glob.getcattr; a zero-info entry is reported as nil),
         // plus learning points (CharWnd.exp) and encumbrance/weight (CharWnd.enc) — public live fields

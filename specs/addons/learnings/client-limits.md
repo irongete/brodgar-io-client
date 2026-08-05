@@ -21,7 +21,7 @@
   numbers, but only inside the `CharWnd` widgets (`BAttrWnd` `feps`/`glut`) — read the widget
   tree, not the vitals bars.
 
-- **Item quality as a typed value.** No `Quality` class; quality lives only inside
+- **(SUPERSEDED by 039.14 — see the entry below) Item quality as a typed value.** No `Quality` class; quality lives only inside
   resource-published `ItemInfo` (built generically by `ItemInfo.buildinfo`
   [ItemInfo.java:362](src/haven/ItemInfo.java:362) — that line is the generic builder, not a
   quality field). Best-effort raw-`tt` parsing only.
@@ -33,3 +33,15 @@
 
 - **Names of maneuvers/cards/buffs/icons** need `Indir<Resource>.get()` → throws `Loading`;
   return nil while loading rather than blocking.
+
+- **(039.14) Quality IS readable — what the client lacks is a TYPE, not the number.** The entry above is
+  right that `haven` declares no quality class, and wrong to stop there: the number is published by code
+  that ships inside the resource, `ui/tt/q/quality`'s `Quality extends ui/tt/q/qbuff`'s `QBuff`, which
+  carries `public double q` and `public String name`. So an item's tooltip info list holds it, and
+  `item:quality()` reads it by **class name** + one reflective field read (no `get-code` copy, no
+  `@FromResource` pin — D-140: a pin that stops matching answers null for every item silently, a name
+  lookup can only stop finding it). An item may publish several `QBuff`s (a gilding row is one), so the
+  plain `Quality` subclass wins and any other is the fallback. **The general lesson is about this file:**
+  "the client has no typed X" is a statement about `src/haven`, and the resources ship code too — before
+  recording something as absent, check whether a `.res` publishes it (`unzip -p bin/hafen-res.jar` and read
+  the preprocessed source inside the `.res`).

@@ -313,6 +313,16 @@ final class Retired {
             + " belongs to the recipe. hafen.craft():current() is nil while no recipe is open, so test it"
             + " first; it still needs the 'actions' permission");
 
+        // ---- the Item entity: the snapshot's two PLACE fields become the two verbs that say which you meant ----
+        // The rest of the old table's keys (`res`, `name`, `num`, `wear`, `handle`) are live verbs, so a dotted
+        // read of one silently hands back the METHOD rather than throwing — there is no metamethod that can tell
+        // `it.name` from `it:name()`. These two can be caught, because nothing answers to their old spelling.
+        put("item:pos", "an item's place is two verbs now, because a backpack cell and an equipment slot are"
+            + " not one shape: item:cell() is the {x, y} grid cell it sits in, and item:slots() names the"
+            + " equipment slots it fills (a worn item can fill more than one)");
+        put("item:slot", "item:slots() names the equipment slots this item fills — a list, because one worn"
+            + " item can fill several, and the names are the ones the equipment window shows");
+
         // ---- the HUD overlay: a two-line handle table became a builder, so it ends the way the other two do --
         put("uioverlay:remove", "hafen.ui():overlay() hands back something you created and hold, so it ends with"
             + " ov:destroy() — :remove() is the collection verb, and a HUD painter is in no collection");

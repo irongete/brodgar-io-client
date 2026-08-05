@@ -195,24 +195,25 @@ end
 -- 1c-3: read the inventory / equipment / cursor. 029.3 HARD-CUT hafen.items: items are a RELATION on their
 -- container now, so the backpack and the equipory are looked up as WIDGETS (hafen.ui():inventory() /
 -- hafen.ui():equipment(), the same entity every other hafen.ui entry point hands back) and asked for :items().
--- The cursor item is the odd one out — it is not a widget you can walk — so hafen.ui():hand() stays a snapshot.
+-- The cursor item comes back the same way: hafen.ui():hand() is one of those Item objects too.
 -- Item NAMES come from resolved item info, which (like the inventory widget itself) can stream in a beat after
 -- enter-world, so this is read twice — immediately and after a short delay — like the map reads above.
--- 4f (read side): each Item snapshot still carries a `handle` (the item's server widget id) — the ItemRef the
--- gated hafen.act():item(item, verb) verb takes. hello is READ-ONLY, so it just OBSERVES the handle here (the
--- write demo lives in the opt-in `walker` addon); a handle proves the 4f plumbing.
+-- 4f (read side): an Item is what the gated hafen.act():item(item, verb) verb takes -- the object, never its
+-- :handle() number, which the server re-uses. hello is READ-ONLY, so it just OBSERVES an item here (the write
+-- demo lives in the opt-in `walker` addon).
 local function readInv(tag)
   local invw, eqw = hafen.ui():inventory(), hafen.ui():equipment()   -- Widget objects, or nil before the HUD is up
-  local inv = invw and invw:items() or {}   -- array of Item snapshots {name,res,num,wear,pos,handle}
-  local eq = eqw and eqw:items() or {}      -- array of Item snapshots {..., slot, handle}
-  local hand = hafen.ui():hand()              -- Item snapshot or nil (cursor item)
+  local inv = invw and invw:items() or {}   -- array of Item objects (:res/:name/:num/:wear/:quality/:cell)
+  local eq = eqw and eqw:items() or {}      -- the worn items, each once, whatever number of slots it fills
+  local hand = hafen.ui():hand()              -- an Item object, or nil (nothing on the cursor)
   local first = inv[1]
-  hafen.log():write(("[%s] inventory=%d item(s), first=%s x%s handle=%s")
-    :format(tag, #inv, first and tostring(first.name or first.res) or "nil",
-            first and tostring(first.num or 1) or "-",
-            first and tostring(first.handle) or "-"))
-  hafen.log():write(("[%s] equipment=%d slot(s), hand=%s")
-    :format(tag, #eq, hand and tostring(hand.name or hand.res) or "empty"))
+  hafen.log():write(("[%s] inventory=%d item(s), first=%s x%s q=%s handle=%s")
+    :format(tag, #inv, first and tostring(first:name() or first:res()) or "nil",
+            first and tostring(first:num() or 1) or "-",
+            first and tostring(first:quality() or "-") or "-",
+            first and tostring(first:handle()) or "-"))
+  hafen.log():write(("[%s] equipment=%d item(s), hand=%s")
+    :format(tag, #eq, hand and tostring(hand:name() or hand:res()) or "empty"))
 end
 
 -- 1c-3: character attributes + learning points + weight, and the party size. Like items and map, the
@@ -1347,15 +1348,15 @@ hafen.event():on("ActionbarChanged", function(slot)
     tostring(same), actionbarSeen))
 end)
 
--- 1d-4: EquipChanged fires when worn equipment changes (equip/unequip) — the payload is the same array
--- as hafen.ui():equipment():items(). Equipment streams in at login (a few fires), then on any change. Log the
--- first few so it does not flood.
+-- 1d-4: EquipChanged fires when worn equipment changes (equip/unequip) — the payload is the same array of
+-- Item OBJECTS as hafen.ui():equipment():items(). Equipment streams in at login (a few fires), then on any
+-- change. Log the first few so it does not flood.
 local equipSeen = 0
 hafen.event():on("EquipChanged", function(eq)
   equipSeen = equipSeen + 1
   if equipSeen <= 5 then
-    hafen.log():write(("EquipChanged: %d slot(s), first=%s (%d)"):format(#eq,
-      eq[1] and tostring(eq[1].name or eq[1].res) or "none", equipSeen))
+    hafen.log():write(("EquipChanged: %d item(s), first=%s (%d)"):format(#eq,
+      eq[1] and tostring(eq[1]:name() or eq[1]:res()) or "none", equipSeen))
   end
 end)
 
@@ -1503,7 +1504,7 @@ hafen.ui():on("inventory", "appear", function(w)
     itemsAdded = itemsAdded + 1
     if bagsReady or itemsAdded <= 3 then              -- initial fill: first few only; after +3s: every live add
       hafen.log():write(("3b: item ADDED to inventory: %s x%s (total seen %d)%s")
-        :format(tostring(item.name or item.res), tostring(item.num or 1), itemsAdded,
+        :format(tostring(item:name() or item:res()), tostring(item:num() or 1), itemsAdded,
                 (invWdg and not invWdg:visible()) and " [grid hidden -- still readable]" or ""))
     end
   end)
@@ -1511,7 +1512,7 @@ hafen.ui():on("inventory", "appear", function(w)
     itemsRemoved = itemsRemoved + 1
     if bagsReady or itemsRemoved <= 3 then
       hafen.log():write(("3b: item REMOVED from inventory: %s (total seen %d)%s")
-        :format(tostring(item.name or item.res), itemsRemoved,
+        :format(tostring(item:name() or item:res()), itemsRemoved,
                 (invWdg and not invWdg:visible()) and " [grid hidden -- still readable]" or ""))
     end
   end)

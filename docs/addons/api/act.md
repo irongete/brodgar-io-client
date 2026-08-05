@@ -99,9 +99,10 @@ either. Typically used after `clickGob(gob, 3)`. A non-string `label` raises an 
 
 ### `hafen.act():item(item, verb, n)`
 
-Act on an item. `item` is an [`Item`](types.md#item) snapshot from a container's
-[`:items()`](ui/items.md), or its raw `handle` number; the live item is re-resolved
-on every call, so a moved, used or vanished item raises an error rather than acting on the wrong thing.
+Act on an item. `item` is an [`Item` object](ui/items.md#the-item-object) from a container's
+[`:items()`](ui/items.md) or from [`hafen.ui():hand()`](ui/widget.md) — the object itself, never its
+`:handle()` number, which the server re-uses and which would therefore aim the verb at whatever holds
+that number now. An item that has moved, been used or vanished raises an error and sends nothing.
 
 | `verb` | Effect |
 |---|---|

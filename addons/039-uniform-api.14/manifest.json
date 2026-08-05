@@ -1,0 +1,9 @@
+{
+  "name": "039.14 — the Item entity",
+  "id": "039-uniform-api.14",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.14: a container's items and the cursor item as interned Item objects keyed on the item rather than on the server widget id it re-uses, the two place reads, EquipChanged carrying objects, and an item held across a move that never becomes another item.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

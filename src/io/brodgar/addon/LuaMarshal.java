@@ -15,7 +15,7 @@ import org.luaj.vm2.LuaValue;
  * levels expose to addons. Extracted from {@link LuaActionHook} (Phase 2d) so both the outbound
  * <b>action</b> hook (L2, {@code hafen.hook():action}) and the inbound <b>message</b> hook (L3,
  * {@code hafen.hook():message}, Phase 2e) convert arguments the one canonical way (D-013) and cannot
- * drift — the same reasoning as the shared {@link LuaGOut} (2b) and {@code readEquipment} (1d-4).
+ * drift — the same reasoning as the shared {@link LuaGOut} (2b).
  *
  * <p>The mapping (see {@link #toLua}/{@link #toJava}):
  * <ul>

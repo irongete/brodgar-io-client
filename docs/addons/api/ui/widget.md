@@ -21,7 +21,7 @@ if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items
 | `hafen.ui():mouse()` | `{x=, y=}` \| nil — the cursor in root coords, not a widget |
 | `hafen.ui():inventory()` | your main backpack grid, a container like any other |
 | `hafen.ui():equipment()` | your worn-equipment grid |
-| `hafen.ui():hand()` | the [`Item`](../types.md#item) on the cursor, or `nil` — a **snapshot**, since there is no widget to walk |
+| `hafen.ui():hand()` | the [`Item`](items.md#the-item-object) on the cursor, or `nil` |
 
 A Widget is opaque, facade-safe userdata: no raw widget crosses into Lua and one cannot be forged. It is
 **interned per addon**, so two lookups of the same live widget are the *same* Lua value:
@@ -56,7 +56,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:size()` | `{x=, y=}` | size; for a window its **outer** box |
 | `:visible()` | boolean | whether it is visible — [`:visible(b)` writes it](native.md) |
 | `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, Window, TextEntry), else `nil` |
-| `:items()` | [`Item`](../types.md#item)`[]` | the items inside it — see [items](items.md) |
+| `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |
 | `:walk(fn)` | self | depth-first visit — `fn(widget, depth)`; **return `false` to prune** that subtree |

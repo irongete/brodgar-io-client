@@ -98,7 +98,7 @@ These come from the HUD's own widgets, so they start once the HUD is up.
 | `BuffChanged` | [`Buff`](buff.md) | a buff's content updates |
 | `FepChanged` | [`Food`](char.md#food) | FEP or hunger changes |
 | `StudyChanged` | [`StudySlot`](study.md#a-slot)`[]` | the study slots change: an add, a removal, or data resolving |
-| `EquipChanged` | [`Item`](types.md#item)`[]` | worn equipment changes |
+| `EquipChanged` | [`Item`](ui/items.md#the-item-object)`[]` | worn equipment changes |
 | `ActionbarChanged` | [`Slot`](actionbar.md) | an action-bar slot is set, cleared or changed |
 | `WoundChanged` | [`Wound`](wound.md#a-wound)`[]` | a wound is added or healed, or its severity changes |
 

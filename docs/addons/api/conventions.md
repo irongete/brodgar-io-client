@@ -144,13 +144,13 @@ the file's extension, the handle is interned per path, and it is freed on reload
 `:dispose()`, after which the same path loads as a *new* object. Wherever a local file is used —
 a sprite's `:add(image)`, an object's `:add(model)`, a widget's `:font(h)` — you pass the **handle**, never a path.
 
-### ItemRef: an inventory or equipment item
+### Item: a thing in a container
 
-An item has no stable content id, so it is addressed by a **handle**: its server widget id. Every
-[Item snapshot](types.md#item) carries a `handle` field. The gated
-[`hafen.act():item`](act.md#hafenactitemitem-verb-n) takes the snapshot, or the raw `handle` number, and
-re-resolves the live item on each call; an item that has moved, been used or gone no longer resolves,
-and the verb raises an error saying so.
+An item has no stable content id, so an [`Item`](ui/items.md#the-item-object) is interned on the item
+itself and **not** on `:handle()`, the server widget id it is addressed by on the wire: that number is
+re-used, so a reference built on it would quietly stop naming this item and start naming its
+replacement. One you keep therefore answers *the same item* or *gone*, and the gated
+[`hafen.act():item`](act.md#hafenactitemitem-verb-n) takes the object rather than the number.
 
 ### Widget: a piece of the UI
 
@@ -198,9 +198,9 @@ against the *enclosing window*, and you hold your result rather than re-selectin
 
 ## Snapshots vs handles
 
-- **Snapshots** are plain Lua tables, point-in-time copies returned by the escape-hatch readers
-  (`gob:info()`, `widget:items()`, `buff:info()`, …). They do **not** update, so re-read rather than
-  caching one across ticks. Every snapshot shape is in [data types](types.md).
+- **Snapshots** are plain Lua tables, point-in-time copies from the escape-hatch `:info()` readers
+  (`gob:info()`, `item:info()`, …). They do **not** update, so re-read rather than caching one across
+  ticks. Every snapshot shape is in [data types](types.md).
 - **Handles** are live, bridge-owned proxies with methods (`hafen.ui():window()`, `hafen.timer():every`,
   `hafen.event():on`, …), released for you when the addon is disabled or reloaded.
 - **Objects** are live too, and are what a read hands you: they re-resolve rather than holding a value,

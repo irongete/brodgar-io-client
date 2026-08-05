@@ -1017,3 +1017,28 @@
   did (`1 root(s), 0 complication(s)`, with `w:parent():id()` cross-checked against `w:info().parentid`).
   Rule: *say which plants bit and which could not, and why; a falsification tally with no zeros in it is
   usually a tally that only counted the reachable plants.*
+- **(039.14) A sum that only COUNTS is satisfied by an under-report — make it reconcile or it goes green over
+  a broken read.** The equipment check asserted `filled >= #eq` (worn items fill at least as many slots as
+  there are items), which is true whether or not every item names its place — so the first in-game round
+  printed *"18 worn item(s) fill 18 slot(s)"* and passed, while one of those items was reporting **zero**
+  slots and therefore reading as *not worn*. The arithmetic was the only evidence (16×1 + a two-slot item
+  = 18 needs one item at 0), and it was in the `[pass]` line's own text rather than in the verdict. The fix
+  is the check the census rule (038.1) already demands one level up: assert the invariant — *every* worn item
+  names ≥ 1 slot, with the offender in `got:` — after which the plant reddens both harnesses instead of only
+  the probe. Generally: *a `>=` over a set is a smoke test; the assertion is that no member is missing.*
+- **(039.14) The fabricated HUD extends to real item containers, and the trap is `cdestroy`, not the build.**
+  039.5's recipe plus `new Inventory(Coord)` / an `Unsafe`-allocated `Equipory` (its ctor builds an `Avaview`)
+  hand-wired under the fake `GameUI` makes the whole item surface runnable: bind a real `new GItem(indir)`
+  into `UI.widgets`, then place it with the container's own **`addchild(item, cell)`** — not `add()`. Both
+  containers keep a private `wmap` that `addchild` fills and `cdestroy` reads back unguarded
+  (`ui.destroy(wmap.remove(i))` → NPE on a null), so an item placed the short way kills the run at the exact
+  moment the probe destroys it, which is the moment the staleness test needs. Wiring a `GameUI`/`Equipory`
+  under a parent must also skip `added()` (assign `parent`/`ui` and call the public `link()`): `GameUI.added`
+  resizes and dereferences a `chat` that a fabrication has not got.
+- **(039.14) A resource's own published class can be FABRICATED for a probe — put a stand-in on the
+  classpath under the real package name.** `item:quality()` reads a class named
+  `haven.res.ui.tt.q.qbuff.QBuff` reflectively, so a 12-line stand-in with the same package, name and
+  `public double q` (plus its `Quality` subclass) compiled into the probe's own output directory makes the
+  whole path testable with no resource loaded at all — and the preference rule (the plain quality wins over
+  another buff row) becomes an ordinary assertion. Reflect-set the private `GItem.info` list to hand them
+  over; `info()` only rebuilds when `rawinfo != null`, so a planted list survives.

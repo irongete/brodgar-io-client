@@ -53,14 +53,14 @@ local function stopReplace()
 end
 
 -- The VIEW builder. It is handed the WIDGET OBJECT for the real inventory grid (029.3: the one entity every hafen.ui
--- door hands back, so every widget verb answers on it) and returns a window drawn over w:items() (Item snapshots:
--- {res,name,num,wear,pos,handle}). Once :replace binds it, the engine owns its fate: it is destroyed automatically
+-- door hands back, so every widget verb answers on it) and returns a window drawn over w:items() (Item objects:
+-- :res() :name() :num() :wear() :quality() :cell() :handle()). Once :replace binds it, the engine owns its fate: it is destroyed automatically
 -- when we disarm, when the addon is reloaded/disabled, or if the server ever destroys the inventory.
 local function buildBagsView(w)
   -- Size the window to the items present now (a click-through demo; items streaming in later just clip harmlessly).
   local cols, rows = 4, 3
   for _, it in ipairs(w:items()) do
-    local p = it.pos
+    local p = it:cell()
     if p then cols = math.max(cols, p.x + 1); rows = math.max(rows, p.y + 1) end
   end
 
@@ -72,14 +72,14 @@ local function buildBagsView(w)
       g:color(0, 0, 0, 175); g:frect(0, 0, ww, h); g:color()             -- translucent backdrop
       local items = w:items()                                           -- LIVE read off the hidden inventory's items
       for _, it in ipairs(items) do
-        local p = it.pos or { x = 0, y = 0 }
+        local p = it:cell() or { x = 0, y = 0 }
         local cx, cy = 4 + p.x * CELL, 4 + p.y * CELL
         g:color(46, 56, 74); g:frect(cx, cy, CELL - 2, CELL - 2); g:color()        -- cell body
         g:color(96, 116, 150); g:rect(cx, cy, CELL - 2, CELL - 2); g:color()        -- cell border
         -- No item icons yet (g:image is deferred), so show a short name + a stack count.
-        local label = tostring(it.name or it.res or "?"):gsub("^.*/", "")
+        local label = tostring(it:name() or it:res() or "?"):gsub("^.*/", "")
         g:text(label:sub(1, 5), cx + 2, cy + 2)
-        if it.num and it.num > 1 then g:atext(tostring(it.num), cx + CELL - 4, cy + CELL - 13, 1.0, 0.0) end
+        if it:num() and it:num() > 1 then g:atext(tostring(it:num()), cx + CELL - 4, cy + CELL - 13, 1.0, 0.0) end
       end
       if hover then                                                     -- hover highlight
         g:color(255, 225, 120)
@@ -97,10 +97,10 @@ local function buildBagsView(w)
     :onClick(function(x, y, button)
       local cx, cy = math.floor((x - 4) / CELL), math.floor((y - 4) / CELL)
       for _, it in ipairs(w:items()) do
-        local p = it.pos
+        local p = it:cell()
         if p and p.x == cx and p.y == cy then
           hafen.log():write(("bags: clicked %s x%s @cell %d,%d -- moving items is the gated Phase-4 tier (read-only here)")
-            :format(tostring(it.name or it.res), tostring(it.num or 1), cx, cy))
+            :format(tostring(it:name() or it:res()), tostring(it:num() or 1), cx, cy))
           return true
         end
       end

@@ -1422,3 +1422,65 @@ CraftSpec carries nothing at all. Generally: *mint an entity where the engine it
 resend; where it throws the record away, so does the API.*
 **See.** [D-094](architecture-api.md), [D-132](architecture-api.md), [D-134](architecture-api.md),
 [D-135](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-138 — an entity addressed by a RE-USED id is keyed by the OBJECT, and its write resolves through the object ✅ (2026-08-05)
+**Decision.** An **Item** is interned on the item widget itself, never on `:handle()` — the server widget id it
+is addressed by on the wire. `hafen.act():item(item, verb)` takes the entity and resolves the item *through the
+object it holds*; a widget id and a table carrying one are both **refused**, naming the Item.
+**Rationale.** (2026-08-05, 039.14.) D-094 says the intern key follows the engine's own stability, and asks what
+the engine does to the object. Here it does something no other subsystem does: it **hands the id back**. A
+widget id is released by `UI.removeid` the moment the item is destroyed and the server is free to give the same
+number to the next widget it creates — so a handle keyed on that number does not go stale, which is the failure
+mode every other entity here has and can report. It **retargets**: it goes on resolving, to a different item,
+and a gated write through it moves something the caller never named. That is not a worse version of "gone", it
+is a different category of failure — silent, and destructive at exactly the tier the permission gate exists to
+guard. Keyed on the item, the resolve can only answer *this item* or *nothing*.
+**Consequences.** `:exists()` is a real question and the reads split by what they are: `:res()`, `:name()`,
+`:num()`, `:wear()` and `:quality()` go on answering what the item **was** — which is what makes a stashed
+`onItemRemoved` payload worth holding — while `:cell()`, `:slots()` and `:handle()` go empty, because *where it
+is* is precisely what it no longer has. The escape hatch keeps working and stays honest: `hafen.act():raw` still
+takes a number, and the documented spelling reads it off the item at the moment it is sent
+(`item:handle()`), rather than stashing one. Measured end to end headlessly — id re-used by another item, the
+stale handle still naming the old one, the write refused, the new occupant untouched — and **not** assertable
+from a suite, which meets the permission gate first. Generally: *before keying an entity on an id, ask not only
+whether the id is stable but whether it is RE-ISSUED; a stale reference can be reported, a recycled one cannot.*
+**See.** [D-022](architecture-api.md), [D-063](architecture-api.md), [D-094](architecture-api.md),
+[D-132](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-139 — a container hands each item ONCE, and where it sits is a property of the item ✅ (2026-08-05)
+**Decision.** `widget:items()` de-duplicates on the item, so a worn item filling several equipment slots is one
+entry. Where it sits is **two verbs, not one shape**: `item:cell()` is the `{x, y}` grid cell and `item:slots()`
+names the equipment slots it fills. The old snapshot's single `pos` field (a table in a backpack, a string in
+the equipment window) and its numeric `slot` are retired, naming both.
+**Rationale.** (2026-08-05, 039.14.) An `Equipory` draws one item once per slot it occupies, so the pre-entity
+list held two entries for one thing — harmless while they were copies and a lie the moment they are interned,
+since `#items` would count two of something you own one of and `==` would be true across them. And a field whose
+type depends on which container answered is D-093's split-the-argument-by-shape heuristic in the return
+position: two verbs say which you meant, so no rule about types survives.
+**Consequences.** The container lifecycle follows: `:onItemAdded`/`:onItemRemoved` diff the **items**, not the
+cells that draw them, so a two-slot item is one add. **The corollary was found in-game and it is the part worth
+remembering**: a set that must not under-report has to be able to name every member, and the equipment window
+publishes a display name for all but one of its places — so naming only what it names dropped a worn item's
+place entirely, and `:slots()` read empty, which is what *not worn* reads. An unnamed slot falls back to the
+engine's own identifier for it. Generally: *when a read means "where is this", completeness is the contract —
+a place the client cannot NAME is still a place, and omitting it makes the empty answer ambiguous.*
+**See.** [D-013](architecture-api.md), [D-093](architecture-api.md), [D-138](architecture-api.md),
+[039-uniform-api](../039-uniform-api/spec.md).
+
+### D-140 — a value only PUBLISHED CODE knows is read by class NAME, not by adopting the class ✅ (2026-08-05)
+**Decision.** `item:quality()` ships, and it is read by walking the item's tooltip info for a class *named*
+`ui/tt/q/qbuff`'s, then reading its `q` field reflectively — no `get-code` copy, no `@FromResource` version pin.
+**Rationale.** (2026-08-05, 039.14.) `learnings/client-limits.md` recorded typed quality as something the client
+does not have, and that is true of `haven`: there is no `Quality` type to compare against, because the number
+lives in a class that ships **inside a resource**. Two routes reach it. Adopting the class (the `ui/obj/buddy`
+recipe) makes it typed and fast, and pins a version: when the server ships a revision the pin stops matching,
+the resource's own class is loaded instead — a different `Class` with the same name — and every read answers
+`null` for every item, *silently*. Reading by name cannot be revised out of correctness; it can only stop
+finding the field, which is what `nil` already means everywhere in this API. `gob:kin()` makes the same trade in
+its fallback, for the same reason.
+**Consequences.** The learning is amended rather than left to mislead: what the client cannot give is a quality
+**type**, not the quality. The rule generalises past this field — *ask what a wrong answer costs before choosing
+between a pinned adoption and a named lookup: adoption buys speed and types and pays in a failure mode that is
+invisible; a named lookup pays a reflective read and fails to nil.* Adoption stays right where the code must be
+**changed** (the F3d font override), which is a thing a name lookup cannot do at all.
+**See.** [D-043](fonts.md), [D-061](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).

@@ -580,3 +580,20 @@
   become a single loop over `AddonWidget.CALLBACKS` in `LuaWidget` instead of eight near-identical blocks.
   The array of names is then also what the suite iterates, so "all thirteen return self" is two verdict
   lines rather than twenty-six.
+- **(039.14) A container's item CELLS are not its items: one `GItem` can wear several `WItem`s.**
+  `Inventory.addchild` builds one `WItem` per item; `Equipory.addchild` builds **one per equipment slot the
+  item fills** (`args` is a list of ep indices, `wmap` maps the item to that collection), so a two-slot
+  weapon is drawn twice and `children(WItem.class)` returns it twice. That was invisible while
+  `widget:items()` handed back copies and became a defect the moment the entries were interned — two `==`
+  entries for one thing. Read items by de-duplicating on `WItem.item`; read the places off the item.
+- **(039.14) The equipment window names all but one of its slots, and the name comes from a resource.**
+  `Equipory.etts[i]` is filled only when `gfx/hud/equip/ep<i>` has an image layer; in this fork slot 16 has
+  none (23 slots, 22 names), and the server does place items there. So a slot-name lookup that returns nil
+  for "no published name" makes a worn item's place unreadable — and `#slots == 0`, which is what *not worn*
+  looks like. The in-game round is the only place this shows: a probe wearing hand-placed gear never lands
+  in that slot by accident.
+- **(039.14) The cursor item IS a bound widget, unlike everything else about it.** `GameUI.addchild` with
+  `place == "hand"` does `add((GItem)child)`, so the item on the cursor is a real server-bound `GItem` under
+  the HUD with a widget id — `GameUI.vhand` is only the `WItem` that draws it. It therefore interns, ages and
+  goes stale exactly like a container's item; what it lacks is a container, so it is the one item with no
+  cell and no slot.

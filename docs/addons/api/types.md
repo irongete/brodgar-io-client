@@ -33,9 +33,11 @@ always fresh. [`hafen.world`](world.md) and the `GobAdded`/`GobRemoved` events h
 
 ## Item
 
-An item inside a container. From any widget's [`:items()`](ui/items.md) — your backpack
-(`hafen.ui():inventory()`), your worn gear (`hafen.ui():equipment()`), a chest, a cupboard — and from
-[`hafen.ui():hand()`](ui/widget.md) for the cursor item. Every field is optional.
+From [`item:info()`](ui/items.md#the-item-object), the one snapshot escape hatch. Any widget's
+[`:items()`](ui/items.md) — your backpack (`hafen.ui():inventory()`), your worn gear
+(`hafen.ui():equipment()`), a chest, a cupboard — and [`hafen.ui():hand()`](ui/widget.md) for the cursor
+item hand you a live [`Item` object](ui/items.md#the-item-object), not this table. Every field is
+optional.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -43,12 +45,13 @@ An item inside a container. From any widget's [`:items()`](ui/items.md) — your
 | `name` | string | display name |
 | `num` | number | stack count (absent for a non-stack) |
 | `wear` | number | 0..100 wear or progress percentage (absent when 0) |
-| `handle` | number | the item's server widget id — the [ItemRef](conventions.md#itemref-an-inventory-or-equipment-item) [`hafen.act():item`](act.md) takes |
-| `pos` | table \| string | inventory: the `{x, y}` grid cell. equipment: the slot name. Absent for the cursor item. |
-| `slot` | number | equipment only: the raw equipment slot index |
+| `quality` | number | the quality the tooltip shows (absent for an item that has none) |
+| `handle` | number | its server widget id, for [`hafen.act():raw`](act.md) (absent once the item is gone) |
+| `cell` | table | the `{x, y}` grid cell it sits in (absent for a worn or cursor item) |
+| `slots` | string[] | the equipment slots it fills, by name (absent when it is not worn) |
 
-Quality, and the contents of a container held as an item, are not exposed: the client has no typed
-field for either.
+What a container held as an item has inside it is not exposed: the client only knows that while the
+container's own window is open, so there is nothing to read here.
 
 ## Tile
 

@@ -413,14 +413,17 @@ final class CharApi {
     /**
      * Equipment — the {@link WItem}s worn in the {@link Equipory}. Equipping/removing is a widget
      * create/{@code cdestroy} under the Equipory (not a targeted {@code uimsg}), and item data streams
-     * in a beat after each item appears, so this is <b>poll-driven</b>: each tick it re-reads the
-     * equipment snapshot (the same array {@code hafen.ui.equipment():items()} returns) and fires {@code
-     * EquipChanged} with it when the set changes. Change-detection compares {@code slot}/{@code res}/
-     * {@code name}/{@code num} — not {@code wear} (a slowly-changing durability that is not an equip
-     * change; read it live via {@code hafen.ui.equipment():items()}).
+     * in a beat after each item appears, so this is <b>poll-driven</b>: each tick it re-reads the worn set
+     * and fires {@code EquipChanged} when it differs. Change-detection compares what each item is, how many
+     * and which slots it fills — not {@code wear} or quality (a durability drifting down and a tooltip
+     * resolving are not equipment changes; both are read live off the items themselves).
+     *
+     * <p>The payload is an array of <b>Item objects</b> ({@link AddonManager#fireEquip}), the same objects
+     * {@code hafen.ui():equipment():items()} hands back, so a handler reads it with the item verbs and a
+     * stashed payload goes on answering after the gear comes off.
      */
     private static final class EquipAdapter implements TreeAdapter {
-        private LuaValue cache;   // last equipment snapshot (UI thread; change-detect)
+        private String cache;     // last worn-set key (UI thread; change-detect)
 
         public boolean interested(Widget w, String msg) {
             return false;         // equip/unequip is a widget create/cdestroy, not a uimsg — see poll()
@@ -432,10 +435,10 @@ final class CharApi {
             Equipory eq = equipory();
             if(eq == null)
                 return;           // equipory not up yet — keep the cache, fire nothing
-            LuaValue snap = readEquipment(eq);
-            if(!equipEqual(snap, cache)) {
-                cache = snap;
-                fire("EquipChanged", snap);
+            String key = equipKey(eq);
+            if(!key.equals(cache)) {
+                cache = key;
+                fireEquip(LuaItem.items(eq));
             }
         }
     }
@@ -695,10 +698,10 @@ final class CharApi {
     // hafen.items is a HARD CUT (029.3, D-013). In Hafen there is no inventory model outside the widget tree —
     // GameUI.maininv is an Inventory exactly like a chest's — so a section of its own only preserved the
     // player-inventory privilege the Widget entity removes. Items are now a RELATION on their container:
-    // hafen.ui.inventory():items() / hafen.ui.equipment():items() / hafen.ui.hand(), and :items() answers on ANY
+    // hafen.ui():inventory():items() / hafen.ui():equipment():items() / hafen.ui():hand(), and :items() answers on ANY
     // container widget (a chest, a cupboard, another player's equipory) with nothing hidden. `find` had no
     // replacement built for it: it was a name/res substring filter over one array, which is a Lua one-liner over
-    // :items(). The item SHAPE is unchanged — itemSnapshot below is still the one Item producer.
+    // :items(). What a container hands back is the Item entity ({@link LuaItem}), keyed on the item widget.
 
     /**
      * Build {@code hafen.char()} for {@code owner}. From installHafen.
@@ -948,17 +951,8 @@ final class CharApi {
     }
 
 
-    /** The equipment slot index of a {@link WItem} under an {@link Equipory}, or {@code -1}. */
-    private static int slotOf(Equipory eq, WItem w) {
-        try {
-            return eq.epat(w.c);
-        } catch(RuntimeException e) {
-            return -1;
-        }
-    }
-
     /** The human-readable equipment slot name for an ep index, or nil. */
-    private static LuaValue slotName(int ep) {
+    static LuaValue slotName(int ep) {
         if((ep >= 0) && (ep < Equipory.etts.length) && (Equipory.etts[ep] != null))
             return LuaValue.valueOf(Equipory.etts[ep].text);
         return LuaValue.NIL;
@@ -984,40 +978,6 @@ final class CharApi {
         }
     }
 
-    /**
-     * An Item snapshot (the {@code Item} shape in api-reference.md) from a {@link GItem}. {@code pos}
-     * is supplied by the caller (grid cell for inventory, slot name for equipment; nil for the hand).
-     * Every field is optional / Loading-guarded: {@code num == -1} and {@code meter == 0} are treated
-     * as "absent" (matching the client's own convention). {@code quality}/{@code contents} are deferred
-     * (content-defined value / container widgets).
-     *
-     * <p>{@code handle} is the item's <b>server widget id</b> ({@link GItem#wdgid()}): the stable, facade-safe
-     * {@code ItemRef} (principle P1 — just an int) that the gated {@code hafen.act.item(item, verb)} verb (4f)
-     * takes to re-resolve the live {@link GItem} and drive it. It is a live reference on an otherwise
-     * point-in-time snapshot (the other fields are a copy, like {@code gob:info()}) — the only way to
-     * address an item, since items carry no other stable id (D-022: handle-only). Omitted for an unbound item.
-     */
-    static LuaValue itemSnapshot(GItem it, LuaValue pos) {
-        if(it == null)
-            return LuaValue.NIL;
-        LuaTable t = new LuaTable();
-        String res = itemResOf(it);
-        if(res != null)
-            t.set("res", LuaValue.valueOf(res));
-        String name = itemNameOf(it);
-        if(name != null)
-            t.set("name", LuaValue.valueOf(name));
-        if(it.num != -1)
-            t.set("num", LuaValue.valueOf(it.num));
-        if(it.meter > 0)
-            t.set("wear", LuaValue.valueOf(it.meter));   // 0..100 %, only meaningful when > 0
-        int handle = it.wdgid();
-        if(handle >= 0)
-            t.set("handle", LuaValue.valueOf(handle));   // server widget id → the ItemRef hafen.act.item(item, verb) takes (4f)
-        if((pos != null) && !pos.isnil())
-            t.set("pos", pos);
-        return t;
-    }
 
     // -- study / curiosity + skills (1d-3): all-public reads off the character sheet (no haven edit) --
 
@@ -1160,49 +1120,18 @@ final class CharApi {
     }
 
     /**
-     * Read an {@link Equipory}'s worn {@link WItem} children into an array of item snapshots, each with
-     * its equipment {@code slot} index and slot {@code pos} name. Backs both {@code hafen.ui.equipment():items()}
-     * and the {@code EquipChanged} change-detection. A two-slot item appears as two entries (distinct
-     * {@code slot}).
+     * The {@link Equipory}'s worn items as ONE change-detection key — what each item is, how many, and which
+     * slots it fills, joined in the window's own order. Not a snapshot array: with the items interned on their
+     * widgets, what the event hands over is objects ({@link LuaItem}), and comparing objects by identity cannot
+     * see a slot's numbers changing. So the diff keeps a string and the payload keeps the objects.
      */
-    static LuaValue readEquipment(Equipory eq) {
-        LuaTable out = new LuaTable();
+    static String equipKey(Equipory eq) {
         if(eq == null)
-            return out;
-        int i = 0;
-        for(WItem w : eq.children(WItem.class))
-            out.set(++i, equipSnapshot(eq, w));
-        return out;
-    }
-
-    /**
-     * One worn item's snapshot: the usual {@link #itemSnapshot} plus its equipment {@code slot} index and the slot
-     * name as {@code pos}. Shared by {@link #readEquipment} (the bulk read + {@code EquipChanged}) and by
-     * {@code widget:items()} on an {@link Equipory} (029.3) — one shape for the worn items, wherever they are read.
-     */
-    static LuaValue equipSnapshot(Equipory eq, WItem w) {
-        int ep = slotOf(eq, w);
-        LuaValue snap = itemSnapshot(w.item, slotName(ep));
-        if((ep >= 0) && snap.istable())
-            ((LuaTable)snap).set("slot", LuaValue.valueOf(ep));
-        return snap;
-    }
-
-    /** Do two equipment snapshots carry the same slot/res/name/num? ({@code wear} is excluded — a slow
-     *  durability drift is not an equip change; positional, for change-detection.) */
-    private static boolean equipEqual(LuaValue a, LuaValue b) {
-        if((a == null) || (b == null) || !a.istable() || !b.istable())
-            return false;
-        int n = a.length();
-        if(n != b.length())
-            return false;
-        for(int i = 1; i <= n; i++) {
-            LuaValue ea = a.get(i), eb = b.get(i);
-            if(!luaFieldEq(ea, eb, "slot") || !luaFieldEq(ea, eb, "res")
-               || !luaFieldEq(ea, eb, "name") || !luaFieldEq(ea, eb, "num"))
-                return false;
-        }
-        return true;
+            return null;
+        StringBuilder sb = new StringBuilder();
+        for(GItem it : LuaItem.items(eq))
+            sb.append(LuaItem.equipKey(it)).append("\n--\n");
+        return sb.toString();
     }
 
     /** The live {@link Party}, or {@code null} before a session is up. Read by {@link LuaPartyMember}. */

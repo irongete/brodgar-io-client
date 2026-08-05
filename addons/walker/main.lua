@@ -27,7 +27,7 @@
 --                          character select — reversible). Path tokens are content-defined, so YOU supply them.
 --   :walker flower <l>  -- flower: RIGHT-click the nearest object, then auto-select its petal named <l> after a
 --                          brief delay (a flower menu grabs input, so a timed pick is the only programmatic way).
---   :walker item [verb] -- item: act on your FIRST inventory item, addressed by its HANDLE (item.handle, from a
+--   :walker item [verb] -- item: act on your FIRST inventory item, addressed by the Item OBJECT (from a
 --                          read). Default 'take' lifts it to your cursor (safe/reversible: click an empty slot to
 --                          undo). Pass a verb: take|drop|transfer|iact|itemact.
 --   :walker speed [n]   -- speed:current(n): select movement speed n=0..3 (crawl/walk/run/sprint; default 2=run). Reversible.
@@ -151,19 +151,20 @@ hafen.slash():register("walker", function(args)
     end)
 
   elseif sub == "item" then
-    -- 4f: item verbs act on a LIVE item addressed by its HANDLE (item.handle = the item's server widget id),
-    -- which every item snapshot carries -- you get it from a READ (widget:items() on any container). The verb
-    -- re-resolves that handle to the live GItem each call (a stale/used item errors, like a GobRef) and sends
-    -- exactly the GItem.wdgmsg a click sends. Demo: act on the FIRST inventory item; default 'take' is the
+    -- 4f: item verbs act on the Item OBJECT itself -- you get one from a READ (widget:items() on any
+    -- container, or hafen.ui():hand()). Deliberately not a number: the server re-uses an item's widget id, so
+    -- a verb aimed at a number would move whatever holds it now. The object carries its own item, so a moved
+    -- or eaten one errors (item:exists() is false) and nothing is sent. Demo: act on the FIRST inventory item;
+    -- default 'take' is the
     -- safest + most visible (it lifts the item onto your cursor -- click an empty slot to put it back).
     local verb = args[2] or "take"
     local invw = hafen.ui():inventory()                -- the backpack's Widget object (029.3; hafen.items is GONE)
-    local inv = invw and invw:items() or {}            -- array of Item snapshots, each with a `handle`
+    local inv = invw and invw:items() or {}            -- array of Item objects, live while the item is
     local it = inv[1]
     if not it then hafen.log():write(":walker item -> your inventory is empty (put something in it, then retry)"); return end
-    hafen.act():item(it, verb)                            -- gated; resolves it.handle -> the live GItem, sends `verb`
+    hafen.act():item(it, verb)                            -- gated; resolves the item's own widget, sends `verb`
     hafen.log():write((":walker item -> hafen.act():item('%s' [handle %s], '%s')")
-      :format(it.name or it.res or "?", tostring(it.handle), verb))
+      :format(it:name() or it:res() or "?", tostring(it:handle()), verb))
     if verb == "take" then
       hafen.log():write("   (take lifts the item onto your cursor -- left-click an empty inventory slot to put it back)")
     end
