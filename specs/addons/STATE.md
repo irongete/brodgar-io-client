@@ -2,7 +2,22 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: `040-ui-controls`** (7 of 13 tasks done) — the client's own UI controls, reachable from Lua. 17 of them in two groups: the **direct** ones (`Button` `IButton` `TextEntry` `Label` `Img` `Progress` `HRuler` `CheckBox` `ICheckBox` `RadioButton` `HSlider` `Scrollport`+`Scrollbar`), concrete classes that construct and configure, and the **model-backed** five (`SListBox` `SDropBox` `SListMenu` `GridList` `TableBox`), abstract and generic over the item type, which all reduce to `SListWidget`'s two methods — `items()` and `makeitem()` — plus `GridList`'s `drawitem`. A control is a **Widget**, not a nineteenth entity, so every existing verb and selector works on one for free; `:value()` is the one verb for a control's value (its first implementor, 040.3) and `:onChange(fn)` the one notification (its first implementor, 040.4) — a programmatic `:value(v)` never re-enters it.
+**ACTIVE: `040-ui-controls`** (8 of 13 tasks done) — the client's own UI controls, reachable from Lua. 17 of them in two groups: the **direct** ones (`Button` `IButton` `TextEntry` `Label` `Img` `Progress` `HRuler` `CheckBox` `ICheckBox` `RadioButton` `HSlider` `Scrollport`+`Scrollbar`), concrete classes that construct and configure, and the **model-backed** five (`SListBox` `SDropBox` `SListMenu` `GridList` `TableBox`), abstract and generic over the item type, which all reduce to `SListWidget`'s two methods — `items()` and `makeitem()` — plus `GridList`'s `drawitem`. A control is a **Widget**, not a nineteenth entity, so every existing verb and selector works on one for free; `:value()` is the one verb for a control's value (its first implementor, 040.3) and `:onChange(fn)` the one notification (its first implementor, 040.4) — a programmatic `:value(v)` never re-enters it.
+
+**040.8 DONE — `:scroll()`, composed rather than extended, and the `:parent(w)` trap actually fixed.**
+`hafen.ui():scroll()` does NOT subclass `haven.Scrollport` — its constructor seals `bar` as a fixed
+anonymous `Scrollbar` with no seam for a subclass to add its own notification, so the control rebuilds the
+same shape from `Scrollport`'s own public pieces (`Scrollbar`, the nested `Scrollcont`), with the bar as its
+own adapter (`Bar`, nested in `CScrollport`) carrying the usual `Owned`/`:range`/`:value`/`:onChange`
+contract. **The bar is Owned in its own right, found structurally** — `sp:children()` or
+`hafen.ui():all("@Scrollbar")`, never a dedicated verb — which is what lets it answer those verbs at all (an
+unowned widget refuses them by name, per 040.6); a programmatic write on it DOES move the actual scroll
+offset (unlike a bare `:scrollbar()`, which drives nothing), while `:onChange` still fires from a real drag
+only. `:type()` on the composite reads `"Widget"`, the same answer `:radio()` gives, for the same reason:
+two engine classes glued into one control. **The trap the task exists to not fall into, actually fixed**:
+`Widget.add` never routes through `addchild`, and this class (like the engine's own `Scrollport`) only
+overrides `addchild`, so `LuaWidget`'s `:parent(w)` write now special-cases a `Scrollport`-shaped target,
+adding into its inner container instead of dropping the child beside the bar. `haven` core edits zero.
 
 **040.7 DONE — `:entry()`, and the first READ/WRITE-split retirement (D-158).** `TextEntry` answers `:value(s)` (the one door), `:onChange(fn)` per keystroke and `:onSubmit(fn)` once on Enter, via `activate(String)` overridden outright (never `wdgmsg`); a write goes through `rsettext` (replaces the `ReadLine` buffer, notifying nothing), D-153's rule reached through a buffer object rather than a field. **`entry:text(s)` retires naming `:value(s)`; `entry:text()` (the read) does NOT** — found in-game when retiring both arities crashed the shipped `widgetstack` example, whose inspector calls `:text()` generically on every widget it walks, exactly the never-throwing best-effort contract `docs/addons/api/ui/widget.md` already publishes; only the WRITE collided with the one-door rule. `haven` core edits zero.
 

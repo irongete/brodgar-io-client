@@ -279,6 +279,21 @@ final class Controls {
         return UiApi.attach(u, owner, new CEntry(owner));
     }
 
+    /**
+     * {@code hafen.ui():scroll()} — a scrolling container over {@link haven.Scrollport}'s own two pieces (task
+     * 040.8): {@code :parent(sp)} on any control puts it INSIDE the scrolling area, never beside the bar, and
+     * the bar answers the same {@code :range}/{@code :value}/{@code :onChange} as a bare {@code :scrollbar()}
+     * (found the ordinary way, {@code hafen.ui():all("@Scrollbar")} or {@code sp:children()}) once content
+     * taller than the box makes it live. The container itself has no verb of its own.
+     */
+    static LuaValue scroll(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():scroll() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():scroll():size(200, 160):position(x, y):parent(w)");
+        UI u = UiApi.requireUi("scroll");
+        return UiApi.attach(u, owner, new CScrollport(owner));
+    }
+
     // ------------------------------------------------------------------ the control verbs
 
     /**

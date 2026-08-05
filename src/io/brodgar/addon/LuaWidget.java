@@ -301,7 +301,13 @@ public final class LuaWidget {
                 synchronized(u) {
                     Coord at = w.c;
                     w.remove();                           // unlink from ui.root; nothing else holds a fresh widget
-                    p.add(w, at);                         // ...and re-home it, keeping the place it was given
+                    // Widget.add does NOT route through addchild, and a Scrollport-shaped parent only overrides
+                    // addchild -- a plain add() here would drop the child beside the bar instead of inside the
+                    // scrolling area (040.8's whole trap), so this one control redirects into its own container.
+                    if(p instanceof CScrollport)
+                        ((CScrollport)p).cont.add(w, at);
+                    else
+                        p.add(w, at);                     // ...and re-home it, keeping the place it was given
                 }
                 return self;
             }

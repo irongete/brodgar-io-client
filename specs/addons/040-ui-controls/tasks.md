@@ -68,7 +68,7 @@
       **not** also reach the game — no movement, no hotkey, no chat.
       <!-- extra context: `src/haven/TextEntry.java`, `ReadLine.java`, `src/io/brodgar/addon/Retired.java` -->
 
-- [ ] **040.8 — `:scroll()`.** `Scrollport` + its `Scrollbar`, with `:parent(sp)` redirecting into the port's
+- [x] **040.8 — `:scroll()`.** `Scrollport` + its `Scrollbar`, with `:parent(sp)` redirecting into the port's
       inner container. **The trap this task exists to not fall into**: `Widget.add` does not route through
       `addchild`, and `Scrollport` only overrides `addchild` — so a plain `add()` drops the child beside the
       bar instead of inside the scrolling area, and it looks almost right. **Suite proves**: a child parented

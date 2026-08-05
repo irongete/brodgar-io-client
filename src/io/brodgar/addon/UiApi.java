@@ -428,6 +428,18 @@ final class UiApi {
                 return Controls.entry(owner, a);
             }
         });
+        // :scroll() — 040.8, a scrolling container over haven.Scrollport's own two pieces. :parent(sp) on any
+        // control puts it INSIDE the scrolling area (LuaWidget's parent(w) write redirects into the port's own
+        // inner container for this one control) -- never beside the bar, which is the trap a plain add() would
+        // fall into. The bar itself answers the same :range/:value/:onChange as a bare :scrollbar(), found the
+        // ordinary way once content taller than the box makes it live; the container itself has no verb of its
+        // own.
+        m.set("scroll", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "scroll");
+                return Controls.scroll(owner, a);
+            }
+        });
         // :overlay() — paint on top of the HUD without owning a widget: :onDraw(fn) runs fn(g, w, h) every frame
         // with the shared GOut wrapper and the screen size, in absolute screen coords. It MINTS one rather than
         // handing back a collection, which is the one place `overlay` is a builder and not a set — gob:overlay()

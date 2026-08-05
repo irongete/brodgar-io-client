@@ -1,0 +1,9 @@
+{
+  "name": "040.8 — scroll()",
+  "id": "040-ui-controls.8",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 040.8: hafen.ui():scroll() builds a scrolling container over the client's own Scrollport shape, where a child :parent(sp)'d lands INSIDE the port's inner container, never beside the bar (the trap a plain add() falls into, since Widget.add does not route through addchild). The bar itself is a real, owned Scrollbar found structurally, not through a dedicated verb, answering the same :range()/:value()/:onChange() as a bare :scrollbar() -- alive once content parented into the port outgrows its box, inert otherwise.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

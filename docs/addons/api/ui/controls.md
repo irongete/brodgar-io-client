@@ -4,9 +4,8 @@ A **control** is one of the client's own interactive widgets — the same class 
 from — that your addon builds, owns and destroys. You do not paint it: you place it, configure it, and the
 client draws it, handles the hover and the press, and dresses it from the [stylesheet](style/README.md).
 
-That last part is the reason to reach for one. A rectangle you paint yourself with
-[`g`](drawing.md) is outside the theme permanently, and stays outside it as the theme grows; a control is
-inside it from the first frame, with nothing written for that.
+That last part is the reason to reach for one: a rectangle you paint with [`g`](drawing.md) stays outside
+the theme as it grows, where a control is inside it from the first frame, with nothing written for that.
 
 ```lua
 local win = hafen.ui():window():title("Harvest"):size(160, 60):position(80, 120)
@@ -23,10 +22,9 @@ There is no separate control type. What a builder here hands back is the same
 [Widget object](widget.md) every lookup gives you, so every read and every write on that page answers on a
 control with nothing added: `:type()`, `:role()`, `:position(x, y)`, `:size(w, h)`, `:parent(w)`,
 `:visible(b)`, `:destroy()`, `:style()`, `:rule()`, `:info()`. A [selector](selectors.md) finds one too —
-`hafen.ui():all("button")` includes the buttons you built alongside the client's.
-
-`:type()` reports the **engine's** class, so a button you built and a button you found read the same
-`"Button"`. That is what keeps one selector, one role and one stylesheet key pointing at both.
+`hafen.ui():all("button")` includes the buttons you built alongside the client's. `:type()` reports the
+**engine's** class, so a button you built and a button you found read the same `"Button"` — one selector,
+one role and one stylesheet key point at both.
 
 ## Builders
 
@@ -41,6 +39,7 @@ control with nothing added: `:type()`, `:role()`, `:position(x, y)`, `:size(w, h
 | `hafen.ui():check()` | [Widget](widget.md) | a checkbox, showing a caption or a picture |
 | `hafen.ui():radio()` | [Widget](widget.md) | a set of buttons where exactly one is checked |
 | `hafen.ui():slider()` | [Widget](widget.md) | a draggable position within a range |
+| `hafen.ui():scroll()` | [Widget](widget.md) | a scrolling container for other controls |
 | `hafen.ui():scrollbar()` | [Widget](widget.md) | a bare scroll thumb, for driving something yourself |
 
 It takes no argument. A control is born bare, with the client's own defaults, and everything about it is a
@@ -64,9 +63,8 @@ where the control hangs while it is being built, and once it is on screen the wa
 | `:range(min, max)` | `:range()` | the value bounds of a [slider or scrollbar](#slider) |
 | `:onSubmit(fn)` | `:onSubmit()` | `fn(s)` — Enter was pressed in a [text entry](#text-entry) |
 
-Every setter returns the Widget, so a control is one expression, and every one has a matching bare read.
-`:text()` answers on any text-bearing widget, yours or the client's; `:text(s)` writes, and only on a
-control you own. `:onPress()` reads `nil` on a widget that has nothing to press.
+Every setter returns the Widget, so a control is one expression, and each has a matching bare read: `:text()`
+answers on any text-bearing widget, `:text(s)` writes only on one you own, `:onPress()` reads `nil` otherwise.
 
 **`:value()` is the one verb for what a control holds**, whatever shape that is — a [progress bar](#progress-bar)'s
 is a fraction, and a control with nothing to hold reads `nil` rather than throwing. A write is checked by the
@@ -75,14 +73,12 @@ control it lands on: a [progress bar](#progress-bar) refuses one outside `0..1`,
 that range is something you set yourself with `:range(min, max)` and can narrow at any time, not a fixed
 contract the value can violate.
 
-**`:onPress` is an activation, not a mouse position.** It is what the control *did*, so it also fires when
-the button is triggered from the keyboard, and it carries no coordinates. It is safe for the handler to
-destroy the window the button is sitting in.
+**`:onPress` is an activation, not a mouse position.** It is what the control *did*, so it also fires from
+the keyboard and carries no coordinates; it is safe for the handler to destroy the window the button sits in.
 
-**`:onChange(fn)` fires when a control's value changes — and only from a real interaction.** Setting
-`:value(v)` from your own code never re-enters it, so driving a control's value from a script and reacting
-to the user changing it are two different things that never loop into each other. Setting it a second time
-replaces the handler; only the latest one is called.
+**`:onChange(fn)` fires when a control's value changes — and only from a real interaction.** A `:value(v)`
+write from your own code never re-enters it, so driving a value from a script and reacting to the user
+changing it never loop into each other. Setting it a second time replaces the handler.
 
 **Sizing.** `:size(w, h)` sets the box like anywhere else, in raw pixels. A bare button already comes at the
 client's own button height, so setting only a width you like and leaving the height alone is usually what
@@ -101,10 +97,9 @@ hafen.ui():button():image(up, down, hover)         -- the same builder, a pictur
 Two faces or three. `up` is what the button shows at rest, `down` while it is held, and `hover` the one
 under the cursor; leave `hover` out and it is the same picture as `up`. Each face is either an
 [image asset](../asset.md) your addon ships, passed as the handle, or a **string naming one of the client's
-own images** — `"gfx/hud/buttons/addu"`, the very art the game's own windows are built from. Where the
-picture comes from also decides how it is scaled: a file of yours is drawn at its own pixels, and the
-client's art is scaled the way the client scales it, so a button made of game art matches the buttons
-beside it.
+own images** — `"gfx/hud/buttons/addu"`, the very art the game's own windows are built from, scaled the way
+the client scales it so a button made of game art matches the buttons beside it; a file of yours is drawn
+at its own pixels instead.
 
 ```lua
 local up, down = hafen.asset():get("up.png"), hafen.asset():get("down.png")
@@ -137,8 +132,8 @@ e:value()          --> "gonzalo"
 ```
 
 `:onChange(fn)` fires on every keystroke that changes the text; `:onSubmit(fn)` fires once, when Enter is
-pressed, carrying the whole text. Writing `:value(v)` from your own code fires neither one. While it has
-focus, a keystroke goes to the field only — never also to your character, a hotkey, or the chat line.
+pressed, carrying the whole text — a programmatic `:value(v)` fires neither one. While it has focus, a
+keystroke goes to the field only, never also to your character, a hotkey, or the chat line.
 
 ## Label
 
@@ -150,10 +145,10 @@ local l = hafen.ui():label():text("Stamina"):position(4, 4)
 l:text(("%d%%"):format(n))     -- writing new text RESIZES the label to fit it
 ```
 
-The box is exactly the rendered text, so writing a new caption changes `:size()` — a label placed against the
-right edge of something else needs re-positioning after a write that changes its length, not just its
-content. A label holds text only: it takes no picture, and `:image(...)` refuses on one naming the
-[button](#a-caption-or-a-picture) or [checkbox](#checkbox) builder that does.
+The box is exactly the rendered text, so writing a new caption changes `:size()` — a label placed against
+the right edge of something else needs re-positioning after a write that changes its length. A label holds
+text only: `:image(...)` refuses on one, naming the [button](#a-caption-or-a-picture) or
+[checkbox](#checkbox) builder that takes a picture.
 
 ## Picture
 
@@ -257,6 +252,14 @@ user did, so it does not fire `:onChange`. `:range(nil)` is refused like any oth
 the missing bound; there is no "undo" meaning for a control's own bounds the way `:position(nil)` undoes a
 layer.
 
+## Scroll
+
+`hafen.ui():scroll()` is a scrolling container: give it a size, and anything `:parent()`'d into it lands in
+the scrolling area, never beside it. A scrollbar appears down its right edge once the content no longer fits
+and disappears once it fits again — a real control in its own right, one of `sp:children()`, answering the
+same `:range()`/`:value(n)`/`:onChange(fn)` as a bare [scrollbar](#scrollbar). For driving a scroll position
+with nothing to contain, build that bare control instead.
+
 ## Scrollbar
 
 `hafen.ui():scrollbar()` is a bare scroll thumb, for driving something yourself — the same `:range(min,
@@ -278,18 +281,16 @@ moment to report, so every step just reports where it is now.
 The draw and input callbacks of [custom](custom.md) — `:onDraw`, `:onTick`, `:onClick`, `:onMouseUp`,
 `:onMouseMove`, `:onWheel`, `:onDrop`, `:onClose` — and `:font(h)` belong to a **surface you paint
 yourself**. A control is drawn and driven by the client, so it has nowhere to put them and says so rather
-than accepting one silently: how you learn a button fired is `:onPress(fn)`, and what it looks like comes
-from the [stylesheet](style/README.md), not from a font handle you hand the widget.
+than accepting one silently: how you learn a button fired is `:onPress(fn)`, and its look comes from the
+[stylesheet](style/README.md), not a font handle you hand the widget.
 
 ## Owned and borrowed
 
 A control your addon built is [owned](widget.md#owned-vs-borrowed): the setters answer, `:destroy()` ends
 it, and a `:reload` or a disable removes it for you. The client's own controls are **borrowed** — the reads
-answer, and every setter on this page refuses, naming what to do instead. `:info().owned` is how you ask
-rather than provoke the error.
-
-Provenance comes from the tree, so a control you find again with `hafen.ui():at(x, y)` or a selector is the
-same object the builder returned, writes and all.
+answer, and every setter on this page refuses, naming what to do instead (`:info().owned` is how you ask
+rather than provoke the error). Provenance comes from the tree, so a control you find again with
+`hafen.ui():at(x, y)` or a selector is the same object the builder returned, writes and all.
 
 ## See also
 

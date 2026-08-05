@@ -152,3 +152,21 @@ are the two implementations, chosen once by the `"editmode"` pref; either way th
 > `settext`), and that path notifies `changed` — so writing a value the "obvious" way re-enters an adapter's
 > own change handler, exactly the feedback loop every other value-bearing control in this catalogue also has
 > to avoid, just reached from a buffer object instead of a field.
+
+## `Scrollport` — composition over `Scrollbar` + `Scrollcont`, and a sealed bar
+
+[`Scrollport`](src/haven/Scrollport.java:29) is not extended by an adapter: its constructor builds `bar`
+([:30](src/haven/Scrollport.java:30)) as a **fixed anonymous `Scrollbar`** whose only override is
+`changed()` (`cont.sy = bar.val`), so a subclass has no seam to make that same object notify Lua too. An
+adapter instead rebuilds the shape from `Scrollport`'s own public pieces.
+
+| What | Where |
+|---|---|
+| The inner container | [`Scrollcont`](src/haven/Scrollport.java:54), `public static` — reusable directly; its clip+scroll draw is [`draw(GOut)`](src/haven/Scrollport.java:76), offsetting each child by `-sy` via [`xlate`](src/haven/Scrollport.java:69) and skipping one whose translated box misses the port entirely |
+| The bar's range, auto-derived | [`Scrollcont.update()`](src/haven/Scrollport.java:48) (the constructor's override) sets `bar.max = max(0, contentsz().y + 10 - sz.y)` — runs from [`Scrollcont.add`](src/haven/Scrollport.java:63) only, **not** from a later `resize()` on an existing child, so a child's final size must be set before it is added |
+| The wire-protocol redirect | [`Scrollport.addchild`](src/haven/Scrollport.java:96) forwards into `cont.addchild` — **`Widget.add` does NOT call `addchild`**, so any Java caller adding straight into a `Scrollport` (not through this override) drops the child beside the bar instead of inside `cont` |
+| Wheel + resize | [`mousewheel`](src/haven/Scrollport.java:91) is `bar.ch(ev.s * UI.scale(15))`; [`resize`](src/haven/Scrollport.java:100) re-anchors `bar` to the right edge and resizes `cont` to `sz` minus the bar's width |
+
+> **The `:parent(w)` write is the one Java call site outside `Scrollport` itself that adds a child into one.**
+> It goes through `Widget.add(child, Coord)`, never `addchild`, so a parent-shaped like `Scrollport` needs its
+> OWN `instanceof` branch there redirecting into `cont` — the addchild override above does not cover it.
