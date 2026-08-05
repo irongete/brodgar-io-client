@@ -1,0 +1,9 @@
+{
+  "name": "039.16 — the close of the uniform API",
+  "id": "039-uniform-api.16",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.16: the two claims no per-section suite can make — completeness (33 sections callable and handed back by identity, an unknown verb refused by name, and every retired spelling in the migration throwing a message that names its replacement) and the categorical cost claim (naming a section allocates nothing, measured against a call that allocates, and a draw callback naming one costing nothing a frame against the same widget doing work).",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

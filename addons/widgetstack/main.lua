@@ -42,7 +42,7 @@
 -- into the window to click a row. That hotkey starts UNBOUND: assign it under Options > Keybindings >
 -- Widgetstack (suggested: Ctrl+Shift+F).
 
-hafen.log():write("widgetstack loaded (v0.4.0)")
+hafen.log():write("widgetstack loaded")
 
 local win                 -- the floating stack window (created at OnEnterWorld)
 local overlay             -- the HUD overlay handle drawing the highlight box

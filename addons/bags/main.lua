@@ -30,7 +30,7 @@
 -- Item MOVING (take/transfer/drop) is an outbound gameplay action -> the gated Phase-4 actions tier (hafen.act),
 -- so this view is READ-ONLY: it draws the real items and logs the one you click. `hafen` is the API facade.
 
-hafen.log():write("bags loaded (v0.3.0) -- assign the 'toggle' hotkey in Options > Keybindings > Bags, then press it in-world"
+hafen.log():write("bags loaded -- assign the 'toggle' hotkey in Options > Keybindings > Bags, then press it in-world"
   .. " (once replaced, Tab and the inventory menu button drive the CUSTOM window)")
 
 -- The selector that names the MAIN inventory and nothing else (032.1, measured in-game with `widgetstack`'s

@@ -10,7 +10,7 @@
 --   :opttest dump    read every subsystem
 --   :opttest write   the non-destructive round-trips
 --   :opttest chain   several setters in one statement (a setter returns its subsystem handle)
---   :opttest keys    register / get / set / list / unregister
+--   :opttest keys    register / key / list / unregister
 --   :opttest error   invalid writes fail LOUDLY (pcall'd)
 --
 -- Hotkey 'ping' starts UNBOUND (D-047). Suggested key: Ctrl+Shift+O — assign it in
@@ -125,7 +125,7 @@ local function keys()
   end
   log("list(): %d bindings, %d bound, %d mine", total, bound, mine)
 
-  -- register -> set -> get -> unregister, all on a throwaway hotkey of OUR own, so no client binding is
+  -- register -> key -> unregister, all on a throwaway hotkey of OUR own, so no client binding is
   -- remapped. The client enforces one-key-one-action, so setting a key that is already taken would silently
   -- unbind its current owner — pick a free one, and if it is taken, skip the set instead of stealing it.
   local want
@@ -197,9 +197,9 @@ hafen.slash():register("opttest", function(args)
   else
     log(":opttest sub-commands -> dump | write | chain | keys | error")
     log("   dump = read every subsystem    write = non-destructive round-trips (values are restored)")
-    log("   chain = setters chained in one statement    keys = register/get/set/list/unregister")
+    log("   chain = setters chained in one statement    keys = register/key/list/unregister")
     log("   error = invalid writes, each expected to fail loudly")
   end
 end)
 
-log("loaded (v1.0.0) — run  :opttest  for the demos. Hotkey 'ping' is UNBOUND; suggested Ctrl+Shift+O.")
+log("loaded — run  :opttest  for the demos. Hotkey 'ping' is UNBOUND; suggested Ctrl+Shift+O.")

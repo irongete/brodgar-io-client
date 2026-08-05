@@ -1065,3 +1065,13 @@
   never `chomp` and never `awk length` (002.2/003.1); and links inside inline backticks must be blanked before
   the link regex, or documentation ABOUT a link counts as one. Falsify both directions every run: plant a bad
   path AND a bad anchor, confirm both are caught, confirm the healthy tree reports zero.
+- **(039.16) A falsification plant can be PRESENT and INERT, and that reads exactly like a check that cannot
+  discriminate.** Falsifying "every section hands back the SAME object every call" meant making one section mint a
+  fresh one; the plant was `sectionObject(name, verbs)` where that helper is `setmetatable(verbs, mt)` — which
+  **returns the table it was given**, so both calls handed back the identical table and the check stayed green. The
+  first reading was "the singleton check is broken"; the plant was. 039.13 recorded *grep the file and confirm the
+  plant is there* — this is one step past it: the plant was there, and did not produce the state it claimed to.
+  **The fix is to assert the plant, not the plant's source**: a plant meant to produce two distinct objects is
+  checked by printing whether they are distinct, before concluding anything about the check under it. Lua-specific
+  trap in the same shape: `setmetatable` and `table.sort` mutate and return their argument, so any stub built on
+  them recycles state a fresh-object plant needs to break.

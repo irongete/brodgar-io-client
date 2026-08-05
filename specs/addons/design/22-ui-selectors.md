@@ -1,5 +1,11 @@
 # UI Selectors (one way to point at a part of the UI)
 
+> **SPELLINGS SUPERSEDED by [25-uniform-api.md](25-uniform-api.md)** (shipped as 039-uniform-api): the
+> selector grammar below is untouched and every selector string still means what it says here, but the three
+> doors it is reached through are now colon verbs on the section object — `hafen.ui():find(sel)`,
+> `hafen.ui():all(sel)`, `hafen.ui():on(sel, ev, fn)` — because one expression could not be both the
+> namespace and the root widget. Read the spellings below as the shapes of that time.
+>
 > **Status:** 🟢 Design closed — shipped as [030-ui-selectors](../030-ui-selectors/spec.md) · **Spec:** AddOns
 > **Series:** B (the UI run), feature **B2** · **Surface:** `hafen.ui(sel)` · `hafen.ui.all(sel)` · `hafen.ui.on(sel, ev, fn)` · `widget:role()`
 > **Decisions:** [D-056](../decisions/architecture-api.md) (arity is the verb), [D-063](../decisions/architecture-api.md)

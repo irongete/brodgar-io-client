@@ -1,10 +1,15 @@
 {
   "name": "Planner",
   "id": "planner",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "author": "brodgar",
-  "description": "Example addon (V4/V5/V6/R2b/R3b-2): the LAYOUT + GRID-ANCHORED PERSISTENCE + full TRANSFORM demo for client-only world entities — .res GHOSTS (hafen.ghost), custom-PNG SPRITES (hafen.render.sprite), AND custom glTF MODELS (hafen.render.object), all on the SAME shared world-entity core (D-013), so one code path selects/gizmos/persists every kind. A small city/base planner — place translucent 'blueprint' ghosts (or your own icon.png sprites, or a cube.glb model) over the real terrain, CLICK them to select (V2), transform them with a Unity-style GIZMO (':planner gizmo' — drag the RED(X)/GREEN(Y) arrows or yellow centre to MOVE, the cyan RING to ROTATE, the magenta BOX to SCALE) or move by the body (V5a, ':planner grab'), and SAVE the layout so it reloads at the SAME spot — with facing AND scale — after a relog. The gizmo is a BUNDLED LUA LIBRARY (gizmo.lua) over the Java primitives (D-031): handles are drawn with g:draw() (no game resources), projected from the world each frame; move/rotate snap to the client's :placegrid/:placeangle (SHIFT=fine, D-033), scale is uniform (g:scale). Ghosts, sprites, and objects are SAFE-tier (a Gob with no server id, D-029/D-034): nothing reaches the server, so this addon declares NO permissions and is default-enabled like 'hello'. Persistence is GRID-ANCHORED: world coords are login-relative, so each entity is saved as hafen.world.gridPos(x,y) => {gridId, x, y} (a stable cross-session grid id + within-grid offset) + its kind/facing/scale (+ the sprite image / model path), and re-resolved on load with hafen.world.fromGridPos(anchor) (nil until that grid streams in — retried), the same rule map markers follow. Commands: ':planner place [name|res]' drops the current/named blueprint GHOST at your feet (clickable + saved); ':planner sprite [billboard]' drops a custom-PNG SPRITE — a fixed upright quad (clickable) or a camera-facing 'billboard' screen blit (R2b; no world mesh, so select it with ':planner select'); ':planner object' drops a custom glTF MODEL (cube.glb; R3b-2; clickable + gizmo-driven); 'blueprint [name]' shows/sets the blueprint (bare = list the palette); 'list'; 'select <n>' (or CLICK a ghost / fixed sprite / model); 'gizmo [move|rotate|scale|all]' attaches the transform gizmo; 'grab' MOVES by the body (placegrid-snapped, CLICK to drop); 'rotate [deg]' / 'scale <s>' set facing/scale directly (persisted); 'remove [n]' / 'clear' / 'save'. Kept SEPARATE from the read-only 'hello' regression harness as the dedicated V-series/R-series example (spec 16-virtual-entities / 17-custom-rendering, D-031).",
+  "description": "Example addon: your own props, images and models in the 3D world -- hafen.ghost(), hafen.render():sprite() and hafen.render():object() -- placed at a Position, selected by clicking, moved by a transform gizmo, and saved so a layout comes back at the same place after a relog. Client-only: it declares no permissions.",
   "api_version": 1,
-  "files": ["gizmo.lua", "main.lua"],
-  "saved_variables": ["layout"]
+  "files": [
+    "gizmo.lua",
+    "main.lua"
+  ],
+  "saved_variables": [
+    "layout"
+  ]
 }

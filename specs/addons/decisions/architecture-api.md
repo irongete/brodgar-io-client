@@ -1508,3 +1508,46 @@ because the failure needed an unresolved gob in view at that instant. No page wa
 changed: every page already described the behaviour `:nearest` had.
 **See.** [D-095](architecture-api.md), [D-115](architecture-api.md), [D-128](architecture-api.md),
 [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-142 — The manifest `description` is the AddOns panel's page, not the addon's changelog ✅
+**Decision.** Every example addon's `manifest.json` `description` becomes **one accurate present-tense
+paragraph** saying what that addon demonstrates, matching its entry on the published examples page. The
+accreted version log each one had been carrying is deleted rather than corrected.
+**Rationale.** (2026-08-05, 039.16.) `AddonPanel` renders `description` as the row's **tooltip** — the one
+thing a player reads before deciding to enable an addon, and for a network addon the same tooltip that lists
+the hosts it may reach. What was in it was a running changelog of every slice since V1, still teaching
+`hafen.ghost.new{res, x, y}` and the `:move`/`:pos`/`:setRes` handle verbs this feature retired: `hello`'s ran
+to **26,086 characters**, `theme`'s to 3,532. Every task of this feature left them alone while its own rows
+were in flight, which is right; at the close that stops being deferral and becomes a decision to ship a
+tooltip that is both unreadable and wrong. The same field already has a **measured** hazard on that path —
+`AddonPanel` wraps it deliberately, because an unwrapped long description becomes a texture wider than
+`GL_MAX_TEXTURE_SIZE` and the GL upload kills the render thread on hover — so length here was never free.
+**Consequences.** Twelve manifests rewritten and version-bumped, ~48,000 characters of accreted log deleted:
+the diff is the record, which is where a version history belongs. Frozen `hello` is edited under the one rule
+that allows it (this feature genuinely broke it), and the edit **shrinks** it. The rule generalises to any
+metadata field a later feature adds: **a field that carries prose is on the docs sweep**, and the test is
+whether a reader could believe it — which here is not hypothetical, since the client draws it. The finding
+that made the decision is worth keeping too: the first reading of the code said nothing rendered it, because
+the grep stopped at `src/io/brodgar/addon/*.java` and the panel lives in `.../addon/ui/`.
+**See.** [D-013](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md),
+[TESTING.md](../TESTING.md) (frozen `hello`, and the one case an edit is allowed for).
+
+### D-143 — R4 governs a BUILDER, so a draw call's trailing table is per-call SCOPE and stays ✅
+**Decision.** `g:text(str, x, y, opts)` and `g:atext(str, x, y, ax, ay, opts)` keep their trailing
+`{font = h, color = {r, g, b, a}}`. It is the only named-argument table left in the API, and it is not an R4
+violation: R4 is about a **builder**, and a draw call builds nothing.
+**Rationale.** (2026-08-05, 039.16.) The feature's own spec flagged this as open because it looked like the
+eight constructors beside it, and it is not one. Two things separate it. There is **no object to hang setters
+on** — a `g` is handed to one callback for one frame, so `g:font(h)` would be context state that outlives the
+call it was written for, and every caller would have to unset it: the config table with extra steps and a leak.
+And both keys are exactly **per-call scope of state the context already carries**: `opts.color` composes with
+`g:color` as a `g:color` around the call would, `opts.font` overrides the widget's default for this call only.
+So `g:color` is not a second door onto one property (D-013's dual style) but the *unscoped* form of the same
+one — which is why both can exist without the API saying the same thing twice.
+**Consequences.** The only alternative that was live — two optional positional trailing values — is strictly
+worse at the call site: unnamed, order-dependent, and no more typeable than the table. The rule generalises:
+**where a table's keys scope ONE call of a per-frame value, it is data, not named arguments** (§2.8's line,
+read from the other side), and the test is whether there is something that outlives the call to configure. It
+also closes the last of the six questions the feature opened, so `API.md`'s inventory has no orphaned row.
+**See.** [D-013](architecture-api.md), [D-107](architecture-api.md) (what a config table costs when there IS
+an object), [039-uniform-api](../039-uniform-api/spec.md) §5.5, [§2.8](../039-uniform-api/spec.md).

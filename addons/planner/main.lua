@@ -62,7 +62,7 @@
 -- analog of `img` for a sprite). ":hello object" (in the hello harness) proves the textured-model RENDER; this slice
 -- proves the EDITOR flow (select + gizmo + persist) on a mesh, completing R3's planner integration.
 
-hafen.log():write("planner loaded (v0.11.0) -- blueprint ghosts + custom-PNG sprites + glTF models + Unity gizmo (move/rotate/scale) + grab, grid-anchored")
+hafen.log():write("planner loaded -- blueprint ghosts + custom-PNG sprites + glTF models + Unity gizmo (move/rotate/scale) + grab, grid-anchored")
 
 -- The persistent anchor for a place in the world: {gridId, x, y}, or nil on ground never visited. Everything
 -- here speaks Positions now -- the world reads, the entity placements and the store alike -- so this is just a

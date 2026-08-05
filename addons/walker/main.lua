@@ -43,7 +43,7 @@
 --                       -- kin:group/:rename a named kin (reversible), OR the two-step drop: endkin = End
 --                          kinship (stays memorized), then forget = drop the memorized kin from the list
 
-hafen.log():write("walker loaded (v0.10.0) -- write-actions demo (4d MapView verbs + 4e menu/flower + 4f item + 4g speed/craft/bar/setbar/kin + menugrid)")
+hafen.log():write("walker loaded -- write-actions demo (4d MapView verbs + 4e menu/flower + 4f item + 4g speed/craft/bar/setbar/kin + menugrid)")
 
 -- At login, confirm we're granted (we only load once YOU enabled us, and we declared the permission).
 hafen.event():on("OnEnterWorld", function()

@@ -346,3 +346,13 @@
   suite used a string filter on that collection — every consumer reached for `:nearest`/`:within`, the path that
   was right. **When a mechanism absorbs an older one, the test to write is the two paths agreeing**, not each
   path working: `:count(f) == #:list(f)` is one line and it is the whole contract. See D-141.
+- **(039.16) "Nothing uses it" is a claim about your SEARCH, not about the code — glob the tree, not the directory.**
+  The close was about to record that an addon manifest's `description` is dead metadata, on a
+  `grep -rn "\.description" src/io/brodgar/addon/*.java` that found only the constructor storing it. The glob stops
+  at one directory: `AddonPanel` lives in `src/io/brodgar/addon/ui/` and renders that string as the AddOns panel's
+  **tooltip**, which inverted the whole decision — from *unrendered prose that still makes a claim* to *the one
+  sentence a player reads before enabling an addon*, with a measured hazard already on that path (an unwrapped long
+  description becomes a texture wider than `GL_MAX_TEXTURE_SIZE` and kills the render thread on hover). The general
+  rule: **before writing down that something is unused, re-run the search one level wider and say which search you
+  ran.** `*.java` in a package with a `ui/` subpackage is the shape that bit; `grep -rn --include=*.java` over the
+  whole tree costs the same. See D-142.

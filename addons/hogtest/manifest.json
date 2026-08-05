@@ -1,10 +1,17 @@
 {
   "name": "Hog Test",
   "id": "hogtest",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": "brodgar",
-  "description": "Soft CPU-budget test addon (D-018 layer 2). DORMANT by default; arm it (see main.lua) so it burns ~15ms every OnUpdate — over the per-tick budget but under the hard per-call cap — and the engine auto-disables it for the session, with a warning on its row in Options -> AddOns. Keep it disarmed/disabled during normal play.",
+  "description": "Example addon: what happens to an addon that burns the frame. Dormant until armed in its saved variables, it then burns more Lua than the soft per-tick CPU budget allows on every update, so the engine auto-disables it for the session and says so in the AddOns panel.",
   "api_version": 1,
-  "files": ["main.lua"],
-  "saved_variables": [{ "name": "cfg", "scope": "account" }]
+  "files": [
+    "main.lua"
+  ],
+  "saved_variables": [
+    {
+      "name": "cfg",
+      "scope": "account"
+    }
+  ]
 }

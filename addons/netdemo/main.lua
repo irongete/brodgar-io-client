@@ -24,7 +24,7 @@
 --   :netdemo bad    try a NON-allowlisted host -> rejected SYNCHRONOUSLY at call (pcall'd, logged)
 --   :netdemo lan    GET localtest.me, which resolves to 127.0.0.1 -> refused by the private-IP block (ok=false)
 
-hafen.log():write("netdemo loaded (v0.3.0) -- hafen.http (GET+POST) + hafen.json demo. Run  :netdemo  for the request demos.")
+hafen.log():write("netdemo loaded -- hafen.http (GET+POST) + hafen.json demo. Run  :netdemo  for the request demos.")
 
 hafen.event():on("OnLoad", function()
   hafen.log():write("netdemo: allowlisted hosts = api.github.com, localtest.me (declared in manifest.json)")

@@ -903,19 +903,32 @@ Sprite `:image()`, Object `:mesh()` unchanged.
 
 ## Handles: Timer, SlashCommand, Subscription
 
+> **Nothing moved** ✅ — no row here, and none was expected: `:cancel()`/`:remove()`/`sub:off()` are already
+> R7's three spellings of *ending a thing*, each on the handle that owns the ending.
+
 `:cancel()`, `:remove()`, `sub:off()` — all unchanged.
 
 ## Hook event objects (`ev`) — unchanged
+
+> **Nothing moved** ✅ — §2.8's line, on the other side: a value's fields are fields.
 
 `ev.msg ev.sender ev.target ev.args` fields; `ev:preventDefault() ev:resend() ev:send(t) ev:rewrite(t)`.
 **These stay plain fields, not verbs**: an `ev` is a per-call value, not an interned entity.
 
 ## `g` — the draw context, unchanged
 
+> **Shipped in 039.16** — ✅ the eleven verbs unchanged, and the option table **settled as the one named-argument
+> table that stays** (D-143). R4 governs a **builder**, and a draw call is not one: there is no object to hang
+> setters on, and a setter on `g` would be context state that outlives the call it belongs to. Both keys are
+> exactly per-call scope of something the context already carries — `opts.font` overrides the widget's default
+> for this call, `opts.color` composes with `g:color` as a `g:color` around the call would — so `g:color` is
+> not a second door but the *unscoped* form of the same thing. The alternative that was on the table, two
+> optional positional trailing values, is strictly worse at the call site: unnamed, order-dependent, and no
+> better typed.
+
 `g:color g:line g:rect g:frect g:prect g:poly g:image g:aimage g:text g:atext g:resource`.
-`g:text{…}`/`g:atext{…}`'s rich-text option table is the one R4 case with **no** persistent object to
-hang setters on — **plan.md must settle it**; the likely answer is positional arguments plus a
-`hafen.font()` handle, since every option it takes is already expressible as one.
+`g:text(str, x, y, opts)` / `g:atext(str, x, y, ax, ay, opts)` keep their trailing
+`{font = h, color = {r, g, b, a}}` — the only named-argument table left in the API, and the page says why.
 
 ## Options handles — 18 methods, already R2-shaped
 
@@ -1010,4 +1023,4 @@ every shipped call site uses them — verified against `hello`, `walker` and the
 | events re-payloaded | 6 | of 26 |
 | verbs CUT with no replacement | 2 | `w:show()` `w:hide()` (R6) |
 | verbs CUT with an existing replacement | 2 | `world.placeGrid`/`placeAngle` → `options():interface()` |
-| open questions for plan.md | 6 | Item identity (§4.8, settled by 039.14) · `g:text{…}`'s option table · `craft:make` on a nil `:current()` · `hafen.log` (§8.1) · Position allocation per call in a draw callback · whether the numeric converters `tileToWorld`/`tileToGrid` fold onto Position |
+| open questions | **0 open, 6 settled** | Item identity (§4.8 — 039.14, D-138) · `g:text{…}`'s option table (039.16, D-143: it stays, and why) · `craft:make` on a nil `:current()` (039.13, D-136 — the premise was false: it already threw) · `hafen.log` (§8.1 — 039.1, taken as uniform at 641 sites) · Position allocation per call in a draw callback (039.2: **209.7 bytes against 419.4** for the `{x, y}` table it replaced) · the numeric converters (039.2: `tileToWorld`/`tileToGrid`/`worldToTile`/`screenToWorld` stay on `hafen.world()` — they convert session coordinate SPACES, which a durable Position has no place in) |

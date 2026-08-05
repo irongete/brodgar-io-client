@@ -1,7 +1,14 @@
 # Lua API (the `hafen.*` SDK) — overview
 
+> **SUPERSEDED IN FULL by [25-uniform-api.md](25-uniform-api.md)** (shipped as 039-uniform-api). Three things
+> below are no longer true of the shipped surface and are the whole reason that document exists: a section is
+> **called** (`hafen.time():clock()`), not a flat namespace of dotted verbs; a read hands back a **live
+> entity** whose `:info()` is the only snapshot, not "plain Lua tables/values (snapshots)"; and a place in
+> the world is a **Position object**, not a pair of `x, y` numbers. The page is left as written for the
+> record — it is what was believed when the first eighteen features were designed.
+>
 > **Status:** 🟠 Outline — this is the conceptual overview; the authoritative function list is [the API reference](../../../docs/addons/api/README.md)
-> **Related:** [the API reference](../../../docs/addons/api/README.md), [07-ui-and-drawing.md](07-ui-and-drawing.md), [08-widget-replacement.md](08-widget-replacement.md), [09-events-catalog.md](09-events-catalog.md)
+> **Related:** [25-uniform-api.md](25-uniform-api.md) — the grammar that replaced this one · [the API reference](../../../docs/addons/api/README.md), [07-ui-and-drawing.md](07-ui-and-drawing.md), [08-widget-replacement.md](08-widget-replacement.md), [09-events-catalog.md](09-events-catalog.md)
 
 > **➡ The detailed, categorized function contract (every executable `hafen.*` function with its
 > Java backing) lives in [the API reference](../../../docs/addons/api/README.md).** This document is the conceptual

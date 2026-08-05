@@ -682,7 +682,7 @@ checker plus grep. What it *does* assert:
 
 ---
 
-## 039.16 — The close
+## 039.16 — The close ✅ DONE
 
 **Depends on:** everything.
 

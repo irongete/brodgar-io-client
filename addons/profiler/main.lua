@@ -744,4 +744,4 @@ hafen.slash():register("profiler", function(args)
   end
 end)
 
-hafen.log():write("profiler loaded (v0.2.0) -- dormant; ':profiler' or the 'toggle' hotkey opens the window")
+hafen.log():write("profiler loaded -- dormant; ':profiler' or the 'toggle' hotkey opens the window")

@@ -93,7 +93,7 @@
 -- all (this server has no MIDI content; the "music" you hear is ambient audio, on the ambientVolume slider).
 -- hello checks that contract at login (readSound), pings with ':hello ping' and toggles a long clip through
 -- the live set with ':hello sound'.
-hafen.log():write("hello loaded (v0.83.0)")
+hafen.log():write("hello loaded")
 
 -- LuaJ 3.0.1's string.format is NOT C's: it ignores the PRECISION of %f/%g/%e ("%.3f" prints
 -- 10.852199999987988, the raw double) and the WIDTH of %s ("%-12s" pads nothing); only %d honours a
