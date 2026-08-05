@@ -30,7 +30,7 @@ error.
 | `hafen.world():gob():nearest(filter)` | the nearest Gob, or `nil` |
 | `hafen.world():gob():within(radius, filter)` | an array of Gobs |
 | a `GobAdded` or `GobRemoved` handler | the Gob that spawned or despawned — see [events](event.md#world) |
-| `hafen.world():gob():get(m.id)` for a [party](party.md) member `m` | that member's Gob |
+| `member:gob()` on a [party](party.md) member, `target:gob()` on the [combat](fight.md) target | that creature's Gob |
 
 ## Read
 

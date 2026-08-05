@@ -209,7 +209,7 @@ against the *enclosing window*, and you hold your result rather than re-selectin
 ## The filter argument
 
 Every enumerating verb — `hafen.world():gob():list`, `hafen.map():marker():list`, `hafen.kin():list`,
-`hafen.map():icon():list`, `hafen.quests.list`, `hafen.wounds.list`, `hafen.fight.maneuvers`, … — takes
+`hafen.map():icon():list`, `hafen.party():list`, `hafen.fight():maneuver():list`, … — takes
 one optional **filter**, always in the same form:
 
 | `filter` | Keeps |

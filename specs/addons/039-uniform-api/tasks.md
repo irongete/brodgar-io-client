@@ -523,7 +523,7 @@ this repeats — read one of them in full**) · `specs/codebase/widget-tree-read
 
 ---
 
-## 039.12 — OOP: `hafen.party()` and `hafen.fight()` — and 017's regression ends
+## 039.12 — OOP: `hafen.party()` and `hafen.fight()` — and 017's regression ends ✅ DONE
 
 **Depends on:** 039.1, 039.2 (`gob()` on a member resolves through `hafen.world():gob():get(id)`).
 

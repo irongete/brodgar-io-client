@@ -1321,3 +1321,58 @@ key, while `:name()` (the resource's tooltip) may still be resolving. Generally:
 waiting for — an entity that appears late is cheaper than an identity that changes.*
 **See.** [D-094](architecture-api.md), [D-131](architecture-api.md), [D-063](architecture-api.md),
 [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-133 — a second entity is worth minting only where it answers a question its target cannot ✅ (2026-08-05)
+**Decision.** `hafen.fight():target()` hands back an **Opponent** (`:id() :gob() :exists() :info()`), not the
+combat target's Gob directly — and the Opponent carries nothing beyond those four. In particular it has no
+`:position()`, because that would be a second door onto `:gob():position()`; a party member keeps one because
+a member's position is genuinely a different read.
+**Rationale.** (2026-08-05, 039.12.) Handing back the Gob is the obvious shape and loses the one question the
+Gob cannot answer: `gob:exists()` says *is this creature in the world*, and *are you still fighting it* is a
+different fact with a different lifetime — a rabbit that runs out of view still exists and the fight may be
+over, and the fight may end while the rabbit stands there. So the entity earns its place on `:exists()` alone.
+That same test then decides what does **not** go on it: `opp:position()` would answer exactly what
+`opp:gob():position()` answers, and two spellings for one read is D-013's dual style. `member:position()`
+passes the test where `opp:position()` fails it — the roster keeps the **last-known** place, so it answers
+after the gob has gone out of view and the gob's own read has stopped.
+**Consequences.** The Opponent is four verbs and a page paragraph saying so: who, and the gob answers the
+rest. No combat statistics reach the API, which is a boundary stated in the present tense rather than a gap.
+Generally: *before minting an entity in front of one that already exists, name the question only the new one
+can answer — and put nothing on it that the old one already answers.*
+**See.** [D-013](architecture-api.md), [D-060](architecture-api.md), [D-094](architecture-api.md),
+[039-uniform-api](../039-uniform-api/spec.md).
+
+### D-134 — a member of a LAYOUT is keyed by its place, not by what is standing in it ✅ (2026-08-05)
+**Decision.** A `DeckCard` interns on the deck **slot** (the raw 0-based index), not on the maneuver dealt
+there. An emptied hotkey keeps answering `:slot()` and `:key()` — properties of the place — while
+`:maneuver()`, `:res()`, `:name()` and `:used()` go `nil` together and `:exists()` goes false.
+**Rationale.** (2026-08-05, 039.12.) D-094 asks what the engine keeps stable, and a layout has two candidates
+that look alike: the slot and its occupant. `FightWnd.order[]` is a fixed-length array whose entries are
+reassigned — loading another school rewrites every occupant while the slots stay exactly where they are, and
+the slot index is also what the write path sends. Keying on the occupant would make "the maneuver on key 1" a
+new object each time the school changed, which is the one moment a hotkey panel wants to re-read rather than
+re-resolve. It also gives `:exists()` something true to say: *the slot is filled*.
+**Consequences.** `hafen.fight():deck()` omits empty slots, so an empty card is reachable only through one you
+were already holding — and it still tells you which hotkey it is, which is why the gap is never ambiguous. The
+maneuver a card holds is reached with `card:maneuver()` and is the *same object* the maneuver collection hands
+out, so the two projections of the window share their members instead of duplicating them. Generally: *when a
+set is a layout, the place is the identity and the occupant is a read.*
+**See.** [D-094](architecture-api.md), [D-057](architecture-api.md), [D-128](architecture-api.md),
+[039-uniform-api](../039-uniform-api/spec.md).
+
+### D-135 — a bag of scalars is an entity when it is a WINDOW'S fields, and a plain read when it is derived ✅ (2026-08-05)
+**Decision.** `hafen.fight():summary()` is a **FightSummary entity** with `:exists()` and `:info()`, while
+`hafen.study():summary()` stays a plain table. Its five verbs expand the engine's unreadable field names
+(`:maxActions() :used() :deckSize() :saveCount() :activeSave()`) and `:info()` keeps the engine's spelling.
+**Rationale.** (2026-08-05, 039.12.) The two summaries look like the same shape — a handful of numbers about a
+window — and are not. Study's totals are **derived**: they are the sum over the slots, so there is nothing
+behind them that can exist or stop existing, and an object would carry a lifetime it does not have. Fight's
+five are **fields of a widget** created at login and replaced on relog, so `:exists()` is a real question and
+a panel can hold the object across frames instead of re-reading a table every one. N1 then applies because the
+names are a client programmer's, invisible to the player: `nact` and `usesave` are not the game's own words,
+which is what D-061 protects — and `:info()` keeping them means nothing a reader had is lost.
+**Consequences.** `sum:used()` is the same total the window paints and equals the sum of `man:used()` over the
+collection, which is a cross-check a suite can make. Generally: *ask whether the numbers have a source that
+can end; if they are computed from something else the caller can already reach, they are a value.*
+**See.** [D-060](architecture-api.md), [D-061](architecture-api.md), [D-094](architecture-api.md),
+[039-uniform-api](../039-uniform-api/spec.md).

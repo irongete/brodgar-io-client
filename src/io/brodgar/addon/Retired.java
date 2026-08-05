@@ -284,6 +284,17 @@ final class Retired {
         put("hafen.study.slots", "hafen.study.slots() is now hafen.study():slot():list()");
         section("study", "summary");
 
+        // ---- the party: the section object IS the roster, and a member finally resolves its gob ---------
+        put("hafen.party.members", "hafen.party.members() is now hafen.party():list(), and every member"
+            + " hands back a live gob with member:gob()");
+        put("hafen.party.member", "hafen.party.member(id) is now hafen.party():get(gobId)");
+        put("hafen.party.leader", "hafen.party.leader() is now hafen.party():leader()");
+
+        // ---- combat: three projections of the schools tab, plus who you are fighting ---------------------
+        put("hafen.fight.maneuvers", "hafen.fight.maneuvers(filter) is now"
+            + " hafen.fight():maneuver():list(filter)");
+        section("fight", "deck", "summary");
+
         // ---- the HUD overlay: a two-line handle table became a builder, so it ends the way the other two do --
         put("uioverlay:remove", "hafen.ui():overlay() hands back something you created and hold, so it ends with"
             + " ov:destroy() — :remove() is the collection verb, and a HUD painter is in no collection");

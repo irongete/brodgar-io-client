@@ -223,7 +223,9 @@ local function readChar(tag)
   hafen.log():write(("[%s] char: str=%s lp=%s weight=%s"):format(tag,
     str:base() and (str:base() .. "/" .. str:composite()) or "nil",
     tostring(hafen.char():lp()), tostring(hafen.char():weight())))
-  hafen.log():write(("[%s] party: %d member(s)"):format(tag, #hafen.party.members()))
+  local pm = hafen.party():list()[1]           -- the roster IS the section object since 039-uniform-api
+  hafen.log():write(("[%s] party: %d member(s)%s"):format(tag, hafen.party():count(),
+    pm and (", first is gob '" .. tostring(pm:gob():name()) .. "'") or ""))
 end
 
 -- 1d-1: the HUD meter bars, OOP since 027-meters-oop (hafen.player():vitals() is GONE). The section object
@@ -694,41 +696,44 @@ local function dumpWounds()                       -- :hello wound -- the full wo
   end
 end
 
--- A10: COMBAT SCHOOLS via hafen.fight. This is the OUT-OF-COMBAT maneuver-deck builder (the character sheet's
--- "Martial Arts & Combat Schools" tab, FightWnd) -- distinct from the in-combat hafen.combat.* view (live
--- cooldowns). maneuvers([filter]) returns every combat maneuver/attack you know as {res, name, avail (how many
--- you can slot), used (how many you have slotted)}; deck() returns the current school's configured card LAYOUT
--- as {slot (0-based deck index), key (the hotkey "1".."5"/"⇧1".."⇧5"), res, name, used} for the filled slots;
--- summary() returns the scalars {maxact (the action-point budget cap), used (total spent), nact (deck size),
--- nsave (saved-school slots), usesave (the active slot, 0-based)}, or nil before the tab exists. Like the rest
--- of the character sheet it streams in a beat after enter-world, so read at now (often nil/empty) and +3s. hello
--- is READ-ONLY -- editing a school / switching saved schools is the gated Phase-4 tier -- and there is NO
--- FightChanged event (a school changes only on explicit action), so this is READ ON DEMAND: ':hello fight'
--- dumps the full deck (by hotkey) + your known maneuvers.
+-- A10: COMBAT via hafen.fight(). Three projections of the OUT-OF-COMBAT maneuver-deck builder (the character
+-- sheet's "Martial Arts & Combat Schools" tab) plus one read of the live fight. :maneuver() is the collection
+-- of every maneuver/attack you know (man:res()/:name()/:available() how many you can slot/:used() how many you
+-- have); :deck() is the loaded school's card LAYOUT as a plain array of DeckCards (card:slot() the raw 0-based
+-- index, :key() the hotkey label, :maneuver() the maneuver dealt there); :summary() is the budget object
+-- (:used()/:maxActions()/:deckSize()/:activeSave()/:saveCount()), nil before the tab exists. :target() is who
+-- you are fighting, and target:gob() is the creature -- nil out of combat. Like the rest of the character sheet
+-- it streams in a beat after enter-world, so read at now (often nil/empty) and +3s. hello is READ-ONLY --
+-- editing a school / switching saved schools is the gated Phase-4 tier -- and there is NO FightChanged event
+-- (a school changes only on explicit action), so this is READ ON DEMAND: ':hello fight' dumps the full deck
+-- (by hotkey) + your known maneuvers.
 local function readFight(tag)
-  local s = hafen.fight.summary()
+  local s = hafen.fight():summary()
   if not s then hafen.log():write(("[%s] fight: nil (combat-schools tab not up yet)"):format(tag)); return end
-  local man  = hafen.fight.maneuvers()
-  local deck = hafen.fight.deck()
+  local man  = hafen.fight():maneuver()
+  local deck = hafen.fight():deck()
   hafen.log():write(("[%s] fight: %d maneuver(s), deck=%d/%d filled, used=%d/%d, school slot=%d/%d"):format(
-    tag, #man, #deck, s.nact, s.used, s.maxact, s.usesave, s.nsave))
+    tag, man:count(), #deck, s:deckSize(), s:used(), s:maxActions(), s:activeSave(), s:saveCount()))
 end
 local function dumpFight()                        -- :hello fight -- the deck (by hotkey) + known maneuvers
-  local s = hafen.fight.summary()
+  local s = hafen.fight():summary()
   if not s then hafen.log():write(":hello fight -> combat-schools tab not up yet (enter the world first)"); return end
   hafen.log():write((":hello fight -> used %d/%d action points, active school slot %d (of %d), deck size %d"):format(
-    s.used, s.maxact, s.usesave, s.nsave, s.nact))
-  local deck = hafen.fight.deck()
+    s:used(), s:maxActions(), s:activeSave(), s:saveCount(), s:deckSize()))
+  local deck = hafen.fight():deck()
   if #deck == 0 then hafen.log():write("  deck: (empty -- nothing slotted)") end
   for _, d in ipairs(deck) do
-    hafen.log():write(("  [%s] %s x%d"):format(tostring(d.key), tostring(d.name or d.res), d.used or 0))
+    hafen.log():write(("  [%s] %s x%d"):format(tostring(d:key()), tostring(d:name() or d:res()), d:used() or 0))
   end
-  local man = hafen.fight.maneuvers()
+  local man = hafen.fight():maneuver():list()
   hafen.log():write(("  known maneuvers: %d"):format(#man))
   for i, m in ipairs(man) do
     if i > 8 then hafen.log():write(("  ... and %d more"):format(#man - 8)); break end
-    hafen.log():write(("    %s (avail %d, used %d)"):format(tostring(m.name or m.res), m.avail or 0, m.used or 0))
+    hafen.log():write(("    %s (avail %d, used %d)"):format(tostring(m:name() or m:res()), m:available(), m:used()))
   end
+  local t = hafen.fight():target()
+  hafen.log():write("  fighting: " .. (t and ("'" .. tostring(t:gob():name()) .. "' (gob " .. tostring(t:id())
+    .. ")") or "nobody"))
 end
 
 -- PHASE 4a/4b/4c: the gated WRITE-ACTIONS tier (hafen.act():moveTo, …) is exercised by the separate, opt-in

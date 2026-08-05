@@ -979,3 +979,19 @@
   stayed green and the plant proved only that I had planted nothing. Moving the plant into the accessor
   itself (mint inside `invoke`) reddened the probe twice and the suite once. Rule: *a plant that leaves both
   harnesses green is a plant to re-read before it is a check to distrust.*
+- **(039.12) A suite that INVITES a second run needs its counters reset per run, and only the second run
+  shows it.** This suite's two headline rounds need a state the maintainer has to enter, so both `[manual]`
+  lines say *run the same command again* — and the second block came back `[summary] 25 pass` over 13 printed
+  `[pass]` lines, because `pass`/`fail`/`manual` were file-level locals initialised once at load. Every past
+  suite hid this by being run once per login. The skeleton in `TESTING.md` declares them at the top, which is
+  right, but the reset belongs at the top of `run()`. Rule: *a summary is a summary OF THE BLOCK under it —
+  if a command can be run twice in one session, zero the counters where the run begins, not where they are
+  declared.*
+- **(039.12) Check whether the game already puts you in the `[manual]`'s state before writing the line.**
+  039.12 wrote *party up with another character* as a `[manual]`, assuming a solo player has no party. The
+  server sends a one-member party list, so `hafen.party():count()` is 1 while alone: the round ran, printed
+  two `[pass]` and the manual line never fired. No harm done — the fallback branch is what made that possible
+  — but the line was written for a state nobody has to enter, which is 039.4's *a `[manual]` must be a state
+  the maintainer can be in* from the other side. Rule: *before asking a human for a precondition, read the
+  subsystem and check it is not already satisfied; a manual line you never see is a manual line you did not
+  need to write.*

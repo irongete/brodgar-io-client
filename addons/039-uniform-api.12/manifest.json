@@ -1,0 +1,9 @@
+{
+  "name": "039.12 — hafen.party() and hafen.fight()",
+  "id": "039-uniform-api.12",
+  "version": "1.1.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.12: the party roster as the section object and combat as entities — a party member and the combat target each resolving a live gob, the interned Maneuver, DeckCard and FightSummary, the deck as a plain array, and the retired spellings naming their replacements.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
