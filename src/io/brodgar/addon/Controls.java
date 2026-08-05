@@ -81,6 +81,21 @@ final class Controls {
         void source(LuaValue h);
     }
 
+    /**
+     * <b>{@code :onChange(fn)} — the value CHANGED</b> (spec 040 §1, task 040.4): the notification half of the
+     * {@code :value()} spine, dispatched on this capability exactly as {@code :onPress} dispatches on
+     * {@link Press}. Fires from a real user interaction only — a programmatic {@code :value(v)} is a direct
+     * field write on the implementation and never calls it, which is what keeps the write from re-entering its
+     * own handler. {@link CCheck} is the first implementor; every later control with a value implements it the
+     * same way.
+     */
+    interface Change {
+        /** The installed {@code :onChange} handler, or {@code null}. */
+        LuaValue onChange();
+
+        void onChange(LuaValue fn);
+    }
+
     // ------------------------------------------------------------------ the builders
 
     /**
@@ -150,6 +165,21 @@ final class Controls {
         return UiApi.attach(u, owner, new CProgress(owner));
     }
 
+    /**
+     * {@code hafen.ui():check()} — a {@link haven.CheckBox}, the client's own (task 040.4), where
+     * {@code :image(up, down, hoverUp, hoverDown)} completes it as an {@link haven.ICheckBox} exactly as
+     * {@code :image(up, down[, hover])} completes {@code :button()} as an {@link haven.IButton}. Its caption is
+     * {@code :text(s)}, its state {@code :value(v)}, and it is the first control this feature ships that answers
+     * {@code :onChange(fn)} — the sixth and last of the six names spec 040 §1 gives the whole roster.
+     */
+    static LuaValue check(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():check() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():check():text(\"Show grid\"):value(true):onChange(fn)");
+        UI u = UiApi.requireUi("check");
+        return UiApi.attach(u, owner, new CCheck(owner));
+    }
+
     // ------------------------------------------------------------------ the control verbs
 
     /**
@@ -169,13 +199,23 @@ final class Controls {
             synchronized(u) { ((CLabel)c).settext(s); }   // resizes itself; see spec 040 risks/gotchas
             return;
         }
+        if(c instanceof CCheck) {
+            UI u = AddonManager.ui;
+            synchronized(u) { ((CCheck)c).settext(s); }   // resizes itself, same as CLabel above
+            return;
+        }
         if(c instanceof CtlIButton)
             throw new LuaError("widget:text(s) writes a control's CAPTION, and this button's face is a PICTURE —"
                 + " an image button shows the faces widget:image(up, down[, hover]) gave it and has no caption."
                 + " A captioned button is the same builder completed the other way: hafen.ui():button():text(\""
                 + s + "\").");
-        throw new LuaError("widget:text(s) writes the caption of a CONTROL you built, and hafen.ui():button()"
-            + " or hafen.ui():label() is the builder that takes one — " + LuaWidget.typeName(w)
+        if(c instanceof CICheck)
+            throw new LuaError("widget:text(s) writes a control's CAPTION, and this checkbox's face is a"
+                + " PICTURE — an image checkbox shows the faces widget:image(up, down, hoverUp, hoverDown) gave"
+                + " it and has no caption. A captioned checkbox is the same builder completed the other way:"
+                + " hafen.ui():check():text(\"" + s + "\").");
+        throw new LuaError("widget:text(s) writes the caption of a CONTROL you built, and hafen.ui():button(),"
+            + " hafen.ui():label() or hafen.ui():check() is the builder that takes one — " + LuaWidget.typeName(w)
             + " has no caption to write" + ((w instanceof Window) ? "; a window's caption is widget:title(s)." : "."));
     }
 
@@ -203,11 +243,41 @@ final class Controls {
             + " widget:onClick(fn).");
     }
 
+    // ------------------------------------------------------------------ the onChange verb (040.4)
+
+    /** {@code widget:onChange()} — the installed handler, or {@code nil} on a control with no value at all. */
+    static LuaValue onChange(Owned c) {
+        if(!(c instanceof Change))
+            return LuaValue.NIL;
+        LuaValue fn = ((Change)c).onChange();
+        return (fn == null) ? LuaValue.NIL : fn;
+    }
+
+    /**
+     * {@code widget:onChange(fn)} — <b>the value CHANGED</b>, and only from a real interaction: a programmatic
+     * {@code :value(v)} writes the implementation's field directly and never calls this (040.3/040.4's whole
+     * value spine — see {@link Change}). Dispatches on the same capability {@code :value()} does, so a control
+     * with no value refuses naming that fact rather than the verb.
+     */
+    static void onChange(Owned c, Widget w, LuaValue fn) {
+        if(c instanceof Change) {
+            ((Change)c).onChange(fn);
+            return;
+        }
+        throw new LuaError("widget:onChange(fn) fires when a control's VALUE changes, and " + LuaWidget.typeName(w)
+            + " holds nothing — widget:value() answers nil on it too. hafen.ui():check() is the first builder"
+            + " in this feature that has one.");
+    }
+
     // ------------------------------------------------------------------ the face setter (040.2)
 
     /** {@code widget:image()} — the faces this control was given, or {@code nil} where a control has none. */
     static LuaValue faces(Owned c) {
-        return (c instanceof CtlIButton) ? ((CtlIButton)c).faces() : LuaValue.NIL;
+        if(c instanceof CtlIButton)
+            return ((CtlIButton)c).faces();
+        if(c instanceof CICheck)
+            return ((CICheck)c).faces();
+        return LuaValue.NIL;
     }
 
     /**
@@ -226,8 +296,18 @@ final class Controls {
      *
      * <p><b>Every face is resolved before anything is replaced</b>, so a bad handle or an unknown resource name
      * leaves the control exactly as it was — the same guarantee D-113 states for the overlay rebuild.
+     *
+     * <p><b>A checkbox is the other completion this verb drives</b> (task 040.4): {@code widget:image(up, down,
+     * hoverUp, hoverDown)} on a {@code hafen.ui():check()} completes it as an {@link haven.ICheckBox} the same
+     * building-only way, but with FOUR faces rather than two or three — a checkbox carries two persistent states
+     * (checked/unchecked), each with its own hover, where a button has one gesture. That shape lives in
+     * {@link #checkImage}; this method only tells the two apart before either runs.
      */
     static void image(Addon owner, Widget w, Owned c, Varargs a) {
+        if((c instanceof CCheck) || (c instanceof CICheck)) {
+            checkImage(owner, w, c, a);
+            return;
+        }
         LuaValue upv = Args.required(a, 2, "widget:image", "up");
         LuaValue downv = Args.required(a, 3, "widget:image", "down");
         LuaValue hoverv = Args.passed(a, 4) ? Args.required(a, 4, "widget:image", "hover") : upv;
@@ -235,9 +315,9 @@ final class Controls {
             throw new LuaError("widget:image(up, down[, hover]) takes TWO or THREE faces — the released one, the"
                 + " pressed one, and (optionally) the one under the cursor, which defaults to the released face.");
         if(!(c instanceof CtlButton) && !(c instanceof CtlIButton))
-            throw new LuaError("widget:image(up, down[, hover]) sets the FACE of a control you built, and"
-                + " hafen.ui():button() is the builder that takes one — " + LuaWidget.typeName(w) + " has no face"
-                + " to set. A surface you paint yourself draws its own pictures with g:image inside"
+            throw new LuaError("widget:image(...) sets the FACE of a control you built, and hafen.ui():button()"
+                + " or hafen.ui():check() are the builders that take one — " + LuaWidget.typeName(w) + " has no"
+                + " face to set. A surface you paint yourself draws its own pictures with g:image inside"
                 + " widget:onDraw(fn).");
         if(!c.pending())
             throw new LuaError("widget:image(up, down[, hover]) chooses a button's FACE while the control is"
@@ -249,6 +329,39 @@ final class Controls {
         CtlIButton nu = new CtlIButton(owner, up, down, hover, upv, downv, hoverv);
         if(c instanceof Press)
             nu.onPress(((Press)c).onPress());     // a handler installed before the face outlives the rebuild
+        UiApi.rebuild(owner, c, nu);
+    }
+
+    /**
+     * {@code widget:image(up, down, hoverUp, hoverDown)} on a checkbox — the four-face completion to
+     * {@link haven.ICheckBox} (task 040.4). Building-only like {@link #image}, and carries the checked state
+     * and the {@code :onChange} handler across the rebuild exactly as {@link #image} carries a button's
+     * {@code :onPress}.
+     */
+    private static void checkImage(Addon owner, Widget w, Owned c, Varargs a) {
+        LuaValue upv = Args.required(a, 2, "widget:image", "up");
+        LuaValue downv = Args.required(a, 3, "widget:image", "down");
+        LuaValue hoverUpv = Args.required(a, 4, "widget:image", "hoverUp");
+        LuaValue hoverDownv = Args.required(a, 5, "widget:image", "hoverDown");
+        if(Args.passed(a, 6))
+            throw new LuaError("widget:image(up, down, hoverUp, hoverDown) on a checkbox takes exactly FOUR"
+                + " faces — the unchecked look, the checked look, and each one again under the cursor.");
+        if(!c.pending())
+            throw new LuaError("widget:image(up, down, hoverUp, hoverDown) chooses a checkbox's FACES while the"
+                + " control is being BUILT, and this one is already on screen — a face is not a property of a"
+                + " checkbox, it IS which checkbox this is (the client draws a captioned one and a picture one"
+                + " with two different widgets), so set it in the same statement that builds the control. A"
+                + " caption, unlike a face, is live: widget:text(s) works at any time.");
+        Tex up = faceTex(upv, "up"), down = faceTex(downv, "down");
+        Tex hoverUp = faceTex(hoverUpv, "hoverUp"), hoverDown = faceTex(hoverDownv, "hoverDown");
+        CICheck nu = new CICheck(owner, up, down, hoverUp, hoverDown, upv, downv, hoverUpv, hoverDownv);
+        if(c instanceof Value) {
+            LuaValue v = ((Value)c).value();       // the checked state outlives the rebuild, like a button's onPress
+            if((v != null) && !v.isnil())
+                nu.value(v);
+        }
+        if(c instanceof Change)
+            nu.onChange(((Change)c).onChange());   // a handler installed before the face outlives the rebuild too
         UiApi.rebuild(owner, c, nu);
     }
 
@@ -297,6 +410,47 @@ final class Controls {
             + v.typename());
     }
 
+    /**
+     * One checkbox face &rarr; the {@link Tex} behind it (task 040.4) — the same two doors {@link #face}
+     * resolves, but returning a {@link Tex} rather than a {@link BufferedImage}: {@link haven.ICheckBox} blits a
+     * {@code Tex} each frame (a plain {@code Widget}, not an {@link haven.SIWidget} that rasterises once), where
+     * {@link haven.IButton} wants the raster. Errors read exactly as {@link #face}'s, {@code widget:image}
+     * included, since both are the same verb's argument.
+     */
+    private static Tex faceTex(LuaValue v, String which) {
+        LuaImage li = LuaImage.resolve(v);
+        if(li != null) {
+            if(li.dead)
+                throw new LuaError("widget:image: the " + which + " face has been disposed — after a :dispose(),"
+                    + " hafen.asset():get(path) loads the file again as a NEW asset");
+            return li.tex;
+        }
+        if(v.isstring() && !v.isnumber()) {       // in LuaJ a number IS a string — that one is just a wrong type
+            String name = v.tojstring();
+            if(fileish(name))
+                throw new LuaError("widget:image: \"" + name + "\" looks like a file in your own addon folder,"
+                    + " and a STRING here names one of the client's own resources"
+                    + " (\"gfx/hud/buttons/addu\") — load your own image with hafen.asset():get(\"" + name
+                    + "\") and pass the handle");
+            Resource.Image ri;
+            try {
+                ri = Resource.loadrimg(name);
+            } catch(RuntimeException e) {
+                throw new LuaError("widget:image: the client has no resource named \"" + name + "\" (the "
+                    + which + " face) — a face is either a name from the game's own art"
+                    + " (\"gfx/hud/buttons/addu\") or a hafen.asset():get(\"up.png\") handle");
+            }
+            if(ri == null)
+                throw new LuaError("widget:image: the client resource \"" + name + "\" (the " + which + " face)"
+                    + " carries no image layer — name the image resource itself"
+                    + " (\"gfx/hud/buttons/addu\", not its folder)");
+            return ri.tex();
+        }
+        throw new LuaError("widget:image: the " + which + " face is a hafen.asset image handle"
+            + " (hafen.asset():get(\"up.png\")) or a client resource name (\"gfx/hud/buttons/addu\"), got "
+            + v.typename());
+    }
+
     /** Does this string name a FILE rather than a client resource? (Resource names carry no extension.) */
     private static boolean fileish(String name) {
         String n = name.toLowerCase();
@@ -325,7 +479,8 @@ final class Controls {
             return;
         }
         throw new LuaError("widget:value(v) writes what a control HOLDS, and " + LuaWidget.typeName(w)
-            + " holds nothing — hafen.ui():progress() is the builder that does, in this feature so far.");
+            + " holds nothing — hafen.ui():progress() and hafen.ui():check() are the builders that do, in this"
+            + " feature so far.");
     }
 
     // ------------------------------------------------------------------ the source setter (040.3)

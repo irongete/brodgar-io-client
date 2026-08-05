@@ -35,7 +35,7 @@
       rather than throwing; `:source(nil)` is refused (R5). `[manual]`: read the four on screen.
       <!-- extra context: `src/haven/Label.java`, `ILabel.java`, `Img.java`, `Progress.java`, `HRuler.java` -->
 
-- [ ] **040.4 — `:check()`, and the `:value()`/`:onChange()` spine.** `CheckBox` with `:text`, `:value`,
+- [x] **040.4 — `:check()`, and the `:value()`/`:onChange()` spine.** `CheckBox` with `:text`, `:value`,
       `:onChange`, and `ICheckBox` (four faces) through the 040.2 setter. This is where the value spine is
       first written, so it is where its rules are pinned. **Suite proves**: `:value()` round-trips both ways;
       a **programmatic `:value(v)` does NOT re-enter `:onChange`** (the feedback-loop check); `:value(nil)`

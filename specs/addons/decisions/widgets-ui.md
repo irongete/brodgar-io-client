@@ -878,3 +878,37 @@ while pending and the ordinary chain never lets the placeholder be seen. General
 a FINAL field costs, not what every second-class-completing setter costs — check which field the engine
 actually made final before reaching for the heavier mechanism.*
 **See.** [D-148](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-153 — a value-bearing control's write goes straight to the field, never through the engine's own setter ✅ (2026-08-06)
+**Decision.** `widget:value(v)` on a control that also fires `:onChange` (a checkbox, and every later control
+with a value) writes the implementation's state field directly rather than calling the engine's own
+compare-and-notify setter (`ACheckBox.set`) — so a programmatic write can never re-enter the handler it also
+owns.
+**Rationale.** (040.4.) The engine's `set(boolean)` exists to serve the user's own click (`click() →
+set(!state())`), and it calls `changed()` on every actual flip — which is exactly right for a real
+interaction and exactly wrong for a script's own write, where "I set it" and "the user changed it" must stay
+two different things. Going through `set` from `:value(v)` would make every programmatic write also fire
+`:onChange`, and an addon that writes `:value(v)` from inside its own `:onChange` handler (a very ordinary
+shape — "reflect the new value elsewhere") would loop.
+**Consequences.** Only the engine's `changed` slot is replaced (from the stock `wdgmsg` consumer, which
+`CheckBox`'s bare constructor never sends anyway) — the click path itself (`mousedown → click() → set`) is
+untouched, so the user-driven half needed no new code, only a new destination for the notification. Generally:
+*a bridge that must guarantee "my own write never re-enters my own handler" writes the field, not the verb the
+engine built for a human.*
+**See.** [D-150](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-154 — a checkbox's face setter takes FOUR faces, one door narrower than a button's ✅ (2026-08-06)
+**Decision.** `widget:image(up, down, hoverUp, hoverDown)` on `hafen.ui():check()` requires all four faces —
+no default, unlike a button's optional third — and resolves each through a `Tex`-returning door
+(`Controls.faceTex`) rather than the `BufferedImage` one a button's face uses.
+**Rationale.** (040.4.) A checkbox carries two persistent states (checked/unchecked) where a button has one
+gesture, and `ICheckBox` draws each state's own hover rather than deriving one — so there is no single face
+a default could reasonably stand in for. And `ICheckBox` is a plain `Widget` that blits a `Tex` every frame
+(unlike `IButton`, an `SIWidget` that rasterises a `BufferedImage` once), so the resolved type has to match
+what the engine constructor actually wants.
+**Consequences.** Two nearly-identical resolution doors now exist (`Controls.face`/`faceTex`) rather than one
+generic helper, because the two engine classes disagree on the type they're built from — collapsing them
+would have meant a conversion neither one needs. The rebuild carries `:value`/`:onChange` across exactly as
+a button's rebuild carries `:onPress`. Generally: *a shared shape (four things instead of three) is not
+evidence of a shared implementation when the two engine classes were never unified to begin with.*
+**See.** [D-148](widgets-ui.md), [D-150](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).

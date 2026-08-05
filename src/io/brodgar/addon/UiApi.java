@@ -375,6 +375,17 @@ final class UiApi {
                 return Controls.progress(owner, a);
             }
         });
+        // :check() — 040.4, THE VALUE SPINE. A haven.CheckBox, where :image(up, down, hoverUp, hoverDown)
+        // completes it as an ICheckBox exactly as :image(up, down[, hover]) completes :button() as an IButton
+        // (040.2's rule, one more control). Its caption is :text(s), its state :value(v), and it is the first
+        // control in this feature to answer :onChange(fn) -- fires from a real click only; a programmatic
+        // :value(v) never re-enters it.
+        m.set("check", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "check");
+                return Controls.check(owner, a);
+            }
+        });
         // :overlay() — paint on top of the HUD without owning a widget: :onDraw(fn) runs fn(g, w, h) every frame
         // with the shared GOut wrapper and the screen size, in absolute screen coords. It MINTS one rather than
         // handing back a collection, which is the one place `overlay` is a builder and not a set — gob:overlay()

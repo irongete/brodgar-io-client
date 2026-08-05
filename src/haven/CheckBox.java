@@ -33,7 +33,9 @@ public class CheckBox extends ACheckBox {
     public static final Tex smark = Resource.loadtex("gfx/hud/chkmarks");
     public final Tex box, mark;
     public final Coord loff;
-    Text lbl;
+    // addon: public, not package-private (spec 040-ui-controls, task 040.4) -- LuaWidget's best-effort
+    // :text() read matches Button's own public `text` field; see settext() below for the write half.
+    public Text lbl;
 
     @RName("chk")
     public static class $_ implements Factory {
@@ -61,6 +63,19 @@ public class CheckBox extends ACheckBox {
 
     public CheckBox(String lbl) {
 	this(lbl, false);
+    }
+
+    // addon: a live caption setter (spec 040-ui-controls, task 040.4) -- the constructor above bakes `lbl`/`sz`
+    // once with no public way to touch either afterward, which hafen.ui():check():text(s) needs. Mirrors
+    // Label.settext's shape: dispose the old raster, re-render, resize (which repacks the parent for free).
+    public void settext(String s) {
+	if(lbl != null)
+	    lbl.dispose();
+	lbl = (s.length() > 0) ? Text.std.render(s, java.awt.Color.WHITE) : null;
+	Coord nsz = (lbl != null)
+	    ? Coord.of(box.sz().x + UI.scale(5) + lbl.sz().x, Math.max(box.sz().y, lbl.sz().y))
+	    : box.sz();
+	resize(nsz);
     }
 
     public void draw(GOut g) {

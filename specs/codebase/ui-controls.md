@@ -7,8 +7,8 @@
 
 ## The image-backed base: `SIWidget`
 
-Every control whose face is a picture (`Button`, `IButton`, `CheckBox`, `ICheckBox`, …) extends
-[`SIWidget`](src/haven/SIWidget.java:31), which is one idea: **rasterise once, blit thereafter**.
+`Button` and `IButton` extend [`SIWidget`](src/haven/SIWidget.java:31), which is one idea: **rasterise once,
+blit thereafter**. `CheckBox`/`ICheckBox` do **not** — see below.
 
 | What | Where |
 |---|---|
@@ -48,6 +48,21 @@ An **empty caption is safe**: [`Text.Foundry.render`](src/haven/Text.java:226) w
 | Activation, and the server-sending default | [`click()`](src/haven/IButton.java:111) runs `action` and [`gkeytype`](src/haven/IButton.java:116) calls it too — the ctors without a `Runnable` ([:67](src/haven/IButton.java:67), [:80](src/haven/IButton.java:80)) set `action = () -> wdgmsg("activate")`; the `Runnable` overload ([:59](src/haven/IButton.java:59)) does not |
 | The hit test reads PIXELS | [`checkhit`](src/haven/IButton.java:103) bounds the point by **`sz`** and then samples `up`'s alpha there, so a box wider than the picture samples off the raster and throws **from the input pass** |
 | A face from the game's own art | [`Resource.loadrimg`](src/haven/Resource.java:2050) = `local().loadwait(name).layer(imgc)`, **null** when the resource has no image layer; [`loadsimg`](src/haven/Resource.java:2058) is that plus `.scaled()` (the UI scale: 56×56 art reads 14×14 at the default). A name that does not exist throws `Resource.NoSuchResourceException` — on the **local** pool in ~10 ms, so it is safe on the UI thread |
+
+## `ACheckBox`'s value spine, `CheckBox` and `ICheckBox`
+
+Neither subclass extends `SIWidget` — both blit/draw fresh every frame, no `redraw()`-on-resize fix needed.
+
+| What | Where |
+|---|---|
+| State + click | [`ACheckBox.a`](src/haven/ACheckBox.java:32) `public boolean`; [`click`](src/haven/ACheckBox.java:59) → [`set(!state())`](src/haven/ACheckBox.java:56), which flips `a` and calls [`changed(a)`](src/haven/ACheckBox.java:43) **only on an actual flip** (stock `changed` sends `wdgmsg` only `if(canactivate)`, `false` off a bare ctor) |
+| `CheckBox.lbl` | was package-private, no setter — `// addon:` (040.4) made it `public` + added `settext(String)` (mirrors `Label.settext`) |
+| `ICheckBox` faces | [`up/down/hoverup/hoverdown`](src/haven/ICheckBox.java:32) are `Tex`, not `BufferedImage` — it blits, doesn't rasterise; `checkhit` samples `up`'s alpha bounded by `sz` |
+
+> **A checkbox's click runs during `mousedown`** (unlike `Button`, whose activation is the last thing
+> `mouseup` does). `Window.mousedown` still runs `parent.setfocus(this)` on ITSELF after `ev.propagate`
+> returns, so destroying the checkbox's own window from the click is not automatically safe — a window
+> destroyed mid-propagation has a null `parent` there. Defer such a destroy a tick from Lua.
 
 ## A native control that is always in the tree
 

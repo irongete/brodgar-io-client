@@ -1,0 +1,9 @@
+{
+  "name": "040.4 — check(), and the :value()/:onChange() spine",
+  "id": "040-ui-controls.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 040.4: hafen.ui():check() builds a real client CheckBox, and widget:image(up, down, hoverUp, hoverDown) completes it as an ICheckBox exactly as :button()'s face setter completes a Button to an IButton. It proves widget:value()/:onChange(fn) round-trip on the checkbox's boolean state, that a programmatic widget:value(v) does NOT re-enter :onChange (the feedback-loop guarantee the whole value spine promises), that widget:value(nil) is refused (R5), that setting :onChange a second time keeps only the later handler, and that the four-face form builds and carries the checked state and the handler across the rebuild.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

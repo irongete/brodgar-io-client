@@ -60,6 +60,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:image()` | table \| nil | the faces of a [control](controls.md#a-caption-or-a-picture) that shows pictures, as `{up=, down=, hover=}`, else `nil` |
 | `:onPress()` | function \| nil | the handler on a [control](controls.md#setters) that fires, or `nil` where there is nothing to press |
 | `:value()` | varies \| nil | what a [control](controls.md#setters) holds, or `nil` where it holds nothing — [`:value(v)` writes it](controls.md#setters) |
+| `:onChange()` | function \| nil | the handler that fires when a [control](controls.md#setters)'s value changes, or `nil` where it has none |
 | `:source()` | string \| userdata \| nil | the picture a [picture control](controls.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls.md#picture) |
 | `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
@@ -105,6 +106,7 @@ the error.
 | `:image(up, down [, hover])` | give a [control](controls.md#a-caption-or-a-picture) you are building its pictures | **error**, same reason |
 | `:onPress(fn)` | handle a [control](controls.md) firing | **error**, same reason |
 | `:value(v)` | write what a [control](controls.md#setters) holds | **error**, same reason |
+| `:onChange(fn)` | handle a [control](controls.md#setters)'s value changing | **error**, same reason |
 | `:source(h)` | give a [picture control](controls.md#picture) its content | **error**, same reason |
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |

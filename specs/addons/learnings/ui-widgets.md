@@ -668,3 +668,17 @@
   re-key. The one cost is a placeholder `Tex` at construction (`Img`'s only constructor takes one), built
   from `TexI.mkbuf(Coord.of(1, 1))` and never actually seen: the control paints nothing while pending, and
   the ordinary `hafen.ui():image():source(h)` chain replaces it before the first frame that would.
+- **(040.4) A `Window`'s own `mousedown` still touches ITSELF after its child's click returns — destroying
+  the window from inside that click is not safe by default.** `Button`'s activation is provably safe to
+  destroy-from (`Button.mouseup` releases its grab and calls `click()` LAST, so nothing about the button
+  itself runs afterward) — but that says nothing about a `CheckBox`, whose `mousedown` calls `click()`
+  directly, nor about the *containing* `Window`: `Window.mousedown` is `if(ev.propagate(this)) { parent
+  .setfocus(this); raise(); }`, and that `parent.setfocus` runs on the WINDOW after the checkbox's click
+  returns. A `:onChange` handler that calls `window:destroy()` synchronously unlinks the window
+  (`Widget.remove()` nulls `parent`) while `Window.mousedown` is still mid-method, and `parent.setfocus`
+  NPEs on the UI thread. Caught by the maintainer clicking a demo checkbox three times, not by the 22-check
+  automated suite (pure Lua counters can't see a real mousedown dispatch). Fix: defer the destroy a tick
+  (`hafen.timer():after(0, fn)`) rather than call it inline. Generalise: "safe to destroy from your own
+  callback" is a property of the SPECIFIC call chain the docs verified (`Button.mouseup`'s ordering), not of
+  callbacks in general — a new firing point (mousedown vs mouseup, a different containing widget) needs its
+  own check, not an inherited assumption.

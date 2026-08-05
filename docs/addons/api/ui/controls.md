@@ -37,6 +37,7 @@ control with nothing added: `:type()`, `:role()`, `:position(x, y)`, `:size(w, h
 | `hafen.ui():image()` | [Widget](widget.md) | a static picture |
 | `hafen.ui():separator()` | [Widget](widget.md) | a horizontal rule |
 | `hafen.ui():progress()` | [Widget](widget.md) | a fill-fraction bar |
+| `hafen.ui():check()` | [Widget](widget.md) | a checkbox, showing a caption or a picture |
 
 It takes no argument. A control is born bare, with the client's own defaults, and everything about it is a
 chained setter on the Widget it hands back — the same shape [`:window()` and `:widget()`](custom.md) have,
@@ -53,6 +54,7 @@ where the control hangs while it is being built, and once it is on screen the wa
 | `:image(up, down [, hover])` | `:image()` | the pictures the control shows instead of a caption |
 | `:onPress(fn)` | `:onPress()` | `fn()` — the button fired |
 | `:value(v)` | `:value()` | what the control **holds** |
+| `:onChange(fn)` | `:onChange()` | `fn(v)` — the control's value changed |
 | `:source(h)` | `:source()` | the picture a [picture control](#picture) shows |
 
 Every setter returns the Widget, so a control is one expression, and every one has a matching bare read.
@@ -66,6 +68,11 @@ control it lands on and refused, naming the rule, when it does not fit; it never
 **`:onPress` is an activation, not a mouse position.** It is what the control *did*, so it also fires when
 the button is triggered from the keyboard, and it carries no coordinates. It is safe for the handler to
 destroy the window the button is sitting in.
+
+**`:onChange(fn)` fires when a control's value changes — and only from a real interaction.** Setting
+`:value(v)` from your own code never re-enters it, so driving a control's value from a script and reacting
+to the user changing it are two different things that never loop into each other. Setting it a second time
+replaces the handler; only the latest one is called.
 
 **Sizing.** `:size(w, h)` sets the box like anywhere else, in raw pixels. A bare button already comes at the
 client's own button height, so setting only a width you like and leaving the height alone is usually what
@@ -116,7 +123,7 @@ l:text(("%d%%"):format(n))     -- writing new text RESIZES the label to fit it
 The box is exactly the rendered text, so writing a new caption changes `:size()` — a label placed against the
 right edge of something else needs re-positioning after a write that changes its length, not just its
 content. A label holds text only: it takes no picture, and `:image(...)` refuses on one naming the
-[button/checkbox](#a-caption-or-a-picture) builder that does.
+[button](#a-caption-or-a-picture) or [checkbox](#checkbox) builder that does.
 
 ## Picture
 
@@ -152,6 +159,30 @@ p:value()          --> 0.35
 
 A write outside `0..1` is refused rather than clamped — a raw percentage (`0..100`) passed by mistake fails
 loudly instead of pinning silently at full.
+
+## Checkbox
+
+`hafen.ui():check()` is a boolean toggle. `:value(v)` holds the tick and `:onChange(fn)` fires when the user
+changes it:
+
+```lua
+local c = hafen.ui():check():text("Show grid"):value(true)
+  :onChange(function(on) hafen.store():get("cfg").grid = on end)
+
+c:value()          --> true
+```
+
+Like a button, it shows text or it shows pictures:
+
+```lua
+hafen.ui():check():image(up, down, hoverUp, hoverDown)
+```
+
+Four faces here, not two or three — a checkbox carries two persistent states, ticked and not, each with its
+own hover: `up`/`down` are the two states at rest, `hoverUp`/`hoverDown` are each of those under the cursor.
+All four are required, resolved through the same two doors a button's [face](#a-caption-or-a-picture) is.
+Choosing pictures is building-only here too, and the bare `:image()` reads them back as `{up=, down=,
+hoverUp=, hoverDown=}`. `:type()` reads `"CheckBox"` or `"ICheckBox"` depending which you built.
 
 ## What a control does not take
 

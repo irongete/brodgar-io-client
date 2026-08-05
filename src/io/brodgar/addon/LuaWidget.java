@@ -2,6 +2,7 @@ package io.brodgar.addon;
 
 import haven.Button;
 import haven.ChatUI;
+import haven.CheckBox;
 import haven.Coord;
 import haven.Equipory;
 import haven.FlowerMenu;
@@ -661,6 +662,26 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // onChange(fn) / onChange() — 040.4: THE VALUE CHANGED, and only from a real interaction. The other half
+        // of the value spine :value()/:value(v) began in 040.3 -- every control that answers :value() answers
+        // this too (spec 040 §1's sixth name), and a programmatic :value(v) writes the implementation's field
+        // directly and never re-enters it, which is the whole feedback-loop guarantee the spine promises. Reads
+        // nil on a control with no value; a write there throws naming that.
+        m.set("onChange", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:onChange() → narg 1 · w:onChange(fn) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "onChange"));
+                LuaValue v = Args.written(a, 2, "widget:onChange", "fn");
+                if(v == null)
+                    return Controls.onChange((w == null) ? null : ownedContent(owner, w));
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                if(!v.isfunction())
+                    throw new LuaError("widget:onChange(fn) expects a function, got " + v.typename());
+                Controls.onChange(owned(owner, w, "onChange(fn)"), w, v);
+                return self;
+            }
+        });
         // image(up, down[, hover]) / image() — 040.2: THE FACE SETTER, and the second engine class behind one
         // builder. hafen.ui():button():text("Go") completes as a Button and :image(u, d) as an IButton, because
         // they are one control to an author and two widgets to the client; the I prefix is the client's own
@@ -675,8 +696,11 @@ public final class LuaWidget {
         // is chosen while the control is built. A CAPTION is not a face: :text(s) is live at any time.
         //   The read hands back { up =, down =, hover = } exactly as they were named -- and nil on a control that
         // has no face, like the captioned button it might have become instead.
+        //   040.4: hafen.ui():check() completes to ICheckBox the same building-only way, but with FOUR faces --
+        // widget:image(up, down, hoverUp, hoverDown) -- because a checkbox carries two persistent states rather
+        // than a button's one gesture; the read hands back { up=, down=, hoverUp=, hoverDown= } there instead.
         m.set("image", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:image() → narg 1 · w:image(u, d[, h]) → narg 3/4
+            public Varargs invoke(Varargs a) {            // w:image() → narg 1 · w:image(u, d[, h[, h2]]) → narg 3/4/5
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "image"));
                 if(!Args.passed(a, 2))
@@ -1474,6 +1498,10 @@ public final class LuaWidget {
             return ((Window)w).cap;
         if(w instanceof TextEntry)
             return ((TextEntry)w).text();
+        if(w instanceof CheckBox) {                // 040.4: CheckBox.lbl is public for exactly this read
+            Text t = ((CheckBox)w).lbl;
+            return (t == null) ? null : t.text;
+        }
         return null;
     }
 
