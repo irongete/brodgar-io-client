@@ -1,0 +1,9 @@
+{
+  "name": "040.5 — radio() as ONE control",
+  "id": "040-ui-controls.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 040.5: hafen.ui():radio() builds ONE control -- not a group object plus N buttons -- over a real client RadioGroup/RadioButton. It proves :rows{...} stacks the buttons downward from the control's own :position one row height apart, :value(label) reads and writes the checked row (an unknown label refused naming the rows), a programmatic :value(v) does NOT re-enter :onChange, :size() covers the whole stack, re-:rows{} replaces the set, and an empty :rows{} is an empty control rather than an error.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

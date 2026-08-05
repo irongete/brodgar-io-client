@@ -62,6 +62,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:value()` | varies \| nil | what a [control](controls.md#setters) holds, or `nil` where it holds nothing — [`:value(v)` writes it](controls.md#setters) |
 | `:onChange()` | function \| nil | the handler that fires when a [control](controls.md#setters)'s value changes, or `nil` where it has none |
 | `:source()` | string \| userdata \| nil | the picture a [picture control](controls.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls.md#picture) |
+| `:rows()` | array \| nil | the row labels a [radio](controls.md#radio) shows, or `nil` where a control has no rows — [`:rows(t)` writes it](controls.md#radio) |
 | `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |
@@ -108,6 +109,7 @@ the error.
 | `:value(v)` | write what a [control](controls.md#setters) holds | **error**, same reason |
 | `:onChange(fn)` | handle a [control](controls.md#setters)'s value changing | **error**, same reason |
 | `:source(h)` | give a [picture control](controls.md#picture) its content | **error**, same reason |
+| `:rows(t)` | give a [radio](controls.md#radio) its rows | **error**, same reason |
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |
 | `:rule()` | restyle it and its subtree through your own level | **works**, same |

@@ -38,6 +38,7 @@ control with nothing added: `:type()`, `:role()`, `:position(x, y)`, `:size(w, h
 | `hafen.ui():separator()` | [Widget](widget.md) | a horizontal rule |
 | `hafen.ui():progress()` | [Widget](widget.md) | a fill-fraction bar |
 | `hafen.ui():check()` | [Widget](widget.md) | a checkbox, showing a caption or a picture |
+| `hafen.ui():radio()` | [Widget](widget.md) | a set of buttons where exactly one is checked |
 
 It takes no argument. A control is born bare, with the client's own defaults, and everything about it is a
 chained setter on the Widget it hands back — the same shape [`:window()` and `:widget()`](custom.md) have,
@@ -56,6 +57,7 @@ where the control hangs while it is being built, and once it is on screen the wa
 | `:value(v)` | `:value()` | what the control **holds** |
 | `:onChange(fn)` | `:onChange()` | `fn(v)` — the control's value changed |
 | `:source(h)` | `:source()` | the picture a [picture control](#picture) shows |
+| `:rows(t)` | `:rows()` | the row labels a [radio](#radio) shows |
 
 Every setter returns the Widget, so a control is one expression, and every one has a matching bare read.
 `:text()` answers on any text-bearing widget, yours or the client's; `:text(s)` writes, and only on a
@@ -183,6 +185,26 @@ own hover: `up`/`down` are the two states at rest, `hoverUp`/`hoverDown` are eac
 All four are required, resolved through the same two doors a button's [face](#a-caption-or-a-picture) is.
 Choosing pictures is building-only here too, and the bare `:image()` reads them back as `{up=, down=,
 hoverUp=, hoverDown=}`. `:type()` reads `"CheckBox"` or `"ICheckBox"` depending which you built.
+
+## Radio
+
+`hafen.ui():radio()` is a set of buttons where exactly one is checked at a time — one control, not one
+object per button. `:rows{...}` names the choices, `:value(v)` reads and writes which one is checked, and
+`:onChange(fn)` fires when the user picks a different one:
+
+```lua
+local r = hafen.ui():radio()
+  :rows{"Quality", "Amount", "Name"}
+  :value("Amount")
+  :onChange(function(pick) sortBy(pick) end)
+
+r:value()          --> "Amount"
+```
+
+The rows are laid out in a single column below the control's own `:position`, each one under the last;
+`:size()` reads the box of the whole stack, not one row. Writing `:rows{...}` again replaces the whole set —
+the row that was checked does not carry over, and an empty `:rows{}` is a control with nothing in it rather
+than an error. `:value(v)` naming a row that is not in the current set is refused, naming the rows that are.
 
 ## What a control does not take
 

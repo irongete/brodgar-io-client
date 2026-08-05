@@ -96,6 +96,21 @@ final class Controls {
         void onChange(LuaValue fn);
     }
 
+    /**
+     * <b>{@code :rows(t)} — the ROW SOURCE of a model-backed control</b> (spec 040 §1, task 040.5). {@link CRadio}
+     * is the first implementor: an array of row labels that becomes the buttons stacked under it. The later
+     * model-backed five (list, dropdown, menu, grid, table — 040.9-040.12) answer this the same way, each over
+     * its own row shape; a control with no row source is simply not an instance of this, exactly as {@link Value}
+     * is absent from one with no value.
+     */
+    interface Rows {
+        /** Exactly the table {@code :rows(t)} was last given, or {@code null} before the first one. */
+        LuaValue rows();
+
+        /** Validated by the implementation, which throws naming the rule a bad {@code t} broke. */
+        void rows(LuaValue t);
+    }
+
     // ------------------------------------------------------------------ the builders
 
     /**
@@ -178,6 +193,21 @@ final class Controls {
                 + " chained setters: hafen.ui():check():text(\"Show grid\"):value(true):onChange(fn)");
         UI u = UiApi.requireUi("check");
         return UiApi.attach(u, owner, new CCheck(owner));
+    }
+
+    /**
+     * {@code hafen.ui():radio()} — ONE control, not a group object plus N buttons (task 040.5): a real
+     * {@link haven.RadioGroup} of the client's own {@code RadioButton}s, stacked downward from this control's
+     * own {@code :position}, one row height apart. {@code :rows{…}} is the row source, {@code :value(label)}
+     * checks one and {@code :onChange(fn)} fires on a real pick only — {@code RadioGroup}/{@code RadioButton}
+     * never appear in Lua.
+     */
+    static LuaValue radio(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():radio() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():radio():rows{\"A\", \"B\"}:value(\"A\"):onChange(fn)");
+        UI u = UiApi.requireUi("radio");
+        return UiApi.attach(u, owner, new CRadio(owner));
     }
 
     // ------------------------------------------------------------------ the control verbs
@@ -265,8 +295,8 @@ final class Controls {
             return;
         }
         throw new LuaError("widget:onChange(fn) fires when a control's VALUE changes, and " + LuaWidget.typeName(w)
-            + " holds nothing — widget:value() answers nil on it too. hafen.ui():check() is the first builder"
-            + " in this feature that has one.");
+            + " holds nothing — widget:value() answers nil on it too. hafen.ui():check() and hafen.ui():radio()"
+            + " are the builders that have one, in this feature so far.");
     }
 
     // ------------------------------------------------------------------ the face setter (040.2)
@@ -479,8 +509,8 @@ final class Controls {
             return;
         }
         throw new LuaError("widget:value(v) writes what a control HOLDS, and " + LuaWidget.typeName(w)
-            + " holds nothing — hafen.ui():progress() and hafen.ui():check() are the builders that do, in this"
-            + " feature so far.");
+            + " holds nothing — hafen.ui():progress(), hafen.ui():check() and hafen.ui():radio() are the"
+            + " builders that do, in this feature so far.");
     }
 
     // ------------------------------------------------------------------ the source setter (040.3)
@@ -543,5 +573,29 @@ final class Controls {
         throw new LuaError("widget:source: the picture is a hafen.asset image handle"
             + " (hafen.asset():get(\"logo.png\")) or a client resource name (\"gfx/hud/buttons/addu\"), got "
             + v.typename());
+    }
+
+    // ------------------------------------------------------------------ the rows verb (040.5)
+
+    /** {@code widget:rows()} — the table last given, or {@code nil} on a control with no row source. */
+    static LuaValue rows(Owned c) {
+        if(!(c instanceof Rows))
+            return LuaValue.NIL;
+        LuaValue t = ((Rows)c).rows();
+        return (t == null) ? LuaValue.NIL : t;
+    }
+
+    /**
+     * {@code widget:rows(t)} — the ROW SOURCE, an array {@code t}. Dispatches on {@link Rows} and hands
+     * {@code t} straight to the implementation, which does its own validation and throws naming the rule
+     * (040.5: {@link CRadio} requires an array of unique string labels).
+     */
+    static void rows(Owned c, Widget w, LuaValue t) {
+        if(c instanceof Rows) {
+            ((Rows)c).rows(t);
+            return;
+        }
+        throw new LuaError("widget:rows(t) sets a control's ROW SOURCE, and hafen.ui():radio() is the builder"
+            + " that takes one, in this feature so far — " + LuaWidget.typeName(w) + " has no rows.");
     }
 }

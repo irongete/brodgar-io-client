@@ -386,6 +386,18 @@ final class UiApi {
                 return Controls.check(owner, a);
             }
         });
+        // :radio() — 040.5, ONE control, not a group object plus N buttons. hafen.ui():radio():rows{"Quality",
+        // "Amount", "Name"} builds three real haven.RadioGroup.RadioButtons, stacked downward from this
+        // control's own :position, one row height apart; RadioGroup/RadioButton never surface. :value(label)
+        // checks one and :onChange(fn) fires on a real pick only -- a programmatic :value(v) flips the two
+        // buttons' own state directly rather than going through RadioGroup.check() (which always fires the
+        // group's changed hook), so it never re-enters :onChange, the same rule 040.4 pinned for the checkbox.
+        m.set("radio", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "radio");
+                return Controls.radio(owner, a);
+            }
+        });
         // :overlay() — paint on top of the HUD without owning a widget: :onDraw(fn) runs fn(g, w, h) every frame
         // with the shared GOut wrapper and the screen size, in absolute screen coords. It MINTS one rather than
         // handing back a collection, which is the one place `overlay` is a builder and not a set — gob:overlay()

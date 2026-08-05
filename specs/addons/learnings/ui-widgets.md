@@ -682,3 +682,25 @@
   callback" is a property of the SPECIFIC call chain the docs verified (`Button.mouseup`'s ordering), not of
   callbacks in general — a new firing point (mousedown vs mouseup, a different containing widget) needs its
   own check, not an inherited assumption.
+- **(040.5) When the engine gives no `set()`/`state()` split, a programmatic write cannot reuse the "real"
+  mutator — it has to call the SAME leaf method the user path calls, one level lower than where the two
+  paths join.** `ACheckBox` splits state-read (`state`) from state-write (`set`), which is what let 040.4's
+  `:value(v)` bypass the engine's own consumer field entirely. `RadioGroup` has no such split: `check(int)`,
+  `check(String)` and a user's `RadioButton.mousedown` all funnel into ONE method, `check(RadioButton)`,
+  which unconditionally fires the group's `changed(int, String)` hook — the exact hook a Lua `:onChange`
+  handler sits on. There is no lower-level "just flip the visual, skip the hook" call in the public API.
+  The fix is not to find a missing seam but to skip the shared method entirely: call
+  `RadioButton.changed(boolean)` — the same leaf `check(RadioButton)` itself calls — directly on the two
+  affected buttons from the adapter's own `:value(v)`, keeping the adapter's own label→button map instead of
+  reading the engine's (`private`) one. Generalise: before assuming a feedback-loop guarantee needs a new
+  `haven` core edit, check how many of the engine's own entry points already converge on one leaf method —
+  calling that leaf directly, from outside, is sometimes cheaper than either an edit or the "real" mutator.
+- **(040.5) `RadioButton` is a non-static INNER class of `RadioGroup`, not a sibling top-level class — its
+  qualified name from another package is `RadioGroup.RadioButton`, and the only way to mint one is the
+  factory method, never `new`.** The spec/plan's "`RadioGroup`+`RadioButton`" phrasing (mirroring
+  `Button`/`IButton`, two top-level classes) reads as two files; `RadioButton`'s constructor is
+  package-private and the class itself lives inside `RadioGroup.java` with no file of its own — `add(lbl,
+  c)` is the one door. This falls out naturally once the file is opened, but it means a subclass of
+  `RadioGroup` in another package can still mint buttons (through `add`, which runs with `RadioGroup`'s own
+  access even when called via a subclass instance) without ever writing `RadioGroup.RadioButton` on the
+  left of a `new`.

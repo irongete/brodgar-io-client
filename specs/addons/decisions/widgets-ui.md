@@ -912,3 +912,21 @@ would have meant a conversion neither one needs. The rebuild carries `:value`/`:
 a button's rebuild carries `:onPress`. Generally: *a shared shape (four things instead of three) is not
 evidence of a shared implementation when the two engine classes were never unified to begin with.*
 **See.** [D-148](widgets-ui.md), [D-150](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-155 — a radio's programmatic write calls the button's own toggle directly, not the group's shared entry point ✅ (2026-08-06)
+**Decision.** `widget:value(v)` on `hafen.ui():radio()` flips the two affected `RadioGroup.RadioButton`s'
+own state (old off, new on) directly, rather than calling `RadioGroup.check(...)` — the engine's normal way
+to select a row.
+**Rationale.** (040.5.) `RadioGroup` gives no `ACheckBox`-style split between reading and writing state:
+`check(int)`, `check(String)` and a user's own click all converge on one method, `check(RadioButton)`, which
+unconditionally fires the group's `changed(int, String)` hook — the same hook `:onChange` sits on. There is
+no lower-level "select this, but do not notify" door in the public API, so D-153's rule (a value-bearing
+write goes straight to the field, never through the engine's own notifying setter) cannot be satisfied by
+calling anything RadioGroup itself exposes for selection — only by calling the ONE method beneath that
+convergence point, `RadioButton.changed(boolean)`, which carries no notification of its own.
+**Consequences.** The adapter keeps its own label→button map rather than reading `RadioGroup`'s (`private`)
+one, since it must locate the two buttons itself. No `haven` core edit was needed — the method it calls
+directly is already public. Generally: *D-153 does not require a `set()`/`state()`-shaped seam to exist; it
+requires finding whichever leaf method every entry point — user and programmatic alike — already funnels
+through, and calling that leaf directly instead of the shared method sitting above it.*
+**See.** [D-153](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).

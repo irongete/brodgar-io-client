@@ -43,7 +43,7 @@
       `[manual]`: click it and read the line; confirm the tick looks native.
       <!-- extra context: `src/haven/CheckBox.java`, `ICheckBox.java`, `ACheckBox.java` -->
 
-- [ ] **040.5 — `:radio()` as ONE control.** `:rows{…}` builds the buttons, `:value(label)` checks one,
+- [x] **040.5 — `:radio()` as ONE control.** `:rows{…}` builds the buttons, `:value(label)` checks one,
       `:onChange(fn)` fires on a user pick; the stack is laid downward from the control's own `:position`,
       one row height apart, and `RadioGroup`/`RadioButton` never surface. **Suite proves**: three rows build
       three buttons under one parent; `:value()` reads the checked label and `:value("x")` for an unknown

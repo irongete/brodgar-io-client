@@ -748,6 +748,23 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // rows(t) / rows() — 040.5: the ROW SOURCE of a model-backed control (spec 040 §1) — an array. Reads
+        // back exactly the table last given. hafen.ui():radio() is the first builder that answers it: three
+        // labels become three RadioButtons stacked under it. A control with no row source reads nil and a
+        // write there throws naming what does, exactly like :value()/:onChange().
+        m.set("rows", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:rows() → narg 1 · w:rows(t) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "rows"));
+                LuaValue v = Args.written(a, 2, "widget:rows", "t");
+                if(v == null)
+                    return Controls.rows((w == null) ? null : ownedContent(owner, w));
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                Controls.rows(owned(owner, w, "rows(t)"), w, v);
+                return self;
+            }
+        });
         // exists() — is this widget still attached to the tree? The one read that always answers (D-060: a widget
         // HAS a lifetime, unlike a name-keyed Sound). False after a destroy and false across a relog.
         m.set("exists", new OneArgFunction() {

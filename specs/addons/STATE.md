@@ -2,7 +2,21 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: `040-ui-controls`** (4 of 13 tasks done) — the client's own UI controls, reachable from Lua. 17 of them in two groups: the **direct** ones (`Button` `IButton` `TextEntry` `Label` `Img` `Progress` `HRuler` `CheckBox` `ICheckBox` `RadioButton` `HSlider` `Scrollport`+`Scrollbar`), concrete classes that construct and configure, and the **model-backed** five (`SListBox` `SDropBox` `SListMenu` `GridList` `TableBox`), abstract and generic over the item type, which all reduce to `SListWidget`'s two methods — `items()` and `makeitem()` — plus `GridList`'s `drawitem`. A control is a **Widget**, not a nineteenth entity, so every existing verb and selector works on one for free; `:value()` is the one verb for a control's value (its first implementor, 040.3) and `:onChange(fn)` the one notification (its first implementor, 040.4) — a programmatic `:value(v)` never re-enters it.
+**ACTIVE: `040-ui-controls`** (5 of 13 tasks done) — the client's own UI controls, reachable from Lua. 17 of them in two groups: the **direct** ones (`Button` `IButton` `TextEntry` `Label` `Img` `Progress` `HRuler` `CheckBox` `ICheckBox` `RadioButton` `HSlider` `Scrollport`+`Scrollbar`), concrete classes that construct and configure, and the **model-backed** five (`SListBox` `SDropBox` `SListMenu` `GridList` `TableBox`), abstract and generic over the item type, which all reduce to `SListWidget`'s two methods — `items()` and `makeitem()` — plus `GridList`'s `drawitem`. A control is a **Widget**, not a nineteenth entity, so every existing verb and selector works on one for free; `:value()` is the one verb for a control's value (its first implementor, 040.3) and `:onChange(fn)` the one notification (its first implementor, 040.4) — a programmatic `:value(v)` never re-enters it.
+
+**040.5 DONE — `:radio()` as ONE control, and `:rows(t)`'s debut (D-155).** `hafen.ui():radio()` stacks
+`RadioGroup.RadioButton`s downward from its own `:position`, one row height apart — `RadioGroup`/`RadioButton`
+never surface, and `:type()` reads `"Widget"` since there is no single engine class this is an instance of.
+**No `haven` core edit**: `RadioGroup` is fully public, unlike 040.4's `CheckBox`. **The one real puzzle**: the
+engine gives no `ACheckBox`-style read/write split, so every selection path — a click and a script alike —
+funnels through one method, `RadioGroup.check(...)`, that always fires the notification hook; `:value(v)`
+instead calls the leaf `RadioButton.changed(boolean)` directly on the two affected buttons, one level below
+where the paths converge, which is D-153's rule generalised to a control with no seam to exploit for it.
+`:rows(t)` is the new sixth-ish name (a `Controls.Rows` capability, dispatched like `:value`/`:onChange`):
+re-`:rows{}` rebuilds a fresh `RadioGroup` (the engine has no way to remove a button once added), an empty
+one is an empty control, and a repeated or unknown label is refused by name. `:text()` is deliberately NOT
+shipped on radio, despite spec.md's summary table listing it — the per-builder table and the task's own
+acceptance criteria never asked for it.
 
 **040.1 DONE — provenance is a CONTRACT, not a class (D-145), and `hafen.ui():button()` is its first consumer.** `ownedContent` now tests `instanceof Owned` rather than `instanceof AddonWidget`, so a `haven.Button` an addon builds reads as owned; adapters are `Ctl<Control>` in `io.brodgar.addon` (not a sub-package — the bridge's internals are package-private), each `implements Owned.Control` over one shared state object. `typeName` climbs past an adapter (D-146) so `:type()`/selectors/sheet keys still match the engine's class. New verbs: `:text(s)`'s write half and `:onPress(fn)`; `haven` core edits zero. **Open (D-147, 🔄)**: the eight paint/input callbacks refuse on a control, and decision B (`:onClick` on a button) is not yet wired. `specs/codebase/ui-controls.md` written and indexed.
 

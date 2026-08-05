@@ -98,3 +98,20 @@ none need the `redraw()`-on-resize fix above.
 > [`ILabel(String, Text.Furnace)`](src/haven/ILabel.java:33) carries no picture at all — its `Furnace` is a
 > font baked once and never live-restyled, the opposite of `Label`'s live restyle on a stylesheet override.
 > A control adapter that needs the stylesheet to keep dressing it wants `Label`, never `ILabel`.
+
+## `RadioGroup` — a coordinator, not a `Widget`
+
+[`RadioGroup`](src/haven/RadioGroup.java:31) never joins the tree itself; [`add(lbl, c)`](src/haven/RadioGroup.java:64)
+mints a `RadioButton` (its non-static inner class, package-private ctor) and adds it straight into the
+`parent` the constructor was given — that `parent` IS the row's tree parent.
+
+| What | Where |
+|---|---|
+| The one overridable hook | [`changed(int, String)`](src/haven/RadioGroup.java:103) — empty by default, fired only from `check(RadioButton)` |
+| Every path funnels through one method | [`check(int)`](src/haven/RadioGroup.java:75)/[`check(String)`](src/haven/RadioGroup.java:80) both call [`check(RadioButton)`](src/haven/RadioGroup.java:85), which ALWAYS fires the hook — no lower-level "just flip the visual" entry point exists |
+| A user click | [`RadioButton.mousedown`](src/haven/RadioGroup.java:50) calls `check(this)` directly, bypassing `CheckBox.mousedown`/`click()` |
+
+> **A programmatic write cannot go through `check()`** — it fires the same hook a click fires, with no
+> `ACheckBox`-style `set()`/`state()` seam to exploit instead. The adapter calls
+> [`RadioButton.changed(boolean)`](src/haven/RadioGroup.java:57) directly on the two affected buttons (old
+> off, new on), the method `check()` itself calls, skipping only `check()`'s own hook dispatch.
