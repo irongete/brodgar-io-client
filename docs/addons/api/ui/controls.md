@@ -59,7 +59,7 @@ that built it**. So a control configured across five lines is never seen half-bu
 | `:value(v)` | `:value()` | what the control **holds** |
 | `:onChange(fn)` | `:onChange()` | `fn(v)` — the control's value changed |
 | `:source(h)` | `:source()` | the picture a [picture control](#picture) shows |
-| `:rows(t)` | `:rows()` | the row source a [radio](#radio) or a [list, dropdown or menu](lists.md) takes |
+| `:rows(t)` | `:rows()` | the row source a [radio](#radio) or a [list, dropdown, menu or grid](lists.md) takes |
 | `:range(min, max)` | `:range()` | the value bounds of a [slider or scrollbar](#slider) |
 | `:onSubmit(fn)` | `:onSubmit()` | `fn(s)` — Enter was pressed in a [text entry](#text-entry) |
 

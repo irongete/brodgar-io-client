@@ -1067,3 +1067,38 @@ matching method signatures but no declared interface compiles clean and only fai
 `learnings/ui-widgets.md`, 040.10). `:onSelect` reads `nil`/refuses on every other control in the feature so
 far, the same shape `:onSubmit` (040.7) already established for a name that belongs to exactly one builder.
 **See.** [D-153](widgets-ui.md) (a value-bearing write skips the notify path, not the field), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-163 — a grid draws its cells through the SAME `g` wrapper a surface's `:onDraw(fn)` gets, bound per cell ✅ (2026-08-06)
+**Decision.** `hafen.ui():grid()`'s `:onCell(g, item, w, h)` is not a new drawing surface: `CGrid` owns one
+`LuaGOut` — the exact class `AddonWidget.draw` already binds for `:onDraw` — and binds it to the reclipped
+`GOut` `GridList.drawitem` hands it, once per cell, unbinding again in a `finally` right after the call.
+**Rationale.** (040.11.) `GridList` is the one model-backed control that PAINTS rather than builds row
+widgets — its abstract method is `drawitem(GOut, T)`, not `items()`/`makeitem()` — so its Lua-facing row
+source needed a draw callback, not a widget factory. `LuaGOut` was already built widget-agnostic (`bind`/
+`unbind` take the live `GOut` and an owner `Addon`, nothing widget-specific), so a second consumer costs one
+field and the same two calls `AddonWidget.draw` already makes — no new wrapper, no new vocabulary for `g`
+inside `:onCell` versus inside `:onDraw`.
+**Consequences.** Error isolation is free, not added: `AddonManager.callLua` already catches a Lua/Java error
+per call and returns without rethrowing, and `GridList.draw`'s item loop calls `drawitem` for every item
+regardless of what the previous one did — so one cell's `:onCell` throwing costs exactly that cell's log line
+and the rest of the grid, that same frame, still paints. The suite that proves it (`addons/040-ui-controls.11`)
+throws from one row's handler once (not every frame — repeat throws add no proof and only spam the log) and
+asserts every OTHER row, including the ones drawn after it in the same pass, still marked itself seen.
+**See.** [D-108](architecture-api.md) (a mechanism ships with its consumer), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-164 — a grid's `:cell(w, h)` is building-only, the same shape a list's `:rowHeight(n)` already has ✅ (2026-08-06)
+**Decision.** `widget:cell(w, h)` on a `hafen.ui():grid()` is legal only while the control is still pending
+(D-112/D-119's arming window) and refuses, naming the rule, once it has been drawn — a rebuild (`Controls.cell`)
+swaps the widget under the same Lua handle exactly as `Controls.rowHeight` already does for `:list()`/
+`:dropdown()`/`:menu()`, carrying `:rows`/`:onCell` across.
+**Rationale.** (040.11.) `GridList.Group.itemsz` is `final`, and a `Group` self-registers into a private,
+append-only list at construction with no removal method — so there is no seam to change one cell's box after
+the fact, the identical shape `SListBox.itemh` gave 040.9's `:rowHeight(n)` its own building-only rule. One
+`Group` per `CGrid`, built once in the constructor at whatever `Coord` `:cell(w, h)` (or the client's own
+32×32 inventory-slot default) named.
+**Consequences.** `:cell()` is a read-only capability (`Controls.Cell`) exactly like `Controls.RowHeight`; the
+WRITE dispatches through `Controls.cell(Addon, Widget, Owned, Varargs)`, which validates both numbers, checks
+`c.pending()`, and — only then — builds a fresh `CGrid` and calls `UiApi.rebuild`. `marg = (-1, 5)` (the
+engine's own even-spread-across-the-width shape, `SkillWnd.SkillGrid`/`ExpGrid`'s own margin) is fixed per
+`CGrid`, not exposed as a setter — a later task can add one the same building-only way if an addon ever asks.
+**See.** [D-160](widgets-ui.md) (a list's row height is chosen while the control is being built), [040-ui-controls](../040-ui-controls/spec.md).

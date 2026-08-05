@@ -97,7 +97,7 @@
       `[manual]`: open the dropdown, pick an entry; press a menu row.
       <!-- extra context: `src/haven/SDropBox.java`, `SListMenu.java` -->
 
-- [ ] **040.11 — `:grid()`.** `GridList` with `:rows`, `:cell(w, h)` and **`:onCell(g, item, w, h)`** — the
+- [x] **040.11 — `:grid()`.** `GridList` with `:rows`, `:cell(w, h)` and **`:onCell(g, item, w, h)`** — the
       one model-backed control that draws rather than builds rows, so it takes the `LuaGOut` wrapper the API
       already ships. **Suite proves**: cells lay out across the width and wrap; `:cell` changes the layout;
       `:onCell` receives the same `g` object `:onDraw` does (asserted by calling a `g` verb inside it);

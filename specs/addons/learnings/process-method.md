@@ -356,3 +356,16 @@
   rule: **before writing down that something is unused, re-run the search one level wider and say which search you
   ran.** `*.java` in a package with a `ui/` subpackage is the shape that bit; `grep -rn --include=*.java` over the
   whole tree costs the same. See D-142.
+
+- **(040.11) A check that provokes a real error should provoke it ONCE, not every frame the suite waits.**
+  The isolation check for `hafen.ui():grid()`'s `:onCell` (a per-cell draw callback, so it fires every frame a
+  widget is on screen) had its planted-crash cell throw unconditionally — correct for the claim ("one cell's
+  handler failing does not take the rest of that frame down with it"), but the suite's own `hafen.timer():after`
+  wait is ~0.5 s, long enough for dozens of frames, so the maintainer's pasted log carried dozens of identical
+  `handler error:` lines and read as something actively wrong even though every `[pass]`/`[fail]` line was
+  green. A one-shot guard (`if not crashed then crashed = true; error(...) end`) proves the exact same thing —
+  the crashing cell's neighbours, INCLUDING the ones after it in the same draw pass, are still marked seen —
+  with one error line instead of a flood. General rule: when a check's proof needs an error to actually be
+  RAISED (not just refused via `pcall`), gate it so it fires the minimum number of times the assertion needs,
+  independent of how many frames/ticks elapse before the suite reads the result — the log the maintainer pastes
+  back is part of the deliverable, not a side channel, and noise in it reads as a symptom whether or not it is.

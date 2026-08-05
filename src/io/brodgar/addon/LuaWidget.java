@@ -733,6 +733,25 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // onCell(fn) / onCell() — 040.11: a GRID's cell painter — the row source hafen.ui():grid() paints
+        // through instead of turning into rows, since haven.GridList draws cells rather than building row
+        // widgets. fn(g, item, w, h) gets the SAME g wrapper widget:onDraw(fn) does, reclipped to the cell's own
+        // box. Reads nil on anything with no cells to paint; a write there throws naming the builder that does.
+        m.set("onCell", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:onCell() → narg 1 · w:onCell(fn) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "onCell"));
+                LuaValue v = Args.written(a, 2, "widget:onCell", "fn");
+                if(v == null)
+                    return Controls.onCell((w == null) ? null : ownedContent(owner, w));
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                if(!v.isfunction())
+                    throw new LuaError("widget:onCell(fn) expects a function, got " + v.typename());
+                Controls.onCell(owned(owner, w, "onCell(fn)"), w, v);
+                return self;
+            }
+        });
         // image(up, down[, hover]) / image() — 040.2: THE FACE SETTER, and the second engine class behind one
         // builder. hafen.ui():button():text("Go") completes as a Button and :image(u, d) as an IButton, because
         // they are one control to an author and two widgets to the client; the I prefix is the client's own
@@ -850,6 +869,23 @@ public final class LuaWidget {
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
                 Controls.rowHeight(owner, w, owned(owner, w, "rowHeight(n)"), v);
+                return self;
+            }
+        });
+        // cell(w, h) / cell() — 040.11: a GRID's cell box, in pixels. Building-only, like :rowHeight(n)
+        // (spec 040 §5's shape again): the client's own GridList fixes a group's cell box (Group.itemsz) at
+        // construction, so choosing a different one rebuilds the widget under the same Lua handle. The bare
+        // read hands back {w=, h=}; a control with no cells reads nil on this and a write there throws naming
+        // what does.
+        m.set("cell", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:cell() → narg 1 · w:cell(w, h) → narg 3
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "cell"));
+                if(!Args.passed(a, 2))
+                    return Controls.cell((w == null) ? null : ownedContent(owner, w));
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                Controls.cell(owner, w, owned(owner, w, "cell(w, h)"), a);
                 return self;
             }
         });

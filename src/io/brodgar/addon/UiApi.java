@@ -474,6 +474,17 @@ final class UiApi {
                 return Controls.menu(owner, a);
             }
         });
+        // :grid() — 040.11, the fourth of the MODEL-BACKED five: a real haven.GridList, and the odd one out --
+        // it DRAWS cells rather than building row widgets, so :rows(t) is a plain array of arbitrary Lua values
+        // and :onCell(g, item, w, h) paints one through the SAME g wrapper :onDraw(fn) hands a surface, rather
+        // than the LuaRows bridge the other four share. :cell(w, h) is the cell box and, like :rowHeight(n), is
+        // building-only -- GridList.Group.itemsz is final.
+        m.set("grid", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "grid");
+                return Controls.grid(owner, a);
+            }
+        });
         // :overlay() — paint on top of the HUD without owning a widget: :onDraw(fn) runs fn(g, w, h) every frame
         // with the shared GOut wrapper and the screen size, in absolute screen coords. It MINTS one rather than
         // handing back a collection, which is the one place `overlay` is a builder and not a set — gob:overlay()

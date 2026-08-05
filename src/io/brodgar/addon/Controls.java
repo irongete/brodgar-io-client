@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.Coord;
 import haven.Resource;
 import haven.Tex;
 import haven.UI;
@@ -7,6 +8,7 @@ import haven.Widget;
 import haven.Window;
 
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
@@ -163,6 +165,30 @@ final class Controls {
         LuaValue onSelect();
 
         void onSelect(LuaValue fn);
+    }
+
+    /**
+     * <b>{@code :cell(w, h)} — a GRID's cell box, in pixels</b> (task 040.11). {@link CGrid} is its one
+     * implementor. Read-only as a capability, exactly like {@link RowHeight}: the WRITE is not a plain field
+     * assignment — {@code GridList.Group.itemsz} is {@code final}, so choosing a different one is building-only
+     * and goes through a rebuild in {@link Controls#cell}, the same shape {@link #rowHeight} already has.
+     */
+    interface Cell {
+        /** The current cell box, in pixels. */
+        Coord cell();
+    }
+
+    /**
+     * <b>{@code :onCell(fn)} — a GRID's cell painter</b> (task 040.11). {@link CGrid} is its one implementor:
+     * {@code GridList} draws rather than builds row widgets, so this is the one model-backed control whose row
+     * source is painted through the {@code g} wrapper every {@code widget:onDraw(fn)} already uses, rather than
+     * turned into a widget by {@link LuaRows}.
+     */
+    interface OnCell {
+        /** The installed {@code :onCell} handler, or {@code null}. */
+        LuaValue onCell();
+
+        void onCell(LuaValue fn);
     }
 
     // ------------------------------------------------------------------ the builders
@@ -363,6 +389,22 @@ final class Controls {
         return UiApi.attach(u, owner, new CMenu(owner, CMenu.DEF_SZ, CMenu.defaultItemHeight()));
     }
 
+    /**
+     * {@code hafen.ui():grid()} — a real {@link haven.GridList}, the client's own laid-out icon grid (task
+     * 040.11), the fourth of the model-backed five and the odd one out: it DRAWS cells rather than building row
+     * widgets, so its row source ({@code :rows(t)}, a plain array of arbitrary Lua values) is painted through
+     * {@code :onCell(g, item, w, h)} — the same {@code g} wrapper {@code widget:onDraw(fn)} hands a surface —
+     * rather than turned into rows by {@link LuaRows}. {@code :cell(w, h)} is the cell box and, like
+     * {@code :rowHeight(n)}, building-only.
+     */
+    static LuaValue grid(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():grid() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():grid():cell(48, 48):rows(items):onCell(fn)");
+        UI u = UiApi.requireUi("grid");
+        return UiApi.attach(u, owner, new CGrid(owner, CGrid.DEF_SZ, CGrid.DEF_CELL));
+    }
+
     // ------------------------------------------------------------------ the control verbs
 
     /**
@@ -498,6 +540,29 @@ final class Controls {
         }
         throw new LuaError("widget:onSelect(fn) fires when a MENU row is chosen, and hafen.ui():menu() is the"
             + " builder that has one — " + LuaWidget.typeName(w) + " has nothing to select.");
+    }
+
+    // ------------------------------------------------------------------ the onCell verb (040.11)
+
+    /** {@code widget:onCell()} — the installed handler, or {@code nil} on anything that has no cells to paint. */
+    static LuaValue onCell(Owned c) {
+        if(!(c instanceof OnCell))
+            return LuaValue.NIL;
+        LuaValue fn = ((OnCell)c).onCell();
+        return (fn == null) ? LuaValue.NIL : fn;
+    }
+
+    /**
+     * {@code widget:onCell(fn)} — a GRID's cell painter. Dispatches on {@link OnCell}, which only {@link CGrid}
+     * implements so far.
+     */
+    static void onCell(Owned c, Widget w, LuaValue fn) {
+        if(c instanceof OnCell) {
+            ((OnCell)c).onCell(fn);
+            return;
+        }
+        throw new LuaError("widget:onCell(fn) paints one cell of a GRID, and hafen.ui():grid() is the builder"
+            + " that has one — " + LuaWidget.typeName(w) + " has no cells.");
     }
 
     // ------------------------------------------------------------------ the face setter (040.2)
@@ -886,6 +951,50 @@ final class Controls {
         if(old.rows() != null)
             nu.rows(old.rows());
         nu.onSelect(old.onSelect());
+        UiApi.rebuild(owner, old, nu);
+    }
+
+    // ------------------------------------------------------------------ the cell verb (040.11)
+
+    /** {@code widget:cell()} — the current cell box {@code {w=, h=}}, or {@code nil} on a control with no cells. */
+    static LuaValue cell(Owned c) {
+        if(!(c instanceof Cell))
+            return LuaValue.NIL;
+        Coord sz = ((Cell)c).cell();
+        LuaTable t = new LuaTable();
+        t.set("w", LuaValue.valueOf(sz.x));
+        t.set("h", LuaValue.valueOf(sz.y));
+        return t;
+    }
+
+    /**
+     * {@code widget:cell(w, h)} — building-only, exactly like {@link #rowHeight}: {@code GridList.Group.itemsz}
+     * is {@code final}, so choosing a different cell box is a different widget under the same Lua handle
+     * (D-164). Carries the current rows and {@code :onCell} handler across the rebuild. {@link CGrid} (040.11)
+     * is its one implementor.
+     */
+    static void cell(Addon owner, Widget w, Owned c, Varargs a) {
+        if(!(c instanceof Cell))
+            throw new LuaError("widget:cell(w, h) sets a GRID's CELL SIZE, and hafen.ui():grid() is the builder"
+                + " that takes one — " + LuaWidget.typeName(w) + " has none.");
+        LuaValue wv = Args.required(a, 2, "widget:cell", "w");
+        LuaValue hv = Args.required(a, 3, "widget:cell", "h");
+        if(!wv.isnumber())
+            throw new LuaError("widget:cell(w, h) — w must be a NUMBER of pixels, got " + wv.typename());
+        if(!hv.isnumber())
+            throw new LuaError("widget:cell(w, h) — h must be a NUMBER of pixels, got " + hv.typename());
+        int cw = wv.toint(), ch = hv.toint();
+        if((cw <= 0) || (ch <= 0))
+            throw new LuaError("widget:cell(w, h) — both must be POSITIVE numbers of pixels, got " + cw + "x" + ch);
+        if(!c.pending())
+            throw new LuaError("widget:cell(w, h) chooses a grid's CELL SIZE while the control is being BUILT,"
+                + " and this one is already on screen — the client's own grid widget fixes its cell box at"
+                + " construction, so set it in the same statement that builds the control.");
+        CGrid old = (CGrid)c;
+        CGrid nu = new CGrid(owner, old.sz, new Coord(cw, ch));
+        if(old.rows() != null)
+            nu.rows(old.rows());
+        nu.onCell(old.onCell());
         UiApi.rebuild(owner, old, nu);
     }
 }

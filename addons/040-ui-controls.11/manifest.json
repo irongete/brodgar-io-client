@@ -1,0 +1,9 @@
+{
+  "name": "040.11 — GridList, and hafen.ui():grid()",
+  "id": "040-ui-controls.11",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 040.11: hafen.ui():grid() builds a real client GridList -- the fourth of the model-backed five, and the odd one out: it DRAWS cells rather than building row widgets. :rows(t) is a plain array of arbitrary Lua values, :cell(w, h) the cell box (building-only, like :rowHeight(n)), and :onCell(g, item, w, h) paints one cell through the SAME g wrapper widget:onDraw(fn) hands a surface -- error-isolated per cell, so one bad handler costs that cell and nothing else.",
+  "api_version": 1,
+  "files": ["main.lua", "icon.png"]
+}

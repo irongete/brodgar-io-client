@@ -1,9 +1,10 @@
 # hafen.ui: lists
 
 A **row-source control** takes its content from `:rows(t)` — a plain Lua array — rather than a caption or
-a picture, and is dressed by the [stylesheet](style/README.md) like any other [control](controls.md). Three
-share it: a list keeps every row on screen, a dropdown keeps one closed until clicked, and a menu fires on a
-pick and holds nothing.
+a picture, and is dressed by the [stylesheet](style/README.md) like any other [control](controls.md). Four
+share it: a list keeps every row on screen, a dropdown keeps one closed until clicked, a menu fires on a pick
+and holds nothing, and a grid draws its own cells instead of building rows at all — the first three take the
+same string-or-`{icon=,text=}` row shape below; a [grid](#grid)'s rows are whatever your own `:onCell` reads.
 
 ```lua
 local list = hafen.ui():list()
@@ -19,11 +20,12 @@ local list = hafen.ui():list()
 | `hafen.ui():list()` | [Widget](widget.md) | a scrolling list of rows |
 | `hafen.ui():dropdown()` | [Widget](widget.md) | one row, closed until clicked |
 | `hafen.ui():menu()` | [Widget](widget.md) | a row of actions that fires and holds nothing |
+| `hafen.ui():grid()` | [Widget](widget.md) | a laid-out grid of cells you draw yourself |
 
 Built bare and configured by chained setters, [the same shape](controls.md#builders) every other control has
 — the arming rule included.
 
-## Rows
+## Rows (list, dropdown, menu)
 
 Every row is a string, or a `{icon =, text =}` table — the client's own art beside a label — and a table
 may mix both freely, one shape per element:
@@ -85,6 +87,32 @@ hafen.ui():menu()
 ```
 
 `:rowHeight(n)` behaves exactly as it does on a list.
+
+## Grid
+
+`hafen.ui():grid()` is the one row-source control that does not build a row widget per item — it lays cells
+out in a wrapping grid and calls `:onCell(fn)` to PAINT each one, so `:rows(t)` here is an array of whatever
+your own cells need, not the string-or-`{icon=,text=}` shape above:
+
+```lua
+local items = {}
+for i, res in ipairs(ownedResources) do items[i] = {icon = res} end
+
+hafen.ui():grid()
+  :size(200, 200)
+  :cell(48, 48)
+  :rows(items)
+  :onCell(function(g, item, w, h) g:image(item.icon, 0, 0, w, h) end)
+```
+
+`fn(g, item, w, h)` gets the same [`g` wrapper](drawing.md) a surface's `:onDraw(fn)` does — draw at `(0,0)`,
+the cell's own top-left, in a `w`×`h` box — plus the row `:rows(t)` gave for that cell. A handler that errors
+costs only that cell's line; the rest of the grid still draws, that frame and every one after it.
+
+`:cell(w, h)` is the cell box, in pixels, defaulting to the client's own inventory-slot size (32×32); like a
+[list's row height](#list), it is chosen while the control is being built and refuses once the grid is on
+screen. A grid answers no `:value()`/`:onChange(fn)` — it holds nothing, the same as a [menu](#menu) — and an
+empty `:rows{}` draws nothing rather than erroring.
 
 ## See also
 

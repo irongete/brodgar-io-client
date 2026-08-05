@@ -205,3 +205,29 @@ of these — the wrap happens inside their OWN inner list class instead.
 | `SListMenu` is NOT an `SListWidget` at all | it wraps one, [`InnerList extends SListBox`](src/haven/SListMenu.java:61) as a private field (`box`) — `SListMenu.makeitem`'s result is wrapped in `InnerList.Item` the same one-level-removed way `SDropList` wraps `SDropBox`'s |
 | `added()` grabs input UNCONDITIONALLY | [`SListMenu.added()`](src/haven/SListMenu.java:149) — `ui.grab`/`ui.grabkeys`, gated only by the public `grab` field (default `true`); [`nograb()`](src/haven/SListMenu.java:172) is the documented opt-out, meant for exactly this: a menu that is not a modal popup |
 | Window raise vs. popup add-order | [`Window.mousedown`](src/haven/Window.java:461) raises itself AFTER `ev.propagate` returns — so a click that opens an `SDropBox`'s popup (added to `ui.root` DURING that propagate) is always followed by the enclosing window re-topping itself over it, same frame |
+
+## `GridList` — DRAWS cells, does not build row widgets
+
+[`GridList<T>`](src/haven/GridList.java:33) is the one model-backed control with no `items()`/`makeitem()` —
+its only abstract method is [`drawitem(GOut, T)`](src/haven/GridList.java:136), called straight from `draw`,
+so an adapter never touches `SListWidget` at all. Layout is one or more [`Group`](src/haven/GridList.java:57),
+a **non-static inner class whose constructor self-registers** (`groups.add(this)`, [:69](src/haven/GridList.java:69))
+— there is no removal, so a different `itemsz` needs a whole new `GridList`, not a mutated `Group`.
+
+| What | Where |
+|---|---|
+| `itemsz`/`marg` are `final` on `Group` | [:58](src/haven/GridList.java:58) — a cell-size change is D-113's "rebuild", the same shape a list's `:rowHeight(n)` already has |
+| `marg.x < 0` means EVEN SPREAD | [`adjx`](src/haven/GridList.java:138) spaces items across the full row width instead of a fixed gap when `marg.x` is negative — the engine's own icon-grid shape (`SkillWnd.SkillGrid`/`ExpGrid` both pass `(-1, 5)`) |
+| `drawitem` runs for EVERY item, every frame, unconditionally | [`draw(GOut)`](src/haven/GridList.java:142)'s item loop runs `sr*rw` to `items.size()-1` with **no per-item bound check against `sz.y`** — an item below the visible box still gets `drawitem` called, just clipped on screen; only `Group`-level visibility (`grp.ey - yo < 0`) skips a whole group |
+| A `Loading` from one cell does not aim the whole draw | `draw` catches `Loading` PER ITEM ([:170](src/haven/GridList.java:170)) and blits a placeholder — a wrapping addon callback (`drawitem` override) that raises anything else propagates to whatever calls it |
+| Selection exists but is native-only | [`change(T)`](src/haven/GridList.java:220)/[`itemclick`](src/haven/GridList.java:224) set `sel` and draw a highlight ([`drawsel`](src/haven/GridList.java:130)) on a real click — no Lua verb reads it (spec 040 ships no `:value()` on a grid) |
+
+## `LuaGOut` — the one `g` wrapper, now with a SECOND consumer
+
+[`LuaGOut`](src/io/brodgar/addon/LuaGOut.java:40) was built for [`AddonWidget.draw`](src/io/brodgar/addon/AddonWidget.java:196)'s
+`:onDraw(fn)` and is **not** widget-specific: [`bind(GOut, Addon, FontHandle)`](src/io/brodgar/addon/LuaGOut.java:252)
+points its one `LuaTable` of closures at whichever `GOut` is live and [`unbind()`](src/io/brodgar/addon/LuaGOut.java:260)
+nulls it again — so any draw-time call site can own one and bind/unbind it per callback, which is exactly what
+`CGrid.drawitem` (task 040.11) does for `:onCell(g, item, w, h)`, one bind per CELL rather than per widget-frame.
+The rendered-text cache ([`Cache`](src/io/brodgar/addon/LuaGOut.java:87)) is keyed per `owner` `Addon`, so two
+controls of the same addon calling `g:text` with the same string still share one cache entry.
