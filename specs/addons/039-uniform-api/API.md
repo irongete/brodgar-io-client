@@ -166,12 +166,16 @@ precedent, D-056) or the page documents the guard. Decide before the task is wri
 
 ## `hafen.fight()` — the maneuver deck *(OOP migration, spec §4.6)*
 
+> **Shipped in 039.12.** ✅ every row. `:target()` needed a fourth entity the new-entity table did not
+> list — **Opponent**, `:id() :gob() :exists() :info()` — because a bare Gob cannot answer *are you
+> still fighting them*. It carries nothing else: who, and the gob answers the rest.
+
 | before | after | does |
 |---|---|---|
-| `hafen.fight.maneuvers(filter)` | `hafen.fight():maneuver():list(filter)` | **NEW** Maneuver collection |
-| `hafen.fight.deck()` | `hafen.fight():deck()` | **NEW** DeckCard array — a layout, plural by R3 |
-| `hafen.fight.summary()` | `hafen.fight():summary()` | **NEW** FightSummary entity |
-| — | `hafen.fight():target()` | **NEW** the combat target — `:gob()` restores 017's regression |
+| `hafen.fight.maneuvers(filter)` | `hafen.fight():maneuver():list(filter)` | **NEW** Maneuver collection, keyless (no `:get`) ✅ |
+| `hafen.fight.deck()` | `hafen.fight():deck()` | **NEW** DeckCard array — a layout, plural by R3; a card interns on the SLOT ✅ |
+| `hafen.fight.summary()` | `hafen.fight():summary()` | **NEW** FightSummary entity; N1 expands the five field names, `:info()` keeps them ✅ |
+| — | `hafen.fight():target()` | **NEW** the combat target — `:gob()` restores 017's regression ✅ |
 
 ## `hafen.font()` — font handles, a collection of FontHandle
 
@@ -308,11 +312,14 @@ says which you meant, so the heuristic is no longer needed.
 
 ## `hafen.party()` — the party *(OOP migration, spec §4.3)*
 
+> **Shipped in 039.12.** ✅ every row. The section object **IS** the roster (§2.1), so there is no
+> `hafen.party():member()` accessor; a string filter is refused naming why, because a member has no name.
+
 | before | after | does |
 |---|---|---|
-| `hafen.party.members()` | `hafen.party():list()` | **NEW** PartyMember collection, sequence order |
-| `hafen.party.member(id)` | `hafen.party():get(id)` | one member, by gob id |
-| `hafen.party.leader()` | `hafen.party():leader()` | the leader, or nil (R8) |
+| `hafen.party.members()` | `hafen.party():list()` | **NEW** PartyMember collection, sequence order ✅ |
+| `hafen.party.member(id)` | `hafen.party():get(id)` | one member, by gob id ✅ |
+| `hafen.party.leader()` | `hafen.party():leader()` | the leader, or nil (R8) ✅ |
 
 ## `hafen.player()` — your character (a section of one, R1)
 
@@ -905,11 +912,12 @@ and they gain only the R5 nil refusal.
 | Skill / Credo / Experience | `hafen.char()` | `:name() :res() :cost() :known() :exists() :info()`; a Credo adds `:acquired() :pursuing()` and the five pursuit reads, an Experience `:score() :modified()` ✅ |
 | Food | `hafen.char():food()` | `:cap() :total() :feps() :hunger() :label() :efficacy() :exists() :info()` ✅ |
 | StudySlot | `hafen.study():slot()` | `:res() :name() :lp() :attention() :cost() :time() :progress() :exists() :info()` ✅ |
-| PartyMember | `hafen.party()` | `:id() :position() :color() :leader() :gob() :exists() :info()` |
+| PartyMember | `hafen.party()` | `:id() :position() :color() :leader() :gob() :exists() :info()` ✅ |
 | Craft | `hafen.craft():current()` | `:name() :res() :inputs() :outputs() :make(all) :exists() :info()` |
 | Quest / Condition | `hafen.quest()` | `:id() :title() :conditions() :done() :exists() :info()` |
 | Wound | `hafen.wound()` | `:res() :name() :severity() :exists() :info()` |
-| Maneuver / DeckCard / FightSummary | `hafen.fight()` | `:res() :name() :exists() :info()` |
+| Maneuver / DeckCard / FightSummary | `hafen.fight()` | Maneuver `:res() :name() :available() :used()`, DeckCard `:slot() :key() :maneuver() :res() :name() :used()`, FightSummary `:used() :maxActions() :deckSize() :saveCount() :activeSave()`; all `:exists() :info()` ✅ |
+| Opponent | `hafen.fight():target()` | `:id() :gob() :exists() :info()` — **added by 039.12**, the entity `:target()` needs ✅ |
 | **Position** | every `:position()`, `hafen.world():position(x,y)` | `:x() :y() :offset(dx,dy) :distance(o) :tileCoord() :durable() :info()` — a **value** object, not interned |
 | **Item** | `widget:items()`, `hafen.ui():hand()` | `:res() :name() :quality() :handle() :exists() :info()` — **intern key unsettled, §4.8** |
 
@@ -944,7 +952,7 @@ not an accessor, so R3 does not reach it.
 |---|---|---|
 | `hafen.char.skill(name)` | boolean | the Skill, or nil ✅ |
 | `hafen.wounds.has(needle)` | boolean | the Wound, or nil |
-| `hafen.party.members()` etc. | snapshot tables | entities (all of spec §4) |
+| `hafen.party.members()` etc. | snapshot tables | entities (all of spec §4) — party and fight ✅ |
 
 Both boolean-to-entity changes stay truthy-compatible for `if hafen.wound():find("x") then`, which is how
 every shipped call site uses them — verified against `hello`, `walker` and the suites during the port.

@@ -44,7 +44,7 @@ you came for from the tables below. Every page in the tree is listed here.
 | [`hafen.craft`](craft.md) | the open recipe window, and its Craft button |
 | [`hafen.quests`](quests.md) | the quest log, current and completed |
 | [`hafen.wounds`](wounds.md) | the wounds on the Health and Wounds tab |
-| [`hafen.fight`](fight.md) | the out-of-combat maneuver-deck builder |
+| [`hafen.fight`](fight.md) | the maneuver-deck builder, and who you are fighting |
 | [`hafen.actionbar`](actionbar.md) | the hotbar: read a slot, use it, assign one |
 
 ## Acting

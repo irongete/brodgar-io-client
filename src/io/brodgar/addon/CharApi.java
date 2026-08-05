@@ -784,34 +784,15 @@ final class CharApi {
         Section.install(hafen, "study", study);
     }
 
-    /** Build a char namespace for owner. From installHafen. */
+    /**
+     * Install {@code hafen.party} for owner. From installHafen. <b>The section object IS the roster</b> (uniform
+     * grammar §2.1): {@code hafen.party()} is the {@link LuaPartyMember} collection, one member is
+     * {@code hafen.party():get(gobId)} and {@code :leader()} is the distinguished member (R8) rather than a
+     * second accessor. Every member hands back a live Gob through {@code member:gob()}, which is the read the
+     * roster never had.
+     */
     static void installParty(LuaTable hafen, final Addon owner) {
-        LuaTable party = new LuaTable();
-        party.set("members", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable out = new LuaTable();
-                int i = 0;
-                for(Party.Member m : partyMembers())
-                    out.set(++i, memberSnapshot(m));
-                return out;
-            }
-        });
-        party.set("leader", new ZeroArgFunction() {
-            public LuaValue call() {
-                Party p = party();
-                return ((p == null) || (p.leader == null)) ? LuaValue.NIL : memberSnapshot(p.leader);
-            }
-        });
-        party.set("member", new OneArgFunction() {
-            public LuaValue call(LuaValue id) {
-                Party p = party();
-                if((p == null) || !id.isnumber())
-                    return LuaValue.NIL;
-                Party.Member m = p.memb.get(Long.valueOf((long)id.todouble()));
-                return (m == null) ? LuaValue.NIL : memberSnapshot(m);
-            }
-        });
-        hafen.set("party", party);
+        Section.mount(hafen, "party", LuaPartyMember.collection(owner), null);
     }
 
     /**
@@ -866,25 +847,47 @@ final class CharApi {
         hafen.set("wounds", wounds);
     }
 
-    /** Build a char namespace for owner. From installHafen. */
+    /**
+     * Build {@code hafen.fight()} for {@code owner}. From installHafen. Three projections of the combat-schools
+     * tab plus one read of the live combat view: {@code :maneuver()} is the collection of what you know,
+     * {@code :deck()} the loaded school's layout as a plain array (§2.3 — a layout is addressed by its own
+     * order), {@code :summary()} the scalars around it, and {@code :target()} who you are fighting.
+     */
     static void installFight(LuaTable hafen, final Addon owner) {
+        final LuaValue maneuvers = LuaManeuver.collection(owner);
         LuaTable fight = new LuaTable();
-        fight.set("maneuvers", new OneArgFunction() {
-            public LuaValue call(LuaValue filter) {
-                return fightManeuvers(filter);
+        // maneuver() — every maneuver and attack you know, minted once and handed back by identity.
+        fight.set("maneuver", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "fight", "maneuver");
+                if(Args.passed(a, 2))
+                    throw new LuaError("hafen.fight():maneuver() takes no arguments — it IS the collection,"
+                        + " and :list(filter) / :find(filter) search it");
+                return maneuvers;
             }
         });
-        fight.set("deck", new ZeroArgFunction() {
-            public LuaValue call() {
-                return fightDeck();
+        // deck() — the filled hotkey slots of the loaded school, in key order. A plain array, never nil.
+        fight.set("deck", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "fight", "deck");
+                return LuaDeckCard.deck(owner);
             }
         });
-        fight.set("summary", new ZeroArgFunction() {
-            public LuaValue call() {
-                return fightSummary();
+        // summary() — the action-point budget and the saved-school slots, nil before the tab is built.
+        fight.set("summary", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "fight", "summary");
+                return LuaFightSummary.of(owner, fightwnd());
             }
         });
-        hafen.set("fight", fight);
+        // target() — who you are fighting, nil out of combat. An Opponent, whose :gob() is the creature.
+        fight.set("target", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "fight", "target");
+                return LuaOpponent.target(owner);
+            }
+        });
+        Section.install(hafen, "fight", fight);
     }
 
     /**
@@ -1214,19 +1217,18 @@ final class CharApi {
         return true;
     }
 
-    /** The live {@link Party}, or {@code null} before a session is up. */
-    private static Party party() {
+    /** The live {@link Party}, or {@code null} before a session is up. Read by {@link LuaPartyMember}. */
+    static Party party() {
         Glob g = glob();
         return (g == null) ? null : g.party;
     }
 
     /**
-     * Party members ordered by {@link Party.Member#seq} (the roster order {@code hafen.party.list} hands out;
-     * the {@code "partyN"} GobRef it also used to back is gone with the hard cut — reach a member's gob with
-     * {@code hafen.gob(m.id)} until Party migrates to OOP). {@code party.memb} is replaced wholesale off-thread,
-     * so a {@code values()} copy is snapshot-safe (defensive catch for the rare in-flight swap).
+     * Party members ordered by {@link Party.Member#seq} — the roster order {@code hafen.party():list()} hands
+     * out. {@code party.memb} is replaced wholesale off-thread, so a {@code values()} copy is snapshot-safe
+     * (defensive catch for the rare in-flight swap).
      */
-    private static List<Party.Member> partyMembers() {
+    static List<Party.Member> partyMembers() {
         List<Party.Member> out = new ArrayList<Party.Member>();
         Party p = party();
         if(p == null)
@@ -1238,24 +1240,6 @@ final class CharApi {
         }
         out.sort((a, b) -> Integer.compare(a.seq, b.seq));
         return out;
-    }
-
-    /** A PartyMember snapshot: id / x,y / color / leader (there is no name for party members). */
-    private static LuaValue memberSnapshot(Party.Member m) {
-        if(m == null)
-            return LuaValue.NIL;
-        LuaTable t = new LuaTable();
-        t.set("id", LuaValue.valueOf((double)m.gobid));
-        Coord2d c = m.getc();               // live gob pos if in view, else last-known; may be null
-        if(c != null) {
-            t.set("x", LuaValue.valueOf(c.x));
-            t.set("y", LuaValue.valueOf(c.y));
-        }
-        if(m.col != null)
-            t.set("color", color(m.col));
-        Party p = party();
-        t.set("leader", LuaValue.valueOf((p != null) && (p.leader == m)));
-        return t;
     }
 
 
@@ -1627,114 +1611,10 @@ final class CharApi {
     // int reads (a/u/maxact/usesave) outside the lock are snapshot-atomic like A9-2's wound ints.
 
     /** The Combat Schools window (the character sheet's "Martial Arts & Combat Schools" tab — created hidden
-     *  at login but live), or {@code null} before it exists. Via the public {@code CharWnd.fight} field. */
-    private static FightWnd fightwnd() {
+     *  at login but live), or {@code null} before it exists. Via the public {@code CharWnd.fight} field. It is
+     *  the one funnel {@link LuaManeuver}, {@link LuaDeckCard} and {@link LuaFightSummary} resolve through. */
+    static FightWnd fightwnd() {
         CharWnd c = charwnd();
         return (c == null) ? null : c.fight;
     }
-
-    /** {@code hafen.fight.maneuvers([filter])} — every known combat maneuver/attack as {@code {res, name,
-     *  avail, used}} snapshots, filtered by the canonical nil=all / name-substring / predicate. */
-    private static LuaValue fightManeuvers(LuaValue filter) {
-        LuaTable out = new LuaTable();
-        FightWnd fw = fightwnd();
-        UI u = ui;
-        if((fw == null) || (u == null))
-            return out;
-        List<FightWnd.Action> acts = new ArrayList<FightWnd.Action>();
-        synchronized(u) {                          // acts is swapped wholesale off-thread (the "avail" uimsg)
-            acts.addAll(fw.acts);
-        }
-        int i = 0;
-        for(FightWnd.Action a : acts) {            // resolve names outside the lock (res.get() may Loading)
-            LuaValue snap = maneuverSnapshot(a);
-            if(matches(filter, snap))
-                out.set(++i, snap);
-        }
-        return out;
-    }
-
-    /** One maneuver as {@code {res, name, avail, used}}. {@code res}/{@code name} are Loading-guarded;
-     *  {@code avail} ({@code Action.a}) / {@code used} ({@code Action.u}) are plain public ints. */
-    private static LuaValue maneuverSnapshot(FightWnd.Action a) {
-        LuaTable t = new LuaTable();
-        String res = resIdent(a.res);
-        if(res != null)
-            t.set("res", LuaValue.valueOf(res));
-        String name = resTipName(a.res, res);
-        if(name != null)
-            t.set("name", LuaValue.valueOf(name));
-        t.set("avail", LuaValue.valueOf(a.a));
-        t.set("used", LuaValue.valueOf(a.u));
-        return t;
-    }
-
-    /** {@code hafen.fight.deck()} — the current school's configured card layout: the filled {@code order[]}
-     *  slots in key order, each {@code {slot, key, res, name, used}}. Empty deck slots are omitted. */
-    private static LuaValue fightDeck() {
-        LuaTable out = new LuaTable();
-        FightWnd fw = fightwnd();
-        UI u = ui;
-        if((fw == null) || (u == null))
-            return out;
-        FightWnd.Action[] order;
-        synchronized(u) {                          // order[] entries are reassigned off-thread (the "used" uimsg)
-            order = java.util.Arrays.copyOf(fw.order, fw.order.length);
-        }
-        int i = 0;
-        for(int slot = 0; slot < order.length; slot++) {
-            FightWnd.Action a = order[slot];
-            if(a == null)
-                continue;                          // an empty deck slot — omit (slot/key convey position)
-            LuaTable t = new LuaTable();
-            t.set("slot", LuaValue.valueOf(slot));
-            t.set("key", LuaValue.valueOf(deckKey(slot)));
-            String res = resIdent(a.res);          // resolved outside the lock (may Loading)
-            if(res != null)
-                t.set("res", LuaValue.valueOf(res));
-            String name = resTipName(a.res, res);
-            if(name != null)
-                t.set("name", LuaValue.valueOf(name));
-            t.set("used", LuaValue.valueOf(a.u));
-            out.set(++i, t);
-        }
-        return out;
-    }
-
-    /** The hotkey label for deck slot {@code slot} (the game's own {@code FightWnd.keys}: "1".."5",
-     *  "⇧1".."⇧5"), or a 1-based fallback if the deck is larger than the key table. */
-    private static String deckKey(int slot) {
-        String[] keys = FightWnd.keys;
-        if((keys != null) && (slot >= 0) && (slot < keys.length) && (keys[slot] != null))
-            return keys[slot];
-        return String.valueOf(slot + 1);
-    }
-
-    /** {@code hafen.fight.summary()} — the scalars {@code {maxact, used, nact, nsave, usesave}}, or
-     *  {@code nil} before the Combat Schools tab exists. {@code used} = the total action points spent
-     *  (sum of every maneuver's {@code u}), mirroring the window's own "Used: u/maxact" count. */
-    private static LuaValue fightSummary() {
-        FightWnd fw = fightwnd();
-        UI u = ui;
-        if((fw == null) || (u == null))
-            return LuaValue.NIL;
-        int maxact, usesave, nsave, nact, used;
-        synchronized(u) {                          // acts/order/maxact all mutate off-thread — read under the lock
-            maxact = fw.maxact;
-            usesave = fw.usesave;
-            nsave = fw.nsave;
-            nact = fw.order.length;
-            used = 0;
-            for(FightWnd.Action a : fw.acts)
-                used += a.u;
-        }
-        LuaTable t = new LuaTable();
-        t.set("maxact", LuaValue.valueOf(maxact));
-        t.set("used", LuaValue.valueOf(used));
-        t.set("nact", LuaValue.valueOf(nact));
-        t.set("nsave", LuaValue.valueOf(nsave));
-        t.set("usesave", LuaValue.valueOf(usesave));
-        return t;
-    }
-
 }

@@ -341,6 +341,22 @@ public final class Addon {
     final LuaStudySlot.Cache studySlots = new LuaStudySlot.Cache(this);
 
     /**
+     * This addon's <b>party and combat interning caches</b> (spec {@code 039-uniform-api} §4.3/§4.6):
+     * {@code hafen.party()} and {@code hafen.fight():target()} keyed by the <b>gob id</b> — the only thing the
+     * server publishes about a member or an opponent, and what makes a stashed handle self-heal when they come
+     * back — {@code hafen.fight():maneuver()} by the window's own record (the server carries it over across a
+     * refresh and writes the slot counts onto it), {@code :deck()} by the hotkey <b>slot</b> (the layout is made
+     * of places, and loading another school rewrites what is in them) and {@code :summary()} by the window.
+     * D-094 throughout: the key is whatever the engine keeps stable. Same contract as {@link #gobs} — per-addon,
+     * weak-valued, dead with this {@link Addon} on {@code :reload}/disable.
+     */
+    final LuaPartyMember.Cache partyMembers = new LuaPartyMember.Cache(this);
+    final LuaManeuver.Cache maneuvers = new LuaManeuver.Cache(this);
+    final LuaDeckCard.Cache deckCards = new LuaDeckCard.Cache(this);
+    final LuaFightSummary.Cache fightSummaries = new LuaFightSummary.Cache(this);
+    final LuaOpponent.Cache opponents = new LuaOpponent.Cache(this);
+
+    /**
      * This addon's <b>Widget interning cache</b> ({@code hafen.ui.root()}/{@code node(id)}/{@code at(x,y)}, spec
      * {@code 029-widget-oop}): the {@code Widget → Widget object} map and the per-addon metatable that make
      * {@code hafen.ui.at(m.x,m.y) == hafen.ui.at(m.x,m.y)} true and let {@code node:same()} be cut. Per-addon like

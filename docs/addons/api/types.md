@@ -109,7 +109,9 @@ From `:info()` on each. [`hafen.char`](char.md) hands out the live objects; thes
 
 ## PartyMember
 
-From [`hafen.party`](party.md). There is **no name** field for party members.
+From [`member:info()`](party.md#a-member), the one snapshot escape hatch. `hafen.party():list()` hands
+you live [`PartyMember` objects](party.md), not this table. There is **no name** field: the client is
+never sent one.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -117,6 +119,9 @@ From [`hafen.party`](party.md). There is **no name** field for party members.
 | `x`, `y` | number | live position if in view, else last-known; optional |
 | `color` | [Color](#color) | party colour; optional |
 | `leader` | bool | whether this member is the party leader |
+
+The live reads are `member:id()`, `:position()` — a [Position](world.md#the-position-type), not the two
+loose numbers — `:color()` and `:leader()`.
 
 ## Buff
 
@@ -192,13 +197,20 @@ or a chance byproduct.
 
 ## Maneuver, DeckCard, FightSummary
 
-From [`hafen.fight`](fight.md).
+From the `:info()` escape hatch on each of [`hafen.fight`](fight.md)'s objects; the reads themselves hand
+you the live objects.
 
-- **Maneuver** — `{ res?, name?, avail = number, used = number }`, `avail` slottable against `used`
-  slotted.
-- **DeckCard** — `{ slot = number, key = string, res?, name?, used = number }`, `slot` the raw 0-based
-  deck index and `key` the hotkey label such as `"1"` or `"⇧1"`.
-- **FightSummary** — `{ maxact, used, nact, nsave, usesave }`.
+- **Maneuver** — `{ res?, name?, avail = number, used = number }`, `avail` dealable against `used`
+  dealt. The live reads are `man:res()`, `:name()`, `:available()` and `:used()`.
+- **DeckCard** — `{ slot = number, key = string, res?, name?, used? }`, `slot` the raw 0-based deck index
+  and `key` the hotkey label such as `"1"` or `"⇧1"`. The maneuver half is absent for an empty slot,
+  where the place itself still reads.
+- **FightSummary** — `{ maxact, used, nact, nsave, usesave }`, in the window's own spelling; the live
+  reads spell them out as `sum:maxActions()`, `:used()`, `:deckSize()`, `:saveCount()` and
+  `:activeSave()`.
+
+The combat target has no shape of its own: `target:info()` is `{ id }`, and everything else about the
+creature is read off its [Gob](gob.md).
 
 ## ActionbarSlot
 
