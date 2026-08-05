@@ -197,6 +197,42 @@ final class Retired {
             + " widget:style() still answers what the widget RESOLVES to");
         put("marker:onmap", "marker:onmap() is now marker:onMap(), and it writes too: marker:onMap(true)");
 
+        // ---- the world entities: two collections under hafen.render(), and hafen.ghost() IS one -------------
+        put("hafen.render.sprite", "hafen.render.sprite{image=..., x=, y=} is now"
+            + " hafen.render():sprite():add(imageAsset, p) plus chained setters: :position(p [, a]) :scale(k)"
+            + " :alpha(a) :tint(r, g, b) :billboard(b) :clickable(b) :onClick(fn). An image ON A GAME OBJECT is"
+            + " gob:overlay():add(key):image(asset), which keys it and dies with the gob");
+        put("hafen.render.object", "hafen.render.object{model=..., x=, y=} is now"
+            + " hafen.render():object():add(meshAsset, p) plus chained setters: :position(p [, a]) :scale(k)"
+            + " :alpha(a) :tint(r, g, b) :clickable(b) :onClick(fn). A model ON A GAME OBJECT is"
+            + " gob:overlay():add(key):model(asset), which keys it and dies with the gob");
+        put("hafen.ghost.new", "hafen.ghost.new{res=..., x=, y=} is now hafen.ghost():add(res, p) plus chained"
+            + " setters: :position(p [, a]) :scale(k) :alpha(a) :tint(r, g, b) :clickable(b) :onClick(fn)."
+            + " A .res model ON A GAME OBJECT is gob:overlay():add(key):ghost(res)");
+        put("hafen.ghost.list", "hafen.ghost.list(filter) is now hafen.ghost():list(filter) — hafen.ghost() IS"
+            + " the collection of the ghosts this addon placed");
+
+        // ---- Sprite / Object / Ghost: one vocabulary, and every property a read/write pair on one name ------
+        for(String kind : new String[] { "sprite", "object", "ghost" }) {
+            put(kind + ":pos", kind + ":pos() is now " + kind + ":position(), and it hands back a Position"
+                + " rather than an {x, y, a, scale} table: the facing and the size are " + kind + ":rotate()"
+                + " and " + kind + ":scale()");
+            put(kind + ":move", kind + ":move(x, y [, a]) is now " + kind + ":position(p [, a]), where p is a"
+                + " Position (gob:position(), or hafen.world():position(x, y)) — one name reads it and writes it");
+            put(kind + ":show", kind + ":show() is now " + kind + ":visible(true) — a boolean property is a"
+                + " property, so the value is the argument rather than the verb's name");
+            put(kind + ":hide", kind + ":hide() is now " + kind + ":visible(false) — a boolean property is a"
+                + " property, so the value is the argument rather than the verb's name");
+        }
+        put("sprite:destroy", "sprite:destroy() is now hafen.render():sprite():remove(s) — the collection"
+            + " placed it, so the collection ends it");
+        put("object:destroy", "object:destroy() is now hafen.render():object():remove(o) — the collection"
+            + " placed it, so the collection ends it");
+        put("ghost:destroy", "ghost:destroy() is now hafen.ghost():remove(g) — the collection placed it, so the"
+            + " collection ends it");
+        put("ghost:setRes", "ghost:setRes(res, sdt) is now ghost:res(res, spawnData) — ghost:res() already read"
+            + " it, so the pair was one name too many");
+
         // ---- the HUD overlay: a two-line handle table became a builder, so it ends the way the other two do --
         put("uioverlay:remove", "hafen.ui():overlay() hands back something you created and hold, so it ends with"
             + " ov:destroy() — :remove() is the collection verb, and a HUD painter is in no collection");

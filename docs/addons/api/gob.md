@@ -88,7 +88,7 @@ while `:add` raises, because there is nothing left to attach it to.
 ```lua
 me:overlay():add("hp"):text("hurt"):color(255, 90, 90):offset(0, -6)
 me:overlay():add("ring"):draw(function(g, gob, sx, sy) g:frect(sx - 2, sy - 2, 4, 4) end)
-me:overlay():add("mark"):image(hafen.asset("icon.png")):scale(2):offset(0, 0, 18)
+me:overlay():add("mark"):image(hafen.asset():get("icon.png")):scale(2):offset(0, 0, 18)
 me:overlay():remove("hp")
 ```
 
@@ -118,7 +118,7 @@ relabels a live overlay rather than replacing it.
 | `ov:offset(x, y, z)` | world | **world units** from the gob, `z` being up — `18` floats it overhead |
 | `ov:scale(s)` `ov:alpha(a)` `ov:tint(c)` `ov:rotate(a)` | world | the look and facing, live — see below |
 | `ov:billboard(b)` | world | with an image: a camera-facing blit instead of an upright quad |
-| `ov:spawnData(sdt)` | world | with a ghost: spawn-data bytes picking a resource variant, as [`hafen.ghost.new`](ghost.md) takes |
+| `ov:spawnData(sdt)` | world | with a ghost: spawn-data bytes picking a resource variant, as [`g:res`](ghost.md#the-ghost) takes |
 
 `ov:billboard` and `ov:spawnData` choose how the visual is **built**, so setting one after the overlay
 already stands rebuilds it; set them in the same statement as the kind and it is built once. There is no

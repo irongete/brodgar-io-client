@@ -900,3 +900,22 @@
   round is what the maintainer runs. The fix was one assertion in the suite (a rule the previous document
   named says nothing after a load that does not name it), and the same plant then bit both. Generally: a
   falsification round is also a coverage diff between the two harnesses.
+- **(039.8) A mechanical port sweep rewrites the very spelling a REFUSAL test pins, and the check then
+  asks the new form to throw.** Both of this task's regex sweeps (`hafen.asset(` → `:get(`, `:derive{…}` →
+  `:derive():size(…)`) ran over `addons/**` including the suite being written, silently converting
+  `refuses(..., function() return hafen.asset(ICON) end, ...)` into a call to the *live* door. The suite
+  still parses, still runs, and reports `got: <no error>` — which reads like an engine defect. Rule: run a
+  corpus sweep, then re-read every `refuses(`/`pcall(` line it touched, because those are exactly the sites
+  whose OLD spelling is the point. (Same shape as 039.5's `pcall(hafen.ui.all, s)` finding, one level up.)
+- **(039.8) A retired row's message is asserted as TEXT, so changing a signature is a two-place edit.**
+  Widening the constructors to `:add(thing, p)` changed the `Retired` message; `add(imageAsset)` is not a
+  substring of `add(imageAsset, p)`, so every suite pinning the old text reddens — with the engine
+  perfectly correct and the pasted line showing the *right* replacement being named. Grep the wanted
+  substring across `addons/` whenever a retired message changes; the coupling is invisible from the Java.
+- **(039.8) A world-entity handle is fully headless-testable without a MapView.** `new LuaGhost(owner,
+  null, res, rc, a)` constructs directly, and every verb guards on `gob != null`, so pulling the private
+  `ghostHandle` off `RenderApi` by reflection exercises the whole read/write vocabulary — position, rotate,
+  scale, alpha, tint, visible, clickable, onClick, exists, plus the nil discipline — with no client at all.
+  What is left for the in-game round is only the scene: the real `addClientGob`, the billboard re-mill and
+  the Position round trip. 99/99 that way, and it still missed D-127, because the defect lived in the one
+  call the probe could not make.

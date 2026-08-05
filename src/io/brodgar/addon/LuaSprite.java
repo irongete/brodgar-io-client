@@ -29,7 +29,8 @@ import haven.Coord2d;
 public final class LuaSprite extends LuaWorldEntity {
     final LuaImage img;            // the texture source (bridge-owned by Addon.images; NOT disposed by the sprite)
     final String   imgName;        // the addon-relative image path, for :image() and the list string-filter
-    final boolean  billboard;      // R2b: true = camera-facing screen blit (LuaSpriteBillboard); false = fixed world quad (SpriteQuad)
+    boolean        billboard;      // true = camera-facing screen blit (LuaSpriteBillboard); false = fixed world quad (SpriteQuad).
+                                   // NOT final: :billboard(b) is a construction property, so writing it re-mills the visual in place. Guarded by this.
 
     LuaSprite(Addon owner, LuaImage img, Coord2d rc, double a, boolean billboard) {
         super(owner, rc, a);

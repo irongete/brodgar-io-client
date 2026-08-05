@@ -69,8 +69,8 @@ local FILE = "theme.json"
 local TREE = "window[title=035.4 probe]"
 
 local function fontOf(f)
-  local h = hafen.font(f.face)
-  if f.size then h = h:derive{ size = f.size } end
+  local h = hafen.font():get(f.face)
+  if f.size then h = h:derive():size(f.size) end
   return h
 end
 
@@ -78,8 +78,8 @@ local function ruleOf(props)
   local rule = {}
   for k, v in pairs(props) do rule[k] = v end
   if props.font then rule.font = fontOf(props.font) end
-  if props.bg and props.bg.image then rule.bg = { image = hafen.asset(props.bg.image) } end
-  if props.border then rule.border = { image = hafen.asset(props.border.image), slice = props.border.slice } end
+  if props.bg and props.bg.image then rule.bg = { image = hafen.asset():get(props.bg.image) } end
+  if props.border then rule.border = { image = hafen.asset():get(props.border.image), slice = props.border.slice } end
   return rule
 end
 
@@ -241,7 +241,7 @@ local function run()
   sheet:drop()
 
   -- 1. the file, and the one thing a file cannot carry.
-  local a = hafen.asset(FILE)
+  local a = hafen.asset():get(FILE)
   eq("a theme is a file: it loads as a data asset", a:type(), "data")
   doc = hafen.json():parse(a:text())
   local f = doc.rules["window.frame"]

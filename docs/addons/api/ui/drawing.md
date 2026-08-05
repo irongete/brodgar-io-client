@@ -43,7 +43,7 @@ To draw your own PNGs, load them with [`hafen.asset`](../asset.md) and blit the 
 local icon                                     -- upvalue for the draw callbacks below
 
 hafen.event():on("OnLoad", function()
-  icon = hafen.asset("icon.png")               -- load once from addons/<me>/icon.png
+  icon = hafen.asset():get("icon.png")         -- load once from addons/<me>/icon.png
 end)
 
 hafen.ui():overlay():onDraw(function(g, w, h)

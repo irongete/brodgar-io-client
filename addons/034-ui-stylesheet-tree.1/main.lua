@@ -48,7 +48,7 @@ local WARM, COLD = { 200, 180, 140 }, { 90, 140, 200 }
 
 local function run()
   pass, fail = 0, 0                    -- so a re-run through :t034-1 reports its own counts, not the login's
-  local body = hafen.font("serif"):derive{ size = 13 }
+  local body = hafen.font():get("serif"):derive():size(13)
   -- Two OWNED probe windows: the only widgets whose captions this suite can be sure of. Hidden at once.
   local a = hafen.ui():window()
     :title("034 probe A")

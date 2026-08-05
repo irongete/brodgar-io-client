@@ -51,7 +51,7 @@ local nativeN  = 0
 local foreign  = 0                    -- non-native events under a key this suite never attached: must stay 0
 local icon
 
-hafen.event():on("OnLoad", function() icon = hafen.asset("icon.png") end)
+hafen.event():on("OnLoad", function() icon = hafen.asset():get("icon.png") end)
 
 local function record(tag)
   return function(e)

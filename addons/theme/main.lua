@@ -7,7 +7,7 @@
 -- claim this addon exists to prove, and it is why the loop over the rules never looks at a key.
 --
 -- Three ordinary doors, one line each:
---   hafen.asset("theme.json")   the file THIS addon ships — a "data" asset, read as UTF-8 (:text()), sandboxed
+--   hafen.asset():get("theme.json")   the file THIS addon ships — a "data" asset, read as UTF-8 (:text()), sandboxed
 --                               like every asset (absolute paths and ".." are rejected, D-017)
 --   hafen.json():parse(text)      the text → a Lua table. A JSON array is 1-indexed, so [190,210,190] arrives as
 --                               the sheet's own positional colour shape and needs no conversion at all.
@@ -63,20 +63,22 @@ local function faceOf(face)
       .. " ships (\"fonts/demo.ttf\"); got " .. type(face))
   end
   if face:find("%.") then
-    return hafen.asset(face)        -- a FILE this addon ships — the same door theme.json came through
+    return hafen.asset():get(face)        -- a FILE this addon ships — the same door theme.json came through
   end
-  return hafen.font(face)           -- one of the client's built-ins: sans / serif / mono / fraktur
+  return hafen.font():get(face)           -- one of the client's built-ins: sans / serif / mono / fraktur
 end
 
--- { face = "serif", size = 11, bold = true, … } → a handle. size/bold/italic/aa are :derive options, never
--- part of the load — so a theme names a face once and varies it per rule.
+-- { face = "serif", size = 11, bold = true, … } → a handle. size/bold/italic/aa are setters on a :derive()d
+-- variant, never part of the load — so a theme names a face once and varies it per rule. The variant is made
+-- only when the file asks for one, because a face with nothing to vary IS the handle the theme wants.
 local function fontOf(f)
-  local h = faceOf(f.face)
-  local opts, any = {}, false
+  local h, varied = faceOf(f.face), false
   for _, k in ipairs({ "size", "bold", "italic", "aa" }) do
-    if f[k] ~= nil then opts[k], any = f[k], true end
+    if f[k] ~= nil then
+      if not varied then h, varied = h:derive(), true end   -- one variant, then set what the file names
+      h[k](h, f[k])
+    end
   end
-  if any then h = h:derive(opts) end
   return h
 end
 
@@ -88,8 +90,8 @@ local function ruleOf(props)
   local rule = {}
   for k, v in pairs(props) do rule[k] = v end
   if props.font then rule.font = fontOf(props.font) end
-  if props.bg and props.bg.image then rule.bg = { image = hafen.asset(props.bg.image) } end
-  if props.border then rule.border = { image = hafen.asset(props.border.image), slice = props.border.slice } end
+  if props.bg and props.bg.image then rule.bg = { image = hafen.asset():get(props.bg.image) } end
+  if props.border then rule.border = { image = hafen.asset():get(props.border.image), slice = props.border.slice } end
   return rule
 end
 
@@ -97,7 +99,7 @@ end
 -- except the two that carry a handle, so a theme may style any surface the client's grammar accepts, with any
 -- property this client ships — the file decides, not this file.
 local function build()
-  local doc = hafen.json():parse(hafen.asset(FILE):text())
+  local doc = hafen.json():parse(hafen.asset():get(FILE):text())
   local rules, n = {}, 0
   for key, props in pairs(doc.rules or {}) do
     rules[key], n = ruleOf(props), n + 1

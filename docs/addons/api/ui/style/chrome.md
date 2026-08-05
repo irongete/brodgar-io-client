@@ -5,7 +5,7 @@ own content. Two kinds of surface wear them: `window.frame`, the client's window
 framed surface that is not a window.
 
 ```lua
-local art = hafen.asset("img/panel.png")
+local art = hafen.asset():get("img/panel.png")
 local s = hafen.ui():sheet()
 s:rule("window.frame")
   :bg{ color = {26, 26, 28, 240} }
@@ -17,8 +17,8 @@ s:install()
 
 | Call | Value | Meaning |
 |---|---|---|
-| `rule:bg(t)` | `{color = {r,g,b,a}}` **or** `{image = hafen.asset(…)}` | the surface something is painted on: a flat fill, alpha included, or a tiled image. One or the other, never both |
-| `rule:border(t)` | `{image = hafen.asset(…), slice = {l, t, r, b}}` | a 9-slice frame: the four corners draw at their own size and the four edges stretch between them |
+| `rule:bg(t)` | `{color = {r,g,b,a}}` **or** `{image = hafen.asset():get(…)}` | the surface something is painted on: a flat fill, alpha included, or a tiled image. One or the other, never both |
+| `rule:border(t)` | `{image = hafen.asset():get(…), slice = {l, t, r, b}}` | a 9-slice frame: the four corners draw at their own size and the four edges stretch between them |
 | `rule:pad(n)` | a number of pixels, `>= 0` | the space a surface keeps between its frame and its content |
 
 Each reads back bare: `rule:bg()`, `rule:border()`, `rule:pad()`.

@@ -47,7 +47,7 @@ local function sheetOf(doc)
     local rule = {}
     if props.font then
       local f = props.font
-      rule.font = hafen.font(f.face):derive{ size = f.size }
+      rule.font = f.size and hafen.font():get(f.face):derive():size(f.size) or hafen.font():get(f.face)
     end
     if props.color then rule.color = props.color end
     rules[key] = rule
@@ -57,13 +57,13 @@ end
 
 local function run()
   -- 1. the `data` asset (033.3): the one loader, typed by extension, now covering the files a theme is made of.
-  local a = hafen.asset("sheet.json")
+  local a = hafen.asset():get("sheet.json")
   eq("a .json file loads as a data asset", a:type(), "data")
   eq("it reports the path it was loaded from", a:path(), "sheet.json")
-  check(hafen.asset("sheet.json") == a, "a data asset is interned per path", "a different handle")
+  check(hafen.asset():get("sheet.json") == a, "a data asset is interned per path", "a different handle")
   check(type(a:text()) == "string" and #a:text() > 0, "it hands back the file's text", a:text())
   refuses("an unsupported extension is refused, listing the ones that load",
-          function() hafen.asset("sheet.yaml") end, ".json/.txt (data)")
+          function() hafen.asset():get("sheet.yaml") end, ".json/.txt (data)")
 
   -- 2. the sheet IS data: file -> hafen.json():parse -> sheet:load. A JSON array arrives as the sheet's own
   --    positional colour shape, so nothing between the file and the client converts a thing.
@@ -89,7 +89,7 @@ local function run()
   eq("the hard cut holds: hafen.font.setFont", hafen.font.setFont, nil)
   eq("the hard cut holds: hafen.font.reset", hafen.font.reset, nil)
   eq("the hard cut holds: hafen.font.scopes", hafen.font.scopes, nil)
-  check(hafen.font("serif") ~= nil, "hafen.font(name) still names an engine font", nil)
+  check(hafen.font():get("serif") ~= nil, "hafen.font():get(name) still names an engine font", nil)
 
   -- 5. drop it: this suite runs on every login and must leave the client stock.
   check(pcall(function() sheet:drop() end), "sheet:drop() drops this addon's sheet")

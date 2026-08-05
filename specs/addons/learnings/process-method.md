@@ -308,3 +308,11 @@
   where the suite puts the thing on screen and the human only has to look. Generally: when a `[manual]` needs
   the reader to *type* something, either the suite should have typed it or the step is really two steps, one of
   which is automatable.
+- **(039.8) "This invalid state is harmless" is a claim about the ENGINE, and it needs the same evidence
+  as any other.** The first cut of `:add(asset)` built a world entity at the origin and reasoned that the
+  origin is off-map, so nothing would be seen — which sounded like D-119's own argument ("holding it out of
+  the tree buys nothing") and was in fact its opposite: D-119 is about a state the engine SUPPORTS, and
+  this was a state the engine REFUSES. The check that would have caught it costs one grep — follow the
+  create down to the engine call (`addClientGob` → `basic.add(gob.placed)` → `Placement()`) and read what
+  it dereferences. Generally: before reusing a decision's rationale, confirm the new case shares the
+  premise, not just the shape.

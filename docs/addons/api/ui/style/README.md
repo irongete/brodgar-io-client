@@ -7,11 +7,11 @@ To draw your *own* pixels, use [custom](../custom.md) and [drawing](../drawing.m
 gated.
 
 ```lua
-local body = hafen.asset("fonts/Inter.ttf"):derive{ size = 12 }
+local body = hafen.asset():get("fonts/Inter.ttf"):derive():size(12)
 local s = hafen.ui():sheet()
 s:rule("*"):font(body)                                       -- the global fallback
-s:rule("window.title"):font(body:derive{ size = 14, bold = true })
-s:rule("chat"):font(hafen.font("mono"):derive{ size = 13 }):color(200, 210, 200)
+s:rule("window.title"):font(body:derive():size(14):bold(true))
+s:rule("chat"):font(hafen.font():get("mono"):derive():size(13)):color(200, 210, 200)
 s:rule("tooltip"):color(255, 150, 90)                        -- colour alone: the font stays stock
 s:install()
 ```
@@ -60,7 +60,7 @@ automatically on your addon's `:reload` or disable, so the stock client is alway
 the door a look that lives in a *file* comes through, and it replaces whatever the sheet said:
 
 ```lua
-local doc = hafen.json():parse(hafen.asset("theme.json"):text())
+local doc = hafen.json():parse(hafen.asset():get("theme.json"):text())
 hafen.ui():sheet():load(doc.rules):install()
 ```
 
@@ -89,10 +89,10 @@ Each is a setter that returns the rule, and each reads back with no argument.
 
 | Call | Value | Notes |
 |---|---|---|
-| `rule:font(h)` | a [font handle](../../font.md) | `hafen.font(name)` or `hafen.asset(path)`, optionally `:derive{size=, bold=, …}` — see [text](text.md) |
+| `rule:font(h)` | a [font handle](../../font.md) | `hafen.font():get(name)` or `hafen.asset():get(path)`, optionally through `:derive()` — see [text](text.md) |
 | `rule:color(r, g, b[, a])` | `0..255` each | also takes a colour value, the `{r = …, g = …}` table every reader hands back — see [text](text.md#color) |
-| `rule:bg(t)` | `{color = {r,g,b,a}}` **or** `{image = hafen.asset(…)}` | the surface something is painted on — see [chrome](chrome.md) |
-| `rule:border(t)` | `{image = hafen.asset(…), slice = {l, t, r, b}}` | a 9-slice frame — see [chrome](chrome.md) |
+| `rule:bg(t)` | `{color = {r,g,b,a}}` **or** `{image = hafen.asset():get(…)}` | the surface something is painted on — see [chrome](chrome.md) |
+| `rule:border(t)` | `{image = hafen.asset():get(…), slice = {l, t, r, b}}` | a 9-slice frame — see [chrome](chrome.md) |
 | `rule:pad(n)` | a number of pixels, `>= 0` | the space a surface keeps between its frame and its content — see [`pad`](chrome.md#pad) |
 | `rule:position(x, y)` | raw px | where the widget sits inside its parent — **tree keys only**, see [geometry](geometry.md) |
 | `rule:anchor(t)` | `{to =, at =, offset =}` | the same place said as a relationship — see [`anchor`](geometry.md#anchor) |

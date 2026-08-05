@@ -1,7 +1,7 @@
 {
   "name": "039.6 — the UI builders: window, widget, overlay",
   "id": "039-uniform-api.6",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 039.6: the three hafen.ui() constructors are built bare and configured by chained setters, every setter returns self and reads back, and a surface never paints in the frame it was built in.",
   "api_version": 1,

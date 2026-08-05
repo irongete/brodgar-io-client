@@ -8,6 +8,7 @@ import java.awt.Font;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 
 /**
@@ -27,7 +28,10 @@ import org.luaj.vm2.LuaValue;
  * crosses into Lua, D-017): the userdata has no metatable, so no Java method is reachable, and it cannot be
  * forged (the sandbox omits {@code luajava}).
  *
- * <p><b>Immutable.</b> All fields are final; {@code :derive} builds a fresh handle rather than mutating. Loading a
+ * <p><b>Immutable once it is USED.</b> {@code :derive()} hands back a draft whose five properties are chained
+ * setters; the moment {@link #resolve} gives the object to a consumer it is sealed, and every other handle (a
+ * built-in, a loaded file) is shared and refuses a setter outright. So nothing that a surface is drawing with
+ * can change under it. Loading a
  * {@code .ttf} also registers its family into AWT (see {@link FontApi}) so {@link #family()} resolves in a
  * {@code $font} tag with zero {@code RichText} edit.
  */
@@ -35,11 +39,18 @@ public final class FontHandle {
     /** The handle-table field carrying this object as an opaque userdata (read by {@link #resolve}). */
     static final LuaValue KEY = LuaValue.valueOf("__font");
 
-    final Font    font;    // the AWT font with bold/italic baked in (size applied per-site by the provider)
-    final Integer size;    // logical px, or null = "use the stock size of whatever surface this is applied to"
-    final Boolean aa;      // or null = inherit the surface's stock antialias flag
-    final Color   color;   // or null = inherit the surface's stock default colour
+    Font    font;          // the AWT font with bold/italic baked in (size applied per-site by the provider)
+    Integer size;          // logical px, or null = "use the stock size of whatever surface this is applied to"
+    Boolean aa;            // or null = inherit the surface's stock antialias flag
+    Color   color;         // or null = inherit the surface's stock default colour
     LuaValue handle;       // the Lua handle table (set by FontApi.fontHandle)
+
+    // The two flags that make the four fields above safe to be non-final. A handle is WRITABLE only while it is
+    // a draft that nothing has used yet: `draft` is set for what :derive() hands back and for nothing else (a
+    // built-in and a loaded .ttf are shared, interned values), and `used` is set the moment resolve() hands this
+    // object to a consumer -- a rule, a widget, a draw call -- each of which reads it right then. Guarded by this.
+    private boolean draft;
+    private boolean used;
 
     // F2 own-widget drawing (g:text / a window's or widget's :font(h)): a cached RichText.Foundry per effective
     // px, so the per-frame draw wrapper does not rebuild one each call. Rendering through RichText (not a plain
@@ -54,6 +65,40 @@ public final class FontHandle {
         this.size = size;
         this.aa = aa;
         this.color = color;
+    }
+
+    /**
+     * A fresh <b>draft</b> of this font — what {@code h:derive()} hands back. It starts as a copy, so an omitted
+     * setter inherits, and it is the only shape of this object whose properties may be written.
+     */
+    synchronized FontHandle draft() {
+        FontHandle d = new FontHandle(font, size, aa, color);
+        d.draft = true;
+        return d;
+    }
+
+    /**
+     * Assert that a property of this handle may be written, or refuse naming what to write instead. The two
+     * refusals are different mistakes and say so: a shared font was never yours to restyle, and a draft already
+     * in use would take the write and show nothing for it.
+     */
+    synchronized void writable(String verb) {
+        if(!draft)
+            throw new LuaError(verb + ": this font is shared — a built-in and a file this addon loaded are"
+                + " interned values, and writing one would restyle every surface already using it. The variant"
+                + " is h:derive(), whose properties are yours to set");
+        if(used)
+            throw new LuaError(verb + ": this font is already in use — a rule, a widget or a draw call read it"
+                + " when you handed it over, so a write now would change nothing. Derive another variant from"
+                + " it: h:derive():" + verb.substring(verb.indexOf(':') + 1) + "(...)");
+    }
+
+    /** Write {@code bold} or {@code italic} by re-deriving the AWT font, keeping the other of the two. */
+    synchronized void style(boolean bold, boolean on) {
+        boolean b = bold ? on : font.isBold();
+        boolean i = bold ? font.isItalic() : on;
+        font = font.deriveFont((b ? Font.BOLD : 0) | (i ? Font.ITALIC : 0));
+        richCache = null;                 // the cached foundries were built from the old face
     }
 
     /** The AWT family name — what {@code h:family()} returns and what a {@code $font[family,sz]{…}} tag resolves by (F2). */
@@ -91,8 +136,11 @@ public final class FontHandle {
         LuaValue u = v.istable() ? v.get(KEY) : v;
         if(u.isuserdata()) {
             Object o = u.touserdata();
-            if(o instanceof FontHandle)
-                return (FontHandle)o;
+            if(o instanceof FontHandle) {
+                FontHandle fh = (FontHandle)o;
+                synchronized(fh) { fh.used = true; }   // a consumer read it HERE: a later setter would be silent
+                return fh;
+            }
         }
         return null;
     }

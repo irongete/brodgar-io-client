@@ -1,0 +1,9 @@
+{
+  "name": "039.8 — hafen.render(), hafen.ghost(), hafen.asset(), hafen.font()",
+  "id": "039-uniform-api.8",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.8: the four sections that hand out things become collections. hafen.render():sprite()/:object() and hafen.ghost() place a thing with :add(asset)/:add(res) and configure it with chained setters on what comes back, hafen.asset():get(path) is the one door to a file this addon ships, and hafen.font():get(name) names a built-in. It proves the Position reaches the world entity -- a sprite at p and one at p:offset(11, 0) stand ONE TILE apart, measured through the API's own reads -- that ending a placed thing goes through the collection that placed it while an asset keeps :dispose() (freeing a resource now is not leaving a set), that h:derive() plus setters builds the same handle the options table did and refuses a write once the font is shared or in use, and that every old spelling throws naming its replacement: hafen.render.sprite{}, hafen.render.object{}, hafen.ghost.new{}, hafen.ghost.list(), hafen.asset(path), hafen.font(name), :pos(), :move(), :show()/:hide(), :destroy() and ghost:setRes().",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

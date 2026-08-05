@@ -6,7 +6,7 @@ it [yourself](#draw-with-it), or name it in a [stylesheet](ui/style/README.md) r
 client's own surfaces.
 
 ```lua
-local body = hafen.font("serif"):derive{ size = 12 }
+local body = hafen.font():get("serif"):derive():size(12)
 hafen.ui():window():title("Mine"):size(200, 120):font(body):onDraw(function(g, w, h)
   g:text("this text is in my font", 6, 6)
 end)
@@ -20,24 +20,25 @@ look it up. No name collisions, no coupling. Everything here is client-side, cos
 A handle comes from exactly one of two places, and which one you use is decided by **who owns the file**:
 
 ```lua
-local h = hafen.font("serif")                     -- a BUILT-IN: the client already owns it
-local h = hafen.asset("fonts/Inter.ttf")          -- a FILE THIS ADDON SHIPS
+local h = hafen.font():get("serif")               -- a BUILT-IN: the client already owns it
+local h = hafen.asset():get("fonts/Inter.ttf")    -- a FILE THIS ADDON SHIPS
 ```
 
-Neither takes options. Size and style are a [`:derive{…}`](#the-variant) away, never part of the load.
+Neither takes options. Size and style are a [`:derive()`](#the-variant) away, never part of the load.
 
 ### The built-ins
 
-`hafen.font` is **callable**: `hafen.font(name)` is the handle for one of the client's built-in fonts —
-`"sans"`, `"serif"`, `"mono"`, `"fraktur"`. They are engine-owned, so they are *addressed by name* rather
-than loaded: interned (`hafen.font("mono") == hafen.font("mono")`), no file, no path, and **no lifetime**, so
-a built-in carries none of the [asset verbs](asset.md#every-asset). A typo, a number or a path raises an
-error listing the four names and pointing paths at `hafen.asset`.
+`hafen.font()` is the collection of the client's built-in fonts your addon has named: `:get(name)` is the
+handle for one of `"sans"`, `"serif"`, `"mono"`, `"fraktur"`, and `:list(filter)` is the ones you have asked
+for so far. They are engine-owned, so they are *addressed by name* rather than loaded: interned, no file, no
+path, and **no lifetime**, so a built-in carries none of the [asset verbs](asset.md#every-asset). There is no
+`:add` — you cannot make a built-in — and no `:remove`, since there is no lifetime to end. A typo, a number
+or a path raises an error listing the four names and pointing paths at `hafen.asset`.
 
 ### Your own ttf
 
 A font file your addon ships is an [**asset**](asset.md), loaded through the same door as an image, a model
-or a data file: `hafen.asset("fonts/Inter.ttf")`. It is sandboxed — absolute paths and `..` escapes are
+or a data file: `hafen.asset():get("fonts/Inter.ttf")`. It is sandboxed — absolute paths and `..` escapes are
 rejected — **interned per path**, so one parse per file however many times you call it, and disposed
 automatically on reload or disable. Loading also registers the family into the JVM, so `h:family()` resolves
 in a [`$font[…]` tag](#mix-fonts-on-one-line). Being an asset, it also answers `:type()`, `:path()` and
@@ -45,25 +46,35 @@ in a [`$font[…]` tag](#mix-fonts-on-one-line). Being an asset, it also answers
 
 ### The variant
 
-`h:derive(opts)` makes a cheap variant and never mutates `h`. Every key is optional:
+`h:derive()` makes a cheap variant of `h` and hands it back for you to configure. It never changes `h`: the
+variant starts as a copy, so a property you do not set is the one it came with.
 
-| Key | Meaning |
-|---|---|
-| `size` | logical px, passed through the client's UI scale. Omit to use the stock size of whatever surface it is applied to |
-| `aa` | antialias on or off. Omit to inherit the surface's stock setting |
-| `bold` / `italic` | style, baked into the font |
-| `color` | text colour `{r, g, b, a}`, `0..255` — **for your own drawing only**, see below |
+```lua
+local small = hafen.font():get("serif"):derive():size(11)
+local loud  = small:derive():size(16):bold(true):color(235, 180, 80)
+```
 
-Either way you hold an opaque **`FontHandle`**; no AWT font object crosses into Lua.
+Either way you hold an opaque **`FontHandle`**; no AWT font object crosses into Lua. Each property is one
+name — bare it reads, with a value it writes and hands the handle back, so a variant is one chain.
 
 | Method | Returns | Description |
 |---|---|---|
-| `h:derive(opts)` | `FontHandle` | a variant with a different `size`, `aa`, `bold`, `italic` or `color` |
+| `h:derive()` | `FontHandle` | a fresh variant of this font, ready to configure |
 | `h:family()` | string | the family name — feed it to a `$font[family, size]{…}` tag for per-run mixing |
-| `h:size()` | number \| nil | the handle's logical px size, `nil` if unset |
+| `h:size()` / `h:size(px)` | number \| nil | logical px, passed through the client's UI scale. `nil` means the stock size of whatever surface it is applied to |
+| `h:aa()` / `h:aa(b)` | boolean \| nil | antialias. `nil` inherits the surface's stock setting |
+| `h:bold()` / `h:bold(b)` | boolean | style, baked into the font |
+| `h:italic()` / `h:italic(b)` | boolean | style, baked into the font |
+| `h:color()` / `h:color(r, g, b, a)` | colour \| nil | text colour `0..255` — **for your own drawing only**, see below |
 
 A derived handle is a **variant of a font, not a file**: like a built-in it carries no `:type`, `:path` or
 `:dispose`, even when the handle it came from was an asset.
+
+> **Only a fresh variant is writable, and only until you use it.** A built-in and a loaded `.ttf` are shared
+> values, so writing one would restyle every surface already using it: they refuse a setter, naming
+> `:derive()`. And once you have handed a variant to a rule, a widget or a draw call, that surface has read
+> it — so a later write is refused too, rather than looking like it took and changing nothing. Derive
+> another variant instead; deriving from a handle always works.
 
 > **`color` is the one option that does not travel.** It applies wherever *you* draw with the handle, and is
 > **ignored** when the handle is installed on a client surface through
@@ -79,7 +90,7 @@ no conflict and nothing to revert. The stock UI and every other addon are untouc
 ### The widget default
 
 ```lua
-local h = hafen.font("serif"):derive{ size = 12 }
+local h = hafen.font():get("serif"):derive():size(12)
 hafen.ui():window():title("Mine"):size(200, 120):font(h):onDraw(function(g, w, h)
   g:text("this text is in my font", 6, 6)   -- no per-call opts, so it uses the widget's own font
 end)
@@ -141,7 +152,7 @@ To restyle **one** widget you already hold rather than a family of surfaces, use
 ```lua
 local h
 hafen.event():on("OnLoad", function()
-  h = hafen.asset("fonts/Inter.ttf"):derive{ size = 11 }   -- or hafen.font("serif"):derive{ size = 11 }
+  h = hafen.asset():get("fonts/Inter.ttf"):derive():size(11)   -- or hafen.font():get("serif"):derive():size(11)
 end)
 
 hafen.slash():register("bigserif", function()

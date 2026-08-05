@@ -68,6 +68,7 @@ public abstract class LuaWorldEntity {
     Gob gob;                       // the client-only Gob, or null until the (possibly deferred) create publishes it
     RenderTree.Slot slot;          // its scene slot, or null until added / while hidden; removed on destroy/teardown
     MapView mv;                    // the MapView the gob was added to (so destroy removes it from THAT tick list)
+    boolean pending;               // built, but the ground under it had not streamed in: the addon tick retries the scene add
     boolean dead;                  // destroyed (or torn down): every op becomes a no-op, deferred create undoes
 
     LuaValue handle;               // the stable Lua handle (so a list() returns the same object)

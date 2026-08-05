@@ -42,7 +42,7 @@ local function nop() end
 -- Every builder setter, with the write that must return self and the read that must give it back. One table
 -- so the thirteen are one loop and two verdict lines rather than twenty-six: a failure names the verb it was.
 local function setters()
-  local font = hafen.font("mono")
+  local font = hafen.font():get("mono")
   local root = hafen.ui():root()
   local t = {
     { "title",    function(w) return w:title("probe") end,  function(w) return w:title() == "probe" end },

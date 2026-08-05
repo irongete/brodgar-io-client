@@ -25,11 +25,11 @@
 -- 3D arrow/ring-mesh handles. The maintainer chose the spec's documented fallback: draw the handles by projecting
 -- to screen and hit-test in screen space -- so the gizmo needs no bespoke arrow/ring resource, just the draw surface.
 --
--- API (mirrors the api-reference `hafen.ghost.gizmo(target, opts)` shape; here it is a planner-local Lua library,
--- promotable to a shared hafen.ghost.gizmo later with no behaviour change):
+-- API (a planner-local Lua library, promotable to a shared one later with no behaviour change):
 --   local gz = gizmo(target, { mode="all", len=<world units>, onChange=fn, onCommit=fn })
---     target   -- anything with :pos() -> {x,y,a,scale} and :move(x,y[,a]); ideally :rotate(a) + :scale(s) too
---                (a hafen.ghost handle qualifies). Rotate falls back to :move(x,y,a); scale needs :scale.
+--     target   -- anything with :position() -> a Position and :position(p [, a]); ideally :rotate(a) and
+--                :scale(s) too (a hafen.ghost() member qualifies). The library keeps its own {x,y,a,scale}
+--                table shape internally: that is a VALUE it hands to its callbacks, not an API return.
 --     mode     -- "move" | "rotate" | "scale" | "all" (default "all").
 --     onChange -- called during the drag with {x,y,a,scale}; onCommit -- called on release with the final transform.
 --   gz:setMode("move"/"rotate"/"scale"/"all")   -- switch handles live.
@@ -95,10 +95,23 @@ local function normMode(m, cur) return (m and MODES[m]) and m or cur end
 -- Does `mode` show the `kind` ("move" | "rotate" | "scale") handle group?
 local function shows(mode, kind) return (mode == "all") or (mode == kind) end
 
--- Apply a facing to the target, keeping its position. Prefer :rotate(a); fall back to :move(x,y,a) for a target
+-- The target's transform as this library's own {x, y, a, scale} value. The API speaks a Position and two
+-- separate properties; the gizmo's maths and its callbacks speak one flat table, so the translation lives here
+-- and nowhere else.
+local function xform(target)
+  local p = target:position()
+  return { x = p:x(), y = p:y(), a = target:rotate(), scale = target:scale() }
+end
+
+-- Put the target at a world coordinate, keeping (or setting) its facing.
+local function place(target, x, y, a)
+  target:position(hafen.world():position(x, y), a)
+end
+
+-- Apply a facing to the target, keeping its position. Prefer :rotate(a); fall back to a re-place for a target
 -- that only exposes :move (the gizmo contract's minimum).
 local function applyRotate(target, sx, sy, a)
-  if type(target.rotate) == "function" then target:rotate(a) else target:move(sx, sy, a) end
+  if type(target.rotate) == "function" then target:rotate(a) else place(target, sx, sy, a) end
 end
 
 -- ---- pure screen-space geometry ----------------------------------------------------------------------------
@@ -134,7 +147,7 @@ end
 local function computeGeom(self)
   local tgt = self.target
   if not tgt then return nil end
-  local p = tgt:pos()
+  local p = xform(tgt)
   if not p then return nil end
   local pl = hafen.player()                     -- the Player object (D-046); worldToScreen is a method now
   local c = pl:worldToScreen(p.x, p.y)
@@ -253,7 +266,7 @@ end
 
 -- Notify onChange with the target's full current transform ({x,y,a,scale}).
 local function fireChange(self)
-  if self.onChange and self.target then self.onChange(self.target:pos()) end
+  if self.onChange and self.target then self.onChange(xform(self.target)) end
 end
 
 -- End the active drag (mouse release, or forced by detach): release the grab, notify onCommit. Idempotent.
@@ -263,7 +276,7 @@ local function endDrag(self)
   self.drag = nil
   if d.grab then d.grab:release() end
   if self.onCommit and self.target then
-    self.onCommit(self.target:pos())
+    self.onCommit(xform(self.target))
   end
 end
 
@@ -271,7 +284,7 @@ end
 -- then GRABs the mouse; each move dispatches by kind: MOVE/ROTATE raycast the ground (async, coalesced by
 -- `pending`, at most one in flight -- the client's own placement cadence), SCALE is pure screen distance.
 local function startDrag(self, kind, mx, my)
-  local p = self.target:pos()
+  local p = xform(self.target)
   local d = { kind = kind, sx = p.x, sy = p.y, a = p.a, scale = p.scale or 1, pending = false }
   if kind == "scale" then
     local geom = computeGeom(self)
@@ -318,7 +331,7 @@ local function startDrag(self, kind, mx, my)
           else
             local s = hafen.world():snapPlace(w, fine); nx, ny = s:x(), s:y()
           end
-          if self.target then self.target:move(nx, ny, d.a) end   -- keep facing; snapped along the axis
+          if self.target then place(self.target, nx, ny, d.a) end  -- keep facing; snapped along the axis
         end
         fireChange(self)
       end)
@@ -346,8 +359,9 @@ end
 -- Loaded before main.lua (manifest files order), so main.lua can call gizmo(target, opts). One global; the addon
 -- env is per-addon sandboxed, so this does not leak to other addons.
 gizmo = function(target, opts)
-  if (type(target) ~= "table") or (type(target.pos) ~= "function") or (type(target.move) ~= "function") then
-    error("gizmo(target, opts): target must expose :pos() and :move(x,y[,a]) (e.g. a hafen.ghost handle)", 2)
+  if (type(target) ~= "table") or (type(target.position) ~= "function") then
+    error("gizmo(target, opts): target must expose :position() and :position(p [, a])"
+      .. " (e.g. a hafen.ghost() member)", 2)
   end
   opts = opts or {}
   local self = {

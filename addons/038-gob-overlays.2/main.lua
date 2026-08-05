@@ -5,8 +5,8 @@
 -- :offset in world units (z = up). It is the SAME collection and the same key space -- one overlay, two spaces
 -- -- so an overlay that names a second kind is refused naming the first, and one that names none is inert.
 --
--- What that ABSORBS is `follow = gob`, which is now a HARD CUT from hafen.render.sprite / hafen.render.object /
--- hafen.ghost.new and from the handles' :follow/:offset. The trade is not cosmetic: a follow= sprite is its own
+-- What that ABSORBS is `follow = gob`, which is now a HARD CUT from the sprite/object/ghost collections and
+-- from the handles' :follow/:offset. The trade is not cosmetic: a follow= sprite is its own
 -- client-only gob, and when its target despawned FollowMoving held it at the last position -- a sprite following
 -- a felled tree floated there forever with no owner. An overlay is OWNED by a record on the gob, so the gob's
 -- own death ends it.
@@ -53,8 +53,8 @@ local gone   = {}                     -- of those, the ones the client has since
 local watching = false
 
 hafen.event():on("OnLoad", function()
-  icon = hafen.asset("icon.png")
-  mesh = hafen.asset("tri.glb")
+  icon = hafen.asset():get("icon.png")
+  mesh = hafen.asset():get("tri.glb")
 end)
 
 local function summary()
@@ -90,24 +90,26 @@ local function run(args)
   end
 
   -- 1. THE HARD CUT, on all three doors, refused NAMING THE REPLACEMENT. A silently-ignored follow= would leave
-  --    a sprite standing at 0,0 on the far side of the world with nothing to say why.
+  --    a sprite standing at 0,0 on the far side of the world with nothing to say why. The old constructors that
+  --    carried the option are themselves gone now, so what each door refuses is the SPELLING, still naming the
+  --    replacement -- and the replacement it names is this feature's own verb.
   refuses("hafen.render.sprite{follow=} is refused, saying it is GONE",
-          function() hafen.render.sprite{ image = icon, follow = me } end, "'follow'/'offset' are GONE")
+          function() return hafen.render.sprite end, "gob:overlay():add(key):image(asset)")
   refuses("...and hafen.render.object{follow=}",
-          function() hafen.render.object{ model = mesh, follow = me } end, "'follow'/'offset' are GONE")
+          function() return hafen.render.object end, "gob:overlay():add(key):model(asset)")
   refuses("...and hafen.ghost.new{follow=}",
-          function() hafen.ghost.new{ res = GHOST, follow = me } end, "'follow'/'offset' are GONE")
+          function() return hafen.ghost.new end, "gob:overlay():add(key):ghost(res)")
   refuses("...and each of them NAMES the replacement, not just the removal",
-          function() hafen.render.sprite{ image = icon, follow = me } end, "gob:overlay():add(key):image(<asset>)")
+          function() return hafen.render.sprite end, "hafen.render():sprite():add(imageAsset, p)")
 
   -- 2. The cut took ONLY the anchor: a FIXED sprite still builds, and its handle has no :follow/:offset left.
   local p = me:position()
-  local fixed = hafen.render.sprite{ image = icon, x = p:x() + 6, y = p:y() + 6, scale = 1 }
+  local fixed = hafen.render():sprite():add(icon, p:offset(6, 6)):scale(1)
   check(fixed ~= nil, "a FIXED world sprite still builds -- the cut took the anchor, not the namespace", tostring(fixed))
   check((fixed == nil) or ((fixed.follow == nil) and (fixed.offset == nil)),
         "...and the handle's :follow/:offset are gone, reading as plain nil",
         fixed and (tostring(fixed.follow) .. "/" .. tostring(fixed.offset)))
-  if fixed then fixed:destroy() end
+  if fixed then hafen.render():sprite():remove(fixed) end
 
   -- 3. THE THREE WORLD KINDS, on the one verb, each read back with its own type. {image} and {model} publish
   --    synchronously; {ghost} streams its .res in a beat later, but the RECORD is there at once (that is the
@@ -162,12 +164,12 @@ local function run(args)
   eq("...and one that has named NO kind is inert rather than refused -- it is attached, and draws nothing",
      me:overlay():add(KEY):offset(0, 0, 1):kind(), nil)
 
-  -- 7. AN OVERLAY IS NOT A FREE ENTITY. hafen.ghost.list() is the door to the ghosts an addon PLACED; an
-  --    overlay's ghost is reached through gob:overlay, and handing out a second handle with :destroy() on it
+  -- 7. AN OVERLAY IS NOT A FREE ENTITY. hafen.ghost() is the collection of the ghosts an addon PLACED; an
+  --    overlay's ghost is reached through gob:overlay, and handing out a second handle with an ending on it
   --    would let an addon kill the visual behind a record that still reads as attached.
-  local before = #hafen.ghost.list()
+  local before = hafen.ghost():count()
   me:overlay():add(KEY):ghost(GHOST)
-  eq("an overlay's ghost never appears in hafen.ghost.list() -- one door, not two", #hafen.ghost.list(), before)
+  eq("an overlay's ghost is never a member of hafen.ghost() -- one door, not two", hafen.ghost():count(), before)
 
   -- 8. REMOVE. The collection's own verb ends a world overlay exactly as it ends a screen one.
   me:overlay():remove(KEY)

@@ -185,3 +185,18 @@
 - **V6: the "draw-on-top + constant-size handles" polish is FREE on the 2D-projected gizmo path.** A HUD overlay has no
   depth test (always on top), and fixed-px handles are literally fixed px — no camera-distance rescaling (that was the
   3D-native path's problem). Only the world-anchored axis shafts foreshorten, which is desirable.
+- **(039.8) A client gob entering the scene resolves the TILE under it, so there is no "harmless" origin.**
+  `MapView.addClientGob` is `basic.add(gob.placed)`, and `Gob.Placed.Placement`'s ctor calls
+  `Gob.this.placer().getr(...)` + `getmapstate(oc)` — both of which read the map at the gob's coordinate.
+  At world `(0, 0)` that raises `MCache.LoadingMap` *"Waiting for map data..."*, and because the add is
+  synchronous in `makeSprite`/`makeObject` the `Loading` propagates **out of the Lua call**, killing the
+  handler with a message that fingers the map system rather than the missing placement. Two consequences:
+  a world entity cannot be built "bare and placed later" the way a widget or an overlay can (D-127), and
+  any scene add over ground that is explored-but-not-streamed must catch `Loading` and retry, not throw.
+  The **anchored** path is exempt and always was: `applyEntityFollow` sets a `FollowMoving` before the add,
+  so `Placement` takes its `flwxf` branch and never touches the map — which is why every `gob:overlay()`
+  suite stayed green while the free-standing one died.
+- **(039.8) `Loading` is a `RuntimeException`, so the existing `catch(RuntimeException)` guards already
+  swallow it.** `refreshEntityScene` and `showEntity` were therefore safe from the moment they were
+  written; only the three `make*` creates had a bare `addClientGob`. Worth checking which of these guards
+  is deliberate: swallowing a `Loading` silently means "not in the scene, and nobody will try again".

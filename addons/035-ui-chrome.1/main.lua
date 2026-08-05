@@ -65,7 +65,7 @@ local PANEL = "panel.png"
 local DARK  = { 26, 26, 28, 240 }
 
 local function theme()
-  local p = hafen.asset(PANEL)
+  local p = hafen.asset():get(PANEL)
   return { ["window.frame"] = { bg = { color = DARK },
                                 border = { image = p, slice = { 8, 8, 8, 8 } } } }
 end
@@ -106,14 +106,14 @@ local function run()
           function() sheet:load{ ["window.frame"] = { bg = {} } }:install() end, "says nothing")
   refuses("a bg that is both a colour and an image is refused",
           function() sheet:load{ ["window.frame"] = { bg = { color = DARK,
-                                                                image = hafen.asset(PANEL) } } }:install() end, "not both")
+                                                                image = hafen.asset():get(PANEL) } } }:install() end, "not both")
   refuses("an unknown key inside bg is refused, naming it",
           function() sheet:load{ ["window.frame"] = { bg = { colour = DARK } } }:install() end, "colour")
   refuses("a border with no slice is refused",
-          function() sheet:load{ ["window.frame"] = { border = { image = hafen.asset(PANEL) } } }:install() end,
+          function() sheet:load{ ["window.frame"] = { border = { image = hafen.asset():get(PANEL) } } }:install() end,
           "needs a slice")
   refuses("a slice that leaves no middle is refused, naming the image's size",
-          function() sheet:load{ ["window.frame"] = { border = { image = hafen.asset(PANEL),
+          function() sheet:load{ ["window.frame"] = { border = { image = hafen.asset():get(PANEL),
                                                                     slice = { 40, 40, 40, 40 } } } }:install() end, "24x24")
 
   -- 2. widget:style() reports the new properties, beside font and color and under the same one nil (D-075).
@@ -122,7 +122,7 @@ local function run()
     :size(90, 40)
     :position(8, 8)
   eq("a widget nothing styles resolves nothing", w:style(), nil)
-  local panel = hafen.asset(PANEL)
+  local panel = hafen.asset():get(PANEL)
   w:rule():bg{ color = DARK }:border{ image = panel, slice = { 8, 8, 8, 8 } }
   local st = w:style()
   check(st ~= nil, "a widget with a rule of its own resolves a style", st)

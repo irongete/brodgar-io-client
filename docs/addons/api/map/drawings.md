@@ -10,7 +10,7 @@ render itself, and what you get back is an ordinary **image handle** — the sam
 | `grid:overlayImage(tag)` | image \| nil | one recorded [mask](overlays.md#the-recorded-masks) drawn in the overlay's own colour; `nil` for a tag this grid does not carry |
 
 Because it is an image handle, everything that already draws an image draws a map: `g:image` in your own
-widget, [`hafen.render.sprite`](../render/sprites.md), and a stylesheet's `bg = { image = … }`.
+widget, [a world sprite](../render/sprites.md), and a stylesheet's `bg = { image = … }`.
 
 ```lua
 local g = hafen.map():grid():get(hafen.player():gob():position():info().gridId)

@@ -365,14 +365,15 @@ layer undos) · `API.md` (`hafen.ui`, the Widget entity block) · `src/io/brodga
 
 ---
 
-## 039.8 — `hafen.render()`, `hafen.ghost()`, `hafen.asset()`, `hafen.font()`
+## 039.8 — `hafen.render()`, `hafen.ghost()`, `hafen.asset()`, `hafen.font()` ✅ DONE
 
 **Depends on:** 039.1, 039.2 (Position).
 
 **Ships**
-- `hafen.render():sprite()` and `:object()` — collections: `:add(asset)` + chained setters,
-  `:list(filter)`, `:remove(x)`. `hafen.render.sprite{…}`/`object{…}` **CUT**.
-- `hafen.ghost()` — the section **is** the collection: `:add(res)`, `:list(f)`, `:remove(g)`.
+- `hafen.render():sprite()` and `:object()` — collections: `:add(asset, p)` + chained setters,
+  `:list(filter)`, `:remove(x)`. `hafen.render.sprite{…}`/`object{…}` **CUT**. (The place is positional
+  and required — D-127, forced by the in-game round; see `API.md`.)
+- `hafen.ghost()` — the section **is** the collection: `:add(res, p)`, `:list(f)`, `:remove(g)`.
 - Entity: `:pos()` + `:move(x,y,a)` **collapse onto `:position()` / `:position(p [, a])`** (R2 — a
   read/write pair on one name); `:show()`/`:hide()` → `:visible(b)` (R6); `:destroy()` → the
   collection's `:remove()` (R7); `g:setRes(res, sdt)` → **`g:res(res, spawnData)`**.

@@ -90,9 +90,9 @@ you came for from the tables below. Every page in the tree is listed here.
 | Page | What it holds |
 |---|---|
 | [`hafen.ghost`](ghost.md) | the game's own props, standing where you put them, translucent and tinted |
-| [`hafen.render`](render/README.md) | the hub: your own images and models in the 3D world, and the handle-only rule |
+| [`hafen.render`](render/README.md) | the hub: the two collections that stand your own images and models in the world |
 | [sprites](render/sprites.md) | a PNG in the world: fixed or camera-facing, clickable, anchored |
-| [models](render/models.md) | a glTF model: the subset that loads, the handle, and clicks |
+| [models](render/models.md) | a glTF model: the subset that loads, the object's verbs, and clicks |
 
 ## Intercepting what the client does
 

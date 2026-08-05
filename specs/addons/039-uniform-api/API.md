@@ -83,10 +83,13 @@ sub-collections were plural (`gob:overlays()`, `char():attrs()`). Now both are s
 
 ## `hafen.asset()` — the files your addon ships, a collection of Asset
 
+> **Shipped in 039.8.** ✅ every row. No `:add` (an asset is a file you shipped) and no `:remove`
+> (`a:dispose()` frees the resource now, which is not leaving a set).
+
 | before | after | does |
 |---|---|---|
-| `hafen.asset(path)` | `hafen.asset():get(path)` | load/intern one, typed by extension |
-| `hafen.asset()` | `hafen.asset():list()` | the ones this addon holds |
+| `hafen.asset(path)` | `hafen.asset():get(path)` | load/intern one, typed by extension ✅ |
+| `hafen.asset()` | `hafen.asset():list()` | the ones this addon holds ✅ |
 
 ## `hafen.buff()` — the buff bar, a collection of Buff
 
@@ -152,17 +155,25 @@ precedent, D-056) or the page documents the guard. Decide before the task is wri
 
 ## `hafen.font()` — font handles, a collection of FontHandle
 
+> **Shipped in 039.8.** ✅ every row. The members are the built-ins this addon has named, so `:list()`
+> and a string filter over the name come free; there is no `:add` and no `:remove` (D-060).
+
 | before | after | does |
 |---|---|---|
-| `hafen.font(name)` | `hafen.font():get(name)` | a built-in font by name (engine-owned, D-060) |
+| `hafen.font(name)` | `hafen.font():get(name)` | a built-in font by name (engine-owned, D-060) ✅ |
 
 ## `hafen.ghost()` — client-only gobs, a collection of Ghost
 
+> **Shipped in 039.8** — ✅ every row, with **one correction the in-game round forced**: the constructor
+> is `:add(res, p)`, not `:add(res)`. The scene resolves the TILE under a gob as it enters it, so an
+> entity with no place raises *waiting for map data* out of the caller's own chain — it is not an inert
+> state but an unbuildable one, and §2.5's own rule puts a required argument on the constructor (D-127).
+
 | before | after | does |
 |---|---|---|
-| `hafen.ghost.new(opts)` | `hafen.ghost():add(res)` + setters (R4) | create one |
-| `hafen.ghost.list(filter)` | `hafen.ghost():list(filter)` | your addon's ghosts |
-| `g:destroy()` | `hafen.ghost():remove(g)` | end one (R7 — the collection owns it) |
+| `hafen.ghost.new(opts)` | `hafen.ghost():add(res, p)` + setters (R4) | create one ✅ |
+| `hafen.ghost.list(filter)` | `hafen.ghost():list(filter)` | your addon's ghosts ✅ |
+| `g:destroy()` | `hafen.ghost():remove(g)` | end one (R7 — the collection owns it) ✅ |
 
 ## `hafen.gob` — **DELETED into `hafen.world()`** *(spec §3.3, D-066)*
 
@@ -288,12 +299,14 @@ says which you meant, so the heuristic is no longer needed.
 
 ## `hafen.render()` — things drawn in the world at a fixed place
 
+> **Shipped in 039.8** — ✅ every row, with the same `, p` correction as `hafen.ghost()` above (D-127).
+
 | before | after | does |
 |---|---|---|
-| `hafen.render.sprite(opts)` | `hafen.render():sprite():add(imageAsset)` + setters | a flat image in the world |
-| `hafen.render.object(opts)` | `hafen.render():object():add(meshAsset)` + setters | a glTF model in the world |
-| `s:destroy()` / `o:destroy()` | `…:sprite():remove(s)` / `:object():remove(o)` | end one (R7) |
-| — | `hafen.render():sprite():list(filter)` | your addon's sprites — the `ghost.list` shape, now on both |
+| `hafen.render.sprite(opts)` | `hafen.render():sprite():add(imageAsset, p)` + setters | a flat image in the world ✅ |
+| `hafen.render.object(opts)` | `hafen.render():object():add(meshAsset, p)` + setters | a glTF model in the world ✅ |
+| `s:destroy()` / `o:destroy()` | `…:sprite():remove(s)` / `:object():remove(o)` | end one (R7) ✅ |
+| — | `hafen.render():sprite():list(filter)` | your addon's sprites — the `ghost.list` shape, now on both ✅ |
 
 ## `hafen.slash()` — console commands
 
@@ -771,6 +784,11 @@ one rather than handing back a collection (a HUD painter has no key to `:get`), 
 
 ## Sprite, Object, Ghost — already R2-shaped
 
+> **Shipped in 039.8.** ✅ every row, and each of the five "unchanged" verbs gained its READ arity, which
+> is what made them read/write pairs rather than write-only. `:onClick(fn)` and `:exists()` joined them:
+> the callback was a constructor key with nowhere else to go, and an entity with a lifetime carries
+> `:exists()` (§2.2/§2.4). `sprite:billboard(b)` is the construction property that rebuilds (D-113).
+
 `:rotate(a) :scale(k) :alpha(a) :tint(c) :clickable(b)` unchanged. **`:pos()` -> `:position()`** and
 **`:move(x,y,a)` -> `:position(p [, a])`** — R2 collapses the read/write pair onto one name, and the
 argument is a Position. `:show()`/`:hide()` -> `:visible(b)` (R6); `:destroy()` -> the collection's
@@ -780,10 +798,15 @@ Sprite `:image()`, Object `:mesh()` unchanged.
 
 ## Asset (and its typed faces)
 
+> **Shipped in 039.8.** ✅ every row — the three asset verbs and the typed faces are untouched.
+
 `a:type() a:path() a:dispose()`; `img:size()`; `mdl:bounds() mdl:info()`; `d:text()`.
 `:dispose()` is kept by R7 — it frees a resource now, it is not a removal from a collection.
 
 ## FontHandle
+
+> **Shipped in 039.8.** ✅ every row. `h:size()` gained its write half, and the setters are
+> `:size :color :aa :bold :italic` — writable only on an unused `:derive()` draft (D-126).
 
 `h:family() h:size()` unchanged; `h:derive{…}` → `h:derive()` + setters (R4, 43 sites).
 

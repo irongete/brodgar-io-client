@@ -334,6 +334,8 @@ public final class AddonManager {
             //     frame later. Not before the reload above: a widget whose addon is being torn down is never
             //     placed at all.
             UiApi.armPending();
+            for(Addon a : addons)
+                RenderApi.armPending(a);   // and every world entity whose ground has now streamed in
 
             // Soft CPU-budget accounting (D-018 layer 2): zero every addon's per-tick Lua time before any
             // handler runs this tick; callLua accumulates into it, enforceSoftBudget() evaluates it at the
@@ -1699,6 +1701,43 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
     /** Clamp an int to a 0..255 colour byte. */
     static int clampByte(int v) {
         return (v < 0) ? 0 : ((v > 255) ? 255 : v);
+    }
+
+    /**
+     * A <b>colour argument</b> to a setter, in the one spelling the uniform grammar gives colours: positional
+     * components, {@code x:tint(r, g, b[, a])}. A colour <i>value</i> read back from anywhere in the API passes
+     * straight through as well, so {@code s:tint(other:tint())} is one call and the read and the write of one
+     * property genuinely take the same thing.
+     */
+    static java.awt.Color colorArg(Varargs a, int i, String verb) {
+        LuaValue v = a.arg(i);
+        if(v.istable()) {
+            java.awt.Color c = luaColor(v, null);
+            if(c == null)
+                throw new LuaError(verb + "(color): a colour value is {r, g, b[, a]} (0..255)");
+            return c;
+        }
+        LuaTable t = new LuaTable();
+        int n = 0;
+        for(int j = i; (j <= a.narg()) && a.arg(j).isnumber(); j++)
+            t.set(++n, a.arg(j));
+        java.awt.Color c = luaColor(t, null);
+        if(c == null)
+            throw new LuaError(verb + "(r, g, b[, a]) expects three or four numbers 0..255, or a colour value"
+                + " read back from the API");
+        return c;
+    }
+
+    /** The colour READ every colour property in the API hands back: the {@code {r, g, b, a}} value. */
+    static LuaValue colorValue(java.awt.Color c) {
+        if(c == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        t.set(1, LuaValue.valueOf(c.getRed()));
+        t.set(2, LuaValue.valueOf(c.getGreen()));
+        t.set(3, LuaValue.valueOf(c.getBlue()));
+        t.set(4, LuaValue.valueOf(c.getAlpha()));
+        return t;
     }
 
     // ------------------------------------------------------------- shared read helpers (item / resource-name)

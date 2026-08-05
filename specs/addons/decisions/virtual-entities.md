@@ -92,3 +92,30 @@ through them **by default**, honouring the same **SHIFT** (fine grid / free) and
 **Rationale.** Maintainer direction (2026-07-25): "al mover y rotar los ghosts quiero que funcione con
 el sistema de placegrid y el otro que hay para rotaciones". Faithful reuse (D-009) over reinvention.
 **See.** [16-virtual-entities.md](../design/16-virtual-entities.md) §4.1, [D-009](widgets-ui.md) (wrap-not-reimplement).
+
+### D-127 — a thing that cannot EXIST without a place takes it on the constructor, positionally ✅ (2026-08-05)
+**Decision.** `hafen.render():sprite():add(image, p)`, `:object():add(model, p)` and
+`hafen.ghost():add(res, p)` take the Position as a second **required** positional argument.
+`:position(p [, a])` stays as the live write.
+**Rationale.** (2026-08-05, 039.8, found by the in-game round.) The first implementation followed D-119 —
+build it bare, let a setter place it — reasoning that an unplaced entity sits harmlessly at world origin,
+off-map. It does not: `MapView.addClientGob` is `basic.add(gob.placed)`, and `Gob.Placed.Placement`'s ctor
+resolves the **tile** under the gob (`getmapstate` / `placer().getr`). At the origin there is no map data,
+so the engine raises `MCache.LoadingMap` *"Waiting for map data..."* straight out of the Lua call that
+built it. So the difference from D-112/D-119 is not taste: for a widget and for an overlay, *not drawn
+yet* is a legal state the builder passes through; for a thing in the 3D scene there is no such state — an
+entity with no place is **unbuildable**, not inert. §2.5's own rule then decides it: *a required argument
+stays positional on the constructor where the thing is meaningless without it*.
+**Alternatives.** Arm on the next tick like the UI builders (rejected — only moves the throw one frame,
+and an entity nobody places still lands on the origin). Catch the `Loading` at create and leave it out of
+the scene (rejected as the *whole* answer — it makes "I forgot the place" a silent invisible entity, which
+is the failure the grammar deletes; it IS kept for the honest case below). Default to the player's
+position (rejected — an invented place is a wrong place).
+**Consequences.** The world-origin state is gone from the API and from the pages. Separately, a create
+whose ground is **explored but not currently streamed** is a real and normal case (a saved layout
+reloading as the map arrives), and there *not yet* is not *no* — D-095's model — so `addToScene` catches
+`Loading`, marks the entity `pending`, and `RenderApi.armPending` retries on each addon tick. A retired
+row's message names the two-argument spelling, which is asserted as text by two suites.
+**See.** [D-119](architecture-api.md) (a builder is attached inert — the rule this one bounds),
+[D-112](architecture-api.md), [D-114](architecture-api.md) (a creation raises where a removal is inert),
+[D-095](architecture-api.md) (kick the load, answer nil), [ghosts.md](../learnings/ghosts.md).

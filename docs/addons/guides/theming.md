@@ -9,7 +9,7 @@ moment your addon is.
 
 ```lua
 local s = hafen.ui():sheet()
-s:rule("*"):font(hafen.font("serif"):derive{ size = 11 })
+s:rule("*"):font(hafen.font():get("serif"):derive():size(11))
 s:rule("chat"):color(190, 210, 190)
 s:install()
 ```
@@ -57,7 +57,7 @@ background. A misspelt property is an error naming the ones that exist, which is
 ```lua
 s:rule("window.frame")
   :bg{ color = {26, 26, 28, 240} }
-  :border{ image = hafen.asset("frame.png"), slice = {12, 40, 12, 12} }
+  :border{ image = hafen.asset():get("frame.png"), slice = {12, 40, 12, 12} }
   :pad(4)
 s:rule("window[title=Inventory]")
   :anchor{ to = "screen", at = "bottomright", offset = {-8, -8} }
@@ -83,7 +83,7 @@ corner and an offset. So a whole look can live in a JSON file your addon ships, 
 but reading it:
 
 ```lua
-local doc = hafen.json():parse(hafen.asset("theme.json"):text())
+local doc = hafen.json():parse(hafen.asset():get("theme.json"):text())
 -- map the two values JSON cannot carry -- a font face and an image -- to handles, then:
 hafen.ui():sheet():load(doc.rules):install()
 ```

@@ -39,7 +39,7 @@ local tagged    = {}                  -- gob id -> true, the players we have lab
 local pinned                          -- the gob id the pin is on, if any
 local icon
 
-hafen.event():on("OnLoad", function() icon = hafen.asset("icon.png") end)
+hafen.event():on("OnLoad", function() icon = hafen.asset():get("icon.png") end)
 
 -- ---- the labels ---------------------------------------------------------------------------------------
 

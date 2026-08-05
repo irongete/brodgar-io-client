@@ -4,7 +4,7 @@
 -- claims worth proving are about WHEN it arrives and WHAT it costs, not about how it looks:
 --
 --   * IT IS AN IMAGE HANDLE, not a new kind of thing. grid:image(lvl) hands back exactly what
---     hafen.asset("icon.png") hands back, so everything that already draws an image draws a map: g:image, a
+--     hafen.asset():get("icon.png") hands back, so everything that already draws an image draws a map: g:image, a
 --     world sprite, and a stylesheet's bg = { image = … }. That last one is why the cost round below can read
 --     ZERO — the engine paints it, no Lua runs at the draw.
 --   * THE LOAD MODEL, ONE LAST TIME. Rendering a grid is tens of thousands of pixels out of the tileset

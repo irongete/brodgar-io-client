@@ -137,12 +137,12 @@ rather than trusting a list. A miss is plain `nil`, and addressing one by **posi
 
 ### Asset: a file your addon ships
 
-[`hafen.asset`](asset.md) is callable on the same pattern, keyed by an **addon-relative path**:
-`hafen.asset(path)` is one asset, `hafen.asset()` the ones this addon holds. It is the one callable
-namespace that hands back an **owned resource** rather than a view of client state — the type comes from
+[`hafen.asset()`](asset.md) is a collection keyed by an **addon-relative path**: `:get(path)` is one
+asset, `:list(filter)` the ones this addon holds. It is the one collection that hands back an **owned
+resource** rather than a view of client state — the type comes from
 the file's extension, the handle is interned per path, and it is freed on reload or disable, or by
 `:dispose()`, after which the same path loads as a *new* object. Wherever a local file is used —
-`hafen.render.sprite{image=}`, `object{model=}`, `font=` — you pass the **handle**, never a path.
+a sprite's `:add(image)`, an object's `:add(model)`, a widget's `:font(h)` — you pass the **handle**, never a path.
 
 ### ItemRef: an inventory or equipment item
 
@@ -256,7 +256,7 @@ A colour is a table of **0..255 components**, written either way:
 ```
 
 Both are accepted everywhere a colour goes in: `rule:color(…)`, `g:text{color=…}`,
-`marker:color(…)`, a ghost or sprite `tint`, `font:derive{color=…}`. So a colour you *read* —
+`marker:color(…)`, a ghost or sprite `:tint(…)`, `font:color(…)`. So a colour you *read* —
 `kin:color()`, `meter:color()` — passes straight back. Alpha defaults to `255`, and a component
 outside `0..255` is clamped rather than refused.
 

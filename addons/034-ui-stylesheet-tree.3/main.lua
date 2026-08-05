@@ -83,8 +83,8 @@ local function run()
   pass, fail, manual = 0, 0, 0        -- a re-run through :t034-3 reports its own counts, not the login's
   sheet:drop()
   killWins()
-  local body = hafen.font("serif"):derive{ size = 13 }
-  local mono = hafen.font("mono"):derive{ size = 18 }
+  local body = hafen.font():get("serif"):derive():size(13)
+  local mono = hafen.font():get("mono"):derive():size(18)
   local m0 = misses()
   local a, b = probe(A, 4), probe(B, 34)
   wins = { a, b }
@@ -119,7 +119,7 @@ local function run()
   -- 5. D-073 carries over unchanged: a handle's own colour never styles a SURFACE, while its family does. (It
   --    still colours your own g:text -- the [manual] line below is where that is visible.)
   sheet:drop()
-  a:rule():font(mono:derive{ color = { 255, 0, 0 } })
+  a:rule():font(mono:derive():color(255, 0, 0))
   eq("a font handle's colour does not become the surface's colour", style(a), "font=true color=nil")
 
   -- 6. refusals are checks: it is the same Rule object a sheet's selectors hand back, so a typo errors the
@@ -160,7 +160,7 @@ hafen.slash():register("t034-3", function(args)
   local sub = args[1]
   if sub == "demo" then
     if #wins == 0 or not wins[1]:exists() then
-      local red = hafen.font("mono"):derive{ size = 18, color = { 255, 60, 60 } }
+      local red = hafen.font():get("mono"):derive():size(18):color(255, 60, 60)
       local a = hafen.ui():window()
         :title(A)
         :size(200, 28)
@@ -168,7 +168,7 @@ hafen.slash():register("t034-3", function(args)
         :onDraw(function(g) g:text(LINE, 6, 4, { font = red }) end)
       local b = probe(B, 40)
       wins = { a, b }
-      a:rule():font(hafen.font("mono"):derive{ size = 18 })
+      a:rule():font(hafen.font():get("mono"):derive():size(18))
     end
     hafen.log():write(":t034-3 demo -> probe A is SKINNED, probe B is not. Clear it with  :t034-3 off  (a :reload clears it too).")
   elseif sub == "off" then

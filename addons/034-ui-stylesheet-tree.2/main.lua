@@ -48,7 +48,7 @@ local function misses()
 end
 
 local function big()
-  return hafen.font("serif"):derive{ size = 18 }
+  return hafen.font():get("serif"):derive():size(18)
 end
 
 -- A probe window: it exists to DRAW one line every frame, which is what puts a key in the text cache.

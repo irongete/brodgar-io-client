@@ -3,6 +3,8 @@ package io.brodgar.addon;
 import haven.Fonts;
 import haven.Text;
 
+import java.util.List;
+
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -52,47 +54,55 @@ final class FontApi {
     /** The built-in font names {@code hafen.font(name)} answers to, as the error text lists them. */
     private static final String BUILTINS = "\"sans\", \"serif\", \"mono\" or \"fraktur\"";
 
-    /** Build {@code hafen.font} for {@code owner}. From installHafen. */
+    /**
+     * Build {@code hafen.font} for {@code owner}: <b>the section object IS the collection</b> of the client's
+     * built-in fonts this addon has named (spec §2.1). {@code hafen.font():get(name)} is one of
+     * {@code "sans"/"serif"/"mono"/"fraktur"}, interned per addon; {@code :list(filter)} is the ones it has asked
+     * for so far. There is no {@code :add} — the built-ins are the engine's and an addon does not make one — and
+     * no {@code :remove}: a built-in has no lifetime to end (D-060). The addon's own {@code .ttf}/{@code .otf} is
+     * a file it ships, so it comes through {@code hafen.asset():get(path)}.
+     */
     static void installFont(LuaTable hafen, final Addon owner) {
-        LuaTable font = new LuaTable();
-        // hafen.font.setFont(scope, h) / .reset(scope) / .scopes() are GONE (033.1, hard cut — they read as plain
-        // nil). A font is not an API of its own any more, it is ONE PROPERTY of a stylesheet rule, so the surface
-        // that used to be setFont("window.title", h) is now
-        //     hafen.ui():sheet():rule("window.title"):font(h)
-        // — one sheet per addon, applied live, dropped with sheet:drop() and reverted on :reload/disable
-        // (Sheet). The scope enum is gone with it: a sheet key is a SELECTOR, the same string hafen.ui(sel) takes,
-        // so there is one vocabulary for "which part of the UI" instead of two. hafen.font itself keeps its ONE
-        // job below — naming an engine font (D-060).
-        // hafen.font(name) — the CALL form: one of the client's four BUILT-IN fonts, "sans" | "serif" | "mono" |
-        // "fraktur". They are ENGINE-owned, so they are ADDRESSED, not loaded (the hafen.sound(name) shape): the
-        // handle is interned per addon, has no lifetime, and therefore carries no :dispose()/:path()/:type()
-        // (D-060). The addon's OWN .ttf/.otf is an ASSET: hafen.asset("fonts/Inter.ttf"). Size/style come from
-        // :derive{size=12} in both cases — the load takes a name (or a path) and nothing else.
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.CALL, new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                return builtin(owner, a.arg(2));   // arg1 = the callable table itself
+        Section.mount(hafen, "font", collection(owner), "hafen.font(name) is now hafen.font():get(name)");
+    }
+
+    /** {@code hafen.font()} — the built-in fonts this addon has named, keyed by that name. */
+    private static LuaValue collection(final Addon owner) {
+        return LuaCollection.create("hafen.font()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                return owner.assets.builtinFonts();
             }
-        });
-        font.setmetatable(mt);
-        hafen.set("font", font);
+
+            public String needle(LuaValue member) {
+                return owner.assets.builtinFontName(member);
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                return builtin(owner, key);
+            }
+        }, null);
     }
 
     // ------------------------------------------------------------------ built-ins + handle
 
     /**
-     * {@code hafen.font(name)}: the interned {@link FontHandle} for one of the client's built-in fonts
+     * {@code hafen.font():get(name)}: the interned {@link FontHandle} for one of the client's built-in fonts
      * ({@code Text.sans}/{@code serif}/{@code mono}/{@code fraktur}). Engine-owned, so — exactly like
-     * {@code hafen.sound(name)} — it is keyed by <b>name</b>, has no lifetime, and gets none of the asset verbs
-     * ([D-060]). Interned per addon, so {@code hafen.font("mono") == hafen.font("mono")}. A path, a typo or a
-     * missing argument all raise an error naming both this call and {@code hafen.asset}.
+     * {@code hafen.sound():get(name)} — it is keyed by <b>name</b>, has no lifetime, and gets none of the
+     * asset verbs ([D-060]). Interned per addon, so {@code hafen.font():get("mono")} is always the same
+     * handle. A path, a typo or a missing argument all raise an error naming this call and {@code hafen.asset}.
      */
     private static LuaValue builtin(Addon owner, LuaValue namev) {
         if(namev.isnumber())        // BEFORE isstring(): in LuaJ a number IS a string
-            throw new LuaError("hafen.font(name): the key is a built-in font NAME (" + BUILTINS + "), not a number");
+            throw new LuaError("hafen.font():get(name): the key is a built-in font NAME (" + BUILTINS + "),"
+                + " not a number");
         if(!namev.isstring())
-            throw new LuaError("hafen.font(name): expected a built-in font name (" + BUILTINS + "), got "
-                + namev.typename() + " — the addon's own .ttf/.otf is hafen.asset(\"fonts/Inter.ttf\")");
+            throw new LuaError("hafen.font():get(name): expected a built-in font name (" + BUILTINS + "), got "
+                + namev.typename() + " — the addon's own .ttf/.otf is hafen.asset():get(\"fonts/Inter.ttf\")");
         String name = namev.tojstring();
         LuaValue h = owner.assets.builtinFont(name);
         if(h != null)
@@ -109,8 +119,8 @@ final class FontApi {
         if("serif".equals(name))   return Text.serif;
         if("mono".equals(name))    return Text.mono;
         if("fraktur".equals(name)) return Text.fraktur;
-        throw new LuaError("hafen.font(\"" + name + "\"): not a built-in font — the built-ins are " + BUILTINS
-            + "; a font FILE this addon ships is an asset: hafen.asset(\"fonts/Inter.ttf\")");
+        throw new LuaError("hafen.font():get(\"" + name + "\"): not a built-in font — the built-ins are "
+            + BUILTINS + "; a font FILE this addon ships is an asset: hafen.asset():get(\"fonts/Inter.ttf\")");
     }
 
     /**
@@ -145,40 +155,83 @@ final class FontApi {
     /** One handle table over {@code fh} — {@link #fontHandle} plus every per-addon view of the same font. */
     private static LuaTable mint(final FontHandle fh) {
         LuaTable h = new LuaTable();
-        h.set(FontHandle.KEY, LuaValue.userdataOf(fh));   // opaque backing ref for setFont / font= / g:text (F2)
-        h.set("derive", new VarArgFunction() {            // a cheap variant with different size/aa/bold/italic/color
+        h.set(FontHandle.KEY, LuaValue.userdataOf(fh));   // opaque backing ref for a rule's font / a widget's / g:text
+        // derive() -- a DRAFT variant of this font, configured by the setters below. It takes no ARGUMENT: the
+        // options table is gone, and { size = 12 } would be the last config table left in this section.
+        h.set("derive", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return derive(fh, a.arg(2));
+                if(Args.passed(a, 2))
+                    throw new LuaError("font:derive() takes no arguments — the variant is chained setters on"
+                        + " what it hands back: h:derive():size(12):bold(true):color(255, 200, 200), and a read"
+                        + " of each is the same name with none: d:size(), d:bold(), d:color()");
+                return fontHandle(fh.draft());
             }
         });
-        h.set("family", new ZeroArgFunction() {
-            public LuaValue call() { return LuaValue.valueOf(fh.family()); }
+        h.set("family", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("font:family() reads the AWT family name and does not write it — another"
+                        + " family is another font: hafen.font():get(name), or hafen.asset():get(path) for one"
+                        + " this addon ships");
+                return LuaValue.valueOf(fh.family());
+            }
         });
-        h.set("size", new ZeroArgFunction() {
-            public LuaValue call() { return (fh.size == null) ? LuaValue.NIL : LuaValue.valueOf(fh.size.intValue()); }
-        });
+        h.set("size", property(fh, "size"));
+        h.set("color", property(fh, "color"));
+        h.set("aa", property(fh, "aa"));
+        h.set("bold", property(fh, "bold"));
+        h.set("italic", property(fh, "italic"));
         return h;
     }
 
     /**
-     * {@code h:derive(opts)}: a fresh handle sharing {@code h}'s base family but overriding any of
-     * {@code size}/{@code aa}/{@code color}/{@code bold}/{@code italic}. An omitted field inherits {@code h}'s.
-     * Immutable — never mutates {@code h}.
+     * One of the five properties a {@code :derive()}d handle carries, as the read/write pair every property in
+     * this API is: {@code d:size()} reads and {@code d:size(12)} writes and hands the handle back, so the whole
+     * variant is one chain.
+     *
+     * <p><b>A write is legal on a DRAFT, and only until that draft is used.</b> A built-in and a loaded
+     * {@code .ttf} are shared, interned values — writing one would restyle every surface already holding it — so
+     * they refuse, naming {@code :derive()}. And once a draft has been handed to a rule, to a widget or to a draw
+     * call it is SEALED, because each of those reads it at that moment: a later write would look like it took and
+     * change nothing, which is the silent failure this grammar exists to delete.
      */
-    private static LuaValue derive(FontHandle fh, LuaValue optsv) {
-        if(!optsv.isnil() && !optsv.istable())
-            throw new LuaError("font:derive(opts) expects a table { size=, aa=, bold=, italic=, color= } — use a COLON call");
-        LuaValue opts = optsv.istable() ? optsv : LuaValue.NIL;
-        Font base = fh.font;
-        if(opts.istable() && (!opts.get("bold").isnil() || !opts.get("italic").isnil())) {
-            boolean bold   = opts.get("bold").toboolean();
-            boolean italic = opts.get("italic").toboolean();
-            base = fh.font.deriveFont((bold ? Font.BOLD : 0) | (italic ? Font.ITALIC : 0));
-        }
-        Integer size = opts.istable() && !opts.get("size").isnil()  ? optSize(opts.get("size"), "font:derive") : fh.size;
-        Boolean aa   = opts.istable() && !opts.get("aa").isnil()    ? optBool(opts.get("aa"))                  : fh.aa;
-        Color color  = opts.istable() && !opts.get("color").isnil() ? optColor(opts.get("color"))             : fh.color;
-        return fontHandle(new FontHandle(base, size, aa, color));
+    private static LuaValue property(final FontHandle fh, final String prop) {
+        // `prop`, never `name`: LuaJ's LibFunction declares a `protected String name`, and an inherited field
+        // shadows an enclosing method's parameter of the same name inside an anonymous subclass (019.4/029.1).
+        // It compiles, it runs, and every read silently answers the LAST branch of the dispatch below.
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                if(!Args.passed(a, 2))
+                    return read(fh, prop);
+                LuaValue v = a.arg(2);
+                if(v.isnil())
+                    throw Args.nilRefused("font:" + prop, prop);
+                fh.writable("font:" + prop);
+                if("size".equals(prop))
+                    fh.size = optSize(v, "font:size");
+                else if("aa".equals(prop))
+                    fh.aa = Boolean.valueOf(v.toboolean());
+                else if("color".equals(prop))
+                    fh.color = colorArg(a, 2, "font:color");
+                else
+                    fh.style("bold".equals(prop), v.toboolean());
+                return self;
+            }
+        };
+    }
+
+    /** The read half of {@link #property}: nil where the handle inherits the surface's own stock value. */
+    private static LuaValue read(FontHandle fh, String prop) {
+        if("size".equals(prop))
+            return (fh.size == null) ? LuaValue.NIL : LuaValue.valueOf(fh.size.intValue());
+        if("aa".equals(prop))
+            return (fh.aa == null) ? LuaValue.NIL : LuaValue.valueOf(fh.aa.booleanValue());
+        if("color".equals(prop))
+            return colorValue(fh.color);
+        if("bold".equals(prop))
+            return LuaValue.valueOf(fh.font.isBold());
+        return LuaValue.valueOf(fh.font.isItalic());
     }
 
     /**
@@ -197,10 +250,8 @@ final class FontApi {
 
     // ------------------------------------------------------------------ opt parsing
 
-    /** A positive logical-px size from a Lua value, or {@code null} if unset. Rejects a non-number / non-positive. */
+    /** A positive logical-px size from a Lua value. Rejects a non-number / a non-positive one. */
     private static Integer optSize(LuaValue v, String ctx) {
-        if(v.isnil())
-            return null;
         if(!v.isnumber())
             throw new LuaError(ctx + ": 'size' must be a number (logical px)");
         int px = v.toint();
@@ -209,13 +260,4 @@ final class FontApi {
         return Integer.valueOf(px);
     }
 
-    /** A Boolean from a Lua value, or {@code null} if unset (so the surface's stock flag is inherited). */
-    private static Boolean optBool(LuaValue v) {
-        return v.isnil() ? null : Boolean.valueOf(v.toboolean());
-    }
-
-    /** A {@link Color} from a {@code {r,g,b[,a]}} Lua table (0..255), or {@code null} if unset. */
-    private static Color optColor(LuaValue v) {
-        return (v.isnil() || !v.istable()) ? null : luaColor(v, null);
-    }
 }

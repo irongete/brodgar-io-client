@@ -1,7 +1,7 @@
 {
   "name": "034.2 — draw it: F5's frame, widened",
   "id": "034-ui-stylesheet-tree.2",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 034.2: a tree rule reaches the DRAW through F5's frame, its stamp is stable across frames, and a widget created after the rule picks it up.",
   "api_version": 1,

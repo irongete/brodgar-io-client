@@ -168,3 +168,28 @@ is one sweep in the addon layer (`Sheet.forget` drops an addon's tree rules **an
 **See.** [D-043](#d-043) (the chain), [D-073](#d-073) (whose colour a surface takes), [D-076](#d-076) (each level
 takes what it names), [D-075](widgets-ui.md), [D-056](architecture-api.md) (arity is the verb),
 [034-ui-stylesheet-tree](../034-ui-stylesheet-tree/spec.md), [fonts.md](../learnings/fonts.md).
+
+### D-126 — a value handle is writable only while it is an unused DRAFT ✅ (2026-08-05)
+**Decision.** `h:derive()` hands back a **draft** FontHandle whose five properties are chained setters
+(`:size :color :aa :bold :italic`, each with a matching bare read). Every *other* handle — a built-in
+`hafen.font():get(name)`, a loaded `.ttf` asset — refuses a setter, naming `:derive()`. And a draft is
+**sealed** the moment `FontHandle.resolve` hands it to a consumer (a sheet rule, a widget's `:font(h)`,
+a `g:text{font=}` call): a setter after that throws too, naming `h:derive()` again.
+**Rationale.** (2026-08-05, 039.8.) R4 turns `h:derive{size=12}` into `h:derive():size(12)`, which makes
+the handle **mutable** where it was an immutable value — and a FontHandle is *shared* twice over. It is
+interned per addon, so writing a built-in would restyle every surface already using it; and the three
+consumers all read it **at the moment they are given it** (`AddonWidget`'s ctor, `Sheet`'s rule set,
+`LuaGOut`'s per-call resolve), so a write afterwards looks like it took and changes nothing. That silent
+no-op is precisely what this grammar exists to delete, so both cases are refusals rather than surprises,
+and they are *different* refusals because they are different mistakes.
+**Alternatives.** Functional setters, each returning a NEW handle (rejected — indistinguishable at the
+call site from a mutating chain, so `local h = hafen.font():get("sans"); h:size(12); use(h)` silently
+uses the unmodified handle: the one failure mode worse than the one being fixed). Mutable throughout, no
+seal (rejected — restores the silent no-op on the busiest path). Copy-on-write inside the consumers
+(rejected — three call sites would each have to remember, and a fourth would forget).
+**Consequences.** `FontHandle`'s four value fields stop being `final` and gain two flags, `draft` and
+`used`; `draft()` copies, so an omitted setter inherits. `:bold`/`:italic` re-derive the AWT face and
+drop the `RichText.Foundry` cache. The `theme` addon's dynamic mapper builds **one** variant and then
+sets what the file names, rather than assembling an options table.
+**See.** [D-043](#d-043) (private per-addon handles), [D-107](architecture-api.md) (when a config table
+becomes setters, the action moves off the constructing call), [fonts.md](../learnings/fonts.md).

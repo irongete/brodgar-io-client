@@ -5,17 +5,17 @@ that carries only one leaves the other exactly as the surface had it.
 
 ```lua
 local s = hafen.ui():sheet()
-s:rule("*"):font(hafen.asset("fonts/Inter.ttf"):derive{ size = 12 })
+s:rule("*"):font(hafen.asset():get("fonts/Inter.ttf"):derive():size(12))
 s:rule("chat"):color(200, 210, 200)
-s:rule("tooltip"):font(hafen.font("serif"):derive{ size = 13 }):color(255, 150, 90)
+s:rule("tooltip"):font(hafen.font():get("serif"):derive():size(13)):color(255, 150, 90)
 s:install()
 ```
 
 ## font
 
-`rule:font(handle)` takes a [font handle](../../font.md): `hafen.font(name)` for one of the client's
-built-ins, or `hafen.asset(path)` for a `.ttf` your addon ships, optionally through
-`:derive{size=, bold=, italic=, aa=}`. `rule:font()` reads it back.
+`rule:font(handle)` takes a [font handle](../../font.md): `hafen.font():get(name)` for one of the client's
+built-ins, or `hafen.asset():get(path)` for a `.ttf` your addon ships, optionally through a
+`:derive()` variant. `rule:font()` reads it back.
 
 **Omit `size` and each surface keeps its own.** That is the safe way to restyle: `s:rule("label"):font(h)`
 swaps the *family* everywhere while every row keeps the height it was built at. If you do pass `size=`,
@@ -26,7 +26,7 @@ Every key honours `font`. Nothing else about the handle travels except its famil
 antialiasing.
 
 > **A font handle's own `color` does not style a surface.**
-> `hafen.font("serif"):derive{color = {255,0,0}}` installed through a rule, or through
+> `hafen.font():get("serif"):derive():color(255, 0, 0)` installed through a rule, or through
 > [`widget:rule()`](README.md#restyle-one-widget), contributes its family, size and antialiasing — its
 > **colour is ignored**, and `widget:style()` reports no colour for it. A handle's colour is for
 > [your own drawing](../../font.md#draw-with-it): `g:text`, your own widgets. One question, "what colour is

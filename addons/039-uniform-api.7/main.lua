@@ -92,8 +92,8 @@ end
 -- Every property of a rule, with the write that must return the rule and the read that must give it back.
 -- One table so eight are two verdict lines rather than sixteen: a failure names the property it was.
 local function props(r)
-  local h = hafen.font("mono")
-  local img = hafen.asset("panel.png")
+  local h = hafen.font():get("mono")
+  local img = hafen.asset():get("panel.png")
   return {
     { "font",   function() return r:font(h) end, function() return r:font() == h end },
     { "color",  function() return r:color(200, 210, 220) end,
@@ -135,7 +135,7 @@ local function costRound(after)
          misses() - m1, 1)
       -- 3. the falsification, built in -- and it is an edit to an INSTALLED sheet, so it also proves that
       --    a setter on one applies at once, with no second :install().
-      sheet:rule(SEL_A):font(hafen.font("serif"):derive{ size = 18 })
+      sheet:rule(SEL_A):font(hafen.font():get("serif"):derive():size(18))
       local m2 = misses()
       hafen.timer():after(0.7, function()
         eq("the very same rule with a font in it takes a second key, so the check above can fail",
@@ -189,7 +189,7 @@ local function run()
 
   -- 4. THE HEADLINE: A SHEET IS DATA. A chain of setters cannot express a file, so the document keeps one
   --    door for a whole one -- and what goes through it is the table hafen.json():parse hands back, unmapped.
-  local asset = hafen.asset(FILE)
+  local asset = hafen.asset():get(FILE)
   eq("a sheet is a file: it loads as a data asset", asset:type(), "data")
   doc = hafen.json():parse(asset:text())
   local an, pl = doc.rules[SEL_A].anchor, doc.rules[SEL_P]

@@ -22,23 +22,24 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.imageio.ImageIO;
 
 /**
- * <b>The loader for the files an addon ships</b> (spec {@code 028-asset-loader}): the callable
- * {@code hafen.asset} namespace, the D-017 sandbox resolver, and the one per-addon intern cache behind them.
+ * <b>The loader for the files an addon ships</b> (spec {@code 028-asset-loader}): the {@code hafen.asset()}
+ * collection, the D-017 sandbox resolver, and the one per-addon intern cache behind them.
  *
  * <p>Three entry points across two namespaces used to load an addon-relative file — {@code hafen.font.load},
  * {@code hafen.render.image}, {@code hafen.render.model} — each with its own cache (and, for fonts, none at
- * all). They collapse into <b>one door</b>: {@code hafen.asset(path)} returns a typed, <b>interned</b> handle,
- * and <b>arity is the verb</b> ([D-056]): {@code hafen.asset()} is the array of this addon's live assets. The
- * three old loaders are a hard cut ([D-013]).
+ * all). They collapse into <b>one door</b>: {@code hafen.asset():get(path)} returns a typed, <b>interned</b>
+ * handle and {@code hafen.asset():list()} is this addon's live assets. The three old loaders are a hard cut
+ * ([D-013]).
  *
  * <p><b>The loader takes a path and nothing else.</b> There is no per-type options table: loading a file is
  * expensive and happens once, configuring a <i>use</i> of it is cheap and happens many times — so a font's
- * size/style comes from {@code :derive{…}}, never from the load. That is AWT's own split ({@code
+ * size/style comes from {@code :derive()} and its setters, never from the load. That is AWT's own split ({@code
  * Font.createFont} returns a 1&nbsp;pt font, {@code deriveFont} makes the variants), and it is what keeps the
  * signature uniform across every type and interning unambiguous ({@code ==} never depends on an options
  * table).
@@ -79,38 +80,44 @@ final class AssetApi {
     private static final String EXTS =
         ".png/.jpg/.jpeg/.gif/.bmp (image), .ttf/.otf (font), .glb/.gltf (mesh), .json/.txt (data)";
 
-    /** Build {@code hafen.asset} for {@code owner}. From installHafen. */
+    /**
+     * Build {@code hafen.asset} for {@code owner}: <b>the section object IS the collection</b> of the files this
+     * addon ships (spec §2.1). {@code hafen.asset():get(path)} loads and interns one, {@code :list(filter)} reads
+     * the ones it currently holds, and {@code :find} answers by path substring. There is no {@code :add} — an
+     * asset is a file the addon shipped, not something it creates here — and no {@code :remove}: freeing one is
+     * {@code a:dispose()}, which releases the memory <i>now</i> rather than dropping a member from a set.
+     */
     static void install(LuaTable hafen, final Addon owner) {
-        hafen.set("asset", factory(owner));
+        Section.mount(hafen, "asset", collection(owner),
+                      "hafen.asset(path) is now hafen.asset():get(path), and hafen.asset() is"
+                      + " hafen.asset():list()");
     }
 
-    /**
-     * {@code hafen.asset} itself: a <b>callable table</b> ({@code __call}) taking an addon-relative path, so the
-     * three cut loaders ({@code hafen.font.load}, {@code hafen.render.image}, {@code hafen.render.model}) read
-     * as plain {@code nil} — the hard cut ([D-013]) is visible from Lua, exactly as {@code hafen.gob},
-     * {@code hafen.sound} and {@code hafen.meter} did it. <b>Arity is the verb</b> ([D-056]):
-     * {@code hafen.asset(path)} is one interned asset, {@code hafen.asset()} the array of the ones this addon
-     * currently holds.
-     */
-    static LuaValue factory(final Addon owner) {
-        LuaTable asset = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.CALL, new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue key = a.arg(2);        // arg1 = the callable table itself
-                if(key.isnil())                 // hafen.asset() — this addon's live assets, in load order
-                    return owner.assets.array();
-                if(key.isnumber())              // BEFORE isstring(): in LuaJ a number IS a string
-                    throw new LuaError("hafen.asset(path): the key is an addon-relative PATH string (e.g."
-                        + " \"icon.png\"), not a number");
-                if(key.isstring())
-                    return AssetApi.load(owner, key.tojstring());   // qualify: LuaValue also has a load(...)
-                throw new LuaError("hafen.asset(path): expected an addon-relative path string (e.g."
-                    + " hafen.asset(\"icon.png\")), got " + key.typename());
+    /** {@code hafen.asset()} — the addon's own loaded files, addressed by their addon-relative path. */
+    static LuaValue collection(final Addon owner) {
+        return LuaCollection.create("hafen.asset()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                return owner.assets.members();
             }
-        });
-        asset.setmetatable(mt);
-        return asset;
+
+            public String needle(LuaValue member) {
+                return owner.assets.pathOf(member);
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                if(key.isnumber())              // BEFORE isstring(): in LuaJ a number IS a string
+                    throw new LuaError("hafen.asset():get(path): the key is an addon-relative PATH string (e.g."
+                        + " \"icon.png\"), not a number");
+                if(!key.isstring())
+                    throw new LuaError("hafen.asset():get(path): expected an addon-relative path string (e.g."
+                        + " hafen.asset():get(\"icon.png\")), got " + key.typename());
+                return AssetApi.load(owner, key.tojstring());   // qualify: LuaValue also has a load(...)
+            }
+        }, null);
     }
 
     // ---- the per-addon intern cache ------------------------------------------------------------------
@@ -137,7 +144,7 @@ final class AssetApi {
          * <b>not assets</b>: engine-owned, no file, no lifetime, so they are never listed by
          * {@code hafen.asset()} and carry no {@code :dispose()} ([D-060]).
          */
-        private final Map<String, LuaValue> builtinFonts = new HashMap<String, LuaValue>();
+        private final Map<String, LuaValue> builtinFonts = new LinkedHashMap<String, LuaValue>();
         /**
          * This addon's own Lua view of a font <b>another addon</b> created — minted only when
          * {@code widget:style()} (034.1) reports a rule from someone else's stylesheet. Interned by handle
@@ -158,17 +165,39 @@ final class AssetApi {
         void put(String key, Entry e) {live.put(key, e);}
         void remove(String key) {live.remove(key);}
 
-        /** {@code hafen.asset()}: this addon's live assets as a 1-based array of their handles, in load order. */
-        LuaValue array() {
-            LuaTable t = new LuaTable();
-            int n = 0;
+        /** {@code hafen.asset():list()}: this addon's live assets, in load order — the collection's members. */
+        List<LuaValue> members() {
+            List<LuaValue> out = new ArrayList<LuaValue>();
             for(Entry e : live.values())
-                t.set(++n, e.handle);
-            return t;
+                out.add(e.handle);
+            return out;
+        }
+
+        /** The addon-relative path a member was loaded from — what a string filter matches on. */
+        String pathOf(LuaValue handle) {
+            for(Entry e : live.values()) {
+                if(e.handle == handle)
+                    return e.path;
+            }
+            return null;
         }
 
         LuaValue builtinFont(String name) {return builtinFonts.get(name);}
         void putBuiltinFont(String name, LuaValue h) {builtinFonts.put(name, h);}
+
+        /** {@code hafen.font():list()}: the built-in fonts this addon has named so far. */
+        List<LuaValue> builtinFonts() {
+            return new ArrayList<LuaValue>(builtinFonts.values());
+        }
+
+        /** The built-in NAME a member was interned under — what a string filter on that collection matches. */
+        String builtinFontName(LuaValue handle) {
+            for(Map.Entry<String, LuaValue> e : builtinFonts.entrySet()) {
+                if(e.getValue() == handle)
+                    return e.getKey();
+            }
+            return null;
+        }
 
         LuaValue fontView(FontHandle fh) {return fontViews.get(fh);}
         void putFontView(FontHandle fh, LuaValue h) {fontViews.put(fh, h);}

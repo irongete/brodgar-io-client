@@ -227,7 +227,7 @@ local function costCache(after)
            misses() - m2, 0)
         -- 4. the falsification, built in: the same rule with a font in it DOES open a frame.
         sheet:load{ [SEL_A] = { anchor = { to = "screen", at = "bottomright", offset = { -8, -8 } },
-                                   font = hafen.font("serif"):derive{ size = 18 } } }:install()
+                                   font = hafen.font():get("serif"):derive():size(18) } }:install()
         local m3 = misses()
         hafen.timer():after(0.7, function()
           eq("the very same rule with a font in it takes a second key — the check above can fail",
@@ -249,7 +249,7 @@ local function run()
   sheet:drop()
 
   -- 1. the file, and what a layout looks like inside it.
-  local asset = hafen.asset(FILE)
+  local asset = hafen.asset():get(FILE)
   eq("a theme is a file: it loads as a data asset", asset:type(), "data")
   doc = hafen.json():parse(asset:text())
   local an, pl = doc.rules[SEL_A].anchor, doc.rules[SEL_P]

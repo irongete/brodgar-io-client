@@ -26,154 +26,251 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import static io.brodgar.addon.AddonManager.*;
 
 /**
- * The custom-rendering subsystem (V-series ghosts + R-series sprites/objects): {@code hafen.ghost}
- * (client-only world ghosts) and {@code hafen.render} ({@code sprite}/{@code object} — custom PNG + glTF props
- * standing in the 3D world). Owns the world-entity lifecycle (create/transform/follow/click/teardown) over
- * {@link LuaWorldEntity}. The V2 click seam {@code onGhostClick} (called from {@code haven.MapView}) stays a
- * facade in {@link AddonManager} and delegates here; {@link AddonManager} calls the per-kind teardowns on
- * reload/disable.
+ * The custom-rendering subsystem: {@code hafen.ghost()} (client-only {@code .res} props) and
+ * {@code hafen.render()} ({@code :sprite()}/{@code :object()} — custom PNG + glTF props standing in the 3D
+ * world). Owns the world-entity lifecycle (create/transform/follow/click/teardown) over {@link LuaWorldEntity}.
+ * The click seam {@code onGhostClick} (called from {@code haven.MapView}) stays a facade in
+ * {@link AddonManager} and delegates here; {@link AddonManager} calls the per-kind teardowns on reload/disable.
+ *
+ * <p><b>Three collections, one entity vocabulary.</b> Each kind is a {@link LuaCollection} — {@code :add(asset)}
+ * or {@code :add(res)} places one and hands back its handle, {@code :list(filter)} reads them, and
+ * {@code :remove(x)} ends one (R7: the collection placed it, so the collection ends it). Every handle then
+ * speaks the same verbs, each a read/write pair on one name: {@code :position(p [, a])}, {@code :rotate}, {@code
+ * :scale}, {@code :alpha}, {@code :tint}, {@code :visible}, {@code :clickable}, {@code :onClick} — plus the one
+ * or two its own kind adds. The old {@code {image=, x=, y=, …}} constructors are retired rows naming them.
  *
  * <p><b>This is a SCENE namespace, not a loader</b> (028.1): {@code hafen.render.image}/{@code model} are cut,
  * and the addon's own files — images, fonts and meshes alike — come from the one door {@link AssetApi}
- * ({@code hafen.asset(path)}), which also owns the D-017 sandbox resolver and the intern cache. Not instantiable.
+ * ({@code hafen.asset():get(path)}), which also owns the D-017 sandbox resolver and the intern cache. An entity
+ * that backs a {@code gob:overlay()} record is built through the same {@code make*} bodies but is never a member
+ * of these collections (038.2): an overlay is reached through the gob it is on. Not instantiable.
  */
 final class RenderApi {
     private RenderApi() {}
 
-    /** Build {@code hafen.ghost} for {@code owner}. From installHafen. */
+    /**
+     * Build {@code hafen.ghost} for {@code owner}: <b>the section object IS the collection</b> (spec §2.1 — a
+     * section that contains exactly one thing is that thing). {@code hafen.ghost():add(res)} places a client-only
+     * {@code .res} prop and hands back the Ghost, {@code :list(filter)} reads this addon's, and
+     * {@code hafen.ghost():remove(g)} ends one — the collection owns it, so R7 puts the ending there rather than
+     * on a {@code :destroy()} of its own.
+     */
     static void installGhost(LuaTable hafen, final Addon owner) {
-        LuaTable ghost = new LuaTable();
-        // hafen.ghost.new{res, x, y [, a] [, sdt] [, alpha] [, tint] [, clickable] [, onClick]} — res = a resource
-        // name (e.g. "gfx/terobjs/arch/logcabin"); x,y = world coords; a = facing radians (optional, default 0).
-        //   sdt      = {bytes}        -- V3: optional spawn-data bytes (resource variant/state); rarely needed
-        //   alpha    = 0.5           -- V3: opacity 0..1 (default 1 = opaque); < 1 = the translucent "ghost" look
-        //   tint     = {r=,g=,b=[,a=]} -- V3: colour overlay 0..255 (a = blend strength, default 255)
-        //   clickable = true         -- V2: opt-in pick-selectability (default false)
-        //   onClick = fn(g,button,x,y) -- V2: fires on click (also via the GhostClicked event)
-        // follow= is GONE (038.2, hard cut): a thing attached to a GAME OBJECT is gob:overlay(key, {ghost=...}).
-        // This namespace stands things at a FIXED world point; passing follow= RAISES naming the replacement.
-        // Returns a handle:
-        //   :move(x, y [, a])  -- reposition (+ optional facing)
-        //   :rotate(a)         -- V3: set facing (radians), keeping position
-        //   :setRes(res[,sdt]) -- V3: swap the visual (streams in like new)
-        //   :alpha(a)          -- V3: opacity 0..1 (1 = opaque)
-        //   :tint(color|nil)   -- V3: colour overlay {r=,g=,b=[,a=]} (nil clears)
-        //   :show() / :hide()  -- V3: add / remove the scene slot (keeps the ghost)
-        //   :pos()             -- {x, y, a, scale}
-        //   :res()             -- the resource name (string)
-        //   :clickable(bool)   -- V2: toggle the pick surface
-        //   :destroy()         -- remove now (also automatic on reload/disable)
-        // The visual streams in a beat later (the resource resolves on a loader thread, dodging Loading — the
-        // Plob / hafen.sound precedent), so the handle works immediately while the prop appears shortly after.
-        // Returns nil only if there is no map view yet (not in the world). V2: a CLICK on a clickable ghost is
-        // detected client-side and CONSUMED (no server contact ⇒ still SAFE-tier); it fires onClick + the
-        // owner-scoped GhostClicked{ghost,button,x,y} event.
-        ghost.set("new", new OneArgFunction() {
-            public LuaValue call(LuaValue opts) {
-                return newGhost(owner, opts);
-            }
-        });
-        ghost.set("list", new OneArgFunction() {
-            public LuaValue call(LuaValue filter) {
-                return ghostList(owner, filter);
-            }
-        });
-        hafen.set("ghost", ghost);
+        Section.mount(hafen, "ghost", ghostCollection(owner), null);
     }
 
-    /** Build {@code hafen.render} for {@code owner}. From installHafen. */
-    static void installRender(LuaTable hafen, final Addon owner) {
-        LuaTable render = new LuaTable();
-        // hafen.render is a SCENE namespace only: it stands things in the 3D world. LOADING the addon's own files
-        // is hafen.asset(path) — one door for every local file (028.1, D-013 hard cut): hafen.render.image and
-        // hafen.render.model are GONE and read as plain nil. An image handle is hafen.asset("icon.png"), a mesh
-        // handle hafen.asset("chair.glb"); both are interned, so repeating the load is free.
-        // hafen.render.sprite{image, x, y [, a] [, scale] [, alpha] [, tint] [, billboard] [, clickable] [, onClick]}
-        // — stand a custom PNG in the 3D world (spec 17 §5, R2). The non-`.res` sibling of hafen.ghost, on the SAME
-        // virtual-entity core + gizmo: a Gob with no server id, so it never reaches the server (SAFE-tier, NOT gated,
-        // D-034). image = a hafen.asset image HANDLE — handle-only (028.2, D-012): a path string raises an error naming
-        // hafen.asset; x,y = world coords (like gob:pos()); a = facing radians (default 0). Options:
-        //   scale = 2               -- uniform scale (default 1); fixed = ~1 tile tall, billboard = screen-size ×
-        //   alpha = 0.5             -- opacity 0..1 (default 1); combines with the PNG's own transparency
-        //   tint  = {r=,g=,b=[,a=]} -- colour overlay 0..255 (a = blend strength)
-        //   billboard = false       -- false (default) = a FIXED upright quad (R2a); true = a CAMERA-FACING screen blit (R2b)
-        //   clickable = true        -- opt into the V2 pick (fixed sprites only; a billboard has no world mesh → never picked)
-        //   onClick = fn(s,btn,x,y) -- per-sprite click callback (also delivered as the owner-scoped SpriteClicked event)
-        // follow= is GONE (038.2, hard cut): an image ON A GOB is gob:overlay(key, {image = asset}), which keys it,
-        // reads it back and dies with the gob. Passing follow= here RAISES naming that replacement.
-        // Returns a transform handle (gizmo-compatible), like a ghost but with :image() in place of :res():
-        //   :move(x,y[,a]) :rotate(a) :scale(s) :alpha(a) :tint(color|nil) :clickable(bool) :show() :hide() :pos() :image() :destroy()
-        // Returns nil only if there is no map view yet (not in the world). Both forms are resource-free visuals on the
-        // shared core, so they get the full transform + look + gizmo for free (a billboard ignores world-rotate/scale).
-        render.set("sprite", new OneArgFunction() {
-            public LuaValue call(LuaValue opts) {
-                return newSprite(owner, opts);
+    /** {@code hafen.ghost()} — this addon's client-only world props, keyless (a ghost has no name of its own). */
+    private static LuaValue ghostCollection(final Addon owner) {
+        return LuaCollection.create("hafen.ghost()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                return entityMembers(owner.ghosts);
             }
-        });
-        // hafen.render.object{model, x, y [, a] [, scale] [, alpha] [, tint] [, clickable] [, onClick]}
-        // — stand a custom glTF MODEL in the 3D world (spec 18, R3). The mesh sibling of a sprite/ghost,
-        // on the SAME virtual-entity core + gizmo: a Gob with no server id (SAFE-tier, NOT gated, D-034). model = a
-        // hafen.asset mesh HANDLE — handle-only (028.2, D-012): a path string raises an error naming hafen.asset;
-        // x,y = world coords (like gob:pos()); a = facing radians (default 0). Options mirror hafen.render.sprite:
-        //   scale = 2               -- uniform scale (default 1) on top of the baked model→world size
-        //   alpha = 0.5             -- opacity 0..1 (default 1); tint = {r=,g=,b=[,a=]} colour overlay 0..255
-        //   clickable = true        -- opt into the V2 pick (the mesh renders into the clickmap) → ObjectClicked / onClick
-        // follow= is GONE (038.2, hard cut): a model ON A GOB is gob:overlay(key, {model = asset}); passing follow=
-        // here RAISES naming that replacement.
-        // Returns a transform handle (gizmo-compatible), like a sprite but with :mesh() in place of :image():
-        //   :move(x,y[,a]) :rotate(a) :scale(s) :alpha(a) :tint(color|nil) :clickable(bool) :show() :hide() :pos() :mesh() :destroy()
-        // Returns nil only if there is no map view yet (not in the world). The glTF origin maps to the gob position, so
-        // author a model with its base at Y=0 to stand on the ground.
-        render.set("object", new OneArgFunction() {
-            public LuaValue call(LuaValue opts) {
-                return newObject(owner, opts);
-            }
-        });
-        hafen.set("render", render);
-    }
 
-    // ------------------------------------------------------------------ world ghosts (hafen.ghost, V1)
+            public String needle(LuaValue member) {
+                return visualNameOf(owner.ghosts, member);
+            }
+
+            public boolean creatable() {
+                return true;
+            }
+
+            public LuaValue addMember(Varargs a) {
+                LuaValue rv = Args.required(a, 2, "hafen.ghost():add", "res");
+                if(!rv.isstring() || rv.isnumber())
+                    throw new LuaError("hafen.ghost():add(res, p) expects a resource NAME string (e.g."
+                        + " \"gfx/terobjs/arch/logcabin\"), got " + rv.typename() + " — an image or a model this"
+                        + " addon ships is hafen.render():sprite():add(asset, p) / :object():add(asset, p)");
+                LuaTable spec = placement(a, "hafen.ghost():add");
+                return born(makeGhost(owner, spec, rv.tojstring(), 0, null), "hafen.ghost():add");
+            }
+
+            public boolean destroyable() {
+                return true;
+            }
+
+            public void removeMember(LuaValue x) {
+                destroyEntity(memberArg(owner.ghosts, x, "hafen.ghost():remove", "ghost"));
+            }
+        }, null);
+    }
 
     /**
-     * Spawn a client-only world ghost ({@code hafen.ghost.new{res, x, y [, a]}}, spec 16 / V1): validate the
-     * options, register a bridge-owned {@link LuaGhost} in the addon's owned-resource registry (P2), and
-     * <b>defer</b> the visual to a loader thread — {@code res.get()} throws {@code Loading} until the resource is
-     * cached, so, exactly like {@code MapView.Plob} and {@link LuaSound}, {@code glob.loader.defer} re-runs the
-     * task when the resource lands, then builds the {@link Gob} + {@link ResDrawable} and adds it to the MapView
-     * {@code basic} scene ({@link MapView#addClientGob}). The handle is returned <b>immediately</b> and works while
-     * the prop streams in (a {@code :move} before the gob exists just updates the target the create applies). All
-     * publish/destroy handoff is guarded by the ghost's monitor so the loader-thread create never races a
-     * concurrent {@code :move}/{@code :destroy}. Returns {@code nil} if there is no map view yet (not in the world);
-     * throws a {@link LuaError} for a malformed table.
+     * Build {@code hafen.render} for {@code owner}: a section with two collections, {@code :sprite()} and
+     * {@code :object()}, each minted once and handed back by identity (§2.3). The old table constructors are
+     * retired rows naming them.
      */
-    private static LuaValue newGhost(final Addon owner, LuaValue opts) {
-        if(!opts.istable())
-            throw new LuaError("hafen.ghost.new{res=..., x=..., y=...} expects an options table");
-        refuseFollow(opts, "hafen.ghost.new", "ghost(<res name>)");
-        LuaValue resv = opts.get("res");
-        if(!resv.isstring())
-            throw new LuaError("hafen.ghost.new: 'res' must be a resource name string (e.g. \"gfx/terobjs/arch/logcabin\")");
-        LuaValue xv = opts.get("x"), yv = opts.get("y");
-        if(!xv.isnumber() || !yv.isnumber())
-            throw new LuaError("hafen.ghost.new: 'x' and 'y' must be numbers (world coordinates, like gob:pos())");
-        LuaGhost gh = makeGhost(owner, opts, resv.tojstring(), 0, null);
-        return (gh == null) ? LuaValue.NIL : gh.handle;
+    static void installRender(LuaTable hafen, final Addon owner) {
+        final LuaValue sprites = spriteCollection(owner);
+        final LuaValue objects = objectCollection(owner);
+        LuaTable m = new LuaTable();
+        m.set("sprite", collectionVerb("sprite", sprites));
+        m.set("object", collectionVerb("object", objects));
+        Section.install(hafen, "render", m);
     }
+
+    /** {@code hafen.render():sprite()} / {@code :object()} — the collection itself, never a per-call view. */
+    private static LuaValue collectionVerb(final String nm, final LuaValue coll) {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "render", nm);
+                if(Args.passed(a, 2))
+                    throw new LuaError("hafen.render():" + nm + "() takes no arguments — it IS the collection,"
+                        + " and hafen.render():" + nm + "():add(asset) puts one in the world");
+                return coll;
+            }
+        };
+    }
+
+    /** {@code hafen.render():sprite()} — this addon's custom-PNG world sprites. */
+    private static LuaValue spriteCollection(final Addon owner) {
+        return LuaCollection.create("hafen.render():sprite()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                return entityMembers(owner.sprites);
+            }
+
+            public String needle(LuaValue member) {
+                return visualNameOf(owner.sprites, member);
+            }
+
+            public boolean creatable() {
+                return true;
+            }
+
+            public LuaValue addMember(Varargs a) {
+                LuaValue img = Args.required(a, 2, "hafen.render():sprite():add", "image");
+                LuaTable spec = placement(a, "hafen.render():sprite():add");
+                spec.set("image", img);
+                return born(makeSprite(owner, spec, 0, null), "hafen.render():sprite():add");
+            }
+
+            public boolean destroyable() {
+                return true;
+            }
+
+            public void removeMember(LuaValue x) {
+                destroyEntity(memberArg(owner.sprites, x, "hafen.render():sprite():remove", "sprite"));
+            }
+        }, null);
+    }
+
+    /** {@code hafen.render():object()} — this addon's glTF world models. */
+    private static LuaValue objectCollection(final Addon owner) {
+        return LuaCollection.create("hafen.render():object()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                return entityMembers(owner.objects);
+            }
+
+            public String needle(LuaValue member) {
+                return visualNameOf(owner.objects, member);
+            }
+
+            public boolean creatable() {
+                return true;
+            }
+
+            public LuaValue addMember(Varargs a) {
+                LuaValue mdl = Args.required(a, 2, "hafen.render():object():add", "model");
+                LuaTable spec = placement(a, "hafen.render():object():add");
+                spec.set("model", mdl);
+                return born(makeObject(owner, spec, 0, null), "hafen.render():object():add");
+            }
+
+            public boolean destroyable() {
+                return true;
+            }
+
+            public void removeMember(LuaValue x) {
+                destroyEntity(memberArg(owner.objects, x, "hafen.render():object():remove", "object"));
+            }
+        }, null);
+    }
+
+    /**
+     * The live, freely-placed entities of one registry as their handles — the members of its collection. An
+     * entity that backs a {@code gob:overlay()} record is <b>not</b> among them (038.2): an overlay is reached
+     * through the gob it is on, and a second door handing out a handle carrying an ending would let an addon kill
+     * the visual behind a record that still reads as attached.
+     */
+    private static List<LuaValue> entityMembers(List<? extends LuaWorldEntity> reg) {
+        List<LuaValue> out = new ArrayList<LuaValue>();
+        for(LuaWorldEntity e : reg) {              // copy-on-write: a filter fn may create/destroy one
+            if(e.dead || (e.handle == null) || e.asOverlay)
+                continue;
+            out.add(e.handle);
+        }
+        return out;
+    }
+
+    /**
+     * The place a {@code :add(thing, p)} stands its entity, as the argument spec {@code §2.5} calls
+     * positional: <b>a required argument stays on the constructor where the thing is meaningless without
+     * it</b>. For a thing standing in the 3D world that is not a matter of taste — the scene resolves the
+     * TILE under a gob the moment it is added, so an entity with no place cannot enter the scene at all: at
+     * the world origin the engine raises <i>waiting for map data</i>, which is not a state a builder may
+     * pass through. So a place is not a setter with a default; it is half of what an entity IS.
+     */
+    private static LuaTable placement(Varargs a, String verb) {
+        Coord2d rc = LuaPosition.worldArg(a, 3, verb, "p");
+        LuaTable spec = new LuaTable();
+        spec.set("x", LuaValue.valueOf(rc.x));
+        spec.set("y", LuaValue.valueOf(rc.y));
+        return spec;
+    }
+
+    /**
+     * The entity a creation produced, or a {@link LuaError} naming when one can be made at all. <b>A creation
+     * RAISES where a removal is inert</b> (D-114): the caller is about to chain a setter onto what comes back, so
+     * answering {@code nil} turns the very next {@code :position(p)} into <i>attempt to index a nil value</i> one
+     * line later — which is the failure the retired-name table exists to prevent.
+     */
+    private static LuaValue born(LuaWorldEntity e, String where) {
+        if(e == null)
+            throw new LuaError(where + ": there is no map view yet — a thing standing in the 3D world needs the"
+                + " scene, so place it once you are in the world (OnEnterWorld)");
+        return e.handle;
+    }
+
+    /**
+     * The entity a {@code :remove(x)} names: its own handle, and nothing else. It must belong to <i>this</i>
+     * registry, so removing another addon's — or an overlay's — is a refusal rather than a silent miss.
+     */
+    private static LuaWorldEntity memberArg(List<? extends LuaWorldEntity> reg, LuaValue x, String verb, String what) {
+        for(LuaWorldEntity e : reg) {
+            if(!e.asOverlay && (e.handle != null) && (e.handle == x))
+                return e;
+        }
+        throw new LuaError(verb + "(x) expects a " + what + " this addon placed — the value it hands back from"
+            + " :add(), or one out of :list()");
+    }
+
+    /**
+     * What a <b>string</b> filter matches on a member of one of these collections: the entity's visual name — a
+     * ghost's {@code .res}, a sprite's image path, an object's model path. Resolved by walking the registry,
+     * which is the addon's own handful of entities and needs no second index.
+     */
+    private static String visualNameOf(List<? extends LuaWorldEntity> reg, LuaValue member) {
+        for(LuaWorldEntity e : reg) {
+            if(e.handle == member)
+                return e.visualName();
+        }
+        return null;
+    }
+
+    // ------------------------------------------------------------------ world ghosts (hafen.ghost)
 
     /**
      * Build a ghost and publish it — the body of {@link #newGhost}, shared with the world-space half of
      * {@code gob:overlay(key, {ghost = res})} (038.2). {@code tgt != 0} anchors it to that gob id (a
      * {@link FollowMoving}, applied at publish so a still-streaming visual is anchored the moment it lands);
-     * {@code tgt == 0} is the fixed placement {@code hafen.ghost.new} makes. Returns {@code null} when there is
+     * {@code tgt == 0} is the fixed placement {@code hafen.ghost():add(res)} makes. Returns {@code null} when there is
      * no map view (not in the world). Every other option is read from {@code opts} exactly as before.
      */
     private static LuaGhost makeGhost(final Addon owner, LuaValue opts, final String resName, long tgt, Coord3f off) {
@@ -245,7 +342,7 @@ final class RenderApi {
                     gh.mv = mv;
                     applyEntityFollow(gh, gob);              // ANCHOR: if follow= was given, start tracking the gob now
                     if(!gh.hidden)                           // V3: a ghost hidden before it published stays out of the scene
-                        gh.slot = mv.addClientGob(gob);      // the // addon: MapView seam (spec 16 §6); MapView now ticks it
+                        addToScene(gh, mv);                  // the // addon: MapView seam; pending when the tile is not here yet
                 }
             }
         }, null);
@@ -253,162 +350,190 @@ final class RenderApi {
     }
 
     /**
-     * Install the handle verbs common to EVERY client-only world entity (a {@link LuaGhost} or {@link LuaSprite}) —
-     * {@code :move}/{@code :rotate}/{@code :alpha}/{@code :tint}/{@code :scale}/{@code :show}/{@code :hide}/
-     * {@code :pos}/{@code :destroy} — onto the handle table {@code h}, all closing over the shared
-     * {@link LuaWorldEntity} state + the {@code *Entity} scene helpers. Each subclass's handle builder
-     * ({@link #ghostHandle} / {@link #spriteHandle}) calls this and then adds its own identity/extra verbs
-     * ({@code :res}/{@code :setRes}/{@code :clickable} for a ghost, {@code :image} for a sprite). The colon-call
-     * convention passes {@code self} as arg1, so a verb reads arg2.. and returns arg1 (the handle) for chaining;
-     * every verb is a clean no-op once the entity is dead.
+     * The Lua handle of a client-only world entity — <b>one vocabulary for all three kinds</b> (a
+     * {@link LuaGhost}, a {@link LuaSprite}, a {@link LuaObject}), plus whatever {@code extra} verbs its own kind
+     * adds ({@code :res} for a ghost, {@code :image}/{@code :billboard} for a sprite, {@code :mesh} for an
+     * object). Every property here is a read/write pair on ONE name (§2.2): {@code :scale()} reads and
+     * {@code :scale(2)} writes and hands back the handle, so a placement is one statement.
+     *
+     * <p>The handle table itself is left <b>empty</b> and every name is answered by the metatable, which is what
+     * lets a retired spelling ({@code :pos}, {@code :move}, {@code :show}, {@code :hide}, {@code :destroy}) throw
+     * naming its replacement instead of reading as plain {@code nil} and failing one line later.
      */
-    private static void addEntityHandle(LuaTable h, final LuaWorldEntity e) {
-        h.set("move", new VarArgFunction() {
+    private static LuaValue entityHandle(final LuaWorldEntity e, final String kind, LuaTable extra) {
+        LuaTable m = new LuaTable();
+        // position() -> a Position, the one type a place in the world has; position(p [, a]) moves it there, and
+        // the optional second argument is the facing, because "put it there facing that way" is one act. It is
+        // the read/write pair the old :pos()/:move(x, y, a) split across two names and two shapes.
+        m.set("position", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue xv = a.arg(2), yv = a.arg(3), av = a.arg(4);
-                if(!xv.isnumber() || !yv.isnumber())
-                    throw new LuaError(":move(x, y [, a]) expects world coordinates (numbers) — use a COLON call");
-                synchronized(e) {
-                    if(!e.dead) {
-                        e.rc = new Coord2d(xv.todouble(), yv.todouble());
-                        if(av.isnumber())
-                            e.a = av.todouble();
-                        if(e.gob != null)
-                            e.gob.move(e.rc, e.a);   // live gob → reposition now; else the deferred create applies it
-                    }
+                LuaValue self = a.arg1();
+                if(!Args.passed(a, 2))
+                    return overlayPosition(e.owner, e);
+                Coord2d rc = LuaPosition.worldArg(a, 2, kind + ":position", "p");
+                Double ang = Args.passed(a, 3)
+                    ? Double.valueOf(number(a, 3, kind + ":position", "a")) : null;
+                moveEntity(e, rc, ang);
+                return self;
+            }
+        });
+        // rotate() / rotate(a) -- the facing in radians, kept while the thing stays where it is.
+        m.set("rotate", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue av = Args.written(a, 2, kind + ":rotate", "a");
+                if(av == null) {
+                    synchronized(e) { return LuaValue.valueOf(e.a); }
                 }
-                return a.arg1();
+                moveEntity(e, null, Double.valueOf(number(a, 2, kind + ":rotate", "a")));
+                return self;
             }
         });
-        h.set("rotate", new VarArgFunction() {          // V3: set facing (radians), keeping position — Gob.move(rc, a)
+        m.set("scale", new VarArgFunction() {           // uniform scale (1 = original size)
             public Varargs invoke(Varargs a) {
-                LuaValue av = a.arg(2);
-                if(!av.isnumber())
-                    throw new LuaError(":rotate(a) expects a facing angle in radians (number) — use a COLON call");
-                synchronized(e) {
-                    if(!e.dead) {
-                        e.a = av.todouble();
-                        if(e.gob != null)
-                            e.gob.move(e.rc, e.a);
-                    }
+                LuaValue self = a.arg1();
+                LuaValue sv = Args.written(a, 2, kind + ":scale", "s");
+                if(sv == null) {
+                    synchronized(e) { return LuaValue.valueOf((double)e.scale); }
                 }
-                return a.arg1();
+                setEntityScale(e, clampScale(number(a, 2, kind + ":scale", "s")));
+                return self;
             }
         });
-        h.set("alpha", new VarArgFunction() {           // V3: opacity 0..1 (1 = opaque)
+        m.set("alpha", new VarArgFunction() {           // opacity 0..1 (1 = opaque)
             public Varargs invoke(Varargs a) {
-                LuaValue av = a.arg(2);
-                if(!av.isnumber())
-                    throw new LuaError(":alpha(a) expects a number 0..1 (1 = opaque) — use a COLON call");
-                setEntityAlpha(e, clampAlpha(av.todouble()));
-                return a.arg1();
+                LuaValue self = a.arg1();
+                LuaValue av = Args.written(a, 2, kind + ":alpha", "a");
+                if(av == null) {
+                    synchronized(e) { return LuaValue.valueOf((double)e.alpha); }
+                }
+                setEntityAlpha(e, clampAlpha(number(a, 2, kind + ":alpha", "a")));
+                return self;
             }
         });
-        h.set("tint", new VarArgFunction() {            // V3: colour overlay {r=,g=,b=[,a=]}, or nil to clear
+        // tint(nil) STAYS legal: "no tint" is a real value rather than an accident, and it is one of the two nils
+        // the whole API documents a meaning for.
+        m.set("tint", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue cv = a.arg(2);
-                if(!cv.isnil() && !cv.istable())
-                    throw new LuaError(":tint(color) expects {r=,g=,b=[,a=]} (0..255) or nil — use a COLON call");
-                setEntityTint(e, cv.isnil() ? null : luaColor(cv, null));
-                return a.arg1();
+                LuaValue self = a.arg1();
+                if(!Args.passed(a, 2)) {
+                    synchronized(e) { return colorValue(e.tint); }
+                }
+                setEntityTint(e, a.arg(2).isnil() ? null : colorArg(a, 2, kind + ":tint"));
+                return self;
             }
         });
-        h.set("scale", new VarArgFunction() {           // V6: uniform scale (1 = original size)
+        // visible() / visible(b) -- a boolean property is a property. :show()/:hide() were two spellings of one
+        // write and are retired rows naming this.
+        m.set("visible", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue sv = a.arg(2);
-                if(!sv.isnumber())
-                    throw new LuaError(":scale(s) expects a positive number (1 = original size) — use a COLON call");
-                setEntityScale(e, clampScale(sv.todouble()));
-                return a.arg1();
+                LuaValue self = a.arg1();
+                LuaValue bv = Args.written(a, 2, kind + ":visible", "b");
+                if(bv == null) {
+                    synchronized(e) { return LuaValue.valueOf(!e.hidden && !e.dead); }
+                }
+                if(bv.toboolean())
+                    showEntity(e);
+                else
+                    hideEntity(e);
+                return self;
             }
         });
-        h.set("show", new VarArgFunction() {            // V3: (re)add the scene slot
-            public Varargs invoke(Varargs a) { showEntity(e); return a.arg1(); }
+        m.set("clickable", new VarArgFunction() {       // opt into the client-side pick (never reaches the server)
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue bv = Args.written(a, 2, kind + ":clickable", "b");
+                if(bv == null) {
+                    synchronized(e) { return LuaValue.valueOf(e.clickable); }
+                }
+                setEntityClickable(e, bv.toboolean());
+                return self;
+            }
         });
-        h.set("hide", new VarArgFunction() {            // V3: remove the scene slot (keeps the entity)
-            public Varargs invoke(Varargs a) { hideEntity(e); return a.arg1(); }
+        m.set("onClick", new VarArgFunction() {         // fn(handle, button, x, y) -- the per-entity click callback
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue fn = Args.written(a, 2, kind + ":onClick", "fn");
+                if(fn == null) {
+                    synchronized(e) { return (e.onClick == null) ? LuaValue.NIL : e.onClick; }
+                }
+                if(!fn.isfunction())
+                    throw new LuaError(kind + ":onClick(fn) expects a function fn(" + kind
+                        + ", button, x, y), got " + fn.typename());
+                synchronized(e) { e.onClick = fn; }
+                return self;
+            }
         });
-        // :follow / :offset are GONE (038.2, hard cut) — they read as plain nil. Anchoring a drawn thing to a game
-        // object is gob:overlay(key, spec), which keys it, reads it back and ends it with the gob; what is left
-        // here places something at a fixed world point, so there is no anchor to set or clear.
-        h.set("pos", new ZeroArgFunction() {
-            public LuaValue call() { return entityPos(e); }
+        // exists() -- is it still in the world? False once the collection removed it, and false after a teardown.
+        m.set("exists", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                synchronized(e) { return LuaValue.valueOf(!e.dead); }
+            }
         });
-        h.set("destroy", new VarArgFunction() {
-            public Varargs invoke(Varargs a) { destroyEntity(e); return a.arg1(); }
-        });
-    }
-
-    /**
-     * The Lua handle for a {@link LuaGhost} (V1 + V2 + V3): the shared entity verbs ({@link #addEntityHandle}) plus
-     * the ghost-only {@code :res()} / {@code :setRes(res[,sdt])} (V3, swap the {@code .res} model) and
-     * {@code :clickable(bool)} (V2 — pick-selectability, which needs the ghost-scoped V2 click dispatch). A
-     * mutation before the deferred create has published the gob updates the desired-state the create will apply;
-     * afterwards it acts on the live gob.
-     */
-    private static LuaValue ghostHandle(final LuaGhost gh) {
+        if(extra != null) {
+            LuaValue k = LuaValue.NIL;
+            while(true) {
+                Varargs n = extra.next(k);
+                k = n.arg1();
+                if(k.isnil())
+                    break;
+                m.set(k, n.arg(2));
+            }
+        }
         LuaTable h = new LuaTable();
-        addEntityHandle(h, gh);
-        h.set("setRes", new VarArgFunction() {          // V3: swap the visual (streams in like new)
-            public Varargs invoke(Varargs a) {
-                LuaValue resv = a.arg(2), sdtv = a.arg(3);
-                if(!resv.isstring())
-                    throw new LuaError("ghost:setRes(res [, sdt]) expects a resource name string — use a COLON call");
-                setGhostRes(gh, resv.tojstring(), luaSdt(sdtv));
-                return a.arg1();
-            }
-        });
-        h.set("res", new ZeroArgFunction() {
-            public LuaValue call() { return (gh.resName == null) ? LuaValue.NIL : LuaValue.valueOf(gh.resName); }
-        });
-        h.set("clickable", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                setEntityClickable(gh, a.arg(2).toboolean());   // g:clickable(true|false); default (no arg) → false
-                return a.arg1();
-            }
-        });
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.INDEX, Retired.methodIndex(kind, m));
+        h.setmetatable(mt);
         return h;
     }
 
-    /**
-     * {@code hafen.ghost.list([filter])} — this addon's live ghosts as an array of their (stable) handles.
-     * Canonical filter adapted to handles: {@code nil} = all; a <b>string</b> = substring match on the ghost's
-     * {@code res} name; a <b>function</b> = called with the ghost <i>handle</i> (so it can call {@code :pos()}
-     * etc.), truthy keeps it (errors drop it). Dead/failed ghosts are skipped.
-     */
-    private static LuaValue ghostList(Addon owner, LuaValue filter) {
-        LuaTable out = new LuaTable();
-        int i = 0;
-        for(LuaGhost gh : owner.ghosts) {              // copy-on-write: a filter fn may create/destroy a ghost
-            if(gh.dead || (gh.handle == null) || gh.asOverlay)   // 038.2: an overlay's ghost is reached through gob:overlay
-                continue;
-            if(entityMatches(filter, gh))
-                out.set(++i, gh.handle);
-        }
-        return out;
+    /** A required number argument, refused by name rather than silently coerced to zero. */
+    private static double number(Varargs a, int i, String verb, String param) {
+        LuaValue v = Args.required(a, i, verb, param);
+        if(!v.isnumber())
+            throw new LuaError(verb + ": " + param + " must be a number, got " + v.typename());
+        return v.todouble();
     }
 
     /**
-     * Does world entity {@code e} pass {@code filter}? The canonical filter adapted to handles: {@code nil} = all;
-     * a <b>string</b> = substring match on the entity's {@link LuaWorldEntity#visualName()} (a ghost's {@code res}
-     * name / a sprite's image path); a <b>function</b> = called with the entity <i>handle</i> (so it can call
-     * {@code :pos()} etc.), truthy keeps it (errors drop it). Shared by ghost and (future) sprite listings.
+     * Move an entity and/or turn it: {@code rc} null keeps where it stands, {@code ang} null keeps its facing.
+     * A live gob is repositioned now; one whose visual is still streaming in just has its desired transform
+     * updated, and the create applies it at publish.
      */
-    private static boolean entityMatches(LuaValue filter, LuaWorldEntity e) {
-        if((filter == null) || filter.isnil())
-            return true;
-        if(filter.isfunction()) {
-            try {
-                return filter.call(e.handle).toboolean();
-            } catch(RuntimeException ex) {   // LuaError is a RuntimeException
-                return false;
+    private static void moveEntity(LuaWorldEntity e, Coord2d rc, Double ang) {
+        synchronized(e) {
+            if(e.dead)
+                return;                                // gone: a write to something that ended is a moment, not a mistake
+            if(rc != null)
+                e.rc = rc;
+            if(ang != null)
+                e.a = ang.doubleValue();
+            if(e.gob != null)
+                e.gob.move(e.rc, e.a);
+        }
+    }
+
+    /**
+     * The Lua handle for a {@link LuaGhost}: the shared entity verbs plus {@code :res()} / {@code :res(name
+     * [, spawnData])} — one name for the read and the write of the {@code .res} model it draws, where a
+     * {@code :res()} read and a {@code setRes} write used to be two.
+     */
+    private static LuaValue ghostHandle(final LuaGhost gh) {
+        LuaTable x = new LuaTable();
+        x.set("res", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue rv = Args.written(a, 2, "ghost:res", "res");
+                if(rv == null)
+                    return (gh.resName == null) ? LuaValue.NIL : LuaValue.valueOf(gh.resName);
+                if(!rv.isstring() || rv.isnumber())
+                    throw new LuaError("ghost:res(res [, spawnData]) expects a resource NAME string, got "
+                        + rv.typename());
+                setGhostRes(gh, rv.tojstring(), luaSdt(a.arg(3)));   // swaps the visual; it streams in like new
+                return self;
             }
-        }
-        if(filter.isstring()) {
-            String nm = e.visualName();
-            return (nm != null) && nm.contains(filter.tojstring());
-        }
-        return true;
+        });
+        return entityHandle(gh, "ghost", x);
     }
 
     /**
@@ -440,6 +565,49 @@ final class RenderApi {
         }
     }
 
+    /**
+     * Add a freshly built entity to the scene, or leave it <b>pending</b> when the ground under it has not
+     * streamed in yet. The scene resolves the tile under a gob as it is added, so a place the character has
+     * walked but the client has not re-streamed raises {@code Loading} there — which is a <i>not yet</i>,
+     * not a <i>no</i>, and the same kick-the-load model every other read in this API follows. So the entity
+     * is kept, {@link #armPending} retries it on each addon tick, and the caller's chain goes on working.
+     * Caller holds the entity monitor.
+     */
+    private static void addToScene(LuaWorldEntity e, MapView mv) {
+        try {
+            e.slot = mv.addClientGob(e.gob);
+        } catch(Loading l) {
+            e.pending = true;                          // the tile is not here yet: retried on the next tick
+        }
+    }
+
+    /**
+     * Retry every pending entity's scene add, once per addon tick (from {@code AddonManager.tick}). A place
+     * whose ground arrives is added exactly once; one that never arrives simply stays out of the scene, which
+     * is what an addon asking for a place it cannot see should get.
+     */
+    static void armPending(Addon a) {
+        armPending(a.ghosts);
+        armPending(a.sprites);
+        armPending(a.objects);
+    }
+
+    private static void armPending(List<? extends LuaWorldEntity> reg) {
+        for(LuaWorldEntity e : reg) {
+            synchronized(e) {
+                if(!e.pending || e.dead || e.hidden || (e.gob == null) || (e.mv == null))
+                    continue;
+                try {
+                    e.slot = e.mv.addClientGob(e.gob);
+                    e.pending = false;
+                    e.gob.move(e.rc, e.a);
+                } catch(RuntimeException ex) {
+                    /* still loading, or the scene is gone — try again next tick */
+                }
+            }
+        }
+    }
+
     /** Tear down every ghost this addon owns (reload/disable/relogin, P2): destroy each (slot removed + visual freed). */
     static void teardownGhosts(Addon a) {
         if(a.ghosts.isEmpty())
@@ -456,34 +624,10 @@ final class RenderApi {
             destroyEntity(sp);          // removes each from a.sprites as it goes (copy-on-write list)
     }
 
-    // ---- R3: custom 3D models in the world (hafen.render.object) -----------------------------------------------
+    // ---- custom 3D models in the world (hafen.render():object()) -------------------------------------------
 
     /**
-     * {@code hafen.render.object{model, x, y [, a] [, scale] [, alpha] [, tint] [, clickable] [, onClick] [, follow]
-     * [, offset]}} (R3a): stand a custom glTF model in the 3D world — the mesh sibling of a sprite/ghost, on the same
-     * virtual-entity core (spec 18 §3). Validates the options, resolves the {@code model} (a {@code hafen.asset}
-     * mesh handle — <b>handle-only</b>, 028.2), builds a {@link GhostGob}, attaches a {@link MeshSprite}
-     * ({@code SprDrawable}), and adds it to the MapView {@code basic} scene ({@link MapView#addClientGob}). Everything
-     * else — transform, look, {@code follow} anchor, {@code clickable}/{@code onClick}, gizmo — is shared with sprites.
-     * Because the geometry is already decoded ({@link Gltf}), there is NO {@code Loading} to dodge — the gob is built
-     * and published <b>synchronously</b> on the calling UI thread (mirrors {@link #newSprite}). Registered in the
-     * addon's owned-resource registry (P2). Returns {@code nil} if there is no map view (not in the world); throws a
-     * {@link LuaError} for a malformed table / a bad {@code model}.
-     */
-    private static LuaValue newObject(Addon owner, LuaValue opts) {
-        if(!opts.istable())
-            throw new LuaError("hafen.render.object{model=..., x=..., y=...} expects an options table");
-        refuseFollow(opts, "hafen.render.object", "model(<asset>)");
-        LuaValue xv = opts.get("x"), yv = opts.get("y");
-        if(!xv.isnumber() || !yv.isnumber())
-            throw new LuaError("hafen.render.object: 'x' and 'y' must be numbers (world coordinates, like gob:pos())"
-                + " — to put a model ON a game object, use gob:overlay(key, {model = asset}) instead");
-        LuaObject ob = makeObject(owner, opts, 0, null);
-        return (ob == null) ? LuaValue.NIL : ob.handle;
-    }
-
-    /**
-     * Build an object and publish it — the body of {@link #newObject}, shared with the world-space half of
+     * Build an object and publish it — the body of {@code hafen.render():object():add}, shared with the world-space half of
      * {@code gob:overlay(key, {model = asset})} (038.2). {@code tgt != 0} anchors it to that gob id; {@code 0} is
      * the fixed placement. Returns {@code null} when there is no map view (not in the world).
      */
@@ -525,29 +669,28 @@ final class RenderApi {
             ob.mv = mv;
             applyEntityFollow(ob, gob);                 // ANCHOR: an overlay's model starts tracking its gob now
             if(!ob.hidden)
-                ob.slot = mv.addClientGob(gob);         // the // addon: MapView seam (spec 16 §6); MapView now ticks it
+                addToScene(ob, mv);                     // the // addon: MapView seam; pending when the tile is not here yet
         }
         return ob;
     }
 
     /**
-     * The Lua handle for a {@link LuaObject} (R3): the shared entity verbs ({@link #addEntityHandle}) plus the
-     * object's {@code :mesh()} identity accessor (its addon-relative model path) and {@code :clickable(bool)} (the
-     * V2 pick surface, mirroring a sprite/ghost). No {@code :setRes}/{@code :setModel} — an object's mesh is fixed at create (R3a).
+     * The Lua handle for a {@link LuaObject}: the shared entity verbs plus {@code :mesh()}, its model's
+     * addon-relative path. There is no write half — an object's geometry is milled at create, and swapping it is
+     * {@code hafen.render():object():add(other)} on a fresh one.
      */
     private static LuaValue objectHandle(final LuaObject ob) {
-        LuaTable h = new LuaTable();
-        addEntityHandle(h, ob);
-        h.set("mesh", new ZeroArgFunction() {
-            public LuaValue call() { return (ob.meshName == null) ? LuaValue.NIL : LuaValue.valueOf(ob.meshName); }
-        });
-        h.set("clickable", new VarArgFunction() {
+        LuaTable x = new LuaTable();
+        x.set("mesh", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                setEntityClickable(ob, a.arg(2).toboolean());   // o:clickable(true|false); default (no arg) → false
-                return a.arg1();
+                if(Args.passed(a, 2))
+                    throw new LuaError("object:mesh() reads the model path and does not write it — an object's"
+                        + " geometry is milled when it is placed, so another model is another object:"
+                        + " hafen.render():object():add(asset)");
+                return (ob.meshName == null) ? LuaValue.NIL : LuaValue.valueOf(ob.meshName);
             }
         });
-        return h;
+        return entityHandle(ob, "object", x);
     }
 
     /**
@@ -559,15 +702,15 @@ final class RenderApi {
      */
     private static LuaMesh resolveObjectMesh(LuaValue modelv) {
         if(modelv.isstring() && !modelv.isnumber())    // in LuaJ a number IS a string — that one is just a wrong type
-            throw new LuaError("hafen.render.object: 'model' is a hafen.asset mesh handle, not a path string — load it"
-                + " once with hafen.asset(\"" + modelv.tojstring() + "\") and pass the handle (it is interned, so"
+            throw new LuaError("hafen.render():object():add(model): the argument is a hafen.asset mesh HANDLE, not a path string — load it"
+                + " once with hafen.asset():get(\"" + modelv.tojstring() + "\") and pass the handle (it is interned, so"
                 + " repeating the load is free)");
         LuaMesh lm = LuaMesh.resolve(modelv);          // a handle or its raw userdata
         if(lm == null)
-            throw new LuaError("hafen.render.object: 'model' must be a hafen.asset mesh handle"
-                + " (hafen.asset(\"chair.glb\")), got " + modelv.typename());
+            throw new LuaError("hafen.render():object():add(model): the argument must be a hafen.asset mesh handle"
+                + " (hafen.asset():get(\"chair.glb\")), got " + modelv.typename());
         if(lm.dead)
-            throw new LuaError("hafen.render.object: 'model' has been disposed — after a :dispose(), hafen.asset(path)"
+            throw new LuaError("hafen.render():object():add(model): that mesh has been disposed — after a :dispose(), hafen.asset():get(path)"
                 + " loads the file again as a NEW asset");
         return lm;
     }
@@ -580,38 +723,10 @@ final class RenderApi {
             destroyEntity(ob);          // removes each from a.objects as it goes (copy-on-write list)
     }
 
-    // ---- R2: custom world sprites (hafen.render.sprite) --------------------------------------------------------
+    // ---- custom world sprites (hafen.render():sprite()) ------------------------------------------------------
 
     /**
-     * {@code hafen.render.sprite{image, x, y [, a] [, scale] [, alpha] [, tint] [, billboard] [, clickable] [, onClick]}}
-     * (R2): stand a custom PNG in the 3D world — the non-{@code .res} sibling of a ghost, on the same virtual-entity
-     * core (spec 17 §5). Validates the options, resolves the {@code image} (a {@code hafen.asset} image handle —
-     * <b>handle-only</b>, 028.2), builds a {@link GhostGob}, attaches the visual, and adds it to the
-     * MapView {@code basic} scene ({@link MapView#addClientGob}). The visual is the ONLY thing {@code billboard}
-     * selects: {@code false} (default) → a resource-free {@link SprDrawable} quad ({@link SpriteQuad}) standing
-     * upright, sized to the image aspect (R2a); {@code true} → a resource-free {@link LuaSpriteBillboard} camera-facing
-     * screen blit (R2b). Everything else — transform, look, {@code follow} anchor, gizmo — is shared. Unlike a ghost
-     * the texture is already decoded, so there is NO {@code Loading} to dodge — the gob is built and published
-     * <b>synchronously</b> on the calling UI thread (the handle's gob is live before it is returned). {@code clickable}
-     * (+ per-sprite {@code onClick}) opts a <b>fixed</b> sprite into the V2 pick dispatch (its quad renders into the
-     * clickmap); a <b>billboard</b> has no world mesh so it is never picked (the flag is a harmless no-op). Registered
-     * in the addon's owned-resource registry (P2). Returns {@code nil} if there is no map view (not in the world);
-     * throws a {@link LuaError} for a malformed table.
-     */
-    private static LuaValue newSprite(Addon owner, LuaValue opts) {
-        if(!opts.istable())
-            throw new LuaError("hafen.render.sprite{image=..., x=..., y=...} expects an options table");
-        refuseFollow(opts, "hafen.render.sprite", "image(<asset>)");
-        LuaValue xv = opts.get("x"), yv = opts.get("y");
-        if(!xv.isnumber() || !yv.isnumber())           // x/y are the placement — a sprite ON a gob is gob:overlay
-            throw new LuaError("hafen.render.sprite: 'x' and 'y' must be numbers (world coordinates, like gob:pos())"
-                + " — to put an image ON a game object, use gob:overlay(key, {image = asset}) instead");
-        LuaSprite sp = makeSprite(owner, opts, 0, null);
-        return (sp == null) ? LuaValue.NIL : sp.handle;
-    }
-
-    /**
-     * Build a sprite and publish it — the body of {@link #newSprite}, shared with the world-space half of
+     * Build a sprite and publish it — the body of {@code hafen.render():sprite():add}, shared with the world-space half of
      * {@code gob:overlay(key, {image = asset})} (038.2). {@code tgt != 0} anchors it to that gob id (a
      * {@link FollowMoving} applied before the gob enters the scene); {@code tgt == 0} is the fixed placement.
      * Returns {@code null} when there is no map view (not in the world).
@@ -648,12 +763,7 @@ final class RenderApi {
         gob.a = a;
         gob.alpha = sp.alpha; gob.tint = sp.tint; gob.scale = sp.scale;   // reflect the look before the first scene add
         gob.clickable = sp.clickable;                  // R2b: a fixed sprite's quad renders into the clickmap → V2-pickable (see onGhostClick)
-        if(billboard) {
-            gob.setattr(new LuaSpriteBillboard(gob, img));               // camera-facing screen blit (reads the look live each frame)
-        } else {
-            float[] wh = spriteWorldDims(img.sz);
-            gob.setattr(new SprDrawable(gob, SpriteQuad.mill(img.tex, wh[0], wh[1])));   // resource-free textured quad
-        }
+        gob.setattr(spriteVisual(gob, img, billboard));                  // the one miller, shared with :billboard(b)
         gob.move(rc, a);
         synchronized(sp) {
             if(sp.dead) { gob.dispose(); return sp; }   // destroyed mid-build (defensive; all UI-thread) → discard
@@ -661,31 +771,77 @@ final class RenderApi {
             sp.mv = mv;
             applyEntityFollow(sp, gob);                 // ANCHOR: an overlay's sprite starts tracking its gob now
             if(!sp.hidden)                              // a sprite hidden before it published stays out of the scene
-                sp.slot = mv.addClientGob(gob);         // the // addon: MapView seam (spec 16 §6); MapView now ticks it
+                addToScene(sp, mv);                     // the // addon: MapView seam; pending when the tile is not here yet
         }
         return sp;
     }
 
     /**
-     * The Lua handle for a {@link LuaSprite} (R2): the shared entity verbs ({@link #addEntityHandle}) plus the
-     * sprite's {@code :image()} identity accessor (its addon-relative path) and {@code :clickable(bool)} (R2b — the
-     * V2 pick surface, mirroring a ghost). {@code :clickable} works on a <b>fixed</b> sprite (its quad renders into
-     * the clickmap); on a billboard it is a harmless no-op (no world mesh to pick). No {@code :setRes} — a sprite's
-     * visual (its image) is fixed at create.
+     * The Lua handle for a {@link LuaSprite}: the shared entity verbs plus {@code :image()} (its image's
+     * addon-relative path) and {@code :billboard()} / {@code :billboard(b)}.
+     *
+     * <p><b>{@code :billboard} is a CONSTRUCTION property, so writing it REBUILDS the visual</b> — the flag picks
+     * which drawable is milled (an upright world quad or a camera-facing screen blit) and nothing can change that
+     * in place. Refusing it after the fact would make the natural reading order illegal, and deferring the whole
+     * build would move <i>there is no map view</i> off the call site that caused it; so the rebuild is the
+     * property's implementation rather than a rule the caller has to know.
      */
     private static LuaValue spriteHandle(final LuaSprite sp) {
-        LuaTable h = new LuaTable();
-        addEntityHandle(h, sp);
-        h.set("image", new ZeroArgFunction() {
-            public LuaValue call() { return (sp.imgName == null) ? LuaValue.NIL : LuaValue.valueOf(sp.imgName); }
-        });
-        h.set("clickable", new VarArgFunction() {
+        LuaTable x = new LuaTable();
+        x.set("image", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                setEntityClickable(sp, a.arg(2).toboolean());   // s:clickable(true|false); default (no arg) → false
-                return a.arg1();
+                if(Args.passed(a, 2))
+                    throw new LuaError("sprite:image() reads the image path and does not write it — the texture"
+                        + " is sampled when the sprite is placed, so another image is another sprite:"
+                        + " hafen.render():sprite():add(asset)");
+                return (sp.imgName == null) ? LuaValue.NIL : LuaValue.valueOf(sp.imgName);
             }
         });
-        return h;
+        x.set("billboard", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue bv = Args.written(a, 2, "sprite:billboard", "b");
+                if(bv == null) {
+                    synchronized(sp) { return LuaValue.valueOf(sp.billboard); }
+                }
+                setSpriteBillboard(sp, bv.toboolean());
+                return self;
+            }
+        });
+        return entityHandle(sp, "sprite", x);
+    }
+
+    /**
+     * {@code sprite:billboard(b)} — swap between the two visuals a sprite can have, in place. The gob keeps its
+     * identity, its transform and its scene slot; only the {@code Drawable} is replaced, under the gob's own
+     * monitor (the lock the engine's live res-swap holds, because {@code slots} is a plain list shared with the
+     * {@code ctick} path). No-op when unchanged, dead, or still waiting for its gob.
+     */
+    private static void setSpriteBillboard(LuaSprite sp, boolean on) {
+        synchronized(sp) {
+            if(sp.dead || (sp.billboard == on))
+                return;
+            sp.billboard = on;
+            Gob g = sp.gob;
+            if(g == null)
+                return;                                // not published yet — the create reads the flag
+            Drawable dr = spriteVisual(g, sp.img, on);
+            synchronized(g) {
+                g.setattr(dr);                         // swaps the Drawable attrib: old slots removed, new added
+            }
+            refreshEntityScene(sp);                    // obstate reads the look fresh on the re-add
+        }
+    }
+
+    /**
+     * The one place a sprite's visual is milled, so the create and {@code :billboard(b)} cannot disagree: a fixed
+     * upright quad sized to the image aspect, or a camera-facing screen blit that reads the look live each frame.
+     */
+    private static Drawable spriteVisual(Gob gob, LuaImage img, boolean billboard) {
+        if(billboard)
+            return new LuaSpriteBillboard(gob, img);
+        float[] wh = spriteWorldDims(img.sz);
+        return new SprDrawable(gob, SpriteQuad.mill(img.tex, wh[0], wh[1]));
     }
 
     /**
@@ -696,15 +852,15 @@ final class RenderApi {
      */
     private static LuaImage resolveSpriteImage(LuaValue imgv) {
         if(imgv.isstring() && !imgv.isnumber())        // in LuaJ a number IS a string — that one is just a wrong type
-            throw new LuaError("hafen.render.sprite: 'image' is a hafen.asset image handle, not a path string — load it"
-                + " once with hafen.asset(\"" + imgv.tojstring() + "\") and pass the handle (it is interned, so"
+            throw new LuaError("hafen.render():sprite():add(image): the argument is a hafen.asset image HANDLE, not a path string — load it"
+                + " once with hafen.asset():get(\"" + imgv.tojstring() + "\") and pass the handle (it is interned, so"
                 + " repeating the load is free)");
         LuaImage li = LuaImage.resolve(imgv);          // a handle or its raw userdata
         if(li == null)
-            throw new LuaError("hafen.render.sprite: 'image' must be a hafen.asset image handle"
-                + " (hafen.asset(\"icon.png\")), got " + imgv.typename());
+            throw new LuaError("hafen.render():sprite():add(image): the argument must be a hafen.asset image handle"
+                + " (hafen.asset():get(\"icon.png\")), got " + imgv.typename());
         if(li.dead)
-            throw new LuaError("hafen.render.sprite: 'image' has been disposed — after a :dispose(), hafen.asset(path)"
+            throw new LuaError("hafen.render():sprite():add(image): that image has been disposed — after a :dispose(), hafen.asset():get(path)"
                 + " loads the file again as a NEW asset");
         return li;
     }
@@ -903,20 +1059,6 @@ final class RenderApi {
     // ---- ANCHOR: the world-space half of gob:overlay (038.2) ---------------------------------------------------
 
     /**
-     * Refuse a {@code follow=} option, <b>naming its replacement</b> (038.2, hard cut). The anchor did not go away
-     * — it moved onto the thing it anchors to, where it can be keyed, read back and ended with the gob. A silently
-     * ignored {@code follow=} would leave a sprite standing at {@code 0,0} on the far side of the world with
-     * nothing to say why, which is exactly the failure D-072 exists to refuse.
-     */
-    private static void refuseFollow(LuaValue opts, String where, String spec) {
-        if(opts.get("follow").isnil() && opts.get("offset").isnil())
-            return;
-        throw new LuaError(where + ": 'follow'/'offset' are GONE — a drawn thing attached to a GAME OBJECT is now"
-            + " gob:overlay():add(key):" + spec + ", which keys it per addon, reads back through gob:overlay()"
-            + " and dies with the gob; this namespace stands things at a fixed world point");
-    }
-
-    /**
      * Build the world-space half of {@code gob:overlay(key, spec)} (038.2): a client-only entity — a sprite
      * ({@code image}), an object ({@code model}) or a ghost ({@code ghost}) — anchored to {@code tgt} by a
      * {@link FollowMoving}, so the render tree places it at the gob's live interpolated position + {@code off}
@@ -991,23 +1133,6 @@ final class RenderApi {
             if(e.gob != null)
                 e.gob.move(e.rc, e.a);
         }
-    }
-
-    /**
-     * The transform of a live world entity as {@code {x, y, a, scale}} — the entity handle's {@code :pos()} and,
-     * composed, an Overlay object's. While anchored, {@code x}/{@code y} are the LIVE followed point (the gob's
-     * position + the overlay's offset), which is what makes {@code ov:pos()} answer where the thing actually is.
-     */
-    static LuaValue entityPos(LuaWorldEntity e) {
-        LuaTable t = new LuaTable();
-        synchronized(e) {
-            Coord2d rc = entityWorldPos(e);
-            t.set("x", LuaValue.valueOf(rc.x));
-            t.set("y", LuaValue.valueOf(rc.y));
-            t.set("a", LuaValue.valueOf(e.a));
-            t.set("scale", LuaValue.valueOf((double)e.scale));   // V6: the full transform is {x,y,a,scale}
-        }
-        return t;
     }
 
     /**

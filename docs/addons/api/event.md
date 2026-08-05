@@ -159,7 +159,7 @@ event is about *visibility*, and at `disappear` the widget is a key to match, no
 All three are **owner-scoped**: they fire only to the addon that owns the clicked entity, unlike the
 world and roster events above, which broadcast. That is because a ghost, sprite or object is private
 to its addon and its handle never leaves it. `ghost`, `sprite` and `object` are the clicked
-[handle](render/sprites.md#sprite-handle); `button` is 1 for left and 3 for right; `x, y` is the world
+[entity](render/sprites.md#the-sprite); `button` is 1 for left and 3 for right; `x, y` is the world
 point the click resolved to. The click is **consumed** — no server click, no character walk. An entity
 fires this only while clickable; a non-clickable one is click-through and silent, and a **billboard**
 sprite has no world mesh, so it is never picked at all.

@@ -711,36 +711,13 @@ public final class LuaOverlay {
         };
     }
 
-    /** A colour argument: positional components, or a colour value handed straight back from another read. */
+    /** A colour argument / a colour read — the API's one spelling, shared with every other colour property. */
     private static java.awt.Color colorArg(Varargs a, int i, String verb) {
-        LuaValue v = a.arg(i);
-        if(v.istable()) {
-            java.awt.Color c = AddonManager.luaColor(v, null);
-            if(c == null)
-                throw new LuaError(verb + "(color): a colour value is {r, g, b[, a]} (0..255)");
-            return c;
-        }
-        LuaTable t = new LuaTable();
-        int n = 0;
-        for(int j = i; (j <= a.narg()) && a.arg(j).isnumber(); j++)
-            t.set(++n, a.arg(j));
-        java.awt.Color c = AddonManager.luaColor(t, null);
-        if(c == null)
-            throw new LuaError(verb + "(r, g, b[, a]) expects three or four numbers 0..255, or a colour value"
-                + " read back from the API");
-        return c;
+        return AddonManager.colorArg(a, i, verb);
     }
 
-    /** A colour read: the {@code {r, g, b, a}} value every colour read in this API hands back. */
     private static LuaValue colorValue(java.awt.Color c) {
-        if(c == null)
-            return LuaValue.NIL;
-        LuaTable t = new LuaTable();
-        t.set(1, LuaValue.valueOf(c.getRed()));
-        t.set(2, LuaValue.valueOf(c.getGreen()));
-        t.set(3, LuaValue.valueOf(c.getBlue()));
-        t.set(4, LuaValue.valueOf(c.getAlpha()));
-        return t;
+        return AddonManager.colorValue(c);
     }
 
     /** A required number argument, refused by name rather than coerced to zero. */

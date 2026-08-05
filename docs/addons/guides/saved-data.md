@@ -55,7 +55,7 @@ you can draw again. Rebuild the live objects from that on load.
 hafen.event():on("OnEnterWorld", function()
   for _, p in ipairs(hafen.store.settings.props or {}) do
     local w = hafen.world():position(p.anchor)                  -- :x() is nil until that grid is reachable
-    if w then hafen.ghost.new{ res = p.res, x = w.x, y = w.y } end
+    if w then hafen.ghost():add(p.res, w) end
   end
 end)
 ```

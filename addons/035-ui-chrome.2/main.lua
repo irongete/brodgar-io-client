@@ -76,7 +76,7 @@ local PANEL = "panel.png"
 local DARK = { 26, 26, 28, 240 }
 
 local function border()
-  return { image = hafen.asset(PANEL), slice = SL }
+  return { image = hafen.asset():get(PANEL), slice = SL }
 end
 
 -- ---- the run ------------------------------------------------------------------------------------

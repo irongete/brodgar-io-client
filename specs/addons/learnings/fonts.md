@@ -413,3 +413,17 @@
   zero. A layout-only sheet therefore still costs exactly one key refresh; what it must NOT do is make the
   key *two*, which is what a drawing rule (a frame opened over the widget it names) does. Both halves belong
   in the same round: "still one" alone cannot tell a working check from a blind one.
+- **(039.8) A `FontHandle` is shared twice over, so making it mutable needs two different refusals.** It is
+  interned per addon (`hafen.font():get("mono")` is one object) *and* every consumer reads it at the moment
+  it is handed over — `AddonWidget`'s ctor, `Sheet`'s rule set and `LuaGOut`'s per-call `{font=}` all call
+  `FontHandle.resolve` right then and keep the resolved value. So a setter on a built-in restyles surfaces
+  you never named, and a setter on a handle you already installed does nothing at all. `resolve` is the one
+  door, which is what makes the seal a single line there (D-126).
+- **(039.8) 029.1's shadowing trap fires on `name` in a per-property setter factory, and every read lies
+  quietly.** `private static LuaValue property(final FontHandle fh, final String name)` returning an
+  anonymous `VarArgFunction` captures `LibFunction`'s inherited `protected String name` (null), not the
+  parameter — so `"size".equals(name)` is false for every branch and the dispatch falls through to its
+  LAST one: every read answered `:italic()`, every write set italic. It compiles, it runs, and the only
+  thing that catches it is asserting the VALUE of each property, not that the call succeeded. The
+  forbidden-name list for a parameter captured inside an anonymous `LuaValue` subclass is *anything
+  LuaJ declares*: `name`, `arg`, `get`, `set`, `type`, `len`, `call`.

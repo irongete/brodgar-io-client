@@ -1,7 +1,7 @@
 {
   "name": "038.3 — the two events, and the only core edits",
   "id": "038-gob-overlays.3",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 038.3: GobOverlayAdded/GobOverlayRemoved with the payload { gob, key, native } -- an attach firing exactly one add with native = false and the right key, a remove firing exactly one removal, a replace firing the removal AND the add so the pair stays balanced, the events arriving on the TICK rather than inside gob:overlay, a hafen.* read working inside the handler (it runs on the UI thread), the same pair for a world-space kind, no event for another addon's overlay (the addon half is owner-scoped), and the game's own overlays arriving with native = true and a resource-name key -- reported as an assertion when the world has decorated a gob near you and as a [manual] walk when it has not.",
   "api_version": 1,

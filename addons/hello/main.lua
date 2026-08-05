@@ -4,18 +4,18 @@
 -- the separate, opt-in `walker` addon, which DECLARES "permissions": ["actions"] and is therefore disabled by
 -- default; enabling it in Options > AddOns raises a consent dialog (write-actions are a per-addon permission — no
 -- global switch).
--- Built on V1+V2+V3: CLIENT-ONLY WORLD GHOSTS — hafen.ghost.new{res, x, y[, a]} places a virtual prop (a Gob with
+-- Built on V1+V2+V3: CLIENT-ONLY WORLD GHOSTS — hafen.ghost():add(res, p) places a virtual prop (a Gob
 -- NO server id) in the 3D world; it never reaches the server and grants no advantage, so it is SAFE-tier, NOT
 -- gated (D-029) — a visualization, like a HUD overlay (the motivating use is city/base planning). It returns a
--- bridge-owned handle with :move(x,y[,a]) / :pos() / :res() / :clickable(bool) / :destroy(); hafen.ghost.list(
+-- bridge-owned handle with :position(p[,a]) / :res() / :clickable(b), ended by hafen.ghost():remove(g); :list(
 -- [filter]) returns this addon's live ghosts. Ghosts are torn down on reload/disable/relogin (P2). V2 adds OPT-IN
 -- CLICKABILITY — clickable=true (or :clickable(bool)) gives a ghost a pick surface; a click on it is detected
 -- client-side and CONSUMED before any server "click" (your character never walks/interacts — still SAFE-tier,
 -- D-032), firing the per-ghost onClick and the owner-scoped GhostClicked{ghost,button,x,y} event; a non-clickable
--- ghost is click-through. V3 adds LOOK & ORIENTATION — new{...alpha=, tint=, a=, sdt=}, and the handle verbs
--- :rotate(a) / :setRes(res[,sdt]) / :alpha(0..1) / :tint{r,g,b[,a]} / :show() / :hide(). Here, at OnEnterWorld the
+-- ghost is click-through. V3 adds LOOK & ORIENTATION — the handle verbs :rotate(a) / :res(name[, spawnData]) /
+-- :alpha(0..1) / :tint(r,g,b[,a]) / :visible(b), each a read/write pair on one name. Here, at OnEnterWorld the
 -- harness spawns a NON-clickable log cabin a few tiles away — ROTATED 45° and TRANSLUCENT (the V3 look) — reads
--- list()/pos(), :moves it, then LIVE-SWAPS its resource + rotates it (V3), hides & re-shows it, and auto-destroys
+-- count()/position(), moves it, then LIVE-SWAPS its resource + rotates it (V3), hides & re-shows it, and removes
 -- it after 8s (the V1+V3 regression); ':hello ghost' toggles a CLICKABLE, translucent cabin at your position whose
 -- onClick live-cycles :rotate + :alpha (V2 click driving V3 look; you do NOT move — still SAFE-tier).
 -- Built on gap subsystem A7: MOVEMENT SPEED — hafen.speed reads the crawl/walk/run/sprint selector
@@ -1152,10 +1152,10 @@ hafen.event():on("OnEnterWorld", function()
   readSound("login")
 end)
 
--- V1+V3: CLIENT-ONLY WORLD GHOSTS (hafen.ghost). A ghost is a virtual prop rendered in the 3D world at world
+-- V1+V3: CLIENT-ONLY WORLD GHOSTS (hafen.ghost()). A ghost is a virtual prop rendered in the 3D world at world
 -- coords — a Gob with NO server id, so it never reaches the server and grants no advantage: SAFE-tier, NOT
--- gated (D-029), a visualization like a HUD overlay. hafen.ghost.new{res,x,y[,a]} returns a bridge-owned handle
--- (:move/:pos/:res/:destroy + V3 :rotate/:setRes/:alpha/:tint/:show/:hide); hafen.ghost.list([filter]) lists this
+-- gated (D-029), a visualization like a HUD overlay. hafen.ghost():add(res, p) returns a bridge-owned
+-- (:position/:res/:rotate/:alpha/:tint/:scale/:visible/:clickable); hafen.ghost():list([filter]) lists this
 -- addon's live ghosts. The visual streams in a beat later (the resource resolves on a loader thread, dodging
 -- Loading), so the handle works immediately while the prop appears shortly after. This handler is the V1+V3
 -- REGRESSION: it spawns a log cabin ~3 tiles E of you ROTATED 45° and TRANSLUCENT with a bluish tint (the V3
@@ -1167,27 +1167,23 @@ hafen.event():on("OnEnterWorld", function()
   local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
   local p = me and me:position()
   if not p then hafen.log():write("V1: ghost demo skipped -- no player position yet"); return end
-  local px, py = p:x(), p:y()
-  local g = hafen.ghost.new{
-    res = "gfx/terobjs/arch/logcabin", x = px + 33, y = py,       -- +3 tiles E (tile=11)
-    a = math.pi / 4,                                              -- V3: rotated 45°
-    alpha = 0.5,                                                  -- V3: translucent "ghost" look (the DoD)
-    tint = { r = 120, g = 180, b = 255, a = 110 },                -- V3: bluish colour overlay
-  }
-  if not g then hafen.log():write("V1: hafen.ghost.new returned nil (no map view yet?)"); return end
-  local q = g:pos()
-  hafen.log():write(("V1+V3: ghost spawned (%s) at %.0f,%.0f a=%.2f -- list=%d; translucent+rotated, :move 2 tiles N")
-    :format(tostring(g:res()), q.x, q.y, q.a, #hafen.ghost.list()))
-  g:move(px + 33, py + 22)                                       -- prove :move (2 tiles N); the prop follows
+  local g = hafen.ghost():add("gfx/terobjs/arch/logcabin", p:offset(33, 0))   -- what it draws, and where
+    :rotate(math.pi / 4)                                         -- +3 tiles E (tile=11), rotated 45 deg
+    :alpha(0.5)                                                  -- V3: translucent "ghost" look (the DoD)
+    :tint(120, 180, 255, 110)                                    -- V3: bluish colour overlay
+  local q = g:position()
+  hafen.log():write(("V1+V3: ghost spawned (%s) at %.0f,%.0f a=%.2f -- list=%d; translucent+rotated, moving 2 tiles N")
+    :format(tostring(g:res()), q:x(), q:y(), g:rotate(), hafen.ghost():count()))
+  g:position(p:offset(33, 22))                                   -- prove the write half; the prop follows
   hafen.timer():after(3, function()
-    g:setRes("gfx/terobjs/arch/timberhouse"):rotate(math.pi)     -- V3: live res-swap (DoD) + :rotate, chained
+    g:res("gfx/terobjs/arch/timberhouse"):rotate(math.pi)       -- V3: live res-swap (DoD) + :rotate, chained
     hafen.log():write(("V3: ghost res-swapped -> %s + rotated 180°"):format(tostring(g:res())))
   end)
-  hafen.timer():after(5, function() g:hide(); hafen.log():write("V3: ghost :hide()") end)   -- V3: remove from scene
-  hafen.timer():after(6, function() g:show(); hafen.log():write("V3: ghost :show()") end)   -- V3: re-add
+  hafen.timer():after(5, function() g:visible(false); hafen.log():write("V3: ghost :visible(false)") end)
+  hafen.timer():after(6, function() g:visible(true); hafen.log():write("V3: ghost :visible(true)") end)
   hafen.timer():after(8, function()
-    g:destroy()                                                  -- prove :destroy; teardown would also do this
-    hafen.log():write(("V1: ghost auto-destroyed -- list=%d"):format(#hafen.ghost.list()))
+    hafen.ghost():remove(g)                                      -- the collection placed it, so it ends it
+    hafen.log():write(("V1: ghost auto-removed -- list=%d"):format(hafen.ghost():count()))
   end)
 end)
 
@@ -1539,7 +1535,7 @@ local fontWin               -- F2: a small window rendered in the addon's OWN fo
 -- there is no GL leak (the Phase-R1 DoD). Loaded at OnLoad -> re-loaded on every reload (the env is rebuilt).
 local icon   -- the image handle (nil until loaded; a fresh reload rebuilds the env -> nil, re-loaded below)
 hafen.event():on("OnLoad", function()
-  icon = hafen.asset("icon.png")   -- 028.1: ONE loader for every file this addon ships (was hafen.render.image)
+  icon = hafen.asset():get("icon.png")   -- 028.1: ONE loader for every file this addon ships (was hafen.render.image)
   local s = icon:size()
   hafen.log():write(("R1: loaded icon.png (%dx%d) -- drawn in the 2a window (native + scaled) and the 2b HUD overlay")
     :format(s.w, s.h))
@@ -1554,21 +1550,22 @@ end)
 -- (or computes them when absent) and each material adds a Phong light state, so the model now SHADES with the world
 -- lights instead of drawing fullbright -- :info().lit counts the lit primitives. The handle exposes :bounds() ->
 -- {min,max,size} world units, :info() -> {prims,textured,lit,textures,verts,tris}, and :dispose() (also automatic
--- on reload/disable, P2). Stand it with hafen.render.object{model=cube, x=, y=}; ':hello object' places one.
+-- on reload/disable, P2). Stand it with hafen.render():object():add(cube); ':hello object' places one.
 local cube   -- the model handle (nil until loaded; a fresh reload rebuilds the env -> nil, re-loaded below)
 hafen.event():on("OnLoad", function()
-  cube = hafen.asset("tank.glb")   -- 028.1: same door as the image; the .glb extension picks the mesh loader
+  cube = hafen.asset():get("tank.glb")   -- 028.1: same door as the image; the .glb extension picks the mesh loader
   local b, nfo = cube:bounds(), cube:info()
   hafen.log():write(("R3c: loaded tank.glb -- %d prims (%d textured, %d LIT, %d textures), %d tris; baked size %.0f x %.0f x %.0f world units (~%.1f tiles tall); :hello object to place it (now shaded by the world lights)")
     :format(nfo.prims, nfo.textured, nfo.lit, nfo.textures, nfo.tris, b.size.x, b.size.y, b.size.z, b.size.z / 11))
 end)
 
 -- F1: PER-ADDON FONTS (hafen.font / hafen.asset). A font handle is PRIVATE to this addon (no shared registry,
--- D-043) and comes from one of two places (028.1): hafen.font(name) for a BUILT-IN ("sans"/"serif"/"mono"/
--- "fraktur" -- engine-owned, so addressed by name, interned, no lifetime) and hafen.asset(path) for a .ttf/.otf
+-- D-043) and comes from one of two places (028.1): hafen.font():get(name) for a BUILT-IN ("sans"/"serif"/"mono"/
+-- "fraktur" -- engine-owned, so addressed by name, interned, no lifetime) and hafen.asset():get(path) for a .ttf/.otf
 -- THIS addon ships (sandboxed like every asset: absolute / ".." are rejected, D-017). Neither takes options --
--- the size/style variant is :derive{size=..}, which is also what hafen.font.load(source, opts) became. The handle
--- exposes :derive(opts) (a cheap variant), :family() (the AWT family, for a $font tag in F2) and :size().
+-- the size/style variant is :derive():size(..), which is also what hafen.font.load(source, opts) became. The handle
+-- exposes :derive() (a cheap variant, configured by :size/:bold/:italic/:aa/:color), :family() (the AWT
+-- family, for a $font tag in F2) and :size().
 -- We prefer a bundled .ttf if one is present (drop any .ttf at addons/hello/fonts/demo.ttf to exercise the
 -- file-load + AWT-register path -- the DoD's "loads a TTF"); otherwise we fall back to the
 -- built-in "serif", which still proves the whole loop.
@@ -1634,15 +1631,15 @@ end
 hafen.event():on("OnLoad", function()
   skinRules = {}                                        -- a reload rebuilt the env; the sheet was torn down (P2)
   nodeFontApplied, nodeFontTarget = false, nil          -- F5: ...and so was the per-instance (widget:rule()) style (P2)
-  monoFont = hafen.font("mono"):derive{ size = 12 }     -- F2: a distinct font for the per-call g:text{font=} line
-  tintedFont = hafen.font("mono"):derive{ size = 13, color = { 255, 120, 190 } }   -- 033.2: a handle with a colour
-  local ok, ttf = pcall(hafen.asset, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
+  monoFont = hafen.font():get("mono"):derive():size(12)     -- F2: a distinct font for the per-call g:text{font=} line
+  tintedFont = hafen.font():get("mono"):derive():size(13):color(255, 120, 190)   -- 033.2: a handle with a colour
+  local ok, ttf = pcall(function() return hafen.asset():get("fonts/demo.ttf") end)   -- try a bundled .ttf first (the file-load path)...
   if ok and ttf then
     demoFont = ttf
     hafen.log():write(("F1: loaded bundled font fonts/demo.ttf -- family '%s', size %s -- :hello font to flip the default font")
       :format(demoFont:family(), tostring(demoFont:size() or "stock")))
   else
-    demoFont = hafen.font("serif"):derive{ size = 11 }  -- ...else a built-in (no TTF shipped by default). size in logical px.
+    demoFont = hafen.font():get("serif"):derive():size(11)  -- ...else a built-in (no TTF shipped by default). size in logical px.
     hafen.log():write(("F1: loaded built-in font 'serif' (size 11) -- family '%s'; drop a .ttf at addons/hello/fonts/demo.ttf to load a real TTF -- :hello font to flip the default font")
       :format(demoFont:family()))
   end
@@ -1692,34 +1689,34 @@ local function readSkin(tag)
   hafen.log():write(("[%s]              badProp on a TREE key -> %s"):format(tag, why{ ["@Inventory"] = { fnt = 1 } }))
   hafen.log():write(("[%s]              badKey -> %s"):format(tag, why{ ["window["] = { color = { 1, 2, 3 } } }))
   -- 4. the hard cut is still cut, and the sheet is still the only door (033.1).
-  hafen.log():write(("[%s] sheet cut: setFont=%s reset=%s scopes=%s | hafen.font('serif') still answers=%s"):format(tag,
+  hafen.log():write(("[%s] sheet cut: setFont=%s reset=%s scopes=%s | hafen.font():get('serif') still answers=%s"):format(tag,
     tostring(hafen.font.setFont), tostring(hafen.font.reset), tostring(hafen.font.scopes),
-    tostring(hafen.font("serif") ~= nil)))
+    tostring(hafen.font():get("serif") ~= nil)))
   applySkin()      -- give this addon's own sheet back (the checks above borrowed the one sheet we own)
 end
 hafen.event():on("OnEnterWorld", function() readSkin("login") end)
 
 -- 028.3: THE ASSET CONTRACT (hafen.asset), checked once per login. ONE door for every file this addon ships:
--- hafen.asset(path) is one interned, typed handle (the TYPE comes from the EXTENSION: .png/.jpg/.jpeg/.gif/.bmp
--- -> image, .ttf/.otf -> font, .glb/.gltf -> mesh) and hafen.asset() -- arity is the verb, D-056 -- is the array
+-- hafen.asset():get(path) is one interned, typed handle (the TYPE comes from the EXTENSION: .png/.jpg/.jpeg/.gif/.bmp
+-- -> image, .ttf/.otf -> font, .glb/.gltf -> mesh) and hafen.asset():list() -- arity is the verb, D-056 -- is the array
 -- of the assets this addon currently HOLDS, in load order. The loader takes a PATH AND NOTHING ELSE: a font's
--- size/style is :derive{..}, never a load option, so the signature is the same for all three types and interning
+-- size/style is :derive() plus setters, never a load option, so the signature is the same for all three types and interning
 -- never depends on an options table. Interning is keyed by the RESOLVED path ('./icon.png' and 'icon.png' are one
 -- asset and one TexI) and identity is stable only WHILE ALIVE -- :dispose() drops the entry, so the next load of
 -- that path is a NEW object (':hello assets dispose' proves that half). Every asset answers :type()/:path()/
--- :dispose(); a BUILT-IN font (hafen.font("serif")) and a :derive'd variant carry NONE of them and are never
+-- :dispose(); a BUILT-IN font (hafen.font():get("serif")) and a :derive'd variant carry NONE of them and are never
 -- listed -- no file, no path, no lifetime (D-060). The three old loaders (hafen.font.load / hafen.render.image /
 -- hafen.render.model) are a HARD CUT and read as plain nil, and the use sites are HANDLE-ONLY (D-012): a path
--- string into render.sprite{image=} / object{model=} is an error that points back at hafen.asset.
+-- string into sprite():add() / object():add() is an error that points back at hafen.asset.
 local function readAssets(tag)
-  local live = hafen.asset()
+  local live = hafen.asset():list()
   local parts = {}
   for i = 1, #live do parts[#parts + 1] = ("%s:%s"):format(live[i]:type(), live[i]:path()) end
-  hafen.log():write(("[%s] assets: hafen.asset() = %d live [%s]"):format(tag, #live, table.concat(parts, ", ")))
+  hafen.log():write(("[%s] assets: hafen.asset():list() = %d live [%s]"):format(tag, #live, table.concat(parts, ", ")))
   -- Interning + the resolved-path key. icon.png and tank.glb are the two this addon always ships; the .ttf is
   -- optional (drop one at addons/hello/fonts/demo.ttf) so its type is reported rather than asserted.
-  local interned = (icon == hafen.asset("icon.png")) and (cube == hafen.asset("tank.glb"))
-  local resolved = (hafen.asset("./icon.png") == icon) and (hafen.asset("img/../icon.png") == icon)
+  local interned = (icon == hafen.asset():get("icon.png")) and (cube == hafen.asset():get("tank.glb"))
+  local resolved = (hafen.asset():get("./icon.png") == icon) and (hafen.asset():get("img/../icon.png") == icon)
   local fontAsset = (demoFont and demoFont.type) and demoFont:type() or "none (built-in serif -- not an asset)"
   hafen.log():write(("[%s] asset types: icon=%s tank=%s font=%s | interned=%s resolvedKey=%s")
     :format(tag, icon and icon:type() or "?", cube and cube:type() or "?", fontAsset,
@@ -1730,31 +1727,32 @@ local function readAssets(tag)
     if ok then return "ACCEPTED (BUG)" end
     return (tostring(err):gsub("^.-%.lua:%d+:%s*", ""))   -- drop the chunk:line prefix, keep the whole message
   end
-  hafen.log():write(("[%s] asset errors: absolute -> %s"):format(tag, why(hafen.asset, "/etc/passwd")))
-  hafen.log():write(("[%s]              '..' -> %s"):format(tag, why(hafen.asset, "../planner/main.lua")))
-  hafen.log():write(("[%s]              unknown ext -> %s"):format(tag, why(hafen.asset, "manifest.json")))
-  hafen.log():write(("[%s]              missing -> %s"):format(tag, why(hafen.asset, "nope.png")))
-  hafen.log():write(("[%s]              number key -> %s"):format(tag, why(hafen.asset, 1)))
-  -- HANDLE-ONLY (D-012): the two world builders refuse a PATH STRING with an error naming hafen.asset. The option
-  -- check runs AFTER the world check, so outside the world they simply answer nil -- gate on it, or the harness
-  -- would report a refusal that never happened.
+  hafen.log():write(("[%s] asset errors: absolute -> %s"):format(tag, why(function() return hafen.asset():get("/etc/passwd") end)))
+  hafen.log():write(("[%s]              '..' -> %s"):format(tag, why(function() return hafen.asset():get("../planner/main.lua") end)))
+  hafen.log():write(("[%s]              unknown ext -> %s"):format(tag, why(function() return hafen.asset():get("manifest.json") end)))
+  hafen.log():write(("[%s]              missing -> %s"):format(tag, why(function() return hafen.asset():get("nope.png") end)))
+  hafen.log():write(("[%s]              number key -> %s"):format(tag, why(function() return hafen.asset():get(1) end)))
+  -- HANDLE-ONLY (D-012): the two world builders refuse a PATH STRING with an error naming hafen.asset. The
+  -- argument check runs AFTER the world check, and :add needs a PLACE, so outside the world it raises about
+  -- the map view instead -- gate on it, or the harness would report the wrong refusal.
   local okp, mygob = pcall(function() return hafen.player():gob() end)
-  if okp and mygob then
-    hafen.log():write(("[%s] handle-only: sprite{image='icon.png'} -> %s"):format(tag,
-      why(function() return hafen.render.sprite{ image = "icon.png", x = 0, y = 0 } end)))
-    hafen.log():write(("[%s]              object{model='tank.glb'} -> %s"):format(tag,
-      why(function() return hafen.render.object{ model = "tank.glb", x = 0, y = 0 } end)))
+  local p2 = okp and mygob and mygob:position()
+  if p2 then
+    hafen.log():write(("[%s] handle-only: sprite():add('icon.png') -> %s"):format(tag,
+      why(function() return hafen.render():sprite():add("icon.png", p2) end)))
+    hafen.log():write(("[%s]              object():add('tank.glb') -> %s"):format(tag,
+      why(function() return hafen.render():object():add("tank.glb", p2) end)))
   else
-    hafen.log():write(("[%s] handle-only: skipped -- not in the world yet (sprite/object answer nil before the option check)")
+    hafen.log():write(("[%s] handle-only: skipped -- not in the world yet (the map-view refusal comes first)")
       :format(tag))
   end
   -- D-060: a BUILT-IN font is engine-owned -- addressed by name, interned, and carrying none of the asset verbs
-  -- (that is also why hafen.asset() above lists 2, not 3, when no .ttf is shipped: the built-in is not a file).
-  local serif = hafen.font("serif")
+  -- (that is also why hafen.asset():list() above lists 2, not 3, when no .ttf is shipped: the built-in is not a file).
+  local serif = hafen.font():get("serif")
   hafen.log():write(("[%s] builtin font: interned=%s noAssetVerbs=%s badName -> %s"):format(tag,
-    tostring(serif == hafen.font("serif")),
+    tostring(serif == hafen.font():get("serif")),
     tostring((serif.type == nil) and (serif.path == nil) and (serif.dispose == nil)),
-    (function() local ok, e = pcall(hafen.font, "comic"); return (not ok) and "refused" or "ACCEPTED (BUG)" end)()))
+    (function() local ok, e = pcall(function() return hafen.font():get("comic") end); return (not ok) and "refused" or "ACCEPTED (BUG)" end)()))
   -- The hard cut (D-013): all three old loaders read as plain nil -- not flattened, not stubbed.
   hafen.log():write(("[%s] asset contract: loadersGone=%s (font.load=%s render.image=%s render.model=%s)"):format(tag,
     tostring((hafen.font.load == nil) and (hafen.render.image == nil) and (hafen.render.model == nil)),
@@ -1952,76 +1950,67 @@ hafen.slash():register("hello", function(args)
     dumpMenu()                                   -- 023: dump the ACTION MENU as a tree (roots + their children)
   elseif sub == "ghost" then
     if demoGhost then                            -- V1: TOGGLE a client-only ghost cabin at your position
-      demoGhost:destroy(); demoGhost = nil
-      hafen.log():write((":hello ghost -> destroyed (list=%d)"):format(#hafen.ghost.list()))
+      hafen.ghost():remove(demoGhost); demoGhost = nil
+      hafen.log():write((":hello ghost -> removed (list=%d)"):format(hafen.ghost():count()))
     else
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:position()
       if not p then hafen.log():write(":hello ghost -> no player position yet"); return end
       local px, py = p:x(), p:y()
       local spin, faded = 0, false                           -- V3: per-spawn live-look state (closed over by onClick)
-      demoGhost = hafen.ghost.new{                            -- V2 clickable + V3 look: a translucent, tinted cabin
-        res = "gfx/terobjs/arch/logcabin", x = px, y = py,
-        alpha = 0.6,                                          -- V3: translucent
-        tint = { r = 255, g = 210, b = 120 },                -- V3: warm colour overlay
-        clickable = true,                                     -- opt-in pick surface (the V2 core)
-        onClick = function(g, button, x, y)                   -- fires on click (also via the GhostClicked event)
+      demoGhost = hafen.ghost():add("gfx/terobjs/arch/logcabin", p)  -- V2 clickable + V3 look: a cabin
+        :alpha(0.6)                                           -- V3: translucent
+        :tint(255, 210, 120)                                  -- V3: warm colour overlay
+        :clickable(true)                                      -- opt-in pick surface (the V2 core)
+        :onClick(function(g, button, x, y)                    -- fires on click (also via the GhostClicked event)
           spin = spin + math.pi / 4                           -- V3: each click rotates 45°...
           faded = not faded                                   -- ...and toggles opacity
           g:rotate(spin):alpha(faded and 0.3 or 0.85)         -- chained V3 verbs, live on the clicked ghost
           hafen.log():write((":hello ghost onClick -> button=%d -- CONSUMED (no walk); V3 live rotate a=%.2f alpha=%.2f")
             :format(button, spin, faded and 0.3 or 0.85))
-        end,
-      }
-      if demoGhost then
-        hafen.log():write((":hello ghost -> CLICKABLE translucent cabin at you (%.0f,%.0f) -- CLICK it (won't move; each click rotates + re-fades); :hello ghost again to remove"):format(p.x, p.y))
-      else
-        hafen.log():write(":hello ghost -> hafen.ghost.new returned nil (not in the world yet?)")
-      end
+        end)
+      hafen.log():write((":hello ghost -> CLICKABLE translucent cabin at you (%.0f,%.0f) -- CLICK it (won't move; each click rotates + re-fades); :hello ghost again to remove"):format(px, py))
     end
   elseif sub == "sprite" then
-    -- R2a: CLIENT-ONLY WORLD SPRITE (hafen.render.sprite). Stand our own PNG (the R1 icon.png handle) UPRIGHT in
-    -- the 3D world as a fixed textured quad -- the non-.res sibling of a ghost, on the SAME virtual-entity core:
+    -- R2a: CLIENT-ONLY WORLD SPRITE (hafen.render():sprite()). Stand our own PNG (the R1 icon.png handle) UPRIGHT
+    -- in the 3D world as a fixed textured quad -- the non-.res sibling of a ghost, on the SAME virtual-entity core:
     -- a Gob with no server id, so it never reaches the server (SAFE-tier, NOT gated, D-034). It is a transform
-    -- handle like a ghost (:move/:rotate/:scale/:pos/:destroy), so 2s after placing we move + rotate + scale it to
-    -- prove the gizmo-compatible transform works live; :hello sprite again removes it. Torn down on reload/disable.
+    -- handle like a ghost (:position/:rotate/:scale), so 2s after placing we move + rotate + scale it to prove the
+    -- gizmo-compatible transform works live; :hello sprite again removes it. Torn down on reload/disable.
     if demoSprite then
-      demoSprite:destroy(); demoSprite = nil
+      hafen.render():sprite():remove(demoSprite); demoSprite = nil
       hafen.log():write(":hello sprite -> destroyed")
     else
       if not icon then hafen.log():write(":hello sprite -> icon.png not loaded yet (OnLoad)"); return end
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:position()
       if not p then hafen.log():write(":hello sprite -> no player position yet"); return end
-      local px, py = p:x(), p:y()
-      demoSprite = hafen.render.sprite{ image = icon, x = px, y = py, scale = 3 }  -- ~3 tiles tall so it's clearly visible
-      if not demoSprite then hafen.log():write(":hello sprite -> hafen.render.sprite returned nil (not in the world yet?)"); return end
-      local pos = demoSprite:pos()
+      demoSprite = hafen.render():sprite():add(icon, p):scale(3)   -- ~3 tiles tall, clearly visible
+      local pos = demoSprite:position()
       hafen.log():write((":hello sprite -> icon.png STANDING at (%.0f,%.0f) scale=%.0f -- transforms in 2s; :hello sprite again to remove")
-        :format(pos.x, pos.y, pos.scale))
+        :format(pos:x(), pos:y(), demoSprite:scale()))
       local this = demoSprite                              -- capture, so a quick toggle-off/on doesn't transform the new one
       hafen.timer():after(2.0, function()
         if demoSprite == this then
-          this:move(px + 22, py):rotate(math.pi / 2):scale(4)    -- +2 tiles E, face 90°, grow x4 (chained handle verbs)
+          this:position(p:offset(22, 0)):rotate(math.pi / 2):scale(4)   -- +2 tiles E, face 90°, grow x4 (chained)
           hafen.log():write(":hello sprite -> moved +2 tiles E, rotated 90 deg, scaled x4 (gizmo-compatible transform handle)")
         end
       end)
     end
   elseif sub == "billboard" then
-    -- R2b: CAMERA-FACING BILLBOARD SPRITE (hafen.render.sprite{billboard=true}). The SAME PNG, but drawn as a
+    -- R2b: CAMERA-FACING BILLBOARD SPRITE (sprite:billboard(true)). The SAME PNG, but drawn as a
     -- screen-space blit at the projected world point, so it ALWAYS faces the camera and is a constant screen size
     -- (rotate the camera / zoom -- it stays square-on and the same pixel size). Position + gizmo-move still apply
     -- (world-rotate/scale do not: it's 2D). Same handle as a fixed sprite; :hello billboard again removes it.
     if demoBill then
-      demoBill:destroy(); demoBill = nil
+      hafen.render():sprite():remove(demoBill); demoBill = nil
       hafen.log():write(":hello billboard -> destroyed")
     else
       if not icon then hafen.log():write(":hello billboard -> icon.png not loaded yet (OnLoad)"); return end
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:position()
       if not p then hafen.log():write(":hello billboard -> no player position yet"); return end
-      demoBill = hafen.render.sprite{ image = icon, x = p:x(), y = p:y(), billboard = true, scale = 2 }  -- 2x native px, faces camera
-      if not demoBill then hafen.log():write(":hello billboard -> hafen.render.sprite returned nil (not in the world yet?)"); return end
+      demoBill = hafen.render():sprite():add(icon, p):billboard(true):scale(2)   -- 2x native px, faces camera
       hafen.log():write((":hello billboard -> icon.png standing at (%.0f,%.0f) FACING THE CAMERA (screen-sized) -- rotate the camera to see; :hello billboard again to remove")
         :format(p:x(), p:y()))
     end
@@ -2046,34 +2035,32 @@ hafen.slash():register("hello", function(args)
       hafen.log():write(":hello follow -> icon.png now FLOATS above your head and FOLLOWS you -- walk around; :hello follow again to remove")
     end
   elseif sub == "object" then
-    -- R3a/R3b: CLIENT-ONLY WORLD 3D MODEL (hafen.render.object). Stand our own glTF model (the tank.glb handle) in
+    -- R3a/R3b: CLIENT-ONLY WORLD 3D MODEL (hafen.render():object()). Stand our own glTF model (tank.glb) in
     -- the 3D world -- the mesh sibling of a sprite/ghost, on the SAME virtual-entity core: a Gob with no server id, so
     -- it never reaches the server (SAFE-tier, NOT gated, D-034). R3b makes it render TEXTURED (its embedded PNGs) with
-    -- one material per primitive. It is a transform handle like a sprite (:move/:rotate/:scale/:pos/:destroy), so 2s
+    -- one material per primitive. It is a transform handle like a sprite (:position/:rotate/:scale), so 2s
     -- after placing we move + rotate + grow it to prove the gizmo-compatible transform works live on a MESH; :hello
     -- object again removes it. Torn down on reload/disable. The scale is derived from :bounds() so ANY model (this
     -- tank is authored in big units) stands ~2 tiles tall.
     if demoObject then
-      demoObject:destroy(); demoObject = nil
+      hafen.render():object():remove(demoObject); demoObject = nil
       hafen.log():write(":hello object -> destroyed")
     else
       if not cube then hafen.log():write(":hello object -> tank.glb not loaded yet (OnLoad)"); return end
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:position()
       if not p then hafen.log():write(":hello object -> no player position yet"); return end
-      local px, py = p:x(), p:y()
       local b = cube:bounds()
       local tall = (b.size.z and b.size.z > 0.01) and b.size.z or 11       -- world-unit height
       local scale = (2 * 11) / tall                       -- stand ~2 tiles tall regardless of the model's authored units
-      demoObject = hafen.render.object{ model = cube, x = px, y = py, scale = scale }
-      if not demoObject then hafen.log():write(":hello object -> hafen.render.object returned nil (not in the world yet?)"); return end
-      local pos = demoObject:pos()
+      demoObject = hafen.render():object():add(cube, p):scale(scale)
+      local pos = demoObject:position()
       hafen.log():write((":hello object -> tank.glb (textured + LIT/R3c) STANDING at (%.0f,%.0f) scale=%.3f -- shaded by the world lights (rotate/relocate it to see the shading change); transforms in 2s; :hello object again to remove")
-        :format(pos.x, pos.y, pos.scale))
+        :format(pos:x(), pos:y(), demoObject:scale()))
       local this = demoObject                             -- capture, so a quick toggle-off/on doesn't transform the new one
       hafen.timer():after(2.0, function()
         if demoObject == this then
-          this:move(px + 22, py):rotate(math.pi / 4):scale(scale * 1.5)     -- +2 tiles E, face 45 deg, grow x1.5 (chained handle verbs)
+          this:position(p:offset(22, 0)):rotate(math.pi / 4):scale(scale * 1.5)   -- +2 tiles E, 45 deg, x1.5
           hafen.log():write(":hello object -> moved +2 tiles E, rotated 45 deg, grew x1.5 (gizmo-compatible transform handle on a mesh)")
         end
       end)
@@ -2091,12 +2078,12 @@ hafen.slash():register("hello", function(args)
       -- destroyed. The re-load then proves identity is stable only WHILE ALIVE: the same path, a NEW asset.
       local old = cube
       old:dispose()
-      cube = hafen.asset("tank.glb")                    -- the same path, a NEW asset (the disposed one is never served)
+      cube = hafen.asset():get("tank.glb")                    -- the same path, a NEW asset (the disposed one is never served)
       hafen.log():write(("   dispose: tank.glb disposed -- a STANDING object keeps its textures (it captured the sampler"
         .. " at build time); re-load == the old handle -> %s (false = a NEW asset, as documented)")
         :format(tostring(cube == old)))
-      hafen.log():write(("   hafen.asset() still lists %d live asset(s) -- the disposed entry was DROPPED and the re-load"
-        .. " added a NEW one in its place; the corpse is never served and never listed"):format(#hafen.asset()))
+      hafen.log():write(("   hafen.asset():list() still lists %d live asset(s) -- the disposed entry was DROPPED and the re-load"
+        .. " added a NEW one in its place; the corpse is never served and never listed"):format(#hafen.asset():list()))
     end
   elseif sub == "font" then
     -- C1a: the sheet's `*` rule = the GLOBAL fallback (what setFont("default", h) used to be). It cascades to
@@ -2112,7 +2099,7 @@ hafen.slash():register("hello", function(args)
         :format((next(skinRules) == nil) and "nil" or "{...}"))
     else
       setProp("@Inventory", "font", demoFont)            -- a TREE key: valid grammar, resolves nowhere until C1b
-      setProp("*", "font", hafen.font("mono"))           -- sheet #1 (mono)
+      setProp("*", "font", hafen.font():get("mono"))           -- sheet #1 (mono)
       hafen.timer():after(3.0, function()
         if not (skinRules["*"] and skinRules["*"].font) then return end   -- toggled off meanwhile -- nothing to replace
         setProp("*", "font", demoFont)                   -- sheet #2 REPLACES sheet #1 whole -> back to serif/ttf
@@ -2163,7 +2150,7 @@ hafen.slash():register("hello", function(args)
     -- font), the cascade restyles captions too until a "window.title" override refines them. Owner-tagged,
     -- reverted automatically on :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
     if not demoFont then hafen.log():write(":hello title -> font not loaded yet (OnLoad)"); return end
-    if toggleSkin("window.title", { font = demoFont:derive{ size = 15 } }) then   -- caption size ~= the stock fraktur 15
+    if toggleSkin("window.title", { font = demoFont:derive():size(15) }) then   -- caption size ~= the stock fraktur 15
       hafen.log():write((":hello title -> sheet:rule('window.title'):font(%s) -- open/focus any window: its CAPTION font changes (body text stays stock unless :hello font); :hello title again to drop the rule")
         :format(demoFont:family()))
     else
@@ -2181,7 +2168,7 @@ hafen.slash():register("hello", function(args)
     -- different family (mono) so the DoD is observable; the size stays 12 to keep the captions inside the buttons.
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello button -> font not loaded yet (OnLoad)"); return end
-    if toggleSkin("button", { font = h:derive{ size = 12, bold = true } }) then   -- mono bold 12 vs the stock serif bold 12
+    if toggleSkin("button", { font = h:derive():size(12):bold(true) }) then   -- mono bold 12 vs the stock serif bold 12
       hafen.log():write((":hello button -> sheet:rule('button'):font(%s) -- open the Options window: its BUTTON captions change (titles/body stay stock unless :hello title / :hello font); :hello button again to drop the rule")
         :format(h:family()))
     else
@@ -2199,7 +2186,7 @@ hafen.slash():register("hello", function(args)
     -- glyphs will be clipped -- that is a client-geometry fact, not an API limit. See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello entry -> font not loaded yet (OnLoad)"); return end
-    if toggleSkin("textentry", { font = h:derive{ size = 12 } }) then   -- mono 12 vs the stock serif 12 (visibly different)
+    if toggleSkin("textentry", { font = h:derive():size(12) }) then   -- mono 12 vs the stock serif 12 (visibly different)
       hafen.log():write((":hello entry -> sheet:rule('textentry'):font(%s) -- ONE rule fronting TWO sites: click any text field AND this console command line and type -- both change family, and each keeps its OWN stock size/colour (serif 12 entries, mono 12 console); :hello entry again to drop the rule")
         :format(h:family()))
     else
@@ -2255,7 +2242,7 @@ hafen.slash():register("hello", function(args)
     -- menus too, until a "menu" override refines them. Owner-tagged, reverted on :reload/disable. SAFE-tier.
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello menu -> font not loaded yet (OnLoad)"); return end
-    if toggleSkin("menu", { font = h:derive{ size = 14 } }) then   -- mono 14 vs the stock sans 12 (bigger + different)
+    if toggleSkin("menu", { font = h:derive():size(14) }) then   -- mono 14 vs the stock sans 12 (bigger + different)
       hafen.log():write((":hello menu -> sheet:rule('menu'):font(%s) -- right-click something: the PETAL captions are in the new font (and a petal already open re-sizes around its centre); :hello menu again to drop the rule")
         :format(h:family()))
     else
@@ -2274,7 +2261,7 @@ hafen.slash():register("hello", function(args)
     -- NOTE: a tooltip sizes its own box around its text, so a bigger size is safe here -- unlike a text field.
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello tip -> font not loaded yet (OnLoad)"); return end
-    if toggleSkin("tooltip", { font = h:derive{ size = 13 } }) then   -- mono 13 vs the stock sans 10 (bigger + different)
+    if toggleSkin("tooltip", { font = h:derive():size(13) }) then   -- mono 13 vs the stock sans 10 (bigger + different)
       hafen.log():write((":hello tip -> sheet:rule('tooltip'):font(%s) -- hover an INVENTORY ITEM (or a buff / a HUD meter / a craft input / an action-menu icon / a HUD button): the tooltip is in the new font, and it changes while you keep hovering; :hello tip again to drop the rule")
         :format(h:family()))
     else
@@ -2289,7 +2276,7 @@ hafen.slash():register("hello", function(args)
     -- cascade restyles chat too, until a "chat" override refines it. Owner-tagged, reverted on :reload/disable.
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello chat -> font not loaded yet (OnLoad)"); return end
-    if toggleSkin("chat", { font = h:derive{ size = 13 } }) then   -- mono 13 vs the stock sans 12
+    if toggleSkin("chat", { font = h:derive():size(13) }) then   -- mono 13 vs the stock sans 12
       hafen.log():write((":hello chat -> sheet:rule('chat'):font(%s) -- open the chat window (Ctrl+C): the message lines, the channel tabs and the line you type are in the new font; :hello chat again to drop the rule")
         :format(h:family()))
     else
@@ -2305,7 +2292,7 @@ hafen.slash():register("hello", function(args)
     -- :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello speech -> font not loaded yet (OnLoad)"); return end
-    if toggleSkin("world.speech", { font = h:derive{ size = 16 } }) then   -- mono 16 vs the stock sans 10 (clearly bigger)
+    if toggleSkin("world.speech", { font = h:derive():size(16) }) then   -- mono 16 vs the stock sans 10 (clearly bigger)
       hafen.log():write((":hello speech -> sheet:rule('world.speech'):font(%s) -- say something in area chat (Enter): the BUBBLE over your head is in the new font and its frame grows with it; :hello speech again to drop the rule")
         :format(h:family()))
     else
@@ -2321,7 +2308,7 @@ hafen.slash():register("hello", function(args)
     -- automatically on :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello nick -> font not loaded yet (OnLoad)"); return end
-    if toggleSkin("world.nick", { font = h:derive{ size = 16, bold = true } }) then  -- mono bold 16 vs stock sans bold 12
+    if toggleSkin("world.nick", { font = h:derive():size(16):bold(true) }) then  -- mono bold 16 vs stock sans bold 12
       hafen.log():write((":hello nick -> sheet:rule('world.nick'):font(%s) -- look at a KIN standing nearby: the name floating over them is in the new font (its colour stays the kin-group colour); :hello nick again to drop the rule")
         :format(h:family()))
     else
@@ -2374,7 +2361,7 @@ hafen.slash():register("hello", function(args)
           :format(table.concat(report, ", ")))
         return
       end
-      wins[best].node:rule():font(h:derive{ size = 13 })       -- mono 13 (bigger + a different family, so it is obvious)
+      wins[best].node:rule():font(h:derive():size(13))       -- mono 13 (bigger + a different family, so it is obvious)
       nodeFontTarget, nodeFontApplied = wins[best].node, true
       hafen.log():write((":hello node -> a rule on ONE widget: the '%s' window (%d text bits inside) is now in %s 13 -- caption, labels, list rows and button captions included; every OTHER open window stays stock. Candidates+text counts: [%s]. That is the per-instance style; :hello node again to reset")
         :format(wins[best].name, wins[best].texts, h:family(), table.concat(report, ", ")))
@@ -2916,6 +2903,6 @@ hafen.event():on("OnDisable", function()
     hafen.map():marker():remove(helloMarker)                -- leaves 'Hello marker' pins on your persistent map DB
     helloMarker = nil
   end
-  if demoGhost then demoGhost:destroy(); demoGhost = nil end   -- V1: drop the manual ghost (teardown also does)
+  if demoGhost then hafen.ghost():remove(demoGhost); demoGhost = nil end   -- V1: drop the manual ghost
   hafen.log():write("OnDisable fired")
 end)
