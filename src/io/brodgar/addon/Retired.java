@@ -263,6 +263,27 @@ final class Retired {
         put("keybindings:set", "kb:set(name, key) is now kb:key(name, key) — one name reads a binding's key"
             + " and writes it, like every other property in the API");
 
+        // ---- the character sheet: four flat readers become four collections, and one of them a sub-list ----
+        put("hafen.char.attr", "hafen.char.attr(name) is now hafen.char():attr():get(name), and what it"
+            + " hands back is an Attr object: a:base() and a:composite() are the two numbers");
+        put("hafen.char.attrs", "hafen.char.attrs() is now hafen.char():attr():list() — a plain array of"
+            + " Attr objects rather than a table keyed by name, and a:name() says which one it is");
+        put("hafen.char.skills", "hafen.char.skills() is now hafen.char():skill():list()");
+        put("hafen.char.skill", "hafen.char.skill(name) is now hafen.char():skill():find(name), and it"
+            + " hands back the Skill rather than a boolean — still truthy, so `if ... then` is unchanged");
+        put("hafen.char.skillsAvailable", "hafen.char.skillsAvailable() is now"
+            + " hafen.char():skill():available() — the buyable skills are a verb on the skill collection,"
+            + " and each one carries s:cost()");
+        put("hafen.char.credos", "hafen.char.credos() is now hafen.char():credo():list() — acquired and"
+            + " available in one collection with cr:acquired() saying which, hafen.char():credo():pursuing()"
+            + " for the one being pursued, and hafen.char():credo():cost() for the price of beginning one");
+        put("hafen.char.experiences", "hafen.char.experiences() is now hafen.char():experience():list()");
+        section("char", "lp", "weight", "food");
+
+        // ---- the study window: the slots become a collection, the totals stay one read ------------------
+        put("hafen.study.slots", "hafen.study.slots() is now hafen.study():slot():list()");
+        section("study", "summary");
+
         // ---- the HUD overlay: a two-line handle table became a builder, so it ends the way the other two do --
         put("uioverlay:remove", "hafen.ui():overlay() hands back something you created and hold, so it ends with"
             + " ov:destroy() — :remove() is the collection verb, and a HUD painter is in no collection");

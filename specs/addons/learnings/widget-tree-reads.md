@@ -237,3 +237,11 @@
   (027.1's `Loading` guard). This is the expected behaviour of a handle-not-snapshot API and must
   be a docs line: name-match a meter on a later tick (or in `MeterChanged`), never inside the
   `MeterAdded` handler.
+- **(039.11) `SkillWnd` swaps every one of its lists WHOLESALE, so nothing in that window can be interned on
+  Java identity.** `csk`/`nsk`/`ccr`/`ncr`/`exps` each replace `Group.items` (or the `List` field) entirely
+  on their uimsg, so a `Skill`/`Credo`/`Experience` record is a fresh object after any resend even when
+  nothing about that skill changed. The defensive `new ArrayList<>(…)` copies the old readers made were
+  already an acknowledgement of this; interning made it a key decision (D-132) — token for skills and credos,
+  resource name for lore, which has no token. The same window's `CredoGrid.pcr` is built by its own `pcr`
+  uimsg as a **separate** `Credo` instance, so "the credo I am pursuing" is not `==` any member of `ccr`/`ncr`
+  at the Java level either; resolving both through the token is what makes it one object in Lua.

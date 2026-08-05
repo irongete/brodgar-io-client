@@ -303,6 +303,10 @@ final class CharApi {
      * fields, so this needs no {@code haven}-package accessor. Both update via a {@code BAttrWnd}
      * {@code "food"}/{@code "glut"} {@code uimsg}, so it is purely uimsg-driven; each is a genuine
      * server change, so {@code FepChanged} fires whenever one lands (no change-detection needed).
+     *
+     * <p>The payload is the <b>Food object</b> ({@link AddonManager#fireFood}), so a handler reads it with
+     * the same verbs as {@code hafen.char():food()} and a stashed payload goes on tracking the meal after
+     * it. The reads themselves live on {@link LuaFood}; only firing is this adapter's business.
      */
     private static final class FepAdapter implements TreeAdapter {
         public boolean interested(Widget w, String msg) {
@@ -310,9 +314,9 @@ final class CharApi {
         }
 
         public void refresh() {
-            LuaValue snap = readFood();
-            if(!snap.isnil())
-                fire("FepChanged", snap);
+            BAttrWnd w = battrwnd();
+            if(w != null)
+                fireFood(w);
         }
     }
 
@@ -325,6 +329,12 @@ final class CharApi {
      * the slots snapshot and fires {@code StudyChanged} only when it differs from the cache (an
      * add/remove, or a slot's fields resolving/changing). While the sattr tab is not up yet the poll is
      * skipped (the cache is kept), so no spurious event fires before there is anything to read.
+     *
+     * <p>The payload is an array of <b>StudySlot objects</b> ({@link AddonManager#fireStudy}), so a handler
+     * reads it with the same verbs as {@code hafen.study():slot():list()}. The snapshots stay, purely as the
+     * diff KEY: an interned object compares by identity and so cannot detect a slot's numbers resolving,
+     * which is most of what this adapter exists to notice. They never reach Lua — {@code slot:info()} is
+     * that, on demand.
      */
     private static final class StudyAdapter implements TreeAdapter {
         private LuaValue cache;   // last study-slots snapshot (UI thread; change-detect)
@@ -336,13 +346,16 @@ final class CharApi {
         public void refresh() {}
 
         public void poll() {
-            SAttrWnd.StudyInfo si = studyInfo();
-            if(si == null)
+            if(studyInfo() == null)
                 return;           // study window not up yet — keep the cache, fire nothing
-            LuaValue snap = readStudySlots(si.study);
+            List<GItem> its = LuaStudySlot.items();
+            LuaTable snap = new LuaTable();
+            int i = 0;
+            for(GItem it : its)
+                snap.set(++i, LuaStudySlot.snapshot(it));
             if(!studySlotsEqual(snap, cache)) {
                 cache = snap;
-                fire("StudyChanged", snap);
+                fireStudy(its);
             }
         }
     }
@@ -594,69 +607,11 @@ final class CharApi {
         return true;
     }
 
-    /** The character sheet's Base-Attributes widget ({@code CharWnd.battr}), or {@code null}. */
-    private static BAttrWnd battrwnd() {
+    /** The character sheet's Base-Attributes widget ({@code CharWnd.battr}), or {@code null}. The one
+     *  resolve funnel {@link LuaFood} re-reads through, every call (D-012). */
+    static BAttrWnd battrwnd() {
         CharWnd c = charwnd();
         return (c == null) ? null : c.battr;
-    }
-
-    /**
-     * A food snapshot ({@code hafen.char.food}): {@code fep = {cap,total,entries=[{res,name,amount}]}}
-     * from the {@link BAttrWnd.FoodMeter}, and {@code hunger = {level,label,efficacy}} from the
-     * {@link BAttrWnd.GlutMeter}. All backing fields are public; per-entry name/res are Loading-guarded
-     * (skipped while resolving). nil until the character sheet's {@code battr} tab exists (it streams
-     * in a beat after enter-world, like vitals/char/items).
-     */
-    private static LuaValue readFood() {
-        BAttrWnd w = battrwnd();
-        if(w == null)
-            return LuaValue.NIL;
-        LuaTable t = new LuaTable();
-        try {
-            BAttrWnd.FoodMeter fm = w.feps;
-            if(fm != null) {
-                LuaTable fep = new LuaTable();
-                fep.set("cap", LuaValue.valueOf(fm.cap));
-                LuaTable entries = new LuaTable();
-                double total = 0;
-                int i = 0;
-                for(BAttrWnd.FoodMeter.El el : new ArrayList<BAttrWnd.FoodMeter.El>(fm.els)) {
-                    LuaTable e = new LuaTable();
-                    try {
-                        Resource r = el.res.get();
-                        if(r != null)
-                            e.set("res", LuaValue.valueOf(r.name));
-                        BAttrWnd.FoodMeter.Event ev = el.ev();
-                        if((ev != null) && (ev.nm != null))
-                            e.set("name", LuaValue.valueOf(ev.nm));
-                    } catch(RuntimeException ex) {
-                        /* this event's resource is still Loading — keep the amount */
-                    }
-                    e.set("amount", LuaValue.valueOf(el.a));
-                    total += el.a;
-                    entries.set(++i, e);
-                }
-                fep.set("total", LuaValue.valueOf(total));
-                fep.set("entries", entries);
-                t.set("fep", fep);
-            }
-        } catch(RuntimeException e) {
-            /* partial snapshot is fine while food data streams in */
-        }
-        try {
-            BAttrWnd.GlutMeter gm = w.glut;
-            if(gm != null) {
-                LuaTable h = new LuaTable();
-                h.set("level", LuaValue.valueOf(gm.glut));
-                if(gm.lbl != null)
-                    h.set("label", LuaValue.valueOf(gm.lbl));
-                h.set("efficacy", LuaValue.valueOf(gm.gmod));
-                t.set("hunger", h);
-            }
-        } catch(RuntimeException e) {
-            /* partial */
-        }
-        return t;
     }
 
     /**
@@ -739,100 +694,94 @@ final class CharApi {
     // replacement built for it: it was a name/res substring filter over one array, which is a Lua one-liner over
     // :items(). The item SHAPE is unchanged — itemSnapshot below is still the one Item producer.
 
-    /** Build a char namespace for owner. From installHafen. */
+    /**
+     * Build {@code hafen.char()} for {@code owner}. From installHafen.
+     *
+     * <p><b>Four collections and three scalars</b> (spec {@code 039-uniform-api} §2.3/§4.1). The flat
+     * singular/plural pairs — {@code attr}/{@code attrs}, {@code skills}/{@code skill},
+     * {@code credos}, {@code experiences} — become the collections {@code :attr()}, {@code :skill()},
+     * {@code :credo()} and {@code :experience()}: the noun names the kind and the verb says how many, so
+     * {@code :attr():get("str")} is one and {@code :attr():list()} is all. {@code skillsAvailable()} was a
+     * second accessor for a sub-list and is now {@code :skill():available()}, a verb on the collection it
+     * belongs to. Each collection is minted <b>once</b> and handed back by identity, as the section object
+     * is — a panel that reads the sheet every frame must allocate nothing to do it.
+     *
+     * <p>{@code :lp()} and {@code :weight()} stay plain scalar reads: they are one number each and there is
+     * nothing to address into. {@code :food()} hands back the interned {@link LuaFood}, or {@code nil}
+     * until the base-attributes tab exists.
+     */
     static void installChar(LuaTable hafen, final Addon owner) {
+        final LuaValue attrs = LuaAttr.collection(owner);
+        final LuaValue skills = LuaSkill.collection(owner);
+        final LuaValue credos = LuaCredo.collection(owner);
+        final LuaValue exps = LuaExperience.collection(owner);
         LuaTable chr = new LuaTable();
-        chr.set("attr", new OneArgFunction() {
-            public LuaValue call(LuaValue name) {
-                return name.isstring() ? attrSnapshot(name.tojstring()) : LuaValue.NIL;
-            }
-        });
-        chr.set("attrs", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable out = new LuaTable();
-                for(String nm : ATTR_NAMES) {
-                    LuaValue a = attrSnapshot(nm);
-                    if(!a.isnil())
-                        out.set(nm, a);
-                }
-                return out;
-            }
-        });
-        chr.set("lp", new ZeroArgFunction() {
-            public LuaValue call() {
+        chr.set("attr", collection("attr", attrs));
+        chr.set("skill", collection("skill", skills));
+        chr.set("credo", collection("credo", credos));
+        chr.set("experience", collection("experience", exps));
+        // lp() — the learning points the character has banked (CharWnd.exp), nil before the sheet exists.
+        chr.set("lp", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "char", "lp");
                 CharWnd c = charwnd();
                 return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.exp);
             }
         });
-        chr.set("weight", new ZeroArgFunction() {
-            public LuaValue call() {
+        // weight() — what the character is carrying (CharWnd.enc), nil before the sheet exists.
+        chr.set("weight", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "char", "weight");
                 CharWnd c = charwnd();
                 return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.enc);
             }
         });
-        // food() — FEP + hunger via the widget-tree mechanism (BAttrWnd; 1d-2). Returns
-        // { fep = {cap,total,entries={{res,name,amount}}}, hunger = {level,label,efficacy} } or nil
-        // until the character sheet's base-attributes tab exists (it streams in after enter-world).
-        // Subscribe to FepChanged for updates (fired on the server's "food"/"glut" uimsgs).
-        chr.set("food", new ZeroArgFunction() {
-            public LuaValue call() {
-                return readFood();
+        // food() — the Food object: FEP and hunger, the one place absolute character numbers exist. nil
+        // until the base-attributes tab streams in. Subscribe to FepChanged for updates.
+        chr.set("food", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "char", "food");
+                return LuaFood.of(owner, battrwnd());
             }
         });
-        // skills() — the character's KNOWN skills as {name, res} snapshots; skill(name) — a substring
-        // membership test over them (name OR res, matching hafen.buff():find(needle)). Backed by the SkillWnd
-        // "Skills" tab (widget-tree), which streams in after enter-world like the rest of the sheet.
-        chr.set("skills", new ZeroArgFunction() {
-            public LuaValue call() {
-                return readSkills();
-            }
-        });
-        chr.set("skill", new OneArgFunction() {
-            public LuaValue call(LuaValue name) {
-                return (name.isstring() && hasSkill(name.tojstring())) ? LuaValue.TRUE : LuaValue.FALSE;
-            }
-        });
-        // A4 (completes the study/skills subsystem): the rest of the "Lore & Skills" window beyond the
-        // known skills above. skillsAvailable() = the BUYABLE skills {name,res,cost} (the nsk group next
-        // to the known csk group; cost = LP price). credos() = the Credos tab — {acquired, available}
-        // lists (each of {name,res}) + the currently-pursued credo under `pursuing` ({name,res,level,
-        // levelTotal,quest,questTotal,questId}, absent when none) + `cost` (LP to begin pursuing one), or
-        // nil until the window exists. experiences() = the Lore tab {name,res,score,mtime}. All stream in
-        // after enter-world like the known skills; there is no *Changed event — these change only on
-        // explicit, infrequent player actions (buy / pursue / quest progress), so read them on demand.
-        chr.set("skillsAvailable", new ZeroArgFunction() {
-            public LuaValue call() {
-                return readAvailableSkills();
-            }
-        });
-        chr.set("credos", new ZeroArgFunction() {
-            public LuaValue call() {
-                return readCredos();
-            }
-        });
-        chr.set("experiences", new ZeroArgFunction() {
-            public LuaValue call() {
-                return readExperiences();
-            }
-        });
-        hafen.set("char", chr);
+        Section.install(hafen, "char", chr);
     }
 
-    /** Build a char namespace for owner. From installHafen. */
-    static void installStudy(LuaTable hafen, final Addon owner) {
-        LuaTable study = new LuaTable();
-        study.set("slots", new ZeroArgFunction() {
-            public LuaValue call() {
-                SAttrWnd.StudyInfo si = studyInfo();
-                return (si == null) ? new LuaTable() : readStudySlots(si.study);
+    /** One collection accessor on a section object: a colon call, no arguments, the collection back. */
+    private static LuaValue collection(final String nm, final LuaValue coll) {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), sectionOf(nm), nm);
+                if(Args.passed(a, 2))
+                    throw new LuaError("hafen." + sectionOf(nm) + "():" + nm + "() takes no arguments — it"
+                        + " IS the collection, and :list(filter) / :find(filter) search it");
+                return coll;
             }
-        });
-        study.set("summary", new ZeroArgFunction() {
-            public LuaValue call() {
+        };
+    }
+
+    /** Which section a collection accessor lives on ({@code slot} is study's; everything else is char's). */
+    private static String sectionOf(String nm) {
+        return "slot".equals(nm) ? "study" : "char";
+    }
+
+    /**
+     * Build {@code hafen.study()} for {@code owner}. From installHafen. The window's contents become the
+     * {@link LuaStudySlot} collection {@code :slot()} (§4.2); {@code :summary()} stays a scalar read,
+     * because the three totals are one value and there is nothing to address into.
+     */
+    static void installStudy(LuaTable hafen, final Addon owner) {
+        final LuaValue slots = LuaStudySlot.collection(owner);
+        LuaTable study = new LuaTable();
+        study.set("slot", collection("slot", slots));
+        // summary() — the live totals {lp, attention, cost} across the slots, nil before the window is up.
+        study.set("summary", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "study", "summary");
                 return studySummary();
             }
         });
-        hafen.set("study", study);
+        Section.install(hafen, "study", study);
     }
 
     /** Build a char namespace for owner. From installHafen. */
@@ -1025,7 +974,7 @@ final class CharApi {
     }
 
     /** {@code ItemInfo.Name} display text for an item, or {@code null} (Loading-guarded). */
-    private static String itemName(GItem it) {
+    static String itemNameOf(GItem it) {
         try {
             ItemInfo.Name n = ItemInfo.find(ItemInfo.Name.class, it.info());
             return ((n == null) || (n.str == null)) ? null : n.str.text;
@@ -1035,7 +984,7 @@ final class CharApi {
     }
 
     /** Resource name (stable identity) for an item, or {@code null} (Loading-guarded). */
-    private static String itemRes(GItem it) {
+    static String itemResOf(GItem it) {
         try {
             Resource r = it.res.get();
             return (r == null) ? null : r.name;
@@ -1061,10 +1010,10 @@ final class CharApi {
         if(it == null)
             return LuaValue.NIL;
         LuaTable t = new LuaTable();
-        String res = itemRes(it);
+        String res = itemResOf(it);
         if(res != null)
             t.set("res", LuaValue.valueOf(res));
-        String name = itemName(it);
+        String name = itemNameOf(it);
         if(name != null)
             t.set("name", LuaValue.valueOf(name));
         if(it.num != -1)
@@ -1079,24 +1028,6 @@ final class CharApi {
         return t;
     }
 
-    /**
-     * A character attribute {@code {base, comp}} for a name, or nil. {@link Glob#getcattr} never
-     * returns {@code null} (it auto-creates a zero entry for unknown names), so a {@code base==0 &&
-     * comp==0} entry is reported as nil ("not populated by the server yet").
-     */
-    private static LuaValue attrSnapshot(String name) {
-        Glob g = glob();
-        if(g == null)
-            return LuaValue.NIL;
-        Glob.CAttr a = g.getcattr(name);
-        if((a == null) || ((a.base == 0) && (a.comp == 0)))
-            return LuaValue.NIL;
-        LuaTable t = new LuaTable();
-        t.set("base", LuaValue.valueOf(a.base));
-        t.set("comp", LuaValue.valueOf(a.comp));
-        return t;
-    }
-
     // -- study / curiosity + skills (1d-3): all-public reads off the character sheet (no haven edit) --
 
     /**
@@ -1105,59 +1036,13 @@ final class CharApi {
      * {@code null} until the sattr tab streams in (a beat after enter-world, like {@code battr}). There
      * is exactly one StudyInfo per study inventory, so the first hit is it.
      */
-    private static SAttrWnd.StudyInfo studyInfo() {
+    static SAttrWnd.StudyInfo studyInfo() {
         CharWnd c = charwnd();
         if((c == null) || (c.sattr == null))
             return null;
         for(SAttrWnd.StudyInfo si : c.sattr.children(SAttrWnd.StudyInfo.class))
             return si;
         return null;
-    }
-
-    /** Read a study inventory's {@link GItem} children into an array of curiosity snapshots. */
-    private static LuaValue readStudySlots(Widget study) {
-        LuaTable out = new LuaTable();
-        if(study == null)
-            return out;
-        int i = 0;
-        for(GItem it : study.children(GItem.class))
-            out.set(++i, studySnapshot(it));
-        return out;
-    }
-
-    /**
-     * A study-slot snapshot: {@code res}/{@code name} (the curiosity item) plus its {@link Curiosity}
-     * study profile — {@code lp} (learning points), {@code attention} (mental weight), {@code cost}
-     * (experience cost), {@code time} (total study time, seconds). {@code progress} (0..1) is the item
-     * meter, best-effort (present only when the client tracks it for that item). All Loading-guarded:
-     * {@code res} may be the only field until the item's info resolves, then the rest fills in (which
-     * surfaces as another {@code StudyChanged}). NB {@code time} is the TOTAL study time — the client
-     * has no per-item countdown, so there is no true "time left".
-     */
-    private static LuaValue studySnapshot(GItem it) {
-        if(it == null)
-            return LuaValue.NIL;
-        LuaTable t = new LuaTable();
-        String res = itemRes(it);
-        if(res != null)
-            t.set("res", LuaValue.valueOf(res));
-        String name = itemName(it);
-        if(name != null)
-            t.set("name", LuaValue.valueOf(name));
-        try {
-            Curiosity ci = ItemInfo.find(Curiosity.class, it.info());   // may throw Loading
-            if(ci != null) {
-                t.set("lp", LuaValue.valueOf(ci.exp));
-                t.set("attention", LuaValue.valueOf(ci.mw));
-                t.set("cost", LuaValue.valueOf(ci.enc));
-                t.set("time", LuaValue.valueOf(ci.time));
-            }
-        } catch(RuntimeException e) {
-            /* info still Loading — res/name may be set; the Curiosity fields arrive on a later read */
-        }
-        if(it.meter > 0)
-            t.set("progress", LuaValue.valueOf(it.meter / 100.0));   // 0..1, best-effort (item meter)
-        return t;
     }
 
     /** Do two study-slot arrays carry the same items/fields? (positional; for change-detection.) */
@@ -1195,186 +1080,11 @@ final class CharApi {
     }
 
     /** The character sheet's "Lore &amp; Skills" widget ({@link SkillWnd}), or {@code null}. */
-    private static SkillWnd skillwnd() {
+    static SkillWnd skillwnd() {
         CharWnd c = charwnd();
         return (c == null) ? null : c.skill;
     }
 
-
-    /** Display name of a skill: the resource tooltip, else the internal skill token ({@code Skill.nm}). */
-    private static String skillName(SkillWnd.Skill s) {
-        return resTipName(s.res, s.nm);
-    }
-
-    /** Resource name (stable identity) of a skill, or {@code null} (Loading-guarded). */
-    private static String skillRes(SkillWnd.Skill s) {
-        return resIdent(s.res);
-    }
-
-    /**
-     * The character's KNOWN skills ({@code SkillWnd.skg.csk}) as {@code {name, res}} snapshots.
-     * {@code name} is always present (the resource tooltip, else the internal token); {@code res} is
-     * Loading-guarded. The list is copied defensively (the {@code Group.items} reference is swapped
-     * wholesale off-thread by the {@code csk}/{@code nsk} uimsgs). "Available to learn" ({@code nsk})
-     * and credos/experiences are deferred.
-     */
-    private static LuaValue readSkills() {
-        LuaTable out = new LuaTable();
-        SkillWnd w = skillwnd();
-        if(w == null)
-            return out;
-        int i = 0;
-        try {
-            for(SkillWnd.Skill s : new ArrayList<SkillWnd.Skill>(w.skg.csk.items)) {
-                LuaTable t = new LuaTable();
-                t.set("name", LuaValue.valueOf(skillName(s)));
-                String res = skillRes(s);
-                if(res != null)
-                    t.set("res", LuaValue.valueOf(res));
-                out.set(++i, t);
-            }
-        } catch(RuntimeException e) {
-            /* skg/csk not ready or the list was swapped mid-read — return what we have */
-        }
-        return out;
-    }
-
-    /** Does the character KNOW a skill whose name or resource contains {@code needle}? */
-    private static boolean hasSkill(String needle) {
-        SkillWnd w = skillwnd();
-        if(w == null)
-            return false;
-        try {
-            for(SkillWnd.Skill s : new ArrayList<SkillWnd.Skill>(w.skg.csk.items)) {
-                String name = skillName(s), res = skillRes(s);
-                if(((name != null) && name.contains(needle)) || ((res != null) && res.contains(needle)))
-                    return true;
-            }
-        } catch(RuntimeException e) {
-            /* list swapped mid-read — treat as not found */
-        }
-        return false;
-    }
-
-    /**
-     * The character's AVAILABLE (buyable) skills ({@code SkillWnd.skg.nsk}) as {@code {name, res, cost}}
-     * snapshots — {@code cost} = the LP price to learn. The counterpart to {@link #readSkills()} (known
-     * skills). Same discipline: {@code name} always present, {@code res} Loading-guarded, the list copied
-     * defensively (the {@code Group.items} reference is swapped wholesale off-thread by the {@code nsk} uimsg).
-     */
-    private static LuaValue readAvailableSkills() {
-        LuaTable out = new LuaTable();
-        SkillWnd w = skillwnd();
-        if(w == null)
-            return out;
-        int i = 0;
-        try {
-            for(SkillWnd.Skill s : new ArrayList<SkillWnd.Skill>(w.skg.nsk.items)) {
-                LuaTable t = new LuaTable();
-                t.set("name", LuaValue.valueOf(skillName(s)));
-                String res = skillRes(s);
-                if(res != null)
-                    t.set("res", LuaValue.valueOf(res));
-                t.set("cost", LuaValue.valueOf(s.cost));
-                out.set(++i, t);
-            }
-        } catch(RuntimeException e) {
-            /* nsk not ready or the list was swapped mid-read — return what we have */
-        }
-        return out;
-    }
-
-    /** A credo snapshot {@code {name, res}} — name from the resource tooltip (else the {@code Credo.nm} token). */
-    private static LuaValue credoSnapshot(SkillWnd.Credo c) {
-        LuaTable t = new LuaTable();
-        t.set("name", LuaValue.valueOf(resTipName(c.res, c.nm)));
-        String res = resIdent(c.res);
-        if(res != null)
-            t.set("res", LuaValue.valueOf(res));
-        return t;
-    }
-
-    /** A list of credos as {@code {name,res}} snapshots (defensively copied — swapped off-thread). */
-    private static LuaValue readCredoList(List<SkillWnd.Credo> list) {
-        LuaTable out = new LuaTable();
-        int i = 0;
-        for(SkillWnd.Credo c : new ArrayList<SkillWnd.Credo>(list))
-            out.set(++i, credoSnapshot(c));
-        return out;
-    }
-
-    /**
-     * The Credos tab ({@code SkillWnd.credos}): {@code acquired}/{@code available} (arrays of
-     * {@code {name,res}}), the currently-pursued credo under {@code pursuing} ({@code {name,res,level,
-     * levelTotal,quest,questTotal,questId}}, absent when none), and {@code cost} (LP to begin pursuing a
-     * new credo). nil until the "Lore &amp; Skills" window exists (it streams in after enter-world).
-     */
-    private static LuaValue readCredos() {
-        SkillWnd w = skillwnd();
-        if(w == null)
-            return LuaValue.NIL;
-        SkillWnd.CredoGrid cg = w.credos;
-        LuaTable out = new LuaTable();
-        try {
-            out.set("acquired", readCredoList(cg.ccr));
-            out.set("available", readCredoList(cg.ncr));
-            out.set("cost", LuaValue.valueOf(cg.cost));
-            SkillWnd.Credo p = cg.pcr;
-            if(p != null) {
-                LuaTable pt = new LuaTable();
-                pt.set("name", LuaValue.valueOf(resTipName(p.res, p.nm)));
-                String res = resIdent(p.res);
-                if(res != null)
-                    pt.set("res", LuaValue.valueOf(res));
-                pt.set("level",      LuaValue.valueOf(cg.pcl));
-                pt.set("levelTotal", LuaValue.valueOf(cg.pclt));
-                pt.set("quest",      LuaValue.valueOf(cg.pcql));
-                pt.set("questTotal", LuaValue.valueOf(cg.pcqlt));
-                pt.set("questId",    LuaValue.valueOf(cg.pqid));
-                out.set("pursuing", pt);
-            }
-        } catch(RuntimeException e) {
-            /* credo lists swapped mid-read — return the partial table */
-        }
-        return out;
-    }
-
-    /**
-     * An experience/lore snapshot {@code {name, res, score, mtime}} from the Lore tab. An {@code Experience}
-     * has no internal token, so {@code name} is the resource tooltip (else the resource path, else absent);
-     * {@code score} = experience points, {@code mtime} = the server-supplied time field (faithful passthrough).
-     */
-    private static LuaValue experienceSnapshot(SkillWnd.Experience e) {
-        LuaTable t = new LuaTable();
-        String nm = resTipName(e.res, resIdent(e.res));
-        if(nm != null)
-            t.set("name", LuaValue.valueOf(nm));
-        String res = resIdent(e.res);
-        if(res != null)
-            t.set("res", LuaValue.valueOf(res));
-        t.set("score", LuaValue.valueOf(e.score));
-        t.set("mtime", LuaValue.valueOf(e.mtime));
-        return t;
-    }
-
-    /**
-     * The character's seen experiences / lore ({@code SkillWnd.exps.seen}) as {@code {name,res,score,mtime}}
-     * snapshots (the "Lore" tab). Defensively copied (swapped off-thread by the {@code exps} uimsg).
-     */
-    private static LuaValue readExperiences() {
-        LuaTable out = new LuaTable();
-        SkillWnd w = skillwnd();
-        if(w == null)
-            return out;
-        int i = 0;
-        try {
-            for(SkillWnd.Experience e : new ArrayList<SkillWnd.Experience>(w.exps.seen.items))
-                out.set(++i, experienceSnapshot(e));
-        } catch(RuntimeException ex) {
-            /* seen not ready or swapped mid-read — return what we have */
-        }
-        return out;
-    }
 
     // ------------------------------------------------ action bar / hotbar + equipment (1d-4)
     // NB the engine calls the action bar the "belt" (GameUI.belt / BeltSlot / setbelt) — H&H's own term;

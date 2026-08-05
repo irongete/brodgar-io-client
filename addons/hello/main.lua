@@ -72,7 +72,7 @@
 -- the HUD + gob:overlay() on game objects) and 2a custom windows/widgets + the GOut wrapper. It runs
 -- inside the Lua SANDBOX (D-017 strict env + D-018 instruction watchdog) over 1e hafen.store (saved
 -- variables), 1d-4 actionbar/equip, 1d-3 study/skills (+ A4: the full Lore & Skills window — buyable skills,
--- credos, and experiences/lore via hafen.char.skillsAvailable/credos/experiences), 1d-2 buffs + FEP/food,
+-- credos, and experiences/lore via hafen.char():skill():available()/credo()/experience()), 1d-2 buffs + FEP/food,
 -- 1d-1 the HUD meters, the 1c items/char/party reads, the gob/world/map/player/time/sound reads, the 1b event bus,
 -- and timers, and can be
 -- RELOADED from disk without a relog (:reload, D-005) and enabled/disabled (:addons, D-006). `hafen` is the API
@@ -219,10 +219,10 @@ end
 -- char data (Glob cattrs, CharWnd.exp/enc) STREAMS IN a beat after enter-world, so this too is read at
 -- OnEnterWorld (often still nil) and again after the delay (resolved).
 local function readChar(tag)
-  local str = hafen.char.attr("str")   -- {base, comp} or nil
+  local str = hafen.char():attr():get("str")   -- never nil; its reads are, until the server publishes
   hafen.log():write(("[%s] char: str=%s lp=%s weight=%s"):format(tag,
-    str and (str.base .. "/" .. str.comp) or "nil",
-    tostring(hafen.char.lp()), tostring(hafen.char.weight())))
+    str:base() and (str:base() .. "/" .. str:composite()) or "nil",
+    tostring(hafen.char():lp()), tostring(hafen.char():weight())))
   hafen.log():write(("[%s] party: %d member(s)"):format(tag, #hafen.party.members()))
 end
 
@@ -303,64 +303,60 @@ local function readBuffs(tag)
   end
 end
 
--- 1d-2: FEP + hunger via the character sheet. food() = { fep={cap,total,entries={{res,name,amount}}},
--- hunger={level,label,efficacy} } or nil until the base-attributes tab exists (streams in after
+-- 1d-2: FEP + hunger via the character sheet. :food() is the Food OBJECT (:cap/:total/:feps/:hunger/
+-- :label/:efficacy), or nil until the base-attributes tab exists (streams in after
 -- enter-world, like char/items). No absolute vital numbers exist, but FEP/hunger DO (this is them).
 local function readFood(tag)
-  local f = hafen.char.food()
-  if f and f.fep then
+  local f = hafen.char():food()
+  if f and f:cap() then
     hafen.log():write(("[%s] food: fep=%.0f/%.0f (%d type(s)) hunger=%s efficacy=%s"):format(tag,
-      f.fep.total or 0, f.fep.cap or 0, #f.fep.entries,
-      f.hunger and tostring(f.hunger.label or f.hunger.level) or "nil",
-      f.hunger and tostring(f.hunger.efficacy) or "nil"))
+      f:total() or 0, f:cap() or 0, #f:feps(),
+      tostring(f:label() or f:hunger()), tostring(f:efficacy())))
   else
     hafen.log():write(("[%s] food: nil (char sheet not up yet)"):format(tag))
   end
 end
 
--- 1d-3: study/curiosity slots + known skills, both off the character sheet (widget-tree). slots() gives
--- each curiosity's study profile {res,name,lp,attention,cost,time,progress?}; summary() the live totals
--- {lp,attention,cost}; char.skills() the KNOWN skills as {name,res}. Like the rest of the char sheet the
+-- 1d-3: study/curiosity slots + known skills, both off the character sheet (widget-tree). :slot():list()
+-- gives each curiosity as an OBJECT (:res/:name/:lp/:attention/:cost/:time/:progress); :summary() the live
+-- totals {lp,attention,cost}; char():skill():list() the KNOWN skills as Skill objects. Like the rest of the char sheet the
 -- study window and skill list stream in a beat after enter-world, so read at now (often empty) and +3s.
 local function readStudy(tag)
-  local slots = hafen.study.slots()
-  local sum = hafen.study.summary()
+  local slots = hafen.study():slot():list()
+  local sum = hafen.study():summary()
   local first = slots[1]
   hafen.log():write(("[%s] study=%d slot(s), first=%s, totals=%s"):format(tag, #slots,
-    first and tostring(first.name or first.res) or "none",
+    first and tostring(first:name() or first:res()) or "none",
     sum and ("lp=%s att=%s cost=%s"):format(tostring(sum.lp), tostring(sum.attention), tostring(sum.cost)) or "nil"))
-  local skills = hafen.char.skills()
+  local skills = hafen.char():skill():list()
   hafen.log():write(("[%s] skills=%d known, first=%s"):format(tag, #skills,
-    skills[1] and tostring(skills[1].name) or "none"))
+    skills[1] and tostring(skills[1]:name()) or "none"))
 end
 
 -- A4 (completes study/skills): the rest of the "Lore & Skills" window beyond the KNOWN skills above.
--- skillsAvailable() = the BUYABLE skills {name,res,cost} (cost = LP price). credos() = the Credos tab:
--- { acquired, available (each an array of {name,res}), pursuing = {name,res,level,levelTotal,quest,
--- questTotal,questId} or nil, cost } (nil until the window is up). experiences() = the Lore tab, each
--- {name,res,score,mtime}. Like the known skills these stream in a beat after enter-world, so read at now
+-- :skill():available() = the BUYABLE skills, each with a :cost() in LP. :credo() is the Credos tab as ONE
+-- collection with cr:acquired() saying which half a credo is in, :pursuing() the one being pursued (its
+-- five progress reads answer only there) and :cost() the price of beginning one. :experience() is the Lore
+-- tab. Like the known skills these stream in a beat after enter-world, so read at now
 -- (often empty/nil) and +3s. There is NO *Changed event — they change only on explicit, infrequent
 -- actions (buy / pursue / quest progress), so an addon reads them on demand (e.g. after its own action).
 local function readLore(tag)
-  local avail = hafen.char.skillsAvailable()
-  local cr = hafen.char.credos()
-  local lore = hafen.char.experiences()
-  hafen.log():write(("[%s] skillsAvailable=%d, first=%s%s"):format(tag, #avail,
-    avail[1] and tostring(avail[1].name) or "none",
-    avail[1] and (" cost=%s LP"):format(tostring(avail[1].cost)) or ""))
-  if cr then
-    local p = cr.pursuing
-    hafen.log():write(("[%s] credos: acquired=%d available=%d cost=%s, pursuing=%s%s"):format(tag,
-      #cr.acquired, #cr.available, tostring(cr.cost),
-      p and tostring(p.name) or "none",
-      p and (" (lvl %s/%s, quest %s/%s)"):format(
-        tostring(p.level), tostring(p.levelTotal), tostring(p.quest), tostring(p.questTotal)) or ""))
-  else
-    hafen.log():write(("[%s] credos: nil (Lore & Skills window not up yet)"):format(tag))
-  end
+  local avail = hafen.char():skill():available()
+  local credo = hafen.char():credo()
+  local lore = hafen.char():experience():list()
+  hafen.log():write(("[%s] skills available=%d, first=%s%s"):format(tag, #avail,
+    avail[1] and tostring(avail[1]:name()) or "none",
+    avail[1] and (" cost=%s LP"):format(tostring(avail[1]:cost())) or ""))
+  local acquired = credo:count(function(c) return c:acquired() end)
+  local p = credo:pursuing()
+  hafen.log():write(("[%s] credos: acquired=%d available=%d cost=%s, pursuing=%s%s"):format(tag,
+    acquired, credo:count() - acquired, tostring(credo:cost()),
+    p and tostring(p:name()) or "none",
+    p and (" (lvl %s/%s, quest %s/%s)"):format(
+      tostring(p:level()), tostring(p:levelTotal()), tostring(p:quest()), tostring(p:questTotal())) or ""))
   hafen.log():write(("[%s] experiences=%d, first=%s%s"):format(tag, #lore,
-    lore[1] and tostring(lore[1].name) or "none",
-    lore[1] and (" score=%s"):format(tostring(lore[1].score)) or ""))
+    lore[1] and tostring(lore[1]:name()) or "none",
+    lore[1] and (" score=%s"):format(tostring(lore[1]:score())) or ""))
 end
 
 -- 1d-4 + 021: action bar / hotbar slots (the engine calls it the "belt"), now OOP. The section object IS
@@ -1307,21 +1303,20 @@ local fepSeen = 0
 hafen.event():on("FepChanged", function(f)
   fepSeen = fepSeen + 1
   if fepSeen <= 5 then
-    local total = (f.fep and f.fep.total) or 0
-    local hunger = f.hunger and (f.hunger.label or f.hunger.level)
-    hafen.log():write(("FepChanged: fep total=%.0f hunger=%s (%d)"):format(total, tostring(hunger), fepSeen))
+    hafen.log():write(("FepChanged: fep total=%.0f hunger=%s (%d)"):format(
+      f:total() or 0, tostring(f:label() or f:hunger()), fepSeen))
   end
 end)
 
 -- 1d-3: StudyChanged fires when the study slots change — a curiosity added/finished, or study data
 -- streaming in a beat after enter-world (a few fires at login). Payload is the same array as
--- hafen.study.slots(). Log the first few so it does not flood.
+-- hafen.study():slot():list() -- StudySlot OBJECTS, not snapshots. Log the first few so it does not flood.
 local studySeen = 0
 hafen.event():on("StudyChanged", function(slots)
   studySeen = studySeen + 1
   if studySeen <= 5 then
     hafen.log():write(("StudyChanged: %d slot(s)%s (%d)"):format(#slots,
-      slots[1] and (", first=" .. tostring(slots[1].name or slots[1].res)) or "", studySeen))
+      slots[1] and (", first=" .. tostring(slots[1]:name() or slots[1]:res())) or "", studySeen))
   end
 end)
 

@@ -73,7 +73,7 @@ bar with more shows them all in `:segments()`.
 
 > `:value()` is a **bar fraction only**. There are no absolute hp, stamina or energy numbers, and no
 > hunger figure, in the client. The one place absolute numbers exist is FEP:
-> see [`hafen.char.food`](char.md).
+> see [`hafen.char():food()`](char.md#food).
 
 There is no write side. Meters are server-pushed presentation and there is nothing to set. You can
 freeze the bars client-side by swallowing their updates with an
@@ -115,6 +115,6 @@ exactly the predicate `:list()` filters on.
 ## See also
 
 - [`Meter`](types.md#meter) — the snapshot shape `:info()` returns
-- [`hafen.char`](char.md) — `food()`, the one absolute reading about your character
+- [`hafen.char`](char.md) — `:food()`, the one absolute reading about your character
 - [`hafen.buff`](buff.md) — the other keyless status collection
 - [events](event.md#character-and-status) — the three meter events

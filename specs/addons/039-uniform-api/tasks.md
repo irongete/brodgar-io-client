@@ -484,7 +484,7 @@ their entity blocks) · `src/io/brodgar/addon/LuaKin.java`, `LuaSlot.java`, `Lua
 
 ---
 
-## 039.11 — OOP: `hafen.char()` and `hafen.study()`
+## 039.11 — OOP: `hafen.char()` and `hafen.study()` ✅ DONE
 
 **Depends on:** 039.1 (collections), 039.10 (`hafen.client():profiling()` for the cost check).
 

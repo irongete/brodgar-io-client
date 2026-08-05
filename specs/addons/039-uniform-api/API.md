@@ -107,18 +107,27 @@ sub-collections were plural (`gob:overlays()`, `char():attrs()`). Now both are s
 
 ## `hafen.char()` — the character sheet *(OOP migration, spec §4.1)*
 
+> **Shipped in 039.11.** ✅ every row. The four flat readers became the collections `:attr()`,
+> `:skill()`, `:credo()` and `:experience()`, each minted once and handed back by identity;
+> `skillsAvailable()` became `:skill():available()`. The attribute key set is CLOSED, so a name outside
+> the nine is refused naming them rather than answered with a handle whose every read is nil, and a name
+> inside them is never nil. `attr`'s `comp` field is the verb `:composite()` (N1), and the entity table
+> below is corrected in two places: an Attr has no `:value()` (that would be a second name for
+> `:composite()`), and Food's verbs are `:cap() :total() :feps() :hunger() :label() :efficacy()`, which
+> is the whole of what the flat reader published.
+
 | before | after | does |
 |---|---|---|
-| `hafen.char.attr(name)` | `hafen.char():attr():get(name)` | one attribute |
-| `hafen.char.attrs()` | `hafen.char():attr():list()` | every populated attribute |
-| `hafen.char.lp()` | `hafen.char():lp()` | learning points (scalar) |
-| `hafen.char.weight()` | `hafen.char():weight()` | carried weight (scalar) |
-| `hafen.char.food()` | `hafen.char():food()` | **NEW** Food entity — FEP and hunger |
-| `hafen.char.skills()` | `hafen.char():skill():list()` | known skills |
-| `hafen.char.skill(name)` | `hafen.char():skill():find(name)` | substring lookup — **was a bool, now the Skill** |
-| `hafen.char.skillsAvailable()` | `hafen.char():skill():available()` | buyable skills (R8) — carries `:cost()` |
-| `hafen.char.credos()` | `hafen.char():credo():list()` | the Credos tab |
-| `hafen.char.experiences()` | `hafen.char():experience():list()` | lore and experiences seen |
+| `hafen.char.attr(name)` | `hafen.char():attr():get(name)` | one attribute ✅ |
+| `hafen.char.attrs()` | `hafen.char():attr():list()` | every populated attribute ✅ |
+| `hafen.char.lp()` | `hafen.char():lp()` | learning points (scalar) ✅ |
+| `hafen.char.weight()` | `hafen.char():weight()` | carried weight (scalar) ✅ |
+| `hafen.char.food()` | `hafen.char():food()` | **NEW** Food entity — FEP and hunger ✅ |
+| `hafen.char.skills()` | `hafen.char():skill():list()` | known skills ✅ |
+| `hafen.char.skill(name)` | `hafen.char():skill():find(name)` | substring lookup — **was a bool, now the Skill** ✅ |
+| `hafen.char.skillsAvailable()` | `hafen.char():skill():available()` | buyable skills (R8) — carries `:cost()` ✅ |
+| `hafen.char.credos()` | `hafen.char():credo():list()` | the Credos tab ✅ |
+| `hafen.char.experiences()` | `hafen.char():experience():list()` | lore and experiences seen ✅ |
 
 ## `hafen.client()` — client settings
 
@@ -384,10 +393,14 @@ table **must be the live persisted table, not a copy**, or saving silently stops
 
 ## `hafen.study()` — the study window *(OOP migration, spec §4.2)*
 
+> **Shipped in 039.11.** ✅ both rows. A StudySlot is interned on the item WIDGET, because the same
+> curiosity can sit in two slots at once — so the collection carries no `:get`, and a slot taken out of
+> study keeps answering with `:exists()` false.
+
 | before | after | does |
 |---|---|---|
-| `hafen.study.slots()` | `hafen.study():slot():list()` | **NEW** StudySlot collection |
-| `hafen.study.summary()` | `hafen.study():summary()` | `{lp, attention, cost}` totals |
+| `hafen.study.slots()` | `hafen.study():slot():list()` | **NEW** StudySlot collection ✅ |
+| `hafen.study.summary()` | `hafen.study():summary()` | `{lp, attention, cost}` totals ✅ |
 
 ## `hafen.time()` — the game clock
 
@@ -888,10 +901,10 @@ and they gain only the R5 nil refusal.
 
 | entity | from | key verbs |
 |---|---|---|
-| Attr | `hafen.char():attr()` | `:name() :base() :comp() :value() :info()` |
-| Skill / Credo / Experience | `hafen.char()` | `:name() :res() :cost() :exists() :info()` |
-| Food | `hafen.char():food()` | `:hunger() :energy() :feps() :info()` |
-| StudySlot | `hafen.study():slot()` | `:res() :name() :lp() :attention() :exists() :info()` |
+| Attr | `hafen.char():attr()` | `:name() :base() :composite() :info()` ✅ |
+| Skill / Credo / Experience | `hafen.char()` | `:name() :res() :cost() :known() :exists() :info()`; a Credo adds `:acquired() :pursuing()` and the five pursuit reads, an Experience `:score() :modified()` ✅ |
+| Food | `hafen.char():food()` | `:cap() :total() :feps() :hunger() :label() :efficacy() :exists() :info()` ✅ |
+| StudySlot | `hafen.study():slot()` | `:res() :name() :lp() :attention() :cost() :time() :progress() :exists() :info()` ✅ |
 | PartyMember | `hafen.party()` | `:id() :position() :color() :leader() :gob() :exists() :info()` |
 | Craft | `hafen.craft():current()` | `:name() :res() :inputs() :outputs() :make(all) :exists() :info()` |
 | Quest / Condition | `hafen.quest()` | `:id() :title() :conditions() :done() :exists() :info()` |
@@ -908,8 +921,8 @@ Subscription moves to `hafen.event():on(name, fn)`. Payloads that are still snap
 
 | event | payload before | payload after |
 |---|---|---|
-| `FepChanged` | `Food` snapshot | Food entity |
-| `StudyChanged` | `StudySlot[]` snapshots | StudySlot entities |
+| `FepChanged` | `Food` snapshot | Food entity ✅ |
+| `StudyChanged` | `StudySlot[]` snapshots | StudySlot entities ✅ |
 | `EquipChanged` | `Item[]` snapshots | Item entities |
 | `WoundChanged` | `Wound[]` snapshots | Wound entities |
 | `QuestAdded` / `QuestDone` | `Quest` snapshot | Quest entity |
@@ -929,7 +942,7 @@ not an accessor, so R3 does not reach it.
 
 | verb | was | becomes |
 |---|---|---|
-| `hafen.char.skill(name)` | boolean | the Skill, or nil |
+| `hafen.char.skill(name)` | boolean | the Skill, or nil ✅ |
 | `hafen.wounds.has(needle)` | boolean | the Wound, or nil |
 | `hafen.party.members()` etc. | snapshot tables | entities (all of spec §4) |
 

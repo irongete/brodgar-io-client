@@ -288,3 +288,11 @@
   which has a retired verb *today*, and every one of which becomes this defect the moment one of its verbs is
   renamed. So the grep is the checklist a renaming task runs first. Note it is invisible from Java — the code
   compiles, runs, and dispatches every *live* verb correctly; only an assertion on the *refusal* sees it.
+- **(039.11) A LuaJ number IS a string: `isstring()` is true for `LuaNumber`.** A key guard written as
+  `if(!key.isstring()) throw …` lets `coll:get(3)` straight through to the name test, so the refusal reported
+  a missing *attribute* ("there is no such attribute; the base attributes are: str, agi, …") where the real
+  mistake was the wrong kind of key. Use `key.type() != LuaValue.TSTRING` when the distinction matters, which
+  it does exactly when the two mistakes deserve different messages. The probe caught it because it asserted
+  the message TEXT of both refusals rather than that a refusal happened — the same reason 039.1's and 039.8's
+  message assertions paid off. Sibling of the `narg()` discipline: *the bridge's coercions are silent, so a
+  type test is a decision about which error the caller reads.*

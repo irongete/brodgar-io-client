@@ -205,6 +205,19 @@ public final class LuaCollection {
 
     /** Does {@code member} pass {@code filter}? The canonical filter: nil = all, predicate, or substring. */
     private boolean keeps(LuaValue filter, LuaValue member, String verb) {
+        return keeps(filter, member, src.needle(member), name, verb);
+    }
+
+    /**
+     * The canonical filter, as one shared decision: {@code nil} keeps everything, a function is a predicate
+     * over the member <b>object</b>, a string is a substring test against {@code needle} (and is refused
+     * where the members have no name), and anything else is an error naming the three forms.
+     *
+     * <p>Package-visible and static because a collection's own <b>extra</b> verbs filter too — a sub-list
+     * like {@code hafen.char():skill():available(filter)} is the same argument over a different set, and it
+     * has to behave identically or the filter would mean two things one verb apart.
+     */
+    static boolean keeps(LuaValue filter, LuaValue member, String needle, String coll, String verb) {
         if((filter == null) || filter.isnil())
             return true;
         if(filter.isfunction()) {
@@ -215,13 +228,12 @@ public final class LuaCollection {
             }
         }
         if(filter.isstring()) {
-            String needle = src.needle(member);
             if(needle == null)
-                throw new LuaError(name + ":" + verb + "(filter): these have no name to match a string"
+                throw new LuaError(coll + ":" + verb + "(filter): these have no name to match a string"
                     + " against — pass a function, or nothing for all of them");
             return needle.contains(filter.tojstring());
         }
-        throw new LuaError(name + ":" + verb + "(filter): expected nothing, a string or a function, got "
+        throw new LuaError(coll + ":" + verb + "(filter): expected nothing, a string or a function, got "
             + filter.typename());
     }
 

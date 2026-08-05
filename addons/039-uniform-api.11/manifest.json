@@ -1,0 +1,9 @@
+{
+  "name": "039.11 — hafen.char() and hafen.study()",
+  "id": "039-uniform-api.11",
+  "version": "1.1.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.11: the character sheet and the study window as sections of collections — the six new interned entities and their snapshot shapes, the closed attribute key set, the keyless collections refusing :get, the retired spellings naming their replacements, and the two events handing objects rather than tables.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

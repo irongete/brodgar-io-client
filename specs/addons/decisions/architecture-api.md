@@ -1284,3 +1284,40 @@ static table and `hafen.store.anything_else` still reads plain `nil`. Generally:
 owner supplied is built where that data lives, not appended to the vocabulary everyone shares.*
 **See.** [D-118](architecture-api.md), [D-129](architecture-api.md), [D-002](filesystem-build.md),
 [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-131 — where the server PARTITIONS one set, one entity type covers it and the partition is a read ✅ (2026-08-05)
+**Decision.** Known and buyable skills are one `Skill` type with `:known()`; acquired, available and the
+pursued credo are one `Credo` type with `:acquired()` and `:pursuing()`. The collection lists one group and a
+verb reaches the other (`:skill():available()`, `:credo():pursuing()`) — a distinguished sub-list is a verb on
+the collection (§2.3), never a second type.
+**Rationale.** (2026-08-05, 039.11.) The flat readers had a shape per group — `skills()` gave `{name,res}`,
+`skillsAvailable()` gave `{name,res,cost}`, `credos()` gave two arrays plus a differently-shaped `pursuing`
+table — so the same thing was three tables that could not be compared. Buying a skill or taking up a credo
+moves it between groups *without making it a different skill*, and that is precisely the moment an addon
+cares: a type per group would break `==` exactly there, and a handle stashed before the buy would go stale
+for a change that is not a removal. The server agrees — it partitions with a `has` flag on the same record.
+**Consequences.** `:known()`/`:acquired()` flip under a live handle and every other read keeps working;
+`:cost()` is the number the server published for either group rather than a field only one shape had; and the
+pursued credo compares equal to the same credo found in `:list()`, so its five progress reads are properties
+of *that member* and answer `nil` on all the others. Generally: *a flag the engine keeps on one record is a
+read on one entity — do not turn it into two types the caller has to reconcile.*
+**See.** [D-094](architecture-api.md), [D-132](architecture-api.md), [D-056](architecture-api.md),
+[039-uniform-api](../039-uniform-api/spec.md).
+
+### D-132 — an entity with no id of its own is keyed by what it DERIVES from, and does not exist until that resolves ✅ (2026-08-05)
+**Decision.** `Skill` and `Credo` intern on the server's own token (`nm`); `Experience`, which carries no
+token at all, interns on its **resource name**, and a lore entry whose resource has not resolved yet is simply
+not in `:list()` — it appears on a later read.
+**Rationale.** (2026-08-05, 039.11.) D-094 says the intern key follows the engine's own stability, and here the
+engine has none to offer: `SkillWnd` replaces `skg.csk.items`, `skg.nsk.items`, `credos.ccr`/`ncr` and
+`exps.seen.items` **wholesale** on each `csk`/`nsk`/`ccr`/`ncr`/`exps` uimsg, so Java identity churns on data
+the addon did not change and a stashed handle would die on every resend. The token survives every swap, which
+makes it the key for two of the three. The third has only a resource, and the alternative to waiting for it —
+minting on the record's identity while unresolved and re-keying later — would hand out two objects for one
+piece of lore and make `==` mean *read in the same beat*.
+**Consequences.** The whole tab is readable a beat after it builds, which is the same beat the rest of the
+character sheet takes, so nothing new is asked of the caller; `exp:res()` always answers because it *is* the
+key, while `:name()` (the resource's tooltip) may still be resolving. Generally: *a derived key is worth
+waiting for — an entity that appears late is cheaper than an identity that changes.*
+**See.** [D-094](architecture-api.md), [D-131](architecture-api.md), [D-063](architecture-api.md),
+[039-uniform-api](../039-uniform-api/spec.md).

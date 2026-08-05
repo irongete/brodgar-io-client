@@ -57,12 +57,15 @@ tileset id plus resource name.
 
 ## Attr
 
-A character attribute. From [`hafen.char.attr`](char.md) and `attrs`.
-`{ base = number, comp = number }` — the raw base value against the computed, buffed value.
+From [`attr:info()`](char.md#attributes). `{ base = number, comp = number }` — the raw base value against
+the computed, buffed value. `hafen.char():attr()` hands out live [`Attr` objects](char.md#attributes),
+not this table.
 
 ## Food
 
-From [`hafen.char.food`](char.md) and `FepChanged`.
+From [`food:info()`](char.md#food), the one snapshot escape hatch. `hafen.char():food()` and the
+`FepChanged` event hand you a live [`Food` object](char.md#food), not this table. Either half is absent
+until its meter arrives.
 
 ```lua
 {
@@ -79,27 +82,30 @@ From [`hafen.char.food`](char.md) and `FepChanged`.
 
 ## StudySlot
 
-From [`hafen.study.slots`](study.md) and `StudyChanged`.
+From [`slot:info()`](study.md#a-slot), the one snapshot escape hatch. `hafen.study():slot()` and the
+`StudyChanged` event hand you live [`StudySlot` objects](study.md#a-slot), not this table.
 
 | Field | Type | Notes |
 |---|---|---|
-| `res`, `name` | string | the curiosity item; optional |
-| `lp` | number | learning points |
-| `attention` | number | mental weight |
-| `cost` | number | experience cost |
-| `time` | number | **total** study time in seconds; there is no per-item countdown |
+| `res` | string | the curiosity item's resource, its identity |
+| `name` | string | display name; optional |
+| `lp` | number | learning points; optional |
+| `attention` | number | mental weight; optional |
+| `cost` | number | experience cost; optional |
+| `time` | number | **total** study time in seconds; there is no per-item countdown; optional |
 | `progress` | number | 0..1 study progress; best-effort, optional |
 
-`hafen.study.summary()` returns the live totals `{ lp, attention, cost }`.
+`hafen.study():summary()` returns the live totals `{ lp, attention, cost }`.
 
 ## Skill, Credo, Experience
 
-- **Skill** — `{ name = string, res = string? }`. [`skillsAvailable`](char.md) adds `cost`, the LP
-  price.
-- **Credos** — `{ acquired = Skill[], available = Skill[], cost = number, pursuing = {...}? }`, where
-  `pursuing`, present only while pursuing one, is
-  `{ name, res?, level, levelTotal, quest, questTotal, questId }`.
-- **Experience** — `{ name = string?, res = string?, score = number, mtime = number }`.
+From `:info()` on each. [`hafen.char`](char.md) hands out the live objects; these are the snapshots.
+
+- **Skill** — `{ name = string, res = string?, cost = number, known = bool }`, where `known`
+  distinguishes a learnt skill from one that can still be bought.
+- **Credo** — `{ name = string, res = string?, acquired = bool, pursuing = bool }`, plus
+  `{ level, levelTotal, quest, questTotal, questId }` on the credo being pursued and on no other.
+- **Experience** — `{ name = string?, res = string, score = number, mtime = number }`.
 
 ## PartyMember
 

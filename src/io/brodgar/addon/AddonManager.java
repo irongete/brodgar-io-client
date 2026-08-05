@@ -955,6 +955,53 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
             fireTo(c, event, LuaMeter.of(c, m));
     }
 
+    /**
+     * Fire {@code FepChanged} whose payload is the <b>Food object</b> (039.11) — the character's food-event
+     * points and hunger. Same shape as {@link #fireBuff}: interning is per-addon (D-045) so the payload
+     * cannot be shared, and it is minted only for an owner that actually subscribes.
+     *
+     * <p>There is no change <i>detection</i> to do: each {@code "food"}/{@code "glut"} {@code uimsg} is a
+     * genuine server change, and what the handler gets is a live object rather than the numbers at fire
+     * time — so a stashed payload keeps reading the meal after it.
+     */
+    static void fireFood(BAttrWnd w) {
+        for(Addon a : addons) {
+            if(hasSub(a, "FepChanged"))
+                fireTo(a, "FepChanged", LuaFood.of(a, w));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, "FepChanged"))
+            fireTo(c, "FepChanged", LuaFood.of(c, w));
+    }
+
+    /**
+     * Fire {@code StudyChanged} whose payload is an array of <b>StudySlot objects</b> (039.11) — the
+     * curiosities in the study window, in the order it holds them. Same shape as {@link #fireKin}:
+     * interning is per-addon (D-045), and the array is minted only for an owner that actually subscribes —
+     * the study data resolves in several steps after a login, so the gate keeps that free for the addons
+     * that do not listen.
+     *
+     * <p>Change <i>detection</i> stays in {@code CharApi}'s study adapter (the per-slot snapshot diff); the
+     * items arrive already diffed.
+     */
+    static void fireStudy(java.util.List<GItem> items) {
+        for(Addon a : addons) {
+            if(hasSub(a, "StudyChanged"))
+                fireTo(a, "StudyChanged", studyPayload(a, items));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, "StudyChanged"))
+            fireTo(c, "StudyChanged", studyPayload(c, items));
+    }
+
+    /** One owner's {@code StudyChanged} payload: its own interned StudySlot objects, in window order. */
+    private static LuaValue studyPayload(Addon owner, java.util.List<GItem> items) {
+        LuaTable t = new LuaTable();
+        for(int i = 0; i < items.size(); i++)
+            t.set(i + 1, LuaStudySlot.of(owner, items.get(i)));
+        return t;
+    }
+
     /** One owner's {@code KinChanged} payload: its own interned Kin objects, in roster order. */
     private static LuaValue kinPayload(Addon owner, int[] ids) {
         LuaTable t = new LuaTable();

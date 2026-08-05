@@ -96,8 +96,8 @@ These come from the HUD's own widgets, so they start once the HUD is up.
 | `BuffAdded` | [`Buff`](buff.md) | a buff appears |
 | `BuffRemoved` | [`Buff`](buff.md) | a buff goes away — the object still reads, `:exists()` is false |
 | `BuffChanged` | [`Buff`](buff.md) | a buff's content updates |
-| `FepChanged` | [`Food`](types.md#food) | FEP or hunger changes |
-| `StudyChanged` | [`StudySlot`](types.md#studyslot)`[]` | the study slots change: an add, a removal, or data resolving |
+| `FepChanged` | [`Food`](char.md#food) | FEP or hunger changes |
+| `StudyChanged` | [`StudySlot`](study.md#a-slot)`[]` | the study slots change: an add, a removal, or data resolving |
 | `EquipChanged` | [`Item`](types.md#item)`[]` | worn equipment changes |
 | `ActionbarChanged` | [`Slot`](actionbar.md) | an action-bar slot is set, cleared or changed |
 | `WoundChanged` | [`Wound`](types.md#wound)`[]` | a wound is added or healed, or its severity changes |

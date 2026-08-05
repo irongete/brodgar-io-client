@@ -324,6 +324,23 @@ public final class Addon {
     final LuaMeter.Cache meters = new LuaMeter.Cache(this);
 
     /**
+     * This addon's <b>character-sheet interning caches</b> (spec {@code 039-uniform-api} §4.1/§4.2):
+     * {@code hafen.char():attr()} keyed by attribute name, {@code :skill()} and {@code :credo()} by the
+     * server's own token, {@code :experience()} by the lore resource name, {@code :food()} and
+     * {@code hafen.study():slot()} by widget identity — each key chosen by what the engine keeps stable
+     * (D-094), since the skill, credo and lore records are all rebuilt wholesale off-thread whenever the
+     * server resends a group. Same contract as {@link #gobs}: per-addon so no Lua value crosses a sandbox
+     * boundary (D-017) and the whole cache dies with this {@link Addon} on {@code :reload}/disable, with
+     * nothing to tear down (weak values, and a handle holds only its key).
+     */
+    final LuaAttr.Cache attrs = new LuaAttr.Cache(this);
+    final LuaSkill.Cache skills = new LuaSkill.Cache(this);
+    final LuaCredo.Cache credos = new LuaCredo.Cache(this);
+    final LuaExperience.Cache experiences = new LuaExperience.Cache(this);
+    final LuaFood.Cache foods = new LuaFood.Cache(this);
+    final LuaStudySlot.Cache studySlots = new LuaStudySlot.Cache(this);
+
+    /**
      * This addon's <b>Widget interning cache</b> ({@code hafen.ui.root()}/{@code node(id)}/{@code at(x,y)}, spec
      * {@code 029-widget-oop}): the {@code Widget → Widget object} map and the per-addon metatable that make
      * {@code hafen.ui.at(m.x,m.y) == hafen.ui.at(m.x,m.y)} true and let {@code node:same()} be cut. Per-addon like

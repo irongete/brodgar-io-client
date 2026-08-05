@@ -961,3 +961,21 @@
   something asserted it. A per-section checklist would have had four entries for the four sections somebody
   thought about. Rule: *when a task ships N of one shape, assert the shape N times in a loop; the one you
   would have skipped is the one that is wrong.*
+- **(039.11) A payload check that latches the FIRST event latches an EMPTY one, and passes having proved
+  nothing.** The suite recorded the first `StudyChanged` at load and asserted the payload was an array of
+  objects. It went green in-game reading `table/empty`: the login fires the event while the study window is
+  still building, so the array that arrived had no members and the check could only ever observe that a
+  table is a table. That is 028.3's *a harness assertion whose precondition is not guaranteed reports a fake
+  pass* in the shape a **latch** gives it — the precondition is not "am I in the world" but "does this
+  particular payload carry anything", and the first one systematically does not. The fix is one word:
+  latch the first **non-empty** payload, assert the member is userdata answering a read, and count the empty
+  ones so an empty-only session says so in `got:` instead of passing. The probe could not have caught it —
+  no event fires headlessly — so this is the in-game round earning its keep on a check the dry run had no
+  opinion about. Rule: *when a check latches one sample of a stream, state what makes a sample admissible,
+  or the first arrival will be the least informative one.*
+- **(039.11) The falsification plant has to sit where the value is COMPUTED, not where it is passed.** The
+  first attempt at "does the collection get minted per call" edited the argument of the install-time
+  `chr.set("attr", collection("attr", attrs))` — which is evaluated once whatever it says, so both harnesses
+  stayed green and the plant proved only that I had planted nothing. Moving the plant into the accessor
+  itself (mint inside `invoke`) reddened the probe twice and the suite once. Rule: *a plant that leaves both
+  harnesses green is a plant to re-read before it is a check to distrust.*
