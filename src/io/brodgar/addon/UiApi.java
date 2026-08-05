@@ -398,6 +398,26 @@ final class UiApi {
                 return Controls.radio(owner, a);
             }
         });
+        // :slider() — 040.6, a real haven.HSlider. :range(min, max) sets the bounds, :value(n) the position
+        // within them -- CLAMPED on a write outside the range rather than refused, unlike :progress()'s hard
+        // 0..1 -- and :onChange(v, final) is ONE callback over the engine's changed()/fchanged() pair, final
+        // false while dragging and true once on release. Narrowing :range re-clamps an existing value without
+        // firing :onChange, since that is not a user interaction.
+        m.set("slider", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "slider");
+                return Controls.slider(owner, a);
+            }
+        });
+        //   :scrollbar() — a bare haven.Scrollbar for driving something yourself: the same :range/:value as
+        // the slider, minus the final flag on :onChange(fn) -- the engine gives this one no separate "drag
+        // ended" hook.
+        m.set("scrollbar", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "scrollbar");
+                return Controls.scrollbar(owner, a);
+            }
+        });
         // :overlay() — paint on top of the HUD without owning a widget: :onDraw(fn) runs fn(g, w, h) every frame
         // with the shared GOut wrapper and the screen size, in absolute screen coords. It MINTS one rather than
         // handing back a collection, which is the one place `overlay` is a builder and not a set — gob:overlay()

@@ -39,6 +39,8 @@ control with nothing added: `:type()`, `:role()`, `:position(x, y)`, `:size(w, h
 | `hafen.ui():progress()` | [Widget](widget.md) | a fill-fraction bar |
 | `hafen.ui():check()` | [Widget](widget.md) | a checkbox, showing a caption or a picture |
 | `hafen.ui():radio()` | [Widget](widget.md) | a set of buttons where exactly one is checked |
+| `hafen.ui():slider()` | [Widget](widget.md) | a draggable position within a range |
+| `hafen.ui():scrollbar()` | [Widget](widget.md) | a bare scroll thumb, for driving something yourself |
 
 It takes no argument. A control is born bare, with the client's own defaults, and everything about it is a
 chained setter on the Widget it hands back — the same shape [`:window()` and `:widget()`](custom.md) have,
@@ -58,6 +60,7 @@ where the control hangs while it is being built, and once it is on screen the wa
 | `:onChange(fn)` | `:onChange()` | `fn(v)` — the control's value changed |
 | `:source(h)` | `:source()` | the picture a [picture control](#picture) shows |
 | `:rows(t)` | `:rows()` | the row labels a [radio](#radio) shows |
+| `:range(min, max)` | `:range()` | the value bounds of a [slider or scrollbar](#slider) |
 
 Every setter returns the Widget, so a control is one expression, and every one has a matching bare read.
 `:text()` answers on any text-bearing widget, yours or the client's; `:text(s)` writes, and only on a
@@ -65,7 +68,10 @@ control you own. `:onPress()` reads `nil` on a widget that has nothing to press.
 
 **`:value()` is the one verb for what a control holds**, whatever shape that is — a [progress bar](#progress-bar)'s
 is a fraction, and a control with nothing to hold reads `nil` rather than throwing. A write is checked by the
-control it lands on and refused, naming the rule, when it does not fit; it never silently clamps.
+control it lands on: a [progress bar](#progress-bar) refuses one outside `0..1`, naming the rule, while a
+[slider or scrollbar](#slider) instead CLAMPS a write outside its own `:range` to the nearer bound — because
+that range is something you set yourself with `:range(min, max)` and can narrow at any time, not a fixed
+contract the value can violate.
 
 **`:onPress` is an activation, not a mouse position.** It is what the control *did*, so it also fires when
 the button is triggered from the keyboard, and it carries no coordinates. It is safe for the handler to
@@ -205,6 +211,45 @@ The rows are laid out in a single column below the control's own `:position`, ea
 `:size()` reads the box of the whole stack, not one row. Writing `:rows{...}` again replaces the whole set —
 the row that was checked does not carry over, and an empty `:rows{}` is a control with nothing in it rather
 than an error. `:value(v)` naming a row that is not in the current set is refused, naming the rows that are.
+
+## Slider
+
+`hafen.ui():slider()` is a draggable position within a range. `:range(min, max)` sets the bounds,
+`:value(n)` reads and writes the position within them, and `:onChange(fn)` fires while the user drags it:
+
+```lua
+local s = hafen.ui():slider()
+  :size(140, 20)
+  :range(0, 100)
+  :value(50)
+  :onChange(function(v, final) preview(v); if final then save(v) end end)
+```
+
+`:onChange`'s handler takes **two** arguments here — `fn(v, final)` — where every other control's takes one.
+`final` is `false` on every step while the thumb is being dragged and `true` exactly once, when the mouse is
+released, which is the moment to act on the value rather than merely preview it.
+
+A `:value(v)` outside `:range` **clamps** to the nearer bound rather than refusing; narrowing `:range(min,
+max)` later re-clamps a value the new bounds no longer cover, silently — that write is not something the
+user did, so it does not fire `:onChange`. `:range(nil)` is refused like any other required argument, naming
+the missing bound; there is no "undo" meaning for a control's own bounds the way `:position(nil)` undoes a
+layer.
+
+## Scrollbar
+
+`hafen.ui():scrollbar()` is a bare scroll thumb, for driving something yourself — the same `:range(min,
+max)`/`:value(n)` as a [slider](#slider), minus the `final` flag:
+
+```lua
+local sb = hafen.ui():scrollbar()
+  :size(14, 160)
+  :range(0, #items - visibleRows)
+  :value(0)
+  :onChange(function(v) firstRow = v end)
+```
+
+`:onChange`'s handler here takes **one** argument, `fn(v)` — a bare scrollbar has no separate "drag ended"
+moment to report, so every step just reports where it is now.
 
 ## What a control does not take
 

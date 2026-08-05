@@ -765,6 +765,25 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // range(min, max) / range() — 040.6: the value BOUNDS of a slider or scrollbar. The bare read hands
+        // back {min=, max=} as they stand; a control with none reads nil, and a write there throws naming the
+        // builders that take one. Changing the range RE-CLAMPS a value that no longer fits, WITHOUT firing
+        // :onChange — narrowing is not a user interaction, the same direct-field-write discipline 040.3/040.4
+        // pinned for a programmatic :value(v). An explicit widget:range(nil) is refused (R5) like any other
+        // required argument, naming "min" — there is no "undo" meaning for a control's own bounds the way
+        // :position(nil)/:size(nil) undo a layer on a possibly-borrowed widget.
+        m.set("range", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:range() → narg 1 · w:range(min, max) → narg 3
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "range"));
+                if(!Args.passed(a, 2))
+                    return Controls.range((w == null) ? null : ownedContent(owner, w));
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                Controls.range(owned(owner, w, "range(min, max)"), w, a);
+                return self;
+            }
+        });
         // exists() — is this widget still attached to the tree? The one read that always answers (D-060: a widget
         // HAS a lifetime, unlike a name-keyed Sound). False after a destroy and false across a relog.
         m.set("exists", new OneArgFunction() {

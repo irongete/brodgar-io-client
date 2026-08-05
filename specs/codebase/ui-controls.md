@@ -115,3 +115,20 @@ mints a `RadioButton` (its non-static inner class, package-private ctor) and add
 > `ACheckBox`-style `set()`/`state()` seam to exploit instead. The adapter calls
 > [`RadioButton.changed(boolean)`](src/haven/RadioGroup.java:57) directly on the two affected buttons (old
 > off, new on), the method `check()` itself calls, skipping only `check()`'s own hook dispatch.
+
+## `HSlider` and `Scrollbar` — public fields, and a two-call vs one-call split
+
+Both are plain `Widget` subclasses (no `SIWidget` cache, nothing to `redraw()`). `val`/`min`/`max` are
+`public int` on each — the adapter reads and writes them directly, with its own clamp.
+
+| What | Where |
+|---|---|
+| The drag-in-progress hook | [`HSlider.changed()`](src/haven/HSlider.java:103) — empty by default, called from `update(Coord)` on every step of a drag that actually moves `val` |
+| The release hook | [`HSlider.fchanged()`](src/haven/HSlider.java:104) — called ONCE from [`mouseup`](src/haven/HSlider.java:92) whenever a grab was active (`drag != null`), even if `val` never changed during it |
+| `Scrollbar` has only the first half | [`Scrollbar.changed()`](src/haven/Scrollbar.java:115) fires from the same `update(Coord)` shape; `mouseup` only releases the grab — **no `fchanged()` equivalent exists** |
+
+> **`Scrollbar(int h, Scrollable ctl)` — the constructor `Scrollport` uses — makes `draw()` overwrite
+> `min`/`max`/`val` from `ctl` EVERY FRAME.** [`Scrollbar.draw`](src/haven/Scrollbar.java:58) starts
+> `if(ctl != null) { min = ctl.scrollmin(); … }` before painting. A bare control must use the OTHER
+> constructor, `Scrollbar(int h, int min, int max)`, which leaves `ctl` `null` — otherwise an addon's own
+> `:range`/`:value` writes read back correctly for one tick and silently revert on the next drawn frame.

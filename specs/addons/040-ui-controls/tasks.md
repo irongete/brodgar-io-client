@@ -52,7 +52,7 @@
       first clears.
       <!-- extra context: `src/haven/RadioGroup.java` -->
 
-- [ ] **040.6 — `:slider()` and `:scrollbar()`.** `HSlider` with `:range(min, max)`, `:value(n)` and
+- [x] **040.6 — `:slider()` and `:scrollbar()`.** `HSlider` with `:range(min, max)`, `:value(n)` and
       **`:onChange(v, final)`** — one callback over the engine's `changed()`/`fchanged()` pair — plus a bare
       `Scrollbar` with the same three verbs. **Suite proves**: `:value` clamps into `:range` rather than
       accepting an out-of-range write; changing `:range` re-clamps a value that no longer fits; a

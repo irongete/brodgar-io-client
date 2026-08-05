@@ -111,6 +111,22 @@ final class Controls {
         void rows(LuaValue t);
     }
 
+    /**
+     * <b>{@code :range(min, max)} — the value BOUNDS of a slider or scrollbar</b> (task 040.6). {@link CSlider}
+     * is the first implementor, {@link CScrollbar} the second; a control with no bounds is simply not an
+     * instance of this, exactly as {@link Value} is absent from one with no value. Unlike {@link Rows} or
+     * {@link Value}, the write takes the two raw arguments rather than one Lua value: the bridge splits
+     * {@code narg} into read/write, but the two numbers themselves are each the implementation's own to
+     * type-check and name in its refusal.
+     */
+    interface Range {
+        /** {@code {min =, max =}} as they stand right now. */
+        LuaValue range();
+
+        /** Validated by the implementation, which throws naming the rule a bad bound broke. */
+        void range(LuaValue minv, LuaValue maxv);
+    }
+
     // ------------------------------------------------------------------ the builders
 
     /**
@@ -210,6 +226,33 @@ final class Controls {
         return UiApi.attach(u, owner, new CRadio(owner));
     }
 
+    /**
+     * {@code hafen.ui():slider()} — a real {@link haven.HSlider}, the client's own (task 040.6). Its bounds are
+     * {@code :range(min, max)}, its position within them {@code :value(n)} — CLAMPED on a write outside the
+     * range rather than refused — and {@code :onChange(v, final)} is one callback over the engine's
+     * {@code changed()}/{@code fchanged()} pair, {@code final} false while dragging and true once on release.
+     */
+    static LuaValue slider(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():slider() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():slider():range(0, 100):value(50):onChange(fn)");
+        UI u = UiApi.requireUi("slider");
+        return UiApi.attach(u, owner, new CSlider(owner));
+    }
+
+    /**
+     * {@code hafen.ui():scrollbar()} — a bare {@link haven.Scrollbar}, the client's own (task 040.6), for
+     * driving something yourself: the same {@code :range}/{@code :value} as {@code :slider()}, minus the
+     * {@code final} flag on {@code :onChange(fn)} — the engine gives this control no separate "drag ended" hook.
+     */
+    static LuaValue scrollbar(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():scrollbar() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():scrollbar():range(0, 100):value(0):onChange(fn)");
+        UI u = UiApi.requireUi("scrollbar");
+        return UiApi.attach(u, owner, new CScrollbar(owner));
+    }
+
     // ------------------------------------------------------------------ the control verbs
 
     /**
@@ -295,8 +338,9 @@ final class Controls {
             return;
         }
         throw new LuaError("widget:onChange(fn) fires when a control's VALUE changes, and " + LuaWidget.typeName(w)
-            + " holds nothing — widget:value() answers nil on it too. hafen.ui():check() and hafen.ui():radio()"
-            + " are the builders that have one, in this feature so far.");
+            + " holds nothing — widget:value() answers nil on it too. hafen.ui():check(), hafen.ui():radio(),"
+            + " hafen.ui():slider() and hafen.ui():scrollbar() are the builders that have one, in this feature"
+            + " so far.");
     }
 
     // ------------------------------------------------------------------ the face setter (040.2)
@@ -509,8 +553,8 @@ final class Controls {
             return;
         }
         throw new LuaError("widget:value(v) writes what a control HOLDS, and " + LuaWidget.typeName(w)
-            + " holds nothing — hafen.ui():progress(), hafen.ui():check() and hafen.ui():radio() are the"
-            + " builders that do, in this feature so far.");
+            + " holds nothing — hafen.ui():progress(), hafen.ui():check(), hafen.ui():radio(),"
+            + " hafen.ui():slider() and hafen.ui():scrollbar() are the builders that do, in this feature so far.");
     }
 
     // ------------------------------------------------------------------ the source setter (040.3)
@@ -597,5 +641,30 @@ final class Controls {
         }
         throw new LuaError("widget:rows(t) sets a control's ROW SOURCE, and hafen.ui():radio() is the builder"
             + " that takes one, in this feature so far — " + LuaWidget.typeName(w) + " has no rows.");
+    }
+
+    // ------------------------------------------------------------------ the range verb (040.6)
+
+    /** {@code widget:range()} — {@code {min=, max=}} as they stand, or {@code nil} on a control with no range. */
+    static LuaValue range(Owned c) {
+        if(!(c instanceof Range))
+            return LuaValue.NIL;
+        return ((Range)c).range();
+    }
+
+    /**
+     * {@code widget:range(min, max)} — the value BOUNDS of a slider or scrollbar. Dispatches on {@link Range}
+     * and hands both raw bounds to the implementation, which type-checks them and throws naming the rule
+     * (040.6: {@link CSlider}/{@link CScrollbar} require {@code min <= max}, and re-clamp a value that no
+     * longer fits WITHOUT firing {@code :onChange} — narrowing the range is not a user interaction).
+     */
+    static void range(Owned c, Widget w, Varargs a) {
+        if(!(c instanceof Range))
+            throw new LuaError("widget:range(min, max) sets a control's VALUE BOUNDS, and hafen.ui():slider()"
+                + " and hafen.ui():scrollbar() are the builders that take one — " + LuaWidget.typeName(w)
+                + " has no range.");
+        LuaValue minv = Args.required(a, 2, "widget:range", "min");
+        LuaValue maxv = Args.required(a, 3, "widget:range", "max");
+        ((Range)c).range(minv, maxv);
     }
 }

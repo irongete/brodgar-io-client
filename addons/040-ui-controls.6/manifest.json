@@ -1,0 +1,9 @@
+{
+  "name": "040.6 — slider() and scrollbar()",
+  "id": "040-ui-controls.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 040.6: hafen.ui():slider() builds a real client HSlider and hafen.ui():scrollbar() a bare Scrollbar, both over the same :range(min, max)/:value(n)/:onChange(fn) contract, the slider's :onChange carrying a second FINAL argument the scrollbar's does not. It proves :value(v) CLAMPS into :range rather than refusing an out-of-range write, narrowing :range re-clamps a value that no longer fits without firing :onChange, a programmatic write never re-enters the handler, and :range(nil) is refused naming the missing bound.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

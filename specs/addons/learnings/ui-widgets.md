@@ -704,3 +704,22 @@
   `RadioGroup` in another package can still mint buttons (through `add`, which runs with `RadioGroup`'s own
   access even when called via a subclass instance) without ever writing `RadioGroup.RadioButton` on the
   left of a `new`.
+- **(040.6) `Scrollbar`'s `ctl` field must stay `null`, or `draw()` silently overwrites every addon write
+  each frame.** `Scrollbar(int h, Scrollable ctl)` — the constructor `Scrollport` uses — wires `min`/`max`/
+  `val` to a live `Scrollable`, and `Scrollbar.draw` re-reads all three from `ctl` **every frame** whenever
+  it is non-null: `if(ctl != null) { min = ctl.scrollmin(); max = ctl.scrollmax(); val = ctl.scrollval(); }`.
+  The adapter always takes the OTHER constructor, `Scrollbar(int h, int min, int max)`, which leaves `ctl`
+  `null` — so an addon's `:range(min, max)`/`:value(v)` writes are the only thing ever touching those three
+  fields. Using the `Scrollable` constructor "for convenience" would have made `:range`/`:value` appear to
+  work in a suite (which reads the fields back immediately) and then silently revert on the very next drawn
+  frame, a bug an automated check running same-tick cannot see at all.
+- **(040.6) `HSlider.mouseup` fires `fchanged()` on every drag release, even one that never moved the
+  thumb.** `mousedown` calls `update(ev.c)` once (which may or may not change `val`), then grabs the mouse;
+  `mouseup` unconditionally calls `fchanged()` whenever a grab was active (`drag != null`), regardless of
+  whether `val` changed during it. So "exactly one `final = true` on release" holds even for a plain click
+  with no drag distance — the manual check's expected count does not depend on the thumb actually having
+  moved, only on a mouse-down-then-up sequence having happened over the control.
+- **`Scrollbar` gives the bridge only ONE hook (`changed()`), never a release-time second one the way
+  `HSlider` has `fchanged()`** — `mouseup` just releases the grab. This is not a bridge choice; it is why
+  `hafen.ui():scrollbar()`'s `:onChange(fn)` calls `fn(v)` with no trailing flag where the slider's calls
+  `fn(v, final)` (D-157) — there is no second engine event to carry a flag about.

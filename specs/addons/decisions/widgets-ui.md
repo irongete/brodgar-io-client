@@ -930,3 +930,45 @@ directly is already public. Generally: *D-153 does not require a `set()`/`state(
 requires finding whichever leaf method every entry point — user and programmatic alike — already funnels
 through, and calling that leaf directly instead of the shared method sitting above it.*
 **See.** [D-153](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-156 — a slider/scrollbar's `:value(v)` CLAMPS into `:range`, where a progress bar REFUSES outside `0..1` ✅ (2026-08-05)
+**Decision.** `widget:value(v)` on `hafen.ui():slider()`/`hafen.ui():scrollbar()` pins an out-of-bounds write
+to the nearer end of `:range(min, max)` rather than throwing, and `widget:range(min, max)` re-clamps a value
+the new bounds no longer cover — silently, without firing `:onChange` (that write is a direct field
+assignment, D-153's rule again: not a user interaction, so the handler that watches for one is not called).
+**Rationale.** (040.6.) D-150's `CProgress` refuses outside `0..1` because that range is the CONTROL's own
+fixed contract — a caller passing a raw percentage instead of a fraction made a type-shaped mistake, and
+failing loudly at the call site is the right answer. A slider's range is not fixed: it is whatever the addon
+last wrote with `:range(min, max)`, so a value that was valid a statement ago can become out-of-bounds
+through no fault of the write that set it — narrowing the range out from under an existing value is an
+entirely ordinary sequence, not a caller error, and refusing it would make `:range(...)` itself throw for a
+reason that has nothing to do with the two numbers just given it.
+**Consequences.** The two value-bearing controls this feature ships now disagree on purpose: a FIXED range
+refuses (progress), a CALLER-OWNED, moving range clamps (slider, scrollbar). The docs page states the
+difference beside each control rather than as one shared rule, because a reader who only saw D-150 would
+otherwise assume it universal. `widget:range(nil)` — a bare, explicit `nil` — has no "undo a layer" reading
+the way `:position(nil)`/`:size(nil)` do (those undo a possibly-borrowed widget's OWN prior layer; a
+control's bounds are not a layer over anything), so it is refused like any other required argument, naming
+`min`, through the same `Args.required` every fixed-arity setter already uses.
+**See.** [D-150](widgets-ui.md), [D-153](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-157 — where the engine splits one gesture into two hooks, the API keeps one name and a trailing flag ✅ (2026-08-05)
+**Decision.** `widget:onChange(fn)` on `hafen.ui():slider()` calls `fn(v, final)` — `final` is `false` on
+every step of a drag (`HSlider.changed()`) and `true` once, on release (`HSlider.fchanged()`). The scrollbar
+built by `hafen.ui():scrollbar()` calls `fn(v)` with no second argument: the engine gives a bare `Scrollbar`
+only `changed()`, no release hook to distinguish.
+**Rationale.** (040.6.) The two engine methods are one user gesture — "the slider moved" — split into two
+calls because the client's own drag-preview UI wants to tell "still moving" from "settled" apart. Two
+separate Lua callbacks (`:onChange`/`:onSettle`, say) would have made every value-bearing control's spine
+inconsistent for no reason a slider's author needs to think about differently from a checkbox's; a single
+name with a trailing boolean is the same shape `mods` already has on the mouse callbacks (D-040) — additional
+information about the SAME event, not a second event.
+**Consequences.** `Controls.Change` (the shared capability `:onChange` dispatches on) stays a plain
+`LuaValue onChange()`/`onChange(LuaValue)` pair — the extra argument is entirely the adapter's own business
+at the point it calls `AddonManager.callLua`, not a property of the dispatch interface. A control that never
+had a second hook to begin with (the scrollbar, the checkbox, the radio) simply never passes a second
+argument; nothing about the shared machinery had to grow a flag it does not use. Generally: *when the engine
+exposes a gesture as two calls for the client's own reasons, look for a single name with the calls collapsed
+into arguments before adding a second verb — the two-hook split is usually an implementation fact about
+`haven`, not a second thing the addon author needs to know about.*
+**See.** [D-040](widgets-ui.md), [D-150](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
