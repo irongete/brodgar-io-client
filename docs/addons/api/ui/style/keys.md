@@ -42,7 +42,7 @@ into one style, and [`widget:style()`](README.md#restyle-one-widget) reads the r
 nothing names it.
 
 ```lua
-hafen.ui.skin{ ["window[title=Cupboard]"] = { color = {200, 180, 140} } }
+hafen.ui():sheet():rule("window[title=Cupboard]"):color(200, 180, 140):sheet():install()
 hafen.ui():find("window[title=Cupboard]"):style()     --> { color = {r=200, g=180, b=140, a=255} }
 hafen.ui():inventory():style()                   --> nil
 ```
@@ -50,7 +50,7 @@ hafen.ui():inventory():style()                   --> nil
 **A tree rule covers the widget it names *and everything drawn inside it*.** The client draws parents
 before children, so the rule is in force for the whole subtree — a window's caption, its labels, its button
 captions, its rows, and any widget created inside it *later*. That is the same mechanism
-[`widget:skin{…}`](README.md#restyle-one-widget) uses, so a tree rule reaches every surface a site key does,
+[`widget:rule()`](README.md#restyle-one-widget) uses, so a tree rule reaches every surface a site key does,
 including text drawn by the game's own resource code.
 
 > **You cannot *select* a window's frame, but a rule that names the window still dresses it.** The chrome —
@@ -81,10 +81,10 @@ actually names, and the site rule still fills the rest. So the pair below paints
 `body`, in tan, and leaves every other window in `body` in its own colour:
 
 ```lua
-hafen.ui.skin{
-  ["*"]                      = { font  = body },             -- what KIND of surface (site key)
-  ["window[title=Cupboard]"] = { color = {200, 180, 140} },   -- WHICH widgets     (tree key)
-}
+local s = hafen.ui():sheet()
+s:rule("*"):font(body)                                       -- what KIND of surface (site key)
+s:rule("window[title=Cupboard]"):color(200, 180, 140)        -- WHICH widgets       (tree key)
+s:install()
 ```
 
 ## What each key accepts
@@ -107,7 +107,7 @@ what the surface *does* with a property. First the two that write text:
 | `world.nick` | yes | yes | a `color` rule flattens the kin-**group** colours; a font-only rule leaves them |
 | `world.speech` | yes | yes | `size=` is safe — the bubble measures its frame around the text every frame |
 | any tree key | yes | **per surface** | [resolved per widget](#tree-keys) and drawn over that widget's whole subtree. It reaches the same surfaces as the rows above and carries their caveats unchanged: a rule on a window covers the window's own caption, where `font` works and `color` is inert. `:style()` reports the colour a rule set even where the surface then throws it away |
-| `widget:skin{…}` | yes | **per surface** | the same, one widget at a time and named by hand rather than matched. Being the top of the cascade changes *who wins*, never *what a surface can do* |
+| `widget:rule()` | yes | **per surface** | the same, one widget at a time and named by hand rather than matched. Being the top of the cascade changes *who wins*, never *what a surface can do* |
 
 And the three that draw the chrome. Two *kinds* of surface wear them, the window decoration and the
 window-less panels:
@@ -122,21 +122,21 @@ window-less panels:
 | a tree key **matching a window** | yes | yes | yes | it reaches *that* window's chrome, because a window's decoration resolves through the window it belongs to |
 | a tree key **matching a panel** | per panel | yes | **inert** | likewise: a panel asks *itself* what style it resolves, so `["@Frame"]` or `[title=…]` themes those panels alone. `bg` follows the same two panel rows above |
 | a tree key matching anything else | **inert** | **inert** | **inert** | readable back through `widget:style()`, but nothing else in the client wears chrome |
-| `widget:skin{…}` | per surface | per surface | per surface | exactly as the rows above, one widget at a time: on a window it dresses that window's frame, on a panel that panel's box, anywhere else it is inert |
+| `widget:rule()` | per surface | per surface | per surface | exactly as the rows above, one widget at a time: on a window it dresses that window's frame, on a panel that panel's box, anywhere else it is inert |
 
 > **A site key does not compose with `*` per property.** Within the site half of the cascade a key either
 > has a rule of its own or falls back to `*`; it does not take half of each. So `["*"] = {bg = …}` beside
 > `["window.frame"] = {border = …}` gives you the border **alone** — write both properties in the rule that
-> names the surface. Levels *above* the site half, a tree rule or a `widget:skin`, do
+> names the surface. Levels *above* the site half, a tree rule or a `widget:rule()`, do
 > [compose per property](README.md#the-cascade).
 
 And the three that lay widgets out. This table is short because the answer is: a widget, or an error.
 
-| Key | `pos` / `anchor` | `size` | Worth knowing |
+| Key | `position` / `anchor` | `size` | Worth knowing |
 |---|---|---|---|
 | any tree key | yes | **unless the widget owns its size** | the widget it matches is moved for real — the field a drag writes — so what you place is what you click. A window that packs around its contents re-packs itself: inert, never an error |
 | any site key, `*` included | **error** | **error** | a site is where the client draws text, and text has no position. The error names the fix: select the widget |
-| `widget:skin{…}` | **error** | **error** | the hand-named level is the verb, [`w:position(x, y)`](../native.md) — the error says so |
+| `widget:rule()` | **error** | **error** | the hand-named level is the verb, [`w:position(x, y)`](../native.md) — the error says so |
 
 **Where `color` is inert, it is the same reason every time**: the surface is *embossed*. The client renders
 the text as a mask, tiles a texture through it and blurs a shadow behind, so the glyph colour is discarded
@@ -159,7 +159,7 @@ box was measured from the stock font; [surfaces](surfaces.md) says which ones, a
 
 ## See also
 
-- [style](README.md) — the call, the cascade and `widget:skin`
+- [style](README.md) — the sheet, the cascade and `widget:rule()`
 - [surfaces](surfaces.md) — what each of these keys actually is on screen
 - [text](text.md) · [chrome](chrome.md) · [geometry](geometry.md) — the properties themselves
 - [selectors](../selectors.md) — the grammar, and the roles this vocabulary shares

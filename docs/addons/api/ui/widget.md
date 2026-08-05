@@ -64,7 +64,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:rootPos()` | `{x=, y=}` \| nil | its top-left in **root coords**; with `:size()` that is the rectangle to outline it |
 | `:replacement()` | Widget \| nil | the view **you** put in place of this widget's window, or `nil` — see [replace](replace.md) |
 | `:style()` | table \| nil | the style this widget [resolves to](style/README.md#the-cascade), or `nil` when nothing names it |
-| `:skin()` | table \| nil | read **your own** [skin entry](style/README.md#restyle-one-widget) back, not the resolved style |
+| `:rule()` | Rule | **your own** [level of the cascade](style/README.md#restyle-one-widget) on this widget: its properties are setters, `:info()` reads them back and `:remove()` drops them |
 
 Reading the tree is ungated client-side data.
 
@@ -97,12 +97,13 @@ and **borrowed** otherwise — a native client widget, or another addon's. Reads
 | `:destroy()` | remove it and everything in it | **error**, same reason |
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |
-| `:skin{…}` / `:skin(nil)` | restyle it and its subtree, and chain | **works**, same |
+| `:rule()` | restyle it and its subtree through your own level | **works**, same |
 
 None of these writes is gated: they are client-side state, and every one of them restores.
 
 **Arity is the verb.** `w:position()` reads, `w:position(x, y)` writes and `w:position(nil)` drops your
-write; `w:size()` and `w:visible()` are the same shape, and so is `w:skin{…}`. That is why there is no
+write; `w:size()` and `w:visible()` are the same shape, and so is every setter on `w:rule()`. That is why
+there is no
 `:move()`, no `:show()` and no `:hide()`: a value belongs in the argument, not in the verb's name.
 
 **Replacement is the one place where the read has a name of its own.** `w:replace(view)` is an *act* and
@@ -125,4 +126,4 @@ coordinates instead of walking you somewhere that merely has the same two number
 - [native](native.md) — what moving and hiding a borrowed widget actually does
 - [replace](replace.md) — standing your own window in place of a native one
 - [items](items.md) — `:items()` and the three container subscriptions
-- [style](style/README.md) — `:skin{…}`, `:style()` and the cascade they sit in
+- [style](style/README.md) — `:rule()`, `:style()` and the cascade they sit in

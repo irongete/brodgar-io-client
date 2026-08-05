@@ -14,6 +14,9 @@
 
 local pass, fail, manual = 0, 0, 0
 
+-- This addon's one stylesheet: a selector names a rule on it, and :install() applies what it says.
+local sheet = hafen.ui():sheet()
+
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
@@ -80,7 +83,7 @@ end
 
 local function run()
   pass, fail, manual = 0, 0, 0    -- so a re-run through :t036-2 reports its own counts
-  hafen.ui.skin(nil)              -- ...and starts from a client this suite is holding nothing on
+  sheet:drop()              -- ...and starts from a client this suite is holding nothing on
 
   -- 1. the premise, re-asserted here because everything below rests on it (D-085): a native window is
   --    reachable, is BORROWED, and a selector names it and nothing else.
@@ -96,13 +99,13 @@ local function run()
   local stock, ostock = w:position(), other and other:position()
 
   -- 2. THE TASK: pos is a sheet property, applied when the sheet is -- not a frame later, and not at the draw.
-  hafen.ui.skin{ [sel] = { pos = {stock.x + 45, stock.y + 35} } }
+  sheet:load{ [sel] = { position = {stock.x + 45, stock.y + 35} } }:install()
   eq("a sheet pos rule moves the window it names, read back through widget:position()",
      xy(w:position()), ("%d,%d"):format(stock.x + 45, stock.y + 35))
   if other ~= nil then
     eq("...and moves nothing it does not name", xy(other:position()), xy(ostock))
   end
-  eq("widget:style() reports the layout the sheet resolved", xy(w:style().pos),
+  eq("widget:style() reports the layout the sheet resolved", xy(w:style().position),
      ("%d,%d"):format(stock.x + 45, stock.y + 35))
 
   -- 3. ONE FOLD, TWO LEVELS (D-077): the hand-named verb outranks the rule, and its undo drops back to the
@@ -116,7 +119,7 @@ local function run()
 
   -- 4. per property, most specific wins (D-076) -- and a role rule reaches every window, which is what makes
   --    the [title=] one above it worth having.
-  hafen.ui.skin{ ["window"] = { pos = {60, 70} }, [sel] = { pos = {stock.x + 45, stock.y + 35} } }
+  sheet:load{ ["window"] = { position = {60, 70} }, [sel] = { position = {stock.x + 45, stock.y + 35} } }:install()
   eq("a [title=] rule outranks a role rule on the widget it names", xy(w:position()),
      ("%d,%d"):format(stock.x + 45, stock.y + 35))
   if other ~= nil then
@@ -124,7 +127,7 @@ local function run()
   end
 
   -- 5. dropping the sheet restores the EXACT numbers -- the 035.2 method, and the whole point of a layer.
-  hafen.ui.skin(nil)
+  sheet:drop()
   eq("dropping the sheet puts the window back exactly where the user had it", xy(w:position()), xy(stock))
   if other ~= nil then
     eq("...and every other window the sheet reached with it", xy(other:position()), xy(ostock))
@@ -136,28 +139,28 @@ local function run()
         .. " sizes itself straight back)", rsel)
   if rw ~= nil then
     local rstock = rw:size()
-    hafen.ui.skin{ [rsel] = { size = {rstock.x + 40, rstock.y + 30} } }
+    sheet:load{ [rsel] = { size = {rstock.x + 40, rstock.y + 30} } }:install()
     check(xy(rw:size()) ~= xy(rstock), "a sheet size rule resizes the window it names", xy(rw:size()))
-    hafen.ui.skin(nil)
+    sheet:drop()
     eq("...and dropping it restores the outer box byte for byte", xy(rw:size()), xy(rstock))
   end
 
   -- 7. a rule naming nothing is inert, never an error.
-  hafen.ui.skin{ ["@NoSuchWidgetClass"] = { pos = {11, 22} } }
+  sheet:load{ ["@NoSuchWidgetClass"] = { position = {11, 22} } }:install()
   eq("a rule naming nothing lays nothing out", xy(w:position()), xy(stock))
-  hafen.ui.skin(nil)
+  sheet:drop()
 
   -- 8. the refusals, and both are about WHERE layout may be said: a site key names a render site, which has no
-  --    position, and widget:skin says what a widget is drawn WITH -- the hand-named level is the verb.
+  --    position, and widget:rule() says what a widget is drawn WITH -- the hand-named level is the verb.
   refuses("pos on a site key is refused, because \"*\" is the default SITE and not every widget",
-          function() hafen.ui.skin{ ["*"] = { pos = {1, 1} } } end, "lays out a WIDGET")
-  refuses("widget:skin{pos=} is refused: the hand-named level of the layout cascade is widget:position(x, y)",
-          function() w:skin{ pos = {1, 1} } end, "widget:position(x, y)")
+          function() sheet:load{ ["*"] = { position = {1, 1} } }:install() end, "lays out a WIDGET")
+  refuses("widget:rule():position() is refused: the hand-named level of that cascade is widget:position(x, y)",
+          function() w:rule():position(1, 1) end, "widget:position(x, y)")
   refuses("an unknown property is still an error, layout or not (D-072)",
-          function() hafen.ui.skin{ [sel] = { positoin = {1, 1} } } end, "not a style property")
+          function() sheet:load{ [sel] = { positoin = {1, 1} } }:install() end, "not a style property")
   eq("...and a refused sheet leaves the client exactly as it was", xy(w:position()), xy(stock))
 
-  hafen.ui.skin(nil)
+  sheet:drop()
   manualCheck("log out to the character screen, disable \"036.2 — pos and size as sheet properties\" in the"
     .. " AddOns panel, log back in with the same character, and look at the inventory, equipment, character"
     .. " sheet, kin and map windows",

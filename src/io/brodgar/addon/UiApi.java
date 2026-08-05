@@ -114,13 +114,12 @@ final class UiApi {
      * top is {@code hafen.ui():root()} and every lookup is a colon verb on the section. The collision is why the
      * root could not simply stay: one expression cannot be both the namespace and a member of it.
      *
-     * <p><b>One verb is still a plain field on the callable table</b> — {@code skin} — because it does not
-     * merely move: the stylesheet becomes a Sheet of Rules, a cut of its own with its own port. It rides
-     * {@link Section#mount(LuaTable, String, LuaValue, String, LuaTable)} until then, found by {@code rawget}
-     * and never reaching {@link Retired}.
+     * <p><b>Every verb is on the section now</b> (039.7). {@code skin} was the last one still a plain field on
+     * the callable table — it did not merely move, it became a {@link LuaSheet} of {@link LuaRule}s — so the
+     * transitional {@link Section#mount(LuaTable, String, LuaValue, String, LuaTable)} is gone with it and this
+     * is the plain {@link Section#install} again.
      */
     static void installUi(LuaTable hafen, final Addon owner) {
-        LuaTable uiT = new LuaTable();
         // hafen.ui.gobOverlay(filter, fn) is GONE (038.1, hard cut — it reads as plain nil). `overlay` is the
         // engine's own word for a thing attached to a gob, and this spent it on a screen-space painter that was
         // not one: a FILTER re-evaluated against every gob by a 5 Hz sweep, and once more per gob per frame.
@@ -335,48 +334,61 @@ final class UiApi {
                 return newHudOverlay(owner);
             }
         });
-        // hafen.ui.skin{ ["selector"] = { font = h }, … } — 033.1, feature C1a: THE STYLESHEET. One table says what
-        // the client looks like: a SELECTOR as the key (the very string hafen.ui(sel) takes — one vocabulary, not
-        // two) and a table of style properties as the value, applied LIVE and owned by the addon that installed it.
-        //     hafen.ui.skin{ ["*"] = { font = body }, ["window.title"] = { font = body:derive{ size = 14 } } }
-        // An addon owns exactly ONE sheet: a second skin{…} REPLACES it whole (a site the new sheet no longer names
-        // falls back), hafen.ui.skin(nil) drops it, and a :reload/disable drops it too — the stock client is always
-        // restorable. hafen.font.setFont / .reset / .scopes are a HARD CUT (they read as plain nil): a font is one
-        // PROPERTY of a rule now, not an API of its own. hafen.font(name) is untouched — it still names an engine
-        // font (D-060), and a .ttf this addon ships is still hafen.asset(path):derive{…}.
+        // :sheet() — 033.1 feature C1a, reshaped into objects by 039.7: THE STYLESHEET. It says what the client
+        // looks like, as a SELECTOR (the very string hafen.ui():find takes — one vocabulary, not two) naming a
+        // RULE whose properties are setters:
+        //     local s = hafen.ui():sheet()
+        //     s:rule("*"):font(body)
+        //     s:rule("window.title"):font(body:derive{ size = 14 })
+        //     s:install()                       -- ...and s:drop()
+        // An addon has exactly ONE sheet, handed back by identity. :install() applies what it says, replacing
+        // whatever this addon had installed WHOLE (a site the sheet no longer names falls back); an edit to an
+        // installed sheet applies at once; :drop() takes it off, and a :reload/disable drops it too — the stock
+        // client is always restorable. s:load(t) is the DATA door: a whole sheet as a parsed table (a theme.json
+        // goes straight in), replacing what the sheet said. hafen.font.setFont / .reset / .scopes are a HARD CUT:
+        // a font is one PROPERTY of a rule, not an API of its own. hafen.font(name) is untouched — it still names
+        // an engine font (D-060), and a .ttf this addon ships is still hafen.asset(path):derive{…}.
         //   Keys resolve one of two ways. A SITE key — `*` (the global fallback) or one of the twelve routed
         //   surfaces (window.title / window.frame / panel / heading / button / label / textentry / tooltip / menu /
         //   chat / world.nick / world.speech) — is resolved where that site DRAWS, exactly as the font scopes
         //   always were, so no render site is re-routed and no drawing code changed: what changed is who fills the
         //   provider stack. A TREE key (@Class, [title=…], [res=…], or a role that classifies a widget rather than
         //   a site, like `window`/`inventory`) is resolved per widget against the live tree (034, C1b) and folded
-        //   over the site half per property. A malformed key errors exactly as hafen.ui(sel) does.
+        //   over the site half per property. A malformed key errors exactly as hafen.ui():find(sel) does.
         //   Conflict between addons is D-043 reused literally: last applied wins, an addon's entries are pulled on
         //   its teardown, the surface falls back to the next owner beneath and finally to stock.
-        // Properties: `font` (a handle from hafen.font(name) or hafen.asset(path), optionally :derive{size=,bold=,…}),
-        // `color` ({200,210,200} or {r=200,g=210,b=200[,a=255]}, 0..255), and the chrome three of 035 — `bg`
-        // ({color=…} or {image=<asset>}), `border` ({image=<asset>, slice={l,t,r,b}}) and `pad` (pixels). Any may
-        // stand alone: a colour-only rule keeps the site's own font, a border-only rule keeps its background. An
-        // unknown property is an ERROR naming the ones that exist — a key may mean something later, a misspelt
-        // property never will (D-072).
+        // Properties, one setter each: `font` (a handle from hafen.font(name) or hafen.asset(path), optionally
+        // :derive{size=,bold=,…}), `color` (r, g, b[, a] — or a colour value read back from the API), and the
+        // chrome three of 035 — `bg` ({color=…} or {image=<asset>}), `border` ({image=<asset>, slice={l,t,r,b}})
+        // and `pad` (pixels) — plus the layout three of 036 on a rule that names a WIDGET: `position`, `anchor`
+        // and `size`. Any may stand alone: a colour-only rule keeps the site's own font, a border-only rule keeps
+        // its background. Each has a matching bare read, and an unknown verb is an ERROR naming the rule — a key
+        // may mean something later, a misspelt property never will (D-072).
         //   033.2 settles a duplication: a SURFACE's colour comes from the SHEET; a font handle's own `color`
         //   (hafen.font("serif"):derive{color=…}) applies only to YOUR OWN drawing — g:text and your own widgets —
-        //   and is ignored when that handle is installed on a surface (here or via widget:setFont). Otherwise there
-        //   would be two answers to "what colour is this text", one of them invisible in the sheet. Where a rule
-        //   sets a colour the site draws in it even when the site itself asks for another; rich-text $col markup
-        //   inside the text still wins, and a surface whose colour is not the font's (a window caption is tiled
-        //   from a texture) simply ignores it. Returns nil.
-        uiT.set("skin", new VarArgFunction() {
+        //   and is ignored when that handle is installed on a surface. Otherwise there would be two answers to
+        //   "what colour is this text", one of them invisible in the sheet. Where a rule sets a colour the site
+        //   draws in it even when the site itself asks for another; rich-text $col markup inside the text still
+        //   wins, and a surface whose colour is not the font's (a window caption is tiled from a texture) simply
+        //   ignores it.
+        final LuaValue sheet = LuaSheet.of(owner);      // per-addon, minted once: hafen.ui():sheet() is identity
+        m.set("sheet", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return Sheet.skin(owner, a);
+                Section.self(a.arg1(), "ui", "sheet");
+                if(Args.passed(a, 2))
+                    throw new LuaError("hafen.ui():sheet() takes no arguments — it hands back this addon's one"
+                        + " sheet, and a rule of it is sheet:rule(selector)");
+                return sheet;
             }
         });
         // 039.5: hafen.ui() is the SECTION and takes no argument. Both old arities were widget lookups —
         // hafen.ui(selector) is :find(selector) and the bare hafen.ui() was the root, now :root() — and neither
         // could survive as the call itself, since a section object is not a member of the tree it addresses.
-        Section.mount(hafen, "ui", Section.object("ui", m),
-                      "hafen.ui(selector) is now hafen.ui():find(selector), and the tree's own top,"
-                      + " which the bare hafen.ui() used to be, is hafen.ui():root()", uiT);
+        // 039.7: `skin` was the last verb still a plain field on the callable table, so the table is empty and
+        // this is the plain mount again.
+        Section.install(hafen, "ui", m,
+                        "hafen.ui(selector) is now hafen.ui():find(selector), and the tree's own top,"
+                        + " which the bare hafen.ui() used to be, is hafen.ui():root()");
     }
 
     // ------------------------------------------------------------------ selectors (hafen.ui(sel), 030.1)

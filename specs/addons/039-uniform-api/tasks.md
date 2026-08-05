@@ -323,7 +323,7 @@ layer undos) · `API.md` (`hafen.ui`, the Widget entity block) · `src/io/brodga
 
 ---
 
-## 039.7 — The stylesheet: Sheet and Rule
+## 039.7 — The stylesheet: Sheet and Rule ✅ DONE
 
 **Depends on:** 039.5, 039.6.
 

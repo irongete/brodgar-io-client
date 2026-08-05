@@ -15,6 +15,9 @@
 
 local pass, fail, manual = 0, 0, 0
 
+-- This addon's one stylesheet: a selector names a rule on it, and :install() applies what it says.
+local sheet = hafen.ui():sheet()
+
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
@@ -67,7 +70,7 @@ end
 
 local function run()
   pass, fail, manual = 0, 0, 0    -- so a re-run through :t039-5 reports its own counts
-  hafen.ui.skin(nil)              -- ...and starts from a client this suite is holding nothing on
+  sheet:drop()              -- ...and starts from a client this suite is holding nothing on
 
   -- 1. THE SECTION. It is a per-addon singleton handed back by identity, and the root it displaced is a verb
   --    on it: the top of the tree is the widget with no parent, and the first match of "*" in tree order.
@@ -136,14 +139,14 @@ local function run()
        xy(wnd:position()), ("%d,%d"):format(stock.x + 31, stock.y + 19))
     wnd:position(nil)
     eq("widget:position(nil) puts it back exactly where the user had it", xy(wnd:position()), xy(stock))
-    hafen.ui.skin{ [sel] = { pos = {stock.x + 45, stock.y + 35} } }
+    sheet:load{ [sel] = { position = {stock.x + 45, stock.y + 35} } }:install()
     wnd:position(stock.x + 7, stock.y + 9)
     eq("the hand-named verb outranks a rule that also names the window", xy(wnd:position()),
        ("%d,%d"):format(stock.x + 7, stock.y + 9))
     wnd:position(nil)
     eq("...and widget:position(nil) falls back to THE RULE, not to the stock value", xy(wnd:position()),
        ("%d,%d"):format(stock.x + 45, stock.y + 35))
-    hafen.ui.skin(nil)
+    sheet:drop()
     eq("...and only dropping the sheet as well returns the numbers the user had", xy(wnd:position()), xy(stock))
   end
 
@@ -169,7 +172,7 @@ local function run()
           function() return hafen.act():moveTo(probe:position()) end, "actions")
 
   probe:destroy()
-  hafen.ui.skin(nil)
+  sheet:drop()
   hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 

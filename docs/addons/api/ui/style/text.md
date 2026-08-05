@@ -4,19 +4,20 @@ The two [sheet](README.md) properties that change what text *looks* like. Neithe
 that carries only one leaves the other exactly as the surface had it.
 
 ```lua
-hafen.ui.skin{
-  ["*"]       = { font = hafen.asset("fonts/Inter.ttf"):derive{ size = 12 } },
-  ["chat"]    = { color = {200, 210, 200} },
-  ["tooltip"] = { font = hafen.font("serif"):derive{ size = 13 }, color = {255, 150, 90} },
-}
+local s = hafen.ui():sheet()
+s:rule("*"):font(hafen.asset("fonts/Inter.ttf"):derive{ size = 12 })
+s:rule("chat"):color(200, 210, 200)
+s:rule("tooltip"):font(hafen.font("serif"):derive{ size = 13 }):color(255, 150, 90)
+s:install()
 ```
 
 ## font
 
-A [font handle](../../font.md): `hafen.font(name)` for one of the client's built-ins, or
-`hafen.asset(path)` for a `.ttf` your addon ships, optionally through `:derive{size=, bold=, italic=, aa=}`.
+`rule:font(handle)` takes a [font handle](../../font.md): `hafen.font(name)` for one of the client's
+built-ins, or `hafen.asset(path)` for a `.ttf` your addon ships, optionally through
+`:derive{size=, bold=, italic=, aa=}`. `rule:font()` reads it back.
 
-**Omit `size` and each surface keeps its own.** That is the safe way to restyle: `["label"] = {font = h}`
+**Omit `size` and each surface keeps its own.** That is the safe way to restyle: `s:rule("label"):font(h)`
 swaps the *family* everywhere while every row keeps the height it was built at. If you do pass `size=`,
 read the geometry caveats for the surfaces it covers in [surfaces](surfaces.md) — a text field's height
 comes from its background texture, and list-row heights were measured at construction, so both clip.
@@ -26,15 +27,16 @@ antialiasing.
 
 > **A font handle's own `color` does not style a surface.**
 > `hafen.font("serif"):derive{color = {255,0,0}}` installed through a rule, or through
-> [`widget:skin`](README.md#restyle-one-widget), contributes its family, size and antialiasing — its
+> [`widget:rule()`](README.md#restyle-one-widget), contributes its family, size and antialiasing — its
 > **colour is ignored**, and `widget:style()` reports no colour for it. A handle's colour is for
 > [your own drawing](../../font.md#draw-with-it): `g:text`, your own widgets. One question, "what colour is
 > this surface", has exactly one answer, and it is written as a `color` where you can see it.
 
 ## color
 
-`{r, g, b}` or `{r, g, b, a}`, `0..255`; also spelled `{r = …, g = …, b = …}`, which is the shape every
-reader hands back.
+`rule:color(r, g, b)` or `rule:color(r, g, b, a)`, `0..255` each. It also takes a colour **value** — the
+`{r = …, g = …, b = …, a = …}` table every reader in this API hands back, `rule:color()` included — so one
+surface's colour passes straight into another's setter.
 
 Where a rule sets a colour, the surface **draws in it even when the client itself asks for another**. That
 is what a stylesheet is for, and it is worth knowing what it costs: while the rule is on, text that carries
@@ -46,7 +48,7 @@ Two things still win over a rule, and one surface ignores it:
 - **`$col[…]` markup inside the text.** It is part of the string, not the site's choice of colour, so a
   tooltip's green and red attribute deltas survive a `["tooltip"]` colour rule.
 - **A [tree key](keys.md#tree-keys) covering that widget**, and above it
-  [`widget:skin{…}`](README.md#restyle-one-widget) — both sit nearer the draw than a site rule.
+  [`widget:rule()`](README.md#restyle-one-widget) — both sit nearer the draw than a site rule.
 - **An embossed surface** — a window caption, a section heading, an ordinary button caption — takes its
   colour from a *texture* tiled through the glyph mask rather than from the font, so it follows a `font`
   rule and ignores a `color` one. There is nothing there to colour. See

@@ -20,7 +20,7 @@ several of them look like writes:
 | [`cat:show(on)`](../api/map/icons.md#the-iconcat-object) | which icons your minimap draws |
 | [`w:pos`, `w:size`, `w:hide`](../api/ui/native.md) | where the client's own windows sit |
 | [`w:replace(view)`](../api/ui/replace.md) | which window a client toggle opens |
-| [`hafen.ui.skin{…}`](theming.md) | what the client looks like |
+| [`hafen.ui():sheet()`](theming.md) | what the client looks like |
 | [`hafen.ghost`, `hafen.render`](../api/ghost.md) | props only you can see |
 | [`hafen.sound`](../api/sound.md) | what you hear |
 | [client options](../api/client/README.md) | the settings you could have edited by hand |

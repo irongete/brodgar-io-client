@@ -153,8 +153,6 @@ final class Retired {
         put("marker:dist", "marker:dist() is now marker:distance()");
 
         // ---- hafen.ui: the lookups move onto the section, and the ROOT stops being the call itself -------
-        // (skin is not here: it is still a plain field on the callable table, because it becomes a Sheet of
-        //  Rules rather than merely moving, and that is a cut of its own.)
         put("hafen.ui.all", "hafen.ui.all(selector) is now hafen.ui():all(selector)");
         put("hafen.ui.node", "hafen.ui.node(id) is now hafen.ui():node(id)");
         put("hafen.ui.at", "hafen.ui.at(x, y) is now hafen.ui():at(x, y)");
@@ -175,6 +173,12 @@ final class Retired {
             + " caption, so :title(s) is the window builder's");
         put("hafen.ui.overlay", "hafen.ui.overlay(fn) is now hafen.ui():overlay():onDraw(fn), and the overlay"
             + " it hands back ends with :destroy() rather than :remove()");
+
+        // ---- the stylesheet: a Sheet of Rules, so a selector NAMES a rule and its properties are setters ----
+        put("hafen.ui.skin", "hafen.ui.skin{…} is now hafen.ui():sheet(): s:rule(selector) hands back the rule"
+            + " for that key and its properties are setters (:font(h) :color(r,g,b) :bg{…} :border{…} :pad(n)"
+            + " :position(x, y) :anchor{…} :size(w, h)), s:load(t) takes a whole sheet as data, and"
+            + " s:install() / s:drop() apply and remove it — hafen.ui.skin(nil) is s:drop()");
         // hafen.ui.root is deliberately NOT here, though hafen.ui():root() now exists: 030.1 cut it, this feature
         // did not move it, and the table's rule is that it carries what THIS grammar renamed. A name nothing here
         // touched goes on reading nil, which is what keeps a feature probe (`if hafen.something then`) honest.
@@ -187,6 +191,10 @@ final class Retired {
             + " value is the argument rather than the verb's name");
         put("widget:hide", "widget:hide() is now widget:visible(false) — a boolean property is a property, so the"
             + " value is the argument rather than the verb's name");
+        put("widget:skin", "widget:skin{…} is now widget:rule(), the same Rule object a sheet's selectors hand"
+            + " back: its properties are setters (:font(h) :color(r,g,b) :bg{…} :border{…} :pad(n)),"
+            + " widget:rule():info() reads your whole level back, and widget:rule():remove() drops it."
+            + " widget:style() still answers what the widget RESOLVES to");
         put("marker:onmap", "marker:onmap() is now marker:onMap(), and it writes too: marker:onMap(true)");
 
         // ---- the HUD overlay: a two-line handle table became a builder, so it ends the way the other two do --
@@ -246,6 +254,30 @@ final class Retired {
                         throw new LuaError(msg);
                 }
                 return LuaValue.NIL;
+            }
+        };
+    }
+
+    /**
+     * As {@link #methodIndex}, for an entity whose vocabulary is <b>closed</b>: an unknown verb <b>throws</b>
+     * naming what does exist, instead of reading {@code nil}. That is D-072 one shape along — the style
+     * properties became verbs, and a misspelt property has no future meaning to wait for, so answering it with
+     * silence (and a "attempt to call a nil value" one character later) is the worst available answer. Used
+     * where the verb set is the whole of a value's grammar rather than a growing surface a feature probe might
+     * ask about: {@link LuaRule} and {@link LuaSheet}, as {@link Section} and {@link LuaCollection} already do.
+     */
+    static LuaValue closedIndex(final String entity, final LuaTable methods, final String hint) {
+        return new TwoArgFunction() {
+            public LuaValue call(LuaValue self, LuaValue key) {
+                LuaValue m = methods.rawget(key);
+                if(!m.isnil())
+                    return m;
+                if(key.isstring()) {
+                    String msg = NAMES.get(entity + ":" + key.tojstring());
+                    if(msg != null)
+                        throw new LuaError(msg);
+                }
+                throw new LuaError(entity + " has no verb '" + key.tojstring() + "' — " + hint);
             }
         };
     }

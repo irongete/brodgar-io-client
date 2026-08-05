@@ -25,11 +25,10 @@ import java.util.WeakHashMap;
  * can change where the client's own content sits.
  *
  * <pre>
- *   hafen.ui.skin{
- *     ["window.frame"] = { bg     = { color = {26, 26, 28, 240} },
- *                          border = { image = hafen.asset("img/panel.png"), slice = {8, 8, 8, 8} },
- *                          pad    = 6 },
- *   }
+ *   hafen.ui():sheet():rule("window.frame")
+ *     :bg{ color = {26, 26, 28, 240} }
+ *     :border{ image = hafen.asset("img/panel.png"), slice = {8, 8, 8, 8} }
+ *     :pad(6)
  * </pre>
  *
  * <p><b>Plain data, parsed once.</b> A rule carries no Lua and no callback: a {@link Bg} is a colour <i>or</i> an
@@ -40,7 +39,7 @@ import java.util.WeakHashMap;
  *
  * <p><b>Where they resolve is the sheet's business, not this class's.</b> These values ride the same cascade
  * {@code font} and {@code color} do — folded per property by {@code Fonts.combine} (D-076), carried by a site
- * rule ({@code "window.frame"}) or a tree rule / {@code widget:skin} alike — and this class only says what one
+ * rule ({@code "window.frame"}) or a tree rule / {@code widget:rule()} alike — and this class only says what one
  * of them <i>is</i> and how it paints. The two consumers are {@link SkinDeco}, the sheet-fed window chrome
  * (035.1), and {@link SkinBox}, the sheet-fed 9-slice the window-less panels draw with (035.3) — both built
  * from the very {@link Border#box} below.
@@ -349,7 +348,7 @@ final class Chrome {
      * Parse a rule's {@code border = { image = hafen.asset("…"), slice = {l,t,r,b} }}. Both fields are required:
      * an image with no slice cannot be cut into a frame, and there is no default worth guessing at (033.3's
      * lesson — a guess produces a table that lies). The slice is validated against the image, so a border that
-     * could only ever draw inside out is refused at {@code skin{}} time rather than silently at every frame.
+     * could only ever draw inside out is refused where the rule is written rather than silently at every frame.
      */
     static Border parseBorder(String ctx, LuaValue v) {
         if(!v.istable())

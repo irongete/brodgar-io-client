@@ -28,7 +28,7 @@ passing a path string to [`hafen.render.sprite`](render/sprites.md) or
 | Extensions | `a:type()` | What you get | Use it with |
 |---|---|---|---|
 | `.png` `.jpg` `.jpeg` `.gif` `.bmp` | `"image"` | a GPU texture, alpha preserved | [`g:image`/`g:aimage`](ui/drawing.md), [`hafen.render.sprite`](render/sprites.md) |
-| `.ttf` `.otf` | `"font"` | a [`FontHandle`](font.md) whose family is registered, so `$font[…]` works | [`font =`](font.md#draw-with-it), [`hafen.ui.skin`](ui/style/README.md), [`widget:skin`](ui/style/README.md#restyle-one-widget) |
+| `.ttf` `.otf` | `"font"` | a [`FontHandle`](font.md) whose family is registered, so `$font[…]` works | [`font =`](font.md#draw-with-it), [`rule:font`](ui/style/README.md), [`widget:rule()`](ui/style/README.md#restyle-one-widget) |
 | `.glb` `.gltf` | `"mesh"` | parsed glTF 2.0 static geometry and its textures | [`hafen.render.object`](render/models.md) |
 | `.json` `.txt` | `"data"` | the file's **text**, read as UTF-8 | [`hafen.json():parse`](json.md), and anything else that takes a string |
 
@@ -131,7 +131,7 @@ A `.json` or `.txt` file your addon ships — a config, a word list, a **theme**
 
 ```lua
 local theme = hafen.json():parse(hafen.asset("theme.json"):text())
-hafen.ui.skin(theme.rules)                        -- a stylesheet that is data
+hafen.ui():sheet():load(theme.rules):install()    -- a stylesheet that is data
 ```
 
 **It hands back the text, not a parsed table**, and that is on purpose: reading a file is `hafen.asset`,

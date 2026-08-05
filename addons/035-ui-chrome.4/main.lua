@@ -21,6 +21,9 @@
 
 local pass, fail, manual = 0, 0, 0
 
+-- This addon's one stylesheet: a selector names a rule on it, and :install() applies what it says.
+local sheet = hafen.ui():sheet()
+
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
@@ -89,7 +92,7 @@ end
 -- ---- the run --------------------------------------------------------------------------------------
 
 local W, H = 90, 40                       -- the probe window's CONTENT size
-local doc, sheet, art                     -- `art` = the slice + pad the file asked for
+local doc, rules, art                     -- `art` = the slice + pad the file asked for
 local probe, base, basePos
 local extra = {}                          -- the windows the cost round measures chrome ON
 local armManual = false
@@ -100,7 +103,7 @@ local function finish()
   if probe then probe:destroy(); probe = nil end
   for _, w in ipairs(extra) do w:destroy() end
   extra = {}
-  hafen.ui.skin(nil)
+  sheet:drop()
   if armManual then
     manualCheck("tick Options ▸ Client ▸ \"Enable profiling\" and run ':t035-4' again",
                 "two more [pass] lines: this addon runs 0 draw callbacks while a themed client paints, and the"
@@ -170,7 +173,7 @@ end
 -- and themed, which is what makes the difference between the two medians the chrome and nothing else.
 local function costRound(after)
   local stock = {}
-  hafen.ui.skin(nil)
+  sheet:drop()
   for i = 1, 4 do
     extra[i] = hafen.ui():window()
       :title("035.4 cost " .. i)
@@ -178,7 +181,7 @@ local function costRound(after)
       :position(20 + (i * 24), 20 + (i * 24))
   end
   sample(SAMPLES, stock, function()
-    hafen.ui.skin(sheet)
+    sheet:load(rules):install()
     hafen.timer():after(0.35, function()
       local dressed = #hafen.ui():all("@SkinDeco")
       local themed = {}
@@ -194,7 +197,7 @@ local function costRound(after)
         check(b <= (a * 1.5) + 0.5,
               ("...and cost the widget tree what stock cost it: %s ms themed vs %s ms stock, median of %d"
                .. " frames"):format(ms3(b), ms3(a), SAMPLES), ms3(b) .. " vs " .. ms3(a) .. " ms")
-        hafen.ui.skin(nil)
+        sheet:drop()
         after()
       end)
     end)
@@ -215,7 +218,7 @@ steps[1] = function()
   local st = probe:style()
   eq("a TREE key out of the same file resolves on the one window it names",
      st and st.bg and st.bg.color and st.bg.color.r, 40)
-  hafen.ui.skin(nil)
+  sheet:drop()
 end
 
 -- 2. and the whole thing reverts.
@@ -235,7 +238,7 @@ end
 local function run()
   pass, fail, manual = 0, 0, 0    -- so a re-run through :t035-4 reports its own counts, not the last one's
   armManual = false
-  hafen.ui.skin(nil)
+  sheet:drop()
 
   -- 1. the file, and the one thing a file cannot carry.
   local a = hafen.asset(FILE)
@@ -250,12 +253,12 @@ local function run()
   art = { slice = f.border.slice, pad = f.pad }     -- the numbers the geometry below is predicted from
 
   -- 2. mapped, it is a sheet — text, chrome and a tree key in one table — and it applies.
-  sheet = sheetOf(doc)
+  rules = sheetOf(doc)
   eq("...and mapped through hafen.asset it is an image handle, exactly like a font's face before it",
-     sheet["window.frame"].border.image:type(), "image")
-  check(sheet[TREE] ~= nil and pcall(hafen.ui.skin, sheet),
+     rules["window.frame"].border.image:type(), "image")
+  check(rules[TREE] ~= nil and pcall(function() sheet:load(rules):install() end),
         "a whole sheet built from one JSON file applies — site keys, chrome and a tree key together")
-  hafen.ui.skin(nil)
+  sheet:drop()
 
   -- 3. the geometry the file predicts, read a frame after the write.
   probe = hafen.ui():window()
@@ -263,7 +266,7 @@ local function run()
     :size(W, H)
     :position(8, 8)
   base, basePos = xy(probe:size()), xy(probe:position())
-  hafen.ui.skin(sheet)
+  sheet:load(rules):install()
   step(1)
 end
 

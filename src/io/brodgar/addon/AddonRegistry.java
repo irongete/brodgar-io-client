@@ -135,7 +135,7 @@ public final class AddonRegistry {
                                                 //   nothing releasable; FontApi.teardownFonts below reverts their overrides.
         HookApi.teardownMouseGrabs(a);// V5: release any active mouse-drag grab (drops the UI.Grab + unlinks the widget)
         HttpApi.teardownRequests(a);  // N2a: cancel in-flight HTTP requests (result discarded on drain; no callback)
-        FontApi.teardownFonts(a);     // 033.1: drop this addon's STYLESHEET (hafen.ui.skin) and its per-instance
+        FontApi.teardownFonts(a);     // 033.1: drop this addon's STYLESHEET (hafen.ui():sheet()) and its per-widget
                                       //   widget:setFont overrides in one sweep (bumps gen -> stock foundry restored)
         UiApi.teardownMoved(a);       // 036.1: put every native widget this addon laid out back where the user had
                                       //   it — an addon's layout is a LAYER over the client's, so nothing of ours

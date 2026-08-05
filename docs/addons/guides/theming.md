@@ -1,33 +1,31 @@
 # Theming
 
-One table says what the client looks like. A [selector](../api/ui/selectors.md) is the key, a table of
-properties is the value, and installing it restyles the running client on the spot — no restart, no
-patched files, and nothing the user has to undo. It needs no permission, and it is dropped the moment your
-addon is.
+One **sheet** says what the client looks like. A [selector](../api/ui/selectors.md) names a **rule**, the
+rule's properties are setters, and installing the sheet restyles the running client on the spot — no
+restart, no patched files, and nothing the user has to undo. It needs no permission, and it is dropped the
+moment your addon is.
 
 ## Your first rule
 
 ```lua
-hafen.ui.skin{
-  ["*"]    = { font = hafen.font("serif"):derive{ size = 11 } },
-  ["chat"] = { color = {190, 210, 190} },
-}
+local s = hafen.ui():sheet()
+s:rule("*"):font(hafen.font("serif"):derive{ size = 11 })
+s:rule("chat"):color(190, 210, 190)
+s:install()
 ```
 
 `["*"]` is the fallback under everything; `["chat"]` refines one surface out of it. Reload, and the chat
-log is green in a serif face. `hafen.ui.skin(nil)` puts the stock client back, as does disabling your
-addon.
+log is green in a serif face. `s:drop()` puts the stock client back, as does disabling your addon.
 
-**An addon owns exactly one sheet**, and a second `skin{…}` replaces the first *whole* rather than merging
-into it. So keep your rules in a table you can edit and re-apply, instead of calling `skin` twice:
+**An addon owns exactly one sheet**, handed back by identity from `hafen.ui():sheet()`, and `:install()`
+replaces the applied one *whole* rather than merging into it. The document is yours to keep and edit: a
+rule is the same object every time you name its selector, and an edit to an **installed** sheet lands on
+the spot.
 
 ```lua
-local rules = {}
-
-local function rule(key, props)
-  rules[key] = props                                        -- props = nil drops that rule
-  if next(rules) then hafen.ui.skin(rules) else hafen.ui.skin(nil) end
-end
+local s = hafen.ui():sheet()
+s:rule("chat"):color(190, 210, 190)     -- ...or, once the sheet is installed, changes it live
+s:rule("chat"):remove()                 -- and this drops that one rule
 ```
 
 ## What a key can name
@@ -46,37 +44,37 @@ properties a given key honours — a site that draws text has no background of i
 
 ## What a rule can say
 
-| Property | Says |
+| Setter | Says |
 |---|---|
-| `font`, `color` | [the text](../api/ui/style/text.md) |
-| `bg`, `border`, `pad` | [the surface it is painted on](../api/ui/style/chrome.md) |
-| `pos`, `size`, `anchor` | [where the widget is, and how big](../api/ui/style/geometry.md) |
+| `:font(h)`, `:color(r, g, b)` | [the text](../api/ui/style/text.md) |
+| `:bg(t)`, `:border(t)`, `:pad(n)` | [the surface it is painted on](../api/ui/style/chrome.md) |
+| `:position(x, y)`, `:size(w, h)`, `:anchor(t)` | [where the widget is, and how big](../api/ui/style/geometry.md) |
 
+Each setter returns the rule, so a level is one expression, and each reads back with no argument.
 Properties are independent: a colour-only rule leaves the font alone, a border-only rule leaves the
 background. A misspelt property is an error naming the ones that exist, which is the failure you want.
 
 ```lua
-["window.frame"] = {
-  bg     = { color = {26, 26, 28, 240} },
-  border = { image = hafen.asset("frame.png"), slice = {12, 40, 12, 12} },
-  pad    = 4,
-},
-["window[title=Inventory]"] = {
-  anchor = { to = "screen", at = "bottomright", offset = {-8, -8} },
-},
+s:rule("window.frame")
+  :bg{ color = {26, 26, 28, 240} }
+  :border{ image = hafen.asset("frame.png"), slice = {12, 40, 12, 12} }
+  :pad(4)
+s:rule("window[title=Inventory]")
+  :anchor{ to = "screen", at = "bottomright", offset = {-8, -8} }
 ```
 
 ## One widget, and the cascade
 
-To restyle a single widget you already hold, call [`skin` on it](../api/ui/style/README.md#restyle-one-widget)
-rather than inventing a selector that matches only it. That is the top of a cascade which resolves
-most-specific-first — the widget's own entry, then the matching tree rule, then the site rule, then `*`,
+To restyle a single widget you already hold, ask it for
+[its own rule](../api/ui/style/README.md#restyle-one-widget) rather than inventing a selector that matches
+only it. That is the top of a cascade which resolves most-specific-first — the widget's own level, then the
+matching tree rule, then the site rule, then `*`,
 then the client's stock — and **every level composes per property**, so a narrow rule never silently drops
 a broad one. [`widget:style()`](../api/ui/widget.md) reads back what a widget actually resolves to, which
 is the answer to "why is that still the wrong colour".
 
-Layout resolves through the same cascade with a different top: the hand-named level for `pos` and `size` is
-the [verb](../api/ui/native.md), `w:position(x, y)`, not a `skin` call.
+Layout resolves through the same cascade with a different top: the hand-named level for `position` and
+`size` is the [verb](../api/ui/native.md), `w:position(x, y)`, not a rule of your own.
 
 ## A theme is a file
 
@@ -85,9 +83,9 @@ corner and an offset. So a whole look can live in a JSON file your addon ships, 
 but reading it:
 
 ```lua
-local sheet = hafen.json():parse(hafen.asset("theme.json"):text())
+local doc = hafen.json():parse(hafen.asset("theme.json"):text())
 -- map the two values JSON cannot carry -- a font face and an image -- to handles, then:
-hafen.ui.skin(sheet)
+hafen.ui():sheet():load(doc.rules):install()
 ```
 
 That is exactly what the bundled **`theme`** addon does, and it is why making a different theme is editing

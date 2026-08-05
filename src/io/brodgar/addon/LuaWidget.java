@@ -659,7 +659,7 @@ public final class LuaWidget {
         // each field present only where a level of the cascade set it — or nil when nothing overrides it. "nil
         // means stock": on a client with no sheet installed every widget reads nil, which is the same contract the
         // identity fast path in the font provider rests on. What it folds is the PER-WIDGET cascade — this widget's
-        // own :skin{} over the sheet's TREE keys (hafen.ui.skin{ ["window[title=…]"] = … }), most specific first. A
+        // own :rule() over the sheet's TREE keys (sheet:rule("window[title=…]")), most specific first. A
         // site key like ["button"] is not a property of any one widget (a window contains buttons, labels and chat,
         // each drawn at its own site) and is deliberately not folded in here; nor is an ancestor's style, which is
         // inherited at the DRAW rather than resolved (a read answers for the thing you point at, D-075).
@@ -670,21 +670,19 @@ public final class LuaWidget {
                 return (w == null) ? LuaValue.NIL : Sheet.styleTable(owner, w);
             }
         });
-        // skin{…} (034.3, F5 widened) — restyle THIS widget and everything drawn inside it, while its siblings keep
-        // the tree/site/"default" cascade. Arity is the verb (029): w:skin() READS this addon's own entry back (nil
-        // if none), w:skin{font=,color=} SETS it, w:skin(nil) DROPS it — and only this addon's, never another's.
-        // The properties are a sheet rule's, so an unknown one is the same error and a handle's own colour is
-        // ignored exactly as it is in a sheet (D-073). widget:setFont/:resetFont are a HARD CUT: a font was never a
-        // special case, only the first property that existed. Owner-tagged (reverted on :reload/disable), held
-        // weakly against the widget (it dies with the window), and chains on a write.
-        m.set("skin", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:skin() → narg 1 · w:skin(props|nil) → narg 2
-                LuaValue self = a.arg1();
-                Widget w = live(handle(self, "skin"));
-                if(a.narg() < 2)
-                    return Sheet.skinOf(owner, w);
-                Sheet.applySkin(owner, w, a.arg(2));      // a stale widget: parsed, then a silent no-op (029.2)
-                return self;
+        // rule() (034.3, F5 widened; 039.7's shape) — YOUR OWN level of the cascade on THIS widget and everything
+        // drawn inside it, while its siblings keep the tree/site/"default" cascade. It hands back the same Rule
+        // object a sheet's selectors do, so the properties are said the same way — r:font(h), r:color(r,g,b),
+        // r:bg{…}, r:border{…}, r:pad(n), each with a bare read — and r:info() is the whole level as a table.
+        // The undo is r:remove() (R7), and it drops only this addon's level, never another's. The layout three
+        // are refused here naming widget:position(x, y): the hand-named level of THAT cascade is the verb.
+        // widget:setFont/:resetFont are a HARD CUT: a font was never a special case, only the first property that
+        // existed. Owner-tagged (reverted on :reload/disable) and held weakly against the widget, so it dies with
+        // the window; on a stale widget the reads answer nil and a write is the 029.2 silent no-op.
+        m.set("rule", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaWidget h = handle(self, "rule");
+                return LuaRule.ofWidget(owner, h, live(h));
             }
         });
         return m;

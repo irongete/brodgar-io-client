@@ -3,16 +3,17 @@
 --
 -- Everything this addon LOOKS like lives in theme.json, next to this file. Nothing below names a surface, a
 -- font, a size, a colour or a pixel: it reads the file, maps the values JSON cannot hold to handles, and hands
--- the whole table to hafen.ui.skin{…}. To make a different theme you edit the JSON — that is the claim this
--- addon exists to prove, and it is why the loop over the rules never looks at a key.
+-- the whole table to the sheet's own data door. To make a different theme you edit the JSON — that is the
+-- claim this addon exists to prove, and it is why the loop over the rules never looks at a key.
 --
 -- Three ordinary doors, one line each:
 --   hafen.asset("theme.json")   the file THIS addon ships — a "data" asset, read as UTF-8 (:text()), sandboxed
 --                               like every asset (absolute paths and ".." are rejected, D-017)
 --   hafen.json():parse(text)      the text → a Lua table. A JSON array is 1-indexed, so [190,210,190] arrives as
 --                               the sheet's own positional colour shape and needs no conversion at all.
---   hafen.ui.skin{…}            the sheet: [selector] = {properties}, applied live and OWNED by this addon —
---                               :reload/disable drops it and the stock client comes back.
+--   hafen.ui():sheet()        this addon's one sheet: :load(t) takes the whole table as data, :install()
+--                               applies it live, and it is OWNED — :reload/disable drops it and the stock
+--                               client comes back.
 --
 -- EXACTLY TWO values in a rule are things JSON cannot carry, and both for the same reason: they are HANDLES.
 -- A font's `face` — a bare name ("serif") is one of the client's built-ins, anything with a dot
@@ -24,35 +25,36 @@
 --
 -- ...AND THE LAYOUT HALF COSTS NONE (036-ui-layout, feature E). A theme also says WHERE the client's windows
 -- sit: `anchor = {to = "screen", at = "bottomright", offset = {-8, -8}}` on a selector that names a window.
--- There is nothing to map — an anchor's corner is a string, its offset is two numbers, and `pos`/`size` are the
--- same {x, y} arrays a colour and a slice already are — so the layout rules travel through ruleOf() verbatim
+-- There is nothing to map — an anchor's corner is a string, its offset is two numbers, and `position`/`size`
+-- are the {x, y} arrays a colour and a slice already are — so the layout rules travel through ruleOf() verbatim
 -- and this file gained not one line for them. A handle is the only thing an adapter is ever for.
 --
 -- SAVING A LAYOUT IS THIS ADDON'S OWN BUSINESS, and that is the point of the store half below. The engine ships
 -- no profiles: a sheet is plain data and hafen.store is account-wide JSON, so "remember where I put my windows"
 -- is a dozen lines here rather than a second store beside the one every addon already has.
 --
---   ':theme save'    where each themed window is RIGHT NOW becomes a pinned `pos` for it, kept in
+--   ':theme save'    where each themed window is RIGHT NOW becomes a pinned `position` for it, kept in
 --                    hafen.store.layout (account scope) and re-applied on every ':theme on', on every character.
 --   ':theme forget'  drop the pins and fall back to the file's own anchors.
 --
 -- An anchor HOLDS and a pin lets go: an anchored window is re-derived every tick, so dragging it snaps back,
--- while a saved `pos` is written once and the window is yours to drag until you save again. That is not a mode
--- this addon invents — it is what the two spellings of the one property mean (see the API docs' anchor section).
+-- while a saved `position` is written once and the window is yours to drag until you save again. That is not a
+-- mode this addon invents — it is what the two spellings of one property mean (see the docs' anchor section).
 --
 -- DORMANT until you ask for it: ':theme on' applies the sheet, ':theme off' drops it. A theme installed at login
 -- would restyle the whole client on every login, which is not something an example addon should decide for you.
 -- Assets are interned, so editing theme.json takes effect on ':reload' (which rebuilds the addon layer).
 --
 -- SAFE-tier: cosmetic and client-side, declares no permissions, sends nothing to the server.
--- See docs/addons/api/ui.md#the-stylesheet--restyling-the-client and docs/addons/api/asset.md.
+-- See docs/addons/api/ui/style/README.md and docs/addons/api/asset.md.
 
 local FILE = "theme.json"
 
 local name          -- the theme's display name, from the JSON
-local sheet         -- the built sheet: [selector] = { font = <handle>, color = {r,g,b}, bg/border/pad … }
+local rules         -- the built rules: [selector] = { font = <handle>, color = {r,g,b}, bg/border/pad … }
 local count = 0     -- how many rules it carries
 local on = false    -- is our sheet currently installed?
+local sheet = hafen.ui():sheet()   -- ...and the sheet itself, this addon's one, handed back by identity
 
 -- A font descriptor's `face` → a font handle. One of the two places a string becomes something JSON cannot hold.
 local function faceOf(face)
@@ -108,10 +110,10 @@ end
 -- Everything below is the profile system the engine deliberately does not ship. It is short because a sheet is
 -- plain data: a saved layout is { [selector] = {x, y} } and applying it is one more rule on top of the file's.
 
--- Does this rule say where its widget goes? (`pos` and `anchor` are one property in two spellings, so a rule
--- carrying either is one this addon can pin -- and a rule saying BOTH is an error the sheet refuses.)
+-- Does this rule say where its widget goes? (`position` and `anchor` are one property in two spellings, so a
+-- rule carrying either is one this addon can pin -- and a rule saying BOTH is an error the sheet refuses.)
 local function places(rule)
-  return (rule.pos ~= nil) or (rule.anchor ~= nil)
+  return (rule.position ~= nil) or (rule.anchor ~= nil)
 end
 
 -- The saved layout: { [selector] = {x = , y = } }, account scope, so it is ready in OnLoad and shared by every
@@ -127,17 +129,17 @@ local function pins()
 end
 
 -- The sheet as it is actually installed: the file's rules, with a pinned position REPLACING the file's own
--- placement for any selector the user has saved. The pin is written as `pos` because that is what it is -- an
+-- placement for any selector the user has saved. The pin is written as `position` because that is what it is -- an
 -- absolute point they chose by dragging -- and it takes the anchor's slot rather than sitting beside it.
 local function effective()
   local saved = pins()
-  if next(saved) == nil then return sheet end
+  if next(saved) == nil then return rules end
   local out = {}
-  for key, rule in pairs(sheet) do out[key] = rule end
+  for key, rule in pairs(rules) do out[key] = rule end
   for key, p in pairs(saved) do
     local rule = {}
     for k, v in pairs(out[key] or {}) do rule[k] = v end
-    rule.anchor, rule.pos = nil, { x = p.x, y = p.y }
+    rule.anchor, rule.position = nil, { x = p.x, y = p.y }
     out[key] = rule
   end
   return out
@@ -145,9 +147,9 @@ end
 
 local function apply(want)
   if want then
-    hafen.ui.skin(effective())
+    sheet:load(effective()):install()
   else
-    hafen.ui.skin(nil)              -- every surface it styled falls back — to another addon's sheet, else stock
+    sheet:drop()              -- every surface it styled falls back — to another addon's sheet, else stock
   end
   on = want
   hafen.log():write(("theme: '%s' (%d rules) is now %s"):format(name, count, on and "ON" or "OFF"))
@@ -158,11 +160,11 @@ end
 -- there from an anchor, from a previous pin, or from the user dragging it afterwards.
 local function saveLayout()
   local saved, n = pins(), 0
-  for key, rule in pairs(sheet) do
+  for key, rule in pairs(rules) do
     if places(rule) then
       local w = hafen.ui():find(key)
       if w ~= nil then
-        local p = w:pos()
+        local p = w:position()
         saved[key] = { x = p.x, y = p.y }
         n = n + 1
       end
@@ -178,7 +180,7 @@ end
 -- How ':theme dump' says where a rule puts its widget. Both spellings of the one property, and both spellings of
 -- a coordinate: the file writes [40, 200] and a pin writes {x = , y = }, exactly as the sheet accepts either.
 local function whereOf(rule)
-  local p = rule.pos
+  local p = rule.position
   if p ~= nil then
     return ("pinned %s,%s"):format(tostring(p.x or p[1]), tostring(p.y or p[2]))
   end
@@ -201,9 +203,9 @@ end
 
 hafen.event():on("OnLoad", function()
   on = false                        -- a reload rebuilt the env and tore the sheet down with it (owned resource)
-  local ok, err = pcall(function() name, sheet, count = build() end)
+  local ok, err = pcall(function() name, rules, count = build() end)
   if not ok then
-    sheet, count = nil, 0
+    rules, count = nil, 0
     hafen.log():write("theme: could not load " .. FILE .. " -- " .. tostring(err))
     return
   end
@@ -216,7 +218,7 @@ hafen.event():on("OnLoad", function()
 end)
 
 hafen.slash():register("theme", function(args)
-  if not sheet then hafen.log():write("theme: nothing loaded (see the error at login)"); return end
+  if not rules then hafen.log():write("theme: nothing loaded (see the error at login)"); return end
   local sub = (args and args[1]) or ""
   if sub == "on" then
     apply(true)

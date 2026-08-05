@@ -16,6 +16,9 @@
 
 local pass, fail, manual = 0, 0, 0
 
+-- This addon's one stylesheet: a selector names a rule on it, and :install() applies what it says.
+local sheet = hafen.ui():sheet()
+
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
@@ -80,7 +83,7 @@ local function run(args)
 
   local w, sel = named()
   if mode == "drop" then          -- the [manual] line's cleanup: give the parked window back
-    hafen.ui.skin(nil)
+    sheet:drop()
     hafen.log():write("[manual] the parked anchor rule is dropped -- the window is back where you had it")
     return
   end
@@ -90,12 +93,12 @@ local function run(args)
     return
   end
   if mode == "hold" then          -- ...and its setup: park ONE anchored window for a human to look at
-    hafen.ui.skin{ [sel] = { anchor = { to = "screen", at = "bottomright", offset = {-8, -8} } } }
+    sheet:load{ [sel] = { anchor = { to = "screen", at = "bottomright", offset = {-8, -8} } } }:install()
     hafen.log():write("[manual] \"" .. w:text() .. "\" is anchored 8 px in from the screen's bottom-right corner."
       .. " Resize the client window, then run :t036-3 drop")
     return
   end
-  hafen.ui.skin(nil)              -- start from a client this suite is holding nothing on
+  sheet:drop()              -- start from a client this suite is holding nothing on
 
   -- 1. the premise, re-asserted here because everything below rests on it (D-085): a native window is
   --    reachable, is BORROWED, and a selector names it and nothing else.
@@ -105,27 +108,27 @@ local function run(args)
 
   -- 2. THE TASK'S SHAPE: `pos` is not a property beside `anchor`, it is the DEGENERATE anchor -- to the
   --    widget's own parent, at its top-left. One resolution path, asserted from both ends.
-  hafen.ui.skin{ [sel] = { pos = {stock.x + 31, stock.y + 17} } }
+  sheet:load{ [sel] = { position = {stock.x + 31, stock.y + 17} } }:install()
   eq("a pos rule is the anchor to the parent's top-left: c IS the offset",
      xy(w:position()), pt(stock.x + 31, stock.y + 17))
-  hafen.ui.skin{ [sel] = { anchor = { to = "screen", at = "topleft", offset = {stock.x + 31, stock.y + 17} } } }
+  sheet:load{ [sel] = { anchor = { to = "screen", at = "topleft", offset = {stock.x + 31, stock.y + 17} } } }:install()
   eq("...and the same offset anchored to the SCREEN's top-left is that point in root coordinates",
      xy(w:rootPos()), pt(stock.x + 31, stock.y + 17))
 
   -- 3. ...and every other corner is the same arithmetic with the target's own: the widget's corner ON the
   --    target's, which is what makes offset = {-8,-8} read as "8 px in" rather than "mostly off-screen".
-  hafen.ui.skin{ [sel] = { anchor = { to = "screen", at = "bottomright", offset = {-8, -8} } } }
+  sheet:load{ [sel] = { anchor = { to = "screen", at = "bottomright", offset = {-8, -8} } } }:install()
   eq("an anchor derives its place from the LIVE root size: bottom-right, 8 px in",
      xy(w:rootPos()), pt(rsz.x - w:size().x - 8, rsz.y - w:size().y - 8))
-  hafen.ui.skin{ [sel] = { anchor = { at = "center" } } }
+  sheet:load{ [sel] = { anchor = { at = "center" } } }:install()
   eq("...and centred, with every field on its default (the screen, no offset)",
      xy(w:rootPos()), pt(half(rsz.x) - half(w:size().x), half(rsz.y) - half(w:size().y)))
 
   -- 4. widget:style() reports the property the rule was WRITTEN with -- the read round-trips into a write.
-  hafen.ui.skin{ [sel] = { anchor = { to = "screen", at = "bottomright", offset = {-8, -8} } } }
+  sheet:load{ [sel] = { anchor = { to = "screen", at = "bottomright", offset = {-8, -8} } } }:install()
   local a = w:style().anchor
   check(a and (a.to == "screen") and (a.at == "bottomright") and (a.offset.x == -8) and (a.offset.y == -8)
-        and (w:style().pos == nil),
+        and (w:style().position == nil),
         "widget:style() reports the anchor as it was written -- to, at and offset, and no second spelling",
         a and (tostring(a.to) .. "/" .. tostring(a.at) .. "/" .. xy(a.offset)))
 
@@ -135,7 +138,7 @@ local function run(args)
     :title("036.3 anchor target")
     :size(160, 110)
     :position(260, 200)
-  hafen.ui.skin{ [sel] = { anchor = { to = probe, at = "topright", offset = {6, 0} } } }
+  sheet:load{ [sel] = { anchor = { to = probe, at = "topright", offset = {6, 0} } } }:install()
   eq("a widget anchored to another sits on ITS corner", xy(w:rootPos()),
      pt(260 + probe:size().x - w:size().x + 6, 200))
   probe:position(340, 260)
@@ -160,8 +163,8 @@ local function run(args)
     :title("036.3 clamp probe")
     :size(150, 100)
     :position(80, 80)
-  hafen.ui.skin{ ["window[title=036.3 clamp probe]"] =
-                 { anchor = { to = "screen", at = "topleft", offset = {rsz.x + 4000, rsz.y + 4000} } } }
+  sheet:load{ ["window[title=036.3 clamp probe]"] =
+                 { anchor = { to = "screen", at = "topleft", offset = {rsz.x + 4000, rsz.y + 4000} } } }:install()
   local p = edge:rootPos()
   check((p.x < rsz.x) and (p.y < rsz.y) and (p.x > 0) and (p.y > 0),
         "an off-screen anchor is clamped by the client's own rule, not by a second one", xy(p))
@@ -179,7 +182,7 @@ local function run(args)
 
   -- 8. ONE FOLD, TWO LEVELS (D-077/D-089), now with an anchor underneath: the hand-named verb outranks it,
   --    and the undo drops back to THE ANCHOR rather than to stock.
-  hafen.ui.skin{ [sel] = { anchor = { to = "screen", at = "bottomright", offset = {-8, -8} } } }
+  sheet:load{ [sel] = { anchor = { to = "screen", at = "bottomright", offset = {-8, -8} } } }:install()
   w:position(stock.x + 5, stock.y + 3)
   eq("the hand-named verb outranks an anchor rule", xy(w:position()), pt(stock.x + 5, stock.y + 3))
   w:position(nil)
@@ -187,23 +190,23 @@ local function run(args)
      xy(w:rootPos()), pt(rsz.x - w:size().x - 8, rsz.y - w:size().y - 8))
 
   -- 9. dropping the sheet restores the exact numbers -- the whole point of a layer.
-  hafen.ui.skin(nil)
+  sheet:drop()
   eq("dropping the sheet puts the window back exactly where the user had it", xy(w:position()), xy(stock))
 
   -- 10. the refusals. Two are about WHERE layout may be said (D-088, re-asserted because an anchor is a new
   --     way to say it), and two are about saying it wrong: one question asked twice, and a typo.
   refuses("anchor on a site key is refused, because \"*\" is the default SITE and not every widget",
-          function() hafen.ui.skin{ ["*"] = { anchor = { at = "center" } } } end, "lays out a WIDGET")
-  refuses("widget:skin{anchor=} is refused: the hand-named level of the layout cascade is widget:position(x, y)",
-          function() w:skin{ anchor = { at = "center" } } end, "widget:position(x, y)")
+          function() sheet:load{ ["*"] = { anchor = { at = "center" } } }:install() end, "lays out a WIDGET")
+  refuses("widget:rule():anchor{} is refused: the hand-named level of that cascade is widget:position(x, y)",
+          function() w:rule():anchor{ at = "center" } end, "widget:position(x, y)")
   refuses("pos and anchor in one rule is one question asked twice, and is refused",
-          function() hafen.ui.skin{ [sel] = { pos = {1, 1}, anchor = { at = "center" } } } end,
+          function() sheet:load{ [sel] = { position = {1, 1}, anchor = { at = "center" } } }:install() end,
           "same property said two ways")
   refuses("a misspelt corner is an error naming all nine, not a silent top-left (D-072)",
-          function() hafen.ui.skin{ [sel] = { anchor = { at = "bottomrigth" } } } end, "expected one of")
+          function() sheet:load{ [sel] = { anchor = { at = "bottomrigth" } } }:install() end, "expected one of")
   eq("...and a refused sheet leaves the client exactly as it was", xy(w:position()), xy(stock))
 
-  hafen.ui.skin(nil)
+  sheet:drop()
   manualCheck("run \":t036-3 hold\", then resize the client window (drag an edge, or maximise and restore),"
     .. " then run \":t036-3 drop\"",
     "the parked window stays 8 px in from the screen's BOTTOM-RIGHT corner the whole time and is back where"

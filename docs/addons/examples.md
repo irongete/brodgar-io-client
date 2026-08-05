@@ -51,7 +51,7 @@ Dormant until its `toggle` hotkey arms the replacement; the view is read-only, s
 A client theme that is **data, not code**: everything it looks like lives in a `theme.json` beside its Lua,
 which never names a surface, a font, a colour or a pixel. It reads the file with
 [`hafen.asset`](api/asset.md), parses it with [`hafen.json`](api/json.md) and hands the table to
-[`hafen.ui.skin{…}`](api/ui/style/README.md). Exactly two values in a rule are handles the file cannot
+[`sheet:load`](api/ui/style/README.md#a-sheet-from-data). Exactly two values in a rule are handles the file cannot
 carry — a font face and an image — and it maps those two. It also keeps a window layout of its own in
 [`hafen.store`](api/store.md), account-wide.
 

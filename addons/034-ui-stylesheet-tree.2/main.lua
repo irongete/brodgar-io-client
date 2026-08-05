@@ -17,6 +17,9 @@
 
 local pass, fail, manual = 0, 0, 0
 
+-- This addon's one stylesheet: a selector names a rule on it, and :install() applies what it says.
+local sheet = hafen.ui():sheet()
+
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
@@ -70,7 +73,7 @@ end
 -- as a chain of timers rather than straight through.
 local function run()
   pass, fail, manual = 0, 0, 0        -- a re-run through :t034-2 reports its own counts, not the login's
-  hafen.ui.skin(nil)
+  sheet:drop()
   killWins()
   local m0 = misses()
   local a, b = probe(STYLED, 4), probe(PLAIN, 34)
@@ -82,7 +85,7 @@ local function run()
     eq("and neither window resolves a style", a:style(), nil)
 
     local h = big()
-    hafen.ui.skin{ ["window[title=" .. STYLED .. "]"] = { font = h, color = BIG } }
+    sheet:load{ ["window[title=" .. STYLED .. "]"] = { font = h, color = BIG } }:install()
     local m1 = misses()
 
     hafen.timer():after(0.6, function()
@@ -109,7 +112,7 @@ local function run()
           --    varied would re-key every draw, so this count would climb by one per window per frame.
           eq("the stamp is stable across frames: ~60 frames, nothing re-rasterised", misses() - m3, 0)
           local m4 = misses()
-          hafen.ui.skin(nil)
+          sheet:drop()
 
           hafen.timer():after(0.6, function()
             -- 5. teardown is exact: no frame opens anywhere, so all three windows share ONE key again.
@@ -158,15 +161,15 @@ local function prof()
     hafen.log():write("[summary] 0 pass, 0 fail, 1 manual")
     return
   end
-  hafen.ui.skin(nil)
+  sheet:drop()
   hafen.timer():after(1.5, function()
     local stock = avgDraw(60)
     -- Any tree rule at all makes the descent ask about EVERY widget it draws, which is the cost being measured;
     -- `window` matches the open ones, so the frame is really opened as well.
-    hafen.ui.skin{ ["window"] = { color = BIG } }
+    sheet:load{ ["window"] = { color = BIG } }:install()
     hafen.timer():after(1.5, function()
       local tree = avgDraw(60)
-      hafen.ui.skin(nil)
+      sheet:drop()
       if not (stock and tree) then
         check(false, "the draw phase was measured with and without a tree sheet", tostring(stock) .. "/" .. tostring(tree))
       else
@@ -186,14 +189,14 @@ hafen.slash():register("t034-2", function(args)
       wins = { probe(STYLED, 4), probe(PLAIN, 34), probe(STYLED, 64) }
     end
     local h = big()
-    hafen.ui.skin{
+    sheet:load{
       ["window[title=" .. STYLED .. "]"] = { font = h, color = BIG },
       ["window[title=Inventory]"]        = { font = h },
-    }
+    }:install()
     hafen.log():write(":t034-2 demo -> a sheet is PARKED: the two \"" .. STYLED .. "\" windows and the inventory."
               .. " Clear it with  :t034-2 off  (a :reload clears it too).")
   elseif sub == "off" then
-    hafen.ui.skin(nil)
+    sheet:drop()
     killWins()
     hafen.log():write(":t034-2 off -> sheet dropped, probe windows destroyed")
   elseif sub == "prof" then

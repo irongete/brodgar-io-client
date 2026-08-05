@@ -1,0 +1,9 @@
+{
+  "name": "039.7 — the stylesheet: Sheet and Rule",
+  "id": "039-uniform-api.7",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.7: the stylesheet becomes objects. hafen.ui():sheet() is this addon's one sheet, sheet:rule(selector) is a level of the cascade interned per selector, its eight properties are setters with matching bare reads, and :install()/:drop() say whether the document is in force (an edit to an installed sheet lands at once). It proves the DATA door survives the change -- a sheet.json parsed by hafen.json() goes into sheet:load(t) unmapped and lands the geometry the file's own numbers predict, to the pixel -- that a layout-only sheet still costs the DRAW nothing (one string in two windows keeps ONE text-cache key, and the very same rule with a font in it takes two, which is the falsification built into the run), that widget:rule():remove() drops YOUR level and re-resolves onto the rule beneath rather than to stock, and that a rule saying both `position` and `anchor` in one loaded table is refused rather than resolved by iteration order. The old spellings throw naming their replacements: hafen.ui.skin{}, widget:skin{} and the sheet key `pos`.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -24,6 +24,9 @@
 
 local pass, fail, manual = 0, 0, 0
 
+-- This addon's one stylesheet: a selector names a rule on it, and :install() applies what it says.
+local sheet = hafen.ui():sheet()
+
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
@@ -68,7 +71,7 @@ local function win(w)
 end
 
 local function cleanup()
-  hafen.ui.skin(nil)
+  sheet:drop()
   for i = 1, #wins do
     if wins[i]:exists() then wins[i]:destroy() end
   end
@@ -245,7 +248,7 @@ costRound = function(img)
     :title(TITLE_BG)
     :size(CMAPS, CMAPS)
     :position(40, 40))
-  hafen.ui.skin{ ["window[title=" .. TITLE_BG .. "]"] = { bg = { image = img } } }
+  sheet:load{ ["window[title=" .. TITLE_BG .. "]"] = { bg = { image = img } } }:install()
   hafen.timer():after(0.5, function()
     local row = ownRow()
     local paints = row and (row.calls.draw + row.calls.widgets)

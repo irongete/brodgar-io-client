@@ -12,6 +12,9 @@
 
 local pass, fail = 0, 0
 
+-- This addon's one stylesheet: a selector names a rule on it, and :install() applies what it says.
+local sheet = hafen.ui():sheet()
+
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
@@ -63,7 +66,7 @@ local function run()
   check(kid ~= a, "the probe window has something inside it to resolve separately", "no children")
 
   -- 2. a tree key resolves — on the widget it names, and on no other.
-  hafen.ui.skin{ ["window[title=034 probe A]"] = { font = body, color = WARM } }
+  sheet:load{ ["window[title=034 probe A]"] = { font = body, color = WARM } }:install()
   eq("a [title=] tree key resolves on the widget it names", style(a), "font=true color=200,180,140")
   check(a:style().font == body, "the font comes back as the very handle the rule named", a:style().font)
   eq("a widget the key does not name resolves nothing", style(b), "nil")
@@ -71,33 +74,33 @@ local function run()
   -- 3. resolution is PER WIDGET, and the refiner keeps 030's enclosing-window rule: `window[title=A]` needs
   --    the widget to BE that window, while `[title=A]` alone answers for everything inside it.
   eq("a child of the named window is not itself named by a role+refiner key", style(kid), "nil")
-  hafen.ui.skin{ ["[title=034 probe A]"] = { color = WARM } }
+  sheet:load{ ["[title=034 probe A]"] = { color = WARM } }:install()
   eq("a refiner-only key reaches every widget inside that window", style(kid), "font=false color=200,180,140")
 
   -- 4. the specificity fold: two competing keys, the more specific wins where it applies (role 1, +[title=] 4).
-  hafen.ui.skin{ ["window"] = { color = WARM }, ["window[title=034 probe A]"] = { color = COLD } }
+  sheet:load{ ["window"] = { color = WARM }, ["window[title=034 probe A]"] = { color = COLD } }:install()
   eq("the more specific of two competing keys wins", style(a), "font=false color=90,140,200")
   eq("the broader key still answers everywhere else", style(b), "font=false color=200,180,140")
 
   -- 5. and it folds PER PROPERTY: the specific rule takes the colour without taking the broad rule's font.
-  hafen.ui.skin{ ["window"] = { font = body }, ["window[title=034 probe A]"] = { color = COLD } }
+  sheet:load{ ["window"] = { font = body }, ["window[title=034 probe A]"] = { color = COLD } }:install()
   eq("the fold is per property, not per rule", style(a), "font=true color=90,140,200")
 
   -- 6. a SITE key is not a widget's style: `*` and the eleven routed surfaces resolve where they DRAW (033),
   --    and folding one into a widget would be a guess — a window contains buttons, labels and chat.
-  hafen.ui.skin{ ["*"] = { color = WARM }, ["chat"] = { color = COLD } }
+  sheet:load{ ["*"] = { color = WARM }, ["chat"] = { color = COLD } }:install()
   eq("a site key is not a widget's style", style(a), "nil")
 
   -- 7. teardown is exact: dropping the sheet puts every widget back to nil.
-  hafen.ui.skin{ ["window"] = { color = WARM } }
-  hafen.ui.skin(nil)
+  sheet:load{ ["window"] = { color = WARM } }:install()
+  sheet:drop()
   eq("dropping the sheet returns a matched widget to nil", style(a), "nil")
   eq("dropping the sheet returns every widget to nil", style(b), "nil")
 
   -- 8. a typo in a tree key's rule still errors, and says WHICH property (D-072: the key may mean something
   --    later, a misspelt property never will).
   refuses("an unknown property in a tree key is refused, naming it",
-          function() hafen.ui.skin{ ["window[title=034 probe A]"] = { colour = COLD } } end, "colour")
+          function() sheet:load{ ["window[title=034 probe A]"] = { colour = COLD } }:install() end, "colour")
 
   a:destroy(); b:destroy()
   eq("a destroyed widget resolves nothing", style(a), "nil")

@@ -12,13 +12,16 @@
 -- the exact previous size and position back.
 --
 -- Two things a program cannot judge -- whether the frame LOOKS restyled, and whether a restyled window still
--- drags/resizes/closes/focuses -- are [manual], and ':t035-1 look' parks the skin on so they can be done at
+-- drags/resizes/closes/focuses -- are [manual], and ':t035-1 look' parks the sheet on so they can be done at
 -- leisure rather than during the 3-second login run.
 --
 -- READ-ONLY: declares no permissions and mutates no persistent state. Its probe window is destroyed before it
 -- finishes and its sheet is dropped, so a login that runs it leaves the client stock.
 
 local pass, fail, manual = 0, 0, 0
+
+-- This addon's one stylesheet: a selector names a rule on it, and :install() applies what it says.
+local sheet = hafen.ui():sheet()
 
 local function check(ok, what, got)
   if ok then
@@ -70,7 +73,7 @@ end
 -- ---- the automated run -------------------------------------------------------------------------
 
 local function stage3(w, sz, pos)
-  eq("dropping the sheet takes every skinned deco off", #hafen.ui():all("@SkinDeco"), 0)
+  eq("dropping the sheet takes every dressed deco off", #hafen.ui():all("@SkinDeco"), 0)
   eq("the window is back on the stock chrome", decoOf(w), "DefaultDeco")
   eq("the restore leaves the window the size it was", xy(w:size()), sz)
   eq("the restore leaves the window where it was", xy(w:position()), pos)
@@ -87,31 +90,31 @@ local function stage2(w, sz, pos)
   check(#hafen.ui():all("@SkinDeco") > 0, "a window.frame rule puts a sheet-fed deco on the client's windows",
         #hafen.ui():all("@SkinDeco"))
   eq("the probe window is wearing it too", decoOf(w), "SkinDeco")
-  hafen.ui.skin(nil)
+  sheet:drop()
   hafen.timer():after(0.4, function() stage3(w, sz, pos) end)   -- the swap back happens in Window.tick
 end
 
 local function run()
   pass, fail, manual = 0, 0, 0    -- so a re-run through :t035-1 reports its own counts, not the login's
-  hafen.ui.skin(nil)
+  sheet:drop()
 
   -- 1. the refusals. A property this client does not ship is still an error (D-072); so is a chrome value
   --    that cannot mean anything, each naming the part that is wrong.
   refuses("an unknown style property is still refused, naming it",
-          function() hafen.ui.skin{ ["window.frame"] = { backgrund = {} } } end, "backgrund")
+          function() sheet:load{ ["window.frame"] = { backgrund = {} } }:install() end, "backgrund")
   refuses("a bg that says nothing is refused",
-          function() hafen.ui.skin{ ["window.frame"] = { bg = {} } } end, "says nothing")
+          function() sheet:load{ ["window.frame"] = { bg = {} } }:install() end, "says nothing")
   refuses("a bg that is both a colour and an image is refused",
-          function() hafen.ui.skin{ ["window.frame"] = { bg = { color = DARK,
-                                                                image = hafen.asset(PANEL) } } } end, "not both")
+          function() sheet:load{ ["window.frame"] = { bg = { color = DARK,
+                                                                image = hafen.asset(PANEL) } } }:install() end, "not both")
   refuses("an unknown key inside bg is refused, naming it",
-          function() hafen.ui.skin{ ["window.frame"] = { bg = { colour = DARK } } } end, "colour")
+          function() sheet:load{ ["window.frame"] = { bg = { colour = DARK } } }:install() end, "colour")
   refuses("a border with no slice is refused",
-          function() hafen.ui.skin{ ["window.frame"] = { border = { image = hafen.asset(PANEL) } } } end,
+          function() sheet:load{ ["window.frame"] = { border = { image = hafen.asset(PANEL) } } }:install() end,
           "needs a slice")
   refuses("a slice that leaves no middle is refused, naming the image's size",
-          function() hafen.ui.skin{ ["window.frame"] = { border = { image = hafen.asset(PANEL),
-                                                                    slice = { 40, 40, 40, 40 } } } } end, "24x24")
+          function() sheet:load{ ["window.frame"] = { border = { image = hafen.asset(PANEL),
+                                                                    slice = { 40, 40, 40, 40 } } } }:install() end, "24x24")
 
   -- 2. widget:style() reports the new properties, beside font and color and under the same one nil (D-075).
   local w = hafen.ui():window()
@@ -120,9 +123,9 @@ local function run()
     :position(8, 8)
   eq("a widget nothing styles resolves nothing", w:style(), nil)
   local panel = hafen.asset(PANEL)
-  w:skin{ bg = { color = DARK }, border = { image = panel, slice = { 8, 8, 8, 8 } } }
+  w:rule():bg{ color = DARK }:border{ image = panel, slice = { 8, 8, 8, 8 } }
   local st = w:style()
-  check(st ~= nil, "a skinned widget resolves a style", st)
+  check(st ~= nil, "a widget with a rule of its own resolves a style", st)
   eq("widget:style() reports the bg colour", st.bg and st.bg.color and st.bg.color.r, 26)
   eq("widget:style() reports the bg alpha, which is what makes a panel translucent",
      st.bg and st.bg.color and st.bg.color.a, 240)
@@ -130,15 +133,15 @@ local function run()
      st.border and st.border.slice and st.border.slice.l, 8)
   check(st.border and (st.border.image == panel),
         "the border comes back as the very asset handle the rule named", st.border and st.border.image)
-  w:skin(nil)
-  eq("dropping the skin returns the widget to one nil", w:style(), nil)
+  w:rule():remove()
+  eq("dropping that level returns the widget to one nil", w:style(), nil)
 
   -- 3. the swap itself, and that dropping the sheet undoes it exactly. It happens in Window.tick (never
   --    inside a draw), so each half is read a frame later.
   eq("a client with no frame rule wears no sheet-fed deco anywhere", #hafen.ui():all("@SkinDeco"), 0)
   eq("the probe window starts on the stock chrome", decoOf(w), "DefaultDeco")
   local sz, pos = xy(w:size()), xy(w:position())
-  hafen.ui.skin(theme())
+  sheet:load(theme()):install()
   hafen.timer():after(0.4, function() stage2(w, sz, pos) end)
 end
 
@@ -149,11 +152,11 @@ local looking = false
 local function look()
   looking = not looking
   if looking then
-    hafen.ui.skin(theme())
+    sheet:load(theme()):install()
     hafen.log():write(":t035-1 look -> the frame theme is ON. Drag / resize / close / focus a window, then"
       .. " ':t035-1 look' again (or :reload, or disabling this addon) for stock chrome.")
   else
-    hafen.ui.skin(nil)
+    sheet:drop()
     hafen.log():write(":t035-1 look -> stock chrome restored.")
   end
 end

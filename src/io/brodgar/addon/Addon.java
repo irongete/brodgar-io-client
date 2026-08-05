@@ -213,23 +213,32 @@ public final class Addon {
      */
     public final List<LuaHttpRequest> requests = new CopyOnWriteArrayList<LuaHttpRequest>();
     /**
-     * The <b>one stylesheet</b> this addon has installed ({@code hafen.ui.skin{…}}, 033-ui-stylesheet), or
-     * {@code null}. An addon owns exactly one: a second {@code skin{…}} replaces it whole and {@code skin(nil)}
-     * drops it ({@link Sheet#skin}). Each of its site keys is an owner-tagged entry in the {@link haven.Fonts}
-     * provider, tagged by <b>this</b> {@code Addon} instance (spec 05); teardown
+     * The <b>one stylesheet</b> this addon has applied ({@code hafen.ui():sheet():install()},
+     * 033-ui-stylesheet), or {@code null}. An addon owns exactly one: installing again replaces it whole and
+     * {@code sheet:drop()} removes it ({@link Sheet#apply}). Each of its site keys is an owner-tagged entry in
+     * the {@link haven.Fonts} provider, tagged by <b>this</b> {@code Addon} instance (spec 05); teardown
      * ({@link FontApi#teardownFonts}) removes them ({@code Fonts.removeOwner(this)} bumps the generation counter →
-     * routed sites revert to the stock foundry), so a reload/disable restores the stock UI. The sheet itself is
-     * immutable once parsed, so the field is a plain volatile reference rather than a mutable collection.
+     * routed sites revert to the stock foundry), so a reload/disable restores the stock UI. What is here is a
+     * frozen snapshot of what {@link LuaSheet} says, so the field is a plain volatile reference rather than a
+     * mutable collection — and, being the one truth about whether a sheet is applied, it is also what
+     * {@code sheet:info().installed} derives its answer from.
      */
     volatile Sheet skin = null;
     /**
-     * Has this addon styled any single widget by hand ({@code widget:skin{…}}, 034.3)? Only a flag, not a list: the
+     * Has this addon styled any single widget by hand ({@code widget:rule()}, 034.3)? Only a flag, not a list: the
      * styles are keyed by widget inside {@link Sheet}, whose map holds its widget keys <b>weakly</b> — a list here
      * would pin a closed window's widget tree in memory. Teardown ({@link FontApi#teardownFonts}) sweeps this
      * addon's entries out of that map along with its tree rules ({@link Sheet#forget}); this flag only tells it
      * whether the sweep is needed at all (so an addon that never styled anything costs no generation bump).
      */
     public volatile boolean skinNodes = false;
+    /**
+     * This addon's <b>Rule cache</b>: the interned {@code widget:rule()} handle per widget, and the one
+     * {@link LuaRule} metatable a sheet rule shares with it. Weak on both axes, so styling a window pins
+     * nothing once that window closes — the level itself lives in {@link Sheet}'s weak per-widget map, and a
+     * handle is only a name for it.
+     */
+    final LuaRule.Cache styleRules = new LuaRule.Cache(this);
 
     /**
      * This addon's <b>Gob interning cache</b> ({@code hafen.gob(id)}, D-045): the weak-valued

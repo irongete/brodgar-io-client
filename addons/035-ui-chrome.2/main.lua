@@ -16,6 +16,9 @@
 
 local pass, fail, manual = 0, 0, 0
 
+-- This addon's one stylesheet: a selector names a rule on it, and :install() applies what it says.
+local sheet = hafen.ui():sheet()
+
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
@@ -86,7 +89,7 @@ local steps = {}
 local function finish()
   if w then w:destroy() end
   if bare then bare:destroy() end
-  hafen.ui.skin(nil)
+  sheet:drop()
   manualCheck("run ':t035-2 look', then open a window (Tab for the inventory) and read its edges",
     "content sits one pad inside the gold frame on every side, nothing overlaps the frame, and the caption"
     .. " still has its own band -- ':t035-2 look' again puts stock geometry back")
@@ -112,19 +115,19 @@ steps[1] = function()
      xy(w:size()), ("%d,%d"):format(base.x + 2 * P, base.y + 2 * P))
   eq("...and the content does not move while it happens: the frame grows OUTWARD",
      xy(content:rootPos()), baseContent)
-  w:skin{ pad = 2 * P }                   -- a CHANGED pad: the deco stays, the window re-lays itself out
+  w:rule():pad(2 * P)                     -- a CHANGED pad: the deco stays, the window re-lays itself out
 end
 
 steps[2] = function()
   eq("changing the pad re-lays the window out without rebuilding its chrome",
      xy(w:size()), ("%d,%d"):format(base.x + 4 * P, base.y + 4 * P))
-  w:skin(nil)
+  w:rule():remove()
 end
 
 steps[3] = function()
   eq("dropping the pad restores the exact numbers it found",
      xy(w:size()) .. " @ " .. xy(w:position()), base.s .. " @ " .. basePos)
-  w:skin{ bg = { color = DARK }, border = border(), pad = P }
+  w:rule():bg{ color = DARK }:border(border()):pad(P)
 end
 
 -- 2. the border's own insets ARE the frame margins, so the whole geometry is predictable from the rule alone.
@@ -134,19 +137,19 @@ steps[4] = function()
   eq("content starts one pad inside the border's own insets",
      xy(contentStart(w)), ("%d,%d"):format(SL[1] + P, SL[2] + P))
   eq("...and it STILL has not moved on screen", xy(content:rootPos()), baseContent)
-  w:skin(nil)
+  w:rule():remove()
 end
 
 steps[5] = function()
   eq("dropping a framed rule restores the stock geometry exactly",
      xy(w:size()) .. " @ " .. xy(w:position()), base.s .. " @ " .. basePos)
-  hafen.ui.skin{ ["window.frame"] = { pad = P } }     -- the SITE half: every window, not one named by hand
+  sheet:load{ ["window.frame"] = { pad = P } }:install()     -- the SITE half: every window, not one named by hand
 end
 
 steps[6] = function()
   eq("a window.frame site rule pads every window the same way",
      xy(w:size()), ("%d,%d"):format(base.x + 2 * P, base.y + 2 * P))
-  hafen.ui.skin{ ["chat"] = { pad = 8 } }             -- a text site: it owns no geometry, so this moves nothing
+  sheet:load{ ["chat"] = { pad = 8 } }:install()             -- a text site: it owns no geometry, so this moves nothing
 end
 
 steps[7] = function()
@@ -158,15 +161,15 @@ end
 
 local function run()
   pass, fail, manual = 0, 0, 0    -- so a re-run through :t035-2 reports its own counts, not the login's
-  hafen.ui.skin(nil)
+  sheet:drop()
 
   -- the refusals: a pad is a number of pixels, and there is no meaning to give a negative one.
   refuses("a pad that is not a number is refused",
-          function() hafen.ui.skin{ ["window.frame"] = { pad = "6" } } end, "expected a number")
+          function() sheet:load{ ["window.frame"] = { pad = "6" } }:install() end, "expected a number")
   refuses("a negative pad is refused",
-          function() hafen.ui.skin{ ["window.frame"] = { pad = -2 } } end, "cannot be negative")
+          function() sheet:load{ ["window.frame"] = { pad = -2 } }:install() end, "cannot be negative")
   refuses("an unknown property now names pad among the ones this client ships",
-          function() hafen.ui.skin{ ["window.frame"] = { padding = 6 } } end, "\"pad\"")
+          function() sheet:load{ ["window.frame"] = { padding = 6 } }:install() end, "\"pad\"")
 
   w = hafen.ui():window()
     :title("035.2 probe")
@@ -182,10 +185,10 @@ local function run()
   bareSz = xy(bare:size()) .. " @ " .. xy(bare:position())
 
   eq("a widget nothing styles resolves nothing", w:style(), nil)
-  w:skin{ pad = P }
+  w:rule():pad(P)
   eq("widget:style() reports pad beside the paint properties", w:style() and w:style().pad, P)
-  eq("widget:skin() reads the same pad back through the other door", w:skin() and w:skin().pad, P)
-  bare:skin{ pad = 8 }
+  eq("widget:rule():pad() reads the same pad back through the other door", w:rule():pad(), P)
+  bare:rule():pad(8)
 
   step(1)
 end
@@ -197,17 +200,17 @@ local looking = false
 local function look()
   looking = not looking
   if looking then
-    hafen.ui.skin{ ["window.frame"] = { bg = { color = DARK }, border = border(), pad = P } }
+    sheet:load{ ["window.frame"] = { bg = { color = DARK }, border = border(), pad = P } }:install()
     hafen.log():write(":t035-2 look -> the framed theme is ON, geometry included. Look at where content sits, then"
       .. " ':t035-2 look' again (or :reload, or disabling this addon) for stock geometry.")
   else
-    hafen.ui.skin(nil)
+    sheet:drop()
     hafen.log():write(":t035-2 look -> stock geometry restored.")
   end
 end
 
 -- ON DEMAND ONLY. A suite does not start itself: the maintainer runs it when they want it. This one keeps a
--- skinned, re-laid-out window alive for its whole round and bumps Fonts.gen() a dozen times doing it, so when
+-- dressed, re-laid-out window alive for its whole round and bumps Fonts.gen() a dozen times doing it, so when
 -- suites started themselves it reddened lines in the OTHER suite: 035.1 counted this window's SkinDeco among
 -- the client's, and 034.2's textcache probe saw a second key for its own string. Its round stages ~2.5s.
 hafen.slash():register("t035-2", function(args)

@@ -1574,13 +1574,13 @@ end)
 -- built-in "serif", which still proves the whole loop.
 --
 -- C1a (033-ui-stylesheet): APPLYING a font to a GLOBAL client surface is now the STYLESHEET's job.
--- hafen.ui.skin{ [selector] = {properties} } is ONE table saying what the client looks like, applied live and
+-- hafen.ui():sheet() is ONE document saying what the client looks like, applied live and
 -- owned by this addon; hafen.font.setFont / .reset / .scopes are a HARD CUT and read as plain nil. A font is one
 -- PROPERTY of a rule, and the key is a SELECTOR -- the same string hafen.ui():find(sel) takes -- so there is one
 -- vocabulary for "which part of the UI" instead of the old scope enum beside it. An addon owns exactly ONE sheet:
--- a second skin{} REPLACES it whole, which is why the eleven ':hello font|title|button|...' toggles below all
--- edit ONE table (skinRules) and re-apply it -- turning one surface off is a fresh skin{} carrying every rule
--- still wanted. hafen.ui.skin(nil) drops the sheet, and so does :reload/disable (the stock UI is always
+-- :load(t) REPLACES what it says whole, which is why the eleven ':hello font|title|button|...' toggles below all
+-- edit ONE table (skinRules) and re-load it -- turning one surface off is a fresh :load carrying every rule
+-- still wanted. sheet:drop() drops the sheet, and so does :reload/disable (the stock UI is always
 -- restorable). C1a resolves SITE keys -- `*` (the global fallback, the old "default" scope) and the eleven routed
 -- surfaces; a TREE key (@Class, [title=..], and the widget roles `window`/`inventory`) parses fine and is
 -- silently INERT until C1b, which is what lets a C1b-ready sheet load today. SAFE-tier (cosmetic, client-only).
@@ -1593,13 +1593,14 @@ local monoFont          -- F2: a second handle (built-in "mono") for the per-cal
 -- `color` property, in one place, visible in the sheet. Two answers to "what colour is this text" -- one of them
 -- invisible -- is exactly what 033.2 ended.
 local tintedFont
-local skinRules = {}    -- C1a: OUR ONE SHEET, [selector] = {properties}. Empty = no sheet installed.
+local sheet = hafen.ui():sheet()   -- C1a: OUR ONE SHEET -- the document, handed back by identity
+local skinRules = {}    -- ...and what we want it to say, [selector] = {properties}. Empty = nothing installed.
 local nodeFontApplied = false -- F5: is our PER-INSTANCE override installed on one window? (teardown reverts it)
-local nodeFontTarget        -- F5: the WidgetNode we styled (a transient handle; nil once reset / after a reload)
+local nodeFontTarget        -- F5: the Widget we styled (a transient handle; nil once reset / after a reload)
 -- Push the CURRENT sheet (or drop it when the last rule went): every toggle below goes through here, so the
 -- "an addon owns one sheet" rule is exercised on every single flip rather than described.
 local function applySkin()
-  if next(skinRules) == nil then hafen.ui.skin(nil) else hafen.ui.skin(skinRules) end
+  if next(skinRules) == nil then sheet:drop() else sheet:load(skinRules):install() end
 end
 -- 033.2: set/clear ONE property of one rule and re-apply the whole sheet. A rule carries several INDEPENDENT
 -- properties now (`font`, `color`), so the toggles below have to edit a property rather than replace the rule --
@@ -1632,7 +1633,7 @@ local function toggleSkin(key, props)
 end
 hafen.event():on("OnLoad", function()
   skinRules = {}                                        -- a reload rebuilt the env; the sheet was torn down (P2)
-  nodeFontApplied, nodeFontTarget = false, nil          -- F5: ...and so was the per-instance (widget:skin) style (P2)
+  nodeFontApplied, nodeFontTarget = false, nil          -- F5: ...and so was the per-instance (widget:rule()) style (P2)
   monoFont = hafen.font("mono"):derive{ size = 12 }     -- F2: a distinct font for the per-call g:text{font=} line
   tintedFont = hafen.font("mono"):derive{ size = 13, color = { 255, 120, 190 } }   -- 033.2: a handle with a colour
   local ok, ttf = pcall(hafen.asset, "fonts/demo.ttf")   -- try a bundled .ttf first (the file-load path)...
@@ -1645,7 +1646,7 @@ hafen.event():on("OnLoad", function()
     hafen.log():write(("F1: loaded built-in font 'serif' (size 11) -- family '%s'; drop a .ttf at addons/hello/fonts/demo.ttf to load a real TTF -- :hello font to flip the default font")
       :format(demoFont:family()))
   end
-  hafen.log():write(("C1a: hafen.ui.skin is the stylesheet; hafen.font.setFont is a hard cut -> %s. Site keys: *, window.title,"
+  hafen.log():write(("C1a: hafen.ui():sheet() is the stylesheet; hafen.font.setFont is a hard cut -> %s. Site keys: *, window.title,"
     .. " heading, button, label, textentry, tooltip, menu, chat, world.nick, world.speech -- :hello font|title|button|"
     .. "entry|label|heading|menu|tip|chat|speech|nick flip one rule each"):format(tostring(hafen.font.setFont)))
   hafen.log():write("033.2: `color` is the second sheet property ({200,210,220} or {r=,g=,b=[,a=]}, 0..255) and stands alone"
@@ -1654,7 +1655,7 @@ hafen.event():on("OnLoad", function()
     .. " the sheet's, a handle's colour is for your own drawing)")
 end)
 
--- 033.2: THE SHEET CONTRACT, checked once per login (like readAssets/readToggle). Everything about hafen.ui.skin
+-- 033.2: THE SHEET CONTRACT, checked once per login (like readAssets/readToggle). Everything about the sheet
 -- that Lua can settle WITHOUT a screen: the two colour spellings, a rule whose properties stand alone, and the
 -- exact line between what the sheet FORGIVES and what it REFUSES (D-072) -- a key it cannot resolve yet is inert
 -- because C1b will resolve it, a property it will never understand is an error because silence is the worst
@@ -1662,12 +1663,12 @@ end)
 -- surface, and a font handle's own colour NOT painting one -- are what ':hello color' parks for a human.
 -- The addon's real sheet is re-applied at the end: this check borrows the one sheet an addon owns.
 local function readSkin(tag)
-  local function why(sheet)
-    local ok, err = pcall(hafen.ui.skin, sheet)
+  local function why(rules)
+    local ok, err = pcall(function() sheet:load(rules):install() end)
     if ok then return "accepted" end
     return (tostring(err):gsub("^.-%.lua:%d+:%s*", ""))       -- drop the chunk:line prefix, keep the whole message
   end
-  local function ok(sheet) return why(sheet) == "accepted" end
+  local function ok(rules) return why(rules) == "accepted" end
   -- 1. the two colour SPELLINGS -- positional is what the docs and every literal write, keyed is what every
   --    reader in this API hands back (kin:color(), meter:color()), so a round-trip must work too.
   local kin = { r = 200, g = 210, b = 220, a = 255 }
@@ -1691,7 +1692,7 @@ local function readSkin(tag)
   hafen.log():write(("[%s]              badProp on a TREE key -> %s"):format(tag, why{ ["@Inventory"] = { fnt = 1 } }))
   hafen.log():write(("[%s]              badKey -> %s"):format(tag, why{ ["window["] = { color = { 1, 2, 3 } } }))
   -- 4. the hard cut is still cut, and the sheet is still the only door (033.1).
-  hafen.log():write(("[%s] skin cut: setFont=%s reset=%s scopes=%s | hafen.font('serif') still answers=%s"):format(tag,
+  hafen.log():write(("[%s] sheet cut: setFont=%s reset=%s scopes=%s | hafen.font('serif') still answers=%s"):format(tag,
     tostring(hafen.font.setFont), tostring(hafen.font.reset), tostring(hafen.font.scopes),
     tostring(hafen.font("serif") ~= nil)))
   applySkin()      -- give this addon's own sheet back (the checks above borrowed the one sheet we own)
@@ -2107,7 +2108,7 @@ hafen.slash():register("hello", function(args)
     if skinRules["*"] and skinRules["*"].font then
       setProp("@Inventory", "font", nil)
       setProp("*", "font", nil)                          -- drop both -> the stock font returns live
-      hafen.log():write((":hello font -> hafen.ui.skin(%s) -- the ['*'] rule's font left our sheet; stock font restored (also happens on :reload/disable)")
+      hafen.log():write((":hello font -> sheet:load(%s):install() -- the ['*'] rule's font left our sheet; stock font restored (also happens on :reload/disable)")
         :format((next(skinRules) == nil) and "nil" or "{...}"))
     else
       setProp("@Inventory", "font", demoFont)            -- a TREE key: valid grammar, resolves nowhere until C1b
@@ -2115,9 +2116,9 @@ hafen.slash():register("hello", function(args)
       hafen.timer():after(3.0, function()
         if not (skinRules["*"] and skinRules["*"].font) then return end   -- toggled off meanwhile -- nothing to replace
         setProp("*", "font", demoFont)                   -- sheet #2 REPLACES sheet #1 whole -> back to serif/ttf
-        hafen.log():write(":hello font -> a second skin{} replaced the first: was mono for 3s, now the loaded font")
+        hafen.log():write(":hello font -> a second :load replaced the first: was mono for 3s, now the loaded font")
       end)
-      hafen.log():write((":hello font -> hafen.ui.skin{ ['*'] = { font = %s }, ['@Inventory'] = {...} } -- most UI text should change; showing 'mono' for 3s first (a second skin{} then replaces the sheet), then '%s'. The @Inventory rule is a TREE key: accepted, inert until C1b. :hello font again to drop it")
+      hafen.log():write((":hello font -> sheet:load{ ['*'] = { font = %s }, ['@Inventory'] = {...} }:install() -- most UI text should change; showing 'mono' for 3s first (a second :load then replaces the sheet), then '%s'. The @Inventory rule is a TREE key: accepted, inert until C1b. :hello font again to drop it")
         :format(demoFont:family(), demoFont:family()))
     end
   elseif sub == "color" then
@@ -2151,10 +2152,10 @@ hafen.slash():register("hello", function(args)
       setProp("tooltip", "color", { 255, 150, 90 })       -- a COLOUR-ONLY rule: tooltips keep their font, change colour
       setProp("chat", "color", { 90, 235, 120 })          -- ...and chat refines it again
       setProp("chat", "font", tintedFont)                 -- the handle is PINK -- and chat must come out GREEN
-      hafen.log():write(":hello color -> skin{ ['*']={color={235,215,160}}, ['tooltip']={color={255,150,90}}, ['chat']={font=<pink handle>, color={90,235,120}} }")
+      hafen.log():write(":hello color -> sheet:load{ ['*']={color={235,215,160}}, ['tooltip']={color={255,150,90}}, ['chat']={font=<pink handle>, color={90,235,120}} }:install()")
       hafen.log():write("   look at: most UI text pale amber (the `*` cascade) | a hovered item's TOOLTIP orange (a colour-only rule -- its font is unchanged) | CHAT green, NOT pink")
       hafen.log():write("   the pink is the handle's own colour: it shows up ONLY on line 5 of the 'Hello F2 (fonts)' window (your own drawing), never on the surface it was installed on")
-      hafen.log():write("   two addons, one surface: paste  :lua hafen.ui.skin{ ['chat'] = { color = {255,80,80} } }  -- chat goes RED (last applied wins); :lua hafen.ui.skin(nil) drops it and chat falls back to hello's GREEN, not to stock; :hello color then restores stock")
+      hafen.log():write("   two addons, one surface: paste  :lua sheet:load{ ['chat'] = { color = {255,80,80} } }:install()  -- chat goes RED (last applied wins); :lua sheet:drop() drops it and chat falls back to hello's GREEN, not to stock; :hello color then restores stock")
     end
   elseif sub == "title" then
     -- F3: toggle a font override on the "window.title" scope (WINDOW CAPTIONS only) -- INDEPENDENT of "default".
@@ -2163,7 +2164,7 @@ hafen.slash():register("hello", function(args)
     -- reverted automatically on :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
     if not demoFont then hafen.log():write(":hello title -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("window.title", { font = demoFont:derive{ size = 15 } }) then   -- caption size ~= the stock fraktur 15
-      hafen.log():write((":hello title -> skin{ ['window.title'] = { font = %s } } -- open/focus any window: its CAPTION font changes (body text stays stock unless :hello font); :hello title again to drop the rule")
+      hafen.log():write((":hello title -> sheet:rule('window.title'):font(%s) -- open/focus any window: its CAPTION font changes (body text stays stock unless :hello font); :hello title again to drop the rule")
         :format(demoFont:family()))
     else
       hafen.log():write(":hello title -> the ['window.title'] rule left our sheet -- stock window captions restored (also on :reload/disable)")
@@ -2181,7 +2182,7 @@ hafen.slash():register("hello", function(args)
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello button -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("button", { font = h:derive{ size = 12, bold = true } }) then   -- mono bold 12 vs the stock serif bold 12
-      hafen.log():write((":hello button -> skin{ ['button'] = { font = %s } } -- open the Options window: its BUTTON captions change (titles/body stay stock unless :hello title / :hello font); :hello button again to drop the rule")
+      hafen.log():write((":hello button -> sheet:rule('button'):font(%s) -- open the Options window: its BUTTON captions change (titles/body stay stock unless :hello title / :hello font); :hello button again to drop the rule")
         :format(h:family()))
     else
       hafen.log():write(":hello button -> the ['button'] rule left our sheet -- stock button captions restored (also on :reload/disable)")
@@ -2199,7 +2200,7 @@ hafen.slash():register("hello", function(args)
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello entry -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("textentry", { font = h:derive{ size = 12 } }) then   -- mono 12 vs the stock serif 12 (visibly different)
-      hafen.log():write((":hello entry -> skin{ ['textentry'] = { font = %s } } -- ONE rule fronting TWO sites: click any text field AND this console command line and type -- both change family, and each keeps its OWN stock size/colour (serif 12 entries, mono 12 console); :hello entry again to drop the rule")
+      hafen.log():write((":hello entry -> sheet:rule('textentry'):font(%s) -- ONE rule fronting TWO sites: click any text field AND this console command line and type -- both change family, and each keeps its OWN stock size/colour (serif 12 entries, mono 12 console); :hello entry again to drop the rule")
         :format(h:family()))
     else
       hafen.log():write(":hello entry -> the ['textentry'] rule left our sheet -- stock text-field font restored (also on :reload/disable)")
@@ -2220,7 +2221,7 @@ hafen.slash():register("hello", function(args)
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello label -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("label", { font = h }) then           -- no size -> every routed label keeps its own stock size
-      hafen.log():write((":hello label -> skin{ ['label'] = { font = %s } } -- open the character sheet (attribute rows) or Skills & Lore / Quests / Wounds (list items): the BODY TEXT changes family but keeps its sizes; :hello label again to drop the rule")
+      hafen.log():write((":hello label -> sheet:rule('label'):font(%s) -- open the character sheet (attribute rows) or Skills & Lore / Quests / Wounds (list items): the BODY TEXT changes family but keeps its sizes; :hello label again to drop the rule")
         :format(h:family()))
     else
       hafen.log():write(":hello label -> the ['label'] rule left our sheet -- stock explicit-foundry labels restored (also on :reload/disable)")
@@ -2239,7 +2240,7 @@ hafen.slash():register("hello", function(args)
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello heading -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("heading", { font = h }) then         -- no size -> every heading keeps its own
-      hafen.log():write((":hello heading -> skin{ ['heading'] = { font = %s } } -- open the character sheet: 'Base Attributes' / 'Food Satiations' / 'Abilities' change (titles + body text stay stock); :hello heading again to drop the rule")
+      hafen.log():write((":hello heading -> sheet:rule('heading'):font(%s) -- open the character sheet: 'Base Attributes' / 'Food Satiations' / 'Abilities' change (titles + body text stay stock); :hello heading again to drop the rule")
         :format(h:family()))
     else
       hafen.log():write(":hello heading -> the ['heading'] rule left our sheet -- stock section headings restored (also on :reload/disable)")
@@ -2255,7 +2256,7 @@ hafen.slash():register("hello", function(args)
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello menu -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("menu", { font = h:derive{ size = 14 } }) then   -- mono 14 vs the stock sans 12 (bigger + different)
-      hafen.log():write((":hello menu -> skin{ ['menu'] = { font = %s } } -- right-click something: the PETAL captions are in the new font (and a petal already open re-sizes around its centre); :hello menu again to drop the rule")
+      hafen.log():write((":hello menu -> sheet:rule('menu'):font(%s) -- right-click something: the PETAL captions are in the new font (and a petal already open re-sizes around its centre); :hello menu again to drop the rule")
         :format(h:family()))
     else
       hafen.log():write(":hello menu -> the ['menu'] rule left our sheet -- stock flower-menu font restored (also on :reload/disable)")
@@ -2274,7 +2275,7 @@ hafen.slash():register("hello", function(args)
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello tip -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("tooltip", { font = h:derive{ size = 13 } }) then   -- mono 13 vs the stock sans 10 (bigger + different)
-      hafen.log():write((":hello tip -> skin{ ['tooltip'] = { font = %s } } -- hover an INVENTORY ITEM (or a buff / a HUD meter / a craft input / an action-menu icon / a HUD button): the tooltip is in the new font, and it changes while you keep hovering; :hello tip again to drop the rule")
+      hafen.log():write((":hello tip -> sheet:rule('tooltip'):font(%s) -- hover an INVENTORY ITEM (or a buff / a HUD meter / a craft input / an action-menu icon / a HUD button): the tooltip is in the new font, and it changes while you keep hovering; :hello tip again to drop the rule")
         :format(h:family()))
     else
       hafen.log():write(":hello tip -> the ['tooltip'] rule left our sheet -- stock tooltip font restored (also on :reload/disable)")
@@ -2289,7 +2290,7 @@ hafen.slash():register("hello", function(args)
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello chat -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("chat", { font = h:derive{ size = 13 } }) then   -- mono 13 vs the stock sans 12
-      hafen.log():write((":hello chat -> skin{ ['chat'] = { font = %s } } -- open the chat window (Ctrl+C): the message lines, the channel tabs and the line you type are in the new font; :hello chat again to drop the rule")
+      hafen.log():write((":hello chat -> sheet:rule('chat'):font(%s) -- open the chat window (Ctrl+C): the message lines, the channel tabs and the line you type are in the new font; :hello chat again to drop the rule")
         :format(h:family()))
     else
       hafen.log():write(":hello chat -> the ['chat'] rule left our sheet -- stock chat font restored (also on :reload/disable)")
@@ -2305,7 +2306,7 @@ hafen.slash():register("hello", function(args)
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello speech -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("world.speech", { font = h:derive{ size = 16 } }) then   -- mono 16 vs the stock sans 10 (clearly bigger)
-      hafen.log():write((":hello speech -> skin{ ['world.speech'] = { font = %s } } -- say something in area chat (Enter): the BUBBLE over your head is in the new font and its frame grows with it; :hello speech again to drop the rule")
+      hafen.log():write((":hello speech -> sheet:rule('world.speech'):font(%s) -- say something in area chat (Enter): the BUBBLE over your head is in the new font and its frame grows with it; :hello speech again to drop the rule")
         :format(h:family()))
     else
       hafen.log():write(":hello speech -> the ['world.speech'] rule left our sheet -- stock speech-bubble font restored (also on :reload/disable)")
@@ -2321,14 +2322,14 @@ hafen.slash():register("hello", function(args)
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello nick -> font not loaded yet (OnLoad)"); return end
     if toggleSkin("world.nick", { font = h:derive{ size = 16, bold = true } }) then  -- mono bold 16 vs stock sans bold 12
-      hafen.log():write((":hello nick -> skin{ ['world.nick'] = { font = %s } } -- look at a KIN standing nearby: the name floating over them is in the new font (its colour stays the kin-group colour); :hello nick again to drop the rule")
+      hafen.log():write((":hello nick -> sheet:rule('world.nick'):font(%s) -- look at a KIN standing nearby: the name floating over them is in the new font (its colour stays the kin-group colour); :hello nick again to drop the rule")
         :format(h:family()))
     else
       hafen.log():write(":hello nick -> the ['world.nick'] rule left our sheet -- stock floating kin-name font restored (also on :reload/disable)")
     end
   elseif sub == "node" then
     -- F5 (034.3): a PER-INSTANCE style -- the last piece of the font system and the only one that is not a named
-    -- scope. widget:skin{font=h} restyles ONE native widget and everything drawn inside it (its title, its labels,
+    -- scope. widget:rule():font(h) restyles ONE native widget and everything drawn inside it (its title, its labels,
     -- its button captions, even text drawn by the game's own resource code), while its SIBLINGS keep the
     -- tree/scope/"default" cascade: it sits at the TOP of it. The node comes from
     -- the W1 widget-tree walk (hafen.ui():root():walk), so any widget in the client can be targeted -- here we pick
@@ -2339,9 +2340,9 @@ hafen.slash():register("hello", function(args)
     local h = (monoFont or demoFont)
     if not h then hafen.log():write(":hello node -> font not loaded yet (OnLoad)"); return end
     if nodeFontApplied then
-      if nodeFontTarget then nodeFontTarget:skin(nil) end     -- a no-op if that window was closed meanwhile
+      if nodeFontTarget then nodeFontTarget:rule():remove() end   -- a no-op if that window was closed meanwhile
       nodeFontTarget, nodeFontApplied = nil, false
-      hafen.log():write(":hello node -> skin(nil) -- that window is back to the stock/scope font (a :reload/disable reverts it too)")
+      hafen.log():write(":hello node -> widget:rule():remove() -- that window is back to the stock/scope font (a :reload/disable reverts it too)")
     else
       local root = hafen.ui():root()
       if not root then hafen.log():write(":hello node -> no UI yet (try in-world)"); return end
@@ -2373,9 +2374,9 @@ hafen.slash():register("hello", function(args)
           :format(table.concat(report, ", ")))
         return
       end
-      wins[best].node:skin{ font = h:derive{ size = 13 } }     -- mono 13 (bigger + a different family, so it is obvious)
+      wins[best].node:rule():font(h:derive{ size = 13 })       -- mono 13 (bigger + a different family, so it is obvious)
       nodeFontTarget, nodeFontApplied = wins[best].node, true
-      hafen.log():write((":hello node -> skin{} on ONE widget: the '%s' window (%d text bits inside) is now in %s 13 -- caption, labels, list rows and button captions included; every OTHER open window stays stock. Candidates+text counts: [%s]. That is the per-instance style; :hello node again to reset")
+      hafen.log():write((":hello node -> a rule on ONE widget: the '%s' window (%d text bits inside) is now in %s 13 -- caption, labels, list rows and button captions included; every OTHER open window stays stock. Candidates+text counts: [%s]. That is the per-instance style; :hello node again to reset")
         :format(wins[best].name, wins[best].texts, h:family(), table.concat(report, ", ")))
     end
   elseif sub == "selector" then

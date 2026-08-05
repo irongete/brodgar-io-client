@@ -366,11 +366,10 @@ because a timer ends with `t:cancel()` and two spellings for one operation is th
 
 ## `hafen.ui()` — the UI (the section; **the root moves**)
 
-> **Shipped in 039.5** — the section, the root as `:root()`, and every lookup as a colon verb — and the
-> three builder rows (`window`, `widget`, `overlay`) in **039.6**, where they became verbs on the section
-> whose product is configured by chained setters. `skin` is the one row still a plain field on the callable
-> table: it becomes a Sheet of Rules in **039.7**, and a field is found before `__index`, so the two halves
-> coexist without a rule.
+> **Shipped in 039.5** — the section, the root as `:root()`, and every lookup as a colon verb — the three
+> builder rows (`window`, `widget`, `overlay`) in **039.6**, where they became verbs on the section whose
+> product is configured by chained setters, and the last row, `skin`, in **039.7**: it became a Sheet of
+> Rules, and with it the callable table is empty and the section is mounted plainly again. ✅ every row.
 
 | before | after | does |
 |---|---|---|
@@ -387,7 +386,7 @@ because a timer ends with `t:cancel()` and two spellings for one operation is th
 | `hafen.ui.window(opts)` | `hafen.ui():window()` + setters (R4) | your own window |
 | `hafen.ui.widget(opts)` | `hafen.ui():widget()` + setters | a bare rectangle |
 | `hafen.ui.overlay(fn)` | `hafen.ui():overlay():onDraw(fn)` | a HUD overlay |
-| `hafen.ui.skin{…}` / `(nil)` | `hafen.ui():sheet()` → Rule objects, `:install()` / `:drop()` | the stylesheet, §"Sheet" below |
+| `hafen.ui.skin{…}` / `(nil)` | `hafen.ui():sheet()` → Rule objects, `:install()` / `:drop()` | the stylesheet, §"Sheet" below ✅ |
 
 ## `hafen.world()` — the LIVE world
 
@@ -715,7 +714,7 @@ Reads unchanged: `:type() :role() :res() :id() :children() :parent() :text() :it
 | `w:size()` / `(w,h)` / `(nil)` | `w:size()` / `(w,h)` / `(nil)` | size — same three arities |
 | `w:visible()` | `w:visible()` / `w:visible(b)` | is it visible — and the write, R6 |
 | `w:show()` / `w:hide()` | `w:visible(true)` / `w:visible(false)` | **CUT** — R6 |
-| `w:skin()` / `{…}` / `(nil)` | `w:rule()` → a Rule; `w:rule():remove()` undoes | this widget's own cascade level (D-077); removal is R7, not a `clear` verb |
+| `w:skin()` / `{…}` / `(nil)` | `w:rule()` → a Rule; `w:rule():remove()` undoes | this widget's own cascade level (D-077); removal is R7, not a `clear` verb ✅ **039.7** |
 | `w:replace()` | `w:replacement()` | read the installed view |
 | `w:replace(view)` | unchanged | install — the verb keeps the acting sense |
 | `w:replace(nil)` | `w:replace(nil)` | undo — unchanged; the layer rule (R5) covers it |
@@ -733,12 +732,21 @@ one rather than handing back a collection (a HUD painter has no key to `:get`), 
 
 ## Sheet and Rule — **NEW** (replacing `hafen.ui.skin{…}`, 141 sites)
 
+> **Shipped in 039.7**, with three things the first draft did not say. A rule is a **name for a level**, not
+> the record: what it says lives on the sheet (or, for `widget:rule()`, in the per-widget map), so a handle
+> survives `:remove()` and setting a property says that level again. `position` and `anchor` are one slot,
+> so the later **setter** replaces the earlier and only a *loaded table* saying both is refused (there is no
+> "later" among keys). And a Rule's vocabulary is **closed**: an unknown verb throws naming the properties
+> that exist, which is D-072's answer to a misspelt property one shape along. ✅ every row.
+
 | verb | does |
 |---|---|
 | `hafen.ui():sheet()` | your addon's sheet |
-| `sheet:rule(selector)` | the Rule for that selector, interned per sheet |
+| `sheet:rule(selector)` | the Rule for that selector, interned per sheet; `rule:selector()` reads the key back |
 | `sheet:load(parsedTable)` | install a whole sheet from **data** — the `theme.json` door (§2.8) |
-| `sheet:install()` / `sheet:drop()` | apply / remove |
+| `sheet:install()` / `sheet:drop()` | apply / remove — and an edit to an installed sheet lands at once |
+| `sheet:info()` | `{installed, rules}`, the only way to enumerate what a sheet names |
+| `rule:remove()` / `rule:info()` | end this level / everything it says, or nil |
 | `rule:sheet()` | climb back, for one-expression use |
 | `rule:font(h) :color(c) :bg(…) :border(…) :pad(n) :position(…) :size(…) :anchor(…)` | the shipped properties, one setter each — the sheet key `pos` becomes `position` with the verb |
 

@@ -877,3 +877,26 @@
   bug. One reflect-set `LinkedList` fixes it; the general rule is that `Unsafe.allocateInstance` skips field
   initialisers, so every collection the code under test touches *unconditionally* has to be fabricated too,
   not just the ones on the path being asserted.
+- **(039.7) A fabricated `RootWidget` needs the RES JARS, and the failure names the wrong thing.**
+  `Unsafe.allocateInstance(Root.class)` on a `RootWidget` subclass runs `ConsoleHost.<clinit>` &rarr;
+  `Text.<clinit>` &rarr; `Resource.local().loadwait("ui/fraktur")`, which dies with
+  `NoSuchResourceException ... from local res source (res)` — a message that points at the resource system
+  and not at the classpath. It is 028.1's wall exactly, and the fix is 028.1's: add `bin/*res*.jar`
+  (`builtin-res` + `hafen-res`) to `-cp`. The trap is that the trace fingers whatever class you allocated
+  last (here a `GameUI`), so the instinct is to delete that line — which "works", moves the same crash one
+  allocation earlier, and costs a round. Full recipe for a 036.1-style probe: `build/classes` + all of
+  `lib/*.jar lib/brodgar/*.jar lib/ext/*.jar bin/*res*.jar`, `-Djava.awt.headless=true`, and the toolkit's
+  `Unavailable` + `GLException` traces are caught noise.
+- **(039.7) A table-driven setter/read round must read each property AS it writes it.** The suite wrote all
+  eight rule setters in one loop and read them all back in a second, which reddened `position` for a reason
+  that was not a defect: `anchor` writes the same slot, so by the second loop the earlier property was
+  legitimately `nil`. The probe passed the same assertions because it interleaved write and read per
+  property. Rule: one pass, `write(); read()` per row — a second sweep silently asserts *the end state*
+  rather than *each write*, and any pair that shares a slot turns that into a false red (or, worse, a false
+  green if the shared write happens to satisfy the check).
+- **(039.7) Plant the defect against BOTH harnesses; one the probe catches alone names a MISSING suite
+  check.** Falsifying "sheet:load replaces the document whole" (made it merge) reddened two probe lines and
+  left the shipping suite fully green — which is not a probe win but a hole in the suite, since the in-game
+  round is what the maintainer runs. The fix was one assertion in the suite (a rule the previous document
+  named says nothing after a load that does not name it), and the same plant then bit both. Generally: a
+  falsification round is also a coverage diff between the two harnesses.

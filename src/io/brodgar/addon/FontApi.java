@@ -29,7 +29,7 @@ import static io.brodgar.addon.AddonManager.*;
  *       variant comes from {@code :derive{…}} — the load takes a name or a path and nothing else.</li>
  *   <li><b>Global surfaces are the STYLESHEET's</b>, not this file's: {@code hafen.font.setFont(scope, h)} /
  *       {@code reset(scope)} / {@code scopes()} are a <b>hard cut</b> (033.1) — a font became one property of a
- *       rule, and {@code hafen.ui.skin{ ["window.title"] = { font = h } }} ({@link Sheet}) is the single place
+ *       rule, and {@code hafen.ui():sheet():rule("window.title"):font(h)} ({@link Sheet}) is the single place
  *       that says what a client surface looks like. The {@link Fonts} provider and its owner-tagged stack are
  *       unchanged: only <i>who fills them</i> moved. Their teardown still runs from here
  *       ({@link #teardownFonts}) — the owned-resource model (spec 05).</li>
@@ -38,7 +38,7 @@ import static io.brodgar.addon.AddonManager.*;
  *       wrapper ({@link LuaGOut}) + a custom TTF in the {@code $font[…]} rich-text tag (family AWT-registered
  *       when the asset is loaded). Isolated — touches only the addon's own pixels; no global state, nothing to revert.</li>
  *   <li><b>Per-widget styles are the SHEET's too</b> (F5, widened by 034.3): {@code widget:setFont(h)} /
- *       {@code widget:resetFont()} are a <b>hard cut</b> — {@code widget:skin{font = h, color = …}}
+ *       {@code widget:resetFont()} are a <b>hard cut</b> — {@code widget:rule():font(h):color(…)}
  *       ({@link Sheet#applySkin}) restyles <b>one</b> native widget and its subtree, and a font is one of its
  *       properties rather than the whole verb. It is the top of the resolution chain, owner-tagged, and reverted on
  *       teardown here ({@link #teardownFonts}) like every other level.</li>
@@ -58,8 +58,8 @@ final class FontApi {
         // hafen.font.setFont(scope, h) / .reset(scope) / .scopes() are GONE (033.1, hard cut — they read as plain
         // nil). A font is not an API of its own any more, it is ONE PROPERTY of a stylesheet rule, so the surface
         // that used to be setFont("window.title", h) is now
-        //     hafen.ui.skin{ ["window.title"] = { font = h } }
-        // — one sheet per addon, applied live, dropped with hafen.ui.skin(nil) and reverted on :reload/disable
+        //     hafen.ui():sheet():rule("window.title"):font(h)
+        // — one sheet per addon, applied live, dropped with sheet:drop() and reverted on :reload/disable
         // (Sheet). The scope enum is gone with it: a sheet key is a SELECTOR, the same string hafen.ui(sel) takes,
         // so there is one vocabulary for "which part of the UI" instead of two. hafen.font itself keeps its ONE
         // job below — naming an engine font (D-060).
@@ -183,8 +183,8 @@ final class FontApi {
 
     /**
      * Tear down everything this addon styled (reload/disable/relogin, spec 05): its <b>stylesheet</b>'s site
-     * entries ({@code hafen.ui.skin}, 033.1) through {@link Fonts#removeOwner}, then everything it styled
-     * <b>per widget</b> — the sheet's tree rules and its {@code widget:skin} entries — through
+     * entries ({@code hafen.ui():sheet()}, 033.1) through {@link Fonts#removeOwner}, then everything it styled
+     * <b>per widget</b> — the sheet's tree rules and its {@code widget:rule()} levels — through
      * {@link Sheet#forget}, which is where the whole per-widget cascade lives. Both bump the generation counter, so
      * every routed site reverts to the stock foundry. Called from {@link AddonRegistry#teardown}.
      */
@@ -192,7 +192,7 @@ final class FontApi {
         if((a.skin == null) && !a.skinNodes)
             return;                       // never styled anything → nothing to revert (avoids a needless gen bump)
         Fonts.removeOwner(a);             // the sheet's named scopes
-        Sheet.forget(a);                  // its TREE rules and its widget:skin entries leave with it (034.1/034.3)
+        Sheet.forget(a);                  // its TREE rules and its widget:rule() levels leave with it (034.1/034.3)
     }
 
     // ------------------------------------------------------------------ opt parsing

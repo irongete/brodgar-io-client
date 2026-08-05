@@ -400,3 +400,16 @@
   `combine(treeTop(w), scopeTop(scope))` against a widget it names. Resolve `treeTop` **before** taking
   `Fonts.class`: it calls into the style source, and the established lock order never holds the provider's
   monitor across that call.
+- **(039.7) The sheet's applied form and the sheet Lua writes are two objects, and only the first may be
+  immutable.** `Sheet` stays exactly what it was — parsed, frozen, pushed into `Fonts` and folded per widget
+  — while `LuaSheet` holds a mutable `LinkedHashMap<String, Rec>` of `Sheet.Props` and *snapshots* it into
+  `Sheet.Rule`s on every apply. That split is what let the whole cascade (site push, `treegen` bump,
+  `Layout.sweep`, the weak per-widget map) survive a shape change untouched: the draw pass and `fold()` never
+  see a record a setter is halfway through writing, because the record they see was copied under the lock.
+  The cost is that an edit to an installed sheet rebuilds the applied snapshot — which is the same work
+  `skin{}` did per call, and sheet changes are rare by construction.
+- **(039.7) `Sheet.rulesChanged()` ends in `Fonts.treeActive(...)` and bumps the generation UNCONDITIONALLY**,
+  so the text-cache number to assert after any sheet change is **one** re-raster of a shared string, never
+  zero. A layout-only sheet therefore still costs exactly one key refresh; what it must NOT do is make the
+  key *two*, which is what a drawing rule (a frame opened over the widget it names) does. Both halves belong
+  in the same round: "still one" alone cannot tell a working check from a blind one.

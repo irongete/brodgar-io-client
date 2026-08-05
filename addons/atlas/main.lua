@@ -25,7 +25,7 @@
 --
 -- A LEVEL IS A SCALE, NOT A SIZE. Every drawing is 100x100 pixels; ':atlas zoom 2' does not make the panel
 -- bigger, it makes each pixel four tiles across, so the same square shows 4x4 grids of explored ground. Which is
--- also why the panel only re-skins when it crosses into a new picture — at level 2 that is every four grids.
+-- also why the panel only re-dresses when it crosses into a new picture — at level 2 that is every four grids.
 --
 -- SAFE-tier: it declares no permissions. ':atlas mark' writes a marker into the user's own on-disk map
 -- database, which is the one ungated write on this page (client-local and reversible by hand) — everything
@@ -135,9 +135,9 @@ refresh = function()
   if img ~= shown then
     shown = img
     if img then
-      panel:skin{ bg = { image = img } }
+      panel:rule():bg{ image = img }
     else
-      panel:skin{ bg = { color = { 18, 18, 20, 230 } } }   -- unexplored, or still rendering
+      panel:rule():bg{ color = { 18, 18, 20, 230 } }        -- unexplored, or still rendering
     end
   end
 end

@@ -1,0 +1,21 @@
+{
+  "name": "Slate (039.7)",
+
+  "_comment": [
+    "A SHEET AS DATA -- the file half of task 039.7, shaped exactly like the bundled `theme` addon's own",
+    "theme.json and naming this suite's probe windows instead of the client's, so the assertions are numbers",
+    "rather than a look. Each key is a selector; each rule says what that selector's widgets look like, or",
+    "where they go.",
+    "`anchor` is a relationship: a corner of the screen (or of another widget), plus an offset in raw pixels.",
+    "`position` is the same property said as an absolute point, and `size` is the widget's CONTENT box; both",
+    "take the [x, y] array a colour and a 9-slice's insets already take.",
+    "NOTHING HERE IS MAPPED. A rule's properties are setters now, and a chain of setters cannot express a",
+    "file -- so the sheet keeps one door for a whole document, and the table hafen.json():parse returns goes",
+    "straight into it. That is what this suite asserts by loading this file unchanged."
+  ],
+
+  "rules": {
+    "window[title=039.7 anchored]": { "anchor": { "to": "screen", "at": "bottomright", "offset": [-8, -8] } },
+    "window[title=039.7 placed]":   { "position": [40, 200], "size": [180, 90] }
+  }
+}

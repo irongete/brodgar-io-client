@@ -165,8 +165,8 @@ gated [`hafen.act():raw`](act.md) takes.
 
 Its write verbs answer for **your** addon: what you wrote comes back unchanged, and what you drop
 leaves another addon's alone. [`w:replace(view)`](ui/replace.md) installs a stand-in and
-`w:replace(nil)` undoes it; [`w:skin{…}`](ui/style/README.md#restyle-one-widget) installs your style
-and `w:skin(nil)` drops it.
+`w:replace(nil)` undoes it; [`w:rule()`](ui/style/README.md#restyle-one-widget) is your own level of the
+style cascade, and `w:rule():remove()` drops it.
 
 ### Selector: naming a piece of the UI
 
@@ -255,7 +255,7 @@ A colour is a table of **0..255 components**, written either way:
 { r = 200, g = 210, b = 220, a = 255 }              -- keyed — what every reader hands back
 ```
 
-Both are accepted everywhere a colour goes in: `hafen.ui.skin{…}`'s `color`, `g:text{color=…}`,
+Both are accepted everywhere a colour goes in: `rule:color(…)`, `g:text{color=…}`,
 `marker:color(…)`, a ghost or sprite `tint`, `font:derive{color=…}`. So a colour you *read* —
 `kin:color()`, `meter:color()` — passes straight back. Alpha defaults to `255`, and a component
 outside `0..255` is clamped rather than refused.

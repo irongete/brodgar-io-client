@@ -709,3 +709,20 @@ and "attach under the HUD" stops being a special case the docs have to enumerate
 branch and names the verb that has always moved a window on screen. Generally: *when a second vocabulary
 exists for naming a thing the API already has a type for, delete the vocabulary rather than translating it.*
 **See.** [D-024](widgets-ui.md), [D-119](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-124 — where two spellings write ONE slot, the later SETTER replaces and only an unordered table refuses ✅ (2026-08-05)
+**Decision.** `rule:position(x, y)` and `rule:anchor{…}` write the same slot: the later call replaces the
+earlier, and the read that was not written answers `nil`. A rule inside `sheet:load(t)` that says **both** is
+still refused, naming them as one property said two ways.
+**Rationale.** (2026-08-05, 039.7.) D-090 refused a rule carrying both because a table's keys have no order,
+so honouring one would have been a winner picked by iteration. Setters have an order — an explicit one, written
+by the caller — so the reason evaporates exactly where the shape changed, and keeping the refusal there would
+have made switching a rule from a point to a relationship require `:remove()` and a rebuild of every other
+property on it. What did not change is the data door, where the two keys still arrive side by side with no
+"later" to point at.
+**Consequences.** One decision now has two answers that a reader can predict from one question — *is there an
+order?* — and the suite asserts both halves. `rule:position()` answering `nil` while an anchor holds the slot
+is the honest read: it says *not written this way* rather than reporting a degenerate anchor as a point.
+Generally: *a refusal that exists because the input has no order must be re-derived, not copied, when the input
+gains one.*
+**See.** [D-090](widgets-ui.md), [D-122](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).

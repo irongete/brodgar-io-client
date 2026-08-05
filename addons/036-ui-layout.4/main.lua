@@ -29,6 +29,9 @@
 
 local pass, fail, manual = 0, 0, 0
 
+-- This addon's one stylesheet: a selector names a rule on it, and :install() applies what it says.
+local sheet = hafen.ui():sheet()
+
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
@@ -132,7 +135,7 @@ end
 local function costRound(after)
   local stock, rules = {}, {}
   killWins()
-  hafen.ui.skin(nil)
+  sheet:drop()
   for i = 1, 4 do
     local title = "036.4 cost " .. i
     win(hafen.ui():window()
@@ -143,7 +146,7 @@ local function costRound(after)
       { anchor = { to = "screen", at = CORNERS[i], offset = { (i * 12) - 40, (i * 12) - 40 } } }
   end
   sample(SAMPLES, stock, function()
-    hafen.ui.skin(rules)
+    sheet:load(rules):install()
     local anchored = {}
     sample(SAMPLES, anchored, function()
       local row = ownRow()
@@ -158,7 +161,7 @@ local function costRound(after)
       check(b <= (a * 1.5) + 0.5,
             ("...and cost the widget tree what stock cost it: %s ms anchored vs %s ms stock, median of %d"
              .. " frames"):format(ms3(b), ms3(a), SAMPLES), ms3(b) .. " vs " .. ms3(a) .. " ms")
-      hafen.ui.skin(nil)
+      sheet:drop()
       after()
     end)
   end)
@@ -168,7 +171,7 @@ end
 
 local function finish()
   killWins()
-  hafen.ui.skin(nil)
+  sheet:drop()
   if armManual then
     manualCheck("tick Options ▸ Client ▸ \"Enable profiling\" and run ':t036-4' again",
                 "two more [pass] lines: this addon runs 0 draw/widget callbacks while four anchored windows"
@@ -199,14 +202,14 @@ end
 
 local function costCache(after)
   killWins()
-  hafen.ui.skin(nil)
+  sheet:drop()
   local m0 = misses()
   local a = probe(ANCH, 4)                      -- the file's anchor rule names THIS one
   probe(PLAIN, 34)                              -- ...and nothing names this one
   hafen.timer():after(0.7, function()
     -- 1. no sheet: the two windows draw the same string, so they share ONE key.
     eq("with no sheet the two windows draw one string under one key", misses() - m0, 1)
-    hafen.ui.skin(doc.rules)                    -- ...a LAYOUT-ONLY sheet, straight out of the file
+    sheet:load(doc.rules):install()                    -- ...a LAYOUT-ONLY sheet, straight out of the file
     local m1 = misses()
     hafen.timer():after(0.7, function()
       -- 2. THE CLAIM: the rule reached the widget (it moved) without reaching the draw. One key, still shared —
@@ -223,13 +226,13 @@ local function costCache(after)
         eq("nothing per frame: ~60 frames with an anchor re-deriving each tick, nothing re-rasterised",
            misses() - m2, 0)
         -- 4. the falsification, built in: the same rule with a font in it DOES open a frame.
-        hafen.ui.skin{ [SEL_A] = { anchor = { to = "screen", at = "bottomright", offset = { -8, -8 } },
-                                   font = hafen.font("serif"):derive{ size = 18 } } }
+        sheet:load{ [SEL_A] = { anchor = { to = "screen", at = "bottomright", offset = { -8, -8 } },
+                                   font = hafen.font("serif"):derive{ size = 18 } } }:install()
         local m3 = misses()
         hafen.timer():after(0.7, function()
           eq("the very same rule with a font in it takes a second key — the check above can fail",
              misses() - m3, 2)
-          hafen.ui.skin(nil)
+          sheet:drop()
           after()
         end)
       end)
@@ -243,7 +246,7 @@ local function run()
   pass, fail, manual = 0, 0, 0    -- so a re-run through :t036-4 reports its own counts, not the last one's
   armManual = false
   killWins()
-  hafen.ui.skin(nil)
+  sheet:drop()
 
   -- 1. the file, and what a layout looks like inside it.
   local asset = hafen.asset(FILE)
@@ -251,8 +254,8 @@ local function run()
   doc = hafen.json():parse(asset:text())
   local an, pl = doc.rules[SEL_A].anchor, doc.rules[SEL_P]
   check((an.to == "screen") and (an.at == "bottomright") and (an.offset[1] == -8) and (an.offset[2] == -8)
-        and (pl.pos[1] == 40) and (pl.pos[2] == 200) and (pl.size[1] == 180) and (pl.size[2] == 90),
-        "a layout arrives as plain data — a named corner, a 1-indexed offset, and pos/size as {x, y} arrays",
+        and (pl.position[1] == 40) and (pl.position[2] == 200) and (pl.size[1] == 180) and (pl.size[2] == 90),
+        "a layout arrives as plain data — a named corner, a 1-indexed offset, and position/size as {x, y} arrays",
         hafen.json():encode(doc.rules))
 
   -- 2. THE DELIVERABLE: the parsed file IS the sheet. A theme's chrome needs three lines of Lua because an
@@ -267,18 +270,18 @@ local function run()
     :size(100, 50)
     :position(12, 130))
   local baseA, baseP, baseS = xy(anchored:position()), xy(placed:position()), placed:size()
-  check(pcall(hafen.ui.skin, doc.rules),
+  check(pcall(function() sheet:load(doc.rules):install() end),
         "the table hafen.json():parse returned IS the sheet: a whole layout applies from a file, unmapped")
 
   -- 3. ...and the geometry is the file's own numbers, derived where it says derived and absolute where it
   --    says absolute.
   eq("the file's anchor holds a window 8 px in from the screen's bottom-right corner",
      xy(anchored:rootPos()), pt(rsz.x - anchored:size().x - 8, rsz.y - anchored:size().y - 8))
-  eq("...and its pos and size are the point and the content box it names, to the pixel",
+  eq("...and its position and size are the point and the content box it names, to the pixel",
      xy(placed:position()) .. " " .. xy(placed:size()), "40,200 " .. pt(baseS.x + 80, baseS.y + 40))
 
   -- 4. and the whole thing reverts — the 035.2 method, one property along.
-  hafen.ui.skin(nil)
+  sheet:drop()
   eq("dropping a layout that came from a file restores the exact numbers it found",
      xy(anchored:position()) .. " " .. xy(placed:position()) .. " " .. xy(placed:size()),
      baseA .. " " .. baseP .. " " .. xy(baseS))
@@ -286,14 +289,14 @@ local function run()
   -- 5. PROFILES ARE AN ADDON'S BUSINESS (the feature builds none). A layout read back through :position() is a table
   --    of numbers: it survives JSON, and re-applying it puts the widget on the same pixel. That is the whole of
   --    what a profile store would have been, and hafen.store already holds tables like this one.
-  hafen.ui.skin(doc.rules)
+  sheet:load(doc.rules):install()
   local saved = { [SEL_P] = { x = placed:position().x, y = placed:position().y } }
-  hafen.ui.skin(nil)
+  sheet:drop()
   local back = hafen.json():parse(hafen.json():encode(saved))
-  hafen.ui.skin{ [SEL_P] = { pos = back[SEL_P] } }
+  sheet:load{ [SEL_P] = { position = back[SEL_P] } }:install()
   eq("a saved layout is plain data: read back, encoded, re-parsed and re-applied lands on the same pixel",
      xy(placed:position()), "40,200")
-  hafen.ui.skin(nil)
+  sheet:drop()
   eq("...and dropping that one restores the user's numbers too", xy(placed:position()), baseP)
 
   -- 6. the cost round, then the armed one if the maintainer has the profiler on.

@@ -71,7 +71,7 @@ you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [the sheet](ui/style/README.md) | `hafen.ui.skin{…}`, one widget's own skin, the cascade, and where skinning ends |
+| [the sheet](ui/style/README.md) | `hafen.ui():sheet()`, one widget's own rule, the cascade, and where skinning ends |
 | [keys](ui/style/keys.md) | site keys and tree keys: which surfaces a rule reaches, and what each honours |
 | [surfaces](ui/style/surfaces.md) | every surface the client ships, and what it does with a rule |
 | [text](ui/style/text.md) | `font` and `color` |

@@ -18,17 +18,17 @@ import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * The <b>layout layer</b> — where the stylesheet's {@code pos} and {@code size} properties reach a widget
+ * The <b>layout layer</b> — where the stylesheet's {@code position} and {@code size} properties reach a widget
  * (spec {@code 036-ui-layout}, feature E, task 036.2). 036.1 made the verbs work on a native widget; this is
  * the same layer with a <b>cascade</b> above it:
  *
  * <pre>
- *   hafen.ui.skin{ ["window[title=Equipment]"] = { pos = {40, 200} } }   -- matched
- *   hafen.ui():find("window[title=Equipment]"):position(40, 200)          -- named by hand
+ *   hafen.ui():sheet():rule("window[title=Equipment]"):position(40, 200)   -- matched
+ *   hafen.ui():find("window[title=Equipment]"):position(40, 200)            -- named by hand
  * </pre>
  *
  * <p><b>One fold, two levels</b> (D-077 verbatim, one property along): a tree rule that names a widget carries
- * its {@code pos}/{@code size} through the very fold {@link Sheet} already runs for {@code font}/{@code color}/
+ * its {@code position}/{@code size} through the very fold {@link Sheet} already runs for {@code font}/{@code color}/
  * {@code bg}/{@code border}/{@code pad} — most specific rule wins, per property — and the <b>verbs sit on top of
  * it</b>, hand-named, latest applied winning. So {@code widget:position(x, y)} on a widget a rule also names wins, and
  * {@code widget:position(nil)} drops back to <i>the rule</i> rather than to the stock value: the undo removes a level,
@@ -95,7 +95,8 @@ final class Layout {
 
     /**
      * The widgets an anchor is holding <b>derived</b> (036.3) — the ones whose position is a function of geometry
-     * that can change under them: the screen's size, another widget's place, or their own. A plain {@code pos} is
+     * that can change under them: the screen's size, another widget's place, or their own. A plain {@code position}
+     * is
      * never here, because {@code {40, 200}} is {@code {40, 200}} whatever else moves.
      *
      * <p>This is the whole cost of the anchor mechanism at rest: {@link #poll} re-derives <i>these</i> widgets and
@@ -124,17 +125,17 @@ final class Layout {
     // ---- where a widget is placed: ONE property, two spellings (036.3) ------------------------------
 
     /**
-     * <b>Where a widget goes</b> — the one value the position half of the cascade carries. {@code pos = {x, y}} is
-     * not a second property beside {@code anchor}: it is the anchor whose target is the widget's <b>own parent</b>,
+     * <b>Where a widget goes</b> — the one value the position half of the cascade carries.
+     * {@code position = {x, y}} is not a second property beside {@code anchor}: it is the anchor whose target is the widget's <b>own parent</b>,
      * at its top-left, with that offset. Which is exactly the coordinate {@code widget:position()} reads and the client's
      * own {@code c} — so the degenerate case is a real case, there is one resolution path rather than two, and a
-     * rule saying {@code pos} and a rule saying {@code anchor} compete for the <i>same</i> half of the same fold
+     * rule saying {@code position} and one saying {@code anchor} compete for the <i>same</i> half of the same fold
      * instead of each winning one of two.
      *
      * <pre>
      *   anchor = { to = "screen", at = "bottomright", offset = {-8, -8} }   -- 8 px in from the screen's corner
      *   anchor = { to = otherWindow, at = "topright" }                      -- ...or off another widget
-     *   pos    = { 40, 200 }                                                -- = to the parent, at = "topleft"
+     *   position = { 40, 200 }                                              -- = to the parent, at = "topleft"
      * </pre>
      *
      * <p><b>The corner is the widget's own as well as the target's</b>: {@code at = "bottomright"} puts the
@@ -152,14 +153,14 @@ final class Layout {
      * and an anchor to a window that closed is inert (the widget stays where it is) rather than a pin or a snap.
      */
     static final class Anchor {
-        /** What the anchor hangs off: the widget's own parent ({@code pos}), the screen, or another widget. */
+        /** What the anchor hangs off: the widget's own parent ({@code position}), the screen, or another widget. */
         static final int PARENT = 0, SCREEN = 1, WIDGET = 2;
         final int to;
         private final WeakReference<Widget> tgt;   // WIDGET only
         /** The aligned corner, per axis: 0 = left/top, 1 = centre, 2 = right/bottom. */
         final int ax, ay;
         final Coord offset;
-        /** Written as {@code pos}: reported back as {@code pos}, and never re-derived — it cannot change. */
+        /** Written as {@code position}: reported back the same way, and never re-derived — it cannot change. */
         final boolean plain;
 
         Anchor(int to, Widget tgt, int ax, int ay, Coord offset, boolean plain) {
@@ -171,7 +172,7 @@ final class Layout {
             this.plain = plain;
         }
 
-        /** {@code widget:position(x, y)} and a rule's {@code pos = {x, y}}: the parent's top-left, plus that offset. */
+        /** {@code widget:position(x, y)} and a rule's own {@code position}: the parent's top-left, plus that offset. */
         static Anchor at(Coord c) {
             return new Anchor(PARENT, null, 0, 0, c, true);
         }
@@ -228,10 +229,10 @@ final class Layout {
             return want.sub(pp);
         }
 
-        /** {@code widget:style()}: the property as it was written — {@code pos} for the degenerate case. */
+        /** {@code widget:style()}: the property as it was written — {@code position} for the degenerate case. */
         void toLua(Addon reader, LuaTable t) {
             if(plain) {
-                t.set("pos", LuaWidget.xyTable(offset));
+                t.set("position", LuaWidget.xyTable(offset));
                 return;
             }
             LuaTable a = new LuaTable();
@@ -514,7 +515,7 @@ final class Layout {
     // ---- parsing -----------------------------------------------------------------------------------
 
     /**
-     * Parse a rule's {@code pos = {x, y}} / {@code size = {w, h}} — the same two spellings a colour and a border's
+     * Parse a rule's {@code position = {x, y}} / {@code size = {w, h}} — the two spellings a colour and a border's
      * slice take ({@code {40, 200}} or {@code {x = 40, y = 200}}), for the same reason: the positional form is what
      * a hand-written rule and a {@code theme.json} say, the keyed form is what {@code widget:position()} and
      * {@code widget:style()} hand back, so a read round-trips into a write unchanged.
@@ -530,7 +531,7 @@ final class Layout {
                 + (size ? "{300, 200}" : "{40, 200}") + " or " + prop + " = "
                 + (size ? "{ x = 300, y = 200 }" : "{ x = 40, y = 200 }") + ", got " + v.typename());
         // type() rather than isnumber(): in LuaJ a STRING that looks like a number answers isnumber() (the 028
-        // asset lesson) — pos = {"40", "200"} is a typo, not a position.
+        // asset lesson) — position = {"40", "200"} is a typo, not a position.
         LuaValue x = v.get("x"), y = v.get("y");
         if((x.type() != LuaValue.TNUMBER) || (y.type() != LuaValue.TNUMBER)) {
             x = v.get(1);

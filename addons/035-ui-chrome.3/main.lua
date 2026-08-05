@@ -22,6 +22,9 @@
 
 local pass, fail, manual = 0, 0, 0
 
+-- This addon's one stylesheet: a selector names a rule on it, and :install() applies what it says.
+local sheet = hafen.ui():sheet()
+
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
@@ -92,7 +95,7 @@ local panel, base
 local steps = {}
 
 local function finish()
-  hafen.ui.skin(nil)
+  sheet:drop()
   manualCheck("run ':t035-3 look', then right-click the ground for a flower menu and click one of its petals",
     "the petals are dark with a gold border instead of the stock wooden one, their text still reads, and"
     .. " clicking one still chooses that option -- ':t035-3 look' again puts the stock panels back")
@@ -122,7 +125,7 @@ steps[1] = function()
      xy(panel:size()) .. " @ " .. xy(panel:position()), base)
   eq("...and it is a PANEL rule: it does not dress a single window's chrome",
      #hafen.ui():all("@SkinDeco"), 0)
-  hafen.ui.skin(nil)
+  sheet:drop()
 end
 
 steps[2] = function()
@@ -133,7 +136,7 @@ end
 
 local function run()
   pass, fail, manual = 0, 0, 0    -- so a re-run through :t035-3 reports its own counts, not the login's
-  hafen.ui.skin(nil)
+  sheet:drop()
 
   -- 1. the vocabulary. "panel" is a SITE key, the sibling of window.frame: valid grammar everywhere a
   --    selector is, and -- like every site role -- classifying no widget rather than guessing at one.
@@ -141,9 +144,10 @@ local function run()
   refuses("a misspelt role lists panel among the ones that exist",
           function() hafen.ui():find("pannel") end, "panel")
   refuses("an unknown property on a panel rule is still an error (D-072)",
-          function() hafen.ui.skin{ ["panel"] = { bordre = {} } } end, "bordre")
-  check(pcall(hafen.ui.skin, theme(6)), "the sheet accepts a panel rule carrying bg, border and pad")
-  hafen.ui.skin(nil)
+          function() sheet:load{ ["panel"] = { bordre = {} } }:install() end, "bordre")
+  check(pcall(function() sheet:load(theme(6)):install() end),
+        "the sheet accepts a panel rule carrying bg, border and pad")
+  sheet:drop()
 
   -- 2. the survey -- measured on the live HUD, which is the whole point of this task. The counts are what
   --    035.4's coverage table is written from, so they travel in the line itself.
@@ -159,7 +163,7 @@ local function run()
     return
   end
   eq("a panel nothing styles resolves nothing", panel:style(), nil)
-  panel:skin{ bg = { color = DARK }, border = border() }
+  panel:rule():bg{ color = DARK }:border(border())
   local st = panel:style()
   eq("widget:style() reports the bg a rule put on a panel", st and st.bg and st.bg.color and st.bg.color.r, 26)
   eq("...and the border's slice, keyed so it writes straight back",
@@ -167,13 +171,13 @@ local function run()
   if frames[2] ~= nil then
     eq("the panel beside it is untouched: a rule reaches what it names", frames[2]:style(), nil)
   end
-  panel:skin(nil)
-  eq("dropping the skin returns the panel to one nil", panel:style(), nil)
+  panel:rule():remove()
+  eq("dropping that level returns the panel to one nil", panel:style(), nil)
 
   -- 4. geometry, and the site half going live. Both are read a frame later, in the steps above.
   base = xy(panel:size()) .. " @ " .. xy(panel:position())
   eq("no window is wearing sheet-fed chrome before this suite starts", #hafen.ui():all("@SkinDeco"), 0)
-  hafen.ui.skin(theme(6))
+  sheet:load(theme(6)):install()
   step(1)
 end
 
@@ -184,11 +188,11 @@ local looking = false
 local function look()
   looking = not looking
   if looking then
-    hafen.ui.skin(theme())
+    sheet:load(theme()):install()
     hafen.log():write(":t035-3 look -> the panel theme is ON. Look at the portrait frame, right-click for a flower"
       .. " menu, open the character sheet -- then ':t035-3 look' again (or :reload, or disabling this addon).")
   else
-    hafen.ui.skin(nil)
+    sheet:drop()
     hafen.log():write(":t035-3 look -> stock panels restored.")
   end
 end

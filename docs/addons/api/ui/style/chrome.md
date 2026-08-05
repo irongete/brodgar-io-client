@@ -5,19 +5,23 @@ own content. Two kinds of surface wear them: `window.frame`, the client's window
 framed surface that is not a window.
 
 ```lua
-hafen.ui.skin{
-  ["window.frame"] = { bg     = { color = {26, 26, 28, 240} },
-                       border = { image = hafen.asset("img/panel.png"), slice = {8, 8, 8, 8} },
-                       pad    = 6 },
-  ["panel"]        = { border = { image = hafen.asset("img/panel.png"), slice = {8, 8, 8, 8} } },
-}
+local art = hafen.asset("img/panel.png")
+local s = hafen.ui():sheet()
+s:rule("window.frame")
+  :bg{ color = {26, 26, 28, 240} }
+  :border{ image = art, slice = {8, 8, 8, 8} }
+  :pad(6)
+s:rule("panel"):border{ image = art, slice = {8, 8, 8, 8} }
+s:install()
 ```
 
-| Property | Value | Meaning |
+| Call | Value | Meaning |
 |---|---|---|
-| `bg` | `{color = {r,g,b,a}}` **or** `{image = hafen.asset(…)}` | the surface something is painted on: a flat fill, alpha included, or a tiled image. One or the other, never both |
-| `border` | `{image = hafen.asset(…), slice = {l, t, r, b}}` | a 9-slice frame: the four corners draw at their own size and the four edges stretch between them |
-| `pad` | a number of pixels, `>= 0` | the space a surface keeps between its frame and its content |
+| `rule:bg(t)` | `{color = {r,g,b,a}}` **or** `{image = hafen.asset(…)}` | the surface something is painted on: a flat fill, alpha included, or a tiled image. One or the other, never both |
+| `rule:border(t)` | `{image = hafen.asset(…), slice = {l, t, r, b}}` | a 9-slice frame: the four corners draw at their own size and the four edges stretch between them |
+| `rule:pad(n)` | a number of pixels, `>= 0` | the space a surface keeps between its frame and its content |
+
+Each reads back bare: `rule:bg()`, `rule:border()`, `rule:pad()`.
 
 A border's centre is never painted — that is `bg`'s job, so the two compose.
 
@@ -77,7 +81,8 @@ panel.
 own content **sits**: it is the space between a frame and what is inside it.
 
 ```lua
-hafen.ui.skin{ ["window.frame"] = { pad = 6 } }   -- every window keeps 6 px more around its content
+hafen.ui():sheet():rule("window.frame"):pad(6)    -- every window keeps 6 px more around its content
+  :sheet():install()
 ```
 
 - **A window grows outward; its content never shrinks.** A window is built around a *content* size and its
@@ -91,7 +96,7 @@ hafen.ui.skin{ ["window.frame"] = { pad = 6 } }   -- every window keeps 6 px mor
   shallow top inset leaves it sitting over the content.
 - **Pixels are raw pixels**, like a border's slice and like a window's own [`:size(w, h)`](../custom.md).
   `pad` is not DPI-scaled. A font's `size` is, because a type size is not a coordinate.
-- **`pad = 0` is the same as no `pad`**, so it alone never restyles anything.
+- **`:pad(0)` is the same as no pad**, so it alone never restyles anything.
 - **Removing the rule restores the exact numbers it found** — the same size, the same position, down to the
   pixel.
 

@@ -17,7 +17,7 @@
     "window's frame.png, whose 40 px top inset is the title band the caption sits in (a smaller one would put",
     "the caption over the content: the engine adds no hidden room for it).",
     "The last three rules say WHERE, not what: a selector that names a window may carry `anchor` (a corner of",
-    "the screen or of another widget, plus an offset in raw pixels), or `pos`/`size` as plain [x, y] arrays.",
+    "the screen or of another widget, plus an offset in raw pixels), or `position`/`size` as [x, y] arrays.",
     "Nothing about them is mapped -- they are already the sheet's own shapes -- so the layout half of this",
     "theme cost main.lua not one line. A window with no rule keeps the place its user gave it, and dropping",
     "the sheet puts every window back where it was, to the pixel.",

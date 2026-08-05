@@ -67,7 +67,7 @@ A derived handle is a **variant of a font, not a file**: like a built-in it carr
 
 > **`color` is the one option that does not travel.** It applies wherever *you* draw with the handle, and is
 > **ignored** when the handle is installed on a client surface through
-> [a sheet rule](ui/style/text.md#font) or [`widget:skin`](ui/style/README.md#restyle-one-widget). A
+> [a sheet rule](ui/style/text.md#font) or [`widget:rule()`](ui/style/README.md#restyle-one-widget). A
 > surface's colour is a [sheet property](ui/style/text.md#color), stated where you can read it, not a value
 > hidden inside a font handle. `size`, `aa`, `bold` and `italic` travel everywhere.
 
@@ -122,8 +122,9 @@ and never throws.
 ## Restyle a client surface
 
 ```lua
-hafen.ui.skin{ ["window.title"] = { font = h } }   -- install THIS addon's sheet
-hafen.ui.skin(nil)                                 -- drop it; every surface it styled falls back
+hafen.ui():sheet():rule("window.title"):font(h)     -- name the rule...
+hafen.ui():sheet():install()                       -- ...and install THIS addon's sheet
+hafen.ui():sheet():drop()                          -- drop it; every surface it styled falls back
 ```
 
 A font is **one property of a rule**, and the key is a [selector](ui/selectors.md), so there is one
@@ -133,7 +134,7 @@ one-sheet-per-addon rule, the properties and the cascade are documented under
 what each surface *is*, and what it does with a size, is [surfaces](ui/style/surfaces.md).
 
 To restyle **one** widget you already hold rather than a family of surfaces, use
-[`widget:skin{font = h}`](ui/style/README.md#restyle-one-widget).
+[`widget:rule():font(h)`](ui/style/README.md#restyle-one-widget).
 
 ## Example
 
@@ -144,9 +145,9 @@ hafen.event():on("OnLoad", function()
 end)
 
 hafen.slash():register("bigserif", function()
-  hafen.ui.skin{ ["*"] = { font = h } }   -- most UI text becomes serif, live
+  hafen.ui():sheet():rule("*"):font(h):sheet():install()   -- most UI text becomes serif, live
 end)
--- reverted automatically when the addon is reloaded or disabled, or explicitly with hafen.ui.skin(nil)
+-- reverted automatically when the addon is reloaded or disabled, or explicitly with sheet:drop()
 ```
 
 The bundled **`theme`** example addon goes one step further: its whole look, text and

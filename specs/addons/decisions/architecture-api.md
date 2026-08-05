@@ -1174,3 +1174,56 @@ builds — window, widget, overlay — all end the same way, with `:destroy()`. 
 are earned by having a key; without one, a "collection" is a list of handles and the honest shape is a builder
 whose product you hold.*
 **See.** [D-115](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-122 — a selector-keyed MAP becomes a document you edit, plus the two verbs that say whether it is in force ✅ (2026-08-05)
+**Decision.** `hafen.ui.skin{…}` becomes `hafen.ui():sheet()`: a per-addon **Sheet** object holding
+`sheet:rule(selector)` levels, with `:install()` and `:drop()` as the only pair that says whether the
+document is applied. An edit to an installed sheet lands **at once**, so there is no re-apply verb;
+`sheet:load(rules)` edits the whole document from **data** and does not install by itself; and whether it is
+installed is **derived** (`owner.skin != null`), never a flag on the object.
+**Rationale.** (2026-08-05, 039.7.) R4 turns a config table into chained setters, but a stylesheet is not a
+constructor's named arguments — it is a *map*, and a map has no chained spelling at all. What it does have is
+a two-phase life the old call collapsed into one: you say what the look is, and separately it is the look.
+Splitting them is what makes `:rule(sel)` addressable and `:load(t)` possible; keeping the applied state
+derived is what makes teardown correct for free, since a `:reload` drops an addon's sheet without asking this
+object and a stored flag would then be a second answer that had already gone stale.
+**Consequences.** The 141 call sites become `sheet:rule(...)` chains or one `:load(t)`, and the capability
+036.4 measured — a whole theme for zero lines of Lua — survives as the one door for a whole document rather
+than as the shape of every call. "Install again to change one rule" disappears with it: the document is the
+thing you keep. Generally: *where a surface is a MAP rather than an argument list, make the map an object you
+edit and let a verb pair carry the moment it takes effect — and derive that moment from the engine, never
+store it beside it.*
+**See.** [D-107](architecture-api.md), [D-123](architecture-api.md), [033-ui-stylesheet](../033-ui-stylesheet/spec.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-123 — a handle to a level of a cascade is a NAME for it, not the record ✅ (2026-08-05)
+**Decision.** `LuaRule` holds only its binding — `(sheet, selector)` or the widget — and every read and write
+goes through it to where the level actually lives (the sheet's own map, or `Sheet`'s weak per-widget one). So
+`rule:remove()` ends the level and the handle keeps working: a setter on it simply says that level again, and
+`rule:info()` answers `nil` in between. The two bindings are ONE type with one verb set.
+**Rationale.** (2026-08-05, 039.7.) 021.1's rule is that an interned userdata is an identity, not a record,
+and D-065 pays it forward: state a weak cache could lose is derived, not stored. A widget's own level is held
+weakly against a widget that will close, so a Rule that *carried* the properties would disagree with the
+store the moment it was re-minted — and the alternative, refusing a removed handle, buys nothing a caller
+wants: naming a level and then saying it is the ordinary way to write one.
+**Consequences.** `sheet:rule(sel)` can be interned per selector without the sheet having to prune anything,
+`widget:rule()` can be interned per widget with weak keys on both axes, and the same object serves a matched
+rule and a hand-named one — which is why the two levels of the cascade read identically in Lua. Generally:
+*where a handle names a level of a cascade rather than owning a lifetime, make it a NAME: it can then outlive
+its own removal, and the store stays the single truth.*
+**See.** [D-065](architecture-api.md), [D-077](fonts.md), [D-122](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-125 — a CLOSED vocabulary throws for an unknown verb, where an open entity reads nil ✅ (2026-08-05)
+**Decision.** `LuaRule` and `LuaSheet` mount `Retired.closedIndex`: an unknown verb **throws** naming the
+verbs that exist, instead of reading `nil` like every other entity's metatable.
+**Rationale.** (2026-08-05, 039.7.) D-072 made a misspelt style *property* an error while an unresolved
+*key* stayed inert, because a property has no future meaning to wait for. When the properties became verbs
+that reasoning had to move with them, or the rule would silently lose its one guarantee: reading `nil` turns
+`rule:colour(…)` into "attempt to call a nil value" one character later, which names the typo but not the
+eight names it could have been. The precedent is already in the codebase — `Section` and `LuaCollection`
+throw for the same reason, and for the same kind of surface.
+**Consequences.** Two shapes now coexist deliberately: an entity whose surface may grow reads `nil`, so a
+feature probe (`if w.something then`) stays honest, while a value whose verb set IS its whole grammar
+refuses. The line between them is whether the vocabulary is closed, and the message says which names exist.
+Generally: *let a closed vocabulary refuse and an open one answer nil — silence is only honest where the name
+might mean something later.*
+**See.** [D-072](architecture-api.md), [D-118](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).

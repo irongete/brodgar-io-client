@@ -15,9 +15,10 @@ next time it draws, so a mass restyle never stalls a frame.
 changes everything while another key refines any one surface.
 
 ```lua
-hafen.ui.skin{ ["*"] = { font = h } }                             -- everything routed
-hafen.ui.skin{ ["*"] = { font = h }, ["button"] = { font = h2 } }  -- ...but buttons use h2
-hafen.ui.skin{ ["*"] = { font = h } }                             -- buttons fall back to the cascade again
+local s = hafen.ui():sheet()
+s:rule("*"):font(h)                    s:install()   -- everything routed
+s:rule("button"):font(h2)                            -- ...but buttons use h2 (an installed sheet is live)
+s:rule("button"):remove()                            -- buttons fall back to the cascade again
 ```
 
 ## `window.title`

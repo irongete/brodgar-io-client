@@ -13,7 +13,7 @@ import haven.Window;
  * and paints exactly the stock chrome for every property the rule does <b>not</b> name.
  *
  * <pre>
- *   hafen.ui.skin{ ["window.frame"] = { bg = { color = {26,26,28,240} } } }
+ *   hafen.ui():sheet():rule("window.frame"):bg{ color = {26,26,28,240} }
  * </pre>
  *
  * <p><b>Both halves of this are seams the engine already has.</b> {@code Window.deco} is swappable live through
