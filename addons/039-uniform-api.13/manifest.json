@@ -1,0 +1,9 @@
+{
+  "name": "039.13 — hafen.quest(), hafen.wound(), hafen.craft()",
+  "id": "039-uniform-api.13",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.13: the quest log and the wound list as the section objects themselves, the interned Quest, Condition, Wound and Craft, the open recipe reading nil so an `if` guard keeps working, and the retired plural spellings naming their singular replacements.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

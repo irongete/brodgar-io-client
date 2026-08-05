@@ -40,7 +40,7 @@ One page per namespace, and a directory where a namespace is large. The
 |---|---|
 | **World** | [`world`](api/world.md) · [Gob](api/gob.md) · [`map`](api/map/README.md) |
 | **Character** | [`player`](api/player.md) · [`time`](api/time.md) · [`char`](api/char.md) · [`study`](api/study.md) · [`party`](api/party.md) · [`buff`](api/buff.md) · [`meter`](api/meter.md) |
-| **Subsystems** | [`kin`](api/kin.md) · [`speed`](api/speed.md) · [`craft`](api/craft.md) · [`quests`](api/quests.md) · [`wounds`](api/wounds.md) · [`fight`](api/fight.md) · [`actionbar`](api/actionbar.md) |
+| **Subsystems** | [`kin`](api/kin.md) · [`speed`](api/speed.md) · [`craft`](api/craft.md) · [`quest`](api/quest.md) · [`wound`](api/wound.md) · [`fight`](api/fight.md) · [`actionbar`](api/actionbar.md) |
 | **Acting** | [`act`](api/act.md) *(gated)* · [`menugrid`](api/menugrid.md) |
 | **UI** | [`ui`](api/ui/README.md) · [the stylesheet](api/ui/style/README.md) · [`font`](api/font.md) · [`hook`](api/hook.md) · [`client`](api/client/README.md) |
 | **Your own content** | [`asset`](api/asset.md) · [`ghost`](api/ghost.md) · [`render`](api/render/README.md) |

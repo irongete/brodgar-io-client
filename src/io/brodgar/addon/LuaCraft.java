@@ -1,0 +1,308 @@
+package io.brodgar.addon;
+
+import haven.Indir;
+import haven.Makewindow;
+import haven.Resource;
+import haven.UI;
+
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.VarArgFunction;
+
+import java.lang.ref.Reference;
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * A <b>Craft object</b> — the recipe the player has open ({@code hafen.craft():current()}): what it needs,
+ * what it makes, and the button that makes it.
+ *
+ * <p><b>The intern key is the recipe window</b> (§2.4's <i>exposes only a widget</i> row), and that is what
+ * gives {@code :exists()} its meaning: the server builds a fresh window for each recipe, carrying the recipe
+ * name on the window itself, so opening another recipe does not <i>change</i> this Craft — it ends it. A
+ * stashed Craft reads {@code :exists() == false} from that moment, and {@code :make()} on it refuses rather
+ * than crafting whatever is open now.
+ *
+ * <p><b>A recipe's slots are DATA, not entities</b> (§2.8). Every update to the inputs rebuilds the whole
+ * row of them, so a handle to "the second input" would die on the next hammer-blow and mean nothing across a
+ * change of recipe anyway; there is no key to address one by, and nothing to ask about one but its four
+ * fields. So {@code :inputs()}, {@code :outputs()}, {@code :qualityInputs()} and {@code :tools()} are plain
+ * arrays of plain tables, which is what the grammar reserves for a value.
+ *
+ * <p><b>{@code :make(all)} is the gated verb</b> and it is the recipe's own: it presses the window's Craft
+ * button, or Craft All, exactly as a click would — so it consumes the ingredients like a manual craft.
+ *
+ * <p><b>Threading.</b> The input, output and quality lists are swapped wholesale off the UI thread and the
+ * tool list is appended to in place, so all four are copied under the UI monitor and their resource names
+ * resolved outside it.
+ */
+public final class LuaCraft {
+    /** The recipe window this reads — the whole state of a handle. */
+    public final Makewindow wnd;
+
+    private LuaCraft(Makewindow wnd) {
+        this.wnd = wnd;
+    }
+
+    /** {@code tostring(c)}: {@code Craft(<recipe>)}. */
+    public String toString() {
+        return "Craft(" + wnd.rcpnm + ")";
+    }
+
+    /** An interned Craft object for {@code wnd} in {@code owner}'s env, or {@code NIL} for no window. */
+    static LuaValue of(Addon owner, Makewindow wnd) {
+        return owner.crafts.of(wnd);
+    }
+
+    /** The {@code LuaCraft} behind a Lua value, or {@code null} for anything else. */
+    static LuaCraft resolve(LuaValue v) {
+        if((v == null) || !v.isuserdata())
+            return null;
+        Object o = v.touserdata();
+        return (o instanceof LuaCraft) ? (LuaCraft)o : null;
+    }
+
+    // ---- the per-addon intern cache + metatable ----------------------------------------------------
+
+    /** One addon's Craft cache and metatable (its {@link Addon#crafts}), keyed by the recipe window. */
+    static final class Cache {
+        private final Addon owner;
+        private final Map<Makewindow, Ref> live = new IdentityHashMap<Makewindow, Ref>();
+        private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
+        private LuaValue mt;
+
+        Cache(Addon owner) {
+            this.owner = owner;
+        }
+
+        synchronized LuaValue of(Makewindow mw) {
+            drain();
+            if(mw == null)
+                return LuaValue.NIL;
+            Ref r = live.get(mw);
+            if(r != null) {
+                LuaValue v = r.get();
+                if(v != null)
+                    return v;
+                live.remove(mw);
+            }
+            LuaValue v = LuaValue.userdataOf(new LuaCraft(mw), meta());
+            live.put(mw, new Ref(v, mw, dead));
+            return v;
+        }
+
+        private void drain() {
+            Reference<? extends LuaValue> r;
+            while((r = dead.poll()) != null) {
+                Ref cr = (Ref)r;
+                if(live.get(cr.key) == cr)
+                    live.remove(cr.key);
+            }
+        }
+
+        private LuaValue meta() {
+            if(mt == null)
+                mt = buildMeta(owner);
+            return mt;
+        }
+    }
+
+    private static final class Ref extends WeakReference<LuaValue> {
+        final Makewindow key;
+
+        Ref(LuaValue v, Makewindow key, ReferenceQueue<LuaValue> q) {
+            super(v, q);
+            this.key = key;
+        }
+    }
+
+    // ---- the Craft metatable ------------------------------------------------------------------------
+
+    private static LuaValue buildMeta(final Addon owner) {
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.INDEX, Retired.methodIndex("craft", methods(owner)));
+        mt.set("__name", LuaValue.valueOf("Craft"));
+        mt.set("__tostring", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaCraft h = resolve(self);
+                return LuaValue.valueOf((h == null) ? "Craft(?)" : h.toString());
+            }
+        });
+        return mt;
+    }
+
+    private static LuaTable methods(final Addon owner) {
+        LuaTable m = new LuaTable();
+        // name() — the recipe's name, as the server titled the window.
+        m.set("name", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Makewindow mw = live(handle(self, "name"));
+                if(mw == null)
+                    return LuaValue.NIL;
+                String nm = mw.rcpnm;
+                return (nm == null) ? LuaValue.NIL : LuaValue.valueOf(nm);
+            }
+        });
+        // inputs() / outputs() — the ingredient and product slots, in the order the window lays them out.
+        m.set("inputs", specs("inputs", true));
+        m.set("outputs", specs("outputs", false));
+        // qualityInputs() — the ingredients whose quality carries into the product.
+        m.set("qualityInputs", reses("qualityInputs", true));
+        // tools() — the tools you must have with you for the recipe to work.
+        m.set("tools", reses("tools", false));
+        // make([all]) — the GATED verb: press Craft, or Craft All. It consumes the ingredients, exactly as
+        // clicking the button does, and it chains on self like every other write in the API.
+        m.set("make", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue me = a.arg1();
+                LuaCraft h = handle(me, "make");
+                AddonManager.requireActions(owner, "hafen.craft():current():make");
+                LuaValue all = Args.written(a, 2, "hafen.craft():current():make", "all");
+                Makewindow mw = live(h);
+                if(mw == null)
+                    throw new LuaError("hafen.craft():current():make(all): this recipe window is gone —"
+                        + " read hafen.craft():current() again for the recipe that is open now");
+                mw.wdgmsg("make", ((all != null) && all.toboolean()) ? 1 : 0);
+                return me;
+            }
+        });
+        // exists() — is this still the recipe that is open? (Another recipe is another window.)
+        m.set("exists", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf(live(handle(self, "exists")) != null);
+            }
+        });
+        // info() — the one SNAPSHOT escape hatch.
+        m.set("info", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Makewindow mw = live(handle(self, "info"));
+                if(mw == null)
+                    return LuaValue.NIL;
+                LuaTable t = new LuaTable();
+                String nm = mw.rcpnm;
+                t.set("recipe", LuaValue.valueOf((nm == null) ? "" : nm));
+                t.set("inputs", specList(mw, true));
+                t.set("outputs", specList(mw, false));
+                t.set("qmod", resList(mw, true));
+                t.set("tools", resList(mw, false));
+                return t;
+            }
+        });
+        return m;
+    }
+
+    /** {@code :inputs()} / {@code :outputs()} — an empty array once the window is gone, never nil. */
+    private static OneArgFunction specs(final String verb, final boolean in) {
+        return new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Makewindow mw = live(handle(self, verb));
+                return (mw == null) ? new LuaTable() : specList(mw, in);
+            }
+        };
+    }
+
+    /** {@code :qualityInputs()} / {@code :tools()} — an empty array once the window is gone, never nil. */
+    private static OneArgFunction reses(final String verb, final boolean quality) {
+        return new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Makewindow mw = live(handle(self, verb));
+                return (mw == null) ? new LuaTable() : resList(mw, quality);
+            }
+        };
+    }
+
+    private static LuaCraft handle(LuaValue self, String method) {
+        LuaCraft h = resolve(self);
+        if(h == null)
+            throw new LuaError("craft:" + method + "() — use a COLON call on a Craft object"
+                + " (hafen.craft():current())");
+        return h;
+    }
+
+    // ---- the reads ----------------------------------------------------------------------------------
+
+    /** The recipe window this handle reads, or {@code null} once it is no longer the one that is open. */
+    private static Makewindow live(LuaCraft h) {
+        return (h.wnd == ActApi.makewindow()) ? h.wnd : null;
+    }
+
+    /** One side's slots as {@code {res, name, num, opt}} values, copied under the UI monitor. */
+    private static LuaTable specList(Makewindow mw, boolean in) {
+        List<Makewindow.Spec> specs = new ArrayList<Makewindow.Spec>();
+        UI u = AddonManager.ui;
+        if(u == null)
+            return new LuaTable();
+        synchronized(u) {                                  // both lists are swapped wholesale off-thread
+            if(in) {
+                for(Makewindow.Input w : mw.inputs)
+                    specs.add(w.spec);
+            } else {
+                for(Makewindow.SpecWidget w : mw.outputs)
+                    specs.add(w.spec);
+            }
+        }
+        LuaTable out = new LuaTable();                     // ...then snapshot outside it (names may Loading)
+        int i = 0;
+        for(Makewindow.Spec spec : specs)
+            out.set(++i, spec(spec));
+        return out;
+    }
+
+    /** One slot as {@code {res, name, num, opt}}. Loading-guarded. */
+    private static LuaValue spec(Makewindow.Spec spec) {
+        LuaTable t = new LuaTable();
+        // The displayed resource is the constraint (a category, e.g. "any board") when the recipe accepts
+        // one, else the concrete item — mirroring the window's own display: that is what fills the slot.
+        Indir<Resource> res = (spec.constraint != null) ? spec.constraint.res : spec.item.res;
+        String rid = AddonManager.resIdent(res);
+        if(rid != null)
+            t.set("res", LuaValue.valueOf(rid));
+        String nm = AddonManager.resTipName(res, rid);
+        if(nm != null)
+            t.set("name", LuaValue.valueOf(nm));
+        t.set("num", LuaValue.valueOf(spec.num));          // -1 = unspecified (~ 1); exposed faithfully
+        boolean opt;
+        try {
+            opt = spec.opt();                              // reads info() — may Loading before resources land
+        } catch(RuntimeException e) {
+            opt = false;
+        }
+        t.set("opt", LuaValue.valueOf(opt));
+        return t;
+    }
+
+    /** The quality inputs or the tools as {@code {res, name}} values, copied under the UI monitor. */
+    private static LuaTable resList(Makewindow mw, boolean quality) {
+        List<Indir<Resource>> reses = new ArrayList<Indir<Resource>>();
+        UI u = AddonManager.ui;
+        if(u == null)
+            return new LuaTable();
+        synchronized(u) {                                  // qmod is swapped, tools is appended to in place
+            reses.addAll(quality ? mw.qmod : mw.tools);
+        }
+        LuaTable out = new LuaTable();
+        int i = 0;
+        for(Indir<Resource> res : reses)
+            out.set(++i, res(res));
+        return out;
+    }
+
+    /** A bare resource reference as {@code {res, name}} (a quality modifier or a tool). Loading-guarded. */
+    private static LuaValue res(Indir<Resource> r) {
+        LuaTable t = new LuaTable();
+        String rid = AddonManager.resIdent(r);
+        if(rid != null)
+            t.set("res", LuaValue.valueOf(rid));
+        String nm = AddonManager.resTipName(r, rid);
+        if(nm != null)
+            t.set("name", LuaValue.valueOf(nm));
+        return t;
+    }
+}

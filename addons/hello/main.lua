@@ -609,90 +609,98 @@ local function readSpeed(tag)
     tostring(hafen.speed():name()), tostring(hafen.speed():max())))
 end
 
--- A8: CRAFTING via hafen.craft. current() returns the OPEN recipe/craft window (a Makewindow) as {recipe,
--- inputs, outputs, qmod, tools}, or nil when none is open. inputs/outputs are {res, name, num, opt} specs
--- (res = the DISPLAYED resource's stable name -- the constraint category when the recipe accepts one, else the
--- concrete item; num = required/produced count, -1 = unspecified ~ 1; opt = an optional ingredient / chance
--- byproduct); qmod (quality-affecting inputs) and tools (required tools) are {res, name} arrays. hello is
--- READ-ONLY here -- craft.make (actually crafting the item) is the gated Phase-4 action tier -- and there is NO
--- CraftChanged event (a recipe changes only when you open one), so this is READ ON DEMAND. At login no craft
--- window is open, so the now/+3s passes just show "none"; open any recipe (a crafting-menu entry) and type
+-- A8: CRAFTING via hafen.craft(). :current() returns the OPEN recipe as a Craft object, or nil when none is
+-- open -- so `if c then` is the guard, and it still means what it always meant. The Craft carries :name() (the
+-- recipe), :inputs()/:outputs() (plain arrays of {res, name, num, opt} values -- res = the DISPLAYED resource's
+-- stable name, i.e. the constraint category when the recipe accepts one, else the concrete item; num =
+-- required/produced count, -1 = unspecified ~ 1; opt = an optional ingredient / chance byproduct),
+-- :qualityInputs() and :tools() ({res, name} values), plus :exists() and :info(). hello is READ-ONLY here --
+-- the gated :make() lives on the Craft and belongs to the walker addon -- and there is NO CraftChanged event
+-- (a recipe changes only when you open one), so this is READ ON DEMAND. At login no craft window is open, so
+-- the now/+3s passes just show "none"; open any recipe (a crafting-menu entry) and type
 --   :hello craft   to dump its inputs / outputs / tools.
 local function craftLine(s)                     -- one input/output spec -> "name xN[ opt]"
   return ("%s x%d%s"):format(tostring(s.name or s.res or "?"), s.num or -1, s.opt and " opt" or "")
 end
 local function readCraft(tag)
-  local c = hafen.craft.current()
+  local c = hafen.craft():current()
   if not c then hafen.log():write(("[%s] craft: none open"):format(tag)); return end
-  local i1 = c.inputs[1]
+  local i1 = c:inputs()[1]
   hafen.log():write(("[%s] craft '%s': %d input(s), %d output(s), %d qmod, %d tool(s)%s"):format(
-    tag, tostring(c.recipe), #c.inputs, #c.outputs, #c.qmod, #c.tools,
+    tag, tostring(c:name()), #c:inputs(), #c:outputs(), #c:qualityInputs(), #c:tools(),
     i1 and (", in1=" .. craftLine(i1)) or ""))
 end
 local function dumpCraft()                       -- :hello craft -- the full breakdown of the open recipe
-  local c = hafen.craft.current()
+  local c = hafen.craft():current()
   if not c then hafen.log():write(":hello craft -> no craft/recipe window open (open one first)"); return end
-  hafen.log():write((":hello craft -> recipe '%s'"):format(tostring(c.recipe)))
-  for i, s in ipairs(c.inputs)  do hafen.log():write(("  input[%d]  %s"):format(i, craftLine(s))) end
-  for i, s in ipairs(c.outputs) do hafen.log():write(("  output[%d] %s"):format(i, craftLine(s))) end
-  for i, r in ipairs(c.qmod)    do hafen.log():write(("  qmod[%d]   %s"):format(i, tostring(r.name or r.res))) end
-  for i, r in ipairs(c.tools)   do hafen.log():write(("  tool[%d]   %s"):format(i, tostring(r.name or r.res))) end
+  hafen.log():write((":hello craft -> recipe '%s'"):format(tostring(c:name())))
+  for i, s in ipairs(c:inputs())  do hafen.log():write(("  input[%d]  %s"):format(i, craftLine(s))) end
+  for i, s in ipairs(c:outputs()) do hafen.log():write(("  output[%d] %s"):format(i, craftLine(s))) end
+  for i, r in ipairs(c:qualityInputs()) do hafen.log():write(("  qmod[%d]   %s"):format(i, tostring(r.name or r.res))) end
+  for i, r in ipairs(c:tools())   do hafen.log():write(("  tool[%d]   %s"):format(i, tostring(r.name or r.res))) end
 end
 
--- A9: QUEST LOG via hafen.quests. list([filter]) returns quest snapshots {id, name (the quest title), res
--- (stable id), status ("pending"/"done"/"failed"/"disabled"), mtime} for BOTH the Current (active) and
--- Completed tabs; filter is the canonical nil=all / name-substring / predicate (so "only active" is a status
--- predicate). selected() returns the quest currently OPEN in the log -- the ONLY one whose conditions the
--- client loads -- plus conds={{desc, status ("pending"/"done"/"failed"), text?}}, or nil when nothing is
--- selected. Like the rest of the character sheet the quest log streams in a beat after enter-world, so read
--- at now (often 0) and +3s. hello is READ-ONLY (there is no quest action tier); we subscribe to QuestAdded /
--- QuestDone below, and ':hello quest' dumps the selected quest's objectives on demand.
+-- A9: QUEST LOG via hafen.quest(). The section object IS the collection over BOTH tabs, the Current (active)
+-- one and the Completed one: :list(filter) every quest, :count(filter) how many, :get(id) one by its server
+-- id, :find(filter) the first match, and :selected() the quest the player has OPEN. filter is the canonical
+-- nil=all / name-substring / predicate, and a predicate receives the Quest object. A Quest reads live per
+-- call: :id() :title() :res() :status() ("pending"/"done"/"failed"/"disabled") :modified() (the server change
+-- stamp) :selected() :conditions() :exists() :info(). Objectives exist for the SELECTED quest only -- the
+-- client is sent no others -- so :conditions() is an empty array on every other quest, and each objective is
+-- a Condition object (:description() :status() :text() :quest() :exists() :info()). Like the rest of the
+-- character sheet the log streams in a beat after enter-world, so read at now (often 0) and +3s. hello is
+-- READ-ONLY (there is no quest action tier); we subscribe to QuestAdded / QuestDone below -- both now
+-- carrying the Quest itself -- and ':hello quest' dumps the selected quest's objectives on demand.
 local function readQuests(tag)
-  local all    = hafen.quests.list()
-  local active = hafen.quests.list(function(q) return q.status == "pending" or q.status == "disabled" end)
+  local quest  = hafen.quest()
+  local all    = quest:list()
+  local active = quest:count(function(q) return q:status() == "pending" or q:status() == "disabled" end)
   local first  = all[1]
-  local sel    = hafen.quests.selected()
-  hafen.log():write(("[%s] quests=%d (%d active), first=%s%s, selected=%s"):format(tag, #all, #active,
-    first and tostring(first.name) or "none",
-    first and (" [%s]"):format(tostring(first.status)) or "",
-    sel and ("'%s' (%d cond)"):format(tostring(sel.name), #sel.conds) or "none"))
+  local sel    = quest:selected()
+  hafen.log():write(("[%s] quests=%d (%d active), first=%s%s, selected=%s"):format(tag, #all, active,
+    first and tostring(first:title()) or "none",
+    first and (" [%s]"):format(tostring(first:status())) or "",
+    sel and ("'%s' (%d cond)"):format(tostring(sel:title()), #sel:conditions()) or "none"))
 end
 local function dumpQuest()                       -- :hello quest -- the selected quest + its objectives
-  local q = hafen.quests.selected()
+  local q = hafen.quest():selected()
   if not q then hafen.log():write(":hello quest -> no quest selected (open the Quest Log and click a quest)"); return end
   hafen.log():write((":hello quest -> '%s' [%s] -- %d condition(s)"):format(
-    tostring(q.name), tostring(q.status), #q.conds))
-  for i, c in ipairs(q.conds) do
-    hafen.log():write(("  cond[%d] [%s] %s%s"):format(i, tostring(c.status), tostring(c.desc),
-      c.text and (" -- " .. c.text) or ""))
+    tostring(q:title()), tostring(q:status()), #q:conditions()))
+  for i, c in ipairs(q:conditions()) do
+    hafen.log():write(("  cond[%d] [%s] %s%s"):format(i, tostring(c:status()), tostring(c:description()),
+      c:text() and (" -- " .. c:text()) or ""))
   end
 end
 
--- A9-2: WOUNDS via hafen.wounds. list([filter]) returns your wounds as {id, name, res, severity, parentid,
--- level}: wounds form a TREE (parentid = the parent wound's id, -1 = a root wound; level = the client's
--- computed depth for indentation), and severity is the magnitude the client shows beside the wound (a
--- content-defined string, usually a number -- NOT seconds; nil while it resolves). has(needle) tests presence
--- by a name/res substring (like hafen.buff():find(needle)). filter is the canonical nil=all / name-substring / predicate. Like
--- the rest of the character sheet the wound list streams in a beat after enter-world, so read at now (often 0)
--- and +3s. hello is READ-ONLY (wounds heal by playing / tending -- there is no wound action tier); we
--- subscribe to WoundChanged below, and ':hello wound' dumps the full wound tree on demand. Most characters
--- have 0 wounds -- an empty read is normal; take a hit (or open Health & Wounds on a wounded char) to see one.
+-- A9-2: WOUNDS via hafen.wound(). The section object IS the collection: :list(filter) in the window's own
+-- TREE order, :count(filter), :get(id) one by id, and :find(needle) the first whose name or res contains it
+-- -- which hands back the WOUND rather than a boolean, and is still truthy where the old boolean was. A Wound
+-- reads live per call: :id() :name() :res() :severity() (the magnitude the client shows beside it -- a
+-- content-defined string, usually a number, NOT seconds; nil while it resolves) :parent() (the wound this one
+-- complicates, nil at a root -- the tree, resolved for you) :level() (the indent depth) :exists() :info().
+-- filter is the canonical nil=all / name-substring / predicate. Like the rest of the character sheet the
+-- wound list streams in a beat after enter-world, so read at now (often 0) and +3s. hello is READ-ONLY
+-- (wounds heal by playing / tending -- there is no wound action tier); we subscribe to WoundChanged below,
+-- and ':hello wound' dumps the full wound tree on demand. Most characters have 0 wounds -- an empty read is
+-- normal; take a hit (or open Health & Wounds on a wounded char) to see one.
 local function readWounds(tag)
-  local list = hafen.wounds.list()
+  local list = hafen.wound():list()
   local first = list[1]
   hafen.log():write(("[%s] wounds=%d, first=%s%s"):format(tag, #list,
-    first and tostring(first.name or first.res) or "none",
-    (first and first.severity) and (" sev=%s"):format(tostring(first.severity)) or ""))
+    first and tostring(first:name() or first:res()) or "none",
+    (first and first:severity()) and (" sev=%s"):format(tostring(first:severity())) or ""))
 end
 local function dumpWounds()                       -- :hello wound -- the full wound tree (name/severity, indented)
-  local list = hafen.wounds.list()
+  local list = hafen.wound():list()
   if #list == 0 then hafen.log():write(":hello wound -> no wounds (nice)"); return end
   hafen.log():write((":hello wound -> %d wound(s):"):format(#list))
   for _, w in ipairs(list) do
-    hafen.log():write(("  %s%s%s [id=%s parent=%s]"):format(("  "):rep(w.level or 0),
-      tostring(w.name or w.res),
-      w.severity and (" (sev " .. tostring(w.severity) .. ")") or "",
-      tostring(w.id), tostring(w.parentid)))
+    local up = w:parent()
+    hafen.log():write(("  %s%s%s [id=%s parent=%s]"):format(("  "):rep(w:level() or 0),
+      tostring(w:name() or w:res()),
+      w:severity() and (" (sev " .. tostring(w:severity()) .. ")") or "",
+      tostring(w:id()), up and tostring(up:id()) or "none"))
   end
 end
 
@@ -1392,23 +1400,26 @@ hafen.event():on("KinChanged", function(roster)
 end)
 
 -- A9: QuestAdded fires when a new ACTIVE quest (pending/disabled) appears; QuestDone when a previously-active
--- quest is completed/failed. Payload = the quest snapshot {id, name, res, status, mtime}. A few QuestAdded
+-- quest is completed/failed. Payload = the QUEST OBJECT, which matters here more than anywhere: QuestDone
+-- fires BECAUSE the status changed, so a snapshot would freeze the very field the handler is told about, and
+-- a stashed Quest goes on reading (q:status(), q:conditions(), q:exists()) afterwards. A few QuestAdded
 -- may fire at login as active quests stream in (the completed HISTORY is recorded silently -- no event), so
 -- log only the first few of those, then narrate every completion in full.
 local questAddedSeen = 0
 hafen.event():on("QuestAdded", function(q)
   questAddedSeen = questAddedSeen + 1
   if questAddedSeen <= 5 then
-    hafen.log():write(("QuestAdded: '%s' [%s] (%d)"):format(tostring(q.name), tostring(q.status), questAddedSeen))
+    hafen.log():write(("QuestAdded: '%s' [%s] (%d)"):format(tostring(q:title()), tostring(q:status()), questAddedSeen))
   end
 end)
 hafen.event():on("QuestDone", function(q)
-  hafen.log():write(("QuestDone: '%s' -> %s"):format(tostring(q.name), tostring(q.status)))
+  hafen.log():write(("QuestDone: '%s' -> %s"):format(tostring(q:title()), tostring(q:status())))
 end)
 
 -- A9-2: WoundChanged fires when the wound set changes -- a wound added, healed/removed, or its severity
 -- advancing (a wound getting worse), and as wounds/severity stream in a beat after enter-world. Payload = the
--- new wound list (same shape as hafen.wounds.list()). This is the signal a wound-alert addon lives on. A few
+-- new list of WOUND OBJECTS, the same ones hafen.wound():list() hands out. This is the signal a wound-alert
+-- addon lives on. A few
 -- may fire at login as wounds resolve; log the first few (with the first wound's name/severity), then keep
 -- narrating the count on every later change.
 local woundsSeen = 0
@@ -1417,8 +1428,8 @@ hafen.event():on("WoundChanged", function(list)
   if woundsSeen <= 5 then
     local first = list[1]
     hafen.log():write(("WoundChanged: %d wound(s)%s (%d)"):format(#list,
-      first and (", first=" .. tostring(first.name or first.res)
-        .. (first.severity and (" sev " .. tostring(first.severity)) or "")) or "",
+      first and (", first=" .. tostring(first:name() or first:res())
+        .. (first:severity() and (" sev " .. tostring(first:severity())) or "")) or "",
       woundsSeen))
   end
 end)

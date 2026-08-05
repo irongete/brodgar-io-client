@@ -146,15 +146,28 @@ into them.
 
 ## `hafen.craft()` — the recipe window *(OOP migration, spec §4.4)*
 
+> **Shipped in 039.13** — ✅ both rows.
+
 | before | after | does |
 |---|---|---|
-| `hafen.craft.current()` | `hafen.craft():current()` | **NEW** Craft entity, or nil (R8) |
-| `hafen.craft.make(all)` | `hafen.craft():current():make(all)` | gated: press Craft / Craft All |
+| `hafen.craft.current()` | `hafen.craft():current()` | **NEW** Craft entity, or nil (R8) ✅ |
+| `hafen.craft.make(all)` | `hafen.craft():current():make(all)` | gated: press Craft / Craft All ✅ |
 
-**Flagged for plan.md.** Moving `make` onto the entity changes the failure mode: with no craft window
-open, `hafen.craft.make()` used to be a plain no-op and `hafen.craft():current():make()` indexes `nil`.
-Either `:current()` returns an inert entity whose `:exists()` is false (the `hafen.kin(<unknown id>)`
-precedent, D-056) or the page documents the guard. Decide before the task is written.
+**Settled (D-136): `:current()` is NIL with no recipe open**, and the guard stays on the caller. §2.2
+already says a distinguished member reads nil, and the alternative is worse than untidy — `if
+hafen.craft.current() then` is what every crafting addon in the corpus writes, and an always-truthy inert
+entity turns each of those guards into one that passes and then reads nothing.
+
+**And the premise this row carried was FALSE.** `hafen.craft.make()` with no window was not "a plain
+no-op": it threw *"no crafting window open (open a recipe first)"*. So the move replaces one guiding
+error with a less guiding one, and the retired row carries the guidance instead.
+
+**Correction to the entity sketch, made here with the reason.** The new-entity table gave Craft a
+`:res()`. There is no such thing — the recipe window publishes a NAME (`rcpnm`) and no resource of its
+own. What the table omitted is the other half of the old snapshot, so the shipped verbs are
+`:name() :inputs() :outputs() :qualityInputs() :tools() :make(all) :exists() :info()`; `qmod` is
+undecodable (N1) and becomes `:qualityInputs()`. **CraftSpec is NOT an entity** (D-137): an input update
+destroys and rebuilds every slot widget, so a handle to one would mean nothing a moment later.
 
 ## `hafen.event()` — the bus  *(renamed from `hafen.events`, see "Section names" below)*
 
@@ -334,11 +347,20 @@ says which you meant, so the heuristic is no longer needed.
 
 ## `hafen.quest()` — the quest log  *(renamed from `hafen.quests`; OOP migration, spec §4.5)*
 
+> **Shipped in 039.13** — ✅ every row, plus `:count(filter)` and `:find(filter)` from the shared
+> collection.
+
 | before | after | does |
 |---|---|---|
-| `hafen.quests.list(filter)` | `hafen.quest():list(filter)` | **NEW** Quest collection |
-| `hafen.quests.selected()` | `hafen.quest():selected()` | the quest open in the log (R8) |
-| — | `hafen.quest():get(id)` | one quest by id |
+| `hafen.quests.list(filter)` | `hafen.quest():list(filter)` | **NEW** Quest collection ✅ |
+| `hafen.quests.selected()` | `hafen.quest():selected()` | the quest open in the log (R8) ✅ |
+| — | `hafen.quest():get(id)` | one quest by id ✅ |
+
+**Correction to the entity sketch.** The new-entity table gave Quest a `:done()`, which is the engine's
+own field name for a four-valued status int — N1 expands exactly that, and the API's snapshot already
+spelled it `status`. A second differently-typed name for one property is D-013's dual style, so the
+shipped verbs are `:id() :title() :res() :status() :modified() :selected() :conditions() :exists()
+:info()`. `mtime` -> `:modified()` (N1); `:info()` keeps the engine's spelling, as FightSummary's does.
 
 ## `hafen.render()` — things drawn in the world at a fixed place
 
@@ -525,10 +547,18 @@ grid id. Both pages must say so on the verb, since the word alone cannot.
 
 ## `hafen.wound()` — wounds  *(renamed from `hafen.wounds`; OOP migration, spec §4.7)*
 
+> **Shipped in 039.13** — ✅ both rows, plus `:count(filter)`, `:find(filter)` and `:get(id)`.
+
 | before | after | does |
 |---|---|---|
-| `hafen.wounds.list(filter)` | `hafen.wound():list(filter)` | **NEW** Wound collection |
-| `hafen.wounds.has(needle)` | `hafen.wound():find(needle)` | first match — **was a bool, now the Wound** |
+| `hafen.wounds.list(filter)` | `hafen.wound():list(filter)` | **NEW** Wound collection ✅ |
+| `hafen.wounds.has(needle)` | `hafen.wound():find(needle)` | first match — **was a bool, now the Wound** ✅ |
+| — | `hafen.wound():get(id)` | one wound by id ✅ |
+
+**Correction to the entity sketch.** The new-entity table gave Wound `:res() :name() :severity()` and
+dropped the whole TREE, which is the subsystem's one distinguishing fact and what the page is written
+around. The shipped verbs are `:id() :name() :res() :severity() :parent() :level() :exists() :info()`,
+where `:parent()` resolves the old `parentid` to the Wound above it and is nil at a root.
 
 ## `hafen.world()` and `hafen.map()`: how alike, and where not
 
@@ -579,9 +609,10 @@ Grid speaks segment coords instead.
 
 ## Section names: three plurals are renamed
 
-> **Shipped in 039.1.**
+> **All three shipped** — the per-name marks are below.
 
-`hafen.quests` → `hafen.quest`, `hafen.wounds` → `hafen.wound`, `hafen.events` → `hafen.event`.
+`hafen.quests` → `hafen.quest` ✅ **039.13**, `hafen.wounds` → `hafen.wound` ✅ **039.13**,
+`hafen.events` → `hafen.event` ✅ **039.1**.
 
 Every other section is already singular — 025 deliberately hard-cut `hafen.buffs` for `hafen.buff`, and
 `hafen.items` is gone. These three were the only survivors, and leaving them would reintroduce under
@@ -913,9 +944,9 @@ and they gain only the R5 nil refusal.
 | Food | `hafen.char():food()` | `:cap() :total() :feps() :hunger() :label() :efficacy() :exists() :info()` ✅ |
 | StudySlot | `hafen.study():slot()` | `:res() :name() :lp() :attention() :cost() :time() :progress() :exists() :info()` ✅ |
 | PartyMember | `hafen.party()` | `:id() :position() :color() :leader() :gob() :exists() :info()` ✅ |
-| Craft | `hafen.craft():current()` | `:name() :res() :inputs() :outputs() :make(all) :exists() :info()` |
-| Quest / Condition | `hafen.quest()` | `:id() :title() :conditions() :done() :exists() :info()` |
-| Wound | `hafen.wound()` | `:res() :name() :severity() :exists() :info()` |
+| Craft | `hafen.craft():current()` | `:name() :inputs() :outputs() :qualityInputs() :tools() :make(all) :exists() :info()` — no `:res()`, the window publishes none ✅ |
+| Quest / Condition | `hafen.quest()` | Quest `:id() :title() :res() :status() :modified() :selected() :conditions()`, Condition `:description() :status() :text() :quest()`; both `:exists() :info()` ✅ |
+| Wound | `hafen.wound()` | `:id() :name() :res() :severity() :parent() :level() :exists() :info()` ✅ |
 | Maneuver / DeckCard / FightSummary | `hafen.fight()` | Maneuver `:res() :name() :available() :used()`, DeckCard `:slot() :key() :maneuver() :res() :name() :used()`, FightSummary `:used() :maxActions() :deckSize() :saveCount() :activeSave()`; all `:exists() :info()` ✅ |
 | Opponent | `hafen.fight():target()` | `:id() :gob() :exists() :info()` — **added by 039.12**, the entity `:target()` needs ✅ |
 | **Position** | every `:position()`, `hafen.world():position(x,y)` | `:x() :y() :offset(dx,dy) :distance(o) :tileCoord() :durable() :info()` — a **value** object, not interned |
@@ -932,8 +963,8 @@ Subscription moves to `hafen.event():on(name, fn)`. Payloads that are still snap
 | `FepChanged` | `Food` snapshot | Food entity ✅ |
 | `StudyChanged` | `StudySlot[]` snapshots | StudySlot entities ✅ |
 | `EquipChanged` | `Item[]` snapshots | Item entities |
-| `WoundChanged` | `Wound[]` snapshots | Wound entities |
-| `QuestAdded` / `QuestDone` | `Quest` snapshot | Quest entity |
+| `WoundChanged` | `Wound[]` snapshots | Wound entities ✅ |
+| `QuestAdded` / `QuestDone` | `Quest` snapshot | Quest entity ✅ |
 
 Unchanged payloads: `OnLoad OnEnterWorld OnUpdate OnDisable` (—/`dt`), `GobAdded`/`GobRemoved` (Gob),
 `MeterAdded/Removed/Changed` (Meter), `BuffAdded/Removed/Changed` (Buff), `ActionbarChanged` (Slot),
@@ -951,7 +982,7 @@ not an accessor, so R3 does not reach it.
 | verb | was | becomes |
 |---|---|---|
 | `hafen.char.skill(name)` | boolean | the Skill, or nil ✅ |
-| `hafen.wounds.has(needle)` | boolean | the Wound, or nil |
+| `hafen.wounds.has(needle)` | boolean | the Wound, or nil ✅ |
 | `hafen.party.members()` etc. | snapshot tables | entities (all of spec §4) — party and fight ✅ |
 
 Both boolean-to-entity changes stay truthy-compatible for `if hafen.wound():find("x") then`, which is how

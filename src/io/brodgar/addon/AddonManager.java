@@ -1002,6 +1002,51 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         return t;
     }
 
+    /**
+     * Fire a quest event ({@code QuestAdded}/{@code QuestDone}) whose payload is the <b>Quest object</b>
+     * (039.13). Same shape as {@link #fireGob}: interning is per-addon (D-045), so each owner gets <i>its</i>
+     * handle for the id, minted only for an owner that actually subscribes.
+     *
+     * <p>The object matters more here than in most events: {@code QuestDone} fires <i>because</i> the status
+     * changed, and a snapshot would freeze the very field the handler is being told about. A stashed Quest
+     * goes on reading — including through the completion that fired this.
+     */
+    static void fireQuest(String event, int id) {
+        for(Addon a : addons) {
+            if(hasSub(a, event))
+                fireTo(a, event, LuaQuest.of(a, id));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, event))
+            fireTo(c, event, LuaQuest.of(c, id));
+    }
+
+    /**
+     * Fire {@code WoundChanged} whose payload is an array of <b>Wound objects</b> (039.13) — every wound the
+     * character has, in the window's own tree order. Same shape as {@link #fireKin}: interning is per-addon
+     * (D-045), and the array is minted only for an owner that actually subscribes.
+     *
+     * <p>Change <i>detection</i> stays in {@code CharApi}'s wound adapter (the per-wound snapshot diff, which
+     * is what sees a severity resolve or a wound worsen); the ids arrive already diffed.
+     */
+    static void fireWounds(int[] ids) {
+        for(Addon a : addons) {
+            if(hasSub(a, "WoundChanged"))
+                fireTo(a, "WoundChanged", woundPayload(a, ids));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, "WoundChanged"))
+            fireTo(c, "WoundChanged", woundPayload(c, ids));
+    }
+
+    /** One owner's {@code WoundChanged} payload: its own interned Wound objects, in tree order. */
+    private static LuaValue woundPayload(Addon owner, int[] ids) {
+        LuaTable t = new LuaTable();
+        for(int i = 0; i < ids.length; i++)
+            t.set(i + 1, LuaWound.of(owner, ids[i]));
+        return t;
+    }
+
     /** One owner's {@code KinChanged} payload: its own interned Kin objects, in roster order. */
     private static LuaValue kinPayload(Addon owner, int[] ids) {
         LuaTable t = new LuaTable();
@@ -1226,43 +1271,45 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // :current() then writes it), like the other gap surfaces.
         ActApi.installSpeed(hafen, owner);
 
-        // hafen.craft.* — crafting read (A8), off the crafting/recipe window (Makewindow: the widget the
-        // server places under the HUD when the player opens a recipe — its input slots, output slots, the
-        // quality-affecting inputs and the required tools). current() returns a snapshot of the OPEN recipe
-        // {recipe, inputs, outputs, qmod, tools}, or nil when no craft window is up. inputs/outputs are spec
-        // snapshots {res, name, num, opt} (res = the DISPLAYED resource's stable name — the constraint
-        // category when the recipe accepts one, else the concrete item; name = its tooltip; num = the
-        // required/produced count, -1 = unspecified ≈ 1; opt = an optional ingredient / chance byproduct).
-        // qmod (quality-affecting inputs) and tools (required tools) are {res, name} arrays. make([all]) is the
-        // GATED write verb (4g, requireActions): it presses the recipe's Craft button (all=false/absent → make
-        // one, wdgmsg("make", 0)) or Craft All (all=true → wdgmsg("make", 1)) — exactly the two buttons, so it
-        // CONSUMES the ingredients like a manual craft. No CraftChanged event (read on demand, like A7 speed /
-        // A2 radar — a recipe changes only when the player opens/updates one).
+        // hafen.craft() — the recipe window (A8: the Makewindow the server places under the HUD when the
+        // player opens a recipe). A section of one verb: :current() is the open recipe as a Craft object, or
+        // NIL when none is open. The Craft carries :name() (the recipe), :inputs()/:outputs() (the slots, as
+        // {res, name, num, opt} values — res is the DISPLAYED resource, i.e. the constraint category when the
+        // recipe accepts one, else the concrete item; num = the required/produced count, -1 = unspecified ~ 1;
+        // opt = an optional ingredient / chance byproduct), :qualityInputs() and :tools() ({res, name} values),
+        // :exists() and :info(). The GATED :make(all) is on it too (039.13 — the button belongs to the recipe):
+        // it presses Craft (wdgmsg("make", 0)) or Craft All (all=true → 1), so it CONSUMES the ingredients
+        // exactly as a click does. No CraftChanged event (read on demand, like A7 speed — a recipe changes
+        // only when the player opens one).
         ActApi.installCraft(hafen, owner);
 
-        // hafen.quests.* — the quest log (A9), read from the character sheet's "Quest Log" tab (QuestWnd,
+        // hafen.quest() — the quest log (A9), read from the character sheet's "Quest Log" tab (QuestWnd,
         // reached via CharWnd.quest — created hidden at login but live, so quests are readable without ever
-        // opening the window). list([filter]) returns quest snapshots {id, name (the quest title), res
-        // (stable resource id), status ("pending"/"done"/"failed"/"disabled"), mtime (the server change
-        // stamp; higher = more recent)} for BOTH the Current (active) and Completed tabs, filtered by the
-        // canonical nil=all / name-substring / predicate (e.g. only-active = a predicate on status).
-        // selected() returns the quest currently OPEN in the log — the only one whose conditions the client
-        // loads — as a list snapshot plus conds={{desc, status ("pending"/"done"/"failed"), text?}}, or nil
-        // when none is selected. Subscribe to QuestAdded (a new active quest appears) and QuestDone (an
-        // active quest is completed/failed). Read-only — there is no quest action tier.
-        CharApi.installQuests(hafen, owner);
+        // opening the window). The section object IS the collection over BOTH tabs (039.13): :list(filter)
+        // every quest, :get(id) one by its server id, :find(filter) the first match and :selected() the one
+        // the player has open. A Quest reads live per call — :id() :title() :res() :status()
+        // ("pending"/"done"/"failed"/"disabled") :modified() (the server change stamp; higher = more recent)
+        // :selected() :conditions() :exists() :info() — and is interned on the quest id, which is what the
+        // "quests" uimsg itself looks a quest up by before mutating it in place, so a stashed Quest reports
+        // its own completion. :conditions() is a plain array of Condition objects and is EMPTY on every quest
+        // but the selected one: the client is sent objectives for that one alone. Subscribe to QuestAdded (a
+        // new active quest appears) and QuestDone (an active quest is completed/failed), both carrying the
+        // Quest. Read-only — there is no quest action tier.
+        CharApi.installQuest(hafen, owner);
 
-        // hafen.wounds.* — the character's wounds (A9-2), read from the character sheet's "Health &
-        // Wounds" tab (WoundWnd, reached via CharWnd.wound — created hidden at login but live, so wounds
-        // read without ever opening the window). list([filter]) returns wound snapshots {id, name, res,
-        // severity, parentid, level}: wounds form a TREE (parentid = the parent wound's id, -1 = a root
-        // wound; level = the client's computed tree depth), and severity is the magnitude string the
-        // client shows beside the wound (the highest-priority QuickInfo — content-defined, usually the
-        // wound's number, NOT seconds; omitted while it Loads). filter is the canonical nil=all / name-
-        // substring / predicate. has(needle) tests whether any wound's name/res contains needle (like
-        // hafen.buff():find(needle)). Subscribe to WoundChanged (the wound set or a severity changed; payload = the new
-        // list). Read-only — there is no wound action tier (wounds heal by playing / tending).
-        CharApi.installWounds(hafen, owner);
+        // hafen.wound() — the character's wounds (A9-2), read from the character sheet's "Health & Wounds"
+        // tab (WoundWnd, reached via CharWnd.wound — created hidden at login but live, so wounds read without
+        // ever opening the window). The section object IS the collection (039.13): :list(filter) in the
+        // window's own TREE order, :get(id) one by id, :find(needle) the first whose name or res contains it
+        // (the old presence test, now handing back the Wound — still truthy). A Wound reads live per call:
+        // :id() :name() :res() :severity() (the magnitude string the client paints beside it — content-
+        // defined, usually a number, NOT seconds, and nil for the beat before it resolves) :parent() (the
+        // wound this one complicates, nil at a root — the parent id, resolved) :level() (the indent depth)
+        // :exists() :info(). Interned on the wound id, which decwound itself looks a wound up by before
+        // mutating it in place, so a stashed Wound reports its own worsening. Subscribe to WoundChanged (the
+        // wound set or a severity changed; payload = the new list of Wound objects). Read-only — there is no
+        // wound action tier (wounds heal by playing / tending).
+        CharApi.installWound(hafen, owner);
 
         // hafen.fight.* — combat schools / the maneuver deck builder (A10), read from the character
         // sheet's "Martial Arts & Combat Schools" tab (FightWnd, @RName("fmg"), reached via CharWnd.fight —

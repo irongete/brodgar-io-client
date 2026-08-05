@@ -995,3 +995,25 @@
   the maintainer can be in* from the other side. Rule: *before asking a human for a precondition, read the
   subsystem and check it is not already satisfied; a manual line you never see is a manual line you did not
   need to write.*
+- **(039.13) A plant that makes the value's own `toString` throw kills the harness while it is PRINTING the
+  red line.** Falsifying "`:current()` is nil with no recipe open" by minting an entity over a null window
+  made three checks fail correctly — and the first one aborted the whole probe with an NPE out of
+  `LuaCraft.toString()`, because the failure branch interpolates the value into its message. 039.2's abort
+  lesson in its quietest shape: the checks behind it were never evidence either way, and the run printed a
+  stack trace rather than a verdict. The fix is one helper — stringify the `got` inside a `try`, reporting
+  `<toString threw: …>` — after which the same plant reddened 3 checks and the summary still printed. Rule:
+  *a harness must survive the defect it is looking for, and the place it most often does not is the code
+  that formats the failure.*
+- **(039.13) Verify the plant APPLIED before believing a green falsification round.** A `perl -0pi -e`
+  substitution inside a `<<'EOF'` heredoc lost a backslash, so the pattern never matched, the plant was
+  never made, and the round reported "0 failed" — which reads exactly like a check that cannot discriminate.
+  Re-running it with a `grep` on the planted line first showed the edit was absent and the check bit
+  immediately. Generalisation of 039.11's *a plant that leaves both harnesses green is a plant to re-read*:
+  the first thing to re-read is not the check, it is whether the file on disk actually changed.
+- **(039.13) A falsification that bites ZERO is worth reporting when the branch is genuinely out of reach.**
+  Planting `w:parent()` ignoring the `-1` root marker left the probe green, and correctly: with no client
+  every wound is on its departed branch, where the guard the plant removed is never reached. That is not a
+  weak check but an honest boundary — the tree half is the in-game round's to prove, and the in-game round
+  did (`1 root(s), 0 complication(s)`, with `w:parent():id()` cross-checked against `w:info().parentid`).
+  Rule: *say which plants bit and which could not, and why; a falsification tally with no zeros in it is
+  usually a tally that only counted the reachable plants.*

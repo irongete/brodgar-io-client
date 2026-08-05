@@ -1376,3 +1376,49 @@ collection, which is a cross-check a suite can make. Generally: *ask whether the
 can end; if they are computed from something else the caller can already reach, they are a value.*
 **See.** [D-060](architecture-api.md), [D-061](architecture-api.md), [D-094](architecture-api.md),
 [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-136 — a distinguished member reads NIL, and an inert entity would break every guard already written ✅ (2026-08-05)
+**Decision.** `hafen.craft():current()` is **`nil` while no recipe is open**, and the guard stays on the caller:
+`local c = hafen.craft():current(); if c then …`. It is not an inert Craft whose `:exists()` is false.
+**Rationale.** (2026-08-05, 039.13.) The feature's own §2.2 already answers this — *a distinguished member*
+(`:current()` `:selected()` `:leader()` `:available()`) *returns the entity, or nil* — and the whole feature is
+built that way already (`hafen.fight():summary()`, `:target()`, `hafen.char():food()`). What settles it beyond
+consistency is the measured cost of the alternative: `if hafen.craft.current() then` is the line every crafting
+addon in the corpus already writes, and an entity that is always truthy turns each of those guards into one that
+**passes and then reads nothing** — `c:name()` nil, `#c:inputs()` zero — which is the silent failure this grammar
+exists to delete, introduced by the fix meant to prevent one. D-056's `hafen.kin(<unknown id>)` precedent does not
+reach here: that entity is minted from a key the CALLER supplied, so there is something to be inert *about*; an
+open recipe that is not open has no key at all.
+**The premise the plan carried was false, and checking it made the decision smaller.** `spec.md` §4.4 and
+`plan.md` §4.5 both say `hafen.craft.make()` *"was a plain no-op"* with no window. It was not: it threw
+*"no crafting window open (open a recipe first)"*. So moving `make` onto the entity does not replace a silent
+no-op with an index error — it replaces one guiding error with a less guiding one, and the retired-name row
+carries the guidance instead (`hafen.craft.make` throws naming `hafen.craft():current():make(all)` **and** saying
+that `:current()` is nil while no recipe is open).
+**Consequences.** Every existing `if current() then` keeps its meaning across the port; a stashed Craft reports
+`:exists() == false` once another recipe is opened, because a recipe is a fresh window rather than a change to
+this one; and `c:make()` on such a handle refuses by name rather than crafting whatever is open now. Generally:
+*before inventing an inert value for "not there", read what the callers already do with nil — a truthiness test
+is a contract, and an always-truthy answer silently breaks it.*
+**See.** [D-056](architecture-api.md), [D-060](architecture-api.md), [D-114](architecture-api.md),
+[039-uniform-api](../039-uniform-api/spec.md).
+
+### D-137 — a sub-record is an ENTITY where its PLACE outlives the array, and a value where the whole set is replaced with its owner ✅ (2026-08-05)
+**Decision.** A quest's objectives are **Condition entities**, interned on the quest id plus the objective's own
+description. A recipe's slots are **plain value tables** (`{res, name, num, opt}`), and so are its quality inputs
+and its tools. Both are reached through a plural array read (§2.3's second half): `q:conditions()`, `c:inputs()`.
+**Rationale.** (2026-08-05, 039.13.) Both look like "a small record inside a bigger one", and the engine tells
+them apart. The `"conds"` message rebuilds the objective array but looks each entry up **by its description** and
+carries the existing record over, mutating only its state — so *this objective of that quest* is precisely what
+survives, its `:status()` flips from `"pending"` to `"done"` under a handle you are already holding, and watching
+one objective is the reason to reach past the quest at all. The `"inpop"` message **destroys and rebuilds every
+input widget**, even for a one-slot update, and a different recipe is a different window entirely; "input slot 2"
+therefore means nothing across a change, there is no key to address one by, and there is nothing to ask about one
+but its four fields. That is §2.8's *a table used as a VALUE is untouched*.
+**Consequences.** The test is not "is it small" but *does a handle to it stay meaningful after the array is
+replaced* — D-134's layout rule (keyed by its place) read from the other side. A Condition therefore carries
+`:exists()`, which goes false when the player deselects the quest and true again when they open it, while a
+CraftSpec carries nothing at all. Generally: *mint an entity where the engine itself carries a record across a
+resend; where it throws the record away, so does the API.*
+**See.** [D-094](architecture-api.md), [D-132](architecture-api.md), [D-134](architecture-api.md),
+[D-135](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).

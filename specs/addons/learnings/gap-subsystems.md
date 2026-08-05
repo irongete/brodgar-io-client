@@ -216,3 +216,29 @@
   overlay onto one image. Reading only the first match looks right on any grid with a single claim on it.
   And `olid.get()` throws `Loading`: with one overlay unresolved the honest answer is nil for the whole
   read, because a partial union under-reports silently where a nil says "ask again".
+- **(039.13) The two windows in this file disagree about whether a sub-record SURVIVES a resend, and that is
+  what decides whether it can be an entity.** `QuestWnd.Quest.Box.uimsg("conds")` rebuilds the objective
+  array but calls `findcond(desc)` first, **carrying the existing `Condition` over** and rewriting only its
+  `done`/`status`/`wdata` — `Condition.desc` is `final`, so the server's own key for an objective is its
+  text. `Makewindow.uimsg("inpop")` does the opposite: it `destroy()`s every `Input` widget and builds new
+  ones **even for the partial form** (`INT.is(args,0)`, which updates one slot), so a craft slot's Java
+  identity churns on every hammer-blow and means nothing across a change of recipe. Hence D-137 — a
+  Condition is an entity keyed by (quest id, desc), a CraftSpec is a plain value.
+- **(039.13) `QuestWnd.uimsg("quests")` mutates the Quest IN PLACE and MOVES it between the two tab lists.**
+  `cqst.get(id)`/`dqst.get(id)` find the record, `q.res/done/mtime` are overwritten, and only then is it
+  removed from one `QuestList` and added to the other — so a quest completing is the same object under a new
+  status, and keying on the id is not merely allowed but is what the engine itself does. A quest LEAVES the
+  log only when the server sends its id with a null resource (`cqst.remove(id); dqst.remove(id)`), which is
+  the one case `:exists()` reports.
+- **(039.13) `hafen.craft.make()` with no crafting window THREW — it was never a "silent no-op".** Both
+  `spec.md` §4.4 and `plan.md` §4.5 carried that premise into the task and built a whole open question on
+  it (should `:current()` hand back an inert entity to avoid indexing nil?). `ActApi.actCraftMake` reads
+  `if(mw == null) throw new LuaError("hafen.craft.make: no crafting window open (open a recipe first)")`.
+  Reading the four lines under the claim collapsed the question: nothing silent was being fixed, so the
+  answer is just §2.2's own rule (D-136). Rule: *a planning document's statement about existing behaviour is
+  a claim to check, not a fact to design around — especially when a whole decision hangs off it.*
+- **(039.13) A recipe window is per RECIPE, so `craft:exists()` is a real question.** `Makewindow(String
+  rcpnm)` takes the recipe name on the constructor and `GameUI` places a fresh one per recipe under
+  `place="craft"` — opening another recipe does not change this window, it replaces it. That is what makes
+  the window the right intern key: a stashed Craft reports `:exists() == false` from that moment instead of
+  quietly describing whatever is open now.

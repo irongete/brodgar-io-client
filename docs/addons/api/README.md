@@ -42,8 +42,8 @@ you came for from the tables below. Every page in the tree is listed here.
 | [`hafen.kin`](kin.md) | the kin roster, and the writes that add, rename and re-group |
 | [`hafen.speed`](speed.md) | the crawl, walk, run and sprint selector |
 | [`hafen.craft`](craft.md) | the open recipe window, and its Craft button |
-| [`hafen.quests`](quests.md) | the quest log, current and completed |
-| [`hafen.wounds`](wounds.md) | the wounds on the Health and Wounds tab |
+| [`hafen.quest`](quest.md) | the quest log, current and completed, and a quest's objectives |
+| [`hafen.wound`](wound.md) | the wounds on the Health and Wounds tab, as a tree |
 | [`hafen.fight`](fight.md) | the maneuver-deck builder, and who you are fighting |
 | [`hafen.actionbar`](actionbar.md) | the hotbar: read a slot, use it, assign one |
 

@@ -357,6 +357,21 @@ public final class Addon {
     final LuaOpponent.Cache opponents = new LuaOpponent.Cache(this);
 
     /**
+     * This addon's <b>quest, wound and crafting interning caches</b> (spec {@code 039-uniform-api}
+     * §4.4/§4.5/§4.7): {@code hafen.quest()} and {@code hafen.wound()} keyed by the server's own id — both
+     * windows look their record up by it and mutate it in place, so a quest completing and a wound worsening
+     * are the same quest and the same wound — {@code quest:conditions()} by the quest id plus the
+     * objective's text, which is the pair the engine itself matches on when it carries an objective across a
+     * resend, and {@code hafen.craft():current()} by the recipe <b>window</b>, since a different recipe is a
+     * different window rather than a change to this one. D-094 throughout. Same contract as {@link #gobs} —
+     * per-addon, weak-valued, dead with this {@link Addon} on {@code :reload}/disable.
+     */
+    final LuaQuest.Cache quests = new LuaQuest.Cache(this);
+    final LuaCondition.Cache conditions = new LuaCondition.Cache(this);
+    final LuaWound.Cache wounds = new LuaWound.Cache(this);
+    final LuaCraft.Cache crafts = new LuaCraft.Cache(this);
+
+    /**
      * This addon's <b>Widget interning cache</b> ({@code hafen.ui.root()}/{@code node(id)}/{@code at(x,y)}, spec
      * {@code 029-widget-oop}): the {@code Widget → Widget object} map and the per-addon metatable that make
      * {@code hafen.ui.at(m.x,m.y) == hafen.ui.at(m.x,m.y)} true and let {@code node:same()} be cut. Per-addon like

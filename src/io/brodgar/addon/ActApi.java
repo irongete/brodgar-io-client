@@ -188,24 +188,34 @@ final class ActApi {
         Section.install(hafen, "act", act);
     }
 
-    /** Build {@code hafen.craft} (crafting read + gated make) for {@code owner}. From installHafen. */
+    /**
+     * Build {@code hafen.craft()} for {@code owner}. From installHafen. A section of <b>one verb</b>:
+     * {@code :current()} is the recipe the player has open, as a {@link LuaCraft} entity that carries the
+     * recipe's slots <i>and</i> its gated {@code :make(all)} — the button belongs to the recipe, not to a
+     * namespace hovering above it.
+     *
+     * <p><b>{@code :current()} is {@code nil} when no recipe is open</b>, which is §2.2's own rule for a
+     * distinguished member and not a coin toss. The alternative — an inert Craft whose {@code :exists()} is
+     * false — reads tidier and is worse where it counts: {@code if hafen.craft():current() then} is the guard
+     * every crafting addon already writes, and an always-truthy entity turns each of them into a guard that
+     * passes and then reads nothing, which is the silent failure this grammar exists to delete. The section
+     * itself is not the collection (§2.1's <i>a section of one thing IS that thing</i>) for the same reason:
+     * the section object is minted once at install and must always answer, and an open recipe usually is not
+     * there.
+     */
     static void installCraft(LuaTable hafen, final Addon owner) {
         LuaTable craft = new LuaTable();
-        craft.set("current", new ZeroArgFunction() {
-            public LuaValue call() {
-                return readCraft();
+        // current() — the open recipe, or nil. The gated make() lives on what this hands back.
+        craft.set("current", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "craft", "current");
+                if(Args.passed(a, 2))
+                    throw new LuaError("hafen.craft():current() takes no arguments — it reads the recipe you"
+                        + " have open, and which recipe that is is the player's choice");
+                return LuaCraft.of(owner, makewindow());
             }
         });
-        // make([all]) — the gated write verb (4g): craft the OPEN recipe (all → Craft All). requireActions-gated
-        // (D-027/D-028). all is a boolean (Lua truthiness: nil/false → one, anything else → all).
-        craft.set("make", new OneArgFunction() {
-            public LuaValue call(LuaValue all) {
-                AddonManager.requireActions(owner, "hafen.craft.make");
-                actCraftMake(all.toboolean());
-                return LuaValue.NIL;
-            }
-        });
-        hafen.set("craft", craft);
+        Section.install(hafen, "craft", craft);
     }
 
     /**
@@ -609,114 +619,19 @@ final class ActApi {
     // selector — we locate the content widget with the 1d-1 Locator (a children(Class) subtree walk from
     // the HUD), not a named GameUI field. A recipe carries: rcpnm (the recipe name), inputs (ingredient
     // slots), outputs (product slots), qmod (quality-affecting input resources) and tools (required tool
-    // resources). Read-only here — craft.make is the gated Phase-4 action tier.
+    // resources). All backings are public → zero haven edit, like A7/A6/A4/A2.
     //
-    // Threading: inputs/outputs/qmod are List references the "inpop"/"opop"/"qmod" uimsgs swap WHOLESALE
-    // off the UI thread (on a Loader thread, under synchronized(ui)); tools is mutated IN PLACE ("tool"
-    // uimsg → tools.add). So we copy all four lists under the ui monitor (the marker "copy under the lock,
-    // snapshot outside it" discipline), then resolve resource names outside the lock (res.get() may Loading).
-    // All backings are public (Makewindow.rcpnm/inputs/outputs/qmod/tools, SpecWidget.spec, Spec.item/
-    // constraint/num/opt(), ResData.res) → zero haven edit, like A7/A6/A4/A2.
+    // The READS and the gated make() moved onto LuaCraft with 039.13 (the entity owns them, keyed by the
+    // WINDOW: the server builds a fresh one per recipe, so opening another recipe ends this Craft rather
+    // than changing it). What stays here is locating that window.
 
     /** The (unique) crafting window content under the HUD, or {@code null} if no recipe is open. */
-    private static Makewindow makewindow() {
+    static Makewindow makewindow() {
         GameUI g = AddonManager.gui();
         if(g == null)
             return null;
         for(Makewindow m : g.children(Makewindow.class))   // recursive subtree walk; take the first
             return m;
         return null;
-    }
-
-    /**
-     * {@code hafen.craft.make} backing (4g, gated) — press the open recipe's Craft button ({@code all=false} →
-     * {@code wdgmsg("make", 0)}, one item) or Craft All ({@code all=true} → {@code wdgmsg("make", 1)}), exactly
-     * what the two buttons send ({@link Makewindow} :147/:148). CONSUMES the ingredients like a manual craft.
-     * Throws when no crafting window is open.
-     */
-    private static void actCraftMake(boolean all) {
-        Makewindow mw = makewindow();
-        if(mw == null)
-            throw new LuaError("hafen.craft.make: no crafting window open (open a recipe first)");
-        mw.wdgmsg("make", all ? 1 : 0);
-    }
-
-    /** {@code hafen.craft.current()} — a snapshot of the open recipe, or {@code nil}. */
-    private static LuaValue readCraft() {
-        Makewindow mw = makewindow();
-        UI u = AddonManager.ui;
-        if((mw == null) || (u == null))                    // mw is found via AddonManager.gui() (needs ui) → u!=null here
-            return LuaValue.NIL;
-        String recipe;
-        List<Makewindow.Input> inputs;
-        List<Makewindow.SpecWidget> outputs;
-        List<Indir<Resource>> qmod, tools;
-        synchronized(u) {                                  // copy the off-thread-mutated lists under the lock
-            recipe = mw.rcpnm;
-            inputs = new ArrayList<Makewindow.Input>(mw.inputs);
-            outputs = new ArrayList<Makewindow.SpecWidget>(mw.outputs);
-            qmod = new ArrayList<Indir<Resource>>(mw.qmod);
-            tools = new ArrayList<Indir<Resource>>(mw.tools);
-        }
-        LuaTable t = new LuaTable();                       // ...then snapshot outside it (names may Loading)
-        t.set("recipe", LuaValue.valueOf(recipe == null ? "" : recipe));
-        t.set("inputs", craftSpecs(inputs));
-        t.set("outputs", craftSpecs(outputs));
-        t.set("qmod", craftReses(qmod));
-        t.set("tools", craftReses(tools));
-        return t;
-    }
-
-    /** An array (1-based) of crafting-spec snapshots for the given input/output widgets. */
-    private static LuaTable craftSpecs(List<? extends Makewindow.SpecWidget> widgets) {
-        LuaTable out = new LuaTable();
-        int i = 0;
-        for(Makewindow.SpecWidget w : widgets)
-            out.set(++i, craftSpec(w.spec));
-        return out;
-    }
-
-    /** A crafting spec (one input or output slot) as {@code {res, name, num, opt}}. Loading-guarded. */
-    private static LuaValue craftSpec(Makewindow.Spec spec) {
-        LuaTable t = new LuaTable();
-        // The displayed resource is the constraint (a category, e.g. "any board") when the recipe accepts
-        // one, else the concrete item — mirroring Makewindow.Spec.display(): that is what fills the slot.
-        Indir<Resource> res = (spec.constraint != null) ? spec.constraint.res : spec.item.res;
-        String id = AddonManager.resIdent(res);
-        if(id != null)
-            t.set("res", LuaValue.valueOf(id));
-        String name = AddonManager.resTipName(res, id);
-        if(name != null)
-            t.set("name", LuaValue.valueOf(name));
-        t.set("num", LuaValue.valueOf(spec.num));          // -1 = unspecified (≈ 1); exposed faithfully
-        boolean opt;
-        try {
-            opt = spec.opt();                              // reads info() — may Loading before resources land
-        } catch(RuntimeException e) {
-            opt = false;
-        }
-        t.set("opt", LuaValue.valueOf(opt));
-        return t;
-    }
-
-    /** An array (1-based) of {@code {res, name}} snapshots for bare resource lists (qmod / tools). */
-    private static LuaTable craftReses(List<Indir<Resource>> reses) {
-        LuaTable out = new LuaTable();
-        int i = 0;
-        for(Indir<Resource> res : reses)
-            out.set(++i, craftRes(res));
-        return out;
-    }
-
-    /** A bare resource reference as {@code {res, name}} (a quality modifier or a tool). Loading-guarded. */
-    private static LuaValue craftRes(Indir<Resource> res) {
-        LuaTable t = new LuaTable();
-        String id = AddonManager.resIdent(res);
-        if(id != null)
-            t.set("res", LuaValue.valueOf(id));
-        String name = AddonManager.resTipName(res, id);
-        if(name != null)
-            t.set("name", LuaValue.valueOf(name));
-        return t;
     }
 }

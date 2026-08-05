@@ -12,7 +12,7 @@
 --
 -- Slice 4d adds the rest of the MapView action verbs on top of moveTo (4a); slice 4e adds menu + flower;
 -- slice 4f adds the ITEM verbs (hafen.act():item); slice 4g adds the PER-SUBSYSTEM gated verbs that live in
--- their own namespace (not hafen.act()): hafen.speed():current(n), hafen.craft.make, the Slot's :use, and
+-- their own namespace (not hafen.act()): hafen.speed():current(n), the Craft's :make, the Slot's :use, and
 -- the kin verbs on the Kin object (hafen.kin():add(secret) and kin:rename/:group/:endKin/:forget)
 -- — all behind the SAME "actions" permission.
 -- Each is a DELIBERATE, opt-in trigger — a `:walker <sub>` command — so nothing acts unless you ask.
@@ -65,7 +65,7 @@ hafen.slash():register("walker", function(args)
     hafen.log():write("   item [verb]=hafen.act():item(firstInvItem, verb)  default take (lifts to cursor); take|drop|transfer|iact|itemact")
     hafen.log():write("   -- 4g per-subsystem gated verbs (own namespace, same permission):")
     hafen.log():write("   speed [n]=hafen.speed():current(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
-    hafen.log():write("   craft [all]=hafen.craft.make(all)  press Craft on the OPEN recipe (CONSUMES ingredients; 'all'=Craft All)")
+    hafen.log():write("   craft [all]=hafen.craft():current():make(all)  press Craft on the OPEN recipe (CONSUMES ingredients; 'all'=Craft All)")
     hafen.log():write("   bar <n>=hafen.actionbar():get(n):use()  activate action-bar slot n (raw 0-based index)")
     hafen.log():write("   setbar <n> <res>=hafen.actionbar():get(n):res(name)  assign an action by resource name (e.g. gfx/hud/act/mine)")
     hafen.log():write("   menugrid <name>=hafen.menugrid():get(name):use()  fire an action-menu entry (e.g. ':walker menugrid Dig')")
@@ -183,11 +183,11 @@ hafen.slash():register("walker", function(args)
     -- craft.make([all]): press the OPEN recipe's Craft (or Craft All) button. This CONSUMES ingredients like a
     -- manual craft, so open a recipe you actually want to make first. With none open the verb errors (caught below).
     local all = (args[2] == "all")
-    local cur = hafen.craft.current()
+    local cur = hafen.craft():current()               -- nil while no recipe is open: the guard still guards
     if not cur then hafen.log():write(":walker craft -> no recipe window open (open one in the crafting menu first)"); return end
-    hafen.craft.make(all)                              -- gated; wdgmsg("make", all and 1 or 0)
-    hafen.log():write((":walker craft -> hafen.craft.make(%s) on '%s'  (%s -- ingredients consumed)")
-      :format(tostring(all), cur.recipe or "?", all and "Craft All" or "Craft one"))
+    cur:make(all)                                      -- gated; wdgmsg("make", all and 1 or 0)
+    hafen.log():write((":walker craft -> cur:make(%s) on '%s'  (%s -- ingredients consumed)")
+      :format(tostring(all), cur:name() or "?", all and "Craft All" or "Craft one"))
 
   elseif sub == "bar" then
     -- slot:use(): activate action-bar slot n (the RAW 0-based index hafen.actionbar():get(n) takes).

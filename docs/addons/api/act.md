@@ -25,7 +25,7 @@ did not declare `actions` raises an error naming the verb. Everything stays serv
 addon can only send what a player click could send.
 
 The same permission gates the write verbs that live in their own namespaces:
-[`hafen.speed():current(n)`](speed.md), [`hafen.craft.make`](craft.md), [`slot:use` and
+[`hafen.speed():current(n)`](speed.md), [`craft:make`](craft.md), [`slot:use` and
 `slot:res(name)`](actionbar.md), and the roster verbs on [`hafen.kin`](kin.md).
 
 **Places.** The four verbs that act on the ground take a

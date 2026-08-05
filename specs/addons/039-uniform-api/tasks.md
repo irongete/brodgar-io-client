@@ -559,7 +559,7 @@ this repeats — read one of them in full**) · `specs/codebase/widget-tree-read
 
 ---
 
-## 039.13 — OOP: `hafen.quest()`, `hafen.wound()`, `hafen.craft()`
+## 039.13 — OOP: `hafen.quest()`, `hafen.wound()`, `hafen.craft()` ✅ DONE
 
 **Depends on:** 039.1.
 

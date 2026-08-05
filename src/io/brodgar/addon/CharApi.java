@@ -482,7 +482,14 @@ final class CharApi {
      * new <i>active</i> quest (pending/disabled) appears and {@code QuestDone} when a previously-active
      * quest becomes <i>finished</i> (done/failed) — mirroring {@code QuestWnd}'s own completion trigger.
      * Completed quests already present at login are recorded silently (no {@code QuestAdded}), so the
-     * quest history doesn't spam events. Payload = the quest snapshot.
+     * quest history doesn't spam events.
+     *
+     * <p>The payload is the <b>Quest object</b> ({@link AddonManager#fireQuest}), so a handler reads it with
+     * the same verbs as {@code hafen.quest():get(id)}. That matters more here than anywhere else in the API:
+     * {@code QuestDone} fires <i>as</i> the status changes, and a snapshot froze the very field the event is
+     * about — a stashed Quest goes on answering {@code :status()} afterwards. The {@code id -> done} cache
+     * stays, purely as the diff KEY: an interned object compares by identity and so cannot detect a status
+     * advancing, which is the whole of what this adapter exists to notice.
      */
     private static final class QuestAdapter implements TreeAdapter {
         // quest id -> its last-seen status int. UI-thread-only (refresh); reset per session by
@@ -506,16 +513,10 @@ final class CharApi {
                 all.addAll(qw.dqst.quests);          // "Completed" tab (done / failed)
             }
             Map<Integer, Integer> fresh = new LinkedHashMap<Integer, Integer>();   // id -> done (in order)
-            Map<Integer, QuestWnd.Quest> byId = new HashMap<Integer, QuestWnd.Quest>();
-            for(QuestWnd.Quest q : all) {
+            for(QuestWnd.Quest q : all)
                 fresh.put(q.id, q.done);
-                byId.put(q.id, q);
-            }
-            for(Object[] ev : questDiff(cache, fresh)) {          // pure diff (also updates the cache)
-                QuestWnd.Quest q = byId.get((Integer)ev[1]);
-                if(q != null)
-                    fire((String)ev[0], questSnapshot(q));
-            }
+            for(Object[] ev : questDiff(cache, fresh))            // pure diff (also updates the cache)
+                fireQuest((String)ev[0], ((Integer)ev[1]).intValue());
         }
     }
 
@@ -561,8 +562,13 @@ final class CharApi {
      * list and fires <b>{@code WoundChanged}</b> only when it differs from the cache (an add/heal, a
      * severity resolving nil→value, or a wound getting worse) — the {@link #woundListEqual} change-detection,
      * with {@code severity} in the key so a worsening fires it. While the wound tab is not up yet the poll
-     * is skipped (the cache is kept), so nothing fires before there is anything to read. Payload = the list
-     * (the {@code KinChanged} shape). Read the initial state with {@code list()}; listen for deltas after.
+     * is skipped (the cache is kept), so nothing fires before there is anything to read.
+     *
+     * <p>The payload is an array of <b>Wound objects</b> ({@link AddonManager#fireWounds}), so a handler
+     * reads it with the same verbs as {@code hafen.wound():list()} and can key a table by one. The snapshots
+     * stay as the diff KEY only — an interned object compares by identity, and a severity resolving or a
+     * wound worsening is precisely the change identity cannot see. Read the initial state with
+     * {@code hafen.wound():list()}; listen for deltas after.
      */
     private static final class WoundAdapter implements TreeAdapter {
         private LuaValue cache;   // last wound snapshot list (UI thread; change-detect)
@@ -576,10 +582,10 @@ final class CharApi {
         public void poll() {
             if(woundwnd() == null)
                 return;           // Health & Wounds tab not up yet — keep the cache, fire nothing
-            LuaValue snap = woundList(LuaValue.NIL);
+            LuaValue snap = LuaWound.snapshotList();
             if(!woundListEqual(snap, cache)) {
                 cache = snap;
-                fire("WoundChanged", snap);
+                fireWounds(LuaWound.ids());
             }
         }
     }
@@ -807,44 +813,26 @@ final class CharApi {
                       + " hafen.kin():list()");
     }
 
-    /** Build a char namespace for owner. From installHafen. */
-    static void installQuests(LuaTable hafen, final Addon owner) {
-        LuaTable quests = new LuaTable();
-        quests.set("list", new OneArgFunction() {
-            public LuaValue call(LuaValue filter) {
-                return questList(filter);
-            }
-        });
-        quests.set("selected", new ZeroArgFunction() {
-            public LuaValue call() {
-                return questSelected();
-            }
-        });
-        hafen.set("quests", quests);
+    /**
+     * Install {@code hafen.quest} for owner. From installHafen. <b>The section object IS the log</b> (uniform
+     * grammar §2.1): {@code hafen.quest()} is the {@link LuaQuest} collection over both tabs, one quest is
+     * {@code hafen.quest():get(id)} and {@code :selected()} is the distinguished member (R8) — the quest the
+     * player has open, and the only one whose objectives the client is sent. The section is the SINGULAR name
+     * (§2.3): the noun says the kind and the verb says how many.
+     */
+    static void installQuest(LuaTable hafen, final Addon owner) {
+        Section.mount(hafen, "quest", LuaQuest.collection(owner), null);
     }
 
-    /** Build a char namespace for owner. From installHafen. */
-    static void installWounds(LuaTable hafen, final Addon owner) {
-        LuaTable wounds = new LuaTable();
-        wounds.set("list", new OneArgFunction() {
-            public LuaValue call(LuaValue filter) {
-                return woundList(filter);
-            }
-        });
-        wounds.set("has", new OneArgFunction() {
-            public LuaValue call(LuaValue q) {
-                if(!q.isstring())
-                    return LuaValue.FALSE;
-                String needle = q.tojstring();
-                for(WoundWnd.Wound w : copyWounds()) {
-                    String res = resIdent(w.res), name = woundName(w);
-                    if(((res != null) && res.contains(needle)) || ((name != null) && name.contains(needle)))
-                        return LuaValue.TRUE;
-                }
-                return LuaValue.FALSE;
-            }
-        });
-        hafen.set("wounds", wounds);
+    /**
+     * Install {@code hafen.wound} for owner. From installHafen. <b>The section object IS the wound list</b>
+     * (uniform grammar §2.1): {@code hafen.wound()} is the {@link LuaWound} collection in the window's own
+     * tree order, and the old presence test is {@code hafen.wound():find(needle)} — which hands back the
+     * Wound rather than a boolean, and is still truthy where the boolean was. Singular, like every other
+     * section (§2.3).
+     */
+    static void installWound(LuaTable hafen, final Addon owner) {
+        Section.mount(hafen, "wound", LuaWound.collection(owner), null);
     }
 
     /**
@@ -1323,117 +1311,27 @@ final class CharApi {
         return true;
     }
 
-    // ---- quest log (A9: hafen.quests) ------------------------------------------------------------
+    // ---- quest log (A9: hafen.quest) -------------------------------------------------------------
     // The quest log is a QuestWnd (@RName("quests")) — the character sheet's "Quest Log" tab, held by the
     // public CharWnd.quest field (created hidden at login but live, so quests read without opening it). It
     // keeps two lists: cqst (the "Current" tab: pending/disabled quests) and dqst (the "Completed" tab:
     // done/failed). Each Quest carries {id, res (Indir<Resource>), title (may be null), done (a status
     // int), mtime}. The conditions/objectives of a quest are loaded only for the one the player has SELECTED
     // (QuestWnd.quest, a Quest.Box with a Condition[]) — a faithful client limitation (like A8's no per-item
-    // countdown), so selected() is the only place conds appear. All backings are public (QuestWnd.cqst/dqst/
-    // quest, QuestList.quests/get, Quest.id/res/title/done/mtime, Quest.Box.id/cond, Quest.Condition.desc/
-    // done/status) → zero haven edit, like A8/A7/A6/A4/A2. The status ints (QST_PEND/DONE/FAIL/DISABLED) are
-    // compile-time constants → inlined, so the status helpers do NOT load Quest (whose <clinit> renders text
-    // and would fail headless) — they stay headless-testable.
+    // countdown), so the selected quest is the only one whose conditions() is non-empty. All backings are
+    // public → zero haven edit. The status ints (QST_PEND/DONE/FAIL/DISABLED) are compile-time constants →
+    // inlined, so the status helpers do NOT load Quest (whose <clinit> renders text and would fail headless)
+    // — they stay headless-testable.
     //
-    // Threading: the quest lists (and the selected box's cond[]) are mutated on a Loader thread by
-    // QuestWnd.uimsg("quests")/Box.uimsg("conds") under synchronized(ui). So we copy the list/array refs
-    // under the ui monitor, then build the Lua snapshots outside it (res.get() may Loading) — the marker
-    // "copy under the lock, snapshot outside it" discipline (A1/A8).
+    // The READS all moved onto LuaQuest / LuaCondition with 039.13 (the entities own them, and both key on
+    // what the engine itself keys on: a quest by its id, an objective by its quest plus its own final text).
+    // What stays here is the window accessor and the pure add/complete DIFF that drives the events.
 
     /** The Quest Log window (the character sheet's "Quest Log" tab — created hidden at login but live),
      *  or {@code null} before it exists. Via the public {@code CharWnd.quest} field (no tree-walk). */
-    private static QuestWnd questwnd() {
+    static QuestWnd questwnd() {
         CharWnd c = charwnd();
         return (c == null) ? null : c.quest;
-    }
-
-    /** {@code hafen.quests.list([filter])} — every quest (Current + Completed) as {@code {id, name, res,
-     *  status, mtime}} snapshots, filtered by the canonical nil=all / name-substring / predicate. */
-    private static LuaValue questList(LuaValue filter) {
-        LuaTable out = new LuaTable();
-        QuestWnd qw = questwnd();
-        UI u = ui;
-        if((qw == null) || (u == null))
-            return out;
-        List<QuestWnd.Quest> all = new ArrayList<QuestWnd.Quest>();
-        synchronized(u) {                            // the quest lists mutate off-thread (QuestWnd.uimsg)
-            all.addAll(qw.cqst.quests);              // "Current" tab (pending / disabled)
-            all.addAll(qw.dqst.quests);              // "Completed" tab (done / failed)
-        }
-        int i = 0;
-        for(QuestWnd.Quest q : all) {                // resolve names outside the lock (res.get() may Loading)
-            LuaValue snap = questSnapshot(q);
-            if(matches(filter, snap))
-                out.set(++i, snap);
-        }
-        return out;
-    }
-
-    /** {@code hafen.quests.selected()} — the quest currently open in the log (the only one whose conditions
-     *  the client loads), as a list snapshot plus {@code conds={{desc, status, text?}}}, or {@code nil}. */
-    private static LuaValue questSelected() {
-        QuestWnd qw = questwnd();
-        UI u = ui;
-        if((qw == null) || (u == null))
-            return LuaValue.NIL;
-        QuestWnd.Quest q;
-        QuestWnd.Quest.Condition[] conds;
-        synchronized(u) {                            // qw.quest / box.cond are swapped off-thread (uimsg)
-            QuestWnd.Quest.Info info = qw.quest;     // the selected quest's Box, or null (nothing selected)
-            if(!(info instanceof QuestWnd.Quest.Box))
-                return LuaValue.NIL;
-            QuestWnd.Quest.Box box = (QuestWnd.Quest.Box)info;
-            conds = box.cond;                        // Condition[] (swapped wholesale on the "conds" uimsg)
-            q = qw.cqst.get(box.id);                 // the matching Quest (for status/mtime) in either tab
-            if(q == null)
-                q = qw.dqst.get(box.id);
-        }
-        if(q == null)
-            return LuaValue.NIL;                     // selected id not in either list (shouldn't happen)
-        LuaTable t = (LuaTable)questSnapshot(q);
-        t.set("conds", questConds(conds));
-        return t;
-    }
-
-    /** One quest as {@code {id, name, res, status, mtime}}. {@code name} = the quest title (the explicit
-     *  title, else the resource tooltip); {@code res} = the stable resource id. Loading-guarded. */
-    private static LuaValue questSnapshot(QuestWnd.Quest q) {
-        LuaTable t = new LuaTable();
-        t.set("id", LuaValue.valueOf(q.id));
-        // Quest.title() prefers the explicit title over the tooltip; mirror it (both Loading-guarded).
-        String name = (q.title != null) ? q.title : resTipName(q.res, null);
-        if(name != null)
-            t.set("name", LuaValue.valueOf(name));
-        String res = resIdent(q.res);
-        if(res != null)
-            t.set("res", LuaValue.valueOf(res));
-        t.set("status", LuaValue.valueOf(questStatus(q.done)));
-        t.set("mtime", LuaValue.valueOf(q.mtime));
-        return t;
-    }
-
-    /** The selected quest's conditions as a 1-based array of {@code {desc, status, text?}}. */
-    private static LuaValue questConds(QuestWnd.Quest.Condition[] cond) {
-        LuaTable out = new LuaTable();
-        if(cond == null)
-            return out;
-        int i = 0;
-        for(QuestWnd.Quest.Condition c : cond)
-            out.set(++i, questCond(c));
-        return out;
-    }
-
-    /** One condition as {@code {desc, status ("pending"/"done"/"failed"), text?}}. {@code text} = the
-     *  condition's extra status string (absent when none). */
-    private static LuaValue questCond(QuestWnd.Quest.Condition c) {
-        LuaTable t = new LuaTable();
-        if(c.desc != null)
-            t.set("desc", LuaValue.valueOf(c.desc));
-        t.set("status", LuaValue.valueOf(questCondStatus(c.done)));
-        if(c.status != null)
-            t.set("text", LuaValue.valueOf(c.status));
-        return t;
     }
 
     /** Is a quest status "active" (shown in the Quest Log's Current tab)? — pending or disabled. */
@@ -1441,22 +1339,8 @@ final class CharApi {
         return (done == QuestWnd.Quest.QST_PEND) || (done == QuestWnd.Quest.QST_DISABLED);
     }
 
-    /** The API status string for a {@code Quest.done} code (QST_PEND/DONE/FAIL/DISABLED). */
-    private static String questStatus(int done) {
-        if(done == QuestWnd.Quest.QST_DONE)     return "done";
-        if(done == QuestWnd.Quest.QST_FAIL)     return "failed";
-        if(done == QuestWnd.Quest.QST_DISABLED) return "disabled";
-        return "pending";                            // QST_PEND (and any unexpected code)
-    }
 
-    /** The API status string for a condition's {@code done} code (0=pending, 1=done, 2=failed). */
-    private static String questCondStatus(int done) {
-        if(done == QuestWnd.Quest.QST_DONE) return "done";
-        if(done == QuestWnd.Quest.QST_FAIL) return "failed";
-        return "pending";
-    }
-
-    // ---- wounds (A9-2: hafen.wounds) -------------------------------------------------------------
+    // ---- wounds (A9-2: hafen.wound) --------------------------------------------------------------
     // Wounds are a WoundWnd (@RName("wounds")) — the character sheet's "Health & Wounds" tab, held by the
     // public CharWnd.wound field (created hidden at login but live, so wounds read without opening it). The
     // window keeps a WoundList whose public List<Wound> is the flat set of wounds; the client renders it as
@@ -1465,106 +1349,19 @@ final class CharApi {
     // int), res (Indir<Resource>), level (public int)} and, from its resource-published ItemInfo, a display
     // name (ItemInfo.Name) and a severity indicator (the highest-priority WoundWnd.QuickInfo's qstr() — the
     // magnitude the client shows beside the wound; content-defined, usually a number, NOT seconds). All
-    // backings are public (WoundWnd.wounds, WoundList.wounds, Wound.id/parentid/res/level/info(),
-    // WoundWnd.QuickInfo.qstr/qprio) → zero haven edit, like A9-1/A8/A7/A6/A4/A2.
+    // backings are public → zero haven edit, like A9-1/A8/A7/A6/A4/A2.
     //
-    // Threading: the wound list is mutated on a Loader thread by WoundWnd.uimsg("wounds") (decwound adds /
-    // updates / removes) under synchronized(ui), and reassigned by WoundList.tick's treesort on the UI
-    // thread. So copyWounds() copies the list reference under the ui monitor (the marker "copy under the
-    // lock, snapshot outside it" discipline), then names/severity resolve outside it (res.get()/info() may
-    // Loading — guarded). WoundChanged is fired by the poll-driven WoundAdapter (severity streams in a beat
-    // after the wound row, like study's Curiosity info, so a per-tick snapshot diff catches it) — not a
-    // targeted uimsg, since a uimsg refresh would see severity still Loading and miss it.
+    // The READS moved onto LuaWound with 039.13 (the entity owns them, keyed by the wound id — which is
+    // what decwound itself looks a wound up by before mutating it in place). WoundChanged is still fired by
+    // the poll-driven WoundAdapter (severity streams in a beat after the wound row, like study's Curiosity
+    // info, so a per-tick snapshot diff catches it) — not a targeted uimsg, since a uimsg refresh would see
+    // severity still Loading and miss it. What stays here is that change detection.
 
     /** The Health &amp; Wounds window (the character sheet's "Health & Wounds" tab — created hidden at login
      *  but live), or {@code null} before it exists. Via the public {@code CharWnd.wound} field (no tree-walk). */
-    private static WoundWnd woundwnd() {
+    static WoundWnd woundwnd() {
         CharWnd c = charwnd();
         return (c == null) ? null : c.wound;
-    }
-
-    /** The live wound list copied under the {@code ui} monitor (WoundWnd.uimsg mutates it off-thread), or
-     *  empty when the character sheet's wound tab isn't up yet. Snapshot the copies outside the lock. */
-    private static List<WoundWnd.Wound> copyWounds() {
-        List<WoundWnd.Wound> out = new ArrayList<WoundWnd.Wound>();
-        WoundWnd ww = woundwnd();
-        UI u = ui;
-        if((ww == null) || (u == null))
-            return out;
-        synchronized(u) {
-            out.addAll(ww.wounds.wounds);
-        }
-        return out;
-    }
-
-    /** {@code hafen.wounds.list([filter])} — every wound as {@code {id, name, res, severity, parentid,
-     *  level}} snapshots, filtered by the canonical nil=all / name-substring / predicate. */
-    private static LuaValue woundList(LuaValue filter) {
-        LuaTable out = new LuaTable();
-        int i = 0;
-        for(WoundWnd.Wound w : copyWounds()) {        // resolve names/severity outside the lock (may Loading)
-            LuaValue snap = woundSnapshot(w);
-            if(matches(filter, snap))
-                out.set(++i, snap);
-        }
-        return out;
-    }
-
-    /** One wound as {@code {id, name, res, severity, parentid, level}}. {@code name}/{@code res}/{@code
-     *  severity} are Loading-guarded (omitted while resolving); {@code id}/{@code parentid}/{@code level}
-     *  are plain public ints. */
-    private static LuaValue woundSnapshot(WoundWnd.Wound w) {
-        LuaTable t = new LuaTable();
-        t.set("id", LuaValue.valueOf(w.id));
-        String name = woundName(w);
-        if(name != null)
-            t.set("name", LuaValue.valueOf(name));
-        String res = resIdent(w.res);
-        if(res != null)
-            t.set("res", LuaValue.valueOf(res));
-        String sev = woundSeverity(w);
-        if(sev != null)
-            t.set("severity", LuaValue.valueOf(sev));
-        t.set("parentid", LuaValue.valueOf(w.parentid));
-        t.set("level", LuaValue.valueOf(w.level));
-        return t;
-    }
-
-    /** Display name of a wound: the resource tooltip, else the server-pushed {@code ItemInfo.Name}, else
-     *  {@code null} (Loading-guarded — like {@code buffName}). */
-    private static String woundName(WoundWnd.Wound w) {
-        String tip = resTipName(w.res, null);
-        if(tip != null)
-            return tip;
-        try {
-            ItemInfo.Name n = ItemInfo.find(ItemInfo.Name.class, w.info());
-            return ((n == null) || (n.str == null)) ? null : n.str.text;
-        } catch(RuntimeException e) {   // info() still Loading / no rawinfo yet
-            return null;
-        }
-    }
-
-    /**
-     * The severity indicator the client shows beside a wound — its highest-priority {@link
-     * WoundWnd.QuickInfo}'s {@code qstr()} (a content-defined string, usually the wound's magnitude
-     * number; <b>not</b> seconds), or {@code null} if the wound publishes none / is still Loading. Mirrors
-     * the client's own quick-info pick ({@code WoundWnd.WoundList.Item.getqdat}: the highest {@code qprio}).
-     */
-    private static String woundSeverity(WoundWnd.Wound w) {
-        try {
-            List<ItemInfo> info = w.info();           // may throw Loading
-            WoundWnd.QuickInfo best = null;
-            for(ItemInfo inf : info) {
-                if(inf instanceof WoundWnd.QuickInfo) {
-                    WoundWnd.QuickInfo qi = (WoundWnd.QuickInfo)inf;
-                    if((best == null) || (best.qprio() < qi.qprio()))
-                        best = qi;
-                }
-            }
-            return (best == null) ? null : best.qstr();   // qstr() itself may be null (no quick string)
-        } catch(RuntimeException e) {   // info() still Loading
-            return null;
-        }
     }
 
     /** Do two wound snapshot lists carry the same id/parentid/level/name/res/severity per entry? (change-

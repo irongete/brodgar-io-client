@@ -100,7 +100,7 @@ These come from the HUD's own widgets, so they start once the HUD is up.
 | `StudyChanged` | [`StudySlot`](study.md#a-slot)`[]` | the study slots change: an add, a removal, or data resolving |
 | `EquipChanged` | [`Item`](types.md#item)`[]` | worn equipment changes |
 | `ActionbarChanged` | [`Slot`](actionbar.md) | an action-bar slot is set, cleared or changed |
-| `WoundChanged` | [`Wound`](types.md#wound)`[]` | a wound is added or healed, or its severity changes |
+| `WoundChanged` | [`Wound`](wound.md#a-wound)`[]` | a wound is added or healed, or its severity changes |
 
 Items entering or leaving a **container** are not on this bus: a chest is not a global fact, so you
 subscribe to the container itself with
@@ -123,8 +123,8 @@ burst, one fire each.
 | Event | Payload | Fires |
 |---|---|---|
 | `KinChanged` | [`Kin`](kin.md)`[]` | a kin is added, removed or edited, or flips online or offline |
-| `QuestAdded` | [`Quest`](types.md#quest-and-condition) | a new active quest appears |
-| `QuestDone` | [`Quest`](types.md#quest-and-condition) | an active quest is completed or failed |
+| `QuestAdded` | [`Quest`](quest.md#a-quest) | a new active quest appears |
+| `QuestDone` | [`Quest`](quest.md#a-quest) | an active quest is completed or failed |
 | `MarkersChanged` | `{ count = number }` | a map marker is added or removed |
 
 `KinChanged` hands you the **whole roster** as live [`Kin` objects](kin.md), in Kin-window sort order —
@@ -133,6 +133,10 @@ can key a table by one. It tells you *that* the roster changed, not *what* chang
 of the last state if you want to name who just came online, and key it **by the `Kin` itself** rather
 than by `:name()`, so a rename does not read as one kin leaving and another arriving.
 [`kin:info()`](types.md#kinentry) is there when you want a plain table instead.
+
+The two quest events hand you the [`Quest`](quest.md#a-quest) itself, which matters most on `QuestDone`:
+it fires *because* the status changed, so a handler that keeps the object goes on reading it — including
+`q:status()`, which is the field the event is about.
 
 ## Widgets appearing and disappearing
 

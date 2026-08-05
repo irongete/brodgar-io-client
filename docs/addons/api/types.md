@@ -164,16 +164,19 @@ live [`Kin` objects](kin.md), not this table.
 
 ## Quest and Condition
 
-From [`hafen.quests`](quests.md) and `QuestAdded`/`QuestDone`.
+What `q:info()` and `c:info()` hand back on [`hafen.quest`](quest.md)'s objects; the reads themselves
+are verbs on those objects.
 
-**Quest** — `{ id, name?, res?, status, mtime }`, where `status` is `"pending"`, `"done"`, `"failed"`
-or `"disabled"`. [`hafen.quests.selected()`](quests.md) additionally sets `conds = Condition[]`.
+**Quest** — `{ id, title?, res?, status, mtime }`, where `status` is `"pending"`, `"done"`, `"failed"`
+or `"disabled"` and `mtime` is the server's change stamp, which `q:modified()` reads.
 
-**Condition** — `{ desc = string?, status = "pending"|"done"|"failed", text = string? }`.
+**Condition** — `{ desc = string?, status = "pending"|"done"|"failed", text = string? }`, where `desc`
+is what `c:description()` reads.
 
 ## Wound
 
-From [`hafen.wounds.list`](wounds.md) and `WoundChanged`. Wounds form a **tree**.
+What `w:info()` hands back on [`hafen.wound`](wound.md)'s objects. Wounds form a **tree**, and the
+`parentid` here is the id `w:parent()` resolves to the wound itself.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -185,7 +188,8 @@ From [`hafen.wounds.list`](wounds.md) and `WoundChanged`. Wounds form a **tree**
 
 ## Craft and CraftSpec
 
-From [`hafen.craft.current`](craft.md).
+What `c:info()` hands back on [`hafen.craft`](craft.md)'s Craft; the reads themselves are verbs on it,
+where `qmod` is `c:qualityInputs()`.
 
 **Craft** —
 `{ recipe = string, inputs = CraftSpec[], outputs = CraftSpec[], qmod = ResRef[], tools = ResRef[] }`,

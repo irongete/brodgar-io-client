@@ -38,6 +38,16 @@ final class Retired {
     static {
         // ---- sections whose NAME changed (§2.3: the three surviving plurals go singular) ----------------
         put("hafen.events", "hafen.events is now hafen.event() — subscribe with hafen.event():on(name, fn)");
+        put("hafen.quests", "hafen.quests is now hafen.quest(), which IS the collection over both tabs:"
+            + " hafen.quests.list(f) is hafen.quest():list(f), hafen.quests.selected() is"
+            + " hafen.quest():selected(), and hafen.quest():get(id) is one quest by its id. Each member is a"
+            + " Quest object: q:id() :title() :res() :status() :modified() :selected() :conditions()"
+            + " :exists() :info()");
+        put("hafen.wounds", "hafen.wounds is now hafen.wound(), which IS the collection:"
+            + " hafen.wounds.list(f) is hafen.wound():list(f) and hafen.wounds.has(needle) is"
+            + " hafen.wound():find(needle), which hands back the Wound rather than a boolean — still truthy."
+            + " Each member is a Wound object: w:id() :name() :res() :severity() :parent() :level()"
+            + " :exists() :info()");
 
         // ---- hafen.gob is DELETED into the live world (D-066): a gob lives IN the world ------------------
         put("hafen.gob", "hafen.gob(id) is now hafen.world():gob():get(id) — still never nil, and"
@@ -294,6 +304,14 @@ final class Retired {
         put("hafen.fight.maneuvers", "hafen.fight.maneuvers(filter) is now"
             + " hafen.fight():maneuver():list(filter)");
         section("fight", "deck", "summary");
+
+        // ---- crafting: the recipe is an entity, and the Craft button belongs to the recipe ---------------
+        put("hafen.craft.current", "hafen.craft.current() is now hafen.craft():current(), and it hands back"
+            + " a Craft object rather than a table: c:name() is the recipe, c:inputs()/:outputs() the slots,"
+            + " c:qualityInputs()/:tools() the rest, and c:info() is the old snapshot");
+        put("hafen.craft.make", "hafen.craft.make(all) is now hafen.craft():current():make(all) — the button"
+            + " belongs to the recipe. hafen.craft():current() is nil while no recipe is open, so test it"
+            + " first; it still needs the 'actions' permission");
 
         // ---- the HUD overlay: a two-line handle table became a builder, so it ends the way the other two do --
         put("uioverlay:remove", "hafen.ui():overlay() hands back something you created and hold, so it ends with"

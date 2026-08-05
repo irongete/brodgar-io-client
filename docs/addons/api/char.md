@@ -98,7 +98,7 @@ it a different skill: the handle you stashed goes on reading it, and `:known()` 
 | `credo:pursuing()` | boolean | whether it is the one being pursued |
 | `credo:level()`, `credo:levelTotal()` | number \| nil | pursuit progress — only on the pursued credo |
 | `credo:quest()`, `credo:questTotal()` | number \| nil | quest progress within the current level |
-| `credo:questId()` | number \| nil | the id of the credo quest, for [`hafen.quests`](quests.md) |
+| `credo:questId()` | number \| nil | the id of the credo quest, for [`hafen.quest`](quest.md) |
 | `credo:exists()` | boolean | whether it is still listed |
 | `credo:info()` | [`Credo`](types.md#skill-credo-experience) \| nil | a plain-table **snapshot** |
 
@@ -157,6 +157,6 @@ end)
 
 - [`hafen.study`](study.md) — the curiosities and their learning-point totals
 - [`hafen.meter`](meter.md) — the HUD bars, which are fractions rather than numbers
-- [`hafen.wounds`](wounds.md) — the other half of the Health and Wounds tab
+- [`hafen.wound`](wound.md) — the other half of the Health and Wounds tab
 - [types](types.md#attr) — `Attr`, `Food`, `Skill`, `Credo` and `Experience`
 - [events](event.md#character-and-status) — `FepChanged`
