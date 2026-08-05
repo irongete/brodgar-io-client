@@ -454,6 +454,26 @@ final class UiApi {
                 return Controls.list(owner, a);
             }
         });
+        // :dropdown() — 040.10, the second of the MODEL-BACKED five: a real haven.SDropBox, closed until
+        // clicked, over the same LuaRows bridge :list() uses. :rows(t)/:value()/:value(v)/:onChange(fn) answer
+        // exactly as they do on :list() -- the same spine, a different engine class underneath.
+        m.set("dropdown", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "dropdown");
+                return Controls.dropdown(owner, a);
+            }
+        });
+        // :menu() — 040.10, the third of the MODEL-BACKED five: a real haven.SListMenu. It FIRES and holds
+        // nothing -- :value() reads nil on it -- so :onSelect(fn), not :onChange(fn), carries the picked row.
+        // The engine's own SListMenu grabs all mouse/keyboard input the instant it is attached; this builder
+        // opts out (haven.SListMenu.nograb()) so a menu behaves like any other control you place and configure,
+        // not a modal popup.
+        m.set("menu", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "menu");
+                return Controls.menu(owner, a);
+            }
+        });
         // :overlay() — paint on top of the HUD without owning a widget: :onDraw(fn) runs fn(g, w, h) every frame
         // with the shared GOut wrapper and the screen size, in absolute screen coords. It MINTS one rather than
         // handing back a collection, which is the one place `overlay` is a builder and not a set — gob:overlay()

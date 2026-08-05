@@ -189,3 +189,19 @@ and [`sel`](src/haven/SListWidget.java:34) (`public I`) plus [`change(I)`](src/h
 > (`ItemWidget.mousedown`) and the click-away deselect reach, with no lower-level "just set `sel`, don't
 > notify" seam — so a control's `:value(v)` writes the `sel` field directly (D-153's rule again) and only a
 > real click's `ItemWidget.mousedown` → `change(item)` path fires the Lua `:onChange` handler.
+
+## `SDropBox`/`SListMenu` — neither is an `SListWidget` itself, and neither wants an `ItemWidget` back
+
+Both extend/wrap `SListWidget`'s contract one level removed, which is why the same `makeitem` result
+(`SListWidget.TextItem`/`IconText`) is wrapped in an `ItemWidget` for `SListBox` but must NOT be for either
+of these — the wrap happens inside their OWN inner list class instead.
+
+| What | Where |
+|---|---|
+| `SDropBox<I, W>` IS an `SListWidget<I, W>` | but its `makeitem` must return the BARE `W`, not an `ItemWidget` — [`SDropList.Item`](src/haven/SDropBox.java:49) (the popup's own row wrapper) and [`SDropBox.change`](src/haven/SDropBox.java:111) (the closed-box widget) each wrap it themselves |
+| `SDropList.makeitem` | [`new Item(item, SDropBox.this.makeitem(item, idx, sz))`](src/haven/SDropBox.java:57) — the outer `makeitem` supplies content, the inner list supplies the click wrapper |
+| `change(I)` does DOUBLE duty here | [`SDropBox.change`](src/haven/SDropBox.java:111) sets `sel` **and** rebuilds the closed-box widget (`curitem`, destroyed and re-`makeitem`'d) — unlike `SListBox`, there is no lower-level "just set `sel`" seam at all; a caller must run the SAME method's logic to keep the closed-box display in sync, so a control's own `:value(v)` calls `change(I)` directly and skips only its own notify wrapper (not the field write) |
+| `makeitem(null, …)` is a REAL call | [`SDropBox.change`](src/haven/SDropBox.java:117) calls `makeitem(item, -1, …)` with whatever it is given, including `null` (no selection) — an adapter's `makeitem` must handle it |
+| `SListMenu` is NOT an `SListWidget` at all | it wraps one, [`InnerList extends SListBox`](src/haven/SListMenu.java:61) as a private field (`box`) — `SListMenu.makeitem`'s result is wrapped in `InnerList.Item` the same one-level-removed way `SDropList` wraps `SDropBox`'s |
+| `added()` grabs input UNCONDITIONALLY | [`SListMenu.added()`](src/haven/SListMenu.java:149) — `ui.grab`/`ui.grabkeys`, gated only by the public `grab` field (default `true`); [`nograb()`](src/haven/SListMenu.java:172) is the documented opt-out, meant for exactly this: a menu that is not a modal popup |
+| Window raise vs. popup add-order | [`Window.mousedown`](src/haven/Window.java:461) raises itself AFTER `ev.propagate` returns — so a click that opens an `SDropBox`'s popup (added to `ui.root` DURING that propagate) is always followed by the enclosing window re-topping itself over it, same frame |

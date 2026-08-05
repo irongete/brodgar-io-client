@@ -1,7 +1,9 @@
 # hafen.ui: lists
 
 A **row-source control** takes its content from `:rows(t)` — a plain Lua array — rather than a caption or
-a picture, and is dressed by the [stylesheet](style/README.md) like any other [control](controls.md).
+a picture, and is dressed by the [stylesheet](style/README.md) like any other [control](controls.md). Three
+share it: a list keeps every row on screen, a dropdown keeps one closed until clicked, and a menu fires on a
+pick and holds nothing.
 
 ```lua
 local list = hafen.ui():list()
@@ -15,6 +17,8 @@ local list = hafen.ui():list()
 | Verb | Returns | The control |
 |---|---|---|
 | `hafen.ui():list()` | [Widget](widget.md) | a scrolling list of rows |
+| `hafen.ui():dropdown()` | [Widget](widget.md) | one row, closed until clicked |
+| `hafen.ui():menu()` | [Widget](widget.md) | a row of actions that fires and holds nothing |
 
 Built bare and configured by chained setters, [the same shape](controls.md#builders) every other control has
 — the arming rule included.
@@ -29,8 +33,8 @@ list:rows{ "Alpha", { icon = hafen.asset():get("bucket.png"), text = "Bucket" },
 ```
 
 `icon` is a [face](controls.md#a-caption-or-a-picture) — an asset handle or a client resource name. Writing
-`:rows(t)` again replaces the whole set and clears the selection; an empty `:rows{}` is a list with nothing
-in it, not an error.
+`:rows(t)` again replaces the whole set and clears the selection (a list or a dropdown), or its contents (a
+menu); an empty `:rows{}` is a control with nothing in it, not an error.
 
 ## List
 
@@ -50,6 +54,37 @@ each other.
 `:rowHeight(n)` sets the height of a row, in pixels, defaulting to the client's own label height. Like a
 [button's face](controls.md#a-caption-or-a-picture), it is chosen while the control is being built: it
 refuses once the list is on screen.
+
+## Dropdown
+
+`hafen.ui():dropdown()` answers the same `:value()`/`:value(v)`/`:onChange(fn)` as a list — the picked row,
+round-tripped the same way — but stays closed until the user clicks it open, and shows only the current pick
+the rest of the time.
+
+```lua
+local kind = hafen.ui():dropdown()
+  :size(120, 20)
+  :rows{"All", "Seeds", "Tools"}
+  :value("All")
+  :onChange(function(pick) hafen.log():write("filter: " .. pick) end)
+```
+
+`:rowHeight(n)` behaves exactly as it does on a list.
+
+## Menu
+
+`hafen.ui():menu()` fires and holds nothing: it answers no `:value()` at all — reading it is always `nil` —
+and a pick is `:onSelect(fn)`, not `:onChange(fn)`, a different name for a control with no value to report a
+change against.
+
+```lua
+hafen.ui():menu()
+  :size(120, 90)
+  :rows{"Rename", "Delete", "Move"}
+  :onSelect(function(row) hafen.log():write("picked " .. row) end)
+```
+
+`:rowHeight(n)` behaves exactly as it does on a list.
 
 ## See also
 

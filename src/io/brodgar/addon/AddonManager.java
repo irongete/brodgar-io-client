@@ -336,6 +336,8 @@ public final class AddonManager {
             UiApi.armPending();
             for(Addon a : addons)
                 RenderApi.armPending(a);   // and every world entity whose ground has now streamed in
+            CDropdown.drainRaises();      // 040.10: re-raise a popup the enclosing window's own click-to-raise
+                                           //   buried this same frame (see CDropdown's class doc)
 
             // Soft CPU-budget accounting (D-018 layer 2): zero every addon's per-tick Lua time before any
             // handler runs this tick; callLua accumulates into it, enforceSoftBudget() evaluates it at the

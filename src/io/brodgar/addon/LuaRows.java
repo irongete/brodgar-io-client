@@ -122,14 +122,27 @@ final class LuaRows {
     }
 
     /**
-     * One resolved {@link Row} &rarr; the client's own ready-made row widget, wrapped in an
-     * {@link SListWidget.ItemWidget} so a click selects it — the exact shape {@code haven}'s own
-     * {@code SListBox} subclasses (e.g. {@code MenuSearch.Results}) already build their rows in.
+     * One resolved {@link Row} &rarr; the client's own ready-made row widget — {@code TextItem} or
+     * {@code IconText}, chosen by whether {@link Row#icon} is set. This is the BARE content, with no
+     * click-to-select wrapper: the right shape for {@link haven.SDropBox}/{@link haven.SListMenu}, whose own
+     * inner list classes ({@code SDropList}, {@code InnerList}) wrap whatever their outer {@code makeitem}
+     * returns in their OWN {@code ItemWidget} — wrapping it again here would nest two click handlers over one
+     * row. {@link CDropdown}/{@link CMenu} call this directly.
      */
-    static Widget makeitem(SListWidget<Row, ?> list, Row item, Coord sz) {
-        final Widget content = (item.icon != null)
+    static Widget content(Row item, Coord sz) {
+        return (item.icon != null)
             ? SListWidget.IconText.of(sz, () -> item.icon, () -> item.text)
             : SListWidget.TextItem.of(sz, () -> item.text);
+    }
+
+    /**
+     * One resolved {@link Row} &rarr; {@link #content}, wrapped in an {@link SListWidget.ItemWidget} so a click
+     * selects it directly — the shape {@code haven.SListBox} itself demands, since (unlike
+     * {@code SDropBox}/{@code SListMenu}) it has no separate inner list class to do that wrapping for it.
+     * {@link CList} is its one caller.
+     */
+    static Widget makeitem(SListWidget<Row, ?> list, Row item, Coord sz) {
+        final Widget content = content(item, sz);
         return new SListWidget.ItemWidget<Row>(list, sz, item) {
             {
                 add(content, Coord.z);

@@ -1,0 +1,9 @@
+{
+  "name": "040.10 — :dropdown() and :menu()",
+  "id": "040-ui-controls.10",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 040.10: hafen.ui():dropdown() builds a real client SDropBox and hafen.ui():menu() a real SListMenu, both over the same LuaRows bridge :list() ships (040.9). :value()/:value(v) is the dropdown's pick -- a programmatic write moves it without re-entering :onChange -- while a menu holds nothing (:value() reads nil) and answers :onSelect(fn) instead. Both take :rows(t), refuse an explicit :rows(nil), default and override :rowHeight(n), and are owned exactly like every other control in this feature.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

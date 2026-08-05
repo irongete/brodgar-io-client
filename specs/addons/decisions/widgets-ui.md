@@ -1030,3 +1030,40 @@ wanting the row height at construction — the addon only pays for `:rowHeight(n
 than the client's own. Generalise: D-113's rebuild is not specific to a face or a picture — any builder
 argument the engine only accepts at construction gets the same treatment, whatever its type.
 **See.** [D-113](architecture-api.md), [D-148](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-161 — a model-backed adapter subclasses the engine class directly; the `of(...)` factories are never called ✅ (2026-08-06)
+**Decision.** `CDropdown`/`CMenu` (`hafen.ui():dropdown()`/`:menu()`) extend `SDropBox`/`SListMenu` directly,
+exactly as `CList` (040.9) extends `SListBox` — none of the three ever calls the engine's own
+`SDropBox.of(...)`/`SListMenu.of(...)`/`SListBox`-adjacent factory methods, which hand back anonymous
+subclasses with no seam of their own to carry an `Owned` contract.
+**Rationale.** (040.10.) The task was posed with an open question — how does ownership attach when a
+factory hands back an anonymous subclass? — but every model-backed control in this feature answers a
+different way: it never calls the factory at all. `Owned.Control` needs one method (`own()`); a direct
+subclass has a place to put it as naturally as any other adapter in `io.brodgar.addon` does. The `of(...)`
+methods exist for the engine's OWN internal callers (`BuddyWnd`, `GobIcon`), which have no `Owned` contract
+to carry and no reason to prefer a named class.
+**Consequences.** No adapter in this feature ever needs the "anonymous subclass" case the task worried
+about; a future model-backed control (`:table()`) is expected to follow the same shape unless its own engine
+class gives a concrete reason not to. `SDropBox`/`SListMenu`'s `makeitem` must return the BARE row content in
+both adapters — neither wants the `ItemWidget` wrap `CList`'s does, since their own inner list classes
+(`SDropList`, `InnerList`) do that wrapping themselves; `LuaRows.makeitem` (040.9) was split into `content`
+(bare) and `makeitem` (wrapped) to serve both shapes from one bridge.
+**See.** [D-108](architecture-api.md) (a mechanism ships with its consumer), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-162 — a menu FIRES and holds nothing: `:onSelect(fn)` is its own name, not `:onChange(fn)` with no value ✅ (2026-08-06)
+**Decision.** `hafen.ui():menu()` answers no `:value()`/`:onChange()` at all — both read `nil`, and writing
+either refuses, naming that the control holds nothing. A row pick is `:onSelect(fn)`, a new capability
+(`Controls.Select`) distinct from `Controls.Change`.
+**Rationale.** (040.10.) `:onChange(fn)` is documented, feature-wide, as firing "when a control's VALUE
+changes" — the second half of the `:value()` spine every other control with one already answers. A menu has
+no value to change; reusing `:onChange` for it would be the same name meaning two different things (a value
+changing vs. an action firing), which is exactly the dual-style shape the area's grammar refuses elsewhere.
+`:onPress` was not reused either, for the converse reason: a button's `:onPress()` carries no argument, and
+a menu's pick must carry the row.
+**Consequences.** The dispatch on `Controls.Select` is a plain `instanceof` check exactly like every other
+capability in this feature, but it is a NEW interface — a class that implements it must say so in its
+`implements` clause, which is easy to forget when copying an existing adapter's method bodies (a class with
+matching method signatures but no declared interface compiles clean and only fails at dispatch — see
+`learnings/ui-widgets.md`, 040.10). `:onSelect` reads `nil`/refuses on every other control in the feature so
+far, the same shape `:onSubmit` (040.7) already established for a name that belongs to exactly one builder.
+**See.** [D-153](widgets-ui.md) (a value-bearing write skips the notify path, not the field), [040-ui-controls](../040-ui-controls/spec.md).

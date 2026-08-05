@@ -62,10 +62,11 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:value()` | varies \| nil | what a [control](controls.md#setters) holds, or `nil` where it holds nothing — [`:value(v)` writes it](controls.md#setters) |
 | `:onChange()` | function \| nil | the handler that fires when a [control](controls.md#setters)'s value changes, or `nil` where it has none |
 | `:onSubmit()` | function \| nil | the handler that fires when Enter is pressed in a [text entry](controls.md#text-entry), or `nil` where there is nothing to submit |
+| `:onSelect()` | function \| nil | the handler that fires when a [menu](lists.md#menu) row is picked, or `nil` where there is nothing to select |
 | `:source()` | string \| userdata \| nil | the picture a [picture control](controls.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls.md#picture) |
-| `:rows()` | array \| nil | the row source a [radio](controls.md#radio) or a [list](lists.md#list) takes, or `nil` where a control has no rows — [`:rows(t)` writes it](lists.md#rows) |
+| `:rows()` | array \| nil | the row source a [radio](controls.md#radio) or a [list, dropdown or menu](lists.md) takes, or `nil` where a control has no rows — [`:rows(t)` writes it](lists.md#rows) |
 | `:range()` | `{min=, max=}` \| nil | the value bounds of a [slider or scrollbar](controls.md#slider), or `nil` where a control has none — [`:range(min, max)` writes it](controls.md#slider) |
-| `:rowHeight()` | int \| nil | the height of a row in a [list](lists.md#list), in pixels, or `nil` where a control has no rows — [`:rowHeight(n)` writes it](lists.md#list) |
+| `:rowHeight()` | int \| nil | the height of a row in a [list, dropdown or menu](lists.md), in pixels, or `nil` where a control has no rows — [`:rowHeight(n)` writes it](lists.md) |
 | `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |
@@ -112,10 +113,11 @@ the error.
 | `:value(v)` | write what a [control](controls.md#setters) holds | **error**, same reason |
 | `:onChange(fn)` | handle a [control](controls.md#setters)'s value changing | **error**, same reason |
 | `:onSubmit(fn)` | handle Enter in a [text entry](controls.md#text-entry) you built | **error**, same reason |
+| `:onSelect(fn)` | handle a [menu](lists.md#menu) row being picked | **error**, same reason |
 | `:source(h)` | give a [picture control](controls.md#picture) its content | **error**, same reason |
-| `:rows(t)` | give a [radio](controls.md#radio) or a [list](lists.md#rows) its rows | **error**, same reason |
+| `:rows(t)` | give a [radio](controls.md#radio) or a [list, dropdown or menu](lists.md#rows) its rows | **error**, same reason |
 | `:range(min, max)` | set the bounds of a [slider or scrollbar](controls.md#slider) you built | **error**, same reason |
-| `:rowHeight(n)` | set a [list](lists.md#list)'s row height while it is being built | **error**, same reason |
+| `:rowHeight(n)` | set a [list, dropdown or menu](lists.md)'s row height while it is being built | **error**, same reason |
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |
 | `:rule()` | restyle it and its subtree through your own level | **works**, same |

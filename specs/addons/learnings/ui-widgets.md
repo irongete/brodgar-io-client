@@ -748,3 +748,29 @@
   entirely — has already had its lazy build. Generalise: a suite that measures `treeCount()` as a baseline
   must let every `SListBox`/model-backed control already on screen finish its FIRST `update()` first, not
   just the ones the teardown check itself covers.
+
+- **(040.10) A missing `implements` on an interface a class already satisfies by shape compiles fine and
+  fails silently at dispatch.** `CMenu` had `onSelect()`/`onSelect(fn)` methods matching `Controls.Select`
+  exactly, but the class's `implements` clause never listed `Select` — so `c instanceof Select` in
+  `Controls.onSelect` was always false, and the FIRST `hafen.ui():menu():onSelect(fn)` anywhere (the demo
+  addon's own line, before a single suite assertion ran) threw "has nothing to select" and aborted the whole
+  `run()`. `ant hafen-client` gave no warning: Java does not require declaring an interface a class happens
+  to implement structurally, so nothing catches the omission short of exercising the dispatch. Worth a glance
+  whenever a new adapter is added beside an existing capability interface — the class declaration is the one
+  place a copy-paste of another adapter's method bodies can silently drop the contract that makes them mean
+  anything.
+
+- **(040.10) `Window.mousedown` raises itself AFTER `ev.propagate` returns, so anything a descendant's click
+  adds to `ui.root` DURING that propagation ends up UNDER the window a moment later.** `SDropBox`'s open
+  popup (`SDropList`) is added as the last child of `ui.root` from inside `drop.click()`, reached while the
+  click is still propagating down through the window's own children; `Window.mousedown`
+  (`if(ev.propagate(this)) { parent.setfocus(this); raise(); }`) then re-appends the window itself —
+  including its own opaque `drawbg`, tiled across its whole rectangle every frame — ON TOP of the popup that
+  was just added. This is not suite-specific: it happens on every click that opens a dropdown inside ANY
+  window, native or addon-built, whenever the popup's screen area overlaps the window's rectangle (which it
+  usually does, since the popup opens right below the control). No `haven` core edit needed to fix it: queue
+  the popup (found structurally — `SDropBox`'s own field for it is private even to a subclass) and re-raise
+  it from `AddonManager.tick()`, in the SAME slot `UiApi.armPending()` already occupies. That slot runs AFTER
+  a frame's input dispatch has fully finished (the same guarantee `armPending()` already relies on — "a
+  window built in an input handler is on screen in the very frame it was asked for") and BEFORE that frame's
+  draw, so the fix lands in the SAME frame the click did: no visible flicker, confirmed in-game.

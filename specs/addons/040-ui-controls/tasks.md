@@ -87,7 +87,7 @@
       printed line.
       <!-- extra context: `src/haven/SListWidget.java`, `SListBox.java` -->
 
-- [ ] **040.10 — `:dropdown()` and `:menu()`.** `SDropBox` (`:value`/`:onChange`) and `SListMenu`
+- [x] **040.10 — `:dropdown()` and `:menu()`.** `SDropBox` (`:value`/`:onChange`) and `SListMenu`
       (`:onSelect`, no value — it fires and holds nothing), both over the 040.9 bridge. Settle here how
       ownership attaches when the engine's `of(...)` factories hand back anonymous subclasses — subclass
       instead, or attach `Owned` another way, and say which in `HANDOFF.md`. **Suite proves**: the dropdown

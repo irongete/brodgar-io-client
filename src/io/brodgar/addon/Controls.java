@@ -152,6 +152,19 @@ final class Controls {
         int rowHeight();
     }
 
+    /**
+     * <b>{@code :onSelect(fn)} — a MENU ROW WAS CHOSEN, and it holds nothing</b> (task 040.10). {@link CMenu} is
+     * its one implementor: distinct from {@link Change} (a menu answers no {@link Value} to change) and closer
+     * in shape to {@link Press} — a fire-and-forget notification — except it carries the picked row as its
+     * argument, which a button's {@code :onPress} does not.
+     */
+    interface Select {
+        /** The installed {@code :onSelect} handler, or {@code null}. */
+        LuaValue onSelect();
+
+        void onSelect(LuaValue fn);
+    }
+
     // ------------------------------------------------------------------ the builders
 
     /**
@@ -321,6 +334,35 @@ final class Controls {
         return UiApi.attach(u, owner, new CList(owner, CList.DEF_SZ, CList.defaultItemHeight()));
     }
 
+    /**
+     * {@code hafen.ui():dropdown()} — a real {@link haven.SDropBox}, the client's own closed-until-clicked row
+     * list (task 040.10), the second of the model-backed five: the same {@link LuaRows} bridge {@code :list()}
+     * uses (D-108). Its row source is {@code :rows(t)}, its pick {@code :value()}/{@code :value(v)}, and
+     * {@code :onChange(fn)} fires on a real pick only — the same spine {@code :list()} answers.
+     */
+    static LuaValue dropdown(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():dropdown() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():dropdown():rowHeight(18):rows{\"A\", \"B\"}:onChange(fn)");
+        UI u = UiApi.requireUi("dropdown");
+        return UiApi.attach(u, owner,
+            new CDropdown(owner, CDropdown.DEF_W, CDropdown.DEF_LISTH, CDropdown.defaultItemHeight()));
+    }
+
+    /**
+     * {@code hafen.ui():menu()} — a real {@link haven.SListMenu}, the client's own row-of-actions widget (task
+     * 040.10), the third of the model-backed five over the same {@link LuaRows} bridge. It FIRES and holds
+     * nothing: {@code :value()} reads {@code nil} on it, and {@code :onSelect(fn)} — not {@code :onChange} — is
+     * what carries the picked row.
+     */
+    static LuaValue menu(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():menu() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():menu():rows{\"A\", \"B\"}:onSelect(fn)");
+        UI u = UiApi.requireUi("menu");
+        return UiApi.attach(u, owner, new CMenu(owner, CMenu.DEF_SZ, CMenu.defaultItemHeight()));
+    }
+
     // ------------------------------------------------------------------ the control verbs
 
     /**
@@ -407,8 +449,8 @@ final class Controls {
         }
         throw new LuaError("widget:onChange(fn) fires when a control's VALUE changes, and " + LuaWidget.typeName(w)
             + " holds nothing — widget:value() answers nil on it too. hafen.ui():check(), hafen.ui():radio(),"
-            + " hafen.ui():slider(), hafen.ui():scrollbar() and hafen.ui():entry() are the builders that have"
-            + " one, in this feature so far.");
+            + " hafen.ui():slider(), hafen.ui():scrollbar(), hafen.ui():entry(), hafen.ui():list() and"
+            + " hafen.ui():dropdown() are the builders that have one, in this feature so far.");
     }
 
     // ------------------------------------------------------------------ the onSubmit verb (040.7)
@@ -432,6 +474,30 @@ final class Controls {
         }
         throw new LuaError("widget:onSubmit(fn) fires when an ENTRY's Enter is pressed, and hafen.ui():entry()"
             + " is the builder that has one — " + LuaWidget.typeName(w) + " has nothing to submit.");
+    }
+
+    // ------------------------------------------------------------------ the onSelect verb (040.10)
+
+    /** {@code widget:onSelect()} — the installed handler, or {@code nil} on anything that has nothing to select. */
+    static LuaValue onSelect(Owned c) {
+        if(!(c instanceof Select))
+            return LuaValue.NIL;
+        LuaValue fn = ((Select)c).onSelect();
+        return (fn == null) ? LuaValue.NIL : fn;
+    }
+
+    /**
+     * {@code widget:onSelect(fn)} — A MENU ROW WAS CHOSEN. Dispatches on {@link Select}, which only
+     * {@link CMenu} implements so far — distinct from {@code :onChange(fn)} because a menu answers no
+     * {@code :value()} for a change to report against.
+     */
+    static void onSelect(Owned c, Widget w, LuaValue fn) {
+        if(c instanceof Select) {
+            ((Select)c).onSelect(fn);
+            return;
+        }
+        throw new LuaError("widget:onSelect(fn) fires when a MENU row is chosen, and hafen.ui():menu() is the"
+            + " builder that has one — " + LuaWidget.typeName(w) + " has nothing to select.");
     }
 
     // ------------------------------------------------------------------ the face setter (040.2)
@@ -645,8 +711,8 @@ final class Controls {
         }
         throw new LuaError("widget:value(v) writes what a control HOLDS, and " + LuaWidget.typeName(w)
             + " holds nothing — hafen.ui():progress(), hafen.ui():check(), hafen.ui():radio(),"
-            + " hafen.ui():slider(), hafen.ui():scrollbar() and hafen.ui():entry() are the builders that do, in"
-            + " this feature so far.");
+            + " hafen.ui():slider(), hafen.ui():scrollbar(), hafen.ui():entry(), hafen.ui():list() and"
+            + " hafen.ui():dropdown() are the builders that do, in this feature so far.");
     }
 
     // ------------------------------------------------------------------ the source setter (040.3)
@@ -731,8 +797,9 @@ final class Controls {
             ((Rows)c).rows(t);
             return;
         }
-        throw new LuaError("widget:rows(t) sets a control's ROW SOURCE, and hafen.ui():radio() is the builder"
-            + " that takes one, in this feature so far — " + LuaWidget.typeName(w) + " has no rows.");
+        throw new LuaError("widget:rows(t) sets a control's ROW SOURCE, and hafen.ui():radio(), hafen.ui():list(),"
+            + " hafen.ui():dropdown() and hafen.ui():menu() are the builders that take one, in this feature so"
+            + " far — " + LuaWidget.typeName(w) + " has no rows.");
     }
 
     // ------------------------------------------------------------------ the range verb (040.6)
@@ -771,30 +838,54 @@ final class Controls {
 
     /**
      * {@code widget:rowHeight(n)} — building-only, like {@link #image} (spec 040 decision G): the client's own
-     * {@code SListBox} fixes its row height at construction, so a different one is a different widget under the
-     * same Lua handle. Carries the current rows, selection and {@code :onChange} handler across the rebuild,
-     * exactly as {@link #image} carries a button's {@code :onPress}.
+     * row-list widgets fix their row height at construction ({@code SListBox.itemh}, {@code SDropBox.itemh},
+     * {@code SListMenu}'s inner {@code box.itemh} — all {@code final}), so a different one is a different widget
+     * under the same Lua handle. Carries the current rows (and, where the control has one, the selection and
+     * {@code :onChange}/{@code :onSelect} handler) across the rebuild, exactly as {@link #image} carries a
+     * button's {@code :onPress}. {@link CList} (040.9) is the first implementor; {@link CDropdown}/{@link CMenu}
+     * (040.10) answer it the same way, each rebuilding its own class.
      */
     static void rowHeight(Addon owner, Widget w, Owned c, LuaValue v) {
-        if(!(c instanceof CList))
-            throw new LuaError("widget:rowHeight(n) sets a list's ROW HEIGHT, and hafen.ui():list() is the"
-                + " builder that takes one, in this feature so far — " + LuaWidget.typeName(w) + " has none.");
+        if(!(c instanceof RowHeight))
+            throw new LuaError("widget:rowHeight(n) sets a list's ROW HEIGHT, and hafen.ui():list(),"
+                + " hafen.ui():dropdown() and hafen.ui():menu() are the builders that take one, in this feature"
+                + " so far — " + LuaWidget.typeName(w) + " has none.");
         if(!v.isnumber())
             throw new LuaError("widget:rowHeight(n) — n must be a NUMBER of pixels, got " + v.typename());
         int n = v.toint();
         if(n <= 0)
             throw new LuaError("widget:rowHeight(n) — n must be a POSITIVE number of pixels, got " + n);
-        CList old = (CList)c;
-        if(!old.pending())
+        if(!c.pending())
             throw new LuaError("widget:rowHeight(n) chooses a list's ROW HEIGHT while the control is being"
                 + " BUILT, and this one is already on screen — the client's own row-list widget fixes its row"
                 + " height at construction, so set it in the same statement that builds the control.");
-        CList nu = new CList(owner, old.sz, n);
+        if(c instanceof CList) {
+            CList old = (CList)c;
+            CList nu = new CList(owner, old.sz, n);
+            if(old.rows() != null)
+                nu.rows(old.rows());
+            if(old.value() != null)
+                nu.value(old.value());
+            nu.onChange(old.onChange());
+            UiApi.rebuild(owner, old, nu);
+            return;
+        }
+        if(c instanceof CDropdown) {
+            CDropdown old = (CDropdown)c;
+            CDropdown nu = new CDropdown(owner, old.sz.x, old.listh, n);
+            if(old.rows() != null)
+                nu.rows(old.rows());
+            if(old.value() != null)
+                nu.value(old.value());
+            nu.onChange(old.onChange());
+            UiApi.rebuild(owner, old, nu);
+            return;
+        }
+        CMenu old = (CMenu)c;
+        CMenu nu = new CMenu(owner, old.boxSz(), n);
         if(old.rows() != null)
             nu.rows(old.rows());
-        if(old.value() != null)
-            nu.value(old.value());
-        nu.onChange(old.onChange());
+        nu.onSelect(old.onSelect());
         UiApi.rebuild(owner, old, nu);
     }
 }

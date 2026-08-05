@@ -714,6 +714,25 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // onSelect(fn) / onSelect() — 040.10: A MENU ROW WAS CHOSEN, and hafen.ui():menu() holds nothing itself
+        // to report a CHANGE against — distinct from :onChange(fn) for exactly that reason, the same way
+        // :onSubmit(fn) is distinct from it on an entry. Reads nil on anything that has nothing to select; a
+        // write there throws naming the builder that does.
+        m.set("onSelect", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:onSelect() → narg 1 · w:onSelect(fn) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "onSelect"));
+                LuaValue v = Args.written(a, 2, "widget:onSelect", "fn");
+                if(v == null)
+                    return Controls.onSelect((w == null) ? null : ownedContent(owner, w));
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                if(!v.isfunction())
+                    throw new LuaError("widget:onSelect(fn) expects a function, got " + v.typename());
+                Controls.onSelect(owned(owner, w, "onSelect(fn)"), w, v);
+                return self;
+            }
+        });
         // image(up, down[, hover]) / image() — 040.2: THE FACE SETTER, and the second engine class behind one
         // builder. hafen.ui():button():text("Go") completes as a Button and :image(u, d) as an IButton, because
         // they are one control to an author and two widgets to the client; the I prefix is the client's own
