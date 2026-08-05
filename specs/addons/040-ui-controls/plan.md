@@ -6,7 +6,7 @@
 
 ## Approach
 
-Four mechanisms carry all 18 controls. Everything else is one adapter per control, which is why the task
+Four mechanisms carry all 17 controls. Everything else is one adapter per control, which is why the task
 list is long and each task is small.
 
 ### 1. Provenance becomes a contract, not a class

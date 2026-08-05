@@ -687,6 +687,43 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // value() / value(v) — 040.3: WHAT THE CONTROL HOLDS, the second of the six names spec 040 §1 gives the
+        // whole roster: a checkbox's is a boolean, a slider's a number, a text field's a string, a progress
+        // bar's a fraction — one name, read at any control, answering nil where a control has no value (a
+        // label, a separator, a picture). The write dispatches to the control's own Value implementation,
+        // which does its own type/range check and throws naming it — 040.3 ships the first of them,
+        // hafen.ui():progress(), whose value is a number in 0..1.
+        m.set("value", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:value() → narg 1 · w:value(v) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "value"));
+                LuaValue v = Args.written(a, 2, "widget:value", "v");
+                if(v == null)
+                    return Controls.value((w == null) ? null : ownedContent(owner, w));
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                Controls.value(owned(owner, w, "value(v)"), w, v);
+                return self;
+            }
+        });
+        // source(h) / source() — 040.3: a PICTURE's own content, decision E's other half — hafen.ui():image()
+        // is the builder, and its setter is :source(h) rather than :image(h) so the widget never reads as
+        // image():image(h). Unlike a button's face this is NOT building-only: Img.setimg is a live setter, so
+        // the picture may be replaced at any time. h is a hafen.asset image handle or a client resource name,
+        // the same two doors widget:image(up, down) resolves; the bare read hands back exactly what was given.
+        m.set("source", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:source() → narg 1 · w:source(h) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "source"));
+                LuaValue v = Args.written(a, 2, "widget:source", "h");
+                if(v == null)
+                    return Controls.source((w == null) ? null : ownedContent(owner, w));
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                Controls.source(owner, w, owned(owner, w, "source(h)"), v);
+                return self;
+            }
+        });
         // exists() — is this widget still attached to the tree? The one read that always answers (D-060: a widget
         // HAS a lifetime, unlike a name-keyed Sound). False after a destroy and false across a relog.
         m.set("exists", new OneArgFunction() {

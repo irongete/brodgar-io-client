@@ -339,6 +339,42 @@ final class UiApi {
                 return Controls.button(owner, a);
             }
         });
+        // :label() / :image() / :separator() / :progress() — 040.3, THE DISPLAY CONTROLS. Four more of the
+        // client's own — a live-restyling text label, a static picture, a horizontal rule and a fill-fraction
+        // bar — each built bare and configured by chained setters like every other builder here.
+        //   :label() answers :text(s) (R2 completing the read every text-bearing widget already had) and
+        // nothing else — the plan expected an :image(h) completion to haven.ILabel the way a button completes
+        // to IButton, but ILabel carries no picture at all (a fixed, non-restyling font furnace instead), so it
+        // is not shipped; :image() on a label refuses naming the builder that does take a face.
+        m.set("label", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "label");
+                return Controls.label(owner, a);
+            }
+        });
+        //   :image() answers :source(h) — a hafen.asset handle or a client resource name, the same two doors a
+        // button face resolves — live at any time (haven.Img.setimg is not building-only the way a face is).
+        m.set("image", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "image");
+                return Controls.image(owner, a);
+            }
+        });
+        //   :separator() has no verb of its own — a plain rule, :size(w, h) the only thing that shapes it.
+        m.set("separator", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "separator");
+                return Controls.separator(owner, a);
+            }
+        });
+        //   :progress() answers :value() — 0..1 — the first control in this feature that HOLDS something
+        // rather than merely reading nil on the verb every control answers.
+        m.set("progress", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "progress");
+                return Controls.progress(owner, a);
+            }
+        });
         // :overlay() — paint on top of the HUD without owning a widget: :onDraw(fn) runs fn(g, w, h) every frame
         // with the shared GOut wrapper and the screen size, in absolute screen coords. It MINTS one rather than
         // handing back a collection, which is the one place `overlay` is a builder and not a set — gob:overlay()

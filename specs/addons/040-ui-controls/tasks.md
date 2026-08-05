@@ -27,7 +27,7 @@
       faces.
       <!-- extra context: `src/haven/IButton.java`, `docs/addons/api/asset.md` -->
 
-- [ ] **040.3 — Display: `:label()` / `:image()` / `:separator()` / `:progress()`.** `Label` with `:text`,
+- [x] **040.3 — Display: `:label()` / `:image()` / `:separator()` / `:progress()`.** `Label` with `:text`,
       `ILabel` via the 040.2 face setter, `Img` with `:source(h)`, `HRuler`, and `Progress` with `:value()`
       (0..1). **Suite proves**: each is built and placed; `:text(s)` on a label **changes its `:size()`**
       (the self-resize is asserted, not assumed); `:value()` round-trips on progress and a write outside

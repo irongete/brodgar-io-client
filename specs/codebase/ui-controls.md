@@ -68,3 +68,18 @@ happen to be open. The rest of the deco is [ui-chrome.md](ui-chrome.md).
 hooks the engine offers are `protected`/overridable methods (`Button.click`, `SIWidget.draw`) or public
 fields taking a lambda, not a settable callback slot. The split between the two decides how much an adapter
 does — a lambda-taking control needs the subclass only to carry ownership.
+
+## The four display controls, and one false-friend name
+
+`Label`, `ILabel`, `Img`, `Progress` and `HRuler` are plain `Widget` subclasses — none extend `SIWidget`, so
+none need the `redraw()`-on-resize fix above.
+
+| What | Where |
+|---|---|
+| `Img`'s content | [`setimg(Tex)`](src/haven/Img.java:58) is a live, public, post-construction setter — unlike an `IButton` face, replacing it needs no D-113 rebuild |
+| `Progress`'s fraction | [`Progress.a`](src/haven/Progress.java:35), `public float`, read directly by [`draw`](src/haven/Progress.java:75) when no `Supplier` is installed |
+
+> **`ILabel` is NOT an image variant, despite the `I` prefix `IButton`/`ICheckBox` set.**
+> [`ILabel(String, Text.Furnace)`](src/haven/ILabel.java:33) carries no picture at all — its `Furnace` is a
+> font baked once and never live-restyled, the opposite of `Label`'s live restyle on a stylesheet override.
+> A control adapter that needs the stylesheet to keep dressing it wants `Label`, never `ILabel`.

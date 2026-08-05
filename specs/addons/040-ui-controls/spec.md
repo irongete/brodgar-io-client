@@ -17,12 +17,12 @@ Meanwhile the client already **has** all of them — `Button`, `TextEntry`, `SLi
 same classes the client's own windows are built from. They are simply not reachable from Lua: nothing in
 `src/io/brodgar/addon/` so much as names one of them.
 
-This feature exposes them. **18 controls in two groups**, chosen by what they cost, not by what they look
+This feature exposes them. **17 controls in two groups**, chosen by what they cost, not by what they look
 like:
 
 | Group | Controls | Why they are one group |
 |---|---|---|
-| **Direct** | `Button` `IButton` `TextEntry` `Label` `ILabel` `Img` `Progress` `HRuler` `CheckBox` `ICheckBox` `RadioButton`+`RadioGroup` `HSlider` `Scrollport`+`Scrollbar` | concrete classes with plain constructors — construct, configure, place |
+| **Direct** | `Button` `IButton` `TextEntry` `Label` `Img` `Progress` `HRuler` `CheckBox` `ICheckBox` `RadioButton`+`RadioGroup` `HSlider` `Scrollport`+`Scrollbar` | concrete classes with plain constructors — construct, configure, place |
 | **Model-backed** | `SListBox` `SDropBox` `SListMenu` `GridList` `TableBox` | `abstract`, generic over the item type: they cannot be instantiated at all without a **row source** |
 
 The payoff is not the code saved. It is that a real client control is **dressed by the stylesheet for free** —
@@ -53,10 +53,12 @@ Three rules generate the whole surface, and all three are the area's existing gr
 **One builder per role, not per class.** `Button` and `IButton` are one control to a Lua author and two
 classes to the client; the difference is whether the face is text or images. So the *builder* is
 `hafen.ui():button()` and **the setter chooses the class**: `:text("Go")` completes it as a `Button`,
-`:image(up, down, hover)` as an `IButton`. Same for `CheckBox`/`ICheckBox` and `Label`/`ILabel`. This is
-D-113 already ruling ("a setter that changes how the visual is BUILT rebuilds it"), and it keeps the `I`
-prefix — an implementation detail of the client — out of an API whose vocabulary is supposed to come from
-the engine's *meaning*, not its class list (D-061).
+`:image(up, down, hover)` as an `IButton`. Same for `CheckBox`/`ICheckBox`. This is D-113 already ruling ("a
+setter that changes how the visual is BUILT rebuilds it"), and it keeps the `I` prefix — an implementation
+detail of the client — out of an API whose vocabulary is supposed to come from the engine's *meaning*, not
+its class list (D-061). `Label` has no second class: `ILabel` looked like the same shape from its name alone,
+but it carries no picture — a fixed, non-restyling font furnace instead — so `hafen.ui():label()` completes
+as a `Label` only (D-151).
 
 **The model-backed five are one contract.** `SListBox` and `SDropBox` both extend `SListWidget`, whose whole
 demand is two methods: `items()` and `makeitem(item, idx, sz)`. `SListMenu` is that pair plus `choice(item)`.
@@ -94,7 +96,7 @@ the edit and tags it `// addon:`; it is not assumed.
 ### The agreed surface
 
 Settled with the maintainer during review, in Lua, before any code — the full sketch with a worked panel is
-[`api-sketch.md`](api-sketch.md) beside this file. **Six new names carry all 18 controls:**
+[`api-sketch.md`](api-sketch.md) beside this file. **Six new names carry all 17 controls:**
 
 | Name | Meaning | Answers on |
 |---|---|---|
@@ -112,7 +114,7 @@ plus `:onSubmit(fn)` (the entry's Enter), `:onCell(fn)` (the grid's cell painter
 |---|---|---|
 | `hafen.ui():button()` | `Button` / `IButton` | `:text` \| `:image` · `:onPress` |
 | `hafen.ui():entry()` | `TextEntry` | `:value` · `:onChange` · `:onSubmit` |
-| `hafen.ui():label()` | `Label` / `ILabel` | `:text` · `:image` |
+| `hafen.ui():label()` | `Label` | `:text` |
 | `hafen.ui():image()` | `Img` | `:source` |
 | `hafen.ui():progress()` | `Progress` | `:value` |
 | `hafen.ui():separator()` | `HRuler` | — |

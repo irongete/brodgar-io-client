@@ -1,0 +1,9 @@
+{
+  "name": "040.3 — display: label, image, separator, progress",
+  "id": "040-ui-controls.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 040.3: the four display controls. It proves hafen.ui():label()/:image()/:separator()/:progress() each build a real client widget, in the tree, findable by class; that widget:text(s) on a label changes its widget:size() (the self-resize is asserted, not assumed); that widget:value() round-trips on a progress bar and refuses a write outside 0..1; that a control with no value (label, separator, image) reads widget:value() as nil rather than throwing; that widget:source(h) on an image resolves a client resource or a hafen.asset handle and refuses an explicit nil (R5); and that every builder refuses an argument (R4) and every new setter still refuses on a NATIVE widget.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

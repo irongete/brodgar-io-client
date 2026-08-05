@@ -648,3 +648,23 @@
   for a resource with no image layer — that is a null check, not an exception, and a `.scaled()` on it is the
   NPE. Measured headlessly before shipping the verb, precisely because "the client hangs on a typo" is the
   failure this would have had.
+- **(040.3) An `I`-prefixed class is not always the picture variant of its base — read the constructor before
+  building an adapter for it.** `IButton`/`ICheckBox` genuinely swap in pixel faces, so it was a reasonable
+  pattern-match to expect `ILabel` to be `Label`'s picture form. `ILabel(String, Text.Furnace)` is instead a
+  label whose font is baked once and never live-restyled (the opposite of `Label`'s live restyle on a
+  stylesheet override) — no picture at all. Caught only by opening `ILabel.java`, after the plan/api-sketch
+  had already committed to the symmetry in prose. `hafen.ui():label()` ships `Label` only (D-151).
+- **(040.3) A `float` field read back through `LuaValue.valueOf` is not bit-exact against a decimal literal —
+  pick a value exact in both.** `Progress.a` is a `float`; `0.35f` widened to `double` is
+  `0.34999999...`, so `p:value(0.35); p:value() == 0.35` would read FALSE in Lua despite a correct round
+  trip. Powers-of-two fractions (`0.25`, `0.5`, `0.75`, …) are exact in both `float` and `double`, so a suite
+  asserting exact equality on a float-backed value should reach for one of those rather than adding an
+  epsilon helper.
+- **(040.3) A picture's content setter needs no rebuild — check which field the engine actually made
+  `final` before reaching for D-148's machinery.** `IButton`'s faces are `final`, which is what forces the
+  button-face setter to swap the whole widget (D-148). `Img.setimg(Tex)` is a live, public,
+  post-construction setter with nothing `final` about the picture, so `widget:source(h)` on
+  `hafen.ui():image()` just calls it directly (D-152) — no pending check, no second engine class, no maps to
+  re-key. The one cost is a placeholder `Tex` at construction (`Img`'s only constructor takes one), built
+  from `TexI.mkbuf(Coord.of(1, 1))` and never actually seen: the control paints nothing while pending, and
+  the ordinary `hafen.ui():image():source(h)` chain replaces it before the first frame that would.

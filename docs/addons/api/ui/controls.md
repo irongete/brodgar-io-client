@@ -33,6 +33,10 @@ control with nothing added: `:type()`, `:role()`, `:position(x, y)`, `:size(w, h
 | Verb | Returns | The control |
 |---|---|---|
 | `hafen.ui():button()` | [Widget](widget.md) | a push button, showing a caption or a picture |
+| `hafen.ui():label()` | [Widget](widget.md) | a line of text |
+| `hafen.ui():image()` | [Widget](widget.md) | a static picture |
+| `hafen.ui():separator()` | [Widget](widget.md) | a horizontal rule |
+| `hafen.ui():progress()` | [Widget](widget.md) | a fill-fraction bar |
 
 It takes no argument. A control is born bare, with the client's own defaults, and everything about it is a
 chained setter on the Widget it hands back — the same shape [`:window()` and `:widget()`](custom.md) have,
@@ -48,10 +52,16 @@ where the control hangs while it is being built, and once it is on screen the wa
 | `:text(s)` | `:text()` | the caption the control displays |
 | `:image(up, down [, hover])` | `:image()` | the pictures the control shows instead of a caption |
 | `:onPress(fn)` | `:onPress()` | `fn()` — the button fired |
+| `:value(v)` | `:value()` | what the control **holds** |
+| `:source(h)` | `:source()` | the picture a [picture control](#picture) shows |
 
 Every setter returns the Widget, so a control is one expression, and every one has a matching bare read.
 `:text()` answers on any text-bearing widget, yours or the client's; `:text(s)` writes, and only on a
 control you own. `:onPress()` reads `nil` on a widget that has nothing to press.
+
+**`:value()` is the one verb for what a control holds**, whatever shape that is — a [progress bar](#progress-bar)'s
+is a fraction, and a control with nothing to hold reads `nil` rather than throwing. A write is checked by the
+control it lands on and refused, naming the rule, when it does not fit; it never silently clamps.
 
 **`:onPress` is an activation, not a mouse position.** It is what the control *did*, so it also fires when
 the button is triggered from the keyboard, and it carries no coordinates. It is safe for the handler to
@@ -93,6 +103,56 @@ The bare `:image()` reads the faces back as `{ up =, down =, hover = }`, exactly
 `nil` on a control that shows no picture. `:type()` tells the two buttons apart — `"Button"` and
 `"IButton"` — while `:role()` is `button` for both, so one selector still finds every button you built.
 
+## Label
+
+`hafen.ui():label()` is a line of text, dressed by the [stylesheet](style/README.md) like any other control.
+`:text(s)` is its only content:
+
+```lua
+local l = hafen.ui():label():text("Stamina"):position(4, 4)
+l:text(("%d%%"):format(n))     -- writing new text RESIZES the label to fit it
+```
+
+The box is exactly the rendered text, so writing a new caption changes `:size()` — a label placed against the
+right edge of something else needs re-positioning after a write that changes its length, not just its
+content. A label holds text only: it takes no picture, and `:image(...)` refuses on one naming the
+[button/checkbox](#a-caption-or-a-picture) builder that does.
+
+## Picture
+
+`hafen.ui():image()` is a static picture with no interaction of its own. `:source(h)` gives it its content —
+an [asset](../asset.md) handle or a string naming one of the client's own resources, the same two doors a
+button's [face](#a-caption-or-a-picture) resolves:
+
+```lua
+hafen.ui():image():source(hafen.asset():get("logo.png")):position(0, 0)
+```
+
+Unlike a button's face, the picture is **not** chosen while the control is built: `:source(h)` may replace it
+at any time, on screen or not. The bare `:source()` reads back exactly what was named, and `nil` before the
+first `:source(h)`.
+
+## Separator
+
+`hafen.ui():separator()` is a plain horizontal rule, with no setter of its own — `:size(w, h)` is all there is
+to it:
+
+```lua
+hafen.ui():separator():size(180, 1):position(0, 40)
+```
+
+## Progress bar
+
+`hafen.ui():progress()` shows a fraction filled. `:value(v)` writes it, `0..1`, and `:value()` reads it back:
+
+```lua
+local p = hafen.ui():progress():size(120, 20):value(0.35)
+p:value()          --> 0.35
+```
+
+A write outside `0..1` is refused rather than clamped — a raw percentage (`0..100`) passed by mistake fails
+loudly instead of pinning silently at full.
+
 ## What a control does not take
 
 The draw and input callbacks of [custom](custom.md) — `:onDraw`, `:onTick`, `:onClick`, `:onMouseUp`,
@@ -104,9 +164,9 @@ from the [stylesheet](style/README.md), not from a font handle you hand the widg
 ## Owned and borrowed
 
 A control your addon built is [owned](widget.md#owned-vs-borrowed): the setters answer, `:destroy()` ends
-it, and a `:reload` or a disable removes it for you. The client's own buttons are **borrowed** — the reads
-answer, and `:text(s)`, `:image(…)`, `:onPress(fn)` and `:destroy()` refuse, naming what to do instead.
-`:info().owned` is how you ask rather than provoke the error.
+it, and a `:reload` or a disable removes it for you. The client's own controls are **borrowed** — the reads
+answer, and every setter on this page refuses, naming what to do instead. `:info().owned` is how you ask
+rather than provoke the error.
 
 Provenance comes from the tree, so a control you find again with `hafen.ui():at(x, y)` or a selector is the
 same object the builder returned, writes and all.

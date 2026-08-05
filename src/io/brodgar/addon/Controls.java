@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.Resource;
+import haven.Tex;
 import haven.UI;
 import haven.Widget;
 import haven.Window;
@@ -52,6 +53,34 @@ final class Controls {
         void onPress(LuaValue fn);
     }
 
+    /**
+     * <b>{@code :value()} — the one verb for what a control HOLDS</b> (spec 040 §1, task 040.3). {@link CProgress}
+     * is the first implementor; every later control with a value (checkbox, radio, slider, entry, list, dropdown)
+     * answers this the same way, each doing its own range/type check on the write and throwing naming it. A
+     * control with no value is simply not an instance of this — the dispatch below reads {@code nil} on one
+     * rather than asking it a question it has no answer to.
+     */
+    interface Value {
+        /** The current value, as whatever Lua shape this control's value is. */
+        LuaValue value();
+
+        /** Validated by the implementation, which throws naming the rule a bad {@code v} broke. */
+        void value(LuaValue v);
+    }
+
+    /**
+     * <b>{@code :source(h)} — a picture widget's own content setter</b> (spec 040 decision E, task 040.3):
+     * {@link CImg} is its one implementor. Named apart from {@code :image()} (a button/checkbox FACE) so that
+     * {@code hafen.ui():image()} — the builder for a picture — never reads as {@code image():image(h)}.
+     */
+    interface Source {
+        /** The handle or resource name last given, or {@code nil} before the first one. */
+        LuaValue source();
+
+        /** Bridge-only; {@link Controls#source} resolves {@code h} and installs the texture before calling this. */
+        void source(LuaValue h);
+    }
+
     // ------------------------------------------------------------------ the builders
 
     /**
@@ -65,6 +94,60 @@ final class Controls {
                 + " chained setters: hafen.ui():button():text(\"Go\"):position(x, y):parent(w):onPress(fn)");
         UI u = UiApi.requireUi("button");
         return UiApi.attach(u, owner, new CtlButton(owner, CtlButton.DEF_W));
+    }
+
+    /**
+     * {@code hafen.ui():label()} — a {@link haven.Label}, the client's own live-restyling text widget (task
+     * 040.3). Its caption is {@code :text(s)}; {@link haven.ILabel}, the plan's expected second class, turned
+     * out to carry no picture at all (a fixed, non-restyling font furnace instead) and is not shipped — see
+     * {@link CLabel}.
+     */
+    static LuaValue label(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():label() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():label():text(\"Stamina\"):position(x, y):parent(w)");
+        UI u = UiApi.requireUi("label");
+        return UiApi.attach(u, owner, new CLabel(owner));
+    }
+
+    /**
+     * {@code hafen.ui():image()} — an {@link haven.Img}, the client's own static picture widget (task 040.3).
+     * Its content is {@code :source(h)}, not {@code :image()} — a button's face and a picture's own content are
+     * different verbs on purpose (decision E), so this builder never completes as {@code image():image(h)}.
+     */
+    static LuaValue image(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():image() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():image():source(h):position(x, y):parent(w)");
+        UI u = UiApi.requireUi("image");
+        return UiApi.attach(u, owner, new CImg(owner));
+    }
+
+    /**
+     * {@code hafen.ui():separator()} — an {@link haven.HRuler}, the client's own horizontal rule (task 040.3,
+     * decision F — the plain word over {@code :ruler()}). It has no verb of its own: {@code :size(w, h)}
+     * overrides its width, and every control property it does not answer reads {@code nil} or refuses naming
+     * what does.
+     */
+    static LuaValue separator(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():separator() takes no arguments — it is built bare and placed by"
+                + " chained setters: hafen.ui():separator():size(w, 1):position(x, y):parent(w)");
+        UI u = UiApi.requireUi("separator");
+        return UiApi.attach(u, owner, new CSeparator(owner));
+    }
+
+    /**
+     * {@code hafen.ui():progress()} — a {@link haven.Progress} bar, the client's own (task 040.3). Its fill
+     * fraction is {@code :value()}, {@code 0..1} — the first control in this feature to answer the six-name
+     * {@code :value()} verb rather than merely reading {@code nil} on it.
+     */
+    static LuaValue progress(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():progress() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():progress():size(w, h):value(0.0):position(x, y):parent(w)");
+        UI u = UiApi.requireUi("progress");
+        return UiApi.attach(u, owner, new CProgress(owner));
     }
 
     // ------------------------------------------------------------------ the control verbs
@@ -81,14 +164,19 @@ final class Controls {
             synchronized(u) { ((CtlButton)c).change(s); }
             return;
         }
+        if(c instanceof CLabel) {
+            UI u = AddonManager.ui;
+            synchronized(u) { ((CLabel)c).settext(s); }   // resizes itself; see spec 040 risks/gotchas
+            return;
+        }
         if(c instanceof CtlIButton)
             throw new LuaError("widget:text(s) writes a control's CAPTION, and this button's face is a PICTURE —"
                 + " an image button shows the faces widget:image(up, down[, hover]) gave it and has no caption."
                 + " A captioned button is the same builder completed the other way: hafen.ui():button():text(\""
                 + s + "\").");
         throw new LuaError("widget:text(s) writes the caption of a CONTROL you built, and hafen.ui():button()"
-            + " is the builder that takes one — " + LuaWidget.typeName(w) + " has no caption to write"
-            + ((w instanceof Window) ? "; a window's caption is widget:title(s)." : "."));
+            + " or hafen.ui():label() is the builder that takes one — " + LuaWidget.typeName(w)
+            + " has no caption to write" + ((w instanceof Window) ? "; a window's caption is widget:title(s)." : "."));
     }
 
     /** {@code widget:onPress()} — the installed handler, or {@code nil} on anything that has nothing to press. */
@@ -214,5 +302,91 @@ final class Controls {
         String n = name.toLowerCase();
         return n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".gif")
             || n.endsWith(".bmp");
+    }
+
+    // ------------------------------------------------------------------ the value verb (040.3)
+
+    /** {@code widget:value()} — what the control holds, or {@code nil} on one that holds nothing. */
+    static LuaValue value(Owned c) {
+        if(!(c instanceof Value))
+            return LuaValue.NIL;
+        LuaValue v = ((Value)c).value();
+        return (v == null) ? LuaValue.NIL : v;
+    }
+
+    /**
+     * {@code widget:value(v)} — writes what the control holds. Dispatches on {@link Value} and hands {@code v}
+     * straight to the implementation, which does its own type/range check and throws naming it (040.3:
+     * {@link CProgress} requires a number in {@code 0..1}; a later control's own rule is its own to state).
+     */
+    static void value(Owned c, Widget w, LuaValue v) {
+        if(c instanceof Value) {
+            ((Value)c).value(v);
+            return;
+        }
+        throw new LuaError("widget:value(v) writes what a control HOLDS, and " + LuaWidget.typeName(w)
+            + " holds nothing — hafen.ui():progress() is the builder that does, in this feature so far.");
+    }
+
+    // ------------------------------------------------------------------ the source setter (040.3)
+
+    /** {@code widget:source()} — the handle or resource name a picture was given, or {@code nil} before one is. */
+    static LuaValue source(Owned c) {
+        if(!(c instanceof Source))
+            return LuaValue.NIL;
+        LuaValue v = ((Source)c).source();
+        return (v == null) ? LuaValue.NIL : v;
+    }
+
+    /**
+     * {@code widget:source(h)} — a picture's own content setter (decision E). Unlike a button's face this is
+     * NOT building-only: {@link haven.Img#setimg} is a live, public, post-construction setter, so the picture
+     * may be replaced at any time, armed or not. Resolved through the same two doors as a button face
+     * ({@code hafen.asset} handle, or a client resource name) but installed as a {@link haven.Tex} directly —
+     * a client resource's own {@code Resource.Image.tex()} is already the cached, UI-scaled texture, so there
+     * is no BufferedImage round trip to pay for what {@link CtlIButton} needs and this does not.
+     */
+    static void source(Addon owner, Widget w, Owned c, LuaValue v) {
+        if(!(c instanceof CImg))
+            throw new LuaError("widget:source(h) sets the PICTURE of a control you built, and hafen.ui():image()"
+                + " is the builder that takes one — " + LuaWidget.typeName(w) + " has no picture to set.");
+        Tex tex = sourceTex(v);
+        CImg img = (CImg)c;
+        img.setimg(tex);
+        img.source(v);
+    }
+
+    /** {@code widget:source(h)}'s handle → a {@link Tex}. Same two doors {@link #face} resolves, minus the plural. */
+    private static Tex sourceTex(LuaValue v) {
+        LuaImage li = LuaImage.resolve(v);
+        if(li != null) {
+            if(li.dead)
+                throw new LuaError("widget:source: this asset has been disposed — after a :dispose(),"
+                    + " hafen.asset():get(path) loads the file again as a NEW asset");
+            return li.tex;
+        }
+        if(v.isstring() && !v.isnumber()) {       // in LuaJ a number IS a string — that one is just a wrong type
+            String name = v.tojstring();
+            if(fileish(name))
+                throw new LuaError("widget:source: \"" + name + "\" looks like a file in your own addon folder,"
+                    + " and a STRING here names one of the client's own resources"
+                    + " (\"gfx/hud/buttons/addu\") — load your own image with hafen.asset():get(\"" + name
+                    + "\") and pass the handle");
+            Resource.Image ri;
+            try {
+                ri = Resource.loadrimg(name);
+            } catch(RuntimeException e) {
+                throw new LuaError("widget:source: the client has no resource named \"" + name + "\" — a"
+                    + " picture's source is either a name from the game's own art (\"gfx/hud/buttons/addu\")"
+                    + " or a hafen.asset():get(\"logo.png\") handle");
+            }
+            if(ri == null)
+                throw new LuaError("widget:source: the client resource \"" + name + "\" carries no image layer"
+                    + " — name the image resource itself (\"gfx/hud/buttons/addu\", not its folder)");
+            return ri.tex();
+        }
+        throw new LuaError("widget:source: the picture is a hafen.asset image handle"
+            + " (hafen.asset():get(\"logo.png\")) or a client resource name (\"gfx/hud/buttons/addu\"), got "
+            + v.typename());
     }
 }

@@ -13,7 +13,7 @@ if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items
 | Expression | Returns |
 |---|---|
 | `hafen.ui():window()` / `hafen.ui():widget()` | a surface you [painted](custom.md) — owned |
-| `hafen.ui():button()` | a [control](controls.md) you built — owned, and drawn by the client |
+| one of the [control builders](controls.md#builders) (`:button()`, `:label()`, `:image()`, …) | a [control](controls.md) you built — owned, and drawn by the client |
 | `hafen.ui():find(selector)` | the **first** widget matching a [selector](selectors.md), in tree order, or `nil` |
 | `hafen.ui():all(selector)` | **every** match, in tree order — an empty array, never `nil` |
 | `hafen.ui():root()` | the top of the whole client tree; walk down to any open window |
@@ -59,6 +59,8 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, Window, TextEntry), else `nil` — [`:text(s)` writes it on a control you built](controls.md#setters) |
 | `:image()` | table \| nil | the faces of a [control](controls.md#a-caption-or-a-picture) that shows pictures, as `{up=, down=, hover=}`, else `nil` |
 | `:onPress()` | function \| nil | the handler on a [control](controls.md#setters) that fires, or `nil` where there is nothing to press |
+| `:value()` | varies \| nil | what a [control](controls.md#setters) holds, or `nil` where it holds nothing — [`:value(v)` writes it](controls.md#setters) |
+| `:source()` | string \| userdata \| nil | the picture a [picture control](controls.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls.md#picture) |
 | `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |
@@ -102,6 +104,8 @@ the error.
 | `:text(s)` | write the caption of a [control](controls.md) you built | **error** — that caption is the client's |
 | `:image(up, down [, hover])` | give a [control](controls.md#a-caption-or-a-picture) you are building its pictures | **error**, same reason |
 | `:onPress(fn)` | handle a [control](controls.md) firing | **error**, same reason |
+| `:value(v)` | write what a [control](controls.md#setters) holds | **error**, same reason |
+| `:source(h)` | give a [picture control](controls.md#picture) its content | **error**, same reason |
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |
 | `:rule()` | restyle it and its subtree through your own level | **works**, same |

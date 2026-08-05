@@ -832,3 +832,49 @@ thing: a file of the addon's is raw pixels (D-081) and the client's art is UI-sc
 near-miss between them is refused by name rather than as "no such resource". Generally: *two sources are one
 argument only when the page can say what each one means in a sentence; otherwise they are two verbs.*
 **See.** [D-012](architecture-api.md), [D-081](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-150 — `:value()` is the one verb for what a control HOLDS, dispatched on a capability ✅ (2026-08-05)
+**Decision.** `widget:value()`/`:value(v)` reads and writes whatever a control holds — a progress bar's
+fraction is the first of them (040.3). A control answers it by implementing `Controls.Value` (two methods, no
+state — the same `instanceof`-a-capability shape D-146 set for `:onPress`, not `instanceof`-a-class), and its
+own write does its own type/range check and throws naming the rule; a control with no value simply is not
+one, and the verb reads `nil` on it rather than asking a question it has none.
+**Rationale.** Six names carry all 18 controls (spec 040 §1) precisely because `:value()` is not "the
+checkbox's boolean, the slider's number, the entry's string" as three verbs — it is one name whose *shape*
+the control decides. A shared interface keeps the dispatch table from growing an `instanceof` per control as
+checkbox/radio/slider/entry/list/dropdown each add their own value in later tasks.
+**Consequences.** `CProgress.value(LuaValue)` refuses rather than clamps a write outside `0..1`, naming the
+range — a silently clamped write would hide a caller's percentage-vs-fraction mistake instead of failing at
+the call site that made it. Generally: *a verb that means something different per control is one capability
+interface, not one owning class's worth of `instanceof` branches repeated at every call site.*
+**See.** [D-146](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-151 — `ILabel` is NOT shipped: `hafen.ui():label()` builds a plain `Label` only ✅ (2026-08-05)
+**Decision.** The plan expected `:image(h)` to complete `:label()` as `haven.ILabel`, mirroring
+`:button()`→`IButton`. Reading `ILabel.java` disproved it: its constructor is `(String, Text.Furnace)`, a
+label whose font is baked once and never live-restyled — the opposite of `Label`'s live restyle on a
+stylesheet override, and no picture at all. `hafen.ui():label()` ships `Label` only; `:image()` keeps meaning
+what it means everywhere else (a button/checkbox face) and refuses on a label naming that builder.
+**Rationale.** Decided with the maintainer mid-task. The `I` prefix pattern holds for `IButton` and
+`ICheckBox` — both genuinely swap in pixel faces — but is a false friend on `ILabel`, whose "I" buys a fixed
+furnace, not a picture. Shipping it under `:image()` anyway would have handed back a control that *cannot* be
+dressed by the stylesheet, which is the whole reason a control reaches for the client's own class over
+painting a rectangle by hand.
+**Consequences.** One roster row the spec sketched does not exist; the suite asserts the refusal
+(`lbl:image(...)` naming "no face") so the boundary is checked, not merely documented. Generally: *an `I`
+prefix is a naming convention on TWO classes, not a rule — verify the class the plan assumes before building
+its adapter, especially where the plan was written before the source was read line by line.*
+**See.** [D-113](architecture-api.md), [D-148](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-152 — a picture's content setter is live, not building-only ✅ (2026-08-05)
+**Decision.** `widget:source(h)` on a picture control (`hafen.ui():image()`) may replace the picture at any
+time, armed or not — unlike a button's face (D-148), it needs no D-113 pending check and no rebuild.
+**Rationale.** (040.3.) `Img.setimg(Tex)` is a public, live, post-construction setter — nothing about an
+`Img`'s picture is `final` the way an `IButton`'s faces are, so there is no second engine class to switch to
+and nothing keyed on the old widget to move.
+**Consequences.** The builder still needs a placeholder texture at construction (a bare `hafen.ui():image()`
+has nothing to show until `:source(h)` names one), invisible in practice because a control paints nothing
+while pending and the ordinary chain never lets the placeholder be seen. Generally: *D-148's rebuild is what
+a FINAL field costs, not what every second-class-completing setter costs — check which field the engine
+actually made final before reaching for the heavier mechanism.*
+**See.** [D-148](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
