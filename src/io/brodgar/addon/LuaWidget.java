@@ -622,10 +622,16 @@ public final class LuaWidget {
         });
         // text() / text(s) — WHAT THE WIDGET DISPLAYS, and arity is the verb here as everywhere else (R2). The
         // read is unchanged and answers on ANY text-bearing widget, the client's own included
-        // (Label/Button/Window/TextEntry), else nil. The write (040.1) is new and answers on a CONTROL your
-        // addon built — hafen.ui():button() is the first of them — because that is the only text in the tree
-        // that is yours to change. A window's caption is widget:title(s), and a widget that displays nothing
-        // refuses NAMING what does, rather than failing one line later as a nil call.
+        // (Label/Button/Window/TextEntry), else nil — NEVER throwing, since docs/addons/api/ui/widget.md
+        // publishes it as the safe best-effort read a tree-walking introspector (widgetstack) relies on for
+        // every widget alike. The write (040.1) is new and answers on a CONTROL your addon built —
+        // hafen.ui():button() is the first of them — because that is the only text in the tree that is yours
+        // to change. A window's caption is widget:title(s), and a widget that displays nothing refuses NAMING
+        // what does, rather than failing one line later as a nil call.
+        //   040.7: entry:text(s) — the WRITE only — is retired, throwing and naming :value(s): a text entry's
+        // content has exactly one door to WRITE it through. The read stays exactly as above (best-effort,
+        // never throwing) — retiring it too would have broken the very contract this comment documents for
+        // every OTHER widget, on the one type this feature happens to touch.
         m.set("text", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:text() → narg 1 · w:text(s) → narg 2
                 LuaValue self = a.arg1();
@@ -639,6 +645,8 @@ public final class LuaWidget {
                 }
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
+                if(w instanceof CEntry)
+                    throw new LuaError(Retired.message("entry:text"));
                 Controls.text(owned(owner, w, "text(s)"), w, v.tojstring());
                 return self;
             }
@@ -679,6 +687,24 @@ public final class LuaWidget {
                 if(!v.isfunction())
                     throw new LuaError("widget:onChange(fn) expects a function, got " + v.typename());
                 Controls.onChange(owned(owner, w, "onChange(fn)"), w, v);
+                return self;
+            }
+        });
+        // onSubmit(fn) / onSubmit() — 040.7: the ENTRY's Enter, distinct from :onChange(fn) on purpose (spec 040
+        // §1's :onSubmit(fn)) -- :onChange fires on every keystroke, :onSubmit once, when Enter is pressed. Reads
+        // nil on anything that has nothing to submit; a write there throws naming the builder that does.
+        m.set("onSubmit", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:onSubmit() → narg 1 · w:onSubmit(fn) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "onSubmit"));
+                LuaValue v = Args.written(a, 2, "widget:onSubmit", "fn");
+                if(v == null)
+                    return Controls.onSubmit((w == null) ? null : ownedContent(owner, w));
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                if(!v.isfunction())
+                    throw new LuaError("widget:onSubmit(fn) expects a function, got " + v.typename());
+                Controls.onSubmit(owned(owner, w, "onSubmit(fn)"), w, v);
                 return self;
             }
         });

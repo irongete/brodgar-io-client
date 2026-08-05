@@ -132,3 +132,23 @@ Both are plain `Widget` subclasses (no `SIWidget` cache, nothing to `redraw()`).
 > `if(ctl != null) { min = ctl.scrollmin(); … }` before painting. A bare control must use the OTHER
 > constructor, `Scrollbar(int h, int min, int max)`, which leaves `ctl` `null` — otherwise an addon's own
 > `:range`/`:value` writes read back correctly for one tick and silently revert on the next drawn frame.
+
+## `TextEntry` and its `ReadLine` buffer
+
+[`TextEntry`](src/haven/TextEntry.java:32) is a plain `Widget` (no `SIWidget` cache) that owns a
+[`ReadLine`](src/haven/ReadLine.java:35) buffer rather than holding its string directly — `PCLine`/`EmacsLine`
+are the two implementations, chosen once by the `"editmode"` pref; either way the notify shape below is
+`ReadLine.Base`'s and identical.
+
+| What | Where |
+|---|---|
+| Per-edit notify | [`Base.key`](src/haven/ReadLine.java:155) calls `owner.changed(this)` only when the edit actually changed the buffer (`seq` moved) — a no-op keypress (e.g. Left at column 0) fires nothing |
+| Enter | [`key2`](src/haven/ReadLine.java:279) matches `Widget.key_act` and calls `owner.done(this)` — **not** `changed`; `TextEntry.done` → [`activate(buf.line())`](src/haven/TextEntry.java:172), gated stock-side by `canactivate` (`false` off a bare ctor, so the stock class sends no `wdgmsg` either) |
+| The silent write | [`TextEntry.rsettext(String)`](src/haven/TextEntry.java:81) replaces `buf` with a brand-new `ReadLine` (`ReadLine.make`, mirroring the constructor) — `Base`'s plain [`line(String)`](src/haven/ReadLine.java:108) setter it goes through calls nothing, unlike `settext`/`Base.setline` below |
+| The noisy write | [`TextEntry.settext(String)`](src/haven/TextEntry.java:76) → `buf.setline(text)` → [`Base.setline`](src/haven/ReadLine.java:171)/[`PCLine.setline`](src/haven/ReadLine.java:241), which calls `owner.changed(this)` whenever the line actually differs |
+
+> **A control's own `:value(v)` write has to go through `rsettext`, never `settext`.** The stock class uses
+> `settext` for everything (construction included calls `rsettext`, but every later native caller uses
+> `settext`), and that path notifies `changed` — so writing a value the "obvious" way re-enters an adapter's
+> own change handler, exactly the feedback loop every other value-bearing control in this catalogue also has
+> to avoid, just reached from a buffer object instead of a field.

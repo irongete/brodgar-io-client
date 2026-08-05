@@ -33,6 +33,7 @@ control with nothing added: `:type()`, `:role()`, `:position(x, y)`, `:size(w, h
 | Verb | Returns | The control |
 |---|---|---|
 | `hafen.ui():button()` | [Widget](widget.md) | a push button, showing a caption or a picture |
+| `hafen.ui():entry()` | [Widget](widget.md) | a single-line text field |
 | `hafen.ui():label()` | [Widget](widget.md) | a line of text |
 | `hafen.ui():image()` | [Widget](widget.md) | a static picture |
 | `hafen.ui():separator()` | [Widget](widget.md) | a horizontal rule |
@@ -61,6 +62,7 @@ where the control hangs while it is being built, and once it is on screen the wa
 | `:source(h)` | `:source()` | the picture a [picture control](#picture) shows |
 | `:rows(t)` | `:rows()` | the row labels a [radio](#radio) shows |
 | `:range(min, max)` | `:range()` | the value bounds of a [slider or scrollbar](#slider) |
+| `:onSubmit(fn)` | `:onSubmit()` | `fn(s)` — Enter was pressed in a [text entry](#text-entry) |
 
 Every setter returns the Widget, so a control is one expression, and every one has a matching bare read.
 `:text()` answers on any text-bearing widget, yours or the client's; `:text(s)` writes, and only on a
@@ -117,6 +119,26 @@ hafen.ui():button():parent(win):position(8, 8):image(up, down):onPress(refresh)
 The bare `:image()` reads the faces back as `{ up =, down =, hover = }`, exactly as you named them, and
 `nil` on a control that shows no picture. `:type()` tells the two buttons apart — `"Button"` and
 `"IButton"` — while `:role()` is `button` for both, so one selector still finds every button you built.
+
+## Text entry
+
+`hafen.ui():entry()` is a single-line text field. `:value(s)` is the one way to write its content — the
+bare `:text()` still reads it, like on any other text-bearing widget, but `:text(s)` refuses to write it,
+naming `:value(s)` instead.
+
+```lua
+local e = hafen.ui():entry()
+  :size(160, 20)
+  :value("gonzalo")
+  :onChange(function(s) hafen.log():write("now: " .. s) end)
+  :onSubmit(function(s) doSearch(s) end)
+
+e:value()          --> "gonzalo"
+```
+
+`:onChange(fn)` fires on every keystroke that changes the text; `:onSubmit(fn)` fires once, when Enter is
+pressed, carrying the whole text. Writing `:value(v)` from your own code fires neither one. While it has
+focus, a keystroke goes to the field only — never also to your character, a hotkey, or the chat line.
 
 ## Label
 

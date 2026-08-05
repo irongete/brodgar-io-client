@@ -60,7 +60,7 @@
       confirm `final = false` lines while dragging and exactly one `final = true` on release.
       <!-- extra context: `src/haven/HSlider.java`, `Scrollbar.java` -->
 
-- [ ] **040.7 — `:entry()`.** `TextEntry` with `:value(s)`, `:onChange(fn)` per keystroke and
+- [x] **040.7 — `:entry()`.** `TextEntry` with `:value(s)`, `:onChange(fn)` per keystroke and
       `:onSubmit(fn)` on Enter; **`entry:text()` retires** through the existing `Retired` table, throwing and
       naming `:value()`. **Suite proves**: `:value()` round-trips; `entry:text()` throws with `value` in the
       message; `:onSubmit` is distinct from `:onChange`; a programmatic write does not re-enter either.

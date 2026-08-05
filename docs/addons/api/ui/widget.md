@@ -61,6 +61,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:onPress()` | function \| nil | the handler on a [control](controls.md#setters) that fires, or `nil` where there is nothing to press |
 | `:value()` | varies \| nil | what a [control](controls.md#setters) holds, or `nil` where it holds nothing — [`:value(v)` writes it](controls.md#setters) |
 | `:onChange()` | function \| nil | the handler that fires when a [control](controls.md#setters)'s value changes, or `nil` where it has none |
+| `:onSubmit()` | function \| nil | the handler that fires when Enter is pressed in a [text entry](controls.md#text-entry), or `nil` where there is nothing to submit |
 | `:source()` | string \| userdata \| nil | the picture a [picture control](controls.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls.md#picture) |
 | `:rows()` | array \| nil | the row labels a [radio](controls.md#radio) shows, or `nil` where a control has no rows — [`:rows(t)` writes it](controls.md#radio) |
 | `:range()` | `{min=, max=}` \| nil | the value bounds of a [slider or scrollbar](controls.md#slider), or `nil` where a control has none — [`:range(min, max)` writes it](controls.md#slider) |
@@ -109,6 +110,7 @@ the error.
 | `:onPress(fn)` | handle a [control](controls.md) firing | **error**, same reason |
 | `:value(v)` | write what a [control](controls.md#setters) holds | **error**, same reason |
 | `:onChange(fn)` | handle a [control](controls.md#setters)'s value changing | **error**, same reason |
+| `:onSubmit(fn)` | handle Enter in a [text entry](controls.md#text-entry) you built | **error**, same reason |
 | `:source(h)` | give a [picture control](controls.md#picture) its content | **error**, same reason |
 | `:rows(t)` | give a [radio](controls.md#radio) its rows | **error**, same reason |
 | `:range(min, max)` | set the bounds of a [slider or scrollbar](controls.md#slider) you built | **error**, same reason |

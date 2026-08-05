@@ -111,6 +111,16 @@ final class Retired {
         put("hafen.act.select", "hafen.act.select(x1, y1, x2, y2, mods) is now"
             + " hafen.act():select(p1, p2, mods), where p1 and p2 are Positions");
 
+        // ---- 040.7: a text entry's content is WRITTEN through :value(s), the one door -- entry:text(s) would --
+        // ---- be a second way to write the same property, which the area's one-door rule does not allow. The
+        // ---- READ half is untouched: widget:text() keeps answering best-effort on an entry exactly as it
+        // ---- always has on every other text-bearing widget (docs/addons/api/ui/widget.md), since a tree-
+        // ---- walking introspector (widgetstack) depends on that read never throwing on ANY widget it finds.
+        put("entry:text", "entry:text(s) is retired — a text entry's content is written through :value(s), the"
+            + " one door. widget:text() still READS it, best-effort, like any text-bearing widget; entry:text(s)"
+            + " would have been a second way to WRITE the same property, which the area's one-door rule does"
+            + " not allow.");
+
         // ---- entity methods (keyed "<entity>:<verb>", hung off that entity's own metatable) -------------
         put("gob:pos", "gob:pos() is now gob:position(), and it hands back a Position rather than a"
             + " {x, y} table: p:x()/p:y() are the components, p:offset(dx, dy) moves, p:info() saves");

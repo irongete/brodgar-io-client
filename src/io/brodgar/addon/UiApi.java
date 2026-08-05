@@ -418,6 +418,16 @@ final class UiApi {
                 return Controls.scrollbar(owner, a);
             }
         });
+        // :entry() — 040.7, a real haven.TextEntry. Its content is :value(s), the ONE door (decision A) --
+        // entry:text() is retired, throwing and naming :value(). :onChange(fn) fires on every keystroke and
+        // :onSubmit(fn) once, on Enter -- two names for two gestures, not one name with a flag. Typing into it
+        // never reaches the game: it takes keyboard focus like any TextEntry, and nothing here calls wdgmsg.
+        m.set("entry", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "entry");
+                return Controls.entry(owner, a);
+            }
+        });
         // :overlay() — paint on top of the HUD without owning a widget: :onDraw(fn) runs fn(g, w, h) every frame
         // with the shared GOut wrapper and the screen size, in absolute screen coords. It MINTS one rather than
         // handing back a collection, which is the one place `overlay` is a builder and not a set — gob:overlay()

@@ -127,6 +127,19 @@ final class Controls {
         void range(LuaValue minv, LuaValue maxv);
     }
 
+    /**
+     * <b>{@code :onSubmit(fn)} — the ENTRY's Enter</b> (task 040.7). {@link CEntry} is its one implementor, and
+     * it is deliberately a different name from {@link Change}: {@code :onChange} fires on every keystroke,
+     * {@code :onSubmit} once, when Enter is pressed — two gestures, not one gesture with a flag (unlike the
+     * slider's {@code final}, which is the same drag reported twice).
+     */
+    interface Submit {
+        /** The installed {@code :onSubmit} handler, or {@code null}. */
+        LuaValue onSubmit();
+
+        void onSubmit(LuaValue fn);
+    }
+
     // ------------------------------------------------------------------ the builders
 
     /**
@@ -253,6 +266,19 @@ final class Controls {
         return UiApi.attach(u, owner, new CScrollbar(owner));
     }
 
+    /**
+     * {@code hafen.ui():entry()} — a real {@link haven.TextEntry}, the client's own (task 040.7). Its content is
+     * {@code :value(s)} — the ONE door (decision A) — with {@code :onChange(fn)} firing per keystroke and
+     * {@code :onSubmit(fn)} once, on Enter; {@code entry:text()} is retired, throwing and naming {@code :value()}.
+     */
+    static LuaValue entry(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():entry() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():entry():value(\"\"):onChange(fn):onSubmit(fn)");
+        UI u = UiApi.requireUi("entry");
+        return UiApi.attach(u, owner, new CEntry(owner));
+    }
+
     // ------------------------------------------------------------------ the control verbs
 
     /**
@@ -339,8 +365,31 @@ final class Controls {
         }
         throw new LuaError("widget:onChange(fn) fires when a control's VALUE changes, and " + LuaWidget.typeName(w)
             + " holds nothing — widget:value() answers nil on it too. hafen.ui():check(), hafen.ui():radio(),"
-            + " hafen.ui():slider() and hafen.ui():scrollbar() are the builders that have one, in this feature"
-            + " so far.");
+            + " hafen.ui():slider(), hafen.ui():scrollbar() and hafen.ui():entry() are the builders that have"
+            + " one, in this feature so far.");
+    }
+
+    // ------------------------------------------------------------------ the onSubmit verb (040.7)
+
+    /** {@code widget:onSubmit()} — the installed handler, or {@code nil} on anything that has nothing to submit. */
+    static LuaValue onSubmit(Owned c) {
+        if(!(c instanceof Submit))
+            return LuaValue.NIL;
+        LuaValue fn = ((Submit)c).onSubmit();
+        return (fn == null) ? LuaValue.NIL : fn;
+    }
+
+    /**
+     * {@code widget:onSubmit(fn)} — the ENTRY's Enter, distinct from {@code :onChange(fn)} (every keystroke).
+     * Dispatches on {@link Submit}, which only {@link CEntry} implements so far.
+     */
+    static void onSubmit(Owned c, Widget w, LuaValue fn) {
+        if(c instanceof Submit) {
+            ((Submit)c).onSubmit(fn);
+            return;
+        }
+        throw new LuaError("widget:onSubmit(fn) fires when an ENTRY's Enter is pressed, and hafen.ui():entry()"
+            + " is the builder that has one — " + LuaWidget.typeName(w) + " has nothing to submit.");
     }
 
     // ------------------------------------------------------------------ the face setter (040.2)
@@ -554,7 +603,8 @@ final class Controls {
         }
         throw new LuaError("widget:value(v) writes what a control HOLDS, and " + LuaWidget.typeName(w)
             + " holds nothing — hafen.ui():progress(), hafen.ui():check(), hafen.ui():radio(),"
-            + " hafen.ui():slider() and hafen.ui():scrollbar() are the builders that do, in this feature so far.");
+            + " hafen.ui():slider(), hafen.ui():scrollbar() and hafen.ui():entry() are the builders that do, in"
+            + " this feature so far.");
     }
 
     // ------------------------------------------------------------------ the source setter (040.3)

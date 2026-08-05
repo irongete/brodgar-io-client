@@ -1,0 +1,9 @@
+{
+  "name": "040.7 — entry()",
+  "id": "040-ui-controls.7",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 040.7: hafen.ui():entry() builds a real client TextEntry whose content is WRITTEN through :value(s), the one door -- entry:text(s) is retired, throwing and naming it, through the existing Retired table, while widget:text() keeps reading it best-effort like any text-bearing widget. :onChange(fn) is a separate name from :onSubmit(fn): the first fires per keystroke, the second once on Enter, and neither ever re-enters from a programmatic :value(v) write. Ships a mandatory [manual] check that typing into the field never also reaches the game.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

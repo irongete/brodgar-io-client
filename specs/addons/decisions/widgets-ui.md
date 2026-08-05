@@ -972,3 +972,24 @@ exposes a gesture as two calls for the client's own reasons, look for a single n
 into arguments before adding a second verb — the two-hook split is usually an implementation fact about
 `haven`, not a second thing the addon author needs to know about.*
 **See.** [D-040](widgets-ui.md), [D-150](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-158 — a verb's READ and WRITE arities retire independently; only cut the one that collides ✅ (2026-08-06)
+**Decision.** `entry:text(s)` — the WRITE arity of `:text()` on a `hafen.ui():entry()` control — is retired,
+throwing and naming `:value(s)`. The READ arity, `entry:text()`, is NOT retired: it keeps answering
+best-effort, exactly as `:text()` already does on every other text-bearing widget, native or owned.
+**Rationale.** (040.7.) `:text()` was designed (spec 20) as a NEVER-THROWING, best-effort read published on
+`docs/addons/api/ui/widget.md` across every text-bearing widget, precisely so a tree-walking introspector
+can call it on anything it finds with no guard. Retiring both arities together — the natural first instinct,
+since a checkbox's `:value`/`:onChange` retire together when absent — broke exactly that: the shipped
+`widgetstack` example throws a handler error the moment it hovers an addon-built entry, because its
+inspector calls `n:text()` on every widget from the hovered leaf to the root with no `pcall`. The one-door
+rule (D-013: one canonical way to WRITE a property) never asked for a second READ to disappear too — R2's
+arity split means the two halves are separately retire-able, and only the write half was ever a competing
+door to begin with.
+**Consequences.** A future retirement checks whether the verb it is cutting has a READ contract published
+elsewhere as safe-and-universal (grep other `addons/` for a generic, class-agnostic call to it) before
+cutting both arities; if so, only the arity that actually collides with the new one-door verb retires.
+`Retired.message("entry:text")` is worded for the write alone. The suite (`addons/040-ui-controls.7/`)
+asserts the READ equals `:value()` rather than asserting it throws.
+**See.** [D-013](architecture-api.md) (one canonical way), R2 (`039-uniform-api/API.md`, the read/write arity
+split this decision leans on), [040-ui-controls](../040-ui-controls/spec.md).

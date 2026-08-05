@@ -723,3 +723,16 @@
   `HSlider` has `fchanged()`** — `mouseup` just releases the grab. This is not a bridge choice; it is why
   `hafen.ui():scrollbar()`'s `:onChange(fn)` calls `fn(v)` with no trailing flag where the slider's calls
   `fn(v, final)` (D-157) — there is no second engine event to carry a flag about.
+- **(040.7) Retiring a verb for ONE control can silently break every OTHER addon that calls it
+  generically — found in-game, not by the suite, because the suite only exercises its own task.**
+  `entry:text()` was first retired on BOTH arities (read and write), mirroring how `:onChange`/`:value`
+  refuse on a control that has none. But `:text()` is not that kind of verb: `docs/addons/api/ui/widget.md`
+  already publishes it as a best-effort, NEVER-THROWING read across every text-bearing widget, and the
+  shipped `widgetstack` example walks the hovered widget up to the root calling `n:text()` on each one for
+  its inspector — exactly the contract that promise exists for. The very first login threw a `widgetstack`
+  handler error the moment the suite's own entry control was hovered. The fix: only the WRITE
+  (`entry:text(s)`) retires, naming `:value(s)`; the READ keeps answering exactly as before on every widget,
+  `CEntry` included. Generalise: before retiring a verb's READ half for one control, grep every OTHER addon
+  in `addons/` (not just this feature's own suites) for generic, class-agnostic calls to it — a tree-walking
+  introspector is the shape of caller most likely to be silently broken, and it is never in the task's own
+  suite to catch.
