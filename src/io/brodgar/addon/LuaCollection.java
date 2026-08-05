@@ -57,11 +57,33 @@ public final class LuaCollection {
         public abstract List<LuaValue> members();
 
         /**
-         * The text a <b>string</b> filter matches as a substring, or {@code null} when the members have no
-         * name — in which case a string filter is refused rather than quietly matching nothing.
+         * The text a <b>string</b> filter matches as a substring, or {@code null} when <b>this member's</b>
+         * name has not arrived yet — a gob whose {@code Drawable} is still resolving, a pagina whose
+         * resource has not loaded. Such a member simply <b>does not match</b>, exactly as
+         * {@code AddonManager.gobMatches} has always treated it: "not yet" is not "no" (D-095), and a read
+         * that answers {@code nil} must not make the call that contains it throw.
+         *
+         * <p><b>This is per MEMBER; namelessness is per KIND and is {@link #named()}.</b> Conflating the two
+         * is the defect 039.2 shipped and 039.15 found: {@code hafen.world():gob():count("terobjs/tree")}
+         * threw as soon as one loaded gob had an unresolved resource, while {@code :nearest("terobjs/tree")}
+         * one verb away skipped it — the two filter paths meaning different things, which the contract
+         * below exists to forbid.
          */
         public String needle(LuaValue member) {
             return null;
+        }
+
+        /**
+         * Do members of this <b>kind</b> have a name at all? {@code false} — the default — makes a string
+         * filter a refusal naming the two verbs that do work (D-115): a buff bar and a grid database have no
+         * name to match, and matching nothing would be a lie.
+         *
+         * <p>A source that supplies a {@link #needle} declares {@code true} beside it. The default is the
+         * <b>refusing</b> one on purpose: a source that forgets the pair fails loudly on the next string
+         * filter rather than quietly matching nothing.
+         */
+        public boolean named() {
+            return false;
         }
 
         /** Does {@code :get(key)} apply? (Only where a member has a key that addresses it.) */
@@ -205,19 +227,26 @@ public final class LuaCollection {
 
     /** Does {@code member} pass {@code filter}? The canonical filter: nil = all, predicate, or substring. */
     private boolean keeps(LuaValue filter, LuaValue member, String verb) {
-        return keeps(filter, member, src.needle(member), name, verb);
+        return keeps(filter, member, src.named(), src.needle(member), name, verb);
     }
 
     /**
      * The canonical filter, as one shared decision: {@code nil} keeps everything, a function is a predicate
-     * over the member <b>object</b>, a string is a substring test against {@code needle} (and is refused
-     * where the members have no name), and anything else is an error naming the three forms.
+     * over the member <b>object</b>, a string is a substring test against {@code needle}, and anything else
+     * is an error naming the three forms.
+     *
+     * <p><b>The two ways a string filter meets a member with no text are different questions.</b> A
+     * collection whose <i>kind</i> is nameless ({@code named} false) refuses the string, because matching
+     * nothing would be a lie. A <i>member</i> of a named kind whose name has not arrived yet ({@code needle}
+     * null) simply does not match, because a read that is not ready answers {@code nil} and must not throw
+     * out of the call that contains it.
      *
      * <p>Package-visible and static because a collection's own <b>extra</b> verbs filter too — a sub-list
      * like {@code hafen.char():skill():available(filter)} is the same argument over a different set, and it
      * has to behave identically or the filter would mean two things one verb apart.
      */
-    static boolean keeps(LuaValue filter, LuaValue member, String needle, String coll, String verb) {
+    static boolean keeps(LuaValue filter, LuaValue member, boolean named, String needle, String coll,
+                         String verb) {
         if((filter == null) || filter.isnil())
             return true;
         if(filter.isfunction()) {
@@ -228,10 +257,10 @@ public final class LuaCollection {
             }
         }
         if(filter.isstring()) {
-            if(needle == null)
+            if(!named)
                 throw new LuaError(coll + ":" + verb + "(filter): these have no name to match a string"
                     + " against — pass a function, or nothing for all of them");
-            return needle.contains(filter.tojstring());
+            return (needle != null) && needle.contains(filter.tojstring());
         }
         throw new LuaError(coll + ":" + verb + "(filter): expected nothing, a string or a function, got "
             + filter.typename());

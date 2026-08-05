@@ -110,8 +110,8 @@ hafen.timer():every(1, function()
 end)
 ```
 
-[`hafen.world():gob():count`](api/world.md) counts the game objects whose resource name contains what you passed —
-every tree the client has loaded around you. Reload, and the number moves as you walk.
+[`hafen.world():gob():count`](api/world.md) counts the game objects whose resource name contains what
+you passed — every tree the client has loaded around you. Reload, and the number moves as you walk.
 
 ## Step 7: add a hotkey
 
@@ -138,8 +138,8 @@ The window should come back the way you left it. Declare a saved variable in `ma
 "saved_variables": ["settings"]
 ```
 
-`hafen.store():get("settings")` is then an ordinary table that the engine fills before `OnEnterWorld` and writes
-back to disk for you. Record the state in the hotkey, and apply it when the window is built:
+`hafen.store():get("settings")` is then an ordinary table that the engine fills before `OnEnterWorld`
+and writes back to disk for you. Record the state in the hotkey, and apply it when the window is built:
 
 ```lua
   if hafen.store():get("settings").open == false then window:visible(false) end

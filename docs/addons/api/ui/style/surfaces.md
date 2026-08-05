@@ -17,7 +17,7 @@ changes everything while another key refines any one surface.
 ```lua
 local s = hafen.ui():sheet()
 s:rule("*"):font(h)                    s:install()   -- everything routed
-s:rule("button"):font(h2)                            -- ...but buttons use h2 (an installed sheet is live)
+s:rule("button"):font(h2)                      -- ...but buttons use h2 (an installed sheet is live)
 s:rule("button"):remove()                            -- buttons fall back to the cascade again
 ```
 
@@ -85,7 +85,7 @@ belong to the `*` cascade; `label` covers the rest.
 | Surface | Where you see it |
 |---|---|
 | Attribute rows, name and value | character sheet, Base and Study tabs |
-| List items, text and icon rows | Skills & Lore, Quests, Wounds, combat maneuvers, radar icon settings |
+| List items, text and icon rows | Skills & Lore, Quests, Wounds, combat maneuvers, Icon settings |
 | Menu-search results | the search box results list |
 | Explicit-foundry labels | credo `Level:` and `Quest:` lines, wound quality, the combat-schools counter, the login screen, a village name |
 

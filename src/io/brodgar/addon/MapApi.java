@@ -199,6 +199,11 @@ final class MapApi {
                 return LuaMarker.name(member);
             }
 
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
+            }
+
             public boolean creatable() {
                 return true;
             }
@@ -245,6 +250,11 @@ final class MapApi {
             public String needle(LuaValue member) {
                 LuaOverlayToggle h = LuaOverlayToggle.resolve(member);
                 return (h == null) ? null : h.tag;
+            }
+
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
             }
 
             public boolean addressable() {

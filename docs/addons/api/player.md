@@ -22,8 +22,8 @@ only what has no per-gob equivalent.
 | `hafen.player():worldToScreen(p)` | `{x, y}` \| nil | project a [Position](world.md#the-position-type) to a map-view screen pixel |
 
 `hafen.player()` always hands back the same object, and `hafen.player():gob()` is the same object as
-`hafen.world():gob():get(<your id>)` — so `gob == hafen.player():gob()` is how you tell "is this me?" from any other
-gob, with no id comparison. Nothing here is gated.
+`hafen.world():gob():get(<your id>)` — so `gob == hafen.player():gob()` is how you tell "is this me?"
+from any other gob, with no id comparison. Nothing here is gated.
 
 `worldToScreen` takes a place in the world and answers **plain pixels**, relative to the map view, which
 is what a [gob overlay](gob.md#overlays) or a HUD overlay wants. What comes back is not a Position: a

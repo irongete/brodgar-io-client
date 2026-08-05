@@ -281,6 +281,11 @@ public final class LuaStudySlot {
                 String res = CharApi.itemResOf(it), nm = CharApi.itemNameOf(it);
                 return ((res == null) ? "" : res) + "\n" + ((nm == null) ? "" : nm);
             }
+
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
+            }
         }, null);
     }
 }

@@ -118,7 +118,7 @@ already hold, ask it for its own rule — the same Rule object a sheet's selecto
 
 ```lua
 local n = hafen.ui():at(hafen.ui():mouse().x, hafen.ui():mouse().y)   -- the widget under the cursor
-n:rule():font(h):color(200, 180, 140)   -- this widget and everything inside it; its SIBLINGS untouched
+n:rule():font(h):color(200, 180, 140)   -- this widget and all inside it; SIBLINGS untouched
 n:rule():info()                         --> { font = h, color = {r=200, g=180, b=140, a=255} }
 n:rule():remove()                       -- drop it again
 ```

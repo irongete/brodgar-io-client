@@ -1,10 +1,15 @@
 # Data types: the snapshot shapes
 
-Every plain Lua table the read APIs hand back, field by field. A **snapshot** is a point-in-time copy,
-so it never updates; a field marked *optional* is absent (Lua `nil`) when the underlying data is not
-available yet or is still resolving, so guard for it. See
-[snapshots vs handles](conventions.md#snapshots-vs-handles) for when you get one of these and when you
-get a live object instead.
+Every plain Lua table `:info()` hands back, field by field. A read gives you a live object; `:info()` is
+the one escape hatch that copies it, for logging, serialising or diffing. A **snapshot** is a
+point-in-time copy, so it never updates; a field marked *optional* is absent (Lua `nil`) when the
+underlying data is not available yet or is still resolving, so guard for it. See
+[snapshots vs handles](conventions.md#snapshots-vs-handles).
+
+> **A snapshot field keeps the client's own spelling; the live read is the verb.** The API's verbs are
+> camelCase (`:isPlayer()`, `:modified()`, `:qualityInputs()`) because you write them. A snapshot is the
+> shape the client holds, handed over as it is — `isplayer`, `mtime`, `qmod` — so what you serialise is
+> what the client said. Each table below names the verb beside the field wherever the two differ.
 
 ## GobInfo
 
@@ -19,7 +24,7 @@ always fresh. [`hafen.world`](world.md) and the `GobAdded`/`GobRemoved` events h
 | `x`, `y` | number | world position; optional (absent before the position is known) |
 | `angle` | number | facing, radians |
 | `name` | string | the **resource** identity, e.g. `"gfx/kritter/rabbit/rabbit"` — *not* a display name; optional |
-| `isplayer` | bool | true if the gob is a player body; present only when `name` is |
+| `isplayer` | bool | true if the gob is a player body, read live as `gob:isPlayer()`; present only when `name` is |
 | `hp` | number | 0..1 remaining object integrity (1 = undamaged); optional |
 | `moving` | bool | whether it is moving |
 | `speed` | number | movement speed; present only while moving |
@@ -57,6 +62,12 @@ container's own window is open, so there is nothing to read here.
 
 From [`hafen.world():tile`](world.md#terrain-and-coordinates). `{ id = number, name = string? }` —
 tileset id plus resource name.
+
+## Position
+
+From [`p:info()`](world.md#the-position-type). `{ gridId = number, x = number, y = number }` — a grid id
+and the offset **within** that grid, which is the durable form and not the same numbers as `p:x()`/`p:y()`.
+It is `nil` for a place that is not durable, and it is what `hafen.world():position(saved)` rebuilds from.
 
 ## Attr
 
@@ -108,7 +119,8 @@ From `:info()` on each. [`hafen.char`](char.md) hands out the live objects; thes
   distinguishes a learnt skill from one that can still be bought.
 - **Credo** — `{ name = string, res = string?, acquired = bool, pursuing = bool }`, plus
   `{ level, levelTotal, quest, questTotal, questId }` on the credo being pursued and on no other.
-- **Experience** — `{ name = string?, res = string, score = number, mtime = number }`.
+- **Experience** — `{ name = string?, res = string, score = number, mtime = number }`, where `mtime` is
+  the server's change stamp, which `exp:modified()` reads.
 
 ## PartyMember
 
@@ -235,7 +247,7 @@ escape hatch for an action-menu entry.
 parent = string?, isnew = bool? }` — `res` is the identity and is always present, and **`parent` is
 the parent's resource name**, not an object. Every other field is absent when the menu cannot answer
 it: the entry is gone, or its resource has not loaded. The live reads are `pag:res()`, `:name()`,
-`:parent()` and the rest.
+`:parent()`, `:isNew()` and the rest.
 
 ## Marker
 
@@ -250,7 +262,7 @@ place to store, not the `seg` + `tc` below.
 | `seg` | string | segment id, a 64-bit value as a decimal string — client-local, [never stored](map/grids.md#storing-a-place) |
 | `tc` | `{x, y}` | segment tile coord — client-local, never stored |
 | `color` | [Color](#color) | player markers only; optional |
-| `onmap` | bool | player markers only |
+| `onmap` | bool | player markers only, read and written live as `marker:onMap(b)` |
 | `icon` | string | system markers only; optional |
 | `x`, `y` | number | session-local world position; present only while the marker is in your current segment |
 | `dist` | number | distance from the player; present with `x`, `y` |

@@ -1,0 +1,9 @@
+{
+  "name": "probe",
+
+  "rules": {
+    "chat":    { "color": [190, 210, 190] },
+    "tooltip": { "color": [255, 150, 90] },
+    "panel":   { "bg": { "color": [26, 26, 28, 240] } }
+  }
+}

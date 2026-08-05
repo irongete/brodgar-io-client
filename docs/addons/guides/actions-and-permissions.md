@@ -18,7 +18,7 @@ several of them look like writes:
 |---|---|
 | [`hafen.map():marker():add`](../api/map/markers.md#write-ungated) | your own map database |
 | [`cat:show(on)`](../api/map/icons.md#the-iconcat-object) | which icons your minimap draws |
-| [`w:pos`, `w:size`, `w:hide`](../api/ui/native.md) | where the client's own windows sit |
+| [`w:position`, `w:size`, `w:visible`](../api/ui/native.md) | where the client's own windows sit |
 | [`w:replace(view)`](../api/ui/replace.md) | which window a client toggle opens |
 | [`hafen.ui():sheet()`](theming.md) | what the client looks like |
 | [`hafen.ghost`, `hafen.render`](../api/ghost.md) | props only you can see |
@@ -58,8 +58,7 @@ hafen.slash():register("gotree", function()
   end
   local tree = hafen.world():gob():nearest("terobjs/tree")
   if tree then
-    local p = tree:position()
-    hafen.act():moveTo(p:x(), p:y())
+    hafen.act():moveTo(tree:position())
   end
 end)
 ```

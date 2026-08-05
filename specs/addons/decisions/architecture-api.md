@@ -1484,3 +1484,27 @@ between a pinned adoption and a named lookup: adoption buys speed and types and 
 invisible; a named lookup pays a reflective read and fails to nil.* Adoption stays right where the code must be
 **changed** (the F3d font override), which is a thing a name lookup cannot do at all.
 **See.** [D-043](fonts.md), [D-061](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-141 — A set whose KIND has no name refuses a string filter; a MEMBER whose name has not arrived yet is skipped ✅
+**Decision.** The shared filter (`nil` / string substring / predicate) meets two different absences of text and
+must answer them differently. `LuaCollection.Source.named()` declares the **kind**: `false` — the default —
+makes a string filter a refusal naming the forms that work ([D-115](architecture-api.md)), because a buff bar,
+a party member, a segment and the grid database have no name and matching nothing would be a lie.
+`Source.needle(member)` stays per **member**, and `null` there now means *this one's name has not arrived yet*:
+that member simply does not match, and the call that contains it does not throw.
+**Rationale.** (2026-08-05, 039.15.) One `null` meant both, so `hafen.world():gob():count("terobjs/tree")` —
+`getting-started.md` step 6, the first addon anyone writes — raised as soon as one loaded gob's `Drawable` was
+still resolving, while `:nearest("terobjs/tree")` one verb away skipped it, because it runs the older
+`AddonManager.gobMatches`. Two filter paths meaning different things is exactly what `keeps`'s own contract
+forbids, and *"not yet" is not "no"* is already this API's rule for a read
+([D-095](architecture-api.md)) — a read that answers `nil` must not make its caller throw.
+**Consequences.** The default is the **refusing** one on purpose: a source that supplies a needle and forgets
+`named()` fails loudly on the next string filter rather than quietly matching nothing. The pair is reconciled
+by count (26 `needle()` ↔ 26 `named()`); the 6 sources with neither keep D-115's refusal untouched. The rule
+generalises past filters — *when one sentinel answers two questions, the one it answers wrongly is the one
+nobody wrote a test for*: this shipped in 039.2 and survived thirteen tasks, because no addon and no suite used
+a string filter on the gob collection (`hello`, `tagger` and `walker` all reach for `:nearest`/`:within`), and
+because the failure needed an unresolved gob in view at that instant. No page was wrong and no spelling
+changed: every page already described the behaviour `:nearest` had.
+**See.** [D-095](architecture-api.md), [D-115](architecture-api.md), [D-128](architecture-api.md),
+[039-uniform-api](../039-uniform-api/spec.md).

@@ -311,6 +311,11 @@ public final class LuaSlot {
                 return (r == null) ? "" : r.name;
             }
 
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
+            }
+
             public boolean addressable() {
                 return true;
             }

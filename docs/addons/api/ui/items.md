@@ -66,8 +66,9 @@ Three subscriptions on the container itself. All chain, and passing `nil` unsubs
 
 ```lua
 local chest = hafen.ui():find("window[title=Chest]")
-chest:onItemAdded(function(item) hafen.log():write("in:  " .. (item:name() or item:res() or "?")) end)
-     :onItemRemoved(function(item) hafen.log():write("out: " .. (item:name() or item:res() or "?")) end)
+local function label(item) return item:name() or item:res() or "?" end
+chest:onItemAdded(function(item)   hafen.log():write("in:  " .. label(item)) end)
+     :onItemRemoved(function(item) hafen.log():write("out: " .. label(item)) end)
      :onDestroy(function() hafen.log():write("chest closed") end)
 ```
 

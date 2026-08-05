@@ -79,7 +79,7 @@ sheet, kin, options, the map, the action search — **you also own its toggle**.
 menu button both stop reopening it, and the menu button's tick goes off:
 
 ```lua
-hafen.ui():inventory():parent():visible(false)  -- the window around the grid: Tab no longer opens it
+hafen.ui():inventory():parent():visible(false)  -- the window around the grid: Tab opens nothing
 hafen.ui():inventory():visible(false)           -- the grid alone: the window is still the client's
 ```
 

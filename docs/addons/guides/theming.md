@@ -14,7 +14,7 @@ s:rule("chat"):color(190, 210, 190)
 s:install()
 ```
 
-`["*"]` is the fallback under everything; `["chat"]` refines one surface out of it. Reload, and the chat
+`"*"` is the fallback under everything; `"chat"` refines one surface out of it. Reload, and the chat
 log is green in a serif face. `s:drop()` puts the stock client back, as does disabling your addon.
 
 **An addon owns exactly one sheet**, handed back by identity from `hafen.ui():sheet()`, and `:install()`
@@ -36,7 +36,7 @@ Two kinds, both written in the same grammar:
   `window.title`, `window.frame`, `panel`, `button`, `tooltip`, `label` — wherever in the client that is.
   It is how you restyle a *family* of surfaces at once.
 - A **[tree key](../api/ui/style/keys.md#tree-keys)** is an ordinary selector, and it styles the widgets it
-  matches, plus everything inside them: `["window[title=Inventory]"]` dresses that window and its contents.
+  matches, plus everything inside them: `"window[title=Inventory]"` dresses that window and its contents.
 
 [surfaces](../api/ui/style/surfaces.md) says what each of the client's own surfaces is and how it behaves
 under a rule, and [what each key accepts](../api/ui/style/keys.md#what-each-key-accepts) says which

@@ -66,7 +66,7 @@ world.
 
 ```lua
 hafen.event():on("BuffRemoved", function(buff)
-  hafen.log():write((buff:name() or buff:res()) .. " wore off")   -- still readable, and :exists() is false
+  hafen.log():write((buff:name() or buff:res()) .. " wore off")   -- readable, :exists() is false
 end)
 ```
 

@@ -78,6 +78,11 @@ final class RenderApi {
                 return visualNameOf(owner.ghosts, member);
             }
 
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
+            }
+
             public boolean creatable() {
                 return true;
             }
@@ -140,6 +145,11 @@ final class RenderApi {
                 return visualNameOf(owner.sprites, member);
             }
 
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
+            }
+
             public boolean creatable() {
                 return true;
             }
@@ -170,6 +180,11 @@ final class RenderApi {
 
             public String needle(LuaValue member) {
                 return visualNameOf(owner.objects, member);
+            }
+
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
             }
 
             public boolean creatable() {

@@ -1,0 +1,10 @@
+{
+  "name": "039.15 — the docs sweep",
+  "id": "039-uniform-api.15",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.15: every Lua block printed in the conventions page, the getting-started walkthrough and the eight guides is executed here as written, so a snippet that no longer runs is a red line rather than a reader's first failure; plus the uniformity the sweep documents — every section is called and is one object, and a retired flat spelling throws naming what replaced it.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "saved_variables": ["settings", { "name": "seen", "scope": "account" }]
+}

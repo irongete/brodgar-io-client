@@ -252,6 +252,11 @@ public final class LuaExperience {
                 String disp = (e == null) ? null : AddonManager.resTipName(e.res, h.res);
                 return ((disp == null) ? "" : disp) + "\n" + h.res;
             }
+
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
+            }
         }, null);
     }
 }

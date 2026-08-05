@@ -635,7 +635,7 @@ promising `:quality()`**).
 
 ---
 
-## 039.15 — The docs sweep and the demolition
+## 039.15 — The docs sweep and the demolition ✅ DONE
 
 **Depends on:** 039.1–039.14 (every section's own pages already landed with it).
 

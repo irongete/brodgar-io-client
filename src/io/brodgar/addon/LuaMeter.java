@@ -373,6 +373,11 @@ public final class LuaMeter {
                 String res = (h == null) ? null : res(h.wdg);
                 return (res == null) ? "" : res;
             }
+
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
+            }
         }, null);
     }
 }

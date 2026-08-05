@@ -51,9 +51,9 @@ Dormant until its `toggle` hotkey arms the replacement; the view is read-only, s
 A client theme that is **data, not code**: everything it looks like lives in a `theme.json` beside its Lua,
 which never names a surface, a font, a colour or a pixel. It reads the file with
 [`hafen.asset`](api/asset.md), parses it with [`hafen.json`](api/json.md) and hands the table to
-[`sheet:load`](api/ui/style/README.md#a-sheet-from-data). Exactly two values in a rule are handles the file cannot
-carry — a font face and an image — and it maps those two. It also keeps a window layout of its own in
-[`hafen.store`](api/store.md), account-wide.
+[`sheet:load`](api/ui/style/README.md#a-sheet-from-data). Exactly two values in a rule are handles the
+file cannot carry — a font face and an image — and it maps those two. It also keeps a window layout of
+its own in [`hafen.store`](api/store.md), account-wide.
 
 `:theme` applies, drops, saves and restores. To make a different theme, edit the JSON.
 
@@ -89,11 +89,11 @@ primitives, in a second file the manifest loads beside the first. `:planner grab
 
 ## tagger
 
-[`gob:overlay()`](api/gob.md#overlays) from both ends. `:tagger` puts a green name and a ring over every player
-body — a `text` and a `draw` record in **screen space**, at the gob's projected point — and `:tagger pin`
-floats a PNG 18 world units over the nearest object, a **world-space** record whose composed verbs chain
-(`ov:tint{…}:alpha(0.85)`). Nothing is placed and nothing is polled: the record lives on the gob, so it
-follows the gob and dies with it.
+[`gob:overlay()`](api/gob.md#overlays) from both ends. `:tagger` puts a green name and a ring over every
+player body — a `text` and a `draw` record in **screen space**, at the gob's projected point — and
+`:tagger pin` floats a PNG 18 world units over the nearest object, a **world-space** record whose setters
+chain (`:offset(0, 0, 18):tint(255, 200, 90):alpha(0.85)`). Nothing is placed and nothing is polled: the
+record lives on the gob, so it follows the gob and dies with it.
 
 `:tagger read` is the other half of the same verb — it prints yours beside **the game's own**, which come
 back `native = true`, keyed by resource name, read-only, and counted (`ov:count()`), because a native overlay

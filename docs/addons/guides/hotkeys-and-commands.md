@@ -25,7 +25,7 @@ Suggested key: Ctrl+H — assign it in Options > Keybindings > My Addon.
 ```
 
 The assignment is the client's, and it survives `:reload` and restarts. Names are scoped to your addon, so
-`register("toggle", …)` and `get("toggle")` mean yours, while a name that is not one of yours reaches the
+`register("toggle", …)` and `key("toggle")` mean yours, while a name that is not one of yours reaches the
 client's own registry — which is how you read or remap a built-in binding. The
 [reference](../api/client/keybindings.md) has the verbs, the key-string grammar and what `list()` reports.
 

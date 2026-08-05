@@ -18,7 +18,8 @@ s:install()
   than a rule that silently does nothing. (`*` is the default *site*, not "every widget"; select widgets
   with `["window"]` or a refiner.)
 - **`widget:rule():position(…)` is an error too**, for the opposite reason: the hand-named level of the
-  layout cascade already exists and is the **verb**, [`w:position(x, y)`](../native.md). One way per operation.
+  layout cascade already exists and is the **verb**, [`w:position(x, y)`](../native.md). One way per
+  operation.
 - **The rule and the verb are one cascade, not two mechanisms.** A position from the verb outranks one from
   any rule, however specific, and `w:position(nil)` drops *your level*, falling back to the rule when one
   still names the widget and only reaching the stock value when nothing does.
@@ -39,7 +40,7 @@ w:position(12, 12)      --                        -- named by hand: the top of t
 w:position()            --> {x = 12,  y = 12}
 w:position(nil)         --                        -- your level goes...
 w:position()            --> {x = 40,  y = 200}    -- ...and the RULE is what is underneath
-sheet:drop()            --                        -- ...and now nothing is: back to where the user had it
+sheet:drop()            --                        -- ...and now nothing is: the user's again
 ```
 
 `size` carries [the same caveat as the verb](../native.md): a client window that packs itself around its
@@ -78,8 +79,8 @@ random, because there the two have no order to be read in.
 
 ```lua
 r:position(40, 200)
-r:anchor{ to = "screen", at = "topleft", offset = {40, 200} }   -- the same place, for a top-level window
-r:position()                                                   --> nil: the anchor holds the slot now
+r:anchor{ to = "screen", at = "topleft", offset = {40, 200} }   -- same place, top-level window
+r:position()                                                   --> nil: the anchor holds the slot
 ```
 
 **Re-derived on the events that change what it reads**, never per frame and never at the draw: the game

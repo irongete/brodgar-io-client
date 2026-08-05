@@ -52,7 +52,7 @@ p:measure("scan-gobs", function()                  -- the wrapper form: you cann
   for _, g in ipairs(hafen.world():gob():list()) do … end
 end)
 
-local s = p:scope("rebuild")                       -- the explicit form, for a section you cannot wrap
+local s = p:scope("rebuild")              -- the explicit form, for a section you cannot wrap
 s:begin()
 rebuildIndex()
 s:finish()

@@ -217,7 +217,7 @@ function: [a HUD overlay](ui/custom.md#overlays) to draw,
 
 ```lua
 -- gizmo.lua installs one global: gizmo(target, opts) -> a gizmo handle.
-local gz = gizmo(myGhost, {           -- target = anything with :position(), ideally :rotate/:scale too
+local gz = gizmo(myGhost, {      -- target = anything with :position(), ideally :rotate/:scale
   mode = "all",                       -- "move" | "rotate" | "scale" | "all"
   onChange = function(t) --[[ t = {x, y, a, scale} during the drag ]] end,
   onCommit = function(t) --[[ t = {x, y, a, scale} on release; re-anchor and persist here ]] end,

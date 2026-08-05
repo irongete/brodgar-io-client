@@ -408,6 +408,11 @@ public final class LuaBuff {
                 String res = res(b), name = LuaBuff.name(b);    // see the note in methods()
                 return ((res == null) ? "" : res) + "\n" + ((name == null) ? "" : name);
             }
+
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
+            }
         }, null);
     }
 }

@@ -141,7 +141,8 @@ hafen.ui():sheet():drop()                          -- drop it; every surface it 
 A font is **one property of a rule**, and the key is a [selector](ui/selectors.md), so there is one
 vocabulary for "which part of the UI" rather than a font-specific one beside it. The call, the
 one-sheet-per-addon rule, the properties and the cascade are documented under
-[the stylesheet](ui/style/README.md); which keys honour a `font` is [the key table](ui/style/keys.md#what-each-key-accepts);
+[the stylesheet](ui/style/README.md); which keys honour a `font` is
+[the key table](ui/style/keys.md#what-each-key-accepts);
 what each surface *is*, and what it does with a size, is [surfaces](ui/style/surfaces.md).
 
 To restyle **one** widget you already hold rather than a family of surfaces, use
@@ -152,7 +153,7 @@ To restyle **one** widget you already hold rather than a family of surfaces, use
 ```lua
 local h
 hafen.event():on("OnLoad", function()
-  h = hafen.asset():get("fonts/Inter.ttf"):derive():size(11)   -- or hafen.font():get("serif"):derive():size(11)
+  h = hafen.asset():get("fonts/Inter.ttf"):derive():size(11)   -- or a built-in face, derived
 end)
 
 hafen.slash():register("bigserif", function()

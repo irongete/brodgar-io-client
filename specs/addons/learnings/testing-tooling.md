@@ -1042,3 +1042,26 @@
   whole path testable with no resource loaded at all — and the preference rule (the plain quality wins over
   another buff row) becomes an ordinary assertion. Reflect-set the private `GItem.info` list to hand them
   over; `info()` only rebuilds when `rawinfo != null`, so a planted list survives.
+- **(039.15) A NONDETERMINISTIC defect cannot be pinned by the in-game suite — that suite can only ever say "it did
+  not throw today", so the deterministic half is a probe that BUILDS the state.** The gob string-filter bug needed
+  a gob whose resource had not resolved to be in view at that instant; the shipping suite reproduces it or does
+  not, by luck. `LuaCollection.keeps` is package-visible and **static**, so a 90-line probe reaches it reflectively
+  with no client, no `Addon` and no sandbox, and passes the states directly: a named member with a needle, one
+  without, and a nameless kind. 8/8, and falsifying it by restoring the old conflation from a file copy reddened
+  two lines — one reproducing the maintainer's pasted error text verbatim, which is the strongest evidence a fix
+  can carry. **Reach for the static helper, not the collection**: constructing the collection needs the whole
+  bridge, while the decision under test needs six arguments.
+- **(039.15) `LuaValue.isstring()` is TRUE for a number, so a "wrong type" test written with `valueOf(7)` proves
+  nothing.** The filter's type refusal looked untested-and-passing until the probe reddened on it: `7` takes the
+  string branch (Lua's own coercion, which LuaJ models faithfully) and quietly matches nothing. Use `LuaValue.TRUE`
+  or a table for the wrong-type case. The general form is 001.1's again — *a check that passes for the wrong reason
+  is worse than a missing one* — and it is the second time this file records `isstring()` as the trap.
+- **(039.15) The docs audit is a 200-line Python script and it is worth keeping whole, because four of its checks
+  disagree with the obvious one-liner.** Python 3.14 is on this box (033.3's "re-derive it in Java" is retired).
+  The traps, all of which bit: `os.path.normpath` strips a leading `./` so a graph keyed on walk paths silently
+  matches nothing — use `abspath` everywhere, or reachability reports every page unreachable AND every anchor
+  check is skipped, which reads as a clean run; the heading check greps the SLUG for `--` rather than the source
+  for an em dash (001.5's character class, mechanised); the wrap check measures characters with `s/\r?\n?$//`,
+  never `chomp` and never `awk length` (002.2/003.1); and links inside inline backticks must be blanked before
+  the link regex, or documentation ABOUT a link counts as one. Falsify both directions every run: plant a bad
+  path AND a bad anchor, confirm both are caught, confirm the healthy tree reports zero.

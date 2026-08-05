@@ -134,5 +134,6 @@ resolves to no live widget raises an error, as does a non-string `msg`.
 
 - [`hafen.menugrid`](menugrid.md) — the action catalogue, enumerable and addressable by name
 - [Gob](gob.md) — the objects `clickGob` takes
-- [`hafen.world`](world.md#screen-to-world-and-placement-snapping) — building a place, and snapping one before you place on it
+- [`hafen.world`](world.md#screen-to-world-and-placement-snapping) — building a place, and snapping one
+  before you place on it
 - [gating](conventions.md#gating-the-actions-permission) — how the permission reads across the API

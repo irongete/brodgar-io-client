@@ -347,6 +347,11 @@ public final class LuaMapGrid {
                 return (h == null) ? null : h.tag;
             }
 
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
+            }
+
             public boolean addressable() {
                 return true;
             }

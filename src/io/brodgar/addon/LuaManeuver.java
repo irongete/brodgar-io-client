@@ -249,6 +249,11 @@ public final class LuaManeuver {
                 LuaManeuver h = resolve(member);
                 return (h == null) ? "" : needleOf(h.act);
             }
+
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
+            }
         }, null);
     }
 }

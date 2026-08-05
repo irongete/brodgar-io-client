@@ -138,7 +138,7 @@ because it was merely installed. After that its state is yours — see
 
 ## The console commands
 
-Press `:` to open the client's command line. Four commands drive the addon layer:
+Press `:` to open the client's command line. Three commands drive the addon layer:
 
 | Command | Does |
 |---|---|
@@ -183,4 +183,4 @@ your login.
 - [debugging](guides/debugging.md) — the reload loop in practice, the inspector, and reading the log
 - [`hafen.store`](api/store.md) — the saved variables the manifest declares
 - [`hafen.act`](api/act.md) — the permission the manifest declares, and what it gates
-- [the example addons](examples.md) — ten of them, installed and running already
+- [the example addons](examples.md) — installed and running already, one per part of the API

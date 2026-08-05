@@ -273,6 +273,11 @@ final class WorldApi {
                 return (g == null) ? null : gobName(g);
             }
 
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
+            }
+
             public boolean addressable() {
                 return true;
             }

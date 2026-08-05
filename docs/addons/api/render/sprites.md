@@ -84,7 +84,7 @@ event fire; `SpriteClicked` reaches only *your* addon, since a sprite is private
 ```lua
 local s = hafen.render():sprite():add(icon, p)
   :clickable(true)
-  :onClick(function(s, button, x, y)           -- 1 = left, 3 = right; x, y = the clicked world point
+  :onClick(function(s, button, x, y)     -- 1 = left, 3 = right; x, y = the world point
     hafen.log():write(("clicked my sprite (button %d)"):format(button))
   end)
 ```

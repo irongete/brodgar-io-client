@@ -316,3 +316,33 @@
   create down to the engine call (`addClientGob` → `basic.add(gob.placed)` → `Placement()`) and read what
   it dereferences. Generally: before reusing a decision's rationale, confirm the new case shares the
   premise, not just the shape.
+- **(039.15) A code block on a docs page is a claim, and it is the one claim nobody re-reads — so the docs task's
+  suite is the PASTE.** Executing every Lua block printed on `conventions.md`, `getting-started.md` and the eight
+  guides found a guide teaching `hafen.act():moveTo(p:x(), p:y())`, which **raises**: `LuaPosition.worldArg`
+  demands a Position, and the page was unpacking the very type the feature had just created. No grep could see
+  it — every name in it is registered, every link resolves. Two liberties keep "verbatim" honest and are worth
+  copying: name the handler passed to `hafen.event():on("OnEnterWorld", …)` so the suite can fire it (the block's
+  payload is otherwise never reached, which is why the same call passed in one page and failed in another), and
+  bind the free variables the page's surrounding prose says are bound. Everything else stays as printed.
+- **(039.15) The defects a docs sweep is FOR are prose, link text and snippet SHAPE — none of which any of the
+  standard's six checks reads.** With links, anchors, sizes, headings, retired names and symbols all at zero, nine
+  real defects were still live: "options on the widget" for what are now setters, two `onDraw = function…`
+  fragments (the config table's shape, one task after it was cut), `["*"]` selectors written as table keys, "radar
+  categories" for a concept D-061 refuses, a Gob called a "live handle", link text reading "grid anchor" for a
+  Position, and two counts that disagreed with their own page ("Four commands" under a three-command heading,
+  "ten" example addons where twelve ship). The greps are a floor, not a ceiling: what finds these is reading the
+  page against the API it documents, one page at a time.
+- **(039.15) A demolition can be a NO-OP, and that is a finding to verify rather than an assumption to act on.**
+  039's §4.9 listed three transitional markers 017 had planned; `git log -S "SUPERSEDED by D-044"` showed the
+  string had only ever entered 017's own `plan.md`/`tasks.md` and 039's `spec.md`/`tasks.md` — the markers were
+  never planted, and the file 017 aimed them at (`API-REFERENCE.md`) had since been deleted wholesale. What HAD
+  survived was the demolition's *substance* in the docs tier (a filter section still saying a predicate gets "a
+  snapshot table in the flat sections"). So a "delete X" task starts by proving X exists: `git log -S` answers it
+  in one command, and the answer changes the work from deleting to searching for what the marker was about.
+- **(039.15) A shared decision with two call paths is a contract, and the second path ships without re-deriving
+  the first's answer to the empty case.** `hafen.world():gob()` filtered through `LuaCollection.keeps` on
+  `:list`/`:count`/`:find` and through the older `AddonManager.gobMatches` on `:nearest`/`:within`; on a gob whose
+  name had not resolved the first threw and the second skipped. It survived thirteen tasks because no addon and no
+  suite used a string filter on that collection — every consumer reached for `:nearest`/`:within`, the path that
+  was right. **When a mechanism absorbs an older one, the test to write is the two paths agreeing**, not each
+  path working: `:count(f) == #:list(f)` is one line and it is the whole contract. See D-141.

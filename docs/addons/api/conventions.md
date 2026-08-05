@@ -56,6 +56,10 @@ object, never a bare array. The plural belongs to the verb.
 A distinguished member is a verb on its collection rather than a second accessor: `:current()`,
 `:selected()`, `:leader()`, `:available()`.
 
+**A section's collection is one object; a thing's collection is a view.** `hafen.map():marker()` is the
+same object on every call. `gob:overlay()` is re-derived from the gob, so two calls are not `==` and
+neither one outlives it. Identity lives on the **members**: `gob:overlay():get("tag")` is one overlay.
+
 > **A collection is an object, not a sequence.** `#coll`, `coll[1]` and `ipairs(coll)` are refused,
 > naming what to write instead. Two ways to enumerate one thing is the ambiguity this API does not
 > have: `coll:list()` is the array, and you index that.
@@ -101,16 +105,15 @@ whether something exists still works.
 
 ## References: how you address things
 
-A verb takes an explicit **reference** to the thing it acts on. A reference re-resolves on every
-call, so a handle you keep is always fresh and never a stale copy.
+A verb takes an explicit **reference** to the thing it acts on, and it re-resolves on every call.
 
 ### Gob: a game object
 
-`hafen.world():gob()` is the collection of loaded game objects, and everything on it hands back a **Gob
-object** whose methods read the live one; `hafen.player():gob()` is your own. Every method re-resolves,
-so the object answers `nil` once the gob is gone, while `:id()` still answers. Anywhere a single gob is
-addressed — [`hafen.act():clickGob`](act.md), [`gob:overlay()`](gob.md#overlays) — you pass the Gob
-itself, never an id. See [Gob](gob.md).
+`hafen.world():gob()` is the collection of loaded game objects and everything on it hands back a
+[**Gob**](gob.md) whose methods read the live one; `hafen.player():gob()` is your own. Every method
+re-resolves, so it answers `nil` once the gob is gone while `:id()` still answers. Anywhere a single gob
+is addressed — [`hafen.act():clickGob`](act.md), [`gob:overlay()`](gob.md#overlays) — you pass the Gob
+itself, never an id.
 
 ### Kin: a roster entry
 
@@ -133,16 +136,16 @@ anything else a display name — and [`hafen.sound():get(name)`](sound.md) one c
 **server-published**, so read them off a live client with `:res()` rather than trusting a list.
 [`hafen.buff()`](buff.md) and [`hafen.meter()`](meter.md) carry **no `:get`** at all, because their
 members have no key: several bars can share one resource. There a name is a *search*, `:find(needle)`,
-and asking for `:get` raises an error naming it. A miss is `nil`; a **position** is an error.
+and `:get` raises an error naming it — a miss is `nil`, and a **position** is an error.
 
 ### Asset: a file your addon ships
 
 [`hafen.asset()`](asset.md) is a collection keyed by an **addon-relative path**: `:get(path)` is one
 asset, `:list(filter)` the ones this addon holds. It is the one collection that hands back an **owned
-resource** rather than a view of client state — the type comes from
-the file's extension, the handle is interned per path, and it is freed on reload or disable, or by
-`:dispose()`, after which the same path loads as a *new* object. Wherever a local file is used —
-a sprite's `:add(image)`, an object's `:add(model)`, a widget's `:font(h)` — you pass the **handle**, never a path.
+resource** rather than a view of client state — the type comes from the file's extension, the handle is
+interned per path, and it is freed on reload or disable, or by `:dispose()`, after which the same path
+loads as a *new* object. Wherever a local file is used — a sprite's `:add(image)`, an object's
+`:add(model)`, a widget's `:font(h)` — you pass the **handle**, never a path.
 
 ### Item: a thing in a container
 
@@ -191,10 +194,10 @@ Three properties make it a convention rather than a lookup helper:
 - **The verb says how many**: `hafen.ui():find(sel)` is one widget, `hafen.ui():all(sel)` is all of them,
   and `hafen.ui():root()` is the root of the tree.
 
-The grammar, the role table and the two rules worth knowing before you write one — `[title=]` resolves
-against the *enclosing window*, and you hold your result rather than re-selecting every frame — are in
-[selectors](ui/selectors.md). You never have to guess a role: the bundled **`widgetstack`** addon
-[tells you by hovering](ui/selectors.md#the-inspector).
+The grammar, the role table and the two rules worth knowing first — `[title=]` resolves against the
+*enclosing window*, and you hold your result rather than re-selecting every frame — are in
+[selectors](ui/selectors.md), where the bundled **`widgetstack`** addon also
+[names one by hovering](ui/selectors.md#the-inspector).
 
 ## Snapshots vs handles
 
@@ -202,15 +205,13 @@ against the *enclosing window*, and you hold your result rather than re-selectin
   (`gob:info()`, `item:info()`, …). They do **not** update, so re-read rather than caching one across
   ticks. Every snapshot shape is in [data types](types.md).
 - **Handles** are live, bridge-owned proxies with methods (`hafen.ui():window()`, `hafen.timer():every`,
-  `hafen.event():on`, …), released for you when the addon is disabled or reloaded.
-- **Objects** are live too, and are what a read hands you: they re-resolve rather than holding a value,
-  so one you keep tracks the thing it names.
+  `hafen.event():on`, …), released for you when the addon is disabled or reloaded. So is every **object**
+  a read hands you: it re-resolves rather than holding a value, so one you keep tracks what it names.
 
 ## The filter argument
 
-Every enumerating verb — `hafen.world():gob():list`, `hafen.map():marker():list`, `hafen.kin():list`,
-`hafen.map():icon():list`, `hafen.party():list`, `hafen.fight():maneuver():list`, … — takes
-one optional **filter**, always in the same form:
+Every enumerating verb — `hafen.world():gob():list`, `hafen.kin():list`, `hafen.map():icon():list`,
+`hafen.fight():maneuver():list`, … — takes one optional **filter**, always in the same form:
 
 | `filter` | Keeps |
 |---|---|
@@ -218,8 +219,10 @@ one optional **filter**, always in the same form:
 | a **string** | entries whose `name` contains the string (substring match) |
 | a **function** | entries for which `filter(entry)` returns truthy |
 
-Use the function form to match on any field other than `name`. The entry your predicate receives is a
-snapshot table in the flat sections and an **object** in the object-oriented ones.
+Use the function form to match on any field other than `name` — and on a set whose members have none at
+all, such as a party member, a segment or a timer, where a string is refused naming the forms that do
+work. A member whose name has simply **not arrived yet** does not match, and does not spoil the call. The
+entry your predicate receives is always the **object**, never a snapshot: read it with its own verbs.
 
 ```lua
 local gobs = hafen.world():gob()
@@ -239,11 +242,10 @@ so it goes into [`hafen.store`](store.md) and comes back unchanged. Everything e
 pixels are plain `{x, y}` numbers.
 
 > **There is no global position.** A world coordinate is session-local — it starts near the origin each
-> login — and is not comparable across players or logins. What a Position saves is a **grid id** plus an
-> offset inside that grid, and the id comes from the **server**, so it means the same thing to every
-> player. A map marker records its own coordinates differently — a segment id plus a segment tile coord,
-> both of which this client invented and a map merge rewrites — so a marker you want to keep or share is
-> stored as its [`marker:position()`](map/markers.md#the-marker-object); see
+> login — and compares across neither players nor logins. What a Position saves is a **grid id** plus an
+> offset inside it, and that id comes from the **server**, so it means the same thing to everyone. A map
+> marker records its place differently, in ids this client invented and a map merge rewrites, so one you
+> want to keep is stored as its [`marker:position()`](map/markers.md#the-marker-object); see
 > [storing a place](map/grids.md#storing-a-place).
 
 ## Colours
@@ -255,18 +257,16 @@ A colour is a table of **0..255 components**, written either way:
 { r = 200, g = 210, b = 220, a = 255 }              -- keyed — what every reader hands back
 ```
 
-Both are accepted everywhere a colour goes in: `rule:color(…)`, `g:text{color=…}`,
-`marker:color(…)`, a ghost or sprite `:tint(…)`, `font:color(…)`. So a colour you *read* —
-`kin:color()`, `meter:color()` — passes straight back. Alpha defaults to `255`, and a component
-outside `0..255` is clamped rather than refused.
+Both are accepted everywhere a colour goes in: `rule:color(…)`, `g:text{color=…}`, `marker:color(…)`,
+a ghost or sprite `:tint(…)`, `font:color(…)`. So a colour you *read* — `kin:color()`, `meter:color()` —
+passes straight back. Alpha defaults to `255`, and a component outside `0..255` is clamped.
 
 ## Missing data returns nil
 
 A read returns `nil`, or an empty table for a list verb, when the data is not available yet: before the
 world loads, before a HUD widget streams in, or while a resource is still resolving. Reads never throw a
-loading error into Lua — the bridge swallows it. Much character-sheet data (meters, food, skills, quests,
-wounds, …) streams in a beat *after* `OnEnterWorld`, so read it on a short timer or subscribe to the
-matching [event](event.md).
+loading error — the bridge swallows it. Much character-sheet data (meters, food, skills, quests, wounds)
+streams in a beat *after* `OnEnterWorld`, so read it on a timer or subscribe to its [event](event.md).
 
 ## Threading
 

@@ -154,6 +154,7 @@ any order:
 :t036-1  :t036-2  :t036-3  :t036-4  :t037-1  :t037-2  :t037-3  :t037-4  :t037-5
 :t038-1  :t038-2  :t038-3  :t038-4
 :t039-1  :t039-2  :t039-3  :t039-4  :t039-5  :t039-6  :t039-7  :t039-8  :t039-9  :t039-10  :t039-11
+:t039-12  :t039-13  :t039-14  :t039-15
 ```
 
 A red line names the task that broke. **But verifying ONE task is running ONE command** — no suite is a

@@ -37,13 +37,13 @@ Every draw callback receives `g`, [the drawing surface](../api/ui/drawing.md). C
 widget's own top-left for a widget, the screen for a HUD overlay. Set a colour, then draw.
 
 ```lua
-onDraw = function(g, w, h)
+window:onDraw(function(g, w, h)
   g:color(0, 0, 0, 160)
   g:frect(0, 0, w, h)                     -- a dim panel behind the text
   g:color(255, 210, 120)
   g:text("hello", 6, 6)
   g:line(0, h - 1, w, h - 1)
-end
+end)
 ```
 
 `g` lives only for the length of the callback: stash it and draw later and nothing happens. To draw an
@@ -86,19 +86,19 @@ it is [`hafen.render`](../api/render/README.md) or [`hafen.ghost`](../api/ghost.
 
 ## Input
 
-Mouse callbacks are options on the widget, alongside `onDraw`: `onClick`, `onMouseUp`, `onMouseMove`,
-`onWheel`, `onDrop`. Coordinates are widget-local, and every one of them ends with `mods`, the
+Mouse callbacks are setters on the widget, alongside `:onDraw`: `:onClick`, `:onMouseUp`, `:onMouseMove`,
+`:onWheel`, `:onDrop`. Coordinates are widget-local, and every one of them ends with `mods`, the
 `{shift, ctrl, alt}` state at press time, so a Shift-click is a branch rather than a second callback.
 
 ```lua
-onClick = function(x, y, button, mods)
+window:onClick(function(x, y, button, mods)
   if button == 3 then return end              -- leave the right button alone
   if mods.shift then reset() else step() end
   return true                                 -- truthy consumes the click
-end
+end)
 ```
 
-`onDrop` is the one that opts you into the client's own drag gesture: drag an action off the menu grid onto
+`:onDrop` is the one that opts you into the client's own drag gesture: drag an action off the menu grid onto
 your widget and you get a neutral descriptor for it, which you can draw with `g:resource` and persist with
 [`hafen.store`](../api/store.md). Keyboard input is not a widget option — a
 [hotkey](hotkeys-and-commands.md) is.

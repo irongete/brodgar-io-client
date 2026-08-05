@@ -13,7 +13,7 @@ predicate.
 ```lua
 local trees   = hafen.world():gob():count("terobjs/tree")            -- how many, by name
 local nearest = hafen.world():gob():nearest("terobjs/tree")          -- the closest one, or nil
-local players = hafen.world():gob():within(50, function(g)           -- everything matching, within a radius
+local players = hafen.world():gob():within(50, function(g)      -- everything matching, in a radius
   return g:isPlayer()
 end)
 ```
@@ -32,7 +32,7 @@ end)
 
 ## Read one
 
-What you get back is a [Gob](../api/gob.md), and a Gob is a **live handle**: it wraps an id and re-resolves
+What you get back is a [Gob](../api/gob.md), and a Gob is a **live object**: it holds an id and re-resolves
 on every call, so one you keep in a variable tracks its object as it moves and answers `nil` once the
 object is gone. Nothing goes stale, and nothing has to be refreshed.
 
@@ -105,20 +105,20 @@ hafen.log():write(t and (t.name or t.id) or "not loaded yet")
 Everything above is the world **streamed around you**. The ground you walked over last month is a different
 thing entirely — it is on disk, it outlives the session, and it is [`hafen.map`](../api/map/README.md):
 segments and grids, the claims and provinces that covered them, your markers, and the drawings the corner
-minimap paints.
-The anchor is the door between the two halves, in both directions:
+minimap paints. A [Position](../api/world.md#the-position-type) is the door between the two halves, in
+both directions:
 
 ```lua
-local gp = hafen.player():gob():position():info()   -- where I am, as {gridId, x, y}
-local g  = hafen.map():grid():get(gp.gridId)   -- ...the same Grid, from the recorded side
-local t  = g and g:tile{ x = 0, y = 0 }      -- nil until the grid is read off the disk
+local gp = hafen.player():gob():position():info()      -- where I am, as {gridId, x, y}
+local g  = hafen.map():grid():get(gp.gridId)           -- ...the same Grid, from the recorded side
+local t  = g and g:tile({ x = 0, y = 0 })              -- nil until the grid is read off the disk
 hafen.log():write(t and t.name or "not loaded yet — ask again next tick")
 ```
 
 A read that needs a grid the client has not loaded off the disk **starts the load and answers `nil`** — call
 again next tick and it answers. There is no callback and no ready event: re-asking is the whole protocol, the
-same way a rebuilt Position resolves as the map streams in. The [`atlas`](../examples.md#atlas) example addon is a
-minimap panel built on exactly that loop.
+same way a rebuilt Position resolves as the map streams in. The [`atlas`](../examples.md#atlas) example
+addon is a minimap panel built on exactly that loop.
 
 ## What the client does not know
 

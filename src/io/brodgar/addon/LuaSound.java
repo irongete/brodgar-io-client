@@ -458,6 +458,11 @@ public final class LuaSound {
                 return (h == null) ? "" : h.res;
             }
 
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
+            }
+
             public boolean addressable() {
                 return true;
             }

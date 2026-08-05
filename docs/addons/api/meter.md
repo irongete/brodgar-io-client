@@ -97,7 +97,9 @@ and a pure recolour count, and standing still is silent.
 
 ```lua
 hafen.event():on("MeterChanged", function(m)
-  if m:res() == "gfx/hud/meter/hp" then hafen.log():write(("hp %.0f%%"):format((m:value() or 0) * 100)) end
+  if m:res() == "gfx/hud/meter/hp" then
+    hafen.log():write(("hp %.0f%%"):format((m:value() or 0) * 100))
+  end
 end)
 ```
 

@@ -271,7 +271,7 @@ public final class LuaSkill {
                 int n = 0;
                 for(String nm : tokens(false)) {
                     LuaValue member = of(owner, nm);
-                    if(LuaCollection.keeps(filter, member, needleOf(member),
+                    if(LuaCollection.keeps(filter, member, true, needleOf(member),
                                            "hafen.char():skill()", "available"))
                         t.set(++n, member);
                 }
@@ -288,6 +288,11 @@ public final class LuaSkill {
 
             public String needle(LuaValue member) {
                 return needleOf(member);
+            }
+
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
             }
         }, extra);
     }

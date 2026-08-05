@@ -53,15 +53,15 @@ you can draw again. Rebuild the live objects from that on load.
 
 ```lua
 hafen.event():on("OnEnterWorld", function()
-  for _, p in ipairs(hafen.store():get("settings").props or {}) do
-    local w = hafen.world():position(p.anchor)                  -- :x() is nil until that grid is reachable
-    if w then hafen.ghost():add(p.res, w) end
+  for _, prop in ipairs(hafen.store():get("settings").props or {}) do
+    local p = hafen.world():position(prop.at)      -- :x() is nil until that grid is reachable
+    if p then hafen.ghost():add(prop.res, p) end
   end
 end)
 ```
 
 That example is the general shape of saving anything positional: a raw `x, y` is meaningless next session,
-so store the [grid anchor](../api/world.md#the-position-type) instead.
+so store a [Position](../api/world.md#the-position-type) instead.
 
 ## When it is written
 
