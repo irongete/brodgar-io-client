@@ -119,7 +119,7 @@ An addon hotkey is declared by name and starts **unbound**: you name the action,
 Add this at the end of the file:
 
 ```lua
-hafen.client:options():keybindings():register("toggle", function()
+hafen.client():options():keybindings():register("toggle", function()
   if not window then return end
   if window:visible() then window:visible(false) else window:visible(true) end
 end)
@@ -138,18 +138,18 @@ The window should come back the way you left it. Declare a saved variable in `ma
 "saved_variables": ["settings"]
 ```
 
-`hafen.store.settings` is then an ordinary table that the engine fills before `OnEnterWorld` and writes
+`hafen.store():get("settings")` is then an ordinary table that the engine fills before `OnEnterWorld` and writes
 back to disk for you. Record the state in the hotkey, and apply it when the window is built:
 
 ```lua
-  if hafen.store.settings.open == false then window:visible(false) end
+  if hafen.store():get("settings").open == false then window:visible(false) end
 ```
 
 goes at the end of the `OnEnterWorld` handler, and the hotkey's body becomes:
 
 ```lua
   if window:visible() then window:visible(false) else window:visible(true) end
-  hafen.store.settings.open = window:visible()
+  hafen.store():get("settings").open = window:visible()
 ```
 
 Reload, hide the window, log out and back in: it stays hidden. See [`hafen.store`](api/store.md) for the
@@ -189,17 +189,17 @@ hafen.event():on("OnEnterWorld", function()
       g:color(255, 220, 120)
       g:text("trees nearby: " .. trees, 6, 4)
     end)
-  if hafen.store.settings.open == false then window:visible(false) end
+  if hafen.store():get("settings").open == false then window:visible(false) end
 end)
 
 hafen.timer():every(1, function()
   trees = hafen.world():gob():count("terobjs/tree")
 end)
 
-hafen.client:options():keybindings():register("toggle", function()
+hafen.client():options():keybindings():register("toggle", function()
   if not window then return end
   if window:visible() then window:visible(false) else window:visible(true) end
-  hafen.store.settings.open = window:visible()
+  hafen.store():get("settings").open = window:visible()
 end)
 ```
 

@@ -131,7 +131,7 @@ local function run()
         "p:tileCoord / world:tileToWorld / :tileToGrid compose onto the tile and grid under the player",
         tc and ("tile %d,%d ul %s grid %d,%d"):format(tc.x, tc.y, ul and ul.x or "nil", gc.x, gc.y))
 
-  local iface = hafen.client:options():interface()
+  local iface = hafen.client():options():interface()
   local s = hafen.world():snapPlace(p)
   check(near(s and s:x(), (math.floor(px / TILE) * TILE) + (TILE / 2), 0.001)
           and near(s and s:y(), (math.floor(py / TILE) * TILE) + (TILE / 2), 0.001)
@@ -200,7 +200,7 @@ local function run()
   -- It reads the terrain point from the GPU, so the answer arrives a frame later. Fire it at the player's
   -- own pixel and wait BEFORE judging (035.2: a step that runs inline with what it checks reads the frame
   -- before). The summary closes the run from inside the callback's wake.
-  local sc = hafen.player():worldToScreen(px, py)
+  local sc = hafen.player():worldToScreen(p)
   local hit, fired = nil, false
   if sc then
     hafen.world():screenToWorld(sc.x, sc.y, function(w) fired = true; hit = w end)

@@ -9,7 +9,7 @@
 --
 -- The draw check is 034.2's method: Lua cannot read a pixel, but g:text's cache is keyed on
 -- (string, font, Fonts.gen()) — the very value the frame stamps — so ONE string drawn in two probe windows takes
--- TWO keys exactly when one of them is inside a frame. hafen.client:profiling():textcache() is pull-only, so
+-- TWO keys exactly when one of them is inside a frame. hafen.client():profiling():textcache() is pull-only, so
 -- nothing needs arming.
 --
 -- READ-ONLY: declares no permissions and mutates no persistent state. Its probe windows live for ~2 s in the
@@ -59,7 +59,7 @@ local A, B = "034.3 probe A", "034.3 probe B"
 local WARM, COLD = { 200, 180, 140 }, { 90, 140, 200 }
 
 local function misses()
-  return hafen.client:profiling():textcache().misses or 0
+  return hafen.client():profiling():textcache().misses or 0
 end
 
 local function probe(title, y)

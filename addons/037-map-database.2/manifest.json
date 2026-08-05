@@ -1,7 +1,7 @@
 {
   "name": "037.2 — segments and grids, and the anchor bridge both ways",
   "id": "037-map-database.2",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 037.2: hafen.map.segment()/segments()/grid(id) open the recorded map database, a Segment and a Grid are entities, and the anchor bridge closes both ways — the player's live grid id resolves INTO the database and names the same tile the live terrain does, while marker:anchor() converts a marker's client-local segment position OUT of it into the {gridId, x, y} that may be saved or shared. Stores one anchor of its own (account scope) so the relog check can prove it still resolves.",
   "api_version": 1,

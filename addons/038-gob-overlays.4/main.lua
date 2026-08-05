@@ -131,10 +131,10 @@ end
 -- gob and the keys, so the check asserts through the very door the attach used -- not through a count some
 -- other teardown path also drives to zero (037.4's lesson).
 local function teardownVerdict()
-  local p = hafen.store.state.pending
+  local p = hafen.store():get("state").pending
   if p == nil then return false end
-  hafen.store.state.pending = nil
-  hafen.store.flush()
+  hafen.store():get("state").pending = nil
+  hafen.store():flush()
   local g = hafen.world():gob():get(p.gob)
   if not g:exists() then
     manualCheck("the gob the last run marked (" .. tostring(p.gob) .. ") is not loaded now -- run ':t038-4'"
@@ -276,8 +276,8 @@ local function run()
       me:overlay():add(KEEP[2]):draw(function(g, gob, sx, sy) g:rect(sx - 4, sy - 4, 8, 8) end)
       me:overlay():add(KEEP[3]):image(icon):scale(2):offset(0, 0, 22)
       eq("three overlays are parked for the teardown check, in both spaces", mine(me), 3)
-      hafen.store.state.pending = { gob = me:id(), keys = KEEP, natives = natives(me) }
-      hafen.store.flush()
+      hafen.store():get("state").pending = { gob = me:id(), keys = KEEP, natives = natives(me) }
+      hafen.store():flush()
 
       if not hadMarker then
         manualCheck("type ':reload', then ':t038-4' again -- no addon can watch its own teardown, so this is"

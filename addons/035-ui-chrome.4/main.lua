@@ -13,7 +13,7 @@
 --     paints from data parsed once, so with the client themed this addon's own draw and widget callbacks must
 --     read ZERO and the widget tree must cost what it cost stock — measured over the same windows twice, since
 --     the round stands up four of its own rather than measure whatever happens to be open. Both come from
---     hafen.client:profiling(), which answers only while the profiler is armed; when it is not, that half is
+--     hafen.client():profiling(), which answers only while the profiler is armed; when it is not, that half is
 --     one [manual] line naming the switch to tick.
 --
 -- READ-ONLY: declares no permissions, mutates no persistent state (it READS the profiling switch and never
@@ -156,14 +156,14 @@ end
 -- `draw`, which is the very distinction the no-Lua check below rests on.
 local function sample(n, acc, done)
   hafen.timer():after(0.06, function()
-    local f = hafen.client:profiling():frame()
+    local f = hafen.client():profiling():frame()
     if f and f.ui then acc[#acc + 1] = f.ui end
     if #acc >= n then done(acc) else sample(n, acc, done) end
   end)
 end
 
 local function ownRow()
-  for _, r in ipairs(hafen.client:profiling():addons()) do
+  for _, r in ipairs(hafen.client():profiling():addons()) do
     if r.id == ID then return r end
   end
 end
@@ -227,7 +227,7 @@ steps[2] = function()
      xy(probe:size()) .. " @ " .. xy(probe:position()), base .. " @ " .. basePos)
   eq("...and leaves the probe resolving nothing again", probe:style(), nil)
   eq("...and no sheet-fed chrome anywhere in the client", #hafen.ui():all("@SkinDeco"), 0)
-  if hafen.client:options():client():profiling() then
+  if hafen.client():options():client():profiling() then
     costRound(finish)
   else
     armManual = true

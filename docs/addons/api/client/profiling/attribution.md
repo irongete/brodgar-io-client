@@ -24,7 +24,7 @@ reports: both read the accounting the addon CPU watchdog already keeps, so the t
 disagree. Iterate the rows with `ipairs` — `total` is not part of the array.
 
 ```lua
-local rows = hafen.client:profiling():addons()
+local rows = hafen.client():profiling():addons()
 for _, r in ipairs(rows) do
   hafen.log():write(string.format("%-12s %.2f ms (%.0f%%)  draw=%d events=%d",
                           r.id, r.ms, (r.share or 0) * 100, r.calls.draw, r.calls.events))
@@ -46,7 +46,7 @@ callbacks.
 your own row of [`addons()`](#addons).
 
 ```lua
-local p = hafen.client:profiling()
+local p = hafen.client():profiling()
 
 p:measure("scan-gobs", function()                  -- the wrapper form: you cannot forget to finish
   for _, g in ipairs(hafen.world():gob():list()) do … end
@@ -83,7 +83,7 @@ unmatched `finish()` is ignored, and a scope left open by an erroring handler cl
 `frame()` says the widget tree cost so many milliseconds. `widgets()` says **who**.
 
 ```lua
-local w = hafen.client:profiling():widgets()
+local w = hafen.client():profiling():widgets()
 for _, r in ipairs(w.byType) do
   hafen.log():write(string.format("%-20s x%d  self %.2f ms", r.type, r.count, r.selfMs))
 end
@@ -132,7 +132,7 @@ that addon's row: two views of one measurement, not two measurements.
 fixed list of named sections with **CPU and GPU time side by side**.
 
 ```lua
-for _, r in ipairs(hafen.client:profiling():passes()) do
+for _, r in ipairs(hafen.client():profiling():passes()) do
   hafen.log():write(string.format("%-8s cpu %.2f ms  gpu %.2f ms", r.name, r.cpuMs, r.gpuMs))
 end
 ```
@@ -190,7 +190,7 @@ What profiling itself costs, per **tier**, so a tier that gets too expensive can
 rather than dragging the whole feature down.
 
 ```lua
-local o = hafen.client:profiling():overhead()
+local o = hafen.client():profiling():overhead()
 hafen.log():write(string.format("profiling costs %.4f ms/frame = %.2f%% (%s)",
                         o.totalMs, o.shareOfFrame * 100, o.method))
 for _, r in ipairs(o.tiers) do
@@ -247,4 +247,4 @@ always sum to `totalMs`. `modelledMs` is reported alongside, so nothing hides be
 
 - [profiling](README.md) — the handle, `frame()` and `history()`
 - [counters](counters.md) — the five that answer whether profiling is armed or not
-- [`hafen.client:options()`](../README.md#client) — the switch every verb here needs
+- [`hafen.client():options()`](../README.md#client) — the switch every verb here needs

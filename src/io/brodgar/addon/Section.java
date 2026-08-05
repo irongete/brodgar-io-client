@@ -96,6 +96,19 @@ public final class Section {
      * {@code __index} is consulted on a miss only.
      */
     static void mount(LuaTable hafen, final String nm, final LuaValue obj, final String hint, LuaTable t) {
+        mount(hafen, nm, obj, hint, t, Retired.sectionIndex(nm));
+    }
+
+    /**
+     * As {@link #mount(LuaTable, String, LuaValue, String, LuaTable)}, with the callable table's {@code __index}
+     * supplied by the caller. {@link Retired} is a <b>static</b> table of names this migration renamed, which is
+     * enough for every section whose verbs are the same for every addon — and not enough for the one whose field
+     * names are the <i>addon's own</i>: {@code hafen.store.<name>} is a manifest-declared saved variable, so the
+     * spellings that have to throw are only known per owner. Such a section builds its own index and falls
+     * through to {@link Retired#sectionIndex} for everything else.
+     */
+    static void mount(LuaTable hafen, final String nm, final LuaValue obj, final String hint, LuaTable t,
+                      LuaValue index) {
         LuaTable mt = new LuaTable();
         // `nm`, never `name`: LuaJ's LibFunction declares a `protected String name`, and an inherited field
         // shadows an enclosing method's parameter of the same name inside an anonymous subclass (019.4).
@@ -110,7 +123,7 @@ public final class Section {
                 return obj;
             }
         });
-        mt.set(LuaValue.INDEX, Retired.sectionIndex(nm));
+        mt.set(LuaValue.INDEX, index);
         t.setmetatable(mt);
         hafen.set(nm, t);
     }

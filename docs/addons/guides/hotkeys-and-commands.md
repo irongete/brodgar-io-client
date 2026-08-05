@@ -6,7 +6,7 @@ ungated, both are registered by name, and both are cleaned up when your addon re
 ## A hotkey
 
 ```lua
-local keys = hafen.client:options():keybindings()
+local keys = hafen.client():options():keybindings()
 
 keys:register("toggle", function()
   if window:visible() then window:visible(false) else window:visible(true) end

@@ -117,7 +117,7 @@ while you move the mouse to read it.
 
 ## profiler
 
-A six-tab window over [`hafen.client:profiling()`](api/client/profiling/README.md): the frame graph and the
+A six-tab window over [`hafen.client():profiling()`](api/client/profiling/README.md): the frame graph and the
 thread phases, the render passes with their GL counters, per-widget cost, per-addon cost with each addon's
 own scopes, the [pull-only counters](api/client/profiling/counters.md), and what profiling itself costs.
 Pausing freezes the ring and turns the graph into a timeline you scrub frame by frame.

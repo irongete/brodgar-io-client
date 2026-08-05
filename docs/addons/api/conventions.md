@@ -278,7 +278,7 @@ the sandbox's instruction watchdog aborts a runaway one.
 
 Everything in the API observes except one section, [`hafen.act()`](act.md), which **drives the
 character** by sending actions to the server. The same gate covers the per-subsystem write verbs that
-do the same thing from their own page: `hafen.speed.set`, `hafen.craft.make`, `slot:use`, `slot:res(name)`,
+do the same thing from their own page: `hafen.speed():current(n)`, `hafen.craft.make`, `slot:use`, `slot:res(name)`,
 and the kin verbs `hafen.kin():add`, `kin:rename`, `kin:group(g)`, `kin:endKin` and `kin:forget`.
 
 A gated verb runs only if the addon **declared** `"permissions": ["actions"]` in its manifest and the

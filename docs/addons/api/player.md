@@ -19,15 +19,18 @@ only what has no per-gob equivalent.
 |---|---|---|
 | `hafen.player():gob()` | [Gob](gob.md) \| nil | your own game object; `nil` before you are in the world |
 | `hafen.player():name()` | string \| nil | the local character's name |
-| `hafen.player():worldToScreen(x, y)` | `{x, y}` \| nil | project a world point to a map-view screen pixel |
+| `hafen.player():worldToScreen(p)` | `{x, y}` \| nil | project a [Position](world.md#the-position-type) to a map-view screen pixel |
 
 `hafen.player()` always hands back the same object, and `hafen.player():gob()` is the same object as
 `hafen.world():gob():get(<your id>)` — so `gob == hafen.player():gob()` is how you tell "is this me?" from any other
-gob, with no id comparison. Nothing here throws, and nothing is gated.
+gob, with no id comparison. Nothing here is gated.
 
-`worldToScreen` returns coordinates relative to the map view, which is what a
-[gob overlay](gob.md#overlays) or a HUD overlay wants. It answers `nil` before the map view exists, and
-for a point the view cannot project. The inverse is [`hafen.world():screenToWorld`](world.md#screen-to-world-and-placement-snapping).
+`worldToScreen` takes a place in the world and answers **plain pixels**, relative to the map view, which
+is what a [gob overlay](gob.md#overlays) or a HUD overlay wants. What comes back is not a Position: a
+pixel is not a place in the world, and only the direction that has an answer will type-check. It answers
+`nil` before the map view exists, and for a point the view cannot project; anything that is not a
+Position going in is an error. The inverse is
+[`hafen.world():screenToWorld`](world.md#screen-to-world-and-placement-snapping).
 
 > There is no `exists()` and no `id()` on Player: `hafen.player():gob()`, `nil` or not, and `gob:id()`
 > answer both questions.

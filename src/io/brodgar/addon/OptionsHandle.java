@@ -6,7 +6,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 /**
- * {@code hafen.client} and the Options handle behind {@code hafen.client:options()} (spec 018-client-options).
+ * {@code hafen.client()} and the Options handle behind {@code hafen.client():options()} (spec 018-client-options).
  * The handle groups the settings subsystems the client's Options window edits — {@code interface()},
  * {@code video()}, {@code audio()}, {@code camera()}, {@code client()}, {@code keybindings()} — one per OptWnd
  * panel, each returning its own handle
@@ -22,23 +22,30 @@ import org.luaj.vm2.lib.VarArgFunction;
 public final class OptionsHandle {
     private OptionsHandle() {}
 
-    /** Build {@code hafen.client} for {@code owner}. From {@code installHafen}. */
+    /**
+     * Build {@code hafen.client()} for {@code owner}. From {@code installHafen}. This was the API's one
+     * colon-on-the-namespace ({@code hafen.client:options()}) and is now a section like every other one: the
+     * table is CALLED and both verbs are colon calls on what it hands back.
+     */
     static void install(LuaTable hafen, final Addon owner) {
         LuaTable client = new LuaTable();
         client.set("options", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {   // colon call: a.arg(1) is hafen.client itself
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "client", "options");
                 return create(owner);
             }
         });
-        // hafen.client:profiling() — the profiling READ surface (spec 019). It hangs directly off hafen.client,
+        // hafen.client():profiling() — the profiling READ surface (spec 019). It hangs directly off the section,
         // not off options(): options() is settings, and a measurement is data. The switch that arms it is the
         // setting, and that one does live in the tree, at options():client():profiling().
         client.set("profiling", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "client", "profiling");
                 return ProfHandle.create(owner);   // per-owner: p:scope()/p:measure() charge the CALLING addon
             }
         });
-        hafen.set("client", client);
+        Section.install(hafen, "client", client,
+                        "hafen.client:options() is now hafen.client():options()");
     }
 
     /** A fresh Options handle for {@code owner}: one accessor per Options panel. */

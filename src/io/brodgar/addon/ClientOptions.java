@@ -35,7 +35,7 @@ public final class ClientOptions {
 
     private static LuaTable methods(final LuaValue handle) {
         LuaTable m = new LuaTable();
-        m.set("profiling", new OptionsMethod(handle) {
+        m.set("profiling", new OptionsMethod(handle, "client:profiling") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(Prof.armed());
             }

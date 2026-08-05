@@ -120,9 +120,9 @@ end
 -- SEL: registration SCANS the live tree, so an inventory that is already open is replaced on the spot (D-068 --
 -- this is what the retired replace's own re-scan did, now the general subscription doing its job), and one that is
 -- not simply gets replaced the moment it appears. The hotkey is declared through
--- hafen.client:options():keybindings():register(name, fn) and starts UNBOUND (D-047): a "Bags" section appears in
+-- hafen.client():options():keybindings():register(name, fn) and starts UNBOUND (D-047): a "Bags" section appears in
 -- the keybind panel (2e-3) where YOU assign the key — Ctrl+Shift+I is merely the suggestion.
-local keys = hafen.client:options():keybindings()
+local keys = hafen.client():options():keybindings()
 keys:register("toggle", function()
   if watch then
     stopReplace()
@@ -158,7 +158,7 @@ end)
 -- keybindings:get(name) resolves THIS addon's binding first (addon/bags/toggle), so the log always reports the
 -- key the user actually assigned -- nil until they do.
 hafen.log():write(("bags: toggle hotkey = %s (assign it under Options > Keybindings > Bags; suggested Ctrl+Shift+I)")
-  :format(keys:get("toggle") or "unassigned"))
+  :format(keys:key("toggle") or "unassigned"))
 
 hafen.event():on("OnDisable", function()
   hafen.log():write("bags: OnDisable -- native inventory restored + custom view destroyed on teardown")

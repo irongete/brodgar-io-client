@@ -50,7 +50,7 @@ local GRID = TILE * SIDE
 -- ---- the parked half: run AFTER a ':reload', on the Position the main run stored --------------------
 local function keptRound()
   pass, fail, manual = 0, 0, 0
-  local p = hafen.store.kept.home
+  local p = hafen.store():get("kept").home
   if p == nil then
     check(false, "a Position was stored by an earlier ':t039-2' run", "nothing in the store -- run ':t039-2' first")
     return summary()
@@ -60,7 +60,7 @@ local function keptRound()
   check((type(p) == "userdata") and (type(p.info) == "function") and (p:info() ~= nil),
         "a Position survived the reload AS a Position, not as the table it is written as",
         (type(p) == "table") and "a plain table (the marshalling is missing)" or tostring(p))
-  local tc, want = p:tileCoord(), hafen.store.kept.tile
+  local tc, want = p:tileCoord(), hafen.store():get("kept").tile
   check(tc and want and (tc.x == want.x) and (tc.y == want.y),
         "...and it resolves to the very tile it named before the reload",
         (tc == nil) and "the stored place is not reachable this session"
@@ -73,9 +73,9 @@ end
 -- meaningless rather than wrong, so the measurement is retried and reported honestly if it never settles.
 local function perCall(fn, n)
   for _ = 1, 3 do
-    local m0 = hafen.client:profiling():memory()
+    local m0 = hafen.client():profiling():memory()
     for _ = 1, n do fn() end
-    local m1 = hafen.client:profiling():memory()
+    local m1 = hafen.client():profiling():memory()
     if (m1.gcCount == m0.gcCount) and (m1.heapUsed > m0.heapUsed) then
       return (m1.heapUsed - m0.heapUsed) / n
     end
@@ -140,7 +140,7 @@ local function run(args)
   refuses("gob:isplayer() throws naming gob:isPlayer()", function() return me.isplayer end, "gob:isPlayer()")
 
   -- 6. The two placement settings survive on the door that also WRITES them (the cut was a duplicate).
-  local iface = hafen.client:options():interface()
+  local iface = hafen.client():options():interface()
   check((type(iface:posGran()) == "number") and (type(iface:angGran()) == "number"),
         "the interface options still read the placement grain the cut verbs duplicated",
         ("posGran=%s angGran=%s"):format(tostring(iface:posGran()), tostring(iface:angGran())))
@@ -248,9 +248,9 @@ local function run(args)
 
   -- 15. Store the Position for the parked round, plus the tile it names, and tell the maintainer how to
   --     close it: a suite cannot watch its own reload.
-  hafen.store.kept.home = p
-  hafen.store.kept.tile = p:tileCoord()
-  hafen.store.flush()
+  hafen.store():get("kept").home = p
+  hafen.store():get("kept").tile = p:tileCoord()
+  hafen.store():flush()
 
   -- 16. A GobAdded/GobRemoved handler still receives a live Gob -- staged, because only the world can
   --     fire one. The summary closes the run from inside the wake.

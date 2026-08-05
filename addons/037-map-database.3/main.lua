@@ -69,8 +69,9 @@ local function holdRound()
           ("cplot=%s realm=%s"):format(tostring(c), tostring(r)))
     return summary()
   end
-  hafen.store.stock = { cplot = c, realm = r }
-  hafen.store.flush()
+  local stock = hafen.store():get("stock")   -- the LIVE persisted table: write THROUGH it, never replace it
+  stock.cplot, stock.realm = c, r
+  hafen.store():flush()
   toggle("cplot"):hold()
   toggle("realm"):hold()
   manualCheck("open the map window and look at the world, then run ':reload' and ':t037-3 after'"
@@ -83,7 +84,7 @@ end
 -- Assert both toggles are back where holdRound found them. Runs after a :reload (the teardown released) or
 -- after ':t037-3 drop' (the API released) -- the same assertion either way, which is the point.
 local function backRound(how)
-  local s = hafen.store.stock
+  local s = hafen.store():get("stock")
   if not (s and (type(s.cplot) == "boolean")) then
     check(false, "':t037-3 hold' ran first and stored the stock toggle values",
           "nothing in the store -- run ':t037-3 hold' first")

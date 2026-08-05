@@ -660,14 +660,15 @@ final class CharApi {
     }
 
     /**
-     * Build {@code hafen.player} for {@code owner}. From installHafen. Since D-046 {@code hafen.player} is a
-     * <b>callable table</b> ({@code __call}, like {@code hafen.gob}) returning the addon's single <b>Player
-     * object</b>: {@code hafen.player():gob()} is the composition anchor for every per-gob read of the player
-     * (position/health/moving/facing/…). Player forwards <b>nothing</b> — a {@code player:pos()} living beside
-     * {@code player:gob():pos()} is exactly the dual style D-013 forbids — and {@code exists}/{@code id} are
-     * dropped: {@code player:gob()} (nil before entering the world) and {@code gob:id()} already answer both.
-     * The object is a per-addon singleton (cached on {@link Addon#playerObj}), so {@code hafen.player() ==
-     * hafen.player()}; it is userdata with a per-addon metatable, immutable from Lua, like a {@link LuaGob}.
+     * Build {@code hafen.player()} for {@code owner}. From installHafen. The section contains exactly one thing,
+     * so the <b>section object IS that thing</b> (§2.1): {@code hafen.player()} hands back the addon's single
+     * <b>Player object</b>, and {@code hafen.player():gob()} is the composition anchor for every per-gob read of
+     * the player (position/health/moving/facing/…). Player forwards <b>nothing</b> — a {@code player:pos()}
+     * living beside {@code player:gob():position()} is exactly the dual style D-013 forbids — and
+     * {@code exists}/{@code id} are dropped: {@code player:gob()} (nil before entering the world) and
+     * {@code gob:id()} already answer both. It is a per-addon singleton (cached on {@link Addon#playerObj}), so
+     * {@code hafen.player() == hafen.player()}; it is userdata with a per-addon metatable, immutable from Lua,
+     * like a {@link LuaGob}.
      */
     static void installPlayer(LuaTable hafen, final Addon owner) {
         LuaTable methods = new LuaTable();
@@ -689,13 +690,18 @@ final class CharApi {
         });
         /* vitals() is GONE (027-meters-oop's hard cut): the HUD bars are hafen.meter():list(), which is every meter
          * the server puts in the slot rather than a hard-coded hp/stamina/energy triple read by position. */
-        methods.set("worldToScreen", new ThreeArgFunction() {
-            public LuaValue call(LuaValue self, LuaValue x, LuaValue y) {
+        // worldToScreen(p) — project a PLACE IN THE WORLD to a MAP-VIEW pixel. It takes a Position (§2.7) and
+        // answers a plain {x, y} in px, which is deliberately NOT one: the two spaces have the same shape and
+        // used to be the same type, so a widget's pixel position walked the character somewhere wrong instead
+        // of failing. Now only the direction that has an answer type-checks.
+        methods.set("worldToScreen", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.player():worldToScreen", "p");
                 MapView m = view;
-                if((m == null) || !x.isnumber() || !y.isnumber())
+                if(m == null)
                     return LuaValue.NIL;
                 try {
-                    Coord3f sc = m.screenxf(Coord2d.of(x.todouble(), y.todouble()));
+                    Coord3f sc = m.screenxf(rc);
                     return (sc == null) ? LuaValue.NIL : xy(sc.x, sc.y);
                 } catch(RuntimeException e) {
                     return LuaValue.NIL;
@@ -703,24 +709,21 @@ final class CharApi {
             }
         });
         final LuaTable pmt = new LuaTable();
-        pmt.set(LuaValue.INDEX, methods);
+        // A section object's vocabulary is CLOSED: an unknown verb throws naming what does exist, exactly as
+        // Section.meta and LuaCollection do for every other section. Pointing __index straight at the methods
+        // table would make hafen.player():nosuchverb() read plain nil and fail one character later as "attempt
+        // to call a nil value" — the failure the whole grammar exists to delete, and the one Player would have
+        // been alone in keeping, since the section object here IS the one thing the section contains (§2.1).
+        pmt.set(LuaValue.INDEX, Retired.closedIndex("hafen.player()", methods,
+            "the section object is the character itself: :gob() :name() :worldToScreen(p)"));
         pmt.set("__name", LuaValue.valueOf("Player"));
         pmt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf("Player");
             }
         });
-        LuaTable player = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.CALL, new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                if(owner.playerObj == null)
-                    owner.playerObj = LuaValue.userdataOf(new PlayerMark(), pmt);
-                return owner.playerObj;
-            }
-        });
-        player.setmetatable(mt);   // a callable table (not a bare function) so hafen.player.name reads as nil
-        hafen.set("player", player);
+        owner.playerObj = LuaValue.userdataOf(new PlayerMark(), pmt);
+        Section.mount(hafen, "player", owner.playerObj, null);
     }
 
     /** The opaque instance behind a Player userdata (facade-safe: no Java object of the engine's crosses). */

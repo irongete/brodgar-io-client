@@ -28,7 +28,7 @@ public final class CameraOptions {
 
     private static LuaTable methods(final LuaValue handle) {
         LuaTable m = new LuaTable();
-        m.set("invertHorizontal", new OptionsMethod(handle) {
+        m.set("invertHorizontal", new OptionsMethod(handle, "camera:invertHorizontal") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(MapView.invcamx);
             }
@@ -36,7 +36,7 @@ public final class CameraOptions {
                 Utils.setprefb("invcamx", MapView.invcamx = value.toboolean());
             }
         });
-        m.set("invertVertical", new OptionsMethod(handle) {
+        m.set("invertVertical", new OptionsMethod(handle, "camera:invertVertical") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(MapView.invcamy);
             }

@@ -57,7 +57,7 @@ raises rather than pretending to change what is already on the wire.
 ```lua
 local req = hafen.http():get("https://api.example.com/slow",
                              function(res) hafen.log():write(res.status) end)
-req:header("Authorization", "Bearer " .. hafen.store.cfg.token):timeout(5000)
+req:header("Authorization", "Bearer " .. hafen.store():get("cfg").token):timeout(5000)
 
 req:cancel()      -- the callback will NOT fire
 ```
@@ -80,7 +80,7 @@ hafen.http():post("https://api.example.com/report",
       local reply = hafen.json():parse(res.body)
       hafen.log():write(reply.message)
     end
-  end):header("Authorization", "Bearer " .. hafen.store.cfg.token)
+  end):header("Authorization", "Bearer " .. hafen.store():get("cfg").token)
 
 -- or a raw string body with your own content type
 hafen.http():post("https://api.example.com/ingest", "a,b,c\n1,2,3")

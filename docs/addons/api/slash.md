@@ -45,6 +45,6 @@ After the last handler for a name is gone, typing `:name` reports that no addon 
 ## See also
 
 - [`hafen.log`](log.md) — printing back to the console the command was typed into
-- [`hafen.client:options():keybindings()`](client/keybindings.md) — a hotkey, the other way a user
+- [`hafen.client():options():keybindings()`](client/keybindings.md) — a hotkey, the other way a user
   invokes an addon by hand
 - [`hafen.ui`](ui/README.md) — a window, for anything the user does more than occasionally

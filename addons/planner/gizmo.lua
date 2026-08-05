@@ -149,12 +149,15 @@ local function computeGeom(self)
   if not tgt then return nil end
   local p = xform(tgt)
   if not p then return nil end
-  local pl = hafen.player()                     -- the Player object (D-046); worldToScreen is a method now
-  local c = pl:worldToScreen(p.x, p.y)
+  -- worldToScreen takes a POSITION, and this gizmo's own value is flat numbers (see xform), so the two
+  -- world-axis tips are built with the engine's own arithmetic rather than added to a pair of doubles.
+  local pl, w = hafen.player(), hafen.world()
+  local centre = w:position(p.x, p.y)
+  local c = pl:worldToScreen(centre)
   if not c then return nil end
   local len = self.len
-  local xt = pl:worldToScreen(p.x + len, p.y)
-  local yt = pl:worldToScreen(p.x, p.y + len)
+  local xt = pl:worldToScreen(centre:offset(len, 0))
+  local yt = pl:worldToScreen(centre:offset(0, len))
   return {
     wx = p.x, wy = p.y,                 -- the ghost's world position (the rotation pivot)
     cx = c.x, cy = c.y,

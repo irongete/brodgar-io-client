@@ -88,7 +88,7 @@ local function probe(title, y)
 end
 
 local function misses()
-  return hafen.client:profiling():textcache().misses or 0
+  return hafen.client():profiling():textcache().misses or 0
 end
 
 -- ---- cost, the armed half -------------------------------------------------------------------------
@@ -114,14 +114,14 @@ end
 -- callback check reports honest.
 local function sample(n, acc, done)
   hafen.timer():after(0.06, function()
-    local f = hafen.client:profiling():frame()
+    local f = hafen.client():profiling():frame()
     if f and f.ui then acc[#acc + 1] = f.ui end
     if #acc >= n then done(acc) else sample(n, acc, done) end
   end)
 end
 
 local function ownRow()
-  for _, r in ipairs(hafen.client:profiling():addons()) do
+  for _, r in ipairs(hafen.client():profiling():addons()) do
     if r.id == ID then return r end
   end
 end
@@ -301,7 +301,7 @@ local function run()
 
   -- 6. the cost round, then the armed one if the maintainer has the profiler on.
   costCache(function()
-    if hafen.client:options():client():profiling() then
+    if hafen.client():options():client():profiling() then
       costRound(finish)
     else
       armManual = true

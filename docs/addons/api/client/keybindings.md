@@ -1,10 +1,10 @@
 # hafen.client: keybindings
 
-`hafen.client:options():keybindings()` is the client's hotkey registry: declare your addon's hotkeys, and
+`hafen.client():options():keybindings()` is the client's hotkey registry: declare your addon's hotkeys, and
 read or remap any binding, yours or the client's own. Ungated.
 
 ```lua
-local keys = hafen.client:options():keybindings()
+local keys = hafen.client():options():keybindings()
 
 keys:register("toggle", function()
   hafen.log():write("toggled")
@@ -14,12 +14,14 @@ end)
 | Method | Returns | Description |
 |---|---|---|
 | `register(name, fn)` | the handle | declare a hotkey owned by your addon; `fn` runs when it fires |
-| `get(name)` | string \| nil | current key as a display string (`"Ctrl+M"`), or `nil` if unbound or unknown |
-| `set(name, key)` | the handle | remap a binding; `"None"` unbinds it |
+| `key(name)` | string \| nil | current key as a display string (`"Ctrl+M"`), or `nil` if unbound or unknown |
+| `key(name, k)` | the handle | remap a binding; `"None"` unbinds it |
 | `unregister(name)` | the handle | drop one of *your* hotkeys |
 | `list()` | `{ [id] = key }` | every binding in the client, unbound ones reading `"None"` |
 
-`register`, `set` and `unregister` return the handle, so they chain.
+One name reads a binding's key and writes it: the argument says which you meant, so there is no
+`get`/`set` pair here any more than anywhere else. `register`, the write half of `key` and `unregister`
+return the handle, so they chain.
 
 ## Addon hotkeys start unbound
 
@@ -38,15 +40,15 @@ same name after a reload picks the existing binding back up.
 
 ## Names
 
-Your own hotkeys are namespaced to your addon, so `register("test", fn)` and `get("test")` refer to the
+Your own hotkeys are namespaced to your addon, so `register("test", fn)` and `key("test")` refer to the
 same binding without you ever spelling your addon id. A name that is not one of yours falls back to the
-client's own registry id — that is how you reach a built-in hotkey, `get("inv")` or `set("inv", "Ctrl+I")`.
+client's own registry id — that is how you reach a built-in hotkey, `key("inv")` or `key("inv", "Ctrl+I")`.
 Your scope is tried first, so a client binding can never shadow yours.
 
 `list()` uses the **full registry ids**, so your hotkeys appear there as `addon/<your-addon-id>/<name>`.
 
-`set` on a name that matches no binding is an error. `unregister` only touches your own hotkeys: client
-bindings are not an addon's to drop.
+A `key(name, k)` write on a name that matches no binding is an error; a `key(name)` read of one is plain
+`nil`. `unregister` only touches your own hotkeys: client bindings are not an addon's to drop.
 
 ## Key strings
 
@@ -64,12 +66,12 @@ Modifier matching is exact: `"M"` fires only on a bare `M`, never on `Ctrl+M`.
 ## Example
 
 ```lua
-local keys = hafen.client:options():keybindings()
+local keys = hafen.client():options():keybindings()
 
 keys:register("toggle", function() hafen.log():write("toggled") end)
 
-hafen.log():write("my key: " .. tostring(keys:get("toggle")))     -- nil until the user assigns one
-hafen.log():write("inventory: " .. tostring(keys:get("inv")))     -- a client binding, e.g. "Tab"
+hafen.log():write("my key: " .. tostring(keys:key("toggle")))     -- nil until the user assigns one
+hafen.log():write("inventory: " .. tostring(keys:key("inv")))     -- a client binding, e.g. "Tab"
 
 for id, key in pairs(keys:list()) do
   if key ~= "None" then hafen.log():write(id .. " = " .. key) end
@@ -85,6 +87,6 @@ Hotkeys are torn down with your addon on reload or disable, so you do not need t
 
 ## See also
 
-- [`hafen.client:options()`](README.md) — the rest of the settings surface
+- [`hafen.client():options()`](README.md) — the rest of the settings surface
 - [`hafen.hook`](../hook.md) — intercepting input before the client's own bindings
 - [`hafen.slash`](../slash.md) — a console command, the other way an addon is invoked by hand

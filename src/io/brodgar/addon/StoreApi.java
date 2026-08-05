@@ -3,9 +3,13 @@ package io.brodgar.addon;
 import haven.GameUI;
 import haven.UI;
 
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.lib.ZeroArgFunction;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.TwoArgFunction;
+import org.luaj.vm2.lib.VarArgFunction;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -19,7 +23,7 @@ import java.util.Map;
 import static io.brodgar.addon.AddonManager.*;
 
 /**
- * The saved-variables subsystem ({@code hafen.store}, 1e / D-002 / D-023). One Lua table per manifest-declared
+ * The saved-variables subsystem ({@code hafen.store()}, 1e / D-002 / D-023). One Lua table per manifest-declared
  * saved variable, persisted to JSON under {@code savedata/} (account-scope + per-character
  * {@code <genus>_<char>} scope). Owns the
  * session save state ({@code charScope}/{@code lastAutoSave}); {@link AddonManager} drives it via
@@ -34,23 +38,92 @@ final class StoreApi {
     private static double lastAutoSave;          // engine-clock time of the last throttled flush
     private static final double SAVE_INTERVAL = 30.0;   // throttled auto-save period (seconds; UI thread)
 
-    /** Build {@code hafen.store} for {@code owner} + load its account-scope vars (before OnLoad). From installHafen. */
+    /**
+     * Build {@code hafen.store()} for {@code owner} + load its account-scope vars (before OnLoad). From
+     * installHafen.
+     *
+     * <p><b>This is the one section whose ACCESS PATTERN changed, not just its spelling.</b> A saved variable
+     * was a declared <i>field</i> ({@code hafen.store.cfg.foo = 1}) and is now {@code hafen.store():get("cfg")}.
+     * What {@code :get} hands back is the <b>live persisted table itself</b>, never a copy: a copy would keep
+     * accepting writes and quietly stop saving them, which is the exact class of silent failure the uniform
+     * grammar exists to delete. The table object is also stable for the addon's whole life — a restore refills
+     * it in place — so a reference cached at load time is still the one being written to disk an hour later.
+     *
+     * <p>The names are the <i>addon's own</i>, so the refusal that catches the old spelling cannot live in the
+     * static {@link Retired} table: {@link #index} builds it per owner from the manifest.
+     */
     static void installStore(LuaTable hafen, final Addon owner) {
-        LuaTable store = new LuaTable();
+        LuaTable vars = new LuaTable();
         for(Manifest.SavedVar sv : owner.manifest.savedVariables) {
-            if(store.get(sv.name).istable())
+            if(vars.get(sv.name).istable())
                 continue;                                // duplicate name in the manifest: keep the first
-            store.set(sv.name, new LuaTable());          // always a usable (possibly empty) table
+            vars.set(sv.name, new LuaTable());           // always a usable (possibly empty) table
         }
-        store.set("flush", new ZeroArgFunction() {
-            public LuaValue call() {
-                flush(owner);
-                return LuaValue.NIL;
+        owner.store = vars;
+
+        LuaTable store = new LuaTable();
+        // get(name) — the LIVE table for one declared saved variable. A name the manifest does not declare is
+        // a typo with no future meaning (the set is closed at load), so it throws listing what IS declared
+        // rather than answering nil and failing one index later with nothing to name.
+        store.set("get", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "store", "get");
+                LuaValue nm = Args.required(a, 2, "hafen.store():get", "name");
+                if(nm.type() != LuaValue.TSTRING)
+                    throw new LuaError("hafen.store():get(name): name must be a string (a saved variable"
+                        + " declared in manifest.json)");
+                LuaValue t = owner.store.get(nm.tojstring());
+                if(!t.istable())
+                    throw new LuaError("hafen.store():get(\"" + nm.tojstring() + "\"): this addon declares no"
+                        + " saved variable of that name. Declared: " + declared(owner)
+                        + " — add it to \"saved_variables\" in manifest.json");
+                return t;
             }
         });
-        owner.store = store;
+        store.set("flush", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "store", "flush");
+                flush(owner);
+                return self;
+            }
+        });
+        LuaValue obj = Section.object("store", store);
+        Section.mount(hafen, "store", obj,
+                      "hafen.store.<name> is now hafen.store():get(\"<name>\")", new LuaTable(), index(owner));
         loadScope(owner, true);                          // account-scope vars: ready before OnLoad
-        hafen.set("store", store);
+    }
+
+    /** The declared saved-variable names, quoted, for the message a misspelt {@code :get} raises. */
+    private static String declared(Addon a) {
+        StringBuilder b = new StringBuilder();
+        for(Manifest.SavedVar sv : a.manifest.savedVariables)
+            b.append((b.length() > 0) ? ", " : "").append('"').append(sv.name).append('"');
+        return (b.length() > 0) ? b.toString() : "(none)";
+    }
+
+    /**
+     * The {@code __index} of {@code hafen.store}'s callable table. A <b>declared</b> name throws naming
+     * {@code :get} — {@code hafen.store.cfg.foo = 1} is the spelling the whole corpus used, and left to read
+     * {@code nil} it would fail as <i>"attempt to index a nil value"</i> one character later. Everything else
+     * falls through to the static {@link Retired} rows ({@code hafen.store.flush}) and then to plain
+     * {@code nil}, so a feature probe still works.
+     */
+    private static LuaValue index(final Addon owner) {
+        final LuaValue rest = Retired.sectionIndex("store");
+        return new TwoArgFunction() {
+            public LuaValue call(LuaValue self, LuaValue key) {
+                if(key.type() == LuaValue.TSTRING) {
+                    String nm = key.tojstring();
+                    for(Manifest.SavedVar sv : owner.manifest.savedVariables) {
+                        if(sv.name.equals(nm))
+                            throw new LuaError("hafen.store." + nm + " is now hafen.store():get(\"" + nm
+                                + "\") — what it hands back is the same live table, so writing into it still"
+                                + " persists");
+                    }
+                }
+                return rest.call(self, key);
+            }
+        };
     }
 
     /** Session init: forget the per-char scope + reset the auto-save clock (from AddonManager.init). */

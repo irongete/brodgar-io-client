@@ -8,7 +8,7 @@ and about what is on the near side of it.
 
 Gated is exactly one thing: sending the server an action the player could have performed.
 [`hafen.act`](../api/act.md) is that surface, together with the write verbs that live in their own
-namespaces — [`hafen.speed.set`](../api/speed.md), [`hafen.craft.make`](../api/craft.md),
+namespaces — [`hafen.speed():current(n)`](../api/speed.md), [`hafen.craft.make`](../api/craft.md),
 [`slot:use` and `slot:res(name)`](../api/actionbar.md), and the roster verbs on [`hafen.kin`](../api/kin.md).
 
 Everything else writes only to your own client, and none of it is gated. That is worth stating, because

@@ -5,8 +5,10 @@ restores it on load and writes it back to disk for you. `hafen.store` is **ungat
 inside your addon's own save folder.
 
 ```lua
-hafen.store.settings.enabled = true
-hafen.store.settings.count = (hafen.store.settings.count or 0) + 1
+local settings = hafen.store():get("settings")   -- the live persisted table, not a copy
+
+settings.enabled = true
+settings.count = (settings.count or 0) + 1
 ```
 
 ## Declare a variable
@@ -26,14 +28,20 @@ Any scope other than `"account"` is per-character. A name declared twice keeps t
 
 ## Read and write
 
-| Member | Description |
+| Method | Description |
 |---|---|
-| `hafen.store.<name>` | one persisted table per declared variable; read and write it like any table |
-| `hafen.store.flush()` | write the changed tables to disk now |
+| `hafen.store():get(name)` | the persisted table for one declared variable; read and write it like any table |
+| `hafen.store():flush()` | write the changed tables to disk now |
 
-A declared name is **always a usable table**, empty when there is nothing saved yet, so you never have
-to create it. The table object is stable for the addon's whole life — a restore refills it in place —
-so a reference you cache stays valid across every save and reload.
+**What `get` hands back is the table itself, not a copy**, so writing into it is the whole of saving:
+there is no "put it back" step, and a reference you keep in a local goes on being the one written to
+disk. It is also stable for the addon's whole life — a restore refills it in place rather than replacing
+it — so a table captured at load time is still valid an hour later. Assign *into* it; you cannot assign
+over it.
+
+A declared name is **always a usable table**, empty when there is nothing saved yet, so you never have to
+create it. A name your manifest does not declare is an error naming the ones it does, because the set of
+saved variables is fixed when your addon loads and a misspelt one has no later meaning to wait for.
 
 **When each scope is ready.** Account tables are filled before your files run, so they are readable in
 the file body and in `OnLoad`. Per-character tables are filled just before `OnEnterWorld` fires,

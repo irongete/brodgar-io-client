@@ -11,8 +11,8 @@ open and no format to choose.
 ```
 
 ```lua
-hafen.store.settings.window = { x = 40, y = 200 }
-hafen.store.seen.lastLogin  = os.time()
+hafen.store():get("settings").window = { x = 40, y = 200 }
+hafen.store():get("seen").lastLogin  = os.time()
 ```
 
 A bare name is **per character**; the object form with `"scope": "account"` is shared by all your
@@ -33,7 +33,7 @@ are until you are in the world.
 
 ```lua
 hafen.event():on("OnEnterWorld", function()
-  local pos = hafen.store.settings.window
+  local pos = hafen.store():get("settings").window
   if pos then window:position(pos.x, pos.y) end
 end)
 ```
@@ -53,7 +53,7 @@ you can draw again. Rebuild the live objects from that on load.
 
 ```lua
 hafen.event():on("OnEnterWorld", function()
-  for _, p in ipairs(hafen.store.settings.props or {}) do
+  for _, p in ipairs(hafen.store():get("settings").props or {}) do
     local w = hafen.world():position(p.anchor)                  -- :x() is nil until that grid is reachable
     if w then hafen.ghost():add(p.res, w) end
   end
@@ -66,7 +66,7 @@ so store the [grid anchor](../api/world.md#the-position-type) instead.
 ## When it is written
 
 Changes are flushed on a timer, and again when your addon is disabled or reloaded and when the session
-ends — so an ordinary quit loses nothing. `hafen.store.flush()` forces a write now, which is worth doing
+ends — so an ordinary quit loses nothing. `hafen.store():flush()` forces a write now, which is worth doing
 after a change the user would be annoyed to lose and unnecessary the rest of the time.
 
 A file the engine cannot parse leaves your tables empty and logs the failure rather than raising it: your

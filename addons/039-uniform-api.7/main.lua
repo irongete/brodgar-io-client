@@ -85,7 +85,7 @@ end
 -- The rendered-text cache is pull-only, so the cost round needs nothing armed; a counter that cannot be read
 -- at all reddens its own lines rather than killing the round before it prints a summary.
 local function misses()
-  local ok, n = pcall(function() return hafen.client:profiling():textcache().misses end)
+  local ok, n = pcall(function() return hafen.client():profiling():textcache().misses end)
   return (ok and n) or 0
 end
 

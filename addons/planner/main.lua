@@ -234,9 +234,9 @@ local function persist()
       anchor = { gridId = it.anchor.gridId, x = it.anchor.x, y = it.anchor.y },
     }
   end
-  hafen.store.layout.items = out
-  hafen.store.layout.blueprint = blueprint
-  hafen.store.flush()
+  hafen.store():get("layout").items = out
+  hafen.store():get("layout").blueprint = blueprint
+  hafen.store():flush()
 end
 
 -- Re-resolve every still-pending saved ghost (grid id -> current world coord) and spawn it. Returns how many are
@@ -283,8 +283,8 @@ hafen.event():on("OnEnterWorld", function()
   detachGizmo()                                            -- V5b: drop any gizmo before rebuilding the layout
   selected = nil
   items = {}
-  blueprint = hafen.store.layout.blueprint or DEFAULT_BP
-  for _, s in ipairs(hafen.store.layout.items or {}) do
+  blueprint = hafen.store():get("layout").blueprint or DEFAULT_BP
+  for _, s in ipairs(hafen.store():get("layout").items or {}) do
     local kind = s.kind or "ghost"                          -- R2b: default old (pre-sprite) layouts to ghosts
     if s.anchor and s.anchor.gridId and ((kind == "sprite") or (kind == "object") or s.res) then   -- skip a malformed record rather than crash
       items[#items + 1] = {
@@ -471,7 +471,7 @@ hafen.slash():register("planner", function(args)
       up = function() commitDrag() end,
     }
     hafen.log():write((":planner grab -> moving #%d: cursor drags it (placegrid=%s, SHIFT=fine); CLICK to drop. Camera stays put.")
-      :format(indexOf(it), tostring(hafen.client:options():interface():posGran())))
+      :format(indexOf(it), tostring(hafen.client():options():interface():posGran())))
 
   elseif sub == "gizmo" then
     -- V5b/V6: attach the Unity-style TRANSFORM GIZMO (gizmo.lua) to the selected ghost. DRAG the RED(X)/GREEN(Y)

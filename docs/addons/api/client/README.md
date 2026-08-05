@@ -1,11 +1,11 @@
 # hafen.client: settings
 
-`hafen.client:options()` opens the settings the client's **Options window** edits, plus the hotkey
+`hafen.client():options()` opens the settings the client's **Options window** edits, plus the hotkey
 registry. Reach for it to read or change what the user has configured — one handle per Options panel.
 Everything here is ungated.
 
 ```lua
-local opts = hafen.client:options()
+local opts = hafen.client():options()
 
 opts:interface()      -- UI scale, fine-placement granularity
 opts:video()          -- shadows, render scale, vsync, framerate, lighting
@@ -20,7 +20,7 @@ handle you keep in a variable never goes stale, and a write from Lua is indistin
 edit made in the Options window: same stores, same persistence, and the panel shows your value the next
 time it is opened.
 
-The frame profiler is the other half of this namespace: [`hafen.client:profiling()`](profiling/README.md).
+The frame profiler is the other half of this namespace: [`hafen.client():profiling()`](profiling/README.md).
 
 ## Reading and writing
 
@@ -37,6 +37,11 @@ opts:video():shadows(true):vsync(false):lightLimit(8)
 There is no `get`/`set` pair — one name per option. Always use a **colon** call with at most one argument;
 anything else is an error. Invalid values raise a Lua error rather than being clipped, so a bad write fails
 loudly instead of silently doing nothing.
+
+**An explicit `nil` is an error**, not a read. Because the argument is what makes a call a write,
+`opts:video():shadows(v)` with a `v` that turns out to be `nil` would otherwise read the option and
+report nothing wrong, leaving a write nobody made and a bug with no symptom. Test the value before you
+pass it — an option has no undo for the refusal to cost anything against.
 
 ## `interface()`
 
@@ -120,7 +125,7 @@ It defaults **off** and should stay off unless you are measuring something. Off 
 a live instrumentation of every frame.
 
 ```lua
-local c = hafen.client:options():client()
+local c = hafen.client():options():client()
 
 if not c:profiling() then c:profiling(true) end
 ```

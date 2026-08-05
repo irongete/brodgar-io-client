@@ -122,6 +122,10 @@ sub-collections were plural (`gob:overlays()`, `char():attrs()`). Now both are s
 
 ## `hafen.client()` — client settings
 
+> **Shipped in 039.10.** ✅ every row — and this was the API's one colon-on-the-namespace, so the
+> section is now called like every other. The 18 option methods keep their spelling and gain the §2.9
+> nil refusal; the keybinding registry's `get`/`set` pair is below.
+
 | before | after | does |
 |---|---|---|
 | `hafen.client:options()` | `hafen.client():options()` | the Options handle (5 sub-handles) |
@@ -303,6 +307,9 @@ says which you meant, so the heuristic is no longer needed.
 
 ## `hafen.player()` — your character (a section of one, R1)
 
+> **Shipped in 039.10.** ✅ every row. An unknown verb on the section object **throws** naming what
+> does exist, as on every other section — it was the one that still read `nil`.
+
 | before | after | does |
 |---|---|---|
 | `hafen.player():gob()` | unchanged | your own Gob |
@@ -350,6 +357,9 @@ says which you meant, so the heuristic is no longer needed.
 
 ## `hafen.speed()` — the movement selector
 
+> **Shipped in 039.10.** ✅ every row. The write half of `:current(n)` keeps the `actions` gate and
+> returns the section, so writes chain; `:name(nil)` is an error rather than a shorthand for the current one.
+
 | before | after | does |
 |---|---|---|
 | `hafen.speed.get()` / `.set(n)` | `hafen.speed():current()` / `:current(n)` | read / write (gated) the speed, `0..3` — R2 collapses the pair |
@@ -357,6 +367,11 @@ says which you meant, so the heuristic is no longer needed.
 | `hafen.speed.name(n)` | `hafen.speed():name(n)` | display name of speed `n` |
 
 ## `hafen.store()` — saved variables
+
+> **Shipped in 039.10.** ✅ both rows, and the flagged question is settled: `:get(name)` hands back the
+> **live persisted table**, asserted across a `:reload`. An **undeclared** name throws listing the declared
+> ones (the set is closed by the manifest at load), and the old field spelling throws from a **per-owner**
+> `__index` built off that manifest — a static retired table cannot know an addon's own variable names.
 
 | before | after | does |
 |---|---|---|
@@ -853,6 +868,8 @@ hang setters on — **plan.md must settle it**; the likely answer is positional 
 
 ## Options handles — 18 methods, already R2-shaped
 
+> **Shipped in 039.10.** ✅ every row.
+
 `interface()` `video()` `audio()` `camera()` `client()`; each option is `:name()` / `:name(v)` already,
 and they gain only the R5 nil refusal.
 
@@ -941,4 +958,4 @@ every shipped call site uses them — verified against `hello`, `walker` and the
 | events re-payloaded | 6 | of 26 |
 | verbs CUT with no replacement | 2 | `w:show()` `w:hide()` (R6) |
 | verbs CUT with an existing replacement | 2 | `world.placeGrid`/`placeAngle` → `options():interface()` |
-| open questions for plan.md | 7 | Item identity (§4.8) · `hafen.store.<name>` as a live table · `g:text{…}`'s option table · `craft:make` on a nil `:current()` · `hafen.log` (§8.1) · Position allocation per call in a draw callback · whether the numeric converters `tileToWorld`/`tileToGrid` fold onto Position |
+| open questions for plan.md | 6 | Item identity (§4.8) · `g:text{…}`'s option table · `craft:make` on a nil `:current()` · `hafen.log` (§8.1) · Position allocation per call in a draw callback · whether the numeric converters `tileToWorld`/`tileToGrid` fold onto Position |

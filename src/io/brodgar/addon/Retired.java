@@ -241,6 +241,28 @@ final class Retired {
             + " name too many");
         put("pagina:isnew", "pagina:isnew() is now pagina:isNew()");
 
+        // ---- hafen.speed: the get/set pair collapses onto one name whose arity is the verb ----------------
+        put("hafen.speed.get", "hafen.speed.get() is now hafen.speed():current()");
+        put("hafen.speed.set", "hafen.speed.set(n) is now hafen.speed():current(n) — one name reads the speed"
+            + " and writes it, and the write still needs the 'actions' permission");
+        section("speed", "max", "name");
+
+        // ---- hafen.store: the ONE section whose access pattern changed, not just its spelling -------------
+        // A declared saved variable was a FIELD (hafen.store.cfg), so the per-owner half of this refusal is
+        // built from the manifest in StoreApi.index — this row is only the verb the section always had.
+        put("hafen.store.flush", "hafen.store.flush() is now hafen.store():flush(), and a saved variable is"
+            + " hafen.store():get(\"<name>\") — the same live table, so writing into it still persists");
+
+        // ---- hafen.client: the API's one colon-on-the-namespace becomes a section like every other --------
+        put("hafen.client.options", "hafen.client:options() is now hafen.client():options()");
+        put("hafen.client.profiling", "hafen.client:profiling() is now hafen.client():profiling()");
+
+        // ---- the keybinding registry: the LAST get/set pair in the whole API ------------------------------
+        put("keybindings:get", "kb:get(name) is now kb:key(name) — one name reads a binding's key and writes"
+            + " it, like every other property in the API");
+        put("keybindings:set", "kb:set(name, key) is now kb:key(name, key) — one name reads a binding's key"
+            + " and writes it, like every other property in the API");
+
         // ---- the HUD overlay: a two-line handle table became a builder, so it ends the way the other two do --
         put("uioverlay:remove", "hafen.ui():overlay() hands back something you created and hold, so it ends with"
             + " ov:destroy() — :remove() is the collection verb, and a HUD painter is in no collection");

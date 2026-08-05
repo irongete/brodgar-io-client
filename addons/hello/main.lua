@@ -60,7 +60,7 @@
 -- Built on 030.2 SELECTOR EVENTS — hafen.ui():on(selector, "appear"|"disappear", fn) watches the client's OWN UI for
 -- a part of it, named with the same selector a lookup uses, and hands the callback the Widget ENTITY (the old
 -- hafen.ui.onWidgetCreate and its {id,type,place,caption,parentType} descriptor are GONE). It also demonstrates GLOBAL HOTKEYS —
--- hafen.client:options():keybindings():register(name, fn) declares a remappable, persisted hotkey (over the
+-- hafen.client():options():keybindings():register(name, fn) declares a remappable, persisted hotkey (over the
 -- client's KeyBinding registry) that fires when no widget consumed the keypress first; here 'toggle' shows/hides
 -- the custom window, plus 'ping'. Addon hotkeys start UNBOUND: this addon's "Hello" section under
 -- Options > Keybindings is where you assign the keys.
@@ -127,7 +127,7 @@ end
 -- disabling is operator-driven from the console and applies on reload (D-006):  :addons  (list + status) ·
 -- :addons disable hello  +  :reload  (hello stops loading) ·  :addons enable hello  +  :reload  (loads again).
 hafen.event():on("OnLoad", function()
-  local a = hafen.store.acct
+  local a = hafen.store():get("acct")
   a.loads = (a.loads or 0) + 1
   hafen.log():write(("OnLoad fired — reload marker: edit me and :reload  [OnLoad #%d]"):format(a.loads))
 end)
@@ -181,11 +181,10 @@ local function readPlace(tag)
   local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
   local p = me and me:position()                  -- a POSITION: session components AND a durable anchor
   if not p then return end
-  local px, py = p:x(), p:y()
   local tile = hafen.world():tile(p)
   local gp = p:info()                            -- the durable form: {gridId, x, y}, nil on unvisited ground
   local t = p:tileCoord()
-  local s = hafen.player():worldToScreen(px, py)
+  local s = hafen.player():worldToScreen(p)      -- a Position in, screen PIXELS out (not a Position)
   hafen.log():write(("[%s] tile=%s height=%s tileCoord=%d,%d"):format(tag,
     tile and (tile.name or tile.id) or "nil", tostring(hafen.world():height(p)), t.x, t.y))
   hafen.log():write(("[%s] info=%s worldToScreen=%s"):format(tag,
@@ -486,7 +485,7 @@ end
 -- between unrelated uses of the same clip. There is NO :exists() (D-060): a resource name has no lifetime to
 -- go stale, so a bogus name is simply silent (no Lua error). And there is NO hafen.music at all (D-058) --
 -- haven.Music is MIDI, which this server never sends; the "music" you hear is ambient audio, governed by
--- hafen.client:options():audio():ambientVolume(). This is the contract check, once per login; the audible
+-- hafen.client():options():audio():ambientVolume(). This is the contract check, once per login; the audible
 -- live-set demo is ':hello sound' and the ping is ':hello ping'.
 local function readSound(tag)
   local msg = hafen.sound():get("sfx/msg")
@@ -502,7 +501,7 @@ local function readSound(tag)
       tostring(interned), tostring(not okVol), tostring(not okNum), #hafen.sound():list()))
   -- The hard cut (D-013), both halves: the flat hafen.sound.play is gone (hafen.sound is the section, and the
   -- old field reads as plain nil) and hafen.music is ABSENT ENTIRELY -- not flattened, not stubbed.
-  local okAmb, amb = pcall(function() return hafen.client:options():audio():ambientVolume() end)
+  local okAmb, amb = pcall(function() return hafen.client():options():audio():ambientVolume() end)
   hafen.log():write(("[%s] sound contract: flatPlayGone=%s musicGone=%s ambientVolume=%s"):format(tag,
     tostring(hafen.sound.play == nil), tostring(hafen.music == nil),
     okAmb and tostring(amb) or "n/a"))
@@ -597,19 +596,19 @@ local function readKin(tag)
     fgob and (" (g:kin()==roster[1]: %s)"):format(tostring(fgob:kin() == first)) or ""))
 end
 
--- A7: MOVEMENT SPEED via hafen.speed. get() returns the CURRENT speed as 0..3 (0=crawl 1=walk 2=run 3=sprint)
+-- A7: MOVEMENT SPEED via hafen.speed(). :current() returns the CURRENT speed as 0..3 (0=crawl 1=walk 2=run 3=sprint)
 -- or nil if the speed selector (the crawl/walk/run/sprint toggle at the bottom of the HUD) isn't up yet;
--- max() returns the highest speed currently SELECTABLE (speeds 0..max are available); name([n]) returns a
+-- :max() returns the highest speed currently SELECTABLE (speeds 0..max are available); :name([n]) returns a
 -- speed's display name (default = current). Like the rest of the HUD the widget streams in a beat after
 -- enter-world, so read at now (often nil) and +3s. hello is READ-ONLY here -- changing speed is the gated
--- Phase-4 action tier; the classic speed addon reads get() in a keybind and (Phase 4) sets the next speed.
+-- Phase-4 action tier; the classic speed addon reads :current() in a keybind and (Phase 4) writes the next one.
 local function readSpeed(tag)
-  local cur = hafen.speed.get()
+  local cur = hafen.speed():current()
   if cur == nil then
     hafen.log():write(("[%s] speed: nil (selector not up yet)"):format(tag)); return
   end
   hafen.log():write(("[%s] speed: cur=%d (%s), max=%s"):format(tag, cur,
-    tostring(hafen.speed.name()), tostring(hafen.speed.max())))
+    tostring(hafen.speed():name()), tostring(hafen.speed():max())))
 end
 
 -- A8: CRAFTING via hafen.craft. current() returns the OPEN recipe/craft window (a Makewindow) as {recipe,
@@ -1211,19 +1210,19 @@ end)
 -- s.recent is a small bounded array, demonstrating a nested JSON array round-tripping intact.
 -- (A second OnEnterWorld handler — the bus dispatches to every subscriber in order.)
 hafen.event():on("OnEnterWorld", function()
-  local s = hafen.store.persist
+  local s = hafen.store():get("persist")
   s.logins = (s.logins or 0) + 1
   s.name = hafen.player():name() or s.name          -- remember the character name across sessions
   s.recent = s.recent or {}                        -- history array (round-trips as a JSON array)
   s.recent[#s.recent + 1] = ("login #%d"):format(s.logins)
   while #s.recent > 5 do table.remove(s.recent, 1) end
 
-  local a = hafen.store.acct
+  local a = hafen.store():get("acct")
   a.logins = (a.logins or 0) + 1
 
   hafen.log():write(("store: %s entered %d time(s) [account total %d]; recent: %s")
     :format(tostring(s.name), s.logins, a.logins, table.concat(s.recent, ", ")))
-  hafen.store.flush()                              -- write now (also autosaved + flushed on relog)
+  hafen.store():flush()                              -- write now (also autosaved + flushed on relog)
 end)
 
 -- OnUpdate fires every frame; throttle a heartbeat to once every 5 seconds so it is readable.
@@ -1810,7 +1809,7 @@ local function drawPanel(g, w, h)
   g:color(170, 170, 170); g:rect(0, 0, w, h); g:color()          -- 1px border
 end
 
--- 2e-2: GLOBAL HOTKEYS (hafen.client:options():keybindings()). register(name, fn) declares a remappable,
+-- 2e-2: GLOBAL HOTKEYS (hafen.client():options():keybindings()). register(name, fn) declares a remappable,
 -- persisted hotkey over the client's KeyBinding registry (namespaced addon/hello/<name>) — "toggle" flips this
 -- window's visibility, the WoW "show/hide my panel" pattern. An addon hotkey starts UNBOUND (D-047): the addon
 -- names the ACTION, you assign the KEY in Options > Keybindings > Hello (suggested here: Ctrl+H). Unlike the
@@ -1822,7 +1821,7 @@ end
 -- the handler (the KeyBinding entry itself is kept, so your assignment survives). get(name) reads the current
 -- key's display name ("Ctrl+H") or nil while unassigned; set(name, key) accepts "F5", "Ctrl+M",
 -- "Shift+Alt+Left", a bare letter/digit, or "None"; unregister(name) drops one of this addon's hotkeys.
-local keys = hafen.client:options():keybindings()
+local keys = hafen.client():options():keybindings()
 keys:register("toggle", function()
   if not panel then hafen.log():write("2e-2: 'toggle' pressed, but the window is not up yet"); return end
   local show = not panel:visible()                                -- flip the current (settled/animating) state
@@ -1830,7 +1829,7 @@ keys:register("toggle", function()
   hafen.log():write(("2e-2: 'toggle' -> window %s"):format(show and "shown" or "hidden"))
 end)
 hafen.log():write(("2e-2: global hotkey 'toggle' registered (key = %s) -- assign/remap it in Options > Keybindings > Hello")
-  :format(keys:get("toggle") or "unassigned, suggested Ctrl+H"))
+  :format(keys:key("toggle") or "unassigned, suggested Ctrl+H"))
 
 -- 2e-3: a SECOND hotkey, "ping". Because this addon registered hotkeys, a "Hello" section appears in
 -- Options > Keybindings (WoW-style) listing every one of them. They all start as None, so nothing fires until
@@ -2421,7 +2420,7 @@ hafen.slash():register("hello", function(args)
     -- Both p:measure and p:scope run the wrapped code whether profiling is armed or not, so instrumentation
     -- left in a shipped addon costs nothing with the checkbox off -- which is also why this prints an empty
     -- table then: p:addons() is armed-only (Options > Client > Enable profiling).
-    local p = hafen.client:profiling()
+    local p = hafen.client():profiling()
     local n = p:measure("scan-gobs", function()          -- the wrapper form: cannot forget to finish
       local c = 0
       for _, g in ipairs(hafen.world():gob():list()) do if g:name() then c = c + 1 end end
@@ -2464,7 +2463,7 @@ hafen.slash():register("hello", function(args)
     -- are INCLUSIVE of children and selfMs is that minus them. A container with one expensive child therefore
     -- shows a big inclusive and a near-zero self, and only the child is blamed. total is the root's inclusive
     -- tick+draw, and the self times of every row sum to it: the breakdown reconciles, it is not indicative.
-    local p = hafen.client:profiling()
+    local p = hafen.client():profiling()
     local w = p:widgets()
     if not w.byType then
       hafen.log():write(":hello widgets -> p:widgets() is empty: profiling is OFF (tick Options > Client > Enable profiling)")
@@ -2504,7 +2503,7 @@ hafen.slash():register("hello", function(args)
     -- The rows are DISJOINT: `shadow` and `scene` run inside the widget draw (the MapView is a widget), so
     -- each row is SELF time -- its span minus the passes nested in it -- exactly like p:widgets(). That is
     -- why `ui2d` means the 2D UI and why the three sum to less than the frame instead of double-counting.
-    local p = hafen.client:profiling()
+    local p = hafen.client():profiling()
     local ps = p:passes()
     if not ps[1] then
       hafen.log():write(":hello passes -> p:passes() is empty: profiling is OFF (tick Options > Client > Enable"
@@ -2545,7 +2544,7 @@ hafen.slash():register("hello", function(args)
     -- measuredMs <= 0 is the NORMAL outcome here and does not mean profiling made the client faster: it
     -- means the cost is under measuredSpreadMs, the comparison's own noise floor. The model then has the
     -- say -- it at least knows how many probes ran -- and the measurement is printed anyway.
-    local p = hafen.client:profiling()
+    local p = hafen.client():profiling()
     local o = p:overhead()
     if not o.totalMs then
       hafen.log():write(":hello overhead -> p:overhead() is empty: profiling is OFF (tick Options > Client > Enable"
@@ -2585,7 +2584,7 @@ hafen.slash():register("hello", function(args)
     -- also the leak check: disable every addon and total.bytes goes to ~0, because teardown disposes them.
     -- The HUD overlay deliberately draws one STATIC line (a hit every frame) beside one VOLATILE line (a miss
     -- every frame, its text carries the frame number), so both rates below are real and always non-zero.
-    local p = hafen.client:profiling()
+    local p = hafen.client():profiling()
     if args[2] == "stress" then
       -- The BOUND check. A pool of 2000 distinct strings -- far past the entry cap -- drawn 32 per frame in
       -- the HUD overlay at alpha 0 (rasterised and cached for real, painted not at all). Entries climb to the

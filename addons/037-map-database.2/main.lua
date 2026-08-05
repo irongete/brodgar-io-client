@@ -73,7 +73,7 @@ end
 
 -- ---- the relog half: run AFTER a logout/login, on the anchor the main run stored ---------------------
 local function relogCheck()
-  local a = hafen.store.anchor
+  local a = hafen.store():get("anchor")
   if not (a and a.gridId) then
     check(false, "an anchor was stored by an earlier ':t037-2' run", "nothing in the store -- run ':t037-2' first")
     return summary()
@@ -177,8 +177,9 @@ local function run(args)
           function() return g:tile{ x = CMAPS, y = 0 } end, "WITHIN-grid tile coord")
 
   -- 11. the store, for the relog check below
-  hafen.store.anchor = { gridId = a and a.gridId, x = a and a.x, y = a and a.y }
-  hafen.store.flush()
+  local kept = hafen.store():get("anchor")   -- the LIVE persisted table: write THROUGH it, never replace it
+  kept.gridId, kept.x, kept.y = a and a.gridId, a and a.x, a and a.y
+  hafen.store():flush()
 
   -- 12./13. the load model, staged: the first sweep answers only what is already in memory and does NOT
   -- wait for the rest; a second sweep a moment later answers more. (035.2: wait FIRST, then judge.)

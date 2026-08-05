@@ -96,7 +96,7 @@ local function until_(get, tries, step, done)
 end
 
 local function ownRow()
-  for _, r in ipairs(hafen.client:profiling():addons()) do
+  for _, r in ipairs(hafen.client():profiling():addons()) do
     if r.id == ID then return r end
   end
 end
@@ -235,7 +235,7 @@ end
 -- the same picture is put on screen twice, once through the stylesheet and once through a Lua draw callback,
 -- and the two are read one after the other. Zero alone would only mean "this suite drew nothing".
 costRound = function(img)
-  if not (img and hafen.client:options():client():profiling()) then
+  if not (img and hafen.client():options():client():profiling()) then
     if img then
       manualCheck("tick Options > Client > \"Enable profiling\" and run ':t037-4' again",
                   "two more [pass] lines: a map drawn by the stylesheet runs 0 draw callbacks of ours, and the"

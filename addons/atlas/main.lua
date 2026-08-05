@@ -17,7 +17,7 @@
 -- frame: with the pin layer off, this addon runs ZERO draw callbacks and ZERO widget callbacks while a live
 -- map is on the screen. Its whole cost is the 4-per-second timer below that asks "did the picture change?",
 -- and a timer is charged to `timers`, never to `draw` — read it yourself in
--- hafen.client:profiling():addons(), or run the 037.5 suite, which asserts exactly that on this addon's row.
+-- hafen.client():profiling():addons(), or run the 037.5 suite, which asserts exactly that on this addon's row.
 --
 -- ':atlas pins' is the other half of that measurement, not a decoration: the markers are drawn from Lua, so
 -- the panel is rebuilt WITH an onDraw and the same row starts reading one draw callback per frame. A zero

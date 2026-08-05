@@ -23,7 +23,7 @@ local function hog()
 end
 
 hafen.event():on("OnLoad", function()
-  local cfg = hafen.store.cfg           -- account-scope vars are loaded before OnLoad (Phase 1e)
+  local cfg = hafen.store():get("cfg")           -- account-scope vars are loaded before OnLoad (Phase 1e)
   if cfg.arm == nil then cfg.arm = false end   -- seed the file on first run
   if cfg.arm then
     hafen.log():write("hogtest ARMED -- burning ~" .. math.floor(BURN * 1000)

@@ -109,7 +109,7 @@ impossible, and neither one is reachable by ordinary code.
 > An auto-disable lasts the session and clears on the next load: fix what was burning the frame, then
 > `:reload`. The addon's own enable state is untouched.
 
-[`hafen.client:profiling()`](api/client/profiling/README.md) reports what each addon spends per frame,
+[`hafen.client():profiling()`](api/client/profiling/README.md) reports what each addon spends per frame,
 which is how you find out *before* the engine does.
 
 ## The AddOns panel

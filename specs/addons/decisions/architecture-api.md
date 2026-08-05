@@ -1247,3 +1247,40 @@ every shipped call site used them. Generally: *keylessness removes the verb that
 else; whether the shape is a collection or a builder is decided by who OWNS the members, not by whether they
 can be named.*
 **See.** [D-120](architecture-api.md), [D-060](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-129 — a set closed at LOAD refuses an unknown key; a set the world fills answers nil ✅ (2026-08-05)
+**Decision.** `hafen.store():get(name)` **throws** for a name the addon's `manifest.json` does not declare,
+and the message lists the names it does. That is the opposite of `hafen.kin():get(name)` or
+`hafen.menugrid():get(key)`, where a miss is plain `nil`.
+**Rationale.** (2026-08-05, 039.10.) D-125 drew the line at *closed vocabulary refuses, open one reads nil*,
+and stated it over a value's verb set. A key set can be closed the same way, and the test is **when the set is
+fixed**: an addon's saved variables are read out of its manifest before its first file runs and never grow, so
+a name that is not there at load will not be there later — it is a typo, and nothing else. A kin roster or a
+menu catalogue is filled by the world *while the addon runs*, so a miss genuinely means *not yet* and nil is
+the honest answer (D-095's rule, one level up). The old spelling made this cheap to get wrong: `hafen.store
+.cfgg` read nil and blew up on the next index with a message naming neither the variable nor the manifest.
+**Consequences.** The refusal is worth a line of Java precisely because it can enumerate the alternatives —
+*"declares no saved variable of that name. Declared: "cfg", "layout""* is a fix, not a diagnosis. Generally:
+*a key set fixed before the addon runs may refuse; one the world is still filling may not, and which you have
+is decided by whether "not yet" is a possible answer.*
+**See.** [D-125](architecture-api.md), [D-095](architecture-api.md), [D-056](architecture-api.md),
+[039-uniform-api](../039-uniform-api/spec.md).
+
+### D-130 — where the retired NAMES are the addon's own, the refusal is built per owner ✅ (2026-08-05)
+**Decision.** §2.10's retired-name table is static data shared by every sandbox, and `hafen.store` cannot use
+it: the spellings that must throw are `hafen.store.cfg`, `hafen.store.layout` — one per saved variable the
+*addon* declared. So `Section.mount` takes the callable table's `__index` as an argument, and `StoreApi` builds
+one per owner off the manifest, falling through to `Retired.sectionIndex` for everything else.
+**Rationale.** (2026-08-05, 039.10.) This is the only section in the whole migration whose *access pattern*
+changed rather than its spelling — a declared field became a verb — so it is the only one whose retired names
+are data rather than vocabulary. Leaving them out would have made the single densest silent failure in the
+port: `hafen.store.cfg.foo = 1` is the line every persisting addon in the corpus wrote, and with the field gone
+it reads `nil` and fails one character later as *attempt to index a nil value*, naming nothing. The
+alternative — registering each addon's names into the static table at install — would have made a
+process-global map grow with every reload and leak the previous session's addons into the next.
+**Consequences.** One overload, and the two halves compose without a rule between them: the per-owner index
+answers for what the manifest declares and delegates the rest, so `hafen.store.flush` still throws from the
+static table and `hafen.store.anything_else` still reads plain `nil`. Generally: *a refusal keyed on data the
+owner supplied is built where that data lives, not appended to the vocabulary everyone shares.*
+**See.** [D-118](architecture-api.md), [D-129](architecture-api.md), [D-002](filesystem-build.md),
+[039-uniform-api](../039-uniform-api/spec.md).

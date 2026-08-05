@@ -1,7 +1,7 @@
 {
   "name": "Hog Test",
   "id": "hogtest",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "brodgar",
   "description": "Soft CPU-budget test addon (D-018 layer 2). DORMANT by default; arm it (see main.lua) so it burns ~15ms every OnUpdate — over the per-tick budget but under the hard per-call cap — and the engine auto-disables it for the session, with a warning on its row in Options -> AddOns. Keep it disarmed/disabled during normal play.",
   "api_version": 1,

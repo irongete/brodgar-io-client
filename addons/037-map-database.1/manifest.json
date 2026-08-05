@@ -1,7 +1,7 @@
 {
   "name": "037.1 — the restructure: LIVE is hafen.world, RECORDED is hafen.map",
   "id": "037-map-database.1",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 037.1: the thirteen terrain/coordinate functions moved to hafen.world and answer there, hafen.map empties out and carries the two relations instead — markers (the old hafen.markers) and icons (the old hafen.radar, re-shaped as a callable namespace over IconCat entities) — and both hard-cut namespaces read plain nil.",
   "api_version": 1,

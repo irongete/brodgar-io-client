@@ -119,7 +119,7 @@ local g = hafen.hook():grab{
 
 ## See also
 
-- [`hafen.client:options():keybindings()`](client/keybindings.md) — global hotkeys, which are not a hook
+- [`hafen.client():options():keybindings()`](client/keybindings.md) — global hotkeys, which are not a hook
   level: they run through the client's binding registry, after the client's own bindings
 - [`hafen.world`](world.md#screen-to-world-and-placement-snapping) — the coordinate half of a drag
 - [`hafen.ghost`](ghost.md#the-transform-gizmo) — what a grab is normally dragging

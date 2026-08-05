@@ -440,10 +440,10 @@ hafen.slash():register("selector", function(args)
 end)
 
 -- "freeze" -- freeze/unfreeze the stack so you can move the mouse INTO the window to read + click it without
--- the stack changing under you. Declared through hafen.client:options():keybindings():register(name, fn); it
+-- the stack changing under you. Declared through hafen.client():options():keybindings():register(name, fn); it
 -- starts UNBOUND (D-047) -- assign it in Options > Keybindings > Widgetstack (suggested: Ctrl+Shift+F), where
 -- the choice is persisted exactly like a built-in binding.
-hafen.client:options():keybindings():register("freeze", function()
+hafen.client():options():keybindings():register("freeze", function()
   frozen = not frozen
   hafen.log():write((":widgetstack freeze %s"):format(frozen and "ON" or "OFF"))
 end)

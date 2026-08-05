@@ -1,4 +1,4 @@
--- Brodgar.io Profiler -- the standing in-game harness for hafen.client:profiling() (spec 019).
+-- Brodgar.io Profiler -- the standing in-game harness for hafen.client():profiling() (spec 019).
 --
 -- It lives on its own instead of inside 'hello': 'hello' is the whole-API regression addon and is already
 -- too large to absorb a whole feature demo (the same reason 'optionstest' is its own addon).
@@ -41,14 +41,14 @@
 -- frame, so an open window costs a few ms. Close it before you measure fps -- and note that PAUSE does
 -- NOT make it cheaper, since the pixels are still drawn every frame; it only stops the numbers moving.)
 
-local p = hafen.client:profiling()
+local p = hafen.client():profiling()
 
 -- A monospace handle so the columns line up: with a mono font, padding by character count IS alignment.
 -- The window's `font =` makes it the default for every g:text this addon draws (fonts F2), and it touches
 -- nobody else's pixels.
 local FONT = hafen.font():get("mono"):derive():size(11)
 
-local function client() return hafen.client:options():client() end
+local function client() return hafen.client():options():client() end
 
 -- ------------------------------------------------------------------------------------ layout constants
 
@@ -708,7 +708,7 @@ end
 
 -- Both hotkeys start UNBOUND (D-047): assign them under Options > Keybindings > Brodgar.io Profiler.
 -- Suggested keys: Ctrl+Shift+P (toggle) and Ctrl+Shift+O (pause).
-local keys = hafen.client:options():keybindings()
+local keys = hafen.client():options():keybindings()
 keys:register("toggle", toggle)
 keys:register("pause", function()
   pause(not paused)

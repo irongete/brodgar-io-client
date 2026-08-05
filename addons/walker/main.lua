@@ -12,7 +12,7 @@
 --
 -- Slice 4d adds the rest of the MapView action verbs on top of moveTo (4a); slice 4e adds menu + flower;
 -- slice 4f adds the ITEM verbs (hafen.act():item); slice 4g adds the PER-SUBSYSTEM gated verbs that live in
--- their own namespace (not hafen.act()): hafen.speed.set, hafen.craft.make, the Slot's :use, and
+-- their own namespace (not hafen.act()): hafen.speed():current(n), hafen.craft.make, the Slot's :use, and
 -- the kin verbs on the Kin object (hafen.kin():add(secret) and kin:rename/:group/:endKin/:forget)
 -- — all behind the SAME "actions" permission.
 -- Each is a DELIBERATE, opt-in trigger — a `:walker <sub>` command — so nothing acts unless you ask.
@@ -30,7 +30,7 @@
 --   :walker item [verb] -- item: act on your FIRST inventory item, addressed by its HANDLE (item.handle, from a
 --                          read). Default 'take' lifts it to your cursor (safe/reversible: click an empty slot to
 --                          undo). Pass a verb: take|drop|transfer|iact|itemact.
---   :walker speed [n]   -- speed.set: select movement speed n=0..3 (crawl/walk/run/sprint; default 2=run). Reversible.
+--   :walker speed [n]   -- speed:current(n): select movement speed n=0..3 (crawl/walk/run/sprint; default 2=run). Reversible.
 --   :walker craft [all] -- craft.make: press Craft on the OPEN recipe (add 'all' for Craft All). CONSUMES ingredients!
 --   :walker bar <n>     -- slot:use: activate slot n (raw 0-based index; read hafen.actionbar():get(n) first)
 --   :walker setbar <n> <res>  -- slot:res: ASSIGN the action named <res> to slot n (what a drag from the menu
@@ -64,7 +64,7 @@ hafen.slash():register("walker", function(args)
     hafen.log():write("   flower=hafen.act():flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
     hafen.log():write("   item [verb]=hafen.act():item(firstInvItem, verb)  default take (lifts to cursor); take|drop|transfer|iact|itemact")
     hafen.log():write("   -- 4g per-subsystem gated verbs (own namespace, same permission):")
-    hafen.log():write("   speed [n]=hafen.speed.set(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
+    hafen.log():write("   speed [n]=hafen.speed():current(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
     hafen.log():write("   craft [all]=hafen.craft.make(all)  press Craft on the OPEN recipe (CONSUMES ingredients; 'all'=Craft All)")
     hafen.log():write("   bar <n>=hafen.actionbar():get(n):use()  activate action-bar slot n (raw 0-based index)")
     hafen.log():write("   setbar <n> <res>=hafen.actionbar():get(n):res(name)  assign an action by resource name (e.g. gfx/hud/act/mine)")
@@ -172,12 +172,12 @@ hafen.slash():register("walker", function(args)
   -- OBJECT itself where the subsystem is OOP (a Slot, a Kin) — not
   -- under hafen.act(), but share the exact same "actions" permission gate (requireActions) as the verbs above.
   elseif sub == "speed" then
-    -- speed.set(n): pick a movement speed 0..3. Fully reversible (just set another), so a safe default is fine.
+    -- speed:current(n): pick a movement speed 0..3, the write half of the one name that reads it. Fully reversible (just set another), so a safe default is fine.
     local n = tonumber(args[2]) or 2                   -- default 2 = run
-    local before = hafen.speed.get()
-    hafen.speed.set(n)                                 -- gated; drives the client's own Speedget.set
-    hafen.log():write((":walker speed -> hafen.speed.set(%d) [%s]  (was %s; max selectable=%s)")
-      :format(n, hafen.speed.name(n) or "?", tostring(before), tostring(hafen.speed.max())))
+    local before = hafen.speed():current()
+    hafen.speed():current(n)                                 -- gated; drives the client's own Speedget.set
+    hafen.log():write((":walker speed -> hafen.speed():current(%d) [%s]  (was %s; max selectable=%s)")
+      :format(n, hafen.speed():name(n) or "?", tostring(before), tostring(hafen.speed():max())))
 
   elseif sub == "craft" then
     -- craft.make([all]): press the OPEN recipe's Craft (or Craft All) button. This CONSUMES ingredients like a

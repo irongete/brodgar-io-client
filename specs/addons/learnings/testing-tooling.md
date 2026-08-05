@@ -937,3 +937,27 @@
   gate — 039.1). 70 probe asserts plus the shipping suite end to end, whose only two reds were the rounds
   that genuinely need a live HUD. Write those two so the `got:` says *why* ("the catalogue is empty", "no
   HUD meter -- are you in the world?"), and the headless run reads as a precondition rather than a defect.
+- **(039.10) A parked cross-reload check reads a FILE, and a file outlives the run that wrote it — so the
+  value has to carry a STAMP.** 038.4 recorded that a cross-reload *count* of something the server owns
+  measures the world; the same trap has a quieter shape when the thing crossing the reload is your own saved
+  variable. The store round trip (`:t039-10` writes, `:reload`, `:t039-10 kept` reads) went green during a
+  falsification round where the write could not possibly have reached disk, because a previous run's
+  `savedata/account/<id>.json` was still there and said exactly what the check wanted to hear. Writing
+  `t.stamp = os.time()` and asserting the age is under ten minutes makes the check discriminate the run from
+  the residue, with no human in the loop. Rule: *a check that reads persistent state must assert WHEN it was
+  written, not only what it says* — and delete the file between falsification rounds, or the plant is testing
+  the disk.
+- **(039.10) The client CANONICALISES a keybinding's spelling, so a write/read round trip compares tokens.**
+  `kb:key("x", "Ctrl+Shift+Y")` reads back `"Shift+Ctrl+Y"`: `KeyMatch.name()` emits the modifiers in its own
+  order, not the caller's. A `got == want` assertion therefore reddens on a perfectly correct remap. Split
+  both on `+` and compare as sets. Generalisation of 037.2's lesson in the other direction: *when the engine
+  normalises what you hand it, the round trip is about the VALUE, and asserting the string asserts the
+  engine's formatting.*
+- **(039.10) Asserting a SHAPE across every section in one loop is what finds the section nobody looked at.**
+  The probe ran four claims (`==` identity, callable-table-over-userdata, arguments refused, unknown verb
+  throws) over all five of the task's sections rather than hand-writing them per section, and the fourth
+  caught `hafen.player()` reading `nil` for `:nosuchverb()` where every other section throws — the third
+  occurrence of the same defect in this feature (039.2 `LuaGob`, 039.3 `LuaOverlay`), each found only because
+  something asserted it. A per-section checklist would have had four entries for the four sections somebody
+  thought about. Rule: *when a task ships N of one shape, assert the shape N times in a loop; the one you
+  would have skipped is the one that is wrong.*

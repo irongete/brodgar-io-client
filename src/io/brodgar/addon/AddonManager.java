@@ -1090,11 +1090,13 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         //     server's claim flash, so an addon can stop asking and can never turn one off.
         MapApi.installMap(hafen, owner);
 
-        // hafen.player() — the Player object, purely the composition anchor for hafen.player():gob() (D-046):
-        // position/health/moving/… of the player come from that Gob, and Player deliberately forwards NOTHING
-        // (player:pos() alongside player:gob():pos() is exactly the dual style D-013 forbids). :gob() is nil
-        // before entering the world. :name() is the LOCAL character name (GameUI.chrid); other players' display
-        // names are not reliably available. :worldToScreen is MAP-VIEW-relative pixels.
+        // hafen.player() — the section contains exactly one thing, so the section object IS the Player: purely
+        // the composition anchor for hafen.player():gob() (D-046), since position/health/moving/… of the player
+        // come from that Gob and Player deliberately forwards NOTHING (player:pos() alongside
+        // player:gob():position() is exactly the dual style D-013 forbids). :gob() is nil before entering the
+        // world. :name() is the LOCAL character name (GameUI.chrid); other players' display names are not
+        // reliably available. :worldToScreen(p) takes a POSITION and answers MAP-VIEW-relative pixels as a plain
+        // {x, y} — deliberately not a Position, because a pixel is not a place in the world.
         CharApi.installPlayer(hafen, owner);
 
         // hafen.time():* — game clock + astronomy. clock() is always available; the astronomy readers are
@@ -1164,15 +1166,17 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // with g validated 0..254 (the range the SERVER accepts; the client only draws 8 colours).
         CharApi.installKin(hafen, owner);
 
-        // hafen.speed.* — movement speed (A7), read from the speed selector widget (Speedget: the four-way
-        // crawl/walk/run/sprint toggle at the bottom of the HUD). get() returns the CURRENT speed as 0..3
-        // (0=crawl 1=walk 2=run 3=sprint), or nil if the widget isn't up yet. max() returns the highest
-        // speed currently SELECTABLE (0..3) — speeds 0..max() are available, higher ones are disabled (e.g.
-        // sprint locked); nil if not up. name([n]) returns the display name of speed n (default = current;
-        // from the widget's own tooltips), or nil. set(n) selects speed n (0..3) — the GATED write verb (4g,
-        // requireActions): it drives the client's own Speedget.set (wrap-not-reimplement, D-009 → wdgmsg("set",
-        // n)), exactly what clicking/hotkeying that speed does. No SpeedChanged event: speed is read on demand
-        // (the classic use is a speed-toggle keybind that reads get() then sets), like the other gap surfaces.
+        // hafen.speed() — movement speed (A7), read from the speed selector widget (Speedget: the four-way
+        // crawl/walk/run/sprint toggle at the bottom of the HUD). :current() returns the CURRENT speed as 0..3
+        // (0=crawl 1=walk 2=run 3=sprint), or nil if the widget isn't up yet, and :current(n) SELECTS speed n —
+        // the get/set pair collapsed onto one name whose arity is the verb (R2). The write is the GATED verb
+        // (4g, requireActions): it drives the client's own Speedget.set (wrap-not-reimplement, D-009 →
+        // wdgmsg("set", n)), exactly what clicking/hotkeying that speed does, and it returns the section so a
+        // run of writes chains. :max() returns the highest speed currently SELECTABLE (0..3) — speeds 0..max()
+        // are available, higher ones are disabled (e.g. sprint locked); nil if not up. :name([n]) is the display
+        // name of speed n (no argument = the current one; from the widget's own tooltips), or nil. No
+        // SpeedChanged event: speed is read on demand (the classic use is a speed-toggle keybind that reads
+        // :current() then writes it), like the other gap surfaces.
         ActApi.installSpeed(hafen, owner);
 
         // hafen.craft.* — crafting read (A8), off the crafting/recipe window (Makewindow: the widget the
@@ -1342,10 +1346,13 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // commands) — the interception + input tables. Global hotkeys live under hafen.client:options():keybindings().
         HookApi.install(hafen, owner);
 
-        // hafen.client — the client's own settings (spec 018). hafen.client:options() hands back the five
+        // hafen.client() — the client's own settings (spec 018). hafen.client():options() hands back the five
         // Options-window subsystems (interface/video/audio/camera/keybindings) over the SAME stores the GUI
         // edits (Utils.pref*, GSettings via ui.setgprefs, the audio roots, the KeyBinding registry), so a
-        // write from Lua and a write from OptWnd are indistinguishable.
+        // write from Lua and a write from OptWnd are indistinguishable. Every option is one name whose arity is
+        // the verb (opt:name() reads, opt:name(v) writes and chains) and an explicit nil is refused (§2.9),
+        // because a nil that read instead of writing is a silent no-op an option has no undo for. The keybinding
+        // registry's kb:get/kb:set — the last such pair in the API — collapse onto kb:key(name[, key]).
         OptionsHandle.install(hafen, owner);
 
         // hafen.font — per-addon typography (F-series, D-043). hafen.font(name) -> a PRIVATE FontHandle for one of
@@ -1469,12 +1476,16 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
             }
         }, timerVerbs), null);
 
-        // hafen.store — saved variables (1e / D-002 / D-023). One Lua table per manifest-declared
-        // saved variable (read/written like any table), persisted to JSON under savedata/. hafen.store.
-        // flush() forces a write now. Per-character vars are restored at OnEnterWorld (the <genus>_<char>
-        // folder is only known then); account-scope vars are loaded here, before the addon's files run,
-        // so they are ready in the file body / OnLoad. The table object for each name is STABLE for the
-        // addon's whole life (restore fills it in place), so a cached reference stays valid.
+        // hafen.store() — saved variables (1e / D-002 / D-023). One Lua table per manifest-declared saved
+        // variable, persisted to JSON under savedata/. :get(name) hands back that table — the LIVE persisted
+        // one, never a copy, so hafen.store():get("cfg").foo = 1 still saves; an undeclared name throws listing
+        // the declared ones, because the set is closed by the manifest at load. :flush() forces a write now.
+        // Per-character vars are restored at OnEnterWorld (the <genus>_<char> folder is only known then);
+        // account-scope vars are loaded here, before the addon's files run, so they are ready in the file body /
+        // OnLoad. The table object for each name is STABLE for the addon's whole life (restore fills it in
+        // place), so a cached reference stays valid. This is the one section whose ACCESS PATTERN changed
+        // rather than its spelling, so the old field form throws from a per-owner __index built off the
+        // manifest (StoreApi.index) — a static retired table cannot know an addon's own variable names.
         StoreApi.installStore(hafen, owner);
 
         // Every retired spelling throws naming its replacement rather than reading as nil (§2.10). The section

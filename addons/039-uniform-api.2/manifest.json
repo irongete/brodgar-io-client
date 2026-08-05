@@ -1,7 +1,7 @@
 {
   "name": "039.2 — the Position type, and hafen.world()",
   "id": "039-uniform-api.2",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 039.2: hafen.world() is a section whose gobs are one read-only collection and whose spatial verbs take a Position; a Position is computable (the engine crosses grid boundaries) and durable (it saves as a grid anchor and comes back a Position); hafen.gob and the four retired position verbs throw naming their replacements. Stores one Position of its own (account scope) so the reload check can prove the marshalling.",
   "api_version": 1,

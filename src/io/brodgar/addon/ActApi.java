@@ -208,27 +208,53 @@ final class ActApi {
         hafen.set("craft", craft);
     }
 
-    /** Build {@code hafen.speed} (movement-speed read + gated set, A7) for {@code owner}. From installHafen. */
+    /**
+     * Build {@code hafen.speed()} (movement-speed read + gated write, A7) for {@code owner}. From installHafen.
+     * The {@code get}/{@code set} pair collapses onto <b>one name</b> whose arity is the verb (R2):
+     * {@code :current()} reads the selected speed and {@code :current(n)} selects it and chains. The read half
+     * is ungated and the write half keeps the {@code actions} permission it always had.
+     */
     static void installSpeed(LuaTable hafen, final Addon owner) {
         LuaTable speed = new LuaTable();
-        speed.set("get", new ZeroArgFunction() {
-            public LuaValue call() {
-                Speedget s = speedget();
-                return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s.cur);
+        // current() / current(n) — the whole of the old get()/set() pair. The write is gated (D-027/D-028) and
+        // returns the section object, so a run of writes chains like every other setter in the API.
+        speed.set("current", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                Section.self(self, "speed", "current");
+                LuaValue n = Args.written(a, 2, "hafen.speed():current", "n");
+                if(n == null) {                            // the read arity
+                    Speedget s = speedget();
+                    return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s.cur);
+                }
+                AddonManager.requireActions(owner, "hafen.speed():current");
+                if(!n.isnumber())
+                    throw new LuaError("hafen.speed():current(n): n must be a number"
+                        + " (0=crawl 1=walk 2=run 3=sprint)");
+                actSpeedSet(n.toint());
+                return self;
             }
         });
-        speed.set("max", new ZeroArgFunction() {
-            public LuaValue call() {
+        speed.set("max", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "speed", "max");
                 Speedget s = speedget();
                 return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s.max);
             }
         });
-        speed.set("name", new OneArgFunction() {
-            public LuaValue call(LuaValue n) {
+        // name([n]) — the display name of a speed. n is an ADDRESS, not a value being written: with none, the
+        // one currently selected. An explicit nil is still an accident (§2.9) and is refused rather than read
+        // as "the current one", which is the silent misread the discipline exists for.
+        speed.set("name", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "speed", "name");
+                LuaValue n = Args.written(a, 2, "hafen.speed():name", "n");
                 int idx;
-                if(n.isnumber()) {
+                if(n != null) {
+                    if(!n.isnumber())
+                        throw new LuaError("hafen.speed():name(n): n must be a number 0..3");
                     idx = n.toint();
-                } else {                       // no/absent arg → the current speed
+                } else {                                   // no argument → the current speed
                     Speedget s = speedget();
                     if(s == null)
                         return LuaValue.NIL;
@@ -237,18 +263,9 @@ final class ActApi {
                 return speedName(idx);
             }
         });
-        // set(n) — the gated write verb (4g): select movement speed n (0..3). requireActions-gated like every
-        // hafen.act.* verb (D-027/D-028): only an addon that declared "actions" may call it.
-        speed.set("set", new OneArgFunction() {
-            public LuaValue call(LuaValue n) {
-                AddonManager.requireActions(owner, "hafen.speed.set");
-                if(!n.isnumber())
-                    throw new LuaError("hafen.speed.set(n): n must be a number (0=crawl 1=walk 2=run 3=sprint)");
-                actSpeedSet(n.toint());
-                return LuaValue.NIL;
-            }
-        });
-        hafen.set("speed", speed);
+        Section.install(hafen, "speed", speed,
+                        "hafen.speed.get() is now hafen.speed():current() and hafen.speed.set(n) is"
+                        + " hafen.speed():current(n)");
     }
 
     // ---- actions tier (Phase 4: hafen.act) -------------------------------------------------------
@@ -543,12 +560,13 @@ final class ActApi {
         g.wdgmsg(verb, args);
     }
 
-    // ---- movement speed (A7: hafen.speed) --------------------------------------------------------
+    // ---- movement speed (A7: hafen.speed()) ------------------------------------------------------
     // The speed selector is a Speedget widget (crawl/walk/run/sprint) the server places under the HUD.
     // It has no named GameUI field, so we locate it with the 1d-1 Locator (a children(Class) subtree
     // walk from the HUD) — the same way vitals finds its IMeters. Both fields we read (cur = current
     // speed, max = highest currently-selectable speed) are public ints, so this is a zero-haven-edit
-    // read. All calls run on the UI thread (addon tick / REPL). Changing speed is the gated Phase-4 tier.
+    // read. All calls run on the UI thread (addon tick / REPL). Selecting a speed is :current(n), the
+    // write half of the one name that replaced the get()/set() pair, and it is the gated Phase-4 tier.
 
     /** The (unique) movement-speed widget under the HUD, or {@code null} before it has streamed in. */
     private static Speedget speedget() {
@@ -570,17 +588,18 @@ final class ActApi {
     }
 
     /**
-     * {@code hafen.speed.set} backing (4g, gated) — select movement speed {@code n} (0..3) via the client's own
-     * {@link Speedget#set} (wrap-not-reimplement, D-009 → {@code wdgmsg("set", n)}). The server is authoritative
-     * on whether a speed is currently allowed (e.g. sprint may be locked); this only sends the request, exactly
-     * as clicking/hotkeying that speed would. Throws for out-of-range {@code n} or before the selector exists.
+     * {@code hafen.speed():current(n)} backing (4g, gated) — select movement speed {@code n} (0..3) via the
+     * client's own {@link Speedget#set} (wrap-not-reimplement, D-009 → {@code wdgmsg("set", n)}). The server is
+     * authoritative on whether a speed is currently allowed (e.g. sprint may be locked); this only sends the
+     * request, exactly as clicking/hotkeying that speed would. Throws for out-of-range {@code n} or before the
+     * selector exists.
      */
     private static void actSpeedSet(int n) {
         if((n < 0) || (n > 3))
-            throw new LuaError("hafen.speed.set(n): n must be 0..3 (0=crawl 1=walk 2=run 3=sprint), got " + n);
+            throw new LuaError("hafen.speed():current(n): n must be 0..3 (0=crawl 1=walk 2=run 3=sprint), got " + n);
         Speedget s = speedget();
         if(s == null)
-            throw new LuaError("hafen.speed.set: no speed selector (not in the world yet)");
+            throw new LuaError("hafen.speed():current(n): no speed selector (not in the world yet)");
         s.set(n);
     }
 

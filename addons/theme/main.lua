@@ -34,7 +34,7 @@
 -- is a dozen lines here rather than a second store beside the one every addon already has.
 --
 --   ':theme save'    where each themed window is RIGHT NOW becomes a pinned `position` for it, kept in
---                    hafen.store.layout (account scope) and re-applied on every ':theme on', on every character.
+--                    hafen.store():get("layout") (account scope) and re-applied on every ':theme on', on every character.
 --   ':theme forget'  drop the pins and fall back to the file's own anchors.
 --
 -- An anchor HOLDS and a pin lets go: an anchored window is re-derived every tick, so dragging it snaps back,
@@ -122,12 +122,7 @@ end
 -- character. The table object is stable for this addon's whole life (a restore refills it in place), so it is
 -- written THROUGH rather than replaced.
 local function pins()
-  local t = hafen.store.layout
-  if t == nil then                  -- declared in manifest.json; this is belt and braces for a hand-edited one
-    t = {}
-    hafen.store.layout = t
-  end
-  return t
+  return hafen.store():get("layout")   -- always a table: a declared name is created empty, an undeclared throws
 end
 
 -- The sheet as it is actually installed: the file's rules, with a pinned position REPLACING the file's own
@@ -172,7 +167,7 @@ local function saveLayout()
       end
     end
   end
-  hafen.store.flush()
+  hafen.store():flush()
   if on then apply(true) end        -- re-install so the pins take over from the anchors immediately
   hafen.log():write(("theme: saved the layout of %d window%s (account-wide). They are pinned now, so you can drag them"
     .. " -- ':theme save' again to keep where you put them, ':theme forget' to go back to %s's own anchors.")
@@ -198,7 +193,7 @@ end
 local function forgetLayout()
   local saved = pins()
   for key in pairs(saved) do saved[key] = nil end
-  hafen.store.flush()
+  hafen.store():flush()
   if on then apply(true) end
   hafen.log():write("theme: forgot the saved layout -- the windows go back where " .. FILE .. " anchors them")
 end

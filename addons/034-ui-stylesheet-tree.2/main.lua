@@ -8,7 +8,7 @@
 -- Lua cannot read a pixel, so the draw is asserted through the ONE thing the draw leaves behind that Lua can
 -- read: the rendered-text cache, whose key is (string, font, Fonts.gen()) — and Fonts.gen() is exactly the value
 -- the frame stamps. Same string, two windows, one of them styled ⇒ TWO keys, and the stamp is stable when that
--- count then stops moving. hafen.client:profiling():textcache() is a pull-only counter, so this needs nothing
+-- count then stops moving. hafen.client():profiling():textcache() is a pull-only counter, so this needs nothing
 -- armed and nothing enabled.
 --
 -- READ-ONLY: declares no permissions and mutates no persistent state. Its three probe windows live for ~3 s in
@@ -44,7 +44,7 @@ local STYLED, PLAIN = "034.2 styled", "034.2 plain"
 local BIG = { 90, 200, 140 }
 
 local function misses()
-  return hafen.client:profiling():textcache().misses or 0
+  return hafen.client():profiling():textcache().misses or 0
 end
 
 local function big()
@@ -144,7 +144,7 @@ end
 -- TESTING.md) — the maintainer does, and from there this is automated: the descent's cost is the DRAW phase
 -- with a tree sheet installed minus the same phase without one.
 local function avgDraw(n)
-  local h = hafen.client:profiling():history(n)
+  local h = hafen.client():profiling():history(n)
   local sum, cnt = 0, 0
   for _, f in ipairs(h) do
     if f.phases and f.phases.draw then sum = sum + f.phases.draw; cnt = cnt + 1 end
@@ -155,7 +155,7 @@ end
 
 local function prof()
   pass, fail, manual = 0, 0, 0
-  if not hafen.client:profiling():frame().ms then
+  if not hafen.client():profiling():frame().ms then
     hafen.log():write("[manual] :t034-2 prof needs the profiler armed -- expect: arm Options > Client >"
               .. " \"Enable profiling\" and run it again")
     hafen.log():write("[summary] 0 pass, 0 fail, 1 manual")

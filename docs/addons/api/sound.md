@@ -4,7 +4,7 @@ Play a client sound effect by resource name, stop it, and ask what is still soun
 audio section; the client's own bundled effects, such as `"sfx/msg"` and `"sfx/error"`, resolve
 locally, and any other resource name resolves the way every resource does.
 To set volume levels rather than play anything, see
-[`hafen.client:options():audio()`](client/README.md).
+[`hafen.client():options():audio()`](client/README.md).
 
 ```lua
 hafen.sound():get("sfx/msg"):play()          -- a client-bundled notification blip
@@ -80,7 +80,7 @@ Sound; exposing it would be its own section rather than a retrofit here.
 
 ## See also
 
-- [`hafen.client:options():audio()`](client/README.md) — master, UI, event and ambient volumes
+- [`hafen.client():options():audio()`](client/README.md) — master, UI, event and ambient volumes
 - [`hafen.asset`](asset.md) — the files *your* addon ships, as opposed to engine resources
 - [conventions](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) — the collection
   shape this shares

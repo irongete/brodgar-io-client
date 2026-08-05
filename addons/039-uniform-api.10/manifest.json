@@ -1,0 +1,10 @@
+{
+  "name": "039.10 - hafen.act, speed, store, player, client and the options",
+  "id": "039-uniform-api.10",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.10: hafen.speed()'s get/set pair collapsed onto :current(), hafen.store():get(name) handing back the LIVE persisted table across a reload, hafen.player() as a section whose worldToScreen takes a Position, hafen.client() losing the colon-on-the-namespace, the option methods refusing an explicit nil, and the keybinding registry's kb:key(name[, key]) replacing the API's last get/set pair. Stores one table of its own (account scope) so the reload check can prove the table is live rather than a copy.",
+  "api_version": 1,
+  "saved_variables": [{ "name": "kept", "scope": "account" }],
+  "files": ["main.lua"]
+}

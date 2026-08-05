@@ -1,4 +1,4 @@
--- Brodgar.io Options Test — the standing end-to-end harness for hafen.client:options() (spec 018).
+-- Brodgar.io Options Test — the standing end-to-end harness for hafen.client():options() (spec 018).
 --
 -- It lives on its own instead of inside 'hello': 'hello' is already the whole-API regression addon and is
 -- too large to absorb another feature demo wholesale.
@@ -27,7 +27,7 @@ local function log(fmt, ...)
 end
 
 local function opts()
-  return hafen.client:options()
+  return hafen.client():options()
 end
 
 -- ----------------------------------------------------------------- reads
@@ -109,8 +109,8 @@ local function keys()
 
   -- Our own hotkey is addon-scoped: "ping" here is addon/optionstest/ping in the registry. A name that is
   -- not ours falls back to the client's own id, which is how a built-in binding is reached.
-  log("my 'ping' hotkey = %s (nil until you assign it in Options > Keybindings)", tostring(k:get("ping")))
-  log("the client's 'inv' hotkey = %s", tostring(k:get("inv")))
+  log("my 'ping' hotkey = %s (nil until you assign it in Options > Keybindings)", tostring(k:key("ping")))
+  log("the client's 'inv' hotkey = %s", tostring(k:key("inv")))
 
   -- list() reports FULL registry ids, so ours read addon/optionstest/<name>.
   local all = k:list()
@@ -138,15 +138,15 @@ local function keys()
   end
   k:register("temp", function() log("the temporary hotkey fired") end)
   if want then
-    k:set("temp", want)
-    log("registered 'temp' and set it -> %s", tostring(k:get("temp")))
-    k:set("temp", "None")
+    k:key("temp", want)
+    log("registered 'temp' and set it -> %s", tostring(k:key("temp")))
+    k:key("temp", "None")
   else
     log("registered 'temp'; every candidate key is already in use, so it stays unbound")
   end
   k:unregister("temp")
   log("unregistered 'temp' -> %s (no longer dispatched, and gone from the keybind panel)",
-      tostring(k:get("temp")))
+      tostring(k:key("temp")))
 end
 
 -- ----------------------------------------------------------------- errors
@@ -159,7 +159,7 @@ local function errors()
     { "interface:scale(-1)", function() o:interface():scale(-1) end },
     { "video:lightingMode('fancy')", function() o:video():lightingMode("fancy") end },
     { "audio:masterVolume(3)", function() o:audio():masterVolume(3) end },
-    { "keybindings:set('no-such-binding', 'F9')", function() o:keybindings():set("no-such-binding", "F9") end },
+    { "keybindings:key('no-such-binding', 'F9')", function() o:keybindings():key("no-such-binding", "F9") end },
   }
   for _, c in ipairs(cases) do
     local ok, err = pcall(c[2])

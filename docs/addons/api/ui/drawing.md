@@ -107,7 +107,7 @@ What that means when you write a draw callback:
   used entries are evicted and their textures disposed. An addon that draws thousands of distinct strings
   settles at the cap instead of growing.
 
-[`hafen.client:profiling():textcache()`](../client/profiling/counters.md#textcache) reports what your
+[`hafen.client():profiling():textcache()`](../client/profiling/counters.md#textcache) reports what your
 addon's cache holds and its hit rate. Rich-text markup is cached on the same terms as plain text.
 
 ## See also

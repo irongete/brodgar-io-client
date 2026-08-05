@@ -1,11 +1,11 @@
 # hafen.client: profiling
 
-`hafen.client:profiling()` is the read surface over the client's frame profiler — the same per-frame CPU
+`hafen.client():profiling()` is the read surface over the client's frame profiler — the same per-frame CPU
 and GPU trees the client's own profile windows draw, not a second profiler. Reach for it to answer "where
 did this frame go", in your own addon or across the whole client. Ungated.
 
 ```lua
-local p = hafen.client:profiling()
+local p = hafen.client():profiling()
 
 local f = p:frame()
 hafen.log():write(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)", f.fps, f.ms, f.ui, f.addons))
@@ -92,7 +92,7 @@ to what is held, and is not an error. Each entry carries `frameno`, `t`, `ms`, `
 drawing them as a dip to zero.
 
 ```lua
-local h = hafen.client:profiling():history(120)     -- the last ~2 seconds, oldest first
+local h = hafen.client():profiling():history(120)     -- the last ~2 seconds, oldest first
 for i, f in ipairs(h) do
   drawBar(i, f.ms, f.gpuMs)                         -- f.gpuMs may be nil
 end
@@ -121,5 +121,5 @@ keys; no world yet, no scene keys in `render()`. Check with `if r.drawSlots then
 
 - [counters](counters.md) — the five that answer whether profiling is armed or not
 - [attribution](attribution.md) — who spent the frame: addons, widgets, passes, GL, and the overhead
-- [`hafen.client:options()`](../README.md#client) — the switch that arms all of this
+- [`hafen.client():options()`](../README.md#client) — the switch that arms all of this
 - [drawing](../../ui/drawing.md#text-is-cached-across-frames) — the cache `textcache()` reports on

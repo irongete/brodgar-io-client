@@ -36,7 +36,7 @@ public final class InterfaceOptions {
 
         // scale() — the "Interface scale (requires restart)" slider. Persisted only; UI.scale reads it at
         // startup, so a write takes effect on the next client launch (matching the panel's own label).
-        m.set("scale", new OptionsMethod(handle) {
+        m.set("scale", new OptionsMethod(handle, "interface:scale") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(Utils.getprefd("uiscale", 1.0));
             }
@@ -50,7 +50,7 @@ public final class InterfaceOptions {
 
         // posGran() — object fine-placement position granularity: subdivisions per tile, 2..17, or 0 for
         // "infinite" (the panel's ∞, i.e. unsnapped placement). Applies live.
-        m.set("posGran", new OptionsMethod(handle) {
+        m.set("posGran", new OptionsMethod(handle, "interface:posGran") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(MapView.plobpgran);
             }
@@ -63,7 +63,7 @@ public final class InterfaceOptions {
         });
 
         // angGran() — object fine-placement angle granularity, in DEGREES per step. Applies live.
-        m.set("angGran", new OptionsMethod(handle) {
+        m.set("angGran", new OptionsMethod(handle, "interface:angGran") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(180.0 / MapView.plobagran);
             }

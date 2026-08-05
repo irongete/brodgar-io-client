@@ -74,7 +74,7 @@ local function until_(get, tries, step, done)
 end
 
 local function rowOf(id)
-  for _, r in ipairs(hafen.client:profiling():addons()) do
+  for _, r in ipairs(hafen.client():profiling():addons()) do
     if r.id == id then return r end
   end
 end
@@ -187,7 +187,7 @@ costRound = function(grid)
                 .. " of its own, while this suite drawing the same picture from Lua runs one a frame")
     return summary()
   end
-  if not hafen.client:options():client():profiling() then
+  if not hafen.client():options():client():profiling() then
     manualCheck("tick Options > Client > \"Enable profiling\" and run ':t037-5' again",
                 "the same two [pass] lines -- the per-addon counters are armed only")
     return summary()

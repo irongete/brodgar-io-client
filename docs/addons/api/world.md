@@ -75,7 +75,7 @@ p:tileCoord()                           -- the tile it sits in, {x, y}
 p:durable()                             -- can it be saved?
 p:info()                                -- {gridId, x, y} — the durable form
 
-hafen.store.spot.home = p               -- saved and reloaded as a Position: no conversion, either way
+hafen.store():get("spot").home = p               -- saved and reloaded as a Position: no conversion, either way
 ```
 
 | Method | Returns | Description |
@@ -125,10 +125,10 @@ either direction. [`hafen.json`](json.md) writes it as its durable form and read
 Position, so a place survives a file, a message, or another player.
 
 ```lua
-hafen.store.spot.home = hafen.player():gob():position()   -- "spot" is a saved variable this addon declared
+hafen.store():get("spot").home = hafen.player():gob():position()   -- "spot" is a saved variable this addon declared
 
 -- next session
-local home = hafen.store.spot.home
+local home = hafen.store():get("spot").home
 if home and home:x() then hafen.act():moveTo(home) end
 ```
 
@@ -182,7 +182,7 @@ if t then hafen.log():write("standing on " .. (t.name or t.id)) end
 | `hafen.world():snapAngle(a, fine)` | number | snap a facing in radians to the client's placement-angle grid |
 
 The two placement *settings* — how many sub-tile divisions, how many rotation steps — are read and written
-through [`hafen.client:options():interface()`](client/README.md#interface): `posGran()` and `angGran()`.
+through [`hafen.client():options():interface()`](client/README.md#interface): `posGran()` and `angGran()`.
 
 ## Screen to world, and placement snapping
 

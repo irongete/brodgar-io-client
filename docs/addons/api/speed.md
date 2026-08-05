@@ -5,28 +5,31 @@ run, `3` sprint.
 
 ```lua
 -- bump to the next available speed, wrapping
-local cur, max = hafen.speed.get(), hafen.speed.max()
-if cur and max then hafen.speed.set((cur + 1) % (max + 1)) end
+local speed = hafen.speed()
+local cur, max = speed:current(), speed:max()
+if cur and max then speed:current((cur + 1) % (max + 1)) end
 ```
 
-There is no `SpeedChanged` event — read on demand.
+`current()` reads and `current(n)` writes — one name for the property, with the argument saying which you
+meant. There is no `SpeedChanged` event — read on demand.
 
 ## Read
 
-| Function | Returns | Description |
+| Method | Returns | Description |
 |---|---|---|
-| `hafen.speed.get()` | number \| nil | the current speed, `0..3` |
-| `hafen.speed.max()` | number \| nil | the highest selectable speed; `0..max` are available |
-| `hafen.speed.name(n)` | string \| nil | the display name of speed `n`, defaulting to the current one |
+| `hafen.speed():current()` | number \| nil | the current speed, `0..3` |
+| `hafen.speed():max()` | number \| nil | the highest selectable speed; `0..max` are available |
+| `hafen.speed():name(n)` | string \| nil | the display name of speed `n`, defaulting to the current one |
 
 All three answer `nil` before the HUD's speed widget exists, which is until a beat after
-`OnEnterWorld`. None throws.
+`OnEnterWorld`. None throws. `name()` with no argument is the speed you are on; `name(nil)` is an error
+rather than a shorthand for it.
 
 ## Write (gated: `actions`)
 
-| Function | Description |
+| Method | Description |
 |---|---|
-| `hafen.speed.set(n)` | select speed `n`, `0..3` |
+| `hafen.speed():current(n)` | select speed `n`, `0..3`; returns the section, so writes chain |
 
 Called from an addon that did not declare the permission, it raises an error; see
 [`hafen.act`](act.md). It also raises one for an `n` outside `0..3`, and before the speed selector

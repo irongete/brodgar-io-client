@@ -443,7 +443,7 @@ their entity blocks) · `src/io/brodgar/addon/LuaKin.java`, `LuaSlot.java`, `Lua
 
 ---
 
-## 039.10 — `hafen.act()`, `speed`, `store`, `player`, `client` and the options
+## 039.10 — `hafen.act()`, `speed`, `store`, `player`, `client` and the options ✅ DONE
 
 **Depends on:** 039.1, 039.2 (`act`'s spatial verbs already moved there — this task finishes the rest).
 

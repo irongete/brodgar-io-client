@@ -277,3 +277,14 @@
   `grep -rnE "\b[a-z]+\.(pos|show|hide|replace)\b"`. Rewrite each as `pcall(function() … end)`, which is the
   form that survives the *next* rename too. The trap is worse than a plain miss: the ported code compiles,
   runs, and fails only on the error path.
+- **(039.10, third occurrence) A metatable whose `__index` points straight at the methods table cannot refuse
+  anything.** `LuaGob` (039.2), `LuaOverlay` (039.3) and now the Player object all shipped with
+  `mt.set(INDEX, methods)`, which is correct for dispatch and silently disables both halves of §2.10: a
+  retired verb reads plain `nil` instead of naming its replacement, and an unknown verb reads `nil` instead of
+  throwing. The two fixes are `Retired.methodIndex(entity, methods)` for a surface that may grow and
+  `Retired.closedIndex(entity, methods, hint)` for one whose verb set is its whole grammar — a section object
+  is always the latter. **The grep that finds them all is `INDEX, methods`** — eleven hits remain (the five
+  option subsystem handles, `ProfHandle`, and `LuaBuff`/`LuaMeter`/`LuaSound`/`LuaIconCat`/`LuaMask`), none of
+  which has a retired verb *today*, and every one of which becomes this defect the moment one of its verbs is
+  renamed. So the grep is the checklist a renaming task runs first. Note it is invisible from Java — the code
+  compiles, runs, and dispatches every *live* verb correctly; only an assertion on the *refusal* sees it.

@@ -46,7 +46,7 @@ public final class AudioOptions {
 
     private static LuaTable methods(final LuaValue handle) {
         LuaTable m = new LuaTable();
-        m.set("masterVolume", new OptionsMethod(handle) {
+        m.set("masterVolume", new OptionsMethod(handle, "audio:masterVolume") {
             protected LuaValue onRead() {
                 ActAudio.Root a = audio();
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.sys.volume());
@@ -57,7 +57,7 @@ public final class AudioOptions {
                     a.sys.volume(volume(value, "masterVolume"));
             }
         });
-        m.set("uiVolume", new OptionsMethod(handle) {
+        m.set("uiVolume", new OptionsMethod(handle, "audio:uiVolume") {
             protected LuaValue onRead() {
                 ActAudio.Root a = audio();
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.aui.volume);
@@ -68,7 +68,7 @@ public final class AudioOptions {
                     a.aui.setvolume(volume(value, "uiVolume"));
             }
         });
-        m.set("eventVolume", new OptionsMethod(handle) {
+        m.set("eventVolume", new OptionsMethod(handle, "audio:eventVolume") {
             protected LuaValue onRead() {
                 ActAudio.Root a = audio();
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.pos.volume);
@@ -79,7 +79,7 @@ public final class AudioOptions {
                     a.pos.setvolume(volume(value, "eventVolume"));
             }
         });
-        m.set("ambientVolume", new OptionsMethod(handle) {
+        m.set("ambientVolume", new OptionsMethod(handle, "audio:ambientVolume") {
             protected LuaValue onRead() {
                 ActAudio.Root a = audio();
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.amb.volume);
@@ -94,7 +94,7 @@ public final class AudioOptions {
         // latency() — the output buffer, in MILLISECONDS (what the panel displays); the engine stores it as a
         // sample count. The panel's slider bounds are the real limits: below 128 samples the line will not
         // open, and a quarter-second buffer is as laggy as the client allows.
-        m.set("latency", new OptionsMethod(handle) {
+        m.set("latency", new OptionsMethod(handle, "audio:latency") {
             protected LuaValue onRead() {
                 ActAudio.Root a = audio();
                 if(a == null)

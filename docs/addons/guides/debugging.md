@@ -9,7 +9,7 @@ installed, and you never log out. This guide is what to do when the console does
 from, prefixed with your addon's id — which is what makes several addons logging at once readable.
 
 ```lua
-hafen.log():write("state: " .. hafen.json():encode(hafen.store.settings))
+hafen.log():write("state: " .. hafen.json():encode(hafen.store():get("settings")))
 ```
 
 The in-game line is clipped at 500 characters, so print a big table and read it off the terminal;
@@ -81,8 +81,8 @@ Four causes cover almost all of it:
 ## When it is slow
 
 Arm the client's profiler — the Options ▸ Client checkbox, or
-[`hafen.client:options():client():profiling(true)`](../api/client/README.md#client) — and read
-[`hafen.client:profiling()`](../api/client/profiling/README.md), which reports the frame, the render
+[`hafen.client():options():client():profiling(true)`](../api/client/README.md#client) — and read
+[`hafen.client():profiling()`](../api/client/profiling/README.md), which reports the frame, the render
 passes, per-widget cost and **what each addon's Lua cost**, most expensive first. The bundled **`profiler`**
 addon draws all of it, so you rarely need to write that code yourself.
 
