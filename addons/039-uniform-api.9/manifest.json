@@ -1,0 +1,9 @@
+{
+  "name": "039.9 — the six existing entity collections",
+  "id": "039-uniform-api.9",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 039.9: kin, actionbar, menugrid, sound, buff and meter as section-level collections — the singleton identity, interning across the move, the two keyless collections refusing :get, the retired call forms and entity verbs naming their replacements, and the gated writes still refusing.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

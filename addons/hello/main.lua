@@ -21,8 +21,8 @@
 -- Built on gap subsystem A7: MOVEMENT SPEED — hafen.speed reads the crawl/walk/run/sprint selector
 -- (get() -> current speed 0..3, max() -> highest currently-selectable, name([n]) -> display name); read-only
 -- here, since changing speed is the gated Phase-4 action tier. Built on gap subsystem A6: KIN / BUDDY ROSTER —
--- hafen.kin reads the Kin window and is CALLABLE-ONLY (020-kin-oop): hafen.kin() is the roster (an array of
--- interned Kin objects, plus :find/:list/:add), hafen.kin(idOrName) is one Kin (:id/:name/:group/:color/
+-- hafen.kin reads the Kin window and the section object IS the roster collection: hafen.kin():list() is the
+-- array of interned Kin objects (plus :count/:find/:add), :get(idOrName) is one Kin (:id/:name/:group/:color/
 -- :online/:exists/:gob/:info, with gob:kin() as :gob()'s inverse); it fires KinChanged -- the whole roster
 -- as Kin objects -- when a kin is added/removed, renamed/regrouped or flips online/offline. Built on gap subsystem A2: MINIMAP ICONS — hafen.map():icon() reads the character's gob-icon
 -- registry (icons([filter]) -> IconCat objects, icons(res) -> one) and a category flips its own show (draw it
@@ -80,19 +80,20 @@
 -- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
 -- Built on 023 THE ACTION MENU — hafen.menugrid is the catalogue of everything the character can DO (the 4x4
--- grid), callable-only: hafen.menugrid() = every entry as interned Pagina objects (+ :find/:roots/:list),
--- hafen.menugrid(key) = one, keyed by SHAPE ('/' => resource name = the identity, anything else => display
+-- grid): hafen.menugrid():list() = every entry as interned Pagina objects (+ :count/:find/:roots),
+-- :get(key) = one, keyed by SHAPE ('/' => resource name = the identity, anything else => display
 -- name = a search convenience). hello scans it at login (short at first — resources resolve async — then
 -- full at +3s), re-checks the OOP contract, and ':hello actions' dumps the category tree; the verb
 -- pag:use() is a real action, so only the opt-in `walker` fires it (':walker menugrid Dig').
 
--- And on 024 AUDIO — hafen.sound is callable-only too: hafen.sound(name) = one interned Sound
--- (:res/:play([volume])/:stop/:playing/:info), hafen.sound() = the Sounds THIS addon still has in the air,
+-- And on 024 AUDIO — the section object IS the collection there too:
+-- hafen.sound():get(name) = one interned Sound (:res/:play([volume])/:stop/:playing/:info), :list() = the
+-- Sounds THIS addon still has in the air,
 -- silenced for it on disable/:reload. The flat hafen.sound.play is gone and hafen.music does not exist at
 -- all (this server has no MIDI content; the "music" you hear is ambient audio, on the ambientVolume slider).
 -- hello checks that contract at login (readSound), pings with ':hello ping' and toggles a long clip through
 -- the live set with ':hello sound'.
-hafen.log():write("hello loaded (v0.65.0)")
+hafen.log():write("hello loaded (v0.83.0)")
 
 -- LuaJ 3.0.1's string.format is NOT C's: it ignores the PRECISION of %f/%g/%e ("%.3f" prints
 -- 10.852199999987988, the raw double) and the WIDTH of %s ("%-12s" pads nothing); only %d honours a
@@ -226,14 +227,15 @@ local function readChar(tag)
   hafen.log():write(("[%s] party: %d member(s)"):format(tag, #hafen.party.members()))
 end
 
--- 1d-1: the HUD meter bars, OOP since 027-meters-oop (hafen.player():vitals() is GONE). hafen.meter is
--- CALLABLE-ONLY (D-056): hafen.meter() is the 1-based array of Meter objects in HUD order and
--- hafen.meter(needle) the FIRST whose res name contains that substring. There is no hp/stamina/energy
+-- 1d-1: the HUD meter bars, OOP since 027-meters-oop (hafen.player():vitals() is GONE). The section object
+-- IS the collection: hafen.meter():list() is the 1-based array of Meter objects in HUD order and
+-- hafen.meter():find(needle) the FIRST whose res name contains that substring. A meter has no key, so there
+-- is no :get. There is no hp/stamina/energy
 -- triple -- a meter is identified by its SERVER-published bg resource name, which is why this logs
 -- :res() for every bar: that is how you read the real names off a live client. The meters stream in a
 -- beat after enter-world (like char/items), so the "now" pass is usually empty and "+3s" has the bars.
 local function readMeters(tag)
-  local list = hafen.meter()
+  local list = hafen.meter():list()
   hafen.log():write(("[%s] meters=%d"):format(tag, #list))
   for i = 1, #list do
     local m = list[i]
@@ -244,22 +246,22 @@ local function readMeters(tag)
   end
   -- 027.3: the OOP contract itself, once per login (on the +3s scan, when the bars have streamed in) --
   -- the needle lookup landing on the SAME interned object the array holds, a miss being plain nil, a
-  -- NUMBER key and the EMPTY string both erroring, :index()/:exists() answering for a live bar, :info()
+  -- NUMBER filter and the absent :get both erroring, :index()/:exists() answering for a live bar, :info()
   -- as the snapshot escape hatch, and the hard cut (D-013): hafen.player():vitals() is gone ENTIRELY.
   if tag == "+3s" then
     local first = list[1]
-    local okNum = pcall(function() return hafen.meter(1) end)
-    local okEmpty = pcall(function() return hafen.meter("") end)
+    local okNum = pcall(function() return hafen.meter():find(1) end)
+    local okGet = pcall(function() return hafen.meter():get("hp") end)
     -- The needle is the TAIL of the first bar's own server-published res, so the lookup must land back on
     -- it (the scan is HUD order and this IS entry 1). res() can still be nil for a beat, hence the guard;
     -- an ASCII tail is also why we slice the res instead of typing a name (one real name is non-ASCII).
     local res = first and first:res()
-    local byNeedle = res and hafen.meter(res:match("[^/]+$") or res)
+    local byNeedle = res and hafen.meter():find(res:match("[^/]+$") or res)
     local info = first and first:info()
-    hafen.log():write(("[%s] meter oop: interned=%s miss=%s numErrors=%s emptyErrors=%s index=%s exists=%s info={res=%s value=%s segs=%d} vitalsGone=%s"):format(tag,
+    hafen.log():write(("[%s] meter oop: interned=%s miss=%s numErrors=%s getRefused=%s index=%s exists=%s info={res=%s value=%s segs=%d} vitalsGone=%s"):format(tag,
       res and tostring(byNeedle == first) or "n/a (no meter res yet)",
-      tostring(hafen.meter("NoSuchMeterHere")),
-      tostring(not okNum), tostring(not okEmpty),
+      tostring(hafen.meter():find("NoSuchMeterHere")),
+      tostring(not okNum), tostring(not okGet),
       first and tostring(first:index()) or "n/a",
       first and tostring(first:exists()) or "n/a",
       info and tostring(info.res) or "n/a", info and tostring(info.value) or "n/a",
@@ -268,33 +270,33 @@ local function readMeters(tag)
   end
 end
 
--- 1d-2: the active buffs, OOP since 025-buffs-oop. hafen.buff is CALLABLE-ONLY (D-056): hafen.buff()
+-- 1d-2: the active buffs, OOP since 025-buffs-oop. The section object IS the collection: hafen.buff():list()
 -- is the 1-based array of Buff objects in bar order (a buff the server just removed is already out, even
--- though it is still fading on screen) and hafen.buff(needle) is the FIRST whose res or name contains it
+-- though it is still fading on screen) and :find(needle) is the FIRST whose res or name contains it
 -- -- the old buffs.has() predicate, now handing back the object. The reads live on the object
 -- (:res/:name/:amount/:duration/:number/:exists/:info) and amount/duration are 0..1 fractions (NOT
 -- seconds -- :duration() is the share of the buff's run still left, the radial meter), often nil -- a brand-new buff is routinely res-only for a beat. The buff bar streams in after
 -- enter-world, so like the meters this is read at now + a delay; most characters carry a buff or two at login.
 local function readBuffs(tag)
-  local list = hafen.buff()
+  local list = hafen.buff():list()
   local first = list[1]
   hafen.log():write(("[%s] buffs=%d, first=%s%s"):format(tag, #list,
     first and tostring(first:name() or first:res()) or "none",
     (first and first:duration()) and (" left=%.2f"):format(first:duration()) or ""))
   -- 025.3: the OOP contract itself, once per login (on the +3s scan, when the bar has streamed in) --
   -- the lookup landing on the SAME interned object the array holds, a miss being plain nil, a NUMBER key
-  -- erroring (positions are not addresses -- hafen.buff()[n] is), :exists() true for a live buff, :info()
+  -- erroring (positions are not addresses -- hafen.buff():list()[n] is), :exists() true for a live buff, :info()
   -- as the snapshot escape hatch, and the hard cut (D-013): the flat hafen.buffs is gone ENTIRELY.
   if tag == "+3s" then
-    local okNum = pcall(function() return hafen.buff(1) end)
+    local okNum = pcall(function() return hafen.buff():find(1) end)
     -- The needle is the tail of the first buff's own res, so the lookup must land back on it (the scan is
     -- bar order and this IS entry 1). res() can still be nil for a beat, hence the guard.
     local needle = first and first:res()
-    local byNeedle = needle and hafen.buff(needle:sub(-6))
+    local byNeedle = needle and hafen.buff():find(needle:sub(-6))
     local info = first and first:info()
     hafen.log():write(("[%s] buff oop: interned=%s miss=%s numErrors=%s exists=%s info={res=%s name=%s} buffsGone=%s"):format(tag,
       needle and tostring(byNeedle == first) or "n/a (no buff res yet)",
-      tostring(hafen.buff("NoSuchBuffHere")),
+      tostring(hafen.buff():find("NoSuchBuffHere")),
       tostring(not okNum),
       first and tostring(first:exists()) or "n/a",
       tostring((info or {}).res), tostring((info or {}).name),
@@ -362,15 +364,16 @@ local function readLore(tag)
     lore[1] and (" score=%s"):format(tostring(lore[1].score)) or ""))
 end
 
--- 1d-4 + 021: action bar / hotbar slots (the engine calls it the "belt"), now OOP. hafen.actionbar(n) is
--- the Slot at the RAW 0-based game index (0..143 — the same index :use takes); hafen.actionbar() is the
--- iteration view, a 1-based array of all 144 Slots, so slot:index() is what gives the game index back.
+-- 1d-4 + 021: action bar / hotbar slots (the engine calls it the "belt"), now OOP. The section object IS
+-- the collection: hafen.actionbar():get(n) is the Slot at the RAW 0-based game index (0..143 — the same
+-- index :use takes); :list() is the iteration view, a 1-based array of all 144 Slots, so slot:index() is
+-- what gives the game index back.
 -- Reads live per call: :empty()/:res()/:name()/:cooldown() (0..1 on ability slots only, not seconds).
 -- The hotbar streams in a beat after enter-world like the rest of the HUD, so scan at now (often empty)
--- and +3s (populated). The write verbs (:use, and :set(res) since 022) are gated on "actions" — hello
--- declares none, so it only CHECKS that :set refuses; ':walker setbar <n> <res>' is the working demo.
+-- and +3s (populated). The write verbs (:use, and :res(name) since 022) are gated on "actions" — hello
+-- declares none, so it only CHECKS that the write refuses; ':walker setbar <n> <res>' is the working demo.
 local function readActionbar(tag)
-  local bar = hafen.actionbar()
+  local bar = hafen.actionbar():list()
   local occupied, first = 0, nil
   for _, slot in ipairs(bar) do
     if not slot:empty() then
@@ -385,18 +388,18 @@ local function readActionbar(tag)
     cd and (" cd=%.2f"):format(cd) or ""))
   -- 021.3: the OOP contract itself, once per login (on the +3s scan, when the bar has streamed in) —
   -- interning (the array hands back the SAME objects
-  -- hafen.actionbar(n) does, and position 1 is game index 0), :info() as the snapshot escape hatch, the
+  -- hafen.actionbar():get(n) does, and position 1 is game index 0), :info() as the snapshot escape hatch, the
   -- bounds check, and the hard cut (the flat .slot/.use fields are gone, so they read as plain nil).
   if tag == "+3s" then
     local info = first and first:info()
-    local ok = pcall(function() return hafen.actionbar(144) end)   -- 144 is one past the last index
+    local ok = pcall(function() return hafen.actionbar():get(144) end)  -- 144 is one past the last index
     local flat = hafen.actionbar                              -- the namespace is callable-ONLY: no fields
-    -- 022: the WRITE verb slot:set(res) is gated on "actions" (D-027/D-028) and hello declares NO permissions,
+    -- 022: the WRITE half of slot:res(name) is gated on "actions" (D-027/D-028) and hello declares NO permissions,
     -- so calling it must ERROR before anything reaches the server -- the bar is left untouched. That refusal
     -- IS the check here; the working write lives in the opt-in `walker` addon (':walker setbar <n> <res>').
-    local okSet = pcall(function() return hafen.actionbar(0):set("gfx/hud/act/mine") end)
+    local okSet = pcall(function() return hafen.actionbar():get(0):res("gfx/hud/act/mine") end)
     hafen.log():write(("[%s] actionbar OOP: interned=%s zeroBased=%s info=%s oobThrows=%s flatGone=%s setGated=%s"):format(tag,
-      tostring(bar[1] == hafen.actionbar(0)),
+      tostring(bar[1] == hafen.actionbar():get(0)),
       tostring(bar[1]:index() == 0),
       info and tostring(info.res or info.name) or "none",
       tostring(not ok),
@@ -406,22 +409,22 @@ local function readActionbar(tag)
 end
 
 -- 023: THE ACTION MENU (the 4x4 "scm" grid) via hafen.menugrid -- the catalogue of everything the character
--- can DO, OOP from the start and CALLABLE-ONLY: hafen.menugrid() is the whole catalogue (a 1-based array of
--- interned Pagina objects in the grid's own sort order, plus :find(text) / :roots() / :list()), while
--- hafen.menugrid(key) is ONE Pagina. The key is always a STRING and splits by SHAPE, not by fallback: it
+-- can DO, OOP from the start: the section object IS the collection, so hafen.menugrid():list() is the whole
+-- catalogue (a 1-based array of interned Pagina objects in the grid's own sort order, plus :count/:find and
+-- :roots()), while :get(key) is ONE Pagina. The key is always a STRING and splits by SHAPE, not by fallback: it
 -- contains a '/' => a RESOURCE NAME ("paginae/act/dig", the identity and the intern key), anything else =>
 -- a DISPLAY NAME ("Dig"), a search convenience that needs the resource fully loaded and is NOT unique.
--- Both forms hand back the SAME interned object. A miss is plain nil (unlike hafen.kin(id)); there are NO
--- positions to address (the catalogue grows on every discovery), so hafen.menugrid(1) ERRORS.
--- A Pagina reads with :res/:name/:tooltip/:hotkey/:path/:parent/:children/:isnew/:exists/:info, and the
+-- Both forms hand back the SAME interned object. A miss is plain nil (unlike a kin id); there are NO
+-- positions to address (the catalogue grows on every discovery), so :get(1) ERRORS.
+-- A Pagina reads with :res/:name/:tooltip/:hotkey/:path/:parent/:children/:isNew/:exists/:info, and the
 -- catalogue is flat but COMPLETE -- it holds the categories too, so :parent() always lands on something
 -- readable and "is this a category" is #pag:children() > 0.
 -- Names come from resources that resolve asynchronously, so the "now" scan is typically SHORT (or empty)
 -- and fills in sub-second -- exactly what the two passes below show. The one verb, pag:use(), is a real
 -- game action, so hello (the read-only harness) never calls it: ':walker menugrid <name>' is the demo.
 local function readMenu(tag)
-  local cat = hafen.menugrid()
-  local roots = cat:roots()
+  local cat = hafen.menugrid():list()
+  local roots = hafen.menugrid():roots()
   local first = cat[1]
   hafen.log():write(("[%s] menugrid=%d entr(ies), %d root(s), first=%s%s"):format(tag, #cat, #roots,
     first and tostring(first:name() or first:res()) or "none",
@@ -431,10 +434,10 @@ local function readMenu(tag)
     -- forms landing on the SAME interned object, a miss being nil in both shapes, a NUMBER key erroring, the
     -- tree closing (a child's :parent() is in the catalogue and lists it back among its :children()), and
     -- :info() as the snapshot escape hatch (parent as a RESOURCE NAME there, not an object).
-    local byRes = hafen.menugrid(first:res())
+    local byRes = hafen.menugrid():get(first:res())
     local nm = first:name()
-    local byName = nm and hafen.menugrid(nm)
-    local okNum = pcall(function() return hafen.menugrid(1) end)      -- positions are not addresses
+    local byName = nm and hafen.menugrid():get(nm)
+    local okNum = pcall(function() return hafen.menugrid():get(1) end)  -- positions are not addresses
     -- Find any entry that HAS a parent, and check the tree closes both ways on it.
     local kid, par
     for _, p in ipairs(cat) do
@@ -450,7 +453,7 @@ local function readMenu(tag)
     local info = first:info()
     hafen.log():write(("[%s] menugrid oop: byRes=%s byName=%s noSuchRes=%s noSuchName=%s numErrors=%s"):format(tag,
       tostring(byRes == first), tostring((byName == nil) and "n/a" or (byName == first)),
-      tostring(hafen.menugrid("nope/nope")), tostring(hafen.menugrid("NoSuchActionHere")),
+      tostring(hafen.menugrid():get("nope/nope")), tostring(hafen.menugrid():get("NoSuchActionHere")),
       tostring(not okNum)))
     hafen.log():write(("[%s] menugrid tree: %s under %s (closes=%s, %d sibling(s)) | info.res=%s info.parent=%s exists=%s"):format(tag,
       kid and tostring(kid:name() or kid:res()) or "none",
@@ -460,9 +463,9 @@ local function readMenu(tag)
   end
 end
 local function dumpMenu()                        -- :hello actions -- the action menu as a tree, one login's catalogue
-  local cat = hafen.menugrid()
+  local cat = hafen.menugrid():list()
   if #cat == 0 then hafen.log():write(":hello actions -> the action menu is empty (not in the world yet?)"); return end
-  local roots = cat:roots()
+  local roots = hafen.menugrid():roots()
   hafen.log():write((":hello actions -> %d entr(ies), %d root(s)  [pag:use() fires one -- ':walker menugrid <name>']"):format(#cat, #roots))
   for _, r in ipairs(roots) do
     local kids = r:children()
@@ -476,8 +479,8 @@ local function dumpMenu()                        -- :hello actions -- the action
   end
 end
 
--- 024: AUDIO -- hafen.sound is CALLABLE-ONLY (D-056), one interned Sound object per resource NAME:
--- hafen.sound(name) is that Sound (:res/:play([volume])/:stop/:playing/:info), hafen.sound() (no argument)
+-- 024: AUDIO -- the section object IS the collection, one interned Sound object per resource NAME:
+-- hafen.sound():get(name) is that Sound (:res/:play([volume])/:stop/:playing/:info), :list()
 -- is the array of the Sounds THIS addon still has in the air. Volume is the FIRST argument of the play call
 -- and never state on the Sound (D-059) -- the object is interned and shared, so a stored level would leak
 -- between unrelated uses of the same clip. There is NO :exists() (D-060): a resource name has no lifetime to
@@ -486,18 +489,18 @@ end
 -- hafen.client:options():audio():ambientVolume(). This is the contract check, once per login; the audible
 -- live-set demo is ':hello sound' and the ping is ':hello ping'.
 local function readSound(tag)
-  local msg = hafen.sound("sfx/msg")
-  local interned = (msg == hafen.sound("sfx/msg"))            -- D-045: the same name is the same object
-  local okVol = pcall(function() return msg:play(2) end)      -- volume is 0..1; outside it errors by name
-  local okNum = pcall(function() return hafen.sound(1) end)   -- the key is a resource NAME, not a number
+  local msg = hafen.sound():get("sfx/msg")
+  local interned = (msg == hafen.sound():get("sfx/msg"))        -- D-045: the same name is the same object
+  local okVol = pcall(function() return msg:play(2) end)        -- volume is 0..1; outside it errors by name
+  local okNum = pcall(function() return hafen.sound():get(1) end)  -- the key is a resource NAME, not a number
   -- A name that does not resolve never errors INTO LUA (D-060: there is no :exists() to ask first) -- the
   -- client logs its own "addon: could not play ..." line a beat later, and that line is the expected proof.
-  hafen.sound("no/such/sound/here"):play()
+  hafen.sound():get("no/such/sound/here"):play()
   local info = msg:info()
   hafen.log():write(("[%s] sound: res=%s info={res=%s playing=%s} interned=%s badVolErrors=%s numErrors=%s missSilent=ok live=%d")
     :format(tag, msg:res(), tostring(info.res), tostring(info.playing),
-      tostring(interned), tostring(not okVol), tostring(not okNum), #hafen.sound()))
-  -- The hard cut (D-013), both halves: the flat hafen.sound.play is gone (hafen.sound is callable, and the
+      tostring(interned), tostring(not okVol), tostring(not okNum), #hafen.sound():list()))
+  -- The hard cut (D-013), both halves: the flat hafen.sound.play is gone (hafen.sound is the section, and the
   -- old field reads as plain nil) and hafen.music is ABSENT ENTIRELY -- not flattened, not stubbed.
   local okAmb, amb = pcall(function() return hafen.client:options():audio():ambientVolume() end)
   hafen.log():write(("[%s] sound contract: flatPlayGone=%s musicGone=%s ambientVolume=%s"):format(tag,
@@ -545,34 +548,34 @@ local function readIcons(tag)
     first and (" [show=%s notify=%s]"):format(tostring(first:show()), tostring(first:notify())) or ""))
 end
 
--- A6: KIN / BUDDY ROSTER via hafen.kin -- now OOP (020-kin-oop), and the arity IS the verb: hafen.kin() is
--- the ROSTER (a plain array of Kin objects in Kin-window sort order -- #roster / roster[1] / ipairs -- plus
--- :find(nameOrId), :list([filter]) and the gated :add(secret)), while hafen.kin(idOrName) is ONE Kin object
+-- A6: KIN / BUDDY ROSTER via hafen.kin -- now OOP (020-kin-oop), and the section object IS the ROSTER
+-- collection: :list([filter]) is a plain array of Kin objects in Kin-window sort order (#, [1], ipairs on
+-- that array), plus :count/:find and the gated :add(secret), while :get(idOrName) is ONE Kin object
 -- (a number = by id and always an object, a string = an exact case-insensitive name or nil). A Kin reads with
 -- :id/:name/:group/:color/:online/:exists, :gob() (the kin's game object, or nil when not in view) and
 -- :info() (the old flat KinEntry snapshot, the escape hatch). gob:kin() is :gob()'s inverse.
 -- The old FLAT table (list/find/add/remove/forget/rename/setGroup as fields) is GONE (hard cut, D-013):
 -- indexing the namespace now reads as plain nil.
--- Kin objects are INTERNED per addon, so hafen.kin(id) == hafen.kin(id) and roster[n] is literally the same
--- object as hafen.kin(<that id>) -- we assert both below. Like the rest of the HUD the Kin list streams in a
+-- Kin objects are INTERNED per addon, so :get(id) == :get(id) and roster[n] is literally the same
+-- object as :get(<that id>) -- we assert both below. Like the rest of the HUD the Kin list streams in a
 -- beat after enter-world, so read at now (often 0) and +3s. hello is READ-ONLY here (the write verbs are the
 -- gated action tier -- ':walker kin' exercises those).
 local function readKin(tag)
-  local roster = hafen.kin()
-  local online = #roster:list(function(k) return k:online() end)   -- a FUNCTION filter receives a Kin object
+  local roster = hafen.kin():list()
+  local online = hafen.kin():count(function(k) return k:online() end)  -- a FUNCTION filter receives a Kin object
   local first = roster[1]
-  local found = first and roster:find(first:name())                -- round-trip :find() by name
-  hafen.log():write(("[%s] kin=%d (%d online), first=%s%s, find(name)->%s"):format(tag, #roster, online,
+  local found = first and hafen.kin():get(first:name())            -- round-trip :get() by exact name
+  hafen.log():write(("[%s] kin=%d (%d online), first=%s%s, get(name)->%s"):format(tag, #roster, online,
     first and tostring(first:name()) or "none",
     first and (" [group=%d online=%s color=%s]"):format(first:group(), tostring(first:online()),
       first:color() and "yes" or "nil") or "",
     found and tostring(found:name()) or "nil"))
   if first then
-    -- The OOP invariants, checked live: interning by id, :find() landing on that SAME object, an unknown
+    -- The OOP invariants, checked live: interning by id, :get(name) landing on that SAME object, an unknown
     -- name resolving to nil, and :info() still handing back the flat snapshot shape.
-    hafen.log():write(("[%s] kin oop: intern=%s find==roster[1]=%s noSuchName=%s info.name=%s"):format(tag,
-      tostring(hafen.kin(first:id()) == first), tostring(found == first),
-      tostring(hafen.kin("NoSuchName")), tostring((first:info() or {}).name)))
+    hafen.log():write(("[%s] kin oop: intern=%s get==roster[1]=%s noSuchName=%s info.name=%s"):format(tag,
+      tostring(hafen.kin():get(first:id()) == first), tostring(found == first),
+      tostring(hafen.kin():get("NoSuchName")), tostring((first:info() or {}).name)))
   end
   -- KIN <-> GOB, both ways (020.2). The link is SERVER-side: the game marks a kinned player's gob with
   -- their buddy id, so gob:kin() is one attribute read and kin:gob() is the reverse lookup (a sweep of
@@ -589,7 +592,7 @@ local function readKin(tag)
   local fgob = first and first:gob()
   hafen.log():write(("[%s] kin<->gob: nearest player -> kin=%s%s | roster[1]:gob()=%s%s"):format(tag,
     okin and tostring(okin:name()) or "nil",
-    okin and (" (interned=%s)"):format(tostring(okin == hafen.kin(okin:id()))) or "",
+    okin and (" (interned=%s)"):format(tostring(okin == hafen.kin():get(okin:id()))) or "",
     fgob and tostring(fgob:name()) or "nil",
     fgob and (" (g:kin()==roster[1]: %s)"):format(tostring(fgob:kin() == first)) or ""))
 end
@@ -672,7 +675,7 @@ end
 -- level}: wounds form a TREE (parentid = the parent wound's id, -1 = a root wound; level = the client's
 -- computed depth for indentation), and severity is the magnitude the client shows beside the wound (a
 -- content-defined string, usually a number -- NOT seconds; nil while it resolves). has(needle) tests presence
--- by a name/res substring (like hafen.buff(needle)). filter is the canonical nil=all / name-substring / predicate. Like
+-- by a name/res substring (like hafen.buff():find(needle)). filter is the canonical nil=all / name-substring / predicate. Like
 -- the rest of the character sheet the wound list streams in a beat after enter-world, so read at now (often 0)
 -- and +3s. hello is READ-ONLY (wounds heal by playing / tending -- there is no wound action tier); we
 -- subscribe to WoundChanged below, and ':hello wound' dumps the full wound tree on demand. Most characters
@@ -1146,9 +1149,9 @@ hafen.event():on("OnEnterWorld", function()
     if invWdg then hafen.log():write("3b: bags ready -- move an item in/out now (even with the grid hidden via the 'bags' key) and it logs") end
   end)
 
-  -- 1c-2 / 024: an audible confirmation ping (a client-bundled sound), proving hafen.sound(name):play()
+  -- 1c-2 / 024: an audible confirmation ping (a client-bundled sound), proving sound:play()
   -- works -- plus the whole audio contract, re-checked once per login (024.4). See readSound() above.
-  hafen.sound("sfx/msg"):play()
+  hafen.sound():get("sfx/msg"):play()
   readSound("login")
 end)
 
@@ -1327,11 +1330,11 @@ end)
 -- one per occupied slot) and then on any set/clear/drag. Action-bar changes are user-driven (not
 -- per-frame), so — unlike the meters/gobs — we log EVERY one (with a running ordinal) to make it easy to
 -- verify live: put an item/action on a slot or clear one and you should see a line each time. The payload
--- is the Slot OBJECT itself (021.2) — same interned object as hafen.actionbar(n), reading live.
+-- is the Slot OBJECT itself (021.2) — same interned object as hafen.actionbar():get(n), reading live.
 local actionbarSeen = 0
 hafen.event():on("ActionbarChanged", function(slot)
   actionbarSeen = actionbarSeen + 1
-  local same = (slot == hafen.actionbar(slot:index()))   -- interning: the payload IS hafen.actionbar(n)
+  local same = (slot == hafen.actionbar():get(slot:index()))  -- interning: the payload IS :get(n)
   hafen.log():write(("ActionbarChanged: slot %d -> %s (interned=%s) (%d)"):format(slot:index(),
     (not slot:empty()) and tostring(slot:name() or slot:res()) or "empty",
     tostring(same), actionbarSeen))
@@ -1363,7 +1366,7 @@ end)
 -- A6: KinChanged fires when the roster changes — a kin added/removed, renamed/regrouped, or (the one a
 -- kin-alert addon most wants) an online/offline flip. Since 020.3 the payload is the whole roster as
 -- Kin OBJECTS (not the old flat snapshot list), in Kin-window sort order and interned like everywhere
--- else -- so payload[n] is literally the same object as hafen.kin(<that id>), and a Kin works as a TABLE
+-- else -- so payload[n] is literally the same object as hafen.kin():get(<that id>), and a Kin works as a TABLE
 -- KEY. We use that here: kinOnline is keyed BY THE OBJECT, which survives a rename (the old block keyed
 -- by name and would have reported a renamed kin as one going offline and another coming online).
 -- The event says the roster CHANGED, never what changed, so keeping our own last-state map is the way to
@@ -1382,10 +1385,10 @@ hafen.event():on("KinChanged", function(roster)
   kinOnline = now
   if kinSeen <= 5 then
     local first = roster[1]
-    -- ...and the payload objects ARE the interned ones: first == hafen.kin(first:id()) must be true.
+    -- ...and the payload objects ARE the interned ones: first == hafen.kin():get(first:id()) must be true.
     hafen.log():write(("KinChanged: %d kin (%d)%s"):format(#roster, kinSeen,
       first and (" first=%s interned=%s"):format(tostring(first:name()),
-        tostring(first == hafen.kin(first:id()))) or ""))
+        tostring(first == hafen.kin():get(first:id()))) or ""))
   end
 end)
 
@@ -1770,7 +1773,7 @@ local function drawPanel(g, w, h)
   -- 1d-1: EVERY HUD meter, drawn in its OWN colour (027-meters-oop) -- not a hard-coded hp/stam/en
   -- triple read by position. The label is the tail of the server-published res name, and the bar takes
   -- meter:color(), which is state the old flat vitals snapshot never exposed.
-  local meters = hafen.meter()
+  local meters = hafen.meter():list()
   if #meters > 0 then
     for i = 1, #meters do
       local m, y = meters[i], 42 + (i - 1) * 15
@@ -1834,7 +1837,7 @@ hafen.log():write(("2e-2: global hotkey 'toggle' registered (key = %s) -- assign
 -- you ASSIGN keys there — demonstrating the panel's assign-from-scratch flow and the per-addon grouping. Once
 -- bound this one plays a sound on press, and the choice persists across restarts like every built-in keybinding.
 keys:register("ping", function()
-  hafen.sound("sfx/msg"):play()
+  hafen.sound():get("sfx/msg"):play()
   hafen.log():write("2e-3: ping hotkey fired (assigned in Options > Keybindings > Hello)")
 end)
 
@@ -1918,21 +1921,21 @@ hafen.slash():register("hello", function(args)
     if show then panel:visible(true) else panel:visible(false) end
     hafen.log():write((":hello toggle -> window %s"):format(show and "shown" or "hidden"))
   elseif sub == "ping" then
-    hafen.sound("sfx/msg"):play()
+    hafen.sound():get("sfx/msg"):play()
     hafen.log():write(":hello ping -> played sfx/msg")
   elseif sub == "sound" then
-    -- 024.2: the live set. A TOGGLE over the addon's OWN clips: hafen.sound() (no argument) is the array of
+    -- 024.2: the live set. A TOGGLE over the addon's OWN clips: hafen.sound():list() is the array of
     -- the Sounds THIS addon still has in the air -- pruned as you ask, so it drops back to 0 by itself when a
     -- clip ends. Anything left playing is silenced for us on disable/:reload (try it: start it, then :reload).
-    local live = hafen.sound()
+    local live = hafen.sound():list()
     if #live > 0 then
       for i = 1, #live do live[i]:stop() end                 -- :stop() cuts it mid-clip, and chains on self
-      hafen.log():write((":hello sound -> stopped %d live sound(s); now #hafen.sound()=%d"):format(#live, #hafen.sound()))
+      hafen.log():write((":hello sound -> stopped %d live sound(s); now live=%d"):format(#live, #hafen.sound():list()))
     else
-      local bell = hafen.sound("sfx/hud/mmap/bell3")         -- a long-ish client-bundled clip
+      local bell = hafen.sound():get("sfx/hud/mmap/bell3")   -- a long-ish client-bundled clip
       bell:play(0.6)                                          -- volume is the FIRST argument of the play call
-      hafen.log():write((":hello sound -> playing %s at 0.6 (playing=%s, #hafen.sound()=%d) -- :hello sound again to stop")
-        :format(bell:res(), tostring(bell:playing()), #hafen.sound()))
+      hafen.log():write((":hello sound -> playing %s at 0.6 (playing=%s, live=%d) -- :hello sound again to stop")
+        :format(bell:res(), tostring(bell:playing()), #hafen.sound():list()))
     end
   elseif sub == "echo" then
     local rest = {}

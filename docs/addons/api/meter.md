@@ -1,22 +1,27 @@
 # hafen.meter: the HUD meter bars
 
 Read the bars in the HUD's meter slot — health, stamina, energy, and whatever else the server puts
-there. `hafen.meter` is a function, and the arity is the verb.
+there. `hafen.meter()` **is** the meter slot.
 
 ```lua
-local hp = hafen.meter("hp")
+local hp = hafen.meter():find("hp")
 if hp and (hp:value() or 1) < 0.3 then hafen.log():write("low health!") end
 ```
 
 | Call | Returns |
 |---|---|
-| `hafen.meter()` | every HUD meter — a 1-based array of `Meter` objects, in HUD layout order |
-| `hafen.meter(needle)` | the first meter whose resource name contains `needle`, else `nil` |
+| `hafen.meter():list(filter)` | every HUD meter — a 1-based array of `Meter` objects, in HUD layout order |
+| `hafen.meter():count(filter)` | how many match |
+| `hafen.meter():find(filter)` | the first meter that matches, else `nil` |
 
-The lookup is a plain substring match and is not trimmed. A miss is plain `nil`. A **number** raises an
-error — positions are not addresses, so use `hafen.meter()[n]` — and so does the empty string.
+A string [filter](conventions.md#the-filter-argument) is a plain substring match against the resource
+name, and is not trimmed. A miss is plain `nil`.
 
-Meter objects are **interned per addon**, so `hafen.meter("hp") == hafen.meter()[1]` and
+**There is no `:get`**: a meter has no key, only a server-published resource name several bars could
+share, so a needle is a *search*. Asking for `:get` raises an error naming `:find`, and a position is
+`hafen.meter():list()[n]`.
+
+Meter objects are **interned per addon**, so `hafen.meter():find("hp") == hafen.meter():list()[1]` and
 `seen[m] = true` work. A `Meter` wraps only the meter widget and re-reads it on every call, so a
 stashed one tracks its bar as the server updates it — see
 [snapshots vs handles](conventions.md#snapshots-vs-handles).
@@ -29,7 +34,7 @@ key this API knows: it is a substring that happens to identify a bar on this ser
 you read the real names off a live client:
 
 ```lua
-:lua for _, m in ipairs(hafen.meter()) do hafen.log():write(tostring(m:res())) end
+:lua for _, m in ipairs(hafen.meter():list()) do hafen.log():write(tostring(m:res())) end
 ```
 
 What this server publishes:
@@ -44,7 +49,7 @@ What this server publishes:
 
 Treat that table as observed rather than as a contract — re-derive it with `:res()` on the server you
 are on. One of the names is **non-ASCII**, so prefer an ASCII needle such as `"st"`, `"mount"` or
-`"hp"`, or iterate `hafen.meter()` and compare `:res()` yourself, rather than typing an accented
+`"hp"`, or iterate `hafen.meter():list()` and compare `:res()` yourself, rather than typing an accented
 literal into your Lua source.
 
 ## Read
@@ -83,7 +88,7 @@ knows your real values.
 | [`MeterRemoved`](event.md#character-and-status) | `Meter` | a bar goes away; the object still reads, and `:exists()` is false |
 | [`MeterChanged`](event.md#character-and-status) | `Meter` | a bar's value **or** colour changes |
 
-The meters stream in a beat after `OnEnterWorld`, so `hafen.meter()` is legitimately empty for a moment
+The meters stream in a beat after `OnEnterWorld`, so `:list()` is legitimately empty for a moment
 and the bars arrive as a burst of `MeterAdded`. Mounting a horse adds two more mid-session and
 dismounting removes them, which is what the lifecycle pair is for.
 
@@ -105,11 +110,11 @@ end)
 **A removed meter keeps answering.** Once it is out of the slot `:exists()` is `false` and `:index()`
 is `nil`, but `:res()`, `:value()`, `:color()` and `:segments()` still read the values it had. That is
 what makes a `MeterRemoved` payload, or a meter you stashed, worth holding on to; `:exists()` is
-exactly the predicate `hafen.meter()` filters on.
+exactly the predicate `:list()` filters on.
 
 ## See also
 
 - [`Meter`](types.md#meter) — the snapshot shape `:info()` returns
 - [`hafen.char`](char.md) — `food()`, the one absolute reading about your character
-- [`hafen.buff`](buff.md) — the other needle-keyed status surface
+- [`hafen.buff`](buff.md) — the other keyless status collection
 - [events](event.md#character-and-status) — the three meter events

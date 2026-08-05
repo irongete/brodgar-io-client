@@ -14,21 +14,24 @@ import org.luaj.vm2.lib.VarArgFunction;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * An <b>action-bar Slot object</b> — the OOP successor of the flat action-bar snapshot reader and its
  * {@code use(n, mods)} verb (spec {@code 021-actionbar-oop}), built on exactly the
- * mechanism {@link LuaGob} (017) and {@link LuaKin} (020) established. <b>Arity is the verb on the namespace
- * itself</b>: {@code hafen.actionbar(n)} is one Slot, {@code hafen.actionbar()} the collection of all of them.
+ * mechanism {@link LuaGob} (017) and {@link LuaKin} (020) established. <b>The section object IS the bar</b>
+ * (uniform grammar §2.1): {@code hafen.actionbar()} is the {@link LuaCollection} of every slot and
+ * {@code hafen.actionbar():get(n)} is one Slot.
  *
- * <p><b>Addressing is 0-based and single.</b> {@code hafen.actionbar(n)} takes the <b>raw game index</b>
- * (0..143 — the index the server uses in {@code setbelt}), and that is the <i>one</i> way to address a slot.
- * {@code hafen.actionbar()} is not a second way in: it is the iteration view (a 1-based Lua array, like
- * {@code hafen.kin()}'s roster), whose position is a position and not an index — it hands back the very same
- * interned objects, so {@code hafen.actionbar()[1] == hafen.actionbar(0)}. A Slot always knows its own game
- * index ({@code slot:index()}), so nothing has to reconstruct it from the array position.
+ * <p><b>Addressing is 0-based and single.</b> {@code :get(n)} takes the <b>raw game index</b> (0..143 — the
+ * index the server uses in {@code setbelt}), and that is the <i>one</i> way to address a slot.
+ * {@code :list()} is not a second way in: it is the iteration view (a 1-based Lua array), whose position is a
+ * position and not an index — it hands back the very same interned objects, so
+ * {@code hafen.actionbar():list()[1] == hafen.actionbar():get(0)}. A Slot always knows its own game index
+ * ({@code slot:index()}), so nothing has to reconstruct it from the array position.
  *
  * <p><b>Wraps only the index.</b> Every method re-reads through one funnel — {@link AddonManager#gui()}{@code
  * .belt[index]} — so a stashed Slot tracks the slot being set, cleared or dragged, and goes
@@ -38,19 +41,20 @@ import java.util.Map;
  * <p><b>Userdata + per-addon interning</b> (D-017 / D-045), identical to {@link LuaGob}/{@link LuaKin}: the
  * handle crosses as {@code LuaValue.userdataOf(luaSlot, mt)} so Lua cannot scribble on it, and the
  * {@link Cache} on the owning {@link Addon} (weak values + a {@link ReferenceQueue} drained on every access —
- * <i>not</i> a {@code WeakHashMap}, which is weak <i>keys</i>) makes {@code hafen.actionbar(n) ==
- * hafen.actionbar(n)} and {@code seen[slot] = true} reliable. Never static: no Lua value crosses a sandbox
- * boundary and the cache dies whole with the {@link Addon} on {@code :reload}.
+ * <i>not</i> a {@code WeakHashMap}, which is weak <i>keys</i>) makes {@code hafen.actionbar():get(n) ==
+ * hafen.actionbar():get(n)} and {@code seen[slot] = true} reliable. Never static: no Lua value crosses a
+ * sandbox boundary and the cache dies whole with the {@link Addon} on {@code :reload}.
  *
- * <p><b>The collection is a fresh array per call</b> and always <b>exactly 144 elements</b> — the belt is a
+ * <p><b>{@code :list()} is a fresh array per call</b> and always <b>exactly 144 elements</b> — the belt is a
  * fixed-size array, never sparse, so every position holds a Slot object whether or not it has content (ask
- * {@code :empty()}). No {@code :find()} / {@code :list()}: with a fixed dense array there is nothing to look
- * up that {@code hafen.actionbar(n)} does not already answer.
+ * {@code :empty()}). A string filter matches a slot's <b>resource name</b>, so {@code :list("act/")} is the
+ * populated ability slots.
  *
- * <p><b>Writes</b> ({@code :use}, {@code :set}) keep the {@code requireActions} gating (D-027/D-028) and go
- * through the client's own paths (wrap-not-reimplement, D-009): {@code :use} drives {@code Belt.act},
- * {@code :set(resourceName)} sends the very {@code wdgmsg("setbelt", n, "res", name)} a drag from the menu
- * grid sends ({@code GameUI.Belt.dropthing}). Both return <b>self</b> so they chain.
+ * <p><b>Writes</b> ({@code :use}, {@code :res(name)}) keep the {@code requireActions} gating (D-027/D-028) and
+ * go through the client's own paths (wrap-not-reimplement, D-009): {@code :use} drives {@code Belt.act},
+ * {@code :res(name)} sends the very {@code wdgmsg("setbelt", n, "res", name)} a drag from the menu grid sends
+ * ({@code GameUI.Belt.dropthing}). Both return <b>self</b> so they chain, and {@code :res()} with no argument
+ * is the read half of that one name.
  *
  * <p><b>Threading.</b> Every read/write runs on the UI thread (addon tick / REPL / timer / slash command);
  * {@code belt[n]} is a plain array read, but the resource-backed fields behind it are {@code Loading}-guarded
@@ -154,7 +158,7 @@ public final class LuaSlot {
     /** The per-addon metatable: {@code __index} = the methods table, plus {@code __tostring}/{@code __name}. */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(owner));
+        mt.set(LuaValue.INDEX, Retired.methodIndex("slot", methods(owner)));
         mt.set("__name", LuaValue.valueOf("Slot"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -173,7 +177,7 @@ public final class LuaSlot {
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         // index() — the raw 0-based game index this Slot addresses. Answers from the handle alone, so it is
-        // the reliable way back from an array POSITION (hafen.actionbar()[i], 1-based) to the game INDEX.
+        // the reliable way back from an array POSITION (hafen.actionbar():list()[i], 1-based) to the game INDEX.
         m.set("index", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf(handle(self, "index").index);
@@ -191,10 +195,35 @@ public final class LuaSlot {
                 return CharApi.actionbarSnapshot(belt(self, "info"));
             }
         });
-        m.set("res", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Resource r = CharApi.actionbarResObj(belt(self, "res"));
-                return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r.name);
+        // res() reads the slot's action by resource name; res(name) ASSIGNS one (gated) — one name for the
+        // pair the old set() made two. The write is exactly the message dragging that action off the menu grid
+        // onto the bar sends (GameUI.Belt.dropthing -> wdgmsg("setbelt", n, "res", pag.res().name)), so the
+        // server treats it identically. It lands ASYNCHRONOUSLY (the server echoes a "setbelt" uimsg back), so
+        // the slot still reads the OLD content on the next line; the change surfaces as an ActionbarChanged on
+        // this very Slot. An unknown resource name is simply ignored by the server — same as a drag of
+        // something that does not exist — so there is nothing to report back here. No "pag" variant: pagina
+        // ids are session-local and opaque to addons (022 spec, out of scope).
+        m.set("res", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue rv = Args.written(a, 2, "slot:res", "resourceName");
+                if(rv == null) {
+                    Resource r = CharApi.actionbarResObj(belt(self, "res"));
+                    return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r.name);
+                }
+                AddonManager.requireActions(owner, "slot:res");
+                int n = handle(self, "res").index;
+                if(!rv.isstring())
+                    throw new LuaError("slot:res(resourceName): expected a resource name string, got "
+                        + rv.typename() + " (e.g. slot:res(\"gfx/hud/act/mine\"))");
+                String res = rv.tojstring().trim();
+                if(res.isEmpty())
+                    throw new LuaError("slot:res(resourceName): the resource name is empty");
+                GameUI g = AddonManager.gui();
+                if(g == null)
+                    throw new LuaError("slot:res(): no game UI (not in the world yet)");
+                g.wdgmsg("setbelt", Integer.valueOf(n), "res", res);
+                return self;
             }
         });
         m.set("name", new OneArgFunction() {
@@ -234,32 +263,6 @@ public final class LuaSlot {
                 return self;
             }
         });
-        // set(resourceName) — assign an action to this slot BY RESOURCE NAME: exactly the message dragging that
-        // action off the menu grid onto the bar sends (GameUI.Belt.dropthing -> wdgmsg("setbelt", n, "res",
-        // pag.res().name)), so the server treats it identically. The write lands ASYNCHRONOUSLY (the server
-        // echoes a "setbelt" uimsg back), so the slot still reads the OLD content on the next line; the change
-        // surfaces as an ActionbarChanged on this very Slot. An unknown resource name is simply ignored by the
-        // server — same as a drag of something that does not exist — so there is nothing to report back here.
-        // No "pag" variant: pagina ids are session-local and opaque to addons (022 spec, out of scope).
-        m.set("set", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
-                AddonManager.requireActions(owner, "slot:set");
-                int n = handle(self, "set").index;
-                LuaValue rv = a.arg(2);
-                if(!rv.isstring())
-                    throw new LuaError("slot:set(resourceName): expected a resource name string, got "
-                        + rv.typename() + " (e.g. slot:set(\"gfx/hud/act/mine\"))");
-                String res = rv.tojstring().trim();
-                if(res.isEmpty())
-                    throw new LuaError("slot:set(resourceName): the resource name is empty");
-                GameUI g = AddonManager.gui();
-                if(g == null)
-                    throw new LuaError("slot:set(): no game UI (not in the world yet)");
-                g.wdgmsg("setbelt", Integer.valueOf(n), "res", res);
-                return self;
-            }
-        });
         return m;
     }
 
@@ -269,7 +272,8 @@ public final class LuaSlot {
     private static LuaSlot handle(LuaValue self, String method) {
         LuaSlot h = resolve(self);
         if(h == null)
-            throw new LuaError("slot:" + method + "() — use a COLON call on a Slot object (hafen.actionbar(n), hafen.actionbar()[i])");
+            throw new LuaError("slot:" + method + "() — use a COLON call on a Slot object"
+                + " (hafen.actionbar():get(n), hafen.actionbar():list()[i])");
         return h;
     }
 
@@ -285,45 +289,44 @@ public final class LuaSlot {
     // ---- the collection --------------------------------------------------------------------------
 
     /**
-     * {@code hafen.actionbar()} — all 144 slots as a fresh <b>1-based</b> Lua array of (interned) Slot
-     * objects, in game-index order, so {@code #} is exactly 144 and {@code ipairs} covers every slot. A plain
-     * array with no metatable: the position is only a position ({@code slot:index()} is the game index) and
-     * there are no collection methods to hide the length behind.
+     * {@code hafen.actionbar()} — the bar, as the {@link LuaCollection} the section object IS:
+     * {@code :get(n)} is one slot by its raw 0-based game index, {@code :list(filter)} all 144 in game-index
+     * order (a fresh 1-based array), {@code :count}/{@code :find} the usual pair. There is no {@code :add} or
+     * {@code :remove}: the bar is a fixed 144-slot array and what changes is a slot's <i>content</i>
+     * ({@code slot:res(name)}).
      */
-    private static LuaValue collection(Addon owner) {
-        LuaTable out = new LuaTable();
-        for(int n = 0; n < SLOTS; n++)
-            out.set(n + 1, of(owner, n));
-        return out;
-    }
-
-    /**
-     * {@code hafen.actionbar} itself: a <b>callable table</b> ({@code __call}) with arity dispatch, so
-     * {@code hafen.actionbar()} / {@code hafen.actionbar(n)} work while indexing it (the old {@code slot} and
-     * {@code use} fields) reads as plain {@code nil} — the hard cut (D-013) is visible from Lua, exactly as
-     * {@code hafen.gob} (D-044) and {@code hafen.kin} (D-056) did it.
-     */
-    static LuaValue factory(final Addon owner) {
-        LuaTable actionbar = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.CALL, new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue key = a.arg(2);        // arg1 = the callable table itself
-                if(key.isnil())
-                    return collection(owner);
-                if(key.isnumber()) {            // BEFORE isstring(): in LuaJ a number IS a string
-                    int n = key.toint();
-                    // Bounded, unlike hafen.kin(id): the belt is a fixed array, so an out-of-range index is
-                    // a bug in the addon (a typo'd loop), never a slot that merely does not exist yet.
-                    if((n < 0) || (n >= SLOTS))
-                        throw new LuaError("hafen.actionbar(n): slot index out of range (0.." + (SLOTS - 1) + "), got " + n);
-                    return of(owner, n);
-                }
-                throw new LuaError("hafen.actionbar([n]): no argument = all " + SLOTS + " slots,"
-                    + " a number = one slot by its raw 0-based game index (0.." + (SLOTS - 1) + ")");
+    static LuaValue collection(final Addon owner) {
+        return LuaCollection.create("hafen.actionbar()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>(SLOTS);
+                for(int n = 0; n < SLOTS; n++)
+                    out.add(of(owner, n));
+                return out;
             }
-        });
-        actionbar.setmetatable(mt);
-        return actionbar;
+
+            // An EMPTY slot has no resource, and there are usually many: it matches no string filter rather
+            // than refusing the filter for everybody (which a null needle would do).
+            public String needle(LuaValue member) {
+                Resource r = CharApi.actionbarResObj(belt(member, "list"));
+                return (r == null) ? "" : r.name;
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                if(!key.isnumber())             // BEFORE isstring(): in LuaJ a number IS a string
+                    throw new LuaError("hafen.actionbar():get(n): the key is the raw 0-based game index"
+                        + " (0.." + (SLOTS - 1) + "), got " + key.typename());
+                int n = key.toint();
+                // Bounded, unlike hafen.kin():get(id): the belt is a fixed array, so an out-of-range index is
+                // a bug in the addon (a typo'd loop), never a slot that merely does not exist yet.
+                if((n < 0) || (n >= SLOTS))
+                    throw new LuaError("hafen.actionbar():get(n): slot index out of range (0.."
+                        + (SLOTS - 1) + "), got " + n);
+                return of(owner, n);
+            }
+        }, null);
     }
 }

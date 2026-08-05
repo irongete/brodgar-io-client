@@ -108,15 +108,15 @@ subscribe to the container itself with
 `EquipChanged` stays global because your worn gear is one fixed surface.
 
 `ActionbarChanged` hands you the **changed slot** as a live [`Slot` object](actionbar.md) — the same
-interned object `hafen.actionbar(n)` returns, so `payload == hafen.actionbar(payload:index())` and you
+interned object `hafen.actionbar():get(n)` returns, so `payload == hafen.actionbar():get(payload:index())` and you
 can key a table by one. `slot:index()` is the raw 0-based game index. It fires on a set, a clear, a
 drag, or when a slot's data resolves, and **not** on `:cooldown()` ticking, which would fire every
 frame — read the cooldown live off the object instead. At login the occupied slots stream in as a
 burst, one fire each.
 
 > For the list events — `StudyChanged`, `EquipChanged`, `KinChanged`, `WoundChanged` — the payload is
-> the **full new list**, not a delta. Read the initial state once with the section's own `list()` or
-> `slots()` verb, then listen.
+> the **full new list**, not a delta. Read the initial state once with the section's own `:list()`
+> verb, then listen.
 
 ## Roster, quests, markers
 
@@ -128,7 +128,7 @@ burst, one fire each.
 | `MarkersChanged` | `{ count = number }` | a map marker is added or removed |
 
 `KinChanged` hands you the **whole roster** as live [`Kin` objects](kin.md), in Kin-window sort order —
-the same interned objects `hafen.kin()` returns, so `payload[1] == hafen.kin(payload[1]:id())` and you
+the same interned objects `hafen.kin():list()` returns, so `payload[1] == hafen.kin():get(payload[1]:id())` and you
 can key a table by one. It tells you *that* the roster changed, not *what* changed: keep your own map
 of the last state if you want to name who just came online, and key it **by the `Kin` itself** rather
 than by `:name()`, so a rename does not read as one kin leaving and another arriving.

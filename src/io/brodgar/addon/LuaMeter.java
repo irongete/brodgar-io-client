@@ -8,9 +8,7 @@ import haven.LayerMeter;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
-import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
@@ -24,8 +22,9 @@ import java.util.Map;
  * A <b>Meter object</b> — one bar in the HUD's meter slot (spec {@code 027-meters-oop}), the OOP successor of
  * the flat {@code hafen.player():vitals()} snapshot. Built on exactly the mechanism {@link LuaGob} (017),
  * {@link LuaKin} (020), {@link LuaSlot} (021), {@link LuaPagina} (023), {@link LuaSound} (024) and
- * {@link LuaBuff} (025) established; <b>arity is the verb on the namespace itself</b> (D-056):
- * {@code hafen.meter()} is every HUD meter, {@code hafen.meter(needle)} is one of them.
+ * {@link LuaBuff} (025) established; <b>the section object IS the meter slot</b> (uniform grammar §2.1):
+ * {@code hafen.meter()} is the collection of every HUD meter and {@code hafen.meter():find(needle)} is one of
+ * them.
  *
  * <p><b>There is no fixed vitals triple.</b> The HUD's {@code place == "meter"} slot takes an arbitrary
  * number of {@link IMeter}s laid out in a 3-wide grid; the old reader hard-coded the first three as
@@ -54,7 +53,7 @@ import java.util.Map;
  * <p><b>Every read is {@code Loading}-guarded and may answer {@code nil}.</b> {@code bg.get()} throws until the
  * resource is cached, so a brand-new meter is routinely nameless for a beat, and the values stream in as
  * individual {@code "set"} uimsgs after enter-world. That is normal, never an error into Lua — and it is why
- * {@code hafen.meter()} lists a still-loading meter anyway (identity is the widget, not the name).
+ * {@code :list()} includes a still-loading meter anyway (identity is the widget, not the name).
  *
  * <p><b>No verb.</b> Meters are server-pushed presentation; there is nothing to write (spec 027, out of scope).
  */
@@ -171,7 +170,7 @@ public final class LuaMeter {
      */
     private static LuaTable methods() {
         LuaTable m = new LuaTable();
-        // res() — the meter's background resource name, its identity and the thing hafen.meter(needle)
+        // res() — the meter's background resource name, its identity and the thing hafen.meter():find(needle)
         // searches. SERVER-published, so it is never hard-coded here; nil for a beat while it loads.
         m.set("res", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -231,7 +230,7 @@ public final class LuaMeter {
         LuaMeter h = resolve(self);
         if(h == null)
             throw new LuaError("meter:" + method + "() — use a COLON call on a Meter object"
-                + " (hafen.meter(needle), hafen.meter()[i])");
+                + " (hafen.meter():find(needle), hafen.meter():list()[i])");
         return h;
     }
 
@@ -239,7 +238,7 @@ public final class LuaMeter {
 
     /**
      * The meters currently in the HUD's meter slot, in layout order — the engine's own {@code GameUI.meters}
-     * list, filtered to {@link IMeter} ({@link AddonWidgets#hudMeters}). The single scan {@code hafen.meter()},
+     * list, filtered to {@link IMeter} ({@link AddonWidgets#hudMeters}). The single scan {@code :list()},
      * the lookup, {@code :index()}, {@code :exists()} and the {@code MeterAdapter} poll all share.
      */
     static List<IMeter> hud() {
@@ -344,59 +343,36 @@ public final class LuaMeter {
         return t;
     }
 
-    // ---- the namespace -----------------------------------------------------------------------------
+    // ---- the collection ----------------------------------------------------------------------------
 
     /**
-     * {@code hafen.meter()} — every HUD meter as a fresh <b>1-based</b> Lua array of (interned) Meter objects
-     * in HUD order. A plain array with no metatable: the slot holds a handful of bars with no catalogue behind
-     * it, so the array plus the lookup arity is the whole collection surface. Legitimately empty for a beat
-     * after {@code OnEnterWorld} — the meters stream in; {@code MeterAdded} (027.2) is the honest signal.
+     * {@code hafen.meter()} — the HUD's bars, as the {@link LuaCollection} the section object IS:
+     * {@code :list(filter)} is a fresh 1-based array of (interned) Meter objects in HUD order,
+     * {@code :find(needle)} the first that matches, {@code :count(filter)} how many. Legitimately empty for a
+     * beat after {@code OnEnterWorld} — the meters stream in; {@code MeterAdded} (027.2) is the honest signal.
+     *
+     * <p><b>There is no {@code :get}</b>: a meter has no key. A string filter matches the
+     * <i>server-published</i> background resource name as a substring, so {@code "hp"} is not a key this code
+     * knows — it is a substring that happens to identify a bar on this server, and {@code :res()} is how to
+     * list the real ones.
      */
-    private static LuaValue collection(Addon owner) {
-        LuaTable out = new LuaTable();
-        List<IMeter> hud = hud();
-        for(int i = 0; i < hud.size(); i++)
-            out.set(i + 1, of(owner, hud.get(i)));
-        return out;
-    }
-
-    /**
-     * {@code hafen.meter} itself: a <b>callable table</b> ({@code __call}), so {@code hafen.player():vitals()}
-     * is plain gone — the hard cut (D-013) is visible from Lua, exactly as {@code hafen.gob} (D-044),
-     * {@code hafen.actionbar} (D-057), {@code hafen.menugrid}, {@code hafen.sound} and {@code hafen.buff} did
-     * it. <b>Arity is the verb</b> (D-056): {@code hafen.meter()} is every HUD meter, {@code hafen.meter(needle)}
-     * is the <b>first</b> one whose {@code :res()} contains {@code needle} (not trimmed — trimming would
-     * silently change a substring search). A miss is {@code nil}. The needle matches a <i>server-published</i>
-     * name, so {@code "hp"} is not a key this code knows: it is a substring that happens to identify a bar on
-     * this server, and {@code :res()} is how to list the real ones.
-     */
-    static LuaValue factory(final Addon owner) {
-        LuaTable meter = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.CALL, new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue key = a.arg(2);        // arg1 = the callable table itself
-                if(key.isnil())                 // hafen.meter() — every HUD meter, in HUD order
-                    return collection(owner);
-                if(key.isnumber())              // BEFORE isstring(): in LuaJ a number IS a string
-                    throw new LuaError("hafen.meter(needle): the key is a RESOURCE-name substring string"
-                        + " (e.g. \"hp\"), not a number — for the n-th HUD meter use hafen.meter()[n]");
-                if(key.isstring()) {
-                    String needle = key.tojstring();
-                    if(needle.isEmpty())
-                        throw new LuaError("hafen.meter(needle): the needle is empty");
-                    for(IMeter m : hud()) {
-                        String res = res(m);
-                        if((res != null) && res.contains(needle))
-                            return of(owner, m);
-                    }
-                    return LuaValue.NIL;
-                }
-                throw new LuaError("hafen.meter([needle]): no argument = every HUD meter, a string = the first"
-                    + " meter whose res contains it, got " + key.typename());
+    static LuaValue collection(final Addon owner) {
+        return LuaCollection.create("hafen.meter()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<IMeter> hud = hud();
+                List<LuaValue> out = new ArrayList<LuaValue>(hud.size());
+                for(int i = 0; i < hud.size(); i++)
+                    out.add(of(owner, hud.get(i)));
+                return out;
             }
-        });
-        meter.setmetatable(mt);
-        return meter;
+
+            // A meter whose resource has not resolved yet is listed (identity is the widget, not the name) and
+            // simply matches no string filter, rather than refusing the filter for everybody.
+            public String needle(LuaValue member) {
+                LuaMeter h = resolve(member);
+                String res = (h == null) ? null : res(h.wdg);
+                return (res == null) ? "" : res;
+            }
+        }, null);
     }
 }

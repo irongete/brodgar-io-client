@@ -13,7 +13,7 @@
 -- Slice 4d adds the rest of the MapView action verbs on top of moveTo (4a); slice 4e adds menu + flower;
 -- slice 4f adds the ITEM verbs (hafen.act():item); slice 4g adds the PER-SUBSYSTEM gated verbs that live in
 -- their own namespace (not hafen.act()): hafen.speed.set, hafen.craft.make, the Slot's :use, and
--- the kin verbs on the Kin object (hafen.kin():add(secret) and kin:rename/:setGroup/:endkin/:forget)
+-- the kin verbs on the Kin object (hafen.kin():add(secret) and kin:rename/:group/:endKin/:forget)
 -- — all behind the SAME "actions" permission.
 -- Each is a DELIBERATE, opt-in trigger — a `:walker <sub>` command — so nothing acts unless you ask.
 -- Sub-commands:
@@ -32,15 +32,15 @@
 --                          undo). Pass a verb: take|drop|transfer|iact|itemact.
 --   :walker speed [n]   -- speed.set: select movement speed n=0..3 (crawl/walk/run/sprint; default 2=run). Reversible.
 --   :walker craft [all] -- craft.make: press Craft on the OPEN recipe (add 'all' for Craft All). CONSUMES ingredients!
---   :walker bar <n>     -- slot:use: activate action-bar slot n (raw 0-based index; read hafen.actionbar(n) first)
---   :walker setbar <n> <res>  -- slot:set: ASSIGN the action named <res> to slot n (what a drag from the menu
+--   :walker bar <n>     -- slot:use: activate slot n (raw 0-based index; read hafen.actionbar():get(n) first)
+--   :walker setbar <n> <res>  -- slot:res: ASSIGN the action named <res> to slot n (what a drag from the menu
 --                          grid does). Overwrites the slot; right-click it in-game to clear.
 --   :walker menugrid <name>   -- pagina:use: fire an ACTION MENU entry by display name (e.g. ':walker menugrid Dig')
 --                          or by resource name if you pass one containing a '/'. A category errors -- it lists
 --                          its :children() instead.
 --   :walker kin add <secret>  -- hafen.kin():add: add a kin by the other player's HEARTH SECRET (wdgmsg 'bypwd')
 --   :walker kin <name> group <0..7>|rename <new>|endkin|forget
---                       -- kin:setGroup/:rename a named kin (reversible), OR the two-step drop: endkin = End
+--                       -- kin:group/:rename a named kin (reversible), OR the two-step drop: endkin = End
 --                          kinship (stays memorized), then forget = drop the memorized kin from the list
 
 hafen.log():write("walker loaded (v0.10.0) -- write-actions demo (4d MapView verbs + 4e menu/flower + 4f item + 4g speed/craft/bar/setbar/kin + menugrid)")
@@ -66,10 +66,10 @@ hafen.slash():register("walker", function(args)
     hafen.log():write("   -- 4g per-subsystem gated verbs (own namespace, same permission):")
     hafen.log():write("   speed [n]=hafen.speed.set(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
     hafen.log():write("   craft [all]=hafen.craft.make(all)  press Craft on the OPEN recipe (CONSUMES ingredients; 'all'=Craft All)")
-    hafen.log():write("   bar <n>=hafen.actionbar(n):use()  activate action-bar slot n (raw 0-based index)")
-    hafen.log():write("   setbar <n> <res>=hafen.actionbar(n):set(res)  assign an action by resource name (e.g. gfx/hud/act/mine)")
-    hafen.log():write("   menugrid <name>=hafen.menugrid(name):use()  fire an action-menu entry (e.g. ':walker menugrid Dig')")
-    hafen.log():write("   kin add <secret> =add by hearth secret; kin <name> group/rename =kin:setGroup/:rename; endkin =End kinship, forget =drop memorized kin")
+    hafen.log():write("   bar <n>=hafen.actionbar():get(n):use()  activate action-bar slot n (raw 0-based index)")
+    hafen.log():write("   setbar <n> <res>=hafen.actionbar():get(n):res(name)  assign an action by resource name (e.g. gfx/hud/act/mine)")
+    hafen.log():write("   menugrid <name>=hafen.menugrid():get(name):use()  fire an action-menu entry (e.g. ':walker menugrid Dig')")
+    hafen.log():write("   kin add <secret> =add by hearth secret; kin <name> group/rename =kin:group/:rename; endkin =End kinship, forget =drop memorized kin")
     return
   end
 
@@ -190,32 +190,32 @@ hafen.slash():register("walker", function(args)
       :format(tostring(all), cur.recipe or "?", all and "Craft All" or "Craft one"))
 
   elseif sub == "bar" then
-    -- slot:use(): activate action-bar slot n (the RAW 0-based index hafen.actionbar(n) takes).
+    -- slot:use(): activate action-bar slot n (the RAW 0-based index hafen.actionbar():get(n) takes).
     -- Require an explicit n -- there is no safe default (a slot could be food, a curio, an ability...).
     local n = tonumber(args[2])
-    if not n then hafen.log():write(":walker bar <n> -> activate action-bar slot n (0-based). Read a slot: :lua hafen.actionbar(0):info()"); return end
-    local slot = hafen.actionbar(n)                    -- throws if n is outside 0..143
+    if not n then hafen.log():write(":walker bar <n> -> activate action-bar slot n (0-based). Read a slot: :lua hafen.actionbar():get(0):info()"); return end
+    local slot = hafen.actionbar():get(n)              -- throws if n is outside 0..143
     local held = (not slot:empty()) and (slot:name() or slot:res() or "?") or "empty"
     slot:use()                                         -- gated; the belt "act" a left-click on the slot sends
-    hafen.log():write((":walker bar -> hafen.actionbar(%d):use()  [slot holds: %s]"):format(n, held))
+    hafen.log():write((":walker bar -> hafen.actionbar():get(%d):use()  [slot holds: %s]"):format(n, held))
 
   elseif sub == "setbar" then
-    -- 022: slot:set(res): ASSIGN an action to slot n by RESOURCE NAME -- the same wdgmsg("setbelt", n, "res",
+    -- 022: slot:res(name): ASSIGN an action to slot n by RESOURCE NAME -- the same wdgmsg("setbelt", n, "res",
     -- name) dragging that action off the menu grid sends. Overwrites whatever was there (drag it back, or
     -- right-click the slot to clear), so require BOTH args explicitly. The resource name is the string
     -- slot:res() reads back: put an action on the bar by hand once and read it to learn the name.
     local n, res = tonumber(args[2]), args[3]
     if not n or not res then
       hafen.log():write(":walker setbar <n> <res> -> assign a resource-backed action to slot n (0-based)."
-        .. "  e.g. ':walker setbar 5 gfx/hud/act/mine'  (read a name: :lua hafen.actionbar(0):res())")
+        .. "  e.g. ':walker setbar 5 gfx/hud/act/mine'  (read a name: :lua hafen.actionbar():get(0):res())")
       return
     end
-    local slot = hafen.actionbar(n)                    -- throws if n is outside 0..143
+    local slot = hafen.actionbar():get(n)              -- throws if n is outside 0..143
     local was = (not slot:empty()) and (slot:name() or slot:res() or "?") or "empty"
-    slot:set(res)                                      -- gated; wdgmsg("setbelt", n, "res", res) -- returns self
+    slot:res(res)                                      -- gated; wdgmsg("setbelt", n, "res", res) -- returns self
     -- The write is ASYNCHRONOUS (the server echoes a "setbelt" back), so the slot still reads the OLD content
     -- right here -- re-read after a beat to show it landed. An unknown res name is silently ignored (no change).
-    hafen.log():write((":walker setbar -> hafen.actionbar(%d):set('%s')  [slot held: %s -- sent, watch ActionbarChanged]")
+    hafen.log():write((":walker setbar -> hafen.actionbar():get(%d):res('%s')  [slot held: %s -- sent, watch ActionbarChanged]")
       :format(n, res, was))
     hafen.timer():after(0.5, function()
       local now = (not slot:empty()) and (slot:name() or slot:res() or "?") or "empty"
@@ -230,13 +230,13 @@ hafen.slash():register("walker", function(args)
     local key = table.concat(args, " ", 2)
     if key == "" then
       hafen.log():write(":walker menugrid <name> -> fire an action-menu entry, e.g. ':walker menugrid Dig'."
-        .. "  List them: :lua for _,a in ipairs(hafen.menugrid()) do hafen.log():write(a:name() or a:res()) end")
+        .. "  List them: :lua for _,a in ipairs(hafen.menugrid():list()) do hafen.log():write(a:name() or a:res()) end")
       return
     end
-    local pag = hafen.menugrid(key)                    -- nil when you do not have that action (either key form)
+    local pag = hafen.menugrid():get(key)              -- nil when you do not have that action (either key form)
     if not pag then
       hafen.log():write((":walker menugrid -> no menu entry for '%s'  (display names need the resource loaded and are"
-        .. " not unique; search with  :lua hafen.menugrid():find('%s'))"):format(key, key))
+        .. " not unique; search with  :lua hafen.menugrid():list('%s'))"):format(key, key))
       return
     end
     local kids = pag:children()
@@ -248,12 +248,12 @@ hafen.slash():register("walker", function(args)
       return
     end
     pag:use()                                          -- PagButton.use: the "act"-by-path / "use"-by-id message
-    hafen.log():write((":walker menugrid -> hafen.menugrid('%s'):use()  [%s -- res %s]")
+    hafen.log():write((":walker menugrid -> hafen.menugrid():get('%s'):use()  [%s -- res %s]")
       :format(key, pag:name() or "?", pag:res()))
 
   elseif sub == "kin" then
-    -- 4g kin verbs, now on the Kin OBJECT (020-kin-oop): hafen.kin() is the roster (with the gated
-    -- :add(secret)) and hafen.kin(name) is one Kin, whose gated verbs are :rename/:setGroup/:endkin/:forget
+    -- 4g kin verbs, now on the Kin OBJECT (020-kin-oop): hafen.kin() is the roster collection (with the
+    -- gated :add(secret)) and :get(name) is one Kin, whose gated verbs are :rename/:group/:endKin/:forget
     -- and each returns SELF, so they chain. 'add' takes a HEARTH SECRET (not a name): ':walker kin add
     -- <secret>'. The rest act on a NAMED kin (exact name) + an explicit op -- these mutate your real roster.
     -- group/rename are reversible. endkin + forget are the TWO STEPS of dropping a kin (the game's "End
@@ -271,28 +271,28 @@ hafen.slash():register("walker", function(args)
       hafen.log():write(":walker kin add <secret> | <name> group <0..7> | <name> rename <newname> | <name> endkin | <name> forget")
       return
     end
-    local who = hafen.kin(name)                        -- read first: confirm the name resolves + show the id
+    local who = hafen.kin():get(name)                  -- read first: confirm the name resolves + show the id
     if not who then hafen.log():write((":walker kin -> no kin named '%s' on your roster"):format(name)); return end
     if op == "group" then
       local grp = tonumber(args[4])
       if not grp then hafen.log():write(":walker kin <name> group <0..7> -> a group number is required"); return end
       -- The server takes 0..254, but the client only DRAWS 8 kin colours -- stay in 0..7 in-game.
       local was = who:group()
-      who:setGroup(grp)                                -- gated; wdgmsg("grp", id, grp) -- their colour (reversible)
-      hafen.log():write((":walker kin -> hafen.kin('%s' [id %d]):setGroup(%d)  (was group %d, now %d)")
+      who:group(grp)                                   -- gated; wdgmsg("grp", id, grp) -- their colour (reversible)
+      hafen.log():write((":walker kin -> hafen.kin():get('%s') [id %d]:group(%d)  (was group %d, now %d)")
         :format(name, who:id(), grp, was, who:group()))   -- re-read: the SAME object already tracks the change
     elseif op == "rename" then
       local newname = args[4]
       if not newname then hafen.log():write(":walker kin <name> rename <newname> -> a new name is required"); return end
       who:rename(newname)                              -- gated; wdgmsg("nick", id, newname) -- reversible (rename back)
-      hafen.log():write((":walker kin -> hafen.kin('%s' [id %d]):rename('%s')"):format(name, who:id(), newname))
+      hafen.log():write((":walker kin -> hafen.kin():get('%s') [id %d]:rename('%s')"):format(name, who:id(), newname))
     elseif op == "endkin" then
-      who:endkin()                                     -- gated; Buddy.endkin ("End kinship") -> wdgmsg("rm", id)
-      hafen.log():write((":walker kin -> hafen.kin('%s' [id %d]):endkin()  (END KINSHIP -- they stay MEMORIZED; ':walker kin %s forget' to drop them)"):format(name, who:id(), name))
+      who:endKin()                                     -- gated; Buddy.endkin ("End kinship") -> wdgmsg("rm", id)
+      hafen.log():write((":walker kin -> hafen.kin():get('%s') [id %d]:endKin()  (END KINSHIP -- they stay MEMORIZED; ':walker kin %s forget' to drop them)"):format(name, who:id(), name))
     elseif op == "forget" then
       local id = who:id()                              -- read the id BEFORE they leave the roster
       who:forget()                                     -- gated; Buddy.forget ("Forget") -> wdgmsg("rm", id) -- drops a memorized kin
-      hafen.log():write((":walker kin -> hafen.kin('%s' [id %d]):forget()  (FORGOTTEN -- re-add via hearth secret/right-click)"):format(name, id))
+      hafen.log():write((":walker kin -> hafen.kin():get('%s') [id %d]:forget()  (FORGOTTEN -- re-add via hearth secret/right-click)"):format(name, id))
     else
       hafen.log():write((":walker kin -> unknown op '%s'  (group | rename | endkin | forget)"):format(op))
     end

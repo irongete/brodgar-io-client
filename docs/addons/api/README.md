@@ -45,7 +45,7 @@ you came for from the tables below. Every page in the tree is listed here.
 | [`hafen.quests`](quests.md) | the quest log, current and completed |
 | [`hafen.wounds`](wounds.md) | the wounds on the Health and Wounds tab |
 | [`hafen.fight`](fight.md) | the out-of-combat maneuver-deck builder |
-| [`hafen.actionbar`](actionbar.md) | the hotbar: read a slot, use it, set it |
+| [`hafen.actionbar`](actionbar.md) | the hotbar: read a slot, use it, assign one |
 
 ## Acting
 

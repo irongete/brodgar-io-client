@@ -260,9 +260,9 @@ public final class Addon {
     final LuaPosition.Meta positions = new LuaPosition.Meta(this);
 
     /**
-     * This addon's <b>Kin interning cache</b> ({@code hafen.kin(idOrName)}, spec {@code 020-kin-oop}): the
+     * This addon's <b>Kin interning cache</b> ({@code hafen.kin():get(idOrName)}, spec {@code 020-kin-oop}): the
      * weak-valued {@code buddy id → Kin object} map, its {@link java.lang.ref.ReferenceQueue}, and the two
-     * per-addon metatables (the Kin one and the roster's). Same contract as {@link #gobs} — per-addon so no
+     * per-addon metatable. Same contract as {@link #gobs} — per-addon so no
      * Lua value crosses a sandbox boundary (D-017) and the whole cache dies with this {@link Addon} on
      * {@code :reload}/disable; nothing to tear down (weak entries, and a handle holds only an int id). It
      * carries the {@link Addon} because the gated Kin verbs check the {@code actions} permission against it.
@@ -270,7 +270,7 @@ public final class Addon {
     final LuaKin.Cache kins = new LuaKin.Cache(this);
 
     /**
-     * This addon's <b>action-bar Slot interning cache</b> ({@code hafen.actionbar(n)}, spec
+     * This addon's <b>action-bar Slot interning cache</b> ({@code hafen.actionbar():get(n)}, spec
      * {@code 021-actionbar-oop}): the weak-valued {@code slot index → Slot object} map, its
      * {@link java.lang.ref.ReferenceQueue} and the per-addon metatable. Same contract as {@link #gobs} and
      * {@link #kins} — per-addon so no Lua value crosses a sandbox boundary (D-017) and the whole cache dies
@@ -281,17 +281,16 @@ public final class Addon {
     final LuaSlot.Cache slots = new LuaSlot.Cache(this);
 
     /**
-     * This addon's <b>action-menu Pagina interning cache</b> ({@code hafen.menugrid(key)}, spec
+     * This addon's <b>action-menu Pagina interning cache</b> ({@code hafen.menugrid():get(key)}, spec
      * {@code 023-menugrid-oop}): the weak-valued {@code resource name → Pagina object} map, its
-     * {@link java.lang.ref.ReferenceQueue} and the two per-addon metatables (the Pagina one and the
-     * catalogue's). Same contract as {@link #gobs}, {@link #kins} and {@link #slots} — per-addon so no Lua
+     * {@link java.lang.ref.ReferenceQueue} and the per-addon metatable. Same contract as {@link #gobs}, {@link #kins} and {@link #slots} — per-addon so no Lua
      * value crosses a sandbox boundary (D-017) and the whole cache dies with this {@link Addon} on
      * {@code :reload}/disable; nothing to tear down (weak entries, and a handle holds only the resource name).
      */
     final LuaPagina.Cache paginae = new LuaPagina.Cache(this);
 
     /**
-     * This addon's <b>Sound interning cache</b> ({@code hafen.sound(name)}, spec {@code 024-audio-oop}): the
+     * This addon's <b>Sound interning cache</b> ({@code hafen.sound():get(name)}, spec {@code 024-audio-oop}): the
      * weak-valued {@code resource name → Sound object} map, its {@link java.lang.ref.ReferenceQueue} and the
      * per-addon metatable. Same contract as {@link #gobs}, {@link #kins}, {@link #slots} and {@link #paginae}
      * — per-addon so no Lua value crosses a sandbox boundary (D-017) and the whole cache dies with this
@@ -303,7 +302,7 @@ public final class Addon {
     final LuaSound.Cache sounds = new LuaSound.Cache(this);
 
     /**
-     * This addon's <b>Buff interning cache</b> ({@code hafen.buff(needle)}, spec {@code 025-buffs-oop}): the
+     * This addon's <b>Buff interning cache</b> ({@code hafen.buff():find(needle)}, spec {@code 025-buffs-oop}): the
      * weak-valued {@code Buff widget → Buff object} map, its {@link java.lang.ref.ReferenceQueue} and the
      * per-addon metatable. Same contract as {@link #gobs}, {@link #kins}, {@link #slots}, {@link #paginae}
      * and {@link #sounds} — per-addon so no Lua value crosses a sandbox boundary (D-017) and the whole cache
@@ -314,7 +313,7 @@ public final class Addon {
     final LuaBuff.Cache buffs = new LuaBuff.Cache(this);
 
     /**
-     * This addon's <b>Meter interning cache</b> ({@code hafen.meter(needle)}, spec {@code 027-meters-oop}): the
+     * This addon's <b>Meter interning cache</b> ({@code hafen.meter():find(needle)}, spec {@code 027-meters-oop}): the
      * weak-valued {@code IMeter widget → Meter object} map, its {@link java.lang.ref.ReferenceQueue} and the
      * per-addon metatable. Same contract as {@link #gobs}, {@link #kins}, {@link #slots}, {@link #paginae},
      * {@link #sounds} and {@link #buffs} — per-addon so no Lua value crosses a sandbox boundary (D-017) and the

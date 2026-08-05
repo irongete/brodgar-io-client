@@ -1,26 +1,31 @@
 # hafen.buff: buffs
 
-Read the buffs on the player's buff bar. `hafen.buff` is a function, and the arity is the verb.
+Read the buffs on the player's buff bar. `hafen.buff()` **is** the bar.
 
 ```lua
-if hafen.buff("poison") then hafen.log():write("poisoned!") end
+if hafen.buff():find("poison") then hafen.log():write("poisoned!") end
 
-for _, buff in ipairs(hafen.buff()) do
+for _, buff in ipairs(hafen.buff():list()) do
   hafen.log():write(buff:name() or buff:res())
 end
 ```
 
 | Call | Returns |
 |---|---|
-| `hafen.buff()` | every **active** buff — a 1-based array of `Buff` objects, in bar order |
-| `hafen.buff(needle)` | the first active buff whose res or name contains `needle`, else `nil` |
+| `hafen.buff():list(filter)` | every **active** buff — a 1-based array of `Buff` objects, in bar order |
+| `hafen.buff():count(filter)` | how many match |
+| `hafen.buff():find(filter)` | the first active buff that matches, else `nil` |
 
-The lookup is a plain substring match against both the resource name and the display name. A miss is
-plain `nil`. A **number** raises an error — positions are not addresses, so use `hafen.buff()[n]` — and
-so does the empty string.
+A string [filter](conventions.md#the-filter-argument) is a plain substring match against the resource
+name **and** the display name. A miss is plain `nil`.
 
-Buff objects are **interned per addon**, so `hafen.buff("poison") == hafen.buff("poison")` and
-`seen[buff] = true` work as long as the buff is up. A `Buff` wraps only the buff widget and re-reads it
+**There is no `:get`, and that is the shape rather than an omission.** A buff has no key: two buffs can
+share a resource, and the server can replace a live buff's resource under it, so a needle is a *search*
+and never an address. Asking for `:get` raises an error naming `:find`, and a position is
+`hafen.buff():list()[n]`.
+
+Buff objects are **interned per addon**, so `hafen.buff():find("poison") == hafen.buff():find("poison")`
+and `seen[buff] = true` work as long as the buff is up. A `Buff` wraps only the buff widget and re-reads it
 on every call, so a stashed one tracks its own meters as the server updates it — see
 [snapshots vs handles](conventions.md#snapshots-vs-handles).
 
@@ -52,7 +57,7 @@ on, so there is nothing to expose.
 
 **A removed buff keeps answering.** Once it is off the bar `:exists()` is `false`, but `:res()`,
 `:name()` and the meters still read the values it had — which is what makes a `BuffRemoved` payload, or
-a buff you stashed, worth holding on to. `:exists()` is exactly the predicate `hafen.buff()` filters on.
+a buff you stashed, worth holding on to. `:exists()` is exactly the predicate `:list()` filters on.
 
 Subscribe to [`BuffAdded`, `BuffRemoved` and
 `BuffChanged`](event.md#character-and-status); each payload is the `Buff` object

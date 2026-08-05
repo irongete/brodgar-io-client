@@ -1227,3 +1227,23 @@ refuses. The line between them is whether the vocabulary is closed, and the mess
 Generally: *let a closed vocabulary refuse and an open one answer nil — silence is only honest where the name
 might mean something later.*
 **See.** [D-072](architecture-api.md), [D-118](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).
+
+### D-128 — a set the ENGINE owns and you cannot name is still a collection, and it carries no `:get` ✅ (2026-08-05)
+**Decision.** `hafen.buff()` and `hafen.meter()` are collections with `:list(f)`, `:count(f)` and `:find(f)`
+and **no `:get`** — asking for one throws *"has no verb 'get'"*, and the needle that used to address them
+(`hafen.buff("poison")`) is now the filter `:find` takes. `hafen.kin()`, `hafen.actionbar()`,
+`hafen.menugrid()` and `hafen.sound()`, whose members *do* have a key, keep `:get`.
+**Rationale.** (2026-08-05, 039.9.) D-120 answered the keyless case with *a set whose members have no key is a
+BUILDER*, and that answer is right for what the addon **mints**: an anonymous HUD painter has no key because
+nothing else in the world claims it, so a collection would be a handle list. The buff bar is the other half of
+the same question and comes out opposite — the addon mints nothing, the engine owns every member, and *how
+many buffs do I have* and *is one of them poison* are real questions with real answers. So the keylessness
+takes away exactly one verb rather than the shape. It also had to: two buffs can share a resource and a `"ch"`
+uimsg **replaces** a live buff's resource under it, so a name is not an identity even for one instant — a
+`:get("poison")` would be `:find` wearing a word that promises an address.
+**Consequences.** `LuaCollection.Source.addressable()` already gated `:get`, so the refusal costs nothing and
+its message names `:find`. The old lookups become `:find(needle)` and stay truthy-compatible, which is how
+every shipped call site used them. Generally: *keylessness removes the verb that needs a key, and nothing
+else; whether the shape is a collection or a builder is decided by who OWNS the members, not by whether they
+can be named.*
+**See.** [D-120](architecture-api.md), [D-060](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md).

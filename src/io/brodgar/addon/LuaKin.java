@@ -17,13 +17,16 @@ import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * A <b>Kin object</b> — the OOP successor of the flat kin table (spec {@code 020-kin-oop}),
- * built on exactly the {@link LuaGob} mechanism 017 established. <b>Arity is the verb on the namespace
- * itself</b>: {@code hafen.kin()} is the roster, {@code hafen.kin(idOrName)} is one Kin.
+ * built on exactly the {@link LuaGob} mechanism 017 established. <b>The section object IS the roster</b>
+ * (uniform grammar §2.1 — a section that contains exactly one thing <i>is</i> that thing):
+ * {@code hafen.kin()} is the collection, {@code hafen.kin():get(idOrName)} is one Kin.
  *
  * <p><b>Wraps only the buddy id.</b> Every method re-resolves through one funnel —
  * {@link CharApi#buddywnd()}{@code .find(id)} — so a stashed Kin tracks renames, regroups and
@@ -33,20 +36,20 @@ import java.util.Map;
  * <p><b>Userdata + per-addon interning</b> (D-017 / D-045), identical to {@link LuaGob}: the handle crosses
  * as {@code LuaValue.userdataOf(luaKin, mt)} so Lua cannot scribble on it, and the {@link Cache} on the
  * owning {@link Addon} (weak values + a {@link ReferenceQueue} drained on every access — <i>not</i> a
- * {@code WeakHashMap}, which is weak <i>keys</i>) makes {@code hafen.kin(id) == hafen.kin(id)} and
- * {@code seen[kin] = true} reliable, and makes {@code hafen.kin()[n]} literally the same object as
- * {@code hafen.kin(<that id>)}. Never static: no Lua value crosses a sandbox boundary and the cache dies
+ * {@code WeakHashMap}, which is weak <i>keys</i>) makes {@code :get(id) == :get(id)} and
+ * {@code seen[kin] = true} reliable, and makes {@code :list()[n]} literally the same object as
+ * {@code :get(<that id>)}. Never static: no Lua value crosses a sandbox boundary and the cache dies
  * whole with the {@link Addon} on {@code :reload}.
  *
- * <p><b>The roster is a fresh array per call.</b> {@code hafen.kin()} builds a {@link LuaTable} whose array
- * part is the Kin objects in {@link BuddyWnd} sort order, with a shared per-addon metatable carrying
- * {@code find}/{@code list}/{@code add} — the methods stay off the array part so {@code #} and
- * {@code ipairs} are exact. The <b>array</b> is the roster at call time; the <b>Kin objects</b> in it are
- * live.
+ * <p><b>The roster is a {@link LuaCollection}, and it is a view.</b> {@code hafen.kin():list(filter)} builds a
+ * fresh array of Kin objects in {@link BuddyWnd} sort order every call; {@code :count}/{@code :find} read the
+ * same members without building one. The <b>array</b> is the roster at call time; the <b>Kin objects</b> in it
+ * are live.
  *
- * <p><b>Writes</b> ({@code :rename}/{@code :setGroup}/{@code :endkin}/{@code :forget}, and the roster's
+ * <p><b>Writes</b> ({@code :rename}/{@code :group(g)}/{@code :endKin}/{@code :forget}, and the collection's
  * {@code :add}) keep the {@code requireActions} gating (D-027/D-028) and drive the client's own
  * {@link BuddyWnd.Buddy} methods (wrap-not-reimplement, D-009); each returns <b>self</b> so they chain.
+ * {@code :group} is one name for the pair: {@code kin:group()} reads it and {@code kin:group(g)} writes it.
  *
  * <p><b>Threading.</b> Every read/write runs on the UI thread (addon tick / REPL / timer / slash command);
  * {@code BuddyWnd.iterator()} copies the list under the window's own lock, so iterating it is snapshot-safe
@@ -79,19 +82,19 @@ public final class LuaKin {
         return (o instanceof LuaKin) ? (LuaKin)o : null;
     }
 
-    // ---- the per-addon intern cache + metatables ---------------------------------------------------
+    // ---- the per-addon intern cache + metatable ----------------------------------------------------
 
     /**
-     * One addon's Kin interning cache and metatables (its {@link Addon#kins}). Weak values + a
-     * {@link ReferenceQueue} drained on every access; the Kin metatable and the roster metatable are built
-     * once, lazily. Holds its {@link Addon} because the gated write verbs need the owner to check the
-     * {@code actions} permission against.
+     * One addon's Kin interning cache and metatable (its {@link Addon#kins}). Weak values + a
+     * {@link ReferenceQueue} drained on every access; the Kin metatable is built once, lazily. Holds its
+     * {@link Addon} because the gated write verbs need the owner to check the {@code actions} permission
+     * against.
      */
     static final class Cache {
         private final Addon owner;
         private final Map<Integer, Ref> live = new HashMap<Integer, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
-        private LuaValue mt, rosterMt;
+        private LuaValue mt;
 
         Cache(Addon owner) {
             this.owner = owner;
@@ -128,13 +131,6 @@ public final class LuaKin {
                 mt = buildMeta(owner);
             return mt;
         }
-
-        /** The shared metatable every roster table gets ({@code __index} = find/list/add). */
-        synchronized LuaValue rosterMeta() {
-            if(rosterMt == null)
-                rosterMt = buildRosterMeta(owner);
-            return rosterMt;
-        }
     }
 
     /** A weak handle reference that remembers its map key, so the {@link ReferenceQueue} drain can unmap it. */
@@ -152,7 +148,7 @@ public final class LuaKin {
     /** The per-addon metatable: {@code __index} = the methods table, plus {@code __tostring}/{@code __name}. */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(owner));
+        mt.set(LuaValue.INDEX, Retired.methodIndex("kin", methods(owner)));
         mt.set("__name", LuaValue.valueOf("Kin"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -192,10 +188,25 @@ public final class LuaKin {
                 return ((b == null) || (b.name == null)) ? LuaValue.NIL : LuaValue.valueOf(b.name);
             }
         });
-        m.set("group", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                BuddyWnd.Buddy b = buddy(self, "group");
-                return (b == null) ? LuaValue.NIL : LuaValue.valueOf(b.group);
+        // group() reads, group(g) WRITES (gated) — one name for the pair the old setGroup made two. The
+        // SERVER accepts 0..254 (the client's own 8-colour palette is only what it can DRAW); validate the
+        // real range here, before resolving, so the message is the same with or without a live Kin window.
+        m.set("group", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue group = Args.written(a, 2, "kin:group", "group");
+                if(group == null) {
+                    BuddyWnd.Buddy b = buddy(self, "group");
+                    return (b == null) ? LuaValue.NIL : LuaValue.valueOf(b.group);
+                }
+                AddonManager.requireActions(owner, "kin:group");
+                if(!group.isnumber())
+                    throw new LuaError("kin:group(group): group must be a number (0.." + MAXGROUP + ")");
+                int g = group.toint();
+                if((g < 0) || (g > MAXGROUP))
+                    throw new LuaError("kin:group(group): group must be 0.." + MAXGROUP + ", got " + g);
+                require(self, "group").chgrp(g);                      // wdgmsg("grp", id, group)
+                return self;
             }
         });
         // color() — PRESENTATION, not identity: the client's palette only has 8 colours, while the server
@@ -255,26 +266,11 @@ public final class LuaKin {
                 return self;
             }
         });
-        m.set("setGroup", new TwoArgFunction() {
-            public LuaValue call(LuaValue self, LuaValue group) {
-                AddonManager.requireActions(owner, "kin:setGroup");
-                if(!group.isnumber())
-                    throw new LuaError("kin:setGroup(group): group must be a number (0.." + MAXGROUP + ")");
-                int g = group.toint();
-                // The SERVER accepts 0..254 (the client's own 8-colour palette is only what it can DRAW);
-                // validate the real range here, before resolving, so the message is the same with or
-                // without a live Kin window.
-                if((g < 0) || (g > MAXGROUP))
-                    throw new LuaError("kin:setGroup(group): group must be 0.." + MAXGROUP + ", got " + g);
-                require(self, "setGroup").chgrp(g);                   // wdgmsg("grp", id, group)
-                return self;
-            }
-        });
-        // endkin() = END KINSHIP (step 1): ends the kinship; the kin stays memorized in the list.
-        m.set("endkin", new OneArgFunction() {
+        // endKin() = END KINSHIP (step 1): ends the kinship; the kin stays memorized in the list.
+        m.set("endKin", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                AddonManager.requireActions(owner, "kin:endkin");
-                require(self, "endkin").endkin();                     // "End kinship" → wdgmsg("rm", id)
+                AddonManager.requireActions(owner, "kin:endKin");
+                require(self, "endKin").endkin();                     // "End kinship" → wdgmsg("rm", id)
                 return self;
             }
         });
@@ -298,7 +294,7 @@ public final class LuaKin {
     private static LuaKin handle(LuaValue self, String method) {
         LuaKin h = resolve(self);
         if(h == null)
-            throw new LuaError("kin:" + method + "() — use a COLON call on a Kin object (hafen.kin(idOrName), hafen.kin()[n])");
+            throw new LuaError("kin:" + method + "() — use a COLON call on a Kin object (hafen.kin():get(idOrName), hafen.kin():list()[n])");
         return h;
     }
 
@@ -392,101 +388,86 @@ public final class LuaKin {
     // ---- the roster ------------------------------------------------------------------------------
 
     /**
-     * {@code hafen.kin()} — the roster as a fresh array of Kin objects in the Kin window's sort order, with
-     * the shared roster metatable ({@code find}/{@code list}/{@code add}). No Kin window yet (pre-HUD, or
+     * {@code hafen.kin()} — the roster, as the {@link LuaCollection} the section object IS: {@code :get(idOrName)}
+     * addresses one kin, {@code :list}/{@code :count}/{@code :find} read the roster in the Kin window's sort
+     * order, and the gated {@code :add(secret)} is the "Add kin" field. No Kin window yet (pre-HUD, or
      * mid-{@code :reload}) ⇒ an empty roster, never an error.
+     *
+     * <p>A <b>string</b> filter matches the kin's <b>name</b> as a substring; a kin the window has not named
+     * yet matches nothing rather than refusing the filter.
      */
-    private static LuaValue roster(Addon owner) {
-        LuaTable out = new LuaTable();
-        BuddyWnd bw = CharApi.buddywnd();
-        if(bw != null) {
-            int i = 0;
-            for(BuddyWnd.Buddy b : bw)          // iterator() copies under the BuddyWnd's own lock
-                out.set(++i, of(owner, b.id));
-        }
-        out.setmetatable(owner.kins.rosterMeta());
-        return out;
-    }
-
-    /** The roster metatable: {@code __index} = {@code find}/{@code list}/{@code add}, plus {@code __name}. */
-    private static LuaValue buildRosterMeta(final Addon owner) {
-        LuaTable m = new LuaTable();
-        m.set("find", new TwoArgFunction() {
-            public LuaValue call(LuaValue self, LuaValue key) {
-                return find(owner, key, "roster:find(nameOrId)");
-            }
-        });
-        m.set("list", new TwoArgFunction() {
-            public LuaValue call(LuaValue self, LuaValue filter) {
-                LuaTable out = new LuaTable();
+    static LuaValue collection(final Addon owner) {
+        return LuaCollection.create("hafen.kin()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>();
                 BuddyWnd bw = CharApi.buddywnd();
-                if(bw == null)
-                    return out;
-                int i = 0;
-                for(BuddyWnd.Buddy b : bw) {
-                    LuaValue k = of(owner, b.id);
-                    if(matches(filter, b, k))
-                        out.set(++i, k);
+                if(bw != null) {
+                    for(BuddyWnd.Buddy b : bw)      // iterator() copies under the BuddyWnd's own lock
+                        out.add(of(owner, b.id));
                 }
                 return out;
             }
-        });
-        // add(secret) — the Kin window's "Add kin" field: kinning needs the other player's HEARTH SECRET
-        // (no add-by-name message exists). Gated, and returns the roster so it reads like the Kin verbs.
-        m.set("add", new TwoArgFunction() {
-            public LuaValue call(LuaValue self, LuaValue secret) {
-                AddonManager.requireActions(owner, "roster:add");
+
+            public String needle(LuaValue member) {
+                BuddyWnd.Buddy b = live(member);
+                return ((b == null) || (b.name == null)) ? "" : b.name;
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                return find(owner, key, "hafen.kin():get(idOrName)");
+            }
+
+            public boolean creatable() {
+                return true;
+            }
+
+            // add(secret) — the Kin window's "Add kin" field: kinning needs the other player's HEARTH SECRET
+            // (no add-by-name message exists). Gated. It hands back the COLLECTION rather than a Kin, because
+            // there is no Kin yet: the server decides whether the secret is valid and the roster changes on a
+            // later tick, which is what KinChanged reports.
+            public LuaValue addMember(Varargs a) {
+                AddonManager.requireActions(owner, "hafen.kin():add");
+                LuaValue secret = Args.required(a, 2, "hafen.kin():add", "secret");
                 if(!secret.isstring())
-                    throw new LuaError("roster:add(secret): secret must be a string (the other player's hearth secret)");
+                    throw new LuaError("hafen.kin():add(secret): secret must be a string (the other player's"
+                        + " hearth secret)");
                 String s = secret.tojstring();
                 if(s.isEmpty())
-                    throw new LuaError("roster:add(secret): secret must not be empty (the other player's hearth secret)");
+                    throw new LuaError("hafen.kin():add(secret): secret must not be empty (the other player's"
+                        + " hearth secret)");
                 BuddyWnd bw = CharApi.buddywnd();
                 if(bw == null)
-                    throw new LuaError("roster:add(secret): no Kin window (not in the world yet)");
-                bw.wdgmsg("bypwd", s);          // BuddyWnd :504/:509 — exactly what the "Add kin" button sends
-                return self;
+                    throw new LuaError("hafen.kin():add(secret): no Kin window (not in the world yet)");
+                bw.wdgmsg("bypwd", s);      // BuddyWnd :504/:509 — exactly what the "Add kin" button sends
+                return a.arg1();
             }
-        });
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, m);
-        mt.set("__name", LuaValue.valueOf("KinRoster"));
-        return mt;
+        }, null);
+    }
+
+    /** The live buddy behind a Kin handle, for the filter's needle; {@code null} once it is off the roster. */
+    private static BuddyWnd.Buddy live(LuaValue member) {
+        LuaKin h = resolve(member);
+        BuddyWnd bw = CharApi.buddywnd();
+        return ((h == null) || (bw == null)) ? null : bw.find(h.id);
     }
 
     /**
-     * Does buddy {@code b} pass a roster filter? {@code nil} → all; a <b>string</b> → substring match on the
-     * kin's name, evaluated Java-side; a <b>function</b> → called with the owner's interned <b>Kin object</b>
-     * (the {@code hafen.world} shape, not a snapshot), truthy keeps it, an error drops it.
-     */
-    private static boolean matches(LuaValue filter, BuddyWnd.Buddy b, LuaValue kin) {
-        if((filter == null) || filter.isnil())
-            return true;
-        if(filter.isfunction()) {
-            try {
-                return filter.call(kin).toboolean();
-            } catch(RuntimeException e) {   // LuaError is a RuntimeException
-                return false;
-            }
-        }
-        if(filter.isstring())
-            return (b.name != null) && b.name.contains(filter.tojstring());
-        return true;
-    }
-
-    /**
-     * One kin BY LOOKUP: a number matches by id, a string by exact (case-insensitive) name — and either way
-     * {@code nil} when nobody on the roster matches. This is what {@code hafen.kin("Bob")} and
-     * {@code roster:find(...)} both do; {@code hafen.kin(<number>)} deliberately does NOT go through it (an
-     * unknown id still yields a Kin whose {@code :exists()} is false).
+     * One kin BY KEY: a <b>number</b> is a buddy id and always yields a Kin — an unknown one simply reports
+     * {@code :exists() == false}, the same deliberate asymmetry {@code hafen.world():gob():get(id)} has, so an
+     * id read out of a saved file can be held before the roster streams in. A <b>string</b> is an exact
+     * (case-insensitive) name and answers {@code nil} when nobody on the roster carries it.
      */
     private static LuaValue find(Addon owner, LuaValue key, String where) {
-        BuddyWnd bw = CharApi.buddywnd();
-        if(bw == null)
-            return LuaValue.NIL;
         if(key.isnumber())                     // isnumber FIRST: in LuaJ isstring() is true for numbers too
-            return (bw.find(key.toint()) == null) ? LuaValue.NIL : of(owner, key.toint());
+            return of(owner, key.toint());
         if(key.isstring()) {
+            BuddyWnd bw = CharApi.buddywnd();
+            if(bw == null)
+                return LuaValue.NIL;
             String needle = key.tojstring();
             for(BuddyWnd.Buddy b : bw) {
                 if((b.name != null) && b.name.equalsIgnoreCase(needle))
@@ -495,31 +476,5 @@ public final class LuaKin {
             return LuaValue.NIL;
         }
         throw new LuaError(where + ": expects a kin id (a number) or an exact name (a string)");
-    }
-
-    /**
-     * {@code hafen.kin} itself: a <b>callable table</b> ({@code __call}) with arity dispatch, so
-     * {@code hafen.kin()} / {@code hafen.kin(idOrName)} work while indexing it (the old {@code list} field and
-     * friends) reads as plain {@code nil} — the hard cut (D-013) is visible from Lua, exactly as
-     * {@code hafen.gob} did it (D-044).
-     */
-    static LuaValue factory(final Addon owner) {
-        LuaTable kin = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.CALL, new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue key = a.arg(2);        // arg1 = the callable table itself
-                if(key.isnil())
-                    return roster(owner);
-                if(key.isnumber())              // BEFORE isstring(): in LuaJ a number IS a string
-                    return of(owner, key.toint());
-                if(key.isstring())
-                    return find(owner, key, "hafen.kin(name)");
-                throw new LuaError("hafen.kin([idOrName]): no argument = the roster, a number = a kin by id,"
-                    + " a string = a kin by exact name");
-            }
-        });
-        kin.setmetatable(mt);
-        return kin;
     }
 }

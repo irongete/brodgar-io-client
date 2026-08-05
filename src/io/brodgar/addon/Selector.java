@@ -47,7 +47,7 @@ import org.luaj.vm2.LuaError;
  * </ul>
  *
  * <p><b>title is exact, res is a substring</b> — each follows the convention already established for its kind of
- * key: {@code replace{caption=…}} matches a caption exactly, while {@code hafen.meter(needle)} and the gob-overlay
+ * key: {@code replace{caption=…}} matches a caption exactly, while {@code hafen.meter():find(needle)} and the gob-overlay
  * string filter match a resource name by {@code contains}. A res name is a path
  * ({@code "gfx/hud/wnd/…"}), so a substring is what an addon author can actually type; a caption is the whole
  * human label.

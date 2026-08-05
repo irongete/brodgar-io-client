@@ -76,10 +76,13 @@ sub-collections were plural (`gob:overlays()`, `char():attrs()`). Now both are s
 
 ## `hafen.actionbar()` — the hotbar, a collection of Slot
 
+> **Shipped in 039.9.** ✅ every row. Read-only as a set: the bar is a fixed 144 slots, so there is no
+> `:add`/`:remove` and what changes is a slot's *content*. A string filter matches a slot's res name.
+
 | before | after | does |
 |---|---|---|
-| `hafen.actionbar()` | `hafen.actionbar():list()` | all 144 slots, 1-based (D-057) |
-| `hafen.actionbar(n)` | `hafen.actionbar():get(n)` | the slot at the raw 0-based game index |
+| `hafen.actionbar()` | `hafen.actionbar():list()` | all 144 slots, 1-based (D-057) ✅ |
+| `hafen.actionbar(n)` | `hafen.actionbar():get(n)` | the slot at the raw 0-based game index ✅ |
 
 ## `hafen.asset()` — the files your addon ships, a collection of Asset
 
@@ -93,10 +96,14 @@ sub-collections were plural (`gob:overlays()`, `char():attrs()`). Now both are s
 
 ## `hafen.buff()` — the buff bar, a collection of Buff
 
+> **Shipped in 039.9.** ✅ every row. **No `:get`** — a buff has no key (two buffs can share a resource,
+> and a `"ch"` uimsg replaces a live buff's resource), so a needle is a search and `:get` throws naming
+> `:find`.
+
 | before | after | does |
 |---|---|---|
-| `hafen.buff()` | `hafen.buff():list()` | active buffs, bar order |
-| `hafen.buff(needle)` | `hafen.buff():find(needle)` | first whose res or name contains the needle |
+| `hafen.buff()` | `hafen.buff():list()` | active buffs, bar order ✅ |
+| `hafen.buff(needle)` | `hafen.buff():find(needle)` | first whose res or name contains the needle ✅ |
 
 ## `hafen.char()` — the character sheet *(OOP migration, spec §4.1)*
 
@@ -219,12 +226,16 @@ methods, not R2 accessors** — the `get`/`set` ban does not reach them.
 
 ## `hafen.kin()` — the kin roster, a collection of Kin
 
+> **Shipped in 039.9.** ✅ every row. `:get(<number>)` is **never nil** (the D-056 asymmetry
+> `hafen.world():gob():get(id)` also has); `:get(<name>)` is exact and misses to nil; `:add` hands back
+> the **collection**, because there is no Kin yet — the server decides and `KinChanged` reports it.
+
 | before | after | does |
 |---|---|---|
-| `hafen.kin()` | `hafen.kin():list()` | the roster |
-| `hafen.kin(idOrName)` | `hafen.kin():get(idOrName)` | one kin — number by id, string by exact name |
-| `hafen.kin():find(nameOrId)` | `hafen.kin():find(f)` | first match on the standard filter |
-| `hafen.kin():add(secret)` | unchanged | gated: add by hearth secret |
+| `hafen.kin()` | `hafen.kin():list()` | the roster ✅ |
+| `hafen.kin(idOrName)` | `hafen.kin():get(idOrName)` | one kin — number by id, string by exact name ✅ |
+| `hafen.kin():find(nameOrId)` | `hafen.kin():find(f)` | first match on the standard filter ✅ |
+| `hafen.kin():add(secret)` | unchanged | gated: add by hearth secret ✅ |
 
 ## `hafen.log()` — the console
 
@@ -259,19 +270,28 @@ says which you meant, so the heuristic is no longer needed.
 
 ## `hafen.menugrid()` — the action menu, a collection of Pagina
 
+> **Shipped in 039.9.** ✅ every row, with **one correction**: the old `:find(text)` returned *every*
+> match, which §2.2 gives to `:list(filter)` — `:find` is the first-match verb everywhere else, and the
+> shared collection carries exactly one of each. So the plural search is `:list(text)` and `:find` is
+> its singular twin. The needle is the display name, and the match is now case-**sensitive**, like every
+> other string filter in the API.
+
 | before | after | does |
 |---|---|---|
-| `hafen.menugrid()` | `hafen.menugrid():list()` | the whole catalogue |
-| `hafen.menugrid(key)` | `hafen.menugrid():get(key)` | one entry — a `/` means resource, else display name |
-| `hafen.menugrid():find(text)` | unchanged | every entry whose display name contains the text |
-| `hafen.menugrid():roots()` | unchanged | the root-screen entries — plain array, plural by R3 |
+| `hafen.menugrid()` | `hafen.menugrid():list()` | the whole catalogue ✅ |
+| `hafen.menugrid(key)` | `hafen.menugrid():get(key)` | one entry — a `/` means resource, else display name ✅ |
+| `hafen.menugrid():find(text)` | `hafen.menugrid():list(text)` | every entry whose display name contains the text ✅ |
+| `hafen.menugrid():roots()` | unchanged | the root-screen entries — plain array, plural by R3 ✅ |
 
 ## `hafen.meter()` — the HUD bars, a collection of Meter
 
+> **Shipped in 039.9.** ✅ every row. **No `:get`**, for the same reason as `hafen.buff()`: a meter has
+> only a server-published resource name several bars could share.
+
 | before | after | does |
 |---|---|---|
-| `hafen.meter()` | `hafen.meter():list()` | every meter, HUD order |
-| `hafen.meter(needle)` | `hafen.meter():find(needle)` | first whose resource name contains the needle |
+| `hafen.meter()` | `hafen.meter():list()` | every meter, HUD order ✅ |
+| `hafen.meter(needle)` | `hafen.meter():find(needle)` | first whose resource name contains the needle ✅ |
 
 ## `hafen.party()` — the party *(OOP migration, spec §4.3)*
 
@@ -318,10 +338,15 @@ says which you meant, so the heuristic is no longer needed.
 
 ## `hafen.sound()` — audio, a collection of Sound
 
+> **Shipped in 039.9.** ✅ every row. The two halves address **different sets** on purpose: `:get(name)`
+> reaches any clip the game owns (sound resources are not enumerable, so a Sound exists on demand),
+> while `:list()` is only what this addon still has in the air. Hence no `:add` (playing is
+> `s:play(volume)`) and no `:remove` (silencing is `s:stop()`).
+
 | before | after | does |
 |---|---|---|
-| `hafen.sound(name)` | `hafen.sound():get(name)` | the Sound for that resource name |
-| `hafen.sound()` | `hafen.sound():list()` | your addon's still-playing Sounds |
+| `hafen.sound(name)` | `hafen.sound():get(name)` | the Sound for that resource name ✅ |
+| `hafen.sound()` | `hafen.sound():list()` | your addon's still-playing Sounds ✅ |
 
 ## `hafen.speed()` — the movement selector
 
@@ -694,14 +719,14 @@ spelt `spawnData` and `offset` takes the same units it does today (screen px or 
 `:id() :name() :group() :color() :online() :exists() :gob() :info()`; gated writes
 `:rename(n) :endkin() :forget()`.
 **`kin:setGroup(g)` -> `kin:group(g)`** — `:group()` already reads it, so R2 collapses the pair.
-**`kin:endkin()` -> `kin:endKin()`** (N2).
+**`kin:endkin()` -> `kin:endKin()`** (N2). ✅ **039.9**
 
 ## Slot
 
 `:index() :empty() :res() :name() :cooldown() :exists() :info()`; gated `:use(mods)`.
-**`slot:set(res)` → `slot:res(name)`** — `:res()` already reads it, R2 again.
+**`slot:set(res)` → `slot:res(name)`** — `:res()` already reads it, R2 again. ✅ **039.9**
 
-## Pagina, Sound, Buff, Meter — unchanged
+## Pagina, Sound, Buff, Meter — unchanged  ✅ **039.9**, except `pag:isnew()` -> `:isNew()` (N2)
 
 - Pagina: `:res() :name() :tooltip() :hotkey() :path() :parent() :children() :isNew() :exists() :info() :use()`
 - Sound: `:res() :playing() :info() :play(volume) :stop()`

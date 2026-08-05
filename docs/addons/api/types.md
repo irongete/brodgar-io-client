@@ -114,7 +114,7 @@ From [`hafen.party`](party.md). There is **no name** field for party members.
 
 ## Buff
 
-From [`buff:info()`](buff.md#read), the one snapshot escape hatch. `hafen.buff()` and the
+From [`buff:info()`](buff.md#read), the one snapshot escape hatch. `hafen.buff():list()` and the
 `BuffAdded`/`BuffRemoved`/`BuffChanged` events hand you live [`Buff` objects](buff.md), not this table.
 
 | Field | Type | Notes |
@@ -126,7 +126,7 @@ From [`buff:info()`](buff.md#read), the one snapshot escape hatch. `hafen.buff()
 
 ## Meter
 
-From [`meter:info()`](meter.md#read), the one snapshot escape hatch. `hafen.meter()` and the
+From [`meter:info()`](meter.md#read), the one snapshot escape hatch. `hafen.meter():list()` and the
 `MeterAdded`/`MeterRemoved`/`MeterChanged` events hand you live [`Meter` objects](meter.md), not this
 table.
 

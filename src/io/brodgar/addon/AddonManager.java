@@ -1044,14 +1044,17 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // door is the world's Gob collection, :get(id) — still never nil, still interned per addon, and the
         // Gob OBJECT itself (gob:position()/:name()/:health()/…) is unchanged. See WorldApi.
 
-        // hafen.menugrid(key) — the ACTION MENU (the 4x4 "scm" grid) as Pagina OBJECTS: the catalogue of
-        // everything this character can do, in the grid's own order and category tree. Arity is the verb:
-        // hafen.menugrid() is the whole catalogue (with :find/:roots/:list), hafen.menugrid(key) one entry.
-        // The key is always a STRING and splits by SHAPE — a "/" makes it a resource name (the identity),
-        // anything else a display name (a search convenience, not unique) — and a miss is plain nil. There is
-        // no addressing by position: the catalogue grows on every discovery. Resource-backed reads are
-        // Loading-guarded, so a scan right at OnEnterWorld may be short and fills in sub-second.
-        hafen.set("menugrid", LuaPagina.factory(owner));
+        // hafen.menugrid() — the ACTION MENU (the 4x4 "scm" grid) as Pagina OBJECTS: the catalogue of
+        // everything this character can do, in the grid's own order and category tree. The section object IS
+        // the collection (039.9): :list(filter)/:count/:find for the catalogue, :get(key) for one entry, and
+        // :roots() for the root screen. The key is always a STRING and splits by SHAPE — a "/" makes it a
+        // resource name (the identity), anything else a display name (a search convenience, not unique) — and
+        // a miss is plain nil. There is no addressing by position: the catalogue grows on every discovery.
+        // Resource-backed reads are Loading-guarded, so a scan right at OnEnterWorld may be short and fills in
+        // sub-second.
+        Section.mount(hafen, "menugrid", LuaPagina.collection(owner),
+                      "hafen.menugrid(key) is now hafen.menugrid():get(key), and hafen.menugrid() is"
+                      + " hafen.menugrid():list()");
 
         // hafen.world():* — the LIVE world (037.1, re-shaped in 039.2). hafen.world():gob() is the read-only
         // Gob collection and the ONE by-id door (:get/:list/:count/:find/:nearest/:within); nearest/within
@@ -1098,12 +1101,15 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // nil until the first "astro" update lands (Glob.ast is nil before then).
         WorldApi.installTime(hafen, owner);
 
-        // hafen.sound(name) — a CALLABLE-ONLY namespace (D-056) over one interned Sound object per resource
-        // name: :res() / :play([volume]) -> self / :info(). The flat hafen.sound.play is GONE (D-013 hard cut,
-        // 024.1). Volume is an ARGUMENT of the play, never entity state — the Sound is interned and shared.
-        // The resource resolves OFF the UI thread (loader.defer, mirroring GobIcon.resnotif) so a not-yet-
-        // loaded resource never throws Loading into Lua. Client-bundled names resolve locally ("sfx/msg").
-        hafen.set("sound", LuaSound.factory(owner));
+        // hafen.sound() — the section object IS the collection (039.9) over one interned Sound object per
+        // resource name: :get(name) addresses any clip the game owns (:res() / :play([volume]) -> self /
+        // :stop() / :playing() / :info()), :list(filter) is what THIS addon still has in the air. Volume is an
+        // ARGUMENT of the play, never entity state — the Sound is interned and shared. The resource resolves
+        // OFF the UI thread (loader.defer, mirroring GobIcon.resnotif) so a not-yet-loaded resource never
+        // throws Loading into Lua. Client-bundled names resolve locally ("sfx/msg").
+        Section.mount(hafen, "sound", LuaSound.collection(owner),
+                      "hafen.sound(name) is now hafen.sound():get(name), and hafen.sound() is"
+                      + " hafen.sound():list()");
 
         // hafen.music is DELIBERATELY ABSENT (024.3, maintainer 2026-08-01). haven.Music is the client's MIDI
         // player, driven by exactly one thing — RootWidget's "bgm" server message — and this server never
@@ -1138,23 +1144,23 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // limitation). A member's gob is hafen.gob(m.id) until Party itself migrates to OOP.
         CharApi.installParty(hafen, owner);
 
-        // hafen.kin — the kin/buddy roster (A6), read from the Kin window (GameUI.buddies, a BuddyWnd — the
-        // same list the in-client Kin tab shows). CALLABLE-ONLY since 020-kin-oop (D-013's hard cut: the flat
-        // table of fields is gone, indexing the namespace reads as plain nil). Arity is the verb: hafen.kin()
-        // = the roster, a fresh array of interned Kin objects in the window's sort order (plus :find(nameOrId)
-        // / :list([filter]) / the gated :add(secret) on its metatable); hafen.kin(id) / hafen.kin(name) = one
-        // Kin. A Kin wraps only the buddy id and re-resolves through buddywnd().find(id) every call (D-012), so
+        // hafen.kin() — the kin/buddy roster (A6), read from the Kin window (GameUI.buddies, a BuddyWnd — the
+        // same list the in-client Kin tab shows). The section object IS the roster collection (039.9):
+        // :list([filter]) is a fresh array of interned Kin objects in the window's sort order, :count/:find the
+        // usual pair, :get(id) / :get(name) one Kin (a number is a buddy id and is NEVER nil — :exists() is the
+        // liveness test — while a name that nobody carries is), and :add(secret) is the gated add.
+        // A Kin wraps only the buddy id and re-resolves through buddywnd().find(id) every call (D-012), so
         // it tracks renames/regroups/online flips; see LuaKin. Subscribe to KinChanged (a Kin[] payload, minted
         // per subscribing addon by fireKin) for a kin added/removed, renamed/regrouped, or flipping
         // online/offline. The GATED verbs (requireActions) drive BuddyWnd.Buddy's own methods (D-009):
-        //   roster:add(secret) — kinning needs the other player's HEARTH SECRET (wdgmsg("bypwd", secret), the
+        //   :add(secret)   — kinning needs the other player's HEARTH SECRET (wdgmsg("bypwd", secret), the
         //                  Kin window's "Add kin" field); there is no add-by-NAME message.
-        //   kin:endkin()   = END KINSHIP (Buddy.endkin) — ends the kinship; the kin STAYS in the list, now
+        //   kin:endKin()   = END KINSHIP (Buddy.endkin) — ends the kinship; the kin STAYS in the list, now
         //                  merely memorized (un-kinned). The "End kinship" petal, shown while the kin is active.
         //   kin:forget()   = FORGET (Buddy.forget) — drops a memorized kin from the list entirely. The "Forget"
-        //                  petal, shown once un-kinned. To fully remove an ACTIVE kin: endkin(), then forget().
+        //                  petal, shown once un-kinned. To fully remove an ACTIVE kin: endKin(), then forget().
         // Both send the same wdgmsg("rm", id); the SERVER advances the state (active → memorized → gone), exactly
-        // as clicking the two petals in turn does. kin:rename(name)=wdgmsg("nick"), kin:setGroup(g)=wdgmsg("grp")
+        // as clicking the two petals in turn does. kin:rename(name)=wdgmsg("nick"), kin:group(g)=wdgmsg("grp")
         // with g validated 0..254 (the range the SERVER accepts; the client only draws 8 colours).
         CharApi.installKin(hafen, owner);
 
@@ -1203,7 +1209,7 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // client shows beside the wound (the highest-priority QuickInfo — content-defined, usually the
         // wound's number, NOT seconds; omitted while it Loads). filter is the canonical nil=all / name-
         // substring / predicate. has(needle) tests whether any wound's name/res contains needle (like
-        // hafen.buff(needle)). Subscribe to WoundChanged (the wound set or a severity changed; payload = the new
+        // hafen.buff():find(needle)). Subscribe to WoundChanged (the wound set or a severity changed; payload = the new
         // list). Read-only — there is no wound action tier (wounds heal by playing / tending).
         CharApi.installWounds(hafen, owner);
 
@@ -1225,9 +1231,10 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         CharApi.installFight(hafen, owner);
 
         // hafen.buff — the active buffs (GameUI.buffs → Buff widgets), via the widget-tree mechanism
-        // (1d-2), CALLABLE-ONLY since 025-buffs-oop: hafen.buff() is the active buffs as a 1-based array of
-        // Buff objects in bar order, hafen.buff(needle) the FIRST one whose res or name contains that
-        // substring (the old has(), now handing back the object; nil on a miss). Reads on the object, live
+        // (1d-2); the section object IS the collection (039.9): hafen.buff():list() is the active buffs as a
+        // 1-based array of Buff objects in bar order, hafen.buff():find(needle) the FIRST one whose res or name
+        // contains that substring (the old has(), now handing back the object; nil on a miss). A buff has no
+        // key, so there is no :get. Reads on the object, live
         // per call: :res()/:name()/:amount()/:duration() (0..1 fractions from resource-published ItemInfo,
         // often nil, NOT seconds — :duration() is the radial meter, i.e. how much of the buff's run is
         // left; the action bar calls the same meter a cooldown because there it is one)/:number()/:exists()/:info() (the old flat snapshot). A buff fading out
@@ -1238,16 +1245,17 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         CharApi.installBuffs(hafen, owner);
 
         // hafen.meter — the HUD's meter bars (GameUI's `place == "meter"` slot → IMeter widgets), via the
-        // widget-tree mechanism (1d-1), CALLABLE-ONLY since 027-meters-oop: hafen.meter() is EVERY HUD meter
-        // as a 1-based array of Meter objects in HUD order, hafen.meter(needle) the FIRST one whose res name
-        // contains that substring (nil on a miss). There is no hp/stamina/energy triple: the slot takes any
+        // widget-tree mechanism (1d-1); the section object IS the collection (039.9): hafen.meter():list() is
+        // EVERY HUD meter as a 1-based array of Meter objects in HUD order, hafen.meter():find(needle) the
+        // FIRST one whose res name contains that substring (nil on a miss). A meter has no key, so there is no
+        // :get. There is no hp/stamina/energy triple: the slot takes any
         // number of meters and a meter is identified by its SERVER-published bg resource name, so "hp" is a
         // substring that happens to hit a bar on this server, not a key the code knows — :res() is how to list
         // the real ones off a live client. Reads on the object, live per call: :res()/:index() (1-based HUD
         // position)/:value() (the first segment, 0..1 — what vitals() used to return)/:color() ({r,g,b,a}
         // 0..255)/:segments() (the whole multi-segment bar)/:exists()/:info() (the snapshot). A destroyed meter
         // still READS — Widget.destroy() does not clear it — but reports :exists() false. The bars stream in a
-        // beat after enter-world, so hafen.meter() is legitimately empty for a moment. Subscribe to
+        // beat after enter-world, so hafen.meter():list() is legitimately empty for a moment. Subscribe to
         // MeterAdded/MeterRemoved (the bars streaming in / a meter being destroyed, detected per-tick) and
         // MeterChanged (the server's "set"/"col" uimsg, fired only on a real value-OR-colour change) — all
         // three carry the Meter OBJECT (fireMeter), so MeterAdded is the honest "the bars are up" signal.
@@ -1255,10 +1263,10 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         CharApi.installMeters(hafen, owner);
 
         // hafen.actionbar — the action bar / hotbar (the engine calls it the "belt": GameUI.belt, a
-        // BeltSlot[144]), via the widget-tree mechanism (1d-4), CALLABLE-ONLY since 021-actionbar-oop:
-        // hafen.actionbar(n) is the Slot at the RAW 0-based game index 0..143 (out of range throws),
-        // hafen.actionbar() the 1-based array of all 144 (the iteration view — same interned objects, and
-        // slot:index() is the game index). Reads on the object, live per call: :res()/:name()/:cooldown()
+        // BeltSlot[144]), via the widget-tree mechanism (1d-4); the section object IS the collection (039.9):
+        // hafen.actionbar():get(n) is the Slot at the RAW 0-based game index 0..143 (out of range throws),
+        // hafen.actionbar():list() the 1-based array of all 144 (the iteration view — same interned objects,
+        // and slot:index() is the game index). Reads on the object, live per call: :res()/:name()/:cooldown()
         // (0..1, a pagina action's meter — ability slots only, NOT seconds)/:empty()/:info() (the old flat
         // snapshot). Subscribe to ActionbarChanged{slot} (fired per-tick when a slot's content changes — a
         // set/clear/drag or its data resolving; the payload is that Slot). slot:use([mods]) is the GATED write verb (4g,

@@ -199,7 +199,7 @@ namespace is *your files*; the table below is *the game's*.
 |---|---|
 | a `.res` image — action icons, HUD art | [`g:resource(name, x, y)`](ui/drawing.md) |
 | a minimap drawing of ground you explored | [`grid:image(lvl)`](map/drawings.md) |
-| a `.res` sound | [`hafen.sound(name)`](sound.md) |
+| a `.res` sound | [`hafen.sound():get(name)`](sound.md) |
 | a `.res` prop in the world | [`hafen.ghost`](ghost.md) |
 | a built-in font | [`hafen.font():get(name)`](font.md#the-built-ins) |
 

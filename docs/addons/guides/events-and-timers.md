@@ -69,7 +69,7 @@ kin roster stream in over the next few seconds, so a read at the top of `OnEnter
 ```lua
 hafen.event():on("OnEnterWorld", function()
   hafen.timer():after(2, function()                       -- ask again in a moment...
-    local hp = hafen.meter("hp")
+    local hp = hafen.meter():find("hp")
     hafen.log():write("hp: " .. tostring(hp and hp:value()))
   end)
 end)

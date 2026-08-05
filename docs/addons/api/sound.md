@@ -7,32 +7,38 @@ To set volume levels rather than play anything, see
 [`hafen.client:options():audio()`](client/README.md).
 
 ```lua
-hafen.sound("sfx/msg"):play()          -- a client-bundled notification blip
-hafen.sound("sfx/msg"):play(0.2)       -- the same blip, quietly
+hafen.sound():get("sfx/msg"):play()          -- a client-bundled notification blip
+hafen.sound():get("sfx/msg"):play(0.2)       -- the same blip, quietly
 ```
 
-`hafen.sound` is **callable**: `hafen.sound(name)` hands back a **Sound object** for that resource
-name, and the same name always gives the *same* object, so `hafen.sound("sfx/msg") ==
-hafen.sound("sfx/msg")` and you can stash one or use it as a table key. A Sound is just the name, so it
-has no `:exists()` — a name has no lifetime to go stale. A name that does not resolve is simply silent:
-the client logs a line and Lua never sees an error. Resources resolve off the UI thread, so a
-not-yet-loaded one never throws either.
+`hafen.sound()` **is** the collection: `:get(name)` hands back a **Sound object** for that resource
+name, and the same name always gives the *same* object, so
+`hafen.sound():get("sfx/msg") == hafen.sound():get("sfx/msg")` and you can stash one or use it as a
+table key. A Sound is just the name, so it has no `:exists()` — a name has no lifetime to go stale. A
+name that does not resolve is simply silent: the client logs a line and Lua never sees an error.
+Resources resolve off the UI thread, so a not-yet-loaded one never throws either.
 
 ## Read
 
-| Function | Returns | Description |
+| Method | Returns | Description |
 |---|---|---|
-| `hafen.sound(name)` | Sound | the Sound for that resource name |
-| `hafen.sound()` | Sound[] | your addon's **still-playing** Sounds, 1-based; empty when there are none |
+| `hafen.sound():get(name)` | Sound | the Sound for that resource name |
+| `hafen.sound():list(filter)` | Sound[] | your addon's **still-playing** Sounds, 1-based; empty when there are none |
+| `hafen.sound():count(filter)` | number | how many are still sounding |
+| `hafen.sound():find(filter)` | Sound \| nil | the first still-sounding one that matches |
 | `sound:res()` | string | the resource name this Sound addresses |
 | `sound:playing()` | bool | whether a clip of this name is still sounding, or still starting |
 | `sound:info()` | table | a flat snapshot, `{ res, playing }` |
 
-`hafen.sound()` lists **your** clips only: the client's own blips share the channel but are not yours
-to enumerate or stop. It prunes as you ask, so the count falls back to zero by itself as clips end.
+**The two halves address different sets, on purpose.** `:get(name)` reaches *any* clip the game owns,
+played or not, because sound resources are not enumerable and a Sound simply exists on demand.
+`:list()` is *your* clips in the air: the client's own blips share the channel but are not yours to
+enumerate or stop. It prunes as you ask, so the count falls back to zero by itself as clips end. A
+string [filter](conventions.md#the-filter-argument) matches the resource name. There is no `:add` —
+playing is `sound:play(volume)` — and no `:remove`, since silencing one is `sound:stop()`.
 
 ```lua
-local live = hafen.sound()
+local live = hafen.sound():list()
 for i = 1, #live do live[i]:stop() end   -- silence everything this addon started
 ```
 
@@ -55,7 +61,7 @@ cancels a play that has not started yet. Anything you leave playing is silenced 
 disabled or reloaded: a disabled addon making noise is a bug.
 
 ```lua
-local bell = hafen.sound("sfx/hud/mmap/bell3")
+local bell = hafen.sound():get("sfx/hud/mmap/bell3")
 bell:play(0.6)
 if bell:playing() then bell:stop() end    -- cut it mid-clip
 ```
@@ -76,5 +82,5 @@ Sound; exposing it would be its own section rather than a retrofit here.
 
 - [`hafen.client:options():audio()`](client/README.md) — master, UI, event and ambient volumes
 - [`hafen.asset`](asset.md) — the files *your* addon ships, as opposed to engine resources
-- [conventions](conventions.md#needle-keyed-objects-buff-meter-action-sound) — the callable-namespace
-  pattern this shares
+- [conventions](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) — the collection
+  shape this shares

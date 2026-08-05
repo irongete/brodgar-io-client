@@ -11,9 +11,7 @@ import haven.Resource;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
-import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
@@ -27,8 +25,9 @@ import java.util.Map;
  * A <b>Buff object</b> — one buff on the player's buff bar (spec {@code 025-buffs-oop}), the OOP
  * successor of the flat {@code hafen.buffs.list()}/{@code has()} snapshot reader. Built on exactly the
  * mechanism {@link LuaGob} (017), {@link LuaKin} (020), {@link LuaSlot} (021), {@link LuaPagina} (023) and
- * {@link LuaSound} (024) established; <b>arity is the verb on the namespace itself</b> (D-056):
- * {@code hafen.buff()} is the active buffs, {@code hafen.buff(needle)} is one of them.
+ * {@link LuaSound} (024) established; <b>the section object IS the buff bar</b> (uniform grammar §2.1):
+ * {@code hafen.buff()} is the collection of the active buffs and {@code hafen.buff():find(needle)} is one of
+ * them.
  *
  * <p><b>The handle wraps the {@link Buff} widget and nothing else.</b> Every read goes through it live, so a
  * stashed Buff tracks its own meters as the server pushes {@code "ch"}/{@code "tt"} updates —
@@ -48,7 +47,7 @@ import java.util.Map;
  * {@code res} or its {@code info}. So a Buff whose widget is gone keeps answering {@code :res()}/{@code
  * :name()}/… and reports {@code :exists()} <b>false</b> — the staleness question {@link LuaSound}
  * deliberately has no answer for (D-060), and which a buff, having a lifetime, does. {@code :exists()} is
- * exactly the predicate {@code hafen.buff()} filters on: a current {@link Bufflist} child that is not fading
+ * exactly the predicate {@code :list()} filters on: a current {@link Bufflist} child that is not fading
  * out after a server removal ({@code Buff.dest}, via {@link AddonWidgets#buffDest}).
  *
  * <p><b>Every read is {@code Loading}-guarded and may answer {@code nil}.</b> {@code Buff.info()} throws
@@ -240,8 +239,8 @@ public final class LuaBuff {
     private static LuaBuff handle(LuaValue self, String method) {
         LuaBuff h = resolve(self);
         if(h == null)
-            throw new LuaError("buff:" + method + "() — use a COLON call on a Buff object (hafen.buff(needle),"
-                + " hafen.buff()[i])");
+            throw new LuaError("buff:" + method + "() — use a COLON call on a Buff object (hafen.buff():find(needle),"
+                + " hafen.buff():list()[i])");
         return h;
     }
 
@@ -256,7 +255,7 @@ public final class LuaBuff {
     /**
      * The buffs currently ON the bar, in {@link Bufflist} child order (which is the order they are drawn):
      * one pass over the live children, minus any fading out after a server removal. The single scan both
-     * {@code hafen.buff()} and the {@code BuffsAdapter} poll share.
+     * {@code :list()} and the {@code BuffsAdapter} poll share.
      */
     static List<Buff> actives() {
         List<Buff> out = new ArrayList<Buff>();
@@ -379,57 +378,36 @@ public final class LuaBuff {
         return t;
     }
 
-    // ---- the namespace -----------------------------------------------------------------------------
+    // ---- the collection ----------------------------------------------------------------------------
 
     /**
-     * {@code hafen.buff()} — the active buffs as a fresh <b>1-based</b> Lua array of (interned) Buff objects
-     * in bar order. A plain array with no metatable: the active set is a handful of items with no catalogue
-     * behind it, so the array plus the lookup arity is the whole collection surface.
+     * {@code hafen.buff()} — the active buffs, as the {@link LuaCollection} the section object IS:
+     * {@code :list(filter)} is a fresh 1-based array of (interned) Buff objects in bar order,
+     * {@code :find(needle)} the first that matches, {@code :count(filter)} how many.
+     *
+     * <p><b>There is no {@code :get}</b>, and that is the point of the shape: a buff has no key. Two buffs can
+     * share a resource and a {@code "ch"} uimsg replaces {@code Buff.res} under a live one, so a needle is a
+     * <i>search</i>, never an address — {@code coll:get} would promise an identity the subsystem does not
+     * have. A string filter matches the res <b>or</b> the display name, which is what the old lookup did.
      */
-    private static LuaValue collection(Addon owner) {
-        LuaTable out = new LuaTable();
-        List<Buff> active = actives();
-        for(int i = 0; i < active.size(); i++)
-            out.set(i + 1, of(owner, active.get(i)));
-        return out;
-    }
-
-    /**
-     * {@code hafen.buff} itself: a <b>callable table</b> ({@code __call}), so the old flat
-     * {@code hafen.buffs.list()}/{@code has()} is plain {@code nil} — the hard cut (D-013) is visible from
-     * Lua, exactly as {@code hafen.gob} (D-044), {@code hafen.actionbar} (D-057), {@code hafen.menugrid} and
-     * {@code hafen.sound} did it. <b>Arity is the verb</b> (D-056): {@code hafen.buff()} is the active buffs,
-     * {@code hafen.buff(needle)} is the <b>first</b> one whose res <i>or</i> name contains {@code needle} —
-     * the old {@code has()} predicate, now handing back the object, so {@code if hafen.buff("poison") then}
-     * reads as it always did. A miss is {@code nil}.
-     */
-    static LuaValue factory(final Addon owner) {
-        LuaTable buff = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.CALL, new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue key = a.arg(2);        // arg1 = the callable table itself
-                if(key.isnil())                 // hafen.buff() — everything on the bar, in bar order
-                    return collection(owner);
-                if(key.isnumber())              // BEFORE isstring(): in LuaJ a number IS a string
-                    throw new LuaError("hafen.buff(needle): the key is a NAME or RESOURCE substring string"
-                        + " (e.g. \"poison\"), not a number — for the n-th buff use hafen.buff()[n]");
-                if(key.isstring()) {
-                    String needle = key.tojstring();
-                    if(needle.isEmpty())
-                        throw new LuaError("hafen.buff(needle): the needle is empty");
-                    for(Buff b : actives()) {
-                        String res = res(b), name = LuaBuff.name(b);   // see the note in methods()
-                        if(((res != null) && res.contains(needle)) || ((name != null) && name.contains(needle)))
-                            return of(owner, b);
-                    }
-                    return LuaValue.NIL;
-                }
-                throw new LuaError("hafen.buff([needle]): no argument = the active buffs, a string = the first"
-                    + " buff whose res or name contains it, got " + key.typename());
+    static LuaValue collection(final Addon owner) {
+        return LuaCollection.create("hafen.buff()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<Buff> active = actives();
+                List<LuaValue> out = new ArrayList<LuaValue>(active.size());
+                for(int i = 0; i < active.size(); i++)
+                    out.add(of(owner, active.get(i)));
+                return out;
             }
-        });
-        buff.setmetatable(mt);
-        return buff;
+
+            // res OR name, as one string the substring test runs over once. The separator is a newline, which
+            // no resource name and no display name contains, so a match can never span the two halves.
+            public String needle(LuaValue member) {
+                LuaBuff h = resolve(member);
+                Buff b = (h == null) ? null : h.wdg;
+                String res = res(b), name = LuaBuff.name(b);    // see the note in methods()
+                return ((res == null) ? "" : res) + "\n" + ((name == null) ? "" : name);
+            }
+        }, null);
     }
 }

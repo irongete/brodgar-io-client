@@ -8,10 +8,7 @@ import haven.Resource;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
-import org.luaj.vm2.lib.TwoArgFunction;
-import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
@@ -29,8 +26,8 @@ import java.util.Set;
  * A <b>Pagina object</b> — one entry of the <b>action menu</b> ({@link MenuGrid}, the 4×4 "scm" grid), which is
  * the client's catalogue of everything the character can <i>do</i> (spec {@code 023-menugrid-oop}). Built on
  * exactly the mechanism {@link LuaGob} (017), {@link LuaKin} (020) and {@link LuaSlot} (021) established;
- * <b>arity is the verb on the namespace itself</b>: {@code hafen.menugrid()} is the catalogue,
- * {@code hafen.menugrid(key)} is one Pagina.
+ * <b>the section object IS the catalogue</b> (uniform grammar §2.1): {@code hafen.menugrid()} is the
+ * {@link LuaCollection}, {@code hafen.menugrid():get(key)} is one Pagina.
  *
  * <p><b>The key is always a string, and it splits by SHAPE.</b> Contains a {@code /} ⇒ a <b>resource name</b>
  * (the identity — {@code paginae/act/dig}); anything else ⇒ a <b>display name</b> ({@code "Dig"}), a search
@@ -38,8 +35,8 @@ import java.util.Set;
  * wins). Both forms return the very same interned object, since the cache is keyed by resource name. The
  * server's {@code Pagina.id} is never a key — it is session-local and opaque (022 refused it for
  * {@code setbelt "pag"} too) — and neither is a <b>position</b>: the catalogue grows on every discovery, so
- * {@code hafen.menugrid(1)} throws rather than pretending an index exists. A miss is plain {@code nil} (unlike
- * {@code hafen.kin(id)}, whose ids persist): "not in the menu" = "you do not have that action".
+ * {@code :get(1)} throws rather than pretending an index exists. A miss is plain {@code nil} (unlike
+ * {@code hafen.kin():get(id)}, whose ids persist): "not in the menu" = "you do not have that action".
  *
  * <p><b>Wraps only the resource name.</b> Every method re-resolves through one funnel —
  * {@link AddonManager#gui()}{@code .menu.paginae} → the {@code Pagina} whose {@code res().name} matches — so a
@@ -67,7 +64,7 @@ import java.util.Set;
  * <p><b>Userdata + per-addon interning</b> (D-017 / D-045), identical to its three predecessors: the handle
  * crosses as {@code LuaValue.userdataOf(luaPagina, mt)} so Lua cannot scribble on it, and the {@link Cache} on
  * the owning {@link Addon} (weak values + a {@link ReferenceQueue} drained on every access — <i>not</i> a
- * {@code WeakHashMap}, which is weak <i>keys</i>) makes {@code hafen.menugrid(k) == hafen.menugrid(k)} and
+ * {@code WeakHashMap}, which is weak <i>keys</i>) makes {@code :get(k) == :get(k)} and
  * {@code seen[pag] = true} reliable. Never static: no Lua value crosses a sandbox boundary and the cache dies
  * whole with the {@link Addon} on {@code :reload}.
  *
@@ -101,18 +98,18 @@ public final class LuaPagina {
         return (o instanceof LuaPagina) ? (LuaPagina)o : null;
     }
 
-    // ---- the per-addon intern cache + metatables ---------------------------------------------------
+    // ---- the per-addon intern cache + metatable ----------------------------------------------------
 
     /**
-     * One addon's Pagina interning cache and metatables (its {@link Addon#paginae}). Weak values + a
-     * {@link ReferenceQueue} drained on every access; the Pagina metatable and the catalogue's are built once,
-     * lazily. Holds its {@link Addon} because the collection hands out interned handles for the owner.
+     * One addon's Pagina interning cache and metatable (its {@link Addon#paginae}). Weak values + a
+     * {@link ReferenceQueue} drained on every access; the Pagina metatable is built once, lazily. Holds its
+     * {@link Addon} because the collection hands out interned handles for the owner.
      */
     static final class Cache {
         private final Addon owner;
         private final Map<String, Ref> live = new HashMap<String, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
-        private LuaValue mt, listMt;
+        private LuaValue mt;
 
         Cache(Addon owner) {
             this.owner = owner;
@@ -148,13 +145,6 @@ public final class LuaPagina {
                 mt = buildMeta(owner);
             return mt;
         }
-
-        /** The shared metatable every catalogue table gets ({@code __index} = find/roots/list). */
-        synchronized LuaValue listMeta() {
-            if(listMt == null)
-                listMt = buildListMeta(owner);
-            return listMt;
-        }
     }
 
     /** A weak handle reference that remembers its map key, so the {@link ReferenceQueue} drain can unmap it. */
@@ -172,7 +162,7 @@ public final class LuaPagina {
     /** The per-addon metatable: {@code __index} = the methods table, plus {@code __tostring}/{@code __name}. */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(owner));
+        mt.set(LuaValue.INDEX, Retired.methodIndex("pagina", methods(owner)));
         mt.set("__name", LuaValue.valueOf("Pagina"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -191,7 +181,7 @@ public final class LuaPagina {
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         // res() — the resource name this Pagina addresses, and its IDENTITY (the intern key, and the name
-        // slot:set() takes). Answers from the handle alone, like slot:index() / kin:id().
+        // slot:res(name) takes). Answers from the handle alone, like slot:index() / kin:id().
         m.set("res", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf(handle(self, "res").res);
@@ -247,11 +237,11 @@ public final class LuaPagina {
                 return (k == null) ? LuaValue.NIL : LuaValue.valueOf(k);
             }
         });
-        // isnew() — is this entry still flagged as a NEW DISCOVERY (the green flash in the grid)? The flag is
+        // isNew() — is this entry still flagged as a NEW DISCOVERY (the green flash in the grid)? The flag is
         // cleared by the client when the button is actually used.
-        m.set("isnew", new OneArgFunction() {
+        m.set("isNew", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                MenuGrid.Pagina p = live(handle(self, "isnew").res);
+                MenuGrid.Pagina p = live(handle(self, "isNew").res);
                 return LuaValue.valueOf((p != null) && (p.anew > 0));
             }
         });
@@ -327,7 +317,7 @@ public final class LuaPagina {
     private static LuaPagina handle(LuaValue self, String method) {
         LuaPagina h = resolve(self);
         if(h == null)
-            throw new LuaError("pagina:" + method + "() — use a COLON call on a Pagina object (hafen.menugrid(key), hafen.menugrid()[i])");
+            throw new LuaError("pagina:" + method + "() — use a COLON call on a Pagina object (hafen.menugrid():get(key), hafen.menugrid():list()[i])");
         return h;
     }
 
@@ -564,62 +554,54 @@ public final class LuaPagina {
     // ---- the collection ----------------------------------------------------------------------------
 
     /**
-     * {@code hafen.menugrid()} — the whole catalogue as a fresh <b>1-based</b> Lua array of (interned) Pagina
-     * objects in the grid's own sort order, carrying the shared collection metatable
-     * ({@code find}/{@code roots}/{@code list}). The methods live on the metatable, off the array part, so
-     * {@code #} and {@code ipairs} are exact. No menu yet ⇒ an empty catalogue, never an error.
+     * {@code hafen.menugrid()} — the catalogue, as the {@link LuaCollection} the section object IS:
+     * {@code :get(key)} is one entry by resource or display name, {@code :list(filter)} the whole catalogue as
+     * a fresh 1-based array of (interned) Pagina objects in the grid's own sort order, {@code :find(filter)}
+     * the first that matches, and {@code :roots()} the entries the menu shows on its root screen — plural,
+     * because it is a plain array read with nothing to address into (§2.3). No menu yet ⇒ an empty catalogue,
+     * never an error.
+     *
+     * <p>A <b>string</b> filter matches an entry's <b>display name</b> as a substring; an entry whose resource
+     * has not resolved yet has no display name and matches nothing, rather than refusing the filter.
      */
-    private static LuaValue collection(Addon owner) {
-        LuaTable out = new LuaTable();
-        List<Entry> cat = catalogue();
-        for(int i = 0; i < cat.size(); i++)
-            out.set(i + 1, of(owner, cat.get(i).res));
-        out.setmetatable(owner.paginae.listMeta());
-        return out;
-    }
-
-    /** The catalogue metatable: {@code __index} = {@code find}/{@code roots}/{@code list}, plus {@code __name}. */
-    private static LuaValue buildListMeta(final Addon owner) {
-        LuaTable m = new LuaTable();
-        // find(text) — every entry whose DISPLAY NAME contains text (case-insensitive), in catalogue order.
-        // The plural search half of the namespace: hafen.menugrid(name) is the exact single lookup.
-        m.set("find", new TwoArgFunction() {
-            public LuaValue call(LuaValue self, LuaValue text) {
-                if(!text.isstring())
-                    throw new LuaError("menu:find(text): text must be a string (a substring of the display name)");
-                String needle = text.tojstring().toLowerCase();
-                LuaTable out = new LuaTable();
-                List<Entry> cat = catalogue();
-                int i = 0;
-                for(int n = 0; n < cat.size(); n++) {
-                    Entry e = cat.get(n);
-                    String nm = dispname(button(e.pag));
-                    if((nm != null) && nm.toLowerCase().contains(needle))
-                        out.set(++i, of(owner, e.res));
-                }
-                return out;
-            }
-        });
+    static LuaValue collection(final Addon owner) {
+        LuaTable extra = new LuaTable();
         // roots() — the entries with no parent, i.e. what the menu shows on its ROOT screen.
-        m.set("roots", new OneArgFunction() {
+        extra.set("roots", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return childrenOf(owner, null);
             }
         });
-        // list() — the whole catalogue as :info() SNAPSHOTS (plain tables), for logging/serialising.
-        m.set("list", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaTable out = new LuaTable();
+        return LuaCollection.create("hafen.menugrid()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
                 List<Entry> cat = catalogue();
+                List<LuaValue> out = new ArrayList<LuaValue>(cat.size());
                 for(int i = 0; i < cat.size(); i++)
-                    out.set(i + 1, snapshot(cat.get(i).res));
+                    out.add(of(owner, cat.get(i).res));
                 return out;
             }
-        });
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, m);
-        mt.set("__name", LuaValue.valueOf("Menu"));
-        return mt;
+
+            public String needle(LuaValue member) {
+                LuaPagina h = resolve(member);
+                String nm = (h == null) ? null : dispname(button(live(h.res)));
+                return (nm == null) ? "" : nm;
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                if(key.isnumber())                  // BEFORE isstring(): in LuaJ a number IS a string
+                    throw new LuaError("hafen.menugrid():get(key): the menu has no positions to address — the"
+                        + " catalogue grows on every discovery, so a position is not an index. Use a resource"
+                        + " name (\"paginae/act/dig\") or a display name (\"Dig\").");
+                if(!key.isstring())
+                    throw new LuaError("hafen.menugrid():get(key): expected a string — one with a '/' is a"
+                        + " resource name, any other is a display name; got " + key.typename());
+                return find(owner, key.tojstring());
+            }
+        }, extra);
     }
 
     /** One entry BY KEY: a {@code /} makes it a resource name, anything else a display name. Miss ⇒ nil. */
@@ -639,33 +621,5 @@ public final class LuaPagina {
                 return of(owner, e.res);
         }
         return LuaValue.NIL;
-    }
-
-    /**
-     * {@code hafen.menugrid} itself: a <b>callable table</b> ({@code __call}) with arity dispatch, so
-     * {@code hafen.menugrid()} / {@code hafen.menugrid(key)} work while indexing it reads as plain {@code nil}
-     * — the OOP-from-the-start shape {@code hafen.gob} (D-044), {@code hafen.kin} (D-056) and
-     * {@code hafen.actionbar} (D-057) established.
-     */
-    static LuaValue factory(final Addon owner) {
-        LuaTable menu = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.CALL, new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue key = a.arg(2);            // arg1 = the callable table itself
-                if(key.isnil())
-                    return collection(owner);
-                if(key.isnumber())                  // BEFORE isstring(): in LuaJ a number IS a string
-                    throw new LuaError("hafen.menugrid(key): the menu has no positions to address — the"
-                        + " catalogue grows on every discovery, so a position is not an index. Use a resource"
-                        + " name (\"paginae/act/dig\") or a display name (\"Dig\").");
-                if(key.isstring())
-                    return find(owner, key.tojstring());
-                throw new LuaError("hafen.menugrid([key]): no argument = the whole catalogue, a string with a"
-                    + " '/' = one entry by resource name, any other string = one entry by display name");
-            }
-        });
-        menu.setmetatable(mt);
-        return menu;
     }
 }

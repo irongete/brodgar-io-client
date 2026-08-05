@@ -919,3 +919,21 @@
   What is left for the in-game round is only the scene: the real `addClientGob`, the billboard re-mill and
   the Position round trip. 99/99 that way, and it still missed D-127, because the defect lived in the one
   call the probe could not make.
+- **(039.9) A gate check that matches only the VERB NAME passes with the gate removed.** The suite asserted
+  the five gated writes by pcall-ing each and looking for the verb in the message — and the falsification
+  that deleted `requireActions` from `kin:group` left it **green**, because the very next line raises
+  *"kin:group(): no Kin window (not in the world yet)"*, which contains the verb too. Every gated verb has a
+  second, unrelated refusal that names itself; the permission clause is the only text that distinguishes
+  them, so the wanted substring is `"<verb>: this addon did not declare"` rather than `"<verb>"`. The probe
+  caught it and the suite did not, which is 039.7's rule again: *a falsification round is a coverage diff
+  between the two harnesses*, and the harness the maintainer actually runs is the one that has to bite.
+  Generalisation: when a refusal is one of several a call can raise, pin the CLAUSE that makes it that
+  refusal, not the name every one of them repeats.
+- **(039.9) A per-task suite can be dry-run against no client at all when the feature is a SHAPE.** The six
+  collections read the HUD, so headlessly every one is empty — and that is enough to assert the whole
+  grammar: the section singleton, the collection verbs, the retired rows *and their message text*, the
+  interning that does not need a client (`kin:get(7)`, the fixed 144 slots, a Sound name), the refusals, and
+  the gates (the owner is `Manifest.test`, which declares nothing, where `Manifest.internal` passes every
+  gate — 039.1). 70 probe asserts plus the shipping suite end to end, whose only two reds were the rounds
+  that genuinely need a live HUD. Write those two so the `got:` says *why* ("the catalogue is empty", "no
+  HUD meter -- are you in the world?"), and the headless run reads as a precondition rather than a defect.

@@ -233,6 +233,14 @@ final class Retired {
         put("ghost:setRes", "ghost:setRes(res, sdt) is now ghost:res(res, spawnData) — ghost:res() already read"
             + " it, so the pair was one name too many");
 
+        // ---- the six entity collections: the sections move, and four verbs with them ---------------------
+        put("kin:setGroup", "kin:setGroup(g) is now kin:group(g) — kin:group() already read it, so the pair"
+            + " was one name too many");
+        put("kin:endkin", "kin:endkin() is now kin:endKin()");
+        put("slot:set", "slot:set(res) is now slot:res(name) — slot:res() already read it, so the pair was one"
+            + " name too many");
+        put("pagina:isnew", "pagina:isnew() is now pagina:isNew()");
+
         // ---- the HUD overlay: a two-line handle table became a builder, so it ends the way the other two do --
         put("uioverlay:remove", "hafen.ui():overlay() hands back something you created and hold, so it ends with"
             + " ov:destroy() — :remove() is the collection verb, and a HUD painter is in no collection");

@@ -1,43 +1,42 @@
 # hafen.kin: the kin roster
 
-Read and manage the Kin window, your buddy list. `hafen.kin` is a function, and the arity is the verb.
+Read and manage the Kin window, your buddy list. `hafen.kin()` **is** the roster.
 
 ```lua
-for _, k in ipairs(hafen.kin()) do                       -- the roster IS the array
+for _, k in ipairs(hafen.kin():list()) do                -- :list() is the array
   hafen.log():write(k:name() .. " [" .. k:group() .. "]" .. (k:online() and " online" or ""))
 end
-hafen.kin("Bob"):setGroup(3):rename("Bobby")             -- gated, chainable
+hafen.kin():get("Bob"):group(3):rename("Bobby")          -- gated, chainable
 ```
 
 | Call | Returns |
 |---|---|
-| `hafen.kin()` | the **roster** — an array of `Kin` objects in Kin-window sort order |
-| `hafen.kin(id)` | the `Kin` with that buddy id — always an object, even for an id you do not have |
-| `hafen.kin(name)` | the `Kin` with that exact, case-insensitive name, else `nil` |
+| `hafen.kin():get(id)` | the `Kin` with that buddy id — always an object, even for an id you do not have |
+| `hafen.kin():get(name)` | the `Kin` with that exact, case-insensitive name, else `nil` |
+| `hafen.kin():list(filter)` | the **roster** — an array of `Kin` objects in Kin-window sort order |
 
-The roster is a plain array, so `#`, `[1]` and `ipairs` all work on it. Kin objects are **interned per
-addon**, so `hafen.kin(7) == hafen.kin(7)`, `hafen.kin()[1] == hafen.kin(<that id>)`, and
-`seen[k] = true` works as a table key. A `Kin` wraps only the buddy id and re-reads the roster on every
-call, so a stashed one tracks renames, regroups and online flips — see
-[snapshots vs handles](conventions.md#snapshots-vs-handles).
+Kin objects are **interned per addon**, so `hafen.kin():get(7) == hafen.kin():get(7)`,
+`hafen.kin():list()[1] == hafen.kin():get(<that id>)`, and `seen[k] = true` works as a table key. A
+`Kin` wraps only the buddy id and re-reads the roster on every call, so a stashed one tracks renames,
+regroups and online flips — see [snapshots vs handles](conventions.md#snapshots-vs-handles).
 
-> **The array is a snapshot, the objects are live.** `hafen.kin()` builds the array at call time, so a
-> kin added afterwards is not in it — call it again. Every `Kin` inside it stays current for as long as
-> you hold it.
+> **The array is a snapshot, the objects are live.** `:list()` builds the array at call time, so a kin
+> added afterwards is not in it — call it again. Every `Kin` inside it stays current for as long as you
+> hold it.
 
 Before you are in the world, and briefly after a reload, there is no Kin window: the roster is empty
-and a name lookup answers `nil`, while `hafen.kin(id)` still hands back an object whose `:exists()` is
+and a name lookup answers `nil`, while `:get(id)` still hands back an object whose `:exists()` is
 `false`.
 
 ## Read
 
-`find` and `list` are called on the roster — `hafen.kin():find(...)`, or keep the roster in a variable
-and call it on that. The rest are called on a `Kin`.
+The first three are called on the collection, the rest on a `Kin`.
 
 | Method | Returns | Description |
 |---|---|---|
-| `hafen.kin():find(nameOrId)` | `Kin` \| nil | one kin: a number by id, a string by exact, case-insensitive name; `nil` if nobody matches |
-| `hafen.kin():list(filter)` | `Kin[]` | the roster matching the [filter](conventions.md#the-filter-argument) — a function filter receives a `Kin` |
+| `hafen.kin():list(filter)` | `Kin[]` | the roster matching the [filter](conventions.md#the-filter-argument) — a function filter receives a `Kin`, a string matches the name |
+| `hafen.kin():count(filter)` | number | how many match, without building the array |
+| `hafen.kin():find(filter)` | `Kin` \| nil | the first that matches |
 | `kin:id()` | number | the buddy id — answers even for a forgotten kin |
 | `kin:name()` | string \| nil | the nickname shown in the Kin window |
 | `kin:group()` | number \| nil | the kin's group, `0..254` |
@@ -50,6 +49,12 @@ and call it on that. The rest are called on a `Kin`.
 Every reader answers `nil` once the kin is off the roster, except `:id()` and `:exists()`. No reader
 throws, and none is gated.
 
+**`:get` addresses, `:find` searches.** A **number** is a buddy id and always hands back an object, so
+an id you read out of a saved file can be held before the roster streams in — `:exists()` is the
+liveness test. A **string** is an exact, case-insensitive name and answers `nil` when nobody carries
+it. `:find` takes the ordinary [filter](conventions.md#the-filter-argument) instead, so a *partial*
+name is `hafen.kin():find("Bo")`.
+
 Subscribe to [`KinChanged`](event.md#roster-quests-markers) to react to a kin being added, removed,
 renamed, regrouped, or flipping online.
 
@@ -59,7 +64,7 @@ A kin standing in front of you is both a roster entry and a [game object](gob.md
 either way between them.
 
 ```lua
-local k = hafen.kin("Bob")
+local k = hafen.kin():get("Bob")
 local g = k and k:gob()
 if g then
   hafen.log():write(string.format("Bob is %.1f away", g:distance()))
@@ -87,22 +92,24 @@ local mine = hafen.world():gob():list(function(g) return g:kin() == k end)
 
 ## Write (gated: `actions`)
 
-Each verb returns what it was called on — the `Kin`, or the roster for `add` — so they chain. Called
+Each verb returns what it was called on — the `Kin`, or the collection for `add` — so they chain.
+`add` hands back the collection rather than a new `Kin`, because there is none yet: the server decides
+whether the secret is valid and the roster changes a beat later, as a `KinChanged`. Called
 from an addon that did not declare the permission, each raises an error; see [`hafen.act`](act.md).
 
 | Method | Description |
 |---|---|
 | `hafen.kin():add(secret)` | add a kin by the other player's hearth secret, the string the "Add kin" field takes |
 | `kin:rename(name)` | set the kin's nickname |
-| `kin:setGroup(group)` | move the kin to group `0..254` |
-| `kin:endkin()` | end the kinship; the kin stays *memorized* in the list |
+| `kin:group(group)` | move the kin to group `0..254` — the write half of `kin:group()` |
+| `kin:endKin()` | end the kinship; the kin stays *memorized* in the list |
 | `kin:forget()` | drop a memorized, un-kinned kin from the list entirely |
 
-**Groups go to 254, colours stop at 8.** The server accepts `0..254` and `setGroup` validates that
+**Groups go to 254, colours stop at 8.** The server accepts `0..254` and the write validates that
 range, but the client draws eight kin colours, so a group of 8 or more has no colour and the Kin window
 can neither display nor select it. Stay within `0..7` unless you know what you are doing.
 
-**Removing is two steps.** The game drops a kin in two stages: `kin:endkin()` ends the kinship, after
+**Removing is two steps.** The game drops a kin in two stages: `kin:endKin()` ends the kinship, after
 which the kin is memorized but still listed, then `kin:forget()` drops the memorized entry. To fully
 remove an active kin, call both.
 

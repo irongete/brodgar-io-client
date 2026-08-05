@@ -159,7 +159,7 @@ final class CharApi {
      * ({@code meter:color()}), which the old {@code vitalsEqual} deliberately ignored.
      *
      * <p>All three carry the <b>Meter object</b> ({@link AddonManager#fireMeter}), so a handler reads the payload
-     * with the same methods as {@code hafen.meter()}. The per-meter snapshot stays, purely as the diff KEY: an
+     * with the same methods as {@code hafen.meter():list()}. The per-meter snapshot stays, purely as the diff KEY: an
      * interned object compares by identity and so cannot detect a content change (the 025.2 lesson). It is never
      * handed to Lua — {@code meter:info()} is that, on demand.
      */
@@ -251,7 +251,7 @@ final class CharApi {
      * <p>The reads themselves live on {@link LuaBuff} since {@code 025-buffs-oop} (the entity owns them);
      * only change <i>detection</i> — the per-buff snapshot diff — is this adapter's business. Since 025.2 the
      * three events carry the <b>Buff object</b> ({@link AddonManager#fireBuff}), so a handler reads the
-     * payload with the same methods as {@code hafen.buff()}. The snapshot stays, purely as the diff KEY: it
+     * payload with the same methods as {@code hafen.buff():list()}. The snapshot stays, purely as the diff KEY: it
      * is the cheap value-comparable form of the buff, and it is what makes {@code BuffChanged} fire on real
      * content changes only. It is never handed to Lua any more — {@code buff:info()} is that, on demand.
      */
@@ -356,11 +356,11 @@ final class CharApi {
      * is <b>poll-driven</b> (like buffs/study): each tick it diffs the occupied slots against a per-index
      * cache and fires {@code ActionbarChanged} on a set/clear/change (or a slot's data resolving).
      * Change-detection ignores {@code cooldown} (a live meter that would otherwise fire every frame while
-     * an ability cools down); {@code hafen.actionbar(n)} still reads it live.
+     * an ability cools down); {@code hafen.actionbar():get(n)} still reads it live.
      *
      * <p>The snapshots are the diff's <i>input only</i>: what reaches Lua is a per-addon <b>Slot object</b> for
      * the changed slot ({@link AddonManager#fireSlot}, 021.2), so a handler reads the payload with the same
-     * methods as {@code hafen.actionbar(n)} and can key a table by it.
+     * methods as {@code hafen.actionbar():get(n)} and can key a table by it.
      */
     private static final class ActionbarAdapter implements TreeAdapter {
         // slot index -> last snapshot, occupied slots only. UI-thread-only; reset per session by
@@ -440,7 +440,7 @@ final class CharApi {
      *
      * <p>The snapshots are the diff's <i>input only</i>: what reaches Lua is a per-addon array of <b>Kin
      * objects</b> ({@link AddonManager#fireKin}, 020.3), so a handler reads the payload with the same
-     * methods as {@code hafen.kin()} and can key a table by an entry.
+     * methods as {@code hafen.kin():list()} and can key a table by an entry.
      */
     private static final class KinAdapter implements TreeAdapter {
         private LuaValue cache = LuaValue.NIL;   // last kin snapshot list (UI thread; change-detect)
@@ -687,7 +687,7 @@ final class CharApi {
                 return ((g == null) || (g.chrid == null)) ? LuaValue.NIL : LuaValue.valueOf(g.chrid);
             }
         });
-        /* vitals() is GONE (027-meters-oop's hard cut): the HUD bars are hafen.meter(), which is every meter
+        /* vitals() is GONE (027-meters-oop's hard cut): the HUD bars are hafen.meter():list(), which is every meter
          * the server puts in the slot rather than a hard-coded hp/stamina/energy triple read by position. */
         methods.set("worldToScreen", new ThreeArgFunction() {
             public LuaValue call(LuaValue self, LuaValue x, LuaValue y) {
@@ -777,7 +777,7 @@ final class CharApi {
             }
         });
         // skills() — the character's KNOWN skills as {name, res} snapshots; skill(name) — a substring
-        // membership test over them (name OR res, matching hafen.buff(needle)). Backed by the SkillWnd
+        // membership test over them (name OR res, matching hafen.buff():find(needle)). Backed by the SkillWnd
         // "Skills" tab (widget-tree), which streams in after enter-world like the rest of the sheet.
         chr.set("skills", new ZeroArgFunction() {
             public LuaValue call() {
@@ -863,16 +863,15 @@ final class CharApi {
     }
 
     /**
-     * Install {@code hafen.kin} for owner. From installHafen. The whole surface is the <b>callable table</b>
-     * {@link LuaKin#factory} builds (spec {@code 020-kin-oop}): {@code hafen.kin()} is the roster,
-     * {@code hafen.kin(idOrName)} a {@link LuaKin Kin} object, and the flat table of fields
-     * ({@code list}/{@code find}/{@code add}/{@code remove}/{@code forget}/{@code rename}/{@code setGroup})
-     * is GONE (hard cut, D-013) — indexing the namespace reads as plain {@code nil}. Only the kin-side
-     * plumbing the event adapter still needs ({@link #buddywnd}, {@link #kinSnapshot}, {@link #kinListEqual},
-     * {@link #kinIds}) stays here.
+     * Install {@code hafen.kin} for owner. From installHafen. <b>The section object IS the roster</b> (uniform
+     * grammar §2.1): {@code hafen.kin()} is the {@link LuaCollection} {@link LuaKin#collection} builds, and one
+     * kin is {@code hafen.kin():get(idOrName)}. Only the kin-side plumbing the event adapter still needs
+     * ({@link #buddywnd}, {@link #kinSnapshot}, {@link #kinListEqual}, {@link #kinIds}) stays here.
      */
     static void installKin(LuaTable hafen, final Addon owner) {
-        hafen.set("kin", LuaKin.factory(owner));
+        Section.mount(hafen, "kin", LuaKin.collection(owner),
+                      "hafen.kin(idOrName) is now hafen.kin():get(idOrName), and hafen.kin() is"
+                      + " hafen.kin():list()");
     }
 
     /** Build a char namespace for owner. From installHafen. */
@@ -937,34 +936,40 @@ final class CharApi {
     }
 
     /**
-     * Build the buff namespace for owner. From installHafen. {@code hafen.buff} is CALLABLE-ONLY (spec
-     * {@code 025-buffs-oop}): {@code hafen.buff()} is the active buffs, {@code hafen.buff(needle)} the first
-     * whose res or name contains it — the flat {@code hafen.buffs.list()}/{@code has()} is gone (D-013's
-     * hard cut), and the reads live on the {@link LuaBuff} object itself.
+     * Build the buff namespace for owner. From installHafen. <b>The section object IS the buff bar</b>
+     * (uniform grammar §2.1): {@code hafen.buff()} is the {@link LuaCollection} of the active buffs and
+     * {@code hafen.buff():find(needle)} the first whose res or name contains it. A buff has no key, so the
+     * collection carries no {@code :get}; the reads live on the {@link LuaBuff} object itself.
      */
     static void installBuffs(LuaTable hafen, final Addon owner) {
-        hafen.set("buff", LuaBuff.factory(owner));
+        Section.mount(hafen, "buff", LuaBuff.collection(owner),
+                      "hafen.buff(needle) is now hafen.buff():find(needle), and hafen.buff() is"
+                      + " hafen.buff():list()");
     }
 
     /**
-     * Install {@code hafen.meter} — the CALLABLE-ONLY HUD-meter namespace (D-056, spec
-     * {@code 027-meters-oop}): {@code hafen.meter()} is every meter in the HUD's meter slot,
-     * {@code hafen.meter(needle)} the first whose server-published res name contains it. The flat
-     * {@code hafen.player():vitals()} is gone (D-013's hard cut), and the reads live on the
-     * {@link LuaMeter} object itself.
+     * Install {@code hafen.meter} — <b>the section object IS the meter slot</b> (uniform grammar §2.1, spec
+     * {@code 027-meters-oop}): {@code hafen.meter()} is the {@link LuaCollection} of every meter in the HUD's
+     * meter slot and {@code hafen.meter():find(needle)} the first whose server-published res name contains it.
+     * A meter has no key, so the collection carries no {@code :get}; the reads live on the {@link LuaMeter}
+     * object itself.
      */
     static void installMeters(LuaTable hafen, final Addon owner) {
-        hafen.set("meter", LuaMeter.factory(owner));
+        Section.mount(hafen, "meter", LuaMeter.collection(owner),
+                      "hafen.meter(needle) is now hafen.meter():find(needle), and hafen.meter() is"
+                      + " hafen.meter():list()");
     }
 
     /**
-     * Build a char namespace for owner. From installHafen. {@code hafen.actionbar} is CALLABLE-ONLY
-     * (spec {@code 021-actionbar-oop}): {@code hafen.actionbar(n)} is one {@link LuaSlot}, {@code
-     * hafen.actionbar()} all 144 of them — the flat {@code .slot(n)}/{@code .use(n)} fields are gone
-     * (D-013's hard cut), and the reads/verb live on the Slot object itself.
+     * Build a char namespace for owner. From installHafen. <b>The section object IS the bar</b> (uniform
+     * grammar §2.1): {@code hafen.actionbar()} is the {@link LuaCollection} of all 144 slots and
+     * {@code hafen.actionbar():get(n)} is one {@link LuaSlot} by its raw game index; the reads and the two
+     * gated verbs live on the Slot object itself.
      */
     static void installActionbar(LuaTable hafen, final Addon owner) {
-        hafen.set("actionbar", LuaSlot.factory(owner));
+        Section.mount(hafen, "actionbar", LuaSlot.collection(owner),
+                      "hafen.actionbar(n) is now hafen.actionbar():get(n), and hafen.actionbar() is"
+                      + " hafen.actionbar():list()");
     }
 
     // ------------------------------------------------------------- items / char / party reads
@@ -1549,8 +1554,8 @@ final class CharApi {
     // 0 offline, -1 hearth-secret-only) that we expose as a boolean (online == 1) — the common "is this
     // kin online" question; the group index maps to a fixed colour palette (BuddyWnd.gc).
     //
-    // Since 020-kin-oop the Lua-facing surface is OOP and lives in LuaKin (hafen.kin() = the roster,
-    // hafen.kin(idOrName) = an interned Kin object, gated verbs on the object). What stays HERE is the
+    // Since 020-kin-oop the Lua-facing surface is OOP and lives in LuaKin (hafen.kin() = the roster
+    // collection, :get(idOrName) = an interned Kin object, gated verbs on the object). What stays HERE is the
     // plumbing LuaKin and the KinAdapter share: the buddywnd() resolve funnel, the kinSnapshot() escape
     // hatch (kin:info()) and the snapshot diff that drives KinChanged.
 

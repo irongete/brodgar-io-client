@@ -29,8 +29,9 @@ import java.util.Map;
  * A <b>Sound object</b> — one client sound effect, addressed by its <b>resource name</b> (spec
  * {@code 024-audio-oop}), the OOP successor of the flat fire-and-forget {@code hafen.sound.play(res)}. Built on
  * exactly the mechanism {@link LuaGob} (017), {@link LuaKin} (020), {@link LuaSlot} (021) and
- * {@link LuaPagina} (023) established; <b>arity is the verb on the namespace itself</b>:
- * {@code hafen.sound(name)} is one Sound.
+ * {@link LuaPagina} (023) established; <b>the section object IS the collection</b> (uniform grammar §2.1):
+ * {@code hafen.sound():get(name)} is one Sound and {@code hafen.sound():list()} is what this addon still has
+ * in the air.
  *
  * <p><b>The key is a resource name and nothing else</b> — {@code "sfx/msg"} — and, unlike every prior section,
  * there is <b>no catalogue behind it</b>: sound resources are not enumerable, so a Sound simply <i>exists on
@@ -56,7 +57,7 @@ import java.util.Map;
  * <p><b>Userdata + per-addon interning</b> (D-017 / D-045), identical to the prior sections: the handle
  * crosses as {@code LuaValue.userdataOf(luaSound, mt)} so Lua cannot scribble on it, and the {@link Cache} on
  * the owning {@link Addon} (weak values + a {@link ReferenceQueue} drained on every access) makes
- * {@code hafen.sound("sfx/msg") == hafen.sound("sfx/msg")} and {@code seen[sound] = true} reliable. Never
+ * {@code :get("sfx/msg") == :get("sfx/msg")} and {@code seen[sound] = true} reliable. Never
  * static: no Lua value crosses a sandbox boundary and the cache dies whole with the {@link Addon} on
  * {@code :reload}.
  *
@@ -68,7 +69,7 @@ import java.util.Map;
  * to the same playback state. {@code :stop()} and {@code :playing()} are pure engine surface (no core edit):
  * {@code ActAudio.RootChannel.remove(cs)} stops, {@code mixer().playing(cs)} tests. There is no end-of-clip
  * callback and none is needed — {@code Audio.Mixer.get} drops a drained clip <b>lazily</b>, so asking is also
- * how a Sound prunes its own list. {@code hafen.sound()} (no argument) is that prune across the whole map: the
+ * how a Sound prunes its own list. {@code :list()} is that prune across the whole map: the
  * addon's still-playing Sounds, and only the addon's — the client's own blips share the {@code aui} channel but
  * are not ours to enumerate or stop.
  *
@@ -122,7 +123,7 @@ public final class LuaSound {
         /**
          * The addon's <b>playback state</b>, keyed by resource name — the clips in the air plus the plays still
          * resolving. Deliberately here and not on the handle: the handles are weak, so a Sound Lua has dropped
-         * (or re-fetched) must not lose track of what it started. Insertion-ordered, so {@code hafen.sound()}
+         * (or re-fetched) must not lose track of what it started. Insertion-ordered, so {@code :list()}
          * lists in the order the addon started them; entries are dropped as they drain.
          */
         private final Map<String, Live> sounding = new LinkedHashMap<String, Live>();
@@ -174,20 +175,19 @@ public final class LuaSound {
         }
 
         /**
-         * {@code hafen.sound()}: the addon's still-playing Sounds as a 1-based array, pruning as it goes — so
-         * the same call that counts them is the call that drains the drained ones.
+         * {@code hafen.sound():list()}: the addon's still-playing Sounds, pruning as it goes — so the same
+         * call that counts them is the call that drains the drained ones.
          */
-        synchronized LuaValue array() {
-            LuaTable t = new LuaTable();
-            int n = 0;
+        synchronized List<LuaValue> members() {
+            List<LuaValue> out = new ArrayList<LuaValue>();
             for(Iterator<Map.Entry<String, Live>> i = sounding.entrySet().iterator(); i.hasNext();) {
                 Map.Entry<String, Live> e = i.next();
                 if(prune(e.getValue()))
-                    t.set(++n, of(e.getKey()));
+                    out.add(of(e.getKey()));
                 else
                     i.remove();
             }
-            return t;
+            return out;
         }
 
         /** Teardown: silence everything this addon left in the air (disable / {@code :reload}). */
@@ -361,7 +361,7 @@ public final class LuaSound {
     private static LuaSound handle(LuaValue self, String method) {
         LuaSound h = resolve(self);
         if(h == null)
-            throw new LuaError("sound:" + method + "() — use a COLON call on a Sound object (hafen.sound(name))");
+            throw new LuaError("sound:" + method + "() — use a COLON call on a Sound object (hafen.sound():get(name))");
         return h;
     }
 
@@ -392,7 +392,7 @@ public final class LuaSound {
      * A no-op before the UI/session exists.
      *
      * <p>The resulting clip is <b>registered on the owner's {@link Live} state for this name</b> before it goes
-     * to the mixer, which is what makes {@code :stop()}/{@code :playing()}/{@code hafen.sound()} possible at
+     * to the mixer, which is what makes {@code :stop()}/{@code :playing()}/{@code :list()} possible at
      * all. Because the resolve lands later, the play carries the {@link Live#gen} it started under: a
      * {@code :stop()} in between bumps that stamp and the clip is dropped instead of blipping (024.2).
      */
@@ -437,37 +437,43 @@ public final class LuaSound {
         }, null);
     }
 
-    // ---- the namespace -----------------------------------------------------------------------------
+    // ---- the collection ----------------------------------------------------------------------------
 
     /**
-     * {@code hafen.sound} itself: a <b>callable table</b> ({@code __call}) taking the resource name, so the old
-     * flat {@code hafen.sound.play(name)} reads as plain {@code nil} — the hard cut (D-013) is visible from
-     * Lua, exactly as {@code hafen.gob} (D-044), {@code hafen.actionbar} (D-057) and {@code hafen.menugrid}
-     * did it. <b>Arity is the verb</b> (D-056): {@code hafen.sound(name)} is one Sound, {@code hafen.sound()}
-     * is the array of <i>this addon's</i> still-playing Sounds (024.2) — an empty table when it has none.
+     * {@code hafen.sound()} — audio, as the {@link LuaCollection} the section object IS: {@code :get(name)}
+     * interns the Sound for a resource name (any name is addressable, whether or not it has ever played), and
+     * {@code :list(filter)} is <i>this addon's</i> still-playing Sounds (024.2), an empty array when it has
+     * none. The two halves are deliberately different sets — the game owns every clip, the addon owns only
+     * what it started — which is why there is no {@code :add} (playing is {@code s:play(volume)}) and no
+     * {@code :remove} (silencing is {@code s:stop()}).
      */
-    static LuaValue factory(final Addon owner) {
-        LuaTable sound = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.CALL, new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue key = a.arg(2);        // arg1 = the callable table itself
-                if(key.isnil())                 // hafen.sound() — the addon's own live clips, pruned as we look
-                    return owner.sounds.array();
-                if(key.isnumber())              // BEFORE isstring(): in LuaJ a number IS a string
-                    throw new LuaError("hafen.sound(name): the key is a RESOURCE NAME string (e.g."
-                        + " \"sfx/msg\"), not a number");
-                if(key.isstring()) {
-                    String res = key.tojstring().trim();
-                    if(res.isEmpty())
-                        throw new LuaError("hafen.sound(name): the resource name is empty");
-                    return of(owner, res);
-                }
-                throw new LuaError("hafen.sound(name): expected a resource name string (e.g."
-                    + " hafen.sound(\"sfx/msg\")), got " + key.typename());
+    static LuaValue collection(final Addon owner) {
+        return LuaCollection.create("hafen.sound()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                return owner.sounds.members();
             }
-        });
-        sound.setmetatable(mt);
-        return sound;
+
+            public String needle(LuaValue member) {
+                LuaSound h = resolve(member);
+                return (h == null) ? "" : h.res;
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                if(key.isnumber())              // BEFORE isstring(): in LuaJ a number IS a string
+                    throw new LuaError("hafen.sound():get(name): the key is a RESOURCE NAME string (e.g."
+                        + " \"sfx/msg\"), not a number");
+                if(!key.isstring())
+                    throw new LuaError("hafen.sound():get(name): expected a resource name string (e.g."
+                        + " hafen.sound():get(\"sfx/msg\")), got " + key.typename());
+                String res = key.tojstring().trim();
+                if(res.isEmpty())
+                    throw new LuaError("hafen.sound():get(name): the resource name is empty");
+                return of(owner, res);
+            }
+        }, null);
     }
 }

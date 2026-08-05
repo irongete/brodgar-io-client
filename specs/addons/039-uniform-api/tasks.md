@@ -405,7 +405,7 @@ layer undos) · `API.md` (`hafen.ui`, the Widget entity block) · `src/io/brodga
 
 ---
 
-## 039.9 — The six existing entity collections
+## 039.9 — The six existing entity collections ✅ DONE
 
 **Depends on:** 039.1.
 

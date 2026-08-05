@@ -114,26 +114,26 @@ itself, never an id. See [Gob](gob.md).
 
 ### Kin: a roster entry
 
-A kin is an object too, and `hafen.kin` is **callable**: the arity is the verb. `hafen.kin()` is the
-roster, an array of `Kin`; `hafen.kin(idOrName)` is one of them. A `Kin` re-reads the roster on every
-call, so a stashed one tracks renames, regroups and online flips, and `hafen.kin(7) == hafen.kin(7)`.
-`gob:kin()` and `kin:gob()` cross between the two. See [`hafen.kin`](kin.md).
+A kin is an object too, and `hafen.kin()` **is** the roster collection: `:list(filter)` is the array of
+`Kin`, `:get(idOrName)` one of them. A `Kin` re-reads the roster on every call, so a stashed one tracks
+renames, regroups and online flips, and `hafen.kin():get(7) == hafen.kin():get(7)`. `gob:kin()` and
+`kin:gob()` cross between the two. See [`hafen.kin`](kin.md).
 
 ### Slot: an action-bar slot
 
-Same pattern: `hafen.actionbar()` is all 144 slots, a 1-based array of `Slot`; `hafen.actionbar(n)` is
-the one at the **raw 0-based game index**, and `slot:index()` gives that index back from an array
+Same pattern: `hafen.actionbar():list()` is all 144 slots, a 1-based array of `Slot`, and `:get(n)` is
+the one at the **raw 0-based game index**, with `slot:index()` giving that index back from an array
 position. A stashed `Slot` goes `:empty()` the moment the slot is cleared. See
 [`hafen.actionbar`](actionbar.md).
 
-### Needle-keyed objects: Buff, Meter, Action, Sound
+### Named, and nameless: Menugrid, Sound, Buff, Meter
 
-The same callable namespace, keyed by a **string** instead of an id; the no-argument call is always the
-collection. [`hafen.buff(needle)`](buff.md) and [`hafen.meter(needle)`](meter.md) are *substring* lookups
-— the first object whose resource, or for a buff its display name, contains the needle — while
-[`hafen.menugrid(key)`](menugrid.md) and [`hafen.sound(name)`](sound.md) name one outright. Either way the
-strings are **server-published**, not keys the API defines: read them off a live client with `:res()`
-rather than trusting a list. A miss is plain `nil`, and addressing one by **position** is an error.
+[`hafen.menugrid():get(key)`](menugrid.md) names one action — a `/` makes the key a resource name,
+anything else a display name — and [`hafen.sound():get(name)`](sound.md) one clip; the strings are
+**server-published**, so read them off a live client with `:res()` rather than trusting a list.
+[`hafen.buff()`](buff.md) and [`hafen.meter()`](meter.md) carry **no `:get`** at all, because their
+members have no key: several bars can share one resource. There a name is a *search*, `:find(needle)`,
+and asking for `:get` raises an error naming it. A miss is `nil`; a **position** is an error.
 
 ### Asset: a file your addon ships
 
@@ -278,8 +278,8 @@ the sandbox's instruction watchdog aborts a runaway one.
 
 Everything in the API observes except one section, [`hafen.act()`](act.md), which **drives the
 character** by sending actions to the server. The same gate covers the per-subsystem write verbs that
-do the same thing from their own page: `hafen.speed.set`, `hafen.craft.make`, `slot:use`, `slot:set`,
-and the kin verbs `hafen.kin():add`, `kin:rename`, `kin:setGroup`, `kin:endkin` and `kin:forget`.
+do the same thing from their own page: `hafen.speed.set`, `hafen.craft.make`, `slot:use`, `slot:res(name)`,
+and the kin verbs `hafen.kin():add`, `kin:rename`, `kin:group(g)`, `kin:endKin` and `kin:forget`.
 
 A gated verb runs only if the addon **declared** `"permissions": ["actions"]` in its manifest and the
 user enabled the addon — such an addon is disabled by default, and enabling it raises a consent
