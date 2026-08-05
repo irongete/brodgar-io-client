@@ -1,0 +1,9 @@
+{
+  "name": "040.2 — the face setter, and IButton",
+  "id": "040-ui-controls.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 040.2: one builder, two engine classes, and the setter that chooses between them. It proves that widget:image(up, down[, hover]) completes hafen.ui():button() as the client's IButton -- reading :type() as IButton while the role, the parent, the coordinate, the installed :onPress handler and above all the Lua handle itself all survive the rebuild, so a fresh lookup through a selector is == to the value you were chaining onto -- that a face is one of the client's own resource names or a hafen.asset handle and anything else is refused saying which, that a face that fails to resolve is a non-event, that two faces default `hover` to the released one and the control's box is the picture, and that once the control is on screen the face is no longer a choice while a caption still is.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

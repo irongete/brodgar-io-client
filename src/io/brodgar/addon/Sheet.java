@@ -792,6 +792,21 @@ final class Sheet {
             rulesChanged();
     }
 
+    /**
+     * Move the per-instance level of one widget to the widget that replaced it — the face setter's rebuild
+     * (040.2, {@link UiApi#rebuild}), the one event in the client that swaps a live widget for another.
+     *
+     * <p>Without it a {@code widget:rule()} written before {@code :image(u, d)} would be dropped on the floor:
+     * the level is keyed on the widget object, and the rebuild makes a new one. The resolution cache entry goes
+     * rather than moves — the new widget is a different class, so what it resolves to is a different answer.
+     */
+    static synchronized void rekeyWidget(Widget from, Widget to) {
+        List<Skin> st = skins.remove(from);
+        if(st != null)
+            skins.put(to, st);
+        cache.remove(from);
+    }
+
     /** Drop every {@code widget:rule()} level {@code owner} installed (its teardown). Caller holds {@code Sheet.class}. */
     private static boolean dropSkins(Addon owner) {
         boolean rm = false;

@@ -17,7 +17,7 @@
       `[manual]`: press it and read the printed line; confirm it looks like the client's own button.
       <!-- extra context: `src/haven/Button.java`, `src/haven/SIWidget.java` -->
 
-- [ ] **040.2 — The face setter, and `IButton`.** `:image(up, down [, hover])` on `:button()`, completing it
+- [x] **040.2 — The face setter, and `IButton`.** `:image(up, down [, hover])` on `:button()`, completing it
       as an `IButton`: the pending-rebuild rule (D-113 × D-121) — legal while the surface is pending, refused
       once armed, naming that a face is chosen while the control is built. Faces take `hafen.asset` handles
       and engine resource names. **Suite proves**: `:image` before arming swaps the class (`:type()` is

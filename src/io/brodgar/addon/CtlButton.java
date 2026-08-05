@@ -22,7 +22,9 @@ import org.luaj.vm2.LuaValue;
  *   <li><b>One override per Lua callback the engine wants as an override.</b> Here that is {@link #click()},
  *       {@link Button}'s own activation — which fires from the keyboard as well as the mouse, and which
  *       {@code Button.mouseup} calls <i>last</i>, after releasing its grab, so an {@code :onPress} that destroys
- *       its own window is safe.</li>
+ *       its own window is safe. The slot itself is published as {@link Controls.Press}, so the verb dispatches on
+ *       the capability rather than on this class — {@link CtlIButton} is the second button and shares no ancestor
+ *       with this one below {@code Widget}.</li>
  *   <li><b>The two overrides every adapter owes the engine rather than Lua</b>: {@link #draw(GOut)} skips the
  *       paint while the control is still {@link Owned#pending() pending}, so a control configured across five
  *       lines is never drawn half-built; and {@link #resize(Coord)} calls {@code redraw()}, because
@@ -40,7 +42,7 @@ import org.luaj.vm2.LuaValue;
  * overrides {@code click()} outright, so a control is client-side by construction and acting on the game stays
  * the gated {@code hafen.act} tier.
  */
-final class CtlButton extends Button implements Owned.Control {
+final class CtlButton extends Button implements Owned.Control, Controls.Press {
     /** The client's own look with no caption: a plain button, at a width {@code :size(w, h)} overrides. */
     static final int DEF_W = 100;
 
@@ -61,11 +63,11 @@ final class CtlButton extends Button implements Owned.Control {
     }
 
     /** The installed {@code :onPress} handler, or {@code null} — what {@code b:onPress()} reads back. */
-    LuaValue onPress() {
+    public LuaValue onPress() {
         return onPress;
     }
 
-    void onPress(LuaValue fn) {
+    public void onPress(LuaValue fn) {
         this.onPress = fn;
     }
 

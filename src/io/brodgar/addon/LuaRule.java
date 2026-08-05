@@ -124,6 +124,18 @@ public final class LuaRule {
                 mt = buildMeta(owner);
             return mt;
         }
+
+        /**
+         * Move an interned widget Rule to the widget that replaced it (040.2, {@link UiApi#rebuild}). The
+         * {@link LuaRule} itself needs no fixing — it holds the {@link LuaWidget} <b>handle</b> and resolves it
+         * at every read and write, so re-pointing the handle already re-aimed it — but the entry has to follow,
+         * or {@code w:rule()} would mint a second Rule object for what is still one widget's one level.
+         */
+        synchronized void rekey(Widget from, Widget to) {
+            WeakReference<LuaValue> r = live.remove(from);
+            if((r != null) && (r.get() != null))
+                live.put(to, r);
+        }
     }
 
     // ---- the binding: where this level's properties actually live ----------------------------------

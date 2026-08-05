@@ -32,7 +32,7 @@ control with nothing added: `:type()`, `:role()`, `:position(x, y)`, `:size(w, h
 
 | Verb | Returns | The control |
 |---|---|---|
-| `hafen.ui():button()` | [Widget](widget.md) | a push button, at the client's own button height |
+| `hafen.ui():button()` | [Widget](widget.md) | a push button, showing a caption or a picture |
 
 It takes no argument. A control is born bare, with the client's own defaults, and everything about it is a
 chained setter on the Widget it hands back — the same shape [`:window()` and `:widget()`](custom.md) have,
@@ -46,6 +46,7 @@ where the control hangs while it is being built, and once it is on screen the wa
 | Setter | Read | Meaning |
 |---|---|---|
 | `:text(s)` | `:text()` | the caption the control displays |
+| `:image(up, down [, hover])` | `:image()` | the pictures the control shows instead of a caption |
 | `:onPress(fn)` | `:onPress()` | `fn()` — the button fired |
 
 Every setter returns the Widget, so a control is one expression, and every one has a matching bare read.
@@ -58,7 +59,39 @@ destroy the window the button is sitting in.
 
 **Sizing.** `:size(w, h)` sets the box like anywhere else, in raw pixels. A bare button already comes at the
 client's own button height, so setting only a width you like and leaving the height alone is usually what
-you want — and a caption wider than the box is drawn clipped, not wrapped.
+you want — and a caption wider than the box is drawn clipped, not wrapped. A button with a picture comes at
+the size of that picture and normally wants no `:size` at all.
+
+## A caption or a picture
+
+A button shows text, or it shows pictures, and the setter you use is what decides:
+
+```lua
+hafen.ui():button():text("Go")                     -- a captioned button
+hafen.ui():button():image(up, down, hover)         -- the same builder, a picture button
+```
+
+Two faces or three. `up` is what the button shows at rest, `down` while it is held, and `hover` the one
+under the cursor; leave `hover` out and it is the same picture as `up`. Each face is either an
+[image asset](../asset.md) your addon ships, passed as the handle, or a **string naming one of the client's
+own images** — `"gfx/hud/buttons/addu"`, the very art the game's own windows are built from. Where the
+picture comes from also decides how it is scaled: a file of yours is drawn at its own pixels, and the
+client's art is scaled the way the client scales it, so a button made of game art matches the buttons
+beside it.
+
+```lua
+local up, down = hafen.asset():get("up.png"), hafen.asset():get("down.png")
+hafen.ui():button():parent(win):position(8, 8):image(up, down):onPress(refresh)
+```
+
+> **A face is chosen while the control is being built** — like `:parent(w)`, and unlike every other setter
+> here. The client draws a captioned button and a picture button with two *different* widgets, so choosing
+> pictures chooses which widget this is; once the control is on screen `:image` refuses, saying so. A
+> caption is not a face: `:text(s)` rewrites one at any time.
+
+The bare `:image()` reads the faces back as `{ up =, down =, hover = }`, exactly as you named them, and
+`nil` on a control that shows no picture. `:type()` tells the two buttons apart — `"Button"` and
+`"IButton"` — while `:role()` is `button` for both, so one selector still finds every button you built.
 
 ## What a control does not take
 
@@ -72,8 +105,8 @@ from the [stylesheet](style/README.md), not from a font handle you hand the widg
 
 A control your addon built is [owned](widget.md#owned-vs-borrowed): the setters answer, `:destroy()` ends
 it, and a `:reload` or a disable removes it for you. The client's own buttons are **borrowed** — the reads
-answer, and `:text(s)`, `:onPress(fn)` and `:destroy()` refuse, naming what to do instead. `:info().owned`
-is how you ask rather than provoke the error.
+answer, and `:text(s)`, `:image(…)`, `:onPress(fn)` and `:destroy()` refuse, naming what to do instead.
+`:info().owned` is how you ask rather than provoke the error.
 
 Provenance comes from the tree, so a control you find again with `hafen.ui():at(x, y)` or a selector is the
 same object the builder returned, writes and all.

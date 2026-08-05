@@ -27,7 +27,7 @@ points you back here.
 
 | Extensions | `a:type()` | What you get | Use it with |
 |---|---|---|---|
-| `.png` `.jpg` `.jpeg` `.gif` `.bmp` | `"image"` | a GPU texture, alpha preserved | [`g:image`/`g:aimage`](ui/drawing.md), [a sprite](render/sprites.md) |
+| `.png` `.jpg` `.jpeg` `.gif` `.bmp` | `"image"` | a GPU texture, alpha preserved | [`g:image`/`g:aimage`](ui/drawing.md), [a sprite](render/sprites.md), [a button's face](ui/controls.md#a-caption-or-a-picture) |
 | `.ttf` `.otf` | `"font"` | a [`FontHandle`](font.md) whose family is registered, so `$font[…]` works | [`font =`](font.md#draw-with-it), [`rule:font`](ui/style/README.md), [`widget:rule()`](ui/style/README.md#restyle-one-widget) |
 | `.glb` `.gltf` | `"mesh"` | parsed glTF 2.0 static geometry and its textures | [an object](render/models.md) |
 | `.json` `.txt` | `"data"` | the file's **text**, read as UTF-8 | [`hafen.json():parse`](json.md), and anything else that takes a string |

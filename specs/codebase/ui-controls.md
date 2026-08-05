@@ -37,6 +37,18 @@ Every control whose face is a picture (`Button`, `IButton`, `CheckBox`, `ICheckB
 An **empty caption is safe**: [`Text.Foundry.render`](src/haven/Text.java:226) widens a zero-width string to
 1 px before allocating the buffer, so a button built with `""` does not blow up on `new BufferedImage(0, …)`.
 
+## `IButton`, and where a face comes from
+
+[`IButton`](src/haven/IButton.java:32) — the picture push button. Its faces are **`final`**
+([:33](src/haven/IButton.java:33)) and its box is `Utils.imgsz(up)`: a face is chosen at construction, never after.
+
+| What | Where |
+|---|---|
+| The faces, and the two-image default | [`IButton(up, down)`](src/haven/IButton.java:72) → `hover = up`; the three-image form is [:67](src/haven/IButton.java:67) |
+| Activation, and the server-sending default | [`click()`](src/haven/IButton.java:111) runs `action` and [`gkeytype`](src/haven/IButton.java:116) calls it too — the ctors without a `Runnable` ([:67](src/haven/IButton.java:67), [:80](src/haven/IButton.java:80)) set `action = () -> wdgmsg("activate")`; the `Runnable` overload ([:59](src/haven/IButton.java:59)) does not |
+| The hit test reads PIXELS | [`checkhit`](src/haven/IButton.java:103) bounds the point by **`sz`** and then samples `up`'s alpha there, so a box wider than the picture samples off the raster and throws **from the input pass** |
+| A face from the game's own art | [`Resource.loadrimg`](src/haven/Resource.java:2050) = `local().loadwait(name).layer(imgc)`, **null** when the resource has no image layer; [`loadsimg`](src/haven/Resource.java:2058) is that plus `.scaled()` (the UI scale: 56×56 art reads 14×14 at the default). A name that does not exist throws `Resource.NoSuchResourceException` — on the **local** pool in ~10 ms, so it is safe on the UI thread |
+
 ## A native control that is always in the tree
 
 [`Window.DefaultDeco.cbtn`](src/haven/Window.java:195) — the close box, a real `IButton` added by the deco

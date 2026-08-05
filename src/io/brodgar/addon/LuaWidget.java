@@ -150,6 +150,31 @@ public final class LuaWidget {
                 mt = buildMeta(owner);
             return mt;
         }
+
+        /**
+         * <b>Re-point this addon's handle from one widget to the widget that replaced it</b> — the face setter's
+         * rebuild (040.2, {@link UiApi#rebuild}), and the one thing that may ever move an entry in this map.
+         *
+         * <p>It is the {@link #wdg} field that matters: {@code hafen.ui():button()} handed a userdata to Lua, the
+         * author is chaining setters onto it, and the widget under it is being swapped mid-statement. Re-pointing
+         * the field keeps that value <i>the same object</i>, so {@code ==} still holds and the very next verb in
+         * the chain addresses the new widget; moving the map entry keeps the intern promise, so a fresh lookup of
+         * the new widget through any other door hands back that same value rather than minting a second one.
+         *
+         * <p>A collected (or never-minted) entry is nothing to move: the next lookup mints one on the new widget,
+         * which is the same answer. Other addons' caches are deliberately untouched — one of them holding the old
+         * widget sees it go stale, which is exactly what happened to it.
+         */
+        synchronized void rekey(Widget from, Widget to) {
+            WeakReference<LuaValue> r = live.remove(from);
+            LuaValue v = (r == null) ? null : r.get();
+            if(v == null)
+                return;
+            LuaWidget h = resolve(v);
+            if(h != null)
+                h.wdg = to;
+            live.put(to, r);
+        }
     }
 
     // ---- the Widget metatable ----------------------------------------------------------------------
@@ -633,6 +658,32 @@ public final class LuaWidget {
                 if(!v.isfunction())
                     throw new LuaError("widget:onPress(fn) expects a function, got " + v.typename());
                 Controls.onPress(owned(owner, w, "onPress(fn)"), w, v);
+                return self;
+            }
+        });
+        // image(up, down[, hover]) / image() — 040.2: THE FACE SETTER, and the second engine class behind one
+        // builder. hafen.ui():button():text("Go") completes as a Button and :image(u, d) as an IButton, because
+        // they are one control to an author and two widgets to the client; the I prefix is the client's own
+        // implementation detail and stays out of the vocabulary (D-061), while :type() still reads "IButton" for
+        // whoever wants the engine's name. Two or three faces, `hover` defaulting to `up` as the engine's own
+        // two-argument constructor does. Each face is a hafen.asset handle (your file, at its own pixels) or a
+        // string naming one of the CLIENT's resources ("gfx/hud/buttons/addu", taken scaled like every IButton
+        // the client builds) -- the one place in the API where a string is not a path the loader refuses.
+        //   Building-only, like :parent(w) and for a sharper reason: an IButton's faces are final and its box is
+        // the picture, so this is not a property of a button but WHICH button it is. While the control is still
+        // pending the widget is rebuilt under the same Lua handle; once armed it is refused, naming that a face
+        // is chosen while the control is built. A CAPTION is not a face: :text(s) is live at any time.
+        //   The read hands back { up =, down =, hover = } exactly as they were named -- and nil on a control that
+        // has no face, like the captioned button it might have become instead.
+        m.set("image", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:image() → narg 1 · w:image(u, d[, h]) → narg 3/4
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "image"));
+                if(!Args.passed(a, 2))
+                    return Controls.faces((w == null) ? null : ownedContent(owner, w));
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                Controls.image(owner, w, owned(owner, w, "image(up, down)"), a);
                 return self;
             }
         });

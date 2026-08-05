@@ -620,3 +620,31 @@
   pending) lives in one small holder the adapter keeps as a field, and the contract's methods are `default`
   implementations over it (Java 8 allows them at `source 1.8`). An adapter's whole ownership boilerplate is
   then a field and a getter, which is what keeps "one adapter per control" from meaning thirty lines each.
+- **(040.2) `IButton.checkhit` reads PIXELS, and it bounds the point by `sz` rather than by the picture.** It
+  checks `c.isect(Coord.z, sz)` and then samples the up image's alpha raster at `c` — fine in the engine,
+  where nothing ever resizes an `IButton`, and an exception raised **from the input pass on a mouse move**
+  the moment an API hands out `:size(w, h)`. The adapter overrides `checkhit` to bound by the face it was
+  built with. The general shape: a hit test that indexes an array is a crash the *caller* can cause, so an
+  adapter that widens who can call it owns the bound.
+- **(040.2) `Utils.imgsz` is package-private, and the widget's own `sz` after `super(...)` is the same value.**
+  An adapter in `io.brodgar.addon` cannot call it; `IButton`'s constructor already passed it to `super`, so
+  reading `sz` in the adapter's own constructor costs nothing and needs no core edit. (Compile-time only, but
+  it is the sort of thing that invites a pointless `// addon:` widening.)
+- **(040.2) Replacing a live widget means moving every map keyed on it — enumerate them, do not wait for the
+  symptom.** The face setter swaps a `Button` for an `IButton` under the same Lua handle, and four maps are
+  keyed on the widget object: the per-addon Widget intern cache (whose `wdg` field must ALSO be re-pointed,
+  or the value the author is chaining goes stale mid-statement), the per-addon `widget:rule()` Rule cache, the
+  per-widget style level in the sheet, and the sheet's resolution cache (which is dropped, not moved — the
+  new widget is a different class and resolves differently). A `LuaRule` needed no fixing because it holds
+  the *handle* and resolves it at every read, which is the property that made re-pointing the field enough.
+- **(040.2) A suite that has to observe the ARMING boundary needs two phases, and a timer is the whole
+  mechanism.** Everything a slash command builds is still pending when the command returns — the arming tick
+  has not run — so "refused once it is on screen" cannot be asserted in the same pass that builds it.
+  `hafen.timer():after(0.5, phase2)` with the summary printed at the end of phase 2 is the shape; nothing
+  about it needs a schedule between suites (035.3's rule stands: no suite starts itself).
+- **(040.2) `Resource.loadrimg(name)` on the LOCAL pool fails fast, so it is safe on the UI thread.** A
+  missing name raises `Resource.NoSuchResourceException` in ~10 ms (jar source then file source, both miss);
+  it is `loadwait`, so a *remote* name would be a different story. `.layer(imgc)` can also answer **null**
+  for a resource with no image layer — that is a null check, not an exception, and a `.scaled()` on it is the
+  NPE. Measured headlessly before shipping the verb, precisely because "the client hangs on a typo" is the
+  failure this would have had.

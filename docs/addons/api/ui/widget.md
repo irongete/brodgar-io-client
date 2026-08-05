@@ -57,6 +57,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:size()` | `{x=, y=}` | size; for a window its **outer** box |
 | `:visible()` | boolean | whether it is visible — [`:visible(b)` writes it](native.md) |
 | `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, Window, TextEntry), else `nil` — [`:text(s)` writes it on a control you built](controls.md#setters) |
+| `:image()` | table \| nil | the faces of a [control](controls.md#a-caption-or-a-picture) that shows pictures, as `{up=, down=, hover=}`, else `nil` |
 | `:onPress()` | function \| nil | the handler on a [control](controls.md#setters) that fires, or `nil` where there is nothing to press |
 | `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
@@ -99,6 +100,7 @@ the error.
 | `:pack()` | shrink the chrome to fit its content (a no-op on a bare widget), and chain | **error** — that is not yours to do |
 | `:destroy()` | remove it and everything in it | **error**, same reason |
 | `:text(s)` | write the caption of a [control](controls.md) you built | **error** — that caption is the client's |
+| `:image(up, down [, hover])` | give a [control](controls.md#a-caption-or-a-picture) you are building its pictures | **error**, same reason |
 | `:onPress(fn)` | handle a [control](controls.md) firing | **error**, same reason |
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |

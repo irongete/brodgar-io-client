@@ -567,6 +567,50 @@ final class UiApi {
         return LuaWidget.of(owner, rootw);
     }
 
+    /**
+     * <b>Replace one owned widget with the widget it becomes</b> — the face setter's rebuild (040.2): the same
+     * control, the same Lua handle, a different {@code haven} class. {@code hafen.ui():button():image(u, d)} has
+     * to hand back an {@link haven.IButton} where a {@code Button} stood, because the two are different widgets
+     * to the client and one control to the author, and an {@code IButton}'s faces are {@code final}.
+     *
+     * <p><b>What moves is everything keyed on the old widget</b>, and that list is the whole reason this is one
+     * method rather than five lines at the call site: its place in the tree (parent, coordinate, visibility), its
+     * entry in the owned registry teardown walks, its slot in the arming queue, this addon's interned Widget
+     * handle — <i>so the Lua value the author is chaining stays {@code ==} itself across the swap</i> — the Rule
+     * object {@code widget:rule()} interned on it, and the per-instance style level that rule installed. Anything
+     * left behind would fail silently and late: a style that stopped applying, a handle that went stale
+     * mid-statement, a control teardown no longer reaches.
+     *
+     * <p><b>Legal only while the control is pending</b>, which the caller has already checked — that is what
+     * makes the swap invisible: no frame has drawn the old widget, and no other addon can have seen it, because
+     * one Lua statement runs to its end before anything else does.
+     *
+     * <p>The old widget is killed rather than merely unlinked, so its cached face texture is released with it.
+     * The new one keeps the place the old one was given, so a {@code :position(x, y)} before the face setter and
+     * one after it mean the same thing. Its SIZE is the picture's, deliberately: an image button <i>is</i> its
+     * image, and a box wider than the face would draw the picture in a corner of empty space.
+     */
+    static void rebuild(Addon owner, Owned old, Owned neu) {
+        UI u = ui;
+        Widget oldw = old.rootw(), neww = neu.rootw();
+        synchronized(u) {
+            Widget parent = oldw.parent;
+            Coord at = oldw.c;
+            boolean shown = oldw.visible();
+            old.kill();                       // unlink + dispose: the old face texture goes with it
+            if(!shown)
+                neww.hide();
+            ((parent != null) ? parent : u.root).add(neww, at);
+        }
+        owner.widgets.remove(old);
+        owner.widgets.add(neu);
+        dropPending(old);
+        synchronized(unarmed) { unarmed.add(neu); }
+        owner.widgetObjs.rekey(oldw, neww);   // the Lua handle follows the widget it names...
+        owner.styleRules.rekey(oldw, neww);   // ...and so does the Rule object interned on it...
+        Sheet.rekeyWidget(oldw, neww);        // ...and the level that rule installed
+    }
+
     // ---------------------------------------------------- the arming tick (039.6, spec 039-uniform-api §2.5)
 
     /** The client's own defaults for a bare surface: what a window is before any setter touches it. */

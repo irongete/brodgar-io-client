@@ -792,3 +792,43 @@ this refusal, so wiring it later needs no edit to a shipped suite — which is t
 sit in the tree without rotting. Generally: *record the boundary you shipped even when the design says it will
 move, and leave the assertion out of the suite exactly where you expect it to.*
 **See.** [D-144](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-148 — a builder with two engine classes behind it picks one with a SETTER, and rebuilds while pending ✅ (2026-08-05)
+**Decision.** `hafen.ui():button()` is one builder; `:text(s)` completes it as a `Button` and
+`:image(up, down[, hover])` as an `IButton`. The face setter is legal exactly while the control is still
+pending and refused once it is armed, naming that a face is chosen while the control is built. The rebuild
+moves **everything keyed on the old widget** in one place — its parent and coordinate, its visibility, its
+entry in the owned registry, its slot in the arming queue, the interned Widget handle (so the Lua value being
+chained stays `==` itself), the interned `widget:rule()` Rule and the per-instance style level that rule
+installed — and every face is resolved *before* anything is replaced, so a bad one is a non-event. The
+rebuilt control's size is its picture; the caption setter stays live, because `Button.change` is live.
+**Rationale.** (2026-08-05, 040.2.) `Button` and `IButton` are one control to an author and two classes to
+the client, and the `I` prefix is an implementation detail that must not reach the vocabulary (D-061). An
+`IButton`'s faces are `final` and its box is the picture, so a face is not a property of a button — it is
+*which widget this is*, which is D-113 landing inside D-119's arming window, the same shape `:parent(w)`
+already has (D-121). The alternative, one builder per engine class, was rejected in the spec; the other
+alternative, deferring construction until the first setter, is what D-119 already ruled out.
+**Consequences.** The swap is invisible from Lua and the suite pins that: the handle is still live, still
+owned, still placed, and a fresh selector lookup interns to the *same* value. The list of things that move is
+the danger — anything forgotten fails silently and late (a style level that stopped applying, a handle that
+went stale mid-statement), so it lives in one method rather than at the call site. Generally: *when a
+mechanism replaces an object the rest of the system has keyed maps on, the move is one function, and its
+correctness is the enumeration of those maps.*
+**See.** [D-113](architecture-api.md), [D-119](architecture-api.md), [D-121](widgets-ui.md),
+[040-ui-controls](../040-ui-controls/spec.md).
+
+### D-149 — a control's face is an asset handle OR the client's own resource name ✅ (2026-08-05)
+**Decision.** Each face of `widget:image(…)` is either a `hafen.asset` image handle (the addon's own file,
+drawn at its own pixels) or a **string naming one of the client's resources** (`"gfx/hud/buttons/addu"`,
+taken `scaled()`). A string that looks like a file (`"up.png"`) is refused naming `hafen.asset`; an unknown
+resource name is refused where it was written.
+**Rationale.** (2026-08-05, 040.2.) Everywhere else in the API a path string is refused with "load it through
+`hafen.asset` and pass the handle" (D-012, one flow). This is not that string: it names the *game's* art,
+which no loader of the addon's own can reach, and it is how the client itself builds every one of its
+buttons — so refusing it would remove the only way to make a control that matches the art beside it. The two
+sources also differ in scaling, which is the honest reason they are not interchangeable spellings of one
+thing: a file of the addon's is raw pixels (D-081) and the client's art is UI-scaled.
+**Consequences.** One verb takes two argument shapes, which the page states in one sentence each, and the
+near-miss between them is refused by name rather than as "no such resource". Generally: *two sources are one
+argument only when the page can say what each one means in a sentence; otherwise they are two verbs.*
+**See.** [D-012](architecture-api.md), [D-081](widgets-ui.md), [040-ui-controls](../040-ui-controls/spec.md).
