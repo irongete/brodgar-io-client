@@ -14,11 +14,11 @@ widget, [a world sprite](../render/sprites.md), and a stylesheet's `bg = { image
 
 ```lua
 local g = hafen.map():grid():get(hafen.player():gob():position():info().gridId)
-hafen.ui():window():title("Here"):size(100, 100)
-  :onDraw(function(gc)
-    local img = g:image(0)                    -- nil while it renders; ask again next frame
-    if img then gc:image(img, 0, 0) end
-  end)
+local win = hafen.ui():window():title("Here"):size(100, 100)
+win:on("Draw", function(ev)
+  local img = g:image(0)                    -- nil while it renders; ask again next frame
+  if img then ev:g():image(img, 0, 0) end
+end)
 ```
 
 ## The first call renders, and answers nil

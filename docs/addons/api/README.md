@@ -64,7 +64,7 @@ you came for from the tables below. Every page in the tree is listed here.
 | [display controls](ui/controls/display.md) | a label, a picture, a separator and a progress bar |
 | [interactive controls](ui/controls/interactive.md) | a button, a text entry, a checkbox, a radio, a slider, a scroll and a scrollbar |
 | [lists](ui/lists.md) | a list, dropdown or menu of rows, and the row source they share with a radio |
-| [the Widget object](ui/widget.md) | what every widget answers, and which writes owned and borrowed ones take |
+| [the Widget object](ui/widget.md) | what every widget answers, which writes owned and borrowed ones take, subscribing on one, and the mouse and its grab |
 | [selectors](ui/selectors.md) | naming a widget: the grammar, roles, hit-testing, and the inspector |
 | [items](ui/items.md) | the items inside a container, while the window stays live |
 | [native widgets](ui/native.md) | placing and hiding the client's own widgets, and the restore that comes with it |
@@ -97,12 +97,6 @@ you came for from the tables below. Every page in the tree is listed here.
 | [`hafen.render`](render/README.md) | the hub: the two collections that stand your own images and models in the world |
 | [sprites](render/sprites.md) | a PNG in the world: fixed or camera-facing, clickable, anchored |
 | [models](render/models.md) | a glTF model: the subset that loads, the object's verbs, and clicks |
-
-## Intercepting what the client does
-
-| Page | What it holds |
-|---|---|
-| [`hafen.hook`](hook.md) | pre-hooks over input, actions and server messages, each one cancellable |
 
 ## The client itself
 

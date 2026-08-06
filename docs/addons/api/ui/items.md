@@ -56,32 +56,35 @@ empty, because where it is is exactly what it no longer has.
 
 ## The container lifecycle
 
-Three subscriptions on the container itself. All chain, and passing `nil` unsubscribes.
+Two keys on the container itself, through the same [`:on(key, fn)`](widget.md#subscribing) every widget
+answers — plus `Destroy`, universal to any widget, worth re-stating here because a container closing is
+usually the reason to hold one.
 
-| Method | Description |
-|---|---|
-| `:onItemAdded(fn)` | `fn(item)` when an item enters this container |
-| `:onItemRemoved(fn)` | `fn(item)` when one leaves |
-| `:onDestroy(fn)` | `fn()` once, when this widget leaves the tree |
+| Key | handler receives | Fires |
+|---|---|---|
+| `ItemAdded` | [`Item`](#the-item-object) | an item enters this container |
+| `ItemRemoved` | [`Item`](#the-item-object) | one leaves |
+| `Destroy` | — | this widget leaves the tree |
 
 ```lua
 local chest = hafen.ui():find("window[title=Chest]")
 local function label(item) return item:name() or item:res() or "?" end
-chest:onItemAdded(function(item)   hafen.log():write("in:  " .. label(item)) end)
-     :onItemRemoved(function(item) hafen.log():write("out: " .. label(item)) end)
-     :onDestroy(function() hafen.log():write("chest closed") end)
+chest:on("ItemAdded",   function(item) hafen.log():write("in:  " .. label(item)) end)
+chest:on("ItemRemoved", function(item) hafen.log():write("out: " .. label(item)) end)
+chest:on("Destroy",     function() hafen.log():write("chest closed") end)
 ```
 
 **The subscription is the registration.** A container nobody subscribed to is never polled, so leaving
-`:items()` alone costs nothing, and dropping the last callback takes the widget out of the poll entirely.
-There is no `:watch()`/`:unwatch()` pair because there is nothing extra to say.
+`:items()` alone costs nothing, and dropping the last subscription on `ItemAdded`/`ItemRemoved` takes the
+widget out of the poll entirely. There is no separate watch/unwatch pair because there is nothing extra to
+say.
 
 An item entering or leaving is a widget create or destroy rather than a server message, so these are
 detected on a per-tick diff. Two consequences are worth knowing: the items **already** inside a container
-fire `onItemAdded` on the first poll after you subscribe, so the state arrives as events the way
+fire `ItemAdded` on the first poll after you subscribe, so the state arrives as events the way
 [`BuffAdded`](../event.md#character-and-status) does; and a container that is hidden still
 fires them, which is why you can [hide a grid](native.md) and keep reading it. The item handed to
-`:onItemRemoved` is the same object the add reported, so it is worth keeping — it answers after it has
+`ItemRemoved` is the same object the add reported, so it is worth keeping — it answers after it has
 left. Worn equipment additionally has the global
 [`EquipChanged`](../event.md#character-and-status) event, which carries the whole new list.
 

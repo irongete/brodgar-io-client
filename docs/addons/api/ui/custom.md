@@ -12,10 +12,12 @@ local win = hafen.ui():window()
   :title("Clock")
   :size(160, 40)
   :position(50, 50)
-  :onDraw(function(g, w, h)
-    g:color(255, 255, 0)
-    g:text(string.format("%.0f", hafen.time():clock() or 0), 6, 12)
-  end)
+
+win:on("Draw", function(ev)
+  local g = ev:g()
+  g:color(255, 255, 0)
+  g:text(string.format("%.0f", hafen.time():clock() or 0), 6, 12)
+end)
 
 win:position(320, 200)                        -- the same object hafen.ui():at() would give you
 ```
@@ -37,26 +39,31 @@ size it did not choose — and every property is a setter on the [Widget](widget
 | `:position(x, y)` | `:position()` | place within the parent, in pixels |
 | `:size(w, h)` | `:size()` | content size; a window's chrome is fitted around it |
 | `:font(h)` | `:font()` | default font for this widget's `g:text`/`g:atext` draws, not for the title bar |
-| `:onDraw(fn)` | `:onDraw()` | `fn(g, w, h)` draws the content — see [the `g` wrapper](drawing.md) |
-| `:onTick(fn)` | `:onTick()` | `fn(dt)` per frame; `dt` is seconds |
-| `:onClick(fn)` | `:onClick()` | `fn(x, y, button, mods)` mouse press; return truthy to consume it |
-| `:onMouseUp(fn)` | `:onMouseUp()` | `fn(x, y, button, mods)` mouse release |
-| `:onMouseMove(fn)` | `:onMouseMove()` | `fn(x, y, mods)` mouse move over the widget |
-| `:onWheel(fn)` | `:onWheel()` | `fn(x, y, amount, mods)` mouse wheel |
-| `:onDrop(fn)` | `:onDrop()` | `fn(x, y, drop)` something was dropped on it; return truthy to consume |
-| `:onClose(fn)` | `:onClose()` | `fn()` the window's close button; inert on a bare widget |
 
 Every setter returns the widget, so a whole surface is one expression; every one has a matching bare read,
-so nothing you configured needs a variable of its own to be readable later. All thirteen answer only on a
-surface **your** addon painted — a native widget has nowhere to put a caption or a callback of yours, and
-neither does a [control](controls/README.md), which the client draws and drives.
+so nothing you configured needs a variable of its own to be readable later. All five answer only on a
+surface **your** addon painted — a native widget has nowhere to put a caption of yours, and neither does
+a [control](controls/README.md), which the client draws and drives.
 
 Sizes and positions are raw pixels, not DPI-scaled. `:position` is within the parent; on a window `:size`
 is the **content** size, so the outer box it reads back is that plus the chrome.
 
-**`mods`** is the trailing `{shift, ctrl, alt}` boolean table on every mouse callback — the modifier state
-**at press time**, so you can branch a Shift-drag against a plain click. Same shape as
-[`hafen.hook():grab`](../hook.md#hafenhookgrabmove-up)'s `mods`.
+## Subscribing
+
+A window or a bare widget answers the five universal [`:on(key, fn)`](widget.md#subscribing) keys every
+widget does — `MouseDown`, `MouseUp`, `MouseMove`, `Wheel`, `Destroy` — plus four more of its own, since
+it is a surface with content to paint and a lifetime to report:
+
+| Key | handler receives | Cancelable | Fires |
+|---|---|---|---|
+| `Draw` | `ev` — `:g()` `:w()` `:h()` | no | every frame — see [the `g` wrapper](drawing.md) |
+| `Tick` | `dt` | no | every frame, before `Draw` |
+| `Drop` | `ev` — `:x()` `:y()` `:thing()` `:preventDefault()` | yes | the client's drag gesture drops something on it |
+| `Close` | — | no | the window's close button; a bare widget has none, so it never fires |
+
+`:on(key, fn)` is its own statement, after the builder chain that made the widget finishes — it hands back
+a subscription, not the widget, so it cannot sit mid-chain or be a chain's last call. Two handlers on
+`Draw` both paint, in registration order; two on any of these both fire.
 
 ### A surface never paints half-configured
 
@@ -74,14 +81,14 @@ local hud = hafen.ui():find("@GameUI")               -- the HUD is just another 
 local panel = hafen.ui():widget():parent(hud):size(120, 40)
 ```
 
-### `onDrop` makes a widget a drop target
+### `Drop` makes a widget a drop target
 
-`:onDrop(fn)` opts the widget into the client's own drag gesture: drag a menu-grid action onto it and
-`fn(x, y, drop)` fires with widget-local pixels and a neutral descriptor,
-`drop = { kind = "pagina", res = "<resource name>" }`. `res` is a plain resource name — draw its icon with
+`:on("Drop", fn)` opts the widget into the client's own drag gesture: drag a menu-grid action onto it and
+`fn(ev)` fires with `ev:x()`/`ev:y()` in widget-local pixels and `ev:thing()` a neutral descriptor,
+`{ kind = "pagina", res = "<resource name>" }`. `res` is a plain resource name — draw its icon with
 [`g:resource`](drawing.md), persist it with [`hafen.store`](../store.md). It is present only for
 resource-based actions; an id-only action carries `kind` alone, which is usable in-session but not reliably
-persistable. Firing the dropped action is not part of `onDrop`.
+persistable. Firing the dropped action is not part of it.
 
 ## Overlays
 

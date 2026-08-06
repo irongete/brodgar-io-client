@@ -44,8 +44,8 @@ create it. A name your manifest does not declare is an error naming the ones it 
 saved variables is fixed when your addon loads and a misspelt one has no later meaning to wait for.
 
 **When each scope is ready.** Account tables are filled before your files run, so they are readable in
-the file body and in `OnLoad`. Per-character tables are filled just before `OnEnterWorld` fires,
-because the character's folder is not known until then: read them there, not in `OnLoad`.
+the file body and in `Load`. Per-character tables are filled just before `EnterWorld` fires,
+because the character's folder is not known until then: read them there, not in `Load`.
 
 **What survives.** The tables are stored as JSON, so tables, strings, numbers and booleans round-trip
 and nothing else does — with one exception, and it is the one worth having: a
@@ -68,5 +68,5 @@ than raised: your addon starts with empty settings instead of not starting.
 ## See also
 
 - [`hafen.json`](json.md) — the same serializer, when you want the string yourself
-- [events](event.md#lifecycle) — `OnEnterWorld`, where per-character data becomes readable
+- [events](event.md#lifecycle) — `EnterWorld`, where per-character data becomes readable
 - [`hafen.http`](http.md) — fetching what you cache here

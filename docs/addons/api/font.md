@@ -7,9 +7,8 @@ client's own surfaces.
 
 ```lua
 local body = hafen.font():get("serif"):derive():size(12)
-hafen.ui():window():title("Mine"):size(200, 120):font(body):onDraw(function(g, w, h)
-  g:text("this text is in my font", 6, 6)
-end)
+local win = hafen.ui():window():title("Mine"):size(200, 120):font(body)
+win:on("Draw", function(ev) ev:g():text("this text is in my font", 6, 6) end)
 ```
 
 There is **no shared cross-addon registry**: a handle is a value your addon keeps, and another addon cannot
@@ -91,8 +90,9 @@ no conflict and nothing to revert. The stock UI and every other addon are untouc
 
 ```lua
 local h = hafen.font():get("serif"):derive():size(12)
-hafen.ui():window():title("Mine"):size(200, 120):font(h):onDraw(function(g, w, h)
-  g:text("this text is in my font", 6, 6)   -- no per-call opts, so it uses the widget's own font
+local win = hafen.ui():window():title("Mine"):size(200, 120):font(h)
+win:on("Draw", function(ev)
+  ev:g():text("this text is in my font", 6, 6)   -- no per-call opts, so it uses the widget's own font
 end)
 hafen.ui():widget():size(80, 20):font(h)     -- same, for a bare widget
 ```
@@ -152,7 +152,7 @@ To restyle **one** widget you already hold rather than a family of surfaces, use
 
 ```lua
 local h
-hafen.event():on("OnLoad", function()
+hafen.event():on("Load", function()
   h = hafen.asset():get("fonts/Inter.ttf"):derive():size(11)   -- or a built-in face, derived
 end)
 

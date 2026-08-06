@@ -12,16 +12,15 @@ content you paint yourself. Build it when the world is up, and keep the handle:
 ```lua
 local window
 
-hafen.event():on("OnEnterWorld", function()
-  window = hafen.ui():window()
-    :title("Scout")
-    :size(180, 48)
-    :position(80, 120)
-    :onDraw(function(g, w, h)
-      g:color(220, 220, 220)
-      g:text("players nearby: " .. hafen.world():gob():count("gfx/borka/body"), 6, 6)
-    end)
-    :onClose(function() hafen.log():write("closed") end)
+hafen.event():on("EnterWorld", function()
+  window = hafen.ui():window():title("Scout"):size(180, 48):position(80, 120)
+
+  window:on("Draw", function(ev)
+    local g = ev:g()
+    g:color(220, 220, 220)
+    g:text("players nearby: " .. hafen.world():gob():count("gfx/borka/body"), 6, 6)
+  end)
+  window:on("Close", function() hafen.log():write("closed") end)
 end)
 ```
 
@@ -33,11 +32,13 @@ The difference between yours and the client's is
 
 ## Draw
 
-Every draw callback receives `g`, [the drawing surface](../api/ui/drawing.md). Coordinates are local: the
-widget's own top-left for a widget, the screen for a HUD overlay. Set a colour, then draw.
+Every draw handler receives `ev`, answering `:g()` — [the drawing surface](../api/ui/drawing.md) — and
+`:w()`/`:h()`, the area to paint. Coordinates are local: the widget's own top-left for a widget, the screen
+for a HUD overlay. Set a colour, then draw.
 
 ```lua
-window:onDraw(function(g, w, h)
+window:on("Draw", function(ev)
+  local g, w, h = ev:g(), ev:w(), ev:h()
   g:color(0, 0, 0, 160)
   g:frect(0, 0, w, h)                     -- a dim panel behind the text
   g:color(255, 210, 120)
@@ -47,7 +48,7 @@ end)
 ```
 
 `g` lives only for the length of the callback: stash it and draw later and nothing happens. To draw an
-image you ship, load it once with [`hafen.asset`](../api/asset.md) — in `OnLoad`, never inside a draw —
+image you ship, load it once with [`hafen.asset`](../api/asset.md) — in `Load`, never inside a draw —
 and blit the handle with `g:image`. `g:resource(name, …)` draws the client's own art by name.
 
 **Cost.** Geometry is nearly free; text is not, so the engine
@@ -86,21 +87,26 @@ it is [`hafen.render`](../api/render/README.md) or [`hafen.ghost`](../api/ghost.
 
 ## Input
 
-Mouse callbacks are setters on the widget, alongside `:onDraw`: `:onClick`, `:onMouseUp`, `:onMouseMove`,
-`:onWheel`, `:onDrop`. Coordinates are widget-local, and every one of them ends with `mods`, the
-`{shift, ctrl, alt}` state at press time, so a Shift-click is a branch rather than a second callback.
+Mouse input is five more [`:on(key, fn)`](../api/ui/widget.md#subscribing) keys, the same door `Draw` is —
+and they answer on **any** widget, not only one you painted: `MouseDown`, `MouseUp`, `MouseMove`, `Wheel`
+and `Destroy`. Coordinates are widget-local, and `ev:preventDefault()` is the one way to consume the
+input; no handler's return value is ever read.
 
 ```lua
-window:onClick(function(x, y, button, mods)
-  if button == 3 then return end              -- leave the right button alone
-  if mods.shift then reset() else step() end
-  return true                                 -- truthy consumes the click
+window:on("MouseDown", function(ev)
+  if ev:button() == 3 then return end                       -- leave the right button alone
+  if hafen.ui():mouse():shift() then reset() else step() end
+  ev:preventDefault()                                        -- stop the widget seeing it too
 end)
 ```
 
-`:onDrop` is the one that opts you into the client's own drag gesture: drag an action off the menu grid onto
-your widget and you get a neutral descriptor for it, which you can draw with `g:resource` and persist with
-[`hafen.store`](../api/store.md). Keyboard input is not a widget option — a
+Reading a modifier key is `hafen.ui():mouse():shift()`/`:ctrl()`/`:alt()`, live, from inside the handler —
+an input `ev` carries none of its own, since the pointer already answers them at any time.
+
+A window built with [`:window()`/`:widget()`](../api/ui/custom.md) answers four more of its own: `Tick`
+every frame, `Drop` when the client's drag gesture drops something on it (`ev:thing()` is the neutral
+descriptor, drawable with `g:resource` and persistable with [`hafen.store`](../api/store.md)), and `Close`
+on the window's close button. Keyboard input is not a widget option — a
 [hotkey](hotkeys-and-commands.md) is.
 
 ## What the client already built

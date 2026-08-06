@@ -76,8 +76,8 @@ bar with more shows them all in `:segments()`.
 > see [`hafen.char():food()`](char.md#food).
 
 There is no write side. Meters are server-pushed presentation and there is nothing to set. You can
-freeze the bars client-side by swallowing their updates with an
-[`IMeter` message hook](hook.md#hafenhookmessagemsg-fn) — purely cosmetic, since the server still
+freeze the bars client-side by swallowing their updates through an
+[`IMeter` message filter](event.md#filtering-an-inbound-update) — purely cosmetic, since the server still
 knows your real values.
 
 ## Events
@@ -88,7 +88,7 @@ knows your real values.
 | [`MeterRemoved`](event.md#character-and-status) | `Meter` | a bar goes away; the object still reads, and `:exists()` is false |
 | [`MeterChanged`](event.md#character-and-status) | `Meter` | a bar's value **or** colour changes |
 
-The meters stream in a beat after `OnEnterWorld`, so `:list()` is legitimately empty for a moment
+The meters stream in a beat after `EnterWorld`, so `:list()` is legitimately empty for a moment
 and the bars arrive as a burst of `MeterAdded`. Mounting a horse adds two more mid-session and
 dismounting removes them, which is what the lifecycle pair is for.
 

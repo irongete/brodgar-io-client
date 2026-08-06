@@ -1,20 +1,19 @@
 # hafen.ui: the g draw wrapper
 
-Every draw callback — [`onDraw`](custom.md), [a HUD overlay](custom.md#overlays), a
+Every draw callback — a widget's [`Draw`](custom.md), [a HUD overlay](custom.md#overlays), a
 [`gob:overlay()`](../gob.md#overlays) `draw` callback — receives `g`, a drawing surface. Its coordinates
 are the
 callback's own local pixel space: widget-local for a widget, screen for a HUD overlay, and for a gob
 overlay the `sx, sy` you were handed is that gob's projected screen point. Every method is a colon call.
 
 ```lua
-hafen.ui():window()
-  :title("My addon")
-  :size(120, 60)
-  :onDraw(function(g, w, h)
-    g:color(255, 200, 0)
-    g:frect(0, 0, w, 3)
-    g:text("mine", 6, 8)
-  end)
+local win = hafen.ui():window():title("My addon"):size(120, 60)
+win:on("Draw", function(ev)
+  local g, w = ev:g(), ev:w()
+  g:color(255, 200, 0)
+  g:frect(0, 0, w, 3)
+  g:text("mine", 6, 8)
+end)
 ```
 
 ## Draw
@@ -43,7 +42,7 @@ To draw your own PNGs, load them with [`hafen.asset`](../asset.md) and blit the 
 ```lua
 local icon                                     -- upvalue for the draw callbacks below
 
-hafen.event():on("OnLoad", function()
+hafen.event():on("Load", function()
   icon = hafen.asset():get("icon.png")         -- load once from addons/<me>/icon.png
 end)
 
@@ -61,7 +60,7 @@ PNG's transparency is preserved, so an icon with a transparent background compos
 behind it, the same as the client's own art.
 
 `g:resource(name, …)` draws the **client's own `.res` art** — action icons, HUD pieces, the icon of an
-action a widget received from [`onDrop`](custom.md#ondrop-makes-a-widget-a-drop-target). It resolves the
+action a widget received from [`Drop`](custom.md#drop-makes-a-widget-a-drop-target). It resolves the
 resource asynchronously and caches it, and it is load-guarded: it draws nothing until the texture is ready,
 then blits the resource's default image layer. It draws the **static icon only**, with no live sprite or
 cooldown sweep, and a bad name simply draws nothing.

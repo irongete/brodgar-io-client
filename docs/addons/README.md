@@ -9,7 +9,7 @@ with the user's permission, drive the character.
 
 ```lua
 -- addons/myaddon/main.lua
-hafen.event():on("OnEnterWorld", function()
+hafen.event():on("EnterWorld", function()
   hafen.log():write("hello from " .. (hafen.player():name() or "?"))
 end)
 
@@ -42,7 +42,7 @@ One page per namespace, and a directory where a namespace is large. The
 | **Character** | [`player`](api/player.md) · [`time`](api/time.md) · [`char`](api/char.md) · [`study`](api/study.md) · [`party`](api/party.md) · [`buff`](api/buff.md) · [`meter`](api/meter.md) |
 | **Subsystems** | [`kin`](api/kin.md) · [`speed`](api/speed.md) · [`craft`](api/craft.md) · [`quest`](api/quest.md) · [`wound`](api/wound.md) · [`fight`](api/fight.md) · [`actionbar`](api/actionbar.md) |
 | **Acting** | [`act`](api/act.md) *(gated)* · [`menugrid`](api/menugrid.md) |
-| **UI** | [`ui`](api/ui/README.md) · [the stylesheet](api/ui/style/README.md) · [`font`](api/font.md) · [`hook`](api/hook.md) · [`client`](api/client/README.md) |
+| **UI** | [`ui`](api/ui/README.md) · [the stylesheet](api/ui/style/README.md) · [`font`](api/font.md) · [`client`](api/client/README.md) |
 | **Your own content** | [`asset`](api/asset.md) · [`ghost`](api/ghost.md) · [`render`](api/render/README.md) |
 | **Data and network** | [`json`](api/json.md) · [`http`](api/http.md) *(gated by your manifest)* |
 | **Infrastructure** | [`event`](api/event.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash`](api/slash.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |

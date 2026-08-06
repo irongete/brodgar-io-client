@@ -10,7 +10,7 @@ hafen.log():write("strength " .. str:base() .. " (" .. str:composite() .. " buff
 if hafen.char():skill():find("Alchemy") then hafen.log():write("I know Alchemy") end
 ```
 
-The sheet lives in HUD widgets that build after login, so it streams in a beat after `OnEnterWorld`: an
+The sheet lives in HUD widgets that build after login, so it streams in a beat after `EnterWorld`: an
 immediate read answers `nil` or an empty array. Read on a short timer, or on the matching event.
 
 ## Read

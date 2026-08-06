@@ -22,7 +22,8 @@ drawn at its own pixels instead.
 
 ```lua
 local up, down = hafen.asset():get("up.png"), hafen.asset():get("down.png")
-hafen.ui():button():parent(win):position(8, 8):image(up, down):onPress(refresh)
+local btn = hafen.ui():button():parent(win):position(8, 8):image(up, down)
+btn:on("Pressed", refresh)
 ```
 
 > **A face is chosen while the control is being built** — like `:parent(w)`, and unlike every other setter
@@ -41,27 +42,25 @@ bare `:text()` still reads it, like on any other text-bearing widget, but `:text
 naming `:value(s)` instead.
 
 ```lua
-local e = hafen.ui():entry()
-  :size(160, 20)
-  :value("gonzalo")
-  :onChange(function(s) hafen.log():write("now: " .. s) end)
-  :onSubmit(function(s) doSearch(s) end)
+local e = hafen.ui():entry():size(160, 20):value("gonzalo")
+e:on("Changed",   function(s) hafen.log():write("now: " .. s) end)
+e:on("Submitted", function(s) doSearch(s) end)
 
 e:value()          --> "gonzalo"
 ```
 
-`:onChange(fn)` fires on every keystroke that changes the text; `:onSubmit(fn)` fires once, when Enter is
-pressed, carrying the whole text — a programmatic `:value(v)` fires neither one. While it has focus, a
-keystroke goes to the field only, never also to your character, a hotkey, or the chat line.
+`Changed` fires on every keystroke that changes the text; `Submitted` fires once, when Enter is pressed,
+carrying the whole text — a programmatic `:value(v)` fires neither one. While it has focus, a keystroke
+goes to the field only, never also to your character, a hotkey, or the chat line.
 
 ## Checkbox
 
-`hafen.ui():check()` is a boolean toggle. `:value(v)` holds the tick and `:onChange(fn)` fires when the user
+`hafen.ui():check()` is a boolean toggle. `:value(v)` holds the tick and `Changed` fires when the user
 changes it:
 
 ```lua
 local c = hafen.ui():check():text("Show grid"):value(true)
-  :onChange(function(on) hafen.store():get("cfg").grid = on end)
+c:on("Changed", function(on) hafen.store():get("cfg").grid = on end)
 
 c:value()          --> true
 ```
@@ -82,13 +81,11 @@ hoverUp=, hoverDown=}`. `:type()` reads `"CheckBox"` or `"ICheckBox"` depending 
 
 `hafen.ui():radio()` is a set of buttons where exactly one is checked at a time — one control, not one
 object per button. `:rows{...}` names the choices, `:value(v)` reads and writes which one is checked, and
-`:onChange(fn)` fires when the user picks a different one:
+`Changed` fires when the user picks a different one:
 
 ```lua
-local r = hafen.ui():radio()
-  :rows{"Quality", "Amount", "Name"}
-  :value("Amount")
-  :onChange(function(pick) sortBy(pick) end)
+local r = hafen.ui():radio():rows{"Quality", "Amount", "Name"}:value("Amount")
+r:on("Changed", function(pick) sortBy(pick) end)
 
 r:value()          --> "Amount"
 ```
@@ -101,23 +98,24 @@ than an error. `:value(v)` naming a row that is not in the current set is refuse
 ## Slider
 
 `hafen.ui():slider()` is a draggable position within a range. `:range(min, max)` sets the bounds,
-`:value(n)` reads and writes the position within them, and `:onChange(fn)` fires while the user drags it:
+`:value(n)` reads and writes the position within them, and `Changed` fires while the user drags it:
 
 ```lua
-local s = hafen.ui():slider()
-  :size(140, 20)
-  :range(0, 100)
-  :value(50)
-  :onChange(function(v, final) preview(v); if final then save(v) end end)
+local s = hafen.ui():slider():size(140, 20):range(0, 100):value(50)
+s:on("Changed", function(ev)
+  preview(ev:value())
+  if ev:final() then save(ev:value()) end
+end)
 ```
 
-`:onChange`'s handler takes **two** arguments here — `fn(v, final)` — where every other control's takes one.
-`final` is `false` on every step while the thumb is being dragged and `true` exactly once, when the mouse is
-released, which is the moment to act on the value rather than merely preview it.
+`Changed`'s `ev` says **two** things here — `:value()` and `:final()` — where every other control's says
+one, which is why this is the one `Changed` that hands over an event object rather than a bare value.
+`:final()` is `false` on every step while the thumb is being dragged and `true` exactly once, when the
+mouse is released, which is the moment to act on the value rather than merely preview it.
 
 A `:value(v)` outside `:range` **clamps** to the nearer bound rather than refusing; narrowing `:range(min,
 max)` later re-clamps a value the new bounds no longer cover, silently — that write is not something the
-user did, so it does not fire `:onChange`. `:range(nil)` is refused like any other required argument, naming
+user did, so it does not fire `Changed`. `:range(nil)` is refused like any other required argument, naming
 the missing bound; there is no "undo" meaning for a control's own bounds the way `:position(nil)` undoes a
 layer.
 
@@ -126,7 +124,7 @@ layer.
 `hafen.ui():scroll()` is a scrolling container: give it a size, and anything `:parent()`'d into it lands in
 the scrolling area, never beside it. A scrollbar appears down its right edge once the content no longer fits
 and disappears once it fits again — a real control in its own right, one of `sp:children()`, answering the
-same `:range()`/`:value(n)`/`:onChange(fn)` as a bare [scrollbar](#scrollbar). For driving a scroll position
+same `:range()`/`:value(n)`/`Changed` as a bare [scrollbar](#scrollbar). For driving a scroll position
 with nothing to contain, build that bare control instead.
 
 ## Scrollbar
@@ -135,15 +133,12 @@ with nothing to contain, build that bare control instead.
 max)`/`:value(n)` as a [slider](#slider), minus the `final` flag:
 
 ```lua
-local sb = hafen.ui():scrollbar()
-  :size(14, 160)
-  :range(0, #items - visibleRows)
-  :value(0)
-  :onChange(function(v) firstRow = v end)
+local sb = hafen.ui():scrollbar():size(14, 160):range(0, #items - visibleRows):value(0)
+sb:on("Changed", function(v) firstRow = v end)
 ```
 
-`:onChange`'s handler here takes **one** argument, `fn(v)` — a bare scrollbar has no separate "drag ended"
-moment to report, so every step just reports where it is now.
+`Changed` hands over the bare value here, `fn(v)` — a bare scrollbar has no separate "drag ended" moment
+to report, so every step just reports where it is now.
 
 ## See also
 

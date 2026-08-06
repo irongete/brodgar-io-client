@@ -51,12 +51,12 @@ substring, so `:list("Dig")` is every entry whose name contains it and `:find("D
 An entry whose resource has not resolved yet has no display name and matches nothing.
 
 > **The catalogue fills in.** Names come from the pagina's resource and resources resolve
-> asynchronously, so a scan run right at `OnEnterWorld` is often short: entries that have not resolved
+> asynchronously, so a scan run right at `EnterWorld` is often short: entries that have not resolved
 > are simply absent, and they appear a fraction of a second later. Nothing ever comes back half-read —
 > every resource-backed reader answers `nil` rather than a partial value. Scan on a timer if you need
 > the complete set, and expect it to keep growing as you play.
 
-There is no `MenuChanged` event — poll `hafen.menugrid():list()` on `OnUpdate` or a [timer](timer.md)
+There is no `MenuChanged` event — poll `hafen.menugrid():list()` on `Update` or a [timer](timer.md)
 if you must track it.
 
 ## Read

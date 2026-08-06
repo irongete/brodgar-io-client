@@ -66,7 +66,7 @@ end)
 ```
 
 When you do have to poll — a value with no event behind it — poll on a [timer](events-and-timers.md), not
-in `OnUpdate`.
+in `Update`.
 
 ## Your own character
 

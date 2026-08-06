@@ -32,8 +32,9 @@ end
 ```
 
 **Categories describe what your Lua was doing**, not where it lives: `draw` is overlay and widget paint
-callbacks, `widgets` the rest of a custom widget's life (tick, mouse, drop), `hooks` input, action and
-message hooks plus hotkeys and slash commands, `events` the event bus and async callbacks, `timers` timer
+callbacks, including a grid's cell paint; `widgets` the rest of a widget's life — mouse input, tick, drop,
+close, destroy, a container's item events, and a control's own key; `hooks` hotkeys, slash commands and a
+mouse grab's move and release; `events` the event bus and the two message streams; `timers` timer
 callbacks.
 
 > A callback that calls back into the engine, which calls your Lua again, is charged to **both** brackets,
@@ -69,7 +70,7 @@ addon on `:reload` or disable, so there is nothing to clean up. Each scope appea
 `addons()` row as `{ms=, msAvg=, msPeak=, calls=}`.
 
 `ms` and `calls` are **this-frame** figures, so a scope that ran a moment ago reads 0 and its cost lives in
-`msPeak` and `msAvg`. Read `ms` per frame, from an `OnUpdate` say; read `msPeak` for "how bad does this
+`msPeak` and `msAvg`. Read `ms` per frame, from an `Update` say; read `msPeak` for "how bad does this
 get".
 
 **Leave the instrumentation in.** With profiling off, `begin` and `finish` return on a single field check

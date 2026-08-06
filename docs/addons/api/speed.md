@@ -22,7 +22,7 @@ meant. There is no `SpeedChanged` event — read on demand.
 | `hafen.speed():name(n)` | string \| nil | the display name of speed `n`, defaulting to the current one |
 
 All three answer `nil` before the HUD's speed widget exists, which is until a beat after
-`OnEnterWorld`. None throws. `name()` with no argument is the speed you are on; `name(nil)` is an error
+`EnterWorld`. None throws. `name()` with no argument is the speed you are on; `name(nil)` is an error
 rather than a shorthand for it.
 
 ## Write (gated: `actions`)

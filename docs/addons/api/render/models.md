@@ -6,7 +6,7 @@ with no server id, so nothing reaches the server and nothing here is gated.
 
 ```lua
 local mdl                                          -- upvalue
-hafen.event():on("OnLoad", function()
+hafen.event():on("Load", function()
   mdl = hafen.asset():get("props/chair.glb")       -- load once from addons/<me>/props/chair.glb
 end)
 
@@ -21,7 +21,7 @@ o:rotate(math.pi / 4):scale(1.5)                   -- face 45 degrees, 1.5 times
 A model is a [`hafen.asset`](../asset.md) **mesh handle** — `hafen.asset():get("props/chair.glb")` — holding
 a glTF 2.0 static model: your own `.glb`, the single-file binary form and the one to prefer, or a `.gltf`
 with its buffers beside it. The parser is pure Java with no native dependencies and decodes
-**synchronously**, so load it from setup code (`OnLoad`, `OnEnterWorld`, a command) and never from inside a
+**synchronously**, so load it from setup code (`Load`, `EnterWorld`, a command) and never from inside a
 draw callback. The handle answers [`mdl:bounds()`](../asset.md#mesh) with a world-unit box and
 [`mdl:info()`](../asset.md#mesh) with what the parser produced.
 

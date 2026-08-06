@@ -35,7 +35,7 @@ point on the screen are different kinds of thing, and this is where confusing th
 somewhere wrong.
 
 > Every verb below except `enabled` needs a live map view or game UI, and **throws** before you are in
-> the world. Guard the first action of a session on `OnEnterWorld`, not on addon load.
+> the world. Guard the first action of a session on `EnterWorld`, not on addon load.
 
 **Modifiers.** Where a verb takes `mods` it is a bitfield — Shift = 1, Ctrl = 2, Alt = 4, combined by
 adding. It defaults to `0`.
@@ -126,9 +126,10 @@ if first then hafen.act():item(first, "take") end
 
 Send an arbitrary widget message from a bound widget, for what the typed verbs do not cover. `target`
 is a widget id — a number, such as a [widget's `:id()`](ui/widget.md) — or the token
-`"mapview"` or `"gameui"`. Trailing arguments are marshalled the way [hook](hook.md) arguments are: a
-`{x=, y=}` table becomes a coordinate, and numbers, strings and booleans pass through. A target that
-resolves to no live widget raises an error, as does a non-string `msg`.
+`"mapview"` or `"gameui"`. Trailing arguments are marshalled the way an
+[`action`](event.md#intercepting-an-outbound-action) `ev:args()` is: a `{x=, y=}` table becomes a
+coordinate, and numbers, strings and booleans pass through. A target that resolves to no live widget
+raises an error, as does a non-string `msg`.
 
 ## See also
 

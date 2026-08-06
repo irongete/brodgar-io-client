@@ -29,9 +29,10 @@ The assignment is the client's, and it survives `:reload` and restarts. Names ar
 client's own registry — which is how you read or remap a built-in binding. The
 [reference](../api/client/keybindings.md) has the verbs, the key-string grammar and what `list()` reports.
 
-> A hotkey runs **after** the client's own bindings, through the same registry. To intercept raw keys and
-> mouse events before any widget sees them, that is [`hafen.hook`](../api/hook.md), which is a different
-> job with a different cost.
+> A hotkey runs **after** the client's own bindings, through the same registry. To intercept a mouse event
+> *before* the widget under it sees it, that is [`widget:on(key, fn)`](../api/ui/widget.md#subscribing)
+> and `ev:preventDefault()`, which is a different job with a different cost — keyboard input is not a
+> widget option, so a hotkey is still the only door onto a key.
 
 ## A command
 
@@ -65,7 +66,7 @@ addon with a window has — see [the examples](../examples.md).
 
 **Dormant is polite.** An addon that draws nothing and does nothing until its key or command is used costs
 a login nothing, and the user finds out what it does when they ask. Wire the work behind the trigger rather
-than behind `OnEnterWorld`.
+than behind `EnterWorld`.
 
 **Next:** [actions and permissions](actions-and-permissions.md) — the one tier that needs more than a
 declaration.

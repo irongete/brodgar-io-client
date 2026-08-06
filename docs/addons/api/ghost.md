@@ -53,7 +53,7 @@ it by removing that key.
 
 > **`:add` raises when you are not in the world.** A prop standing in the 3D scene needs that scene, so
 > placing one before you have entered the world is an error rather than a `nil` you would only discover one
-> setter later. Place from `OnEnterWorld` onward. Ground you have walked but that has not streamed back in
+> setter later. Place from `EnterWorld` onward. Ground you have walked but that has not streamed back in
 > is *not* an error: the prop waits, and appears as soon as its tiles arrive.
 
 The prop appears a beat after `:add`: the resource resolves on a loader thread, so `:add` returns a working
@@ -180,15 +180,15 @@ relog, retrying as the map streams in.
 You can drag a ghost along the terrain, snapping exactly as placing a real building does, using three
 primitives and then `g:position(p)`:
 
-1. [`hafen.hook():grab`](hook.md#hafenhookgrabmove-up) captures the mouse, so the camera stays put.
+1. [the mouse's grab](ui/widget.md#the-grab) captures the pointer, so the camera stays put.
 2. [`hafen.world():screenToWorld`](world.md#screen-to-world-and-placement-snapping) turns the cursor
    pixel into a ground Position.
 3. [`hafen.world():snapPlace`](world.md#screen-to-world-and-placement-snapping) snaps it to the placement
    grid, with Shift for the fine grid.
 
-`planner` wires these into a move mode: select a ghost, start the grab, and it follows the cursor snapped
-to the grid until you click to drop it. See [`hafen.hook():grab`](hook.md#hafenhookgrabmove-up) for the drag
-pattern in full.
+`planner` wires these into a move mode: select a ghost, take the grab, and it follows the cursor snapped
+to the grid until you click to drop it. See [the grab](ui/widget.md#the-grab) for the drag pattern in
+full.
 
 ## The transform gizmo
 
@@ -206,10 +206,10 @@ they are always on top of the 3D scene, and the grab targets are a constant scre
 the axis shafts foreshorten with the camera, which is what anchors the arrows in the world. No game
 resource is needed.
 
-The gizmo is a **bundled Lua library over the ghost, world and hook primitives**, not a built-in `hafen.*`
-function: [a HUD overlay](ui/custom.md#overlays) to draw,
-[`hafen.hook():input`](hook.md#hafenhookinputtarget-event-fn) to pick a handle,
-[`hafen.hook():grab`](hook.md#hafenhookgrabmove-up) with
+The gizmo is a **bundled Lua library over the ghost, world and widget-input primitives**, not a built-in
+`hafen.*` function: [a HUD overlay](ui/custom.md#overlays) to draw,
+[input subscriptions](ui/widget.md#subscribing) to pick a handle,
+[the grab](ui/widget.md#the-grab) with
 [`screenToWorld`](world.md#screen-to-world-and-placement-snapping),
 [`snapPlace`](world.md#screen-to-world-and-placement-snapping) and
 [`snapAngle`](world.md#screen-to-world-and-placement-snapping) to drag, and `:position`, `:rotate` and
@@ -225,7 +225,7 @@ local gz = gizmo(myGhost, {      -- target = anything with :position(), ideally 
 gz:setMode("rotate")   -- switch which handles show
 gz:mode()              -- the current mode string
 gz:isDragging()        -- bool
-gz:detach()            -- remove the handles, input hooks and any active grab; idempotent
+gz:detach()            -- remove the handles, input subscriptions and any active grab; idempotent
 ```
 
 Because the gizmo drives anything with `:position`, `:rotate` and `:scale`, it moves a
@@ -235,6 +235,6 @@ Because the gizmo drives anything with `:position`, `:rotate` and `:scale`, it m
 
 - [`hafen.render`](render/README.md) — the same world entity for your own images and models
 - [`hafen.world`](world.md#the-position-type) — the Position type, and the snapping the gizmo uses
-- [`hafen.hook`](hook.md#hafenhookgrabmove-up) — the mouse-capture primitive behind a drag
+- [the mouse and its grab](ui/widget.md#the-mouse) — the capture primitive behind a drag
 - [`hafen.act():place`](act.md) — committing a real build, which is gated
 - [events](event.md#world-ghosts-and-sprites) — `GhostClicked`

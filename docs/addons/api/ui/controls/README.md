@@ -10,10 +10,8 @@ the theme as it grows, where a control is inside it from the first frame, with n
 ```lua
 local win = hafen.ui():window():title("Harvest"):size(160, 60):position(80, 120)
 
-hafen.ui():button()
-  :parent(win):position(20, 20)
-  :text("Go")
-  :onPress(function() hafen.log():write("pressed") end)
+local go = hafen.ui():button():parent(win):position(20, 20):text("Go")
+go:on("Pressed", function() hafen.log():write("pressed") end)
 ```
 
 ## A control is a Widget
@@ -55,16 +53,13 @@ it moves by `:position(x, y)`. A row-source control has its own page: [lists](..
 |---|---|---|
 | `:text(s)` | `:text()` | the caption the control displays |
 | `:image(up, down [, hover])` | `:image()` | the pictures the control shows instead of a caption |
-| `:onPress(fn)` | `:onPress()` | `fn()` — the button fired |
 | `:value(v)` | `:value()` | what the control **holds** |
-| `:onChange(fn)` | `:onChange()` | `fn(v)` — the control's value changed |
 | `:source(h)` | `:source()` | the picture a [picture control](display.md#picture) shows |
 | `:rows(t)` | `:rows()` | the row source a [radio](interactive.md#radio) or a [list, dropdown, menu or grid](../lists.md) takes |
 | `:range(min, max)` | `:range()` | the value bounds of a [slider or scrollbar](interactive.md#slider) |
-| `:onSubmit(fn)` | `:onSubmit()` | `fn(s)` — Enter was pressed in a [text entry](interactive.md#text-entry) |
 
 Every setter returns the Widget, so a control is one expression, and each has a matching bare read: `:text()`
-answers on any text-bearing widget, `:text(s)` writes only on one you own, `:onPress()` reads `nil` otherwise.
+answers on any text-bearing widget, `:text(s)` writes only on one you own.
 
 **`:value()` is the one verb for what a control holds**, whatever shape that is — a
 [progress bar](display.md#progress-bar)'s is a fraction, and a control with nothing to hold reads `nil`
@@ -73,13 +68,6 @@ refuses one outside `0..1`, naming the rule, while a [slider or scrollbar](inter
 CLAMPS a write outside its own `:range` to the nearer bound — because that range is something you set
 yourself with `:range(min, max)` and can narrow at any time, not a fixed contract the value can violate.
 
-**`:onPress` is an activation, not a mouse position.** It is what the control *did*, so it also fires from
-the keyboard and carries no coordinates; it is safe for the handler to destroy the window the button sits in.
-
-**`:onChange(fn)` fires when a control's value changes — and only from a real interaction.** A `:value(v)`
-write from your own code never re-enters it, so driving a value from a script and reacting to the user
-changing it never loop into each other. Setting it a second time replaces the handler.
-
 **Sizing.** `:size(w, h)` sets the box like anywhere else, in raw pixels. A bare button already comes at the
 client's own button height, so setting only a width you like and leaving the height alone is usually what
 you want — and a caption wider than the box is drawn clipped, not wrapped. A button with a picture comes at
@@ -87,6 +75,32 @@ the size of that picture and normally wants no `:size` at all.
 
 None of this is gated: a control is your own UI, the same as [a surface you paint](../custom.md) instead —
 every setter above is client-side state, and every one of it restores with your addon.
+
+## Subscribing
+
+A control answers the five universal [`:on(key, fn)`](../widget.md#subscribing) keys every widget does —
+it is a Widget first — plus exactly **one** capability key of its own, the one thing that control does:
+
+| Builder | Key | handler receives |
+|---|---|---|
+| `:button()` | `Pressed` | — |
+| `:check()` / `:radio()` / `:slider()` / `:scrollbar()` / `:scroll()` / `:list()` / `:dropdown()` | `Changed` | varies — see [interactive](interactive.md) and [lists](../lists.md) |
+| `:entry()` | `Changed` and `Submitted` | the text |
+| `:menu()` | `Selected` | the picked row |
+| `:grid()` | `Cell` | `ev` — see [grid](../lists.md#grid) |
+| `:label()` `:image()` `:separator()` `:progress()` `:table()` | *(none)* | — |
+
+```lua
+go:on("Pressed", function() hafen.log():write("pressed") end)
+```
+
+**`Pressed` is an activation, not a mouse position.** It is what the button *did*, so it also fires from
+the keyboard and carries no coordinates; it is safe for the handler to destroy the window the button sits
+in.
+
+**`Changed` fires when a control's value changes — and only from a real interaction.** A `:value(v)`
+write from your own code never re-enters it, so driving a value from a script and reacting to the user
+changing it never loop into each other. Two handlers on one key both fire, in registration order.
 
 ## Reading order
 
@@ -99,11 +113,12 @@ there too.
 
 ## What a control does not take
 
-The draw and input callbacks of [custom](../custom.md) — `:onDraw`, `:onTick`, `:onClick`, `:onMouseUp`,
-`:onMouseMove`, `:onWheel`, `:onDrop`, `:onClose` — and `:font(h)` belong to a **surface you paint
-yourself**. A control is drawn and driven by the client, so it has nowhere to put them and says so rather
-than accepting one silently: how you learn a button fired is `:onPress(fn)`, and its look comes from the
-[stylesheet](../style/README.md), not a font handle you hand the widget.
+The four extra subscription keys of [custom](../custom.md) — `Draw`, `Tick`, `Drop`, `Close` — and
+`:font(h)` belong to a **surface you paint yourself**. A control is drawn and driven by the client, so it
+has nowhere to put them and refuses rather than accepting one silently: how you learn a button fired is
+`:on("Pressed", fn)`, and its look comes from the [stylesheet](../style/README.md), not a font handle you
+hand the widget. The five universal input keys — `MouseDown`, `MouseUp`, `MouseMove`, `Wheel`, `Destroy`
+— are not among these: a control answers those too, being a Widget like any other.
 
 ## Owned and borrowed
 

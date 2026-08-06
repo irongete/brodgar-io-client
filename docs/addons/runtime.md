@@ -56,15 +56,15 @@ others are unaffected.
 ## When your code runs
 
 The client loads the enabled addons at login and at every `:reload`. For each one it runs the files named
-in `files`, in order, top to bottom, once — then fires `OnLoad`. Nothing else is automatic: from there your
+in `files`, in order, top to bottom, once — then fires `Load`. Nothing else is automatic: from there your
 addon does what its [event handlers and timers](guides/events-and-timers.md) do.
 
 | Moment | What is ready |
 |---|---|
 | your file bodies | the whole `hafen` API is callable; account saved variables are filled; you are not in the world |
-| `OnLoad` | the same, once every file has run |
-| `OnEnterWorld` | the HUD, the map view, the player, and your per-character saved variables |
-| `OnDisable` | your last chance to write, before the engine flushes and tears down |
+| `Load` | the same, once every file has run |
+| `EnterWorld` | the HUD, the map view, the player, and your per-character saved variables |
+| `Disable` | your last chance to write, before the engine flushes and tears down |
 
 An error while a file runs stops **that** addon's file and marks it errored in the panel; an error inside a
 handler, a timer or a draw callback is logged with your addon's id and isolated, so it takes down neither
@@ -103,7 +103,7 @@ impossible, and neither one is reachable by ordinary code.
 - **Per tick: about ten milliseconds, sustained.** An addon whose total Lua time within one tick — every
   handler, timer and draw of that tick added up — goes over the budget for thirty **consecutive** ticks is
   auto-disabled for the rest of the session, with the reason on its row in the AddOns panel and in the
-  console. One heavy `OnEnterWorld` or a single janky frame resets the count, so only sustained overrun
+  console. One heavy `EnterWorld` or a single janky frame resets the count, so only sustained overrun
   trips it.
 
 > An auto-disable lasts the session and clears on the next load: fix what was burning the frame, then
@@ -165,14 +165,14 @@ reserved and cannot be taken over.
 
 `:reload` rebuilds **the addon layer only**. Your session stays connected, the world stays loaded, the
 client's own windows stay as they are, and no addon can tell the difference from a fresh login: each one is
-torn down, the folder and the enabled set are re-read, the enabled addons run again from disk, `OnLoad`
-fires, and — if you are in the world — per-character saved variables are restored and `OnEnterWorld` fires
+torn down, the folder and the enabled set are re-read, the enabled addons run again from disk, `Load`
+fires, and — if you are in the world — per-character saved variables are restored and `EnterWorld` fires
 again.
 
 Torn down and re-created, so your addon starts clean: event subscriptions, timers, hotkeys, console
 commands, input hooks, your windows and overlays, world ghosts, sprites and objects, loaded assets, your
 stylesheet, sounds you started, and the client's own widgets you hid, moved or replaced, which are handed
-back as the user was seeing them. Written first: your saved variables, flushed at `OnDisable`.
+back as the user was seeing them. Written first: your saved variables, flushed at `Disable`.
 
 Kept: everything outside the addon layer. The client itself is not reloaded, so a `:reload` never costs you
 your login.

@@ -36,7 +36,7 @@ A string `filter` matches the addon-relative path of the file the thing draws.
 `:add` takes **two** things, and both are required: the asset it draws, and the
 [Position](../world.md#the-position-type) it stands at. The scene resolves the tile under a thing as it
 enters it, so one with no place cannot be built at all. It **raises** when you are not in the world yet;
-place from `OnEnterWorld` onward. Ground you have walked but that has not streamed back in is *not* an
+place from `EnterWorld` onward. Ground you have walked but that has not streamed back in is *not* an
 error — the thing waits and appears as its tiles arrive. Ending one is `:remove(x)` on the collection that
 placed it.
 

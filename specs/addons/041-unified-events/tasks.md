@@ -86,7 +86,7 @@
       `[manual]`: hold a grab and drag across the map — the camera does not pan and no move order is
       sent; release and both work again.
 
-- [ ] **041.6 — The docs tier.** 33 of 76 pages. `api/event.md` rewritten whole around the one verb and
+- [x] **041.6 — The docs tier.** 33 of 76 pages. `api/event.md` rewritten whole around the one verb and
       the one-axis rule; `api/hook.md` **resolved** — its three levels fold into `event.md`, its grab into
       the UI pages; `api/ui/widget.md`, `controls.md`, `lists.md`, `items.md`, `custom.md`,
       `selectors.md`, `replace.md`; `guides/events-and-timers.md`, `custom-ui.md`, `debugging.md`,
@@ -114,7 +114,17 @@
       correction** — it is listed there and in `design/09` but nothing fires it), `FEATURES.md`,
       `specs/codebase/addon-engine.md`, mark `design/13`'s L1/L2/L3 addressing superseded, and write the
       feature's decisions into `decisions/architecture-api.md`.
+      **Found by 041.6, still open**: `GobOverlayAdded`/`GobOverlayRemoved` and the three `*Clicked`
+      events still fire a plain `LuaTable` (`AddonManager.overlayPayload`, `RenderApi.onGhostClick`) —
+      no `041.1`-`041.5` task's checklist ever assigned converting them, so §2.3/R6's "every payload
+      member is a colon verb" was never built for these five. **This task implements it**: a
+      `LuaEvent.Shape.OVERLAY` (`:gob()`/`:key()`/`:native()`) and `Shape.CLICKED`
+      (`:ghost()`/`:sprite()`/`:object()` per `clickKey()`, `:button()`, `:x()`, `:y()`), wired at both
+      call sites — then re-ports `docs/addons/api/event.md`'s two composite-payload sections and
+      `ghost.md`'s `GhostClicked` example off the table shape 041.6 documented (accurate to `src/` at the
+      time) onto the colon verbs.
       *Suite proves*: the full emitter × key matrix; every retired spelling throws naming its
-      replacement; no payload member is readable with a dot; a clean `rm -rf build/classes` rebuild is
-      `BUILD SUCCESSFUL`; the LuaJ parse sweep is green over all 64 corpus files.
+      replacement; no payload member is readable with a dot, **the five composite payloads included**;
+      a clean `rm -rf build/classes` rebuild is `BUILD SUCCESSFUL`; the LuaJ parse sweep is green over
+      all 64 corpus files.
       `[manual]`: the maintainer runs the full regression list one command at a time.

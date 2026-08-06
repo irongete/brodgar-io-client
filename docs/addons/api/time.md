@@ -28,4 +28,4 @@ on a [timer](timer.md).
 ## See also
 
 - [`hafen.timer`](timer.md) — scheduling against real seconds rather than game time
-- [events](event.md#lifecycle) — `OnEnterWorld`, the point from which astronomy answers
+- [events](event.md#lifecycle) — `EnterWorld`, the point from which astronomy answers

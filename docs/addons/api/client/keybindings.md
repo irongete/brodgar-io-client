@@ -79,14 +79,15 @@ end
 ```
 
 Hotkeys are torn down with your addon on reload or disable, so you do not need to `unregister` in
-`OnDisable`. Use `unregister` only to drop a hotkey while your addon keeps running.
+`Disable`. Use `unregister` only to drop a hotkey while your addon keeps running.
 
-> Global hotkeys are not an input hook: they run through the client's binding registry, after the client's
-> own bindings. To intercept raw keys and mouse input before any widget sees them, use
-> [`hafen.hook`](../hook.md).
+> A global hotkey runs through the client's binding registry, after the client's own bindings. To
+> intercept a mouse event before the widget under it sees it, subscribe on the widget instead — see
+> [subscribing](../ui/widget.md#subscribing). Keyboard input is not a widget option, so a hotkey is still
+> the only door onto a key.
 
 ## See also
 
 - [`hafen.client():options()`](README.md) — the rest of the settings surface
-- [`hafen.hook`](../hook.md) — intercepting input before the client's own bindings
+- [the Widget object](../ui/widget.md#subscribing) — intercepting a mouse event before the widget does
 - [`hafen.slash`](../slash.md) — a console command, the other way an addon is invoked by hand

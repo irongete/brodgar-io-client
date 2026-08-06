@@ -266,7 +266,7 @@ passes straight back. Alpha defaults to `255`, and a component outside `0..255` 
 A read returns `nil`, or an empty table for a list verb, when the data is not available yet: before the
 world loads, before a HUD widget streams in, or while a resource is still resolving. Reads never throw a
 loading error — the bridge swallows it. Much character-sheet data (meters, food, skills, quests, wounds)
-streams in a beat *after* `OnEnterWorld`, so read it on a timer or subscribe to its [event](event.md).
+streams in a beat *after* `EnterWorld`, so read it on a timer or subscribe to its [event](event.md).
 
 ## Threading
 

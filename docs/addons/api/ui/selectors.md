@@ -103,18 +103,17 @@ once, keep it, and use `:exists()` when you need to know it is still there.
 
 ## Hit-testing
 
-`hafen.ui():mouse()` and `hafen.ui():at(x, y)` answer *what widget is under a point*. `at()` **mirrors the
-engine's own pointer dispatch**: it walks children topmost-first, skips invisible widgets, follows scroll
-offsets and honours non-rectangular hit areas, so it returns exactly the widget a real click would hit. A
-naive position-plus-size rectangle test is *wrong* inside scrolled lists and for custom hit shapes. Walk
-[`:parent()`](widget.md#read) up from the hit for the full stack; `:rootPos()` and `:size()` give the
-rectangle to outline it.
+[`hafen.ui():mouse():over()`](widget.md#the-mouse) and `hafen.ui():at(x, y)` answer *what widget is under
+a point*. Both **mirror the engine's own pointer dispatch**: they walk children topmost-first, skip
+invisible widgets, follow scroll offsets and honour non-rectangular hit areas, so they return exactly the
+widget a real click would hit. A naive position-plus-size rectangle test is *wrong* inside scrolled lists
+and for custom hit shapes. Walk [`:parent()`](widget.md#read) up from the hit for the full stack;
+`:rootPos()` and `:size()` give the rectangle to outline it.
 
 ```lua
 local last                                             -- the leaf we last built the stack for
-hafen.event():on("OnUpdate", function(dt)
-  local m    = hafen.ui():mouse()
-  local leaf = hafen.ui():at(m.x, m.y)                 -- deepest widget under the cursor, or nil
+hafen.event():on("Update", function(dt)
+  local leaf = hafen.ui():mouse():over()                -- deepest widget under the cursor, or nil
   if leaf == last then return end                      -- hover unchanged: no walk, no rebuild
   last = leaf
   local stack, n = {}, leaf
@@ -123,7 +122,7 @@ hafen.event():on("OnUpdate", function(dt)
 end)
 ```
 
-The guard is the point: `OnUpdate` fires every frame, but the walk and the relayout run **only when the
+The guard is the point: `Update` fires every frame, but the walk and the relayout run **only when the
 hovered widget changes** — and because widgets are interned, that guard is a plain `==`, which covers
 "still hovering nothing" too, since `nil == nil`. Reading the cursor and the geometry is ungated
 client-side data; acting on the resolved widget still goes through the gated

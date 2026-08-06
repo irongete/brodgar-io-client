@@ -67,7 +67,7 @@ Three habits, in the order they bite:
 
 - **Branch on [`hafen.act():enabled()`](../api/act.md), not on a `pcall`.** It answers before you are in the
   world and never throws, so it is the one call you can make at load time to find out where you stand.
-- **Act from `OnEnterWorld` onwards.** Every verb except `enabled` needs a live map view and throws before
+- **Act from `EnterWorld` onwards.** Every verb except `enabled` needs a live map view and throws before
   there is one, so an action fired from a file body is an error rather than an early start.
 - **Make the user ask.** Bind actions to a [hotkey or a command](hotkeys-and-commands.md) rather than to a
   timer. An addon that acts on its own the moment it loads is the one thing a permission dialog cannot

@@ -1,8 +1,9 @@
-# hafen.event: the event bus
+# hafen.event: the bus and the message streams
 
-Subscribe to something the client does, instead of polling for it every frame. `hafen.event()` is
-**ungated**: subscribing observes, it changes nothing. Handlers run on the UI thread, so keep them
-short.
+Subscribe to something the client does, instead of polling for it every frame. `hafen.event()` is where
+you subscribe when there is no widget or control to hold — a client-wide fact, or a message stream any
+widget can produce. `hafen.event()` is **ungated**: subscribing observes, and cancelling a message
+cancels the client's own behaviour rather than sending anything.
 
 ```lua
 local sub = hafen.event():on("GobAdded", function(gob)
@@ -16,28 +17,39 @@ sub:off()
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.event():on(name, fn)` | subscription handle | run `fn(...)` each time the event `name` fires |
+| `hafen.event():on(key, fn)` | a subscription | run `fn(...)` each time `key` fires |
 
 | Method | Description |
 |---|---|
-| `sub:off()` | unsubscribe; also done for you on reload or disable |
+| `sub:off()` | unsubscribe; idempotent, and also done for you on reload or disable |
 
-Subscribe once, in the file body or in `OnLoad`. The subscription is owned by your addon and released
-when it is reloaded or disabled, so you never have to unsubscribe by hand. A name no event uses is
-accepted and simply never fires — nothing validates it against the catalogue below. A handler that
-errors is isolated: the error is logged and it breaks neither other addons nor the client.
+Subscribe once, in the file body or in `Load`. The subscription is owned by your addon and released when
+it reloads or is disabled, so there is nothing to unsubscribe by hand. **Two handlers on one key both
+fire**, in the order they registered; `off()` on one leaves the other running. A handler that errors is
+isolated: the error is logged and it breaks neither your other handlers nor the client.
+
+**The bus keys below are a closed set** — a name that is not one of them throws, naming the ones that
+are:
+
+```lua
+hafen.event():on("GobAdded ", fn)
+-- unknown event 'GobAdded ' — see the catalogue below
+```
+
+The two message streams further down are the exception: their keys are open, because a message name is
+protocol the server can introduce, not a catalogue the client owns.
 
 ## Lifecycle
 
 | Event | Payload | Fires |
 |---|---|---|
-| `OnLoad` | — | once, when the addon is loaded, before entering the world |
-| `OnEnterWorld` | — | each time you enter the world: login, and again on `:reload` while in-world |
-| `OnUpdate` | `dt` (number) | every frame; `dt` is seconds since the last frame |
-| `OnDisable` | — | when the addon is disabled or reloaded, or the session ends |
+| `Load` | — | once, when the addon is loaded, before entering the world |
+| `EnterWorld` | — | each time you enter the world: login, and again on `:reload` while in-world |
+| `Update` | `dt` (number) | every frame; `dt` is seconds since the last frame |
+| `Disable` | — | when the addon is disabled or reloaded, or the session ends |
 
-`OnEnterWorld` fires once the HUD exists, but much character-sheet data streams in for a few seconds
-afterwards — see [missing data returns nil](conventions.md#missing-data-returns-nil). Keep `OnUpdate`
+`EnterWorld` fires once the HUD exists, but much character-sheet data streams in for a few seconds
+afterwards — see [missing data returns nil](conventions.md#missing-data-returns-nil). Keep `Update`
 handlers cheap: they run on the UI thread on every frame.
 
 ## World
@@ -56,8 +68,9 @@ you need its name, index it on `GobAdded`.
 ### Overlays coming and going
 
 `GobOverlayAdded` and `GobOverlayRemoved` cover both halves of what
-[`gob:overlay()`](gob.md#overlays) reads. `native = false` is one **you** attached; `native = true` is one
-the **game** put there (a lit fire's flame, a crop's growth stage), and `key` is then its resource name.
+[`gob:overlay()`](gob.md#overlays) reads. `native` is `false` for one **you** attached and `true` for
+one the **game** put there (a lit fire's flame, a crop's growth stage), and `key` is then its resource
+name.
 
 ```lua
 hafen.event():on("GobOverlayAdded", function(e)
@@ -67,9 +80,10 @@ end)
 
 The rules below make these predictable:
 
-- **Yours are private, the game's are public.** An overlay key belongs to your addon, so a `native = false`
-  event goes **only** to the addon that attached it — a key another addon cannot read is a name it cannot
-  act on. Native events broadcast, because a resource name means the same thing to everyone.
+- **Yours are private, the game's are public.** An overlay key belongs to your addon, so a
+  `native = false` event goes **only** to the addon that attached it — a key another addon cannot read
+  is a name it cannot act on. Native events broadcast, because a resource name means the same thing to
+  everyone.
 - **They arrive on the next frame**, not inside the `:add` itself — the game's own overlays arrive on
   loader threads, and both halves use one moment. A handler runs on the UI thread and reads the truth:
   the overlay is already there on an add, already gone on a removal.
@@ -104,7 +118,7 @@ These come from the HUD's own widgets, so they start once the HUD is up.
 
 Items entering or leaving a **container** are not on this bus: a chest is not a global fact, so you
 subscribe to the container itself with
-[`widget:onItemAdded`, `:onItemRemoved` and `:onDestroy`](ui/items.md#the-container-lifecycle).
+[`widget:on("ItemAdded"/"ItemRemoved"/"Destroy", fn)`](ui/items.md#the-container-lifecycle).
 `EquipChanged` stays global because your worn gear is one fixed surface.
 
 `ActionbarChanged` hands you the **changed slot** as a live [`Slot` object](actionbar.md) — the same
@@ -125,7 +139,7 @@ instead. At login the occupied slots stream in as a burst, one fire each.
 | `KinChanged` | [`Kin`](kin.md)`[]` | a kin is added, removed or edited, or flips online or offline |
 | `QuestAdded` | [`Quest`](quest.md#a-quest) | a new active quest appears |
 | `QuestDone` | [`Quest`](quest.md#a-quest) | an active quest is completed or failed |
-| `MarkersChanged` | `{ count = number }` | a map marker is added or removed |
+| `MarkersChanged` | `n` (number) | a map marker is added or removed |
 
 `KinChanged` hands you the **whole roster** as live [`Kin` objects](kin.md), in Kin-window sort order —
 the same interned objects `hafen.kin():list()` returns, so `payload[1]` and
@@ -171,6 +185,62 @@ point the click resolved to. The click is **consumed** — no server click, no c
 fires this only while clickable; a non-clickable one is click-through and silent, and a **billboard**
 sprite has no world mesh, so it is never picked at all.
 
+## Intercepting an outbound action
+
+`hafen.event():action():on(msg, fn)` fires when a widget is about to send an action `msg` to the server,
+with the arguments **fully resolved** — for a move `"click"`, that is the destination world coordinate,
+which does not exist yet at input time. This is the door for stopping or rewriting something *before* it
+reaches the server, which an event on the bus above would arrive too late to do.
+
+| `ev` on `action` | Description |
+|---|---|
+| `ev:msg()` | the message name |
+| `ev:sender()` | the sending [Widget](ui/widget.md) |
+| `ev:args()` | a 1-based array snapshot of the arguments; a coordinate is `{x, y}` |
+| `ev:preventDefault()` | cancel the send |
+| `ev:resend()` | re-send the original arguments verbatim; implies `preventDefault` |
+| `ev:send(t)` | send a new argument table; implies `preventDefault` |
+
+`resend` and `send` bypass every `action` handler, so re-issuing an action cannot loop — the "intercept my
+move, do something, then move" pattern:
+
+```lua
+hafen.event():action():on("click", function(ev)
+  equipBoots()
+  ev:resend()
+end)
+```
+
+`ev:sender()` is a live handle, so `ev:sender():type()` reads the class and `ev:sender():parent()`
+navigates from it. Common `msg` names: `click` · `itemact` · `drop` · `place` · `sel` · `act` · `use` ·
+`take` · `transfer`. An `action` key is **not** in the closed set above: any string is accepted, because a
+message name is protocol the server can introduce, and refusing an unknown one would refuse a legitimate
+one tomorrow. Two handlers on one `msg` both run; either one calling `preventDefault` cancels the send.
+
+## Filtering an inbound update
+
+`hafen.event():message():on(msg, fn)` is the inbound mirror: it fires when a server update `msg` is about
+to be applied to a widget.
+
+| `ev` on `message` | Description |
+|---|---|
+| `ev:msg()` | the message name |
+| `ev:target()` | the receiving [Widget](ui/widget.md) |
+| `ev:args()` | a 1-based array snapshot of the arguments |
+| `ev:preventDefault()` | **swallow** the update, so the widget never applies it |
+| `ev:rewrite(t)` | apply the update with new arguments |
+
+`preventDefault` wins over `rewrite` if both are called. Common `msg` names: `set` · `add` · `del`.
+
+```lua
+-- freeze the HUD meter bars by swallowing their updates:
+hafen.event():message():on("set", function(ev)
+  if frozen and ev:target():type() == "IMeter" then ev:preventDefault() end
+end)
+```
+
+Like `action`, a `message` key is open: any string is accepted and may never fire.
+
 ## What is deliberately not an event
 
 Data that changes only on an explicit, infrequent player action has no change event: available skills,
@@ -181,5 +251,5 @@ demand, from their own section's verbs.
 
 - [data types](types.md) — what `:info()` copies out of a payload, shape by shape
 - [`hafen.timer`](timer.md) — for what the bus cannot tell you: polling on your own schedule
-- [`hafen.hook`](hook.md) — intercepting client behaviour *before* it happens, and cancelling it
+- [the Widget object](ui/widget.md) — subscribing on a widget you hold, and the mouse and its grab
 - [conventions](conventions.md#threading) — why a handler must not block

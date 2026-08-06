@@ -6,10 +6,9 @@ when your addon goes away. The bundled **`bags`** addon is this pair end to end.
 
 ```lua
 hafen.ui():on("inventory[title=Inventory]", "appear", function(inv)
-  inv:replace(hafen.ui():window()
-    :title("Bags")
-    :size(200, 120)
-    :onDraw(function(g) g:text(#inv:items() .. " items", 6, 6) end))
+  local view = hafen.ui():window():title("Bags"):size(200, 120)
+  view:on("Draw", function(ev) ev:g():text(#inv:items() .. " items", 6, 6) end)
+  inv:replace(view)
 end)
 ```
 
@@ -76,7 +75,7 @@ the complete shape.
 
 `inv` stays an ordinary [Widget](widget.md) throughout: the widget you replaced is **hidden, not
 destroyed**, so it is still bound to its server id, still filling with items, and `inv:items()`,
-`inv:onItemAdded(…)` and every other verb keep answering while your view is up. That is "wrap, don't
+`inv:on("ItemAdded", …)` and every other verb keep answering while your view is up. That is "wrap, don't
 reimplement" — you draw, the client keeps doing the work.
 
 **The client's own toggle comes with the window.** Hiding it means you

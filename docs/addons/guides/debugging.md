@@ -69,7 +69,7 @@ and nothing happened" is one `:reload` away from being fixed.
 Four causes cover almost all of it:
 
 - **Read too early.** Your file body runs before the world exists, and much of the character sheet streams
-  in for seconds *after* `OnEnterWorld`. If a read answers `nil`, ask again from an
+  in for seconds *after* `EnterWorld`. If a read answers `nil`, ask again from an
   [event or a timer](events-and-timers.md).
 - **The hotkey is unbound.** An addon hotkey starts with no key at all, by design. Look in
   Options ▸ Keybindings for your addon's section.
@@ -86,7 +86,7 @@ Arm the client's profiler — the Options ▸ Client checkbox, or
 passes, per-widget cost and **what each addon's Lua cost**, most expensive first. The bundled **`profiler`**
 addon draws all of it, so you rarely need to write that code yourself.
 
-The usual culprits are a scan in `OnUpdate` (do it on a timer instead), a string that changes every frame
+The usual culprits are a scan in `Update` (do it on a timer instead), a string that changes every frame
 in a draw callback ([text is cached by its content](../api/ui/drawing.md#text-is-cached-across-frames)),
 and a selector lookup per frame instead of one held Widget. Long before it costs you a frame, the engine
 will [auto-disable](../runtime.md#budgets-and-the-watchdog) an addon that sustains the overrun — the

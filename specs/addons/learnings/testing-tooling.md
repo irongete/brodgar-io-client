@@ -1101,3 +1101,15 @@
   'on'"`. A `LuaError` thrown from Java arrives clean, so this is a stub artefact that reads exactly like a
   product defect. Raise from a stub with level 0 whenever the string is what the check pins. Generalisation:
   when a dry run reddens a line about a *message*, suspect the stub's error shape before the assertion.
+- **(041.6) "Every prior task's suite went green" is not proof a design line was actually built — a symbol
+  check against `src/` while writing docs found what five green suites did not.** `spec.md`/`EXAMPLES.md`
+  called for `GobOverlayAdded`/`GobOverlayRemoved` and the three `*Clicked` bus events to become `LuaEvent`
+  colon-verb objects, same as everything else the feature touched; no single task's checklist (`041.1`
+  through `041.5`) actually assigned that conversion, so `AddonManager.overlayPayload`/
+  `RenderApi.onGhostClick` still build a plain `LuaTable` today and every suite that passed never asserted
+  the shape because none of them touched these five keys. The gap was found only because the docs task's
+  own §12 checklist item 5 ("every `hafen.*` name on a page found in `src/`") is a grep against the engine,
+  not against another doc or another suite's green line. Generalisation: a feature split across many small
+  tasks needs the full acceptance-criteria list re-checked against `src/` at the close, because "assigned
+  to a task" and "in the spec" can silently drift apart across five hand-offs, and a docs task's symbol
+  check is one of the few places that would ever notice.

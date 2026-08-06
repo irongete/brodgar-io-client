@@ -28,17 +28,17 @@ are until you are in the world.
 
 | Scope | Readable from |
 |---|---|
-| account | your file bodies and `OnLoad` |
-| per character | `OnEnterWorld` onwards |
+| account | your file bodies and `Load` |
+| per character | `EnterWorld` onwards |
 
 ```lua
-hafen.event():on("OnEnterWorld", function()
+hafen.event():on("EnterWorld", function()
   local pos = hafen.store():get("settings").window
   if pos then window:position(pos.x, pos.y) end
 end)
 ```
 
-Reading a per-character table in `OnLoad` is not an error; it is simply empty, which is the bug that looks
+Reading a per-character table in `Load` is not an error; it is simply empty, which is the bug that looks
 like "my settings do not load".
 
 ## Store data, not objects
@@ -48,11 +48,11 @@ function or a handle comes back as a placeholder string. Keys become strings unl
 `1..n` array, and a `nil` value is just an absent key.
 
 So keep the *description* of a thing rather than the thing: a colour is three numbers, a layout is a table
-of positions, a chosen action is [a resource name](../api/ui/custom.md#ondrop-makes-a-widget-a-drop-target)
+of positions, a chosen action is [a resource name](../api/ui/custom.md#drop-makes-a-widget-a-drop-target)
 you can draw again. Rebuild the live objects from that on load.
 
 ```lua
-hafen.event():on("OnEnterWorld", function()
+hafen.event():on("EnterWorld", function()
   for _, prop in ipairs(hafen.store():get("settings").props or {}) do
     local p = hafen.world():position(prop.at)      -- :x() is nil until that grid is reachable
     if p then hafen.ghost():add(prop.res, p) end

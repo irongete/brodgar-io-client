@@ -23,7 +23,7 @@ and in tree order, with `w:level()` as the indent depth, so the loop above print
 | `hafen.wound():find(needle)` | `Wound` \| nil | the first whose name or resource contains it |
 | `hafen.wound():get(id)` | `Wound` \| nil | one wound, by its id |
 
-Before the tab has built — a beat after `OnEnterWorld` — `:list()` is an empty array and `:find()` is
+Before the tab has built — a beat after `EnterWorld` — `:list()` is an empty array and `:find()` is
 `nil`. Nothing here throws and nothing is gated.
 
 `:find` is the presence test: it answers `nil` on a miss, so `if hafen.wound():find("Infection") then`

@@ -9,7 +9,7 @@ for _, slot in ipairs(hafen.study():slot():list()) do
 end
 ```
 
-Like the rest of the sheet, the study window builds after login, so a read right at `OnEnterWorld`
+Like the rest of the sheet, the study window builds after login, so a read right at `EnterWorld`
 answers an empty array.
 
 ## Read

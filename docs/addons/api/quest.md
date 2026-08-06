@@ -19,7 +19,7 @@ end
 | `hafen.quest():get(id)` | `Quest` \| nil | one quest, by its server id |
 | `hafen.quest():selected()` | `Quest` \| nil | the quest open in the log |
 
-Before the log has built — a beat after `OnEnterWorld` — `:list()` is an empty array, `:count()` is `0`
+Before the log has built — a beat after `EnterWorld` — `:list()` is an empty array, `:count()` is `0`
 and `:selected()` is `nil`. `:selected()` is also `nil` whenever the player has nothing open. Nothing
 here throws and nothing is gated.
 

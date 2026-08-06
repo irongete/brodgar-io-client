@@ -58,7 +58,7 @@ Absolute paths and `..` escapes are **rejected**, because an addon reads only it
 files are resolved relative to the model file and re-checked against your folder, so a `.gltf` cannot reach
 out either.
 
-Decoding is **synchronous**: call `:get` from setup code — `OnLoad`, `OnEnterWorld`, a command — **never**
+Decoding is **synchronous**: call `:get` from setup code — `Load`, `EnterWorld`, a command — **never**
 from inside a draw callback.
 
 ## Interning
@@ -208,7 +208,7 @@ namespace is *your files*; the table below is *the game's*.
 ```lua
 local icon, face, chair            -- upvalues; a reload rebuilds the env, so they are nil again
 
-hafen.event():on("OnLoad", function()
+hafen.event():on("Load", function()
   icon  = hafen.asset():get("icon.png")
   face  = hafen.asset():get("fonts/Inter.ttf"):derive():size(12)
   chair = hafen.asset():get("props/chair.glb")
@@ -216,14 +216,12 @@ hafen.event():on("OnLoad", function()
   hafen.log():write(("icon %dx%d, chair %.1f tiles tall"):format(s.w, s.h, b.size.z / 11))
 end)
 
-hafen.ui():window()
-  :title("My addon")
-  :size(160, 80)
-  :font(face)
-  :onDraw(function(g, w, h)
-    g:image(icon, 4, 4, 16, 16)             -- the handle, not the path
-    g:text("mine", 26, 6)
-  end)
+local win = hafen.ui():window():title("My addon"):size(160, 80):font(face)
+win:on("Draw", function(ev)
+  local g = ev:g()
+  g:image(icon, 4, 4, 16, 16)             -- the handle, not the path
+  g:text("mine", 26, 6)
+end)
 
 hafen.slash():register("stand", function()
   local p = hafen.player():gob():position()

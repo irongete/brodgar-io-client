@@ -66,8 +66,8 @@ Writing either property on a system marker is refused: those are the server's ow
 > removing and recolouring markers is not gated: it edits the user's own on-disk map database, which is
 > client-local and reversible by hand. Remove only what your addon added.
 
-The [`MarkersChanged`](../event.md#roster-quests-markers) event, payload `{ count }`, fires on any add,
-remove or edit, including ones the player makes.
+The [`MarkersChanged`](../event.md#roster-quests-markers) event, payload the marker count, fires on any
+add, remove or edit, including ones the player makes.
 
 ## See also
 

@@ -201,8 +201,8 @@ end)
 ```
 
 `(sx, sy)` are game-window pixels, the space `worldToScreen` returns. During a drag, feed it the cursor
-coords from [`hafen.hook():grab`](hook.md#hafenhookgrabmove-up) and coalesce — issue the next raycast only
-after the previous `fn` fired — so at most one is in flight per frame.
+coords from [the mouse's grab](ui/widget.md#the-grab) and coalesce — issue the next raycast only after the
+previous `fn` fired — so at most one is in flight per frame.
 
 **`snapPlace(p, fine)`** snaps a Position exactly as placing a building does, honouring the live
 placement-grid setting: without `fine`, the tile centre; with `fine = true`, the sub-tile grid
@@ -210,7 +210,8 @@ placement-grid setting: without `fine`, the tile centre; with `fine = true`, the
 through it lands where a real building would.
 
 ```lua
-local s = hafen.world():snapPlace(p, mods.shift)   -- SHIFT picks the fine grid
+-- from inside a grab's "Move" handler:
+local s = hafen.world():snapPlace(p, ev:shift())   -- SHIFT picks the fine grid
 ghost:move(s:x(), s:y())
 ```
 
@@ -219,7 +220,7 @@ finer placement-angle grid (`angGran()` steps). It honours the live setting just
 ghost rotate feels identical to rotating a real building. The result is normalized to `(-π, π]`.
 
 ```lua
-local a = hafen.world():snapAngle(math.atan2(p:y() - c.y, p:x() - c.x), mods.shift)
+local a = hafen.world():snapAngle(math.atan2(p:y() - c.y, p:x() - c.x), ev:shift())
 ghost:rotate(a)
 ```
 
