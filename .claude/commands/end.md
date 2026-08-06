@@ -19,7 +19,11 @@ be in flight in different areas at once, so every invocation names its own.
    paths and closes the wrong task.
 3. **Read `specs/<area>/AREA.md`.** It declares the docs tier, the test protocol and the commit
    paths used below. Everything area-specific comes from there — this command never assumes them.
-4. **Open your reply with `[area: <area>]`** so the maintainer always sees which area is in play.
+4. **Read the area's test protocol file**, if `AREA.md` declares one (for `addons`,
+   `specs/addons/TESTING.md`). It defines what the task's tests are and, if the protocol says so,
+   where their artifacts belong once the task closes (for `addons`: a per-task suite is archived
+   out of the client's live `addons/` into the task's spec folder).
+5. **Open your reply with `[area: <area>]`** so the maintainer always sees which area is in play.
 
 ## Common rules (non-negotiable)
 
@@ -56,6 +60,8 @@ be in flight in different areas at once, so every invocation names its own.
 5. **Close:** check the task off in `tasks.md` · update `specs/<area>/STATE.md` (REPLACING,
    max 60 lines) · learnings appended (step 3) · coverage paid (step 4) · if the code
    structure changed, update the affected `specs/codebase/<subsystem>.md` ·
+   **archive the task's test artifacts** if the protocol read in step 4 says to (for `addons`: move
+   `addons/<NNN>-<feature>.<X>/` to `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/`) ·
    delete `specs/<area>/HANDOFF.md`.
 6. **If it was the last task:** mark the feature DONE in `specs/<area>/FEATURES.md` with its
    one-line summary and reflect it in `specs/<area>/STATE.md`. The `NNN-` folder STAYS where

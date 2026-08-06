@@ -1,6 +1,6 @@
 # Decision Log (ADR-lite) — index
 
-> The decisions (D-001..D-143) live in `decisions/`, split by category — the same shape
+> The decisions (D-001..D-144) live in `decisions/`, split by category — the same shape
 > as `learnings/`. **Never read the whole set**: each line below says which D-numbers a file
 > holds; open only the entry you need (every `### D-xxx — <title>` header doubles as its
 > one-liner — `grep -h "^### D-" decisions/*.md` lists them all). **Adding a decision:**
@@ -17,4 +17,4 @@
 - [rendering](decisions/rendering.md) — hafen.render namespace, glTF 2.0 static subset (D-034, D-035)
 - [network-data](decisions/network-data.md) — hafen.json, hafen.http + network allowlist (D-036, D-037)
 - [fonts](decisions/fonts.md) — per-addon font system: private handles + owned overrides, a surface's look is the sheet's and a handle's colour is for your own pixels (D-073), a cascade level takes the properties it names, not the ones it does not (D-076), per-instance is a LEVEL of the cascade, not a mechanism beside it (D-077), a value handle is writable only while it is an unused DRAFT (D-126) (D-043, D-073, D-076, D-077, D-126)
-- [process](decisions/process.md) — spec language, gap build order, a suite proves its own task ALONE and duplication beats delegation (D-085), a system's boundary is a DECISION on the page, not a gap in the code (D-092) (D-007, D-026, D-085, D-092)
+- [process](decisions/process.md) — spec language, gap build order, a suite proves its own task ALONE and duplication beats delegation (D-085), a system's boundary is a DECISION on the page, not a gap in the code (D-092), a closed task's suite is ARCHIVED into its spec folder, not left live (D-144) (D-007, D-026, D-085, D-092, D-144)

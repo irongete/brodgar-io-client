@@ -15,6 +15,13 @@ The suite **tests itself**. It asserts through the very `hafen.*` API the task s
 under test is also the test tooling — and prints one verdict line per check. What a program cannot
 do it hands to the maintainer as an explicit `[manual]` line.
 
+**`/end` archives it (D-144).** Once the maintainer's verification passes, `/end`'s close step moves
+the folder out of the client's live `addons/` and into the task's own spec folder —
+`addons/<NNN>-<feature>.<X>/` becomes `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/`, an
+ordinary move (`git add -A` in the commit step registers it as a rename). The suite itself is
+untouched — same files, same `id`, still runnable — it just stops being one of the folders the
+client scans at login. See *Regression* below for what that means for the full-regression list.
+
 **And it stands ALONE (D-085).** Running `:t<NNN>-<X>` and nothing else is the whole verification of that
 task: the suite installs what it needs, asserts what its task claims, and cleans up after itself. It never
 asks for an earlier task's command to be run first, and it never rests on an assertion that lives only in
@@ -153,8 +160,13 @@ hafen.slash.register("t033-2", run)   -- the only way in: a suite does not start
 
 ## Regression
 
-Every past suite stays installed, and **the full regression is running their commands** — one at a time, in
-any order:
+**A closed task's suite is archived, not left installed** (see above): at any moment `addons/` holds only
+the example addons, frozen `hello`, and whichever suite is currently in flight (implemented but not yet
+`/end`-ed). Every closed suite still exists, unchanged, under
+`specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/` — copy the folder back into the client's
+`addons/` and `:reload` if you ever want to run it again.
+
+Restored, the commands below are still the full regression, run one at a time, in any order:
 
 ```
 :t033-3  :t034-1  :t034-2  :t034-3  :t035-1  :t035-2  :t035-3  :t035-4
@@ -171,15 +183,18 @@ duplication rule above buys, and it is the difference between a regression you *
 protocol you have to obey.
 
 **And it is a regression the maintainer rarely chooses** (2026-08-06): the list above is a resource, not a
-step, and the working assumption for every task is that **none of it is run**. That is not a gap to close by
-asking for more commands — it is why the duplication rule exists, and why a task that changes old behaviour
-carries the old assertion into its own suite (see *Automate everything*, above). A task is verified by its
-own `:t<NNN>-<X>` and the maintainer's answers to its `[manual]` lines; anything a session would have gone
-looking for in an older suite belongs in this one instead.
+step, and the working assumption for every task is that **none of it is run**. Archiving (D-144) only makes
+that the default rather than an exception — nobody runs the full regression, and now nobody has it loaded
+either. That is not a gap to close by asking for more commands — it is why the duplication rule exists, and
+why a task that changes old behaviour carries the old assertion into its own suite (see *Automate
+everything*, above). A task is verified by its own `:t<NNN>-<X>` and the maintainer's answers to its
+`[manual]` lines; anything a session would have gone looking for in an older suite belongs in this one
+instead.
 
 Never edit an old suite to make it green: that line is the regression doing its job. (A suite's *schedule* is not an assertion — 035.3 removed every suite's auto-start, with a
 version bump each, and that is the only kind of edit an old suite takes without a reason of its own.) Only
-the maintainer removes or disables a suite.
+the maintainer removes or disables a suite — **archiving is not disabling**: an archived suite is exactly
+as green as the day it closed, just no longer loaded.
 
 ## Headless pre-check
 
@@ -194,3 +209,5 @@ LuaJ jar against a stub `hafen` before handing over (see `learnings/testing-tool
 - **`addons/hello/` is FROZEN.** It was the single growing harness through feature 033 and stays
   installed for the coverage it already carries (001–033), but **no new task extends it**. Touch it
   only when a change breaks it — then fix it, do not grow it.
+- **None of the above are per-task suites, so `/end`'s archiving step (D-144) never touches them** —
+  they stay in the client's `addons/` permanently, unlike `<NNN>-<feature>.<X>/` folders.

@@ -27,6 +27,22 @@ mechanism, the ordering rule was the residue), and this deletes the residue.
 only edited when it breaks. A suite that would need a large premise from elsewhere is evidence the task was
 two tasks, not a reason to delegate.
 
+### D-144 — A closed task's suite is ARCHIVED into its spec folder, not left live ✅
+**Decision.** `/end`'s close step moves a task's test addon out of the client's live
+`addons/<NNN>-<feature>.<X>/` into `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/` — an
+ordinary move, so the suite is unchanged and still runnable, just no longer one of the folders the
+client scans at login. Only the in-flight task's suite (implemented, not yet `/end`-ed), frozen
+`hello`, and the example addons ([../TESTING.md](../TESTING.md)'s list) stay in `addons/` permanently.
+**Rationale.** The maintainer, closing on a client `addons/` folder that had grown to fifty-odd
+historical suites loading on every login, none of which the working assumption behind D-085 ("the
+maintainer rarely chooses" to run the regression) ever asks for. The suite already proves its task
+alone by construction (D-085); keeping it *loaded* bought nothing once the working assumption is that
+it is not run, and cost a slower login and a longer AddOns list for every task that shipped one.
+**Consequence.** The *Regression* list in [../TESTING.md](../TESTING.md) is now a list of commands
+that work once their folder is copied back into `addons/`, not a live list of what is installed —
+running the full regression is opt-in twice over now: nobody runs it, and nobody has it loaded either.
+Archiving is not disabling: an archived suite is exactly as green as the day it closed.
+
 ### D-026 — Gap design/build order ✅ (closes Q-014)
 Order: **widget-tree-read mechanism** ([14-widget-tree-reads.md](../design/14-widget-tree-reads.md), foundational)
 → A5 overlays (done) → A1 map/markers → A4 study/curiosity/FEP → A3 action bar → A2 radar/GobIcon settings
