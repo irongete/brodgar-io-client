@@ -485,6 +485,18 @@ final class UiApi {
                 return Controls.grid(owner, a);
             }
         });
+        // :table() — 040.12, the fifth and last of the MODEL-BACKED five: a real haven.TableBox. Built with NO
+        // columns until :columns(t) names them -- {title=, width=, of(row)} per column, over ColSpec.of -- and
+        // :rows(t) is a plain array of arbitrary Lua values, the same shape :grid()'s row source has (a table
+        // row is not a string or {icon=, text=} pair; it is whatever of(row) reads from it). Both :columns(t)
+        // and :rowHeight(n) are building-only, like :cell(w, h) -- the client's own TableBox fixes its columns
+        // and row height at construction.
+        m.set("table", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "table");
+                return Controls.table(owner, a);
+            }
+        });
         // :overlay() — paint on top of the HUD without owning a widget: :onDraw(fn) runs fn(g, w, h) every frame
         // with the shared GOut wrapper and the screen size, in absolute screen coords. It MINTS one rather than
         // handing back a collection, which is the one place `overlay` is a builder and not a set — gob:overlay()

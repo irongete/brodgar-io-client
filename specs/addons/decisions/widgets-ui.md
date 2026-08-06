@@ -1102,3 +1102,41 @@ WRITE dispatches through `Controls.cell(Addon, Widget, Owned, Varargs)`, which v
 engine's own even-spread-across-the-width shape, `SkillWnd.SkillGrid`/`ExpGrid`'s own margin) is fixed per
 `CGrid`, not exposed as a setter — a later task can add one the same building-only way if an addon ever asks.
 **See.** [D-160](widgets-ui.md) (a list's row height is chosen while the control is being built), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-165 — a table's row is whatever `:columns(t)`'s `of(row)` reads, not a LuaRows shape ✅ (2026-08-06)
+**Decision.** `hafen.ui():table()`'s `:rows(t)` is a plain array of arbitrary Lua values — not the
+string-or-`{icon=,text=}` shape `LuaRows` enforces for list/dropdown/menu. Each column's `of(row)` accessor
+is called once per row, at `:rows(t)`/`:columns(t)` time (never lazily), and must answer a string; the
+result is baked into the row object `TableBox`'s `Row` actually builds cells from.
+**Rationale.** A table's cell content is column-defined, not row-shaped — the same row reads as "Bucket"
+through one column's `of` and `"10"` through another's, which no fixed row shape (string, `{icon=,text=}`)
+could express. `LuaRows` was written for controls that turn a row into ONE widget; a table turns it into N,
+one per column, so the bridge does not fit and is not forced to. Eager resolution is D-159's rule again, for
+the identical reason: `SListBox.update()` (inside `TableBox`'s own `MainList`) builds row widgets from the
+uncaught per-frame tick, so a bad `of(row)` has to fail at the verb that can still refuse cleanly.
+**Consequences.** `LuaRows`'s own class doc, written at 040.9 before this task existed, predicted `:table()`
+would reuse `parse`/`makeitem` — it does not; `CTable` has no `LuaRows` dependency at all. A rejected
+`:rows(t)`/`:columns(t)` leaves the existing rows/columns untouched, the same "validate whole, before tearing
+anything down" discipline `LuaRows.parse` and `CRadio.rows` already follow.
+**See.** [D-159](widgets-ui.md) (a row resolved WHOLE, never lazily), [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-166 — a table's `:columns(t)` is building-only, and the engine class needs an anonymous subclass to get there ✅ (2026-08-06)
+**Decision.** `widget:columns(t)` on `hafen.ui():table()` may be set — or changed — only while the control is
+still pending; once armed it refuses, naming that. A write while pending REBUILDS the underlying `TableBox`
+under the same Lua handle, carrying its current rows across (re-resolved against the new columns). `CTable`
+is `abstract`; the actual object `CTable.create()` hands back is an ANONYMOUS subclass capturing the column
+spec and row height as locals of that factory method.
+**Rationale.** `TableBox.cols`/`main` are `public final`, built once by its OWN constructor from `spec()`/
+`itemh()` — the same "no live setter, so a different one is a different widget" shape D-160/D-164 already
+generalised for a list's row height and a grid's cell box. The subclass has to be anonymous because
+`TableBox`'s constructor calls `spec()`/`itemh()` on `this` BEFORE returning control to `CTable`'s own
+constructor body, so a plain field assigned there is still unset at the one moment it is read; an anonymous
+subclass's captured locals are assigned by the compiler before ITS super-constructor call runs, which is
+early enough. Confirmed in isolation with a throwaway, `haven`-free Java repro before trusting it in `CTable`.
+**Consequences.** `CTable` extends `TableBox` directly rather than through the engine's own factory, the
+same shape D-161 predicted a future model-backed control would need and use "unless its own engine class
+gives a concrete reason not to" — `TableBox` gives none. Any future adapter that must feed constructor-time
+data to an overridden method invoked from a `haven` superclass's own constructor has this same trick
+available; a plain field write in the subclass body is not an option regardless of how it is phrased.
+**See.** [D-160](widgets-ui.md), [D-164](widgets-ui.md), [D-161](widgets-ui.md) (direct subclass, predicted),
+[040-ui-controls](../040-ui-controls/spec.md).

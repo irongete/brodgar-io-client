@@ -1,10 +1,11 @@
 # hafen.ui: lists
 
 A **row-source control** takes its content from `:rows(t)` — a plain Lua array — rather than a caption or
-a picture, and is dressed by the [stylesheet](style/README.md) like any other [control](controls.md). Four
+a picture, and is dressed by the [stylesheet](style/README.md) like any other [control](controls.md). Five
 share it: a list keeps every row on screen, a dropdown keeps one closed until clicked, a menu fires on a pick
-and holds nothing, and a grid draws its own cells instead of building rows at all — the first three take the
-same string-or-`{icon=,text=}` row shape below; a [grid](#grid)'s rows are whatever your own `:onCell` reads.
+and holds nothing, a grid draws its own cells instead of building rows at all, and a table lays them out in
+named columns — the first three take the same string-or-`{icon=,text=}` row shape below; a [grid](#grid)'s
+rows are whatever your own `:onCell` reads, and a [table](#table)'s whatever its own `:columns(t)` reads.
 
 ```lua
 local list = hafen.ui():list()
@@ -21,6 +22,7 @@ local list = hafen.ui():list()
 | `hafen.ui():dropdown()` | [Widget](widget.md) | one row, closed until clicked |
 | `hafen.ui():menu()` | [Widget](widget.md) | a row of actions that fires and holds nothing |
 | `hafen.ui():grid()` | [Widget](widget.md) | a laid-out grid of cells you draw yourself |
+| `hafen.ui():table()` | [Widget](widget.md) | rows laid out in named columns |
 
 Built bare and configured by chained setters, [the same shape](controls.md#builders) every other control has
 — the arming rule included.
@@ -113,6 +115,31 @@ costs only that cell's line; the rest of the grid still draws, that frame and ev
 [list's row height](#list), it is chosen while the control is being built and refuses once the grid is on
 screen. A grid answers no `:value()`/`:onChange(fn)` — it holds nothing, the same as a [menu](#menu) — and an
 empty `:rows{}` draws nothing rather than erroring.
+
+## Table
+
+`hafen.ui():table()` lays rows out in named columns, so — like a [grid](#grid)'s — its rows are not the
+string-or-`{icon=,text=}` shape above, but whatever each column's own accessor reads:
+
+```lua
+hafen.ui():table()
+  :size(300, 200)
+  :columns{
+    { title = "Name",    width = 160, of = function(r) return r.name end },
+    { title = "Quality", width = 60,  of = function(r) return tostring(r.q) end },
+  }
+  :rows(stock)
+```
+
+`:columns(t)` names each column: `title` heads it, `width` is its pixel box, and `of(row)` is called once
+per row to produce that cell's text, which must be a **string** — `tostring` a number yourself, the same as
+`"Quality"` does above. Writing `:columns(t)` again replaces the whole set and re-reads every current row
+against it; like a [grid's cell box](#grid), it is chosen while the control is being built and refuses once
+the table is on screen.
+
+`:rowHeight(n)` behaves exactly as it does on a list. A table answers no `:value()`/`:onChange(fn)` — it
+holds nothing, the same as a [menu](#menu) or a [grid](#grid) — and an empty `:rows{}` is a table with
+nothing in it rather than an error.
 
 ## See also
 

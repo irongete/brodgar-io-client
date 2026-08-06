@@ -222,6 +222,28 @@ a **non-static inner class whose constructor self-registers** (`groups.add(this)
 | A `Loading` from one cell does not aim the whole draw | `draw` catches `Loading` PER ITEM ([:170](src/haven/GridList.java:170)) and blits a placeholder — a wrapping addon callback (`drawitem` override) that raises anything else propagates to whatever calls it |
 | Selection exists but is native-only | [`change(T)`](src/haven/GridList.java:220)/[`itemclick`](src/haven/GridList.java:224) set `sel` and draw a highlight ([`drawsel`](src/haven/GridList.java:130)) on a real click — no Lua verb reads it (spec 040 ships no `:value()` on a grid) |
 
+## `TableBox` — the fifth model-backed control, and a constructor-order trap of its own
+
+[`TableBox<I>`](src/haven/TableBox.java:32) demands `items()`/`spec()`/`itemh()` — all called from ITS OWN
+constructor ([:36](src/haven/TableBox.java:36)), before an adapter subclass's own field initializers run, so
+a plain `this.x = x` in the subclass constructor body reads back its default the one time `spec()`/`itemh()`
+actually need it.
+
+| What | Where |
+|---|---|
+| Columns are fixed at construction | [`cols`/`main`](src/haven/TableBox.java:33) are `public final`, built once from [`spec()`](src/haven/TableBox.java:38) — the same "no live setter" shape [row height](#slistwidgetslistbox-the-model-backed-contract)/[cell box](#gridlist-draws-cells-does-not-build-row-widgets) already have |
+| A cell is built PER COLUMN, per row | [`Row`](src/haven/TableBox.java:111)'s constructor calls [`ColSpec.makecell`](src/haven/TableBox.java:77) once for every column; `MainList` ([:122](src/haven/TableBox.java:122)), an inner `SListBox`, is what runs it — lazily, from the same uncaught per-frame tick the model-backed contract's row-widget note above already covers |
+| `widths()` skips its own flex math at `flexw=0` | [`widths()`](src/haven/TableBox.java:144) redistributes stretch space by `ColSpec.flexw()`; with every column's `flexw` at `0` (this bridge's own choice — no stretch columns), `c.w` reduces to exactly `fixw()`, independent of the widget's own `:size()` |
+| `MainList` carries its own `Scrollbar` | [`MainList extends SListBox`](src/haven/TableBox.java:122) inherits its auto-scrollbar, so a suite walking its children for "the row widgets" must filter `type()=="Scrollbar"` out, same as any bare `:list()` |
+
+> **The constructor-order trap.** `spec()`/`itemh()` run on `this` while `TableBox`'s OWN constructor is
+> still executing — before control ever returns to the adapter's own constructor body. The fix costs no
+> `haven` edit: the adapter's factory method returns an ANONYMOUS subclass overriding both, capturing the
+> column spec and row height as locals of that factory — the compiler assigns an anonymous class's
+> captured-variable fields before it calls its OWN super-constructor, which is exactly early enough for
+> `TableBox`'s constructor, one level up, to see them. Confirmed with a throwaway, `haven`-free Java repro
+> before trusting it in the real adapter.
+
 ## `LuaGOut` — the one `g` wrapper, now with a SECOND consumer
 
 [`LuaGOut`](src/io/brodgar/addon/LuaGOut.java:40) was built for [`AddonWidget.draw`](src/io/brodgar/addon/AddonWidget.java:196)'s

@@ -889,6 +889,24 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // columns(t) / columns() — 040.12: a TABLE's column descriptors ({title=, width=, of=} per column).
+        // Building-only, like :cell(w, h)/:rowHeight(n): the client's own TableBox fixes its columns (cols,
+        // main) at construction, so choosing a different set rebuilds the widget under the same Lua handle,
+        // re-resolving the current rows against the new columns. The bare read hands back exactly the table
+        // last given; a control with no columns reads nil on this and a write there throws naming what does.
+        m.set("columns", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:columns() → narg 1 · w:columns(t) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "columns"));
+                LuaValue v = Args.written(a, 2, "widget:columns", "t");
+                if(v == null)
+                    return Controls.columns((w == null) ? null : ownedContent(owner, w));
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                Controls.columns(owner, w, owned(owner, w, "columns(t)"), v);
+                return self;
+            }
+        });
         // exists() — is this widget still attached to the tree? The one read that always answers (D-060: a widget
         // HAS a lifetime, unlike a name-keyed Sound). False after a destroy and false across a relog.
         m.set("exists", new OneArgFunction() {

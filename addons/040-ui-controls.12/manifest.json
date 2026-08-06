@@ -1,0 +1,9 @@
+{
+  "name": "040.12 — table()",
+  "id": "040-ui-controls.12",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 040.12: hafen.ui():table() builds a real client TableBox -- the fifth and last of the model-backed five, and unlike list()/dropdown()/menu() it takes no part in the LuaRows bridge, since a table row is whatever shape the addon's own :columns(t) of(row) accessors read from it. :columns(t) names {title=, width=, of=} per column over ColSpec.of and, like :rowHeight(n), is building-only. It proves columns render with their headings at their declared widths, of(row) runs once per row per column with the row's own value, a column missing a required key is refused naming it, re-:columns{} replaces the set (re-resolving the carried rows), and :rows{} with columns set is an empty table, not an error.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -1075,3 +1075,20 @@
   checked by printing whether they are distinct, before concluding anything about the check under it. Lua-specific
   trap in the same shape: `setmetatable` and `table.sort` mutate and return their argument, so any stub built on
   them recycles state a fresh-object plant needs to break.
+- **(040.12) 040.9's "measure the tree baseline on the same side of a lazy row-build tick" gotcha recurs on
+  EVERY new model-backed suite that builds its own `[manual]`-line demo window, and a narrative mention in
+  `STATE.md` was not enough to stop it recurring — this is the first time it is a searchable learning.** The
+  suite called `phase1()` (which measures `base = treeCount()`) synchronously at the end of `run()`, right
+  after building the demo's own `hafen.ui():table()` — but `SListBox.update()` (inside a `TableBox`'s
+  `MainList`) builds row widgets lazily, on the FIRST tick, so `base` was 9 widgets short of what that SAME
+  table looked like a few ticks later at the final count, reading as a leak that never was one. Fix: defer
+  `run()`'s call into `phase1` by one tick (`hafen.timer():after(0.5, phase1)`), exactly 040.9's own fix,
+  applied a second time. **The durable form of the rule**: any suite with a lazily-built row/cell tree AND its
+  own always-on demo window must take the demo's lazy build into account before touching `treeCount()` at
+  all, not just avoid asserting on the demo's OWN row widgets before they exist.
+- **(040.12) A helper that walks an `SListBox`'s children for "the row widgets" must filter its own auto
+  `Scrollbar` — 040.9's `rowWidgets()` already does this, and porting the SAME shape to a new consumer without
+  copying the filter reintroduces the exact miscount.** `TableBox.MainList extends SListBox`, so it carries
+  the auto-added `Scrollbar` (`SListBox`'s `autoscroll()` defaults `true`) as a sibling of every `Row` widget;
+  a `rowWidgets()` ported to walk `MainList:children()` without excluding `type() == "Scrollbar"` counted 3
+  rows as 4. Grep `rowWidgets` before writing a new one over any `SListBox`-shaped container.

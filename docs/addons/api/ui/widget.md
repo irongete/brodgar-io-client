@@ -64,11 +64,12 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:onSubmit()` | function \| nil | the handler that fires when Enter is pressed in a [text entry](controls.md#text-entry), or `nil` where there is nothing to submit |
 | `:onSelect()` | function \| nil | the handler that fires when a [menu](lists.md#menu) row is picked, or `nil` where there is nothing to select |
 | `:source()` | string \| userdata \| nil | the picture a [picture control](controls.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls.md#picture) |
-| `:rows()` | array \| nil | the row source a [radio](controls.md#radio) or a [list, dropdown, menu or grid](lists.md) takes, or `nil` where a control has no rows — [`:rows(t)` writes it](lists.md#rows-list-dropdown-menu) |
+| `:rows()` | array \| nil | the row source a [radio](controls.md#radio) or a [list, dropdown, menu, grid or table](lists.md) takes, or `nil` where a control has no rows — [`:rows(t)` writes it](lists.md#rows-list-dropdown-menu) |
 | `:range()` | `{min=, max=}` \| nil | the value bounds of a [slider or scrollbar](controls.md#slider), or `nil` where a control has none — [`:range(min, max)` writes it](controls.md#slider) |
-| `:rowHeight()` | int \| nil | the height of a row in a [list, dropdown or menu](lists.md), in pixels, or `nil` where a control has no rows — [`:rowHeight(n)` writes it](lists.md) |
+| `:rowHeight()` | int \| nil | the height of a row in a [list, dropdown, menu or table](lists.md), in pixels, or `nil` where a control has no rows — [`:rowHeight(n)` writes it](lists.md) |
 | `:cell()` | `{w=, h=}` \| nil | the cell box of a [grid](lists.md#grid), in pixels, or `nil` where a control has no cells — [`:cell(w, h)` writes it](lists.md#grid) |
 | `:onCell()` | function \| nil | the handler that paints a [grid](lists.md#grid)'s cells, or `nil` where there is nothing to paint |
+| `:columns()` | array \| nil | the column descriptors of a [table](lists.md#table), or `nil` where a control has no columns — [`:columns(t)` writes it](lists.md#table) |
 | `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |
@@ -117,11 +118,12 @@ the error.
 | `:onSubmit(fn)` | handle Enter in a [text entry](controls.md#text-entry) you built | **error**, same reason |
 | `:onSelect(fn)` | handle a [menu](lists.md#menu) row being picked | **error**, same reason |
 | `:source(h)` | give a [picture control](controls.md#picture) its content | **error**, same reason |
-| `:rows(t)` | give a [radio](controls.md#radio) or a [list, dropdown, menu or grid](lists.md#rows-list-dropdown-menu) its rows | **error**, same reason |
+| `:rows(t)` | give a [radio](controls.md#radio) or a [list, dropdown, menu, grid or table](lists.md#rows-list-dropdown-menu) its rows | **error**, same reason |
 | `:range(min, max)` | set the bounds of a [slider or scrollbar](controls.md#slider) you built | **error**, same reason |
-| `:rowHeight(n)` | set a [list, dropdown or menu](lists.md)'s row height while it is being built | **error**, same reason |
+| `:rowHeight(n)` | set a [list, dropdown, menu or table](lists.md)'s row height while it is being built | **error**, same reason |
 | `:cell(w, h)` | set a [grid](lists.md#grid)'s cell box while it is being built | **error**, same reason |
 | `:onCell(fn)` | handle painting a [grid](lists.md#grid)'s cells | **error**, same reason |
+| `:columns(t)` | name a [table](lists.md#table)'s columns while it is being built | **error**, same reason |
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |
 | `:rule()` | restyle it and its subtree through your own level | **works**, same |

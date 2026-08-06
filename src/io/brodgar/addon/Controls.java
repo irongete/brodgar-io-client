@@ -13,6 +13,8 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 import java.awt.image.BufferedImage;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * The <b>controls</b> half of {@code hafen.ui} (spec {@code 040-ui-controls}): the builders that put one of the
@@ -189,6 +191,18 @@ final class Controls {
         LuaValue onCell();
 
         void onCell(LuaValue fn);
+    }
+
+    /**
+     * <b>{@code :columns(t)} — a TABLE's column descriptors</b> (task 040.12). {@link CTable} is its one
+     * implementor. Read-only as a capability, exactly like {@link RowHeight}/{@link Cell}: the WRITE is not a
+     * plain field assignment — {@code TableBox.cols}/{@code main} are {@code public final}, fixed at
+     * construction from {@code spec()}, so a different column set is building-only and goes through a rebuild
+     * in {@link Controls#columns}, the same shape {@link #rowHeight}/{@link #cell} already have.
+     */
+    interface Columns {
+        /** Exactly the table {@code :columns(t)} was last given, or {@code null} before the first one. */
+        LuaValue columns();
     }
 
     // ------------------------------------------------------------------ the builders
@@ -403,6 +417,23 @@ final class Controls {
                 + " chained setters: hafen.ui():grid():cell(48, 48):rows(items):onCell(fn)");
         UI u = UiApi.requireUi("grid");
         return UiApi.attach(u, owner, new CGrid(owner, CGrid.DEF_SZ, CGrid.DEF_CELL));
+    }
+
+    /**
+     * {@code hafen.ui():table()} — a real {@link haven.TableBox}, the client's own columned row list (task
+     * 040.12), the fifth and last of the model-backed five. Built with NO columns and the client's own default
+     * row height until {@code :columns(t)} names them — {@code title}, {@code width} and an {@code of(row)}
+     * accessor per column, over {@code ColSpec.of} — and {@code :rows(t)} feeds it rows, a plain array of
+     * arbitrary Lua values (whatever shape the addon's own {@code of(row)} accessors read).
+     */
+    static LuaValue table(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():table() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():table():columns{...}:rows(items)");
+        UI u = UiApi.requireUi("table");
+        return UiApi.attach(u, owner,
+            CTable.create(owner, CTable.DEF_SZ, CTable.defaultItemHeight(), Collections.<CTable.ColDef>emptyList(),
+                null));
     }
 
     // ------------------------------------------------------------------ the control verbs
@@ -863,8 +894,8 @@ final class Controls {
             return;
         }
         throw new LuaError("widget:rows(t) sets a control's ROW SOURCE, and hafen.ui():radio(), hafen.ui():list(),"
-            + " hafen.ui():dropdown() and hafen.ui():menu() are the builders that take one, in this feature so"
-            + " far — " + LuaWidget.typeName(w) + " has no rows.");
+            + " hafen.ui():dropdown(), hafen.ui():menu(), hafen.ui():grid() and hafen.ui():table() are the"
+            + " builders that take one — " + LuaWidget.typeName(w) + " has no rows.");
     }
 
     // ------------------------------------------------------------------ the range verb (040.6)
@@ -908,13 +939,14 @@ final class Controls {
      * under the same Lua handle. Carries the current rows (and, where the control has one, the selection and
      * {@code :onChange}/{@code :onSelect} handler) across the rebuild, exactly as {@link #image} carries a
      * button's {@code :onPress}. {@link CList} (040.9) is the first implementor; {@link CDropdown}/{@link CMenu}
-     * (040.10) answer it the same way, each rebuilding its own class.
+     * (040.10) answer it the same way, each rebuilding its own class; {@link CTable} (040.12) too, carrying its
+     * current columns across the rebuild instead of a selection.
      */
     static void rowHeight(Addon owner, Widget w, Owned c, LuaValue v) {
         if(!(c instanceof RowHeight))
             throw new LuaError("widget:rowHeight(n) sets a list's ROW HEIGHT, and hafen.ui():list(),"
-                + " hafen.ui():dropdown() and hafen.ui():menu() are the builders that take one, in this feature"
-                + " so far — " + LuaWidget.typeName(w) + " has none.");
+                + " hafen.ui():dropdown(), hafen.ui():menu() and hafen.ui():table() are the builders that take"
+                + " one — " + LuaWidget.typeName(w) + " has none.");
         if(!v.isnumber())
             throw new LuaError("widget:rowHeight(n) — n must be a NUMBER of pixels, got " + v.typename());
         int n = v.toint();
@@ -946,11 +978,19 @@ final class Controls {
             UiApi.rebuild(owner, old, nu);
             return;
         }
-        CMenu old = (CMenu)c;
-        CMenu nu = new CMenu(owner, old.boxSz(), n);
+        if(c instanceof CMenu) {
+            CMenu old = (CMenu)c;
+            CMenu nu = new CMenu(owner, old.boxSz(), n);
+            if(old.rows() != null)
+                nu.rows(old.rows());
+            nu.onSelect(old.onSelect());
+            UiApi.rebuild(owner, old, nu);
+            return;
+        }
+        CTable old = (CTable)c;
+        CTable nu = CTable.create(owner, old.sz, n, old.cols(), old.columns());
         if(old.rows() != null)
             nu.rows(old.rows());
-        nu.onSelect(old.onSelect());
         UiApi.rebuild(owner, old, nu);
     }
 
@@ -995,6 +1035,40 @@ final class Controls {
         if(old.rows() != null)
             nu.rows(old.rows());
         nu.onCell(old.onCell());
+        UiApi.rebuild(owner, old, nu);
+    }
+
+    // ------------------------------------------------------------------ the columns verb (040.12)
+
+    /** {@code widget:columns()} — exactly the table last given, or {@code nil} on a control with no columns. */
+    static LuaValue columns(Owned c) {
+        if(!(c instanceof Columns))
+            return LuaValue.NIL;
+        LuaValue t = ((Columns)c).columns();
+        return (t == null) ? LuaValue.NIL : t;
+    }
+
+    /**
+     * {@code widget:columns(t)} — building-only, exactly like {@link #cell}/{@link #rowHeight}:
+     * {@code TableBox.cols}/{@code main} are {@code public final}, so choosing a different column set is a
+     * different widget under the same Lua handle. Carries the current rows across the rebuild — re-resolved
+     * against the NEW columns, since each row's cell text comes from ITS column's {@code of(row)} — the same
+     * shape {@link #cell} carries a grid's rows across a cell-size rebuild. {@link CTable} (040.12) is its one
+     * implementor.
+     */
+    static void columns(Addon owner, Widget w, Owned c, LuaValue t) {
+        if(!(c instanceof Columns))
+            throw new LuaError("widget:columns(t) sets a TABLE's COLUMNS, and hafen.ui():table() is the builder"
+                + " that takes one — " + LuaWidget.typeName(w) + " has none.");
+        if(!c.pending())
+            throw new LuaError("widget:columns(t) chooses a table's COLUMNS while the control is being BUILT,"
+                + " and this one is already on screen — the client's own table widget fixes its columns at"
+                + " construction, so set it in the same statement that builds the control.");
+        List<CTable.ColDef> parsed = CTable.parseColumns(t);
+        CTable old = (CTable)c;
+        CTable nu = CTable.create(owner, old.sz, old.rowHeight(), parsed, t);
+        if(old.rows() != null)
+            nu.rows(old.rows());
         UiApi.rebuild(owner, old, nu);
     }
 }

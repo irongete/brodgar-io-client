@@ -296,3 +296,14 @@
   the message TEXT of both refusals rather than that a refusal happened — the same reason 039.1's and 039.8's
   message assertions paid off. Sibling of the `narg()` discipline: *the bridge's coercions are silent, so a
   type test is a decision about which error the caller reads.*
+- **(040.12) The `!isstring()||isnumber()` idiom this codebase uses everywhere to reject a bare NUMBER also
+  rejects a genuine STRING whose CONTENT looks numeric — 039.11's fact, biting from the other side.**
+  `of(row)` on a `hafen.ui():table()` column required its return to pass `!isstring()||isnumber()`, exactly
+  how `LuaRows.icon`/`Controls.face`/`Controls.faceTex`/`Controls.sourceTex` all already screen a resource
+  NAME — but `tostring(10)` produces a `LuaString` whose `isnumber()` ALSO answers `true` (LuaJ's arithmetic
+  coercion runs both directions), so the worked example's own `of = function(r) return tostring(r.q) end`
+  refused its own well-typed return, found only in-game. Confirmed live:
+  `LuaValue.valueOf("10").isnumber()` is `true`, `.type()` is `TSTRING`. The fix is 039.11's own —
+  `v.type() != LuaValue.TSTRING`, immune to content either way. The older call sites above never hit this
+  because a resource name is never purely numeric, but the idiom itself is broken there too, waiting for the
+  first all-digits resource path.

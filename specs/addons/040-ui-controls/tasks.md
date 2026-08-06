@@ -105,7 +105,7 @@
       kill the frame. `[manual]`: confirm the icons are laid out in a grid.
       <!-- extra context: `src/haven/GridList.java`, `src/io/brodgar/addon/LuaGOut.java` -->
 
-- [ ] **040.12 — `:table()`.** `TableBox` with `:rows`, `:rowHeight` and `:columns{…}` (title, width, and an
+- [x] **040.12 — `:table()`.** `TableBox` with `:rows`, `:rowHeight` and `:columns{…}` (title, width, and an
       `of(row)` accessor per column) over `ColSpec.of`. **Suite proves**: columns render with their headings
       and widths; `of(row)` is called per cell; a column table missing a required key is refused naming it;
       re-`:columns{}` replaces the set; `:rows{}` with columns set is an empty table, not an error.
