@@ -68,8 +68,6 @@ final class CDropdown extends SDropBox<LuaRows.Row, Widget> implements Owned.Con
     private List<LuaRows.Row> curItems = Collections.<LuaRows.Row>emptyList();
     /** Exactly the table {@code :rows(t)} was last given — what the bare read hands back. */
     private LuaValue lastRows;
-    /** {@code :onChange(fn)}. Volatile: the engine fires it from the input pass while Lua may be replacing it. */
-    private volatile LuaValue onChange;
 
     CDropdown(Addon owner, int w, int listh, int itemh) {
         super(w, listh, itemh);
@@ -146,20 +144,10 @@ final class CDropdown extends SDropBox<LuaRows.Row, Widget> implements Owned.Con
         return itemh;
     }
 
-    public LuaValue onChange() {
-        return onChange;
-    }
-
-    public void onChange(LuaValue fn) {
-        this.onChange = fn;
-    }
-
     /** A REAL pick only: {@code SDropBox.SDropList}'s own {@code Item.mousedown} lands here via {@code change}. */
     public void change(LuaRows.Row item) {
         super.change(item);
-        LuaValue fn = onChange;
-        if(!own.dead() && (fn != null))
-            AddonManager.callLua(own.owner, Addon.C_WIDGET, fn, (item == null) ? LuaValue.NIL : item.raw);
+        Controls.fire(this, "Changed", (item == null) ? LuaValue.NIL : item.raw);
     }
 
     public void draw(GOut g) {

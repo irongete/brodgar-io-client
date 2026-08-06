@@ -42,8 +42,6 @@ final class CtlIButton extends IButton implements Owned.Control, Controls.Press 
     private final Coord face;
     /** Exactly the values {@code :image(…)} was given (a handle, or a resource name) — what the bare read hands back. */
     private final LuaValue upv, downv, hoverv;
-    /** {@code :onPress(fn)}. Volatile: the engine fires it from the input pass while Lua may be replacing it. */
-    private volatile LuaValue onPress;
 
     CtlIButton(Addon owner, BufferedImage up, BufferedImage down, BufferedImage hover,
                LuaValue upv, LuaValue downv, LuaValue hoverv) {
@@ -68,19 +66,9 @@ final class CtlIButton extends IButton implements Owned.Control, Controls.Press 
         return t;
     }
 
-    public LuaValue onPress() {
-        return onPress;
-    }
-
-    public void onPress(LuaValue fn) {
-        this.onPress = fn;
-    }
-
-    /** The button fired — a release inside the picture, or the keyboard. Through the one Lua callback bridge. */
+    /** The button fired — a release inside the picture, or the keyboard. Fires {@code "Pressed"}, N subscribers. */
     public void click() {
-        LuaValue fn = onPress;
-        if(!own.dead() && (fn != null))
-            AddonManager.callLua(own.owner, Addon.C_WIDGET, fn);
+        Controls.fire(this, "Pressed");
     }
 
     /**

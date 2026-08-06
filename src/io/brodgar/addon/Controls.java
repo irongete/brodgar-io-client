@@ -43,18 +43,19 @@ final class Controls {
     // ------------------------------------------------------------------ what a verb dispatches ON
 
     /**
-     * <b>A control verb dispatches on a CAPABILITY, not on a class</b> (040.2). {@code :onPress(fn)} belongs to
-     * <i>a thing that fires and holds nothing</i>, and after this task two unrelated {@code haven} classes are
-     * that thing — {@link haven.Button} and {@link haven.IButton}, which share no ancestor below {@code Widget}.
-     * Naming them both at every call site is how a dispatch chain rots: the third one is added in four places and
-     * forgotten in the fifth. So each verb gets one tiny interface, the adapters implement the ones they answer,
-     * and the dispatch below is an {@code instanceof} against the <b>verb</b>.
+     * <b>A control key answers on a CAPABILITY, not on a class</b> (040.2). {@code "Pressed"} belongs to
+     * <i>a thing that fires and holds nothing</i>, and two unrelated {@code haven} classes are that thing —
+     * {@link haven.Button} and {@link haven.IButton}, which share no ancestor below {@code Widget}. Naming them
+     * both at every call site is how a dispatch chain rots: the third one is added in four places and forgotten
+     * in the fifth. So each key gets one tiny marker interface, the adapters implement the ones they answer, and
+     * {@code widget:on(key, fn)}'s vocabulary ({@link LuaWidget#widgetKeys}) is an {@code instanceof} against it.
+     *
+     * <p><b>A pure marker since 041.4.</b> Before the unified {@code :on(key, fn)} verb this interface also
+     * carried the single installed-handler slot ({@code onPress()}/{@code onPress(fn)}); N subscribers live on
+     * the widget's own {@link WidgetSubs} now ({@link Controls#fire}), so the capability is nothing but the
+     * ANSWER to "does this control fire {@code Pressed}?" — the same shape {@link Value}/{@link Rows} always had.
      */
     interface Press {
-        /** The installed {@code :onPress} handler, or {@code null}. */
-        LuaValue onPress();
-
-        void onPress(LuaValue fn);
     }
 
     /**
@@ -86,18 +87,14 @@ final class Controls {
     }
 
     /**
-     * <b>{@code :onChange(fn)} — the value CHANGED</b> (spec 040 §1, task 040.4): the notification half of the
-     * {@code :value()} spine, dispatched on this capability exactly as {@code :onPress} dispatches on
-     * {@link Press}. Fires from a real user interaction only — a programmatic {@code :value(v)} is a direct
-     * field write on the implementation and never calls it, which is what keeps the write from re-entering its
-     * own handler. {@link CCheck} is the first implementor; every later control with a value implements it the
-     * same way.
+     * <b>{@code "Changed"} — the value CHANGED</b> (spec 040 §1, task 040.4): the notification half of the
+     * {@code :value()} spine, answered on this capability exactly as {@code "Pressed"} is on {@link Press}.
+     * Fires from a real user interaction only — a programmatic {@code :value(v)} is a direct field write on the
+     * implementation and never fires it, which is what keeps the write from re-entering its own handler.
+     * {@link CCheck} is the first implementor; every later control with a value implements it the same way.
+     * A pure marker since 041.4 — see {@link Press}.
      */
     interface Change {
-        /** The installed {@code :onChange} handler, or {@code null}. */
-        LuaValue onChange();
-
-        void onChange(LuaValue fn);
     }
 
     /**
@@ -132,16 +129,12 @@ final class Controls {
     }
 
     /**
-     * <b>{@code :onSubmit(fn)} — the ENTRY's Enter</b> (task 040.7). {@link CEntry} is its one implementor, and
-     * it is deliberately a different name from {@link Change}: {@code :onChange} fires on every keystroke,
-     * {@code :onSubmit} once, when Enter is pressed — two gestures, not one gesture with a flag (unlike the
-     * slider's {@code final}, which is the same drag reported twice).
+     * <b>{@code "Submitted"} — the ENTRY's Enter</b> (task 040.7). {@link CEntry} is its one implementor, and
+     * it is deliberately a different key from {@link Change}: {@code "Changed"} fires on every keystroke,
+     * {@code "Submitted"} once, when Enter is pressed — two gestures, not one gesture with a flag (unlike the
+     * slider's {@code final}, which is the same drag reported twice). A pure marker since 041.4 — see {@link Press}.
      */
     interface Submit {
-        /** The installed {@code :onSubmit} handler, or {@code null}. */
-        LuaValue onSubmit();
-
-        void onSubmit(LuaValue fn);
     }
 
     /**
@@ -157,16 +150,12 @@ final class Controls {
     }
 
     /**
-     * <b>{@code :onSelect(fn)} — a MENU ROW WAS CHOSEN, and it holds nothing</b> (task 040.10). {@link CMenu} is
+     * <b>{@code "Selected"} — a MENU ROW WAS CHOSEN, and it holds nothing</b> (task 040.10). {@link CMenu} is
      * its one implementor: distinct from {@link Change} (a menu answers no {@link Value} to change) and closer
      * in shape to {@link Press} — a fire-and-forget notification — except it carries the picked row as its
-     * argument, which a button's {@code :onPress} does not.
+     * argument, which {@code "Pressed"} does not. A pure marker since 041.4 — see {@link Press}.
      */
     interface Select {
-        /** The installed {@code :onSelect} handler, or {@code null}. */
-        LuaValue onSelect();
-
-        void onSelect(LuaValue fn);
     }
 
     /**
@@ -181,16 +170,12 @@ final class Controls {
     }
 
     /**
-     * <b>{@code :onCell(fn)} — a GRID's cell painter</b> (task 040.11). {@link CGrid} is its one implementor:
+     * <b>{@code "Cell"} — a GRID's cell painter</b> (task 040.11). {@link CGrid} is its one implementor:
      * {@code GridList} draws rather than builds row widgets, so this is the one model-backed control whose row
-     * source is painted through the {@code g} wrapper every {@code widget:onDraw(fn)} already uses, rather than
-     * turned into a widget by {@link LuaRows}.
+     * source is painted through the same {@code g} wrapper {@code "Draw"} uses, rather than turned into a widget
+     * by {@link LuaRows}. A pure marker since 041.4 — see {@link Press}.
      */
     interface OnCell {
-        /** The installed {@code :onCell} handler, or {@code null}. */
-        LuaValue onCell();
-
-        void onCell(LuaValue fn);
     }
 
     /**
@@ -475,125 +460,20 @@ final class Controls {
             + " has no caption to write" + ((w instanceof Window) ? "; a window's caption is widget:title(s)." : "."));
     }
 
-    /** {@code widget:onPress()} — the installed handler, or {@code nil} on anything that has nothing to press. */
-    static LuaValue onPress(Owned c) {
-        if(!(c instanceof Press))
-            return LuaValue.NIL;
-        LuaValue fn = ((Press)c).onPress();
-        return (fn == null) ? LuaValue.NIL : fn;
-    }
-
     /**
-     * {@code widget:onPress(fn)} — <b>the button fired</b>, and it holds nothing. Distinct from
-     * {@code :onClick(fn)} on purpose (spec 040 decision B): one is an intent, which the keyboard raises too,
-     * the other is a mouse position. It is safe for the handler to destroy its own window — {@code Button}
-     * releases its grab before it calls the activation, not after.
+     * {@code widget:on(key, fn)}'s fire side for a control notification ({@code "Pressed"}/{@code "Changed"}/
+     * {@code "Submitted"}/{@code "Selected"}, 041.4) — the one place every control's activation, value-change,
+     * submit and select method now ends, in place of the single stored slot + direct {@code callLua} each used
+     * to have. Looks up the widget's {@link WidgetSubs} WITHOUT minting one ({@link Addon#widgetSubsOrNull}), so
+     * a control nobody subscribed to costs one map lookup and nothing else — the {@code hasSub} gate one level
+     * up from {@link Subs#has}.
      */
-    static void onPress(Owned c, Widget w, LuaValue fn) {
-        if(c instanceof Press) {
-            ((Press)c).onPress(fn);
+    static void fire(Owned c, String key, LuaValue... args) {
+        if(c.dead())
             return;
-        }
-        throw new LuaError("widget:onPress(fn) is a BUTTON's activation, and hafen.ui():button() builds one — "
-            + LuaWidget.typeName(w) + " has nothing to press. The raw mouse event on any widget you built is"
-            + " widget:onClick(fn).");
-    }
-
-    // ------------------------------------------------------------------ the onChange verb (040.4)
-
-    /** {@code widget:onChange()} — the installed handler, or {@code nil} on a control with no value at all. */
-    static LuaValue onChange(Owned c) {
-        if(!(c instanceof Change))
-            return LuaValue.NIL;
-        LuaValue fn = ((Change)c).onChange();
-        return (fn == null) ? LuaValue.NIL : fn;
-    }
-
-    /**
-     * {@code widget:onChange(fn)} — <b>the value CHANGED</b>, and only from a real interaction: a programmatic
-     * {@code :value(v)} writes the implementation's field directly and never calls this (040.3/040.4's whole
-     * value spine — see {@link Change}). Dispatches on the same capability {@code :value()} does, so a control
-     * with no value refuses naming that fact rather than the verb.
-     */
-    static void onChange(Owned c, Widget w, LuaValue fn) {
-        if(c instanceof Change) {
-            ((Change)c).onChange(fn);
-            return;
-        }
-        throw new LuaError("widget:onChange(fn) fires when a control's VALUE changes, and " + LuaWidget.typeName(w)
-            + " holds nothing — widget:value() answers nil on it too. hafen.ui():check(), hafen.ui():radio(),"
-            + " hafen.ui():slider(), hafen.ui():scrollbar(), hafen.ui():entry(), hafen.ui():list() and"
-            + " hafen.ui():dropdown() are the builders that have one, in this feature so far.");
-    }
-
-    // ------------------------------------------------------------------ the onSubmit verb (040.7)
-
-    /** {@code widget:onSubmit()} — the installed handler, or {@code nil} on anything that has nothing to submit. */
-    static LuaValue onSubmit(Owned c) {
-        if(!(c instanceof Submit))
-            return LuaValue.NIL;
-        LuaValue fn = ((Submit)c).onSubmit();
-        return (fn == null) ? LuaValue.NIL : fn;
-    }
-
-    /**
-     * {@code widget:onSubmit(fn)} — the ENTRY's Enter, distinct from {@code :onChange(fn)} (every keystroke).
-     * Dispatches on {@link Submit}, which only {@link CEntry} implements so far.
-     */
-    static void onSubmit(Owned c, Widget w, LuaValue fn) {
-        if(c instanceof Submit) {
-            ((Submit)c).onSubmit(fn);
-            return;
-        }
-        throw new LuaError("widget:onSubmit(fn) fires when an ENTRY's Enter is pressed, and hafen.ui():entry()"
-            + " is the builder that has one — " + LuaWidget.typeName(w) + " has nothing to submit.");
-    }
-
-    // ------------------------------------------------------------------ the onSelect verb (040.10)
-
-    /** {@code widget:onSelect()} — the installed handler, or {@code nil} on anything that has nothing to select. */
-    static LuaValue onSelect(Owned c) {
-        if(!(c instanceof Select))
-            return LuaValue.NIL;
-        LuaValue fn = ((Select)c).onSelect();
-        return (fn == null) ? LuaValue.NIL : fn;
-    }
-
-    /**
-     * {@code widget:onSelect(fn)} — A MENU ROW WAS CHOSEN. Dispatches on {@link Select}, which only
-     * {@link CMenu} implements so far — distinct from {@code :onChange(fn)} because a menu answers no
-     * {@code :value()} for a change to report against.
-     */
-    static void onSelect(Owned c, Widget w, LuaValue fn) {
-        if(c instanceof Select) {
-            ((Select)c).onSelect(fn);
-            return;
-        }
-        throw new LuaError("widget:onSelect(fn) fires when a MENU row is chosen, and hafen.ui():menu() is the"
-            + " builder that has one — " + LuaWidget.typeName(w) + " has nothing to select.");
-    }
-
-    // ------------------------------------------------------------------ the onCell verb (040.11)
-
-    /** {@code widget:onCell()} — the installed handler, or {@code nil} on anything that has no cells to paint. */
-    static LuaValue onCell(Owned c) {
-        if(!(c instanceof OnCell))
-            return LuaValue.NIL;
-        LuaValue fn = ((OnCell)c).onCell();
-        return (fn == null) ? LuaValue.NIL : fn;
-    }
-
-    /**
-     * {@code widget:onCell(fn)} — a GRID's cell painter. Dispatches on {@link OnCell}, which only {@link CGrid}
-     * implements so far.
-     */
-    static void onCell(Owned c, Widget w, LuaValue fn) {
-        if(c instanceof OnCell) {
-            ((OnCell)c).onCell(fn);
-            return;
-        }
-        throw new LuaError("widget:onCell(fn) paints one cell of a GRID, and hafen.ui():grid() is the builder"
-            + " that has one — " + LuaWidget.typeName(w) + " has no cells.");
+        WidgetSubs s = c.profOwner().widgetSubsOrNull(c.widget());
+        if(s != null)
+            s.subs.fire(key, args);
     }
 
     // ------------------------------------------------------------------ the face setter (040.2)
@@ -654,16 +534,15 @@ final class Controls {
                 + " is live: widget:text(s) works at any time.");
         BufferedImage up = face(upv, "up"), down = face(downv, "down"), hover = face(hoverv, "hover");
         CtlIButton nu = new CtlIButton(owner, up, down, hover, upv, downv, hoverv);
-        if(c instanceof Press)
-            nu.onPress(((Press)c).onPress());     // a handler installed before the face outlives the rebuild
         UiApi.rebuild(owner, c, nu);
     }
 
     /**
      * {@code widget:image(up, down, hoverUp, hoverDown)} on a checkbox — the four-face completion to
      * {@link haven.ICheckBox} (task 040.4). Building-only like {@link #image}, and carries the checked state
-     * and the {@code :onChange} handler across the rebuild exactly as {@link #image} carries a button's
-     * {@code :onPress}.
+     * across the rebuild exactly as {@link #image} carries a button's picked face. (A {@code widget:on(key, fn)}
+     * subscription cannot yet exist to carry: 041.3 found it must be its own statement, after the chain that
+     * builds and faces the control has already finished.)
      */
     private static void checkImage(Addon owner, Widget w, Owned c, Varargs a) {
         LuaValue upv = Args.required(a, 2, "widget:image", "up");
@@ -683,12 +562,10 @@ final class Controls {
         Tex hoverUp = faceTex(hoverUpv, "hoverUp"), hoverDown = faceTex(hoverDownv, "hoverDown");
         CICheck nu = new CICheck(owner, up, down, hoverUp, hoverDown, upv, downv, hoverUpv, hoverDownv);
         if(c instanceof Value) {
-            LuaValue v = ((Value)c).value();       // the checked state outlives the rebuild, like a button's onPress
+            LuaValue v = ((Value)c).value();       // the checked state outlives the rebuild, like a button's face
             if((v != null) && !v.isnil())
                 nu.value(v);
         }
-        if(c instanceof Change)
-            nu.onChange(((Change)c).onChange());   // a handler installed before the face outlives the rebuild too
         UiApi.rebuild(owner, c, nu);
     }
 
@@ -936,11 +813,11 @@ final class Controls {
      * {@code widget:rowHeight(n)} — building-only, like {@link #image} (spec 040 decision G): the client's own
      * row-list widgets fix their row height at construction ({@code SListBox.itemh}, {@code SDropBox.itemh},
      * {@code SListMenu}'s inner {@code box.itemh} — all {@code final}), so a different one is a different widget
-     * under the same Lua handle. Carries the current rows (and, where the control has one, the selection and
-     * {@code :onChange}/{@code :onSelect} handler) across the rebuild, exactly as {@link #image} carries a
-     * button's {@code :onPress}. {@link CList} (040.9) is the first implementor; {@link CDropdown}/{@link CMenu}
-     * (040.10) answer it the same way, each rebuilding its own class; {@link CTable} (040.12) too, carrying its
-     * current columns across the rebuild instead of a selection.
+     * under the same Lua handle. Carries the current rows and, where the control has one, the selection, across
+     * the rebuild, exactly as {@link #image} carries a button's picked face. {@link CList} (040.9) is the first
+     * implementor; {@link CDropdown}/{@link CMenu} (040.10) answer it the same way, each rebuilding its own
+     * class; {@link CTable} (040.12) too, carrying its current columns across the rebuild instead of a selection.
+     * (A {@code widget:on(key, fn)} subscription cannot yet exist to carry — see {@link #image}.)
      */
     static void rowHeight(Addon owner, Widget w, Owned c, LuaValue v) {
         if(!(c instanceof RowHeight))
@@ -963,7 +840,6 @@ final class Controls {
                 nu.rows(old.rows());
             if(old.value() != null)
                 nu.value(old.value());
-            nu.onChange(old.onChange());
             UiApi.rebuild(owner, old, nu);
             return;
         }
@@ -974,7 +850,6 @@ final class Controls {
                 nu.rows(old.rows());
             if(old.value() != null)
                 nu.value(old.value());
-            nu.onChange(old.onChange());
             UiApi.rebuild(owner, old, nu);
             return;
         }
@@ -983,7 +858,6 @@ final class Controls {
             CMenu nu = new CMenu(owner, old.boxSz(), n);
             if(old.rows() != null)
                 nu.rows(old.rows());
-            nu.onSelect(old.onSelect());
             UiApi.rebuild(owner, old, nu);
             return;
         }
@@ -1010,8 +884,7 @@ final class Controls {
     /**
      * {@code widget:cell(w, h)} — building-only, exactly like {@link #rowHeight}: {@code GridList.Group.itemsz}
      * is {@code final}, so choosing a different cell box is a different widget under the same Lua handle
-     * (D-164). Carries the current rows and {@code :onCell} handler across the rebuild. {@link CGrid} (040.11)
-     * is its one implementor.
+     * (D-164). Carries the current rows across the rebuild. {@link CGrid} (040.11) is its one implementor.
      */
     static void cell(Addon owner, Widget w, Owned c, Varargs a) {
         if(!(c instanceof Cell))
@@ -1034,7 +907,6 @@ final class Controls {
         CGrid nu = new CGrid(owner, old.sz, new Coord(cw, ch));
         if(old.rows() != null)
             nu.rows(old.rows());
-        nu.onCell(old.onCell());
         UiApi.rebuild(owner, old, nu);
     }
 

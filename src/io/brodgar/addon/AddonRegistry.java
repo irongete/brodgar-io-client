@@ -114,9 +114,9 @@ public final class AddonRegistry {
                                       //   destroyWidgets: the rule reads the view's visibility, and a destroyed
                                       //   view stands for nothing.
         destroyWidgets(a);            // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
-        UiApi.teardownWatches(a);           // 029.3: stop watching every container the addon subscribed to (no onDestroy)
-        a.teardownWidgetSubs();           // 041.3: deafen every widget:on() listener (engine widgets outlive a
-                                          //   :reload — must detach before the Lua layer that owns them rebuilds)
+        a.teardownWidgetSubs();           // 041.3/041.4: deafen every widget:on() listener + drop every poll
+                                          //   registration (engine widgets outlive a :reload — must detach before
+                                          //   the Lua layer that owns them rebuilds)
         a.actionSubs.clear();             // 041.2: stop intercepting the outbound wdgmsg stream, and
         a.messageSubs.clear();            //   the inbound uimsg one — where the L2/L3 hook registries were
                                           //   unregistered, and for the same reason: the rest of this

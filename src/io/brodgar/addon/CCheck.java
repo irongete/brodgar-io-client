@@ -31,8 +31,6 @@ import org.luaj.vm2.LuaValue;
  */
 final class CCheck extends CheckBox implements Owned.Control, Controls.Value, Controls.Change {
     private final Owned.State own;
-    /** {@code :onChange(fn)}. Volatile: the engine fires it from the input pass while Lua may be replacing it. */
-    private volatile LuaValue onChange;
 
     CCheck(Addon owner) {
         super("");
@@ -56,19 +54,9 @@ final class CCheck extends CheckBox implements Owned.Control, Controls.Value, Co
         this.a = v.toboolean();
     }
 
-    public LuaValue onChange() {
-        return onChange;
-    }
-
-    public void onChange(LuaValue fn) {
-        this.onChange = fn;
-    }
-
     /** The engine's own {@code changed} slot, replacing the stock {@code wdgmsg} consumer. A user click only. */
     private void fire(boolean val) {
-        LuaValue fn = onChange;
-        if(!own.dead() && (fn != null))
-            AddonManager.callLua(own.owner, Addon.C_WIDGET, fn, LuaValue.valueOf(val));
+        Controls.fire(this, "Changed", LuaValue.valueOf(val));
     }
 
     public void draw(GOut g) {

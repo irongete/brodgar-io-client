@@ -20,7 +20,7 @@
 -- hafen.client():profiling():addons(), or run the 037.5 suite, which asserts exactly that on this addon's row.
 --
 -- ':atlas pins' is the other half of that measurement, not a decoration: the markers are drawn from Lua, so
--- the panel is rebuilt WITH an onDraw and the same row starts reading one draw callback per frame. A zero
+-- the panel gets a "Draw" subscription and the same row starts reading one draw callback per frame. A zero
 -- only means something beside a number that is not zero.
 --
 -- A LEVEL IS A SCALE, NOT A SIZE. Every drawing is 100x100 pixels; ':atlas zoom 2' does not make the panel
@@ -109,11 +109,12 @@ local function open(x, y)
     :title(TITLE)
     :size(SIDE, SIDE)
     :position(x or 80, y or 80)
-    :onClose(function() close() end)
-  -- NO onDraw unless the pin layer is on. An onDraw that only checks a flag would still be a callback
-  -- every frame, and the zero this addon claims would stop being a zero -- which is why the setter is
-  -- inside the `if` rather than the flag inside the callback.
-  if pins then panel:onDraw(drawPins) end
+  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so it cannot sit mid-chain above.
+  panel:on("Close", function() close() end)
+  -- NO Draw subscription unless the pin layer is on. A handler that only checks a flag would still be a
+  -- callback every frame, and the zero this addon claims would stop being a zero -- which is why the
+  -- subscribe is inside the `if` rather than the flag inside the handler.
+  if pins then panel:on("Draw", function(ev) drawPins(ev:g(), ev:w(), ev:h()) end) end
   shown = nil
   refresh()
   ticker = hafen.timer():every(RATE, refresh)

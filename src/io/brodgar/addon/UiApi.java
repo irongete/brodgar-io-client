@@ -3,7 +3,6 @@ package io.brodgar.addon;
 import haven.Button;
 import haven.Coord;
 import haven.GameUI;
-import haven.GItem;
 import haven.Gob;
 import haven.GOut;
 import haven.Label;
@@ -24,11 +23,8 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 
@@ -40,7 +36,7 @@ import static io.brodgar.addon.AddonManager.*;
  * selector events (030), the window-toggle seam + the {@code widget:replace(view)} substitution (031/032), and the
  * read-only widget-tree walk + hit-testing (W1/W2 node API). Owns the subscription registries + overlay paint
  * state. The widget-placement seam {@code onWidgetPlaced} (called from {@code haven.UI}) stays a facade in
- * {@link AddonManager} and delegates here; the tick drives {@link #pollReplaced}/{@link #pollWatches}/
+ * {@link AddonManager} and delegates here; the tick drives {@link #pollReplaced}/{@link #pollWidgetSubs}/
  * {@link #pollSelectorWatches}/{@link #anyHudOverlays}; the per-gob overlay attrib
  * {@code LuaGobOverlay.draw} calls {@link #paintGobOverlays}. Shared gob-read/engine helpers stay in
  * {@link AddonManager}. Not instantiable.
@@ -89,12 +85,23 @@ final class UiApi {
         }
     }
 
-    // -- container subscriptions (029.3): widget:onItemAdded/:onItemRemoved/:onDestroy. A FLAT global list of the
-    // widgets SOMEBODY is listening to, diffed each tick (pollWatches) for WItem add/remove (a create/cdestroy, not
-    // a uimsg) and for the widget's own death. hasSub-GATED by construction — an entry exists only while at least
-    // one callback is set, so a widget nobody subscribed to is never polled and an idle client pays one isEmpty().
-    // Owned copies live on each Addon for teardown. Session-scoped (cleared per init; the tree is rebuilt).
-    private static final List<LuaWidget.Watch> watches = new CopyOnWriteArrayList<LuaWidget.Watch>();
+    // -- WidgetSubs poll registrations (041.4): widget:on("ItemAdded"/"ItemRemoved"/"Destroy", fn) can only be
+    // SEEN by polling (an item is a Widget create/cdestroy, not a uimsg; a widget's death has no engine event at
+    // all), so every WidgetSubs currently subscribed to one of the three lives in this FLAT list, diffed each tick
+    // (pollWidgetSubs) — hasSub-GATED by construction (WidgetSubs registers/unregisters itself, see its Idle hook),
+    // so a widget nobody subscribed to is never polled and an idle client pays one isEmpty(). Owned copies live on
+    // each Addon's widgetSubs map for teardown. Session-scoped (cleared per init; the tree is rebuilt).
+    private static final List<WidgetSubs> polling = new CopyOnWriteArrayList<WidgetSubs>();
+
+    /** {@link WidgetSubs#on}: the first poll-key subscription on a widget joins the flat poll list. */
+    static void registerPoll(WidgetSubs s) {
+        polling.add(s);
+    }
+
+    /** {@link Subs.Idle}: the last poll-key subscription on a widget just ended. */
+    static void unregisterPoll(WidgetSubs s) {
+        polling.remove(s);
+    }
 
     // ===== the widget-placement seam (the body behind AddonManager.onWidgetPlaced) =====
     // ONE consumer since 032.2: the 030.2 selector subscriptions, which see the LIVE widget itself. The
@@ -640,14 +647,13 @@ final class UiApi {
 
     /** Session init: drop every per-session widget record (from AddonManager.init). */
     static void resetSession() {
-        watches.clear();              // (038.1: no gob-overlay sweep clock to reset — the sweep is gone, and the
-                                      //  overlays themselves went with the last session's gobs)
+        polling.clear();              // 041.4: last session's widgets are gone; nothing left to poll
         selectorWatches.clear();      // 030.2: the tree of the session just ended; nothing matches any more
         pending.clear();
         if(consoleOwner != null) {
             consoleOwner.hiddenNative.clear();   // 029.2: last session's widgets are gone; nothing left to restore
             consoleOwner.movedNative.clear();    // 036.1: ...nor is there anything left to put back where it was
-            consoleOwner.itemWatches.clear();    // 029.3: ...and so are the containers it was subscribed to
+            consoleOwner.widgetSubs.clear();     // 041.3/041.4: ...and so is every widget:on() subscription
             consoleOwner.selectorWatches.clear();// 030.2: ...and the selectors it was watching for
         }
         resetPending();                          // 039.6: ...and nothing built for the old tree is waiting to be placed
@@ -1014,121 +1020,24 @@ final class UiApi {
         a.selectorWatches.clear();
     }
 
-    // ---------------------------------------------- container subscriptions (the Widget entity's events, 029.3)
+    // ---------------------------------------------- WidgetSubs poll registrations (041.4) ---------------------
 
     /**
-     * Set one of a widget's lifecycle callbacks ({@code widget:onItemAdded/:onItemRemoved/:onDestroy}) — the Java
-     * half of the entity's three event verbs. The FIRST callback on a widget creates its {@link LuaWidget.Watch}
-     * (registering it for the per-tick diff); clearing the LAST one drops the record again, so the poll only ever
-     * sees widgets somebody is actually listening to (the {@code hasSub} gate {@code fireBuff}/{@code fireMeter}
-     * established). A non-function value clears; a stale widget is a silent no-op (there is nothing to watch, and
-     * refusing would force an {@code :exists()} guard at every call site — the 029.2 rule for writes).
+     * Per-tick poll of every {@link WidgetSubs} currently subscribed to {@code ItemAdded}/{@code ItemRemoved}/
+     * {@code Destroy} (UI thread): {@link WidgetSubs#poll} does the two-branch liveness test and the item diff,
+     * firing whatever fired and answering whether to stay in the list. Fast-paths out when nobody is subscribed,
+     * which is the normal case — the same {@code hasSub} gate the buff/meter adapters have.
      */
-    static void setItemCallback(Addon owner, Widget w, int slot, LuaValue fn) {
-        if(w == null)
-            return;
-        LuaValue f = fn.isfunction() ? fn : null;
-        LuaWidget.Watch wa = findWatch(owner, w);
-        if(wa == null) {
-            if(f == null)
-                return;                       // clearing a callback that was never set: nothing to do
-            UI u = ui;
-            wa = new LuaWidget.Watch(owner, w, (u == null) ? -1 : u.widgetid(w));
-            owner.itemWatches.add(wa);
-            watches.add(wa);
-        }
-        wa.set(slot, f);
-        if(!wa.subscribed())                  // last listener gone → leave the poll entirely
-            dropWatch(wa);
-    }
-
-    /** This addon's subscription record for a widget, or {@code null} (identity-keyed; the list is per-addon tiny). */
-    private static LuaWidget.Watch findWatch(Addon owner, Widget w) {
-        for(LuaWidget.Watch wa : owner.itemWatches) {
-            if(wa.wdg == w)
-                return wa;
-        }
-        return null;
-    }
-
-    /** Drop a subscription from both lists (unsubscribed by hand, or its widget died). */
-    private static void dropWatch(LuaWidget.Watch wa) {
-        watches.remove(wa);
-        wa.owner.itemWatches.remove(wa);
-    }
-
-    /**
-     * Per-tick poll of every subscribed container (UI thread, 029.3). For each watched widget: if it is gone (a
-     * server destroy, a closed window, a relog), fire {@code onDestroy} <b>once</b> and drop the record; otherwise
-     * diff its {@link WItem} children for add/remove. Item add/remove is a widget create/{@code cdestroy}, not a
-     * {@code uimsg}, so it can only be seen by polling — the same discipline as the buff/meter adapters. Fast-paths
-     * out when nobody is subscribed, which is the normal case.
-     */
-    static void pollWatches() {
-        if(watches.isEmpty())
+    static void pollWidgetSubs() {
+        if(polling.isEmpty())
             return;
         UI u = ui;
         if((u == null) || (u.root == null))
             return;
-        for(LuaWidget.Watch wa : watches) {   // copy-on-write: a callback may subscribe/unsubscribe here
-            if(!wa.alive)
-                continue;
-            if(!watchLive(u, wa)) {
-                wa.alive = false;
-                dropWatch(wa);
-                if(wa.onDestroy != null)
-                    callLua(wa.owner, Addon.C_WIDGET, wa.onDestroy);
-                continue;
-            }
-            if((wa.onItemAdded != null) || (wa.onItemRemoved != null))
-                pollWatchItems(wa);
+        for(WidgetSubs s : polling) {   // copy-on-write: a firing Destroy/ItemAdded may (un)subscribe here
+            if(!s.poll(u))
+                polling.remove(s);
         }
-    }
-
-    /** Is a watched widget still the same live one? (Server-bound: by id; client-only: by tree reachability.) */
-    private static boolean watchLive(UI u, LuaWidget.Watch wa) {
-        return (wa.id >= 0) ? (u.getwidget(wa.id) == wa.wdg) : wa.wdg.hasparent(u.root);
-    }
-
-    /**
-     * Diff one watched container's items against its cache, firing onItemAdded/onItemRemoved. The diff is over
-     * the item WIDGETS rather than the {@link WItem} cells that draw them, so a worn item filling two equipment
-     * slots is one addition and not two, and what the callback receives is this owner's Item object — the same
-     * one {@code :items()} hands back, still answering after it left (with {@code :exists()} false).
-     */
-    private static void pollWatchItems(LuaWidget.Watch wa) {
-        Set<GItem> present = new LinkedHashSet<GItem>(LuaItem.items(wa.wdg));
-        for(GItem g : present) {                        // additions (unseen items)
-            if(!wa.items.containsKey(g)) {
-                LuaValue item = LuaItem.of(wa.owner, g);
-                wa.items.put(g, item);
-                if(wa.onItemAdded != null)
-                    callLua(wa.owner, Addon.C_WIDGET, wa.onItemAdded, item);
-            }
-        }
-        for(Iterator<Map.Entry<GItem, LuaValue>> it = wa.items.entrySet().iterator(); it.hasNext();) {
-            Map.Entry<GItem, LuaValue> e = it.next();   // removals (items that left)
-            if(!present.contains(e.getKey())) {
-                LuaValue item = e.getValue();
-                it.remove();
-                if(wa.onItemRemoved != null)
-                    callLua(wa.owner, Addon.C_WIDGET, wa.onItemRemoved, item);
-            }
-        }
-    }
-
-    /**
-     * Drop every container subscription this addon holds (reload/disable, P2). Nothing is fired: a {@code :reload}
-     * is not a destroy — the widgets go on living, this addon simply stops listening (and its Lua callbacks are
-     * about to cease to exist with its env).
-     */
-    static void teardownWatches(Addon a) {
-        if(a.itemWatches.isEmpty())
-            return;
-        for(LuaWidget.Watch wa : a.itemWatches)
-            wa.alive = false;
-        watches.removeAll(a.itemWatches);
-        a.itemWatches.clear();
     }
 
     /**

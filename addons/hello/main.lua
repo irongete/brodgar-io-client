@@ -39,8 +39,8 @@
 -- marker" at your position — watch it appear on the map (M) and the corner minimap. add() writes the shared
 -- on-disk DB so it persists, but hello removes its own demo marker on disable/reload so the regression harness
 -- never pollutes your map. Built on the WIDGET ENTITY (029) — every hafen.ui door (root/node/at/inventory/window)
--- hands back ONE interned type, and a container answers for what is inside it: w:items() plus the lifecycle verbs
--- w:onItemAdded/:onItemRemoved/:onDestroy, read with the window VISIBLE (hafen.ui.adopt, which hid a window just so
+-- hands back ONE interned type, and a container answers for what is inside it: w:items() plus the lifecycle keys
+-- w:on("ItemAdded"/"ItemRemoved"/"Destroy", fn), read with the window VISIBLE (hafen.ui.adopt, which hid a window just so
 -- you could look in it, is GONE, and so are hafen.items, :same() and :move()). `==` is the identity test, arity is
 -- the verb on geometry, and the write verbs answer only on a widget THIS addon created — readWidgets (once per
 -- login, and ':hello widget') asserts that whole contract, refusals included. Here the container is the MAIN
@@ -755,14 +755,14 @@ end
 -- 3b/029.3: CONTAINER READS + EVENTS, with NOTHING HIDDEN. hafen.ui.adopt is GONE (029.2) and with it the whole
 -- "take the window over to look inside it" trade: hafen.ui():inventory() hands back the Widget entity for the main
 -- backpack, w:items() reads it while the grid is VISIBLE and INTERACTIVE, and the lifecycle events are subscribed
--- on the entity itself (w:onItemAdded/:onItemRemoved/:onDestroy, wired in the hafen.ui():on("inventory","appear")
+-- on the entity itself (w:on("ItemAdded"/"ItemRemoved"/"Destroy", fn), wired in the hafen.ui():on("inventory","appear")
 -- subscription below to keep the discover -> read handoff). The property that made a hidden model work still holds and is now just a bonus: a
 -- hidden server widget stays bound to its id, so the reads and the events keep working with the grid hidden too
 -- (the 'bags' hotkey proves it). Like the rest of the inventory data, items stream in a beat after enter-world,
 -- so this is read at now (often 0) and +3s.
 local invWdg              -- the main-inventory Widget object subscribed in the observer (nil until it is observed)
 local itemsAdded, itemsRemoved = 0, 0
--- The ~dozen items already in the backpack fire onItemAdded on the first poll after we subscribe (like BuffAdded
+-- The ~dozen items already in the backpack fire "ItemAdded" on the first poll after we subscribe (like BuffAdded
 -- does for existing buffs). So log only the first few of that initial fill, then flip bagsReady a few seconds in
 -- and log EVERY live add/remove after that -- so a pick-up/drop while the grid is hidden is clear in the log.
 local bagsReady = false
@@ -1019,7 +1019,8 @@ local function readToggle(tag)
       :title("hello: toggle check")
       :size(150, 28)
       :position(40, 40)
-      :onDraw(function(g) g:text("toggle check", 4, 4) end)
+    -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so it cannot sit mid-chain above.
+    view:on("Draw", function(ev) ev:g():text("toggle check", 4, 4) end)
     local ok, err = pcall(grid.replace, grid, view)   -- the verb REFUSES (throws) where the old function logged
     if not ok then replaceErr = err; view:destroy(); return nil end
     -- ARITY IS THE VERB (032.3): replace(view) installed above, replace() READS the view standing in for this
@@ -1493,16 +1494,16 @@ end
 -- 3b/029.3: the discover -> read handoff. Every open container carries the `inventory` role, so pick the player's
 -- OWN backpack by identity (hafen.ui():inventory() is the same interned entity, 029.3) and SUBSCRIBE to its item
 -- lifecycle. Nothing is hidden and nothing is taken over: the grid stays visible and usable while we read it.
--- Subscribing IS the registration (an unwatched widget is never polled), and passing nil to any of the three verbs
+-- Subscribing IS the registration (an unwatched widget is never polled), and sub:off() on any of the three
 -- unsubscribes. NB this is where 030.2 beats the old observer outright: a :reload does NOT recreate the existing
 -- inventory, so onWidgetCreate never re-fired for it -- the registration SCAN finds it anyway, so the handoff now
--- survives a reload. onDestroy fires if the widget ever leaves the tree.
+-- survives a reload. widget:on("Destroy", fn) fires if the widget ever leaves the tree.
 hafen.ui():on("inventory", "appear", function(w)
   if invWdg or w ~= hafen.ui():inventory() then return end   -- containers also have this role; we want the player's own
   invWdg = w
   hafen.log():write(("3b: watching the main inventory (id=%s, %s) -- items read with NOTHING hidden; the 'bags' hotkey"
              .. " hides/shows the grid and the reads keep working"):format(tostring(w:id()), tostring(invWdg)))
-  invWdg:onItemAdded(function(item)
+  invWdg:on("ItemAdded", function(item)
     itemsAdded = itemsAdded + 1
     if bagsReady or itemsAdded <= 3 then              -- initial fill: first few only; after +3s: every live add
       hafen.log():write(("3b: item ADDED to inventory: %s x%s (total seen %d)%s")
@@ -1510,7 +1511,7 @@ hafen.ui():on("inventory", "appear", function(w)
                 (invWdg and not invWdg:visible()) and " [grid hidden -- still readable]" or ""))
     end
   end)
-  invWdg:onItemRemoved(function(item)
+  invWdg:on("ItemRemoved", function(item)
     itemsRemoved = itemsRemoved + 1
     if bagsReady or itemsRemoved <= 3 then
       hafen.log():write(("3b: item REMOVED from inventory: %s (total seen %d)%s")
@@ -1518,7 +1519,7 @@ hafen.ui():on("inventory", "appear", function(w)
                 (invWdg and not invWdg:visible()) and " [grid hidden -- still readable]" or ""))
     end
   end)
-  invWdg:onDestroy(function()
+  invWdg:on("Destroy", function()
     hafen.log():write("3b: the inventory widget left the tree (server destroy)")
     invWdg = nil
   end)
@@ -1529,8 +1530,9 @@ hafen.log():write("030.2: selector subscriptions installed -- open a cupboard/ch
 -- wrapper `g` and counts clicks — the Phase 2 "draggable custom window" DoD. The window is bridge-owned
 -- (P2): :reload or disabling the addon DESTROYS it automatically (no leak) — no Disable cleanup needed.
 -- It is client-side (it cannot talk to the server; that is hafen.act, Phase 4). Created at EnterWorld
--- because the HUD must be up. Drag it by the title bar; click the body (onClick consumes and logs); close
--- it with the X (onClose fires, then it is destroyed). onDraw runs every frame with (g, width, height).
+-- because the HUD must be up. Drag it by the title bar; click the body ("MouseDown" consumes and logs);
+-- close it with the X ("Close" fires, then it is destroyed). "Draw" fires every frame with an ev answering
+-- :g()/:w()/:h().
 local panel          -- the window handle (nil until created; a fresh reload rebuilds the Lua env -> nil)
 local clicks = 0
 local mapLock = false -- 2c: while true, the MapView mousedown hook cancels map clicks (toggle: LEFT-click the window)
@@ -2635,9 +2637,9 @@ hafen.event():on("EnterWorld", function()
     :title("Hello 3a")
     :size(190, 166)                                                -- 027.3: room for 5 meter rows (mounted)
     :position(80, 120)                                             --   above the bottom-anchored hook lines
-    :onDraw(drawPanel)
-    :onClose(function() hafen.log():write("panel closed (X) -- :reload to bring it back") end)
-  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so it cannot sit mid-chain above.
+  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so none of these can sit mid-chain above.
+  panel:on("Draw", function(ev) drawPanel(ev:g(), ev:w(), ev:h()) end)
+  panel:on("Close", function() hafen.log():write("panel closed (X) -- :reload to bring it back") end)
   panel:on("MouseDown", function(ev)
     clicks = clicks + 1
     local button = ev:button()
@@ -2658,8 +2660,9 @@ hafen.event():on("EnterWorld", function()
 
   -- U1: DROP TARGET + g:resource + mouse mods. A borderless custom widget (hafen.ui():widget()) that is a
   -- DROP TARGET for the client's own drag gesture (D-038): open the menu grid (bottom-right), drag an
-  -- action onto this box, and onDrop(x, y, drop) fires with drop = { kind="pagina", res="<name>" } (a
-  -- neutral descriptor -- a resource name, plain data, so this is UNGATED). We remember the res and DRAW
+  -- action onto this box, and widget:on("Drop", fn) fires with an ev whose :thing() is
+  -- { kind="pagina", res="<name>" } (a neutral descriptor -- a resource name, plain data, so this is
+  -- UNGATED). We remember the res and DRAW
   -- ITS ICON via g:resource(name, ...) -- the engine .res sibling of g:image (D-039), async + cached +
   -- Loading-guarded. widget:on("MouseDown", fn) (041.3) logs where and with which button the box was hit --
   -- D-040's per-callback mods table is retired with the slots it rode on; a later feature puts modifier
@@ -2669,30 +2672,32 @@ hafen.event():on("EnterWorld", function()
   dropWidget = hafen.ui():widget()
     :size(96, 96)
     :position(80, 270)
-    :onDraw(function(g, w, h)
-      g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()        -- own slot background (invsq is not a .res)
-      g:color(150, 150, 170); g:rect(0, 0, w, h); g:color()
-      if droppedRes then
-        g:resource(droppedRes, 8, 8, w - 16, h - 32)               -- the dropped action's engine icon, scaled
-        g:atext("dropped", w / 2, h - 4, 0.5, 1.0)
-      else
-        g:atext("drag an", w / 2, h / 2 - 8, 0.5, 0.5)
-        g:atext("action here", w / 2, h / 2 + 6, 0.5, 0.5)
-      end
-    end)
-    :onDrop(function(x, y, drop)
-      if drop.res then
-        droppedRes = drop.res
-        hafen.log():write(("U1: onDrop at %d,%d -> kind=%s res=%s (drawing its icon via g:resource)")
-          :format(x, y, tostring(drop.kind), tostring(drop.res)))
-      else
-        hafen.log():write(("U1: onDrop at %d,%d -> kind=%s (id-only pagina, no stable res -- not persistable)")
-          :format(x, y, tostring(drop.kind)))
-      end
-      return true                                                  -- truthy = consume the drop
-    end)
-  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so it cannot sit mid-chain (nor be the
-  -- chain's final value -- dropWidget stays the WIDGET, not the Sub this would otherwise leave it holding).
+  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so none of these can sit mid-chain (nor be
+  -- the chain's final value -- dropWidget stays the WIDGET, not the Sub this would otherwise leave it holding).
+  dropWidget:on("Draw", function(ev)
+    local g, w, h = ev:g(), ev:w(), ev:h()
+    g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()        -- own slot background (invsq is not a .res)
+    g:color(150, 150, 170); g:rect(0, 0, w, h); g:color()
+    if droppedRes then
+      g:resource(droppedRes, 8, 8, w - 16, h - 32)               -- the dropped action's engine icon, scaled
+      g:atext("dropped", w / 2, h - 4, 0.5, 1.0)
+    else
+      g:atext("drag an", w / 2, h / 2 - 8, 0.5, 0.5)
+      g:atext("action here", w / 2, h / 2 + 6, 0.5, 0.5)
+    end
+  end)
+  dropWidget:on("Drop", function(ev)
+    local x, y, drop = ev:x(), ev:y(), ev:thing()
+    if drop.res then
+      droppedRes = drop.res
+      hafen.log():write(("U1: onDrop at %d,%d -> kind=%s res=%s (drawing its icon via g:resource)")
+        :format(x, y, tostring(drop.kind), tostring(drop.res)))
+    else
+      hafen.log():write(("U1: onDrop at %d,%d -> kind=%s (id-only pagina, no stable res -- not persistable)")
+        :format(x, y, tostring(drop.kind)))
+    end
+    ev:preventDefault()                                          -- consume: explicit now, not a truthy return
+  end)
   dropWidget:on("MouseDown", function(ev)
     hafen.log():write(("U1: drop-widget click at %d,%d btn=%d"):format(ev:x(), ev:y(), ev:button()))
     ev:preventDefault()
@@ -2712,23 +2717,25 @@ hafen.event():on("EnterWorld", function()
       :size(240, 118)
       :position(290, 120)
       :font(demoFont)                                            -- the window's DEFAULT font for its g:text draws
-      :onDraw(function(g, w, h)
-        g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()
-        -- 1) plain line -> uses the window's font= default (the addon's own font), no per-call opts:
-        g:text("This line uses the window font=", 6, 6)
-        -- 2) a $font mix on ONE line: the first run in demoFont via its family, the rest in the client sans:
-        g:text(("$font[%s,16]{Fancy} + $font[SansSerif,12]{plain} on one line"):format(fam), 6, 26)
-        -- 3) per-call font override (mono) + per-call colour, proving g:text(str,x,y,{font=,color=}):
-        g:text("per-call mono, coloured", 6, 52, { font = monoFont, color = { 120, 220, 255 } })
-        -- 4) rich colour/bold tags also work now that g:text renders through rich text:
-        g:text("$col[235,180,80]{$b{rich} tags} work too", 6, 74)
-        -- 5) 033.2: a handle that CARRIES a colour, on our OWN drawing -> it applies (this line is pink). The
-        --    SAME handle on a client surface (':hello color' installs it on ['chat']) does NOT tint it: a
-        --    surface's colour is the sheet's `color` property, a handle's colour is for your own pixels only.
-        g:text("handle colour: own drawing only", 6, 94, { font = tintedFont })
-        g:color(150, 150, 150); g:rect(0, 0, w, h); g:color()
-      end)
-      :onClose(function() hafen.log():write("F2: font window closed (X) -- :reload to bring it back") end)
+    -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so neither of these can sit mid-chain above.
+    fontWin:on("Draw", function(ev)
+      local g, w, h = ev:g(), ev:w(), ev:h()
+      g:color(0, 0, 0, 150); g:frect(0, 0, w, h); g:color()
+      -- 1) plain line -> uses the window's font= default (the addon's own font), no per-call opts:
+      g:text("This line uses the window font=", 6, 6)
+      -- 2) a $font mix on ONE line: the first run in demoFont via its family, the rest in the client sans:
+      g:text(("$font[%s,16]{Fancy} + $font[SansSerif,12]{plain} on one line"):format(fam), 6, 26)
+      -- 3) per-call font override (mono) + per-call colour, proving g:text(str,x,y,{font=,color=}):
+      g:text("per-call mono, coloured", 6, 52, { font = monoFont, color = { 120, 220, 255 } })
+      -- 4) rich colour/bold tags also work now that g:text renders through rich text:
+      g:text("$col[235,180,80]{$b{rich} tags} work too", 6, 74)
+      -- 5) 033.2: a handle that CARRIES a colour, on our OWN drawing -> it applies (this line is pink). The
+      --    SAME handle on a client surface (':hello color' installs it on ['chat']) does NOT tint it: a
+      --    surface's colour is the sheet's `color` property, a handle's colour is for your own pixels only.
+      g:text("handle colour: own drawing only", 6, 94, { font = tintedFont })
+      g:color(150, 150, 150); g:rect(0, 0, w, h); g:color()
+    end)
+    fontWin:on("Close", function() hafen.log():write("F2: font window closed (X) -- :reload to bring it back") end)
     hafen.log():write(("F2: font window up -- rendered in font '%s'; one line mixes two fonts via $font (disable/:reload restores stock)")
       :format(fam))
   else

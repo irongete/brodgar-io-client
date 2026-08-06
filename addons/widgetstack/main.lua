@@ -142,7 +142,7 @@ end
 local openInspector       -- forward decl (it recurses: a child/parent click opens another inspector)
 local inspCascade = 0     -- cascade new inspector windows so they don't land exactly on top of each other
 
--- Inspector layout constants (shared by its onDraw + onClick so a click maps to the same row it drew).
+-- Inspector layout constants (shared by its Draw + MouseDown handlers so a click maps to the same row it drew).
 local I_W, I_H       = 380, 344
 local I_ROLE_Y       = 62         -- role / res
 local I_SEL_Y        = 76         -- the widget's selector (resolved ONCE, when the window opens)
@@ -163,7 +163,10 @@ openInspector = function(node)
     :title("Inspector: " .. (node:type() or "?"))
     :size(I_W, I_H)
     :position(480 + inspCascade * 22, 70 + inspCascade * 22)
-    :onDraw(function(g, w, h)
+  -- widget:on(key, fn) hands back a SUB, not the widget, so none of these can sit mid-chain (041.3) -- each is
+  -- wired separately, after the builder chain above has finished configuring the window.
+  st.win:on("Draw", function(ev)
+      local g, w, h = ev:g(), ev:w(), ev:h()
       g:color(0, 0, 0, 175); g:frect(0, 0, w, h); g:color()
       local n = st.node
       local id = n:id()
@@ -211,10 +214,8 @@ openInspector = function(node)
         g:color()
       end
       g:color(120, 120, 120); g:rect(0, 0, w, h); g:color()
-    end)
-    :onClose(function() end)   -- bridge-owned: also destroyed on :reload/disable
-  -- widget:on(key, fn) hands back a SUB, not the widget, so it cannot sit mid-chain (041.3) -- it is wired
-  -- separately, after the builder chain above has finished configuring the window.
+  end)
+  st.win:on("Close", function() end)   -- bridge-owned: also destroyed on :reload/disable
   st.win:on("MouseDown", function(ev)
     local n = st.node
     local y = ev:y()
@@ -410,9 +411,9 @@ hafen.event():on("EnterWorld", function()
       :title("Widget Stack")
       :size(470, 412)
       :position(60, 60)
-      :onDraw(drawStack)
-      :onClose(function() hafen.log():write("widgetstack: window closed (X) -- :widgetstack to bring it back") end)
-    -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so it cannot sit mid-chain above.
+    -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so none of these can sit mid-chain above.
+    win:on("Draw", function(ev) drawStack(ev:g(), ev:w(), ev:h()) end)
+    win:on("Close", function() hafen.log():write("widgetstack: window closed (X) -- :widgetstack to bring it back") end)
     win:on("MouseDown", stackClick)
     hafen.log():write("widgetstack: window up -- hover the UI; click a row to inspect; :selector logs the hovered widget's selector; :widgetstack toggles it, the freeze hotkey holds it")
   end

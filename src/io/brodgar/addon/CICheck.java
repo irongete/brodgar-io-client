@@ -34,8 +34,6 @@ final class CICheck extends ICheckBox implements Owned.Control, Controls.Value, 
     private final Owned.State own;
     /** Exactly the values {@code :image(…)} was given — what the bare read hands back. */
     private final LuaValue upv, downv, hoverUpv, hoverDownv;
-    /** {@code :onChange(fn)}. Volatile: the engine fires it from the input pass while Lua may be replacing it. */
-    private volatile LuaValue onChange;
 
     CICheck(Addon owner, Tex up, Tex down, Tex hoverUp, Tex hoverDown,
             LuaValue upv, LuaValue downv, LuaValue hoverUpv, LuaValue hoverDownv) {
@@ -72,18 +70,8 @@ final class CICheck extends ICheckBox implements Owned.Control, Controls.Value, 
         this.a = v.toboolean();
     }
 
-    public LuaValue onChange() {
-        return onChange;
-    }
-
-    public void onChange(LuaValue fn) {
-        this.onChange = fn;
-    }
-
     private void fire(boolean val) {
-        LuaValue fn = onChange;
-        if(!own.dead() && (fn != null))
-            AddonManager.callLua(own.owner, Addon.C_WIDGET, fn, LuaValue.valueOf(val));
+        Controls.fire(this, "Changed", LuaValue.valueOf(val));
     }
 
     public void draw(GOut g) {

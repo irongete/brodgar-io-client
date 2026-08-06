@@ -43,10 +43,6 @@ final class CEntry extends TextEntry implements Owned.Control, Controls.Value, C
     static final int DEF_W = 160;
 
     private final Owned.State own;
-    /** {@code :onChange(fn)}. Volatile: the engine fires it from the input pass while Lua may be replacing it. */
-    private volatile LuaValue onChange;
-    /** {@code :onSubmit(fn)}. Volatile, same reason. */
-    private volatile LuaValue onSubmit;
 
     CEntry(Addon owner) {
         super(DEF_W, "");
@@ -69,35 +65,15 @@ final class CEntry extends TextEntry implements Owned.Control, Controls.Value, C
         rsettext(v.tojstring());
     }
 
-    public LuaValue onChange() {
-        return onChange;
-    }
-
-    public void onChange(LuaValue fn) {
-        this.onChange = fn;
-    }
-
-    public LuaValue onSubmit() {
-        return onSubmit;
-    }
-
-    public void onSubmit(LuaValue fn) {
-        this.onSubmit = fn;
-    }
-
     /** A real edit (any keystroke that changes the buffer, {@code ReadLine.Owner}'s own per-edit hook). */
     public void changed(ReadLine buf) {
         super.changed(buf);
-        LuaValue fn = onChange;
-        if(!own.dead() && (fn != null))
-            AddonManager.callLua(own.owner, Addon.C_WIDGET, fn, LuaValue.valueOf(text()));
+        Controls.fire(this, "Changed", LuaValue.valueOf(text()));
     }
 
     /** Enter ({@code TextEntry.done}), or a global-key activation ({@code gkeytype}) — fired once, never to the server. */
     public void activate(String text) {
-        LuaValue fn = onSubmit;
-        if(!own.dead() && (fn != null))
-            AddonManager.callLua(own.owner, Addon.C_WIDGET, fn, LuaValue.valueOf(text));
+        Controls.fire(this, "Submitted", LuaValue.valueOf(text));
     }
 
     public void draw(GOut g) {

@@ -67,14 +67,18 @@ public final class Addon {
      * a single sweep of the object cache at a rare moment.
      */
     /**
-     * This addon's <b>per-widget input subscriptions</b> ({@code widget:on("MouseDown"/…, fn)}, 041.3): one
-     * {@link WidgetSubs} per widget this addon has subscribed on, holding the {@link Subs} plus the engine
-     * {@code EventHandler}s installed via {@link haven.Widget#listen}. It replaced the fixed three-token
-     * {@code hooks} list ({@code hafen.hook():input}) — the address is now any widget, found or built, keyed
-     * exactly like every other per-widget registry here (weak, so a widget that leaves the tree needs nothing
-     * done on this side: its own {@code listening} list, and our handler in it, are collected with it). A
-     * NATIVE widget that survives {@code :reload} is what {@link #teardownWidgetSubs} walks instead, deafening
-     * every listener this addon installed before the Lua layer that owns them is rebuilt (principle P2).
+     * This addon's <b>per-widget subscriptions</b> ({@code widget:on(key, fn)}): one {@link WidgetSubs} per
+     * widget this addon has subscribed on, keyed exactly like every other per-widget registry here (weak, so a
+     * widget that leaves the tree needs nothing done on this side). It started (041.3) as just the four input
+     * keys over the engine {@code EventHandler}s {@link haven.Widget#listen} installs — replacing the fixed
+     * three-token {@code hooks} list ({@code hafen.hook():input}) — and 041.4 folds the REST of the widget
+     * vocabulary onto the same record: {@code Pressed}/{@code Changed}/…'s controls fire straight into its
+     * {@link Subs}, {@code Draw}/{@code Tick}/{@code Drop}/{@code Close} do the same for an owned surface, and
+     * {@code ItemAdded}/{@code ItemRemoved}/{@code Destroy} add the one thing none of those needed — a per-tick
+     * poll registration (see {@link WidgetSubs#poll}) — so one class is the address for everything a widget can
+     * say, the same way {@link Subs} is the one mechanism under every {@code :on(key, fn)} in the API. A NATIVE
+     * widget that survives {@code :reload} is what {@link #teardownWidgetSubs} walks instead, releasing every
+     * listener and poll registration this addon installed before the Lua layer that owns them is rebuilt (P2).
      */
     final Map<Widget, WidgetSubs> widgetSubs = new WeakHashMap<Widget, WidgetSubs>();
 
@@ -86,6 +90,15 @@ public final class Addon {
             widgetSubs.put(w, s);
         }
         return s;
+    }
+
+    /**
+     * This addon's {@link WidgetSubs} for {@code w}, or {@code null} — the FIRE-side lookup (041.4), which must
+     * never mint one: a control's every press/tick/draw runs through this, so an unlistened widget must cost one
+     * map lookup and nothing else (the {@code hasSub} gate one level up from {@link Subs#has}).
+     */
+    WidgetSubs widgetSubsOrNull(Widget w) {
+        return widgetSubs.get(w);
     }
 
     /** Deafen every engine listener this addon's {@link WidgetSubs} installed (teardown, P2). */
@@ -133,8 +146,8 @@ public final class Addon {
      * matching one {@link Selector}, fired from the placement seam and from the per-tick poll. They live in a flat
      * global dispatch list in {@link UiApi} (a subscription watches the whole tree, not one keyed target);
      * teardown ({@link UiApi#teardownSelectorWatches}) marks each dead and drops both copies <b>without firing</b>
-     * — a {@code :reload}/disable is not a destroy, exactly as for {@link #itemWatches}. Copy-on-write: a firing
-     * handler may subscribe or {@code :remove()} itself mid-dispatch.
+     * — a {@code :reload}/disable is not a destroy, exactly as for a {@link WidgetSubs}'s poll registration.
+     * Copy-on-write: a firing handler may subscribe or {@code :remove()} itself mid-dispatch.
      */
     public final List<LuaSelectorWatch> selectorWatches = new CopyOnWriteArrayList<LuaSelectorWatch>();
     /**
@@ -164,15 +177,6 @@ public final class Addon {
      * restore it there and then; an entry with neither half left is dropped. Copy-on-write like the lists above.
      */
     public final List<LuaWidget.Moved> movedNative = new CopyOnWriteArrayList<LuaWidget.Moved>();
-    /**
-     * Container subscriptions this addon holds ({@code widget:onItemAdded/:onItemRemoved/:onDestroy}, 029.3) — one
-     * entry per watched widget, created by the FIRST callback set on it and dropped when the last one is cleared
-     * (the {@code hasSub} gate: an unsubscribed widget is never polled). They also live in a flat global list in
-     * {@link UiApi}, diffed each tick for {@code WItem} add/remove and for the widget's death; teardown
-     * ({@link UiApi#teardownWatches}) drops both copies without firing anything — a {@code :reload}/disable is not
-     * a destroy. Copy-on-write: a firing callback may subscribe or unsubscribe mid-poll.
-     */
-    public final List<LuaWidget.Watch> itemWatches = new CopyOnWriteArrayList<LuaWidget.Watch>();
     /**
      * Live addon slash commands owned by this addon ({@code hafen.slash():register}, gap subsystem A11): each routes
      * a console command {@code :name} to a Lua handler. Unlike the hook lists, the engine's {@link haven.Console}

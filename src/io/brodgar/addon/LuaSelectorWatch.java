@@ -26,7 +26,7 @@ import java.util.Map;
  * {@code .res} window can receive its caption a tick late), and the tracked set is what keeps that re-check from
  * firing a second time for a widget that already matched. The set is pruned by the same per-tick poll that fires
  * {@code disappear}, so it holds only live widgets — a dead one is dropped the tick it dies (the
- * {@link LuaWidget.Watch} discipline: a strong reference for at most one tick, never a pin).
+ * {@link WidgetSubs#poll} discipline: a strong reference for at most one tick, never a pin).
  *
  * <p>The recorded value is the server widget id captured when the widget matched ({@code -1} for a client-only
  * one), because the death test is the same <b>two-branch</b> guard the restore list and the container watches use

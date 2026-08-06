@@ -288,6 +288,27 @@ final class Retired {
         put("widget:onMouseUp", "widget:onMouseUp(fn) is now widget:on(\"MouseUp\", fn)");
         put("widget:onMouseMove", "widget:onMouseMove(fn) is now widget:on(\"MouseMove\", fn)");
         put("widget:onWheel", "widget:onWheel(fn) is now widget:on(\"Wheel\", fn)");
+
+        // ---- 041.4: the other 12 retired verbs, all through the same widget:on(key, fn) door. Reading the -----
+        // handler back is cut for every one of them too, for the same reason as the four above.
+        put("widget:onPress", "widget:onPress(fn) is now widget:on(\"Pressed\", fn)");
+        put("widget:onChange", "widget:onChange(fn) is now widget:on(\"Changed\", fn) — on a slider the ev answers"
+            + " :value() :final() instead of two loose arguments");
+        put("widget:onSubmit", "widget:onSubmit(fn) is now widget:on(\"Submitted\", fn)");
+        put("widget:onSelect", "widget:onSelect(fn) is now widget:on(\"Selected\", fn)");
+        put("widget:onCell", "widget:onCell(fn) is now widget:on(\"Cell\", fn), and the ev answers :g() :item()"
+            + " :w() :h() instead of four loose arguments");
+        put("widget:onDraw", "widget:onDraw(fn) is now widget:on(\"Draw\", fn), and the ev answers :g() :w() :h()"
+            + " instead of three loose arguments");
+        put("widget:onTick", "widget:onTick(fn) is now widget:on(\"Tick\", fn)");
+        put("widget:onDrop", "widget:onDrop(fn) is now widget:on(\"Drop\", fn); consuming the drop is"
+            + " ev:preventDefault() now, not a truthy return");
+        put("widget:onClose", "widget:onClose(fn) is now widget:on(\"Close\", fn)");
+        put("widget:onItemAdded", "widget:onItemAdded(fn) is now widget:on(\"ItemAdded\", fn)");
+        put("widget:onItemRemoved", "widget:onItemRemoved(fn) is now widget:on(\"ItemRemoved\", fn)");
+        put("widget:onDestroy", "widget:onDestroy(fn) is now widget:on(\"Destroy\", fn) — on ANY widget now, not"
+            + " only a container's");
+
         put("marker:onmap", "marker:onmap() is now marker:onMap(), and it writes too: marker:onMap(true)");
 
         // ---- the world entities: two collections under hafen.render(), and hafen.ghost() IS one -------------

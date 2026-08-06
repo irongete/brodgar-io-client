@@ -60,14 +60,16 @@ end
 
 local function build()
   win = hafen.ui():window():title("Stock filter"):size(260, 330):position(80, 120)
-    :onClose(function() win = nil end)
+  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so it can never sit mid-chain -- every one
+  -- below is its own statement, after the builder chain that made the control it belongs to.
+  win:on("Close", function() win = nil end)
 
   hafen.ui():label():parent(win):position(10, 10):text("Search")
 
   search = hafen.ui():entry()
     :parent(win):position(10, 28):size(240, 20)
     :value("")
-    :onChange(function() refresh() end)
+  search:on("Changed", function() refresh() end)
 
   hafen.ui():separator():parent(win):position(10, 58):size(240, 1)
 
@@ -75,13 +77,13 @@ local function build()
     :parent(win):position(10, 70)                     -- the stack starts HERE; rows go downward
     :rows{"Name", "Quality", "Wear"}
     :value("Name")
-    :onChange(function() refresh() end)
+  sort:on("Changed", function() refresh() end)
 
   onlyQuality = hafen.ui():check()
     :parent(win):position(10, 132)
     :text("Only items with quality")
     :value(false)
-    :onChange(function() refresh() end)
+  onlyQuality:on("Changed", function() refresh() end)
 
   qLabel = hafen.ui():label():parent(win):position(10, 158):text("Min quality: 0")
 
@@ -89,39 +91,40 @@ local function build()
     :parent(win):position(10, 176):size(240, 20)
     :range(0, 100)
     :value(0)
-    :onChange(function(v, final)
-        qLabel:text(("Min quality: %d"):format(v))     -- live while dragging
-        if final then refresh() end                    -- once, on release
-      end)
+  -- a slider's Changed hands an ev now (R4: two things to say) -- ev:value()/:final(), not two loose args.
+  minq:on("Changed", function(ev)
+    qLabel:text(("Min quality: %d"):format(ev:value()))     -- live while dragging
+    if ev:final() then refresh() end                        -- once, on release
+  end)
 
   kind = hafen.ui():dropdown()
     :parent(win):position(10, 204):size(120, 20)
     :rows{"Backpack", "Equipment"}
     :value("Backpack")
-    :onChange(function() refresh() end)
+  kind:on("Changed", function() refresh() end)
 
   results = hafen.ui():list()
     :parent(win):position(10, 232):size(240, 60)
     :rows{}
-    :onChange(function(row) hafen.log():write("stockfilter: picked " .. tostring(row)) end)
+  results:on("Changed", function(row) hafen.log():write("stockfilter: picked " .. tostring(row)) end)
 
-  hafen.ui():button()
+  local refreshBtn = hafen.ui():button()
     :parent(win):position(10, 300):size(80, 20)
     :text("Refresh")
-    :onPress(refresh)
+  refreshBtn:on("Pressed", refresh)
 
-  hafen.ui():button()
+  local resetBtn = hafen.ui():button()
     :parent(win):position(96, 300):size(80, 20)
     :text("Reset")
-    :onPress(function()
-        search:value("")
-        sort:value("Name")
-        onlyQuality:value(false)
-        minq:value(0)
-        qLabel:text("Min quality: 0")
-        kind:value("Backpack")
-        refresh()
-      end)
+  resetBtn:on("Pressed", function()
+    search:value("")
+    sort:value("Name")
+    onlyQuality:value(false)
+    minq:value(0)
+    qLabel:text("Min quality: 0")
+    kind:value("Backpack")
+    refresh()
+  end)
 
   refresh()
 end

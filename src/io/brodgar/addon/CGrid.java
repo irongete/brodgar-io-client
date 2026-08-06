@@ -56,8 +56,6 @@ final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.
     private List<LuaValue> curItems = Collections.<LuaValue>emptyList();
     /** Exactly the table {@code :rows(t)} was last given — what the bare read hands back. */
     private LuaValue lastRows;
-    /** {@code :onCell(fn)}. Volatile: the draw pass reads it while Lua may be replacing it. */
-    private volatile LuaValue onCell;
 
     CGrid(Addon owner, Coord sz, Coord cellSz) {
         super(sz);
@@ -95,28 +93,24 @@ final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.
         return cellSz;
     }
 
-    public LuaValue onCell() {
-        return onCell;
-    }
-
-    public void onCell(LuaValue fn) {
-        this.onCell = fn;
-    }
-
     /**
-     * The one cell painter (040.11): binds THIS control's own {@link LuaGOut} to {@code g} — reclipped to the
-     * cell's own box by {@code GridList.draw} before it ever reaches here, so {@code (0,0)} is the cell's own
-     * top-left, exactly like a surface's local draw space — and calls {@code :onCell(g, item, w, h)} through
-     * the same error-isolated, watchdog-armed choke point every other Lua callback in this bridge uses.
+     * The one cell painter (040.11, re-spelled 041.4): binds THIS control's own {@link LuaGOut} to {@code g} —
+     * reclipped to the cell's own box by {@code GridList.draw} before it ever reaches here, so {@code (0,0)} is
+     * the cell's own top-left, exactly like a surface's local draw space — and fires {@code "Cell"} with an
+     * {@code ev} answering {@code :g()}/{@code :item()}/{@code :w()}/{@code :h()} (R4: four things to say)
+     * through the same error-isolated, watchdog-armed choke point every other Lua callback in this bridge uses.
+     * Skips the bind entirely when nobody is listening — the {@code hasSub} gate one cell at a time.
      */
     protected void drawitem(GOut g, LuaValue item) {
-        LuaValue fn = onCell;
-        if(fn == null)
+        if(own.dead())
+            return;
+        WidgetSubs s = own.owner.widgetSubsOrNull(this);
+        if((s == null) || !s.subs.has("Cell"))
             return;
         LuaTable gt = gwrap.bind(g, own.owner, null);
         try {
-            AddonManager.callLua(own.owner, Addon.C_DRAW, fn, gt, item,
-                LuaValue.valueOf(cellSz.x), LuaValue.valueOf(cellSz.y));
+            LuaValue ev = LuaEvent.cell(own.owner, gt, item, cellSz.x, cellSz.y);
+            s.subs.fire("Cell", ev);
         } finally {
             gwrap.unbind();   // invalidate the wrapper outside the callback (no stashing) -- LuaGOut's own rule
         }

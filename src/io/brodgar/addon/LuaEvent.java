@@ -59,7 +59,15 @@ public final class LuaEvent {
          * {@code w:on("MouseDown"/"MouseUp"/"MouseMove"/"Wheel", fn)} — the four universal widget input keys
          * (041.3), on a widget you built, one you found by selector, or one an event handed you.
          */
-        INPUT("input", "an input event answers :x() :y() :button() :amount() :preventDefault()");
+        INPUT("input", "an input event answers :x() :y() :button() :amount() :preventDefault()"),
+        /** {@code w:on("Draw", fn)} — an own widget's paint (041.4): three things to say, none cancelable. */
+        DRAW("draw", "a draw event answers :g() :w() :h()"),
+        /** {@code grid:on("Cell", fn)} — one grid cell's paint (041.4): four things to say, none cancelable. */
+        CELL("cell", "a cell event answers :g() :item() :w() :h()"),
+        /** {@code w:on("Drop", fn)} — a "thing" dropped on an own widget (041.4): three things to say, cancelable. */
+        DROP("drop", "a drop event answers :x() :y() :thing() :preventDefault()"),
+        /** {@code slider:on("Changed", fn)} — a slider's drag step (041.4): two things to say, uncancelable. */
+        SLIDER("slider", "a slider's Changed event answers :value() :final()");
 
         /** The shape's name, for {@code tostring(ev)}. */
         final String label;
@@ -94,6 +102,12 @@ public final class LuaEvent {
      * only some of, so a shape that does not apply reads {@code nil} rather than throwing (EXAMPLES §1.1). */
     private final int x, y;
     private final Integer button, amount;
+    /** DRAW/CELL: the bound {@code g} wrapper table (already inert once its own bind cycle ends). */
+    private final LuaValue g;
+    /** CELL: the row being painted. DROP: the neutral drop descriptor. Otherwise {@code null}. */
+    private final LuaValue extra;
+    /** SLIDER: whether this step ended the drag ({@code ev:final()}). Otherwise unused. */
+    private final boolean flag;
 
     /** The interned Widget handle, minted on the first {@code ev:sender()}/{@code ev:target()}. */
     private LuaValue wdgObj;
@@ -102,17 +116,24 @@ public final class LuaEvent {
 
     private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, String msg, Widget wdg, Object[] args,
                      UI ui, Object[][] rewritten) {
-        this(owner, shape, cancel, msg, wdg, args, ui, rewritten, 0, 0, null, null);
+        this(owner, shape, cancel, msg, wdg, args, ui, rewritten, 0, 0, null, null, null, null, false);
     }
 
     /** INPUT shape: no sender/target/args, just the pointer coordinates and (maybe) a button or wheel amount. */
     private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, String key, int x, int y, Integer button,
                      Integer amount) {
-        this(owner, shape, cancel, key, null, null, null, null, x, y, button, amount);
+        this(owner, shape, cancel, key, null, null, null, null, x, y, button, amount, null, null, false);
+    }
+
+    /** DRAW/CELL/DROP/SLIDER (041.4): no message, no sender/args — a small, shape-specific payload instead. */
+    private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, int x, int y, LuaValue g, LuaValue extra,
+                     boolean flag) {
+        this(owner, shape, cancel, null, null, null, null, null, x, y, null, null, g, extra, flag);
     }
 
     private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, String msg, Widget wdg, Object[] args,
-                     UI ui, Object[][] rewritten, int x, int y, Integer button, Integer amount) {
+                     UI ui, Object[][] rewritten, int x, int y, Integer button, Integer amount, LuaValue g,
+                     LuaValue extra, boolean flag) {
         this.owner = owner;
         this.shape = shape;
         this.cancel = cancel;
@@ -125,11 +146,14 @@ public final class LuaEvent {
         this.y = y;
         this.button = button;
         this.amount = amount;
+        this.g = g;
+        this.extra = extra;
+        this.flag = flag;
     }
 
-    /** {@code tostring(ev)} → {@code Event(action:click)}. */
+    /** {@code tostring(ev)} → {@code Event(action:click)}, or {@code Event(draw)} for a shape with no message. */
     public String toString() {
-        return "Event(" + shape.label + ":" + msg + ")";
+        return "Event(" + shape.label + ((msg == null) ? "" : (":" + msg)) + ")";
     }
 
     /**
@@ -162,6 +186,30 @@ public final class LuaEvent {
         Integer amount = (ev instanceof Widget.MouseWheelEvent) ? Integer.valueOf(((Widget.MouseWheelEvent)ev).a)
             : null;
         return of(new LuaEvent(owner, Shape.INPUT, c, key, ev.c.x, ev.c.y, button, amount));
+    }
+
+    /**
+     * The {@code ev} for one {@code Draw} fire ({@code w:on("Draw", fn)}, 041.4) — {@code g} is the ALREADY-BOUND
+     * {@link LuaGOut} wrapper table, shared by every handler of this one fire (they paint into the same frame),
+     * and goes inert with it on unbind — so a stashed {@code ev} is exactly as inert as a stashed {@code g}.
+     */
+    static LuaValue draw(Addon owner, LuaValue g, int w, int h) {
+        return of(new LuaEvent(owner, Shape.DRAW, null, w, h, g, null, false));
+    }
+
+    /** The {@code ev} for one grid {@code Cell} fire ({@code grid:on("Cell", fn)}, 041.4) — {@code g} as above. */
+    static LuaValue cell(Addon owner, LuaValue g, LuaValue item, int w, int h) {
+        return of(new LuaEvent(owner, Shape.CELL, null, w, h, g, item, false));
+    }
+
+    /** The {@code ev} for one {@code Drop} fire ({@code w:on("Drop", fn)}, 041.4) — {@code thing} the descriptor. */
+    static LuaValue drop(Addon owner, Subs.Cancel c, int x, int y, LuaValue thing) {
+        return of(new LuaEvent(owner, Shape.DROP, c, x, y, null, thing, false));
+    }
+
+    /** The {@code ev} for a slider's {@code Changed} fire ({@code slider:on("Changed", fn)}, 041.4). */
+    static LuaValue slider(Addon owner, int value, boolean fin) {
+        return of(new LuaEvent(owner, Shape.SLIDER, null, value, 0, null, null, fin));
     }
 
     private static LuaValue of(LuaEvent ev) {
@@ -211,6 +259,14 @@ public final class LuaEvent {
         LuaTable m = new LuaTable();
         if(shape == Shape.INPUT) {
             input(m);
+        } else if(shape == Shape.DRAW) {
+            draw(m);
+        } else if(shape == Shape.CELL) {
+            cell(m);
+        } else if(shape == Shape.DROP) {
+            drop(m);
+        } else if(shape == Shape.SLIDER) {
+            slider(m);
         } else {
             common(m, shape);
             if(shape == Shape.ACTION)
@@ -295,6 +351,95 @@ public final class LuaEvent {
             }
         });
         preventDefault(m, Shape.INPUT);
+    }
+
+    /**
+     * {@code w:on("Draw", fn)} (041.4): three things to say, so an {@code ev} — {@code :g()} the bound
+     * {@link LuaGOut} wrapper, {@code :w()}/{@code :h()} the area to paint. Uncancelable: {@code Draw} carries
+     * no {@code preventDefault}, so an unlisted verb (including that one) throws naming the vocabulary — the
+     * "throws on :preventDefault()" the suite asserts falls straight out of D-125's closed-shape refusal.
+     */
+    private static void draw(LuaTable m) {
+        m.set("g", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return self(a.arg1(), Shape.DRAW, "g").g;
+            }
+        });
+        m.set("w", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.DRAW, "w").x);
+            }
+        });
+        m.set("h", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.DRAW, "h").y);
+            }
+        });
+    }
+
+    /** {@code grid:on("Cell", fn)} (041.4): {@link #draw} plus {@code :item()}, the row being painted. */
+    private static void cell(LuaTable m) {
+        m.set("g", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return self(a.arg1(), Shape.CELL, "g").g;
+            }
+        });
+        m.set("item", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return self(a.arg1(), Shape.CELL, "item").extra;
+            }
+        });
+        m.set("w", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.CELL, "w").x);
+            }
+        });
+        m.set("h", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.CELL, "h").y);
+            }
+        });
+    }
+
+    /**
+     * {@code w:on("Drop", fn)} (041.4): {@code :x()}/{@code :y()} widget-local pixels, {@code :thing()} the
+     * neutral drop descriptor ({@code {kind=,res=}}, D-038), {@code :preventDefault()} — a truthy return no
+     * longer consumes the drop (R3), a cancelled fire does.
+     */
+    private static void drop(LuaTable m) {
+        m.set("x", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.DROP, "x").x);
+            }
+        });
+        m.set("y", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.DROP, "y").y);
+            }
+        });
+        m.set("thing", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return self(a.arg1(), Shape.DROP, "thing").extra;
+            }
+        });
+        preventDefault(m, Shape.DROP);
+    }
+
+    /**
+     * {@code slider:on("Changed", fn)} (041.4): two things to say — {@code :value()} the position,
+     * {@code :final()} whether this step ended the drag. Uncancelable, like every other {@code Changed}.
+     */
+    private static void slider(LuaTable m) {
+        m.set("value", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.SLIDER, "value").x);
+            }
+        });
+        m.set("final", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.SLIDER, "final").flag);
+            }
+        });
     }
 
     /**

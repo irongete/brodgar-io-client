@@ -692,14 +692,14 @@ local function open()
     :size(WIN_W, WIN_H)
     :position(80, 60)
     :font(FONT)
-    -- The whole draw is one scope, with the graph nested inside its own: this addon's cost and its two
-    -- scopes appear in the ADDONS tab while you are reading it.
-    :onDraw(function(g, w, h) p:measure("draw", draw, g, w, h) end)
-    :onClose(function()
-      win = nil
-      hafen.log():write("profiler: closed -- ':profiler' or the 'toggle' hotkey brings it back")
-    end)
-  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so it cannot sit mid-chain above.
+  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so none of these can sit mid-chain above.
+  -- The whole draw is one scope, with the graph nested inside its own: this addon's cost and its two
+  -- scopes appear in the ADDONS tab while you are reading it.
+  win:on("Draw", function(ev) p:measure("draw", draw, ev:g(), ev:w(), ev:h()) end)
+  win:on("Close", function()
+    win = nil
+    hafen.log():write("profiler: closed -- ':profiler' or the 'toggle' hotkey brings it back")
+  end)
   win:on("MouseDown", click)
 end
 

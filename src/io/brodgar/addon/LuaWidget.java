@@ -7,7 +7,6 @@ import haven.Coord;
 import haven.Equipory;
 import haven.FlowerMenu;
 import haven.FromResource;
-import haven.GItem;
 import haven.IButton;
 import haven.IMeter;
 import haven.Inventory;
@@ -30,7 +29,6 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -437,12 +435,15 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // on(key, fn) — 041.3, THE FEATURE'S ONE NEW REACH: input on ANY widget, found or built, over
-        // Widget.listen/deafen (WidgetSubs) rather than the three magic hafen.hook():input tokens. The four
-        // universal keys (MouseDown/MouseUp/MouseMove/Wheel, D-125's closed set for 041.3 — a widget-specific
-        // vocabulary joins it in 041.4) answer here; an unknown one throws naming what this widget does
-        // answer, exactly like a retired spelling one line later would, only sooner. preventDefault() is on
-        // the ev this hands the handler, never a return value (spec R3) — arity is NOT the verb here, because
+        // on(key, fn) — THE ONE address for everything a widget can say: input on ANY widget, found or built
+        // (041.3, over Widget.listen/deafen rather than the three magic hafen.hook():input tokens), plus the
+        // REST of the widget vocabulary (041.4) — a control's own notifications, a surface's Draw/Tick/Drop/
+        // Close, a container's ItemAdded/ItemRemoved, and Destroy on any widget at all. The vocabulary is
+        // WIDGET-SPECIFIC and computed fresh each call (widgetKeys, below): a Button answers Pressed and the
+        // universal five, a Label only the five, a surface adds Draw/Tick/Drop/Close, a non-control adds
+        // ItemAdded/ItemRemoved. An unknown key throws naming what THIS widget does answer, exactly like a
+        // retired spelling one line later would, only sooner (D-125). preventDefault() is on the ev this hands
+        // the handler where a key cancels, never a return value (spec R3) — arity is NOT the verb here, because
         // a subscription is not a property: :on(key, fn) always registers and returns a Sub, and :on(key) with
         // no function is a missing-argument error, not a read.
         m.set("on", new VarArgFunction() {
@@ -454,9 +455,10 @@ public final class LuaWidget {
                 if(!keyArg.isstring() || !fnArg.isfunction())
                     throw new LuaError("widget:on(key, fn) expects (string, function)");
                 String key = keyArg.tojstring();
-                if(!WidgetSubs.isKey(key)) {
+                List<String> keys = widgetKeys(owner, w);
+                if(!keys.contains(key)) {
                     throw new LuaError("widget:on(key, fn): a " + ((w == null) ? "Widget" : typeName(w))
-                        + " has no event '" + key + "' — it has: " + WidgetSubs.KEY_LIST);
+                        + " has no event '" + key + "' — it has: " + join(keys));
                 }
                 if(w == null)
                     throw new LuaError("widget:on(key, fn) — this widget is no longer in the tree");
@@ -589,31 +591,10 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // The eight callback setters, one loop rather than eight blocks: they differ only in which slot they
-        // write, and AddonWidget.CALLBACKS is the single list of the names (which are also the argument names
-        // the docs use). onDraw(fn) / onDraw() — arity is the verb here too, so a callback reads back.
-        for(int i = 0; i < AddonWidget.CALLBACKS.length; i++) {
-            final int slot = i;
-            final String verb = AddonWidget.CALLBACKS[i];
-            m.set(verb, new VarArgFunction() {
-                public Varargs invoke(Varargs a) {
-                    LuaValue self = a.arg1();
-                    Widget w = live(handle(self, verb));
-                    LuaValue v = Args.written(a, 2, "widget:" + verb, "fn");
-                    AddonWidget c = surfaceOrNull(owner, w);
-                    if(v == null) {
-                        LuaValue fn = (c == null) ? null : c.callback(slot);
-                        return (fn == null) ? LuaValue.NIL : fn;
-                    }
-                    if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
-                        return self;
-                    if(!v.isfunction())
-                        throw new LuaError("widget:" + verb + "(fn) expects a function, got " + v.typename());
-                    surface(owner, w, verb + "(fn)").callback(slot, v);
-                    return self;
-                }
-            });
-        }
+        // Draw/Tick/Drop/Close and ItemAdded/ItemRemoved/Destroy are GONE as chained-setter verbs (041.4): they
+        // answer through the one door every other key does now, widget:on(key, fn) above — Draw/Tick/Drop/Close
+        // on an owned surface, ItemAdded/ItemRemoved/Destroy on any widget. See AddonWidget (the first three)
+        // and WidgetSubs#poll (the poll-based three).
         // items() — 029.3: the items INSIDE this widget, as an array of Item OBJECTS. A RELATION on the
         // container, exactly like :children() — an Inventory (the backpack, a chest, a cupboard), an Equipory
         // (whose worn items say which slots they fill), or any widget with WItems under it (children(WItem.class)
@@ -625,32 +606,6 @@ public final class LuaWidget {
             public LuaValue call(LuaValue self) {
                 Widget w = live(handle(self, "items"));
                 return (w == null) ? new LuaTable() : items(owner, w);
-            }
-        });
-        // onItemAdded(fn) / onItemRemoved(fn) / onDestroy(fn) — 029.3: the lifecycle of a container, on the entity
-        // itself. fn(item) gets the same Item object :items() produces; onDestroy takes no argument and fires
-        // once, when the widget leaves the tree (server-destroyed, window closed, relog). An item add/remove is a
-        // WItem create/cdestroy and NOT a uimsg, so these are a per-tick diff (the BuffsAdapter shape) — but the
-        // poll is hasSub-GATED: the subscription IS the registration, so a widget nobody subscribed to is never
-        // polled, and passing nil (or anything not a function) unsubscribes. Drop the last callback and the widget
-        // leaves the poll entirely. All three chain on self. NB the items already inside a container fire
-        // onItemAdded on the first poll after you subscribe — the state arrives as events, like BuffAdded.
-        m.set("onItemAdded", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                UiApi.setItemCallback(owner, live(handle(a.arg1(), "onItemAdded")), Watch.ADDED, a.arg(2));
-                return a.arg1();
-            }
-        });
-        m.set("onItemRemoved", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                UiApi.setItemCallback(owner, live(handle(a.arg1(), "onItemRemoved")), Watch.REMOVED, a.arg(2));
-                return a.arg1();
-            }
-        });
-        m.set("onDestroy", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                UiApi.setItemCallback(owner, live(handle(a.arg1(), "onDestroy")), Watch.DESTROYED, a.arg(2));
-                return a.arg1();
             }
         });
         // text() / text(s) — WHAT THE WIDGET DISPLAYS, and arity is the verb here as everywhere else (R2). The
@@ -684,101 +639,9 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // onPress(fn) / onPress() — 040.1: A BUTTON FIRED, and it holds nothing. Distinct from :onClick(fn) on
-        // purpose: :onClick is the raw mouse event every widget you built carries (x, y, button, mods), while
-        // :onPress is the ACTIVATION, which the keyboard raises too. Reads nil on anything with nothing to
-        // press; a write there throws naming the builder that has one.
-        m.set("onPress", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:onPress() → narg 1 · w:onPress(fn) → narg 2
-                LuaValue self = a.arg1();
-                Widget w = live(handle(self, "onPress"));
-                LuaValue v = Args.written(a, 2, "widget:onPress", "fn");
-                if(v == null)
-                    return Controls.onPress((w == null) ? null : ownedContent(owner, w));
-                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
-                    return self;
-                if(!v.isfunction())
-                    throw new LuaError("widget:onPress(fn) expects a function, got " + v.typename());
-                Controls.onPress(owned(owner, w, "onPress(fn)"), w, v);
-                return self;
-            }
-        });
-        // onChange(fn) / onChange() — 040.4: THE VALUE CHANGED, and only from a real interaction. The other half
-        // of the value spine :value()/:value(v) began in 040.3 -- every control that answers :value() answers
-        // this too (spec 040 §1's sixth name), and a programmatic :value(v) writes the implementation's field
-        // directly and never re-enters it, which is the whole feedback-loop guarantee the spine promises. Reads
-        // nil on a control with no value; a write there throws naming that.
-        m.set("onChange", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:onChange() → narg 1 · w:onChange(fn) → narg 2
-                LuaValue self = a.arg1();
-                Widget w = live(handle(self, "onChange"));
-                LuaValue v = Args.written(a, 2, "widget:onChange", "fn");
-                if(v == null)
-                    return Controls.onChange((w == null) ? null : ownedContent(owner, w));
-                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
-                    return self;
-                if(!v.isfunction())
-                    throw new LuaError("widget:onChange(fn) expects a function, got " + v.typename());
-                Controls.onChange(owned(owner, w, "onChange(fn)"), w, v);
-                return self;
-            }
-        });
-        // onSubmit(fn) / onSubmit() — 040.7: the ENTRY's Enter, distinct from :onChange(fn) on purpose (spec 040
-        // §1's :onSubmit(fn)) -- :onChange fires on every keystroke, :onSubmit once, when Enter is pressed. Reads
-        // nil on anything that has nothing to submit; a write there throws naming the builder that does.
-        m.set("onSubmit", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:onSubmit() → narg 1 · w:onSubmit(fn) → narg 2
-                LuaValue self = a.arg1();
-                Widget w = live(handle(self, "onSubmit"));
-                LuaValue v = Args.written(a, 2, "widget:onSubmit", "fn");
-                if(v == null)
-                    return Controls.onSubmit((w == null) ? null : ownedContent(owner, w));
-                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
-                    return self;
-                if(!v.isfunction())
-                    throw new LuaError("widget:onSubmit(fn) expects a function, got " + v.typename());
-                Controls.onSubmit(owned(owner, w, "onSubmit(fn)"), w, v);
-                return self;
-            }
-        });
-        // onSelect(fn) / onSelect() — 040.10: A MENU ROW WAS CHOSEN, and hafen.ui():menu() holds nothing itself
-        // to report a CHANGE against — distinct from :onChange(fn) for exactly that reason, the same way
-        // :onSubmit(fn) is distinct from it on an entry. Reads nil on anything that has nothing to select; a
-        // write there throws naming the builder that does.
-        m.set("onSelect", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:onSelect() → narg 1 · w:onSelect(fn) → narg 2
-                LuaValue self = a.arg1();
-                Widget w = live(handle(self, "onSelect"));
-                LuaValue v = Args.written(a, 2, "widget:onSelect", "fn");
-                if(v == null)
-                    return Controls.onSelect((w == null) ? null : ownedContent(owner, w));
-                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
-                    return self;
-                if(!v.isfunction())
-                    throw new LuaError("widget:onSelect(fn) expects a function, got " + v.typename());
-                Controls.onSelect(owned(owner, w, "onSelect(fn)"), w, v);
-                return self;
-            }
-        });
-        // onCell(fn) / onCell() — 040.11: a GRID's cell painter — the row source hafen.ui():grid() paints
-        // through instead of turning into rows, since haven.GridList draws cells rather than building row
-        // widgets. fn(g, item, w, h) gets the SAME g wrapper widget:onDraw(fn) does, reclipped to the cell's own
-        // box. Reads nil on anything with no cells to paint; a write there throws naming the builder that does.
-        m.set("onCell", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:onCell() → narg 1 · w:onCell(fn) → narg 2
-                LuaValue self = a.arg1();
-                Widget w = live(handle(self, "onCell"));
-                LuaValue v = Args.written(a, 2, "widget:onCell", "fn");
-                if(v == null)
-                    return Controls.onCell((w == null) ? null : ownedContent(owner, w));
-                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
-                    return self;
-                if(!v.isfunction())
-                    throw new LuaError("widget:onCell(fn) expects a function, got " + v.typename());
-                Controls.onCell(owned(owner, w, "onCell(fn)"), w, v);
-                return self;
-            }
-        });
+        // onPress/onChange/onSubmit/onSelect/onCell are GONE as chained-setter verbs (041.4): a control's own
+        // notification answers through widget:on("Pressed"/"Changed"/"Submitted"/"Selected"/"Cell", fn) above,
+        // like every other key — see Controls#fire and widgetKeys.
         // image(up, down[, hover]) / image() — 040.2: THE FACE SETTER, and the second engine class behind one
         // builder. hafen.ui():button():text("Go") completes as a Button and :image(u, d) as an IButton, because
         // they are one control to an author and two widgets to the client; the I prefix is the client's own
@@ -1019,6 +882,63 @@ public final class LuaWidget {
             }
         });
         return m;
+    }
+
+    // ---- widget:on(key, fn)'s vocabulary (041.3/041.4) --------------------------------------------------
+
+    /** The five keys every LIVE widget answers — the universal four inputs (041.3) plus Destroy (041.4). */
+    private static final String[] UNIVERSAL_KEYS = { "MouseDown", "MouseUp", "MouseMove", "Wheel", "Destroy" };
+    /** The four keys ONLY an addon's own surface answers ({@code hafen.ui():widget()}/{@code :window()}). */
+    private static final String[] SURFACE_KEYS = { "Draw", "Tick", "Drop", "Close" };
+
+    /**
+     * The keys {@code w} answers, in the order a refusal lists them — computed fresh each call, since it
+     * depends on WHAT {@code w} is (a control's own capability, a surface, a container) rather than on a fixed
+     * catalogue. A control notification comes first (there is at most one relevant interface a control
+     * implements per verb — {@link Controls.Press}/{@link Controls.Change}/{@link Controls.Submit}/
+     * {@link Controls.Select}/{@link Controls.OnCell}), then the five keys every widget answers, then
+     * {@code ItemAdded}/{@code ItemRemoved} (any widget that is not one of the sixteen control adapters — a
+     * {@link haven.Button} structurally never carries item children, a native window or an addon's own surface
+     * might), then {@code Draw}/{@code Tick}/{@code Drop}/{@code Close} on an owned surface alone.
+     */
+    private static List<String> widgetKeys(Addon owner, Widget w) {
+        List<String> keys = new ArrayList<String>();
+        Owned c = (w == null) ? null : ownedContent(owner, w);
+        boolean control = (c != null) && !(c instanceof AddonWidget);
+        if(control) {
+            if(c instanceof Controls.Press)
+                keys.add("Pressed");
+            if(c instanceof Controls.Change)
+                keys.add("Changed");
+            if(c instanceof Controls.Submit)
+                keys.add("Submitted");
+            if(c instanceof Controls.Select)
+                keys.add("Selected");
+            if(c instanceof Controls.OnCell)
+                keys.add("Cell");
+        }
+        for(String k : UNIVERSAL_KEYS)
+            keys.add(k);
+        if(!control) {
+            keys.add("ItemAdded");
+            keys.add("ItemRemoved");
+        }
+        if(c instanceof AddonWidget) {
+            for(String k : SURFACE_KEYS)
+                keys.add(k);
+        }
+        return keys;
+    }
+
+    /** {@code "a, b, c"} — the refusal's key listing, with no trailing separator. */
+    private static String join(List<String> keys) {
+        StringBuilder sb = new StringBuilder();
+        for(String k : keys) {
+            if(sb.length() > 0)
+                sb.append(", ");
+            sb.append(k);
+        }
+        return sb.toString();
     }
 
     /** The handle behind a method's {@code self}, or a guiding error (a dot-call passes the wrong self). */
@@ -1456,54 +1376,7 @@ public final class LuaWidget {
         return gone;
     }
 
-    // ---- items: the relation + the per-tick subscription (029.3) ------------------------------------
-
-    /**
-     * One addon's subscription to a container's item lifecycle ({@code :onItemAdded}/{@code :onItemRemoved}/
-     * {@code :onDestroy}) — the record {@link UiApi#pollWatches} diffs each tick. It exists <b>only while at least
-     * one callback is set</b> (that is the {@code hasSub} gate: no subscription, no record, no poll), so the strong
-     * {@link #wdg} reference here is a deliberate, explicit one — an addon asked to be told about this widget — and
-     * it is dropped on the first tick that finds the widget gone, right after {@code onDestroy} fires.
-     *
-     * <p>{@link #id} is the server widget id captured at subscription time ({@code -1} for a client-only widget):
-     * the death test is the same two-branch guard the restore list uses — by id when server-bound, by tree
-     * reachability otherwise — because a container can be either.
-     */
-    static final class Watch {
-        static final int ADDED = 0, REMOVED = 1, DESTROYED = 2;
-
-        final Addon owner;
-        final Widget wdg;
-        final int id;
-        LuaValue onItemAdded, onItemRemoved, onDestroy;   // null = unset (all three null ⇒ the Watch is dropped)
-        boolean alive = true;
-        /**
-         * Present items → this owner's Item object. Keyed by the item WIDGET, so an {@link Equipory}'s two-slot
-         * item is one member and fires once, and the value is the very object {@code :items()} hands back — held
-         * strongly here so that the {@code onItemRemoved} payload is the same object the add reported.
-         */
-        final Map<GItem, LuaValue> items = new IdentityHashMap<GItem, LuaValue>();
-
-        Watch(Addon owner, Widget wdg, int id) {
-            this.owner = owner;
-            this.wdg = wdg;
-            this.id = id;
-        }
-
-        /** Set one callback slot; {@code null} clears it. */
-        void set(int slot, LuaValue fn) {
-            switch(slot) {
-            case ADDED:   onItemAdded = fn;   break;
-            case REMOVED: onItemRemoved = fn; break;
-            default:      onDestroy = fn;     break;
-            }
-        }
-
-        /** Is anybody still listening? (False ⇒ drop the record and stop polling — the hasSub gate.) */
-        boolean subscribed() {
-            return (onItemAdded != null) || (onItemRemoved != null) || (onDestroy != null);
-        }
-    }
+    // ---- items: the relation (029.3) — the lifecycle notifications live on WidgetSubs since 041.4 -----
 
     /**
      * The items inside a container widget, as an array of <b>Item objects</b> ({@code widget:items()}). {@code

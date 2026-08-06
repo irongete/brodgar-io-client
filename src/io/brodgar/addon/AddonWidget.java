@@ -12,22 +12,23 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 /**
- * A <b>client-side</b> {@link Widget} whose lifecycle callbacks forward to an addon's Lua functions —
+ * A <b>client-side</b> {@link Widget} whose lifecycle notifications forward to an addon's Lua functions —
  * the Java half of {@code hafen.ui():widget()} / {@code hafen.ui():window()} (spec
- * {@code 07-ui-and-drawing.md}, Phase 2a). It is a leaf widget: {@link #draw} and {@link #tick} call the
- * addon's matching callback ({@code onDraw}/{@code onTick}) through {@link AddonManager#callLua}, so every
+ * {@code 07-ui-and-drawing.md}, Phase 2a). It is a leaf widget: {@link #draw} and {@link #tick} fire
+ * {@code "Draw"}/{@code "Tick"} on this widget's own {@link WidgetSubs} (041.4) — the SAME address every
+ * OTHER key answers, {@code widget:on(key, fn)}, over {@link AddonManager#callLua} underneath, so every
  * forward is <b>watchdog-armed</b> (D-018 layer 1), <b>error-isolated</b> (a Lua error is logged, never
- * thrown into the render/tick loop), and CPU-accounted exactly like an event handler. <b>Mouse input is not
- * one of these slots</b> (041.3): {@code MouseDown}/{@code MouseUp}/{@code MouseMove}/{@code Wheel} reach an
- * AddonWidget the same way they reach any other widget, through {@code widget:on(key, fn)} and the
- * {@link Widget#listen} pre-hook {@link WidgetSubs} installs — one door for a widget you built and one you
- * merely found, which a fixed callback slot could never be.
+ * thrown into the render/tick loop), CPU-accounted, and — unlike the single slot this used to be — answers
+ * N SUBSCRIBERS, in registration order (R1). <b>Mouse input is not one of these keys either</b> (041.3):
+ * {@code MouseDown}/{@code MouseUp}/{@code MouseMove}/{@code Wheel} reach an AddonWidget the same way they
+ * reach any other widget, through the {@link Widget#listen} pre-hook {@link WidgetSubs} installs — one door
+ * for a widget you built and one you merely found, which a fixed callback slot could never be.
  *
- * <p><b>Built bare, and every callback is a setter</b> (spec {@code 039-uniform-api} §2.5). The thirteen
- * keys of the old {@code opts} table are chained setters on the Widget entity, so a callback is no longer
- * fixed at construction: the slots live in a <b>copy-on-write volatile array</b> because the tick and draw
- * passes read them while Lua writes them, and one volatile reference is cheaper to get right than eight
- * volatile fields.
+ * <p><b>Nothing is stored on this class any more</b> (041.4). Every one of {@code "Draw"}/{@code "Tick"}/
+ * {@code "Drop"}/{@code "Close"} used to be a chained-setter slot in a copy-on-write array; now each fire
+ * looks its {@link WidgetSubs} up WITHOUT minting one ({@link Addon#widgetSubsOrNull}), so a widget nobody
+ * subscribed to costs one map lookup a tick/draw and nothing else — the same {@code hasSub} gate every other
+ * emitter in the API has.
  *
  * <p><b>Attached INERT until its arming tick</b> (§2.5, and D-112 applied one level up). A bare widget exists
  * for the length of the statement that builds it, with the client's own defaults and no title. It is in the
@@ -45,20 +46,21 @@ import org.luaj.vm2.LuaValue;
  * opaque handle built in {@link AddonManager}, and the bridge owns the widget for teardown
  * (registered in {@link Addon}'s owned-resource registry, destroyed on reload/disable, principle P2).
  *
- * <p>The draw callback receives {@link #gwrap}, the shared {@link LuaGOut} wrapper over the live
- * {@link GOut} — bound for the duration of {@code onDraw} and inert otherwise, so an addon that stashes
- * {@code g} and uses it later cannot corrupt the client's draw pipeline. Coordinates are the widget's own
- * pixel space (top-left = {@code 0,0}); {@code onDraw(g, w, h)} gets the widget size. UI scaling
- * ({@code UI.scale}) is <b>not</b> applied in 2a — sizes and draw coords are raw pixels (a later slice may
- * add a scale option).
+ * <p>The {@code "Draw"} ev's {@code :g()} is {@link #gwrap}, the shared {@link LuaGOut} wrapper over the live
+ * {@link GOut} — bound for the duration of one fire and inert otherwise, so an addon that stashes {@code ev}
+ * (or {@code ev:g()}) and uses it later cannot corrupt the client's draw pipeline. Coordinates are the
+ * widget's own pixel space (top-left = {@code 0,0}); {@code ev:w()}/{@code :h()} give the widget size. UI
+ * scaling ({@code UI.scale}) is <b>not</b> applied in 2a — sizes and draw coords are raw pixels (a later
+ * slice may add a scale option).
  *
  * <p><b>Drop target (D-038).</b> An AddonWidget {@link DropTarget implements DropTarget}, so the client's own
  * drag gesture can drop a "thing" onto it: the engine walks the widget tree and calls {@link #dropthing}
  * on the first target under the cursor. v1 delivers a menu-grid action ({@link MenuGrid.Pagina}) as the
- * <b>neutral descriptor</b> {@code {kind="pagina", res="<name>"}} to the addon's {@code onDrop(x, y, drop)}
- * callback (widget-local px); a truthy return consumes the drop. A resource name is plain data (already all
- * over the read API), so this stays <b>ungated</b>; firing the dropped action is out of scope (the deferred
- * menu-ability primitive).
+ * <b>neutral descriptor</b> {@code {kind="pagina", res="<name>"}}, wrapped (041.4) in an {@code ev} fired on
+ * {@code "Drop"} — {@code :x()}/{@code :y()} (widget-local px), {@code :thing()} the descriptor,
+ * {@code :preventDefault()} in place of the old truthy-return consume (R3). A resource name is plain data
+ * (already all over the read API), so this stays <b>ungated</b>; firing the dropped action is out of scope
+ * (the deferred menu-ability primitive).
  *
  * <p><b>D-040's per-callback {@code mods} table is retired with the slots it rode on</b> (041.3): the input
  * {@code ev} {@code widget:on("MouseDown"/…, fn)} hands over does not carry modifier state (EXAMPLES §1.1) —
@@ -72,18 +74,7 @@ import org.luaj.vm2.LuaValue;
  * verbs without this one growing a wrapper role it should not have.
  */
 final class AddonWidget extends Widget implements DropTarget, Owned {
-    /**
-     * The callback setters, in slot order — the Lua verb names, which are also the keys the retired
-     * {@code opts} table used. {@link #slot(String)} is the only mapping between the two.
-     */
-    static final String[] CALLBACKS = {
-        "onDraw", "onTick", "onDrop", "onClose",
-    };
-    static final int ON_DRAW = 0, ON_TICK = 1, ON_DROP = 2, ON_CLOSE = 3;
-
     private final Addon owner;
-    /** The callback slots. Copy-on-write: the draw/tick passes read this reference, Lua setters replace it. */
-    private volatile LuaValue[] cb = new LuaValue[CALLBACKS.length];
     private volatile FontHandle defaultFont;       // :font(h) — the default font for this widget's g:text draws
     private volatile LuaValue fontVal = LuaValue.NIL;   // ...and the handle itself, so :font() reads back what was set
     private final LuaGOut gwrap = new LuaGOut();   // the shared GOut draw wrapper `g`, bound per draw
@@ -94,27 +85,6 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
     AddonWidget(Addon owner, Coord sz) {
         super(sz);
         this.owner = owner;
-    }
-
-    /** The slot of a callback verb, or {@code -1} — the one place the four names are matched. */
-    static int slot(String name) {
-        for(int i = 0; i < CALLBACKS.length; i++) {
-            if(CALLBACKS[i].equals(name))
-                return i;
-        }
-        return -1;
-    }
-
-    /** The function in a slot, or {@code null} — what {@code w:onDraw()} reads back. */
-    LuaValue callback(int i) {
-        return cb[i];
-    }
-
-    /** Install a callback ({@code w:onDraw(fn)}). Copy-on-write, so a reader never sees a torn array. */
-    void callback(int i, LuaValue fn) {
-        LuaValue[] n = cb.clone();
-        n[i] = fn;
-        cb = n;
     }
 
     /** The widget's default font handle as Lua set it ({@code w:font()}), and the resolved half behind it. */
@@ -187,23 +157,41 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
 
     // ---------------------------------------------------------------- lifecycle forwards
 
+    /**
+     * {@code widget:on("Tick"/"Draw"/"Drop"/"Close", fn)} — a surface's own four notifications (041.4, re-spelled
+     * off the single {@code onTick(fn)}/{@code onDraw(fn)}/{@code onDrop(fn)}/{@code onClose(fn)} slots this
+     * widget used to carry): each looks up its {@link WidgetSubs} WITHOUT minting one
+     * ({@link Addon#widgetSubsOrNull}), so an unlistened surface costs one map lookup a tick/draw and nothing
+     * else. N subscribers, in registration order, exactly like every other key in the API.
+     *
+     * <p><b>Keyed on {@link #rootw()}, never on {@code this}.</b> {@code hafen.ui():window()}'s Lua handle is
+     * interned on the CHROME ({@link UiApi#attach}, {@code c.rootw()}) — {@code win:on("Draw", fn)} therefore
+     * registers the {@link WidgetSubs} under {@code win}, one level above this content widget. A bare
+     * {@code hafen.ui():widget()} has {@link #root} default to {@code this}, so the two keys coincide there;
+     * for a window they do not, and looking up {@code this} would silently see nobody subscribed.
+     */
     public void tick(double dt) {
         super.tick(dt);
-        LuaValue fn = cb[ON_TICK];
-        if(!dead && (fn != null))
-            AddonManager.callLua(owner, Addon.C_WIDGET, fn, LuaValue.valueOf(dt));
+        if(dead)
+            return;
+        WidgetSubs s = owner.widgetSubsOrNull(rootw());
+        if((s != null) && s.subs.has("Tick"))
+            s.subs.fire("Tick", LuaValue.valueOf(dt));
     }
 
     public void draw(GOut g) {
         if(pending)     // built this frame and not armed yet: a half-configured widget paints NOTHING (§2.5)
             return;
-        LuaValue fn = cb[ON_DRAW];
-        if(!dead && (fn != null)) {
-            LuaTable gt = gwrap.bind(g, owner, defaultFont);   // F2: g:text with no per-call font uses this widget's :font()
-            try {
-                AddonManager.callLua(owner, Addon.C_DRAW, fn, gt, LuaValue.valueOf(sz.x), LuaValue.valueOf(sz.y));
-            } finally {
-                gwrap.unbind();   // invalidate the wrapper outside the callback (no stashing)
+        if(!dead) {
+            WidgetSubs s = owner.widgetSubsOrNull(rootw());
+            if((s != null) && s.subs.has("Draw")) {
+                LuaTable gt = gwrap.bind(g, owner, defaultFont);   // F2: g:text with no per-call font uses :font()
+                try {
+                    LuaValue ev = LuaEvent.draw(owner, gt, sz.x, sz.y);   // R4: g/w/h, so an ev — never :preventDefault()
+                    s.subs.fire("Draw", ev);   // two handlers both paint: the same g, walked in registration order
+                } finally {
+                    gwrap.unbind();   // invalidate the wrapper outside the callback (no stashing)
+                }
             }
         }
         super.draw(g);   // draw any child widgets (none for a leaf; future-proofing)
@@ -216,13 +204,15 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
     // its listener did not consume.
 
     /**
-     * The chrome close button ({@code :onClose(fn)}). Wired once by the builder, but read here, so a handler
-     * installed after the window was built is the one that runs.
+     * The chrome close button ({@code widget:on("Close", fn)}). Wired once by the builder, but read here, so a
+     * handler installed after the window was built still runs — nothing to say, uncancelable.
      */
     void closed() {
-        LuaValue fn = cb[ON_CLOSE];
-        if(fn != null)
-            AddonManager.callLua(owner, Addon.C_WIDGET, fn);
+        if(dead)
+            return;
+        WidgetSubs s = owner.widgetSubsOrNull(rootw());
+        if(s != null)
+            s.subs.fire("Close");
     }
 
     // ---------------------------------------------------------------- drop target (D-038)
@@ -230,18 +220,23 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
     /**
      * A "thing" was dropped over this widget (the engine's own drag-drop dispatch). {@code cc} is
      * widget-local (the {@link DropTarget.Drop} event derives child-local coords as it propagates). v1
-     * delivers a menu-grid {@link MenuGrid.Pagina} as a neutral descriptor; a truthy Lua return consumes
-     * it. Any other kind of thing (e.g. an inventory item, a different path) returns {@code false} so the
-     * engine keeps looking for a handler.
+     * delivers a menu-grid {@link MenuGrid.Pagina} as a neutral descriptor, wrapped in an {@code ev} answering
+     * {@code :x()}/{@code :y()}/{@code :thing()}/{@code :preventDefault()} (R3: consuming the drop is
+     * {@code preventDefault()} now, not a truthy return). Any other kind of thing (e.g. an inventory item, a
+     * different path) is not delivered at all, so the engine keeps looking for a handler.
      */
     public boolean dropthing(Coord cc, Object thing) {
-        LuaValue fn = cb[ON_DROP];
-        if(dead || (fn == null))
+        if(dead)
             return false;
         LuaValue drop = dropDescriptor(thing);
         if(drop == null)
             return false;   // not a kind we deliver → let the engine dispatch it elsewhere
-        return AddonManager.callLua(owner, Addon.C_WIDGET, fn, ci(cc.x), ci(cc.y), drop).arg1().toboolean();
+        WidgetSubs s = owner.widgetSubsOrNull(rootw());
+        if((s == null) || !s.subs.has("Drop"))
+            return false;
+        Subs.Cancel c = new Subs.Cancel();
+        LuaValue ev = LuaEvent.drop(owner, c, cc.x, cc.y, drop);
+        return s.subs.fire("Drop", c, ev);
     }
 
     /**
@@ -274,9 +269,5 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
         } catch(RuntimeException e) {   // Loading etc.
             return null;
         }
-    }
-
-    private static LuaValue ci(int v) {
-        return LuaValue.valueOf(v);
     }
 }

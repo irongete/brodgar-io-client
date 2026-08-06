@@ -404,10 +404,10 @@ public final class AddonManager {
             //     reads, so a client that hides nothing pays one read.
             UiApi.pollReplaced();
 
-            // 1c'. Watched containers (029.3): per-tick diff of every widget an addon subscribed to, for item
-            //      add/remove (a WItem create/cdestroy, not a uimsg — like the buff/meter adapters) and for the
-            //      widget's own death (→ onDestroy). hasSub-gated: a widget nobody listens to is never polled.
-            UiApi.pollWatches();
+            // 1c'. WidgetSubs poll keys (041.4): per-tick diff of every widget:on("ItemAdded"/"ItemRemoved", fn)
+            //      subscription (a WItem create/cdestroy, not a uimsg — like the buff/meter adapters) and every
+            //      widget:on("Destroy", fn) subscription. hasSub-gated: a widget nobody listens to is never polled.
+            UiApi.pollWidgetSubs();
 
             // 1c''. Selector subscriptions (030.2): re-check the widgets placed in the last few ticks whose
             //       [title=]/[res=] refiner had not resolved yet (a caption arrives by uimsg, a tick after

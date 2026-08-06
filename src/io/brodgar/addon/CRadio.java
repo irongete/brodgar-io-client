@@ -45,8 +45,6 @@ final class CRadio extends Widget implements Owned.Control, Controls.Value, Cont
     private String checkedLabel;
     /** Exactly the table {@code :rows(t)} was last given — what the bare read hands back. */
     private LuaValue lastRows;
-    /** {@code :onChange(fn)}. Volatile: the engine fires it from the input pass while Lua may be replacing it. */
-    private volatile LuaValue onChange;
 
     CRadio(Addon owner) {
         this.own = new Owned.State(owner, this);
@@ -63,9 +61,7 @@ final class CRadio extends Widget implements Owned.Control, Controls.Value, Cont
              *  reaches this — it flips the two buttons directly instead (see #value(LuaValue) below). */
             public void changed(int btn, String lbl) {
                 checkedLabel = lbl;
-                LuaValue fn = onChange;
-                if(!own.dead() && (fn != null))
-                    AddonManager.callLua(own.owner, Addon.C_WIDGET, fn, LuaValue.valueOf(lbl));
+                Controls.fire(CRadio.this, "Changed", LuaValue.valueOf(lbl));
             }
         };
     }
@@ -149,14 +145,6 @@ final class CRadio extends Widget implements Owned.Control, Controls.Value, Cont
             sb.append('"').append(label).append('"');
         }
         return sb.toString();
-    }
-
-    public LuaValue onChange() {
-        return onChange;
-    }
-
-    public void onChange(LuaValue fn) {
-        this.onChange = fn;
     }
 
     public void draw(GOut g) {

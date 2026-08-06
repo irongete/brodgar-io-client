@@ -4,8 +4,6 @@ import haven.Button;
 import haven.Coord;
 import haven.GOut;
 
-import org.luaj.vm2.LuaValue;
-
 /**
  * The adapter behind {@code hafen.ui():button()} — a real {@link Button}, the very class the client's own
  * windows are built from, carrying the ownership contract and the Lua {@code :onPress} callback.
@@ -47,8 +45,6 @@ final class CtlButton extends Button implements Owned.Control, Controls.Press {
     static final int DEF_W = 100;
 
     private final Owned.State own;
-    /** {@code :onPress(fn)}. Volatile: the engine fires it from the input pass while Lua may be replacing it. */
-    private volatile LuaValue onPress;
 
     CtlButton(Addon owner, int w) {
         // lg = false explicitly: the stock two-argument constructor derives it from the width against the
@@ -62,24 +58,13 @@ final class CtlButton extends Button implements Owned.Control, Controls.Press {
         return own;
     }
 
-    /** The installed {@code :onPress} handler, or {@code null} — what {@code b:onPress()} reads back. */
-    public LuaValue onPress() {
-        return onPress;
-    }
-
-    public void onPress(LuaValue fn) {
-        this.onPress = fn;
-    }
-
     /**
-     * The button fired ({@link Button#click}) — a mouse release inside its box, or the keyboard. Forwarded
-     * through {@link AddonManager#callLua}, so it is watchdog-armed, error-isolated and CPU-accounted exactly
-     * like every other addon callback.
+     * The button fired ({@link Button#click}) — a mouse release inside its box, or the keyboard. Fires
+     * {@code "Pressed"} on this widget's {@link WidgetSubs} ({@link Controls#fire}), N subscribers, exactly
+     * like every other addon callback (watchdog-armed, error-isolated, CPU-accounted).
      */
     public void click() {
-        LuaValue fn = onPress;
-        if(!own.dead() && (fn != null))
-            AddonManager.callLua(own.owner, Addon.C_WIDGET, fn);
+        Controls.fire(this, "Pressed");
     }
 
     public void draw(GOut g) {

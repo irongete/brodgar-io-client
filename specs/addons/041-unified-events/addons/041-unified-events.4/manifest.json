@@ -1,0 +1,9 @@
+{
+  "name": "041.4 — The remaining widget keys",
+  "id": "041-unified-events.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 041.4: the other 12 retired widget verbs (control notifications, Draw/Tick/Drop/Close on an owned surface, ItemAdded/ItemRemoved/Destroy on any widget) all answer through widget:on(key, fn) over the same Subs. Run ':t041-4' and follow the one [manual] line: a two-handler widget visibly painting both layers.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

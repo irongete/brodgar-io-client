@@ -45,7 +45,7 @@ local grid                  -- the native inventory grid we replaced (nil = noth
 local hover                 -- {x=,y=} grid cell under the mouse, for a highlight (or nil)
 
 -- Stop replacing: grid:replace(nil) restores the native inventory AND destroys our view (idempotent, and a silent
--- no-op on a widget that has gone stale). Shared by the hotkey's disarm and the window's own X (onClose), so both
+-- no-op on a widget that has gone stale). Shared by the hotkey's disarm and the window's own X ("Close"), so both
 -- paths converge on a clean restore.
 local function stopReplace()
   if watch then watch:remove(); watch = nil end
@@ -68,37 +68,38 @@ local function buildBagsView(w)
     :title("Bags (custom)")
     :size(cols * CELL + 8, rows * CELL + 24)
     :position(150, 130)
-    :onDraw(function(g, ww, h)
-      g:color(0, 0, 0, 175); g:frect(0, 0, ww, h); g:color()             -- translucent backdrop
-      local items = w:items()                                           -- LIVE read off the hidden inventory's items
-      for _, it in ipairs(items) do
-        local p = it:cell() or { x = 0, y = 0 }
-        local cx, cy = 4 + p.x * CELL, 4 + p.y * CELL
-        g:color(46, 56, 74); g:frect(cx, cy, CELL - 2, CELL - 2); g:color()        -- cell body
-        g:color(96, 116, 150); g:rect(cx, cy, CELL - 2, CELL - 2); g:color()        -- cell border
-        -- No item icons yet (g:image is deferred), so show a short name + a stack count.
-        local label = tostring(it:name() or it:res() or "?"):gsub("^.*/", "")
-        g:text(label:sub(1, 5), cx + 2, cy + 2)
-        if it:num() and it:num() > 1 then g:atext(tostring(it:num()), cx + CELL - 4, cy + CELL - 13, 1.0, 0.0) end
-      end
-      if hover then                                                     -- hover highlight
-        g:color(255, 225, 120)
-        g:rect(3 + hover.x * CELL, 3 + hover.y * CELL, CELL, CELL)
-        g:color()
-      end
-      g:color(180, 200, 160)
-      g:text(("%d item(s) -- Tab closes this window; the hotkey restores the stock one"):format(#items), 4, h - 15)
+  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so every one goes after the builder chain above.
+  win:on("Draw", function(ev)
+    local g, ww, h = ev:g(), ev:w(), ev:h()
+    g:color(0, 0, 0, 175); g:frect(0, 0, ww, h); g:color()             -- translucent backdrop
+    local items = w:items()                                           -- LIVE read off the hidden inventory's items
+    for _, it in ipairs(items) do
+      local p = it:cell() or { x = 0, y = 0 }
+      local cx, cy = 4 + p.x * CELL, 4 + p.y * CELL
+      g:color(46, 56, 74); g:frect(cx, cy, CELL - 2, CELL - 2); g:color()        -- cell body
+      g:color(96, 116, 150); g:rect(cx, cy, CELL - 2, CELL - 2); g:color()        -- cell border
+      -- No item icons yet (g:image is deferred), so show a short name + a stack count.
+      local label = tostring(it:name() or it:res() or "?"):gsub("^.*/", "")
+      g:text(label:sub(1, 5), cx + 2, cy + 2)
+      if it:num() and it:num() > 1 then g:atext(tostring(it:num()), cx + CELL - 4, cy + CELL - 13, 1.0, 0.0) end
+    end
+    if hover then                                                     -- hover highlight
+      g:color(255, 225, 120)
+      g:rect(3 + hover.x * CELL, 3 + hover.y * CELL, CELL, CELL)
       g:color()
-      g:color(150, 150, 150); g:rect(0, 0, ww, h); g:color()            -- outer border
-    end)
-    :onClose(function()
-      -- The X fires while this window is still on screen, so the one restore rule ("as the user was seeing it")
-      -- hands back an OPEN stock inventory -- which is what closing a window you were looking at should give you.
-      hafen.log():write("bags: view closed (X) -- the stock inventory is back OPEN (you were seeing a window), and Tab"
-        .. " toggles it again; press the toggle key to replace once more")
-      stopReplace()                                                   -- X also restores the native inventory
-    end)
-  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so both go after the builder chain above.
+    end
+    g:color(180, 200, 160)
+    g:text(("%d item(s) -- Tab closes this window; the hotkey restores the stock one"):format(#items), 4, h - 15)
+    g:color()
+    g:color(150, 150, 150); g:rect(0, 0, ww, h); g:color()            -- outer border
+  end)
+  win:on("Close", function()
+    -- The X fires while this window is still on screen, so the one restore rule ("as the user was seeing it")
+    -- hands back an OPEN stock inventory -- which is what closing a window you were looking at should give you.
+    hafen.log():write("bags: view closed (X) -- the stock inventory is back OPEN (you were seeing a window), and Tab"
+      .. " toggles it again; press the toggle key to replace once more")
+    stopReplace()                                                   -- X also restores the native inventory
+  end)
   win:on("MouseMove", function(ev)
     hover = { x = math.floor((ev:x() - 4) / CELL), y = math.floor((ev:y() - 4) / CELL) }
   end)

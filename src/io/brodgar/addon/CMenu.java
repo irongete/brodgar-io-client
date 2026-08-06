@@ -54,8 +54,6 @@ final class CMenu extends SListMenu<LuaRows.Row, Widget> implements Owned.Contro
     private List<LuaRows.Row> curItems = Collections.<LuaRows.Row>emptyList();
     /** Exactly the table {@code :rows(t)} was last given — what the bare read hands back. */
     private LuaValue lastRows;
-    /** {@code :onSelect(fn)}. Volatile: the engine fires it from the input pass while Lua may be replacing it. */
-    private volatile LuaValue onSelect;
 
     CMenu(Addon owner, Coord sz, int itemh) {
         super(sz, itemh);
@@ -115,19 +113,9 @@ final class CMenu extends SListMenu<LuaRows.Row, Widget> implements Owned.Contro
         return box.itemh;
     }
 
-    public LuaValue onSelect() {
-        return onSelect;
-    }
-
-    public void onSelect(LuaValue fn) {
-        this.onSelect = fn;
-    }
-
     /** A REAL pick (or an inert {@code null} — see class doc, the grab that would have sent one is off). */
     protected void choice(LuaRows.Row item) {
-        LuaValue fn = onSelect;
-        if(!own.dead() && (fn != null))
-            AddonManager.callLua(own.owner, Addon.C_WIDGET, fn, (item == null) ? LuaValue.NIL : item.raw);
+        Controls.fire(this, "Selected", (item == null) ? LuaValue.NIL : item.raw);
     }
 
     public void draw(GOut g) {

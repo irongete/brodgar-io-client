@@ -58,7 +58,7 @@
       `[manual]`: click a native window with a `preventDefault` handler installed — the window does not
       react; remove the handler and it does.
 
-- [ ] **041.4 — The remaining widget keys.** The other 12 retired verbs, all through the same `Subs`:
+- [x] **041.4 — The remaining widget keys.** The other 12 retired verbs, all through the same `Subs`:
       controls (`Pressed`, `Changed`, `Submitted`, `Selected`, `Cell`), containers (`ItemAdded`,
       `ItemRemoved`), own-widget (`Draw`, `Tick`, `Drop`, `Close`) and `Destroy`. `Controls`' five
       capabilities stop holding one slot; `UiApi.Watch` generalises to `Subs` with `pollWatches`

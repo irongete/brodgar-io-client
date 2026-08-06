@@ -35,8 +35,6 @@ final class CSlider extends HSlider implements Owned.Control, Controls.Value, Co
     static final int DEF_W = 140;
 
     private final Owned.State own;
-    /** {@code :onChange(fn)}. Volatile: the engine fires it from the input pass while Lua may be replacing it. */
-    private volatile LuaValue onChange;
 
     CSlider(Addon owner) {
         super(DEF_W, 0, 100, 0);
@@ -88,14 +86,6 @@ final class CSlider extends HSlider implements Owned.Control, Controls.Value, Co
         this.val = clamp(this.val);
     }
 
-    public LuaValue onChange() {
-        return onChange;
-    }
-
-    public void onChange(LuaValue fn) {
-        this.onChange = fn;
-    }
-
     /** A real drag step ({@code HSlider.mousemove} &rarr; {@code update} &rarr; here) — {@code final = false}. */
     public void changed() {
         fire(false);
@@ -106,10 +96,12 @@ final class CSlider extends HSlider implements Owned.Control, Controls.Value, Co
         fire(true);
     }
 
+    /**
+     * Two things to say (the value, whether the drag ended), so an {@code ev} — {@code ev:value()}/{@code :final()}
+     * — the one-axis rule (spec R4) applied to the one control key that carries more than a bare value.
+     */
     private void fire(boolean fin) {
-        LuaValue fn = onChange;
-        if(!own.dead() && (fn != null))
-            AddonManager.callLua(own.owner, Addon.C_WIDGET, fn, LuaValue.valueOf(val), LuaValue.valueOf(fin));
+        Controls.fire(this, "Changed", LuaEvent.slider(own.owner, val, fin));
     }
 
     public void draw(GOut g) {

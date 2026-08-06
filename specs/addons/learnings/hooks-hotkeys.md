@@ -245,3 +245,21 @@
   suite that builds windows cannot be dry-run) — grepping every `:on("Mouse…"` / `:on("Wheel"` call site by
   hand, one at a time, is what a scripted port cannot see either (039's `pcall(hafen.json.parse, x)` lesson,
   one level along: this time the miss was a *chain position*, not an indirect call).
+- **`WidgetSubs` must be keyed on the SAME widget the Lua handle is interned on, and for a window that is
+  the CHROME, not the content (041.4, found by the task's own `[manual]` round — a bare-widget automated
+  check does not see it).** `hafen.ui():window()` interns its Lua handle on `win` (`UiApi.attach` reads
+  `Owned:rootw()`, and `content.root(win)` points it there); the `AddonWidget` that actually overrides
+  `draw`/`tick`/`closed`/`dropthing` is `win`'s CHILD. `win:on("Draw", fn)` therefore registers a `WidgetSubs`
+  keyed by `win`, but the four fire sites were written as `owner.widgetSubsOrNull(this)` — keyed by the
+  content widget, one level too deep. Two different map keys, so every window's `Draw`/`Tick`/`Drop`/`Close`
+  subscription silently saw nobody listening: the window rendered its stock chrome and nothing else, no
+  error anywhere. The bare `hafen.ui():widget()` case (where `rootw() == this`, the default) happened to
+  work, which is exactly why the task's own automated suite — built against a bare widget for speed — passed
+  13/13 while the `[manual]` demo (a `hafen.ui():window()`, the far more common real shape) painted nothing.
+  **The fix**: key all four `AddonWidget` fire sites on `rootw()`, never `this` — it already equals `this`
+  for a bare widget and the chrome for a window, so one accessor covers both shapes. **The lesson for the
+  next per-widget registry**: when a Lua handle can be interned on something OTHER than the object whose
+  Java method fires the notification (a window's chrome vs. its content, D-100's "state belongs on the
+  thing" needs "which thing" answered explicitly), pick a representative case for automated coverage that
+  is NOT the shape where the two happen to coincide — a check against `hafen.ui():widget()` alone cannot
+  distinguish "keyed correctly" from "keyed on the wrong object that happens to equal the right one here".
