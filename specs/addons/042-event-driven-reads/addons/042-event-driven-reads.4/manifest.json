@@ -1,0 +1,9 @@
+{
+  "name": "042.4 -- study",
+  "id": "042-event-driven-reads.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 042.4: StudyChanged fires from the widget placement/removal seams the moment a curiosity enters/leaves the study window, and from Resolve when a Curiosity-less slot's numbers land -- never a per-frame poll.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

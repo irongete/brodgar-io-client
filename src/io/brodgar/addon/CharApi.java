@@ -393,39 +393,80 @@ final class CharApi {
     /**
      * Study / curiosity — the items placed in the study window, each carrying a {@link Curiosity}
      * study profile. Located via the public {@code CharWnd.sattr} ({@link SAttrWnd}) → its
-     * {@link SAttrWnd.StudyInfo} child → the study inventory it wraps. Like buffs, a curiosity being
-     * added/removed is a widget create/{@code cdestroy} (not a {@code uimsg}) and its study data
-     * streams in a beat after the item appears, so this is <b>poll-driven</b>: each tick it re-reads
-     * the slots snapshot and fires {@code StudyChanged} only when it differs from the cache (an
-     * add/remove, or a slot's fields resolving/changing). While the sattr tab is not up yet the poll is
-     * skipped (the cache is kept), so no spurious event fires before there is anything to read.
+     * {@link SAttrWnd.StudyInfo} child → the study inventory it wraps ({@link #studyWidget}).
      *
-     * <p>The payload is an array of <b>StudySlot objects</b> ({@link AddonManager#fireStudy}), so a handler
-     * reads it with the same verbs as {@code hafen.study():slot():list()}. The snapshots stay, purely as the
-     * diff KEY: an interned object compares by identity and so cannot detect a slot's numbers resolving,
-     * which is most of what this adapter exists to notice. They never reach Lua — {@code slot:info()} is
-     * that, on demand.
+     * <p><b>Event-driven since 042.4.</b> A curiosity being placed/removed is a widget create/{@code
+     * cdestroy} under the study inventory — structure comes from the placement/removal seams ({@link
+     * #placed}/{@link #removed}, M1/M3), exactly like {@link MeterAdapter}/{@link BuffsAdapter}/{@link
+     * EquipAdapter}. A slot's {@link Curiosity} numbers are <i>derived</i> state with no queue of their
+     * own — {@link GItem#info()} rebuilds from {@code rawinfo} and throws when the underlying resource is
+     * still streaming — so {@link #resolveInfo} triggers that build and hands a thrown {@code Loading} to
+     * {@link Resolve#on}, which retries once the resource lands and re-fires only if the slot's numbers
+     * actually changed: <b>the first real proof of M2 on genuinely streaming data</b> (042.1 shipped it
+     * with every read already {@code Loading}-guarded to {@code nil}).
+     *
+     * <p>A curiosity with no {@link Curiosity} info at all (e.g. a Hearth-Magic bond) is not an error:
+     * {@code ItemInfo.find} returns {@code null} and the snapshot key carries {@code res}/{@code name}
+     * only, and {@link #resolveInfo} never retries for it again, because {@code it.info()} itself did not
+     * throw.
+     *
+     * <p>The payload is the current {@code List<GItem>} in study-window order ({@link
+     * AddonManager#fireStudy}), the same items {@code hafen.study():slot():list()} hands back, so a
+     * handler reads it with the {@link LuaStudySlot} verbs.
      */
     private static final class StudyAdapter implements TreeAdapter {
-        private LuaValue cache;   // last study-slots snapshot (UI thread; change-detect)
+        // Study-slot GItem -> its last snapshot (the change-detection key, NOT a payload). UI-thread-only
+        // (placed/removed/resolveInfo); reset per session by re-instantiation in resetSession().
+        // IdentityHashMap: GItem widgets are keyed by object identity, like the buffs/meters/equip.
+        private final Map<GItem, LuaValue> cache = new IdentityHashMap<GItem, LuaValue>();
 
         public boolean interested(Widget w, String msg) {
-            return false;         // study changes are structural / streamed, not a targeted uimsg — see poll()
+            return false;   // a curiosity's numbers resolve on the RESOURCE landing, not a targeted uimsg
         }
 
         public void refresh() {}
 
-        public void poll() {
-            if(studyInfo() == null)
-                return;           // study window not up yet — keep the cache, fire nothing
-            List<GItem> its = LuaStudySlot.items();
-            LuaTable snap = new LuaTable();
-            int i = 0;
-            for(GItem it : its)
-                snap.set(++i, LuaStudySlot.snapshot(it));
-            if(!studySlotsEqual(snap, cache)) {
-                cache = snap;
-                fireStudy(its);
+        public void placed(Widget w) {
+            if(!(w instanceof GItem))
+                return;
+            GItem it = (GItem)w;
+            Widget study = studyWidget();
+            if((study == null) || (it.parent != study) || cache.containsKey(it))
+                return;
+            cache.put(it, LuaStudySlot.snapshot(it));
+            resolveInfo(it);
+            fireStudy(LuaStudySlot.items());
+        }
+
+        public void removed(Widget w) {
+            if(!(w instanceof GItem))
+                return;
+            GItem it = (GItem)w;
+            if(cache.remove(it) == null)
+                return;
+            fireStudy(LuaStudySlot.items());
+        }
+
+        /**
+         * Trigger {@link GItem#info}'s build so a resolved {@link Curiosity} is ready by the time a
+         * handler reads it. {@code info()} is derived state with no queue of its own: a thrown {@link
+         * Loading} (its resource still streaming) is registered through {@link Resolve#on}, retried once
+         * on the notify, and re-diffs/re-fires only if the slot's snapshot actually changed.
+         */
+        private void resolveInfo(final GItem it) {
+            try {
+                it.info();
+            } catch(Loading l) {
+                Resolve.on(l, null, new Resolve.Retry() {
+                    public void run() throws Loading {
+                        it.info();
+                        LuaValue snap = LuaStudySlot.snapshot(it);
+                        if(cache.containsKey(it) && !studySlotEqual(snap, cache.get(it))) {
+                            cache.put(it, snap);
+                            fireStudy(LuaStudySlot.items());
+                        }
+                    }
+                });
             }
         }
     }
@@ -1132,21 +1173,22 @@ final class CharApi {
         return null;
     }
 
-    /** Do two study-slot arrays carry the same items/fields? (positional; for change-detection.) */
-    private static boolean studySlotsEqual(LuaValue a, LuaValue b) {
-        if((a == null) || (b == null) || !a.istable() || !b.istable())
+    /** The study inventory widget itself ({@code StudyInfo.study}), or {@code null} before the sattr tab
+     *  has streamed in — {@link StudyAdapter}'s parent filter for placement/removal, the study analogue
+     *  of {@link #equipory}. */
+    static Widget studyWidget() {
+        SAttrWnd.StudyInfo si = studyInfo();
+        return (si == null) ? null : si.study;
+    }
+
+    /** Do two study-slot snapshots carry the same res/name/lp/attention/cost/time/progress? (for
+     *  change-detection.) */
+    private static boolean studySlotEqual(LuaValue a, LuaValue b) {
+        if((a == null) || (b == null))
             return false;
-        int n = a.length();
-        if(n != b.length())
-            return false;
-        for(int i = 1; i <= n; i++) {
-            LuaValue ea = a.get(i), eb = b.get(i);
-            if(!luaFieldEq(ea, eb, "res") || !luaFieldEq(ea, eb, "name") || !luaFieldEq(ea, eb, "lp")
-               || !luaFieldEq(ea, eb, "attention") || !luaFieldEq(ea, eb, "cost")
-               || !luaFieldEq(ea, eb, "time") || !luaFieldEq(ea, eb, "progress"))
-                return false;
-        }
-        return true;
+        return luaFieldEq(a, b, "res") && luaFieldEq(a, b, "name") && luaFieldEq(a, b, "lp")
+            && luaFieldEq(a, b, "attention") && luaFieldEq(a, b, "cost") && luaFieldEq(a, b, "time")
+            && luaFieldEq(a, b, "progress");
     }
 
     /**

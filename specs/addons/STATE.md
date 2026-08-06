@@ -2,8 +2,8 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 3 of 13 tasks done (042.1-042.3),
-042.4 (study) next. The addon layer synthesises its `*Changed`/`*Added` events by **polling the
+**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 4 of 13 tasks done (042.1-042.4),
+042.5 (wounds) next. The addon layer synthesises its `*Changed`/`*Added` events by **polling the
 widget tree every frame** (11 sites, 6 of them `TreeAdapter`s) instead of listening at the moment a
 change happens. 042 wires them to the four seams the client already publishes — the `uimsg` tap, widget
 placement/removal, geometry, and `Loading`'s `Waitable` resolution notify — and **deletes the poll
@@ -14,6 +14,15 @@ a second call site at the fade's START, not its late unlink), `Widget.resize` (w
 funnels through, screen included), and a notify inside the two `setbelt` paths that defer the `belt[]`
 write. Decisions D-178..D-182, of which **D-181 supersedes D-091** (*"a derived position is re-derived
 by POLLING what it reads"*). Closes the ROADMAP's *"Per-frame cost of the addon layer's polling suite"*.
+
+**042.4 DONE — `StudyAdapter` is the fourth port, and a second `Resolve` proof.** `StudyChanged` now
+fires from placement/removal (M3/M1) for a curiosity entering/leaving the study window, and from
+`Resolve` when a Curiosity-less slot's derived `GItem.info()` build resolves. Verified in-game across
+five fires (one add, two full move-cycles): payload identity matched `hafen.study():slot():list()`
+every time, a departed slot kept answering `:res()` and reporting `:exists()` false, idle stayed
+silent. The test curiosity (`bloodsoil`) carried no `Curiosity` info at all — its `.info()` build threw
+a bare **unwaitable** `Loading` on every rebuild, `Resolve` correctly gave up each time (D-092's
+boundary, the same shape 042.3 found on equipment) and `StudyChanged` never spuriously re-fired.
 
 **042.3 DONE — `EquipAdapter` is the third port, and `Resolve`'s first real consumer.** `EquipChanged`
 now fires from placement/removal (M3/M1) for structure and the existing uimsg tap (`"num"`/`"chres"`/
@@ -28,22 +37,15 @@ stopped.
 **042.2 DONE — `BuffsAdapter` is the second port, proving a widget that FADES needs its own tap.**
 `BuffAdded` fires from the placement seam (M3); `BuffRemoved` fires from a one-line `// addon:` tap in
 `Buff.reqdestroy()` at the exact moment the server's destroy sets `dest = true` — not 0.35s later when
-the fade animation actually unlinks the widget, which M1 alone would give. That late M1 firing still
-happens and is a deliberate no-op, guarded by `BuffsAdapter`'s cache-membership check. `BuffChanged` (the
-`"ch"`/`"tt"` uimsg path) is unchanged. Verified in-game: a fresh buff (`visitor`) fired one `BuffAdded`
-(res/name `nil` for a beat, as documented) and, on expiry, one `BuffRemoved` — printed the instant the
-icon started fading, confirmed by the maintainer, never a second line. D-180 records the rule; D-179's
-"exactly three core edits" is now four (`decisions/widgets-ui.md`).
+the fade animation actually unlinks the widget, which M1 alone would give. `BuffChanged` (the
+`"ch"`/`"tt"` uimsg path) is unchanged. D-180 records the fade rule; D-179's "exactly three core edits"
+is now four (`decisions/widgets-ui.md`).
 
-**042.1 DONE — `MeterAdapter` is the first port, proving M1 (the removal seam) and M2 (`Resolve`).**
-`MeterAdded`/`MeterRemoved` now fire from `Widget`'s placement/removal seams instead of a per-tick diff
-of `LuaMeter.hud()`; `MeterChanged` (the `"set"`/`"col"` uimsg path) is unchanged. Verified in-game:
-login seeds hp/stam/nrj as one `MeterAdded` each; mounting a horse adds two more (`:res()` legitimately
-`nil` at that instant — accepted, per 027.2, never delayed to "fix"); dismounting fires two
-`MeterRemoved`, each payload still answering its verbs with `:exists()` false. `Resolve` ships fully
-built (retry-on-notify, marshalled onto the tick, owned per-`Addon`) but with **no functional consumer
-yet** — every meter read was already `Loading`-guarded to `nil` with nothing to retry — proven for
-real by 042.3.
+**042.1 DONE — `MeterAdapter` is the first port, proving M1 (the removal seam).**
+`MeterAdded`/`MeterRemoved` fire from placement/removal instead of a per-tick diff of `LuaMeter.hud()`;
+`MeterChanged` unchanged. `Resolve` (M2) shipped fully built (retry-on-notify, marshalled onto the
+tick, owned per-`Addon`) but unproven — every meter read was already `Loading`-guarded to `nil` — proven
+for real by 042.3/042.4.
 
 **Before that**, all DONE (detail in each `NNN-` folder, one-line summaries in `FEATURES.md`): `041-unified-events` (one verb for every notification — `X:on(key, fn)` → a `Sub`, `hafen.hook()` deleted whole), `040-ui-controls` (18 of the client's own controls reach Lua, one builder per role), `039-uniform-api` (one grammar for 33 sections, one `position()`, the OOP migration finished), `038-gob-overlays` (`gob:overlay()` — the engine's own word for a thing attached to a gob), `037-map-database` (the RECORDED map on disk beside the live world — segments, grids, markers, masks, minimap drawings), `036-ui-layout` (position/size/anchor in the sheet, and a whole theme as a data file), `035-ui-chrome` (the sheet learns to DRAW), `034-ui-stylesheet-tree` (a tree key says WHICH widgets), `033-ui-stylesheet` (ONE table says what the client looks like), `032-replace-verb` (replacement is a verb on the entity; the `UI.NewWidget` core seam deleted), `031-window-lifecycle` (hiding a native window takes its toggle), `030-ui-selectors` (a tiny CSS-shaped grammar parsed once into a predicate), `029-widget-oop` (three objects for one widget became ONE interned entity), `028-asset-loader` (one loader for an addon's own files), `027-meters-oop`, `026-text-cache` (130 → 220-240 FPS on the harness), `025-buffs-oop`, `024-audio-oop` (the Track section was built to spec and then CUT — this server sends no MIDI), `023-menugrid-oop`, `022-actionbar-set`, `021-actionbar-oop`, `020-kin-oop`, `019-profiling`, `018-client-options`, `017-gob-oop`, and 001–016.
 

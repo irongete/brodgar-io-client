@@ -94,7 +94,7 @@
       silence. `[manual]` — equip and unequip one item.
       <!-- extra context: `src/haven/Equipory.java`, `src/haven/GItem.java` (:201-255 info/uimsg/infoseq, :223 the bare Loading in sprite()), `src/io/brodgar/addon/LuaItem.java` -->
 
-- [ ] **042.4 — study.**
+- [x] **042.4 — study.**
       `StudyAdapter.poll()` ([CharApi.java:348](src/io/brodgar/addon/CharApi.java:348)) goes.
       `SAttrWnd` has **no `uimsg` override at all**; the study inventory arrives via
       `addchild(place=="study")` ([SAttrWnd.java:255](src/haven/SAttrWnd.java:255)) and each slot is a
