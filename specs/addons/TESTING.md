@@ -18,9 +18,11 @@ do it hands to the maintainer as an explicit `[manual]` line.
 **`/end` archives it (D-144).** Once the maintainer's verification passes, `/end`'s close step moves
 the folder out of the client's live `addons/` and into the task's own spec folder —
 `addons/<NNN>-<feature>.<X>/` becomes `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/`, an
-ordinary move (`git add -A` in the commit step registers it as a rename). The suite itself is
-untouched — same files, same `id`, still runnable — it just stops being one of the folders the
-client scans at login. See *Regression* below for what that means for the full-regression list.
+ordinary move (`git add -A` in the commit step registers it as a rename). It also deletes the
+corresponding binary copy at `bin/addons/<NNN>-<feature>.<X>/` so archived suites no longer appear
+when running the client. The suite itself is untouched — same files, same `id`, still runnable — it
+just stops being one of the folders the client scans at login. See *Regression* below for what that
+means for the full-regression list.
 
 **And it stands ALONE (D-085).** Running `:t<NNN>-<X>` and nothing else is the whole verification of that
 task: the suite installs what it needs, asserts what its task claims, and cleans up after itself. It never

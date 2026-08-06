@@ -61,7 +61,8 @@ be in flight in different areas at once, so every invocation names its own.
    max 60 lines) · learnings appended (step 3) · coverage paid (step 4) · if the code
    structure changed, update the affected `specs/codebase/<subsystem>.md` ·
    **archive the task's test artifacts** if the protocol read in step 4 says to (for `addons`: move
-   `addons/<NNN>-<feature>.<X>/` to `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/`) ·
+   `addons/<NNN>-<feature>.<X>/` to `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/`
+   AND delete `bin/addons/<NNN>-<feature>.<X>/` if it exists) ·
    delete `specs/<area>/HANDOFF.md`.
 6. **If it was the last task:** mark the feature DONE in `specs/<area>/FEATURES.md` with its
    one-line summary and reflect it in `specs/<area>/STATE.md`. The `NNN-` folder STAYS where
