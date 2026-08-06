@@ -28,7 +28,7 @@
 -- Click any panel row (or run `:selector`) to LOG the line -- chat-log text is selectable, which is how it
 -- leaves the client. Freeze first (the "freeze" hotkey), or moving the mouse to the window re-hovers.
 --
--- THE EFFICIENCY GUARD (029.1: plain `==`): OnUpdate fires EVERY frame, but the hovered widget only
+-- THE EFFICIENCY GUARD (029.1: plain `==`): Update fires EVERY frame, but the hovered widget only
 -- changes when the mouse moves onto a different one. So we cache the last hovered leaf and BAIL EARLY when
 -- it hasn't changed -- no tree walk, no selector resolution, no window rebuild, per frame. A per-rebuild
 -- counter (and the number of selector walks it cost), shown in the window, does NOT tick while the cursor
@@ -44,7 +44,7 @@
 
 hafen.log():write("widgetstack loaded")
 
-local win                 -- the floating stack window (created at OnEnterWorld)
+local win                 -- the floating stack window (created at EnterWorld)
 local overlay             -- the HUD overlay handle drawing the highlight box
 local last                -- the Widget object we last built the stack for (the guard's memory)
 local rows = {}           -- the current stack, LEAF-FIRST: { {node,type,id,text,w,h}, ... }
@@ -263,8 +263,8 @@ local function rebuild()
   end
 end
 
--- OnUpdate: the per-frame poll + the guard. This is the WoW-OnUpdate analog (the engine tick pump, 09).
-hafen.event():on("OnUpdate", function(dt)
+-- Update: the per-frame poll + the guard. This is the WoW-OnUpdate analog (the engine tick pump, 09).
+hafen.event():on("Update", function(dt)
   if frozen then return end                         -- held still: keep the last stack + box
   local m = hafen.ui():mouse()
   if not m then return end                          -- no UI yet
@@ -400,7 +400,7 @@ local function drawOutline(g, w, h)
   end
 end
 
-hafen.event():on("OnEnterWorld", function()
+hafen.event():on("EnterWorld", function()
   if not win then
     win = hafen.ui():window()
       :title("Widget Stack")

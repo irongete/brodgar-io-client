@@ -47,12 +47,12 @@ local PARK  = "038-2-park"            -- the key the despawn round uses on OTHER
 local GHOST = "gfx/terobjs/arch/logcabin"   -- a .res every client has (the docs' own example)
 local DX    = 22.0                    -- the world-unit x offset the offset check reads back
 
-local icon, mesh                      -- our own asset handles (hafen.asset, loaded once at OnLoad)
+local icon, mesh                      -- our own asset handles (hafen.asset, loaded once at Load)
 local parked = {}                     -- gob ids the ':t038-2 park' round put an overlay on
 local gone   = {}                     -- of those, the ones the client has since dropped (GobRemoved)
 local watching = false
 
-hafen.event():on("OnLoad", function()
+hafen.event():on("Load", function()
   icon = hafen.asset():get("icon.png")
   mesh = hafen.asset():get("tri.glb")
 end)

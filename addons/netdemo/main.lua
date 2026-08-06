@@ -26,7 +26,7 @@
 
 hafen.log():write("netdemo loaded -- hafen.http (GET+POST) + hafen.json demo. Run  :netdemo  for the request demos.")
 
-hafen.event():on("OnLoad", function()
+hafen.event():on("Load", function()
   hafen.log():write("netdemo: allowlisted hosts = api.github.com, localtest.me (declared in manifest.json)")
 end)
 

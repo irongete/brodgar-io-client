@@ -88,7 +88,7 @@ public final class AddonRegistry {
                 addon.run();
                 addons.add(addon);
                 if(addon.error == null) {
-                    fireTo(addon, "OnLoad");                  // the addon's file body just ran
+                    fireTo(addon, "Load");                    // the addon's file body just ran
                     log("loaded " + m.id + " v" + m.version);
                 } else {
                     log("error in " + m.id + ": " + addon.error);
@@ -100,14 +100,14 @@ public final class AddonRegistry {
         log(addons.size() + " addon(s) loaded");
     }
 
-    /** Fire {@code OnDisable}, flush the addon's saved vars, then drop its owned resources. */
+    /** Fire {@code Disable}, flush the addon's saved vars, then drop its owned resources. */
     static void teardown(Addon a) {
         try {
-            fireTo(a, "OnDisable");   // the addon's last chance to write its store tables...
+            fireTo(a, "Disable");     // the addon's last chance to write its store tables...
         } catch(RuntimeException e) {
             /* isolation is per-handler in callLua; this is just a backstop */
         }
-        StoreApi.flush(a);                     // ...then persist them (spec 05: flushed at OnDisable)
+        StoreApi.flush(a);                     // ...then persist them (spec 05: flushed at Disable)
         UiApi.teardownHidden(a);      // 029.2/031.2: give back every native widget the addon hid — and its toggle —
                                       //   under the one rule: the window ends up as the user was seeing it, and a
                                       //   substitution ends whole (the stand-in view dies with it, 032.1). BEFORE
@@ -193,10 +193,10 @@ public final class AddonRegistry {
 
     /**
      * Reload the addon layer only (D-005) — no relog, the session stays connected. Tears down every
-     * loaded addon (OnDisable → flush saved vars → drop owned resources, in reverse load order),
+     * loaded addon (Disable → flush saved vars → drop owned resources, in reverse load order),
      * re-scans {@code addons/} and the enabled set, re-runs the enabled addons from disk (firing
-     * {@code OnLoad}), and — if already in-world — restores per-character saved vars and re-fires
-     * {@code OnEnterWorld} so addons re-initialize as if freshly logged in (the WoW {@code PLAYER_LOGIN}
+     * {@code Load}), and — if already in-world — restores per-character saved vars and re-fires
+     * {@code EnterWorld} so addons re-initialize as if freshly logged in (the WoW {@code PLAYER_LOGIN}
      * analog). Runs on the UI thread (queued via {@link #queueReload}); the tick pump, gob callback and
      * uimsg tap are <b>session-scoped</b> and left in place — only the Lua layer is rebuilt. Per-addon
      * teardown/load is error-isolated so one bad addon cannot abort the reload.
@@ -223,10 +223,10 @@ public final class AddonRegistry {
                                                              //   the escape hatch for a REPL line that took one
         MapImages.teardown(AddonManager.consoleOwner);       // 037.4: ...nor the map drawings it rendered (each is a
                                                              //   GL texture; the REPL owner has no other teardown)
-        loadAll();                                   // re-scan disk + enabled set; re-run; fire OnLoad
+        loadAll();                                   // re-scan disk + enabled set; re-run; fire Load
         if(gui() != null) {                          // already in-world → re-init as a fresh login
             StoreApi.restorePerChar();                        // reload per-char saved vars (charScope still valid)
-            fire("OnEnterWorld");
+            fire("EnterWorld");
         }
         reloadGen++;                                 // notify any live AddOns panel to rebuild its rows
         log("reload complete (" + addons.size() + " addon[s] active)");

@@ -51,7 +51,7 @@ import java.util.Set;
  * monitor ({@code res.get()} can block on the loader), drop what has not resolved yet and sort by the client's
  * own {@code PagButton.sortkey()} so the order matches the grid. Every resource-backed read is
  * {@code Loading}-guarded to {@code nil} — never partial, and no {@code Loading} escapes into Lua — which is
- * why a scan right at {@code OnEnterWorld} may be <b>short</b> and fills in sub-second as resources resolve.
+ * why a scan right at {@code EnterWorld} may be <b>short</b> and fills in sub-second as resources resolve.
  *
  * <p><b>The one verb is {@code :use()}, and it takes no arguments.</b> It drives the client's own
  * {@code MenuGrid.PagButton.use} (wrap-not-reimplement, D-009) — the pure message half, which branches

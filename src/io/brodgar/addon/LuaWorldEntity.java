@@ -39,7 +39,7 @@ import org.luaj.vm2.LuaValue;
  *
  * <p><b>Ownership (P2).</b> The entity is bridge-owned: it lives only in its addon's owned-resource registry
  * ({@link Addon#ghosts} / {@link Addon#sprites}). There is no global tick/poll list, because it is a passive
- * render node driven by the render tree's own tick, not the addon tick loop. {@code OnDisable} / {@code :reload} /
+ * render node driven by the render tree's own tick, not the addon tick loop. {@code Disable} / {@code :reload} /
  * relogin teardown ({@link AddonManager}'s {@code teardownGhosts}/{@code teardownSprites}) destroys each (removes
  * its scene slot + disposes the visual), leaking nothing. The {@link #dead} flag makes any late handle call — or a
  * deferred create landing after a destroy — a clean no-op.

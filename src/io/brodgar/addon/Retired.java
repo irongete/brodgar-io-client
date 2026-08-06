@@ -24,6 +24,11 @@ import org.luaj.vm2.lib.TwoArgFunction;
  * and hangs off that section's callable table. Anything not in the table reads as plain {@code nil}, so a
  * feature probe ({@code if hafen.something then}) keeps working and only a name that genuinely moved is loud.
  *
+ * <p><b>And a third kind, which is not a name at all</b> (041): a retired <i>event key</i> is a string
+ * ARGUMENT ({@code hafen.event():on("OnLoad", fn)}), so no field read can carry the refusal and no
+ * {@code __index} can be hung off it. Those live in their own table ({@link #eventKey}) and the emitter
+ * consults it at the door, before it decides whether the key is one it answers.
+ *
  * <p>The entries are pure data, generated from the feature's before/after inventory, so coverage is
  * mechanical rather than remembered: a spelling that moved with no row here is a porting error nobody is
  * told about.
@@ -34,6 +39,38 @@ final class Retired {
 
     /** {@code "hafen.events"} / {@code "hafen.time.clock"} → the message naming the replacement. */
     private static final Map<String, String> NAMES = new HashMap<String, String>();
+
+    /**
+     * Retired <b>event keys</b> (spec {@code 041-unified-events}), keyed {@code "<emitter>|<key>"} — the third
+     * kind of retired spelling and the one that is not a field read at all: {@code "OnLoad"} is an ARGUMENT,
+     * so nothing can hang off reading it and the refusal has to happen where the key is accepted. The emitter
+     * checks this table before it checks its own vocabulary, so a moved key says what it is now instead of
+     * falling into the generic "unknown event" refusal.
+     */
+    private static final Map<String, String> KEYS = new HashMap<String, String>();
+
+    static {
+        // ---- the bus: the 4 lifecycle keys drop the On prefix (:on already says it). The other 22 are ------
+        // ---- unchanged, so they carry no row here -- PascalCase was already the bus's own spelling.
+        eventKey("hafen.event()", "OnLoad", "Load");
+        eventKey("hafen.event()", "OnEnterWorld", "EnterWorld");
+        eventKey("hafen.event()", "OnUpdate", "Update");
+        eventKey("hafen.event()", "OnDisable", "Disable");
+    }
+
+    /** Register one retired event key: {@code emitter:on(old, fn)} is now {@code emitter:on(now, fn)}. */
+    private static void eventKey(String emitter, String old, String now) {
+        KEYS.put(emitter + "|" + old, emitter + ":on(key, fn): '" + old + "' is now '" + now
+            + "' — :on already says \"on\"");
+    }
+
+    /**
+     * The message for a retired event key on {@code emitter} ({@code "hafen.event()"}), or {@code null} when
+     * that spelling was never one. Consulted by the emitter's {@code :on} before its own key set.
+     */
+    static String eventKey(String emitter, String key) {
+        return KEYS.get(emitter + "|" + key);
+    }
 
     static {
         // ---- sections whose NAME changed (§2.3: the three surviving plurals go singular) ----------------

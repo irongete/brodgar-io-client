@@ -61,7 +61,7 @@ local icon
 local adds, removes = 0, 0            -- OUR events, counted for the balance check
 local parked, dropped = {}, {}        -- the despawn round: gob ids we hung on, and the ones we were told died
 
-hafen.event():on("OnLoad", function() icon = hafen.asset():get("icon.png") end)
+hafen.event():on("Load", function() icon = hafen.asset():get("icon.png") end)
 
 -- The despawn round listens for its own key's removal -- but the round ALSO takes those overlays off by hand,
 -- and a removal we asked for fires the same event. So a deliberate one is announced first and swallowed here;

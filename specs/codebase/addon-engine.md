@@ -21,7 +21,7 @@
 | `StoreApi` / `HttpApi` / `FontApi` | `hafen.store` / `hafen.http` / `hafen.font` |
 | **`LuaGob`** | the `hafen.gob(id)` Gob class (D-044): id-only userdata + per-addon metatable/intern cache (D-045) |
 | `OptionsHandle` + `*Options` | `hafen.client:options()` — one subsystem per OptWnd panel (`interface`/`video`/`audio`/`camera`/`client`/`keybindings`), read/write by arity via `OptionsMethod` |
-| Support classes | `Addon`, `Manifest`, `Json`, `Sandbox`, `AddonRoot`, `LuaMarshal`, `Lua*` (widget/hooks/entities/images/meshes/nodes/fonts/GOut/WorldEntity), `GhostGob`, `SpriteQuad`, `FollowMoving`, `Gltf`, `ui/AddonPanel`, `ui/ActionsConsentWnd` |
+| Support classes | `Addon`, `Manifest`, `Json`, `Sandbox`, `AddonRoot`, `LuaMarshal`, **`Subs`** (the one subscription mechanism every emitter owns — keyed multimap + `fire` + the per-key profiling category, 041.1), `Lua*` (sub/widget/hooks/entities/images/meshes/nodes/fonts/GOut/WorldEntity), `GhostGob`, `SpriteQuad`, `FollowMoving`, `Gltf`, `ui/AddonPanel`, `ui/ActionsConsentWnd` |
 
 **Sibling packages under `io.brodgar` (D-048).** This package is the addon *system* + its Lua bridge; a
 **client** capability that merely has an addon consumer lives on its own and leaves only its handle here:

@@ -6,7 +6,7 @@ import haven.Widget;
 /**
  * The invisible, zero-size "addon-root" widget. It is attached to {@code ui.root} once per session
  * ({@link AddonManager#init}) and its per-frame {@link #tick(double)} drives the whole addon engine
- * (event dispatch, {@code OnUpdate}, timers).
+ * (event dispatch, {@code Update}, timers).
  *
  * <p>This is the <b>zero-core-edit</b> tick pump described in {@code specs/addons/04-engine.md}:
  * {@link haven.UI#tick()} broadcasts a {@code TickEvent} to every widget on the UI thread, under

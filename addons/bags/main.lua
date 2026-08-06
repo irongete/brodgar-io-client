@@ -160,6 +160,6 @@ end)
 hafen.log():write(("bags: toggle hotkey = %s (assign it under Options > Keybindings > Bags; suggested Ctrl+Shift+I)")
   :format(keys:key("toggle") or "unassigned"))
 
-hafen.event():on("OnDisable", function()
-  hafen.log():write("bags: OnDisable -- native inventory restored + custom view destroyed on teardown")
+hafen.event():on("Disable", function()
+  hafen.log():write("bags: Disable -- native inventory restored + custom view destroyed on teardown")
 end)

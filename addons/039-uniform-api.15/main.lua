@@ -8,7 +8,7 @@
 -- reddens the page it lives on by name.
 --
 -- Two liberties, and nothing else changes about a block:
---   * a handler passed to hafen.event():on("OnEnterWorld", ...) is named instead of anonymous, so the
+--   * a handler passed to hafen.event():on("EnterWorld", ...) is named instead of anonymous, so the
 --     suite can call it -- we are already in the world when :t039-15 is typed, which is the only reason
 --     the block's payload can be reached at all;
 --   * a block written around a free variable (`w`, `window`, `s`, `reset`, `step`) gets that variable
@@ -123,7 +123,7 @@ local function gettingStarted()
     local enter = function()
       hafen.log():write("in the world as " .. (hafen.player():name() or "?"))
     end
-    local sub = hafen.event():on("OnEnterWorld", enter)
+    local sub = hafen.event():on("EnterWorld", enter)
     later(function() sub:off() end)
     enter()
   end)
@@ -140,7 +140,7 @@ local function gettingStarted()
           g:text("trees nearby: " .. trees, 6, 4)
         end)
     end
-    local sub = hafen.event():on("OnEnterWorld", enter)
+    local sub = hafen.event():on("EnterWorld", enter)
     later(function() sub:off() end)
     enter()
     later(function() if window then window:destroy() end end)
@@ -235,10 +235,10 @@ end
 
 local function eventsAndTimers()
   block("the four moments", function()
-    local a = hafen.event():on("OnLoad", function() end)
-    local b = hafen.event():on("OnEnterWorld", function() end)
-    local c = hafen.event():on("OnUpdate", function(dt) end)
-    local d = hafen.event():on("OnDisable", function() end)
+    local a = hafen.event():on("Load", function() end)
+    local b = hafen.event():on("EnterWorld", function() end)
+    local c = hafen.event():on("Update", function(dt) end)
+    local d = hafen.event():on("Disable", function() end)
     later(function() a:off(); b:off(); c:off(); d:off() end)
   end)
 
@@ -265,7 +265,7 @@ local function eventsAndTimers()
         hafen.log():write("hp: " .. tostring(hp and hp:value()))
       end)
     end
-    local sub = hafen.event():on("OnEnterWorld", enter)
+    local sub = hafen.event():on("EnterWorld", enter)
     enter()
 
     local m = hafen.event():on("MeterChanged", function(m)           -- ...or let the client tell you
@@ -303,7 +303,7 @@ local function customUi()
         end)
         :onClose(function() hafen.log():write("closed") end)
     end
-    local sub = hafen.event():on("OnEnterWorld", enter)
+    local sub = hafen.event():on("EnterWorld", enter)
     later(function() sub:off() end)
     enter()
     later(function() if window then window:destroy() end end)
@@ -366,7 +366,7 @@ local function savedData()
       local pos = hafen.store():get("settings").window
       if pos then window:position(pos.x, pos.y) end
     end
-    local sub = hafen.event():on("OnEnterWorld", enter)
+    local sub = hafen.event():on("EnterWorld", enter)
     later(function() sub:off() end)
     enter()
   end)
@@ -378,7 +378,7 @@ local function savedData()
         if p then hafen.ghost():add(prop.res, p) end
       end
     end
-    local sub = hafen.event():on("OnEnterWorld", enter)
+    local sub = hafen.event():on("EnterWorld", enter)
     later(function() sub:off() end)
     enter()
   end)

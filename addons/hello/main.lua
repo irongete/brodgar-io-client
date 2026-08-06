@@ -13,7 +13,7 @@
 -- client-side and CONSUMED before any server "click" (your character never walks/interacts — still SAFE-tier,
 -- D-032), firing the per-ghost onClick and the owner-scoped GhostClicked{ghost,button,x,y} event; a non-clickable
 -- ghost is click-through. V3 adds LOOK & ORIENTATION — the handle verbs :rotate(a) / :res(name[, spawnData]) /
--- :alpha(0..1) / :tint(r,g,b[,a]) / :visible(b), each a read/write pair on one name. Here, at OnEnterWorld the
+-- :alpha(0..1) / :tint(r,g,b[,a]) / :visible(b), each a read/write pair on one name. Here, at EnterWorld the
 -- harness spawns a NON-clickable log cabin a few tiles away — ROTATED 45° and TRANSLUCENT (the V3 look) — reads
 -- count()/position(), moves it, then LIVE-SWAPS its resource + rotates it (V3), hides & re-shows it, and removes
 -- it after 8s (the V1+V3 regression); ':hello ghost' toggles a CLICKABLE, translucent cabin at your position whose
@@ -76,8 +76,8 @@
 -- 1d-1 the HUD meters, the 1c items/char/party reads, the gob/world/map/player/time/sound reads, the 1b event bus,
 -- and timers, and can be
 -- RELOADED from disk without a relog (:reload, D-005) and enabled/disabled (:addons, D-006). `hafen` is the API
--- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then OnLoad, then (on
--- entering the world) OnEnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
+-- facade; `ADDON` describes this addon ({ id, dir }). The file body runs once at load; then Load, then (on
+-- entering the world) EnterWorld. On :reload the whole cycle repeats. Every call in is watchdog-armed.
 
 -- Built on 023 THE ACTION MENU — hafen.menugrid is the catalogue of everything the character can DO (the 4x4
 -- grid): hafen.menugrid():list() = every entry as interned Pagina objects (+ :count/:find/:roots),
@@ -119,17 +119,17 @@ local function padr(s, n)
 end
 
 -- 1f-2: Reload UI + enabled set. Edit any .lua here, run `:reload` in the console, and the addon layer
--- rebuilds from disk with NO relog (D-005): OnDisable fires (handler at the bottom), owned resources are
--- torn down, then the files re-run and OnLoad + OnEnterWorld fire again (the WoW PLAYER_LOGIN analog — so
+-- rebuilds from disk with NO relog (D-005): Disable fires (handler at the bottom), owned resources are
+-- torn down, then the files re-run and Load + EnterWorld fire again (the WoW PLAYER_LOGIN analog — so
 -- the login counters further down also tick on each reload). The log line below is a RELOAD MARKER: change
 -- its text, `:reload`, and the new text should appear — that is the whole WoW dev loop. acct.loads counts
--- every OnLoad (incl. reloads) and is persisted, proving saved variables survive a reload. Enabling/
+-- every Load (incl. reloads) and is persisted, proving saved variables survive a reload. Enabling/
 -- disabling is operator-driven from the console and applies on reload (D-006):  :addons  (list + status) ·
 -- :addons disable hello  +  :reload  (hello stops loading) ·  :addons enable hello  +  :reload  (loads again).
-hafen.event():on("OnLoad", function()
+hafen.event():on("Load", function()
   local a = hafen.store():get("acct")
   a.loads = (a.loads or 0) + 1
-  hafen.log():write(("OnLoad fired — reload marker: edit me and :reload  [OnLoad #%d]"):format(a.loads))
+  hafen.log():write(("Load fired — reload marker: edit me and :reload  [Load #%d]"):format(a.loads))
 end)
 
 -- 1f-1: self-check the sandbox from inside the live client. Addons get a STRICT environment (D-017):
@@ -140,7 +140,7 @@ end)
 -- what is locked down, proving the sandbox is active in-game. The other half — the instruction watchdog
 -- (D-018) — is best tested manually: run  :lua while true do end  in the console; it aborts (~35 ms)
 -- with an "addon watchdog" error instead of freezing the client. (Do NOT bake such a loop into an addon.)
-hafen.event():on("OnLoad", function()
+hafen.event():on("Load", function()
   local blocked = {}
   local function chk(name, v) if v == nil then blocked[#blocked + 1] = name end end
   chk("io", io); chk("require", require); chk("load", load); chk("loadfile", loadfile)
@@ -159,7 +159,7 @@ end)
 -- (objects, a numeric array, a boolean, a float), the null->nil caveat (a JSON null yields an ABSENT key,
 -- not a false value), integer cleanliness ({"n":5} -> 5, not 5.0), and that malformed input raises a
 -- pcall-able error instead of crashing the addon. Logged so one login re-verifies the serializer too.
-hafen.event():on("OnLoad", function()
+hafen.event():on("Load", function()
   local src = { iron = 5, name = "ore", frac = 2.5, nums = { 10, 20, 30 }, flag = true }
   local enc = hafen.json():encode(src)
   local back = hafen.json():parse(enc)
@@ -175,7 +175,7 @@ end)
 
 -- 1c-2: read the map/projection data at the player's position and log it with a tag. The grid, terrain
 -- height, and camera for the current spot stream in shortly AFTER entering the world, so right at
--- OnEnterWorld these may be nil (the reads are Loading-guarded); we call this again after a short delay
+-- EnterWorld these may be nil (the reads are Loading-guarded); we call this again after a short delay
 -- to show them resolve. worldToTile is pure math and always works.
 local function readPlace(tag)
   local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
@@ -218,7 +218,7 @@ end
 
 -- 1c-3: character attributes + learning points + weight, and the party size. Like items and map, the
 -- char data (Glob cattrs, CharWnd.exp/enc) STREAMS IN a beat after enter-world, so this too is read at
--- OnEnterWorld (often still nil) and again after the delay (resolved).
+-- EnterWorld (often still nil) and again after the delay (resolved).
 local function readChar(tag)
   local str = hafen.char():attr():get("str")   -- never nil; its reads are, until the server publishes
   hafen.log():write(("[%s] char: str=%s lp=%s weight=%s"):format(tag,
@@ -1065,7 +1065,7 @@ local function readToggle(tag)
             (now == wasVis) and "" or "  <-- MISMATCH (press Tab to put it right)"))
 end
 
-hafen.event():on("OnEnterWorld", function()
+hafen.event():on("EnterWorld", function()
   readWidgets("login")                        -- once per login, like readAssets/readMeters/readBuffs
   readSelectors("login")                      -- 030.4: the selector contract, same cadence
   readToggle("login")                         -- 031.3: the window-toggle contract, same cadence
@@ -1076,7 +1076,7 @@ hafen.event():on("OnEnterWorld", function()
   end)
 end)
 
-hafen.event():on("OnEnterWorld", function()
+hafen.event():on("EnterWorld", function()
   hafen.log():write("entered the world")
 
   -- 1c-1 / 017: read the player through the Gob CLASS (D-044). hafen.player():gob() is the composition
@@ -1175,7 +1175,7 @@ end)
 -- :rotates it (V3 res-swap DoD), at +5s :hide()s and +6s :show()s it, and auto-destroys it at +8s (watch the
 -- translucent rotated cabin appear, jump north, morph into another building, blink, then vanish — :reload/disable
 -- would remove it too).
-hafen.event():on("OnEnterWorld", function()
+hafen.event():on("EnterWorld", function()
   local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
   local p = me and me:position()
   if not p then hafen.log():write("V1: ghost demo skipped -- no player position yet"); return end
@@ -1214,12 +1214,12 @@ end)
 -- 1e: saved variables (hafen.store). Each name declared in the manifest is a persisted Lua table:
 --   persist -> per-character  (savedata/<genus>_<char>/hello.json)
 --   acct    -> account-wide   (savedata/account/hello.json)
--- The per-char store is restored just BEFORE OnEnterWorld (so it is ready here — no streaming delay,
+-- The per-char store is restored just BEFORE EnterWorld (so it is ready here — no streaming delay,
 -- unlike the read API above), the account store before the file body. We bump a login counter in each
 -- to prove the values survive a relog (per character) and are shared across all characters (account).
 -- s.recent is a small bounded array, demonstrating a nested JSON array round-tripping intact.
--- (A second OnEnterWorld handler — the bus dispatches to every subscriber in order.)
-hafen.event():on("OnEnterWorld", function()
+-- (A second EnterWorld handler — the bus dispatches to every subscriber in order.)
+hafen.event():on("EnterWorld", function()
   local s = hafen.store():get("persist")
   s.logins = (s.logins or 0) + 1
   s.name = hafen.player():name() or s.name          -- remember the character name across sessions
@@ -1235,9 +1235,9 @@ hafen.event():on("OnEnterWorld", function()
   hafen.store():flush()                              -- write now (also autosaved + flushed on relog)
 end)
 
--- OnUpdate fires every frame; throttle a heartbeat to once every 5 seconds so it is readable.
+-- Update fires every frame; throttle a heartbeat to once every 5 seconds so it is readable.
 -- local acc = 0
--- hafen.event():on("OnUpdate", function(dt)
+-- hafen.event():on("Update", function(dt)
 --   acc = acc + dt
 --   if acc >= 5 then
 --     acc = acc - 5
@@ -1361,13 +1361,14 @@ hafen.event():on("EquipChanged", function(eq)
 end)
 
 -- A1: MarkersChanged fires when the map's marker set changes — the server pushing a system/quest marker
--- (markobj), you or an addon adding/removing one, or a segment merge re-keying them. Payload is {count}.
+-- (markobj), you or an addon adding/removing one, or a segment merge re-keying them. It has one thing to
+-- say, so it says it directly: the payload IS the count.
 -- A few may fire at login as server markers stream in; log the first few so it does not flood.
 local markersSeen = 0
-hafen.event():on("MarkersChanged", function(ev)
+hafen.event():on("MarkersChanged", function(n)
   markersSeen = markersSeen + 1
   if markersSeen <= 5 then
-    hafen.log():write(("MarkersChanged: %d marker(s) (%d)"):format(ev.count, markersSeen))
+    hafen.log():write(("MarkersChanged: %d marker(s) (%d)"):format(n, markersSeen))
   end
 end)
 
@@ -1525,8 +1526,8 @@ hafen.log():write("030.2: selector subscriptions installed -- open a cupboard/ch
 
 -- 2a: CUSTOM UI (hafen.ui). Create a small DRAGGABLE window that draws live state through the GOut
 -- wrapper `g` and counts clicks — the Phase 2 "draggable custom window" DoD. The window is bridge-owned
--- (P2): :reload or disabling the addon DESTROYS it automatically (no leak) — no OnDisable cleanup needed.
--- It is client-side (it cannot talk to the server; that is hafen.act, Phase 4). Created at OnEnterWorld
+-- (P2): :reload or disabling the addon DESTROYS it automatically (no leak) — no Disable cleanup needed.
+-- It is client-side (it cannot talk to the server; that is hafen.act, Phase 4). Created at EnterWorld
 -- because the HUD must be up. Drag it by the title bar; click the body (onClick consumes and logs); close
 -- it with the X (onClose fires, then it is destroyed). onDraw runs every frame with (g, width, height).
 local panel          -- the window handle (nil until created; a fresh reload rebuilds the Lua env -> nil)
@@ -1546,9 +1547,9 @@ local fontWin               -- F2: a small window rendered in the addon's OWN fo
 -- the 2b HUD overlay (anchored). This is a CLIENT-ONLY render asset, NOT an engine .res -- SAFE-tier, NOT
 -- gated (D-034), like an overlay. Paths are addon-relative and sandboxed (absolute / ".." are rejected, D-017).
 -- The handle exposes :size() -> {w,h} and :dispose(); it is disposed AUTOMATICALLY on :reload/disable (P2), so
--- there is no GL leak (the Phase-R1 DoD). Loaded at OnLoad -> re-loaded on every reload (the env is rebuilt).
+-- there is no GL leak (the Phase-R1 DoD). Loaded at Load -> re-loaded on every reload (the env is rebuilt).
 local icon   -- the image handle (nil until loaded; a fresh reload rebuilds the env -> nil, re-loaded below)
-hafen.event():on("OnLoad", function()
+hafen.event():on("Load", function()
   icon = hafen.asset():get("icon.png")   -- 028.1: ONE loader for every file this addon ships (was hafen.render.image)
   local s = icon:size()
   hafen.log():write(("R1: loaded icon.png (%dx%d) -- drawn in the 2a window (native + scaled) and the 2b HUD overlay")
@@ -1566,7 +1567,7 @@ end)
 -- {min,max,size} world units, :info() -> {prims,textured,lit,textures,verts,tris}, and :dispose() (also automatic
 -- on reload/disable, P2). Stand it with hafen.render():object():add(cube); ':hello object' places one.
 local cube   -- the model handle (nil until loaded; a fresh reload rebuilds the env -> nil, re-loaded below)
-hafen.event():on("OnLoad", function()
+hafen.event():on("Load", function()
   cube = hafen.asset():get("tank.glb")   -- 028.1: same door as the image; the .glb extension picks the mesh loader
   local b, nfo = cube:bounds(), cube:info()
   hafen.log():write(("R3c: loaded tank.glb -- %d prims (%d textured, %d LIT, %d textures), %d tris; baked size %.0f x %.0f x %.0f world units (~%.1f tiles tall); :hello object to place it (now shaded by the world lights)")
@@ -1596,7 +1597,7 @@ end)
 -- surfaces; a TREE key (@Class, [title=..], and the widget roles `window`/`inventory`) parses fine and is
 -- silently INERT until C1b, which is what lets a C1b-ready sheet load today. SAFE-tier (cosmetic, client-only).
 -- See docs/addons/api/fonts.md.
-local demoFont          -- the loaded FontHandle (nil until OnLoad; env rebuilt on reload -> nil, re-loaded below)
+local demoFont          -- the loaded FontHandle (nil until Load; env rebuilt on reload -> nil, re-loaded below)
 local monoFont          -- F2: a second handle (built-in "mono") for the per-call { font = } demo in the F2 window
 -- 033.2: a handle CARRYING a colour -- the whole point of which is that it behaves DIFFERENTLY in the two places
 -- a font can go. On the addon's OWN drawing (the F2 window's line 5 below) the colour applies. Installed on a
@@ -1642,7 +1643,7 @@ end
 local function toggleSkin(key, props)
   return toggleProp(key, "font", props.font)
 end
-hafen.event():on("OnLoad", function()
+hafen.event():on("Load", function()
   skinRules = {}                                        -- a reload rebuilt the env; the sheet was torn down (P2)
   nodeFontApplied, nodeFontTarget = false, nil          -- F5: ...and so was the per-instance (widget:rule()) style (P2)
   monoFont = hafen.font():get("mono"):derive():size(12)     -- F2: a distinct font for the per-call g:text{font=} line
@@ -1708,7 +1709,7 @@ local function readSkin(tag)
     tostring(hafen.font():get("serif") ~= nil)))
   applySkin()      -- give this addon's own sheet back (the checks above borrowed the one sheet we own)
 end
-hafen.event():on("OnEnterWorld", function() readSkin("login") end)
+hafen.event():on("EnterWorld", function() readSkin("login") end)
 
 -- 028.3: THE ASSET CONTRACT (hafen.asset), checked once per login. ONE door for every file this addon ships:
 -- hafen.asset():get(path) is one interned, typed handle (the TYPE comes from the EXTENSION: .png/.jpg/.jpeg/.gif/.bmp
@@ -1773,7 +1774,7 @@ local function readAssets(tag)
     tostring(hafen.font.load), tostring(hafen.render.image), tostring(hafen.render.model)))
 end
 
-hafen.event():on("OnEnterWorld", function()
+hafen.event():on("EnterWorld", function()
   readAssets("login")   -- once per login: this whole section re-checked, like readSound/readMeters/readBuffs
 end)
 
@@ -1877,7 +1878,7 @@ end)
 -- A1: a FOURTH hotkey ("marker", suggested Ctrl+Shift+M) — a TOGGLE that drops a persistent "Hello marker" at your
 -- current position (hafen.map():marker():add at your gob's Position), or removes it if already placed
 -- (hafen.map():marker():remove). Watch it appear on the map (M) and the corner minimap. add() writes the shared
--- on-disk map DB, so it PERSISTS — but hello removes its own marker on disable/reload (see OnDisable) so the
+-- on-disk map DB, so it PERSISTS — but hello removes its own marker on disable/reload (see Disable) so the
 -- regression harness never pollutes your map. Adds a fourth row to the "Hello" keybind section (2e-3 grouping).
 local helloMarker   -- the demo Marker object while placed (nil = not placed); session-local
 keys:register("marker", function()
@@ -1995,7 +1996,7 @@ hafen.slash():register("hello", function(args)
       hafen.render():sprite():remove(demoSprite); demoSprite = nil
       hafen.log():write(":hello sprite -> destroyed")
     else
-      if not icon then hafen.log():write(":hello sprite -> icon.png not loaded yet (OnLoad)"); return end
+      if not icon then hafen.log():write(":hello sprite -> icon.png not loaded yet (Load)"); return end
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:position()
       if not p then hafen.log():write(":hello sprite -> no player position yet"); return end
@@ -2020,7 +2021,7 @@ hafen.slash():register("hello", function(args)
       hafen.render():sprite():remove(demoBill); demoBill = nil
       hafen.log():write(":hello billboard -> destroyed")
     else
-      if not icon then hafen.log():write(":hello billboard -> icon.png not loaded yet (OnLoad)"); return end
+      if not icon then hafen.log():write(":hello billboard -> icon.png not loaded yet (Load)"); return end
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:position()
       if not p then hafen.log():write(":hello billboard -> no player position yet"); return end
@@ -2041,7 +2042,7 @@ hafen.slash():register("hello", function(args)
       demoFollow = nil
       hafen.log():write(":hello follow -> removed")
     else
-      if not icon then hafen.log():write(":hello follow -> icon.png not loaded yet (OnLoad)"); return end
+      if not icon then hafen.log():write(":hello follow -> icon.png not loaded yet (Load)"); return end
       local me = hafen.player():gob()
       if not me then hafen.log():write(":hello follow -> no player gob yet"); return end
       demoFollow = me:overlay():add("hello-follow"):image(icon):scale(2):offset(0, 0, 18)
@@ -2060,7 +2061,7 @@ hafen.slash():register("hello", function(args)
       hafen.render():object():remove(demoObject); demoObject = nil
       hafen.log():write(":hello object -> destroyed")
     else
-      if not cube then hafen.log():write(":hello object -> tank.glb not loaded yet (OnLoad)"); return end
+      if not cube then hafen.log():write(":hello object -> tank.glb not loaded yet (Load)"); return end
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:position()
       if not p then hafen.log():write(":hello object -> no player position yet"); return end
@@ -2084,7 +2085,7 @@ hafen.slash():register("hello", function(args)
     -- and, with the 'dispose' argument, the one part that is DESTRUCTIVE and so cannot live in the login pass.
     readAssets("cmd")
     if (args[2] == "dispose") and not cube then
-      hafen.log():write("   dispose: tank.glb not loaded yet (OnLoad) -- skipped")
+      hafen.log():write("   dispose: tank.glb not loaded yet (Load) -- skipped")
     elseif args[2] == "dispose" then
       -- ':hello assets dispose' -- what disposing a MESH under a LIVE object really does (measured 028.2): the
       -- object keeps drawing, textured and unchanged, because it captured the texture sampler when it was built.
@@ -2105,7 +2106,7 @@ hafen.slash():register("hello", function(args)
     -- with a different font REPLACES this addon's previous sheet -- proved here by installing mono first and
     -- swapping to the real handle 3s later, which is the same last-wins stack the old setFont pushed onto.
     -- A TREE key rides along to show it is silently INERT in C1a (never an error, styled in C1b).
-    if not demoFont then hafen.log():write(":hello font -> font not loaded yet (OnLoad)"); return end
+    if not demoFont then hafen.log():write(":hello font -> font not loaded yet (Load)"); return end
     if skinRules["*"] and skinRules["*"].font then
       setProp("@Inventory", "font", nil)
       setProp("*", "font", nil)                          -- drop both -> the stock font returns live
@@ -2140,7 +2141,7 @@ hafen.slash():register("hello", function(args)
     -- a stylesheet, and it does flatten colour-coded text (a red warning goes amber too) while the rule is on.
     -- $col markup INSIDE rich text still wins, and a surface whose colour is not its font's (a window caption is
     -- tiled from a texture) simply ignores it. Owner-tagged and reverted on :reload/disable like every rule.
-    if not tintedFont then hafen.log():write(":hello color -> fonts not loaded yet (OnLoad)"); return end
+    if not tintedFont then hafen.log():write(":hello color -> fonts not loaded yet (Load)"); return end
     local on = (skinRules["*"] ~= nil) and (skinRules["*"].color ~= nil)
     if on then
       setProp("chat", "font", nil)
@@ -2163,7 +2164,7 @@ hafen.slash():register("hello", function(args)
     -- With ONLY "window.title" set, captions change but body text stays stock; with ONLY "default" set (:hello
     -- font), the cascade restyles captions too until a "window.title" override refines them. Owner-tagged,
     -- reverted automatically on :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
-    if not demoFont then hafen.log():write(":hello title -> font not loaded yet (OnLoad)"); return end
+    if not demoFont then hafen.log():write(":hello title -> font not loaded yet (Load)"); return end
     if toggleSkin("window.title", { font = demoFont:derive():size(15) }) then   -- caption size ~= the stock fraktur 15
       hafen.log():write((":hello title -> sheet:rule('window.title'):font(%s) -- open/focus any window: its CAPTION font changes (body text stays stock unless :hello font); :hello title again to drop the rule")
         :format(demoFont:family()))
@@ -2181,7 +2182,7 @@ hafen.slash():register("hello", function(args)
     -- serif handle is a no-op TO THE EYE even though the override is installed. We deliberately pick a visibly
     -- different family (mono) so the DoD is observable; the size stays 12 to keep the captions inside the buttons.
     local h = (monoFont or demoFont)
-    if not h then hafen.log():write(":hello button -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello button -> font not loaded yet (Load)"); return end
     if toggleSkin("button", { font = h:derive():size(12):bold(true) }) then   -- mono bold 12 vs the stock serif bold 12
       hafen.log():write((":hello button -> sheet:rule('button'):font(%s) -- open the Options window: its BUTTON captions change (titles/body stay stock unless :hello title / :hello font); :hello button again to drop the rule")
         :format(h:family()))
@@ -2199,7 +2200,7 @@ hafen.slash():register("hello", function(args)
     -- NOTE: an entry field's HEIGHT is fixed by its background texture, so keep the size near the stock 12 or tall
     -- glyphs will be clipped -- that is a client-geometry fact, not an API limit. See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
-    if not h then hafen.log():write(":hello entry -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello entry -> font not loaded yet (Load)"); return end
     if toggleSkin("textentry", { font = h:derive():size(12) }) then   -- mono 12 vs the stock serif 12 (visibly different)
       hafen.log():write((":hello entry -> sheet:rule('textentry'):font(%s) -- ONE rule fronting TWO sites: click any text field AND this console command line and type -- both change family, and each keeps its OWN stock size/colour (serif 12 entries, mono 12 console); :hello entry again to drop the rule")
         :format(h:family()))
@@ -2220,7 +2221,7 @@ hafen.slash():register("hello", function(args)
     -- NOTE: we deliberately pass NO size here -- rows keep the HEIGHT they were built with (from the stock
     -- font), so a bigger size would clip; the family swap is the safe, observable demo. See api/fonts.md.
     local h = (monoFont or demoFont)
-    if not h then hafen.log():write(":hello label -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello label -> font not loaded yet (Load)"); return end
     if toggleSkin("label", { font = h }) then           -- no size -> every routed label keeps its own stock size
       hafen.log():write((":hello label -> sheet:rule('label'):font(%s) -- open the character sheet (attribute rows) or Skills & Lore / Quests / Wounds (list items): the BODY TEXT changes family but keeps its sizes; :hello label again to drop the rule")
         :format(h:family()))
@@ -2239,7 +2240,7 @@ hafen.slash():register("hello", function(args)
     -- NOTE: no size passed -- each heading keeps its own stock size (the big ones are 25px, the credo group
     -- captions 18px), so the layout around them does not move. See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
-    if not h then hafen.log():write(":hello heading -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello heading -> font not loaded yet (Load)"); return end
     if toggleSkin("heading", { font = h }) then         -- no size -> every heading keeps its own
       hafen.log():write((":hello heading -> sheet:rule('heading'):font(%s) -- open the character sheet: 'Base Attributes' / 'Food Satiations' / 'Abilities' change (titles + body text stay stock); :hello heading again to drop the rule")
         :format(h:family()))
@@ -2255,7 +2256,7 @@ hafen.slash():register("hello", function(args)
     -- text field). Independent of every other scope; with ONLY "default" set (:hello font) the cascade restyles
     -- menus too, until a "menu" override refines them. Owner-tagged, reverted on :reload/disable. SAFE-tier.
     local h = (monoFont or demoFont)
-    if not h then hafen.log():write(":hello menu -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello menu -> font not loaded yet (Load)"); return end
     if toggleSkin("menu", { font = h:derive():size(14) }) then   -- mono 14 vs the stock sans 12 (bigger + different)
       hafen.log():write((":hello menu -> sheet:rule('menu'):font(%s) -- right-click something: the PETAL captions are in the new font (and a petal already open re-sizes around its centre); :hello menu again to drop the rule")
         :format(h:family()))
@@ -2274,7 +2275,7 @@ hafen.slash():register("hello", function(args)
     -- automatically on :reload/disable. SAFE-tier (cosmetic, client-only).
     -- NOTE: a tooltip sizes its own box around its text, so a bigger size is safe here -- unlike a text field.
     local h = (monoFont or demoFont)
-    if not h then hafen.log():write(":hello tip -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello tip -> font not loaded yet (Load)"); return end
     if toggleSkin("tooltip", { font = h:derive():size(13) }) then   -- mono 13 vs the stock sans 10 (bigger + different)
       hafen.log():write((":hello tip -> sheet:rule('tooltip'):font(%s) -- hover an INVENTORY ITEM (or a buff / a HUD meter / a craft input / an action-menu icon / a HUD button): the tooltip is in the new font, and it changes while you keep hovering; :hello tip again to drop the rule")
         :format(h:family()))
@@ -2289,7 +2290,7 @@ hafen.slash():register("hello", function(args)
     -- the chat's own link parser. Independent of every other scope; with ONLY "default" set (:hello font) the
     -- cascade restyles chat too, until a "chat" override refines it. Owner-tagged, reverted on :reload/disable.
     local h = (monoFont or demoFont)
-    if not h then hafen.log():write(":hello chat -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello chat -> font not loaded yet (Load)"); return end
     if toggleSkin("chat", { font = h:derive():size(13) }) then   -- mono 13 vs the stock sans 12
       hafen.log():write((":hello chat -> sheet:rule('chat'):font(%s) -- open the chat window (Ctrl+C): the message lines, the channel tabs and the line you type are in the new font; :hello chat again to drop the rule")
         :format(h:family()))
@@ -2305,7 +2306,7 @@ hafen.slash():register("hello", function(args)
     -- restyles bubbles too, until a "world.speech" override refines them. Owner-tagged, reverted automatically on
     -- :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
-    if not h then hafen.log():write(":hello speech -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello speech -> font not loaded yet (Load)"); return end
     if toggleSkin("world.speech", { font = h:derive():size(16) }) then   -- mono 16 vs the stock sans 10 (clearly bigger)
       hafen.log():write((":hello speech -> sheet:rule('world.speech'):font(%s) -- say something in area chat (Enter): the BUBBLE over your head is in the new font and its frame grows with it; :hello speech again to drop the rule")
         :format(h:family()))
@@ -2321,7 +2322,7 @@ hafen.slash():register("hello", function(args)
     -- cascade restyles the names too, until a "world.nick" override refines them. Owner-tagged, reverted
     -- automatically on :reload/disable. SAFE-tier (cosmetic, client-only). See docs/addons/api/fonts.md.
     local h = (monoFont or demoFont)
-    if not h then hafen.log():write(":hello nick -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello nick -> font not loaded yet (Load)"); return end
     if toggleSkin("world.nick", { font = h:derive():size(16):bold(true) }) then  -- mono bold 16 vs stock sans bold 12
       hafen.log():write((":hello nick -> sheet:rule('world.nick'):font(%s) -- look at a KIN standing nearby: the name floating over them is in the new font (its colour stays the kin-group colour); :hello nick again to drop the rule")
         :format(h:family()))
@@ -2339,7 +2340,7 @@ hafen.slash():register("hello", function(args)
     -- Owner-tagged like every other font override: reverted automatically on :reload/disable, and it dies with the
     -- widget (close the window and the override goes with it). SAFE-tier (cosmetic, client-only). See api/fonts.md.
     local h = (monoFont or demoFont)
-    if not h then hafen.log():write(":hello node -> font not loaded yet (OnLoad)"); return end
+    if not h then hafen.log():write(":hello node -> font not loaded yet (Load)"); return end
     if nodeFontApplied then
       if nodeFontTarget then nodeFontTarget:rule():remove() end   -- a no-op if that window was closed meanwhile
       nodeFontTarget, nodeFontApplied = nil, false
@@ -2627,7 +2628,7 @@ hafen.slash():register("hello", function(args)
 end)
 hafen.log():write("A11: slash command registered -- type  :hello  in the console (chat) to try it")
 
-hafen.event():on("OnEnterWorld", function()
+hafen.event():on("EnterWorld", function()
   if panel then return end                                        -- defensive: create the window once
   panel = hafen.ui():window()
     :title("Hello 3a")
@@ -2726,7 +2727,7 @@ hafen.event():on("OnEnterWorld", function()
     hafen.log():write(("F2: font window up -- rendered in font '%s'; one line mixes two fonts via $font (disable/:reload restores stock)")
       :format(fam))
   else
-    hafen.log():write("F2: demoFont not loaded (OnLoad) -- font window skipped")
+    hafen.log():write("F2: demoFont not loaded (Load) -- font window skipped")
   end
 
   -- 2c: INPUT HOOK (hafen.hook():input, L1). Pre-hook MapView's mousedown through the engine's built-in
@@ -2899,7 +2900,7 @@ end
 hafen.event():on("GobAdded", tagPlayer)                            -- the players who walk in after us
 
 local overlaysUp = false
-hafen.event():on("OnEnterWorld", function()
+hafen.event():on("EnterWorld", function()
   if overlaysUp then return end                                   -- register the overlays once
   overlaysUp = true
   hafen.ui():overlay():onDraw(drawHud)                                   -- the overlay ends with :destroy() (also auto)
@@ -2912,11 +2913,11 @@ hafen.timer():after(2, function()
   hafen.log():write("timer.after(2) fired once")
 end)
 
-hafen.event():on("OnDisable", function()
+hafen.event():on("Disable", function()
   if helloMarker then                                   -- A1: clean up our demo marker so the harness never
     hafen.map():marker():remove(helloMarker)                -- leaves 'Hello marker' pins on your persistent map DB
     helloMarker = nil
   end
   if demoGhost then hafen.ghost():remove(demoGhost); demoGhost = nil end   -- V1: drop the manual ghost
-  hafen.log():write("OnDisable fired")
+  hafen.log():write("Disable fired")
 end)

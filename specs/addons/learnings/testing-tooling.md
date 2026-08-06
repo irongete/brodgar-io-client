@@ -1092,3 +1092,12 @@
   the auto-added `Scrollbar` (`SListBox`'s `autoscroll()` defaults `true`) as a sibling of every `Row` widget;
   a `rowWidgets()` ported to walk `MainList:children()` without excluding `type() == "Scrollbar"` counted 3
   rows as 4. Grep `rowWidgets` before writing a new one over any `SListBox`-shaped container.
+
+- **(041.1) A Lua stub must raise with `error(msg, 0)`, or the suite's own refusal helper eats the message.**
+  The headless driver modelled the new bus in Lua and six refusal checks went red for a reason that had
+  nothing to do with the suite: LuaJ's default `error(msg)` prefixes the chunk position **and appends a
+  traceback**, and every suite's `refuses()` strips a leading `^.-%.lua:%d+:%s*` — in Lua patterns `.` matches
+  newlines, so the strip ate the message *and* the first traceback line and compared against `"in function
+  'on'"`. A `LuaError` thrown from Java arrives clean, so this is a stub artefact that reads exactly like a
+  product defect. Raise from a stub with level 0 whenever the string is what the check pins. Generalisation:
+  when a dry run reddens a line about a *message*, suspect the stub's error shape before the assertion.

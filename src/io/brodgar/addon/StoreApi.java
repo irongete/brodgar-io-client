@@ -27,7 +27,7 @@ import static io.brodgar.addon.AddonManager.*;
  * saved variable, persisted to JSON under {@code savedata/} (account-scope + per-character
  * {@code <genus>_<char>} scope). Owns the
  * session save state ({@code charScope}/{@code lastAutoSave}); {@link AddonManager} drives it via
- * {@link #resetSession} (init), {@link #restorePerChar} (OnEnterWorld/reload), {@link #loadScope}
+ * {@link #resetSession} (init), {@link #restorePerChar} (EnterWorld/reload), {@link #loadScope}
  * (account vars at install), {@link #flush} (teardown), and {@link #autosave} (the throttled tick save).
  * Not instantiable.
  */
@@ -39,7 +39,7 @@ final class StoreApi {
     private static final double SAVE_INTERVAL = 30.0;   // throttled auto-save period (seconds; UI thread)
 
     /**
-     * Build {@code hafen.store()} for {@code owner} + load its account-scope vars (before OnLoad). From
+     * Build {@code hafen.store()} for {@code owner} + load its account-scope vars (before Load). From
      * installHafen.
      *
      * <p><b>This is the one section whose ACCESS PATTERN changed, not just its spelling.</b> A saved variable
@@ -90,7 +90,7 @@ final class StoreApi {
         LuaValue obj = Section.object("store", store);
         Section.mount(hafen, "store", obj,
                       "hafen.store.<name> is now hafen.store():get(\"<name>\")", new LuaTable(), index(owner));
-        loadScope(owner, true);                          // account-scope vars: ready before OnLoad
+        loadScope(owner, true);                          // account-scope vars: ready before Load
     }
 
     /** The declared saved-variable names, quoted, for the message a misspelt {@code :get} raises. */
@@ -153,7 +153,7 @@ final class StoreApi {
     /**
      * Capture the per-character scope folder ({@code <genus>_<char>}) now that the HUD is up, and load
      * every addon's per-character saved variables into its {@code hafen.store} <b>before</b>
-     * {@code OnEnterWorld} fires (so handlers see restored data). Called once per world entry.
+     * {@code EnterWorld} fires (so handlers see restored data). Called once per world entry.
      */
     static void restorePerChar() {
         GameUI g = gui();

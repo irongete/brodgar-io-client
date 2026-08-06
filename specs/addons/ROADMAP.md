@@ -11,10 +11,19 @@ a hostile addon could tamper with it); a controlled **addon-folder-only `require
 **draw-time CPU budget gap** (draw callbacks run in `UI.draw` after the per-tick soft-budget
 window, so only the per-call instruction cap guards a runaway draw).
 
-## Hook system round-out — [design/13-hooks-and-interception.md](design/13-hooks-and-interception.md)
-Designed but unbuilt: **hook priority/ordering** (integer priority, first-preventDefault-wins —
-D-021) and **post-hooks** (observe after the default ran). Also widget-*type* input-hook targets
-(needs the factory seam from [design/08-widget-replacement.md](design/08-widget-replacement.md)).
+## Hook system round-out — mostly RESOLVED by 041 — [design/13-hooks-and-interception.md](design/13-hooks-and-interception.md)
+**[041-unified-events](041-unified-events/) settles two of the three.** *Post-hooks* (observe after the
+default ran) are **decided against**, not deferred: `before`/`after` was designed and dropped once `:on`
+became the one verb everywhere, since two extra verbs in two sections would be the exception rather than
+the symmetry that justified them. *Widget-type input targets* are **superseded by something better** — 041
+puts input on **any widget handle** (`w:on("MouseDown", fn)`), which needs no factory seam at all because
+`Widget.listen` is already a `Widget` method; the three magic string tokens go with it.
+What is left here: **hook priority/ordering** (integer priority, first-preventDefault-wins — D-021). 041
+deliberately leaves order undefined *between* addons and registration-ordered *within* one, and makes that
+safe rather than merely unspecified with its OR cancel rule (any handler cancels, every handler still
+runs), so a priority system is now a convenience rather than a correctness gap. Also still unbuilt: **L4**
+method replacement / hookable subclasses (needs the factory seam from
+[design/08-widget-replacement.md](design/08-widget-replacement.md)).
 
 ## Lifecycle conveniences — [design/05-lifecycle-and-reload.md](design/05-lifecycle-and-reload.md)
 Deferred from 1f-2/1f-3: **`:reload <id>`** (single-addon reload) and **live enable/disable**

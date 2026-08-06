@@ -14,9 +14,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * One loaded addon: its {@link Manifest}, folder, Lua environment, and load status. Per-addon
  * environments give each addon its own globals (sandbox hardening arrives in a later phase).
  *
- * <p>The {@link #subs} and {@link #timers} lists are the addon's <b>owned-resource registry</b>
+ * <p>The {@link #subs} bus and the {@link #timers} list are the addon's <b>owned-resource registry</b>
  * (principle P2): everything it creates through the facade is tracked here so the engine can tear
- * it down cleanly on reload/disable. They are copy-on-write because a running handler may
+ * it down cleanly on reload/disable. Both are copy-on-write inside, because a running handler may
  * unsubscribe or cancel while the engine iterates them.
  */
 public final class Addon {
@@ -25,8 +25,16 @@ public final class Addon {
     public final Globals env;
     public String error;   // null if the addon loaded cleanly
 
-    /** Live event subscriptions owned by this addon (see {@link AddonManager.Sub}). */
-    public final List<AddonManager.Sub> subs = new CopyOnWriteArrayList<AddonManager.Sub>();
+    /**
+     * This addon's subscriptions to the <b>event bus</b> ({@code hafen.event():on(key, fn)}, 041.1) — one
+     * {@link Subs} for the whole bus, because a bus event is addon-wide and has no object to hang off. Every
+     * key it carries charges {@link #C_EVENT}, which is what a bus handler has always cost.
+     *
+     * <p>It replaced the flat list of subscription records this field used to be: one emitter owns one
+     * {@code Subs}, and {@link LuaSub} is both the Lua handle and the entry, so there is nothing to keep in
+     * step. Teardown drops it wholesale ({@link Subs#clear}), so an addon never unsubscribes by hand.
+     */
+    public final Subs subs = new Subs(this, Addon.C_EVENT);
     /** Live timers owned by this addon (see {@link AddonManager.Timer}). */
     public final List<AddonManager.Timer> timers = new CopyOnWriteArrayList<AddonManager.Timer>();
     /**
@@ -262,6 +270,14 @@ public final class Addon {
      * sandbox boundary, D-017; a shared metatable would be reachable through {@code getmetatable}).
      */
     final LuaPosition.Meta positions = new LuaPosition.Meta(this);
+
+    /**
+     * This addon's <b>Sub metatable</b> ({@link LuaSub}) — the one verb {@code :off()} every subscription in
+     * the API answers, built once on the first {@code X:on(key, fn)}. Per addon for the same reason every
+     * metatable here is: no Lua value crosses a sandbox boundary (D-017). A Sub holds no engine object, so
+     * there is nothing to tear down.
+     */
+    LuaValue subMeta;
 
     /**
      * This addon's <b>Kin interning cache</b> ({@code hafen.kin():get(idOrName)}, spec {@code 020-kin-oop}): the
@@ -526,7 +542,7 @@ public final class Addon {
 
     /**
      * Soft per-tick CPU-budget accounting (D-018 layer 2). {@link #tickLuaNanos} is the total time this
-     * addon spent in Lua during the current engine tick (summed across its {@code OnUpdate}/timers/event
+     * addon spent in Lua during the current engine tick (summed across its {@code Update}/timers/event
      * handlers by {@link AddonManager#callLua}); {@link #overBudgetStrikes} counts consecutive ticks over
      * the budget. {@link AddonManager#tick(double)} zeroes {@code tickLuaNanos} each tick and
      * {@link AddonManager#enforceSoftBudget()} evaluates the strikes — see {@link Sandbox#SOFT_BUDGET_NANOS}.

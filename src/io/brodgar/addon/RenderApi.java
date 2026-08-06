@@ -249,7 +249,7 @@ final class RenderApi {
     private static LuaValue born(LuaWorldEntity e, String where) {
         if(e == null)
             throw new LuaError(where + ": there is no map view yet — a thing standing in the 3D world needs the"
-                + " scene, so place it once you are in the world (OnEnterWorld)");
+                + " scene, so place it once you are in the world (EnterWorld)");
         return e.handle;
     }
 
@@ -1099,7 +1099,7 @@ final class RenderApi {
             e = makeGhost(owner, spec, spec.get("ghost").tojstring(), tgt, off);
         if(e == null)
             throw new LuaError("gob:overlay(key, spec): there is no map view yet — a world-space overlay needs the"
-                + " 3D scene, so attach it once you are in the world (OnEnterWorld / GobAdded)");
+                + " 3D scene, so attach it once you are in the world (EnterWorld / GobAdded)");
         return e;
     }
 

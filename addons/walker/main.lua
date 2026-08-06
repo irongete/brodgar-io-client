@@ -46,7 +46,7 @@
 hafen.log():write("walker loaded -- write-actions demo (4d MapView verbs + 4e menu/flower + 4f item + 4g speed/craft/bar/setbar/kin + menugrid)")
 
 -- At login, confirm we're granted (we only load once YOU enabled us, and we declared the permission).
-hafen.event():on("OnEnterWorld", function()
+hafen.event():on("EnterWorld", function()
   hafen.log():write(("walker: write-actions %s -- run  :walker  for the list of action demos")
     :format(hafen.act():enabled() and "GRANTED" or "NOT granted"))
 end)

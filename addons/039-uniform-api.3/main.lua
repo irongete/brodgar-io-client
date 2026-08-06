@@ -59,7 +59,7 @@ local adds, removes = 0, 0            -- OUR events since the last reset, for th
 local parked, dropped = {}, {}        -- the despawn round: the gobs we hung on, and the ones we were told died
 local expect = {}                     -- removals WE asked for, swallowed so they never read as a despawn
 
-hafen.event():on("OnLoad", function() icon = hafen.asset():get("icon.png") end)
+hafen.event():on("Load", function() icon = hafen.asset():get("icon.png") end)
 
 hafen.event():on("GobOverlayAdded", function(e) if not e.native then adds = adds + 1 end end)
 hafen.event():on("GobOverlayRemoved", function(e)

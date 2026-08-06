@@ -173,12 +173,12 @@ end
 
 -- ----------------------------------------------------------------- wiring
 
-hafen.event():on("OnLoad", function()
-  dump("OnLoad")
+hafen.event():on("Load", function()
+  dump("Load")
 end)
 
-hafen.event():on("OnEnterWorld", function()
-  dump("OnEnterWorld")
+hafen.event():on("EnterWorld", function()
+  dump("EnterWorld")
 end)
 
 opts():keybindings():register("ping", function()

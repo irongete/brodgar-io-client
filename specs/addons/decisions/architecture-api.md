@@ -1551,3 +1551,56 @@ read from the other side), and the test is whether there is something that outli
 also closes the last of the six questions the feature opened, so `API.md`'s inventory has no orphaned row.
 **See.** [D-013](architecture-api.md), [D-107](architecture-api.md) (what a config table costs when there IS
 an object), [039-uniform-api](../039-uniform-api/spec.md) §5.5, [§2.8](../039-uniform-api/spec.md).
+
+### D-167 — one `Subs` per emitter, and the profiling category is DATA on it, never inferred ✅
+**Decision.** Every notification in the area is delivered by one class, [`Subs`](src/io/brodgar/addon/Subs.java):
+a keyed multimap `key → handlers` with `fire`, an OR-accumulated cancel and the `has(key)` gate. Who owns one
+decides the address an addon writes — the bus owns one per `Addon`, a widget one per (addon, widget), a grab
+one per grab. The `Addon.CATS` split each key charges is **carried on the `Subs`** (`Subs.Cats`, per key), not
+chosen inside `fire`.
+**Rationale.** (2026-08-06, 041.1.) The mechanism is the easy half; the category is the half that would have
+broken silently. Before 041 the five columns of `p:addons()` were distinguished by *which mechanism*
+dispatched — `onDraw` → `draw`, the eight widget callbacks → `widgets`, `hafen.hook()` → `hooks`, the bus →
+`events`. After 041 every one of them is a `Subs.fire`, so a single charge inside `fire` would collapse the
+split to one column and the profiler would go on reporting confidently. Making it per-key data is also what
+the emitters actually need: one widget's `Subs` carries `Draw` (`draw`) and `MouseDown` (`widgets`) at once.
+**Consequences.** `AddonManager.Sub` is deleted rather than left beside `Subs` — one character apart in one
+package is a reading hazard for every later session — and [`LuaSub`](src/io/brodgar/addon/LuaSub.java) is both
+the Lua handle and the list entry, which makes `:off()` idempotent **by construction** (removal by identity
+from a copy-on-write list) instead of by a flag. `fireTo` stops walking an addon's whole subscription list per
+event and looks up one key. Each later task inherits the category question already answered: it declares what
+its keys cost, and cannot accidentally flatten the split.
+**See.** [D-052](architecture-api.md) (the five categories), [D-100](architecture-api.md) (the state belongs on
+the THING), [041-unified-events](../041-unified-events/plan.md) (*Profiling attribution*).
+
+### D-168 — a retired event KEY is an argument, so it is refused at the door, in its own table ✅
+**Decision.** `Retired` gains a second table for retired **event keys**
+([`Retired.eventKey`](src/io/brodgar/addon/Retired.java)), keyed `"<emitter>|<key>"`. An emitter's `:on`
+consults it **before** it checks its own vocabulary, so `hafen.event():on("OnLoad", fn)` throws *'OnLoad' is
+now 'Load'* rather than falling into the generic unknown-key refusal.
+**Rationale.** (2026-08-06, 041.1.) Every retired spelling until now was a **name** — a field read — so the
+refusal could hang off an `__index` and fire at the line that wrote it. A key is a **string argument**: there
+is nothing to index and no metamethod to attach, so the only place the refusal can live is the call that
+accepts it. The order matters as much as the table: with the vocabulary checked first, all four moved
+lifecycle keys report as "unknown event", which is true and useless.
+**Consequences.** The `Retired` mechanism now has three kinds (section, verb, key) and its class comment says
+so. 041.4's sixteen widget verbs are the *name* kind and need no new machinery; 041.5's `hafen.hook` likewise.
+The generalisation for any later hard cut: **ask what the old spelling grammatically IS** — a name can be
+refused where it is read, a value can only be refused where it is accepted.
+**See.** [D-125](architecture-api.md), [D-129](architecture-api.md), [039-uniform-api](../039-uniform-api/spec.md)
+§2.10 (the `Retired` table), [041-unified-events](../041-unified-events/spec.md) §R5.
+
+### D-169 — a closed vocabulary LISTS what it answers when the list is short, and POINTS when it is not ✅
+**Decision.** A closed key set's refusal names the offending key and then either **lists** the keys that
+emitter does answer, or **points** at the catalogue page — by the length of the list. A widget answers five or
+six keys and lists them; the bus answers 26 and says *see `docs/addons/api/event.md` for the catalogue*.
+**Rationale.** (2026-08-06, 041.1.) The feature's spec (§R5) says *listing the keys* and its `EXAMPLES.md` §4
+writes the bus's message as a pointer; both are right for their own emitter and the rule is what reconciles
+them. A refusal is read in the chat log, one line wide: a list of five is the answer, a list of 26 is a wall
+the reader skips, and it would be re-emitted on every mistyped key.
+**Consequences.** 041.4 lists (a widget's keys), 041.1 points (the bus's). The threshold is not a number to
+remember but the same question every message answers — *does the reader learn more from the list or from
+where the list lives*. It also keeps the shipped error text and the shipped docs pointing at each other, which
+is what makes the docs tier the contract rather than a copy.
+**See.** [D-125](architecture-api.md) (a closed vocabulary throws naming what exists),
+[041-unified-events](../041-unified-events/EXAMPLES.md) §4 (the exact messages).

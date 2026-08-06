@@ -1,0 +1,9 @@
+{
+  "name": "041.1 — Subs, Sub, and the bus",
+  "id": "041-unified-events.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 041.1: every subscription in the API goes through one mechanism, and hafen.event():on(key, fn) is the first emitter over it. It proves the handle is a Sub whose one verb is :off() (an unknown verb throws naming it), that two handlers on one key both fire in registration order with a handler that errors between them isolated, that :off() stops delivery while the other handler goes on firing and a second :off() is a no-op, that all 26 bus keys are accepted while an unknown one throws instead of being silently ignored, that the four lifecycle keys dropped the On prefix and the old spellings throw naming their replacement, and that a bus handler's cost still lands in the events column of the per-addon profiling split.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

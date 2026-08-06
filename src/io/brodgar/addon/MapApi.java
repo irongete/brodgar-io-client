@@ -452,9 +452,9 @@ final class MapApi {
             file.lock.readLock().lock();
             try { count = file.markers.size(); }
             finally { file.lock.readLock().unlock(); }
-            LuaTable ev = new LuaTable();
-            ev.set("count", LuaValue.valueOf(count));
-            fire("MarkersChanged", ev);
+            // The COUNT itself, not a { count = n } wrapper (041.1): one thing to say is said directly, and
+            // the wrapper was the only field this payload ever had.
+            fire("MarkersChanged", LuaValue.valueOf(count));
         }
     }
 

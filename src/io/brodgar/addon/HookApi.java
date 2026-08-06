@@ -154,7 +154,7 @@ final class HookApi {
         Widget w = hookTarget(tok);
         if(w == null)
             throw new LuaError("hafen.hook():input: the " + tok
-                               + " is not up yet — register this hook in OnEnterWorld");
+                               + " is not up yet — register this hook in EnterWorld");
         final LuaInputHook h = new LuaInputHook(owner, w, event.tojstring(), fn);
         listenHook(w, cls, h);
         owner.hooks.add(h);

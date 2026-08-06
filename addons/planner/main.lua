@@ -100,7 +100,7 @@ local LOOK = {
 
 -- Runtime state. `items` is the single source of truth: each record = { res, a, scale, anchor = {gridId, x, y}, ghost }.
 -- `ghost` is the live handle (nil while its grid has not streamed in yet). `blueprint` is the current palette key,
--- `selected` the selected record (or nil). Module-level, so a :reload starts clean and OnEnterWorld repopulates.
+-- `selected` the selected record (or nil). Module-level, so a :reload starts clean and EnterWorld repopulates.
 local items     = {}
 local blueprint = DEFAULT_BP
 local selected  = nil
@@ -277,7 +277,7 @@ end
 
 -- At login the per-char store is already restored (1e), so store.layout is ready here. Rebuild `items` from it and
 -- re-resolve each grid anchor to a world coord, retrying for a few seconds while the map around us streams in.
-hafen.event():on("OnEnterWorld", function()
+hafen.event():on("EnterWorld", function()
   if retry then retry:cancel(); retry = nil end            -- guard against a re-entry (relog/:reload re-fires this)
   if drag then commitDrag() end                            -- V5: never carry a half-finished drag across a relog
   detachGizmo()                                            -- V5b: drop any gizmo before rebuilding the layout
@@ -333,9 +333,9 @@ hafen.event():on("ObjectClicked", function(ev)
     :format(ev.x, ev.y, ev.button))
 end)
 
-hafen.event():on("OnDisable", function()
+hafen.event():on("Disable", function()
   detachGizmo()                                            -- V5b: (the bridge tears down the overlay/hooks too)
-  hafen.log():write("planner: OnDisable -- ghosts torn down + layout flushed on teardown (grid-anchored, so a relog restores them)")
+  hafen.log():write("planner: Disable -- ghosts torn down + layout flushed on teardown (grid-anchored, so a relog restores them)")
 end)
 
 -- A11-style slash command: WoW-style ":planner <sub>" with args as a 1-based table. Reload-safe (a single

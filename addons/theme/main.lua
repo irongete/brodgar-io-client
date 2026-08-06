@@ -118,7 +118,7 @@ local function places(rule)
   return (rule.position ~= nil) or (rule.anchor ~= nil)
 end
 
--- The saved layout: { [selector] = {x = , y = } }, account scope, so it is ready in OnLoad and shared by every
+-- The saved layout: { [selector] = {x = , y = } }, account scope, so it is ready in Load and shared by every
 -- character. The table object is stable for this addon's whole life (a restore refills it in place), so it is
 -- written THROUGH rather than replaced.
 local function pins()
@@ -198,7 +198,7 @@ local function forgetLayout()
   hafen.log():write("theme: forgot the saved layout -- the windows go back where " .. FILE .. " anchors them")
 end
 
-hafen.event():on("OnLoad", function()
+hafen.event():on("Load", function()
   on = false                        -- a reload rebuilt the env and tore the sheet down with it (owned resource)
   local ok, err = pcall(function() name, rules, count = build() end)
   if not ok then

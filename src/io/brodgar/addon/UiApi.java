@@ -1530,7 +1530,7 @@ final class UiApi {
     /**
      * {@code hafen.ui.mouse()} — the cursor position in root coords as {@code {x=,y=}} (spec 20, W2), read from the
      * public {@link UI#mc}. Returns {@code nil} if there is no UI yet. Zero-cost — the engine keeps {@code mc}
-     * updated each pointer move; the {@code widgetstack} addon polls this on {@code OnUpdate} for hover.
+     * updated each pointer move; the {@code widgetstack} addon polls this on {@code Update} for hover.
      */
     private static LuaValue nodeMouse() {
         UI u = ui;

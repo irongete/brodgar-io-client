@@ -142,7 +142,7 @@ public final class AddonManager {
     // tick re-reads + fires on the UI thread (principle P5). Both collections are session-scoped.
 
     // -- saved variables (spec 1e / D-002 / D-023): hafen.store persisted as JSON under savedata/ ------
-    // Per-character vars key on <genus>_<char>, known only once the HUD is up (OnEnterWorld) — captured
+    // Per-character vars key on <genus>_<char>, known only once the HUD is up (EnterWorld) — captured
     // here and reused on flush so a relog (which rebinds ui before the new GameUI exists) still writes to
     // the OLD character's folder. Account-scope vars need no char and load at addon-load time.
 
@@ -229,7 +229,7 @@ public final class AddonManager {
     public static void attach(MapView mv) {
         if(mv != null) {
             view = mv;
-            enterWorldPending = true;   // OnEnterWorld is fired on the next tick (UI thread)
+            enterWorldPending = true;   // EnterWorld is fired on the next tick (UI thread)
         }
     }
 
@@ -248,7 +248,7 @@ public final class AddonManager {
         Prof.init();  // 019.1: restore the persisted profiling switch (once per JVM)
         Prof.addonCost(AddonManager::luaNanosThisFrame);   // 019.2: the addons roll-up source
         Prof.addonReset(AddonManager::resetProfiling);     // 019.4: p:reset()/arming clears the per-addon rows too
-        for(Addon a : addons)         // fire OnDisable + flush saved vars + drop owned resources
+        for(Addon a : addons)         // fire Disable + flush saved vars + drop owned resources
             AddonRegistry.teardown(a);              // (flushes with the OLD charScope, still set from the last session)
         addons.clear();
 
@@ -273,7 +273,7 @@ public final class AddonManager {
 
         attachRoot(ui_);              // invisible per-frame tick widget (drives the engine)
         registerOcache(ui_);          // GobAdded/GobRemoved source (marshalled to the UI thread)
-        AddonRegistry.loadAll();                    // discover + run addons, fire OnLoad for each
+        AddonRegistry.loadAll();                    // discover + run addons, fire Load for each
     }
 
     /** Attach the invisible tick widget to {@code ui.root} (guarded — root must exist). */
@@ -310,7 +310,7 @@ public final class AddonManager {
 
     /**
      * One engine step, driven by {@link AddonRoot#tick(double)} on the UI thread each frame. Order
-     * per {@code 04-engine.md}: drain the marshalled event queue, then {@code OnUpdate}, then timers.
+     * per {@code 04-engine.md}: drain the marshalled event queue, then {@code Update}, then timers.
      * Everything is error-isolated so an addon bug never breaks the frame or another addon.
      */
     static void tick(double dt) {
@@ -319,7 +319,7 @@ public final class AddonManager {
 
             // 0. A queued :reload / Reload UI — rebuild the addon layer on the UI thread (spec 1f-2,
             //    D-005). Done first + return so the reloaded addons begin their own tick cleanly next
-            //    frame (this frame's OnUpdate/timers belonged to the addons we just tore down).
+            //    frame (this frame's Update/timers belonged to the addons we just tore down).
             if(reloadPending) {
                 reloadPending = false;
                 overlayEvents.clear();   // 038.3: the addons that queued these are being torn down
@@ -341,7 +341,7 @@ public final class AddonManager {
 
             // Soft CPU-budget accounting (D-018 layer 2): zero every addon's per-tick Lua time before any
             // handler runs this tick; callLua accumulates into it, enforceSoftBudget() evaluates it at the
-            // end. (Skipped on a reload tick, which returns above — its OnLoad/OnEnterWorld are one-offs.)
+            // end. (Skipped on a reload tick, which returns above — its Load/EnterWorld are one-offs.)
             // 019.4: this instant is also where the PREVIOUS frame closes — tickLuaNanos accrues through the
             // tick and the draw callbacks that follow it, so right here it holds exactly one whole frame.
             // profRoll() moves it into the addon's "last completed frame" figures before it is cleared, which
@@ -426,7 +426,7 @@ public final class AddonManager {
             //     addon adds PMarkers, and segment merges re-key them; all bump markerseq). Global event.
             MapApi.pollMarkers();
 
-            // 2. "Entered the world" — fire OnEnterWorld once the HUD (GameUI) is not just built but
+            // 2. "Entered the world" — fire EnterWorld once the HUD (GameUI) is not just built but
             //    ATTACHED to ui.root. The map view sets enterWorldPending from its ctor (loader thread),
             //    and gui() finds GameUI via the map view a beat BEFORE GameUI is added to the RootWidget
             //    (confirmed via the widget-place trace: the old "gui()!=null" signal fired one line before
@@ -441,12 +441,12 @@ public final class AddonManager {
                 if((hud != null) && (hud.parent != null)) {
                     enterWorldPending = false;
                     StoreApi.restorePerChar();     // now <genus>_<char> is known → load per-char saved vars BEFORE
-                    fire("OnEnterWorld");  // the handler runs, so it can read hafen.store (spec 1e)
+                    fire("EnterWorld");    // the handler runs, so it can read hafen.store (spec 1e)
                 }
             }
 
             // 3. Per-frame update.
-            fire("OnUpdate", LuaValue.valueOf(dt));
+            fire("Update", LuaValue.valueOf(dt));
 
             // 4. Due timers.
             runTimers();
@@ -545,7 +545,7 @@ public final class AddonManager {
 
     /**
      * Auto-disable an addon for the current session (D-018): record a panel warning, run its teardown
-     * ({@code OnDisable} → flush saved vars → drop owned resources) and drop it from the live set so it
+     * ({@code Disable} → flush saved vars → drop owned resources) and drop it from the live set so it
      * stops ticking. This does NOT touch the persisted enabled set — a {@code :reload}/login gives the
      * addon a fresh start (the user can persist-disable it via the panel checkbox). Called from
      * {@link #enforceSoftBudget} at end of tick, so mutating {@code addons} here is safe.
@@ -740,6 +740,36 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
     /** Re-read each dirty adapter and fire its semantic event (UI thread, drained from the tick). */
 
     // ------------------------------------------------------------- event dispatch
+
+    /**
+     * The bus's <b>closed key set</b> — the 26 events {@code hafen.event():on(key, fn)} accepts, in the order
+     * the catalogue lists them (lifecycle, world, character, roster, own entities). Closed because the client
+     * knows the whole set at load, so an unknown key is a typo with no future meaning to wait for (D-129):
+     * before 041 {@code hafen.event():on("GobAdded ", fn)} was accepted and simply never fired, which is the
+     * most common silent addon bug there is.
+     *
+     * <p>PascalCase throughout, and it is the bus's <i>own</i> spelling that the rest of the API adopted in
+     * 041 — so 22 of these are the exact string the corpus already called. Only the four lifecycle keys moved,
+     * dropping the {@code On} prefix that {@code :on} already says (see {@link Retired#eventKey}).
+     */
+    static final String[] BUS_KEYS = {
+        "Load", "EnterWorld", "Update", "Disable",
+        "GobAdded", "GobRemoved", "GobOverlayAdded", "GobOverlayRemoved",
+        "MeterAdded", "MeterRemoved", "MeterChanged",
+        "BuffAdded", "BuffRemoved", "BuffChanged",
+        "FepChanged", "StudyChanged", "EquipChanged", "ActionbarChanged", "WoundChanged",
+        "KinChanged", "QuestAdded", "QuestDone", "MarkersChanged",
+        "GhostClicked", "SpriteClicked", "ObjectClicked",
+    };
+
+    /** Is {@code key} one of the {@link #BUS_KEYS}? (Linear over 26 constants, once per subscription.) */
+    private static boolean busKey(String key) {
+        for(String k : BUS_KEYS) {
+            if(k.equals(key))
+                return true;
+        }
+        return false;
+    }
 
     /** Fire an event to every owner (all addons + the REPL). */
     static void fire(String event, LuaValue... args) {
@@ -1085,23 +1115,16 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
 
     /** Does {@code a} have a live subscription to {@code event}? (Gates minting a per-addon event payload.) */
     private static boolean hasSub(Addon a, String event) {
-        for(Sub s : a.subs) {
-            if(s.alive && s.event.equals(event))
-                return true;
-        }
-        return false;
+        return a.subs.has(event);
     }
 
-    /** Fire an event to a single owner's matching subscriptions. */
+    /**
+     * Fire an event to a single owner's matching subscriptions — every one of them, in registration order,
+     * each error-isolated and charged to that addon's {@code events} column ({@link Subs#fire}). Nothing on
+     * the bus is cancelable, so the fire's answer is not read here.
+     */
     static void fireTo(Addon a, String event, LuaValue... args) {
-        for(Sub s : a.subs) {
-            if(!s.alive) {
-                a.subs.remove(s);
-                continue;
-            }
-            if(s.event.equals(event))
-                callLua(a, Addon.C_EVENT, s.fn, args);
-        }
+        a.subs.fire(event, args);
     }
 
     /**
@@ -1170,7 +1193,7 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // :roots() for the root screen. The key is always a STRING and splits by SHAPE — a "/" makes it a
         // resource name (the identity), anything else a display name (a search convenience, not unique) — and
         // a miss is plain nil. There is no addressing by position: the catalogue grows on every discovery.
-        // Resource-backed reads are Loading-guarded, so a scan right at OnEnterWorld may be short and fills in
+        // Resource-backed reads are Loading-guarded, so a scan right at EnterWorld may be short and fills in
         // sub-second.
         Section.mount(hafen, "menugrid", LuaPagina.collection(owner),
                       "hafen.menugrid(key) is now hafen.menugrid():get(key), and hafen.menugrid() is"
@@ -1543,29 +1566,32 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // hafen.http — external HTTP requests (N2a / D-037), gated by a manifest "network" host allowlist.
         HttpApi.install(hafen, owner);
 
-        // hafen.event():on(name, fn) -> a Subscription; sub:off() unsubscribes. The section is singular like
-        // every other one: an event NAME keeps its plural (MarkersChanged is a sentence), the section does not.
+        // hafen.event():on(key, fn) -> a Sub; sub:off() ends it. The bus is the door for a notification with
+        // no object to hang off (041 R2: ¿tienes el objeto? obj:on(...); ¿no? hafen.event()), and it is the
+        // same one verb every emitter answers. The section is singular like every other one: an event NAME
+        // keeps its plural (MarkersChanged is a sentence), the section does not.
+        //
+        // The key set is CLOSED (D-129): the client fires all 26 and knows them at load, so an unknown one
+        // throws rather than being accepted and never firing. The four lifecycle keys dropped their On prefix
+        // in 041 (:on already says it), and those four spellings throw naming their replacement.
         LuaTable event = new LuaTable();
         event.set("on", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "event", "on");
-                LuaValue nm = Args.required(a, 2, "hafen.event():on", "name");
+                LuaValue nm = Args.required(a, 2, "hafen.event():on", "key");
                 LuaValue fn = Args.required(a, 3, "hafen.event():on", "fn");
                 if(!nm.isstring() || !fn.isfunction())
-                    throw new LuaError("hafen.event():on(name, fn) expects (string, function)");
-                final Sub sub = new Sub(owner, nm.tojstring(), fn);
-                owner.subs.add(sub);
-                if(sub.event.startsWith("GobOverlay"))   // 038.3: arm the two Gob seams (see `overlaySubs`)
+                    throw new LuaError("hafen.event():on(key, fn) expects (string, function)");
+                String key = nm.tojstring();
+                String retired = Retired.eventKey("hafen.event()", key);
+                if(retired != null)
+                    throw new LuaError(retired);
+                if(!busKey(key))
+                    throw new LuaError("hafen.event():on(key, fn): unknown event '" + key + "' — see"
+                        + " docs/addons/api/event.md for the catalogue");
+                if(key.startsWith("GobOverlay"))   // 038.3: arm the two Gob seams (see `overlaySubs`)
                     overlaySubs = true;
-                LuaTable h = new LuaTable();
-                h.set("off", new ZeroArgFunction() {
-                    public LuaValue call() {
-                        sub.alive = false;
-                        owner.subs.remove(sub);
-                        return LuaValue.NIL;
-                    }
-                });
-                return h;
+                return owner.subs.on(key, fn);
             }
         });
         Section.install(hafen, "event", event);
@@ -1603,9 +1629,9 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // variable, persisted to JSON under savedata/. :get(name) hands back that table — the LIVE persisted
         // one, never a copy, so hafen.store():get("cfg").foo = 1 still saves; an undeclared name throws listing
         // the declared ones, because the set is closed by the manifest at load. :flush() forces a write now.
-        // Per-character vars are restored at OnEnterWorld (the <genus>_<char> folder is only known then);
+        // Per-character vars are restored at EnterWorld (the <genus>_<char> folder is only known then);
         // account-scope vars are loaded here, before the addon's files run, so they are ready in the file body /
-        // OnLoad. The table object for each name is STABLE for the addon's whole life (restore fills it in
+        // Load. The table object for each name is STABLE for the addon's whole life (restore fills it in
         // place), so a cached reference stays valid. This is the one section whose ACCESS PATTERN changed
         // rather than its spelling, so the old field form throws from a per-owner __index built off the
         // manifest (StoreApi.index) — a static retired table cannot know an addon's own variable names.
@@ -1782,7 +1808,7 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
 
     /**
      * The in-game HUD ({@link GameUI}). Fast path: walk up from the map view. Fallback: scan down from
-     * {@code ui.root} — right at {@code OnEnterWorld} the map view exists (it fired the event) but may
+     * {@code ui.root} — right at {@code EnterWorld} the map view exists (it fired the event) but may
      * not be parented to {@code GameUI} yet, whereas {@code GameUI} is already a child of the root
      * (its widget message arrives before the map view's). {@code null} before the HUD is up.
      */
@@ -2131,19 +2157,12 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
 
     // ------------------------------------------------------------- owned-resource records
 
-    /** A live event subscription: {@code hafen.event():on(event, fn)} in addon {@code owner}. */
-    public static final class Sub {
-        final Addon owner;
-        final String event;
-        final LuaValue fn;
-        boolean alive = true;
-
-        Sub(Addon owner, String event, LuaValue fn) {
-            this.owner = owner;
-            this.event = event;
-            this.fn = fn;
-        }
-    }
+    /*
+     * The event-subscription record used to be here, beside the Timer below. It is gone (041.1): a
+     * subscription is an entry in the emitter's own Subs and the LuaSub handle Lua holds is that entry, so
+     * there is no second object to keep in step — and no `Sub` sitting one character away from `Subs` in the
+     * same package for a later reader to confuse.
+     */
 
     /** A live timer: {@code due} is engine-clock seconds; {@code interval<=0} means one-shot. */
     public static final class Timer {
