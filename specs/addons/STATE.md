@@ -2,17 +2,28 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 1 of 13 tasks done (042.1), 042.2
-(buffs) next. The addon layer synthesises its `*Changed`/`*Added` events by **polling the widget tree
-every frame** (11 sites, 6 of them `TreeAdapter`s) instead of listening at the moment a change happens.
-042 wires them to the three seams the client already publishes — the `uimsg` tap, widget
+**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 2 of 13 tasks done (042.1, 042.2),
+042.3 (equipment) next. The addon layer synthesises its `*Changed`/`*Added` events by **polling the
+widget tree every frame** (11 sites, 6 of them `TreeAdapter`s) instead of listening at the moment a
+change happens. 042 wires them to the four seams the client already publishes — the `uimsg` tap, widget
 placement/removal, geometry, and `Loading`'s `Waitable` resolution notify — and **deletes the poll
-stage**: no gate, no fallback, no dual path. **Three core taps**, each a one-liner: `Widget.remove`
-(override-proof where `cdestroy` is not — 9 of 17 overrides skip `super`), `Widget.resize` (which every
-size change funnels through, screen included), and a notify inside the two `setbelt` paths that defer the
-`belt[]` write. Decisions D-178..D-182, of which **D-181 supersedes D-091** (*"a derived position is
-re-derived by POLLING what it reads"*). Closes the ROADMAP's *"Per-frame cost of the addon layer's
-polling suite"*.
+stage**: no gate, no fallback, no dual path. **Four core taps** (the plan originally budgeted three;
+042.2 found a fading widget needs its own), each a one-liner: `Widget.remove` (override-proof where
+`cdestroy` is not — 9 of 17 overrides skip `super`), `Buff.reqdestroy` (reuses the same hub method, from
+a second call site at the fade's START, not its late unlink), `Widget.resize` (which every size change
+funnels through, screen included), and a notify inside the two `setbelt` paths that defer the `belt[]`
+write. Decisions D-178..D-182, of which **D-181 supersedes D-091** (*"a derived position is re-derived
+by POLLING what it reads"*). Closes the ROADMAP's *"Per-frame cost of the addon layer's polling suite"*.
+
+**042.2 DONE — `BuffsAdapter` is the second port, proving a widget that FADES needs its own tap.**
+`BuffAdded` fires from the placement seam (M3); `BuffRemoved` fires from a one-line `// addon:` tap in
+`Buff.reqdestroy()` at the exact moment the server's destroy sets `dest = true` — not 0.35s later when
+the fade animation actually unlinks the widget, which M1 alone would give. That late M1 firing still
+happens and is a deliberate no-op, guarded by `BuffsAdapter`'s cache-membership check. `BuffChanged` (the
+`"ch"`/`"tt"` uimsg path) is unchanged. Verified in-game: a fresh buff (`visitor`) fired one `BuffAdded`
+(res/name `nil` for a beat, as documented) and, on expiry, one `BuffRemoved` — printed the instant the
+icon started fading, confirmed by the maintainer, never a second line. D-180 records the rule; D-179's
+"exactly three core edits" is now four (`decisions/widgets-ui.md`).
 
 **042.1 DONE — `MeterAdapter` is the first port, proving M1 (the removal seam) and M2 (`Resolve`).**
 `MeterAdded`/`MeterRemoved` now fire from `Widget`'s placement/removal seams instead of a per-tick diff

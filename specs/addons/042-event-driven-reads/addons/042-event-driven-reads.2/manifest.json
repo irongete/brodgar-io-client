@@ -1,0 +1,9 @@
+{
+  "name": "042.2 -- buffs go event-driven",
+  "id": "042-event-driven-reads.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 042.2: BuffAdded/Removed fire from the widget placement seam and the fade's dest tap (never the late unlink); BuffChanged is unchanged.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -191,6 +191,7 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
 	anims.clear();
 	final Coord o = this.c;
 	dest = true;
+	io.brodgar.addon.AddonManager.onWidgetRemoved(this);   // addon: fade seam -- BuffRemoved fires here, at the server's own "gone" moment, not 0.35s later when the fade unlinks (042.2, D-180)
 	new NormAnim(0.35) {
 	    public void ntick(double a) {
 		Buff.this.a = 255 - (int)(255 * a);

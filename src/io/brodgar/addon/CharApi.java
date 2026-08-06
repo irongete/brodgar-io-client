@@ -45,9 +45,7 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -296,12 +294,23 @@ final class CharApi {
     }
 
     /**
-     * Buffs — the {@link Buff} widgets under {@link GameUI#buffs} (a {@link Bufflist}). Add and
-     * remove are widget create/{@code cdestroy}, NOT a {@code uimsg}, so they are detected by
-     * <b>poll</b> (diffing {@code children(Buff.class)} each tick against a cache keyed by widget
-     * identity); the per-buff {@code "ch"}/{@code "tt"} content updates ARE {@code uimsg}s, so
-     * <b>refresh</b> re-reads the cached buffs and fires {@code BuffChanged}. A buff fading out after a
-     * server removal ({@code Buff.dest}) is treated as already gone (excluded), so removal is timely.
+     * Buffs — the {@link Buff} widgets under {@link GameUI#buffs} (a {@link Bufflist}).
+     *
+     * <p><b>Event-driven since 042.2.</b> A buff appearing is the widget-placement seam ({@link #placed},
+     * fired after {@code Bufflist.addchild} has the child in). A buff's real unlink is a widget
+     * create/{@code cdestroy} that M1 ({@link #removed}) sees — but {@code Bufflist.cdestroy} is one of the
+     * 9 overrides that skip {@code super} (D-179), which is why M1 (not {@code cdestroy}) is the seam at
+     * all — <b>and M1 alone would still fire {@code BuffRemoved} 0.35s late</b>, because
+     * {@link Buff#reqdestroy} does not unlink: it sets the protected {@code dest} flag and starts a fade,
+     * so the widget stays a {@code Bufflist} child for that whole interval (025.1, D-180). The "gone"
+     * signal is {@code dest}, not the unlink, so {@code Buff.reqdestroy} carries a one-line {@code // addon:}
+     * tap ({@link AddonManager#onWidgetRemoved}) announcing it at the moment the server said so; {@link
+     * #removed} — reached a second time, 0.35s later, when the fade finishes and M1 fires for real — is then
+     * a no-op for a buff already announced, guarded by the same cache-membership check {@link MeterAdapter}
+     * uses for its own removal.
+     *
+     * <p>The per-buff {@code "ch"}/{@code "tt"} content updates ARE {@code uimsg}s, so <b>refresh</b>
+     * (unchanged) re-reads the cached buffs and fires {@code BuffChanged}.
      *
      * <p>The reads themselves live on {@link LuaBuff} since {@code 025-buffs-oop} (the entity owns them);
      * only change <i>detection</i> — the per-buff snapshot diff — is this adapter's business. Since 025.2 the
@@ -311,9 +320,9 @@ final class CharApi {
      * content changes only. It is never handed to Lua any more — {@code buff:info()} is that, on demand.
      */
     private static final class BuffsAdapter implements TreeAdapter {
-        // Active buff -> its last snapshot (the change-detection key, NOT a payload). UI-thread-only (poll +
-        // refresh); reset per session by re-instantiation in init(). IdentityHashMap: Buff widgets are keyed
-        // by object identity.
+        // Active buff -> its last snapshot (the change-detection key, NOT a payload). UI-thread-only
+        // (placed/removed/refresh); reset per session by re-instantiation in resetSession(). IdentityHashMap:
+        // Buff widgets are keyed by object identity, like the meters.
         private final Map<Buff, LuaValue> cache = new IdentityHashMap<Buff, LuaValue>();
 
         public boolean interested(Widget w, String msg) {
@@ -330,24 +339,30 @@ final class CharApi {
             }
         }
 
-        public void poll() {
-            Set<Buff> active = new LinkedHashSet<Buff>(LuaBuff.actives());
-            for(Buff b : active) {                        // additions (unseen buffs)
-                if(!cache.containsKey(b)) {
-                    cache.put(b, LuaBuff.snapshot(b));
-                    fireBuff("BuffAdded", b);
-                }
-            }
-            for(Iterator<Map.Entry<Buff, LuaValue>> it = cache.entrySet().iterator(); it.hasNext();) {
-                Map.Entry<Buff, LuaValue> e = it.next();  // removals (gone or fading out)
-                if(!active.contains(e.getKey())) {
-                    // The widget is unlinked, not cleared: the payload still answers :res()/:name()/… and now
-                    // reports :exists() false. Fire BEFORE dropping the entry — the map holds nothing the
-                    // payload needs, but the order keeps "the buff the adapter just dropped" literal.
-                    fireBuff("BuffRemoved", e.getKey());
-                    it.remove();
-                }
-            }
+        public void placed(Widget w) {
+            if(!(w instanceof Buff))
+                return;
+            Buff b = (Buff)w;
+            if(cache.containsKey(b))
+                return;
+            // Seed the diff key with the buff's current snapshot AT add time (027.2, mirrored from
+            // MeterAdapter) -- there is no tick ordering to lean on here since placed/refresh are two
+            // different seams.
+            cache.put(b, LuaBuff.snapshot(b));
+            fireBuff("BuffAdded", b);
+        }
+
+        public void removed(Widget w) {
+            if(!(w instanceof Buff))
+                return;
+            Buff b = (Buff)w;
+            if(!cache.containsKey(b))
+                return;   // already announced at dest (the // addon: tap in Buff.reqdestroy) -- the late
+                          // unlink M1 fires 0.35s afterwards must not produce a second BuffRemoved (D-180)
+            // The widget is unlinked, not cleared: the payload still answers :res()/:name()/… and now
+            // reports :exists() false. Fire BEFORE dropping the entry (025.2).
+            fireBuff("BuffRemoved", b);
+            cache.remove(b);
         }
     }
 

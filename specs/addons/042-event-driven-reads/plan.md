@@ -237,13 +237,18 @@ implementer.** The highest existing decision is D-177 (041).
 | # | File | Change | Task |
 |---|---|---|---|
 | 1 | `src/haven/Widget.java` | **NEW SEAM** — `AddonManager.onWidgetRemoved(this)` as the last statement of `remove()` (:570) | 042.1 |
-| 2 | `src/haven/GameUI.java` | **NEW SEAM** — `AddonManager.onBeltSet(slot)` inside the two `glob.loader.defer` lambdas in the `setbelt`/`setbelt2` block (:1374-1415) | 042.6 |
-| 3 | `src/haven/Widget.java` | **NEW SEAM** — `AddonManager.onWidgetResized(this)` at the end of `resize(Coord)` (:1534), after the `Utils.eq` early return | 042.10 |
+| 2 | `src/haven/Buff.java` | **REUSED SEAM** — `AddonManager.onWidgetRemoved(this)` right after `dest = true` in `reqdestroy()` — a fade has no other addon-visible signal at the moment the server actually said "gone" (no `uimsg`, no other seam); the late M1 firing 0.35s afterwards, when the fade's `NormAnim` actually unlinks the widget, is then a no-op behind `BuffsAdapter`'s own cache-membership guard | 042.2 |
+| 3 | `src/haven/GameUI.java` | **NEW SEAM** — `AddonManager.onBeltSet(slot)` inside the two `glob.loader.defer` lambdas in the `setbelt`/`setbelt2` block (:1374-1415) | 042.6 |
+| 4 | `src/haven/Widget.java` | **NEW SEAM** — `AddonManager.onWidgetResized(this)` at the end of `resize(Coord)` (:1534), after the `Utils.eq` early return | 042.10 |
 | — | `src/haven/AddonWidgets.java` | any new package-private read a task needs (e.g. a meter/study membership predicate) — **never reflection**, per D-017 | as needed |
 
-**Exactly three core edits**, all one-line delegates into the hub, all tagged `// addon:`. Two of them
-are in the same file and the third is in `GameUI`. Everything else is addon-layer. The drag half of M4
-needs **no** edit at all — `Widget.listen` is a seam the engine already provides.
+**Four core edits, not the three originally budgeted here.** Three are one-line delegates into the hub
+(`Widget.remove`, `GameUI`'s belt lambdas, `Widget.resize`); 042.2 found a fourth was unavoidable —
+`Buff.reqdestroy` needed the SAME `AddonManager.onWidgetRemoved` hub method called from a second call
+site, since a fading widget's real "gone" moment (`dest = true`) precedes its tree removal by 0.35s with
+no other addon-visible seam in between. No new `AddonManager` method was added; it reuses M1's existing
+queue/drain. The drag half of M4 still needs **no** edit at all — `Widget.listen` is a seam the engine
+already provides.
 
 ### New
 

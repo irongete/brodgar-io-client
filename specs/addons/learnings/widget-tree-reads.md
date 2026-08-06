@@ -245,3 +245,15 @@
   resource name for lore, which has no token. The same window's `CredoGrid.pcr` is built by its own `pcr`
   uimsg as a **separate** `Credo` instance, so "the credo I am pursuing" is not `==` any member of `ccr`/`ncr`
   at the Java level either; resolving both through the token is what makes it one object in Lua.
+- **(042.2) A widget that FADES needs its own tap at the "gone" moment — the removal seam (M1) fires for it
+  too, but 0.35s late.** `Buff.reqdestroy()` (and `Window.reqdestroy()`, same shape) does not unlink: it sets
+  a protected `dest`/`animst="dest"` flag and starts an animation, so the widget is still a live tree child
+  for the whole fade. There is no `uimsg` at the moment the flag flips either — the server's widget-destroy is
+  a distinct wire command (`UI.DstWidget` → `UI.destroy(Widget)` → `removeid(wdg); wdg.reqdestroy();`), never
+  routed through `Widget.uimsg`. The fix that cost the least invasiveness: call the SAME
+  `AddonManager.onWidgetRemoved(Widget)` hub method M1 already uses, from a second call site right where the
+  fade flag is set, rather than inventing a new hub method/queue. The consuming adapter (not the seam) is what
+  makes this safe: guard `removed(w)` behind a cache-membership check, so M1's real (late) firing for the same
+  widget, 0.35s afterwards, is a no-op instead of a second event. **Any future adapter over a fading widget
+  needs both halves — the early tap AND the idempotency guard — or it either fires late (skip the tap) or
+  fires twice (skip the guard).**

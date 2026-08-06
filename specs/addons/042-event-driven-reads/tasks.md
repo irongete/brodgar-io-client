@@ -51,7 +51,7 @@
       one `MeterChanged` per real change and no repeats while the bar sits still.
       <!-- extra context: `src/haven/Widget.java` (:570 remove, :586 destroy, :594 cdestroy), `src/haven/Waitable.java`, `src/haven/Loading.java`, `src/haven/AddonWidgets.java` (hudMeters), `src/io/brodgar/addon/LuaMeter.java`, `src/io/brodgar/addon/Addon.java` (owned-resource registry) -->
 
-- [ ] **042.2 — buffs, and the fade that is not a removal.**
+- [x] **042.2 — buffs, and the fade that is not a removal.**
       `BuffsAdapter.poll()` ([CharApi.java:278](src/io/brodgar/addon/CharApi.java:278)) goes.
       `Bufflist` has **no `uimsg` override at all** ([Bufflist.java:77](src/haven/Bufflist.java:77)):
       add is `addchild`, so `BuffAdded` comes from the placement seam.
@@ -292,9 +292,10 @@
       `TreeAdapter` interface itself — **not** left as an unused `default {}`.
       **Sweep and report** (the close's own grep, in the report the maintainer reads): no `poll`-shaped
       per-frame work remains in the tick; all twelve rows of `spec.md`'s inventory are struck; **exactly
-      three** `// addon:` core edits were added (`Widget.remove`, `Widget.resize`, the two `GameUI`
-      deferred-belt lambdas) and no others; **D-178..D-182 are all recorded** and D-091 carries its
-      "superseded by D-181" line.
+      four** `// addon:` core edits were added (`Widget.remove`, `Buff.reqdestroy`, `Widget.resize`, the
+      two `GameUI` deferred-belt lambdas) and no others — the plan originally budgeted three; 042.2 found
+      a fourth was unavoidable (a fading widget's "gone" moment has no other addon-visible seam); **D-178..D-182
+      are all recorded** and D-091 carries its "superseded by D-181" line.
       **Measure with `hafen.prof` (019) and report the numbers**, before and after, taken on a real
       build — not estimated: the addon layer's per-frame cost (a) with no addon loaded, (b) with a
       subscriber to every event in the feature. The "before" figure is taken on the pre-042 build.

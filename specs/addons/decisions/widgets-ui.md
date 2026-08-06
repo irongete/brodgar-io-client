@@ -1162,3 +1162,27 @@ shape as `gobEvents`/`overlayEvents` (038.3). A widget that **fades** rather tha
 `Buff`, a `Window`) needs its own earlier "gone" signal instead of this seam — recorded separately when the
 task that needs it (042.2) closes.
 **See.** [D-106](architecture-api.md), [042-event-driven-reads](../042-event-driven-reads/spec.md).
+
+### D-180 — a thing that FADES announces its end when the server said so, not when the animation unlinks it ✅ (2026-08-06, 042.2)
+**Decision.** `Buff.reqdestroy()` carries a one-line `// addon:` core edit calling the SAME
+`AddonManager.onWidgetRemoved(Widget)` hub method D-179 established, placed immediately after
+`dest = true` — before the 0.35s `NormAnim` fade even starts, not after it ends. `BuffsAdapter.removed()`
+is guarded by a cache-membership check, so M1's real firing 0.35s later (when the fade's `NormAnim`
+finally calls `destroy()`) finds the buff already gone from the cache and is a no-op — one `BuffRemoved`
+per buff, never two.
+**Rationale.** `Buff.reqdestroy()` sets the protected `dest` flag and starts a fade instead of unlinking
+immediately, so the widget stays a live `Bufflist` child for the whole 0.35s (`Window.reqdestroy` does the
+same with `animst = "dest"`). Relying on M1 alone would report the removal 0.35s late — exactly the
+regression this task exists to prevent. There is no other addon-visible signal at the moment `dest` flips:
+the server's widget-destroy is a distinct wire command (`UI.DstWidget` → `UI.destroy(Widget)` →
+`removeid(wdg); wdg.reqdestroy();`), never routed through `Widget.uimsg`, so no `interested()`/`refresh()`
+tap can see it either.
+**Consequences.** **The plan's "three core edits total" (spec.md, `plan.md`) is now four** — this one
+was not anticipated when those were written, and 042.13's close checklist is amended to grep for four,
+not three. No new `AddonManager` method or queue was needed: this reuses M1's existing infrastructure
+from a second call site, so the "exactly one seam per removal path" shape D-179 established still holds
+in spirit — a fading widget just has TWO paths to that one seam (the fade's start, and its late unlink),
+made idempotent by the consuming adapter rather than by the seam itself. Any future adapter over a
+fading widget (`Window`, via `Window.reqdestroy`) needs the same two things: its own tap at the "gone"
+moment, and a cache-membership (or equivalent) guard against the late M1 firing.
+**See.** [D-179](#d-179), [042-event-driven-reads](../042-event-driven-reads/spec.md).
