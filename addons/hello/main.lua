@@ -800,12 +800,12 @@ local function readWidgets(tag)
   local inv, eq = hafen.ui():inventory(), hafen.ui():equipment()
   local byId = (inv and inv:id()) and hafen.ui():node(inv:id()) or nil
   local m = hafen.ui():mouse()
-  local at = m and hafen.ui():at(m.x, m.y) or nil
+  local at = m and hafen.ui():at(m:x(), m:y()) or nil
   hafen.log():write(("[%s] widget doors: root=%s inv=%s eq=%s at(mouse)=%s hand=%s | node(id)==inv=%s root()==root=%s at()==at=%s")
     :format(tag, tostring(root), tostring(inv), tostring(eq), tostring(at),
             tostring(hafen.ui():hand() and "item" or nil),
             tostring((inv ~= nil) and (byId == inv)), tostring(hafen.ui():root() == root),
-            tostring((at == nil) or (hafen.ui():at(m.x, m.y) == at))))
+            tostring((at == nil) or (hafen.ui():at(m:x(), m:y()) == at))))
   -- OWNED vs BORROWED. A throwaway widget of our own (destroyed at the end of this check) exercises the writes; the
   -- client's root exercises the two refusals. Provenance is DERIVED from the tree, never stored on the handle, so
   -- :info().owned is how you ASK instead of provoking the error -- and it is per-addon: the same root reads

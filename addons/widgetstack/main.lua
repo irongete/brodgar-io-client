@@ -5,7 +5,8 @@
 -- entirely in pure Lua over W1/W2.
 --
 -- W2 adds the two reads that find *what is under the cursor* -- the only pieces missing from W1's tree:
---   hafen.ui():mouse()   -> { x=, y= }   the cursor in root coords (public UI.mc), polled each frame
+--   hafen.ui():mouse()   -> the pointer entity: :x()/:y() the cursor in root coords (public UI.mc), polled
+--                         each frame; also :over()/:shift()/:ctrl()/:alt()/:grab() (unused here)
 --   hafen.ui():at(x, y)  -> the DEEPEST Widget object under that point, or nil. It mirrors the engine's own
 --                         pointer dispatch, so it resolves EXACTLY the widget a real click would hit --
 --                         correct under SCROLL offsets and non-rectangular hit areas (a naive rect test
@@ -271,8 +272,9 @@ end
 hafen.event():on("Update", function(dt)
   if frozen then return end                         -- held still: keep the last stack + box
   local m = hafen.ui():mouse()
-  if not m then return end                          -- no UI yet
-  local leaf = hafen.ui():at(m.x, m.y)                -- deepest widget under the cursor (or nil)
+  local mx, my = m:x(), m:y()
+  if not mx then return end                          -- no UI yet
+  local leaf = hafen.ui():at(mx, my)                  -- deepest widget under the cursor (or nil)
 
   -- GUARD: same widget as last frame? -> bail (skip the rebuild entirely). This is the whole point, and it
   -- is what keeps the selector panel affordable: without it every frame would cost a fistful of tree walks.

@@ -263,3 +263,19 @@
   thing" needs "which thing" answered explicitly), pick a representative case for automated coverage that
   is NOT the shape where the two happen to coincide — a check against `hafen.ui():widget()` alone cannot
   distinguish "keyed correctly" from "keyed on the wrong object that happens to equal the right one here".
+- **`:reload`'s teardown of the PERSISTENT console REPL owner is a hand-maintained list, not a walk of the
+  standard `teardown(a)` path — a new owned-resource type must be added to it explicitly (041.5, found in
+  the maintainer's own manual check).** Every real addon in `AddonManager.addons` goes through
+  `AddonRegistry.teardown(a)` on `:reload`, which already calls every owned-resource sweep including
+  `LuaGrab.teardownGrabs`. `AddonManager.consoleOwner` (the `:lua` REPL) is not in that list — it survives a
+  reload by design (spec 05/031.1) — so `AddonRegistry.reload()` tears it down through its OWN short,
+  hand-picked sequence of calls (`LuaSound.teardownSounds`, `LuaGOut.teardownTexts`, `UiApi.teardownHidden`,
+  `UiApi.teardownMoved`, `MapApi.teardownOverlays`, `MapImages.teardown`, one per feature that ever gave the
+  REPL an owned resource). Mouse grabs (V5) predate that list and were never added to it, so a grab started
+  with a bare `:lua hafen.ui():mouse():grab()` and never released stayed captured **forever** — surviving
+  `:reload` — with no symptom beyond "the mouse wheel/clicks stopped doing anything," which is silent and
+  easy to blame on something else. Confirmed live: wheel-zoom stayed blocked after `:reload` until
+  `LuaGrab.teardownGrabs(AddonManager.consoleOwner)` was added to the list. **The lesson for the next owned
+  resource an addon (or the REPL) can create**: `owner.mouseGrabs`/similar lists being covered by the
+  standard `teardown(a)` path is not enough — check whether `AddonRegistry.reload()`'s console-specific list
+  also needs the new sweep, and prove it by testing the REPL path specifically, not just a real addon's.

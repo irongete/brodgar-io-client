@@ -17,7 +17,7 @@
 --
 -- HOW YOU DRAG IT. Press a handle -> the gizmo consumes that mousedown (mapview:on("MouseDown", fn) +
 -- ev:preventDefault, so the map neither clicks nor pans nor V2-selects) and starts a mouse GRAB
--- (hafen.hook():grab -- the camera stays put).
+-- (hafen.ui():mouse():grab() -- the camera stays put).
 -- MOVE/ROTATE raycast the ground under the cursor each move (hafen.world():screenToWorld, async + coalesced) so they
 -- work in true WORLD space (snapping identical to placing a building, D-033); SCALE is pure screen math (drag
 -- distance from the centre). Release to drop. The handles re-project every frame, so they track the ghost + camera.
@@ -296,10 +296,11 @@ local function startDrag(self, kind, mx, my)
     d.startDist = math.max(math.sqrt((dx * dx) + (dy * dy)), 8)   -- reference distance (no jump at grab)
   end
   self.drag = d
-  d.grab = hafen.hook():grab{
-    move = function(mmx, mmy, mods)
+  d.grab = hafen.ui():mouse():grab()
+  d.grab:on("Move", function(ev)
+      local mmx, mmy = ev:x(), ev:y()
       if self.drag ~= d then return end
-      local fine = mods.shift                          -- SHIFT = the fine :placegrid / :placeangle (D-033)
+      local fine = ev:shift()                          -- SHIFT = the fine :placegrid / :placeangle (D-033)
       if kind == "scale" then
         local geom = computeGeom(self)
         if not geom then return end
@@ -339,9 +340,8 @@ local function startDrag(self, kind, mx, my)
         end
         fireChange(self)
       end)
-    end,
-    up = function() endDrag(self) end,
-  }
+  end)
+  d.grab:on("Up", function() endDrag(self) end)
 end
 
 -- ---- teardown ----------------------------------------------------------------------------------------------

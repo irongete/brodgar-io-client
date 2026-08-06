@@ -136,7 +136,7 @@ public final class AddonRegistry {
                                                 //   the sprites that sampled it), then meshes (the shared base-colour TexIs;
                                                 //   AFTER the objects above, R3b), then the intern cache itself. Fonts own
                                                 //   nothing releasable; FontApi.teardownFonts below reverts their overrides.
-        HookApi.teardownMouseGrabs(a);// V5: release any active mouse-drag grab (drops the UI.Grab + unlinks the widget)
+        LuaGrab.teardownGrabs(a);     // 041.5: release any active mouse-drag grab (drops the UI.Grab + unlinks the widget)
         HttpApi.teardownRequests(a);  // N2a: cancel in-flight HTTP requests (result discarded on drain; no callback)
         FontApi.teardownFonts(a);     // 033.1: drop this addon's STYLESHEET (hafen.ui():sheet()) and its per-widget
                                       //   widget:setFont overrides in one sweep (bumps gen -> stock foundry restored)
@@ -226,6 +226,10 @@ public final class AddonRegistry {
                                                              //   the escape hatch for a REPL line that took one
         MapImages.teardown(AddonManager.consoleOwner);       // 037.4: ...nor the map drawings it rendered (each is a
                                                              //   GL texture; the REPL owner has no other teardown)
+        LuaGrab.teardownGrabs(AddonManager.consoleOwner);    // 041.5: ...nor a mouse grab a REPL line started and never
+                                                             //   released — without this the pointer stays captured
+                                                             //   (no camera pan, no clicks) until :release() is called
+                                                             //   by hand, :reload's escape hatch not included
         loadAll();                                   // re-scan disk + enabled set; re-run; fire Load
         if(gui() != null) {                          // already in-world → re-init as a fresh login
             StoreApi.restorePerChar();                        // reload per-char saved vars (charScope still valid)

@@ -258,8 +258,11 @@ final class UiApi {
             }
         });
         // hafen.ui():mouse() / :at(x,y) — W2 hit-testing, the WoW /framestack enabler (spec 20 §W2, D-042).
-        // mouse() = {x=,y=} the cursor in root coords (public UI.mc); at(x,y) = the DEEPEST Widget object under that
-        // root-coord point, or nil. at() MIRRORS the engine's own pointer dispatch (PointerEvent.propagation): it
+        // mouse() is the POINTER ENTITY (041.5, LuaMouse) — :x()/:y() the cursor in root coords (public UI.mc),
+        // :over() the deepest Widget under it, :shift()/:ctrl()/:alt() the live modifiers, :grab() a modal drag
+        // capture — a per-addon singleton like hafen.player(), not a {x=,y=} table any more. at(x,y) = the
+        // DEEPEST Widget object under an ARBITRARY root-coord point, or nil (not absorbed into the mouse: it
+        // takes any point). at() MIRRORS the engine's own pointer dispatch (PointerEvent.propagation): it
         // walks children topmost-first, skips !visible(), descends by xlate (so SCROLL offsets are honoured) +
         // rect-intersect, and honours checkhit at the leaf (non-rectangular hit areas) — so it resolves EXACTLY the
         // widget a real click would hit (a naive pos..pos+size rect test is wrong under scroll / custom hit shapes).
@@ -268,7 +271,7 @@ final class UiApi {
         m.set("mouse", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "ui", "mouse");
-                return nodeMouse();
+                return LuaMouse.of(owner);
             }
         });
         // :inventory() / :equipment() / :hand() — 029.3, what replaced the hafen.items section (hard cut).
@@ -1434,18 +1437,6 @@ final class UiApi {
         if(w == null)
             return LuaValue.NIL;
         return LuaWidget.of(owner, w);
-    }
-
-    /**
-     * {@code hafen.ui.mouse()} — the cursor position in root coords as {@code {x=,y=}} (spec 20, W2), read from the
-     * public {@link UI#mc}. Returns {@code nil} if there is no UI yet. Zero-cost — the engine keeps {@code mc}
-     * updated each pointer move; the {@code widgetstack} addon polls this on {@code Update} for hover.
-     */
-    private static LuaValue nodeMouse() {
-        UI u = ui;
-        if((u == null) || (u.mc == null))
-            return LuaValue.NIL;
-        return LuaWidget.xyTable(u.mc);
     }
 
     /**

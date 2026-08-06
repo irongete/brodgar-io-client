@@ -67,7 +67,11 @@ public final class LuaEvent {
         /** {@code w:on("Drop", fn)} — a "thing" dropped on an own widget (041.4): three things to say, cancelable. */
         DROP("drop", "a drop event answers :x() :y() :thing() :preventDefault()"),
         /** {@code slider:on("Changed", fn)} — a slider's drag step (041.4): two things to say, uncancelable. */
-        SLIDER("slider", "a slider's Changed event answers :value() :final()");
+        SLIDER("slider", "a slider's Changed event answers :value() :final()"),
+        /** {@code g:on("Move", fn)} — a mouse grab's drag step (041.5): the pointer plus the live modifiers. */
+        GRAB_MOVE("grabmove", "a grab's Move event answers :x() :y() :shift() :ctrl() :alt()"),
+        /** {@code g:on("Up", fn)} — a mouse grab's release (041.5): {@code GRAB_MOVE} plus which button ended it. */
+        GRAB_UP("grabup", "a grab's Up event answers :x() :y() :shift() :ctrl() :alt() :button()");
 
         /** The shape's name, for {@code tostring(ev)}. */
         final String label;
@@ -102,6 +106,8 @@ public final class LuaEvent {
      * only some of, so a shape that does not apply reads {@code nil} rather than throwing (EXAMPLES §1.1). */
     private final int x, y;
     private final Integer button, amount;
+    /** GRAB_MOVE/GRAB_UP: the live modifier keys ({@code UI.modflags()} bits) at the moment of the fire. */
+    private final int mods;
     /** DRAW/CELL: the bound {@code g} wrapper table (already inert once its own bind cycle ends). */
     private final LuaValue g;
     /** CELL: the row being painted. DROP: the neutral drop descriptor. Otherwise {@code null}. */
@@ -116,24 +122,30 @@ public final class LuaEvent {
 
     private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, String msg, Widget wdg, Object[] args,
                      UI ui, Object[][] rewritten) {
-        this(owner, shape, cancel, msg, wdg, args, ui, rewritten, 0, 0, null, null, null, null, false);
+        this(owner, shape, cancel, msg, wdg, args, ui, rewritten, 0, 0, null, null, null, null, false, 0);
     }
 
     /** INPUT shape: no sender/target/args, just the pointer coordinates and (maybe) a button or wheel amount. */
     private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, String key, int x, int y, Integer button,
                      Integer amount) {
-        this(owner, shape, cancel, key, null, null, null, null, x, y, button, amount, null, null, false);
+        this(owner, shape, cancel, key, null, null, null, null, x, y, button, amount, null, null, false, 0);
     }
 
     /** DRAW/CELL/DROP/SLIDER (041.4): no message, no sender/args — a small, shape-specific payload instead. */
     private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, int x, int y, LuaValue g, LuaValue extra,
                      boolean flag) {
-        this(owner, shape, cancel, null, null, null, null, null, x, y, null, null, g, extra, flag);
+        this(owner, shape, cancel, null, null, null, null, null, x, y, null, null, g, extra, flag, 0);
+    }
+
+    /** GRAB_MOVE/GRAB_UP (041.5): no message/sender/args/cancel — the pointer, the live modifiers, and (UP
+     * only) which button ended the drag. Not cancelable, like DRAW/CELL/TICK. */
+    private LuaEvent(Addon owner, Shape shape, int x, int y, int mods, Integer button) {
+        this(owner, shape, null, null, null, null, null, null, x, y, button, null, null, null, false, mods);
     }
 
     private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, String msg, Widget wdg, Object[] args,
                      UI ui, Object[][] rewritten, int x, int y, Integer button, Integer amount, LuaValue g,
-                     LuaValue extra, boolean flag) {
+                     LuaValue extra, boolean flag, int mods) {
         this.owner = owner;
         this.shape = shape;
         this.cancel = cancel;
@@ -149,6 +161,7 @@ public final class LuaEvent {
         this.g = g;
         this.extra = extra;
         this.flag = flag;
+        this.mods = mods;
     }
 
     /** {@code tostring(ev)} → {@code Event(action:click)}, or {@code Event(draw)} for a shape with no message. */
@@ -212,6 +225,17 @@ public final class LuaEvent {
         return of(new LuaEvent(owner, Shape.SLIDER, null, value, 0, null, null, fin));
     }
 
+    /** The {@code ev} for one grab {@code Move} fire ({@code g:on("Move", fn)}, 041.5). */
+    static LuaValue grabMove(Addon owner, int x, int y, int mods) {
+        return of(new LuaEvent(owner, Shape.GRAB_MOVE, x, y, mods, null));
+    }
+
+    /** The {@code ev} for one grab {@code Up} fire ({@code g:on("Up", fn)}, 041.5) — {@code button} is which
+     * one ended the drag, exactly as an input key's {@code :button()} does. */
+    static LuaValue grabUp(Addon owner, int x, int y, int mods, int button) {
+        return of(new LuaEvent(owner, Shape.GRAB_UP, x, y, mods, Integer.valueOf(button)));
+    }
+
     private static LuaValue of(LuaEvent ev) {
         return LuaValue.userdataOf(ev, meta(ev.owner, ev.shape));
     }
@@ -267,6 +291,10 @@ public final class LuaEvent {
             drop(m);
         } else if(shape == Shape.SLIDER) {
             slider(m);
+        } else if(shape == Shape.GRAB_MOVE) {
+            grabMove(m);
+        } else if(shape == Shape.GRAB_UP) {
+            grabUp(m);
         } else {
             common(m, shape);
             if(shape == Shape.ACTION)
@@ -438,6 +466,56 @@ public final class LuaEvent {
         m.set("final", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 return LuaValue.valueOf(self(a.arg1(), Shape.SLIDER, "final").flag);
+            }
+        });
+    }
+
+    /**
+     * Shared by both grab shapes (041.5, spec §2.2): the pointer coordinates (window pixels, since a grab has
+     * no single owning widget to be local to) and the three live modifier keys — the same flat booleans
+     * {@code hafen.ui():mouse()} itself answers, read off the {@code mods} bits captured at fire time rather
+     * than polled again (a handler must see what was true at the moment of the move, not now).
+     */
+    private static void grabCommon(LuaTable m, final Shape shape) {
+        m.set("x", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), shape, "x").x);
+            }
+        });
+        m.set("y", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), shape, "y").y);
+            }
+        });
+        m.set("shift", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf((self(a.arg1(), shape, "shift").mods & UI.MOD_SHIFT) != 0);
+            }
+        });
+        m.set("ctrl", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf((self(a.arg1(), shape, "ctrl").mods & UI.MOD_CTRL) != 0);
+            }
+        });
+        m.set("alt", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf((self(a.arg1(), shape, "alt").mods & UI.MOD_META) != 0);
+            }
+        });
+    }
+
+    /** {@code g:on("Move", fn)} (041.5): the pointer and the live modifiers, nothing to cancel. */
+    private static void grabMove(LuaTable m) {
+        grabCommon(m, Shape.GRAB_MOVE);
+    }
+
+    /** {@code g:on("Up", fn)} (041.5): {@link #grabCommon} plus {@code :button()} — which one ended the drag. */
+    private static void grabUp(LuaTable m) {
+        grabCommon(m, Shape.GRAB_UP);
+        m.set("button", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Integer b = self(a.arg1(), Shape.GRAB_UP, "button").button;
+                return (b == null) ? LuaValue.NIL : LuaValue.valueOf(b.intValue());
             }
         });
     }

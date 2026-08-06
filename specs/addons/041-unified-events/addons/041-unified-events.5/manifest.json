@@ -1,0 +1,9 @@
+{
+  "name": "041.5 — The mouse entity, the grab, and the end of hafen.hook()",
+  "id": "041-unified-events.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 041.5: hafen.ui():mouse() becomes the pointer entity (:x() :y() :over() :shift() :ctrl() :alt() :grab()), hafen.ui():mouse():grab() hands back an emitter (:on(\"Move\"/\"Up\", fn), :release()) over the same Subs mechanism as everything else, and hafen.hook() is deleted outright. Run ':t041-5' and follow the one [manual] line: hold a grab and drag across the map.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

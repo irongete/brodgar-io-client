@@ -1623,8 +1623,9 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
         // from hafen.asset (028.1 — .image/.model are cut and read as nil).
         RenderApi.installRender(hafen, owner);
 
-        // hafen.hook (L1 input / L2 action / L3 message / V5 grab) + hafen.slash (WoW-style :name console
-        // commands) — the interception + input tables. Global hotkeys live under hafen.client:options():keybindings().
+        // hafen.slash (WoW-style :name console commands) — L1 input, L2 action, L3 message and V5 grab have all
+        // moved off hafen.hook() onto widgets/the bus/the mouse entity, and hook() itself is deleted (041.5).
+        // Global hotkeys live under hafen.client:options():keybindings().
         HookApi.install(hafen, owner);
 
         // hafen.client() — the client's own settings (spec 018). hafen.client():options() hands back the five
@@ -2346,15 +2347,7 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
     }
 
 
-    // ------------------------------------------------------------- shared hub utilities (mods + keybind panel)
-    /** A {@code {shift,ctrl,alt}} table from {@code UI.modflags()} bits — handed to the grab callbacks (no Lua bit ops). */
-    static LuaTable modsTable(int mf) {
-        LuaTable t = new LuaTable();
-        t.set("shift", LuaValue.valueOf((mf & UI.MOD_SHIFT) != 0));
-        t.set("ctrl",  LuaValue.valueOf((mf & UI.MOD_CTRL) != 0));
-        t.set("alt",   LuaValue.valueOf((mf & UI.MOD_META) != 0));   // MOD_META = Alt in this client (UI.setmods)
-        return t;
-    }
+    // ------------------------------------------------------------- shared hub utilities (keybind panel)
 
     /**
      * One addon's registered hotkeys, for the client keybind panel (Phase 2e-3, WoW-style). Immutable; built by

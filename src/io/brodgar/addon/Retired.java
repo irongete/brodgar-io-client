@@ -94,35 +94,16 @@ final class Retired {
         section("time", "clock", "dayFraction", "isNight", "season", "moon", "yearFraction");
         section("slash", "register");
         section("json", "parse", "encode");
-        section("hook", "grab");
         section("timer", "after", "every");
 
-        // ---- 041.2: the two message streams leave hafen.hook() for the bus, which is where a notification --
-        // ---- with no object to hang off belongs. Two spellings each: the dotted 039 form (a field read on the
-        // ---- section's callable table) and the colon form (a verb the section no longer has, consulted by
-        // ---- Section's own __index) -- so both the pre-039 and the post-039 call site is told the same thing.
-        put("hafen.hook.action", "hafen.hook():action(msg, fn) is now hafen.event():action():on(msg, fn), and"
-            + " what it hands back is a Sub: sub:off() ends it, where the hook handle said :remove(). The ev"
-            + " is an object with verbs now -- ev:msg() ev:sender() ev:args() -- and ev:sender() is the"
-            + " WIDGET, so ev:sender():type() is the class name the field used to be");
-        put("hafen.hook.message", "hafen.hook():message(msg, fn) is now hafen.event():message():on(msg, fn),"
-            + " and what it hands back is a Sub: sub:off() ends it, where the hook handle said :remove(). The"
-            + " ev is an object with verbs now -- ev:msg() ev:target() ev:args() -- and ev:target() is the"
-            + " WIDGET, so ev:target():type() is the class name the field used to be");
-        put("hafen.hook():action", message("hafen.hook.action"));
-        put("hafen.hook():message", message("hafen.hook.message"));
-
-        // ---- 041.3: input leaves hafen.hook() for the widget it is ABOUT -- the three magic tokens ----------
-        // ("mapview"/"gameui"/"root") were an API limit, not an engine one (Widget.listen/deafen are Widget
-        // methods), so the replacement reaches every widget, found or built, not just three. Same two-spelling
-        // shape as action/message above: the pre-039 dotted form and the colon verb the section no longer has.
-        put("hafen.hook.input", "hafen.hook():input(target, event, fn) is now handle:on(key, fn) — on ANY"
-            + " widget, not just \"mapview\"/\"gameui\"/\"root\": key is MouseDown/MouseUp/MouseMove/Wheel"
-            + " (mousedown/mouseup/mousemove/mousewheel PascalCased), and what it hands back is a Sub:"
-            + " sub:off() ends it, where the hook handle said :remove(). The ev is an object with verbs —"
-            + " ev:x() ev:y() ev:button() ev:amount() ev:preventDefault() — replacing the table this used"
-            + " to hand a Lua handler");
-        put("hafen.hook():input", message("hafen.hook.input"));
+        // ---- 041.5: hafen.hook() is DELETED as a whole -- input (041.3) and the two message streams (041.2)
+        // ---- had already left it for widgets/the bus, and grab was its last remaining verb, so a section with
+        // ---- nothing left in it is not kept around as an empty shell. hafen.hook is a SECTION name, so this is
+        // ---- one row on the hafen table's own __index (hafenIndex()), not a per-verb row on a callable table
+        // ---- that no longer exists -- reading hafen.hook (bare, or on the way to hafen.hook():anything) throws
+        // ---- here before any dotted/colon sub-spelling is ever reached.
+        put("hafen.hook", "hafen.hook is gone — the drag capture is now hafen.ui():mouse():grab(), slash"
+            + " commands are hafen.slash(), and hotkeys are hafen.client():options():keybindings()");
 
         // http keeps its verb names but loses its options table, so the message says both halves.
         put("hafen.http.get", "hafen.http.get(url, opts, cb) is now hafen.http():get(url, cb) — opts.headers"

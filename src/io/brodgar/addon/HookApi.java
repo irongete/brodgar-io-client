@@ -22,10 +22,9 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 /**
- * The interception + input subsystem. Owns the three ways an addon reaches into client behaviour beyond the
- * read API that are not a widget's own {@code :on(key, fn)} (041.3 moved input there):
+ * The interception subsystem. Owns the two ways an addon reaches into client behaviour beyond the read API
+ * that are not a widget's own {@code :on(key, fn)} or the bus's (everything else moved off, see below):
  * <ul>
- *   <li><b>mouse grab</b> ({@code hafen.hook():grab}) — a modal drag capture (V5, the gizmo primitive);</li>
  *   <li><b>slash commands</b> ({@code hafen.slash}) — WoW-style {@code :name} console commands (A11);</li>
  *   <li><b>global hotkeys</b> ({@code hafen.client:options():keybindings()}) — remappable keys over the
  *       {@link KeyBinding} registry ({@link #dispatchKey}); the Lua surface is {@link KeybindingsOptions}.</li>
@@ -37,8 +36,11 @@ import org.luaj.vm2.lib.ZeroArgFunction;
  * {@link AddonManager#dispatchAction}/{@link AddonManager#dispatchMessage}. The L1 input hooks left in 041.3:
  * {@code hafen.hook():input(target, ev, fn)} — three magic string tokens, an API limit rather than an engine
  * one — is now {@code handle:on("MouseDown"/"MouseUp"/"MouseMove"/"Wheel", fn)} on any widget, over
- * {@link WidgetSubs}. Both moved because a subscription belongs where its address is (spec {@code 041} §R2):
- * a {@code "click"} or a {@code MouseDown} has no fixed home three tokens could enumerate.
+ * {@link WidgetSubs}. The V5 mouse grab left in 041.5: {@code hafen.hook():grab{move=, up=}} is now
+ * {@code hafen.ui():mouse():grab()}, an emitter ({@link LuaGrab}) over {@link LuaMouseGrab}'s own {@link Subs}
+ * — {@code hafen.hook()} itself is deleted, since grab was its last remaining verb. All three moved because a
+ * subscription belongs where its address is (spec {@code 041} §R2): a {@code "click"}, a {@code MouseDown} or
+ * the pointer itself has no fixed home a table of magic tokens or config keys could enumerate.
  *
  * <p>The engine seams stay in {@link AddonManager} (the {@code haven} core calls them by name —
  * {@code onWdgmsg}/{@code onMessage}/{@code onGlobKey}); the keybind <i>panel</i> API
@@ -87,26 +89,12 @@ final class HookApi {
     }
 
     /**
-     * Build {@code hafen.hook} / {@code hafen.slash} for {@code owner}. From {@code installHafen}. Both are
-     * plain section objects: the section is called and every verb is a colon call on it, so the receiver is
-     * argument 1 and a hook's own arguments start at 2.
+     * Build {@code hafen.slash} for {@code owner}. From {@code installHafen}. {@code hafen.hook} is not
+     * mounted at all any more (041.5): input, action, message and grab have all moved elsewhere, and a section
+     * with nothing left in it is not kept around as an empty shell — reading {@code hafen.hook} throws
+     * naming where each half went ({@link Retired}).
      */
     static void install(LuaTable hafen, final Addon owner) {
-        LuaTable hook = new LuaTable();
-        // input(target, event, fn) is GONE (041.3): input is a widget's own :on(key, fn) now — any widget, not
-        // just the three tokens this used to accept. Both spellings are rows in Retired.
-        // action(msg, fn) and message(msg, fn) are GONE (041.2): the two message streams are doors of the bus
-        // now, hafen.event():action():on(msg, fn) and hafen.event():message():on(msg, fn). Both spellings are
-        // rows in Retired, so the old call throws naming its replacement rather than reading nil.
-        // grab{move=fn, up=fn} — take the mouse for a modal drag.
-        hook.set("grab", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "hook", "grab");
-                return newMouseGrab(owner, a.arg(2));
-            }
-        });
-        Section.install(hafen, "hook", hook);
-
         LuaTable slash = new LuaTable();
         // register(name, fn) — route the console command :name to fn(args).
         slash.set("register", new VarArgFunction() {
@@ -140,41 +128,6 @@ final class HookApi {
             return (u == null) ? null : u.root;
         }
         return null;
-    }
-
-    // ================================================================= mouse grab (hafen.hook():grab, V5)
-
-    /**
-     * {@code hafen.hook():grab{move=fn, up=fn}} (V5) — start a modal mouse-drag capture: a {@link LuaMouseGrab} widget
-     * on {@code ui.root} that forwards mouse move/up to Lua while the grab captures the drag (so the MapView neither
-     * pans nor clicks). Returns a handle {@code { :release() }}; bridge-owned for teardown. Nil if the UI is not up.
-     */
-    private static LuaValue newMouseGrab(final Addon owner, LuaValue handlers) {
-        if(!handlers.istable())
-            throw new LuaError("hafen.hook():grab{move=fn, up=fn} expects a handlers table");
-        UI u = AddonManager.ui;
-        if((u == null) || (u.root == null))
-            return LuaValue.NIL;                        // no UI yet
-        LuaValue mv = handlers.get("move"), up = handlers.get("up");
-        final LuaMouseGrab g = new LuaMouseGrab(owner, mv.isfunction() ? mv : null, up.isfunction() ? up : null);
-        owner.mouseGrabs.add(g);
-        u.root.add(g);                                  // add() synchronizes on ui; visible -> receives broadcast moves
-        g.arm(u);                                       // ui.grabmouse(this) — capture the terminating up wherever it lands
-        LuaTable handle = new LuaTable();
-        handle.set("release", new ZeroArgFunction() {
-            public LuaValue call() {
-                g.release();
-                return LuaValue.NIL;
-            }
-        });
-        return handle;
-    }
-
-    /** Release every active mouse grab this addon owns (teardown on reload/disable, P2). */
-    static void teardownMouseGrabs(Addon a) {
-        for(LuaMouseGrab g : a.mouseGrabs)
-            g.release();               // drops the UI.Grab + marks dead; the widget unlinks on its next (or the last) tick
-        a.mouseGrabs.clear();
     }
 
     // ================================================================= slash commands (hafen.slash, A11)

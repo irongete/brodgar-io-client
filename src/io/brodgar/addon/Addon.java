@@ -242,11 +242,12 @@ public final class Addon {
      */
     public final List<LuaObject> objects = new CopyOnWriteArrayList<LuaObject>();
     /**
-     * Live modal mouse-drag captures owned by this addon ({@code hafen.hook():grab}, V5): each is a
-     * {@link LuaMouseGrab} widget on {@code ui.root} that forwards mouse move/up to Lua while capturing the drag
-     * (the gizmo's drag primitive). Normally transient (one per active drag) and self-releasing on mouse-up;
-     * teardown ({@link HookApi#teardownMouseGrabs}) releases any still-active grab so a {@code :reload}/disable
-     * mid-drag drops the {@code UI.Grab} and unlinks the widget, leaking nothing. Copy-on-write: releasing removes.
+     * Live modal mouse-drag captures owned by this addon ({@code hafen.ui():mouse():grab()}, 041.5 — before,
+     * {@code hafen.hook():grab}): each is a {@link LuaMouseGrab} widget on {@code ui.root} that forwards mouse
+     * move/up to Lua over its own {@link Subs} while capturing the drag (the gizmo's drag primitive). Normally
+     * transient (one per active drag) and self-releasing on mouse-up; teardown ({@link LuaGrab#teardownGrabs})
+     * releases any still-active grab so a {@code :reload}/disable mid-drag drops the {@code UI.Grab} and
+     * unlinks the widget, leaking nothing. Copy-on-write: releasing removes.
      */
     public final List<LuaMouseGrab> mouseGrabs = new CopyOnWriteArrayList<LuaMouseGrab>();
     /**
@@ -313,6 +314,14 @@ public final class Addon {
      * there is nothing to tear down.
      */
     LuaValue subMeta;
+
+    /**
+     * This addon's <b>Grab metatable</b> ({@link LuaGrab}) — {@code hafen.ui():mouse():grab()}'s handle,
+     * built once on the first grab. Per addon for the same reason every metatable here is (D-017). A grab
+     * holds a reference to its {@link LuaMouseGrab} widget, torn down through {@link #mouseGrabs} rather
+     * than here.
+     */
+    LuaValue grabMeta;
 
     /**
      * This addon's <b>event-object metatables</b> ({@link LuaEvent}), one per shape, each built on the first
@@ -574,6 +583,14 @@ public final class Addon {
      * for the same reason as {@link #gobs}.
      */
     LuaValue playerObj;
+
+    /**
+     * The single {@code hafen.ui():mouse()} object for this addon ({@link LuaMouse}, 041.5) — the pointer
+     * entity, built lazily and cached so {@code hafen.ui():mouse() == hafen.ui():mouse()}, the same singleton
+     * shape as {@link #playerObj}. Holds no engine resource itself (its verbs read live UI state on every
+     * call), so there is nothing to tear down.
+     */
+    LuaValue mouseObj;
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per

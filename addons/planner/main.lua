@@ -31,7 +31,7 @@
 -- V5 (grab / move): ":planner grab" starts a drag of the SELECTED ghost. The engine's own placement primitives are
 -- reused so it feels IDENTICAL to placing a building: each mouse move raycasts the ground under the cursor
 -- (hafen.world():screenToWorld) and snaps it to the client's :placegrid (hafen.world():snapPlace) -- tile centre by default,
--- SHIFT = the fine sub-tile grid (D-033). The mouse is captured (hafen.hook():grab) so the CAMERA STAYS PUT while you
+-- SHIFT = the fine sub-tile grid (D-033). The mouse is captured (hafen.ui():mouse():grab()) so the CAMERA STAYS PUT while you
 -- drag; a CLICK drops it (re-anchored to the new grid + persisted). This is the "drag the body" move-mode.
 --
 -- V5b (gizmo / "by its arrows"): ":planner gizmo" attaches a Unity-style TRANSFORM GIZMO (gizmo.lua, a bundled Lua
@@ -452,24 +452,23 @@ hafen.slash():register("planner", function(args)
     detachGizmo()                                           -- V5b: the body-grab and the gizmo are mutually exclusive
     local it = selected
     drag = { it = it, pending = false }
-    drag.grab = hafen.hook():grab{
-      -- Each mouse move: raycast the ground under the cursor (async) -> snap to the placegrid -> move the ghost.
-      -- `pending` coalesces so at most one raycast is in flight (one per frame, like the client's own placement).
-      move = function(sx, sy, mods)
-        if not drag or drag.pending then return end
-        drag.pending = true
-        local fine = mods.shift                            -- SHIFT = the fine sub-tile placegrid (D-033)
-        hafen.world():screenToWorld(sx, sy, function(w)
-          if not drag then return end                      -- released mid-flight
-          drag.pending = false
-          if not w then return end                         -- cursor hit no terrain (sky/off-map)
-          local s = hafen.world():snapPlace(w, fine)       -- a Position in, a Position out
-          if it.entity then it.entity:position(s, it.a) end   -- keep facing; the Position is already snapped
-        end)
-      end,
-      -- Mouse-up (the click that drops it): commit + persist + release.
-      up = function() commitDrag() end,
-    }
+    drag.grab = hafen.ui():mouse():grab()
+    -- Each mouse move: raycast the ground under the cursor (async) -> snap to the placegrid -> move the ghost.
+    -- `pending` coalesces so at most one raycast is in flight (one per frame, like the client's own placement).
+    drag.grab:on("Move", function(ev)
+      if not drag or drag.pending then return end
+      drag.pending = true
+      local fine = ev:shift()                            -- SHIFT = the fine sub-tile placegrid (D-033)
+      hafen.world():screenToWorld(ev:x(), ev:y(), function(w)
+        if not drag then return end                      -- released mid-flight
+        drag.pending = false
+        if not w then return end                         -- cursor hit no terrain (sky/off-map)
+        local s = hafen.world():snapPlace(w, fine)       -- a Position in, a Position out
+        if it.entity then it.entity:position(s, it.a) end   -- keep facing; the Position is already snapped
+      end)
+    end)
+    -- Mouse-up (the click that drops it): commit + persist + release.
+    drag.grab:on("Up", function() commitDrag() end)
     hafen.log():write((":planner grab -> moving #%d: cursor drags it (placegrid=%s, SHIFT=fine); CLICK to drop. Camera stays put.")
       :format(indexOf(it), tostring(hafen.client():options():interface():posGran())))
 

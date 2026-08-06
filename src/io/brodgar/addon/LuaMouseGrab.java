@@ -4,13 +4,18 @@ import haven.Coord;
 import haven.UI;
 import haven.Widget;
 
-import org.luaj.vm2.LuaValue;
-
 /**
- * A <b>modal mouse-drag capture</b> (spec {@code 16-virtual-entities.md} §2/§4, the "grab helper") — the Java
- * half of {@code hafen.hook():grab{move=fn, up=fn}}, V5. It is the drag primitive the ghost gizmo (and any addon
- * that needs a press-drag-release loop) builds on: while a grab is active, mouse <b>move</b> and <b>up</b> are
- * forwarded to Lua and the map view neither pans nor clicks.
+ * A <b>modal mouse-drag capture</b> (spec {@code 041-unified-events} §2.2, the "grab helper") — the Java half
+ * of {@code hafen.ui():mouse():grab()}. It is the drag primitive the ghost gizmo (and any addon that needs a
+ * press-drag-release loop) builds on: while a grab is active, mouse <b>move</b> and <b>up</b> are forwarded to
+ * Lua and the map view neither pans nor clicks.
+ *
+ * <p><b>Its Lua surface moved to {@link LuaGrab} (041.5).</b> Before, this widget held two bare {@code LuaValue}
+ * callbacks and called {@link AddonManager#callLua} directly; now it owns a {@link Subs} — "Move"/"Up" — the
+ * same mechanism every other emitter in the API fires through, charged to {@link Addon#C_HOOK} (grab is what
+ * {@code hooks} has left once input/action/message all moved elsewhere, spec {@code plan.md}
+ * "Profiling attribution"). {@link LuaGrab} is the userdata handle Lua holds and subscribes on; this class
+ * never talks to Lua directly.
  *
  * <p><b>Why a widget.</b> Two engine facts shape this (both verified in the event system): a
  * {@link haven.Widget.MouseMoveEvent} is <b>broadcast to every visible widget</b> ({@code MouseMoveEvent.propagation}
@@ -23,28 +28,29 @@ import org.luaj.vm2.LuaValue;
  * "camera stays put" half of the V5 DoD), zero extra core edit.
  *
  * <p><b>Threading.</b> Input dispatch runs on the frame thread under {@code synchronized(ui)}
- * ({@code UILoop.Frame.tick}), so the Lua callbacks go straight through {@link AddonManager#callLua} — like the
- * 2c input hook — watchdog-armed, error-isolated, CPU-accounted, and serialized against every other addon Lua.
+ * ({@code UILoop.Frame.tick}), so a fire goes straight through {@link Subs#fire}, which itself routes every handler
+ * through {@link AddonManager#callLua} — watchdog-armed, error-isolated, CPU-accounted, and serialized against
+ * every other addon Lua.
  *
  * <p><b>Lifecycle (P2).</b> The grab is bridge-owned ({@link Addon#mouseGrabs}); the addon gets an opaque
- * {@code :release()} handle. {@link #release()} drops the {@code UI.Grab} immediately (capture stops that instant)
- * and marks the widget {@link #alive dead}; the widget itself is unlinked on the next {@link #tick(double)} — a
- * <b>deferred</b> removal so a {@code handle:release()} called from inside the {@code move} callback never mutates
- * the widget tree mid-broadcast (tick propagation snapshots {@code next} first, so removing there is safe). The
- * grab's own {@code up} auto-releases. Teardown on reload/disable releases any still-active grab.
+ * {@link LuaGrab} handle whose {@code :release()} calls {@link #release()}. {@link #release()} drops the
+ * {@code UI.Grab} immediately (capture stops that instant) and marks the widget {@link #alive dead}; the widget
+ * itself is unlinked on the next {@link #tick(double)} — a <b>deferred</b> removal so a {@code g:release()} called
+ * from inside the {@code Move} handler never mutates the widget tree mid-broadcast (tick propagation snapshots
+ * {@code next} first, so removing there is safe). The grab's own {@code Up} auto-releases. Teardown
+ * ({@link LuaGrab#teardownGrabs}) on reload/disable releases any still-active grab.
  */
 public final class LuaMouseGrab extends Widget {
     final Addon owner;
-    final LuaValue onMove;   // fn(x, y, mods) — mods = {shift,ctrl,alt}; null if not supplied
-    final LuaValue onUp;     // fn(x, y, button, mods) — fired once, then the grab auto-releases; null if not supplied
+    /** This grab's own emitter — "Move"/"Up" — over the same mechanism every {@code X:on(key, fn)} uses. */
+    final Subs subs;
     UI.Grab grab;            // the ui.grabmouse capture (down/up/wheel), removed on release
     boolean alive = true;    // false once released: callbacks no-op and the widget unlinks on the next tick
 
-    LuaMouseGrab(Addon owner, LuaValue onMove, LuaValue onUp) {
+    LuaMouseGrab(Addon owner) {
         super(Coord.z);      // zero size; visible (the field default) so broadcast MouseMoveEvents reach it
         this.owner = owner;
-        this.onMove = onMove;
-        this.onUp = onUp;
+        this.subs = new Subs(owner, Addon.C_HOOK);
     }
 
     /** Start capturing (after this widget is on {@code ui.root}). Grabs down/up/wheel so the terminating up lands here. */
@@ -52,21 +58,19 @@ public final class LuaMouseGrab extends Widget {
         grab = u.grabmouse(this);
     }
 
-    /** Broadcast move → Lua {@code onMove(x, y, mods)}. Coords are game-window pixels (this widget sits at root origin). */
+    /** Broadcast move → the "Move" key, gated on {@code hasSub} like every other emitter (spec §2.1). */
     public void mousemove(MouseMoveEvent ev) {
-        if(!alive || (onMove == null))
+        if(!alive || !subs.has("Move"))
             return;
-        AddonManager.callLua(owner, Addon.C_HOOK, onMove, LuaValue.valueOf(ev.c.x), LuaValue.valueOf(ev.c.y), AddonManager.modsTable(mods()));
+        subs.fire("Move", LuaEvent.grabMove(owner, ev.c.x, ev.c.y, mods()));
     }
 
-    /** Grabbed up → Lua {@code onUp(x, y, button, mods)}, then auto-release. Consumes it (drag over). */
+    /** Grabbed up → the "Up" key, then auto-release. Consumes it (drag over). */
     public boolean mouseup(MouseUpEvent ev) {
         if(!alive)
             return true;
-        LuaValue up = onUp;
-        if(up != null)
-            AddonManager.callLua(owner, Addon.C_HOOK, up, LuaValue.valueOf(ev.c.x), LuaValue.valueOf(ev.c.y),
-                                 LuaValue.valueOf(ev.b), AddonManager.modsTable(mods()));
+        if(subs.has("Up"))
+            subs.fire("Up", LuaEvent.grabUp(owner, ev.c.x, ev.c.y, mods(), ev.b));
         release();
         return true;
     }

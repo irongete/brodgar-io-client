@@ -72,7 +72,7 @@
       after the callback; two `Draw` handlers on one widget both paint.
       `[manual]`: a two-handler widget visibly painting both layers.
 
-- [ ] **041.5 — The mouse entity, the grab, and the end of `hafen.hook()`.** `hafen.ui():mouse()`
+- [x] **041.5 — The mouse entity, the grab, and the end of `hafen.hook()`.** `hafen.ui():mouse()`
       stops being a `{x=, y=}` table and becomes the pointer: `:x()`, `:y()`, `:over()`, `:shift()`,
       `:ctrl()`, `:alt()`, `:grab()`. `LuaGrab` is an emitter — `:on("Move", fn)`, `:on("Up", fn)`,
       `:release()` — and `hafen.hook():grab{move, up}` and its config table are cut. `hafen.hook()` is
