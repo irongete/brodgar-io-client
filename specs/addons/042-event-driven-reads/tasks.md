@@ -74,7 +74,7 @@
       `[manual]` — eat something that grants a buff, then let it expire.
       <!-- extra context: `src/haven/Bufflist.java`, `src/haven/Buff.java` (:190 reqdestroy, the dest flag), `src/haven/AddonWidgets.java` (buffDest), `src/io/brodgar/addon/LuaBuff.java` (actives/snapshot), `025-buffs-oop/` -->
 
-- [ ] **042.3 — equipment.**
+- [x] **042.3 — equipment.**
       `EquipAdapter.poll()` ([CharApi.java:434](src/io/brodgar/addon/CharApi.java:434)) goes.
       `Equipory`'s **only** uimsg is `"pop"` (the paperdoll avatar) — equip/unequip is a `GItem`
       `addchild`/`cdestroy` ([Equipory.java:149,166](src/haven/Equipory.java:149)). So structure comes

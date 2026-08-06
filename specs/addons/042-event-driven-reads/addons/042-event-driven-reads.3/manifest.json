@@ -1,0 +1,9 @@
+{
+  "name": "042.3 -- equipment goes event-driven",
+  "id": "042-event-driven-reads.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 042.3: EquipChanged fires from the widget placement/removal seams plus the worn GItem's own uimsg tap, never a poll; GItem.info() is the first real Resolve consumer.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

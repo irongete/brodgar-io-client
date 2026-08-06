@@ -481,34 +481,100 @@ final class CharApi {
     }
 
     /**
-     * Equipment — the {@link WItem}s worn in the {@link Equipory}. Equipping/removing is a widget
-     * create/{@code cdestroy} under the Equipory (not a targeted {@code uimsg}), and item data streams
-     * in a beat after each item appears, so this is <b>poll-driven</b>: each tick it re-reads the worn set
-     * and fires {@code EquipChanged} when it differs. Change-detection compares what each item is, how many
-     * and which slots it fills — not {@code wear} or quality (a durability drifting down and a tooltip
-     * resolving are not equipment changes; both are read live off the items themselves).
+     * Equipment — the {@link WItem}s worn in the {@link Equipory}. The reads live on {@link LuaItem}; only
+     * change <i>detection</i> is this adapter's business.
+     *
+     * <p><b>Event-driven since 042.3.</b> Equipping/removing is a widget create/{@code cdestroy} under the
+     * {@link Equipory} — structure comes from the placement/removal seams ({@link #placed}/{@link #removed},
+     * M1/M3), exactly like {@link MeterAdapter}/{@link BuffsAdapter}. Item <i>data</i>
+     * (
+     * {@code "num"}/{@code "chres"}/{@code "tt"}) DOES arrive as a targeted {@code uimsg} on the child
+     * {@link GItem} itself — {@link #interested} flags exactly those three for a currently-worn item and
+     * {@link #refresh} re-diffs every cached item's key. {@code "meter"} (wear) is deliberately excluded — a
+     * durability drifting down is not an equipment change — which is also why quality never enters the key
+     * ({@link LuaItem#equipKey}).
+     *
+     * <p><b>The first real {@link Resolve} (M2) consumer</b> (042.1 shipped it unproven — every meter/buff
+     * read was already {@code Loading}-guarded to {@code nil}). {@link GItem#info()} is <i>derived</i> state
+     * with no queue of its own: it rebuilds from {@code rawinfo} and throws a bare {@code Loading} when
+     * {@code res.get()} is itself still streaming. {@link #resolveInfo} triggers that build; a thrown
+     * {@code Loading} is handed to {@link Resolve#on}, which retries the build once the resource lands and
+     * re-fires {@code EquipChanged} only if the key actually changed — never a delayed poll.
      *
      * <p>The payload is an array of <b>Item objects</b> ({@link AddonManager#fireEquip}), the same objects
      * {@code hafen.ui():equipment():items()} hands back, so a handler reads it with the item verbs and a
      * stashed payload goes on answering after the gear comes off.
      */
     private static final class EquipAdapter implements TreeAdapter {
-        private String cache;     // last worn-set key (UI thread; change-detect)
+        // Worn GItem -> its last equip-key (the change-detection key, NOT a payload). UI-thread-only
+        // (placed/removed/refresh); reset per session by re-instantiation in resetSession(). IdentityHashMap:
+        // GItem widgets are keyed by object identity, like the meters/buffs.
+        private final Map<GItem, String> cache = new IdentityHashMap<GItem, String>();
 
         public boolean interested(Widget w, String msg) {
-            return false;         // equip/unequip is a widget create/cdestroy, not a uimsg — see poll()
+            return (w instanceof GItem) && cache.containsKey(w)
+                && ("num".equals(msg) || "chres".equals(msg) || "tt".equals(msg));
         }
 
-        public void refresh() {}
+        public void refresh() {
+            boolean changed = false;
+            for(Map.Entry<GItem, String> e : cache.entrySet()) {
+                GItem it = e.getKey();
+                resolveInfo(it);
+                String key = LuaItem.equipKey(it);
+                if(!key.equals(e.getValue())) {
+                    e.setValue(key);
+                    changed = true;
+                }
+            }
+            if(changed)
+                fireEquip(LuaItem.items(equipory()));
+        }
 
-        public void poll() {
+        public void placed(Widget w) {
+            if(!(w instanceof GItem))
+                return;
+            GItem it = (GItem)w;
             Equipory eq = equipory();
-            if(eq == null)
-                return;           // equipory not up yet — keep the cache, fire nothing
-            String key = equipKey(eq);
-            if(!key.equals(cache)) {
-                cache = key;
-                fireEquip(LuaItem.items(eq));
+            if((eq == null) || (it.parent != eq) || cache.containsKey(it))
+                return;
+            cache.put(it, LuaItem.equipKey(it));
+            resolveInfo(it);
+            fireEquip(LuaItem.items(eq));
+        }
+
+        public void removed(Widget w) {
+            if(!(w instanceof GItem))
+                return;
+            GItem it = (GItem)w;
+            if(cache.remove(it) == null)
+                return;
+            // The widget is unlinked, not cleared: the payload still answers :res()/:name()/… (025.2's
+            // rule, mirrored here). Equipory's own child list no longer has it, so items() below already
+            // reads the post-removal set.
+            fireEquip(LuaItem.items(equipory()));
+        }
+
+        /**
+         * Trigger {@link GItem#info}'s build so a resolved name/quality is ready by the time {@link
+         * LuaItem#equipKey} reads it. {@code info()} is derived state with no queue of its own: a thrown
+         * {@link Loading} (its resource still streaming) is registered through {@link Resolve#on}, retried
+         * once on the notify, and re-diffs/re-fires only if the key actually changed.
+         */
+        private void resolveInfo(final GItem it) {
+            try {
+                it.info();
+            } catch(Loading l) {
+                Resolve.on(l, null, new Resolve.Retry() {
+                    public void run() throws Loading {
+                        it.info();
+                        String key = LuaItem.equipKey(it);
+                        if(cache.containsKey(it) && !key.equals(cache.get(it))) {
+                            cache.put(it, key);
+                            fireEquip(LuaItem.items(equipory()));
+                        }
+                    }
+                });
             }
         }
     }
@@ -1187,21 +1253,6 @@ final class CharApi {
         if((a == null) || (b == null))
             return false;
         return luaFieldEq(a, b, "res") && luaFieldEq(a, b, "name");
-    }
-
-    /**
-     * The {@link Equipory}'s worn items as ONE change-detection key — what each item is, how many, and which
-     * slots it fills, joined in the window's own order. Not a snapshot array: with the items interned on their
-     * widgets, what the event hands over is objects ({@link LuaItem}), and comparing objects by identity cannot
-     * see a slot's numbers changing. So the diff keeps a string and the payload keeps the objects.
-     */
-    static String equipKey(Equipory eq) {
-        if(eq == null)
-            return null;
-        StringBuilder sb = new StringBuilder();
-        for(GItem it : LuaItem.items(eq))
-            sb.append(LuaItem.equipKey(it)).append("\n--\n");
-        return sb.toString();
     }
 
     /** The live {@link Party}, or {@code null} before a session is up. Read by {@link LuaPartyMember}. */
