@@ -64,10 +64,10 @@
 -- client's KeyBinding registry) that fires when no widget consumed the keypress first; here 'toggle' shows/hides
 -- the custom window, plus 'ping'. Addon hotkeys start UNBOUND: this addon's "Hello" section under
 -- Options > Keybindings is where you assign the keys.
--- On top of the THREE hook levels — 2c hafen.hook():input (L1:
--- intercept a widget's raw input BEFORE its own handler), 2d hafen.hook():action (L2: intercept the OUTBOUND
+-- On top of the THREE interception points — 2c hafen.hook():input (intercept
+-- a widget's raw input BEFORE its own handler), 2d hafen.event():action():on (intercept the OUTBOUND
 -- action a widget sends to the server, arguments already RESOLVED — e.g. a move's destination world coord),
--- and 2e-1 hafen.hook():message (L3: intercept an INBOUND server update BEFORE the widget applies it — swallow
+-- and 2e-1 hafen.event():message():on (intercept an INBOUND server update BEFORE the widget applies it — swallow
 -- it with ev:preventDefault() or rewrite its args with ev:rewrite()). Plus 2b overlays (hafen.ui():overlay() on
 -- the HUD + gob:overlay() on game objects) and 2a custom windows/widgets + the GOut wrapper. It runs
 -- inside the Lua SANDBOX (D-017 strict env + D-018 instruction watchdog) over 1e hafen.store (saved
@@ -1534,9 +1534,9 @@ local panel          -- the window handle (nil until created; a fresh reload reb
 local clicks = 0
 local mapLock = false -- 2c: while true, the MapView mousedown hook cancels map clicks (toggle: LEFT-click the window)
 local mapDowns = 0    -- 2c: how many map mousedowns the hook has seen (for the "observed" log lines)
-local moveIntercept = false -- 2d: while true, the "click" action hook intercepts moves and re-sends them (toggle: RIGHT-click)
-local moveHookSeen = 0      -- 2d: how many moves the action hook has observed while OFF (for the "observed" log lines)
-local meterFreeze = false  -- 2e: while true, the "set" message hook SWALLOWS meter updates -> the HUD meter bars freeze (toggle: MIDDLE-click)
+local moveIntercept = false -- 2d: while true, the "click" action handler intercepts moves and re-sends them (toggle: RIGHT-click)
+local moveHookSeen = 0      -- 2d: how many moves the action handler has observed while OFF (for the "observed" log lines)
+local meterFreeze = false  -- 2e: while true, the "set" message handler SWALLOWS meter updates -> the HUD meter bars freeze (toggle: MIDDLE-click)
 local msgHookSeen = 0       -- 2e: how many meter "set" messages the hook has observed while OFF (for the "observed" log lines)
 local dropWidget            -- U1: the borderless drop-target widget handle (nil until created / after reload)
 local droppedRes           -- U1: the .res name of the last menu-grid action dropped on it (drawn via g:resource)
@@ -1804,11 +1804,11 @@ local function drawPanel(g, w, h)
   g:color(mapLock and 235 or 150, mapLock and 90 or 150, 90)
   g:text(("map-lock %s (LMB)"):format(mapLock and "ON" or "OFF"), 6, h - 46)
   g:color()
-  -- 2d: move-intercept state (RIGHT-click the window to toggle; orange = moves are intercepted + re-sent by L2)
+  -- 2d: move-intercept state (RIGHT-click the window to toggle; orange = moves are intercepted + re-sent by the action stream)
   g:color(moveIntercept and 245 or 150, moveIntercept and 160 or 150, moveIntercept and 60 or 150)
   g:text(("move-hook %s (RMB)"):format(moveIntercept and "ON" or "OFF"), 6, h - 32)
   g:color()
-  -- 2e: meter-freeze state (MIDDLE-click the window to toggle; cyan = the L3 message hook is swallowing the
+  -- 2e: meter-freeze state (MIDDLE-click the window to toggle; cyan = the message stream is swallowing the
   -- meter updates, so the bars above — and the real HUD meters — freeze until toggled off)
   g:color(meterFreeze and 90 or 150, meterFreeze and 210 or 150, meterFreeze and 235 or 150)
   g:text(("meter-freeze %s (MMB)"):format(meterFreeze and "ON" or "OFF"), 6, h - 18)
@@ -1826,7 +1826,7 @@ end
 -- persisted hotkey over the client's KeyBinding registry (namespaced addon/hello/<name>) — "toggle" flips this
 -- window's visibility, the WoW "show/hide my panel" pattern. An addon hotkey starts UNBOUND (D-047): the addon
 -- names the ACTION, you assign the KEY in Options > Keybindings > Hello (suggested here: Ctrl+H). Unlike the
--- input/action/message hooks below, a hotkey needs NO live target, so it is registered here in the FILE BODY
+-- input hook and the two message streams below, a hotkey needs NO live target, so it is registered here in the FILE BODY
 -- (it simply does nothing until you are in-world and the window exists). It fires ONLY when no focused widget
 -- consumed the keypress first (a focused text field consumes all ORDINARY typing, so a hotkey on a plainly-typed
 -- key is naturally suppressed while typing) and no client binding owns the same key (addon hotkeys are the
@@ -2637,10 +2637,10 @@ hafen.event():on("EnterWorld", function()
     :onDraw(drawPanel)
     :onClick(function(x, y, button)
       clicks = clicks + 1
-      if button == 3 then                                        -- RIGHT-click -> 2d: toggle the action hook
+      if button == 3 then                                        -- RIGHT-click -> 2d: toggle the action handler
         moveIntercept = not moveIntercept
         hafen.log():write(("panel RMB #%d -> move-intercept %s"):format(clicks, moveIntercept and "ON" or "OFF"))
-      elseif button == 2 then                                     -- MIDDLE-click -> 2e: toggle the message hook
+      elseif button == 2 then                                     -- MIDDLE-click -> 2e: toggle the message handler
         meterFreeze = not meterFreeze
         hafen.log():write(("panel MMB #%d -> meter-freeze %s"):format(clicks, meterFreeze and "ON" or "OFF"))
       else                                                        -- LEFT/other -> 2c: toggle the input hook
@@ -2749,24 +2749,26 @@ hafen.event():on("EnterWorld", function()
   end)
   hafen.log():write("2c: MapView mousedown hook installed -- LEFT-click the window to toggle map-lock, then click the map")
 
-  -- 2d: ACTION HOOK (hafen.hook():action, L2). Intercept the OUTBOUND "click" action MapView sends to the
-  -- server to move -- the UI.wdgmsg choke point, where the arguments are ALREADY RESOLVED: ev.args[2] is the
-  -- destination WORLD coordinate (impossible to know at 2c's L1 mousedown, before the hit-test). RIGHT-click
+  -- 2d: THE ACTION STREAM (hafen.event():action():on). Intercept the OUTBOUND "click" action MapView sends to
+  -- the server to move -- the UI.wdgmsg choke point, where the arguments are ALREADY RESOLVED: ev:args()[2] is
+  -- the destination WORLD coordinate (impossible to know at 2c's mousedown, before the hit-test). RIGHT-click
   -- the window to arm move-intercept. While ON, a plain move-to-ground click is intercepted: ev:preventDefault()
   -- drops the server send, we log the resolved destination, then ev:resend() re-issues it ourselves -- the
   -- Phase-2d DoD (intercept a move-click, run logic, then re-send; the character still moves, via our resend).
-  -- While OFF we only observe-log the first few, proving L2 sees every resolved move without altering it.
-  -- We target MapView moves precisely: ev.sender == "MapView" and #ev.args == 4 (clicking a gob appends more
-  -- args). resend()/send() bypass the hook chain, so re-issuing cannot loop. NB: if map-lock (2c) is ON, the L1
-  -- hook cancels the click before any hit-test, so no "click" is ever sent and this L2 hook never fires -- turn
-  -- map-lock OFF to see move-intercept. The handle is bridge-owned (:reload/disable removes it -- no leak).
-  hafen.hook():action("click", function(ev)
-    if ev.sender ~= "MapView" or #ev.args ~= 4 then return end    -- only plain MapView move-to-ground clicks
-    local w = ev.args[2]                                          -- resolved destination (world coord {x,y})
+  -- While OFF we only observe-log the first few, proving the stream sees every resolved move without altering it.
+  -- We target MapView moves precisely: ev:sender():type() == "MapView" and #ev:args() == 4 (clicking a gob appends
+  -- more args) -- and ev:sender() is the WIDGET now (041.2), so ev:sender():parent() navigates from here.
+  -- resend()/send() bypass the stream, so re-issuing cannot loop. NB: if map-lock (2c) is ON, the input hook
+  -- cancels the click before any hit-test, so no "click" is ever sent and this handler never fires -- turn
+  -- map-lock OFF to see move-intercept. The Sub is bridge-owned (:reload/disable ends it -- no leak).
+  hafen.event():action():on("click", function(ev)
+    local a = ev:args()                                           -- 1-based snapshot of the resolved arguments
+    if ev:sender():type() ~= "MapView" or #a ~= 4 then return end  -- only plain MapView move-to-ground clicks
+    local w = a[2]                                                -- resolved destination (world coord {x,y})
     if moveIntercept then
       ev:preventDefault()                                         -- do NOT send the move to the server...
       hafen.log():write(("2d: MOVE intercepted -> %d,%d (btn %s) -- resending")
-        :format(w.x, w.y, tostring(ev.args[3])))
+        :format(w.x, w.y, tostring(a[3])))
       ev:resend()                                                 -- ...then issue it myself (unchanged) -> still moves
     else
       moveHookSeen = moveHookSeen + 1
@@ -2775,29 +2777,29 @@ hafen.event():on("EnterWorld", function()
       end
     end
   end)
-  hafen.log():write("2d: MapView 'click' action hook installed -- RIGHT-click the window to arm move-intercept, then click the map")
+  hafen.log():write("2d: MapView 'click' action handler installed -- RIGHT-click the window to arm move-intercept, then click the map")
 
-  -- 2e: MESSAGE HOOK (hafen.hook():message, L3). Intercept an INBOUND server update at the UI.uimsg choke point,
-  -- BEFORE the target widget applies it -- the mirror of 2d's outbound L2. We hook the "set" message and scope it
-  -- to the HUD meter bars (ev.target == "IMeter"; "set" is what LayerMeter uses to update a bar). MIDDLE-click
-  -- the window to arm meter-freeze. While ON, ev:preventDefault() SWALLOWS the meter update, so it never reaches
-  -- the widget: the bars -- both in this window and the REAL HUD meters -- FREEZE (and no
-  -- MeterChanged fires, since nothing changed). Toggle it off and the next update thaws them -- fully reversible,
-  -- purely cosmetic (the server still knows your real values). While OFF we only observe-log the first few meter
-  -- "set" messages, proving L3 sees inbound traffic. ev.args is a 1-based snapshot (ev:rewrite(t) could apply new
-  -- args instead -- not used here). NB: this handler runs on a Loader thread under the UI lock, so keep it light.
-  -- The handle is bridge-owned (:reload/disable removes the hook -- no leak).
-  hafen.hook():message("set", function(ev)
-    if ev.target ~= "IMeter" then return end                     -- only the HUD meter bars, not every "set"       
+  -- 2e: THE MESSAGE STREAM (hafen.event():message():on). Intercept an INBOUND server update at the UI.uimsg
+  -- choke point, BEFORE the target widget applies it -- the mirror of 2d's outbound stream. We subscribe to the
+  -- "set" message and scope it to the HUD meter bars (ev:target():type() == "IMeter"; "set" is what LayerMeter
+  -- uses to update a bar). MIDDLE-click the window to arm meter-freeze. While ON, ev:preventDefault() SWALLOWS
+  -- the meter update, so it never reaches the widget: the bars -- both in this window and the REAL HUD meters --
+  -- FREEZE (and no MeterChanged fires, since nothing changed). Toggle it off and the next update thaws them --
+  -- fully reversible, purely cosmetic (the server still knows your real values). While OFF we only observe-log
+  -- the first few meter "set" messages, proving the stream sees inbound traffic. ev:args() is a 1-based snapshot
+  -- (ev:rewrite(t) could apply new args instead -- not used here). NB: this handler runs on a Loader thread under
+  -- the UI lock, so keep it light. The Sub is bridge-owned (:reload/disable ends it -- no leak).
+  hafen.event():message():on("set", function(ev)
+    if ev:target():type() ~= "IMeter" then return end            -- only the HUD meter bars, not every "set"
     if meterFreeze then
       ev:preventDefault()                                        -- swallow it -> the meter never updates (bar freezes)
     elseif msgHookSeen < 3 then
       msgHookSeen = msgHookSeen + 1
       hafen.log():write(("2e: meter 'set' observed (target=%s, %d arg(s)) (passed through) [#%d]")
-        :format(ev.target, #ev.args, msgHookSeen))
+        :format(ev:target():type(), #ev:args(), msgHookSeen))
     end
   end)
-  hafen.log():write("2e: IMeter 'set' message hook installed -- MIDDLE-click the window to freeze the HUD meter bars")
+  hafen.log():write("2e: IMeter 'set' message handler installed -- MIDDLE-click the window to freeze the HUD meter bars")
 end)
 
 -- 2b: HUD OVERLAY (hafen.ui():overlay()). Paint on top of the HUD WITHOUT owning a widget — fn(g, w, h) runs
@@ -2822,7 +2824,7 @@ local hudFrames = 0
 local stressPool, stressAt = nil, 0
 
 local function drawHud(g, w, h)
-  -- 2c/2d/2e: surface the hook states here too, so the input+action+message hooks have clear on-HUD feedback
+  -- 2c/2d/2e: surface the states here too, so the input hook and the two streams have clear on-HUD feedback
   -- (border turns red while map-lock cancels clicks, orange while move-intercept re-sends moves, cyan while
   -- meter-freeze swallows meter updates).
   local txt = ("2b HUD  gobs=%d  map-lock=%s  move=%s  freeze=%s"):format(
@@ -2831,8 +2833,8 @@ local function drawHud(g, w, h)
   local x = math.floor(w / 2 - bw / 2)
   g:color(0, 0, 0, 140); g:frect(x, 2, bw, 18); g:color()        -- translucent backdrop
   if mapLock then g:color(235, 90, 90)                           -- red: L1 cancelling map clicks
-  elseif moveIntercept then g:color(245, 160, 60)                -- orange: L2 intercepting + re-sending moves
-  elseif meterFreeze then g:color(90, 210, 235)                 -- cyan: L3 swallowing meter updates
+  elseif moveIntercept then g:color(245, 160, 60)                -- orange: the action stream is intercepting + re-sending moves
+  elseif meterFreeze then g:color(90, 210, 235)                 -- cyan: the message stream is swallowing meter updates
   else g:color(120, 200, 120) end                                -- green: hooks observing only
   g:rect(x, 2, bw, 18); g:color()
   g:text(txt, x + 6, 4)

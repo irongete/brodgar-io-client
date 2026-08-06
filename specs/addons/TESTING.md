@@ -61,7 +61,14 @@ format: nothing needs interpreting.
 - **Re-assert whatever your own proof rests on, however old it is.** A suite is read alone and must convince
   alone, so a check another task's suite also makes is not a duplicate to delete — it is *this* task's
   premise, stated where it can fail. What does not belong here is coverage of a prior feature none of this
-  task's claims rest on: that is the other suite's job, and it still runs.
+  task's claims rest on: that is the other suite's job.
+- **And assume the other suite is never run** (maintainer, 2026-08-06). Past suites stay installed, but in
+  practice a login runs the CURRENT task's command and no more. So a task that changes old behaviour
+  **brings the old assertion into its own suite** — every spelling it retires, every premise it leans on,
+  every row an older suite happens to pin — and **never reports "also run `:tNNN-X`" as part of its own
+  proof**. If verifying this task needs another task's command, the check is missing from this suite.
+  (041.2: it moved `hafen.hook():action/:message`, whose *dotted* forms `:t039-1` also pins, so `:t041-2`
+  asserts all four spellings itself and leans on nothing external.)
 
 ## Skeleton (copy this into a new suite)
 
@@ -161,8 +168,16 @@ any order:
 A red line names the task that broke. **But verifying ONE task is running ONE command** — no suite is a
 precondition for another, and none has to be run to make a different one meaningful. That is what the
 duplication rule above buys, and it is the difference between a regression you *choose* to run and a
-protocol you have to obey. Never edit an old suite to make it green: that line is the regression
-doing its job. (A suite's *schedule* is not an assertion — 035.3 removed every suite's auto-start, with a
+protocol you have to obey.
+
+**And it is a regression the maintainer rarely chooses** (2026-08-06): the list above is a resource, not a
+step, and the working assumption for every task is that **none of it is run**. That is not a gap to close by
+asking for more commands — it is why the duplication rule exists, and why a task that changes old behaviour
+carries the old assertion into its own suite (see *Automate everything*, above). A task is verified by its
+own `:t<NNN>-<X>` and the maintainer's answers to its `[manual]` lines; anything a session would have gone
+looking for in an older suite belongs in this one instead.
+
+Never edit an old suite to make it green: that line is the regression doing its job. (A suite's *schedule* is not an assertion — 035.3 removed every suite's auto-start, with a
 version bump each, and that is the only kind of edit an old suite takes without a reason of its own.) Only
 the maintainer removes or disables a suite.
 

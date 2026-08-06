@@ -116,8 +116,10 @@ public final class AddonRegistry {
         destroyWidgets(a);            // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
         UiApi.teardownWatches(a);           // 029.3: stop watching every container the addon subscribed to (no onDestroy)
         HookApi.teardownHooks(a);         // 2c: deafen input hooks (engine widgets outlive a :reload — must detach)
-        HookApi.teardownActionHooks(a);   // 2d: unregister action hooks from the outbound-wdgmsg dispatch map
-        HookApi.teardownMessageHooks(a);  // 2e-1: unregister message hooks from the inbound-uimsg dispatch map
+        a.actionSubs.clear();             // 041.2: stop intercepting the outbound wdgmsg stream, and
+        a.messageSubs.clear();            //   the inbound uimsg one — where the L2/L3 hook registries were
+                                          //   unregistered, and for the same reason: the rest of this
+                                          //   teardown can itself make the client send and receive
         HookApi.teardownKeyBinds(a);      // 2e-2: unregister global hotkeys from the GlobKeyEvent dispatch list
         UiApi.teardownSelectorWatches(a);    // 030.2: drop the selector subscriptions (no disappear — reload != destroy)
         HookApi.teardownSlashCommands(a); // A11: drop the addon's live slash handlers (Console dispatchers stay — C1)
@@ -152,7 +154,7 @@ public final class AddonRegistry {
                                       //   only one left: an overlay's state lives on the gob, so nothing else
                                       //   ever looks for it. The game's own overlays are untouched.
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
-        a.subs.clear();
+        a.subs.clear();               // 041.1: the whole bus, in one drop — nothing to unsubscribe by hand
         a.timers.clear();
     }
 

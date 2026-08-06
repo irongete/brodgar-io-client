@@ -31,7 +31,7 @@
       not somewhere else (the split survives the merge).
       `[manual]`: one `EnterWorld` line confirming the lifecycle keys fire on a real login.
 
-- [ ] **041.2 — `LuaEvent`, and the two message streams.** `hafen.event():action():on(msg, fn)` and
+- [x] **041.2 — `LuaEvent`, and the two message streams.** `hafen.event():action():on(msg, fn)` and
       `:message():on(msg, fn)` replace `hafen.hook():action/:message`; `LuaEvent` arrives with its
       per-shape methods table and an unknown verb that throws. `ev:msg()`/`:args()` replace the fields,
       `ev:sender()`/`ev:target()` become **lazily interned Widget handles**, and the open key set is

@@ -1,0 +1,9 @@
+{
+  "name": "041.2 — LuaEvent, and the two message streams",
+  "id": "041-unified-events.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 041.2: hafen.event():action() and :message() replace the two hook levels, the ev is an object whose every member is a colon verb, ev:sender()/:target() are Widget handles, and preventDefault / resend / rewrite keep their old precedence. Run ':t041-2' and follow the one [manual] line: two ground clicks and two chat lines drive the delivery checks.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

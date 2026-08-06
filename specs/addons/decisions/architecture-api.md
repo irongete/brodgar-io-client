@@ -1604,3 +1604,39 @@ where the list lives*. It also keeps the shipped error text and the shipped docs
 is what makes the docs tier the contract rather than a copy.
 **See.** [D-125](architecture-api.md) (a closed vocabulary throws naming what exists),
 [041-unified-events](../041-unified-events/EXAMPLES.md) §4 (the exact messages).
+
+### D-170 — a retired SECTION VERB is checked at the section's own `__index`, not left to the generic refusal ✅
+**Decision.** [`Section.meta`](src/io/brodgar/addon/Section.java)'s `__index` consults
+[`Retired.message`](src/io/brodgar/addon/Retired.java) (keyed `"hafen.<section>():<verb>"`) **before** it falls
+back to the generic *"has no verb"* error. `hafen.hook():action(msg, fn)` now throws naming
+`hafen.event():action():on(msg, fn)` rather than the section merely saying it has no such verb.
+**Rationale.** (2026-08-06, 041.2.) `hafen.hook():action`/`:message` are the first colon verbs the uniform
+grammar (039) ever *removed* from a section that keeps existing — every prior retirement either killed a whole
+section or renamed a dotted pre-039 field, both of which `Retired`'s existing two kinds already covered. A verb
+gone from a still-live section had no door to hang the message on until this one.
+**Consequences.** The dotted pre-039 form (`hafen.hook.action`) and the colon form
+(`hafen.hook():action`) are two separate `Retired` rows for one move, because they fail at two different
+metamethods (`hafen`'s own `__index` vs. the section's). A later feature that moves a verb OFF a section that
+survives follows the same two-row pattern; one that deletes the section outright still only needs the one
+`Retired.put("hafen.<section>", …)` row 039 already established.
+**See.** [D-168](architecture-api.md) (the sibling case for an event KEY), [039-uniform-api](../039-uniform-api/spec.md)
+§2.10 (the `Retired` table), [041-unified-events](../041-unified-events/spec.md) §R2.
+
+### D-171 — a Lua argument table is sized by its HIGHEST INDEX, never by `#t`, once a `nil` can be a real argument ✅
+**Decision.** [`LuaMarshal.luaToArgs`](src/io/brodgar/addon/LuaMarshal.java) sizes the `Object[]` it builds by
+scanning the table's keys for the largest positive integer present, not by Lua's `#` operator — capped at 256
+(a stray high index is refused as a likely typo, not allocated).
+**Rationale.** (2026-08-06, 041.2, found in-game.) A chat `"msg"` uimsg arrives as `(nil, line)` — a **null
+sender is how the client marks the player's own line** — and a `nil` inside a Lua table is a hole: `#t` is free
+to read 0 there. `ev:rewrite(ev:args())`, the identity round trip a handler writes without thinking twice about,
+silently applied an EMPTY argument list on exactly that message. `#t` had been adequate for every argument table
+built *by hand* in the corpus so far (039's), where nobody writes a leading `nil` on purpose; the first table
+built from *live server data* broke it on the very first login.
+**Consequences.** A *leading or middle* `nil` now survives `ev:send`/`ev:rewrite`. A *trailing* `nil` still
+cannot be expressed — `{x, nil}` and `{x}` are the same table in Lua, which is a property of the language, not a
+gap in this fix — and is documented as such rather than routed around. The general lesson: **never size a
+Lua→Java argument array by `#t` once the table can hold real data instead of only what an addon typed in** —
+`t:length()` is a convenience for the hand-written case, not a substitute for scanning when the table's origin
+is a live protocol message.
+**See.** [041-unified-events](../041-unified-events/spec.md) §2.3 (the payload marshalling this rides on),
+`specs/codebase/services.md` (`ChatUI`'s uimsg arg shapes, added this task).

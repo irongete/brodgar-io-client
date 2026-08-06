@@ -94,8 +94,23 @@ final class Retired {
         section("time", "clock", "dayFraction", "isNight", "season", "moon", "yearFraction");
         section("slash", "register");
         section("json", "parse", "encode");
-        section("hook", "input", "action", "message", "grab");
+        section("hook", "input", "grab");
         section("timer", "after", "every");
+
+        // ---- 041.2: the two message streams leave hafen.hook() for the bus, which is where a notification --
+        // ---- with no object to hang off belongs. Two spellings each: the dotted 039 form (a field read on the
+        // ---- section's callable table) and the colon form (a verb the section no longer has, consulted by
+        // ---- Section's own __index) -- so both the pre-039 and the post-039 call site is told the same thing.
+        put("hafen.hook.action", "hafen.hook():action(msg, fn) is now hafen.event():action():on(msg, fn), and"
+            + " what it hands back is a Sub: sub:off() ends it, where the hook handle said :remove(). The ev"
+            + " is an object with verbs now -- ev:msg() ev:sender() ev:args() -- and ev:sender() is the"
+            + " WIDGET, so ev:sender():type() is the class name the field used to be");
+        put("hafen.hook.message", "hafen.hook():message(msg, fn) is now hafen.event():message():on(msg, fn),"
+            + " and what it hands back is a Sub: sub:off() ends it, where the hook handle said :remove(). The"
+            + " ev is an object with verbs now -- ev:msg() ev:target() ev:args() -- and ev:target() is the"
+            + " WIDGET, so ev:target():type() is the class name the field used to be");
+        put("hafen.hook():action", message("hafen.hook.action"));
+        put("hafen.hook():message", message("hafen.hook.message"));
 
         // http keeps its verb names but loses its options table, so the message says both halves.
         put("hafen.http.get", "hafen.http.get(url, opts, cb) is now hafen.http():get(url, cb) — opts.headers"

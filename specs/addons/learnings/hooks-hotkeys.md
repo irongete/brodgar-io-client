@@ -212,3 +212,21 @@
   keybindings handle already answers both by name (`get(name)`, `unregister(name)`), so the port dropped the
   handle rather than re-creating it (D-013). Consumers that logged `handle:key()` now log
   `keys:get(name) or "unassigned, suggested <key>"` — which is also the honest reading once D-047 applies.
+- **The L2/L3 hook levels retire onto `Subs` with no global dispatch map (041.2).** `HookApi`'s
+  `actionHooks`/`messageHooks` (`Map<String, List<...>>`, one lookup per `wdgmsg`/`uimsg`) are gone; dispatch
+  now asks each `Addon`'s own `actionSubs`/`messageSubs` whether it listens (`AddonManager.anyStreamSub`, a
+  loop over live addons — a handful of empty-map lookups in the common case, since a session runs few addons).
+  D-100 (*the state belongs on the thing*) reads as *no registry to unregister from at teardown* here: the old
+  `removeActionHook`/`unregisterActionHook` pair is simply gone, teardown is `Subs.clear()`.
+- **A chat `uimsg` carries `nil` as a REAL argument, not as an accident (041.2, found in-game, D-171).** `ChatUI`
+  fires `"msg"` as `(from, line)`, and `from == nil` is how the client marks a line as the player's own — not a
+  bug, not an edge case, the common case for anyone testing their own addon by typing in chat. Any Java↔Lua
+  argument marshalling that later sizes an array from a Lua table (`ev:send`, `ev:rewrite`, a future `ev:emit`)
+  must NOT use `#t`: a leading/middle hole makes `#t` read short, silently. Scan for the highest index instead.
+  The in-game suite is what found this — the headless pre-check built its argument tables by hand and never
+  happened to put a `nil` first, so it stayed green on the very bug the first live login hit.
+- **A section's `__index` needs its own `Retired` lookup once a verb, not the whole section, is retired
+  (D-170).** Every earlier cut either killed a whole `hafen.<name>` (retired at `hafen`'s own `__index`) or
+  moved a pre-039 *dotted* field (retired at the section table's `__index`, which 039 already builds). A colon
+  VERB retired off a section that keeps existing — `hafen.hook():action` — had no door until `Section.meta`
+  learned to consult `Retired` before falling back to the generic "has no verb" message.

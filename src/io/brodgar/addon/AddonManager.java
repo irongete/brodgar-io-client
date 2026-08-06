@@ -599,47 +599,50 @@ public final class AddonManager {
     }
 
     /**
-     * The outbound-{@code wdgmsg} action hook (spec 13 §L2 / Phase 2d) — the core edit in
-     * {@link UI#wdgmsg(Widget, String, Object...)}. Runs every registered {@code hafen.hook():action(msg, fn)}
-     * whose name matches, <b>before</b> the message reaches the server, and reports whether the default send
-     * should proceed: {@code false} once any hook called {@code ev:preventDefault()} (or {@code ev:resend}/
-     * {@code ev:send}, which take over the send themselves via {@link UI#rawWdgmsg}).
+     * The outbound-{@code wdgmsg} seam — the core edit in {@link UI#wdgmsg(Widget, String, Object...)}. Runs
+     * every {@code hafen.event():action():on(msg, fn)} handler whose name matches, <b>before</b> the message
+     * reaches the server, and reports whether the default send should proceed: {@code false} once any handler
+     * called {@code ev:preventDefault()} (or {@code ev:resend}/{@code ev:send}, which take over the send
+     * themselves via {@link UI#rawWdgmsg}). The body is {@link #dispatchAction}.
      *
      * <p><b>Threading.</b> It runs Lua only when the calling thread already holds the UI monitor
      * ({@code Thread.holdsLock}). A player action's {@code wdgmsg} is always sent under {@code synchronized(ui)}
      * — from input dispatch and the addon tick (both inside the frame loop's {@code synchronized(ui)}), or from
-     * the MapView hit-test callback (which takes {@code synchronized(ui)} before it sends {@code "click"}). Since
-     * the tick and draw also hold that monitor, holding it here means the hook Lua cannot race any other Lua —
-     * and, because we only <i>test</i> the lock (never acquire a new one), there is no deadlock risk. A rare
-     * off-lock sender is passed straight through (unhooked). The re-entrancy guard makes a hook body that itself
-     * triggers a {@code wdgmsg} pass through rather than recurse (the spec's {@code resend} caveat; {@code resend}/
-     * {@code send} themselves bypass this via {@code rawWdgmsg}). Returns {@code true} (proceed) on every fast-path
-     * exit, so an unhooked action is unaffected.
+     * the MapView hit-test callback, which is on the RENDER thread and takes {@code synchronized(ui)} before it
+     * sends {@code "click"}. That last one is why the test is {@code holdsLock} and not "am I the UI thread": a
+     * naive thread test would wrongly skip the commonest action in the game. Since the tick and draw also hold
+     * that monitor, holding it here means the handler Lua cannot race any other Lua — and, because we only
+     * <i>test</i> the lock (never acquire a new one), there is no deadlock risk. A rare off-lock sender is
+     * passed straight through. The re-entrancy guard makes a handler body that itself triggers a {@code wdgmsg}
+     * pass through rather than recurse ({@code resend}/{@code send} themselves bypass this via
+     * {@code rawWdgmsg}). Returns {@code true} (proceed) on every fast-path exit, so an unsubscribed action is
+     * unaffected.
      */
     public static boolean onWdgmsg(Widget sender, String msg, Object[] args) {
-        return HookApi.dispatchAction(sender, msg, args);
+        return dispatchAction(sender, msg, args);
     }
 
     /**
-     * The inbound-{@code uimsg} message hook (spec 13 §L3 / Phase 2e) — the core edit in {@code UI.UiMessage.run}.
-     * Runs every registered {@code hafen.hook():message(msg, fn)} whose name matches, <b>before</b> the target
-     * widget applies the server update, and reports what to apply:
+     * The inbound-{@code uimsg} seam — the core edit in {@code UI.UiMessage.run}. Runs every
+     * {@code hafen.event():message():on(msg, fn)} handler whose name matches, <b>before</b> the target widget
+     * applies the server update, and reports what to apply:
      * <ul>
-     *   <li>the original {@code args} — no hook matched, or none altered the message (apply as normal);</li>
-     *   <li>a <b>rewritten</b> {@code Object[]} — a hook called {@code ev:rewrite(t)} (apply the new args);</li>
-     *   <li>{@code null} — a hook called {@code ev:preventDefault()} (swallow the update; do not apply it, and
-     *       the caller then also skips the post-apply widget-tree tap, since the widget did not change).</li>
+     *   <li>the original {@code args} — nobody subscribed, or nobody altered the message (apply as normal);</li>
+     *   <li>a <b>rewritten</b> {@code Object[]} — a handler called {@code ev:rewrite(t)} (apply the new args);</li>
+     *   <li>{@code null} — a handler called {@code ev:preventDefault()} (swallow the update; do not apply it,
+     *       and the caller then also skips the post-apply widget-tree tap, since the widget did not change).</li>
      * </ul>
-     * {@code preventDefault} wins over {@code rewrite} when both are used across the matching hooks.
+     * {@code preventDefault} wins over {@code rewrite} when both are used. The body is {@link #dispatchMessage}.
      *
      * <p><b>Threading.</b> Called from {@code UiMessage.run} on a Loader thread but always inside that method's
-     * {@code synchronized(ui)} block — the same monitor the tick and draw hold — so the hook Lua cannot race any
-     * other Lua. No {@code holdsLock} guard is needed (unlike {@link #onWdgmsg}, whose senders are not all
-     * UI-locked): this seam is reached only under the lock. The fast path (no hooks / this msg unhooked) returns
-     * the original args immediately, so an unhooked message is unaffected — important, as uimsg application is hot.
+     * {@code synchronized(ui)} block — the same monitor the tick and draw hold — so the handler Lua cannot race
+     * any other Lua. No {@code holdsLock} guard is needed (unlike {@link #onWdgmsg}, whose senders are not all
+     * UI-locked): this seam is reached only under the lock. The fast path (nobody subscribes to this name)
+     * returns the original args immediately, so an unsubscribed message is unaffected — important, as uimsg
+     * application is hot.
      */
     public static Object[] onMessage(Widget target, String msg, Object[] args) {
-        return HookApi.dispatchMessage(target, msg, args);
+        return dispatchMessage(target, msg, args);
     }
 
     /**
@@ -769,6 +772,138 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
                 return true;
         }
         return false;
+    }
+
+    // ------------------------------------------------- the two message streams (hafen.event():action/:message)
+
+    /** Re-entrancy guard for {@link #dispatchAction}: a handler body that itself sends a {@code wdgmsg}. */
+    private static boolean dispatchingAction;
+
+    /**
+     * One addon's <b>stream emitter</b> — the object {@code hafen.event():action()} and
+     * {@code hafen.event():message()} hand back (041.2). It is minted once per addon and per stream, and the
+     * Lua value IS its {@link Subs}: the emitter has no state beyond its subscriptions, so wrapping it in a
+     * second object would only be a second thing to keep in step.
+     *
+     * <p>One verb, {@code :on(msg, fn)}, and a CLOSED vocabulary around an OPEN key set — the two are
+     * different questions. An unknown <i>verb</i> on the emitter throws (the grammar is the client's), while
+     * an unknown <i>msg</i> is accepted and may simply never fire (the name is the protocol's, D-129).
+     */
+    private static LuaValue stream(final String nm, final Subs subs) {
+        LuaTable m = new LuaTable();
+        m.set("on", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                if(!self.isuserdata() || (self.touserdata() != subs))
+                    throw new LuaError("hafen.event():" + nm + "():on(msg, fn) — use a COLON call on the"
+                        + " stream object (hafen.event():" + nm + "():on(msg, fn))");
+                LuaValue nmv = Args.required(a, 2, "hafen.event():" + nm + "():on", "msg");
+                LuaValue fn = Args.required(a, 3, "hafen.event():" + nm + "():on", "fn");
+                if(!nmv.isstring() || !fn.isfunction())
+                    throw new LuaError("hafen.event():" + nm + "():on(msg, fn) expects (string, function)");
+                return subs.on(nmv.tojstring(), fn);
+            }
+        });
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.INDEX, Retired.closedIndex("hafen.event():" + nm + "()", m,
+            "a message stream answers one verb, :on(msg, fn), and its key set is OPEN: any message name is"
+            + " accepted, because a wdgmsg name is protocol rather than a catalogue the client owns"));
+        mt.set("__name", LuaValue.valueOf("Stream"));
+        mt.set("__tostring", new OneArgFunction() {
+            public LuaValue call(LuaValue v) {
+                return LuaValue.valueOf("hafen.event():" + nm + "()");
+            }
+        });
+        return LuaValue.userdataOf(subs, mt);
+    }
+
+    /**
+     * The outbound-{@code wdgmsg} dispatch (041.2, over the L2 hook level it replaced) — the body behind
+     * {@link #onWdgmsg}. Every {@code hafen.event():action():on(msg, fn)} handler of every owner runs before
+     * the message reaches the server, and the answer is whether the default send should proceed
+     * ({@code false} once any handler called {@code ev:preventDefault()}, or {@code ev:resend()}/
+     * {@code ev:send()}, which take the send over themselves).
+     *
+     * <p><b>One {@link Subs.Cancel} for the whole fire</b>, shared across the handlers of one addon <i>and</i>
+     * across addons: any handler cancels, every handler still runs, so the outcome never depends on an order
+     * that is undefined between addons anyway (spec §R3). The {@code ev} itself is per addon, because a
+     * Widget handle is interned per addon (D-045/D-064), and it is minted only for an owner that actually
+     * subscribes — the {@code hasSub} gate, kept.
+     *
+     * <p><b>The fast path is a scan, not a global registry.</b> {@link #anyStreamSub} asks each owner's own
+     * {@code Subs} whether it listens to this name: a handful of empty-map lookups, against the per-message
+     * dispatch map this replaced. That is D-100 — the state belongs on the thing that owns it — and it is what
+     * makes teardown a {@link Subs#clear} with nothing to unregister.
+     */
+    static boolean dispatchAction(Widget sender, String msg, Object[] args) {
+        if(!anyStreamSub(msg, true))
+            return true;                              // fast path: nothing anywhere listens to this action
+        UI u = ui;
+        if((u == null) || !Thread.holdsLock(u))
+            return true;                              // only run Lua on a UI-locked (Lua-safe) send path
+        if(dispatchingAction)
+            return true;                              // re-entrancy: a handler body sent another wdgmsg
+        Subs.Cancel c = new Subs.Cancel();
+        dispatchingAction = true;
+        try {
+            for(Addon a : addons)
+                fireAction(a, sender, msg, args, c, u);
+            Addon co = consoleOwner;
+            if(co != null)
+                fireAction(co, sender, msg, args, c, u);
+        } finally {
+            dispatchingAction = false;
+        }
+        return !c.prevented();
+    }
+
+    /** Run one owner's action handlers, with its own {@code ev} over the shared cancel flag. */
+    private static void fireAction(Addon a, Widget sender, String msg, Object[] args, Subs.Cancel c, UI u) {
+        if(a.actionSubs.has(msg))
+            a.actionSubs.fire(msg, c, LuaEvent.action(a, sender, msg, args, c, u));
+    }
+
+    /**
+     * The inbound-{@code uimsg} dispatch (041.2, over the L3 hook level it replaced) — the body behind
+     * {@link #onMessage}. Every {@code hafen.event():message():on(msg, fn)} handler runs before the target
+     * widget applies the update, and the answer is what to apply: the original {@code args}, a rewritten
+     * array ({@code ev:rewrite(t)}), or {@code null} to swallow it ({@code ev:preventDefault()}).
+     *
+     * <p><b>{@code preventDefault} beats {@code rewrite}</b>, and the last {@code rewrite} of one message
+     * wins — the precedence the hook levels had, unchanged. No {@code holdsLock} guard, unlike
+     * {@link #dispatchAction}: this seam is reached only from inside {@code UiMessage.run}'s
+     * {@code synchronized(ui)} block, so the monitor is always already held.
+     */
+    static Object[] dispatchMessage(Widget target, String msg, Object[] args) {
+        if(!anyStreamSub(msg, false))
+            return args;                              // fast path: nothing anywhere listens to this message
+        Subs.Cancel c = new Subs.Cancel();
+        Object[][] rewritten = new Object[1][];
+        for(Addon a : addons)
+            fireMessage(a, target, msg, args, c, rewritten);
+        Addon co = consoleOwner;
+        if(co != null)
+            fireMessage(co, target, msg, args, c, rewritten);
+        if(c.prevented())
+            return null;                              // swallow (preventDefault wins over any rewrite)
+        return (rewritten[0] != null) ? rewritten[0] : args;
+    }
+
+    /** Run one owner's message handlers, with its own {@code ev} over the shared cancel + rewrite slots. */
+    private static void fireMessage(Addon a, Widget target, String msg, Object[] args, Subs.Cancel c,
+                                    Object[][] rewritten) {
+        if(a.messageSubs.has(msg))
+            a.messageSubs.fire(msg, c, LuaEvent.message(a, target, msg, args, c, rewritten));
+    }
+
+    /** Does any owner subscribe to {@code msg} on the action ({@code true}) or message stream? */
+    private static boolean anyStreamSub(String msg, boolean action) {
+        for(Addon a : addons) {
+            if((action ? a.actionSubs : a.messageSubs).has(msg))
+                return true;
+        }
+        Addon c = consoleOwner;
+        return (c != null) && (action ? c.actionSubs : c.messageSubs).has(msg);
     }
 
     /** Fire an event to every owner (all addons + the REPL). */
@@ -1592,6 +1727,34 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
                 if(key.startsWith("GobOverlay"))   // 038.3: arm the two Gob seams (see `overlaySubs`)
                     overlaySubs = true;
                 return owner.subs.on(key, fn);
+            }
+        });
+        // hafen.event():action() / hafen.event():message() — the two message streams (041.2), which are the
+        // bus's other two doors rather than a section of their own: a "click" can come from ANY widget and a
+        // "set" can go to ANY widget, so neither has an object to hang off (spec R2). Each is an emitter over
+        // its own Subs, and each takes no arguments — the stream IS the object, and you subscribe on it.
+        //
+        // Their key sets are OPEN, unlike the bus's own (D-129): a wdgmsg/uimsg name is PROTOCOL, not a
+        // catalogue the client owns, so refusing an unknown one would refuse a legitimate message the server
+        // introduces tomorrow.
+        final LuaValue actions = stream("action", owner.actionSubs);
+        final LuaValue messages = stream("message", owner.messageSubs);
+        event.set("action", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "event", "action");
+                if(Args.passed(a, 2))
+                    throw new LuaError("hafen.event():action() takes no arguments — it IS the outbound action"
+                        + " stream, and you subscribe on it: hafen.event():action():on(msg, fn)");
+                return actions;
+            }
+        });
+        event.set("message", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "event", "message");
+                if(Args.passed(a, 2))
+                    throw new LuaError("hafen.event():message() takes no arguments — it IS the inbound message"
+                        + " stream, and you subscribe on it: hafen.event():message():on(msg, fn)");
+                return messages;
             }
         });
         Section.install(hafen, "event", event);

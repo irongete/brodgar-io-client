@@ -145,7 +145,16 @@ public final class Section {
         return s;
     }
 
-    /** The per-section metatable: methods by name, an unknown verb throws, and a readable {@code tostring}. */
+    /**
+     * The per-section metatable: methods by name, an unknown verb throws, and a readable {@code tostring}.
+     *
+     * <p>A verb the section <b>used to</b> have throws its own message first ({@link Retired}, keyed
+     * {@code "hafen.<section>():<verb>"}): a section that loses a verb to somewhere else in the API — 041.2's
+     * {@code hafen.hook():action} to {@code hafen.event():action():on} — would otherwise fail with the generic
+     * "has no verb", which says the call is wrong without saying what is right. The dotted pre-039 spelling of
+     * the same verb is a separate row on the callable table's own {@code __index}, so both call sites are
+     * answered.
+     */
     private static LuaValue meta(final String nm, final LuaTable methods) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, new TwoArgFunction() {
@@ -153,6 +162,11 @@ public final class Section {
                 LuaValue m = methods.rawget(key);
                 if(!m.isnil())
                     return m;
+                if(key.isstring()) {
+                    String msg = Retired.message("hafen." + nm + "():" + key.tojstring());
+                    if(msg != null)
+                        throw new LuaError(msg);
+                }
                 throw new LuaError("hafen." + nm + "() has no verb '" + key.tojstring() + "'");
             }
         });

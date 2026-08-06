@@ -22,35 +22,30 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 /**
- * The interception + input subsystem. Owns the five ways an addon reaches into client behaviour beyond the
+ * The interception + input subsystem. Owns the four ways an addon reaches into client behaviour beyond the
  * read API:
  * <ul>
  *   <li><b>L1 input hooks</b> ({@code hafen.hook():input}) — {@link Widget#listen} pre-hooks on mapview/gameui/root;</li>
- *   <li><b>L2 action hooks</b> ({@code hafen.hook():action}) — the outbound {@code UI.wdgmsg} choke point ({@link #dispatchAction});</li>
- *   <li><b>L3 message hooks</b> ({@code hafen.hook():message}) — the inbound {@code UI.uimsg} choke point ({@link #dispatchMessage});</li>
  *   <li><b>mouse grab</b> ({@code hafen.hook():grab}) — a modal drag capture (V5, the gizmo primitive);</li>
  *   <li><b>slash commands</b> ({@code hafen.slash}) — WoW-style {@code :name} console commands (A11);</li>
  *   <li><b>global hotkeys</b> ({@code hafen.client:options():keybindings()}) — remappable keys over the
  *       {@link KeyBinding} registry ({@link #dispatchKey}); the Lua surface is {@link KeybindingsOptions}.</li>
  * </ul>
  *
+ * <p><b>The two message streams left in 041.2.</b> What were the L2 (outbound {@code wdgmsg}) and L3 (inbound
+ * {@code uimsg}) hook levels are now {@code hafen.event():action():on(msg, fn)} and
+ * {@code hafen.event():message():on(msg, fn)} — the same choke points and the same precedence, over the one
+ * {@link Subs} mechanism, dispatched by {@link AddonManager#dispatchAction}/{@link AddonManager#dispatchMessage}.
+ * They moved because a subscription with no object to hang off belongs on the bus (spec {@code 041} §R2): a
+ * {@code "click"} can come from any widget and a {@code "set"} can go to any widget.
+ *
  * <p>The engine seams stay in {@link AddonManager} (the {@code haven} core calls them by name —
- * {@code onWdgmsg}/{@code onMessage}/{@code onGlobKey}) and delegate here; the keybind <i>panel</i> API
+ * {@code onWdgmsg}/{@code onMessage}/{@code onGlobKey}); the keybind <i>panel</i> API
  * ({@code describeKeyBinds}/{@code KeyBindGroup}/{@code KeyBindEntry}, used by {@code haven.OptWnd}) also
  * stays there and reads {@link #keyBinds}. All members static; not instantiable.
  */
 final class HookApi {
     private HookApi() {}
-
-    // -- action hooks (spec 13 §L2 / Phase 2d): intercept the outbound UI.wdgmsg action stream. Keyed by
-    // action name for a near-zero fast path when a msg is unhooked; globally empty when nothing is hooked.
-    private static final Map<String, List<LuaActionHook>> actionHooks =
-        new ConcurrentHashMap<String, List<LuaActionHook>>();
-    private static boolean dispatchingAction;   // re-entrancy guard (a hook body that itself sends a wdgmsg)
-
-    // -- message hooks (spec 13 §L3 / Phase 2e): intercept the inbound UI.uimsg server-update stream.
-    private static final Map<String, List<LuaMessageHook>> messageHooks =
-        new ConcurrentHashMap<String, List<LuaMessageHook>>();
 
     // -- addon slash commands (A11): WoW-style :command. slashHandlers = name -> current live handler;
     // slashDispatched = names whose ONE engine-lifetime Console dispatcher is installed (grows only — never
@@ -104,20 +99,9 @@ final class HookApi {
                 return newInputHook(owner, a.arg(2), a.arg(3), a.arg(4));
             }
         });
-        // action(msg, fn) — L2: an outgoing wdgmsg, before it reaches the server.
-        hook.set("action", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "hook", "action");
-                return newActionHook(owner, a.arg(2), a.arg(3));
-            }
-        });
-        // message(msg, fn) — L3: an incoming uimsg, before it reaches the widget.
-        hook.set("message", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "hook", "message");
-                return newMessageHook(owner, a.arg(2), a.arg(3));
-            }
-        });
+        // action(msg, fn) and message(msg, fn) are GONE (041.2): the two message streams are doors of the bus
+        // now, hafen.event():action():on(msg, fn) and hafen.event():message():on(msg, fn). Both spellings are
+        // rows in Retired, so the old call throws naming its replacement rather than reading nil.
         // grab{move=fn, up=fn} — take the mouse for a modal drag.
         hook.set("grab", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -265,169 +249,6 @@ final class HookApi {
         for(LuaMouseGrab g : a.mouseGrabs)
             g.release();               // drops the UI.Grab + marks dead; the widget unlinks on its next (or the last) tick
         a.mouseGrabs.clear();
-    }
-
-    // ================================================================= L2 action hooks (hafen.hook():action, 2d)
-
-    private static LuaValue newActionHook(final Addon owner, LuaValue msg, LuaValue fn) {
-        if(!msg.isstring() || !fn.isfunction())
-            throw new LuaError("hafen.hook():action(msg, fn) expects (string, function)");
-        final LuaActionHook h = new LuaActionHook(owner, msg.tojstring(), fn);
-        registerActionHook(h);
-        owner.actionHooks.add(h);
-        LuaTable handle = new LuaTable();
-        handle.set("remove", new ZeroArgFunction() {
-            public LuaValue call() {
-                removeActionHook(owner, h);
-                return LuaValue.NIL;
-            }
-        });
-        return handle;
-    }
-
-    /** Add {@code h} to the per-action dispatch list (created on demand). Copy-on-write so dispatch can iterate. */
-    private static void registerActionHook(LuaActionHook h) {
-        List<LuaActionHook> l = actionHooks.get(h.msg);
-        if(l == null) {
-            l = new CopyOnWriteArrayList<LuaActionHook>();
-            actionHooks.put(h.msg, l);
-        }
-        l.add(h);
-    }
-
-    /** Drop {@code h} from the dispatch map, removing the (now-empty) per-action list so the fast path stays cheap. */
-    private static void unregisterActionHook(LuaActionHook h) {
-        List<LuaActionHook> l = actionHooks.get(h.msg);
-        if(l != null) {
-            l.remove(h);
-            if(l.isEmpty())
-                actionHooks.remove(h.msg);
-        }
-    }
-
-    /** Remove one action hook: stop it firing + unregister it (the handle's {@code :remove()}). */
-    private static void removeActionHook(Addon owner, LuaActionHook h) {
-        h.alive = false;
-        unregisterActionHook(h);
-        owner.actionHooks.remove(h);
-    }
-
-    /** Mark dead + unregister every action hook this addon owns (teardown on reload/disable, P2). */
-    static void teardownActionHooks(Addon a) {
-        for(LuaActionHook h : a.actionHooks) {
-            h.alive = false;
-            unregisterActionHook(h);
-        }
-        a.actionHooks.clear();
-    }
-
-    /**
-     * The outbound-{@code wdgmsg} action dispatch (spec 13 §L2 / Phase 2d) — the body behind
-     * {@link AddonManager#onWdgmsg}. Runs every matching {@code hafen.hook():action} hook before the message
-     * reaches the server; returns whether the default send should proceed ({@code false} once a hook called
-     * {@code preventDefault}/{@code resend}/{@code send}). Runs Lua only when the calling thread already holds
-     * the UI monitor ({@code Thread.holdsLock}); the re-entrancy guard passes a hook-triggered wdgmsg through.
-     */
-    static boolean dispatchAction(Widget sender, String msg, Object[] args) {
-        if(actionHooks.isEmpty())
-            return true;                              // fast path: no action hooks anywhere
-        List<LuaActionHook> matching = actionHooks.get(msg);
-        if((matching == null) || matching.isEmpty())
-            return true;                              // fast path: nothing hooks this action
-        UI u = AddonManager.ui;
-        if((u == null) || !Thread.holdsLock(u))
-            return true;                              // only run Lua on a UI-locked (Lua-safe) send path
-        if(dispatchingAction)
-            return true;                              // re-entrancy: a hook body sent another wdgmsg
-        dispatchingAction = true;
-        boolean[] prevented = new boolean[1];
-        try {
-            for(LuaActionHook h : matching) {         // copy-on-write: a hook may :remove() itself here
-                if(h.alive)
-                    h.invoke(sender, msg, args, prevented, u);
-            }
-        } finally {
-            dispatchingAction = false;
-        }
-        return !prevented[0];
-    }
-
-    // ================================================================= L3 message hooks (hafen.hook():message, 2e)
-
-    private static LuaValue newMessageHook(final Addon owner, LuaValue msg, LuaValue fn) {
-        if(!msg.isstring() || !fn.isfunction())
-            throw new LuaError("hafen.hook():message(msg, fn) expects (string, function)");
-        final LuaMessageHook h = new LuaMessageHook(owner, msg.tojstring(), fn);
-        registerMessageHook(h);
-        owner.messageHooks.add(h);
-        LuaTable handle = new LuaTable();
-        handle.set("remove", new ZeroArgFunction() {
-            public LuaValue call() {
-                removeMessageHook(owner, h);
-                return LuaValue.NIL;
-            }
-        });
-        return handle;
-    }
-
-    /** Add {@code h} to the per-message dispatch list (created on demand). Copy-on-write so dispatch can iterate. */
-    private static void registerMessageHook(LuaMessageHook h) {
-        List<LuaMessageHook> l = messageHooks.get(h.msg);
-        if(l == null) {
-            l = new CopyOnWriteArrayList<LuaMessageHook>();
-            messageHooks.put(h.msg, l);
-        }
-        l.add(h);
-    }
-
-    /** Drop {@code h} from the dispatch map, removing the (now-empty) per-message list so the fast path stays cheap. */
-    private static void unregisterMessageHook(LuaMessageHook h) {
-        List<LuaMessageHook> l = messageHooks.get(h.msg);
-        if(l != null) {
-            l.remove(h);
-            if(l.isEmpty())
-                messageHooks.remove(h.msg);
-        }
-    }
-
-    /** Remove one message hook: stop it firing + unregister it (the handle's {@code :remove()}). */
-    private static void removeMessageHook(Addon owner, LuaMessageHook h) {
-        h.alive = false;
-        unregisterMessageHook(h);
-        owner.messageHooks.remove(h);
-    }
-
-    /** Mark dead + unregister every message hook this addon owns (teardown on reload/disable, P2). */
-    static void teardownMessageHooks(Addon a) {
-        for(LuaMessageHook h : a.messageHooks) {
-            h.alive = false;
-            unregisterMessageHook(h);
-        }
-        a.messageHooks.clear();
-    }
-
-    /**
-     * The inbound-{@code uimsg} message dispatch (spec 13 §L3 / Phase 2e) — the body behind
-     * {@link AddonManager#onMessage}. Runs every matching {@code hafen.hook():message} hook before the widget
-     * applies the update, and returns what to apply: the original {@code args} (unchanged / no hook), a
-     * rewritten {@code Object[]} ({@code ev:rewrite(t)}), or {@code null} ({@code ev:preventDefault()} — swallow).
-     * {@code preventDefault} wins over {@code rewrite}. Reached only under {@code synchronized(ui)}.
-     */
-    static Object[] dispatchMessage(Widget target, String msg, Object[] args) {
-        if(messageHooks.isEmpty())
-            return args;                              // fast path: no message hooks anywhere
-        List<LuaMessageHook> matching = messageHooks.get(msg);
-        if((matching == null) || matching.isEmpty())
-            return args;                              // fast path: nothing hooks this message
-        boolean[] prevented = new boolean[1];
-        Object[][] rewritten = new Object[1][];
-        for(LuaMessageHook h : matching) {            // copy-on-write: a hook may :remove() itself here
-            if(h.alive)
-                h.invoke(target, msg, args, prevented, rewritten);
-        }
-        if(prevented[0])
-            return null;                              // swallow (preventDefault wins over any rewrite)
-        return (rewritten[0] != null) ? rewritten[0] : args;
     }
 
     // ================================================================= slash commands (hafen.slash, A11)

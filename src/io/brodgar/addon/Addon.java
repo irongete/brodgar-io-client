@@ -70,22 +70,27 @@ public final class Addon {
      */
     public final List<LuaInputHook> hooks = new CopyOnWriteArrayList<LuaInputHook>();
     /**
-     * Live action hooks owned by this addon ({@code hafen.hook():action}, Phase 2d): pre-hooks on the outbound
-     * {@link haven.UI#wdgmsg} choke point, keyed by action name in {@link AddonManager}'s dispatch map.
-     * Teardown marks each dead and unregisters it from that map (principle P2) — unlike an input hook there is
-     * no widget to deafen; the hook lives only in the engine's dispatcher. Copy-on-write: a firing hook may
-     * {@code :remove()} itself while the dispatcher iterates the per-action list.
+     * This addon's subscriptions to the <b>outbound action stream</b> ({@code hafen.event():action():on(msg,
+     * fn)}, 041.2) — every player action, at the single {@link haven.UI#wdgmsg} choke point, before the server
+     * sees it. A separate {@link Subs} from {@link #subs} because the key set is a different KIND: a
+     * {@code wdgmsg} name is protocol, so this one is OPEN (any string is accepted) where the bus's 26 are
+     * closed (D-129).
+     *
+     * <p>It charges {@link #C_EVENT}, not {@link #C_HOOK}: the two streams are doors of the bus now, and the
+     * {@code hooks} column is what is left of {@code hafen.hook()} — hotkeys and slash commands.
+     *
+     * <p>Teardown drops it wholesale ({@link Subs#clear}). Unlike the hook records it replaced there is
+     * nothing to unregister from a global dispatch map: {@link AddonManager#dispatchAction} asks each owner's
+     * own {@code Subs} whether it listens, so the state lives on the thing that owns it (D-100).
      */
-    public final List<LuaActionHook> actionHooks = new CopyOnWriteArrayList<LuaActionHook>();
+    public final Subs actionSubs = new Subs(this, Addon.C_EVENT);
     /**
-     * Live message hooks owned by this addon ({@code hafen.hook():message}, Phase 2e): pre-hooks on the inbound
-     * {@link haven.UI#uimsg} choke point, keyed by message name in {@link AddonManager}'s dispatch map.
-     * Teardown marks each dead and unregisters it from that map (principle P2) — like an action hook (and
-     * unlike an input hook) there is no widget to deafen; the hook lives only in the engine's dispatcher, which
-     * a {@code :reload} keeps alive while the Lua layer rebuilds. Copy-on-write: a firing hook may
-     * {@code :remove()} itself while the dispatcher iterates the per-message list.
+     * This addon's subscriptions to the <b>inbound message stream</b> ({@code hafen.event():message():on(msg,
+     * fn)}, 041.2) — every server UI update, at the {@link haven.UI#uimsg} choke point, before the target
+     * widget applies it. The inbound mirror of {@link #actionSubs} in every respect: open key set, the
+     * {@code events} category, one {@link Subs#clear} at teardown, and no global registry to keep in step.
      */
-    public final List<LuaMessageHook> messageHooks = new CopyOnWriteArrayList<LuaMessageHook>();
+    public final Subs messageSubs = new Subs(this, Addon.C_EVENT);
     /**
      * Live global hotkeys owned by this addon ({@code keybindings:register}, Phase 2e-2): each pairs a client
      * {@link haven.KeyBinding} with a Lua handler, dispatched from {@link AddonRoot#globtype} via the engine's
@@ -278,6 +283,15 @@ public final class Addon {
      * there is nothing to tear down.
      */
     LuaValue subMeta;
+
+    /**
+     * This addon's <b>event-object metatables</b> ({@link LuaEvent}), one per shape, each built on the first
+     * {@code ev} of that shape. Per addon for the reason every metatable here is (D-017), and indexed by
+     * {@link LuaEvent.Shape#ordinal()} rather than kept in a map: the shapes are a closed enum known at
+     * compile time, so an array is both the smaller and the more honest structure. An event object holds no
+     * engine resource beyond the widget it may intern (weakly), so there is nothing to tear down.
+     */
+    final LuaValue[] eventMeta = new LuaValue[LuaEvent.Shape.values().length];
 
     /**
      * This addon's <b>Kin interning cache</b> ({@code hafen.kin():get(idOrName)}, spec {@code 020-kin-oop}): the

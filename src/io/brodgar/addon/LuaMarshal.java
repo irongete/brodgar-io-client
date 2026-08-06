@@ -11,11 +11,14 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 /**
- * Shared Java&harr;Lua marshalling for the {@code wdgmsg}/{@code uimsg} argument arrays that the hook
- * levels expose to addons. Extracted from {@link LuaActionHook} (Phase 2d) so both the outbound
- * <b>action</b> hook (L2, {@code hafen.hook():action}) and the inbound <b>message</b> hook (L3,
- * {@code hafen.hook():message}, Phase 2e) convert arguments the one canonical way (D-013) and cannot
- * drift — the same reasoning as the shared {@link LuaGOut} (2b).
+ * Shared Java&harr;Lua marshalling for the {@code wdgmsg}/{@code uimsg} argument arrays the two message
+ * streams expose to addons. Extracted (Phase 2d) so both the outbound stream
+ * ({@code hafen.event():action()}) and the inbound one ({@code hafen.event():message()}) convert arguments
+ * the one canonical way (D-013) and cannot drift — the same reasoning as the shared {@link LuaGOut} (2b).
+ *
+ * <p><b>A {@code nil} argument is a hole, and {@link #luaToArgs} is sized to survive one</b> — see its doc.
+ * It matters constantly on the inbound side: a chat line arrives with a null sender, so the identity round
+ * trip {@code ev:rewrite(ev:args())} has to mean what it says.
  *
  * <p>The mapping (see {@link #toLua}/{@link #toJava}):
  * <ul>
@@ -135,18 +138,58 @@ final class LuaMarshal {
 
     /**
      * Convert a Lua argument table (from {@code ev:send}/{@code ev:rewrite}) back to a Java
-     * {@code Object[]}. {@code ctx} names the caller for error messages (e.g.
-     * {@code "hafen.hook():action ev:send"}).
+     * {@code Object[]}. {@code ctx} names the caller for error messages (e.g. {@code "ev:send"}).
+     *
+     * <p><b>Sized by the highest index, not by {@code #t}</b> (041.2). A {@code null} argument marshals to a
+     * Lua {@code nil}, which in a table is a <i>hole</i> — and {@code #t} stops at a hole, so sizing by it
+     * silently DROPPED arguments: a chat {@code "msg"} arrives as {@code (nil, line)} (a null sender is how
+     * the client knows the line is yours), whose {@code #} is 0, so {@code ev:rewrite(ev:args())} — the
+     * identity round trip — would have applied an EMPTY argument list to the widget. Scanning the keys
+     * instead makes a leading or middle hole survive, which is what the message actually had.
+     *
+     * <p><b>What still cannot be expressed is a TRAILING nil</b>, and that is inherent rather than a defect
+     * to route around: in Lua {@code {x, nil}} and {@code {x}} are the same table, so a final {@code null}
+     * argument is indistinguishable from an absent one. Read {@code ev:args()} and pass it back if you need
+     * the exact shape; build a table by hand only for messages you know the arity of.
      */
     static Object[] luaToArgs(LuaValue t, String ctx) {
         if(!t.istable())
             throw new LuaError(ctx + "(args) expects a table");
-        int n = t.length();
+        int n = argCount(t, ctx);
         Object[] out = new Object[n];
         for(int i = 0; i < n; i++)
             out[i] = toJava(t.get(i + 1), ctx);
         return out;
     }
+
+    /**
+     * How many arguments {@code t} describes: the largest positive integer key in it, which is {@code #t}
+     * for a hole-free table and more than it for one carrying a {@code nil}. Bounded at {@link #MAXARGS} so
+     * a stray key ({@code {[1000000] = 1}}) is a refusal rather than a million-element array — no protocol
+     * message in the client comes near it.
+     */
+    private static int argCount(LuaValue t, String ctx) {
+        int n = t.length();
+        LuaValue k = LuaValue.NIL;
+        while(true) {
+            LuaValue next = t.next(k).arg1();
+            if(next.isnil())
+                break;
+            k = next;
+            if(k.isint()) {
+                int i = k.toint();
+                if(i > n)
+                    n = i;
+            }
+        }
+        if(n > MAXARGS)
+            throw new LuaError(ctx + "(args): " + n + " arguments — no client message has more than "
+                + MAXARGS + ", so this is an index typo rather than an argument list");
+        return n;
+    }
+
+    /** The ceiling on an argument list built from Lua (see {@link #argCount}). */
+    private static final int MAXARGS = 256;
 
     /** Inverse of {@link #toLua}: a {@code {x=,y=}} table &rarr; {@link Coord}, userdata &rarr; its object. */
     static Object toJava(LuaValue v, String ctx) {
