@@ -71,7 +71,21 @@ public final class LuaEvent {
         /** {@code g:on("Move", fn)} — a mouse grab's drag step (041.5): the pointer plus the live modifiers. */
         GRAB_MOVE("grabmove", "a grab's Move event answers :x() :y() :shift() :ctrl() :alt()"),
         /** {@code g:on("Up", fn)} — a mouse grab's release (041.5): {@code GRAB_MOVE} plus which button ended it. */
-        GRAB_UP("grabup", "a grab's Up event answers :x() :y() :shift() :ctrl() :alt() :button()");
+        GRAB_UP("grabup", "a grab's Up event answers :x() :y() :shift() :ctrl() :alt() :button()"),
+        /**
+         * {@code hafen.event():on("GobOverlayAdded"/"GobOverlayRemoved", fn)} — 038.3's payload, objectified
+         * (041.7): three things to say, so an {@code ev} rather than the plain {@code {gob, key, native}} table
+         * it was before this feature reached it.
+         */
+        OVERLAY("overlay", "an overlay event answers :gob() :key() :native()"),
+        /**
+         * {@code hafen.event():on("GhostClicked"/"SpriteClicked"/"ObjectClicked", fn)} — the V2 click payload,
+         * objectified (041.7): all three answer the same shape, and only the noun matching {@code clickKey()}
+         * (the emitter that actually fired) reads non-nil — the other two read {@code nil} rather than throwing,
+         * the same "the data decides which field applies" rule {@code Shape.INPUT} already has for its
+         * {@code button}/{@code amount} (EXAMPLES.md §1.1).
+         */
+        CLICKED("clicked", "a clicked event answers :ghost() :sprite() :object() :button() :x() :y()");
 
         /** The shape's name, for {@code tostring(ev)}. */
         final String label;
@@ -120,6 +134,71 @@ public final class LuaEvent {
     /** The 1-based argument table, built on the first {@code ev:args()} and handed back by identity after. */
     private LuaValue argsObj;
 
+    /** OVERLAY: the gob's id — minted into a handle lazily on first {@code :gob()}, like {@code :sender()}. */
+    private final long gobId;
+    /** OVERLAY: the overlay's key. CLICKED: which noun answers — {@code "ghost"}/{@code "sprite"}/{@code "object"}
+     * ({@link LuaWorldEntity#clickKey()}). */
+    private final String key;
+    /** OVERLAY: whether this is one of the game's own overlays, vs. one the owning addon attached itself. */
+    private final boolean nat;
+    /** CLICKED: the world coordinate the click resolved to — a double, unlike {@code Shape.INPUT}'s widget-local
+     * pixel ints, so it does not reuse the {@code x}/{@code y} fields above. */
+    private final double wx, wy;
+    /** OVERLAY: the interned Gob handle, minted lazily on first {@code :gob()} (D-064-style, like {@code :sender()}). */
+    private LuaValue gobObj;
+
+    /** OVERLAY shape (041.7): {@code hafen.event():on("GobOverlayAdded"/"GobOverlayRemoved", fn)}'s payload. */
+    private LuaEvent(Addon owner, Shape shape, long gobId, String key, boolean nat) {
+        this.owner = owner;
+        this.shape = shape;
+        this.cancel = null;
+        this.msg = null;
+        this.wdg = null;
+        this.args = null;
+        this.ui = null;
+        this.rewritten = null;
+        this.x = 0;
+        this.y = 0;
+        this.button = null;
+        this.amount = null;
+        this.g = null;
+        this.extra = null;
+        this.flag = false;
+        this.mods = 0;
+        this.gobId = gobId;
+        this.key = key;
+        this.nat = nat;
+        this.wx = 0;
+        this.wy = 0;
+    }
+
+    /** CLICKED shape (041.7): {@code hafen.event():on("GhostClicked"/"SpriteClicked"/"ObjectClicked", fn)}'s
+     * payload — {@code entity} is the already-interned handle (V2 click dispatch mints it before this is built,
+     * unlike a lazily-minted Gob), {@code key} which noun it answers to. */
+    private LuaEvent(Addon owner, Shape shape, LuaValue entity, String key, int button, double wx, double wy) {
+        this.owner = owner;
+        this.shape = shape;
+        this.cancel = null;
+        this.msg = null;
+        this.wdg = null;
+        this.args = null;
+        this.ui = null;
+        this.rewritten = null;
+        this.x = 0;
+        this.y = 0;
+        this.button = Integer.valueOf(button);
+        this.amount = null;
+        this.g = null;
+        this.extra = entity;
+        this.flag = false;
+        this.mods = 0;
+        this.gobId = 0;
+        this.key = key;
+        this.nat = false;
+        this.wx = wx;
+        this.wy = wy;
+    }
+
     private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, String msg, Widget wdg, Object[] args,
                      UI ui, Object[][] rewritten) {
         this(owner, shape, cancel, msg, wdg, args, ui, rewritten, 0, 0, null, null, null, null, false, 0);
@@ -162,6 +241,13 @@ public final class LuaEvent {
         this.extra = extra;
         this.flag = flag;
         this.mods = mods;
+        // OVERLAY/CLICKED (041.7) never reach this constructor — each has its own, below — so these five
+        // are always their zero value here.
+        this.gobId = 0;
+        this.key = null;
+        this.nat = false;
+        this.wx = 0;
+        this.wy = 0;
     }
 
     /** {@code tostring(ev)} → {@code Event(action:click)}, or {@code Event(draw)} for a shape with no message. */
@@ -236,6 +322,24 @@ public final class LuaEvent {
         return of(new LuaEvent(owner, Shape.GRAB_UP, x, y, mods, Integer.valueOf(button)));
     }
 
+    /**
+     * The {@code ev} for one {@code GobOverlayAdded}/{@code GobOverlayRemoved} fire (038.3's payload,
+     * objectified 041.7) — {@code owner} is the one addon this event is being minted for (per-addon interning,
+     * D-045), same as {@link AddonManager#fireGobOverlay} already required of its table.
+     */
+    static LuaValue overlay(Addon owner, long gobId, String key, boolean nat) {
+        return of(new LuaEvent(owner, Shape.OVERLAY, gobId, key, nat));
+    }
+
+    /**
+     * The {@code ev} for one {@code GhostClicked}/{@code SpriteClicked}/{@code ObjectClicked} fire (V2 click
+     * dispatch, objectified 041.7) — {@code entity} is the already-interned ghost/sprite/object handle,
+     * {@code clickKey} which noun answers it ({@link LuaWorldEntity#clickKey()}).
+     */
+    static LuaValue clicked(Addon owner, LuaValue entity, String clickKey, int button, double x, double y) {
+        return of(new LuaEvent(owner, Shape.CLICKED, entity, clickKey, button, x, y));
+    }
+
     private static LuaValue of(LuaEvent ev) {
         return LuaValue.userdataOf(ev, meta(ev.owner, ev.shape));
     }
@@ -268,6 +372,13 @@ public final class LuaEvent {
         return argsObj;
     }
 
+    /** {@code ev:gob()} (OVERLAY) — the interned Gob handle, minted on the first ask (like {@code :sender()}). */
+    private LuaValue gob() {
+        if(gobObj == null)
+            gobObj = LuaGob.of(owner, gobId);
+        return gobObj;
+    }
+
     // ---- the per-(addon, shape) metatable ----------------------------------------------------------
 
     /**
@@ -295,6 +406,10 @@ public final class LuaEvent {
             grabMove(m);
         } else if(shape == Shape.GRAB_UP) {
             grabUp(m);
+        } else if(shape == Shape.OVERLAY) {
+            overlay(m);
+        } else if(shape == Shape.CLICKED) {
+            clicked(m);
         } else {
             common(m, shape);
             if(shape == Shape.ACTION)
@@ -516,6 +631,74 @@ public final class LuaEvent {
             public Varargs invoke(Varargs a) {
                 Integer b = self(a.arg1(), Shape.GRAB_UP, "button").button;
                 return (b == null) ? LuaValue.NIL : LuaValue.valueOf(b.intValue());
+            }
+        });
+    }
+
+    /**
+     * {@code hafen.event():on("GobOverlayAdded"/"GobOverlayRemoved", fn)} (041.7): three things to say —
+     * {@code :gob()} the owner's own interned handle (minted lazily, like {@code :sender()}), {@code :key()}
+     * the overlay's key, {@code :native()} whether the game put it there. Uncancelable, like every other bus
+     * payload: an unlisted verb (including {@code :preventDefault()}) throws naming the vocabulary.
+     */
+    private static void overlay(LuaTable m) {
+        m.set("gob", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return self(a.arg1(), Shape.OVERLAY, "gob").gob();
+            }
+        });
+        m.set("key", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.OVERLAY, "key").key);
+            }
+        });
+        m.set("native", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.OVERLAY, "native").nat);
+            }
+        });
+    }
+
+    /**
+     * {@code hafen.event():on("GhostClicked"/"SpriteClicked"/"ObjectClicked", fn)} (041.7): one shape for all
+     * three, since they differ only in which noun answers — {@code :ghost()}/{@code :sprite()}/{@code :object()}
+     * all exist on every CLICKED event, but only the one matching {@link LuaWorldEntity#clickKey()} (the emitter
+     * that actually fired) reads the handle; the other two read {@code nil}, the same "the data decides, not a
+     * typo" rule {@code Shape.INPUT} already has for {@code :button()}/{@code :amount()}. Uncancelable: a click
+     * on a client-only entity is already consumed by the time this fires (no server message was ever sent).
+     */
+    private static void clicked(LuaTable m) {
+        m.set("ghost", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaEvent e = self(a.arg1(), Shape.CLICKED, "ghost");
+                return "ghost".equals(e.key) ? e.extra : LuaValue.NIL;
+            }
+        });
+        m.set("sprite", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaEvent e = self(a.arg1(), Shape.CLICKED, "sprite");
+                return "sprite".equals(e.key) ? e.extra : LuaValue.NIL;
+            }
+        });
+        m.set("object", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaEvent e = self(a.arg1(), Shape.CLICKED, "object");
+                return "object".equals(e.key) ? e.extra : LuaValue.NIL;
+            }
+        });
+        m.set("button", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.CLICKED, "button").button.intValue());
+            }
+        });
+        m.set("x", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.CLICKED, "x").wx);
+            }
+        });
+        m.set("y", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.CLICKED, "y").wy);
             }
         });
     }

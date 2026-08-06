@@ -140,7 +140,7 @@ local g = hafen.ghost():add("gfx/terobjs/arch/logcabin", p)
   end)
 -- or globally, for every clickable ghost this addon owns:
 hafen.event():on("GhostClicked", function(ev)
-  hafen.ghost():remove(ev.ghost)         -- ev = { ghost, button, x, y }
+  hafen.ghost():remove(ev:ghost())       -- ev:ghost() ev:button() ev:x() ev:y()
 end)
 ```
 

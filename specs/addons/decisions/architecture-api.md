@@ -1663,3 +1663,101 @@ lets a widget's `Subs` deafen the ONE engine listener it installed per event cla
 firing into an empty handler list for the widget's remaining lifetime.
 **See.** [041-unified-events](../041-unified-events/spec.md) §R2 (¿tienes el objeto? `obj:on(...)`),
 [design/25-uniform-api.md](../design/25-uniform-api.md) (uniform syntax over non-uniform returns is a veneer).
+
+### D-173 — a section with nothing left in it is deleted whole, not kept around as an empty shell ✅ (2026-08-06, 041.5)
+**Decision.** `hafen.hook()` is removed as a Lua-reachable name entirely once its last verb (`:grab`) moves
+elsewhere — [`HookApi`](src/io/brodgar/addon/HookApi.java) keeps only slash commands and the keybinding
+registry, mounted directly under `hafen.slash`/`hafen.client:options():keybindings()`, and reading bare
+`hafen.hook` throws at the `hafen` table's own `__index` (one [`Retired`](src/io/brodgar/addon/Retired.java)
+row, `"hafen.hook"`) before any dotted or colon sub-spelling is ever reached.
+**Rationale.** By 041.5 `hafen.hook()` had exactly one verb left (`:grab`) — input left in 041.3, action/
+message in 041.2. A section object that exists only to hold one verb is a compound name (`hafen.hook():grab`)
+standing in for what could be a direct one (`hafen.ui():mouse():grab()`), and keeping the shell around "in
+case something else needs it later" is exactly the kind of speculative surface [D-011](#d-011)/no-backward-
+compat guidance rejects — nothing else was ever going to need it, because everything that could have lived
+under `hafen.hook()` already had a better address once §R2 (¿tienes el objeto?) was applied to it.
+**Consequences.** One `Retired` row covers `hafen.hook`, `hafen.hook()`, and every `:input`/`:action`/
+`:message`/`:grab` attempt through it — they all die at the same section-level read, so there is no separate
+message to maintain per retired verb once the section itself is gone. A later feature that empties a section
+down to one verb should ask the same question — does the verb belong on the section, or does the section now
+exist only to hold it? — rather than assuming a section, once created, is permanent.
+**See.** [D-170](#d-170) (a verb retired off a surviving section), [041-unified-events](../041-unified-events/plan.md)
+*Discarded alternatives* ("keeping `hafen.hook()` alive for grab alone").
+
+### D-174 — a widget's closed vocabulary is a property of WHAT IT IS, computed fresh, not a fixed catalogue ✅ (2026-08-06, 041.4)
+**Decision.** [`LuaWidget.widgetKeys`](src/io/brodgar/addon/LuaWidget.java) computes the set of keys a widget
+answers to `:on(key, fn)` **per call**, from what that widget concretely is — a control capability first (at
+most one of five: `Press`/`Change`/`Submit`/`Select`/`OnCell`), the five universal keys every widget has, the
+item pair on anything that is not one of the sixteen control adapters, the surface four
+(`Draw`/`Tick`/`Drop`/`Close`) on an owned `AddonWidget` alone — rather than a static map keyed by class or a
+single closed list shared by every widget.
+**Rationale.** The keys a `Button` answers and the keys a `Label` answers are genuinely different closed sets
+(D-125 says closed sets throw listing what they DO answer), and the set is not fixed at compile time in any
+one place — it is the union of independent, orthogonal facts about the widget (is it a control? which
+capability? is it a container? is it this addon's own surface?). A hand-maintained per-class table would be
+a second place, beside the `instanceof` chains that already answer each of those questions, that a later
+control or capability could forget to update.
+**Consequences.** Adding a sixteenth control or a new capability costs one more `instanceof` branch in
+`widgetKeys`, never a new table entry to remember elsewhere; a widget's answered vocabulary is provably
+consistent with what dispatch actually does, because both read the same facts. The refusal a mismatched key
+throws is therefore always accurate for THAT widget, not a generic list that happens to be true most of the
+time.
+**See.** [D-125](#d-125) (a closed vocabulary throws naming what it answers), [D-172](#d-172) (own input rides
+the native door), [041-unified-events](../041-unified-events/EXAMPLES.md) §1.1-§1.4.
+
+### D-175 — a notification CAPABILITY is a pure marker once N-subscriber `Subs` carries every fire ✅ (2026-08-06, 041.4)
+**Decision.** [`Controls.Press`/`Change`/`Submit`/`Select`/`OnCell`](src/io/brodgar/addon/Controls.java) —
+the marker interfaces that say *"this control fires `Pressed`"* etc. — carry no state and no callback slot
+any more. Before 041.4 each also held the single installed Lua handler and called it directly; now every fire
+is `Controls.fire`, which looks up the widget's own `Subs` (`WidgetSubs`, without minting one if nobody is
+listening) and lets it dispatch to however many handlers are actually subscribed.
+**Rationale.** The old shape mixed two concerns in one interface — "does this control fire this
+notification at all" (a fact worth asking, e.g. from `widgetKeys`) and "here is the ONE handler for it" (the
+single-slot cardinality R1 retires everywhere else). Once N subscribers is the rule for every key in the
+area, the second half has nowhere left to live except the widget's own `Subs` — the same door every other
+key already goes through — so the marker collapses to the answer to the first question alone.
+**Consequences.** `Controls.image`/`checkImage`/`rowHeight`/`cell` — every rebuild-carry site that used to
+copy a stored `onPress`/`onChange`/`onSelect`/`onCell` handler across a rebuild — drop those lines outright:
+a `:on()` subscription cannot exist yet at rebuild time regardless (041.3's own rule, a subscription is
+registered in its own statement after the builder chain finishes), so there was never anything for the
+marker to carry. A future control capability is a marker from the start, not a slot that gets hollowed out
+later.
+**See.** [041-unified-events](../041-unified-events/spec.md) §R1 (N subscribers everywhere), [D-172](#d-172).
+
+### D-176 — a widget's Lua identity is keyed on its ROOT, not the object that happens to draw ✅ (2026-08-06, 041.4)
+**Decision.** [`AddonWidget`](src/io/brodgar/addon/AddonWidget.java)'s four fire sites (`Draw`/`Tick`/`Drop`/
+`Close`) key their `Subs` lookup on `rootw()` — the widget `hafen.ui():window()`/`:widget()` actually interned
+the Lua handle on — never on `this`.
+**Rationale.** (Found by 041.4's own `[manual]` round, not the automated suite.) `hafen.ui():window()` interns
+its Lua handle on the CHROME, one level above the content `AddonWidget` that actually draws and ticks; a bare
+`hafen.ui():widget()` has no such split, so `this == rootw()` there and the bug was invisible until a
+`:window()`-built widget was tested. Keying the fire sites on `this` silently missed every subscription a
+`window()`-built widget's handle had ever registered, because the `Subs` a `:window()`'s `widget:on(...)` call
+installs lives on the CHROME's `WidgetSubs`, not the content's.
+**Consequences.** `learnings/hooks-hotkeys.md`'s general lesson from this: pick an automated-coverage case
+that does NOT make two different objects happen to be equal (the bare-widget case coincidentally has
+`this == rootw()`, which is exactly why the suite's own automated checks did not catch it — only the
+`[manual]` Draw-demo round, built against a `hafen.ui():window()`, did). A widget entity with two levels
+(chrome vs. content) must always be tested at BOTH, not just the simpler one that happens to collapse them.
+**See.** [D-064](#d-064) (the intern cache's own two-axis shape), [041-unified-events](../041-unified-events/plan.md)
+*Risks & gotchas*.
+
+### D-177 — a payload answering several MUTUALLY EXCLUSIVE nouns is one shape, and the nouns that don't apply read nil ✅ (2026-08-06, 041.7)
+**Decision.** [`LuaEvent.Shape.CLICKED`](src/io/brodgar/addon/LuaEvent.java) is ONE shape for
+`GhostClicked`/`SpriteClicked`/`ObjectClicked` alike, not three. Its methods table answers `:ghost()`,
+`:sprite()` and `:object()` on every CLICKED event; only the one matching
+[`clickKey()`](src/io/brodgar/addon/LuaWorldEntity.java) (the entity that was actually clicked) returns the
+handle, and the other two return `nil` rather than throwing.
+**Rationale.** D-125's closed-vocabulary rule says an unlisted VERB throws — but `:sprite()` on a
+`GhostClicked` is not an unlisted verb, it is a listed one whose DATA does not apply this time, the same
+distinction `Shape.INPUT` already draws for `:button()` (down/up only) and `:amount()` (wheel only), each
+`nil` where the concrete gesture does not carry them (EXAMPLES.md §1.1). Three near-identical shapes differing
+only in which one noun is populated would be the "one `LuaEvent` subclass per shape" alternative the feature
+already rejected for the SAME reason (spec's *Discarded alternatives*): more places to keep in sync for no
+behavioural difference a caller could tell apart from the single-shape answer.
+**Consequences.** A handler that does not know which of the three events it is inside (a shared listener
+registered on all three bus keys) can safely try all three noun-verbs and use whichever answers non-nil,
+without a type check first — the same pattern `ev:button()`/`:amount()` already established for input.
+**See.** [D-125](#d-125), [041-unified-events](../041-unified-events/EXAMPLES.md) §2 (the event object),
+[041-unified-events](../041-unified-events/plan.md) *Discarded alternatives* ("one `LuaEvent` subclass per
+shape").

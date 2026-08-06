@@ -1,6 +1,20 @@
 # Hooks & Interception (replacing/altering client logic)
 
-> **Status:** 🟡 Draft · **Spec:** AddOns
+> **LEVELS 1-3's ADDRESSING SUPERSEDED by [041-unified-events](../041-unified-events/spec.md)**: `hafen.hook`
+> is gone as a whole (the `input`/`action`/`message` proposal below and the `Level 1-3` sections that
+> describe them are history) — input on any widget is `widget:on("MouseDown"/"MouseUp"/"MouseMove"/"Wheel",
+> fn)`, an outbound action is `hafen.event():action():on(msg, fn)`, an inbound message is
+> `hafen.event():message():on(msg, fn)`, all three over the ONE `X:on(key, fn)` grammar every emitter in the
+> area now shares. The **mechanism** each level named (`Widget.listen`/`deafen` for L1, the `UI.wdgmsg`/
+> `UI.uimsg` choke points for L2/L3) is unchanged and still what backs the Lua surface — only the address
+> changed, from a section of its own to `X:on(key, fn)` on whatever the address actually is (spec §R2). The
+> priority/ordering question ([Q-012](../DECISIONS.md), below) is answered too: registration order within
+> one addon, undefined between addons, safe because *any* handler's `preventDefault` cancels and *every*
+> handler still runs (spec §R3) — there is no priority to configure. **Level 4 (method/full-logic
+> replacement) is untouched**: never built, still on the ROADMAP, and this page is still where its design
+> lives.
+>
+> **Status:** 🟡 Draft (Level 4 only — Levels 1-3 shipped, see above) · **Spec:** AddOns
 > **Related:** [08-widget-replacement.md](08-widget-replacement.md), [09-events-catalog.md](09-events-catalog.md), [06-lua-api.md](06-lua-api.md), [DECISIONS.md](../DECISIONS.md) (D-011)
 
 How an addon **intercepts, alters, or replaces** client behaviour — not just observes it. The

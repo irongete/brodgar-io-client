@@ -58,23 +58,30 @@ handlers cheap: they run on the UI thread on every frame.
 |---|---|---|
 | `GobAdded` | [Gob](gob.md) | a game object enters the world or your view |
 | `GobRemoved` | [Gob](gob.md) | a game object leaves |
-| `GobOverlayAdded` | `{ gob, key, native }` | something is attached to a game object — see [`gob:overlay()`](gob.md#overlays) |
-| `GobOverlayRemoved` | `{ gob, key, native }` | something attached to a game object goes away |
+| `GobOverlayAdded` | `ev` — `:gob()` `:key()` `:native()` | something is attached to a game object — see [`gob:overlay()`](gob.md#overlays) |
+| `GobOverlayRemoved` | `ev` — `:gob()` `:key()` `:native()` | something attached to a game object goes away |
 
-Prefer these over scanning [`hafen.world():gob():list`](world.md) every frame. The payload is a live
+Prefer these over scanning [`hafen.world():gob():list`](world.md) every frame. `ev:gob()` is a live
 [Gob object](gob.md). On `GobRemoved` the gob is **already gone**, so only `gob:id()` answers there; if
 you need its name, index it on `GobAdded`.
 
 ### Overlays coming and going
 
 `GobOverlayAdded` and `GobOverlayRemoved` cover both halves of what
-[`gob:overlay()`](gob.md#overlays) reads. `native` is `false` for one **you** attached and `true` for
-one the **game** put there (a lit fire's flame, a crop's growth stage), and `key` is then its resource
-name.
+[`gob:overlay()`](gob.md#overlays) reads.
+
+| `ev` on `GobOverlayAdded`/`GobOverlayRemoved` | Description |
+|---|---|
+| `ev:gob()` | the [Gob](gob.md) the overlay is attached to |
+| `ev:key()` | the overlay's key |
+| `ev:native()` | `false` for one **you** attached, `true` for one the **game** put there |
+
+`native` is `false` for one **you** attached and `true` for one the **game** put there (a lit fire's
+flame, a crop's growth stage), and `key` is then its resource name.
 
 ```lua
-hafen.event():on("GobOverlayAdded", function(e)
-  if e.native then hafen.log():write(e.gob:id() .. " now carries " .. e.key) end
+hafen.event():on("GobOverlayAdded", function(ev)
+  if ev:native() then hafen.log():write(ev:gob():id() .. " now carries " .. ev:key()) end
 end)
 ```
 
@@ -173,17 +180,23 @@ event is about *visibility*, and at `disappear` the widget is a key to match, no
 
 | Event | Payload | Fires |
 |---|---|---|
-| `GhostClicked` | `{ ghost, button, x, y }` | a **clickable** [ghost](ghost.md) of *your* addon is clicked |
-| `SpriteClicked` | `{ sprite, button, x, y }` | a **clickable** fixed [sprite](render/sprites.md#clickability) of *your* addon is clicked |
-| `ObjectClicked` | `{ object, button, x, y }` | a **clickable** [glTF object](render/models.md#clickability) of *your* addon is clicked |
+| `GhostClicked` | `ev` — `:ghost()` `:button()` `:x()` `:y()` | a **clickable** [ghost](ghost.md) of *your* addon is clicked |
+| `SpriteClicked` | `ev` — `:sprite()` `:button()` `:x()` `:y()` | a **clickable** fixed [sprite](render/sprites.md#clickability) of *your* addon is clicked |
+| `ObjectClicked` | `ev` — `:object()` `:button()` `:x()` `:y()` | a **clickable** [glTF object](render/models.md#clickability) of *your* addon is clicked |
 
 All three are **owner-scoped**: they fire only to the addon that owns the clicked entity, unlike the
 world and roster events above, which broadcast. That is because a ghost, sprite or object is private
-to its addon and its handle never leaves it. `ghost`, `sprite` and `object` are the clicked
-[entity](render/sprites.md#the-sprite); `button` is 1 for left and 3 for right; `x, y` is the world
-point the click resolved to. The click is **consumed** — no server click, no character walk. An entity
-fires this only while clickable; a non-clickable one is click-through and silent, and a **billboard**
-sprite has no world mesh, so it is never picked at all.
+to its addon and its handle never leaves it.
+
+| `ev` on `GhostClicked`/`SpriteClicked`/`ObjectClicked` | Description |
+|---|---|
+| `ev:ghost()` / `ev:sprite()` / `ev:object()` | the clicked [entity](render/sprites.md#the-sprite) — only the one matching the event fires reads non-nil |
+| `ev:button()` | 1 for left, 3 for right |
+| `ev:x()` `ev:y()` | the world point the click resolved to |
+
+The click is **consumed** — no server click, no character walk. An entity fires this only while
+clickable; a non-clickable one is click-through and silent, and a **billboard** sprite has no world
+mesh, so it is never picked at all.
 
 ## Intercepting an outbound action
 

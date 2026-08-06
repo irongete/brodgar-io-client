@@ -1,0 +1,9 @@
+{
+  "name": "041.7 — the close",
+  "id": "041-unified-events.7",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 041.7: the whole reactive surface swept in one pass -- every emitter x key, every retired spelling, and the two composite payloads this task objectifies.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

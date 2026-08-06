@@ -933,10 +933,10 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
     }
 
     /**
-     * Fire a gob-overlay event ({@code GobOverlayAdded}/{@code GobOverlayRemoved}, payload
-     * <code>{ gob, key, native }</code>) — 038.3. Two things fire it: the <b>game itself</b>, through the two
-     * {@code // addon:} seams in {@link Gob} ({@link #gobOverlayCame}/{@link #gobOverlayGone}), and an
-     * <b>addon's own</b> {@code gob:overlay(key, spec)} / {@code (key, nil)}.
+     * Fire a gob-overlay event ({@code GobOverlayAdded}/{@code GobOverlayRemoved}, payload {@code :gob() :key()
+     * :native()} — a {@link LuaEvent}, objectified 041.7) — 038.3. Two things fire it: the <b>game itself</b>,
+     * through the two {@code // addon:} seams in {@link Gob} ({@link #gobOverlayCame}/{@link #gobOverlayGone}),
+     * and an <b>addon's own</b> {@code gob:overlay(key, spec)} / {@code (key, nil)}.
      *
      * <p><b>The addon's half is OWNER-SCOPED, the game's broadcasts</b> — the {@code GhostClicked} shape, and for
      * the same reason one level down: an overlay key is <i>per addon</i>, so a {@code native = false} event handed
@@ -944,8 +944,8 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
      * name that addresses nothing is worse than no event. A native key is a resource name, which every addon can
      * read, so those go to everyone.
      *
-     * <p>Interning is per-addon (D-045) like every other payload here, so the Gob in the table is <i>that</i>
-     * owner's handle, minted only for an owner that actually subscribes.
+     * <p>Interning is per-addon (D-045) like every other payload here, so the Gob {@code :gob()} answers is
+     * <i>that</i> owner's handle, minted lazily and only for an owner that actually subscribes.
      */
     static void fireGobOverlay(String event, long gobId, String key, boolean nat, Addon owner) {
         if(owner != null) {                                   // one addon's own overlay: only that addon is told
@@ -962,13 +962,10 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
             fireTo(c, event, overlayPayload(c, gobId, key, nat));
     }
 
-    /** One owner's gob-overlay payload: {@code { gob = <its Gob>, key = "…", native = <bool> }}. */
+    /** One owner's gob-overlay payload: {@code :gob() :key() :native()} (a {@link LuaEvent}, 041.7 — a plain
+     * {@code {gob, key, native}} table before this, per spec §2.3/R6's "every payload member is a colon verb"). */
     private static LuaValue overlayPayload(Addon owner, long gobId, String key, boolean nat) {
-        LuaTable t = new LuaTable();
-        t.set("gob", LuaGob.of(owner, gobId));
-        t.set("key", LuaValue.valueOf(key));
-        t.set("native", LuaValue.valueOf(nat));
-        return t;
+        return LuaEvent.overlay(owner, gobId, key, nat);
     }
 
     /**

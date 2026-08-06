@@ -102,7 +102,7 @@
       checker at 0 broken. Its `[manual]` line is the maintainer reading `event.md` end to end.
       <!-- extra context: `specs/docs/design/style-guide.md` §9-§12; `specs/docs/decisions/docs-standard.md` (grep the D- headers only) -->
 
-- [ ] **041.7 — The close.** The sweep no per-task suite can do: **every emitter × every key** in one
+- [x] **041.7 — The close.** The sweep no per-task suite can do: **every emitter × every key** in one
       pass — the 26 bus keys, the 5 universal widget keys, the 2 container keys, the 4 own-widget keys,
       the 5 control keys over their 12 (builder, key) rows across all 16 builders, the 2 grab keys and
       the 7 mouse verbs — each asserted to

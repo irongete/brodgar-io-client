@@ -1113,3 +1113,25 @@
   tasks needs the full acceptance-criteria list re-checked against `src/` at the close, because "assigned
   to a task" and "in the spec" can silently drift apart across five hand-offs, and a docs task's symbol
   check is one of the few places that would ever notice.
+
+- **(041.7) A retired-verb probe must ride an ALREADY-PARENTED widget, never a fresh one built just to
+  probe it -- a bare builder attaches under `ui.root` immediately (`UiApi.attach`), before any
+  `:parent(...)` call.** A completeness-sweep suite that asserts sixteen retired `w:onXxx(fn)` spellings
+  is tempted to build a throwaway `hafen.ui():button()`/`:widget()`/etc. per probe, since the call is
+  expected to throw before doing anything else -- but the throw happens on the DOT-READ of the retired
+  name, one step *after* construction already attached the widget to the tree, so a probe widget never
+  handed to `:parent(scratchWindow)` survives the scratch window's `:destroy()` and reads as a leaked
+  control in a teardown tree-count check. Caught before the first in-game run by tracing `UiApi.attach`'s
+  `u.root.add(rootw)` line, not by running it. Fix: reuse handles the suite already built and parented for
+  an earlier part of its own sweep (`handles.btn`, the shared `own` widget, ...) for every such probe.
+- **(041.7) TESTING.md's "the regression is never run" rule extends to a task's OWN `[manual]` lines, not
+  only to what other suites assert.** A close-task suite asked the maintainer, as one of its two manual
+  steps, to "run the full regression list one command at a time" -- which is exactly the thing D-085/the
+  2026-08-06 amendment (041.2) says never to ask for: *"a task ... never reports 'also run :tNNN-X' as
+  part of its own proof."* The maintainer caught it in the same round it shipped, referencing the rule and
+  recent commits directly. The line was written because `tasks.md`'s own 041.7 entry (drafted the same day
+  the amendment landed) still named it as the task's `[manual]` line -- a spec artefact and the policy it
+  predates can disagree, and only the artefact gets read by `/implement` unless the maintainer flags the
+  drift. Fix: delete the line; a close task's own suite (the matrix + retired sweep + the two composite
+  payloads) is what proves completeness, and nothing outside `:t<NNN>-<X>` belongs in its own `[manual]`
+  list, no exception for "this is the feature's last task."

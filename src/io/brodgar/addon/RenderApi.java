@@ -1239,9 +1239,10 @@ final class RenderApi {
     /**
      * V2: {@code MapView.Click.hit} resolved a click to virtual gob {@code cg}, BEFORE its {@code wdgmsg("click",
      * …)}. If {@code cg} is a <b>clickable</b> client world entity — a ghost <i>or</i> a fixed {@link LuaSprite}
-     * (R2b generalized the dispatch beyond ghosts) — fire its owner-scoped click event ({@code GhostClicked{ghost,
-     * …}} / {@code SpriteClicked{sprite, …}}, keyed by {@link LuaWorldEntity#clickEvent()}/{@link
-     * LuaWorldEntity#clickKey()}; owner-scoped because the handle is private to its addon, not a global {@link #fire})
+     * (R2b generalized the dispatch beyond ghosts) — fire its owner-scoped click event (a {@link LuaEvent},
+     * objectified 041.7: {@code :ghost()}/{@code :sprite()} :button() :x() :y()), keyed by
+     * {@link LuaWorldEntity#clickEvent()}/{@link LuaWorldEntity#clickKey()}; owner-scoped because the handle is
+     * private to its addon, not a global {@link #fire})
      * and its per-entity {@code onClick(handle, button, x, y)}, then return {@code true} so the caller CONSUMES the
      * click — no {@code wdgmsg}, so nothing reaches the server (client-only ⇒ still SAFE-tier, D-032). Returns {@code
      * false} for any non-entity / non-clickable gob, so a normal click proceeds. (A billboard sprite has no world
@@ -1265,17 +1266,13 @@ final class RenderApi {
         }
         if(handle == null)
             return false;
-        LuaValue bt = LuaValue.valueOf(button);
-        LuaValue xv = LuaValue.valueOf((mc == null) ? 0 : mc.x);
-        LuaValue yv = LuaValue.valueOf((mc == null) ? 0 : mc.y);
-        LuaTable ev = new LuaTable();
-        ev.set(e.clickKey(), handle);                  // "ghost" / "sprite" (constant per subclass; no lock needed)
-        ev.set("button", bt);
-        ev.set("x", xv);
-        ev.set("y", yv);
+        double wx = (mc == null) ? 0 : mc.x, wy = (mc == null) ? 0 : mc.y;
+        LuaValue ev = LuaEvent.clicked(e.owner, handle, e.clickKey(), button, wx, wy);
         fireTo(e.owner, e.clickEvent(), ev);           // owner-scoped: an entity belongs to exactly one addon
-        if((onClick != null) && onClick.isfunction())
-            callLua(e.owner, Addon.C_HOOK, onClick, handle, bt, xv, yv);
+        if((onClick != null) && onClick.isfunction()) {
+            callLua(e.owner, Addon.C_HOOK, onClick, handle, LuaValue.valueOf(button), LuaValue.valueOf(wx),
+                LuaValue.valueOf(wy));
+        }
         return true;                                   // consume — client-only detection, no server wdgmsg
     }
 
