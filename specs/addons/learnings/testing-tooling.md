@@ -1135,3 +1135,15 @@
   drift. Fix: delete the line; a close task's own suite (the matrix + retired sweep + the two composite
   payloads) is what proves completeness, and nothing outside `:t<NNN>-<X>` belongs in its own `[manual]`
   list, no exception for "this is the feature's last task."
+
+- **(042.1) A `[manual]` line for "a HUD meter appears/disappears mid-session" must name mounting a
+  horse, never a crafting/digging progress bar.** The suite's first draft asked the maintainer to "start
+  and complete a craft" to exercise `MeterAdded`/`MeterRemoved`; nothing happened, because crafting
+  progress in this codebase never occupies `GameUI`'s `place == "meter"` HUD slot — the only server
+  message that lands there is `im` (`IMeter`'s `@RName`), and the only in-game trigger that adds to it
+  mid-session is mounting (`gfx/hud/meter/häst` + `.../mount`; `learnings/widget-tree-reads.md` (027.1)
+  already recorded this from a different feature, but it wasn't consulted while writing this task's test
+  instructions because 042.1's own "Context files" didn't name it). Generalisation: before writing a
+  `[manual]` line that asks the maintainer to trigger a specific widget-tree event, grep this file's own
+  learnings for the widget/uimsg involved — a fresh-context task can rediscover a fact a sibling feature
+  already paid for, and re-deriving it wrong costs a verification round.

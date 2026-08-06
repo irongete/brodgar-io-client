@@ -135,6 +135,15 @@ public final class AddonManager {
     // the event, which is exactly what hasSub does for every other event here.
     private static final Queue<OverlayEvent> overlayEvents = new ConcurrentLinkedQueue<OverlayEvent>();
     static volatile boolean overlaySubs;
+    // 042.1: the widget-removal seam (M1) — Widget.remove() runs on whatever thread reached it (a Loader
+    // thread under synchronized(ui) from the server command queue, or the UI thread from a client-side
+    // destroy()), so the tap only enqueues; tick() drains one frame's worth (D-106) and dispatches to the
+    // adapters that fire *Removed. Cleared on session init like the queues above.
+    private static final Queue<Widget> removedWidgets = new ConcurrentLinkedQueue<Widget>();
+    // 042.1: the Resolve (M2) marshalling queue — a Loading's wnotify() runs on whichever thread finished
+    // the load (Loader, Defer pool), so a retry callback never touches Lua directly; it enqueues here and
+    // tick() drains it on the UI thread (P5), same shape as the queues above.
+    private static final Queue<Runnable> resolveQueue = new ConcurrentLinkedQueue<Runnable>();
 
     // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
     // Adapters read a GameUI widget tree into a Lua snapshot and fire a semantic event on change. The
@@ -257,6 +266,8 @@ public final class AddonManager {
         gobEvents.clear();
         overlayEvents.clear();        // 038.3: and the overlay queue with it — the gobs it named are the old session's
         overlaySubs = false;          //   (loadAll below re-subscribes whoever listens, which re-arms the seams)
+        removedWidgets.clear();       // 042.1: and the widget-removal queue — the old session's widgets are gone
+        resolveQueue.clear();         // 042.1: and any Resolve retry queued from the old session
         HttpApi.reset();              // N2a: drop stale HTTP completions (their requests were torn down above)
         addonRoot = null;
         ocCb = null;
@@ -396,6 +407,18 @@ public final class AddonManager {
             //     brand-new buff surfaces as a single BuffAdded (with its content already applied),
             //     not BuffChanged-then-BuffAdded.
             CharApi.refreshTreeAdapters();
+
+            // 1b'. Widget removals (M1, 042.1) captured off-thread by the Widget.remove() tap → dispatched on
+            //      the UI thread, one frame's worth (D-106). After refresh, so a removal never races a content
+            //      update the same frame; before poll, which still owns the structural changes no task has
+            //      ported to a seam yet.
+            drainRemovedWidgets();
+
+            // 1b''. Resolve (M2, 042.1) retries queued by a Loading resolving off-thread → run on the UI thread.
+            //       Same one-frame-per-tick bound as the queues above (a retry that re-registers must not spin
+            //       this tick forever).
+            drainResolveQueue();
+
             CharApi.pollTreeAdapters();
 
             // 1c. Replacements (032.1): per-tick check for the server destroying a window an addon replaced with
@@ -588,11 +611,16 @@ public final class AddonManager {
 
     /**
      * The inbound-{@code uimsg} tap — the core edit in {@code UI.UiMessage.run} (spec 13, Level 3),
-     * called <b>after</b> the target widget applies a server update, on a Loader thread under
-     * {@code synchronized(ui)}. Much high-value state (vitals, buffs, FEP, …) lives in widget trees
-     * updated by targeted {@code uimsg} (audit B1); this is where the engine learns about it. It must
-     * <b>not</b> touch Lua — it only flags the interested adapter(s) dirty; {@link #tick(double)}
-     * drains them and fires the semantic event on the UI thread (principle P5).
+     * called <b>after</b> the target widget applies a server update, on a Loader thread. <b>Corrected
+     * (042.1): this does NOT hold the UI monitor</b> — {@code UI.UiMessage.run} calls it after its own
+     * {@code synchronized(UI.this)} block has already closed, so a reader here races {@code tick} and
+     * {@code draw}. It is benign only because every consumer touches nothing but a
+     * {@code CopyOnWriteArrayList}/concurrent set; the moment a consumer reads mutable widget state from
+     * this tap, that read must take the monitor itself or move to the UI-thread drain. Much high-value
+     * state (vitals, buffs, FEP, …) lives in widget trees updated by targeted {@code uimsg} (audit B1);
+     * this is where the engine learns about it. It must <b>not</b> touch Lua — it only flags the
+     * interested adapter(s) dirty; {@link #tick(double)} drains them and fires the semantic event on the
+     * UI thread (principle P5).
      */
     public static void onUimsg(Widget w, String msg) {
         CharApi.dispatchUimsg(w, msg);
@@ -685,8 +713,16 @@ public final class AddonManager {
      * Loader thread, under the monitor tick/draw hold), so the Lua raised here never races other Lua — the same
      * discipline as {@link #onMessage} (no {@code holdsLock} guard needed). The fast path (nobody subscribing)
      * returns immediately, so an uninterested client is unaffected even though every widget placement passes here.
+     *
+     * <p><b>Second consumer since 042.1</b>: {@link CharApi#dispatchPlaced}, for the tree adapters that have
+     * moved their "did a widget appear" detection off {@code poll()} and onto this seam (spec {@code
+     * 042-event-driven-reads} M3) — same thread, same monitor, so firing their events here is exactly as safe
+     * as the selector dispatch above.
      */
-public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPlaced(id, wdg);    }
+    public static void onWidgetPlaced(int id, Widget wdg) {
+        UiApi.onWidgetPlaced(id, wdg);
+        CharApi.dispatchPlaced(wdg);
+    }
 
     /**
      * The <b>window-toggle seam</b> (031.1) — called from {@code haven.AddonWidgets}, which is where
@@ -1030,6 +1066,67 @@ public static void onWidgetPlaced(int id, Widget wdg) {        UiApi.onWidgetPla
             if(oe == null)
                 break;
             fireGobOverlay(oe.added ? "GobOverlayAdded" : "GobOverlayRemoved", oe.gobId, oe.key, oe.nat, oe.owner);
+        }
+    }
+
+    // ------------------------------------------------------------- widget removal (M1, 042.1)
+
+    /**
+     * The <b>widget-removal seam</b> — the core edit at the end of {@code Widget.remove()} (spec {@code
+     * 042-event-driven-reads}, D-179). {@code remove()} is overridden nowhere and runs on every removal path
+     * (a server {@code destroy}, a client-side call), which is why it beats {@code cdestroy}: 9 of 17 {@code
+     * cdestroy} overrides never call {@code super}. Fired <b>after</b> {@code unlink()}/{@code cdestroy}/{@code
+     * parent = null}/{@code ui.removed(this)}, so a consumer sees the tree in its settled post-removal state —
+     * the mirror of {@link #onWidgetPlaced}, which fires after the child is in.
+     *
+     * <p><b>Must not touch Lua.</b> {@code remove()} can run on a Loader thread (the server command queue) or
+     * the UI thread (a client-side {@code destroy()}) — neither is guaranteed, so this only enqueues; {@link
+     * #tick(double)} drains and dispatches on the UI thread, exactly like {@link #gobEvents}/{@link
+     * #overlayEvents} (038.3).
+     */
+    public static void onWidgetRemoved(Widget w) {
+        removedWidgets.add(w);
+    }
+
+    /**
+     * Deliver the widget removals captured since the last tick, one frame's worth (D-106) — the same bound as
+     * {@link #drainOverlayEvents}, for the same reason: a torn-down parent whose own removal triggers more
+     * removals must not spin this tick forever.
+     */
+    private static void drainRemovedWidgets() {
+        for(int n = removedWidgets.size(); n > 0; n--) {
+            Widget w = removedWidgets.poll();
+            if(w == null)
+                break;
+            CharApi.dispatchRemoved(w);
+        }
+    }
+
+    // ------------------------------------------------------------- Resolve marshalling (M2, 042.1)
+
+    /**
+     * Queue a {@link Resolve} retry callback onto the UI-thread tick — {@code Waitable.wnotify()} runs on
+     * whichever thread finished the load (a Loader thread, a {@code Defer} pool thread), so the retry it wakes
+     * must never run Lua inline (principle P5). Package-private: {@link Resolve} is the only caller.
+     */
+    static void enqueueResolve(Runnable r) {
+        resolveQueue.add(r);
+    }
+
+    /**
+     * Run the Resolve retries queued since the last tick, one frame's worth (D-106) — a retry that re-registers
+     * (a further tile, a second resource) queues another callback rather than looping here.
+     */
+    private static void drainResolveQueue() {
+        for(int n = resolveQueue.size(); n > 0; n--) {
+            Runnable r = resolveQueue.poll();
+            if(r == null)
+                break;
+            try {
+                r.run();
+            } catch(RuntimeException e) {
+                log("Resolve callback error: " + e);
+            }
         }
     }
 

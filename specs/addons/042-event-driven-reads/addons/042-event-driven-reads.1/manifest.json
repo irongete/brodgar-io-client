@@ -1,0 +1,9 @@
+{
+  "name": "042.1 -- meters go event-driven",
+  "id": "042-event-driven-reads.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 042.1: MeterAdded/Removed fire from the widget placement/removal seams, not a per-frame poll; MeterChanged is unchanged.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

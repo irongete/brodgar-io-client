@@ -1761,3 +1761,42 @@ without a type check first — the same pattern `ev:button()`/`:amount()` alread
 **See.** [D-125](#d-125), [041-unified-events](../041-unified-events/EXAMPLES.md) §2 (the event object),
 [041-unified-events](../041-unified-events/plan.md) *Discarded alternatives* ("one `LuaEvent` subclass per
 shape").
+
+### D-178 — a change is announced at the MOMENT it happens, and the seam goes where the write LANDS, not where the message arrived ✅ (2026-08-06, 042.1)
+**Decision.** The addon layer's per-frame poll stage (`AddonManager.tick`'s `pollTreeAdapters` and its
+eleven-site inventory) is replaced task by task with taps at the client's own four moments of change: the
+server pushes a value (`onUimsg`), a widget enters/leaves the tree (`onWidgetPlaced`/`onWidgetRemoved`),
+geometry changes (`Widget.resize`), and a still-loading value resolves (`Waitable`). Where the message that
+announces a change and the write that actually makes it happen are two different moments — the belt's
+deferred `glob.loader.defer(...)` paths are the sharpest case — the seam goes at the WRITE, not the message.
+**Rationale.** A per-frame diff costs the same whether anything changed or not, and it costs it whether or
+not any addon is loaded (`AddonManager.init` wires the adapters and the tick pump unconditionally). The
+client already publishes every moment this feature needs; the poll stage was re-deriving what it could have
+been told. **Supersedes** the standing rule in `learnings/widget-tree-reads.md` ("if a widget mutation is
+`loader.defer`-red, use `poll()`, not the uimsg tap") — the corrected rule is *put the notify where the write
+lands*, which for the belt means inside the `loader.defer` lambda, immediately after the assignment.
+**Consequences.** Cost becomes proportional to *changes*, not *frames*: an idle client with a listening
+addon pays nothing between real changes, and a listening client stops paying a 144-slot diff every frame for
+a belt that changed twice this session. Gating each poll on `hasSub` (the cheaper-seeming alternative) was
+rejected because it only helps the idle case — the *listening* client, the one this system exists for, would
+still pay the diff every frame.
+**See.** [042-event-driven-reads](../042-event-driven-reads/spec.md), [042-event-driven-reads](../042-event-driven-reads/plan.md).
+
+### D-182 — a value that is still loading is WAITED ON, not re-read; a build with no queue of its own is retried ONCE on the notify that its source landed ✅ (2026-08-06, 042.1)
+**Decision.** `Resolve` (`src/io/brodgar/addon/Resolve.java`) wraps `Loading`'s `Waitable.waitfor` with
+retry-on-notify (a retry that itself throws a *different* `Loading` re-registers on the new one, bounded —
+past that the value stays unresolved until something else announces it, never a fallback poll), marshalling
+onto the UI-thread tick (`wnotify()` runs on whichever thread finished the load), and per-`Addon` ownership
+(every `Waiting` lives in the owning addon's resource registry, cancelled on `:reload`/disable, P2). A bare
+`new Loading(...)` throws `UnwaitableEvent` — reported to the caller as a refusal, never chased by a hidden
+retry.
+**Rationale.** `Loading implements Waitable`, so the client already answers "tell me when this resolved";
+nothing in `io.brodgar` used it before this task. The alternative — re-reading a `Loading`-guarded value
+every tick until it resolves — is exactly the per-frame poll shape D-178 exists to delete, just moved one
+layer down.
+**Consequences.** `Resolve` ships in 042.1 as pure infrastructure: every read `MeterAdapter` needed was
+already `Loading`-guarded to `nil` with no retry required (D-092's stated boundary — see 027.2's finding that
+`:res()` may legitimately be `nil` at fire time and must not be delayed to "fix"), so this task gives
+`Resolve` no functional consumer. First real consumer lands with a task that has an actual bounded retry to
+make (an item's derived `info()`, a world entity waiting on its ground to stream in).
+**See.** [D-092](process.md), [042-event-driven-reads](../042-event-driven-reads/plan.md) §M2.

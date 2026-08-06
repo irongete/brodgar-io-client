@@ -127,6 +127,43 @@ final class CharApi {
     }
 
     /**
+     * The widget-placement seam's body for the tree adapters (behind {@link AddonManager#onWidgetPlaced}, spec
+     * {@code 042-event-driven-reads} M3): offer the newly-placed widget to every adapter that has moved its
+     * "did a widget appear" detection off {@code poll()} and onto this seam (042.1's {@code MeterAdapter} is
+     * the first). Reached on the same thread and under the same {@code synchronized(ui)} discipline as the
+     * other placement consumer ({@code UiApi}'s selectors), so firing Lua here is safe.
+     */
+    static void dispatchPlaced(Widget wdg) {
+        if((wdg == null) || treeAdapters.isEmpty())
+            return;
+        for(TreeAdapter a : treeAdapters) {
+            try {
+                a.placed(wdg);
+            } catch(RuntimeException e) {
+                log("tree adapter placed error: " + e);
+            }
+        }
+    }
+
+    /**
+     * The widget-removal seam's body for the tree adapters (behind {@link AddonManager#onWidgetRemoved}, spec
+     * {@code 042-event-driven-reads} M1): offer the just-removed widget to every adapter that has moved its
+     * "did a widget disappear" detection off {@code poll()} and onto this seam. Reached from {@link
+     * AddonManager#tick(double)}'s drain of the removal queue, on the UI thread, so firing Lua here is safe.
+     */
+    static void dispatchRemoved(Widget wdg) {
+        if((wdg == null) || treeAdapters.isEmpty())
+            return;
+        for(TreeAdapter a : treeAdapters) {
+            try {
+                a.removed(wdg);
+            } catch(RuntimeException e) {
+                log("tree adapter removed error: " + e);
+            }
+        }
+    }
+
+    /**
      * A widget-tree read adapter (spec {@code 14-widget-tree-reads.md}): the one place that knows a
      * target widget tree's shape, localizing that upstream-volatile knowledge. Two update paths:
      * <ul>
@@ -135,13 +172,22 @@ final class CharApi {
      *       content).</li>
      *   <li><b>poll-driven</b> ({@link #poll} every tick, UI thread): for structural changes the tap
      *       can't see — buff add/remove is a widget create/{@code cdestroy} on the {@code Bufflist},
-     *       not a {@code uimsg}. Default is a no-op; only adapters that need it override it.</li>
+     *       not a {@code uimsg}. Default is a no-op; only adapters that need it override it. Being
+     *       replaced task by task (spec {@code 042-event-driven-reads}) by {@link #placed}/{@link
+     *       #removed} below — an adapter with no {@code poll()} override left has finished the move.</li>
+     *   <li><b>seam-driven</b> ({@link #placed}/{@link #removed}, spec {@code 042-event-driven-reads}
+     *       M1/M3): for the same structural changes, fired at the moment they happen instead of
+     *       diffed every tick. Default is a no-op; an adapter overrides only the half(ves) it needs —
+     *       a fading widget (a buff, a window) answers {@link #removed} on its own "gone" signal
+     *       instead, never on this seam (D-180).</li>
      * </ul>
      */
     private interface TreeAdapter {
         boolean interested(Widget w, String msg);
         void refresh();
         default void poll() {}
+        default void placed(Widget w) {}
+        default void removed(Widget w) {}
     }
 
     /**
@@ -150,13 +196,17 @@ final class CharApi {
      * this adapter's business. The old positional {@code hp}/{@code stamina}/{@code energy} snapshot and its
      * {@code VitalsChanged} event are GONE with that spec's hard cut.
      *
-     * <p>Two paths, exactly the {@link BuffsAdapter} split. A meter appearing / being destroyed is a widget
-     * create/{@code cdestroy} on the HUD's meter slot, NOT a {@code uimsg}, so it is detected by <b>poll</b>
-     * (diffing {@link LuaMeter#hud()} each tick against a cache keyed by widget identity) and fires
-     * {@code MeterAdded} / {@code MeterRemoved}. The bar CONTENT is pushed by the server as a targeted
-     * {@code "set"} (values) or {@code "col"} (colours) {@code uimsg}, so <b>refresh</b> re-reads the cached
-     * meters and fires {@code MeterChanged} — colour is in the key because it is now in the read surface
-     * ({@code meter:color()}), which the old {@code vitalsEqual} deliberately ignored.
+     * <p><b>Event-driven since 042.1.</b> A meter appearing is the widget-placement seam ({@link #placed},
+     * fired after {@code GameUI.addchild}'s {@code place == "meter"} branch has both positioned the widget
+     * and appended it to {@code meters}) and a meter being destroyed is the removal seam ({@link #removed},
+     * M1) — no more per-tick diff of {@link LuaMeter#hud()} against the cache. Membership is still checked
+     * through that same {@code hud()} scan (not a bare {@code instanceof IMeter}), so a widget of this type
+     * placed somewhere other than the HUD meter slot — hypothetical today, since {@code GameUI} is the only
+     * {@code IMeter} placement site — could never be miscounted as a bar. The bar CONTENT is pushed by the
+     * server as a targeted {@code "set"} (values) or {@code "col"} (colours) {@code uimsg}, so <b>refresh</b>
+     * (unchanged) re-reads the cached meters and fires {@code MeterChanged} — colour is in the key because it
+     * is now in the read surface ({@code meter:color()}), which the old {@code vitalsEqual} deliberately
+     * ignored.
      *
      * <p>All three carry the <b>Meter object</b> ({@link AddonManager#fireMeter}), so a handler reads the payload
      * with the same methods as {@code hafen.meter():list()}. The per-meter snapshot stays, purely as the diff KEY: an
@@ -165,8 +215,8 @@ final class CharApi {
      */
     private static final class MeterAdapter implements TreeAdapter {
         // Live HUD meter -> its last segment snapshot (the change-detection key, NOT a payload). UI-thread-only
-        // (poll + refresh); reset per session by re-instantiation in resetSession(). IdentityHashMap: IMeter
-        // widgets are keyed by object identity, like the buffs.
+        // (placed/removed/refresh); reset per session by re-instantiation in resetSession(). IdentityHashMap:
+        // IMeter widgets are keyed by object identity, like the buffs.
         private final Map<IMeter, LuaValue> cache = new IdentityHashMap<IMeter, LuaValue>();
 
         public boolean interested(Widget w, String msg) {
@@ -183,24 +233,29 @@ final class CharApi {
             }
         }
 
-        public void poll() {
-            List<IMeter> hud = LuaMeter.hud();
-            for(IMeter m : hud) {                         // additions (unseen meters)
-                if(!cache.containsKey(m)) {
-                    cache.put(m, LuaMeter.segments(m));
-                    fireMeter("MeterAdded", m);
-                }
-            }
-            for(Iterator<Map.Entry<IMeter, LuaValue>> it = cache.entrySet().iterator(); it.hasNext();) {
-                Map.Entry<IMeter, LuaValue> e = it.next();   // removals (no longer in the HUD slot)
-                if(!contains(hud, e.getKey())) {
-                    // The widget is unlinked, not cleared: the payload still answers :res()/:value()/… and now
-                    // reports :exists() false. Fire BEFORE dropping the entry — the map holds nothing the
-                    // payload needs, but the order keeps "the meter the adapter just dropped" literal.
-                    fireMeter("MeterRemoved", e.getKey());
-                    it.remove();
-                }
-            }
+        public void placed(Widget w) {
+            if(!(w instanceof IMeter))
+                return;
+            IMeter m = (IMeter)w;
+            if(cache.containsKey(m) || !contains(LuaMeter.hud(), m))
+                return;
+            // Seed the diff key with the meter's current segments AT add time (027.2) — the seed, not tick
+            // ordering, is what keeps a bar that arrives already filled from surfacing as MeterChanged-then-
+            // MeterAdded; there is no ordering to lean on here since refresh/placed are two different seams.
+            cache.put(m, LuaMeter.segments(m));
+            fireMeter("MeterAdded", m);
+        }
+
+        public void removed(Widget w) {
+            if(!(w instanceof IMeter))
+                return;
+            IMeter m = (IMeter)w;
+            if(!cache.containsKey(m))
+                return;
+            // The widget is unlinked, not cleared: the payload still answers :res()/:value()/… and now
+            // reports :exists() false. Fire BEFORE dropping the entry (025.2).
+            fireMeter("MeterRemoved", m);
+            cache.remove(m);
         }
 
         /** Identity membership (an {@link IMeter} is compared as a widget, never by equals). */

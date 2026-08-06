@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.Waitable;
 import haven.Widget;
 
 import org.luaj.vm2.Globals;
@@ -41,6 +42,21 @@ public final class Addon {
     public final Subs subs = new Subs(this, Addon.C_EVENT);
     /** Live timers owned by this addon (see {@link AddonManager.Timer}). */
     public final List<AddonManager.Timer> timers = new CopyOnWriteArrayList<AddonManager.Timer>();
+    /**
+     * This addon's live {@link Resolve} registrations (spec {@code 042-event-driven-reads} M2): a value the
+     * client is still loading, waited on rather than re-read every frame. Teardown ({@link
+     * #teardownWaitings}) cancels every entry so a retry callback never fires into a torn-down addon layer
+     * (P2) — the marshalled callback also re-checks liveness itself, since the cancel and the notify can race
+     * on two threads. Copy-on-write: a firing retry may register another before this one is removed.
+     */
+    final List<Waitable.Waiting> waitings = new CopyOnWriteArrayList<Waitable.Waiting>();
+
+    /** Cancel every pending {@link Resolve} registration this addon owns (teardown, P2). */
+    void teardownWaitings() {
+        for(Waitable.Waiting w : waitings)
+            w.cancel();
+        waitings.clear();
+    }
     /**
      * Live custom UI widgets/windows/controls owned by this addon ({@code hafen.ui():widget()}/{@code :window()},
      * Phase 2a, and the control builders of 040). Each entry is the owned content; {@link Owned#kill()} destroys

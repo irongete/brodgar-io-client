@@ -2,8 +2,30 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-No feature is ACTIVE right now — `041-unified-events` just closed. Detail in its own `NNN-` folder;
-one-line summary in `FEATURES.md`.
+**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 1 of 13 tasks done (042.1), 042.2
+(buffs) next. The addon layer synthesises its `*Changed`/`*Added` events by **polling the widget tree
+every frame** (11 sites, 6 of them `TreeAdapter`s) instead of listening at the moment a change happens.
+042 wires them to the three seams the client already publishes — the `uimsg` tap, widget
+placement/removal, geometry, and `Loading`'s `Waitable` resolution notify — and **deletes the poll
+stage**: no gate, no fallback, no dual path. **Three core taps**, each a one-liner: `Widget.remove`
+(override-proof where `cdestroy` is not — 9 of 17 overrides skip `super`), `Widget.resize` (which every
+size change funnels through, screen included), and a notify inside the two `setbelt` paths that defer the
+`belt[]` write. Decisions D-178..D-182, of which **D-181 supersedes D-091** (*"a derived position is
+re-derived by POLLING what it reads"*). Closes the ROADMAP's *"Per-frame cost of the addon layer's
+polling suite"*.
+
+**042.1 DONE — `MeterAdapter` is the first port, proving M1 (the removal seam) and M2 (`Resolve`).**
+`MeterAdded`/`MeterRemoved` now fire from `Widget`'s placement/removal seams instead of a per-tick diff
+of `LuaMeter.hud()`; `MeterChanged` (the `"set"`/`"col"` uimsg path) is unchanged. Verified in-game:
+login seeds hp/stam/nrj as one `MeterAdded` each; mounting a horse adds two more (`:res()` legitimately
+`nil` at that instant — accepted, per 027.2, never delayed to "fix"); dismounting fires two
+`MeterRemoved`, each payload still answering its verbs with `:exists()` false. `Resolve` ships fully
+built (retry-on-notify, marshalled onto the tick, owned per-`Addon`) but with **no functional consumer
+yet** — every meter read was already `Loading`-guarded to `nil` with nothing to retry — first real
+consumer expected at 042.3 or 042.4.
+
+`041-unified-events` closed before it. Detail in its own `NNN-` folder; one-line summary in
+`FEATURES.md`.
 
 **`041-unified-events` DONE — one verb for every notification in the area, closing the last non-uniform half of the API.** Before it, an addon installed a callback three unrelated ways: `hafen.event():on("GobAdded", fn)` (N subscribers, `sub:off()`, PascalCase), `hafen.hook():input/:action/:message` (N per message, `handle:remove()`, lowercase — three magic input tokens reaching only 3 of ~625 widgets) and `btn:onPress(fn)`/`w:onDraw(fn)` (**one slot that silently replaces**, no unsubscribe, `onCamelCase`). **The rule: `X:on(key, fn)` returns a subscription, `sub:off()` ends it, and the address picks the door — ¿tienes el objeto? `obj:on(...)`; ¿no? `hafen.event()`** — N subscribers everywhere (the single slot is what forced WoW to bolt `HookScript` beside `SetScript` years later); cancelling is `ev:preventDefault()`, OR-accumulated so any handler cancels and every handler still runs, which is why the outcome never depends on registration order; keys are PascalCase with no `On` prefix (only 4 of the bus's 26 needed a rename); a CLOSED vocabulary (widgets, the bus) throws listing what it answers, while `action`/`message` names stay OPEN — a `wdgmsg` name is protocol, not a catalogue the client owns (D-129). One mechanism carries it all — [`Subs`](../../src/io/brodgar/addon/Subs.java)/[`WidgetSubs`](../../src/io/brodgar/addon/WidgetSubs.java), a keyed multimap per emitter with the profiling category carried as DATA on it, never inferred from the mechanism (D-167..169) — and [`LuaEvent`](../../src/io/brodgar/addon/LuaEvent.java) is the one `ev` object, a per-shape methods table where every member is a colon verb, never a field (D-171). `hafen.ui():mouse()` became the pointer entity (`:x()/:y()/:over()/:shift()/:ctrl()/:alt()/:grab()`, [`LuaMouse`](../../src/io/brodgar/addon/LuaMouse.java)) and `hafen.hook()` — its last verb (`:grab`, now `m:grab()` → [`LuaGrab`](../../src/io/brodgar/addon/LuaGrab.java)) gone — was deleted whole rather than kept as an empty shell (D-173); a widget's closed vocabulary is computed PER WIDGET from its own capabilities, never a fixed catalogue (D-174, [`LuaWidget.widgetKeys`](../../src/io/brodgar/addon/LuaWidget.java)); a control's notification capability is a pure marker once `Subs` carries every fire (D-175). Corpus: ~330 Lua call sites over 64 files, 44 doc pages (not the 33 estimated), 30 Java files, 26 bus names — ported task by task, hard-cut, no aliases; `EXAMPLES.md` is the frozen catalogue + port map, on `039-uniform-api/API.md`'s precedent. **The close (041.7)** swept every emitter × key in one pass — the 26 bus keys, 5 universal widget keys, 2 container keys, 4 surface keys, the 5 control keys over 12 (builder, key) rows across all 16 builders, the 2 grab keys and the 7 mouse verbs — and every one of the 25 retired spellings in one `Retired` sweep, then objectified the two composite bus payloads no `041.1`-`041.6` checklist ever assigned: `GobOverlayAdded`/`GobOverlayRemoved` and the three `*Clicked` events still fired a plain `LuaTable` (§2.3/R6 never reached them) — now two more `LuaEvent` shapes, `OVERLAY` and `CLICKED`, the latter ONE shape for all three nouns with the two that don't apply reading nil (D-177). **`ChatMessage` corrected here**: it was listed among the bus events below and in `design/09` as a planned event, but nothing fires it and no addon uses it — the line below no longer names it. Decisions D-167..D-177 (`decisions/architecture-api.md`); `design/13`'s L1/L2/L3 addressing is superseded (Level 4/method-replacement stands, still unbuilt); docs tier: `docs/addons/api/event.md` rewritten whole, `api/hook.md` resolved into it and into `ui/widget.md`'s new "Subscribing"/"The mouse"/"The grab" sections.
 

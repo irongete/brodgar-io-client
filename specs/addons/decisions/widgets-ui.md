@@ -1140,3 +1140,25 @@ data to an overridden method invoked from a `haven` superclass's own constructor
 available; a plain field write in the subclass body is not an option regardless of how it is phrased.
 **See.** [D-160](widgets-ui.md), [D-164](widgets-ui.md), [D-161](widgets-ui.md) (direct subclass, predicted),
 [040-ui-controls](../040-ui-controls/spec.md).
+
+### D-179 — the removal seam is `Widget.remove`, never `cdestroy`: a notification a subclass can skip is not a seam ✅ (2026-08-06, 042.1)
+**Decision.** The addon layer's one widget-removal seam (`AddonManager.onWidgetRemoved`) is a core edit at
+the end of `Widget.remove()`, placed **after** `unlink()`/`parent.cdestroy(this)`/`parent = null`/
+`ui.removed(this)` so a consumer sees the tree in its settled post-removal state — the mirror of
+`onWidgetPlaced`, which fires after the child is already in.
+**Rationale.** `cdestroy` looks like the natural tap (it is already the per-parent removal hook) and is not
+usable as one: **9 of the 17 classes that override it in `src/haven` never call `super.cdestroy`**
+(`Bufflist`, `ChatUI`, `GameUI` itself, the `Hidepanel`/`Polities`/`Zergwnd`/craft/`qq` inner classes,
+`QuestWnd`'s questbox, `WoundWnd`'s woundbox) — and they are exactly the parents this feature's adapters
+read (meters, buffs, equipment, study, wounds). The same fact rules out `Widget.childseq` as a change
+counter, since it is bumped only in `add0` and the base `cdestroy`. `Widget.remove()` itself is overridden
+nowhere and runs on every removal path (`UI.DstWidget.run` → `UI.destroy(Widget)` → `reqdestroy()` →
+`destroy()` → `remove()`, plus any direct client call), so one tap there is override-proof and covers every
+removal in the client regardless of which parent's `cdestroy` a given widget type happens to reach.
+**Consequences.** `remove()` can run on a Loader thread (the server command queue, under
+`synchronized(ui)`) or the UI thread (a client-side `destroy()`) — neither is guaranteed — so the seam only
+enqueues; `AddonManager.tick` drains one frame's worth (D-106) and dispatches on the UI thread, the same
+shape as `gobEvents`/`overlayEvents` (038.3). A widget that **fades** rather than unlinking immediately (a
+`Buff`, a `Window`) needs its own earlier "gone" signal instead of this seam — recorded separately when the
+task that needs it (042.2) closes.
+**See.** [D-106](architecture-api.md), [042-event-driven-reads](../042-event-driven-reads/spec.md).

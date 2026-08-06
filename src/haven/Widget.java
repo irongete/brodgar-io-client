@@ -577,6 +577,7 @@ public class Widget {
 	}
 	if(ui != null)
 	    ui.removed(this);
+	io.brodgar.addon.AddonManager.onWidgetRemoved(this);   // addon: widget-removal seam (042.1)
     }
 
     public void reqdestroy() {
