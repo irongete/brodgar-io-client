@@ -112,7 +112,7 @@
       `[manual]`: read the table on screen, confirm headings and alignment.
       <!-- extra context: `src/haven/TableBox.java` -->
 
-- [ ] **040.13 — The close: the example addon, the docs, and the completeness sweep.** One example addon
+- [x] **040.13 — The close: the example addon, the docs, and the completeness sweep.** One example addon
       building a real panel (the worked one in `api-sketch.md` is the model) with an accurate one-paragraph
       manifest `description` (D-142), referenced from `examples.md`; the docs tier finished — the new
       `controls.md` page, the `README`/`widget`/`custom`/`selectors` updates and both "API at a glance"

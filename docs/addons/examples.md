@@ -14,6 +14,7 @@ hotkey or type their command — so having them all on costs you an untouched lo
 | [`bags`](../../addons/bags/main.lua) | waiting for the client's own window, and standing yours in its place |
 | [`theme`](../../addons/theme/main.lua) | a whole client look as a data file |
 | [`atlas`](../../addons/atlas/main.lua) | a live minimap panel out of the map database, painted by the engine |
+| [`stockfilter`](../../addons/stockfilter/main.lua) | a whole panel of the client's own controls, filtering your real items |
 | [`planner`](../../addons/planner/main.lua) | your own props, images and models in the 3D world |
 | [`tagger`](../../addons/tagger/main.lua) | attaching things to a game object, and reading what is already on it |
 | [`widgetstack`](../../addons/widgetstack/main.lua) | what a widget is, and how to name it |
@@ -75,6 +76,16 @@ the zero a measurement rather than a blind spot.
 `:atlas` opens and closes it, `zoom <0..8>` changes the scale (never the size — every drawing is 100×100),
 `pins` toggles the marker layer, `where` prints your anchor beside the segment id and grid coord this client
 invented, and `mark [name]` drops a pin.
+
+## stockfilter
+
+A whole window of [the client's own controls](api/ui/controls.md), wired together rather than shown one at
+a time: a label, a text entry, a separator, a radio group, a checkbox, a slider driving a live label, a
+dropdown and a [scrolling list](api/ui/lists.md), each dressed by the stylesheet exactly like a window the
+client built itself. Every filter reads the real [items](api/ui/items.md) in your backpack or your
+equipment — by name, by quality, by wear — so there is nothing invented to look at.
+
+`:stockfilter` opens the panel; running it again closes it. Read-only: nothing here writes to the server.
 
 ## planner
 

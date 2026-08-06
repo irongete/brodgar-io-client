@@ -1,0 +1,9 @@
+{
+  "name": "040.13 -- the close",
+  "id": "040-ui-controls.13",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 040.13, the close of 040-ui-controls: a completeness sweep over the whole 16-builder roster rather than one more control. It proves every builder exists, is built bare (R4) and comes back as the client class the roster promises; that the shared verbs (:text :value :rows :onChange :onPress :onSelect :onSubmit :onCell :range :rowHeight :cell :columns) answer non-nil on exactly the controls docs/addons/api/ui/controls.md and lists.md say they answer on and read nil elsewhere; that the two picture verbs (:image on a button/checkbox, :source on a picture) answer only there; that entry:text(s), the feature's one retired spelling, still throws naming :value(); and that destroying the scratch window it builds the roster in gives back a tree with no control left in it.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
