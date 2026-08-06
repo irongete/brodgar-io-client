@@ -21,7 +21,7 @@
 - **Test protocol**: **`specs/addons/TESTING.md` — READ IT** before writing or verifying a task's
   tests. One self-checking addon per task (`addons/<NNN>-<feature>.<X>/`), asserting through
   `hafen.*` and printing `[pass]`/`[fail]`/`[manual]` lines the maintainer pastes back. `/end`
-  archives it into `specs/addons/<NNN>-<feature>/addons/` once the task closes (D-144), so `addons/`
+  archives it into `specs/addons/<NNN>-<feature>/addons/` once the task closes (D-183), so `addons/`
   never accumulates old suites.
 - **API design rules**: one canonical way per operation (no dual styles); namespaced `hafen.*`;
   reference-based accessors (`hafen.gob.health(ref)`).

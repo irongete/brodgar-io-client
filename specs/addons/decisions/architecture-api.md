@@ -25,7 +25,7 @@ ledger ([11-core-hooks.md](../design/11-core-hooks.md)) becomes a *record* of ed
 keep edits centralized and tagged (`// addon:`) so upstream merges stay manageable.
 **See.** [13-hooks-and-interception.md](../design/13-hooks-and-interception.md).
 
-### D-012 — Reference-based reads, ONE flat calling style, unified under `hafen.gob` ✅
+### D-012 — Reference-based reads, ONE flat calling style, unified under `hafen.gob` 💤 SUPERSEDED by D-044 (2026-07-30)
 **Decision.** Entities are addressed by an explicit **reference**, like WoW unit tokens — not
 implicit global state. A **GobRef** is a gob id (number) or a token (`"player"`, `"partyN"`,
 `"target"`). There is **exactly one** calling style: a **flat accessor** `hafen.gob.<attr>(ref)`
@@ -56,10 +56,80 @@ that is the one way for those, not a duplicate. Applies to all future API-surfac
 API is namespaced (`hafen.gob.health(ref)`), no flat-global aliases (`GobHealth`). Avoids `_G`
 pollution, is discoverable, and sandboxes cleanly. Terseness comes from the token, not the name.
 
-### D-022 — Token set + items handle-only ✅ (closes Q-013)
+### D-022 — Token set + items handle-only ✅ (closes Q-013) — gob token set 💤 SUPERSEDED by D-044
 Tokens: `"player"`, `"party1".."partyN"` (ordered by `Member.seq`), `"target"` (combat only).
 `"mouseover"` **deferred** (needs hover hit-test tracking — a later phase). Items are addressed
 **by handle only** (no `(container,slot)` alternative), honoring [D-013](architecture-api.md).
+**Superseded (017-gob-oop, 2026-07-30).** `"player"` as a `hafen.gob("player")` token is gone — the
+gob half of this entry is dead, replaced by `hafen.player():gob()` ([D-044](architecture-api.md)).
+The items half (**handle only**, no `(container,slot)`) is untouched and still governs items.
+
+### D-044 — Gob is OOP + hard cut: `hafen.gob(id)` factory, methods, no flat table ✅ (2026-07-30)
+**Decision.** The Gob surface moves from the flat reference accessor (`hafen.gob.health(ref)`) to a
+real OOP class: `hafen.gob(id)` is a factory returning an interned Gob; `gob:health()`/`gob:pos()`/
+`gob:name()`/… are methods. A Gob wraps **only the id** — every method re-resolves against `OCache`
+and answers `nil` if the gob is gone, so [D-012](architecture-api.md)'s freshness semantics carry
+over verbatim; what changes is that the reference stops being an argument and becomes the object.
+**Hard cut**: the flat `hafen.gob` table and the GobRef token strings are deleted outright — no
+shim, no deprecation, one calling style ([D-013](architecture-api.md)). Mechanism: userdata (not a
+table) via `LuaValue.userdataOf`, with a **per-addon** metatable (`__index` → shared methods,
+`__tostring`, `__name`) — userdata keeps the interned object unforgeable and immutable from Lua (the
+R1 handle pattern), where a table would let one addon function scribble on an object every other one
+shares.
+**Rationale.** [D-012](architecture-api.md) chose the flat style project-wide; for gobs specifically
+the WoW-token model was outgrown once identity (`==`, `seen[gob]=true`) and a stashed handle tracking
+a moving gob became things addon code needed to express, and a second parallel handle style would
+have been exactly the dual API [D-013](architecture-api.md) forbids — so the flat style is retired
+for gobs rather than duplicated.
+**Consequences.** Supersedes [D-012](architecture-api.md) and the gob half of
+[D-022](architecture-api.md) for gobs specifically; every other namespace stays flat, and that
+coexistence is deliberate and transitional (see `hafen.kin`, `hafen.actionbar`, … as they migrate).
+This mechanism — userdata + per-addon metatable + weak intern cache — is the template every later
+OOP migration (`hafen.kin`, widgets, slots, sounds, buffs, meters) copies verbatim
+([D-056](architecture-api.md)).
+**See.** [D-012](architecture-api.md), [D-013](architecture-api.md), [D-045](architecture-api.md),
+[D-046](architecture-api.md), [017-gob-oop](../017-gob-oop/spec.md),
+[luaj-bridge.md](../learnings/luaj-bridge.md).
+
+### D-045 — Entity identity by a per-addon, weak-value intern cache with a drained `ReferenceQueue` ✅ (2026-07-30)
+**Decision.** Each `Addon` owns `Map<Long, WeakReference<LuaValue>>` for its interned Gobs (id →
+handle), drained on every access rather than on a sweep timer — amortised, no timer thread.
+**Weak values**, not weak keys: `WeakHashMap` is the wrong tool here, since the id (a boxed `Long`)
+is not what should expire, the *handle* is. `hafen.gob(id)` is drain → cache hit → or mint + insert.
+The cache lives in the addon's own env, so it dies whole on `:reload`/disable; nothing is static in
+`AddonManager` (a static cache would survive a reload, reintroducing the stale-state trap addon
+reloads exist to avoid).
+**Rationale.** Interning is what makes `hafen.gob(id) == hafen.gob(id)` true and lets a handle be a
+table key (`seen[gob] = true`), which the flat reference style ([D-012](architecture-api.md)) could
+never offer since it never minted an object to begin with. Scoping the cache **per-addon** rather
+than globally means no interned Lua value ever crosses a sandbox boundary
+([D-017](security-sandbox.md)) — a global cache would leak one addon's object identity into another.
+**Consequences.** `LuaGob` holds no reference to the underlying `haven.Gob`, so a stashed handle
+never pins a despawned gob (or its resources) alive — the cache can only be asked for a **fresh**
+lookup, never used to keep something around. This is the interning template every later entity
+(`hafen.kin`, action-bar slots, paginae, sounds, buffs, meters) reuses verbatim
+([D-056](architecture-api.md)), except where the population itself demands a different shape (the
+widget tree's `WeakHashMap<Widget, WeakReference<LuaValue>>`, [D-064](architecture-api.md)).
+**See.** [D-044](architecture-api.md), [D-017](security-sandbox.md), [D-056](architecture-api.md),
+[D-064](architecture-api.md), [017-gob-oop](../017-gob-oop/plan.md).
+
+### D-046 — Player is a composition anchor: `:gob()` only, no forwarded Gob methods ✅ (2026-07-30)
+**Decision.** `hafen.player()` becomes callable, returning a Player object (`nil` before entering
+the world). Player is a **minimal** object: `:gob()`, `:name()`, `:vitals()`,
+`:worldToScreen(x,y)` — nothing else. `:exists()`/`:id()` are dropped: `player:gob()` returning
+`nil`/non-nil already answers existence, and `gob:id()` already answers the id, once you have the
+Gob. Player carries **no forwarded Gob methods** — there is no `player:pos()` shortcut for
+`player:gob():pos()`.
+**Rationale.** A forwarded `player:pos()` would coexist with `player:gob():pos()` as two ways to ask
+the same question — exactly the dual style [D-013](architecture-api.md) forbids — and every method
+added to Gob would then owe Player a matching forward or become an inconsistency. Composition
+(`player:gob()` is the one door to everything Gob offers) keeps Player's surface fixed regardless of
+how large Gob's grows.
+**Consequences.** `hafen.player():gob():health()` is one call longer than a forwarded
+`hafen.player():health()` would have been; accepted as the cost of one canonical way. The pattern
+generalises: an object that is a composition ROOT over another entity exposes the door to it
+(`:gob()`), never a duplicate of what is behind the door.
+**See.** [D-044](architecture-api.md), [D-013](architecture-api.md), [017-gob-oop](../017-gob-oop/spec.md).
 
 ### D-047 — Addon hotkeys register UNBOUND; the user owns key assignment ✅ (maintainer, 2026-07-31)
 **Decision.** `hafen.client:options():keybindings():register(name, fn)` takes **no default key**. An addon
@@ -321,7 +391,7 @@ by id and a **string** by exact case-insensitive name, tested `isnumber()` first
 gated ones included, hang off the object and return **self** so they chain
 (`hafen.kin("Bob"):setGroup(3):rename("Bobby")`). The flat `hafen.kin.*` table is deleted outright
 ([D-013](architecture-api.md)); indexing the namespace reads as plain `nil`, which is what makes the hard
-cut visible from Lua. The mechanism is [D-044](../017-gob-oop/plan.md)/[D-045](../017-gob-oop/plan.md)
+cut visible from Lua. The mechanism is [D-044](architecture-api.md)/[D-045](architecture-api.md)
 verbatim: userdata + a per-addon metatable, and a per-`Addon` weak-valued intern cache with a drained
 `ReferenceQueue`.
 **Rationale.** 017 established `hafen.gob(id)` as a callable namespace but had no collection to express;
@@ -362,7 +432,7 @@ slots): **address 0-based through the namespace, iterate 1-based, ask the object
 beyond the spec's list (`:index()`) is the price, and it is what keeps the two numbering schemes from ever
 being confused in addon code. `hafen.actionbar()` builds 144 interned objects per call — cheap (a bounded
 map, weak values) and worth it for a dense, never-sparse array.
-**See.** [D-013](architecture-api.md), [D-044/D-045](../017-gob-oop/plan.md), [D-056](architecture-api.md),
+**See.** [D-013](architecture-api.md), [D-044/D-045](architecture-api.md), [D-056](architecture-api.md),
 [021-actionbar-oop](../021-actionbar-oop/spec.md), [luaj-bridge.md](../learnings/luaj-bridge.md).
 
 ### D-058 — Verify a subsystem has *content* before designing an API over it: there is no `hafen.music` ✅ (maintainer, 2026-08-01)
@@ -406,7 +476,7 @@ is one shared validator taking the method name for the message. The same test ap
 per-call options (a repeat count, a fade, a pan) are arguments; identity is state. The counter-case is the
 *user's* configured level, which is not per-call and correctly lives elsewhere:
 `hafen.client:options():audio()`.
-**See.** [D-013](architecture-api.md), [D-045](../017-gob-oop/plan.md), [D-056](architecture-api.md),
+**See.** [D-013](architecture-api.md), [D-045](architecture-api.md), [D-056](architecture-api.md),
 [D-060](architecture-api.md), [024-audio-oop](../024-audio-oop/spec.md).
 
 ### D-060 — `:exists()` belongs to entities with a lifetime, not to name-keyed handles ✅ (maintainer, 2026-08-01)
@@ -425,7 +495,7 @@ Lua never sees the miss; validating a user-configured resource name would need a
 callback reporting the resolve), which is out of scope. Read the rule forward: before copying a method across
 sections, check that the *question it answers* still exists there. `hafen.sound()` (the live set) covers what
 addons actually ask — what am I playing right now.
-**See.** [D-045](../017-gob-oop/plan.md), [D-056](architecture-api.md), [D-059](architecture-api.md),
+**See.** [D-045](architecture-api.md), [D-056](architecture-api.md), [D-059](architecture-api.md),
 [024-audio-oop](../024-audio-oop/spec.md), [threading.md](../learnings/threading.md).
 
 ### D-061 — the API's vocabulary comes from the engine, not from the genre ✅ (maintainer, 2026-08-01)
@@ -795,7 +865,7 @@ label" is a `GobAdded` handler plus a loop over what is already there, and that 
 becomes the ONE caller that must find an addon's records across gobs — a single sweep of the object cache at
 `:reload`/disable, i.e. at a rare moment instead of 5 times a second. The general rule: *a sweep in an API is
 usually a symptom — ask what the state would have to be attached to for the engine to end it for you.*
-**See.** [D-044](../decisions/architecture-api.md), [D-098](architecture-api.md),
+**See.** [D-044](architecture-api.md), [D-098](architecture-api.md),
 [038-gob-overlays](../038-gob-overlays/spec.md).
 
 ### D-101 — where a name cannot separate two engine objects, publish the COLLAPSE rather than reaching for the id ✅ (2026-08-04)

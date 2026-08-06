@@ -2,7 +2,7 @@
 
 > Read before writing or verifying a task's tests. `/plan` writes acceptance criteria against
 > this file, `/implement` ships the task's suite, `/end` validates the log the maintainer pastes
-> back. It replaces the old "every task extends `hello`" harness.
+> back.
 
 ## The rule: one task, one test addon
 
@@ -15,22 +15,30 @@ The suite **tests itself**. It asserts through the very `hafen.*` API the task s
 under test is also the test tooling — and prints one verdict line per check. What a program cannot
 do it hands to the maintainer as an explicit `[manual]` line.
 
-**`/end` archives it (D-144).** Once the maintainer's verification passes, `/end`'s close step moves
-the folder out of the client's live `addons/` and into the task's own spec folder —
-`addons/<NNN>-<feature>.<X>/` becomes `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/`, an
-ordinary move (`git add -A` in the commit step registers it as a rename). It also deletes the
-corresponding binary copy at `bin/addons/<NNN>-<feature>.<X>/` so archived suites no longer appear
-when running the client. The suite itself is untouched — same files, same `id`, still runnable — it
-just stops being one of the folders the client scans at login. See *Regression* below for what that
-means for the full-regression list.
+**`/end` archives it (D-183).** Once the maintainer's verification passes, `/end`'s close step moves
+the folder from the client's live `addons/` into the task's own spec folder —
+`addons/<NNN>-<feature>.<X>/` becomes `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/` (an
+ordinary move; `git add -A` registers it as a rename) — and deletes
+`bin/addons/<NNN>-<feature>.<X>/`.
 
-**And it stands ALONE (D-085).** Running `:t<NNN>-<X>` and nothing else is the whole verification of that
-task: the suite installs what it needs, asserts what its task claims, and cleans up after itself. It never
-asks for an earlier task's command to be run first, and it never rests on an assertion that lives only in
-another suite. **Where its own proof needs something an earlier suite already checks, DUPLICATE the
-assertion** — a repeated line costs one line and buys a suite you can run in isolation, which is the only
-kind worth having when one task is what you are testing. So the suites are independent by construction:
-any order, one at a time, or one alone.
+**`bin/addons/` is the directory that matters at runtime.** The addon dir resolves beside the running
+`bin/hafen.jar` (jar-sibling, not the process's working directory), so `bin/addons/` is what the
+client scans at login regardless of launch method (`ant run` or `bin/run.bat`). A suite left there
+still appears in-game even after the source-side move above, so `/end` re-lists `bin/addons/` to
+confirm the folder is actually gone before closing the task — a running client holds its loaded
+addon's files open on Windows, so a delete attempted mid-session can fail silently. If the folder is
+still there, `/end` stops and asks the maintainer to close the client first.
+
+The suite itself is untouched by archiving — same files, same `id`, still runnable — it just stops
+being one of the folders the client scans at login. See *Regression* below for how to run it again.
+
+**And it stands ALONE (D-085).** Running `:t<NNN>-<X>` and nothing else is the whole verification of
+that task: the suite installs what it needs, asserts what its task claims, and cleans up after
+itself. It never asks for an earlier task's command to be run first, and it never rests on an
+assertion that lives only in another suite. **Where its own proof needs something an earlier suite
+already checks, DUPLICATE the assertion** — a repeated line costs one line and buys a suite you can
+run in isolation, which is the only kind worth having when one task is what you are testing. So the
+suites are independent by construction: any order, one at a time, or one alone.
 
 ## What a suite prints
 
@@ -71,13 +79,13 @@ format: nothing needs interpreting.
   alone, so a check another task's suite also makes is not a duplicate to delete — it is *this* task's
   premise, stated where it can fail. What does not belong here is coverage of a prior feature none of this
   task's claims rest on: that is the other suite's job.
-- **And assume the other suite is never run** (maintainer, 2026-08-06). Past suites stay installed, but in
-  practice a login runs the CURRENT task's command and no more. So a task that changes old behaviour
-  **brings the old assertion into its own suite** — every spelling it retires, every premise it leans on,
-  every row an older suite happens to pin — and **never reports "also run `:tNNN-X`" as part of its own
-  proof**. If verifying this task needs another task's command, the check is missing from this suite.
-  (041.2: it moved `hafen.hook():action/:message`, whose *dotted* forms `:t039-1` also pins, so `:t041-2`
-  asserts all four spellings itself and leans on nothing external.)
+- **Assume the other suite is never run.** Past suites stay installed, but in practice a login runs
+  only the current task's command. A task that changes old behaviour **brings the old assertion into
+  its own suite** — every spelling it retires, every premise it leans on, every row an older suite
+  happens to pin — and **never reports "also run `:tNNN-X`" as part of its own proof**. If verifying
+  this task needs another task's command, the check is missing from this suite. (Example, 041.2: it
+  moved `hafen.hook():action/:message`, whose *dotted* forms `:t039-1` also pins, so `:t041-2` asserts
+  all four spellings itself and leans on nothing external.)
 
 ## Skeleton (copy this into a new suite)
 
@@ -125,17 +133,14 @@ end
 hafen.slash.register("t033-2", run)   -- the only way in: a suite does not start itself
 ```
 
-- **A suite NEVER starts itself.** No `OnEnterWorld`, no login timer. The maintainer runs it when they want
-  it, and that is the whole scheduling model.
+- **A suite NEVER starts itself.** No `OnEnterWorld`, no login timer. The maintainer runs it when
+  they want it, and that is the whole scheduling model — nothing needs a startup slot to avoid
+  colliding with another suite, because nothing else starts on its own either.
 - **One short command, `:t<NNN>-<X>`** (`:t033-2`) — unique per task, so suites never collide.
-- **Why (035.3, learned the hard way).** Suites used to auto-run on login and therefore needed a *slot*
-  (`+3`, `+6`, `+9`, …) to stay out of each other's way, because every suite installs a client-wide sheet and
-  bumps `Fonts.gen()` while it runs. 034.2's round staged 3.4 s from `+6` and 034.3 started at `+9`, so a
-  0.4 s overlap made 034.2 read two text-cache keys where it expects one — a **race** that passed for two
-  whole features and then reddened a line in a suite nobody had touched. Each fix was one more constant to
-  get wrong. Auto-start created the schedule, the schedule created the race; running by hand deletes both.
-- **The one ordering rule left is the operator's**: let a staged suite finish before starting the next
-  (034.2 ~3.4 s, 035.2 ~2.5 s). It is no longer a number in a file.
+- **Why no auto-run**: every suite installs a client-wide sheet and bumps `Fonts.gen()` while it
+  runs, so two suites firing near each other race on that shared state. A hand-run command has
+  nothing to race against.
+- **The one ordering rule is manual**: let a running suite finish before starting the next one.
 - Keep a suite short (roughly ≤ 15 lines of output). If a task needs more, it was two tasks.
 
 ## manifest.json
@@ -168,35 +173,27 @@ the example addons, frozen `hello`, and whichever suite is currently in flight (
 `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/` — copy the folder back into the client's
 `addons/` and `:reload` if you ever want to run it again.
 
-Restored, the commands below are still the full regression, run one at a time, in any order:
+There is no fixed list of commands here — it would go stale the moment the next task closes. To see
+exactly what is archived and runnable:
 
 ```
-:t033-3  :t034-1  :t034-2  :t034-3  :t035-1  :t035-2  :t035-3  :t035-4
-:t036-1  :t036-2  :t036-3  :t036-4  :t037-1  :t037-2  :t037-3  :t037-4  :t037-5
-:t038-1  :t038-2  :t038-3  :t038-4
-:t039-1  :t039-2  :t039-3  :t039-4  :t039-5  :t039-6  :t039-7  :t039-8  :t039-9  :t039-10  :t039-11
-:t039-12  :t039-13  :t039-14  :t039-15  :t039-16
-:t040-1  :t040-2
+ls specs/addons/*/addons/
 ```
 
-A red line names the task that broke. **But verifying ONE task is running ONE command** — no suite is a
-precondition for another, and none has to be run to make a different one meaningful. That is what the
-duplication rule above buys, and it is the difference between a regression you *choose* to run and a
-protocol you have to obey.
+Each folder name `<NNN>-<feature>.<X>` is one command: `:t<NNN>-<X>`.
 
-**And it is a regression the maintainer rarely chooses** (2026-08-06): the list above is a resource, not a
-step, and the working assumption for every task is that **none of it is run**. Archiving (D-144) only makes
-that the default rather than an exception — nobody runs the full regression, and now nobody has it loaded
-either. That is not a gap to close by asking for more commands — it is why the duplication rule exists, and
-why a task that changes old behaviour carries the old assertion into its own suite (see *Automate
-everything*, above). A task is verified by its own `:t<NNN>-<X>` and the maintainer's answers to its
-`[manual]` lines; anything a session would have gone looking for in an older suite belongs in this one
-instead.
+**Running the full regression is something the maintainer opts into, not a step any task performs.**
+The working assumption for every task is that none of it runs. That is why the duplication rule
+exists: a task that changes old behaviour carries the old assertion into its own suite (see *Automate
+everything*, above) instead of relying on an older suite ever being run again. A red line names the
+task that broke, but **verifying ONE task is running ONE command** — no suite is a precondition for
+another, and none has to be run to make a different one meaningful.
 
-Never edit an old suite to make it green: that line is the regression doing its job. (A suite's *schedule* is not an assertion — 035.3 removed every suite's auto-start, with a
-version bump each, and that is the only kind of edit an old suite takes without a reason of its own.) Only
-the maintainer removes or disables a suite — **archiving is not disabling**: an archived suite is exactly
-as green as the day it closed, just no longer loaded.
+**Never edit an old suite just to make it pass** — a red line in an old suite is the regression doing
+its job, and only the maintainer decides to remove or disable one. The one standing exception is a
+suite's own schedule: bumping its version to change *how or when* it runs, without touching what it
+checks, needs no finding behind it. Archiving is not disabling — an archived suite is exactly as
+green as the day it closed, just no longer loaded at login.
 
 ## Headless pre-check
 
@@ -208,8 +205,7 @@ LuaJ jar against a stub `hafen` before handing over (see `learnings/testing-tool
 
 - `bags`, `walker`, `planner`, `widgetstack`, `hogtest`, `netdemo`, `optionstest`, `profiler` are
   **documentation demos** referenced from `docs/addons/`. They keep that role and are not suites.
-- **`addons/hello/` is FROZEN.** It was the single growing harness through feature 033 and stays
-  installed for the coverage it already carries (001–033), but **no new task extends it**. Touch it
-  only when a change breaks it — then fix it, do not grow it.
-- **None of the above are per-task suites, so `/end`'s archiving step (D-144) never touches them** —
+- **`addons/hello/` is FROZEN — no new task extends it.** Touch it only when a change breaks it,
+  then fix it, do not grow it. Its coverage runs 001–033.
+- **None of the above are per-task suites, so `/end`'s archiving step (D-183) never touches them** —
   they stay in the client's `addons/` permanently, unlike `<NNN>-<feature>.<X>/` folders.

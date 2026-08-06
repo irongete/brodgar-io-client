@@ -29,7 +29,12 @@
     `src/io/brodgar/addon/`, `docs/addons/`, `addons/`. Then a cold restart + one login.
   - *Extra context:* none beyond spec.md's list — this task is the whole feature.
 
-- [ ] **017.2 — Spec-side closure (no code, not in-game verifiable)**
+- [x] **017.2 — Spec-side closure (no code, not in-game verifiable)** — closed late (2026-08-06):
+      `decisions/architecture-api.md` never got D-044/045/046 appended at the time, despite
+      `FEATURES.md` and later decisions (D-056, D-059, D-060, D-064, D-065) already citing them by
+      number — found while resolving an unrelated D-144 collision. `design/06-lua-api.md`,
+      `API-REFERENCE.md`, `STATE.md` and `docs/addons/api/gob.md` were already correct (rewritten
+      here or superseded in full by 039-uniform-api); only the decision entries were missing.
   - `decisions/architecture-api.md`: append **D-044** (Gob is OOP + hard cut; supersedes D-012/D-013
     for gobs), **D-045** (identity by per-addon weak interning), **D-046** (Player by composition,
     no forwarded methods). Mark `(SUPERSEDED by D-044)` on the D-012 / D-013 / D-022 headers —

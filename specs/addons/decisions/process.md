@@ -27,7 +27,7 @@ mechanism, the ordering rule was the residue), and this deletes the residue.
 only edited when it breaks. A suite that would need a large premise from elsewhere is evidence the task was
 two tasks, not a reason to delegate.
 
-### D-144 — A closed task's suite is ARCHIVED into its spec folder, not left live ✅
+### D-183 — A closed task's suite is ARCHIVED into its spec folder, not left live ✅
 **Decision.** `/end`'s close step moves a task's test addon out of the client's live
 `addons/<NNN>-<feature>.<X>/` into `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/` — an
 ordinary move, so the suite is unchanged and still runnable, just no longer one of the folders the
@@ -42,6 +42,17 @@ it is not run, and cost a slower login and a longer AddOns list for every task t
 that work once their folder is copied back into `addons/`, not a live list of what is installed —
 running the full regression is opt-in twice over now: nobody runs it, and nobody has it loaded either.
 Archiving is not disabling: an archived suite is exactly as green as the day it closed.
+**Addendum (2026-08-06).** The move above is source-side only. The client actually reads
+`bin/addons/` (the addon dir resolves beside the running `bin/hafen.jar`, jar-sibling, regardless of
+launch method), so `/end`'s close step also deletes `bin/addons/<NNN>-<feature>.<X>/` and **verifies
+the delete** before treating the step as done — a JVM with the addon loaded holds its files open on
+Windows, so a delete attempted while the client is still running can silently fail and leave the
+suite loading at the next login even though the source-side archive succeeded. Found live: three
+suites (`041-unified-events.5`, `.7`, `042-event-driven-reads.1`) were archived to `specs/`
+correctly but never actually left `bin/addons/`, one of them closed after this delete step already
+existed — the instruction was present but unverified. `/implement` also got a direct rule
+(D-085 restated, not superseded): never ask the maintainer to run any command besides this task's
+own `:t<NNN>-<X>`.
 
 ### D-026 — Gap design/build order ✅ (closes Q-014)
 Order: **widget-tree-read mechanism** ([14-widget-tree-reads.md](../design/14-widget-tree-reads.md), foundational)

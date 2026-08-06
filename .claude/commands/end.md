@@ -28,6 +28,8 @@ be in flight in different areas at once, so every invocation names its own.
 ## Common rules (non-negotiable)
 
 - **NEVER `git push`.** Everything stays local.
+- **A close is not done until every deletion in step 5 is VERIFIED**, not merely attempted —
+  see step 5's `bin/addons` note.
 - **This command makes THE task's commit** (step 7): code, docs, specs and the area's own
   trees in ONE commit. Running `/end` IS the approval — the maintainer only runs it after
   verifying, so do not ask for permission again.
@@ -61,8 +63,12 @@ be in flight in different areas at once, so every invocation names its own.
    max 60 lines) · learnings appended (step 3) · coverage paid (step 4) · if the code
    structure changed, update the affected `specs/codebase/<subsystem>.md` ·
    **archive the task's test artifacts** if the protocol read in step 4 says to (for `addons`: move
-   `addons/<NNN>-<feature>.<X>/` to `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/`
-   AND delete `bin/addons/<NNN>-<feature>.<X>/` if it exists) ·
+   `addons/<NNN>-<feature>.<X>/` to `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/`,
+   THEN delete `bin/addons/<NNN>-<feature>.<X>/` — this is the directory the running client actually
+   reads (TESTING.md explains why). **Verify the delete**: list `bin/addons/` and confirm the folder
+   is gone before treating this step as done. If it is still there, the client has it open — STOP,
+   tell the maintainer to close it, then delete and re-verify. Do not close the task on an unverified
+   deletion.) ·
    delete `specs/<area>/HANDOFF.md`.
 6. **If it was the last task:** mark the feature DONE in `specs/<area>/FEATURES.md` with its
    one-line summary and reflect it in `specs/<area>/STATE.md`. The `NNN-` folder STAYS where

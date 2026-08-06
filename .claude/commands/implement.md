@@ -29,6 +29,11 @@ be in flight in different areas at once, so every invocation names its own.
 - **NEVER `git push`. NEVER commit** — /implement commits nothing, not even after a fix
   round. The whole task (code, docs, specs and the area's own trees) is committed by `/end`,
   once the maintainer's verification passes.
+- **NEVER ask the maintainer to run any command other than this task's own `:t<NNN>-<X>`.**
+  Not an older suite, not the regression list. If the task changed or touches older behaviour,
+  the assertion that proves it belongs INSIDE this task's own suite (TESTING.md — "Automate
+  everything" / "assume the other suite is never run"). Needing another suite's command is a
+  missing assertion in THIS suite, not a request to make.
 - `specs/`, `docs/`, `src/` and the area's own trees all live in the project repo.
 - **Everything in English** — the conversation, the files, the code and its comments.
 - Respect the area's rebuild/restart rules as stated in `AREA.md`.
@@ -53,7 +58,8 @@ be in flight in different areas at once, so every invocation names its own.
    any `[manual]` line that needs a human · **"uncovered
    source"** — any `haven` file you had to read that no `specs/codebase/<subsystem>.md`
    covers, and which subsystem file should absorb it (`/end` writes it).
-5. **STOP and report how to run the tests.** Then stay with the maintainer for as many rounds
+5. **STOP and report exactly one command: `:t<NNN>-<X>`.** Never suggest also running an older
+   suite or the regression list (see Common rules above). Then stay with the maintainer for as many rounds
    as it takes: they run it and paste the log back, you read every `[fail]` and every answered
    `[manual]` line, fix, they re-run. Each fix updates `HANDOFF.md` so it
    always describes the CURRENT state. Still only ONE task, still no commit — when the
