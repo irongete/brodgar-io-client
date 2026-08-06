@@ -22,22 +22,23 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 /**
- * The interception + input subsystem. Owns the four ways an addon reaches into client behaviour beyond the
- * read API:
+ * The interception + input subsystem. Owns the three ways an addon reaches into client behaviour beyond the
+ * read API that are not a widget's own {@code :on(key, fn)} (041.3 moved input there):
  * <ul>
- *   <li><b>L1 input hooks</b> ({@code hafen.hook():input}) — {@link Widget#listen} pre-hooks on mapview/gameui/root;</li>
  *   <li><b>mouse grab</b> ({@code hafen.hook():grab}) — a modal drag capture (V5, the gizmo primitive);</li>
  *   <li><b>slash commands</b> ({@code hafen.slash}) — WoW-style {@code :name} console commands (A11);</li>
  *   <li><b>global hotkeys</b> ({@code hafen.client:options():keybindings()}) — remappable keys over the
  *       {@link KeyBinding} registry ({@link #dispatchKey}); the Lua surface is {@link KeybindingsOptions}.</li>
  * </ul>
  *
- * <p><b>The two message streams left in 041.2.</b> What were the L2 (outbound {@code wdgmsg}) and L3 (inbound
- * {@code uimsg}) hook levels are now {@code hafen.event():action():on(msg, fn)} and
- * {@code hafen.event():message():on(msg, fn)} — the same choke points and the same precedence, over the one
- * {@link Subs} mechanism, dispatched by {@link AddonManager#dispatchAction}/{@link AddonManager#dispatchMessage}.
- * They moved because a subscription with no object to hang off belongs on the bus (spec {@code 041} §R2): a
- * {@code "click"} can come from any widget and a {@code "set"} can go to any widget.
+ * <p><b>What moved off this class.</b> The two message streams left in 041.2: what were the L2 (outbound
+ * {@code wdgmsg}) and L3 (inbound {@code uimsg}) hook levels are now {@code hafen.event():action():on(msg, fn)}
+ * and {@code hafen.event():message():on(msg, fn)}, over {@link Subs}, dispatched by
+ * {@link AddonManager#dispatchAction}/{@link AddonManager#dispatchMessage}. The L1 input hooks left in 041.3:
+ * {@code hafen.hook():input(target, ev, fn)} — three magic string tokens, an API limit rather than an engine
+ * one — is now {@code handle:on("MouseDown"/"MouseUp"/"MouseMove"/"Wheel", fn)} on any widget, over
+ * {@link WidgetSubs}. Both moved because a subscription belongs where its address is (spec {@code 041} §R2):
+ * a {@code "click"} or a {@code MouseDown} has no fixed home three tokens could enumerate.
  *
  * <p>The engine seams stay in {@link AddonManager} (the {@code haven} core calls them by name —
  * {@code onWdgmsg}/{@code onMessage}/{@code onGlobKey}); the keybind <i>panel</i> API
@@ -92,13 +93,8 @@ final class HookApi {
      */
     static void install(LuaTable hafen, final Addon owner) {
         LuaTable hook = new LuaTable();
-        // input(target, event, fn) — L1: a keyboard/mouse gesture on mapview/gameui/root, before the client.
-        hook.set("input", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "hook", "input");
-                return newInputHook(owner, a.arg(2), a.arg(3), a.arg(4));
-            }
-        });
+        // input(target, event, fn) is GONE (041.3): input is a widget's own :on(key, fn) now — any widget, not
+        // just the three tokens this used to accept. Both spellings are rows in Retired.
         // action(msg, fn) and message(msg, fn) are GONE (041.2): the two message streams are doors of the bus
         // now, hafen.event():action():on(msg, fn) and hafen.event():message():on(msg, fn). Both spellings are
         // rows in Retired, so the old call throws naming its replacement rather than reading nil.
@@ -122,44 +118,9 @@ final class HookApi {
         Section.install(hafen, "slash", slash);
     }
 
-    // ================================================================= L1 input hooks (hafen.hook():input, 2c)
-
-    private static LuaValue newInputHook(final Addon owner, LuaValue target, LuaValue event, LuaValue fn) {
-        if(!event.isstring() || !fn.isfunction())
-            throw new LuaError("hafen.hook():input(target, event, fn) expects (target, string, function)");
-        Class<? extends Widget.Event> cls = eventClass(event.tojstring());
-        if(cls == null)
-            throw new LuaError("hafen.hook():input: unknown event '" + event.tojstring()
-                               + "' (expected mousedown / mouseup / mousemove / mousewheel)");
-        String tok = target.isstring() ? target.tojstring().toLowerCase() : null;
-        if(!isKnownTarget(tok))
-            throw new LuaError("hafen.hook():input: target must be \"mapview\", \"gameui\", or \"root\" (got "
-                               + (target.isnil() ? "nil" : target.tojstring()) + ")");
-        Widget w = hookTarget(tok);
-        if(w == null)
-            throw new LuaError("hafen.hook():input: the " + tok
-                               + " is not up yet — register this hook in EnterWorld");
-        final LuaInputHook h = new LuaInputHook(owner, w, event.tojstring(), fn);
-        listenHook(w, cls, h);
-        owner.hooks.add(h);
-        LuaTable handle = new LuaTable();
-        handle.set("remove", new ZeroArgFunction() {
-            public LuaValue call() {
-                removeHook(owner, h);
-                return LuaValue.NIL;
-            }
-        });
-        return handle;
-    }
-
-    /** Map an input-hook event name to its {@link Widget.Event} class (2c supports the mouse gestures). */
-    private static Class<? extends Widget.Event> eventClass(String name) {
-        if(name.equals("mousedown"))  return Widget.MouseDownEvent.class;
-        if(name.equals("mouseup"))    return Widget.MouseUpEvent.class;
-        if(name.equals("mousemove"))  return Widget.MouseMoveEvent.class;
-        if(name.equals("mousewheel")) return Widget.MouseWheelEvent.class;
-        return null;
-    }
+    // ================================================================= shared target-token resolution
+    // (used to be L1's own; the widget-input door is gone (041.3), but hafen.act():raw still resolves the
+    // same three tokens to a live widget, so the lookup stays here rather than following input to LuaWidget)
 
     /** Is {@code tok} a recognized hook-target token? (Distinguishes "unknown target" from "not up yet".) */
     static boolean isKnownTarget(String tok) {
@@ -179,41 +140,6 @@ final class HookApi {
             return (u == null) ? null : u.root;
         }
         return null;
-    }
-
-    /**
-     * Register {@code h} as a typed listener on {@code w}. {@link Widget#listen} wants an
-     * {@code EventHandler<? super E>}; a {@link LuaInputHook} is {@code EventHandler<Widget.Event>} (it works
-     * for any concrete event type), so we widen the class token's <i>compile-time</i> type — the runtime
-     * {@link Class} is unchanged, so listener matching ({@code t.isInstance}) still keys on the real subclass.
-     */
-    @SuppressWarnings("unchecked")
-    private static void listenHook(Widget w, Class<? extends Widget.Event> cls, LuaInputHook h) {
-        w.listen((Class<Widget.Event>)(Class<?>)cls, h);
-    }
-
-    /** Remove one input hook: stop it firing, deafen the target, drop it from the registry (handle :remove()). */
-    private static void removeHook(Addon owner, LuaInputHook h) {
-        h.alive = false;
-        try {
-            h.target.deafen(h);
-        } catch(RuntimeException e) {
-            /* target already gone (its listener list went with it): harmless */
-        }
-        owner.hooks.remove(h);
-    }
-
-    /** Deafen + drop every input hook this addon owns (teardown on reload/disable, P2). */
-    static void teardownHooks(Addon a) {
-        for(LuaInputHook h : a.hooks) {
-            h.alive = false;
-            try {
-                h.target.deafen(h);
-            } catch(RuntimeException e) {
-                /* target already destroyed; best-effort, never abort teardown */
-            }
-        }
-        a.hooks.clear();
     }
 
     // ================================================================= mouse grab (hafen.hook():grab, V5)

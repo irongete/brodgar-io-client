@@ -20,6 +20,7 @@
 | **9-slice is a first-class engine concept** | [`IBox`](src/haven/IBox.java:29) is an **interface** — `draw(g, tl, sz)` + six inset queries; [`Images`](src/haven/IBox.java:38) takes eight `Tex`es in the order `(ctl, ctr, cbl, cbr, bl, br, bt, bb)` where **`bl`/`br` are the LEFT/RIGHT edge bars**, not the bottom corners; [`Scaled`](src/haven/IBox.java:89) stretches the edges and **never paints the centre** |
 | **Sub-rect texture view** | [`TexSI`](src/haven/TexSI.java:29) — `(parent, ul, br)`, sharing the parent's GPU texture. `Tex` coords are in **pixels** ([`Tex.crender`](src/haven/Tex.java:52)), so slicing an image costs eight small objects and **no** upload |
 | Modal mouse capture (drag) | [`UI.grabmouse(Widget)`](src/haven/UI.java:575) / [`UI.grab`](src/haven/UI.java:538) |
+| **Pre-hook a widget's own event handling** | [`Widget.listen`](src/haven/Widget.java:916)/[`deafen`](src/haven/Widget.java:922) (a `CopyOnWriteArrayList<EventHandler.Listener<?>>`) + [`Widget.handle(Event)`](src/haven/Widget.java:945) — runs every listener **before** `ev.shandle(this)` (the widget's own `mousedown`/etc.); a listener returning `true` short-circuits both the default handling *and* child propagation |
 | **Server → widget destroy** ← lifecycle seam | [`UI.destroy(int)`](src/haven/UI.java:665) (shadow-children first, then a `DstWidget` command) → [`UI.destroy(Widget)`](src/haven/UI.java:622) = [`removeid`](src/haven/UI.java:603) (recursive unbind) **then** `reqdestroy()` |
 | Leaving the tree | [`Widget.destroy`](src/haven/Widget.java:586) → [`remove`](src/haven/Widget.java:570) (`unlink()`, `parent.cdestroy(this)`, **`parent = null`**) + `rdispose()` |
 | **The override that breaks the sequence** | [`Window.reqdestroy`](src/haven/Window.java:609) — starts a hide *animation* (`animst = "dest"`) instead of removing; also [`Buff`](src/haven/Buff.java:190) |
@@ -31,6 +32,12 @@ id when server-bound, by reachability otherwise — or it fires a whole animatio
 a client-only widget, not at all sooner). **And the id goes back to the pool**: `removeid` drops both map entries,
 after which the server may issue the same number for a different widget — so a widget id is safe to *send* and
 unsafe to *store*, because a stored one does not go stale, it silently comes to mean something else (D-138).
+
+**Listener gotcha.** `listening` is copy-on-write, so a handler may `deafen`/`listen` its OWN widget from
+inside `handle(Event)` — the current dispatch finishes against its old snapshot, and the next event sees the
+change (`io.brodgar.addon.WidgetSubs` relies on exactly this to swap one engine listener for a fresh one
+without racing the dispatch that triggered the swap). `listen`/`deafen` are per-instance, so a native widget
+that outlives a Lua-layer reload keeps whatever was registered on it until something explicitly `deafen`s it.
 
 ## Tick & draw traversal (the two recursion seams)
 

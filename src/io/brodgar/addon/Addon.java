@@ -1,5 +1,7 @@
 package io.brodgar.addon;
 
+import haven.Widget;
+
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -8,6 +10,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -63,12 +67,34 @@ public final class Addon {
      * a single sweep of the object cache at a rare moment.
      */
     /**
-     * Live input/gesture hooks owned by this addon ({@code hafen.hook():input}, Phase 2c): pre-hooks registered
-     * on a client widget via {@link haven.Widget#listen}. Teardown deafens each ({@link haven.Widget#deafen})
-     * and marks it dead, so a {@code :reload}/disable (which keeps the engine widgets alive) never leaves a
-     * listener firing into a torn-down env (principle P2). Copy-on-write: a firing hook may {@code :remove()}.
+     * This addon's <b>per-widget input subscriptions</b> ({@code widget:on("MouseDown"/…, fn)}, 041.3): one
+     * {@link WidgetSubs} per widget this addon has subscribed on, holding the {@link Subs} plus the engine
+     * {@code EventHandler}s installed via {@link haven.Widget#listen}. It replaced the fixed three-token
+     * {@code hooks} list ({@code hafen.hook():input}) — the address is now any widget, found or built, keyed
+     * exactly like every other per-widget registry here (weak, so a widget that leaves the tree needs nothing
+     * done on this side: its own {@code listening} list, and our handler in it, are collected with it). A
+     * NATIVE widget that survives {@code :reload} is what {@link #teardownWidgetSubs} walks instead, deafening
+     * every listener this addon installed before the Lua layer that owns them is rebuilt (principle P2).
      */
-    public final List<LuaInputHook> hooks = new CopyOnWriteArrayList<LuaInputHook>();
+    final Map<Widget, WidgetSubs> widgetSubs = new WeakHashMap<Widget, WidgetSubs>();
+
+    /** This addon's {@link WidgetSubs} for {@code w}, minted on the first {@code w:on(key, fn)}. */
+    WidgetSubs widgetSubs(Widget w) {
+        WidgetSubs s = widgetSubs.get(w);
+        if(s == null) {
+            s = new WidgetSubs(this, w);
+            widgetSubs.put(w, s);
+        }
+        return s;
+    }
+
+    /** Deafen every engine listener this addon's {@link WidgetSubs} installed (teardown, P2). */
+    void teardownWidgetSubs() {
+        for(WidgetSubs s : widgetSubs.values())
+            s.teardown();
+        widgetSubs.clear();
+    }
+
     /**
      * This addon's subscriptions to the <b>outbound action stream</b> ({@code hafen.event():action():on(msg,
      * fn)}, 041.2) — every player action, at the single {@link haven.UI#wdgmsg} choke point, before the server

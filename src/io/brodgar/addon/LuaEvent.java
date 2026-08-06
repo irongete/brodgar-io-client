@@ -54,7 +54,12 @@ public final class LuaEvent {
         ACTION("action", "an action event answers :msg() :sender() :args() :preventDefault() :resend()"
                + " :send(t)"),
         /** {@code hafen.event():message():on(msg, fn)} — an inbound {@code uimsg}, before the widget applies it. */
-        MESSAGE("message", "a message event answers :msg() :target() :args() :preventDefault() :rewrite(t)");
+        MESSAGE("message", "a message event answers :msg() :target() :args() :preventDefault() :rewrite(t)"),
+        /**
+         * {@code w:on("MouseDown"/"MouseUp"/"MouseMove"/"Wheel", fn)} — the four universal widget input keys
+         * (041.3), on a widget you built, one you found by selector, or one an event handed you.
+         */
+        INPUT("input", "an input event answers :x() :y() :button() :amount() :preventDefault()");
 
         /** The shape's name, for {@code tostring(ev)}. */
         final String label;
@@ -84,6 +89,11 @@ public final class LuaEvent {
     private final UI ui;
     /** MESSAGE: where {@code ev:rewrite(t)} leaves the new Java args for the caller to apply. */
     private final Object[][] rewritten;
+    /** INPUT: widget-local pixels (both keys), the button (down/up only, else {@code null}) and the wheel
+     * amount ({@code Wheel} only, else {@code null}) — the fields {@link Widget.PointerEvent} subclasses carry
+     * only some of, so a shape that does not apply reads {@code nil} rather than throwing (EXAMPLES §1.1). */
+    private final int x, y;
+    private final Integer button, amount;
 
     /** The interned Widget handle, minted on the first {@code ev:sender()}/{@code ev:target()}. */
     private LuaValue wdgObj;
@@ -92,6 +102,17 @@ public final class LuaEvent {
 
     private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, String msg, Widget wdg, Object[] args,
                      UI ui, Object[][] rewritten) {
+        this(owner, shape, cancel, msg, wdg, args, ui, rewritten, 0, 0, null, null);
+    }
+
+    /** INPUT shape: no sender/target/args, just the pointer coordinates and (maybe) a button or wheel amount. */
+    private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, String key, int x, int y, Integer button,
+                     Integer amount) {
+        this(owner, shape, cancel, key, null, null, null, null, x, y, button, amount);
+    }
+
+    private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, String msg, Widget wdg, Object[] args,
+                     UI ui, Object[][] rewritten, int x, int y, Integer button, Integer amount) {
         this.owner = owner;
         this.shape = shape;
         this.cancel = cancel;
@@ -100,6 +121,10 @@ public final class LuaEvent {
         this.args = args;
         this.ui = ui;
         this.rewritten = rewritten;
+        this.x = x;
+        this.y = y;
+        this.button = button;
+        this.amount = amount;
     }
 
     /** {@code tostring(ev)} → {@code Event(action:click)}. */
@@ -124,6 +149,19 @@ public final class LuaEvent {
     static LuaValue message(Addon owner, Widget target, String msg, Object[] args, Subs.Cancel c,
                             Object[][] rewritten) {
         return of(new LuaEvent(owner, Shape.MESSAGE, c, msg, target, args, null, rewritten));
+    }
+
+    /**
+     * The {@code ev} for one widget input key ({@code w:on("MouseDown"/…, fn)}, 041.3) — minted per (addon,
+     * widget, key) fire, never interned: unlike {@code action}/{@code message} there is no {@code hasSub} gate
+     * to skip minting for (the caller already knows somebody is listening, since it is that Sub firing).
+     */
+    static LuaValue input(Addon owner, String key, Widget.PointerEvent ev, Subs.Cancel c) {
+        Integer button = (ev instanceof Widget.MouseButtonEvent) ? Integer.valueOf(((Widget.MouseButtonEvent)ev).b)
+            : null;
+        Integer amount = (ev instanceof Widget.MouseWheelEvent) ? Integer.valueOf(((Widget.MouseWheelEvent)ev).a)
+            : null;
+        return of(new LuaEvent(owner, Shape.INPUT, c, key, ev.c.x, ev.c.y, button, amount));
     }
 
     private static LuaValue of(LuaEvent ev) {
@@ -171,11 +209,15 @@ public final class LuaEvent {
         if(cached != null)
             return cached;
         LuaTable m = new LuaTable();
-        common(m, shape);
-        if(shape == Shape.ACTION)
-            outbound(m);
-        else
-            inbound(m);
+        if(shape == Shape.INPUT) {
+            input(m);
+        } else {
+            common(m, shape);
+            if(shape == Shape.ACTION)
+                outbound(m);
+            else
+                inbound(m);
+        }
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("ev", m, shape.vocabulary));
         mt.set("__name", LuaValue.valueOf("Event"));
@@ -210,12 +252,49 @@ public final class LuaEvent {
                 return self(a.arg1(), shape, "args").args();
             }
         });
+        preventDefault(m, shape);
+    }
+
+    /** {@code ev:preventDefault()} — shared by every shape that cancels (all three, currently). */
+    private static void preventDefault(LuaTable m, final Shape shape) {
         m.set("preventDefault", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 self(a.arg1(), shape, "preventDefault").cancel.prevent();
                 return LuaValue.NIL;
             }
         });
+    }
+
+    /**
+     * The input half (041.3): {@code ev:x()}/{@code :y()} (widget-local pixels, always present),
+     * {@code ev:button()} (down/up only) and {@code ev:amount()} (wheel only) — the two answer {@code nil}
+     * where they do not apply, rather than throwing, since which fields a concrete gesture carries is a
+     * property of the DATA and not a typo (§1.1's per-key table already says which).
+     */
+    private static void input(LuaTable m) {
+        m.set("x", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.INPUT, "x").x);
+            }
+        });
+        m.set("y", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.INPUT, "y").y);
+            }
+        });
+        m.set("button", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Integer b = self(a.arg1(), Shape.INPUT, "button").button;
+                return (b == null) ? LuaValue.NIL : LuaValue.valueOf(b.intValue());
+            }
+        });
+        m.set("amount", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Integer amt = self(a.arg1(), Shape.INPUT, "amount").amount;
+                return (amt == null) ? LuaValue.NIL : LuaValue.valueOf(amt.intValue());
+            }
+        });
+        preventDefault(m, Shape.INPUT);
     }
 
     /**

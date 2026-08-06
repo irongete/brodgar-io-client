@@ -405,7 +405,8 @@ public final class LuaWidget {
         // CUT — two spellings for one write is the dual style the grammar removes, and they were the last pair in
         // the API where the value lived in the verb's NAME instead of its argument.
         //
-        // It is the ONLY write that answers on a native widget (029.2). Hiding a NATIVE widget registers it on the
+        // It is the ONLY PROPERTY write that answers on a native widget (029.2) — :on(key, fn) reaches one too
+        // (041.3), but a subscription is not a property (see below). Hiding a NATIVE widget registers it on the
         // addon's restore list, so :reload/disable puts it back exactly as it was (UiApi.teardownHidden) — that is
         // what replaces hafen.ui.adopt, which used to hide a window just so you could read it. A hidden server
         // widget stays bound to its id (still receiving uimsg/addchild), so it remains a perfectly live model.
@@ -434,6 +435,32 @@ public final class LuaWidget {
                         recordHidden(owner, w);
                 }
                 return self;
+            }
+        });
+        // on(key, fn) — 041.3, THE FEATURE'S ONE NEW REACH: input on ANY widget, found or built, over
+        // Widget.listen/deafen (WidgetSubs) rather than the three magic hafen.hook():input tokens. The four
+        // universal keys (MouseDown/MouseUp/MouseMove/Wheel, D-125's closed set for 041.3 — a widget-specific
+        // vocabulary joins it in 041.4) answer here; an unknown one throws naming what this widget does
+        // answer, exactly like a retired spelling one line later would, only sooner. preventDefault() is on
+        // the ev this hands the handler, never a return value (spec R3) — arity is NOT the verb here, because
+        // a subscription is not a property: :on(key, fn) always registers and returns a Sub, and :on(key) with
+        // no function is a missing-argument error, not a read.
+        m.set("on", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "on"));
+                LuaValue keyArg = Args.required(a, 2, "widget:on", "key");
+                LuaValue fnArg = Args.required(a, 3, "widget:on", "fn");
+                if(!keyArg.isstring() || !fnArg.isfunction())
+                    throw new LuaError("widget:on(key, fn) expects (string, function)");
+                String key = keyArg.tojstring();
+                if(!WidgetSubs.isKey(key)) {
+                    throw new LuaError("widget:on(key, fn): a " + ((w == null) ? "Widget" : typeName(w))
+                        + " has no event '" + key + "' — it has: " + WidgetSubs.KEY_LIST);
+                }
+                if(w == null)
+                    throw new LuaError("widget:on(key, fn) — this widget is no longer in the tree");
+                return owner.widgetSubs(w).on(key, fnArg);
             }
         });
         // replacement() / replace(view) / replace(nil) — 032.1, RENAMED at 039.5 (spec §2.2): the one place in the

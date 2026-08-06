@@ -1,0 +1,9 @@
+{
+  "name": "041.3 — Input on any widget",
+  "id": "041-unified-events.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 041.3: widget:on(\"MouseDown\"/\"MouseUp\"/\"MouseMove\"/\"Wheel\", fn) answers on any widget -- native, found by selector, or one you built -- over Widget.listen/deafen; hafen.hook():input and the four old widget on* verbs throw naming the replacement. Run ':t041-3' and follow the one [manual] line: four map clicks in a row prove delivery, preventDefault, the ignored return value, and no leaked listener after an off()+re-subscribe.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

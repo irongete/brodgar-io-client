@@ -15,8 +15,9 @@
 --              (uniform scale via g:scale -> a scaling Location on the gob, V6). Fixed screen size.
 --   * "all"  -- everything at once (the planner default), so one gizmo does full move/rotate/scale.
 --
--- HOW YOU DRAG IT. Press a handle -> the gizmo consumes that mousedown (hafen.hook():input + ev:preventDefault, so
--- the map neither clicks nor pans nor V2-selects) and starts a mouse GRAB (hafen.hook():grab -- the camera stays put).
+-- HOW YOU DRAG IT. Press a handle -> the gizmo consumes that mousedown (mapview:on("MouseDown", fn) +
+-- ev:preventDefault, so the map neither clicks nor pans nor V2-selects) and starts a mouse GRAB
+-- (hafen.hook():grab -- the camera stays put).
 -- MOVE/ROTATE raycast the ground under the cursor each move (hafen.world():screenToWorld, async + coalesced) so they
 -- work in true WORLD space (snapping identical to placing a building, D-033); SCALE is pure screen math (drag
 -- distance from the centre). Release to drop. The handles re-project every frame, so they track the ghost + camera.
@@ -352,9 +353,9 @@ local function detach(self)
     if self.drag.grab then self.drag.grab:release() end
     self.drag = nil
   end
-  if self.overlay  then self.overlay:destroy(); self.overlay  = nil end
-  if self.downHook then self.downHook:remove(); self.downHook = nil end
-  if self.moveHook then self.moveHook:remove(); self.moveHook = nil end
+  if self.overlay then self.overlay:destroy(); self.overlay = nil end
+  if self.downSub then self.downSub:off(); self.downSub = nil end
+  if self.moveSub then self.moveSub:off(); self.moveSub = nil end
 end
 
 -- ---- constructor (the single global this module installs) ---------------------------------------------------
@@ -376,7 +377,7 @@ gizmo = function(target, opts)
     onChange = opts.onChange,
     onCommit = opts.onCommit,
     drag     = nil,
-    cursor   = nil,     -- last mapview cursor pos (for the hover highlight), updated by moveHook
+    cursor   = nil,     -- last mapview cursor pos (for the hover highlight), updated by moveSub
   }
 
   -- Draw on top of the HUD every frame (re-projects, so the handles track the ghost + the camera).
@@ -385,21 +386,25 @@ gizmo = function(target, opts)
   end)
 
   -- Press a handle -> consume the click (no map click / camera / ghost-select) and start the drag. On a MISS we
-  -- return without preventDefault, so ordinary map clicks (and the ghost's V2 selection) still work.
-  self.downHook = hafen.hook():input("mapview", "mousedown", function(ev)
-    if (not self.alive) or self.drag then return end
-    if ev.button and (ev.button ~= 1) then return end       -- left button only (middle=camera, right=menu pass)
-    local kind = hitGeom(computeGeom(self), ev.x, ev.y, self.mode, self.canScale)
-    if not kind then return end
-    ev:preventDefault()
-    startDrag(self, kind, ev.x, ev.y)
-  end)
+  -- return without preventDefault, so ordinary map clicks (and the ghost's V2 selection) still work. Reached
+  -- through @MapView now (041.3) -- any widget's own :on(key, fn), not the three magic hook tokens.
+  local mapview = hafen.ui():find("@MapView")
+  if mapview then
+    self.downSub = mapview:on("MouseDown", function(ev)
+      if (not self.alive) or self.drag then return end
+      if ev:button() ~= 1 then return end                  -- left button only (middle=camera, right=menu pass)
+      local kind = hitGeom(computeGeom(self), ev:x(), ev:y(), self.mode, self.canScale)
+      if not kind then return end
+      ev:preventDefault()
+      startDrag(self, kind, ev:x(), ev:y())
+    end)
 
-  -- Track the cursor for the hover highlight (never preventDefault -> normal hovering/camera is untouched). The
-  -- grab captures moves DURING a drag, so this only feeds the idle hover state.
-  self.moveHook = hafen.hook():input("mapview", "mousemove", function(ev)
-    if self.alive then self.cursor = { x = ev.x, y = ev.y } end
-  end)
+    -- Track the cursor for the hover highlight (never preventDefault -> normal hovering/camera is untouched).
+    -- The grab captures moves DURING a drag, so this only feeds the idle hover state.
+    self.moveSub = mapview:on("MouseMove", function(ev)
+      if self.alive then self.cursor = { x = ev:x(), y = ev:y() } end
+    end)
+  end
 
   return {
     detach     = function() detach(self) end,

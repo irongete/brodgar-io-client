@@ -10,16 +10,18 @@ import haven.Widget;
 
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
 
 /**
  * A <b>client-side</b> {@link Widget} whose lifecycle callbacks forward to an addon's Lua functions —
  * the Java half of {@code hafen.ui():widget()} / {@code hafen.ui():window()} (spec
- * {@code 07-ui-and-drawing.md}, Phase 2a). It is a leaf widget: {@link #draw}, {@link #tick}, and the mouse
- * handlers each call the addon's matching callback ({@code onDraw}/{@code onTick}/{@code onClick}/
- * {@code onMouseUp}/{@code onMouseMove}/{@code onWheel}) through {@link AddonManager#callLua}, so every
+ * {@code 07-ui-and-drawing.md}, Phase 2a). It is a leaf widget: {@link #draw} and {@link #tick} call the
+ * addon's matching callback ({@code onDraw}/{@code onTick}) through {@link AddonManager#callLua}, so every
  * forward is <b>watchdog-armed</b> (D-018 layer 1), <b>error-isolated</b> (a Lua error is logged, never
- * thrown into the render/tick loop), and CPU-accounted exactly like an event handler.
+ * thrown into the render/tick loop), and CPU-accounted exactly like an event handler. <b>Mouse input is not
+ * one of these slots</b> (041.3): {@code MouseDown}/{@code MouseUp}/{@code MouseMove}/{@code Wheel} reach an
+ * AddonWidget the same way they reach any other widget, through {@code widget:on(key, fn)} and the
+ * {@link Widget#listen} pre-hook {@link WidgetSubs} installs — one door for a widget you built and one you
+ * merely found, which a fixed callback slot could never be.
  *
  * <p><b>Built bare, and every callback is a setter</b> (spec {@code 039-uniform-api} §2.5). The thirteen
  * keys of the old {@code opts} table are chained setters on the Widget entity, so a callback is no longer
@@ -58,10 +60,10 @@ import org.luaj.vm2.Varargs;
  * over the read API), so this stays <b>ungated</b>; firing the dropped action is out of scope (the deferred
  * menu-ability primitive).
  *
- * <p><b>Modifiers (D-040).</b> Each mouse callback carries a trailing {@code mods = {shift, ctrl, alt}}
- * table (from {@code ui.modflags()}, via {@link AddonManager#modsTable}) so an addon can branch on the
- * modifier state at press time (e.g. Shift+drag). Additive and back-compatible — a handler that ignores
- * the extra argument is unaffected.
+ * <p><b>D-040's per-callback {@code mods} table is retired with the slots it rode on</b> (041.3): the input
+ * {@code ev} {@code widget:on("MouseDown"/…, fn)} hands over does not carry modifier state (EXAMPLES §1.1) —
+ * a later task in this feature puts it on the mouse entity instead, readable at any time rather than only
+ * from inside a callback that happened to be handed it.
  *
  * <p><b>{@link Owned} since 040.1, and nothing here changed to say so.</b> Provenance used to be <i>is this
  * widget an {@code AddonWidget} of mine?</i>; it is now <i>does this widget carry the ownership contract?</i>,
@@ -75,10 +77,9 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
      * {@code opts} table used. {@link #slot(String)} is the only mapping between the two.
      */
     static final String[] CALLBACKS = {
-        "onDraw", "onTick", "onClick", "onMouseUp", "onMouseMove", "onWheel", "onDrop", "onClose",
+        "onDraw", "onTick", "onDrop", "onClose",
     };
-    static final int ON_DRAW = 0, ON_TICK = 1, ON_CLICK = 2, ON_MOUSEUP = 3,
-                     ON_MOUSEMOVE = 4, ON_WHEEL = 5, ON_DROP = 6, ON_CLOSE = 7;
+    static final int ON_DRAW = 0, ON_TICK = 1, ON_DROP = 2, ON_CLOSE = 3;
 
     private final Addon owner;
     /** The callback slots. Copy-on-write: the draw/tick passes read this reference, Lua setters replace it. */
@@ -95,7 +96,7 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
         this.owner = owner;
     }
 
-    /** The slot of a callback verb, or {@code -1} — the one place the eight names are matched. */
+    /** The slot of a callback verb, or {@code -1} — the one place the four names are matched. */
     static int slot(String name) {
         for(int i = 0; i < CALLBACKS.length; i++) {
             if(CALLBACKS[i].equals(name))
@@ -208,36 +209,11 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
         super.draw(g);   // draw any child widgets (none for a leaf; future-proofing)
     }
 
-    public boolean mousedown(MouseDownEvent ev) {
-        LuaValue fn = cb[ON_CLICK];
-        if(!dead && (fn != null)
-           && AddonManager.callLua(owner, Addon.C_WIDGET, fn, ci(ev.c.x), ci(ev.c.y), ci(ev.b), mods()).arg1().toboolean())
-            return true;   // a truthy return consumes the click (preventDefault)
-        return super.mousedown(ev);
-    }
-
-    public boolean mouseup(MouseUpEvent ev) {
-        LuaValue fn = cb[ON_MOUSEUP];
-        if(!dead && (fn != null)
-           && AddonManager.callLua(owner, Addon.C_WIDGET, fn, ci(ev.c.x), ci(ev.c.y), ci(ev.b), mods()).arg1().toboolean())
-            return true;
-        return super.mouseup(ev);
-    }
-
-    public void mousemove(MouseMoveEvent ev) {
-        super.mousemove(ev);
-        LuaValue fn = cb[ON_MOUSEMOVE];
-        if(!dead && (fn != null))
-            AddonManager.callLua(owner, Addon.C_WIDGET, fn, ci(ev.c.x), ci(ev.c.y), mods());
-    }
-
-    public boolean mousewheel(MouseWheelEvent ev) {
-        LuaValue fn = cb[ON_WHEEL];
-        if(!dead && (fn != null)
-           && AddonManager.callLua(owner, Addon.C_WIDGET, fn, ci(ev.c.x), ci(ev.c.y), ci(ev.a), mods()).arg1().toboolean())
-            return true;
-        return super.mousewheel(ev);
-    }
+    // mousedown/mouseup/mousemove/mousewheel are GONE (041.3): the four input keys are now delivered through
+    // the SAME door every widget answers them on — widget:on("MouseDown"/…, fn), a Widget.listen pre-hook
+    // installed by WidgetSubs — rather than a slot only an AddonWidget had. Widget's own defaults (false / a
+    // no-op) apply here now, which is correct: a leaf with no children has nothing else to do with an event
+    // its listener did not consume.
 
     /**
      * The chrome close button ({@code :onClose(fn)}). Wired once by the builder, but read here, so a handler
@@ -298,11 +274,6 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
         } catch(RuntimeException e) {   // Loading etc.
             return null;
         }
-    }
-
-    /** The {@code {shift,ctrl,alt}} modifier table at callback time (empty if no UI is attached yet). */
-    private LuaTable mods() {
-        return AddonManager.modsTable((ui != null) ? ui.modflags() : 0);
     }
 
     private static LuaValue ci(int v) {

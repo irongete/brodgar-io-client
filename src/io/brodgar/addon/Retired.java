@@ -94,7 +94,7 @@ final class Retired {
         section("time", "clock", "dayFraction", "isNight", "season", "moon", "yearFraction");
         section("slash", "register");
         section("json", "parse", "encode");
-        section("hook", "input", "grab");
+        section("hook", "grab");
         section("timer", "after", "every");
 
         // ---- 041.2: the two message streams leave hafen.hook() for the bus, which is where a notification --
@@ -111,6 +111,18 @@ final class Retired {
             + " WIDGET, so ev:target():type() is the class name the field used to be");
         put("hafen.hook():action", message("hafen.hook.action"));
         put("hafen.hook():message", message("hafen.hook.message"));
+
+        // ---- 041.3: input leaves hafen.hook() for the widget it is ABOUT -- the three magic tokens ----------
+        // ("mapview"/"gameui"/"root") were an API limit, not an engine one (Widget.listen/deafen are Widget
+        // methods), so the replacement reaches every widget, found or built, not just three. Same two-spelling
+        // shape as action/message above: the pre-039 dotted form and the colon verb the section no longer has.
+        put("hafen.hook.input", "hafen.hook():input(target, event, fn) is now handle:on(key, fn) — on ANY"
+            + " widget, not just \"mapview\"/\"gameui\"/\"root\": key is MouseDown/MouseUp/MouseMove/Wheel"
+            + " (mousedown/mouseup/mousemove/mousewheel PascalCased), and what it hands back is a Sub:"
+            + " sub:off() ends it, where the hook handle said :remove(). The ev is an object with verbs —"
+            + " ev:x() ev:y() ev:button() ev:amount() ev:preventDefault() — replacing the table this used"
+            + " to hand a Lua handler");
+        put("hafen.hook():input", message("hafen.hook.input"));
 
         // http keeps its verb names but loses its options table, so the message says both halves.
         put("hafen.http.get", "hafen.http.get(url, opts, cb) is now hafen.http():get(url, cb) — opts.headers"
@@ -236,13 +248,13 @@ final class Retired {
 
         // ---- the three UI builders: no config table survives, so each key is a setter on what you get back --
         put("hafen.ui.window", "hafen.ui.window{…} is now hafen.ui():window() plus chained setters:"
-            + " :title(s) :parent(w) :position(x, y) :size(w, h) :font(h) and the callbacks :onDraw(fn)"
-            + " :onTick(fn) :onClick(fn) :onMouseUp(fn) :onMouseMove(fn) :onWheel(fn) :onDrop(fn) :onClose(fn)."
-            + " Each has a matching bare read, and `pos` is spelt `position`");
+            + " :title(s) :parent(w) :position(x, y) :size(w, h) :font(h) and the notifications"
+            + " :on(\"MouseDown\"/\"MouseUp\"/\"MouseMove\"/\"Wheel\", fn) :onDraw(fn) :onTick(fn) :onDrop(fn)"
+            + " :onClose(fn). Each has a matching bare read, and `pos` is spelt `position`");
         put("hafen.ui.widget", "hafen.ui.widget{…} is now hafen.ui():widget() plus chained setters:"
-            + " :parent(w) :position(x, y) :size(w, h) :font(h) and the callbacks :onDraw(fn) :onTick(fn)"
-            + " :onClick(fn) :onMouseUp(fn) :onMouseMove(fn) :onWheel(fn) :onDrop(fn). A bare widget has no"
-            + " caption, so :title(s) is the window builder's");
+            + " :parent(w) :position(x, y) :size(w, h) :font(h) and the notifications"
+            + " :on(\"MouseDown\"/\"MouseUp\"/\"MouseMove\"/\"Wheel\", fn) :onDraw(fn) :onTick(fn) :onDrop(fn)."
+            + " A bare widget has no caption, so :title(s) is the window builder's");
         put("hafen.ui.overlay", "hafen.ui.overlay(fn) is now hafen.ui():overlay():onDraw(fn), and the overlay"
             + " it hands back ends with :destroy() rather than :remove()");
 
@@ -267,6 +279,15 @@ final class Retired {
             + " back: its properties are setters (:font(h) :color(r,g,b) :bg{…} :border{…} :pad(n)),"
             + " widget:rule():info() reads your whole level back, and widget:rule():remove() drops it."
             + " widget:style() still answers what the widget RESOLVES to");
+
+        // ---- 041.3: the four input slots join the one vocabulary every widget answers, ANY widget included ----
+        // (native, found by selector — the reach that did not exist before). Reading the handler back is cut
+        // like every other N-subscriber verb (§5.4): a subscription is not a property.
+        put("widget:onClick", "widget:onClick(fn) is now widget:on(\"MouseDown\", fn) — renamed, not just"
+            + " re-spelled: it always bound MouseDownEvent, so \"click\" was never the right name");
+        put("widget:onMouseUp", "widget:onMouseUp(fn) is now widget:on(\"MouseUp\", fn)");
+        put("widget:onMouseMove", "widget:onMouseMove(fn) is now widget:on(\"MouseMove\", fn)");
+        put("widget:onWheel", "widget:onWheel(fn) is now widget:on(\"Wheel\", fn)");
         put("marker:onmap", "marker:onmap() is now marker:onMap(), and it writes too: marker:onMap(true)");
 
         // ---- the world entities: two collections under hafen.render(), and hafen.ghost() IS one -------------

@@ -209,10 +209,9 @@ local function run()
   check(named == #RETIRED, ("every retired spelling of the two hook levels throws naming its replacement"
         .. " (%d/%d: the colon verbs and the dotted forms)"):format(named, #RETIRED), named)
 
-  -- 4. ...and what this task did NOT move is still there: hafen.hook() keeps its other two verbs, and the
-  --    bus itself still takes a key. Both are premises of the checks above, so they are checked here too.
-  refuses("hafen.hook():input is untouched -- it refuses its own bad arguments, not the section",
-          function() hafen.hook():input() end, "expects (target, string, function)")
+  -- 4. ...and what this task did NOT move is still there: the bus itself still takes a key. (hafen.hook()'s
+  --    third verb, :input, was untouched by THIS task the same way -- 041.3 retired it in its turn, and
+  --    that retirement is :t041-3's premise to assert, not this suite's to keep pinning after the fact.)
   local busSub = hafen.event():on("GobAdded", nop)
   check(type(busSub.off) == "function", "the bus still hands back a Sub for one of its own 26 keys", busSub)
   busSub:off()

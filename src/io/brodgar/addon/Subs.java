@@ -47,6 +47,16 @@ public final class Subs {
     }
 
     /**
+     * Notified when a key's live-handler list has just gone from one to none — a widget's {@link Subs} (041.3)
+     * uses this to deafen the ONE engine {@code EventHandler} it installed for that key once nobody addresses
+     * it any more. {@code null} for every emitter that has no engine-side listener to release (the bus, the
+     * two message streams): the hook is optional precisely because most emitters have nothing to do here.
+     */
+    interface Idle {
+        void idle(String key);
+    }
+
+    /**
      * The shared cancel flag of one fire — {@code ev:preventDefault()} sets it, and it is read once the last
      * handler has run. OR accumulation: any handler cancels, and every handler still runs.
      */
@@ -68,23 +78,36 @@ public final class Subs {
     final Addon owner;
     /** What each key costs, by category (see {@link Cats}). */
     private final Cats cats;
+    /** Notified when a key empties out, or {@code null} — see {@link Idle}. */
+    private final Idle idle;
     /** {@code key → the handlers on it}, in registration order. */
     private final Map<String, CopyOnWriteArrayList<LuaSub>> byKey =
         new ConcurrentHashMap<String, CopyOnWriteArrayList<LuaSub>>();
 
     /** An emitter whose every key costs the same category (the bus: {@code events}). */
     Subs(Addon owner, final int cat) {
+        this(owner, cat, null);
+    }
+
+    /** As above, plus a widget's {@link Idle} hook. */
+    Subs(Addon owner, final int cat, Idle idle) {
         this(owner, new Cats() {
             public int cat(String key) {
                 return cat;
             }
-        });
+        }, idle);
     }
 
     /** An emitter whose keys cost different categories (a widget: {@code draw} and {@code widgets}). */
     Subs(Addon owner, Cats cats) {
+        this(owner, cats, null);
+    }
+
+    /** As above, plus a widget's {@link Idle} hook (released once a key's last live handler is gone). */
+    Subs(Addon owner, Cats cats, Idle idle) {
         this.owner = owner;
         this.cats = cats;
+        this.idle = idle;
     }
 
     /**
@@ -155,11 +178,15 @@ public final class Subs {
         return (c != null) && c.prevented();
     }
 
-    /** End one subscription ({@code sub:off()}) — by identity, and idempotent: a second call finds nothing. */
+    /**
+     * End one subscription ({@code sub:off()}) — by identity, and idempotent: a second call finds nothing.
+     * Notifies {@link #idle} once the key it was on has no live handler left, so a widget's {@link Subs} can
+     * deafen the engine listener nobody needs any more.
+     */
     void off(LuaSub s) {
         CopyOnWriteArrayList<LuaSub> l = byKey.get(s.key);
-        if(l != null)
-            l.remove(s);
+        if((l != null) && l.remove(s) && (idle != null) && l.isEmpty())
+            idle.idle(s.key);
     }
 
     /**

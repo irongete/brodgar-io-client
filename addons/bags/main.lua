@@ -64,7 +64,7 @@ local function buildBagsView(w)
     if p then cols = math.max(cols, p.x + 1); rows = math.max(rows, p.y + 1) end
   end
 
-  return hafen.ui():window()
+  local win = hafen.ui():window()
     :title("Bags (custom)")
     :size(cols * CELL + 8, rows * CELL + 24)
     :position(150, 130)
@@ -91,22 +91,6 @@ local function buildBagsView(w)
       g:color()
       g:color(150, 150, 150); g:rect(0, 0, ww, h); g:color()            -- outer border
     end)
-    :onMouseMove(function(x, y)
-      hover = { x = math.floor((x - 4) / CELL), y = math.floor((y - 4) / CELL) }
-    end)
-    :onClick(function(x, y, button)
-      local cx, cy = math.floor((x - 4) / CELL), math.floor((y - 4) / CELL)
-      for _, it in ipairs(w:items()) do
-        local p = it:cell()
-        if p and p.x == cx and p.y == cy then
-          hafen.log():write(("bags: clicked %s x%s @cell %d,%d -- moving items is the gated Phase-4 tier (read-only here)")
-            :format(tostring(it:name() or it:res()), tostring(it:num() or 1), cx, cy))
-          return true
-        end
-      end
-      hafen.log():write(("bags: clicked empty cell %d,%d"):format(cx, cy))
-      return true                                                       -- truthy = consume
-    end)
     :onClose(function()
       -- The X fires while this window is still on screen, so the one restore rule ("as the user was seeing it")
       -- hands back an OPEN stock inventory -- which is what closing a window you were looking at should give you.
@@ -114,6 +98,25 @@ local function buildBagsView(w)
         .. " toggles it again; press the toggle key to replace once more")
       stopReplace()                                                   -- X also restores the native inventory
     end)
+  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so both go after the builder chain above.
+  win:on("MouseMove", function(ev)
+    hover = { x = math.floor((ev:x() - 4) / CELL), y = math.floor((ev:y() - 4) / CELL) }
+  end)
+  win:on("MouseDown", function(ev)
+    local cx, cy = math.floor((ev:x() - 4) / CELL), math.floor((ev:y() - 4) / CELL)
+    for _, it in ipairs(w:items()) do
+      local p = it:cell()
+      if p and p.x == cx and p.y == cy then
+        hafen.log():write(("bags: clicked %s x%s @cell %d,%d -- moving items is the gated Phase-4 tier (read-only here)")
+          :format(tostring(it:name() or it:res()), tostring(it:num() or 1), cx, cy))
+        ev:preventDefault()
+        return
+      end
+    end
+    hafen.log():write(("bags: clicked empty cell %d,%d"):format(cx, cy))
+    ev:preventDefault()                                                 -- consume: explicit now, not a truthy return
+  end)
+  return win
 end
 
 -- The ARM/DISARM hotkey (031: it is not the show/hide key -- Tab is, once we are replacing). Arming subscribes to

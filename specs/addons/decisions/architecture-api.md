@@ -1640,3 +1640,26 @@ Lua→Java argument array by `#t` once the table can hold real data instead of o
 is a live protocol message.
 **See.** [041-unified-events](../041-unified-events/spec.md) §2.3 (the payload marshalling this rides on),
 `specs/codebase/services.md` (`ChatUI`'s uimsg arg shapes, added this task).
+
+### D-172 — an OWN widget's input rides the same `Widget.listen` pre-hook a NATIVE one does, not a second mechanism ✅
+**Decision.** [`AddonWidget`](src/io/brodgar/addon/AddonWidget.java) drops its `mousedown`/`mouseup`/
+`mousemove`/`mousewheel` overrides (and the `onClick`/`onMouseUp`/`onMouseMove`/`onWheel` slots they read)
+entirely. `widget:on("MouseDown"/…, fn)` on a widget you *built* now installs the exact same
+[`WidgetSubs`](src/io/brodgar/addon/WidgetSubs.java) engine listener a widget you merely *found* gets —
+`Widget.listen`/`deafen`, not a Java-side dispatch loop over a per-slot callback array.
+**Rationale.** (2026-08-06, 041.3.) The spec's own claim is *"the same keys work on an own widget with one
+vocabulary"* — two dispatch paths converging on one Lua verb would still be two mechanisms behind a single
+name, which is the veneer 039's spec explicitly warns against (uniform syntax over non-uniform machinery). An
+`AddonWidget`'s own `mousedown` override was itself only ever a hand-rolled special case of what
+`Widget.listen` already does generically (a pre-hook that may short-circuit the widget's default) — so
+deleting it is not a workaround, it is recognising that the general mechanism already covered the specific one.
+**Consequences.** `AddonWidget.CALLBACKS` shrinks from eight slots to four (`onDraw`/`onTick`/`onDrop`/
+`onClose` — 041.4's own four keys, untouched here); D-040's per-callback `mods` table goes with the slots it
+rode on, since the unified `ev` for `MouseDown`/`MouseUp`/`MouseMove`/`Wheel` carries none (EXAMPLES §1.1) —
+an addon that needs modifier state at press time has nothing to reach for until the mouse entity (041.5) puts
+`:shift()`/`:ctrl()`/`:alt()` somewhere reachable at any time instead. `Subs` gained one new, opt-in piece to
+make the unification pay for itself: `Subs.Idle`, notified when a key's last live handler is gone, is what
+lets a widget's `Subs` deafen the ONE engine listener it installed per event class rather than leaving it
+firing into an empty handler list for the widget's remaining lifetime.
+**See.** [041-unified-events](../041-unified-events/spec.md) §R2 (¿tienes el objeto? `obj:on(...)`),
+[design/25-uniform-api.md](../design/25-uniform-api.md) (uniform syntax over non-uniform returns is a veneer).

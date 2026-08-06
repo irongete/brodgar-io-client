@@ -655,7 +655,8 @@ local function hit(b, x, y)
   return (y >= Y_STATUS - 1) and (y <= Y_STATUS + LINE) and (x >= b[1]) and (x <= b[1] + b[2])
 end
 
-local function click(x, y, button)
+local function click(ev)
+  local x, y = ev:x(), ev:y()
   if y < TAB_H then                                   -- the tab bar
     local i = math.floor(x / TAB_W) + 1
     if i >= 1 and i <= #TABS then tab = i end
@@ -681,7 +682,7 @@ local function click(x, y, button)
     if x >= 300 and x < 330 then sel = math.max(1, sel - 1)          -- [<]
     elseif x >= 330 and x < 366 then sel = math.min(n, sel + 1) end  -- [>]
   end
-  return true                                         -- consume: never fall through to the world
+  ev:preventDefault()                                 -- consume: never fall through to the world
 end
 
 local function open()
@@ -694,11 +695,12 @@ local function open()
     -- The whole draw is one scope, with the graph nested inside its own: this addon's cost and its two
     -- scopes appear in the ADDONS tab while you are reading it.
     :onDraw(function(g, w, h) p:measure("draw", draw, g, w, h) end)
-    :onClick(click)
     :onClose(function()
       win = nil
       hafen.log():write("profiler: closed -- ':profiler' or the 'toggle' hotkey brings it back")
     end)
+  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so it cannot sit mid-chain above.
+  win:on("MouseDown", click)
 end
 
 local function toggle()

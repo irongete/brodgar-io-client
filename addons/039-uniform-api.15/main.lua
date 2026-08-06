@@ -288,7 +288,6 @@ end
 
 local function customUi()
   local window
-  local function reset() end
   local function step() end
 
   block("a window", function()
@@ -344,10 +343,10 @@ local function customUi()
   end)
 
   block("input", function()
-    window:onClick(function(x, y, button, mods)
-      if button == 3 then return end              -- leave the right button alone
-      if mods.shift then reset() else step() end
-      return true                                 -- truthy consumes the click
+    window:on("MouseDown", function(ev)
+      if ev:button() == 3 then return end          -- leave the right button alone
+      step()
+      ev:preventDefault()                          -- consuming is explicit now, not a truthy return
     end)
   end)
 end

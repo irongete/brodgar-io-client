@@ -64,8 +64,9 @@
 -- client's KeyBinding registry) that fires when no widget consumed the keypress first; here 'toggle' shows/hides
 -- the custom window, plus 'ping'. Addon hotkeys start UNBOUND: this addon's "Hello" section under
 -- Options > Keybindings is where you assign the keys.
--- On top of the THREE interception points — 2c hafen.hook():input (intercept
--- a widget's raw input BEFORE its own handler), 2d hafen.event():action():on (intercept the OUTBOUND
+-- On top of the THREE interception points — 2c widget:on("MouseDown"/… , fn) (intercept
+-- a widget's raw input BEFORE its own handler — any widget, found or built, since 041.3), 2d
+-- hafen.event():action():on (intercept the OUTBOUND
 -- action a widget sends to the server, arguments already RESOLVED — e.g. a move's destination world coord),
 -- and 2e-1 hafen.event():message():on (intercept an INBOUND server update BEFORE the widget applies it — swallow
 -- it with ev:preventDefault() or rewrite its args with ev:rewrite()). Plus 2b overlays (hafen.ui():overlay() on
@@ -2635,22 +2636,24 @@ hafen.event():on("EnterWorld", function()
     :size(190, 166)                                                -- 027.3: room for 5 meter rows (mounted)
     :position(80, 120)                                             --   above the bottom-anchored hook lines
     :onDraw(drawPanel)
-    :onClick(function(x, y, button)
-      clicks = clicks + 1
-      if button == 3 then                                        -- RIGHT-click -> 2d: toggle the action handler
-        moveIntercept = not moveIntercept
-        hafen.log():write(("panel RMB #%d -> move-intercept %s"):format(clicks, moveIntercept and "ON" or "OFF"))
-      elseif button == 2 then                                     -- MIDDLE-click -> 2e: toggle the message handler
-        meterFreeze = not meterFreeze
-        hafen.log():write(("panel MMB #%d -> meter-freeze %s"):format(clicks, meterFreeze and "ON" or "OFF"))
-      else                                                        -- LEFT/other -> 2c: toggle the input hook
-        mapLock = not mapLock
-        hafen.log():write(("panel click #%d at %d,%d (button %d) -> map-lock %s")
-          :format(clicks, x, y, button, mapLock and "ON" or "OFF"))
-      end
-      return true                                                 -- truthy = consume the click
-    end)
     :onClose(function() hafen.log():write("panel closed (X) -- :reload to bring it back") end)
+  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so it cannot sit mid-chain above.
+  panel:on("MouseDown", function(ev)
+    clicks = clicks + 1
+    local button = ev:button()
+    if button == 3 then                                        -- RIGHT-click -> 2d: toggle the action handler
+      moveIntercept = not moveIntercept
+      hafen.log():write(("panel RMB #%d -> move-intercept %s"):format(clicks, moveIntercept and "ON" or "OFF"))
+    elseif button == 2 then                                     -- MIDDLE-click -> 2e: toggle the message handler
+      meterFreeze = not meterFreeze
+      hafen.log():write(("panel MMB #%d -> meter-freeze %s"):format(clicks, meterFreeze and "ON" or "OFF"))
+    else                                                        -- LEFT/other -> 2c: toggle the input hook
+      mapLock = not mapLock
+      hafen.log():write(("panel click #%d at %d,%d (button %d) -> map-lock %s")
+        :format(clicks, ev:x(), ev:y(), button, mapLock and "ON" or "OFF"))
+    end
+    ev:preventDefault()                                        -- consume: explicit now, not a truthy return
+  end)
   hafen.log():write("2a: custom window up -- drag the title bar, LMB=map-lock, RMB=move-intercept, MMB=meter-freeze, X=close, 'toggle' key=show/hide")
 
   -- U1: DROP TARGET + g:resource + mouse mods. A borderless custom widget (hafen.ui():widget()) that is a
@@ -2658,9 +2661,10 @@ hafen.event():on("EnterWorld", function()
   -- action onto this box, and onDrop(x, y, drop) fires with drop = { kind="pagina", res="<name>" } (a
   -- neutral descriptor -- a resource name, plain data, so this is UNGATED). We remember the res and DRAW
   -- ITS ICON via g:resource(name, ...) -- the engine .res sibling of g:image (D-039), async + cached +
-  -- Loading-guarded. onClick logs the mods table (D-040): Shift+click the box and the log shows shift=true.
-  -- Bridge-owned (P2): :reload/disable destroys it. The DoD: drop an action -> icon renders + res logs;
-  -- Shift+click -> shift=true; :reload leaks nothing.
+  -- Loading-guarded. widget:on("MouseDown", fn) (041.3) logs where and with which button the box was hit --
+  -- D-040's per-callback mods table is retired with the slots it rode on; a later feature puts modifier
+  -- reads on the mouse entity instead. Bridge-owned (P2): :reload/disable destroys it. The DoD: drop an
+  -- action -> icon renders + res logs; click the box -> the click logs; :reload leaks nothing.
   droppedRes = nil
   dropWidget = hafen.ui():widget()
     :size(96, 96)
@@ -2687,12 +2691,13 @@ hafen.event():on("EnterWorld", function()
       end
       return true                                                  -- truthy = consume the drop
     end)
-    :onClick(function(x, y, button, mods)
-      hafen.log():write(("U1: drop-widget click at %d,%d btn=%d mods={shift=%s,ctrl=%s,alt=%s}")
-        :format(x, y, button, tostring(mods.shift), tostring(mods.ctrl), tostring(mods.alt)))
-      return true
-    end)
-  hafen.log():write("U1: drop-target widget up -- open the menu grid, drag an action onto the box (icon draws via g:resource); Shift+click logs shift=true")
+  -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so it cannot sit mid-chain (nor be the
+  -- chain's final value -- dropWidget stays the WIDGET, not the Sub this would otherwise leave it holding).
+  dropWidget:on("MouseDown", function(ev)
+    hafen.log():write(("U1: drop-widget click at %d,%d btn=%d"):format(ev:x(), ev:y(), ev:button()))
+    ev:preventDefault()
+  end)
+  hafen.log():write("U1: drop-target widget up -- open the menu grid, drag an action onto the box (icon draws via g:resource); click it and the log shows where")
 
   -- F2: OWN-WIDGET FONTS + $font MIXING. This window declares font = demoFont (the F1-loaded handle), so EVERY
   -- g:text/g:atext inside it defaults to the addon's OWN font -- fully ISOLATED (no global override, nothing the
@@ -2730,23 +2735,27 @@ hafen.event():on("EnterWorld", function()
     hafen.log():write("F2: demoFont not loaded (Load) -- font window skipped")
   end
 
-  -- 2c: INPUT HOOK (hafen.hook():input, L1). Pre-hook MapView's mousedown through the engine's built-in
-  -- Widget.listen seam (ZERO core edit): fn(ev) runs BEFORE MapView's own mousedown, at SCREEN coords, before
-  -- any hit-test. While map-lock is ON (LEFT-click the window to toggle), ev:preventDefault() cancels the click
-  -- so it never reaches MapView -- your character does NOT move (the Phase-2c DoD). While OFF the hook only
-  -- observes (logs the first few). ev.x/ev.y are MapView-local pixels; ev.button is 1=left/2=middle/3=right.
-  -- The handle (returned, with :remove()) is bridge-owned, so :reload/disable removes the hook automatically.
-  hafen.hook():input("mapview", "mousedown", function(ev)
-    mapDowns = mapDowns + 1
-    if mapLock then
-      ev:preventDefault()                                         -- MapView.mousedown never runs
-      hafen.log():write(("2c: map click CANCELLED at %d,%d btn=%d (map-lock ON) [#%d]")
-        :format(ev.x, ev.y, ev.button, mapDowns))
-    elseif mapDowns <= 3 then
-      hafen.log():write(("2c: map mousedown observed at %d,%d btn=%d (passed through) [#%d]")
-        :format(ev.x, ev.y, ev.button, mapDowns))
-    end
-  end)
+  -- 2c: INPUT ON ANY WIDGET (widget:on("MouseDown", fn), 041.3). Pre-hook MapView's mousedown through the
+  -- engine's built-in Widget.listen seam (ZERO core edit): fn(ev) runs BEFORE MapView's own mousedown, at
+  -- MapView-local pixels, before any hit-test -- the same door a widget you BUILT answers on, reached here
+  -- through @MapView rather than the three magic hafen.hook():input tokens this used to need. While map-lock
+  -- is ON (LEFT-click the window to toggle), ev:preventDefault() cancels the click so it never reaches
+  -- MapView -- your character does NOT move. While OFF the hook only observes (logs the first few). The Sub
+  -- returned (with :off()) is bridge-owned, so :reload/disable ends it automatically.
+  local mapview = hafen.ui():find("@MapView")
+  if mapview then
+    mapview:on("MouseDown", function(ev)
+      mapDowns = mapDowns + 1
+      if mapLock then
+        ev:preventDefault()                                       -- MapView.mousedown never runs
+        hafen.log():write(("2c: map click CANCELLED at %d,%d btn=%d (map-lock ON) [#%d]")
+          :format(ev:x(), ev:y(), ev:button(), mapDowns))
+      elseif mapDowns <= 3 then
+        hafen.log():write(("2c: map mousedown observed at %d,%d btn=%d (passed through) [#%d]")
+          :format(ev:x(), ev:y(), ev:button(), mapDowns))
+      end
+    end)
+  end
   hafen.log():write("2c: MapView mousedown hook installed -- LEFT-click the window to toggle map-lock, then click the map")
 
   -- 2d: THE ACTION STREAM (hafen.event():action():on). Intercept the OUTBOUND "click" action MapView sends to

@@ -45,7 +45,7 @@
       `[manual]`: one real map click observed through an `action` handler.
       <!-- extra context: `src/io/brodgar/addon/LuaMarshal.java` — the Java↔Lua arg conversion both levels share -->
 
-- [ ] **041.3 — Input on ANY widget.** The feature's one new reach: `handle:on("MouseDown"/"MouseUp"/
+- [x] **041.3 — Input on ANY widget.** The feature's one new reach: `handle:on("MouseDown"/"MouseUp"/
       "MouseMove"/"Wheel", fn)` on a widget you built, a widget you found by selector, or one an event
       handed you — over `Widget.listen`/`deafen`, one engine listener per (addon, widget, key).
       `ev:preventDefault()` replaces the consume-by-return convention on `AddonWidget`'s four input

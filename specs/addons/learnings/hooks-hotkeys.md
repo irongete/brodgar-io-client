@@ -230,3 +230,18 @@
   moved a pre-039 *dotted* field (retired at the section table's `__index`, which 039 already builds). A colon
   VERB retired off a section that keeps existing — `hafen.hook():action` — had no door until `Section.meta`
   learned to consult `Retired` before falling back to the generic "has no verb" message.
+- **`widget:on(key, fn)` breaks a builder chain — it hands back a Sub, not the widget (041.3, found in-game
+  on the very first login).** Every OTHER widget-builder verb (`:onDraw`, `:size`, `:position`, …) returns
+  `self` so a chain reads top to bottom; `:on(...)` is the one verb on a widget that does not, because R1
+  (`X:on(key, fn)` always registers and returns a subscription) applies to a widget exactly as it does to
+  `hafen.event()`. Porting the corpus from the old `:onClick(fn)`/`:onMouseUp(fn)`/… slots (which DID chain)
+  to `:on("MouseDown", fn)` by simple find-and-replace put it mid-chain in five places across four addons —
+  `bags`, `hello` (twice), `profiler`, `widgetstack` (twice) — and one of them (`widgetstack`, chained
+  `:on(...)` then `:onClose(...)`) crashed at `EnterWorld` with *"sub has no verb 'onClose'"* the moment the
+  maintainer logged in; the others (`:on(...)` as a chain's last, *assigned* call) silently left a Sub sitting
+  in a variable documented as "the widget handle" — no error, just a wrong value nothing yet read. **The fix
+  pattern**: build the widget fully (every self-returning setter, in one chain or not), THEN wire every
+  `:on(key, fn)` as its own statement afterward. A headless dry run would not have caught the crash (034.1: a
+  suite that builds windows cannot be dry-run) — grepping every `:on("Mouse…"` / `:on("Wheel"` call site by
+  hand, one at a time, is what a scripted port cannot see either (039's `pcall(hafen.json.parse, x)` lesson,
+  one level along: this time the miss was a *chain position*, not an indirect call).

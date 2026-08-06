@@ -212,22 +212,25 @@ openInspector = function(node)
       end
       g:color(120, 120, 120); g:rect(0, 0, w, h); g:color()
     end)
-    :onClick(function(x, y, button)
-      local n = st.node
-      if y >= I_SEL_Y and y < I_SEL_Y + LINE then                 -- the selector line: log it (copyable)
-        if st_sel.offer then hafen.log():write(pasteLine(st_sel.offer)) end
-      elseif y >= I_PARENT_Y and y < I_PARENT_Y + LINE then       -- parent link
-        openInspector(n:parent())
-      elseif y >= I_CHILD_Y0 then                                 -- a child row
-        local idx = math.floor((y - I_CHILD_Y0) / LINE) + 1       -- 1-based
-        local kids = n:children()
-        if idx >= 1 and idx <= math.min(#kids, I_MAXROWS) then
-          openInspector(kids[idx])
-        end
-      end
-      return true                                                  -- consume (don't fall through)
-    end)
     :onClose(function() end)   -- bridge-owned: also destroyed on :reload/disable
+  -- widget:on(key, fn) hands back a SUB, not the widget, so it cannot sit mid-chain (041.3) -- it is wired
+  -- separately, after the builder chain above has finished configuring the window.
+  st.win:on("MouseDown", function(ev)
+    local n = st.node
+    local y = ev:y()
+    if y >= I_SEL_Y and y < I_SEL_Y + LINE then                 -- the selector line: log it (copyable)
+      if st_sel.offer then hafen.log():write(pasteLine(st_sel.offer)) end
+    elseif y >= I_PARENT_Y and y < I_PARENT_Y + LINE then       -- parent link
+      openInspector(n:parent())
+    elseif y >= I_CHILD_Y0 then                                 -- a child row
+      local idx = math.floor((y - I_CHILD_Y0) / LINE) + 1       -- 1-based
+      local kids = n:children()
+      if idx >= 1 and idx <= math.min(#kids, I_MAXROWS) then
+        openInspector(kids[idx])
+      end
+    end
+    ev:preventDefault()                                         -- consume (don't fall through)
+  end)
 end
 
 -- ======================================================================================= the framestack HUD
@@ -375,7 +378,8 @@ end
 -- selector (the chat log is selectable, which is how a selector leaves the client). Displayed stack line k
 -- (k=0 at the top) is at y = STACK_Y0 + k*LINE and corresponds to rows index i = shown - k (rows is
 -- leaf-first, and only its deepest STACK_MAXROWS entries are drawn).
-local function stackClick(x, y, button)
+local function stackClick(ev)
+  local y = ev:y()
   local shown = math.min(#rows, STACK_MAXROWS)
   if y >= STACK_Y0 and y < STACK_Y0 + shown * LINE and #rows > 0 then
     local k = math.floor((y - STACK_Y0) / LINE)
@@ -390,7 +394,7 @@ local function stackClick(x, y, button)
       hafen.log():write(pasteLine(insp.offer))
     end
   end
-  return true                                                       -- consume
+  ev:preventDefault()                                               -- consume
 end
 
 -- The HUD overlay draws the green highlight box over the hovered widget, in root coords (like WoW's outline).
@@ -407,8 +411,9 @@ hafen.event():on("EnterWorld", function()
       :size(470, 412)
       :position(60, 60)
       :onDraw(drawStack)
-      :onClick(stackClick)
       :onClose(function() hafen.log():write("widgetstack: window closed (X) -- :widgetstack to bring it back") end)
+    -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so it cannot sit mid-chain above.
+    win:on("MouseDown", stackClick)
     hafen.log():write("widgetstack: window up -- hover the UI; click a row to inspect; :selector logs the hovered widget's selector; :widgetstack toggles it, the freeze hotkey holds it")
   end
   if not overlay then
