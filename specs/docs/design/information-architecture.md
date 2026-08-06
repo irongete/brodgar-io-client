@@ -89,6 +89,15 @@ docs/addons/api/README.md          the reference index: every leaf page         
 
                    /ui/README.md        hub and reading order                            ~60
                       /custom.md        your own windows, widgets and overlays           ~90
+                      /controls/README.md  hub: what a control is, the roster,
+                                        the shared setters, gating in prose (D-014)      ~125
+                               /display.md     the passive controls: label, picture,
+                                                separator, progress bar                   ~65
+                               /interactive.md the controls the user drives: button,
+                                                entry, checkbox, radio, slider, scroll,
+                                                scrollbar                                ~155
+                      /lists.md         the row-source controls: list, dropdown,
+                                        menu, grid, table                               ~150
                       /widget.md        the Widget object: reads, owned vs borrowed     ~120
                       /selectors.md     naming a widget, roles, hit-testing,
                                         the inspector                                   ~140
@@ -127,8 +136,9 @@ docs/addons/api/README.md          the reference index: every leaf page         
   → the reference. Then the at-a-glance table, regenerated from this tree.
 - **`api/map/README.md`**: the ground itself (`grids`) → what covered it (`overlays`) → what it looks
   like (`drawings`) → what you and the server put on it (`markers`, `icons`).
-- **`api/ui/README.md`**: draw your own UI (`custom` → `drawing`) · point at the client's UI
-  (`selectors` → `widget` → `items`) · change it (`native` → `replace`) · restyle it (`style/`).
+- **`api/ui/README.md`**: draw your own UI (`custom` → `drawing`) · put the client's own widgets in it
+  instead (`controls/` → `lists`) · point at the client's UI (`selectors` → `widget` → `items`) · change it
+  (`native` → `replace`) · restyle it (`style/`).
 - **`api/ui/style/README.md`**: what a sheet is → `keys` (which widgets) → `surfaces` (what they
   do with a rule) → the property pages → where it ends.
 - **`api/client/profiling/README.md`**: switch it on and read a frame → the counters → who spent

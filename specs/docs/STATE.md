@@ -3,33 +3,35 @@
 > Maintained by REPLACING (max 60 lines, never accumulate). One line per subsystem.
 > Branch: see `AREA.md`. Detail per feature: its `NNN-` folder; history: git + LEARNINGS.md.
 
-**Active feature:** `004-ui-controls-review`, **004.1 done** — `004.2` (gating, size, IA/§7, the §12
-sweep) next. `001-docs-overhaul`, `002` and `003-gob-overlays-review` are **DONE**; figures below are pre-040.
+**Active feature:** none. `001-docs-overhaul`, `002`, `003-gob-overlays-review` and
+`004-ui-controls-review` are all **DONE**; figures below are re-derived post-004.
 
 ## docs/ — the deliverable
 
-- **75 pages, 8,081 lines**, average ~108 — re-derived from the tree, not carried forward. Nothing over the
-  300-line ceiling (largest 257, `api/gob.md`). Three tiers, and a page belongs to exactly one: the
-  tutorial, `guides/` (one task per page) and `api/` (one namespace per page, a directory where it is large).
-- **Sweep at the close of 003.2: 1,192 internal links, 0 broken**, checker falsified in both directions (a
-  bad path, a bad cross-page anchor and a bad same-page anchor all caught; zero on restore). **12 links
-  leave `docs/`** — `examples.md` → `addons/<id>/main.lua`, the one exception (D-009). **0 retired names**
-  over the **28**-entry §7 list, 0 slugger-trap headings, 0 `#####`, 0 internal codes, 0 `--` slugs.
-- **Wrap: 0 drift introduced by 001, 002 or 003**, in columns (`perl -CSD` with `s/\r?\n?$//` — the tree is
-  **mixed CRLF/LF per file** and `chomp` alone over-reports by one on the CRLF half). **Six** inherited
-  lines remain, all on pages no feature has touched (ROADMAP); `render/sprites.md` left that list in 003.2.
-- **Every page is within two clicks of `docs/addons/README.md`** (42 at one, 31 at two), measured as a
+- **79 pages, 9,507 lines**, average ~120 — re-derived from the tree, not carried forward. Nothing over
+  the 300-line ceiling (largest is exactly 300, `api/conventions.md`, pre-004). Three tiers, and a page
+  belongs to exactly one: the tutorial, `guides/` (one task per page) and `api/` (one namespace per page,
+  a directory where it is large — `map/`, `style/`, `client/profiling/` and, since 004.2, `ui/controls/`).
+- **Sweep at the close of 004.2: 1,392 internal links, 0 broken**, checker falsified in both directions (a
+  bad path, a bad cross-page anchor and a bad same-page anchor all caught; zero on restore). **13 links
+  leave `docs/`** — `examples.md` → `addons/<id>/main.lua`, the one exception (D-009; up from 12 as
+  `tagger` shipped). **0 retired names** over the **28**-entry §7 list (`:offset(` swapped for
+  `entry:text(` — it collided with live `ov:offset`/`p:offset`), 0 slugger-trap headings, 0 `#####`, 0
+  internal codes, 0 `--` slugs.
+- **Wrap: 0 drift tree-wide** (`perl -CSD` with `s/\r?\n?$//` — the tree is **mixed CRLF/LF per file** and
+  `chomp` alone over-reports by one on the CRLF half). The six lines 003.2 left inherited are gone too.
+- **Every page is within two clicks of `docs/addons/README.md`** (42 at one, 35 at two), measured as a
   traversal. `docs/README.md` is the site root above it; nothing links down to it (D-012).
 - **Coverage: 140 `addons` task rows — 127 OK · 4 N/A · 9 CUT**, zero THIN and zero GAP
-  (`001-docs-overhaul/close.md`). All **36** namespaces have an owning page; every `hafen.*` name resolves
-  to a registration, bar the stated absence (`hafen.music`).
+  (`001-docs-overhaul/close.md`). All **36** pre-040 namespaces have an owning page; every `hafen.*` name
+  resolves to a registration, bar the stated absence (`hafen.music`).
 
 ## The standard
 
 `design/style-guide.md` (voice, the three page kinds and their template, heading/anchor and example rules,
 how facts are stated, the no-history rule + the **28-entry** retired grep list in two blocks, links, the
 ceiling, the six checks every docs task runs), `design/information-architecture.md` (the target tree, the
-migration map, the link discipline) and `decisions/docs-standard.md` (D-001..D-013) are the contract every
+migration map, the link discipline) and `decisions/docs-standard.md` (D-001..D-014) are the contract every
 later docs task — and area `addons` — is checkable against. **Both `AREA.md` files say `docs/addons/**`**.
 
 ## What the features landed
@@ -39,15 +41,13 @@ later docs task — and area `addons` — is checkable against. **Both `AREA.md`
   `runtime.md`, `examples.md`; then `docs/README.md`, the two indexes and the close.
 - **002** `api/map.md` → six pages (the hub + `grids` `overlays` `drawings` `markers` `icons`), 22 links
   re-pointed, the obituary gone; then §7's list, the IA's tree, the two `AREA.md` wordings.
-- **003.1** the accuracy pass, from the second oracle (`spec.get("…")` reads and `LuaError` strings, not the
-  registration grep): `ghost.list`'s exclusion of overlay-owned ghosts, the four arities' `nil` on a gone
-  gob, the two attach raises, `ov:info()`'s two shapes, `clickable`/`onClick` scoped to world space, the
-  native refusal, `ov:pos()` out of the chaining claim, `events.md`'s gob-leaves rule narrowed to yours,
-  `player.md`'s "gob overlay" link re-pointed, `sdt` on the world table.
-- **003.2** the four obituaries → present-tense boundaries (and out of their blockquotes, §10); the `13 of
-  33` figure and eight prose counts gone; `gob:overlay` out of `## Read`, ungated stated in prose
-  (`## Overlays` **not** retitled — 12 inbound links); the two `ON a gob` headings in sentence case; §7
-  extended by four falsified spellings under **D-013** (a spelling, not a name, when the name survives).
+- **003** nine corrections from the second oracle (`spec.get("…")`/`LuaError`, not registration): the
+  four obituaries → present-tense boundaries; a measured figure and eight prose counts gone; `gob:overlay`
+  ungated in prose, not its `## Read` heading; §7 extended under **D-013**.
+- **004.1** three corrections against `src/`, the 16-builder roster checked both ways, a 115-column fix.
+- **004.2** `controls.md` (300/300, zero headroom) split into `controls/` — hub + `display` +
+  `interactive`, none over 155, 37 links re-pointed; gating settled in prose, not a heading (**D-014**);
+  §7's `:offset(` correction (above); the IA taught `api/ui`'s two 040 pages exist.
 
 ## Filed to area `addons` and still open
 

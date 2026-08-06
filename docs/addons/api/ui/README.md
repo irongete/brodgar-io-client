@@ -34,7 +34,7 @@ hafen.ui():window()
 Four tracks, each self-contained. Start wherever your task is.
 
 **Draw your own UI** — [custom](custom.md) builds the window or overlay, [drawing](drawing.md) paints
-inside it, [controls](controls.md) puts the client's own buttons in it instead of painting them, and
+inside it, [controls](controls/README.md) puts the client's own buttons in it instead of painting them, and
 [lists](lists.md) does the same for a list, a dropdown or a menu of rows.
 
 **Point at the client's UI** — [selectors](selectors.md) names a widget, [widget](widget.md) reads it,
@@ -51,7 +51,7 @@ and layout.
 | Page | What it covers |
 |---|---|
 | [custom](custom.md) | your own windows, widgets and overlays, and their callbacks |
-| [controls](controls.md) | the client's own controls, built and owned by your addon |
+| [controls](controls/README.md) | the client's own controls, built and owned by your addon |
 | [lists](lists.md) | a list, dropdown or menu of rows, and the row source they share with a radio |
 | [widget](widget.md) | the Widget object: every read, and which writes answer on a widget you do not own |
 | [selectors](selectors.md) | naming a widget: the grammar, the roles, the inspector, hit-testing |

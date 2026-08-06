@@ -226,3 +226,27 @@ and documenting one is a **boundary**, not history: it says what the API does to
 in it. A later task runs both blind, which is the point — the guard operates at name level (001.2) and
 must be checkable without knowing what the feature that wrote it was thinking. Adding an entry is not free:
 it costs the falsification run, and an entry that cannot be falsified is not added.
+
+### D-014 — A control's own writes state their gating in prose; the heading stays plain
+
+**Context (004.2).** `controls.md` and `lists.md` (040) ship `## Builders` / `## Setters` / `## Rows`
+groups that carry no gating annotation at all — neither `## Write (gated: …)` nor `## Write (ungated)`,
+which §3 and D-006 otherwise require of a write group. Every setter a control has changes only client-side
+widget state, the same shape `widget.md`'s `## Owned vs borrowed` is, and D-010's test (does the verb change
+something, wherever it lands) says yes: a control's writes qualify as a write group needing the annotation.
+But every single group on both pages is that same shape — there is no gated sibling on either page to
+contrast against, which is exactly the failure 001.3 named: "annotating every setter group `(ungated)` is
+exactly how `## Write (ungated)` stopped being a signal on the twenty group-A pages." `widget.md` already
+solved this once, for its own all-ungated `## Owned vs borrowed` table: one sentence in prose ("None of
+these writes is gated: they are client-side state, and every one of them restores"), no heading annotation.
+
+**Decision.** A page whose write groups are *all* ungated — no gated sibling anywhere on the page to
+contrast against — states the gating once, in prose, near the writes it covers, and leaves the group heading
+plain. The `## Write (gated: …)` / `## Write (ungated)` heading annotation is reserved for a page that mixes
+the two, which is where D-006's annotation is a signal rather than noise. `controls/README.md`'s `## Setters`
+section closes on "None of this is gated…", and `lists.md` states the same in its own opening section.
+
+**Consequences.** Neither page's group headings change, so no anchor moves. The rule generalises past this
+feature: a future control or a future row-source verb that reaches the server gets its own gated write group
+with the annotation, and the day that happens is the day these two pages' plain prose sentence is wrong and
+has to be replaced by the heading form — which is the same trade D-010 made for `sound.md`.

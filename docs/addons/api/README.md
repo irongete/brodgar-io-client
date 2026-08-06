@@ -60,7 +60,9 @@ you came for from the tables below. Every page in the tree is listed here.
 |---|---|
 | [`hafen.ui`](ui/README.md) | the hub: what is on screen, and the order to read these pages in |
 | [custom](ui/custom.md) | your own windows, bare rectangles and HUD overlays |
-| [controls](ui/controls.md) | the client's own controls, built and owned by your addon |
+| [controls](ui/controls/README.md) | the hub: what a control is, the roster, and the order to read these pages in |
+| [display controls](ui/controls/display.md) | a label, a picture, a separator and a progress bar |
+| [interactive controls](ui/controls/interactive.md) | a button, a text entry, a checkbox, a radio, a slider, a scroll and a scrollbar |
 | [lists](ui/lists.md) | a list, dropdown or menu of rows, and the row source they share with a radio |
 | [the Widget object](ui/widget.md) | what every widget answers, and which writes owned and borrowed ones take |
 | [selectors](ui/selectors.md) | naming a widget: the grammar, roles, hit-testing, and the inspector |

@@ -20,7 +20,7 @@
       <!-- extra context: `specs/codebase/ui-controls.md`, `src/io/brodgar/addon/` (the control
            builders and their `LuaError` strings) -->
 
-- [ ] **004.2 — Shape, the standard's own files, and the close.** Four decisions and a sweep.
+- [x] **004.2 — Shape, the standard's own files, and the close.** Four decisions and a sweep.
       **(a) Gating** — settle whether a setter group on a control you built carries `(ungated)` or stays
       plain, and write it into `decisions/docs-standard.md` as **D-014**; §3's `hafen.ui.overlay`
       precedent, D-010 and 001.3's "an annotation everywhere is a signal nowhere" are the three inputs.

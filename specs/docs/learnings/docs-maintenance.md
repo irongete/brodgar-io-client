@@ -295,3 +295,22 @@
   was gone. So run the wrap check after a deletion pass, not only after an insertion pass — and run it
   **after the last edit**, since the run that cleared the inherited drift was two edits before the one that
   introduced new drift.
+
+- **(004.2) An admitted §7 spelling is only proven at the moment it is admitted — a later, unrelated
+  feature can invalidate it, silently.** `:offset(` was admitted (003.2/D-013) against a tree where it
+  read zero. By 004.2 it read **17**, all legitimate: `ov:offset(x, y[, z])` (038.2's gob-overlay anchor)
+  and `p:offset(dx, dy)` (a Position's own translate) share the retired handle method's exact call
+  spelling, and both shipped after the entry was admitted. Nothing re-ran the falsification in between —
+  the guard just quietly stopped being zero, on pages no §12 sweep had reason to revisit, until a task
+  touching an unrelated page (`examples.md`) tripped it. **A §7 entry's proof has a shelf life**: re-run
+  both falsification directions whenever a sweep touches it, not just trust the admitting task's report
+  forever. There was no narrower spelling to rescue it — `:offset(` joined bare `offset` as inadmissible.
+
+- **(004.2) Zero headroom at the ceiling is itself evidence, even when the opening-sentence "and" test
+  says the page is one subject.** `controls.md` sat at exactly 300/300 after an accuracy pass that fixed
+  prose but freed no lines, with a clean single-subject opening sentence — D-001's literal test said
+  "fine." But a page with nowhere left for the next control `addons` ships is wrong regardless of what
+  its first sentence says, and the eleven `##`-per-control sections carried an unforced natural seam
+  (nothing to click vs. something to drive) that a size-only reading would have missed. Split by that
+  seam into a hub + two leaves, none over 155 lines. **Treat "no room to grow" as a second, independent
+  split signal alongside D-001's prose test**, not an inferior stand-in for it.

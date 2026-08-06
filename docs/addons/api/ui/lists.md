@@ -1,7 +1,7 @@
 # hafen.ui: lists
 
 A **row-source control** takes its content from `:rows(t)` — a plain Lua array — rather than a caption or
-a picture, and is dressed by the [stylesheet](style/README.md) like any other [control](controls.md). A
+a picture, and is dressed by the [stylesheet](style/README.md) like any other [control](controls/README.md). A
 list keeps every row on screen, a dropdown keeps one closed until clicked, a menu fires on a pick and holds
 nothing, a grid draws its own cells instead of building rows at all, and a table lays them out in named
 columns. A list, a dropdown and a menu take the same string-or-`{icon=,text=}` row shape below; a
@@ -25,8 +25,8 @@ local list = hafen.ui():list()
 | `hafen.ui():grid()` | [Widget](widget.md) | a laid-out grid of cells you draw yourself |
 | `hafen.ui():table()` | [Widget](widget.md) | rows laid out in named columns |
 
-Built bare and configured by chained setters, [the same shape](controls.md#builders) every other control has
-— the arming rule included.
+Built bare and configured by chained setters, [the same shape](controls/README.md#builders) every other
+control has — the arming rule included. None of it is gated, the same as any other control.
 
 ## Rows (list, dropdown, menu)
 
@@ -37,9 +37,9 @@ may mix both freely, one shape per element:
 list:rows{ "Alpha", { icon = hafen.asset():get("bucket.png"), text = "Bucket" }, "Gamma" }
 ```
 
-`icon` is a [face](controls.md#a-caption-or-a-picture) — an asset handle or a client resource name. Writing
-`:rows(t)` again replaces the whole set and clears the selection (a list or a dropdown), or its contents (a
-menu); an empty `:rows{}` is a control with nothing in it, not an error.
+`icon` is a [face](controls/interactive.md#a-caption-or-a-picture) — an asset handle or a client resource
+name. Writing `:rows(t)` again replaces the whole set and clears the selection (a list or a dropdown), or
+its contents (a menu); an empty `:rows{}` is a control with nothing in it, not an error.
 
 ## List
 
@@ -57,8 +57,8 @@ re-enters it, so driving the selection from a script and reacting to the user ch
 each other.
 
 `:rowHeight(n)` sets the height of a row, in pixels, defaulting to the client's own label height. Like a
-[button's face](controls.md#a-caption-or-a-picture), it is chosen while the control is being built: it
-refuses once the list is on screen.
+[button's face](controls/interactive.md#a-caption-or-a-picture), it is chosen while the control is being
+built: it refuses once the list is on screen.
 
 ## Dropdown
 
@@ -144,7 +144,7 @@ nothing in it rather than an error.
 
 ## See also
 
-- [controls](controls.md) — the direct controls, and the vocabulary this page shares with them
+- [controls](controls/README.md) — the direct controls, and the vocabulary this page shares with them
 - [widget](widget.md) — everything a control answers before it adds anything of its own
 - [selectors](selectors.md) — naming a control, yours or the client's
 - [style](style/README.md) — the rules that dress it

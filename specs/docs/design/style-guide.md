@@ -172,12 +172,12 @@ lives in git and in `specs/`.
   gobOverlay       gob:overlays
   ```
 
-  Three more are retired but cannot be grepped as bare names, because the bare word is ordinary English
-  or a live option elsewhere. They are on the list in the **spelling** that reads zero on a healthy tree
-  and still catches a reintroduction, and the grep is `grep -rnF`:
+  Four more are retired but cannot be grepped as bare names, because the bare word is ordinary English or
+  a live option elsewhere. They are on the list in the **spelling** that reads zero on a healthy tree and
+  still catches a reintroduction, and the grep is `grep -rnF`:
 
   ```text
-  follow =         follow=          :follow(         :offset(
+  follow =         follow=          :follow(         entry:text(
   ```
 
   Bare `follow` is **not** admitted: 30+ legitimate hits ("the ghost follows the cursor", "redirects are
@@ -186,6 +186,20 @@ lives in git and in `specs/`.
   `hafen.ghost.new`, `hafen.render.sprite` and `hafen.render.object`, and the handle methods of the same
   names; anchoring to a game object is `gob:overlay`. Naming the refused option on the page that refuses
   it is a boundary, not history — write it as `a \`follow\` key`, which no spelling above hits.
+
+  **`:offset(` is not admitted either (004.2), for the same reason as bare `offset`.** `ov:offset(x, y[,
+  z])` — a gob overlay's own anchor (038.2) — and `p:offset(dx, dy)` — a Position's own translate — are
+  both live and share the retired handle method's exact call spelling, so the entry cannot be falsified:
+  it read 15 hits on a healthy tree (`gob.md`, `ghost.md`, `world.md`, `conventions.md`,
+  `render/sprites.md`), not zero. The retired anchor has no admissible spelling of its own, the same as
+  bare `offset` — the boundary sentence on the page that refuses it is what a reader needs, not a guard
+  that cannot tell the two `:offset(`s apart.
+
+  `entry:text(` (040.7) is the one control whose **write** is retired, not its read: `entry:text(s)` used
+  to set a text entry's content and now throws, naming `:value(s)` instead. The read, `entry:text()`,
+  stays live on every text-bearing widget and would match the same substring — the spelling is safe only
+  because the docs never name a variable `entry` (the worked examples use `e`), which is checked, not
+  assumed: `grep -rn 'entry:' docs/` reads zero today, the same falsification a bare name gets.
 
   The grep is the regression guard for the whole list: each name returns zero hits over `docs/`. Note
   what is **not** on the list: `hafen.ui.node(id)`, `hafen.ui.all`, `widget:items()` and

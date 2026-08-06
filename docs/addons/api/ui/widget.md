@@ -13,7 +13,7 @@ if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items
 | Expression | Returns |
 |---|---|
 | `hafen.ui():window()` / `hafen.ui():widget()` | a surface you [painted](custom.md) — owned |
-| one of the [control builders](controls.md#builders) (`:button()`, `:label()`, `:image()`, …) | a [control](controls.md) you built — owned, and drawn by the client |
+| one of the [control builders](controls/README.md#builders) (`:button()`, `:label()`, `:image()`, …) | a [control](controls/README.md) you built — owned, and drawn by the client |
 | `hafen.ui():find(selector)` | the **first** widget matching a [selector](selectors.md), in tree order, or `nil` |
 | `hafen.ui():all(selector)` | **every** match, in tree order — an empty array, never `nil` |
 | `hafen.ui():root()` | the top of the whole client tree; walk down to any open window |
@@ -56,16 +56,16 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:position()` | `{x=, y=}` | position within the parent, in widget-local px — [`:position(x, y)` moves it](native.md) |
 | `:size()` | `{x=, y=}` | size; for a window its **outer** box |
 | `:visible()` | boolean | whether it is visible — [`:visible(b)` writes it](native.md) |
-| `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, Window, TextEntry), else `nil` — [`:text(s)` writes it on a control you built](controls.md#setters) |
-| `:image()` | table \| nil | the faces of a [control](controls.md#a-caption-or-a-picture) that shows pictures, as `{up=, down=, hover=}`, else `nil` |
-| `:onPress()` | function \| nil | the handler on a [control](controls.md#setters) that fires, or `nil` where there is nothing to press |
-| `:value()` | varies \| nil | what a [control](controls.md#setters) holds, or `nil` where it holds nothing — [`:value(v)` writes it](controls.md#setters) |
-| `:onChange()` | function \| nil | the handler that fires when a [control](controls.md#setters)'s value changes, or `nil` where it has none |
-| `:onSubmit()` | function \| nil | the handler that fires when Enter is pressed in a [text entry](controls.md#text-entry), or `nil` where there is nothing to submit |
+| `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, Window, TextEntry), else `nil` — [`:text(s)` writes it on a control you built](controls/README.md#setters) |
+| `:image()` | table \| nil | the faces of a [control](controls/interactive.md#a-caption-or-a-picture) that shows pictures, as `{up=, down=, hover=}`, else `nil` |
+| `:onPress()` | function \| nil | the handler on a [control](controls/README.md#setters) that fires, or `nil` where there is nothing to press |
+| `:value()` | varies \| nil | what a [control](controls/README.md#setters) holds, or `nil` where it holds nothing — [`:value(v)` writes it](controls/README.md#setters) |
+| `:onChange()` | function \| nil | the handler that fires when a [control](controls/README.md#setters)'s value changes, or `nil` where it has none |
+| `:onSubmit()` | function \| nil | the handler that fires when Enter is pressed in a [text entry](controls/interactive.md#text-entry), or `nil` where there is nothing to submit |
 | `:onSelect()` | function \| nil | the handler that fires when a [menu](lists.md#menu) row is picked, or `nil` where there is nothing to select |
-| `:source()` | string \| userdata \| nil | the picture a [picture control](controls.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls.md#picture) |
-| `:rows()` | array \| nil | the row source a [radio](controls.md#radio) or a [list, dropdown, menu, grid or table](lists.md) takes, or `nil` where a control has no rows — [`:rows(t)` writes it](lists.md#rows-list-dropdown-menu) |
-| `:range()` | `{min=, max=}` \| nil | the value bounds of a [slider or scrollbar](controls.md#slider), or `nil` where a control has none — [`:range(min, max)` writes it](controls.md#slider) |
+| `:source()` | string \| userdata \| nil | the picture a [picture control](controls/display.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls/display.md#picture) |
+| `:rows()` | array \| nil | the row source a [radio](controls/interactive.md#radio) or a [list, dropdown, menu, grid or table](lists.md) takes, or `nil` where a control has no rows — [`:rows(t)` writes it](lists.md#rows-list-dropdown-menu) |
+| `:range()` | `{min=, max=}` \| nil | the value bounds of a [slider or scrollbar](controls/interactive.md#slider), or `nil` where a control has none — [`:range(min, max)` writes it](controls/interactive.md#slider) |
 | `:rowHeight()` | int \| nil | the height of a row in a [list, dropdown, menu or table](lists.md), in pixels, or `nil` where a control has no rows — [`:rowHeight(n)` writes it](lists.md) |
 | `:cell()` | `{w=, h=}` \| nil | the cell box of a [grid](lists.md#grid), in pixels, or `nil` where a control has no cells — [`:cell(w, h)` writes it](lists.md#grid) |
 | `:onCell()` | function \| nil | the handler that paints a [grid](lists.md#grid)'s cells, or `nil` where there is nothing to paint |
@@ -100,9 +100,9 @@ server-bound ancestor.
 ## Owned vs borrowed
 
 A widget is **owned** if *your* addon created it — a surface you [painted](custom.md) or a
-[control](controls.md) you built — and **borrowed** otherwise: a native client widget, or another addon's.
-Reads answer on both; `:info().owned` tells you which you are holding, so you can ask rather than provoke
-the error.
+[control](controls/README.md) you built — and **borrowed** otherwise: a native client widget, or another
+addon's. Reads answer on both; `:info().owned` tells you which you are holding, so you can ask rather than
+provoke the error.
 
 | Method | Owned | Borrowed |
 |---|---|---|
@@ -110,16 +110,16 @@ the error.
 | `:size(w, h)` | resize the content, chrome repacks around it, and chain | **works**, same |
 | `:pack()` | shrink the chrome to fit its content (a no-op on a bare widget), and chain | **error** — that is not yours to do |
 | `:destroy()` | remove it and everything in it | **error**, same reason |
-| `:text(s)` | write the caption of a [control](controls.md) you built | **error** — that caption is the client's |
-| `:image(up, down [, hover])` | give a [control](controls.md#a-caption-or-a-picture) you are building its pictures | **error**, same reason |
-| `:onPress(fn)` | handle a [control](controls.md) firing | **error**, same reason |
-| `:value(v)` | write what a [control](controls.md#setters) holds | **error**, same reason |
-| `:onChange(fn)` | handle a [control](controls.md#setters)'s value changing | **error**, same reason |
-| `:onSubmit(fn)` | handle Enter in a [text entry](controls.md#text-entry) you built | **error**, same reason |
+| `:text(s)` | write the caption of a [control](controls/README.md) you built | **error** — that caption is the client's |
+| `:image(up, down [, hover])` | give a [control](controls/interactive.md#a-caption-or-a-picture) you are building its pictures | **error**, same reason |
+| `:onPress(fn)` | handle a [control](controls/README.md) firing | **error**, same reason |
+| `:value(v)` | write what a [control](controls/README.md#setters) holds | **error**, same reason |
+| `:onChange(fn)` | handle a [control](controls/README.md#setters)'s value changing | **error**, same reason |
+| `:onSubmit(fn)` | handle Enter in a [text entry](controls/interactive.md#text-entry) you built | **error**, same reason |
 | `:onSelect(fn)` | handle a [menu](lists.md#menu) row being picked | **error**, same reason |
-| `:source(h)` | give a [picture control](controls.md#picture) its content | **error**, same reason |
-| `:rows(t)` | give a [radio](controls.md#radio) or a [list, dropdown, menu, grid or table](lists.md#rows-list-dropdown-menu) its rows | **error**, same reason |
-| `:range(min, max)` | set the bounds of a [slider or scrollbar](controls.md#slider) you built | **error**, same reason |
+| `:source(h)` | give a [picture control](controls/display.md#picture) its content | **error**, same reason |
+| `:rows(t)` | give a [radio](controls/interactive.md#radio) or a [list, dropdown, menu, grid or table](lists.md#rows-list-dropdown-menu) its rows | **error**, same reason |
+| `:range(min, max)` | set the bounds of a [slider or scrollbar](controls/interactive.md#slider) you built | **error**, same reason |
 | `:rowHeight(n)` | set a [list, dropdown, menu or table](lists.md)'s row height while it is being built | **error**, same reason |
 | `:cell(w, h)` | set a [grid](lists.md#grid)'s cell box while it is being built | **error**, same reason |
 | `:onCell(fn)` | handle painting a [grid](lists.md#grid)'s cells | **error**, same reason |
@@ -151,7 +151,7 @@ coordinates instead of walking you somewhere that merely has the same two number
 
 ## See also
 
-- [controls](controls.md) — the client's own controls, built and owned by your addon
+- [controls](controls/README.md) — the client's own controls, built and owned by your addon
 - [lists](lists.md) — the row-source controls, a scrolling list among them
 - [selectors](selectors.md) — how to name the widget you want in the first place
 - [native](native.md) — what moving and hiding a borrowed widget actually does

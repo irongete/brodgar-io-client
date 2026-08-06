@@ -79,9 +79,9 @@ invented, and `mark [name]` drops a pin.
 
 ## stockfilter
 
-A whole window of [the client's own controls](api/ui/controls.md), wired together rather than shown one at
-a time: a label, a text entry, a separator, a radio group, a checkbox, a slider driving a live label, a
-dropdown and a [scrolling list](api/ui/lists.md), each dressed by the stylesheet exactly like a window the
+A whole window of [the client's own controls](api/ui/controls/README.md), wired together rather than shown
+one at a time: a label, a text entry, a separator, a radio group, a checkbox, a slider driving a live label,
+a dropdown and a [scrolling list](api/ui/lists.md), each dressed by the stylesheet exactly like a window the
 client built itself. Every filter reads the real [items](api/ui/items.md) in your backpack or your
 equipment — by name, by quality, by wear — so there is nothing invented to look at.
 
