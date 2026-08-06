@@ -3,8 +3,8 @@
 > Maintained by REPLACING (max 60 lines, never accumulate). One line per subsystem.
 > Branch: see `AREA.md`. Detail per feature: its `NNN-` folder; history: git + LEARNINGS.md.
 
-**Active feature:** none. `001-docs-overhaul`, `002-map-database-review` and `003-gob-overlays-review` are
-all **DONE** — the post-038 surface is back to the standard. Next work comes from `ROADMAP.md`.
+**Active feature:** `004-ui-controls-review`, **004.1 done** — `004.2` (gating, size, IA/§7, the §12
+sweep) next. `001-docs-overhaul`, `002` and `003-gob-overlays-review` are **DONE**; figures below are pre-040.
 
 ## docs/ — the deliverable
 

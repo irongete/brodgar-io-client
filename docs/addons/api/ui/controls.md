@@ -66,12 +66,12 @@ that built it**. So a control configured across five lines is never seen half-bu
 Every setter returns the Widget, so a control is one expression, and each has a matching bare read: `:text()`
 answers on any text-bearing widget, `:text(s)` writes only on one you own, `:onPress()` reads `nil` otherwise.
 
-**`:value()` is the one verb for what a control holds**, whatever shape that is — a [progress bar](#progress-bar)'s
-is a fraction, and a control with nothing to hold reads `nil` rather than throwing. A write is checked by the
-control it lands on: a [progress bar](#progress-bar) refuses one outside `0..1`, naming the rule, while a
-[slider or scrollbar](#slider) instead CLAMPS a write outside its own `:range` to the nearer bound — because
-that range is something you set yourself with `:range(min, max)` and can narrow at any time, not a fixed
-contract the value can violate.
+**`:value()` is the one verb for what a control holds**, whatever shape that is — a
+[progress bar](#progress-bar)'s is a fraction, and a control with nothing to hold reads `nil` rather
+than throwing. A write is checked by the control it lands on: a [progress bar](#progress-bar) refuses
+one outside `0..1`, naming the rule, while a [slider or scrollbar](#slider) instead CLAMPS a write
+outside its own `:range` to the nearer bound — because that range is something you set yourself with
+`:range(min, max)` and can narrow at any time, not a fixed contract the value can violate.
 
 **`:onPress` is an activation, not a mouse position.** It is what the control *did*, so it also fires from
 the keyboard and carries no coordinates; it is safe for the handler to destroy the window the button sits in.
@@ -94,8 +94,8 @@ hafen.ui():button():text("Go")                     -- a captioned button
 hafen.ui():button():image(up, down, hover)         -- the same builder, a picture button
 ```
 
-Two faces or three. `up` is what the button shows at rest, `down` while it is held, and `hover` the one
-under the cursor; leave `hover` out and it is the same picture as `up`. Each face is either an
+`up` is what the button shows at rest, `down` while it is held, and `hover` the one under the cursor;
+leave `hover` out and it is the same picture as `up`. Each face is either an
 [image asset](../asset.md) your addon ships, passed as the handle, or a **string naming one of the client's
 own images** — `"gfx/hud/buttons/addu"`, the very art the game's own windows are built from, scaled the way
 the client scales it so a button made of game art matches the buttons beside it; a file of yours is drawn
@@ -203,10 +203,10 @@ Like a button, it shows text or it shows pictures:
 hafen.ui():check():image(up, down, hoverUp, hoverDown)
 ```
 
-Four faces here, not two or three — a checkbox carries two persistent states, ticked and not, each with its
-own hover: `up`/`down` are the two states at rest, `hoverUp`/`hoverDown` are each of those under the cursor.
-All four are required, resolved through the same two doors a button's [face](#a-caption-or-a-picture) is.
-Choosing pictures is building-only here too, and the bare `:image()` reads them back as `{up=, down=,
+A checkbox carries two persistent states, ticked and not, each with its own hover — more faces than a
+button, not fewer: `up`/`down` are the two states at rest, `hoverUp`/`hoverDown` are each of those under
+the cursor, all required, resolved through the same two doors a button's [face](#a-caption-or-a-picture)
+is. Choosing pictures is building-only here too, and the bare `:image()` reads them back as `{up=, down=,
 hoverUp=, hoverDown=}`. `:type()` reads `"CheckBox"` or `"ICheckBox"` depending which you built.
 
 ## Radio

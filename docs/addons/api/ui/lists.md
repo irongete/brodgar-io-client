@@ -1,11 +1,12 @@
 # hafen.ui: lists
 
 A **row-source control** takes its content from `:rows(t)` — a plain Lua array — rather than a caption or
-a picture, and is dressed by the [stylesheet](style/README.md) like any other [control](controls.md). Five
-share it: a list keeps every row on screen, a dropdown keeps one closed until clicked, a menu fires on a pick
-and holds nothing, a grid draws its own cells instead of building rows at all, and a table lays them out in
-named columns — the first three take the same string-or-`{icon=,text=}` row shape below; a [grid](#grid)'s
-rows are whatever your own `:onCell` reads, and a [table](#table)'s whatever its own `:columns(t)` reads.
+a picture, and is dressed by the [stylesheet](style/README.md) like any other [control](controls.md). A
+list keeps every row on screen, a dropdown keeps one closed until clicked, a menu fires on a pick and holds
+nothing, a grid draws its own cells instead of building rows at all, and a table lays them out in named
+columns. A list, a dropdown and a menu take the same string-or-`{icon=,text=}` row shape below; a
+[grid](#grid)'s rows are whatever your own `:onCell` reads, and a [table](#table)'s whatever its own
+`:columns(t)` reads.
 
 ```lua
 local list = hafen.ui():list()

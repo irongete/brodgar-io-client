@@ -20,3 +20,9 @@
   `gob:overlay` classified out of the `## Read` table with its ungated statement in prose, and the §7 grep
   list extended to **28 entries** under a new admission rule (D-013) — **75 pages, 8,081 lines, 1,192
   links, 0 broken** (`design/style-guide.md` §4/§6/§7/§10/§11/§12) — tasks 003.1..003.2
+- `004-ui-controls-review` — ACTIVE — area `addons`' `040-ui-controls` brought back to the standard: the
+  two new pages (`api/ui/controls.md` at the 300-line ceiling, `api/ui/lists.md`) plus the `widget`,
+  `custom`, `asset`, index and `examples` edits its thirteen tasks landed — accuracy against `src/`, the
+  16-builder roster checked both ways, the write-group gating question settled, and the IA's tree and
+  reading order taught the pages exist (`design/style-guide.md`, `design/information-architecture.md`)
+  — tasks 004.1..004.2
