@@ -1950,6 +1950,17 @@ public final class AddonManager {
     }
 
     /**
+     * Stdout-only diagnostic — unlike {@link #log(String)}, never posted to the in-game notice. For a
+     * refusal or give-up that is expected/benign (nothing for the player to act on): e.g. {@link
+     * Resolve}'s "not waitable" and "gave up after N retries" paths, which can fire routinely (an
+     * equipped item's sprite still building) and would otherwise spam the chat with an internal
+     * plumbing detail every time.
+     */
+    static void logDiag(String msg) {
+        System.out.println("[addon] " + msg);
+    }
+
+    /**
      * How an addon is named to the user — its manifest id ({@code "(console)"} for the {@code :lua} REPL). Used by
      * {@link #log(Addon, String)} and by any message that has to name <i>another</i> addon, e.g. the 031.2 refusal
      * when a second addon tries to take a window that is already owned.

@@ -735,14 +735,24 @@ final class CharApi {
     /**
      * Wounds (A9-2) — the wounds under the character sheet's "Health &amp; Wounds" tab ({@link WoundWnd},
      * reached via the public {@code CharWnd.wound} field). A wound being added / healed / worsening arrives
-     * as a {@code "wounds"} {@code uimsg}, but a wound's <b>severity</b> (its {@link WoundWnd.QuickInfo}
-     * magnitude) comes from resource-published {@code ItemInfo} that <b>streams in a beat after</b> the
-     * wound row (its {@code res.get()} still Loading on the first refresh) — exactly the {@link StudyAdapter}
-     * situation. So, like study/buffs, this is <b>poll-driven</b>: each tick it re-reads the full wound
-     * list and fires <b>{@code WoundChanged}</b> only when it differs from the cache (an add/heal, a
-     * severity resolving nil→value, or a wound getting worse) — the {@link #woundListEqual} change-detection,
-     * with {@code severity} in the key so a worsening fires it. While the wound tab is not up yet the poll
-     * is skipped (the cache is kept), so nothing fires before there is anything to read.
+     * as a {@code "wounds"} {@code uimsg} <b>on {@code WoundWnd} itself</b> — {@code decwound} adds, mutates
+     * or removes the entry synchronously — so, unlike the buff/study/equip adapters (whose add/remove is a
+     * widget create with no {@code uimsg} at all), the LIST half of this adapter is purely {@code uimsg}-
+     * driven since 042.5: {@link #interested} flags {@code "wounds"} and {@link #refresh} re-reads the full
+     * snapshot and fires {@code WoundChanged} when it differs from the cache — the {@link #woundListEqual}
+     * change-detection, with {@code severity} in the key so a worsening fires it.
+     *
+     * <p>A wound's <b>severity</b> (its {@link WoundWnd.QuickInfo} magnitude) is <i>derived</i> state with no
+     * queue of its own — {@code Wound.info()} rebuilds from {@code rawinfo} and throws a bare {@link Loading}
+     * while {@code res.get()} is itself still streaming, exactly the {@link StudyAdapter}/{@link EquipAdapter}
+     * shape. {@link #resolveSeverities} triggers that build for every wound currently on the list and hands a
+     * thrown {@code Loading} to {@link Resolve#on}, which retries once the resource lands and re-diffs/re-fires
+     * only if the list's severity actually changed (nil→value, or a wound getting worse).
+     *
+     * <p>While the Health &amp; Wounds tab has never been opened there is no {@code WoundWnd} for {@link
+     * #interested} to match against, so nothing fires — the tab is created hidden at login but live (039.13),
+     * so once it exists this adapter sees every {@code "wounds"} message regardless of whether the tab is on
+     * screen.
      *
      * <p>The payload is an array of <b>Wound objects</b> ({@link AddonManager#fireWounds}), so a handler
      * reads it with the same verbs as {@code hafen.wound():list()} and can key a table by one. The snapshots
@@ -754,18 +764,44 @@ final class CharApi {
         private LuaValue cache;   // last wound snapshot list (UI thread; change-detect)
 
         public boolean interested(Widget w, String msg) {
-            return false;         // wound add/heal is a uimsg, but severity streams in a beat later — see poll()
+            return (w instanceof WoundWnd) && "wounds".equals(msg);
         }
 
-        public void refresh() {}
+        public void refresh() {
+            diff();
+            resolveSeverities();
+        }
 
-        public void poll() {
-            if(woundwnd() == null)
-                return;           // Health & Wounds tab not up yet — keep the cache, fire nothing
+        private void diff() {
             LuaValue snap = LuaWound.snapshotList();
             if(!woundListEqual(snap, cache)) {
                 cache = snap;
                 fireWounds(LuaWound.ids());
+            }
+        }
+
+        /**
+         * Trigger every current wound's {@code info()} build so a resolved severity is ready by the time a
+         * handler reads it. A thrown {@link Loading} (its resource still streaming) is registered through
+         * {@link Resolve#on}, retried once on the notify, and re-diffed/re-fired only if the wound is still
+         * on the list and its severity actually changed.
+         */
+        private void resolveSeverities() {
+            for(final WoundWnd.Wound w : LuaWound.all()) {
+                try {
+                    w.info();
+                } catch(Loading l) {
+                    final int wid = w.id;
+                    Resolve.on(l, null, new Resolve.Retry() {
+                        public void run() throws Loading {
+                            WoundWnd.Wound cur = LuaWound.wound(wid);
+                            if(cur == null)
+                                return;   // healed before the resource landed
+                            cur.info();
+                            diff();
+                        }
+                    });
+                }
             }
         }
     }

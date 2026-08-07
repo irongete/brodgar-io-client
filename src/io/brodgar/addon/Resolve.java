@@ -32,8 +32,10 @@ import java.util.function.Consumer;
  *
  * <p><b>Refusal path.</b> A <i>bare</i> {@code new Loading(...)} (e.g. {@code GItem.sprite()}) is not
  * waitable — its {@link Loading#waitfor} throws {@link Loading.UnwaitableEvent}. {@code Resolve} catches it and
- * reports the refusal (never throws it onward): that is the signal the read belongs in the spec's stated
- * boundary (D-092) rather than behind a hidden retry. The blocking helpers ({@code Loading.waitfor(Indir)},
+ * gives up silently (never throws it onward, never logs): that is the signal the read belongs in the spec's
+ * stated boundary (D-092) rather than behind a hidden retry, and it is routine enough (an equipped item's
+ * sprite mid-build, hit on every fast gear swap) that logging it every time would be noise with no new
+ * information after the first occurrence. The blocking helpers ({@code Loading.waitfor(Indir)},
  * {@code queuewait}, {@code waitforint}) are never used — they park the calling thread.
  */
 final class Resolve {
@@ -60,7 +62,7 @@ final class Resolve {
 
     private static void register(Loading l, final Addon owner, final Retry retry, final int depth) {
         if(depth >= MAX_RETRIES) {
-            AddonManager.log("Resolve: gave up after " + MAX_RETRIES + " retries on " + l);
+            AddonManager.logDiag("Resolve: gave up after " + MAX_RETRIES + " retries on " + l);
             return;
         }
         final Waitable.Waiting[] handle = new Waitable.Waiting[1];
@@ -87,7 +89,9 @@ final class Resolve {
                     owner.waitings.add(w);
             }));
         } catch(Loading.UnwaitableEvent e) {
-            AddonManager.log("Resolve: not waitable, giving up -- " + e.getMessage());
+            // Expected/benign, and routine (D-092's boundary -- e.g. an equipped item's sprite still
+            // building, hit on every fast gear swap): silent by design, unlike the rarer MAX_RETRIES
+            // give-up above (still logDiag'd) or the retry-error catch below (a real bug, still log'd).
         }
     }
 }

@@ -257,3 +257,18 @@
   widget, 0.35s afterwards, is a no-op instead of a second event. **Any future adapter over a fading widget
   needs both halves — the early tap AND the idempotency guard — or it either fires late (skip the tap) or
   fires twice (skip the guard).**
+- **(042.5) `Resolve`'s `UnwaitableEvent` refusal is EXPECTED and ROUTINE for any `GItem`/`SpriteOwner` info
+  read -- silence it, don't log it per occurrence.** The built-in `"defn"` name factory
+  (`ItemInfo.Default.get`, [ItemInfo.java:242-259](../../../src/haven/ItemInfo.java:242)) checks `owner
+  instanceof SpriteOwner` and calls `sprite()` BEFORE falling back to the resource's static tooltip name;
+  `GItem implements SpriteOwner` and its `sprite()` (NOT `spr()`, the other accessor) throws a BARE,
+  non-waitable `Loading` whenever `spr == null` -- the normal state for a frame or two after equip/`"chres"`
+  resets it. So `Resolve.on(...)` wrapping `it.info()` on any `GItem` (EquipAdapter, and any future item
+  adapter) hits this on every fast equip/unequip -- not a resource-loading race, just the sprite genuinely not
+  built yet. Traced via a temporary "thrown at: <site>" stack-trace tag on `Resolve`'s refusal catch
+  (reverted after use -- the established learnings-file diagnostic pattern). `GItem.spr()` retries silently
+  forever with no notify of its own, so `Resolve` can never usefully wait on this specific `Loading` -- logging
+  the refusal every time is noise, not information, past the first occurrence. Fixed in `Resolve.register`:
+  the `UnwaitableEvent` catch is now silent (no log at all); the rarer `MAX_RETRIES` give-up (a `Loading` that
+  keeps re-throwing across REAL resource loads, so more likely to mean something) still logs via the new
+  `AddonManager.logDiag` -- stdout only, never the in-game chat `AddonManager.log` also posts to.

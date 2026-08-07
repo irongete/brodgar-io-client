@@ -113,7 +113,7 @@
       `[manual]` — open Study, place a curiosity, close and reopen the tab.
       <!-- extra context: `src/haven/SAttrWnd.java` (:255 addchild, StudyInfo), `src/haven/CharWnd.java` (the sattr field, TabProxy), `src/haven/resutil/Curiosity.java`, `src/io/brodgar/addon/LuaStudySlot.java` -->
 
-- [ ] **042.5 — wounds.**
+- [x] **042.5 — wounds.**
       `WoundAdapter.poll()` ([CharApi.java:585](src/io/brodgar/addon/CharApi.java:585)) goes.
       The wound **list** already is a uimsg (`"wounds"` on `WoundWnd`,
       [WoundWnd.java:399](src/haven/WoundWnd.java:399) → `decwound`) — so `interested()` becomes true for

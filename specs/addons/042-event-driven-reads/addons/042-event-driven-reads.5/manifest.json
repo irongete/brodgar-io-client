@@ -1,0 +1,9 @@
+{
+  "name": "042.5 -- wounds",
+  "id": "042-event-driven-reads.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 042.5: WoundChanged fires from the \"wounds\" uimsg the moment a wound is added, heals or worsens, and from Resolve when a severity resolving nil-to-value lands -- never a per-frame poll.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
