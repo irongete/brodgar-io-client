@@ -1185,4 +1185,13 @@ in spirit — a fading widget just has TWO paths to that one seam (the fade's st
 made idempotent by the consuming adapter rather than by the seam itself. Any future adapter over a
 fading widget (`Window`, via `Window.reqdestroy`) needs the same two things: its own tap at the "gone"
 moment, and a cache-membership (or equivalent) guard against the late M1 firing.
+**Second consumer (2026-08-07, 042.7).** `Window.reqdestroy()` needed exactly that: a one-line `// addon:`
+tap calling the same `onWidgetRemoved(Widget)` hub, guarded by a `wasdest` local so the no-op branch
+(`reqdestroy()` called again while already fading) does not fire twice, placed after the `animst` state
+machine so it only fires on the transition INTO `"dest"`. `WidgetSubs.offerRemoved`'s guard is the watch
+list itself, not a separate cache flag: the early tap fires `Destroy` and unregisters from `UiApi`'s watch
+list in the same step, so the late M1 firing (when the window's fade actually unlinks it) finds no
+registration left to offer and is silently a no-op — the same idempotence D-180 established, expressed
+through list membership instead of a map. **The plan's "four core edits total" is now five** —
+042.13's close checklist is amended to grep for five, not four.
 **See.** [D-179](#d-179), [042-event-driven-reads](../042-event-driven-reads/spec.md).

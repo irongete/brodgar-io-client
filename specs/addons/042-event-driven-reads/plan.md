@@ -240,15 +240,17 @@ implementer.** The highest existing decision is D-177 (041).
 | 2 | `src/haven/Buff.java` | **REUSED SEAM** — `AddonManager.onWidgetRemoved(this)` right after `dest = true` in `reqdestroy()` — a fade has no other addon-visible signal at the moment the server actually said "gone" (no `uimsg`, no other seam); the late M1 firing 0.35s afterwards, when the fade's `NormAnim` actually unlinks the widget, is then a no-op behind `BuffsAdapter`'s own cache-membership guard | 042.2 |
 | 3 | `src/haven/GameUI.java` | **NEW SEAM** — `AddonManager.onBeltSet(slot)` inside the two `glob.loader.defer` lambdas in the `setbelt`/`setbelt2` block (:1374-1415) | 042.6 |
 | 4 | `src/haven/Widget.java` | **NEW SEAM** — `AddonManager.onWidgetResized(this)` at the end of `resize(Coord)` (:1534), after the `Utils.eq` early return | 042.10 |
+| 5 | `src/haven/Window.java` | **REUSED SEAM** — `AddonManager.onWidgetRemoved(this)` right after `animst` first becomes `"dest"` in `reqdestroy()` — the same fade problem D-180 solved for `Buff`, on the widget `widget:on("Destroy", fn)` watches; `WidgetSubs.offerRemoved`'s late M1 firing is a no-op because the early tap already unregistered from `UiApi`'s watch list | 042.7 |
 | — | `src/haven/AddonWidgets.java` | any new package-private read a task needs (e.g. a meter/study membership predicate) — **never reflection**, per D-017 | as needed |
 
-**Four core edits, not the three originally budgeted here.** Three are one-line delegates into the hub
+**Five core edits, not the three originally budgeted here.** Three are one-line delegates into the hub
 (`Widget.remove`, `GameUI`'s belt lambdas, `Widget.resize`); 042.2 found a fourth was unavoidable —
 `Buff.reqdestroy` needed the SAME `AddonManager.onWidgetRemoved` hub method called from a second call
 site, since a fading widget's real "gone" moment (`dest = true`) precedes its tree removal by 0.35s with
-no other addon-visible seam in between. No new `AddonManager` method was added; it reuses M1's existing
-queue/drain. The drag half of M4 still needs **no** edit at all — `Widget.listen` is a seam the engine
-already provides.
+no other addon-visible seam in between; 042.7 found the identical shape on `Window.reqdestroy` (the
+widget `widget:on("Destroy", fn)` needs the same early tap) and needed a fifth. Neither added a new
+`AddonManager` method — both reuse M1's existing queue/drain from a second and third call site. The drag
+half of M4 still needs **no** edit at all — `Widget.listen` is a seam the engine already provides.
 
 ### New
 

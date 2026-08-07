@@ -2,48 +2,40 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 6 of 13 tasks done (042.1-042.6),
-042.7 (per-widget container keys) next. The addon layer synthesises its `*Changed`/`*Added` events by **polling the
+**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 7 of 13 tasks done (042.1-042.7),
+042.8 (replacements) next. The addon layer synthesises its `*Changed`/`*Added` events by **polling the
 widget tree every frame** (11 sites, 6 of them `TreeAdapter`s) instead of listening at the moment a
 change happens. 042 wires them to the four seams the client already publishes — the `uimsg` tap, widget
 placement/removal, geometry, and `Loading`'s `Waitable` resolution notify — and **deletes the poll
-stage**: no gate, no fallback, no dual path. **Four core taps** (the plan originally budgeted three;
-042.2 found a fading widget needs its own), each a one-liner: `Widget.remove` (override-proof where
-`cdestroy` is not — 9 of 17 overrides skip `super`), `Buff.reqdestroy` (reuses the same hub method, from
-a second call site at the fade's START, not its late unlink), `Widget.resize` (which every size change
-funnels through, screen included), and a notify inside the two `setbelt` paths that defer the `belt[]`
-write. Decisions D-178..D-182, of which **D-181 supersedes D-091** (*"a derived position is re-derived
-by POLLING what it reads"*). Closes the ROADMAP's *"Per-frame cost of the addon layer's polling suite"*.
+stage**: no gate, no fallback, no dual path. **Five core taps** (the plan originally budgeted three;
+042.2 found one fading widget needs its own, 042.7 found a second), each a one-liner: `Widget.remove`
+(override-proof where `cdestroy` is not — 9 of 17 overrides skip `super`), `Buff.reqdestroy` and
+`Window.reqdestroy` (both reuse the same hub method, from a second/third call site at the fade's START,
+not its late unlink), `Widget.resize` (which every size change funnels through, screen included), and a
+notify inside the two `setbelt` paths that defer the `belt[]` write. Decisions D-178..D-182 (D-180 now
+has two consumers), of which **D-181 supersedes D-091** (*"a derived position is re-derived by POLLING
+what it reads"*). Closes the ROADMAP's *"Per-frame cost of the addon layer's polling suite"*.
 
-**042.6 DONE — `ActionbarAdapter` is the fifth port, and the belt's own deferred-write case.**
-`ActionbarChanged` now fires from the `setbelt`/`setbelt2` uimsg (a full 144-slot re-diff, since the
-message names no slot index) plus a new `AddonManager.onBeltSet(slot)` tap inside the two
-`glob.loader.defer` lambdas that write `belt[slot]` asynchronously — the only place those two writes land
-(D-178). `cooldown` stays excluded from the change key. Verified in-game: setting a slot and clearing it
-each fired exactly one `ActionbarChanged` with the right payload, idle silent; the cooldown exclusion
-itself rests on the same field-exclusion pattern already proven for equipment's `wear`.
+**042.7 DONE — `WidgetSubs`'s per-widget `Destroy`/`ItemAdded`/`ItemRemoved` move onto the placement/
+removal seams.** `Destroy` fires from M1 — including for a fading `Window`, which got `Buff`'s D-180
+treatment (a second consumer, not a new mechanism). `ItemAdded`/`ItemRemoved` re-derive (the same diff
+`pollItems()` always ran) whenever a `WItem` **or** `GItem` is placed/removed in a watched subtree — both
+are checked because a container's `WItem` wrapper is client-side-only and never itself reaches
+`onWidgetPlaced` (only its `GItem` does); checking `WItem` alone silently missed items entering from
+outside the container (verified in-game: it "worked" only by accident, off a sibling's own reflow).
+`WidgetSubs.live()` (the id/reachability liveness test) is kept, now used once at first-ask rather than
+every tick, for a widget already gone by the time an addon subscribes. Verified in-game: repeated
+inventory/equipment add-remove cycles on the same item each fired exactly once, a real chest's `Destroy`
+landed instantly on close (not delayed), idle silent.
 
-**042.5 DONE — `WoundAdapter` moves off `poll()` onto `WoundWnd`'s own `"wounds"` uimsg** (unlike
-buffs/study/equip, wounds already have one — no widget create/destroy involved), plus `Resolve`
-retrying `Wound.info()` when severity streams in late. Verified in-game: one wound fired exactly one
-`WoundChanged`, healing fired correctly, idle silent. **Rode along**: `Resolve`'s routine "not
-waitable" refusal (`GItem.sprite()`, hit on every fast equip swap) no longer posts to chat — new
-`AddonManager.logDiag` (stdout-only) replaces `log()`, kept for the rarer `MAX_RETRIES` case.
-
-**042.3-042.4 DONE — `EquipAdapter`/`StudyAdapter` port to M1/M3, and `Resolve` proves out on real
-streaming data.** `EquipChanged` fires from placement/removal for structure and the existing `GItem`
-uimsg tap (`"num"`/`"chres"`/`"tt"`) for content, `"meter"` (wear) excluded; `StudyChanged` the same
-shape for the study window, plus `Resolve` retrying a Curiosity-less slot's derived `GItem.info()`
-build. Both hit `GItem.info()`'s bare **unwaitable** `Loading` (D-092's boundary) — `Resolve` correctly
-gives up rather than hang. Verified in-game: 042.3 under rapid back-to-back gear swapping (dozens of
-real changes, every payload matching `hafen.ui():equipment():items()` by identity); 042.4 across five
-study fires, payload identity matching `hafen.study():slot():list()`, idle silent both times.
-
-**042.1-042.2 DONE — `MeterAdapter`/`BuffsAdapter` prove M1 (removal) and ship M2 (`Resolve`, unproven
-until 042.3/042.4).** `MeterAdded`/`MeterRemoved`/`BuffAdded` fire from placement/removal instead of a
-per-tick diff; `BuffRemoved` fires from a one-line tap in `Buff.reqdestroy()` at `dest = true`, not
-0.35s later when the fade actually unlinks (D-180) — M1 alone is late for any widget that fades.
-`MeterChanged`/`BuffChanged` (uimsg-driven) unchanged. D-179's "three core edits" is four.
+**042.1-042.6 DONE** — the six `TreeAdapter`s port to M1 (removal)/M3 (placement)/M2 (`Resolve`), each
+verified in-game idle-silent with exactly-once firing: `MeterAdapter`/`BuffsAdapter` first proved M1
+(`BuffRemoved` at `Buff.dest`, not 0.35s later — D-180); `EquipAdapter`/`StudyAdapter` proved `Resolve` on
+real streaming `GItem.info()` data (`Loading`'s unwaitable boundary, D-092); `WoundAdapter` moved onto
+`WoundWnd`'s own `"wounds"` uimsg + `Resolve` for late severity (rode along: `Resolve`'s routine
+"unwaitable" refusal stopped posting to chat, via `AddonManager.logDiag`); `ActionbarAdapter` closed the
+belt's deferred-write case (`AddonManager.onBeltSet(slot)` inside the two `glob.loader.defer` lambdas,
+D-178), `cooldown` excluded from the change key.
 
 **Before that**, all DONE (detail in each `NNN-` folder, one-line summaries in `FEATURES.md`): `041-unified-events` (one verb for every notification — `X:on(key, fn)` → a `Sub`, `hafen.hook()` deleted whole), `040-ui-controls` (18 of the client's own controls reach Lua, one builder per role), `039-uniform-api` (one grammar for 33 sections, one `position()`, the OOP migration finished), `038-gob-overlays` (`gob:overlay()` — the engine's own word for a thing attached to a gob), `037-map-database` (the RECORDED map on disk beside the live world — segments, grids, markers, masks, minimap drawings), `036-ui-layout` (position/size/anchor in the sheet, and a whole theme as a data file), `035-ui-chrome` (the sheet learns to DRAW), `034-ui-stylesheet-tree` (a tree key says WHICH widgets), `033-ui-stylesheet` (ONE table says what the client looks like), `032-replace-verb` (replacement is a verb on the entity; the `UI.NewWidget` core seam deleted), `031-window-lifecycle` (hiding a native window takes its toggle), `030-ui-selectors` (a tiny CSS-shaped grammar parsed once into a predicate), `029-widget-oop` (three objects for one widget became ONE interned entity), `028-asset-loader` (one loader for an addon's own files), `027-meters-oop`, `026-text-cache` (130 → 220-240 FPS on the harness), `025-buffs-oop`, `024-audio-oop` (the Track section was built to spec and then CUT — this server sends no MIDI), `023-menugrid-oop`, `022-actionbar-set`, `021-actionbar-oop`, `020-kin-oop`, `019-profiling`, `018-client-options`, `017-gob-oop`, and 001–016.
 

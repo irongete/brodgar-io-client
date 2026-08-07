@@ -36,9 +36,11 @@ import static io.brodgar.addon.AddonManager.*;
  * selector events (030), the window-toggle seam + the {@code widget:replace(view)} substitution (031/032), and the
  * read-only widget-tree walk + hit-testing (W1/W2 node API). Owns the subscription registries + overlay paint
  * state. The widget-placement seam {@code onWidgetPlaced} (called from {@code haven.UI}) stays a facade in
- * {@link AddonManager} and delegates here; the tick drives {@link #pollReplaced}/{@link #pollWidgetSubs}/
- * {@link #pollSelectorWatches}/{@link #anyHudOverlays}; the per-gob overlay attrib
- * {@code LuaGobOverlay.draw} calls {@link #paintGobOverlays}. Shared gob-read/engine helpers stay in
+ * {@link AddonManager} and delegates here — placement also drives {@link #dispatchWidgetSubsPlaced} (042.7); the
+ * tick still drives {@link #pollReplaced}/{@link #pollSelectorWatches}/{@link #anyHudOverlays}, but {@code
+ * WidgetSubs}'s {@code ItemAdded}/{@code ItemRemoved}/{@code Destroy} keys moved onto the placement/removal seams
+ * ({@link #dispatchWidgetSubsPlaced}/{@link #dispatchWidgetSubsRemoved}, 042.7) and no longer poll; the per-gob
+ * overlay attrib {@code LuaGobOverlay.draw} calls {@link #paintGobOverlays}. Shared gob-read/engine helpers stay in
  * {@link AddonManager}. Not instantiable.
  */
 final class UiApi {
@@ -85,33 +87,71 @@ final class UiApi {
         }
     }
 
-    // -- WidgetSubs poll registrations (041.4): widget:on("ItemAdded"/"ItemRemoved"/"Destroy", fn) can only be
-    // SEEN by polling (an item is a Widget create/cdestroy, not a uimsg; a widget's death has no engine event at
-    // all), so every WidgetSubs currently subscribed to one of the three lives in this FLAT list, diffed each tick
-    // (pollWidgetSubs) — hasSub-GATED by construction (WidgetSubs registers/unregisters itself, see its Idle hook),
-    // so a widget nobody subscribed to is never polled and an idle client pays one isEmpty(). Owned copies live on
-    // each Addon's widgetSubs map for teardown. Session-scoped (cleared per init; the tree is rebuilt).
-    private static final List<WidgetSubs> polling = new CopyOnWriteArrayList<WidgetSubs>();
+    // -- WidgetSubs interest registrations (041.4, event-driven since 042.7): widget:on("ItemAdded"/
+    // "ItemRemoved"/"Destroy", fn) can only be SEEN at the moment/removal/placement seams (an item is a Widget
+    // create/cdestroy, not a uimsg; a widget's death has no engine event of its own), so every WidgetSubs
+    // currently subscribed to one of the three lives in this FLAT list — offered every placement and removal
+    // (dispatchWidgetSubsPlaced/Removed) instead of diffed every tick — hasSub-GATED by construction (WidgetSubs
+    // registers/unregisters itself, see its Idle hook), so a widget nobody subscribed to costs nothing and an
+    // idle client pays one isEmpty(). Owned copies live on each Addon's widgetSubs map for teardown.
+    // Session-scoped (cleared per init; the tree is rebuilt).
+    private static final List<WidgetSubs> widgetSubsWatching = new CopyOnWriteArrayList<WidgetSubs>();
 
-    /** {@link WidgetSubs#on}: the first poll-key subscription on a widget joins the flat poll list. */
-    static void registerPoll(WidgetSubs s) {
-        polling.add(s);
+    /** {@link WidgetSubs#on}: the first poll-key subscription on a widget joins the flat watch list. */
+    static void registerInterest(WidgetSubs s) {
+        widgetSubsWatching.add(s);
     }
 
-    /** {@link Subs.Idle}: the last poll-key subscription on a widget just ended. */
-    static void unregisterPoll(WidgetSubs s) {
-        polling.remove(s);
+    /** {@link Subs.Idle}, or {@link WidgetSubs#offerRemoved} on the watched widget's own death. */
+    static void unregisterInterest(WidgetSubs s) {
+        widgetSubsWatching.remove(s);
+    }
+
+    /**
+     * The widget-placement seam's offer to every watching {@link WidgetSubs} (042.7): a new {@code WItem} may
+     * have just entered one of their subtrees. Fast-paths out when nobody is watching, the normal case.
+     */
+    static void dispatchWidgetSubsPlaced(Widget w) {
+        if(widgetSubsWatching.isEmpty())
+            return;
+        for(WidgetSubs s : widgetSubsWatching) {   // copy-on-write: a firing handler may (un)subscribe here
+            try {
+                s.offerPlaced(w);
+            } catch(RuntimeException e) {
+                log("widget-subs placed error: " + e);
+            }
+        }
+    }
+
+    /**
+     * The widget-removal seam's offer to every watching {@link WidgetSubs} (042.7): either {@code w} IS the
+     * widget one of them is watching (fires {@code Destroy}) or it may be a {@code WItem} that just left one of
+     * their subtrees. Fast-paths out when nobody is watching, the normal case.
+     */
+    static void dispatchWidgetSubsRemoved(Widget w) {
+        if(widgetSubsWatching.isEmpty())
+            return;
+        for(WidgetSubs s : widgetSubsWatching) {   // copy-on-write: a firing handler may (un)subscribe here
+            try {
+                s.offerRemoved(w);
+            } catch(RuntimeException e) {
+                log("widget-subs removed error: " + e);
+            }
+        }
     }
 
     // ===== the widget-placement seam (the body behind AddonManager.onWidgetPlaced) =====
     // ONE consumer since 032.2: the 030.2 selector subscriptions, which see the LIVE widget itself. The
     // {id,type,place,caption,parentType} descriptor that used to be built here for hafen.ui.replace went with it —
     // and with it the NewWidget seam that recorded the server type string, since nothing reads it any more.
+    // Second consumer since 042.1 (dispatchPlaced, added in AddonManager.onWidgetPlaced itself); third since
+    // 042.7's dispatchWidgetSubsPlaced above.
     static void onWidgetPlaced(int id, Widget wdg) {
         if(!selectorWatches.isEmpty())
             offerPlaced(wdg, id);
         if(Sheet.anyLayout)               // 036.2: a layout rule reaches a window the moment it opens, not a frame
             Layout.placed(wdg, id);       //   later — and never at the draw (035.1's chdeco lesson)
+        dispatchWidgetSubsPlaced(wdg);
     }
 
     /**
@@ -215,10 +255,11 @@ final class UiApi {
         //   :items()         -- 029.3: the Item snapshots inside this container (a relation, like :children()) —
         //                       an Inventory, an Equipory (each entry also carrying its `slot`), or any widget with
         //                       WItems under it. Read it with the window VISIBLE and interactive: nothing is hidden.
-        //   :onItemAdded(fn) / :onItemRemoved(fn) -- fn(item) as items enter/leave this container (a per-tick diff:
-        //                       an item add is a widget create, not a uimsg). Pass nil to unsubscribe.
+        //   :onItemAdded(fn) / :onItemRemoved(fn) -- fn(item) as items enter/leave this container (an item add is
+        //                       a widget create, not a uimsg — seen at the placement/removal seams). Pass nil to
+        //                       unsubscribe.
         //   :onDestroy(fn)   -- fn() once, when this widget leaves the tree. All three chain; subscribing is what
-        //                       registers the widget for polling, so an unwatched widget costs nothing.
+        //                       registers the widget as watched, so an unwatched widget costs nothing.
         // OWNED-ONLY (a widget YOUR addon created with hafen.ui():window() / hafen.ui():widget()); on a native widget
         // each raises a clear error, the geometry ones naming layout (feature E):
         //   :position(x, y)  -- move + chain (arity is the verb, the 018 shape; :move() is GONE)
@@ -650,7 +691,7 @@ final class UiApi {
 
     /** Session init: drop every per-session widget record (from AddonManager.init). */
     static void resetSession() {
-        polling.clear();              // 041.4: last session's widgets are gone; nothing left to poll
+        widgetSubsWatching.clear();    // 041.4: last session's widgets are gone; nothing left to watch
         selectorWatches.clear();      // 030.2: the tree of the session just ended; nothing matches any more
         pending.clear();
         if(consoleOwner != null) {
@@ -1021,26 +1062,6 @@ final class UiApi {
         }
         selectorWatches.removeAll(a.selectorWatches);
         a.selectorWatches.clear();
-    }
-
-    // ---------------------------------------------- WidgetSubs poll registrations (041.4) ---------------------
-
-    /**
-     * Per-tick poll of every {@link WidgetSubs} currently subscribed to {@code ItemAdded}/{@code ItemRemoved}/
-     * {@code Destroy} (UI thread): {@link WidgetSubs#poll} does the two-branch liveness test and the item diff,
-     * firing whatever fired and answering whether to stay in the list. Fast-paths out when nobody is subscribed,
-     * which is the normal case — the same {@code hasSub} gate the buff/meter adapters have.
-     */
-    static void pollWidgetSubs() {
-        if(polling.isEmpty())
-            return;
-        UI u = ui;
-        if((u == null) || (u.root == null))
-            return;
-        for(WidgetSubs s : polling) {   // copy-on-write: a firing Destroy/ItemAdded may (un)subscribe here
-            if(!s.poll(u))
-                polling.remove(s);
-        }
     }
 
     /**

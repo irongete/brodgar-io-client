@@ -31,13 +31,15 @@ addon layer wires two of them and re-derives the rest per frame.
 | **Geometry changes** — a widget resizes, a window packs itself, the screen changes | **`Widget.resize(Coord)`** ([Widget.java:1534](src/haven/Widget.java:1534)), which every size change funnels through and which already early-returns on a no-op. Position under a hand-drag: **`Widget.listen`**, a zero-edit seam | **no seam** — core tap 3 (D-181, superseding D-091) |
 | **A value the client is still loading arrives** | `Loading implements Waitable` ([Loading.java:32](src/haven/Loading.java:32)) → `waitfor(Runnable, Consumer<Waiting>)`, one-shot, cancellable via `Waiting.cancel()` ([Waitable.java:32](src/haven/Waitable.java:32)) | **exists in `haven`, used nowhere in `io.brodgar`** (D-182) |
 
-**Four core edits total**, each a one-line delegate into the hub, each tagged `// addon:`:
+**Five core edits total**, each a one-line delegate into the hub, each tagged `// addon:`:
 `Widget.remove` (042.1), `Buff.reqdestroy` (042.2, D-180 — a fade has no other seam at the moment it
-starts), the two `GameUI` deferred-belt lambdas (042.6), `Widget.resize` (042.10). The plan originally
-budgeted three; 042.2 found that a widget which FADES (`dest = true`, then a 0.35s animation before the
+starts), the two `GameUI` deferred-belt lambdas (042.6), `Widget.resize` (042.10), `Window.reqdestroy`
+(042.7, D-180's second consumer — the same fade problem, on the widget `widget:on("Destroy", fn)` watches).
+The plan originally budgeted three; 042.2 found that a widget which FADES (`dest = true`, then a 0.35s animation before the
 real unlink) has no addon-visible signal at the moment the server actually said "gone" — no `uimsg`, no
 existing seam — so `BuffRemoved` firing correctly (not 0.35s late) needed a fourth, reusing the same
-`AddonManager.onWidgetRemoved` hub method M1 already established.
+`AddonManager.onWidgetRemoved` hub method M1 already established. 042.7 found the identical problem on
+`Window` (`animst = "dest"` is the same shape as `Buff.dest`) and needed a fifth, the same reuse again.
 
 So this is **not new machinery**. It is wiring the adapters to seams the client already has and then
 **deleting the poll stage** — no gate, no fallback, no dual path, no "poll as a safety net". Cost stops

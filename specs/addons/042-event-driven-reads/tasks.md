@@ -154,7 +154,7 @@
       clear the slot.
       <!-- extra context: `src/haven/GameUI.java` (:71 belt, :180-186 use/keyact, :1374-1415 setbelt/setbelt2), `src/io/brodgar/addon/LuaSlot.java`, `specs/addons/learnings/widget-tree-reads.md` (the rule to amend) -->
 
-- [ ] **042.7 — the per-widget container keys.**
+- [x] **042.7 — the per-widget container keys.**
       `UiApi.pollWidgetSubs` and `WidgetSubs.poll(UI)` go. Three keys move:
       `w:on("Destroy", fn)` → M1; `w:on("ItemAdded"/"ItemRemoved", fn)` → placement + M1 on the `WItem`
       children (the same create/`cdestroy` shape as buffs and equipment).
@@ -292,10 +292,11 @@
       `TreeAdapter` interface itself — **not** left as an unused `default {}`.
       **Sweep and report** (the close's own grep, in the report the maintainer reads): no `poll`-shaped
       per-frame work remains in the tick; all twelve rows of `spec.md`'s inventory are struck; **exactly
-      four** `// addon:` core edits were added (`Widget.remove`, `Buff.reqdestroy`, `Widget.resize`, the
-      two `GameUI` deferred-belt lambdas) and no others — the plan originally budgeted three; 042.2 found
-      a fourth was unavoidable (a fading widget's "gone" moment has no other addon-visible seam); **D-178..D-182
-      are all recorded** and D-091 carries its "superseded by D-181" line.
+      five** `// addon:` core edits were added (`Widget.remove`, `Buff.reqdestroy`, `Widget.resize`, the
+      two `GameUI` deferred-belt lambdas, `Window.reqdestroy`) and no others — the plan originally budgeted
+      three; 042.2 found a fourth was unavoidable (a fading widget's "gone" moment has no other addon-visible
+      seam) and 042.7 found the identical shape on `Window` needed a fifth; **D-178..D-182 are all recorded**
+      (D-180 with its second consumer) and D-091 carries its "superseded by D-181" line.
       **Measure with `hafen.prof` (019) and report the numbers**, before and after, taken on a real
       build — not estimated: the addon layer's per-frame cost (a) with no addon loaded, (b) with a
       subscriber to every event in the feature. The "before" figure is taken on the pre-042 build.

@@ -285,3 +285,34 @@
   uimsg-driven refresh uses, so the two paths can never disagree about what "changed" means. The
   generalisable rule a deferred write should prompt from now on: find where the write actually lands and put
   the notify there, never fall back to a poll to route around a race.
+- **(042.7) A container's presentation `WItem` never reaches `onWidgetPlaced` — only its `GItem` does, and
+  checking the wrong one produces a bug that looks like a random race.** `Inventory.addchild(child, args)`
+  places the `GItem` (the widget the SERVER actually created) and then, in the SAME call, mints a `WItem`
+  wrapper and `add()`s it directly in Java — a client-side add, which per this feature's own hazard list
+  never routes through `Widget.add`'s placement seam. A `widget:on("ItemAdded", fn)` implementation that
+  watches only for `w instanceof WItem` on placement therefore never fires for a genuinely new item (one
+  picked up off the ground): it "worked" only by accident, when some UNRELATED sibling item's own `WItem`
+  happened to create/destroy nearby (a grid reflow) and incidentally triggered a re-scan that caught the real
+  change too. Once that accident does not happen, the container's cache never learns the new item exists —
+  and then the item's own later removal goes unreported too (nothing to remove from a cache that never had
+  it), which is the tell that distinguishes this from a genuine timing race. `Equipory` has no such wrapper
+  (its own child IS the `GItem`), which is why an equipment adapter keyed on `GItem` alone is already
+  correct — the rule generalises as: **watch the widget the SERVER placed, never the client's own
+  presentation wrapper around it**, and when a container has both, check for either.
+- **(042.7) `Window.reqdestroy()` needed the SAME early tap `Buff.reqdestroy()` got in 042.2 — the "any
+  future fading widget" line in that entry was not rhetorical.** `animst = "dest"` is set well before the
+  real unlink (the fade), exactly like `Buff.dest`, so `widget:on("Destroy", fn)` needs the notify at the
+  flag flip, not at the eventual `remove()`. Guarded by a local boolean so the no-op branch (`reqdestroy()`
+  called again while already fading) does not double-fire; the late `remove()`-driven firing is a no-op
+  because by then the watching `WidgetSubs` has already unregistered itself (list membership is the
+  idempotency guard here, not a separate cache-membership flag like `BuffsAdapter`'s — simpler because one
+  `WidgetSubs` watches exactly one widget). Planning documents that count core edits ("N total") need
+  updating whenever a new fading widget is wired, the same way 042.2 first bumped the count.
+- **(042.7) `widget:on("ItemAdded", fn)` must seed synchronously at subscribe time, not wait for the next
+  tick.** The documented contract ("items already inside fire `ItemAdded` on the first poll after you
+  subscribe") predates the event-driven rewrite and still holds — but an event-driven implementation has no
+  "next poll" to lean on by default. The fix is to run the same diff `on()` calls when a container is watched
+  for the first time (or when an `ItemAdded`/`ItemRemoved` key is added to an already-watched widget), inline
+  in the same call — cheaper than the old poll's version of this (immediate rather than one tick later) but
+  easy to silently drop if the seeding call is forgotten, since nothing else exercises that path in a
+  same-session test (only a fresh subscribe does).

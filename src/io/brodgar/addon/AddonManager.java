@@ -440,10 +440,10 @@ public final class AddonManager {
             //     reads, so a client that hides nothing pays one read.
             UiApi.pollReplaced();
 
-            // 1c'. WidgetSubs poll keys (041.4): per-tick diff of every widget:on("ItemAdded"/"ItemRemoved", fn)
-            //      subscription (a WItem create/cdestroy, not a uimsg — like the buff/meter adapters) and every
-            //      widget:on("Destroy", fn) subscription. hasSub-gated: a widget nobody listens to is never polled.
-            UiApi.pollWidgetSubs();
+            // 1c'. WidgetSubs tree keys (041.4, event-driven since 042.7): widget:on("ItemAdded"/"ItemRemoved", fn)
+            //      and widget:on("Destroy", fn) no longer poll — they are offered every placement (above, via
+            //      onWidgetPlaced -> UiApi.dispatchWidgetSubsPlaced) and every removal (drainRemovedWidgets, via
+            //      UiApi.dispatchWidgetSubsRemoved), so there is nothing left for the tick to drive here.
 
             // 1c''. Selector subscriptions (030.2): re-check the widgets placed in the last few ticks whose
             //       [title=]/[res=] refiner had not resolved yet (a caption arrives by uimsg, a tick after
@@ -1105,6 +1105,10 @@ public final class AddonManager {
      * Deliver the widget removals captured since the last tick, one frame's worth (D-106) — the same bound as
      * {@link #drainOverlayEvents}, for the same reason: a torn-down parent whose own removal triggers more
      * removals must not spin this tick forever.
+     *
+     * <p><b>Second consumer since 042.7</b>: {@link UiApi#dispatchWidgetSubsRemoved}, for {@code widget:on(
+     * "Destroy"/"ItemAdded"/"ItemRemoved", fn)} — same drain, same thread, so firing those here is exactly as
+     * safe as the tree-adapter dispatch above.
      */
     private static void drainRemovedWidgets() {
         for(int n = removedWidgets.size(); n > 0; n--) {
@@ -1112,6 +1116,7 @@ public final class AddonManager {
             if(w == null)
                 break;
             CharApi.dispatchRemoved(w);
+            UiApi.dispatchWidgetSubsRemoved(w);
         }
     }
 

@@ -620,6 +620,7 @@ public class Window extends Widget {
 	    super.reqdestroy();
 	    return;
 	}
+	boolean wasdest = (animst == "dest");
 	if(animst == null) {
 	    anim = trans.hide(this, null);
 	    animst = "dest";
@@ -632,6 +633,8 @@ public class Window extends Widget {
 	} else {
 	    throw(new AssertionError(animst));
 	}
+	if(!wasdest)
+	    io.brodgar.addon.AddonManager.onWidgetRemoved(this);   // addon: fading-widget early "gone" signal (042.7, D-180)
     }
 
     public static class NilAnim implements Animation {

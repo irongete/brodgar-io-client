@@ -1,0 +1,9 @@
+{
+  "name": "042.7 -- the per-widget container keys",
+  "id": "042-event-driven-reads.7",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 042.7: widget:on(\"Destroy\"/\"ItemAdded\"/\"ItemRemoved\", fn) fire from the placement/removal seams instead of a per-tick poll.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
