@@ -65,8 +65,12 @@ public final class LuaGrab {
     }
 
     /** Release every active grab this addon owns (teardown on reload/disable) — the Lua surface's own sweep,
-     * over the same {@link Addon#mouseGrabs} list the widget half always kept. */
+     * over the same {@link Addon#mouseGrabs} list the widget half always kept. {@code a} is {@code null} when
+     * the {@code :lua} REPL owner has never been minted (the console was never used this session) — every
+     * sibling teardown call in {@code AddonRegistry.reload()} already guards that; this one did not. */
     static void teardownGrabs(Addon a) {
+        if(a == null)
+            return;
         for(LuaMouseGrab g : a.mouseGrabs)
             g.release();               // drops the UI.Grab + marks dead; the widget unlinks on its next (or the last) tick
         a.mouseGrabs.clear();
