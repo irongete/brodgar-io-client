@@ -144,6 +144,11 @@ public final class AddonManager {
     // the load (Loader, Defer pool), so a retry callback never touches Lua directly; it enqueues here and
     // tick() drains it on the UI thread (P5), same shape as the queues above.
     private static final Queue<Runnable> resolveQueue = new ConcurrentLinkedQueue<Runnable>();
+    // 042.6: the deferred-belt-write notify — two of GameUI's five setbelt/setbelt2 paths write belt[slot]
+    // from a glob.loader.defer task that runs on a Loader thread AFTER the uimsg tap already fired (D-178:
+    // the notify goes where the write lands, not where the message arrived), so this only enqueues; tick()
+    // drains it on the UI thread, same shape as the queues above.
+    private static final Queue<Integer> beltSetQueue = new ConcurrentLinkedQueue<Integer>();
 
     // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
     // Adapters read a GameUI widget tree into a Lua snapshot and fire a semantic event on change. The
@@ -268,6 +273,7 @@ public final class AddonManager {
         overlaySubs = false;          //   (loadAll below re-subscribes whoever listens, which re-arms the seams)
         removedWidgets.clear();       // 042.1: and the widget-removal queue — the old session's widgets are gone
         resolveQueue.clear();         // 042.1: and any Resolve retry queued from the old session
+        beltSetQueue.clear();         // 042.6: and any deferred belt-write notify queued from the old session
         HttpApi.reset();              // N2a: drop stale HTTP completions (their requests were torn down above)
         addonRoot = null;
         ocCb = null;
@@ -418,6 +424,13 @@ public final class AddonManager {
             //       Same one-frame-per-tick bound as the queues above (a retry that re-registers must not spin
             //       this tick forever).
             drainResolveQueue();
+
+            // 1b'''. Deferred belt-slot writes (042.6, D-178) captured off-thread by the two GameUI
+            //        setbelt/setbelt2 loader tasks → dispatched on the UI thread, one frame's worth
+            //        (D-106). The uimsg tap already re-diffed the whole bar against the OLD value for
+            //        these two paths (the write lands after the message is dispatched); this re-checks
+            //        just the one slot now that the write is actually there.
+            drainBeltSet();
 
             CharApi.pollTreeAdapters();
 
@@ -1126,6 +1139,40 @@ public final class AddonManager {
                 r.run();
             } catch(RuntimeException e) {
                 log("Resolve callback error: " + e);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------- deferred belt write (042.6)
+
+    /**
+     * The <b>deferred-belt-write notify</b> — the core edit inside the two {@code glob.loader.defer}
+     * lambdas in {@code GameUI.uimsg}'s {@code setbelt}/{@code setbelt2} block (spec {@code
+     * 042-event-driven-reads}, D-178). Three of the five paths write {@code belt[slot]} synchronously and
+     * are already covered by the existing uimsg tap; these two defer the write onto a Loader task that
+     * runs AFTER the message is dispatched, so the notify goes right where the write actually lands —
+     * immediately after {@code belt[slot] = …}, the only place the change happens.
+     *
+     * <p><b>Must not touch Lua.</b> {@code loader.defer} runs the lambda on a Loader thread, so this only
+     * enqueues; {@link #tick(double)} drains it on the UI thread, exactly like {@link #onWidgetRemoved}.
+     */
+    public static void onBeltSet(int slot) {
+        beltSetQueue.add(slot);
+    }
+
+    /**
+     * Deliver the deferred belt-slot writes captured since the last tick, one frame's worth (D-106) — the
+     * same bound as the other marshalled queues, for the same reason.
+     */
+    private static void drainBeltSet() {
+        for(int n = beltSetQueue.size(); n > 0; n--) {
+            Integer slot = beltSetQueue.poll();
+            if(slot == null)
+                break;
+            try {
+                CharApi.dispatchBeltSet(slot);
+            } catch(RuntimeException e) {
+                log("belt-set dispatch error: " + e);
             }
         }
     }

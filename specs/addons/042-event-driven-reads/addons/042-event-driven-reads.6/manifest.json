@@ -1,0 +1,9 @@
+{
+  "name": "042.6 -- the action bar, and the notify where the write lands",
+  "id": "042-event-driven-reads.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 042.6: ActionbarChanged fires from the setbelt/setbelt2 uimsg plus a notify placed inside the two deferred belt-write loader lambdas, never a per-frame poll of all 144 slots; a cooling-down slot fires nothing while its cooldown keeps reading live.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

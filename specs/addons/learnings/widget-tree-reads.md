@@ -272,3 +272,16 @@
   the `UnwaitableEvent` catch is now silent (no log at all); the rarer `MAX_RETRIES` give-up (a `Loading` that
   keeps re-throwing across REAL resource loads, so more likely to mean something) still logs via the new
   `AddonManager.logDiag` -- stdout only, never the in-game chat `AddonManager.log` also posts to.
+- **(042.6) SUPERSEDES the "Action bar (1d-4)" entry above: "if a widget mutation is `loader.defer`-red, use
+  `poll()`, not the uimsg tap" is retired. The rule is now "put the notify where the write lands" (D-178).**
+  `ActionbarAdapter.poll()` is gone. Three of the five `setbelt`/`setbelt2` paths write `belt[slot]`
+  synchronously, so the existing uimsg tap already sees the new value on `refresh()` (a full 144-slot diff,
+  since the tap hands over only `(widget, msg)`, never the args, so which index changed is unknown until the
+  diff runs -- but it now runs only when a message arrives, not every tick). The other two (resource/pagina)
+  still write from a `glob.loader.defer` task that lands AFTER the tap fires -- the trap the retired rule was
+  reacting to -- but the fix is not to poll around it: a one-line core edit,
+  `AddonManager.onBeltSet(slot)`, sits right after `belt[slot] = ...` inside each of the two lambdas (`src/haven/GameUI.java`), which is the only place the change actually happens. The Loader thread only enqueues (P5); `AddonManager.tick`
+  drains it and re-diffs just that one slot (`ActionbarAdapter.beltSet`), sharing the same `checkSlot` the
+  uimsg-driven refresh uses, so the two paths can never disagree about what "changed" means. The
+  generalisable rule a deferred write should prompt from now on: find where the write actually lands and put
+  the notify there, never fall back to a poll to route around a race.

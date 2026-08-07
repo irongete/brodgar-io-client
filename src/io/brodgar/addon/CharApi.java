@@ -162,6 +162,25 @@ final class CharApi {
     }
 
     /**
+     * The deferred-belt-write seam's body (behind {@link AddonManager#onBeltSet}, spec {@code
+     * 042-event-driven-reads} D-178): re-check the one slot whose {@code glob.loader.defer}-red write has
+     * now landed — the uimsg tap already re-diffed the whole bar against the OLD value for these two
+     * paths, so only {@link ActionbarAdapter} needs to hear this. Reached from {@link
+     * AddonManager#tick(double)}'s drain of the belt-set queue, on the UI thread.
+     */
+    static void dispatchBeltSet(int slot) {
+        for(TreeAdapter a : treeAdapters) {
+            if(a instanceof ActionbarAdapter) {
+                try {
+                    ((ActionbarAdapter)a).beltSet(slot);
+                } catch(RuntimeException e) {
+                    log("actionbar belt-set error: " + e);
+                }
+            }
+        }
+    }
+
+    /**
      * A widget-tree read adapter (spec {@code 14-widget-tree-reads.md}): the one place that knows a
      * target widget tree's shape, localizing that upstream-volatile knowledge. Two update paths:
      * <ul>
@@ -474,13 +493,19 @@ final class CharApi {
     /**
      * Action bar / hotbar — the 144 {@link GameUI.BeltSlot}s of {@code GameUI.belt} (the F-key /
      * number-key hotbar; the engine's own name for the action bar is the "belt"). Setting/clearing/
-     * dragging a slot is a {@code setbelt}/{@code setbelt2} {@code uimsg} to {@code GameUI}, but for the
-     * common (resource/pagina) cases the slot array is mutated on a <b>deferred loader task</b> that runs
-     * after the message is dispatched — so a synchronous refresh-on-uimsg would race the write. Hence this
-     * is <b>poll-driven</b> (like buffs/study): each tick it diffs the occupied slots against a per-index
-     * cache and fires {@code ActionbarChanged} on a set/clear/change (or a slot's data resolving).
+     * dragging a slot is a {@code setbelt}/{@code setbelt2} {@code uimsg} to {@code GameUI}.
      * Change-detection ignores {@code cooldown} (a live meter that would otherwise fire every frame while
      * an ability cools down); {@code hafen.actionbar():get(n)} still reads it live.
+     *
+     * <p><b>Event-driven since 042.6 — the 144-slot per-frame walk is gone.</b> Three of the five
+     * {@code setbelt}/{@code setbelt2} paths write {@code belt[slot]} synchronously, so the existing uimsg
+     * tap already sees the new value: {@link #interested} flags the two messages on {@code GameUI} itself
+     * and {@link #refresh} re-diffs the whole bar — the message names a slot number but the tap only hands
+     * over {@code (widget, msg)}, not the args, so which index changed isn't known here; the diff is what
+     * finds out, and it only runs when a message actually arrives, not every tick. The other two paths
+     * (resource/pagina) defer the write onto a {@code glob.loader.defer} task that runs AFTER the tap
+     * already fired against the OLD value (D-178) — {@link #beltSet}, behind {@link
+     * AddonManager#onBeltSet}, re-checks just that one slot once the write has actually landed.
      *
      * <p>The snapshots are the diff's <i>input only</i>: what reaches Lua is a per-addon <b>Slot object</b> for
      * the changed slot ({@link AddonManager#fireSlot}, 021.2), so a handler reads the payload with the same
@@ -492,30 +517,50 @@ final class CharApi {
         private final Map<Integer, LuaValue> cache = new HashMap<Integer, LuaValue>();
 
         public boolean interested(Widget w, String msg) {
-            return false;         // slot set/clear mutates belt[] on a deferred loader task — see poll()
+            return (w instanceof GameUI) && ("setbelt".equals(msg) || "setbelt2".equals(msg));
         }
 
-        public void refresh() {}
-
-        public void poll() {
+        public void refresh() {
             GameUI g = gui();
             if((g == null) || (g.belt == null))
                 return;           // HUD not up yet — keep the cache, fire nothing
             GameUI.BeltSlot[] belt = g.belt;
-            for(int n = 0; n < belt.length; n++) {
-                GameUI.BeltSlot s = belt[n];
-                LuaValue prev = cache.get(n);
-                if(s == null) {
-                    if(prev != null) {                        // occupied -> empty (cleared)
-                        cache.remove(n);
-                        fireSlot(n);
-                    }
-                } else {
-                    LuaValue snap = actionbarSnapshot(s);
-                    if((prev == null) || !actionbarEqual(snap, prev)) {   // empty->occupied or content changed
-                        cache.put(n, snap);
-                        fireSlot(n);
-                    }
+            for(int n = 0; n < belt.length; n++)
+                checkSlot(belt, n);
+        }
+
+        /**
+         * The deferred-write notify's body (042.6, D-178): {@code setbelt}-with-res and
+         * {@code setbelt2 "r"} write {@code belt[slot]} from a Loader task that lands after {@link
+         * #refresh} already ran against the old value, so re-check just this one index once the write is
+         * actually there.
+         */
+        void beltSet(int n) {
+            GameUI g = gui();
+            if((g == null) || (g.belt == null) || (n < 0) || (n >= g.belt.length))
+                return;
+            checkSlot(g.belt, n);
+        }
+
+        /**
+         * Diff one slot against the cache and fire {@code ActionbarChanged} if it changed — shared by the
+         * uimsg-driven {@link #refresh} (which doesn't know which index changed, so it checks all 144) and
+         * the deferred-write {@link #beltSet} (which knows exactly one), so the two paths can never
+         * disagree about what "changed" means.
+         */
+        private void checkSlot(GameUI.BeltSlot[] belt, int n) {
+            GameUI.BeltSlot s = belt[n];
+            LuaValue prev = cache.get(n);
+            if(s == null) {
+                if(prev != null) {                        // occupied -> empty (cleared)
+                    cache.remove(n);
+                    fireSlot(n);
+                }
+            } else {
+                LuaValue snap = actionbarSnapshot(s);
+                if((prev == null) || !actionbarEqual(snap, prev)) {   // empty->occupied or content changed
+                    cache.put(n, snap);
+                    fireSlot(n);
                 }
             }
         }

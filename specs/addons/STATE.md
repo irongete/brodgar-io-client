@@ -2,8 +2,8 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 5 of 13 tasks done (042.1-042.5),
-042.6 (action bar) next. The addon layer synthesises its `*Changed`/`*Added` events by **polling the
+**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 6 of 13 tasks done (042.1-042.6),
+042.7 (per-widget container keys) next. The addon layer synthesises its `*Changed`/`*Added` events by **polling the
 widget tree every frame** (11 sites, 6 of them `TreeAdapter`s) instead of listening at the moment a
 change happens. 042 wires them to the four seams the client already publishes — the `uimsg` tap, widget
 placement/removal, geometry, and `Loading`'s `Waitable` resolution notify — and **deletes the poll
@@ -15,6 +15,14 @@ funnels through, screen included), and a notify inside the two `setbelt` paths t
 write. Decisions D-178..D-182, of which **D-181 supersedes D-091** (*"a derived position is re-derived
 by POLLING what it reads"*). Closes the ROADMAP's *"Per-frame cost of the addon layer's polling suite"*.
 
+**042.6 DONE — `ActionbarAdapter` is the fifth port, and the belt's own deferred-write case.**
+`ActionbarChanged` now fires from the `setbelt`/`setbelt2` uimsg (a full 144-slot re-diff, since the
+message names no slot index) plus a new `AddonManager.onBeltSet(slot)` tap inside the two
+`glob.loader.defer` lambdas that write `belt[slot]` asynchronously — the only place those two writes land
+(D-178). `cooldown` stays excluded from the change key. Verified in-game: setting a slot and clearing it
+each fired exactly one `ActionbarChanged` with the right payload, idle silent; the cooldown exclusion
+itself rests on the same field-exclusion pattern already proven for equipment's `wear`.
+
 **042.5 DONE — `WoundAdapter` moves off `poll()` onto `WoundWnd`'s own `"wounds"` uimsg** (unlike
 buffs/study/equip, wounds already have one — no widget create/destroy involved), plus `Resolve`
 retrying `Wound.info()` when severity streams in late. Verified in-game: one wound fired exactly one
@@ -22,24 +30,14 @@ retrying `Wound.info()` when severity streams in late. Verified in-game: one wou
 waitable" refusal (`GItem.sprite()`, hit on every fast equip swap) no longer posts to chat — new
 `AddonManager.logDiag` (stdout-only) replaces `log()`, kept for the rarer `MAX_RETRIES` case.
 
-**042.4 DONE — `StudyAdapter` is the fourth port, and a second `Resolve` proof.** `StudyChanged` now
-fires from placement/removal (M3/M1) for a curiosity entering/leaving the study window, and from
-`Resolve` when a Curiosity-less slot's derived `GItem.info()` build resolves. Verified in-game across
-five fires (one add, two full move-cycles): payload identity matched `hafen.study():slot():list()`
-every time, a departed slot kept answering `:res()` and reporting `:exists()` false, idle stayed
-silent. The test curiosity (`bloodsoil`) carried no `Curiosity` info at all — its `.info()` build threw
-a bare **unwaitable** `Loading` on every rebuild, `Resolve` correctly gave up each time (D-092's
-boundary, the same shape 042.3 found on equipment) and `StudyChanged` never spuriously re-fired.
-
-**042.3 DONE — `EquipAdapter` is the third port, and `Resolve`'s first real consumer.** `EquipChanged`
-now fires from placement/removal (M3/M1) for structure and the existing uimsg tap (`"num"`/`"chres"`/
-`"tt"` on the worn `GItem`) for content, `"meter"` (wear) deliberately excluded. `GItem.info()`'s
-derived build throws a bare, **unwaitable** `Loading` when its resource is still streaming — `Resolve`
-catches the refusal and logs it (D-092's boundary), which is what the maintainer's login burst showed
-repeatedly, all benign. Verified in-game under much harder conditions than planned: rapid back-to-back
-gear swapping, dozens of real changes, every payload matching `hafen.ui():equipment():items()` by
-identity, a departed item still answering with `:exists()` false, and silence the instant the swapping
-stopped.
+**042.3-042.4 DONE — `EquipAdapter`/`StudyAdapter` port to M1/M3, and `Resolve` proves out on real
+streaming data.** `EquipChanged` fires from placement/removal for structure and the existing `GItem`
+uimsg tap (`"num"`/`"chres"`/`"tt"`) for content, `"meter"` (wear) excluded; `StudyChanged` the same
+shape for the study window, plus `Resolve` retrying a Curiosity-less slot's derived `GItem.info()`
+build. Both hit `GItem.info()`'s bare **unwaitable** `Loading` (D-092's boundary) — `Resolve` correctly
+gives up rather than hang. Verified in-game: 042.3 under rapid back-to-back gear swapping (dozens of
+real changes, every payload matching `hafen.ui():equipment():items()` by identity); 042.4 across five
+study fires, payload identity matching `hafen.study():slot():list()`, idle silent both times.
 
 **042.1-042.2 DONE — `MeterAdapter`/`BuffsAdapter` prove M1 (removal) and ship M2 (`Resolve`, unproven
 until 042.3/042.4).** `MeterAdded`/`MeterRemoved`/`BuffAdded` fire from placement/removal instead of a

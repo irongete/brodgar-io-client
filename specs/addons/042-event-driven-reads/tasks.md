@@ -128,7 +128,7 @@
       `[manual]` — take a wound (or open the tab with one present) and let it heal a step.
       <!-- extra context: `src/haven/WoundWnd.java` (:361 cdestroy, :370 addchild, :381-411 decwound/uimsg), `src/io/brodgar/addon/LuaWound.java` -->
 
-- [ ] **042.6 — the action bar, and the notify where the write lands.**
+- [x] **042.6 — the action bar, and the notify where the write lands.**
       `ActionbarAdapter.poll()` ([CharApi.java:389](src/io/brodgar/addon/CharApi.java:389)) goes — the
       144-slot per-frame walk this feature's headline number comes from.
       **Three of the five `setbelt`/`setbelt2` paths already write `belt[]` synchronously**

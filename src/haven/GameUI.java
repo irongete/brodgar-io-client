@@ -1383,6 +1383,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		ResData rdt = new ResData(res, sdt);
 		ui.sess.glob.loader.defer(() -> {
 			belt[slot] = mkbeltslot(slot, rdt);
+			io.brodgar.addon.AddonManager.onBeltSet(slot);   // addon: deferred belt write (042.6)
 		    }, null);
 	    }
 	} else if(msg == "setbelt2") {
@@ -1400,6 +1401,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		    Indir<Resource> res = ui.sess.getresv(args[2]);
 		    ui.sess.glob.loader.defer(() -> {
 			    belt[slot] = new PagBeltSlot(slot, PagBeltSlot.resolve(menu, res));
+			    io.brodgar.addon.AddonManager.onBeltSet(slot);   // addon: deferred belt write (042.6)
 			}, null);
 		    break;
 		}
