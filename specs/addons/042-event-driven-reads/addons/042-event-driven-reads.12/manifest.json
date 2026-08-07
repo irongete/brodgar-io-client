@@ -1,0 +1,9 @@
+{
+  "name": "042.12 — world entities whose ground has not arrived",
+  "id": "042-event-driven-reads.12",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 042.12: a ghost placed over unstreamed ground returns synchronously and destroys cleanly while pending.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

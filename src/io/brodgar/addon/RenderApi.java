@@ -357,7 +357,7 @@ final class RenderApi {
                     gh.mv = mv;
                     applyEntityFollow(gh, gob);              // ANCHOR: if follow= was given, start tracking the gob now
                     if(!gh.hidden)                           // V3: a ghost hidden before it published stays out of the scene
-                        addToScene(gh, mv);                  // the // addon: MapView seam; pending when the tile is not here yet
+                        addToScene(gh, mv);                  // the // addon: MapView seam; Resolve retries when the tile is not here yet
                 }
             }
         }, null);
@@ -581,45 +581,52 @@ final class RenderApi {
     }
 
     /**
-     * Add a freshly built entity to the scene, or leave it <b>pending</b> when the ground under it has not
-     * streamed in yet. The scene resolves the tile under a gob as it is added, so a place the character has
-     * walked but the client has not re-streamed raises {@code Loading} there — which is a <i>not yet</i>,
-     * not a <i>no</i>, and the same kick-the-load model every other read in this API follows. So the entity
-     * is kept, {@link #armPending} retries it on each addon tick, and the caller's chain goes on working.
-     * Caller holds the entity monitor.
+     * A scene add's blocker is not always the SAME thing on every retry (see {@link Resolve}'s class doc,
+     * the 042.12 finding): unlike {@code MCache.LoadingMap} ("this one tile hasn't streamed"),
+     * {@code MapView.addClientGob} can also throw {@code Defer.NotDoneException} ("finalizing THIS texture
+     * right now") for a <i>different</i>, unrelated GL upload on every retry while the render backend is
+     * busy — observed in-game needing well over {@code Resolve}'s default bound of 8 during a heavy load.
+     * The pre-042.12 {@code armPending} polled every tick with no bound at all, so this keeps that
+     * resilience while staying a real retry-on-notify chain, never a poll (each step still only runs
+     * because a specific texture's own decode completed).
      */
-    private static void addToScene(LuaWorldEntity e, MapView mv) {
+    private static final int SCENE_ADD_MAX_RETRIES = 128;
+
+    /**
+     * Add a freshly built entity to the scene, or register for whatever it is waiting on when it has not yet
+     * (042.12) — a tile that hasn't streamed in ({@code MCache.LoadingMap}) or a texture still finalizing on
+     * the render backend ({@code Defer.NotDoneException}, see {@link #SCENE_ADD_MAX_RETRIES}). Either way
+     * {@code l} <b>is</b> the {@link haven.Waitable} that says when the blocker clears. {@link Resolve#on}
+     * registers {@link #retryAdd} on it: marshalled onto the tick (never inline, even though
+     * {@code Loading.waitfor} can fire its notify synchronously — {@link Resolve} only ever enqueues from
+     * there), owned by the entity's addon so {@code :reload}/disable cancels a still-pending add cleanly,
+     * and re-registering itself if the retry throws a <i>further</i>, possibly unrelated {@code Loading}. A
+     * blocker that never clears simply leaves the entity out of the scene — the correct answer for an addon
+     * asking for a place it cannot see. Caller holds the entity monitor; {@code Resolve.on} does not invoke
+     * the callback while still inside it (see above).
+     */
+    private static void addToScene(final LuaWorldEntity e, final MapView mv) {
         try {
             e.slot = mv.addClientGob(e.gob);
         } catch(Loading l) {
-            e.pending = true;                          // the tile is not here yet: retried on the next tick
+            Resolve.on(l, e.owner, () -> retryAdd(e), SCENE_ADD_MAX_RETRIES);
         }
     }
 
     /**
-     * Retry every pending entity's scene add, once per addon tick (from {@code AddonManager.tick}). A place
-     * whose ground arrives is added exactly once; one that never arrives simply stays out of the scene, which
-     * is what an addon asking for a place it cannot see should get.
+     * The {@link Resolve} retry body for a pending scene add (042.12) — runs on the UI thread via the tick's
+     * resolve drain, never inline. Re-checks the entity is still live, visible and attached before touching
+     * the scene: the cancel/notify race (plan.md gotcha 10) means a {@code :reload} or a {@code :hide()} can
+     * land between the register and the notify, and an entity destroyed/hidden/detached in that window must
+     * not be added when the notify finally arrives. A further {@code Loading} (a second tile the placement
+     * still needs) propagates out so {@link Resolve} re-registers on it — not caught here.
      */
-    static void armPending(Addon a) {
-        armPending(a.ghosts);
-        armPending(a.sprites);
-        armPending(a.objects);
-    }
-
-    private static void armPending(List<? extends LuaWorldEntity> reg) {
-        for(LuaWorldEntity e : reg) {
-            synchronized(e) {
-                if(!e.pending || e.dead || e.hidden || (e.gob == null) || (e.mv == null))
-                    continue;
-                try {
-                    e.slot = e.mv.addClientGob(e.gob);
-                    e.pending = false;
-                    e.gob.move(e.rc, e.a);
-                } catch(RuntimeException ex) {
-                    /* still loading, or the scene is gone — try again next tick */
-                }
-            }
+    private static void retryAdd(LuaWorldEntity e) throws Loading {
+        synchronized(e) {
+            if(e.dead || e.hidden || (e.gob == null) || (e.mv == null))
+                return;                                // gone, hidden again, or detached while we waited
+            e.slot = e.mv.addClientGob(e.gob);
+            e.gob.move(e.rc, e.a);                      // apply any :position/:rotate that landed while pending
         }
     }
 
@@ -684,7 +691,7 @@ final class RenderApi {
             ob.mv = mv;
             applyEntityFollow(ob, gob);                 // ANCHOR: an overlay's model starts tracking its gob now
             if(!ob.hidden)
-                addToScene(ob, mv);                     // the // addon: MapView seam; pending when the tile is not here yet
+                addToScene(ob, mv);                     // the // addon: MapView seam; Resolve retries when the tile is not here yet
         }
         return ob;
     }
@@ -786,7 +793,7 @@ final class RenderApi {
             sp.mv = mv;
             applyEntityFollow(sp, gob);                 // ANCHOR: an overlay's sprite starts tracking its gob now
             if(!sp.hidden)                              // a sprite hidden before it published stays out of the scene
-                addToScene(sp, mv);                     // the // addon: MapView seam; pending when the tile is not here yet
+                addToScene(sp, mv);                     // the // addon: MapView seam; Resolve retries when the tile is not here yet
         }
         return sp;
     }

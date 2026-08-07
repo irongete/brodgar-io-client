@@ -361,8 +361,6 @@ public final class AddonManager {
             //     frame later. Not before the reload above: a widget whose addon is being torn down is never
             //     placed at all.
             UiApi.armPending();
-            for(Addon a : addons)
-                RenderApi.armPending(a);   // and every world entity whose ground has now streamed in
             CDropdown.drainRaises();      // 040.10: re-raise a popup the enclosing window's own click-to-raise
                                            //   buried this same frame (see CDropdown's class doc)
 

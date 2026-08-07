@@ -200,3 +200,22 @@
   swallow it.** `refreshEntityScene` and `showEntity` were therefore safe from the moment they were
   written; only the three `make*` creates had a bare `addClientGob`. Worth checking which of these guards
   is deliberate: swallowing a `Loading` silently means "not in the scene, and nobody will try again".
+- **(042.12) `addClientGob`'s `Loading` is not always `MCache.LoadingMap` — a busy render backend also
+  throws `Defer.NotDoneException`, and WHICH texture is a moving target, not a stable wait.** Porting
+  `armPending`'s per-frame retry onto `Resolve` (M2) at first used the library default of 8
+  re-registrations, tuned for a read blocked on ONE thing (an `Indir<Resource>`, a study slot's numbers).
+  In-game the ghost still frequently failed to appear even over *loaded* ground, giving up with
+  `Resolve: gave up after 8 retries on haven.Defer$NotDoneException: Finalizing texture in
+  gfx/terobjs/woodpulp...` — a **different**, unrelated resource name on every retry (`woodpulp`,
+  `sprucebough`, the ghost's own `logcabin`), never the same one twice. Root cause: `TexL.prepare`
+  (`src/haven/TexL.java:142`) throws `Defer.NotDoneException` for whichever GL texture upload the render
+  backend happens to be mid-decode on at that instant — a *system-busy* signal, not "wait for this one
+  specific thing," so retrying on the SAME notify doesn't converge; the next retry just as often finds a
+  DIFFERENT texture still finalizing. The pre-042.12 `armPending` had **no bound at all** (retried every
+  tick, forever), so the 8-retry default was a real regression on a busy scene, not a pre-existing
+  limitation. Fix: `Resolve.on` gained a `maxRetries` overload; `RenderApi`'s scene-add call uses 128
+  instead of the default 8 — still a real retry-on-notify chain (every step fires because a specific
+  texture's own decode completed, never a timer), just bounded high enough to ride out a heavy load.
+  Lesson: before capping a `Resolve` retry chain at the library default, check whether the `Loading`
+  thrown at that call site has ONE stable identity across retries or can legitimately rotate through many
+  unrelated blockers — the two need very different bounds.

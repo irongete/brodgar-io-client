@@ -2,8 +2,8 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 11 of 13 tasks done (042.1-042.11),
-042.12 (world entities whose ground has not arrived) next. The addon layer synthesises its `*Changed`/
+**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 12 of 13 tasks done (042.1-042.12),
+042.13 (the close: delete the poll stage, measure the numbers) next. The addon layer synthesises its `*Changed`/
 `*Added` events by **polling the widget tree every frame** (11 sites, 6 of them `TreeAdapter`s) instead
 of listening at the moment a change happens. 042 wires them to the four seams the client already
 publishes — the `uimsg` tap, widget placement/removal, geometry, and `Loading`'s `Waitable` resolution
@@ -18,18 +18,20 @@ notify inside the two `setbelt` paths that defer the `belt[]` write. Decisions D
 **D-181 supersedes D-091** (*"a derived position is re-derived by POLLING what it reads"*). Closes the
 ROADMAP's *"Per-frame cost of the addon layer's polling suite"*.
 
+**042.12 DONE — `RenderApi.armPending`/`e.pending` go; a world entity's scene-add retries through
+`Resolve` instead of a per-tick poll.** `addToScene`'s `catch(Loading l)` registers `l` with
+`Resolve.on(...)`, whose retry re-checks `dead`/`hidden`/`mv==null` before re-adding. **Found and fixed a
+real regression along the way**: `addClientGob`'s `Loading` is not only `MCache.LoadingMap` (an unstreamed
+tile) — a busy render backend also throws `Defer.NotDoneException` ("finalizing texture …"), a
+*different* texture each retry rather than one stable wait, so `Resolve`'s library-default 8-retry bound
+gave up silently on a heavy load where the old unbounded `armPending` never did. Fixed with a `maxRetries`
+overload on `Resolve.on` (default 8 unchanged elsewhere; scene-add uses 128) — learnings entry in
+`learnings/ghosts.md`. Verified in-game: idle silence, `:t042-12` all-pass, both manuals confirmed.
+
 **042.11 DONE — `MapApi.pollMarkers()` goes; `MarkersChanged` fires from a notify at the DB's own
-mutation points.** `MapFile.add`/`remove`/`update` and the segment merge each call
-`AddonManager.onMarkersChanged(markerseq)` right after bumping the seq — inside the DB's own lock, so the
-call only enqueues, never touches Lua directly (avoids a re-entrant deadlock on the map DB's RW lock).
-The queue drains on the tick, same shape as every other 042 seam. Since the notify is now only ever
-raised at a real mutation (never at the initial disk load), the first call after session init both
-primes **and** fires — there is no "first tick after login" left to distinguish from a real change, unlike
-the old poll's prime-then-skip. Verified in-game: idle silence held, one `MarkersChanged` on add and one
-on remove, payload a plain number matching `hafen.map():marker():count()`. Also found and fixed: the
-`specs/addons/TESTING.md` copy-paste skeleton was stale against 039-uniform-api (`hafen.log(...)` /
-`hafen.slash.register(...)`, both retired and throwing) — a suite copying it verbatim fails to load with
-no visible reason ("no such command" in-game); fixed in the skeleton, learnings entry recorded.
+mutation points**, inside the DB's own lock (enqueue only — avoids a re-entrant deadlock on the map DB's
+RW lock), priming-and-firing on the first real mutation since there is no "first tick after login" to
+distinguish from a real change unlike the old poll. Also fixed: `TESTING.md`'s stale copy-paste skeleton.
 
 **042.1-042.10 DONE** — the widget-tree adapters and the UI-layer polls all ported onto M1
 (removal)/M3 (placement)/M2 (`Resolve`)/the uimsg tap/M4 (geometry), each verified in-game idle-silent

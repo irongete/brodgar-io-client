@@ -259,7 +259,7 @@
       `[manual]` — place a map marker and delete it.
       <!-- extra context: `src/io/brodgar/addon/MapApi.java` (:439 pollMarkers, mapfile()), `src/haven/MapFile.java` (markerseq, the lock, the processor thread), `specs/codebase/mapfile.md`, `037-map-database/` -->
 
-- [ ] **042.12 — world entities whose ground has not arrived.**
+- [x] **042.12 — world entities whose ground has not arrived.**
       `RenderApi.armPending` ([RenderApi.java:604](src/io/brodgar/addon/RenderApi.java:604)) and the
       `e.pending` flag go. This is the cleanest `Resolve` case in the feature: `addToScene` already
       does `catch(Loading l)` — **`l` is the `Waitable`**. Register on it and drop the retry loop:
