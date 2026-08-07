@@ -239,7 +239,7 @@ public final class LuaMeter {
     /**
      * The meters currently in the HUD's meter slot, in layout order — the engine's own {@code GameUI.meters}
      * list, filtered to {@link IMeter} ({@link AddonWidgets#hudMeters}). The single scan {@code :list()},
-     * the lookup, {@code :index()}, {@code :exists()} and the {@code MeterAdapter} poll all share.
+     * the lookup, {@code :index()}, {@code :exists()} and the {@code MeterAdapter} all share.
      */
     static List<IMeter> hud() {
         GameUI g = AddonManager.gui();

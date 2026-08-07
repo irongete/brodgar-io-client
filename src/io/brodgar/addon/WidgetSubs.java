@@ -39,7 +39,7 @@ import java.util.Set;
  *
  * <p><b>One per (addon, widget), never shared across addons</b> (D-100 one level down, spec §R2's table):
  * several addons watching the same native widget each get their own record, their own engine listeners and
- * poll registration, and their own teardown.
+ * tree-key watch-list registration, and their own teardown.
  */
 final class WidgetSubs {
     /** The four keys with an engine listener behind them (041.3) — §1.1's input catalogue. */

@@ -60,9 +60,10 @@ import static io.brodgar.addon.AddonManager.*;
  * {@code hafen.player}/{@code char}/{@code items}/{@code study}/{@code party}/{@code kin}/{@code buffs}/
  * {@code actionbar}/{@code quests}/{@code wounds}/{@code fight} — the widget-tree reads of character state,
  * plus the change-detection {@link TreeAdapter}s that fire the semantic events (BuffAdded, FepChanged,
- * ...). Owns the adapter registry. {@link AddonManager} drives it via {@link #dispatchUimsg}
- * (the onUimsg tap), {@link #refreshTreeAdapters}/{@link #pollTreeAdapters} (the tick), and
- * {@link #resetSession} (init — clears + re-registers the adapters). Not instantiable.
+ * ...). Owns the adapter registry. {@link AddonManager} drives it via {@link #dispatchUimsg} (the onUimsg
+ * tap), {@link #refreshTreeAdapters} (the tick), {@link #dispatchPlaced}/{@link #dispatchRemoved} (M1/M3),
+ * {@link #dispatchBeltSet} (D-178), and {@link #resetSession} (init — clears + re-registers the adapters).
+ * Not instantiable.
  */
 final class CharApi {
     private CharApi() {}
@@ -120,17 +121,6 @@ final class CharApi {
                 } catch(RuntimeException e) {
                     log("tree adapter error: " + e);
                 }
-            }
-        }
-    }
-
-    /** Give every adapter a per-tick look (UI thread) for changes no inbound uimsg announces. */
-    static void pollTreeAdapters() {
-        for(TreeAdapter a : treeAdapters) {
-            try {
-                a.poll();
-            } catch(RuntimeException e) {
-                log("tree adapter poll error: " + e);
             }
         }
     }
@@ -193,27 +183,24 @@ final class CharApi {
 
     /**
      * A widget-tree read adapter (spec {@code 14-widget-tree-reads.md}): the one place that knows a
-     * target widget tree's shape, localizing that upstream-volatile knowledge. Two update paths:
+     * target widget tree's shape, localizing that upstream-volatile knowledge. Two update paths, both
+     * event-driven (spec {@code 042-event-driven-reads} — the per-tick {@code poll()} this interface
+     * used to also carry is gone, not gated):
      * <ul>
      *   <li><b>uimsg-driven</b> ({@link #interested} off-thread → dirty → {@link #refresh} on the UI
      *       thread): for state the server pushes via a targeted {@code uimsg} (meter values, FEP, buff
      *       content).</li>
-     *   <li><b>poll-driven</b> ({@link #poll} every tick, UI thread): for structural changes the tap
-     *       can't see — buff add/remove is a widget create/{@code cdestroy} on the {@code Bufflist},
-     *       not a {@code uimsg}. Default is a no-op; only adapters that need it override it. Being
-     *       replaced task by task (spec {@code 042-event-driven-reads}) by {@link #placed}/{@link
-     *       #removed} below — an adapter with no {@code poll()} override left has finished the move.</li>
      *   <li><b>seam-driven</b> ({@link #placed}/{@link #removed}, spec {@code 042-event-driven-reads}
-     *       M1/M3): for the same structural changes, fired at the moment they happen instead of
-     *       diffed every tick. Default is a no-op; an adapter overrides only the half(ves) it needs —
-     *       a fading widget (a buff, a window) answers {@link #removed} on its own "gone" signal
-     *       instead, never on this seam (D-180).</li>
+     *       M1/M3): for structural changes the uimsg tap can't see — buff add/remove is a widget
+     *       create/{@code cdestroy} on the {@code Bufflist}, not a {@code uimsg} — fired at the moment
+     *       they happen instead of diffed every tick. Default is a no-op; an adapter overrides only the
+     *       half(ves) it needs — a fading widget (a buff, a window) answers {@link #removed} on its own
+     *       "gone" signal instead, never on this seam (D-180).</li>
      * </ul>
      */
     private interface TreeAdapter {
         boolean interested(Widget w, String msg);
         void refresh();
-        default void poll() {}
         default void placed(Widget w) {}
         default void removed(Widget w) {}
     }
@@ -1536,10 +1523,10 @@ final class CharApi {
     // backings are public → zero haven edit, like A9-1/A8/A7/A6/A4/A2.
     //
     // The READS moved onto LuaWound with 039.13 (the entity owns them, keyed by the wound id — which is
-    // what decwound itself looks a wound up by before mutating it in place). WoundChanged is still fired by
-    // the poll-driven WoundAdapter (severity streams in a beat after the wound row, like study's Curiosity
-    // info, so a per-tick snapshot diff catches it) — not a targeted uimsg, since a uimsg refresh would see
-    // severity still Loading and miss it. What stays here is that change detection.
+    // what decwound itself looks a wound up by before mutating it in place). WoundChanged is fired by
+    // WoundAdapter (see its class doc above) off the "wounds" uimsg for the list and a Resolve retry for a
+    // severity streaming in a beat later (like study's Curiosity info) — event-driven since 042.5, not a
+    // per-tick diff. What stays here is that change detection.
 
     /** The Health &amp; Wounds window (the character sheet's "Health & Wounds" tab — created hidden at login
      *  but live), or {@code null} before it exists. Via the public {@code CharWnd.wound} field (no tree-walk). */

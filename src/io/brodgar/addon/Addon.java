@@ -90,11 +90,12 @@ public final class Addon {
      * three-token {@code hooks} list ({@code hafen.hook():input}) — and 041.4 folds the REST of the widget
      * vocabulary onto the same record: {@code Pressed}/{@code Changed}/…'s controls fire straight into its
      * {@link Subs}, {@code Draw}/{@code Tick}/{@code Drop}/{@code Close} do the same for an owned surface, and
-     * {@code ItemAdded}/{@code ItemRemoved}/{@code Destroy} add the one thing none of those needed — a per-tick
-     * poll registration (see {@link WidgetSubs#poll}) — so one class is the address for everything a widget can
-     * say, the same way {@link Subs} is the one mechanism under every {@code :on(key, fn)} in the API. A NATIVE
-     * widget that survives {@code :reload} is what {@link #teardownWidgetSubs} walks instead, releasing every
-     * listener and poll registration this addon installed before the Lua layer that owns them is rebuilt (P2).
+     * {@code ItemAdded}/{@code ItemRemoved}/{@code Destroy} add the one thing none of those needed — a
+     * placement/removal watch-list registration (event-driven since 042.7) — so one class is the address for
+     * everything a widget can say, the same way {@link Subs} is the one mechanism under every {@code :on(key, fn)}
+     * in the API. A NATIVE widget that survives {@code :reload} is what {@link #teardownWidgetSubs} walks
+     * instead, releasing every listener and watch-list registration this addon installed before the Lua layer
+     * that owns them is rebuilt (P2).
      */
     final Map<Widget, WidgetSubs> widgetSubs = new WeakHashMap<Widget, WidgetSubs>();
 
@@ -159,10 +160,11 @@ public final class Addon {
     /**
      * Live selector subscriptions owned by this addon ({@code hafen.ui.on(sel, "appear"|"disappear", fn)}, 030.2 —
      * what replaced {@code hafen.ui.onWidgetCreate} and its descriptor): each watches the whole tree for widgets
-     * matching one {@link Selector}, fired from the placement seam and from the per-tick poll. They live in a flat
-     * global dispatch list in {@link UiApi} (a subscription watches the whole tree, not one keyed target);
-     * teardown ({@link UiApi#teardownSelectorWatches}) marks each dead and drops both copies <b>without firing</b>
-     * — a {@code :reload}/disable is not a destroy, exactly as for a {@link WidgetSubs}'s poll registration.
+     * matching one {@link Selector}, fired from the placement seam and the removal seam (event-driven since
+     * 042.9). They live in a flat global dispatch list in {@link UiApi} (a subscription watches the whole tree,
+     * not one keyed target); teardown ({@link UiApi#teardownSelectorWatches}) marks each dead and drops both
+     * copies <b>without firing</b> — a {@code :reload}/disable is not a destroy, exactly as for a
+     * {@link WidgetSubs}'s watch-list registration.
      * Copy-on-write: a firing handler may subscribe or {@code :remove()} itself mid-dispatch.
      */
     public final List<LuaSelectorWatch> selectorWatches = new CopyOnWriteArrayList<LuaSelectorWatch>();

@@ -22,7 +22,7 @@
 | Modal mouse capture (drag) | [`UI.grabmouse(Widget)`](src/haven/UI.java:575) / [`UI.grab`](src/haven/UI.java:538) |
 | **Pre-hook a widget's own event handling** | [`Widget.listen`](src/haven/Widget.java:916)/[`deafen`](src/haven/Widget.java:922) (a `CopyOnWriteArrayList<EventHandler.Listener<?>>`) + [`Widget.handle(Event)`](src/haven/Widget.java:945) — runs every listener **before** `ev.shandle(this)` (the widget's own `mousedown`/etc.); a listener returning `true` short-circuits both the default handling *and* child propagation |
 | **Server → widget destroy** ← lifecycle seam | [`UI.destroy(int)`](src/haven/UI.java:665) (shadow-children first, then a `DstWidget` command) → [`UI.destroy(Widget)`](src/haven/UI.java:622) = [`removeid`](src/haven/UI.java:603) (recursive unbind) **then** `reqdestroy()` |
-| Leaving the tree | [`Widget.destroy`](src/haven/Widget.java:586) → [`remove`](src/haven/Widget.java:570) (`unlink()`, `parent.cdestroy(this)`, **`parent = null`**) + `rdispose()` |
+| Leaving the tree ← the one addon seam | [`Widget.destroy`](src/haven/Widget.java:586) → [`remove`](src/haven/Widget.java:570) (`unlink()`, `parent.cdestroy(this)`, **`parent = null`**) → `ui.removed(this)` → `onWidgetRemoved(this)` (last statement, `// addon:`, 042.1) + `rdispose()` |
 | **The override that breaks the sequence** | [`Window.reqdestroy`](src/haven/Window.java:609) — starts a hide *animation* (`animst = "dest"`) instead of removing; also [`Buff`](src/haven/Buff.java:190) |
 
 **Destroy gotcha.** Unbind and unlink are **not** simultaneous: `removeid` runs first, and for a `Window` the
@@ -32,6 +32,21 @@ id when server-bound, by reachability otherwise — or it fires a whole animatio
 a client-only widget, not at all sooner). **And the id goes back to the pool**: `removeid` drops both map entries,
 after which the server may issue the same number for a different widget — so a widget id is safe to *send* and
 unsafe to *store*, because a stored one does not go stale, it silently comes to mean something else (D-138).
+
+**`cdestroy`-override gotcha (why the addon seam is `remove`, not `cdestroy`).** 17 classes in `src/haven`
+override `cdestroy` and **9 never call `super.cdestroy`** — `Bufflist`, `ChatUI`, `GameUI` itself, the
+`Hidepanel`/`Polities`/`Zergwnd`/craft/`qq` inner classes, `QuestWnd`'s questbox and `WoundWnd`'s woundbox —
+which is exactly the set of parents a widget-tree reader cares about (a buff, a quest row, a wound). The
+same fact makes `Widget.childseq` (bumped only in `add0` and the base `cdestroy`) unusable as a change
+counter for them. `Widget.remove()` itself is overridden nowhere and runs on every removal path (`UI.DstWidget.run`
+→ `UI.destroy(Widget)` → `reqdestroy()` → `destroy()` → `remove()`, and any direct client call), so one
+`io.brodgar.addon.AddonManager.onWidgetRemoved(this)` tap there — placed *after* `unlink()`/`cdestroy`/
+`parent = null`/`ui.removed(this)`, so a handler sees the settled post-removal tree — is override-proof
+where a `cdestroy` tap would silently lose 9 of 17 parents (D-179, 042.1). A widget that FADES instead of
+unlinking immediately (`Buff.reqdestroy` sets `dest`, `Window.reqdestroy` sets `animst = "dest"`, both
+followed by a ~0.35s animation) needs the same `onWidgetRemoved` call from a **second** call site, placed
+at the moment the flag is set rather than waiting for the eventual `remove()` — the unlink is the animation
+ending, not the thing ending (D-180, 042.2/042.7).
 
 **Listener gotcha.** `listening` is copy-on-write, so a handler may `deafen`/`listen` its OWN widget from
 inside `handle(Event)` — the current dispatch finishes against its old snapshot, and the next event sees the

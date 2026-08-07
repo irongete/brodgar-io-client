@@ -415,17 +415,14 @@ public final class AddonManager {
             HttpApi.drainHttp();
 
             // 1b. Widget-tree adapters flagged dirty by an inbound uimsg → re-read + fire the semantic
-            //     event, now on the UI thread. (Marked off-thread in onUimsg; drained here.) Then the
-            //     per-tick poll for changes the uimsg tap can't see (buff add/remove is widget
-            //     create/cdestroy on the Bufflist, not a uimsg — spec 14). Refresh before poll so a
-            //     brand-new buff surfaces as a single BuffAdded (with its content already applied),
-            //     not BuffChanged-then-BuffAdded.
+            //     event, now on the UI thread. (Marked off-thread in onUimsg; drained here.) Refresh before
+            //     the removal/resolve/belt/resize drains below so a brand-new buff surfaces as a single
+            //     BuffAdded (with its content already applied), not BuffChanged-then-BuffAdded.
             CharApi.refreshTreeAdapters();
 
             // 1b'. Widget removals (M1, 042.1) captured off-thread by the Widget.remove() tap → dispatched on
             //      the UI thread, one frame's worth (D-106). After refresh, so a removal never races a content
-            //      update the same frame; before poll, which still owns the structural changes no task has
-            //      ported to a seam yet.
+            //      update the same frame.
             drainRemovedWidgets();
 
             // 1b''. Resolve (M2, 042.1) retries queued by a Loading resolving off-thread → run on the UI thread.
@@ -445,8 +442,6 @@ public final class AddonManager {
             //         resizing, a window packing itself, or the screen changing all funnel through this one
             //         seam, and it is free (derived.isEmpty()) for a client with nothing anchored.
             drainResizedWidgets();
-
-            CharApi.pollTreeAdapters();
 
             // 1c. Replacements (032.1, event-driven since 042.8): the server destroying a window an addon
             //     replaced with widget:replace(view) is a removal, so it is offered at the removal seam
@@ -1347,9 +1342,9 @@ public final class AddonManager {
      * Fire a meter event ({@code MeterAdded}/{@code MeterRemoved}/{@code MeterChanged}) whose payload is a
      * single <b>Meter object</b> (027.2) — the HUD bar that just appeared, went away or changed. Same shape as
      * {@link #fireGob}/{@link #fireKin}/{@link #fireSlot}/{@link #fireBuff}: interning is per-addon (D-045) so
-     * the payload cannot be shared, and it is minted only for an owner that actually subscribes — the meters are
-     * polled every tick and a login brings the whole slot up in one burst, so the {@code hasSub} gate is what
-     * keeps that free for the addons that don't listen.
+     * the payload cannot be shared, and it is minted only for an owner that actually subscribes — a meter's
+     * appearance/removal is detected at the placement/removal seams (042.1) and a login brings the whole slot
+     * up in one burst, so the {@code hasSub} gate is what keeps that free for the addons that don't listen.
      *
      * <p>Change <i>detection</i> stays in {@code CharApi}'s meter adapter (the per-meter segment diff, value AND
      * colour); the widget arrives already diffed. The Meter re-reads live, so a handler that stashes one keeps
@@ -1659,8 +1654,8 @@ public final class AddonManager {
         // hafen.study.* — the study window (curiosities being studied), via the widget-tree mechanism
         // (1d-3). slots() = the curiosities, each {res,name,lp,attention,cost,time,progress?}; summary()
         // = the live totals {lp,attention,cost}. Both empty/nil until the character sheet's "Abilities"
-        // (sattr) tab streams in, a beat after enter-world. Subscribe to StudyChanged (fired per-tick
-        // when the slots change — an add/remove or study data resolving), not per frame.
+        // (sattr) tab streams in, a beat after enter-world. Subscribe to StudyChanged (fired when the
+        // slots change — an add/remove or study data resolving — event-driven, never per frame).
         CharApi.installStudy(hafen, owner);
 
         // hafen.party.* — the party roster (Glob.party). Members are ordered by Member.seq. A PartyMember is
@@ -1768,9 +1763,10 @@ public final class AddonManager {
         // often nil, NOT seconds — :duration() is the radial meter, i.e. how much of the buff's run is
         // left; the action bar calls the same meter a cooldown because there it is one)/:number()/:exists()/:info() (the old flat snapshot). A buff fading out
         // after removal is excluded (:exists() false) but still READS — Widget.destroy() does not clear it —
-        // which is what makes a stashed BuffRemoved payload useful. Subscribe to BuffAdded/BuffRemoved/
-        // BuffChanged (add/remove detected per-tick; content changes on the buff's "ch"/"tt" uimsg) — since
-        // 025.2 all three carry the Buff OBJECT (fireBuff), not a snapshot table.
+        // which is what makes a stashed BuffRemoved payload useful. Subscribe to BuffAdded/BuffRemoved
+        // (add/remove seen at the placement/removal seams, the removal at the server's own "gone" moment,
+        // not the fade's late unlink — 042.2, D-180)/BuffChanged (content changes on the buff's "ch"/"tt"
+        // uimsg) — since 025.2 all three carry the Buff OBJECT (fireBuff), not a snapshot table.
         CharApi.installBuffs(hafen, owner);
 
         // hafen.meter — the HUD's meter bars (GameUI's `place == "meter"` slot → IMeter widgets), via the
@@ -1785,8 +1781,9 @@ public final class AddonManager {
         // 0..255)/:segments() (the whole multi-segment bar)/:exists()/:info() (the snapshot). A destroyed meter
         // still READS — Widget.destroy() does not clear it — but reports :exists() false. The bars stream in a
         // beat after enter-world, so hafen.meter():list() is legitimately empty for a moment. Subscribe to
-        // MeterAdded/MeterRemoved (the bars streaming in / a meter being destroyed, detected per-tick) and
-        // MeterChanged (the server's "set"/"col" uimsg, fired only on a real value-OR-colour change) — all
+        // MeterAdded/MeterRemoved (the bars streaming in / a meter being destroyed, seen at the
+        // placement/removal seams — 042.1) and MeterChanged (the server's "set"/"col" uimsg, fired only on
+        // a real value-OR-colour change) — all
         // three carry the Meter OBJECT (fireMeter), so MeterAdded is the honest "the bars are up" signal.
         // (hafen.player():vitals() and VitalsChanged are GONE.)
         CharApi.installMeters(hafen, owner);
@@ -1797,8 +1794,9 @@ public final class AddonManager {
         // hafen.actionbar():list() the 1-based array of all 144 (the iteration view — same interned objects,
         // and slot:index() is the game index). Reads on the object, live per call: :res()/:name()/:cooldown()
         // (0..1, a pagina action's meter — ability slots only, NOT seconds)/:empty()/:info() (the old flat
-        // snapshot). Subscribe to ActionbarChanged{slot} (fired per-tick when a slot's content changes — a
-        // set/clear/drag or its data resolving; the payload is that Slot). slot:use([mods]) is the GATED write verb (4g,
+        // snapshot). Subscribe to ActionbarChanged{slot} (fired when a slot's content changes — a
+        // set/clear/drag or its data resolving, event-driven off the belt uimsg/notify, never per frame;
+        // the payload is that Slot). slot:use([mods]) is the GATED write verb (4g,
         // requireActions) — exactly a LEFT-click on that action-bar button (GameUI belt act →
         // wdgmsg("belt", n, …)); mods is an optional modifier bitfield (0 default; Shift=1 Ctrl=2 Alt=4,
         // matching the keybind syntax). A ground-targeted ability then enters targeting mode (as clicking

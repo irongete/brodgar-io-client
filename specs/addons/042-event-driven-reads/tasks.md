@@ -284,7 +284,7 @@
       `[manual]` — create a ghost/sprite at a far coordinate the client has not streamed, then walk there.
       <!-- extra context: `src/io/brodgar/addon/RenderApi.java` (:580-625 addToScene/armPending), `src/io/brodgar/addon/LuaWorldEntity.java`, `src/haven/MapView.java` (addClientGob), `src/haven/MCache.java` (:57-67 LoadingMap), `learnings/ghosts.md` (grep "Loading") -->
 
-- [ ] **042.13 — the close: the poll stage is deleted, and the numbers are measured.**
+- [x] **042.13 — the close: the poll stage is deleted, and the numbers are measured.**
       **Delete the stage, do not gate it.** Remove from `AddonManager.tick`
       ([:398-433](src/io/brodgar/addon/AddonManager.java:398)): `CharApi.pollTreeAdapters()`,
       `UiApi.pollReplaced()`, `UiApi.pollWidgetSubs()`, `UiApi.pollSelectorWatches()`, `Layout.poll()`,

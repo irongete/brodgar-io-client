@@ -24,9 +24,9 @@ import java.util.Map;
  * {@code disappear} that set IS the question. For {@code appear} it is the dedup: a candidate carrying a
  * {@code [title=]}/{@code [res=]} refiner is re-checked for a bounded number of ticks after placement (a
  * {@code .res} window can receive its caption a tick late), and the tracked set is what keeps that re-check from
- * firing a second time for a widget that already matched. The set is pruned by the same per-tick poll that fires
- * {@code disappear}, so it holds only live widgets — a dead one is dropped the tick it dies (the
- * {@link WidgetSubs#poll} discipline: a strong reference for at most one tick, never a pin).
+ * firing a second time for a widget that already matched. The set is pruned at the same removal seam that fires
+ * {@code disappear} (event-driven since 042.9), so it holds only live widgets — a dead one is dropped the moment
+ * it is removed, never held as a pin.
  *
  * <p>The recorded value is the server widget id captured when the widget matched ({@code -1} for a client-only
  * one), because the death test is the same <b>two-branch</b> guard the restore list and the container watches use

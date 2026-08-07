@@ -24,6 +24,21 @@
   concurrently (the same discipline behind V2 click / L3 message). And `Maptest.run()` does NOT block: it submits the
   readback and returns while the frame still holds `ui`; the callback lands after the frame releases it. When adding a
   new callback surface, keep it under the `ui` monitor and it composes with everything else for free.
+- **(042.1) The `Waitable` idiom: retry-on-notify, not wait-once, and the cancel/notify race it creates.**
+  `Loading implements Waitable`, and `Waitable.waitfor(Runnable, Consumer<Waiting>)` registers a **one-shot**
+  continuation that fires on whichever thread completed the load (a Loader thread, a `Defer` pool thread) —
+  including *inline*, on the registering thread, if the value already resolved. `io.brodgar.addon.Resolve`
+  wraps this: the callback never touches Lua directly, it enqueues onto the tick drain (P5), and if the
+  retry throws a *different* `Loading` it re-registers on the new one rather than giving up (bounded, never
+  a fallback poll). Every `Waiting` is filed in the owning `Addon`'s registry so `:reload`/disable can
+  `cancel()` it — but `Waiting.cancel()` and `wnotify()` can run on two separate threads at the same instant,
+  so the marshalled callback must re-check the addon is still alive (or the entity not dead, or the widget
+  still in the tree) **inside the tick step**, not at registration time: checking once when you register buys
+  nothing against a cancel that lands a microsecond later on another thread. The blocking helpers
+  (`Loading.waitfor(Indir)`, `queuewait`, `waitforint`) must never be used from the UI thread — they park the
+  caller, which freezes the client. A *bare* `new Loading(...)` (no queue behind it, e.g. `GItem.sprite()`)
+  throws `Loading.UnwaitableEvent` instead of registering — that is the signal the read belongs in a stated
+  boundary (D-092), not behind a hidden retry.
 - **(042.10) `UILoop.Frame.tick` runs input dispatch BEFORE `ui.tick()`, which is what makes marshalling an
   input-driven re-derive onto the tick queue land in the SAME frame, not a frame later.** Its body is
   `loop.dispatch(ui)` (mouse/keyboard — a drag's `MouseMoveEvent`, `Window.mousemove` → `move(...)`) then

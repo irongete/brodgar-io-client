@@ -594,7 +594,7 @@ public final class LuaWidget {
         // Draw/Tick/Drop/Close and ItemAdded/ItemRemoved/Destroy are GONE as chained-setter verbs (041.4): they
         // answer through the one door every other key does now, widget:on(key, fn) above — Draw/Tick/Drop/Close
         // on an owned surface, ItemAdded/ItemRemoved/Destroy on any widget. See AddonWidget (the first three)
-        // and WidgetSubs#poll (the poll-based three).
+        // and WidgetSubs (the tree-key three, event-driven off placement/removal since 042.7).
         // items() — 029.3: the items INSIDE this widget, as an array of Item OBJECTS. A RELATION on the
         // container, exactly like :children() — an Inventory (the backpack, a chest, a cupboard), an Equipory
         // (whose worn items say which slots they fill), or any widget with WItems under it (children(WItem.class)

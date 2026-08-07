@@ -1,0 +1,9 @@
+{
+  "name": "042.13 -- the close: the poll stage is gone",
+  "id": "042-event-driven-reads.13",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 042.13: every documented event in the feature's catalogue still fires with an unchanged name and payload after the per-frame poll stage is deleted, and idling with all of them subscribed at once produces zero.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

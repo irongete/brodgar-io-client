@@ -255,7 +255,7 @@ public final class LuaBuff {
     /**
      * The buffs currently ON the bar, in {@link Bufflist} child order (which is the order they are drawn):
      * one pass over the live children, minus any fading out after a server removal. The single scan both
-     * {@code :list()} and the {@code BuffsAdapter} poll share.
+     * {@code :list()} and the {@code BuffsAdapter} share.
      */
     static List<Buff> actives() {
         List<Buff> out = new ArrayList<Buff>();

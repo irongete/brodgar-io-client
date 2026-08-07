@@ -107,7 +107,8 @@ final class UiApi {
     // Session-scoped (cleared per init; the tree is rebuilt).
     private static final List<WidgetSubs> widgetSubsWatching = new CopyOnWriteArrayList<WidgetSubs>();
 
-    /** {@link WidgetSubs#on}: the first poll-key subscription on a widget joins the flat watch list. */
+    /** {@link WidgetSubs#on}: the first tree-key ({@code ItemAdded}/{@code ItemRemoved}/{@code Destroy})
+     *  subscription on a widget joins the flat watch list. */
     static void registerInterest(WidgetSubs s) {
         widgetSubsWatching.add(s);
     }
@@ -890,9 +891,10 @@ final class UiApi {
 
     /**
      * Register a selector subscription ({@code hafen.ui.on(selector, "appear"|"disappear", fn)}): parse the selector
-     * ONCE, install the {@link LuaSelectorWatch} in the global list (consulted at the placement seam and polled each
-     * tick) and in the addon's owned-resource registry (dropped on reload/disable, P2), then SCAN the live tree once
-     * so an already-open target is not missed. Returns the Lua handle ({@code :remove()}).
+     * ONCE, install the {@link LuaSelectorWatch} in the global list (consulted at the placement seam and the removal
+     * seam, event-driven since 042.9 — no per-tick sweep) and in the addon's owned-resource registry (dropped on
+     * reload/disable, P2), then SCAN the live tree once so an already-open target is not missed. Returns the Lua
+     * handle ({@code :remove()}).
      */
     private static LuaValue newSelectorWatch(final Addon owner, LuaValue selv, LuaValue eventv, LuaValue fn) {
         final String where = "hafen.ui.on(selector, event, fn)";

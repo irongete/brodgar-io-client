@@ -46,7 +46,7 @@ import static io.brodgar.addon.AddonManager.*;
  *       door and {@code hafen.world():grid()} hand back the <b>same interned object</b>: one Grid entity, two
  *       doors, each answering {@code nil} for what its own half does not have.</li>
  *   <li>{@code :marker()} — the pins ({@link LuaMarker}), the old {@code hafen.markers}, with the two ungated
- *       writes and the {@code MarkersChanged} poll ({@link #pollMarkers}) that reports them.</li>
+ *       writes and the {@code MarkersChanged} notify (event-driven since 042.11) that reports them.</li>
  *   <li>{@code :icon()} — the minimap icon registry ({@link LuaIconCat}; the engine has no "radar", it has
  *       {@link GobIcon.Settings} — D-061). {@code :get(res)} beside {@code :list(filter)} <b>deletes</b> the
  *       old split-the-argument-by-shape heuristic: the verb says which you meant, so nothing has to.</li>
@@ -303,8 +303,9 @@ final class MapApi {
     // SESSION-LOCAL conveniences, present only when the marker is in the player's current segment. Reads
     // copy the marker list under the MapFile read lock (it is mutated on loader threads — server markobj
     // adds, segment merges), then build snapshots outside the lock (the OCache gob-read discipline). Adds/
-    // removes go straight to the shared DB and persist. MarkersChanged is fired by pollMarkers() when
-    // MapFile.markerseq changes (a marker add/remove is not a uimsg — poll it, like buffs/study).
+    // removes go straight to the shared DB and persist. MarkersChanged is fired by a notify at the
+    // MapFile.markerseq bump itself (042.11, event-driven — a marker add/remove is not a uimsg, so the
+    // bump is caught at its source and marshalled onto the tick rather than diffed every frame).
 
     private static final java.awt.Color DEFAULT_MARKER_COLOR = new java.awt.Color(255, 215, 0);  // gold pin
 

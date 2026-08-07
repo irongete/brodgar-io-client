@@ -13,6 +13,8 @@ end)
 sub:off()
 ```
 
+> Every event on this bus fires in the frame its change happens, never a frame later.
+
 ## Subscribe
 
 | Function | Returns | Description |
