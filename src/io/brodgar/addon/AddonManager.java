@@ -153,6 +153,10 @@ public final class AddonManager {
     // as onWidgetRemoved), so the tap only enqueues; tick() drains one frame's worth (D-106) and offers each
     // to Layout.dispatchResized, which re-derives whatever hangs off it and is free when nothing does.
     private static final Queue<Widget> resizedWidgets = new ConcurrentLinkedQueue<Widget>();
+    // 042.11: marker-change notify — MapFile.markerseq bumps from add/remove/update on the processor thread
+    // or the UI thread, and from segment merges on the loader thread. The notify is marshalled onto the tick
+    // to avoid deadlock with the map DB's RW lock. Only the count is queued (041.1).
+    private static final Queue<Integer> markerChangeQueue = new ConcurrentLinkedQueue<Integer>();
 
     // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
     // Adapters read a GameUI widget tree into a Lua snapshot and fire a semantic event on change. The
@@ -279,6 +283,7 @@ public final class AddonManager {
         resolveQueue.clear();         // 042.1: and any Resolve retry queued from the old session
         beltSetQueue.clear();         // 042.6: and any deferred belt-write notify queued from the old session
         resizedWidgets.clear();       // 042.10: and any resize notify queued from the old session
+        markerChangeQueue.clear();    // 042.11: and any marker-change notify queued from the old session
         HttpApi.reset();              // N2a: drop stale HTTP completions (their requests were torn down above)
         addonRoot = null;
         ocCb = null;
@@ -475,10 +480,12 @@ public final class AddonManager {
             //        inputs' own events now, never on a fold.
             Layout.drainPendingCaption();
 
-            // 1d. Map markers (A1): fire MarkersChanged when the on-disk map DB's markerseq changes (a
-            //     marker add/remove is not a uimsg — the server pushes SMarkers via markobj, the player/
-            //     addon adds PMarkers, and segment merges re-key them; all bump markerseq). Global event.
-            MapApi.pollMarkers();
+            // 1d. Map markers (A1, 042.11, event-driven): fire MarkersChanged when the on-disk map DB's
+            //     markerseq changes (a marker add/remove is not a uimsg — the server pushes SMarkers via
+            //     markobj, the player/addon adds PMarkers, and segment merges re-key them; all bump markerseq).
+            //     The bump is caught at its source and marshalled onto the tick to avoid deadlock with the
+            //     map DB's RW lock. Global event.
+            drainMarkerChanges();
 
             // 2. "Entered the world" — fire EnterWorld once the HUD (GameUI) is not just built but
             //    ATTACHED to ui.root. The map view sets enterWorldPending from its ctor (loader thread),
@@ -1203,6 +1210,37 @@ public final class AddonManager {
                 CharApi.dispatchBeltSet(slot);
             } catch(RuntimeException e) {
                 log("belt-set dispatch error: " + e);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------- map markers (A1, 042.11)
+
+    /**
+     * Map marker count changed — the on-disk map DB's {@link haven.MapFile#markerseq} bumped on add/remove/
+     * update (UI or processor thread) or segment merge (loader thread). Fire MarkersChanged with the new count
+     * payload. This only enqueues; {@link #tick(double)} drains it on the UI thread, same shape as the other
+     * marshalled queues (D-106, to avoid deadlock with the map DB's RW lock).
+     *
+     * <p><b>Must not touch Lua.</b>
+     */
+    public static void onMarkersChanged(int count) {
+        markerChangeQueue.add(count);
+    }
+
+    /**
+     * Deliver the marker-count changes captured since the last tick, one frame's worth (D-106) — fire
+     * MarkersChanged with each count.
+     */
+    private static void drainMarkerChanges() {
+        for(int n = markerChangeQueue.size(); n > 0; n--) {
+            Integer count = markerChangeQueue.poll();
+            if(count == null)
+                break;
+            try {
+                MapApi.fireMarkersChanged(count);
+            } catch(RuntimeException e) {
+                log("marker-change dispatch error: " + e);
             }
         }
     }

@@ -1,0 +1,9 @@
+{
+  "name": "042.11 — map markers",
+  "id": "042-event-driven-reads.11",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 042.11: map marker events fire once per change, with the new count.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

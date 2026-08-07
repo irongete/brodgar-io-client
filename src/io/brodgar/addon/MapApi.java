@@ -435,15 +435,28 @@ final class MapApi {
         return true;
     }
 
-    /** Fire MarkersChanged when the DB's markerseq changes (a marker add/remove is not a uimsg — poll it). */
-    static void pollMarkers() {
+    /**
+     * Fire MarkersChanged when the DB's markerseq changes — called from the marshalling queue when a marker
+     * add/remove/update bump seq happens (042.11, event-driven). The initial set that is loaded from disk
+     * does not cause seqchanges and does not arrive as an event; only user/server-initiated changes do.
+     * On the first notify after session init, prime to capture the post-change state, and fire to report
+     * the change.
+     */
+    static void fireMarkersChanged(int seq) {
         MapFile file = mapfile();
         if(file == null)
             return;
-        int seq = file.markerseq;
         if(!markersPrimed) {
+            // First notify after login: prime with current state and fire to report the first real change
             markersPrimed = true;
-            lastMarkerSeq = seq;                  // prime silently; the initial set is read via markers.list()
+            lastMarkerSeq = seq;
+            int count;
+            file.lock.readLock().lock();
+            try { count = file.markers.size(); }
+            finally { file.lock.readLock().unlock(); }
+            // The COUNT itself, not a { count = n } wrapper (041.1): one thing to say is said directly, and
+            // the wrapper was the only field this payload ever had.
+            fire("MarkersChanged", LuaValue.valueOf(count));
             return;
         }
         if(seq != lastMarkerSeq) {
@@ -452,8 +465,6 @@ final class MapApi {
             file.lock.readLock().lock();
             try { count = file.markers.size(); }
             finally { file.lock.readLock().unlock(); }
-            // The COUNT itself, not a { count = n } wrapper (041.1): one thing to say is said directly, and
-            // the wrapper was the only field this payload ever had.
             fire("MarkersChanged", LuaValue.valueOf(count));
         }
     }

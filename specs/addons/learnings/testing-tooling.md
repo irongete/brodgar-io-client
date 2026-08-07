@@ -1161,3 +1161,20 @@
   (`consoleOwner`) is covered identically, and `anyHidden` recomputes correctly both ways. The one thing
   this cannot reach — confirmed separately, in-game — is the visible consequence of NOT going through
   `replace(nil)`: see `widget-replacement.md`'s 042.8 entry.
+
+- **(042.11) TESTING.md's own copy-paste skeleton was stale against the CURRENT API, and a suite that
+  copies it verbatim fails SILENTLY — "no such command" in-game, with the real reason (a `LuaError` from a
+  retired dotted spelling) only ever reaching the terminal `AddonRegistry.loadAll` logs to, not the console
+  the maintainer was watching.** The skeleton predates 039-uniform-api and used `hafen.log(msg)` /
+  `hafen.slash.register(name, fn)` — both retired, both throwing (`Retired.NAMES`) naming their colon-call
+  replacements (`hafen.log():write(msg)`, `hafen.slash():register(name, fn)`). Because
+  `hafen.slash.register(...)` was the file's last top-level statement, the throw happened during
+  `Addon.run()`'s file body execution, which is caught and stored as `addon.error` — so the addon never
+  registered its command and never surfaced *why* in-game. **Verify a NEW suite loads cleanly, not just
+  that it parses**: `luac -p` (018.4) only proves syntax, and this bug was syntactically valid Lua. The
+  033.3 recipe (a same-package probe: `Manifest.load(dir)` on the REAL manifest, a throwaway `Addon` +
+  `Sandbox.create()`, `AddonManager.installHafen`, then `owner.run()`) catches it in one run: check
+  `owner.error == null` AND `owner.slashCommands` is non-empty before ever asking the maintainer to
+  `:reload`. TESTING.md's skeleton was fixed the same task (both calls updated to the current colon form) —
+  if a future skeleton drifts from the API again, this is the check that catches it before a verification
+  round is spent on "no such command."

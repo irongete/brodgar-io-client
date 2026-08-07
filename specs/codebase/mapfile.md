@@ -44,12 +44,15 @@
   says which tags it carries, several resources may share one (hence `olrender`'s composite), and `olid.get()`
   throws `Loading` — who *displays* them is in [world-3d.md](world-3d.md) (`realm` here, `prov` there).
   Markers (`:277`–`:437`): `Marker{seg, tc, nm}`, `PMarker` (colour, onmap), `SMarker` (oid, res, data).
-  `add`/`remove` take the write lock, `defersave()` and bump `markerseq` (`:48`) — the only change
-  signal there is. **A `Marker` object is loaded once and mutated in place**, so its Java identity IS
-  stable, unlike a segment's or a grid's.
+  `add`/`remove`/`update` take the write lock (`update` the read lock — it mutates a field in place, not
+  the collection), `defersave()`, bump `markerseq` (`:48`) and call `AddonManager.onMarkersChanged`
+  (`// addon:`, 042.11) — the addon layer's `MarkersChanged` notify, marshalled onto the tick so it never
+  fires from inside the DB's own lock. **A `Marker` object is loaded once and mutated in place**, so its
+  Java identity IS stable, unlike a segment's or a grid's.
 - `merge(dst, src, soff)` (`:1525`) is the trap the whole anchor rule exists for: it re-bases the loser's
-  grid coords **and rewrites every marker's `seg`/`tc` in place**. A stored segment coord does not go
-  stale, it points somewhere else. A grid id is the server's and never moves (D-096).
+  grid coords **and rewrites every marker's `seg`/`tc` in place**, bumping `markerseq` and firing the same
+  notify once if any marker moved. A stored segment coord does not go stale, it points somewhere else. A
+  grid id is the server's and never moves (D-096).
 - `update(MCache, Coord cgc)` (`:2029`) queues the 3×3 grids around a coord; `GameUI.mapfilesave`
   (`haven/GameUI.java:1315`) calls it whenever the player's grid or its `seq` changes — which is why the
   recorded grid under the player is current.
@@ -69,6 +72,9 @@
 - **`Loading` is everywhere on this path** (`Indir.get`, a tileset resource, `olid.get`) and it is a
   `RuntimeException`: catch broadly at the API boundary or it escapes into user code.
 - A grid id and a segment id are **64-bit**; expose them as decimal strings, never Lua numbers.
-- `markerseq` does **not** bump for markers loaded from disk at startup — prime the poll, do not fire it.
+- `markerseq` does **not** bump for markers loaded from disk at startup, so the initial load never calls
+  `onMarkersChanged`. Every call into it is therefore already a **real** change — `MapApi.fireMarkersChanged`
+  fires on the first call too (it primes `lastMarkerSeq` and fires in the same call), unlike the old poll's
+  prime-then-skip: there is no "first tick after login" to distinguish from a real one anymore (042.11).
 - `new MapFile(null, "")` does no I/O, but a read NPEs *inside a `Defer` task* and surfaces wrapped rather
   than clean — give a headless probe a real (in-memory) store.

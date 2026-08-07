@@ -242,7 +242,7 @@
       idle ⇒ silence. `[manual]` — open an anchored window, drag its target, resize the game window.
       <!-- extra context: `src/io/brodgar/addon/Layout.java` (:460-510 poll/redrive/alive/apply), `src/io/brodgar/addon/LuaWidget.java` (anyMoved/pruneMoved), `src/haven/Widget.java` (:1530 move, :1534 resize, :1563 cresize, :916 listen/deafen), `src/haven/Window.java` (:147 the drag writing c), `src/io/brodgar/addon/WidgetSubs.java` (the listen idiom), `specs/addons/decisions/widgets-ui.md` (D-091, to supersede), `036-ui-layout/` -->
 
-- [ ] **042.11 — map markers.**
+- [x] **042.11 — map markers.**
       `MapApi.pollMarkers` ([MapApi.java:439](src/io/brodgar/addon/MapApi.java:439)) goes. It watches
       `MapFile.markerseq`, which is bumped by the map DB's own processor thread — the server pushing
       `SMarkers` via `markobj`, an addon adding a `PMarker`, and a **segment merge re-keying** them.

@@ -97,10 +97,10 @@ local pass, fail, manual = 0, 0, 0
 local function check(ok, what, got)
   if ok then
     pass = pass + 1
-    hafen.log("[pass] " .. what)
+    hafen.log():write("[pass] " .. what)
   else
     fail = fail + 1
-    hafen.log("[fail] " .. what .. " -- got: " .. tostring(got))
+    hafen.log():write("[fail] " .. what .. " -- got: " .. tostring(got))
   end
 end
 
@@ -117,7 +117,7 @@ end
 
 local function manualCheck(step, expect)
   manual = manual + 1
-  hafen.log("[manual] " .. step .. " -- expect: " .. expect)
+  hafen.log():write("[manual] " .. step .. " -- expect: " .. expect)
 end
 
 local function run()
@@ -127,11 +127,21 @@ local function run()
   refuses("an unknown property is refused",
           function() hafen.ui.skin{ chat = { colour = { 1, 2, 3 } } } end, "unknown property")
   manualCheck("open the chat and read a line", "grey-blue text (200,210,220), font unchanged")
-  hafen.log(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
+  hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
-hafen.slash.register("t033-2", run)   -- the only way in: a suite does not start itself
+hafen.slash():register("t033-2", run)   -- the only way in: a suite does not start itself
 ```
+
+**Copy the shape, verify the calls.** This example is 033.2's own suite and was written against the API
+at the time; a section is always `hafen.<name>():<verb>(...)` (a colon call on the CALLED section — see
+`docs/addons/api/conventions.md`), never `hafen.<name>.<verb>(...)`. The dotted form throws, naming the
+colon-call replacement (`Retired.NAMES`) — and if that throw happens at file scope (not inside a function),
+the whole addon fails to load and its slash command never registers, which surfaces in-game as a bare
+"no such command" with no hint why (042.11, `learnings/testing-tooling.md`). Before handing a new suite to
+the maintainer, load it through the 033.3-style headless probe (`learnings/testing-tooling.md`) and check
+`owner.error == null` and the command is in `owner.slashCommands` — that catches this class of bug in one
+run, before a verification round is spent on it.
 
 - **A suite NEVER starts itself.** No `OnEnterWorld`, no login timer. The maintainer runs it when
   they want it, and that is the whole scheduling model — nothing needs a startup slot to avoid
