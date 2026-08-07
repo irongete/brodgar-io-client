@@ -444,11 +444,14 @@ public final class AddonManager {
             //      onWidgetPlaced -> UiApi.dispatchWidgetSubsPlaced) and every removal (drainRemovedWidgets, via
             //      UiApi.dispatchWidgetSubsRemoved), so there is nothing left for the tick to drive here.
 
-            // 1c''. Selector subscriptions (030.2): re-check the widgets placed in the last few ticks whose
-            //       [title=]/[res=] refiner had not resolved yet (a caption arrives by uimsg, a tick after
-            //       placement), then fire `disappear` for every tracked widget that has left the tree. Gated on
-            //       somebody having subscribed — an idle client pays one isEmpty().
-            UiApi.pollSelectorWatches();
+            // 1c''. Selector subscriptions (030.2, event-driven since 042.9): `disappear` is fully driven by the
+            //       removal seam above (drainRemovedWidgets, via UiApi.dispatchSelectorRemoved) — nothing to do
+            //       here for it. The [title=]/[res=] refiner's bounded re-check is woken by the caption uimsg
+            //       (CharApi.dispatchUimsg -> UiApi.markCaptionChanged), but that tap runs OFF the UI thread
+            //       (gotcha 1) and so only sets a flag; the actual re-check (widget reads + any Lua) happens here,
+            //       on the UI thread, gated on that flag — an idle client, or one with nothing pending, pays one
+            //       boolean read.
+            UiApi.drainSelectorCaptionCheck();
 
             // 1c'''. Layout (036.2): re-offer the widgets placed in the last few ticks whose layout rule's
             //        [title=]/[res=] had not resolved yet (the same late caption the line above waits for), then
@@ -1119,6 +1122,7 @@ public final class AddonManager {
             CharApi.dispatchRemoved(w);
             UiApi.dispatchWidgetSubsRemoved(w);
             UiApi.dispatchReplacedRemoved(w);
+            UiApi.dispatchSelectorRemoved(w);             // addon: 042.9 — widget removal → fire selector disappear
         }
     }
 

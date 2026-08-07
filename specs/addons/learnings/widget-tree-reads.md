@@ -316,3 +316,22 @@
   in the same call — cheaper than the old poll's version of this (immediate rather than one tick later) but
   easy to silently drop if the seeding call is forgotten, since nothing else exercises that path in a
   same-session test (only a fresh subscribe does).
+- **(042.9) A consumer of `onUimsg` that reads widget state or calls Lua must MARSHAL, never act inline —
+  a second, independent near-miss of the same hazard 042.1's javadoc fix already named.** A first draft had
+  the selector-watch late-refiner re-check call `Selector.matches`/`callLua` directly from inside
+  `CharApi.dispatchUimsg` — which runs on whatever thread applied the uimsg (a Loader thread), OUTSIDE
+  `synchronized(ui)` (`UI.java:730-732` closes the monitor before calling `AddonManager.onUimsg`). That is a
+  race with tick/draw and a P5 violation, caught only by re-deriving the threading claim from `UI.java` rather
+  than trusting the doc comment. The fix, same shape as `removedWidgets`/`resolveQueue`/`beltSetQueue`: the
+  uimsg tap sets a bare `volatile boolean` flag and nothing else; the actual read + any Lua call happens from
+  `AddonManager.tick`, under the UI monitor. **Rule for any future `onUimsg` consumer:** the tap body may only
+  mark/enqueue; if the fix "obviously" fits in the tap itself, that is the tell that hazard 1 is about to bite.
+- **(042.9) A per-tick poll being deleted can leave behind orphaned STATE, not just orphaned CODE — check what
+  the poll used to clean up besides firing events.** The old `pollSelectorWatches()` special-cased clearing
+  `pending` (a list of widgets awaiting a late `[title=]`/`[res=]`) whenever `selectorWatches` went empty; once
+  the poll was gone, nothing did, so removing the last selector subscription silently leaked every `Widget`
+  reference still sitting in `pending`. Fixed at both removal sites (`removeSelectorWatch`,
+  `teardownSelectorWatches`): clear `pending` when `selectorWatches.isEmpty()`. **`Layout.java` owns the
+  identical shape** (its own `pending`/`RECHECK_TICKS` bounded re-check, same reason) — 042.10, deleting
+  `Layout.poll()`, needs the same audit: read the WHOLE poll method being deleted for side-effects beyond
+  the event it fires, not just the event.

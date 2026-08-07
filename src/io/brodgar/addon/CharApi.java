@@ -72,15 +72,24 @@ final class CharApi {
 
     /** The inbound-uimsg tap body (behind AddonManager.onUimsg): flag the interested adapter(s) dirty. */
     static void dispatchUimsg(Widget w, String msg) {
-        if((w == null) || treeAdapters.isEmpty())
+        if(w == null)
             return;
-        for(TreeAdapter a : treeAdapters) {
-            try {
-                if(a.interested(w, msg))
-                    treeDirty.add(a);
-            } catch(RuntimeException e) {
-                /* an adapter's recognizer must never break server message application */
+        if(!treeAdapters.isEmpty()) {
+            for(TreeAdapter a : treeAdapters) {
+                try {
+                    if(a.interested(w, msg))
+                        treeDirty.add(a);
+                } catch(RuntimeException e) {
+                    /* an adapter's recognizer must never break server message application */
+                }
             }
+        }
+        if(msg == "cap") {
+            // 042.9: a window's caption just landed — a [title=] refiner may now resolve. This tap runs on
+            // whatever thread applied the message (a Loader thread, OUTSIDE synchronized(ui) — UI.java:730-732),
+            // so it may only set a flag; UiApi.drainSelectorCaptionCheck() does the actual widget read + any Lua
+            // call from the tick, on the UI thread (P5, gotcha 1).
+            UiApi.markCaptionChanged();
         }
     }
 

@@ -1,0 +1,9 @@
+{
+  "name": "042.9 — selector watches",
+  "id": "042-event-driven-reads.9",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 042.9: selector subscriptions are event-driven (appear when caption arrives, disappear when widget is removed).",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

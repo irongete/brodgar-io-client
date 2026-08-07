@@ -188,7 +188,7 @@
       `[manual]` — replace a window, then have the server close it (or close it natively).
       <!-- extra context: `src/io/brodgar/addon/UiApi.java` (pollReplaced/sweepReplaced), `src/io/brodgar/addon/LuaWidget.java` (anyHidden), `032-replace-verb/`, `031-window-lifecycle/` -->
 
-- [ ] **042.9 — selector watches.**
+- [x] **042.9 — selector watches.**
       `UiApi.pollSelectorWatches` ([UiApi.java:938](src/io/brodgar/addon/UiApi.java:938)) goes. Two
       halves: the bounded re-check for a `[title=]`/`[res=]` refiner that could not resolve at placement
       (**the caption arrives as a uimsg a tick later — the existing tap sees it**), and `disappear` for a
