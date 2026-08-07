@@ -203,7 +203,7 @@
       `[manual]` — open a window whose caption the selector matches, then close it.
       <!-- extra context: `src/io/brodgar/addon/UiApi.java` (pollSelectorWatches, the watch records), `src/io/brodgar/addon/Selector.java`, `030-ui-selectors/` -->
 
-- [ ] **042.10 — the layout cascade: `redrive` is deleted, and D-091 is superseded.**
+- [x] **042.10 — the layout cascade: `redrive` is deleted, and D-091 is superseded.**
       `Layout.poll()` ([Layout.java:468](src/io/brodgar/addon/Layout.java:468)) is **three halves**, all
       three decided (plan.md §M4, D-181 — **this task carries no open question**):
       (a) `pending` — the late `[title=]`/`[res=]` caption → **uimsg**, same as 042.9;

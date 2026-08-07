@@ -2,50 +2,45 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 9 of 13 tasks done (042.1-042.9),
-042.10 (the layout cascade, `redrive` deleted, D-091 superseded) next. The addon layer synthesises its
-`*Changed`/`*Added` events by **polling the widget tree every frame** (11 sites, 6 of them
-`TreeAdapter`s) instead of listening at the moment a change happens. 042 wires them to the four seams
-the client already publishes — the `uimsg` tap, widget placement/removal, geometry, and `Loading`'s
-`Waitable` resolution notify — and **deletes the poll stage**: no gate, no fallback, no dual path.
-**Five core taps** (the plan originally budgeted three; 042.2 found one fading widget needs its own,
-042.7 found a second), each a one-liner: `Widget.remove` (override-proof where `cdestroy` is not — 9 of
-17 overrides skip `super`), `Buff.reqdestroy` and `Window.reqdestroy` (both reuse the same hub method,
-from a second/third call site at the fade's START, not its late unlink), `Widget.resize` (which every
-size change funnels through, screen included), and a notify inside the two `setbelt` paths that defer
-the `belt[]` write. Decisions D-178..D-182 (D-180 now has two consumers), of which **D-181 supersedes
-D-091** (*"a derived position is re-derived by POLLING what it reads"*). Closes the ROADMAP's *"Per-frame
-cost of the addon layer's polling suite"*.
+**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 10 of 13 tasks done (042.1-042.10),
+042.11 (map markers) next. The addon layer synthesises its `*Changed`/`*Added` events by **polling the
+widget tree every frame** (11 sites, 6 of them `TreeAdapter`s) instead of listening at the moment a
+change happens. 042 wires them to the four seams the client already publishes — the `uimsg` tap, widget
+placement/removal, geometry, and `Loading`'s `Waitable` resolution notify — and **deletes the poll
+stage**: no gate, no fallback, no dual path. **Six core taps** (the plan originally budgeted three;
+042.2/042.7/042.10 each found one more was unavoidable), each a one-liner: `Widget.remove`
+(override-proof where `cdestroy` is not — 9 of 17 overrides skip `super`), `Buff.reqdestroy` and
+`Window.reqdestroy` (reuse the removal hub from a second/third call site at the fade's START, not its
+late unlink), `Widget.resize` and `Window.resize` (reuse the resize hub from a second call site — `Window`
+skips `super.resize` outright, the same override gap one method over; of 17 `resize(Coord)` overrides
+only `Window` and `Tabs` skip it, `Tabs` a flagged, unfixed residual), and a notify inside the two
+`setbelt` paths that defer the `belt[]` write. Decisions D-178..D-182, of which **D-181 supersedes D-091**
+(*"a derived position is re-derived by POLLING what it reads"*). Closes the ROADMAP's *"Per-frame cost of
+the addon layer's polling suite"*.
 
-**042.9 DONE — `UiApi.pollSelectorWatches` goes; `disappear` moves onto M1, the late `[title=]`/`[res=]`
-re-check moves onto the caption uimsg.** `disappear` fires the instant a tracked widget is removed
-(`dispatchSelectorRemoved`, off the same `drainRemovedWidgets` drain every other 042 seam uses); the
-bounded `pending` re-check wakes on a window's `"cap"` uimsg instead of a per-tick countdown
-(`markCaptionChanged`/`drainSelectorCaptionCheck` — the uimsg tap only sets a flag, since it runs off the
-UI thread; the actual read + any Lua runs from the tick, under the monitor — a near-miss caught before
-shipping, `learnings/widget-tree-reads.md`). `removeSelectorWatch`/`teardownSelectorWatches` now clear
-`pending` when the last subscription goes, closing a leak the old poll used to special-case away.
-Verified in-game: building/destroying its own window proved appear/disappear/idle-silence/never-match
-automatically; 4 manual cupboard open/close cycles produced exactly 4 late-caption matches, none on
-close, none doubled.
+**042.10 DONE — `Layout.poll()`/`redrive()` go; an anchor re-derives on its own inputs' events.** The
+late-caption `pending` re-check moves onto the same `"cap"` uimsg 042.9 already wired; a departed
+widget's layout record and (if unused) its drag listener drop at M1; a target resizing or a window
+packing itself rides the new `Widget.resize`/`Window.resize` taps; a target's drag rides one
+`Widget.listen(MouseMoveEvent)` per anchor target (`Layout.retarget`, install/drop tracked against
+`derived`), a zero-`haven`-edit seam. Two real bugs surfaced only in-game, both fixed in `Layout.java`
+alone: the drag lagged one input event (the listener read the target's position from *before*
+`shandle()`'s `move()` ran — fixed by marshalling the re-derive onto the same tick-drained queue the
+resize seam uses, landing same-frame since input dispatch precedes `ui.tick()`); a `{to="screen"}` anchor
+never re-derived on the game window's own resize at all (`moved(w)`'s `to==WIDGET` filter silently skips
+it — fixed with a dedicated `rederiveScreenAnchored()` off `dispatchResized` when the resized widget IS
+`ui.root`). Both lessons in `learnings/ui-widgets.md`/`threading.md`; the resize-override survey in
+`specs/codebase/widgets.md`.
 
-**042.7-042.8 DONE** — `WidgetSubs`'s per-widget `Destroy`/`ItemAdded`/`ItemRemoved` and
-`UiApi.pollReplaced`/`sweepReplaced` both move onto the placement/removal seams. `Destroy` fires from
-M1 (including a fading `Window`, D-180's second consumer); `ItemAdded`/`ItemRemoved` check both `WItem`
-and `GItem` (a container's `WItem` wrapper is client-side-only and never itself reaches
-`onWidgetPlaced`). A server-destroyed `widget:replace(view)` substitution ends the instant M1 fires
-(the same `hiddenIn` lookup the click-path toggle uses); `LuaWidget.anyHidden` stays as a fast-path
-gate, no longer gating a loop. Verified in-game idle-silent with exactly-once firing on real
-inventory/equipment/chest cycles and a natively-closed cupboard.
-
-**042.1-042.6 DONE** — the six `TreeAdapter`s port to M1 (removal)/M3 (placement)/M2 (`Resolve`), each
-verified in-game idle-silent with exactly-once firing: `MeterAdapter`/`BuffsAdapter` first proved M1
-(`BuffRemoved` at `Buff.dest`, not 0.35s later — D-180); `EquipAdapter`/`StudyAdapter` proved `Resolve`
-on real streaming `GItem.info()` data (`Loading`'s unwaitable boundary, D-092); `WoundAdapter` moved
-onto `WoundWnd`'s own `"wounds"` uimsg + `Resolve` for late severity (rode along: `Resolve`'s routine
-"unwaitable" refusal stopped posting to chat, via `AddonManager.logDiag`); `ActionbarAdapter` closed
-the belt's deferred-write case (`AddonManager.onBeltSet(slot)` inside the two `glob.loader.defer`
-lambdas, D-178), `cooldown` excluded from the change key.
+**042.1-042.9 DONE** — the widget-tree adapters and the UI-layer polls all ported onto M1
+(removal)/M3 (placement)/M2 (`Resolve`)/the uimsg tap, each verified in-game idle-silent with
+exactly-once firing: `MeterAdapter`/`BuffsAdapter` first proved M1 (`BuffRemoved` at `Buff.dest`, not
+0.35s later — D-180); `EquipAdapter`/`StudyAdapter` proved `Resolve` on real streaming `GItem.info()`
+data (D-092); `WoundAdapter` moved onto `WoundWnd`'s `"wounds"` uimsg + `Resolve`; `ActionbarAdapter`
+closed the belt's deferred-write case (`AddonManager.onBeltSet(slot)`, D-178); `WidgetSubs`'s per-widget
+`Destroy`/`ItemAdded`/`ItemRemoved` and `UiApi.pollReplaced`/`sweepReplaced` moved onto placement/removal
+(`Destroy` covers a fading `Window` too, D-180's second consumer); `UiApi.pollSelectorWatches` went,
+`disappear` off M1 and the late-caption re-check off the `"cap"` uimsg.
 
 **Before that**, all DONE (detail in each `NNN-` folder, one-line summaries in `FEATURES.md`): `041-unified-events` (one verb for every notification — `X:on(key, fn)` → a `Sub`, `hafen.hook()` deleted whole), `040-ui-controls` (18 of the client's own controls reach Lua, one builder per role), `039-uniform-api` (one grammar for 33 sections, one `position()`, the OOP migration finished), `038-gob-overlays` (`gob:overlay()` — the engine's own word for a thing attached to a gob), `037-map-database` (the RECORDED map on disk beside the live world — segments, grids, markers, masks, minimap drawings), `036-ui-layout` (position/size/anchor in the sheet, and a whole theme as a data file), `035-ui-chrome` (the sheet learns to DRAW), `034-ui-stylesheet-tree` (a tree key says WHICH widgets), `033-ui-stylesheet` (ONE table says what the client looks like), `032-replace-verb` (replacement is a verb on the entity; the `UI.NewWidget` core seam deleted), `031-window-lifecycle` (hiding a native window takes its toggle), `030-ui-selectors` (a tiny CSS-shaped grammar parsed once into a predicate), `029-widget-oop` (three objects for one widget became ONE interned entity), `028-asset-loader` (one loader for an addon's own files), `027-meters-oop`, `026-text-cache` (130 → 220-240 FPS on the harness), `025-buffs-oop`, `024-audio-oop` (the Track section was built to spec and then CUT — this server sends no MIDI), `023-menugrid-oop`, `022-actionbar-set`, `021-actionbar-oop`, `020-kin-oop`, `019-profiling`, `018-client-options`, `017-gob-oop`, and 001–016.
 

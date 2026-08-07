@@ -24,3 +24,12 @@
   concurrently (the same discipline behind V2 click / L3 message). And `Maptest.run()` does NOT block: it submits the
   readback and returns while the frame still holds `ui`; the callback lands after the frame releases it. When adding a
   new callback surface, keep it under the `ui` monitor and it composes with everything else for free.
+- **(042.10) `UILoop.Frame.tick` runs input dispatch BEFORE `ui.tick()`, which is what makes marshalling an
+  input-driven re-derive onto the tick queue land in the SAME frame, not a frame later.** Its body is
+  `loop.dispatch(ui)` (mouse/keyboard — a drag's `MouseMoveEvent`, `Window.mousemove` → `move(...)`) then
+  `ui.sess.glob.ctick()/gtick()` then `ui.tick()` (→ `AddonRoot`'s `TickEvent` → `AddonManager.tick`, which
+  drains the marshalled queues) then the `ui.root.resize(sz)` screen-size check. So a queue an input handler
+  enqueues onto and `AddonManager.tick` drains sees THIS frame's already-applied move, not last frame's —
+  the fix for `Layout`'s drag-anchor re-derive (see `ui-widgets.md`'s matching entry for the bug this solved).
+  The screen resize's OWN tap fires last in this same sequence, so ITS queue entry is necessarily read on
+  the *next* frame's drain — one frame's lag on a screen resize is therefore normal, not a bug.

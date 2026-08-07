@@ -28,18 +28,28 @@ addon layer wires two of them and re-derives the rest per frame.
 |---|---|---|
 | **The server pushes a value** | `UI.UiMessage.run` → `AddonManager.onUimsg(wdg, msg)` ([UI.java:732](src/haven/UI.java:732)) | **wired** — this is `refresh()`, already event-driven |
 | **A widget enters or leaves the tree** | enter: `UI.AddWidget.run` → `onWidgetPlaced(id, wdg)` ([UI.java:494](src/haven/UI.java:494)). leave: **`Widget.remove()`** ([Widget.java:570](src/haven/Widget.java:570)) | enter **wired**; **leave has no seam** — core tap 1 (D-179) |
-| **Geometry changes** — a widget resizes, a window packs itself, the screen changes | **`Widget.resize(Coord)`** ([Widget.java:1534](src/haven/Widget.java:1534)), which every size change funnels through and which already early-returns on a no-op. Position under a hand-drag: **`Widget.listen`**, a zero-edit seam | **no seam** — core tap 3 (D-181, superseding D-091) |
+| **Geometry changes** — a widget resizes, a window packs itself, the screen changes | **`Widget.resize(Coord)`** ([Widget.java:1534](src/haven/Widget.java:1534)), which nearly every size change funnels through (16 of 17 overrides call `super.resize`) and which already early-returns on a no-op — `Window` is the one that does not and gets the same tap from a second call site ([Window.java:428](src/haven/Window.java:428)). Position under a hand-drag: **`Widget.listen`**, a zero-edit seam | **no seam** — core tap 3 (D-181, superseding D-091) |
 | **A value the client is still loading arrives** | `Loading implements Waitable` ([Loading.java:32](src/haven/Loading.java:32)) → `waitfor(Runnable, Consumer<Waiting>)`, one-shot, cancellable via `Waiting.cancel()` ([Waitable.java:32](src/haven/Waitable.java:32)) | **exists in `haven`, used nowhere in `io.brodgar`** (D-182) |
 
-**Five core edits total**, each a one-line delegate into the hub, each tagged `// addon:`:
+**Six core edits total**, each a one-line delegate into the hub, each tagged `// addon:`:
 `Widget.remove` (042.1), `Buff.reqdestroy` (042.2, D-180 — a fade has no other seam at the moment it
 starts), the two `GameUI` deferred-belt lambdas (042.6), `Widget.resize` (042.10), `Window.reqdestroy`
-(042.7, D-180's second consumer — the same fade problem, on the widget `widget:on("Destroy", fn)` watches).
+(042.7, D-180's second consumer — the same fade problem, on the widget `widget:on("Destroy", fn)` watches),
+`Window.resize` (042.10, D-179's own reasoning applied a second time — see below).
 The plan originally budgeted three; 042.2 found that a widget which FADES (`dest = true`, then a 0.35s animation before the
 real unlink) has no addon-visible signal at the moment the server actually said "gone" — no `uimsg`, no
 existing seam — so `BuffRemoved` firing correctly (not 0.35s late) needed a fourth, reusing the same
 `AddonManager.onWidgetRemoved` hub method M1 already established. 042.7 found the identical problem on
 `Window` (`animst = "dest"` is the same shape as `Buff.dest`) and needed a fifth, the same reuse again.
+042.10 found a sixth: **`Window.resize(Coord)` does not call `super.resize`** — it dispatches straight to
+its own `resize2` (deco/chrome sizing) and never reaches `Widget.resize`'s body at all, so the geometry tap
+placed there is silently skipped for exactly the widget M4's own acceptance criterion names ("a window
+packing itself"). The same D-179 reasoning applies verbatim (*"a notification a subclass can skip is not a
+seam"*) — of the seventeen classes that override `resize(Coord)`, sixteen call `super.resize(sz)` and reach
+the tap that way; only `Window` (chrome sizing) and `Tabs` (a sub-tab strip, not a widget an addon's own
+selector would realistically single out — no title, no res, no distinguishing key — left as a known,
+narrow gap rather than a seventh edit) skip it outright. `Window.resize` gets the same one-line reused-hub
+call, from a second call site, the same shape D-180 already established for removal.
 
 So this is **not new machinery**. It is wiring the adapters to seams the client already has and then
 **deleting the poll stage** — no gate, no fallback, no dual path, no "poll as a safety net". Cost stops

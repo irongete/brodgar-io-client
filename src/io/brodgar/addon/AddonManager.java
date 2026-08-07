@@ -149,6 +149,10 @@ public final class AddonManager {
     // the notify goes where the write lands, not where the message arrived), so this only enqueues; tick()
     // drains it on the UI thread, same shape as the queues above.
     private static final Queue<Integer> beltSetQueue = new ConcurrentLinkedQueue<Integer>();
+    // 042.10: the geometry seam (M4) — Widget.resize() runs on whatever thread reached it (same uncertainty
+    // as onWidgetRemoved), so the tap only enqueues; tick() drains one frame's worth (D-106) and offers each
+    // to Layout.dispatchResized, which re-derives whatever hangs off it and is free when nothing does.
+    private static final Queue<Widget> resizedWidgets = new ConcurrentLinkedQueue<Widget>();
 
     // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
     // Adapters read a GameUI widget tree into a Lua snapshot and fire a semantic event on change. The
@@ -274,6 +278,7 @@ public final class AddonManager {
         removedWidgets.clear();       // 042.1: and the widget-removal queue — the old session's widgets are gone
         resolveQueue.clear();         // 042.1: and any Resolve retry queued from the old session
         beltSetQueue.clear();         // 042.6: and any deferred belt-write notify queued from the old session
+        resizedWidgets.clear();       // 042.10: and any resize notify queued from the old session
         HttpApi.reset();              // N2a: drop stale HTTP completions (their requests were torn down above)
         addonRoot = null;
         ocCb = null;
@@ -432,6 +437,12 @@ public final class AddonManager {
             //        just the one slot now that the write is actually there.
             drainBeltSet();
 
+            // 1b''''. Widget resizes (M4, 042.10) captured off-thread by the Widget.resize() tap → offered on
+            //         the UI thread, one frame's worth (D-106), to Layout.dispatchResized — an anchor target
+            //         resizing, a window packing itself, or the screen changing all funnel through this one
+            //         seam, and it is free (derived.isEmpty()) for a client with nothing anchored.
+            drainResizedWidgets();
+
             CharApi.pollTreeAdapters();
 
             // 1c. Replacements (032.1, event-driven since 042.8): the server destroying a window an addon
@@ -453,11 +464,16 @@ public final class AddonManager {
             //       boolean read.
             UiApi.drainSelectorCaptionCheck();
 
-            // 1c'''. Layout (036.2): re-offer the widgets placed in the last few ticks whose layout rule's
-            //        [title=]/[res=] had not resolved yet (the same late caption the line above waits for), then
-            //        drop the records of widgets that have left the tree. Nothing here re-derives per frame: a
-            //        client with no layout rule and nothing laid out by hand pays two empty-list reads.
-            Layout.poll();
+            // 1c'''. Layout (036.2, event-driven since 042.10): the late [title=]/[res=] refiner's bounded
+            //        re-check is woken by the same caption uimsg as the line above (CharApi.dispatchUimsg ->
+            //        Layout.markCaptionChanged, off the UI thread, flag-only per gotcha 1); the actual re-check
+            //        runs here, on the UI thread. Pruning a departed widget's layout record and re-deriving an
+            //        anchor's followers moved onto the removal seam (drainRemovedWidgets, via
+            //        Layout.dispatchRemoved) and the geometry seam (drainResizedWidgets, via
+            //        Layout.dispatchResized) above — redrive() and its per-tick fold over every anchored
+            //        widget are DELETED (D-181, superseding D-091): an anchored widget re-derives on its
+            //        inputs' own events now, never on a fold.
+            Layout.drainPendingCaption();
 
             // 1d. Map markers (A1): fire MarkersChanged when the on-disk map DB's markerseq changes (a
             //     marker add/remove is not a uimsg — the server pushes SMarkers via markobj, the player/
@@ -1123,6 +1139,9 @@ public final class AddonManager {
             UiApi.dispatchWidgetSubsRemoved(w);
             UiApi.dispatchReplacedRemoved(w);
             UiApi.dispatchSelectorRemoved(w);             // addon: 042.9 — widget removal → fire selector disappear
+            Layout.dispatchRemoved(w);                    // addon: 042.10 — drop its layout record, its pending
+                                                           // late-caption entry, and (if it was an anchor target)
+                                                           // any now-unused drag listener
         }
     }
 
@@ -1184,6 +1203,43 @@ public final class AddonManager {
                 CharApi.dispatchBeltSet(slot);
             } catch(RuntimeException e) {
                 log("belt-set dispatch error: " + e);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------- widget resize (M4, 042.10)
+
+    /**
+     * The <b>geometry seam</b> — the core edit at the end of {@code Widget.resize(Coord)} (spec {@code
+     * 042-event-driven-reads}, D-181, superseding D-091). Fires after the {@code Utils.eq} early return
+     * (never for a no-op resize) and after the {@code presize()} cascade and {@code parent.cresize} (so a
+     * consumer reads settled geometry) — the same discipline as {@link #onWidgetRemoved}. One tap covers all
+     * three of M4's size inputs: an anchor target resizing, a window packing itself ({@code pack()} ->
+     * {@code resize(contentsz())}), and the screen changing ({@code UILoop} calling {@code ui.root.resize(sz)}
+     * — the root is just another resize).
+     *
+     * <p><b>Must not touch Lua.</b> {@code resize()} is not guaranteed to run on the UI thread (it is reached
+     * from server message application as well as from tick/draw), so this only enqueues; {@link #tick(double)}
+     * drains and dispatches on the UI thread, exactly like {@link #onWidgetRemoved}.
+     */
+    public static void onWidgetResized(Widget w) {
+        resizedWidgets.add(w);
+    }
+
+    /**
+     * Deliver the widget resizes captured since the last tick, one frame's worth (D-106) — offered to
+     * {@link Layout#dispatchResized}, which re-derives whatever hangs off {@code w} (M4) and is a near-zero
+     * cost ({@code derived.isEmpty()}) for a client with nothing anchored.
+     */
+    private static void drainResizedWidgets() {
+        for(int n = resizedWidgets.size(); n > 0; n--) {
+            Widget w = resizedWidgets.poll();
+            if(w == null)
+                break;
+            try {
+                Layout.dispatchResized(w);
+            } catch(RuntimeException e) {
+                log("widget-resize dispatch error: " + e);
             }
         }
     }

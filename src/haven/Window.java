@@ -427,6 +427,7 @@ public class Window extends Widget {
 
     public void resize(Coord sz) {
 	resize2(sz);
+	io.brodgar.addon.AddonManager.onWidgetResized(this);   // addon: geometry seam, reused (042.10)
     }
 
     public void uimsg(String msg, Object... args) {

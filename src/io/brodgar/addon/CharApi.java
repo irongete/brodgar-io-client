@@ -85,11 +85,13 @@ final class CharApi {
             }
         }
         if(msg == "cap") {
-            // 042.9: a window's caption just landed — a [title=] refiner may now resolve. This tap runs on
-            // whatever thread applied the message (a Loader thread, OUTSIDE synchronized(ui) — UI.java:730-732),
-            // so it may only set a flag; UiApi.drainSelectorCaptionCheck() does the actual widget read + any Lua
-            // call from the tick, on the UI thread (P5, gotcha 1).
+            // 042.9/042.10: a window's caption just landed — a selector's or a layout rule's [title=]/[res=]
+            // refiner may now resolve. This tap runs on whatever thread applied the message (a Loader thread,
+            // OUTSIDE synchronized(ui) — UI.java:730-732), so it may only set a flag; the tick's
+            // UiApi.drainSelectorCaptionCheck()/Layout.drainPendingCaption() do the actual widget read + any
+            // Lua call, on the UI thread (P5, gotcha 1).
             UiApi.markCaptionChanged();
+            Layout.markCaptionChanged();
         }
     }
 

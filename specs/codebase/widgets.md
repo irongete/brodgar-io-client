@@ -38,6 +38,21 @@ inside `handle(Event)` — the current dispatch finishes against its old snapsho
 change (`io.brodgar.addon.WidgetSubs` relies on exactly this to swap one engine listener for a fresh one
 without racing the dispatch that triggered the swap). `listen`/`deafen` are per-instance, so a native widget
 that outlives a Lua-layer reload keeps whatever was registered on it until something explicitly `deafen`s it.
+**And it fires BEFORE the widget's own handling**, not after: `Widget.handle(Event)` checks `listening` before
+`ev.shandle(this)`, so a listener that reacts to `MouseMoveEvent` on a widget being dragged sees that widget's
+position from *before* this event's `mousemove()`/`move()` runs — one event stale if it reads `c` inline. A
+consumer that needs the settled result marshals onto the next tick instead of reading synchronously (042.10,
+`io.brodgar.addon.Layout`'s drag-anchor re-derive: enqueued the same way as a resize, drained after
+`UILoop.Frame.tick`'s `loop.dispatch(ui)` — the input pass — already ran for that frame).
+
+**Resize gotcha, the same shape as the destroy one.** `Widget.resize(Coord)` is overridden in 17 classes;
+**15 call `super.resize(sz)`** and reach a tap placed in the base method, but **`Window`** (dispatches straight
+to its own `resize2` — deco/chrome sizing) and **`Tabs`** (folds over its own tab list) **do not**, so a seam
+placed only in `Widget.resize` silently misses both. `io.brodgar.addon.AddonManager.onWidgetResized` is
+therefore called from TWO sites — [`Widget.resize`](src/haven/Widget.java:1534) and
+[`Window.resize`](src/haven/Window.java:428) (`Tabs` left as a known, narrow gap: no title/res a selector
+would realistically target it by) — the same "a notification a subclass can skip is not a seam" lesson
+`Widget.remove`/`cdestroy` already taught (D-179), applied to a second method.
 
 ## Tick & draw traversal (the two recursion seams)
 
@@ -73,7 +88,7 @@ what makes `Window.tick` a legal place to `chdeco` (035).
 | **Hit-test walk (the one to mirror)** | [`PointerEvent.propagation`](src/haven/Widget.java:981) — `lchild→prev` (topmost-first), skip `!visible()`, `parent.xlate(child.c,true)`+rect-isect; leaf uses [`checkhit`](src/haven/Widget.java:794) |
 | **Coord translation (scroll offsets)** | [`Widget.xlate`](src/haven/Widget.java:482) / [`rootxlate`](src/haven/Widget.java:504) — a hit test must respect these, not a naïve rect test |
 | **Parent-relative `c` ⇄ root coords** | [`Widget.parentpos(in)`](src/haven/Widget.java:522) — `parent.xlate(parent.parentpos(in).add(c), true)`, recursing to `in`; `rootpos()` is `parentpos(ui.root)`. Folds every level's `xlate` in, so it is the only correct crossing of a scrolling container. **`c` is relative to the PARENT**: a screen-space answer becomes a `c` by subtracting the parent's own `parentpos(root)`. Prefer `parentpos(u.root)` over `rootpos()` where the `UI` is already in hand — the latter reads the widget's own `ui` field |
-| **The root's size, and who changes it** | [`UILoop.Frame.tick`](src/haven/UILoop.java:485) compares `ui.root.sz` with the OS window size **every iteration** and calls `ui.root.resize(sz)` when they differ; [`Widget.resize`](src/haven/Widget.java:1534) then cascades `presize()` to the children and notifies `parent.cresize`. There is **no event to subscribe to** — anything deriving from the screen's size polls it |
+| **The root's size, and who changes it** | [`UILoop.Frame.tick`](src/haven/UILoop.java:485) compares `ui.root.sz` with the OS window size **every iteration** and calls `ui.root.resize(sz)` when they differ; [`Widget.resize`](src/haven/Widget.java:1534) then cascades `presize()` to the children and notifies `parent.cresize`. **Has an addon seam since 042.10**: `AddonManager.onWidgetResized(this)`, the last statement of `resize`, after the `Utils.eq` no-op guard and the `presize`/`cresize` cascade — the root resizing is just another resize through this one tap |
 
 ## Drop & modifier seams
 

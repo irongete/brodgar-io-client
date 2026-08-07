@@ -142,7 +142,7 @@ There are exactly three inputs, and all three have a seam:
 
 | Input | Seam | Cost |
 |---|---|---|
-| The anchor **target's size**, and a window **packing itself** (`pack()` → `resize(contentsz())`) | **`Widget.resize(Coord)`** — core edit 3 | one tap, and it is already guarded |
+| The anchor **target's size**, and a window **packing itself** (`pack()` → `resize(contentsz())`) | **`Widget.resize(Coord)`** — core edit 3, reused from `Window.resize` — core edit 6 | one tap (two call sites), already guarded |
 | The **screen size** | the same tap: `UILoop` calls `ui.root.resize(sz)`, so the root is just another resize | free, same tap |
 | The anchor **target's position** under a hand-drag | **`Widget.listen`** on that target — a **zero-edit** seam the engine already provides, the same one `WidgetSubs` uses (041.3) | one listener per *anchored target*, not per widget |
 
@@ -157,6 +157,24 @@ public void resize(Coord sz) {
     if(parent != null)
         parent.cresize(this);
     io.brodgar.addon.AddonManager.onWidgetResized(this);   // addon: geometry seam (042.10)
+}
+```
+
+**`Window` needed the same tap from a second call site.** `Window.resize(Coord)` does not call
+`super.resize` — it dispatches straight to its own `resize2` (deco/chrome sizing) — so the tap above never
+runs for the ONE class M4's own example ("a window packing itself") names. Of the seventeen classes that
+override `resize(Coord)` in `src/haven`, sixteen call `super.resize(sz)` at some point and reach the tap
+that way; only `Window` and `Tabs` (a sub-tab strip with no title/res an addon's selector would realistically
+single out) skip it. Exactly D-179's reasoning, applied to a second seam: *a notification a subclass can
+skip is not a seam.* `Window.resize` gets the identical one-line reused-hub call, placed after `resize2(sz)`
+so it still reads settled geometry, the same shape D-180 already established for a second `onWidgetRemoved`
+call site:
+
+```java
+// src/haven/Window.java
+public void resize(Coord sz) {
+    resize2(sz);
+    io.brodgar.addon.AddonManager.onWidgetResized(this);   // addon: geometry seam, reused (042.10)
 }
 ```
 
@@ -241,16 +259,21 @@ implementer.** The highest existing decision is D-177 (041).
 | 3 | `src/haven/GameUI.java` | **NEW SEAM** — `AddonManager.onBeltSet(slot)` inside the two `glob.loader.defer` lambdas in the `setbelt`/`setbelt2` block (:1374-1415) | 042.6 |
 | 4 | `src/haven/Widget.java` | **NEW SEAM** — `AddonManager.onWidgetResized(this)` at the end of `resize(Coord)` (:1534), after the `Utils.eq` early return | 042.10 |
 | 5 | `src/haven/Window.java` | **REUSED SEAM** — `AddonManager.onWidgetRemoved(this)` right after `animst` first becomes `"dest"` in `reqdestroy()` — the same fade problem D-180 solved for `Buff`, on the widget `widget:on("Destroy", fn)` watches; `WidgetSubs.offerRemoved`'s late M1 firing is a no-op because the early tap already unregistered from `UiApi`'s watch list | 042.7 |
+| 6 | `src/haven/Window.java` | **REUSED SEAM** — `AddonManager.onWidgetResized(this)` right after `resize2(sz)` in `resize(Coord)` (:428) — `Window.resize` does not call `super.resize` at all, so core edit 4's tap never runs for it otherwise; D-179's "a notification a subclass can skip is not a seam", applied a second time | 042.10 |
 | — | `src/haven/AddonWidgets.java` | any new package-private read a task needs (e.g. a meter/study membership predicate) — **never reflection**, per D-017 | as needed |
 
-**Five core edits, not the three originally budgeted here.** Three are one-line delegates into the hub
+**Six core edits, not the three originally budgeted here.** Three are one-line delegates into the hub
 (`Widget.remove`, `GameUI`'s belt lambdas, `Widget.resize`); 042.2 found a fourth was unavoidable —
 `Buff.reqdestroy` needed the SAME `AddonManager.onWidgetRemoved` hub method called from a second call
 site, since a fading widget's real "gone" moment (`dest = true`) precedes its tree removal by 0.35s with
 no other addon-visible seam in between; 042.7 found the identical shape on `Window.reqdestroy` (the
-widget `widget:on("Destroy", fn)` needs the same early tap) and needed a fifth. Neither added a new
-`AddonManager` method — both reuse M1's existing queue/drain from a second and third call site. The drag
-half of M4 still needs **no** edit at all — `Widget.listen` is a seam the engine already provides.
+widget `widget:on("Destroy", fn)` needs the same early tap) and needed a fifth; 042.10 found a sixth —
+`Window.resize` overrides `resize(Coord)` completely (its own `resize2` for deco/chrome sizing) and never
+reaches `Widget.resize`'s body, so the geometry tap needs the identical reused-hub treatment from a second
+call site, on the ONE class M4's own acceptance criterion names ("a window packing itself"). None of the
+four reused edits added a new `AddonManager` method — each reuses an existing hub's queue/drain from an
+additional call site. The drag half of M4 still needs **no** edit at all — `Widget.listen` is a seam the
+engine already provides.
 
 ### New
 

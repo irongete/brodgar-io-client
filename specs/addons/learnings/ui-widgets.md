@@ -774,3 +774,28 @@
   a frame's input dispatch has fully finished (the same guarantee `armPending()` already relies on — "a
   window built in an input handler is on screen in the very frame it was asked for") and BEFORE that frame's
   draw, so the fix lands in the SAME frame the click did: no visible flicker, confirmed in-game.
+
+- **(042.10) `Widget.listen`'s handler fires BEFORE the widget's own default handling, not after — so it
+  cannot be used to read a value that handling is about to write.** `Widget.handle(Event)` checks `listening`
+  first and only falls through to `ev.shandle(this)` (which for a `MouseMoveEvent` on a dragged `Window` is
+  what calls `mousemove()` → `move(...)`) if nothing in `listening` short-circuits. A listener that reacted to
+  the event by reading the target's OWN position inline (`Layout`'s drag-anchor re-derive, watching a
+  `MouseMoveEvent` on the widget being dragged so an anchored follower tracks it) read the position from
+  BEFORE this event's `move()` ran — permanently one input event stale for the whole drag, which read in-game
+  as a small, constant lag rather than an obvious break. `WidgetSubs`'s own input keys (041.3) never hit this
+  because they hand the event's own PAYLOAD to Lua (`ev.c`, `ev.b`) rather than re-reading the widget
+  afterward. The fix, generalisable to any future "observe a native widget's own handling" listener: don't
+  read the result inline — enqueue onto the SAME tick-drained queue a resize/removal notify already uses
+  (`AddonManager.onWidgetResized`, here), so the read happens after `UILoop.Frame.tick`'s input pass has
+  actually finished for that frame (`threading.md`'s matching entry has the frame-loop ordering that makes
+  this land the same frame, not a frame later).
+- **(042.10) A per-tick fold over a heterogeneous set covers every member for free; replacing it with
+  targeted event taps does not, unless every member's SHAPE is checked.** `Layout.redrive()` walked every
+  entry in `derived` each tick and simply re-`apply`d whatever was still alive — it never needed to know
+  WHY an entry might have moved, so a `{to = "screen"}` anchor and a `{to = <widget>}` anchor were the same
+  work. Replacing it with `Layout.moved(w)` (re-derive whatever is anchored to WIDGET `w`) covered the widget
+  case but silently dropped the screen case: `Anchor.SCREEN` carries no `target()`, so `moved`'s `to != WIDGET`
+  filter skips it by construction, and a screen-anchored widget simply stopped tracking the game window's own
+  resize — invisible in an automated suite (nothing but a real OS-level window resize exercises it) and
+  caught only by an in-game manual check. When a fold-based mechanism is replaced by shape-specific taps, each
+  shape the fold used to treat uniformly needs its OWN tap, not just the most obvious one.

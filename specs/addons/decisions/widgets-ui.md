@@ -667,7 +667,7 @@ coordinate is not a relationship and needs no target.
 **See.** [D-076](#d-076), [D-077](#d-077), [D-081](#d-081), [D-088](#d-088), [D-089](#d-089), [D-091](#d-091),
 [`api/ui.md`](../../../docs/addons/api/ui.md).
 
-### D-091 — a derived position is re-derived by POLLING what it reads, and clamped by the client's own rule
+### D-091 — a derived position is re-derived by POLLING what it reads, and clamped by the client's own rule 💤 (superseded by [D-181](#d-181), 2026-08-06, 042.10)
 
 **Context.** An anchor is only worth having if it tracks what it names. The spec listed the moments — the root
 resizes, the UI scale changes, the target moves — as events to hook. Two of the three are not events at all:
@@ -1195,3 +1195,53 @@ registration left to offer and is silently a no-op — the same idempotence D-18
 through list membership instead of a map. **The plan's "four core edits total" is now five** —
 042.13's close checklist is amended to grep for five, not four.
 **See.** [D-179](#d-179), [042-event-driven-reads](../042-event-driven-reads/spec.md).
+
+### D-181 — a derived position re-derives on its INPUTS' own events; a per-target listener is not the hot path a global hook would be ✅ (2026-08-07, 042.10) — SUPERSEDES [D-091](#d-091)
+**Decision.** `Layout.redrive`'s per-tick fold over every anchored widget is **deleted**. An anchor now
+re-derives on exactly the three events its inputs actually fire: the anchor **target's size** and a window
+**packing itself** ride one core tap, `AddonManager.onWidgetResized` at the end of `Widget.resize(Coord)`
+(after the `Utils.eq` no-op guard and the `presize()`/`cresize` cascade, so a consumer reads settled
+geometry — the mirror of D-179's placement for M1); the **screen size** rides the SAME tap, since `UILoop`
+calling `ui.root.resize(sz)` is just another resize; and the anchor target's **position under a hand-drag**
+rides a `Widget.listen(MouseMoveEvent.class, …)` installed on that one target — the same zero-edit engine
+seam `WidgetSubs` already uses for its own input keys (041.3), never cancelling anything (it always returns
+`false`), purely riding alongside whatever the target's own `handle` does. `Layout.retarget` is the one
+place a target's listener is installed (the moment a first live anchor names it) or dropped (the moment the
+last one stops), keeping exactly one listener per WIDGET target regardless of how many followers anchor to
+it.
+**Rationale, answering D-091 on its own terms.** D-091's two objections were sound and remain so: *"`Widget.c`
+is a public field the client and the user's own drag write directly — hooking `Widget.move` would put addon
+code in the client's hottest path."* Correct, and `move()` is still never hooked — it is not even a
+chokepoint, since a drag writes `c` directly (`Window.mousemove` → `move(...)`) and other client code
+(`GameUI`) does the same in more than one place, so a tap there would be both hot and incomplete. The answer
+is not to hook the field's writer at all, but to observe the POINTER EVENTS a drag itself generates on the
+one widget being dragged — and only on a target an addon actually named as an anchor, which is why this
+listener is never the hot path a global hook would have been: a client with no anchors installs none, the
+same shape `WidgetSubs` already proved for arbitrary widget input. *"`UI.scalef` is `static final`, read
+once at class load, so a scale change cannot be observed at runtime by anything — the option itself says
+requires restart."* Still true, and it still makes that trigger vacuous: there is nothing to observe and
+therefore nothing to re-derive, which is why a scale change was never actually a reason to poll — it was a
+reason the third trigger does not exist.
+**Consequences.** What D-091 got right survives unchanged: the `derived` set stays weak and holds only the
+widgets an anchor is holding — never the tree; a plain `pos` is never in it; a move made **through this
+API** stays synchronous (`Layout.apply` re-derives whatever hangs off the widget it just wrote, before the
+call returns, bounded by the same depth limit, not a visited set); and an off-screen result still goes
+through `GameUI.fitwdg`'s own formula (`UiApi.fitc`). Only the *trigger* changes — from every tick, to the
+events that actually move things — so an idle HUD with anchors installed now does **zero** per-frame work
+instead of one fold per anchor, and a HUD with none pays nothing at all (no list to be empty, since nothing
+is scheduled to check it). A widget's departure is handled at the same M1 seam every other 042 removal is
+(`Layout.dispatchRemoved`), dropping its `derived` entry and, if it was the last follower, the target's
+listener with it (P2 — nothing outlives the anchor that owned it).
+**`Window` needed the geometry tap from a second call site.** `Window.resize(Coord)` does not call
+`super.resize` — it dispatches straight to its own `resize2` (deco/chrome sizing) — so the tap placed in
+`Widget.resize` never runs for the ONE class this decision's own example names ("a window packing
+itself"). Exactly D-179's reasoning, applied a second time: *a notification a subclass can skip is not a
+seam.* Of the seventeen classes overriding `resize(Coord)` in `src/haven`, sixteen call `super.resize(sz)`
+and reach the tap that way; only `Window` and `Tabs` (a sub-tab strip with no title/res an addon's own
+selector would realistically single out — left a known, narrow gap rather than a seventh edit) skip it
+outright. `Window.resize` gets the identical one-line reused-hub call, from a second call site, placed
+after `resize2(sz)` so it still reads settled geometry — **the sixth core edit** this feature makes, not
+the five 042.7 last counted.
+**See.** [D-091](#d-091) (superseded), [D-179](#d-179) (the same "don't hook the field, hook the settled
+moment" reasoning for removal), [D-180](#d-180), [042-event-driven-reads](../042-event-driven-reads/spec.md),
+[`041-unified-events`](../041-unified-events/spec.md) (`Widget.listen`/`deafen`, the seam this reuses).

@@ -1540,6 +1540,7 @@ public class Widget {
 	    ch.presize();
 	if(parent != null)
 	    parent.cresize(this);
+	io.brodgar.addon.AddonManager.onWidgetResized(this);   // addon: geometry seam (042.10)
     }
 
     public void z(int z) {

@@ -1,0 +1,9 @@
+{
+  "name": "042.10 — the layout cascade",
+  "id": "042-event-driven-reads.10",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 042.10: an anchored widget re-derives on its own inputs' events (resize, pack, removal) instead of a per-tick fold; redrive() is gone.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.Coord;
+import haven.EventHandler;
 import haven.GameUI;
 import haven.UI;
 import haven.Widget;
@@ -43,15 +44,16 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *   <li>a widget is placed into the tree ({@link #placed}, off the same seam {@code hafen.ui.on} uses — plus
  *       030.2's bounded re-check, because a {@code [title=]} caption arrives by {@code uimsg} a tick late);</li>
  *   <li>a verb is called or undone ({@link #apply} on that one widget);</li>
- *   <li>the geometry an {@link Anchor} <i>derives from</i> changed (036.3) — the screen was resized, or the widget
- *       it hangs off moved, resized or died. That one has no event to hang on: a widget's {@code c} is a public
- *       field the client and the user's own drag write directly, and hooking {@link Widget#move} would put addon
- *       code in the client's hottest path. So the answer is {@link #poll}, a per-tick re-derive over
- *       <b>the widgets an anchor actually names</b> — never the tree — which makes a screen resize, a target
- *       resize and a target move one code path instead of three seams. A move made <i>through this API</i> is
- *       still synchronous: {@link #apply} re-derives whatever hangs off the widget it just wrote.</li>
+ *   <li>the geometry an {@link Anchor} <i>derives from</i> changed (036.3, event-driven since 042.10/D-181) —
+ *       the screen was resized, the widget it hangs off resized or packed itself ({@link #dispatchResized},
+ *       the {@code Widget.resize} core tap — {@code move()} is never hooked, and is not a chokepoint anyway:
+ *       a drag writes {@code c} directly), or was dragged ({@link #installDragListener}, a {@code Widget.listen}
+ *       on that one target — a zero-edit seam, not the client's hottest path), or left the tree
+ *       ({@link #dispatchRemoved}, M1). A move made <i>through this API</i> is still synchronous: {@link #apply}
+ *       re-derives whatever hangs off the widget it just wrote.</li>
  * </ul>
- * Nothing here is per frame, and a client with no layout rule and nothing laid out pays two volatile reads a tick.
+ * Nothing here is per frame: a client with no layout rule and nothing laid out pays no seam at all, and one with
+ * nothing anchored pays a fast {@code derived.isEmpty()} on the geometry/removal seams it never triggers.
  *
  * <p><b>What is written down stays the user's</b> (D-086, 036.1): whichever level wins, the widget's stock value
  * is recorded at the layer's first touch ({@link LuaWidget.Moved}) and {@code GameUI}'s position store is answered
@@ -99,14 +101,30 @@ final class Layout {
      * is
      * never here, because {@code {40, 200}} is {@code {40, 200}} whatever else moves.
      *
-     * <p>This is the whole cost of the anchor mechanism at rest: {@link #poll} re-derives <i>these</i> widgets and
-     * nothing else, so a HUD with two anchored windows pays two folds a tick and a HUD with none pays one
-     * {@code isEmpty()}. Weak keys, like every other per-widget map in this layer ({@code Sheet.cache},
+     * <p>This is the whole cost of the anchor mechanism at rest (042.10): {@link #dispatchResized}/{@link
+     * #installDragListener} re-derive <i>these</i> widgets, on their own inputs' events, and nothing else, so a
+     * HUD with two anchored windows pays two folds per actual move and a HUD with none pays one
+     * {@code isEmpty()} per resize/removal and no per-tick cost at all. Weak keys, like every other per-widget
+     * map in this layer ({@code Sheet.cache},
      * {@code LuaWidget.Cache}): {@code Widget} overrides neither {@code equals} nor {@code hashCode}, so it is an
      * identity map for free, and a strong one would pin every window an anchor ever named. Guarded by
      * {@code Layout.class}, always taken <b>inside</b> the {@code ui} monitor.
      */
     private static final Map<Widget, Anchor> derived = new WeakHashMap<Widget, Anchor>();
+
+    /**
+     * The ONE {@code MouseMoveEvent} listener installed per WIDGET target a live anchor names — never per
+     * follower (042.10, M4's drag half). {@code Widget.listen}/{@code deafen} is the same zero-edit engine
+     * seam {@link WidgetSubs} already uses for its own input keys (041.3): a target's own drag writes {@code
+     * c} directly (D-091's own observation, still true), so there is no "moved" event to wait for — only the
+     * pointer events the drag itself generates on the widget being dragged. The handler never cancels
+     * anything (always returns {@code false}), so it is purely an observer riding alongside whatever the
+     * target's own {@code handle} already does. Weak keys: a dead target needs no explicit teardown, since
+     * its {@code listening} list dies with it. Guarded by {@link Layout#class}, always mutated together with
+     * {@link #derived} by {@link #retarget}.
+     */
+    private static final Map<Widget, EventHandler<Widget.MouseMoveEvent>> dragListeners =
+        new WeakHashMap<Widget, EventHandler<Widget.MouseMoveEvent>>();
 
     /** How deep a chain of anchors is followed when one of its links is written (a cycle is a user's to make). */
     private static final int MAXDEPTH = 8;
@@ -119,7 +137,11 @@ final class Layout {
     /** Session init / relog: the tree of the session just ended, so nothing is waiting for a caption any more. */
     static void resetSession() {
         pending.clear();
-        synchronized(Layout.class) { derived.clear(); }
+        capDirty = false;
+        synchronized(Layout.class) {
+            derived.clear();
+            dragListeners.clear();   // the old tree is gone with the session; nothing left to deafen
+        }
     }
 
     // ---- where a widget is placed: ONE property, two spellings (036.3) ------------------------------
@@ -291,8 +313,8 @@ final class Layout {
             applyHalf(u, w, r, false);
             applyHalf(u, w, r, true);
             // 036.3: ...and whatever hangs off this widget follows it in the same call, so a move made through
-            // this API has moved its followers by the time it returns. A user's own drag has no such moment, and
-            // that is what poll() is for.
+            // this API has moved its followers by the time it returns. A user's own drag has no such moment —
+            // it is seen instead through the target's own MouseMoveEvent (042.10, installDragListener).
             if(depth < MAXDEPTH)
                 applyDependents(u, w, depth);
         }
@@ -388,14 +410,83 @@ final class Layout {
         }
     }
 
-    /** Start (or stop) re-deriving {@code w}'s place each tick — see {@link #derived}. Under the {@code ui} monitor. */
+    /**
+     * Start (or stop) re-deriving {@code w}'s place on its target's own events — see {@link #derived}. Under
+     * the {@code ui} monitor.
+     */
     private static void track(Widget w, Anchor a) {
-        synchronized(Layout.class) {
-            if((a != null) && a.dynamic())
-                derived.put(w, a);
-            else if(!derived.isEmpty())
-                derived.remove(w);
+        synchronized(Layout.class) { retarget(w, a); }
+    }
+
+    /**
+     * The one place {@link #derived} and {@link #dragListeners} change together (042.10): record (or drop)
+     * {@code w}'s resolved anchor, and make sure exactly one drag listener exists on whatever WIDGET target a
+     * live anchor still names — installing one the moment a first anchor points there, dropping it the moment
+     * the last one stops. {@code next == null} is "nothing governs {@code w} any more", the same call {@link
+     * #dispatchRemoved} makes for a widget that just left the tree. Caller holds {@link Layout#class}.
+     */
+    private static void retarget(Widget w, Anchor next) {
+        Anchor prev = derived.get(w);
+        Widget prevTarget = dragTargetOf(prev);
+        if((next != null) && next.dynamic())
+            derived.put(w, next);
+        else
+            derived.remove(w);
+        Widget nextTarget = dragTargetOf(next);
+        if(nextTarget == prevTarget)
+            return;
+        if(nextTarget != null)
+            dragListeners.computeIfAbsent(nextTarget, Layout::installDragListener);
+        if((prevTarget != null) && !dragTargetStillNamed(prevTarget))
+            dropDragListener(prevTarget);
+    }
+
+    /** The WIDGET {@code a} anchors to, or {@code null} for a plain/screen anchor or none at all. */
+    private static Widget dragTargetOf(Anchor a) {
+        return ((a != null) && a.dynamic() && (a.to == Anchor.WIDGET)) ? a.target() : null;
+    }
+
+    /** Does any entry left in {@link #derived} still anchor to {@code t}? Caller holds {@link Layout#class}. */
+    private static boolean dragTargetStillNamed(Widget t) {
+        for(Anchor a : derived.values()) {
+            if(dragTargetOf(a) == t)
+                return true;
         }
+        return false;
+    }
+
+    /**
+     * Install {@code t}'s one drag-observing listener (042.10) — never cancels anything, only re-derives.
+     *
+     * <p><b>Marshalled, not inline — and not for threading.</b> {@code Widget.handle(Event)} checks {@code
+     * listening} BEFORE {@code ev.shandle(this)}, which is what actually runs {@code Window.mousemove} ->
+     * {@code move(...)}: a listener that re-derives inline here reads the target's position from BEFORE this
+     * event moves it, one event stale for the whole drag. Enqueuing onto the SAME queue {@link
+     * AddonManager#onWidgetResized} already drains fixes it for free: {@code UILoop.Frame.tick} runs {@code
+     * loop.dispatch(ui)} (input, including this mousemove) BEFORE {@code ui.tick()} (which drains this
+     * queue), so by the time the drain runs the move this event caused has already landed — same frame, not
+     * a frame later.
+     */
+    private static EventHandler<Widget.MouseMoveEvent> installDragListener(final Widget t) {
+        EventHandler<Widget.MouseMoveEvent> h = new EventHandler<Widget.MouseMoveEvent>() {
+            public boolean handle(Widget.MouseMoveEvent ev) {
+                AddonManager.onWidgetResized(t);
+                return false;
+            }
+        };
+        t.listen(Widget.MouseMoveEvent.class, h);
+        return h;
+    }
+
+    /** Drop {@code t}'s drag listener — the last anchor pointing at it just went. Best-effort: {@code t} may
+     *  already be gone, in which case there is nothing left to deafen. */
+    private static void dropDragListener(Widget t) {
+        EventHandler<Widget.MouseMoveEvent> h = dragListeners.remove(t);
+        if(h == null)
+            return;
+        try {
+            t.deafen(h);
+        } catch(RuntimeException e) { /* t is already gone: its own listener list went with it */ }
     }
 
     /**
@@ -460,51 +551,105 @@ final class Layout {
             pending.add(new Pending(w, id));
     }
 
-    /**
-     * Per-tick work (UI thread): re-offer the recently-placed candidates still waiting for a late caption, then
-     * drop the records of widgets that have left the tree. Both halves are gated, so an idle client pays two
-     * {@code isEmpty()}-shaped reads a tick and the cost of the mechanism scales with widget creation, not frames.
-     */
-    static void poll() {
-        UI u = AddonManager.ui;
-        if((u == null) || (u.root == null))
-            return;
-        if(!pending.isEmpty()) {
-            for(Pending p : pending) {                // copy-on-write: entries drop out as we go
-                if(!alive(u, p.wdg, p.id)) {
-                    pending.remove(p);                // it died before its caption arrived
-                    continue;
-                }
-                if(--p.ticks <= 0)
-                    pending.remove(p);                // ...still offered this one last time
-                apply(p.wdg);
-            }
-        }
-        redrive(u);
-        if(LuaWidget.anyMoved)
-            LuaWidget.pruneMoved(u);
+    // 042.10: `pending`'s late caption/res is woken by the window "cap" uimsg (CharApi.dispatchUimsg ->
+    // markCaptionChanged), exactly like UiApi's own selector re-check (030.2/042.9) does for the same tap. That
+    // tap runs off the UI thread (UI.java:730-732 closes synchronized(ui) before calling AddonManager.onUimsg),
+    // so it may only set a flag — the actual widget reads happen on the tick, under synchronized(ui).
+    private static volatile boolean capDirty;
+
+    /** Mark that some window's caption changed (from {@code CharApi.dispatchUimsg}, window "cap" message). */
+    static void markCaptionChanged() {
+        capDirty = true;
     }
 
     /**
-     * Re-derive the anchored widgets (036.3): the screen may have been resized, a target may have been dragged, a
-     * window may have packed itself around new contents. Over {@link #derived} alone — never the tree — and
-     * {@link #apply} writes only when the answer actually changed, so a HUD whose anchors are all where the
-     * cascade wants them does a handful of folds and no writes at all.
+     * Tick-side drain (UI thread, {@link AddonManager#tick}): if a caption changed since the last tick,
+     * re-offer every pending widget once — the same shape as {@link UiApi#drainSelectorCaptionCheck}. Gated on
+     * both the flag and {@link #pending} being non-empty, so an idle client — or one with no late-refiner
+     * layout rule at all — pays only the flag check and one {@code isEmpty()}.
      */
-    private static void redrive(UI u) {
-        List<Widget> ws;
+    static void drainPendingCaption() {
+        if(!capDirty)
+            return;
+        capDirty = false;
+        if(pending.isEmpty())
+            return;
+        UI u = AddonManager.ui;
+        if((u == null) || (u.root == null))
+            return;
+        for(Pending p : pending) {                // copy-on-write: entries drop out as we go
+            if(!alive(u, p.wdg, p.id)) {
+                pending.remove(p);                // it died before its caption arrived
+                continue;
+            }
+            if(--p.ticks <= 0)
+                pending.remove(p);                // ...still offered this one last time
+            apply(p.wdg);
+        }
+    }
+
+    /**
+     * The widget-removal seam's offer (M1, from {@link AddonManager#drainRemovedWidgets}): {@code w} just left
+     * the tree, so (a) it can stop waiting for a late caption, (b) {@link LuaWidget#pruneRemoved} drops just
+     * this widget's record instead of every owner's whole list needing a per-tick sweep, and (c) if {@code w}
+     * was itself an anchored
+     * widget, {@link #retarget} drops its {@link #derived} entry and, if nothing else names the same target,
+     * the drag listener installed for it (042.10 — {@code redrive}'s per-tick fold over every anchor is gone;
+     * this is the one place a departure is handled instead).
+     */
+    static void dispatchRemoved(Widget w) {
+        for(Pending p : pending) {
+            if(p.wdg == w) {
+                pending.remove(p);
+                break;
+            }
+        }
+        LuaWidget.pruneRemoved(w);
+        synchronized(Layout.class) {
+            if(!derived.isEmpty())
+                retarget(w, null);
+        }
+    }
+
+    /**
+     * The geometry seam's offer (M4, from {@link AddonManager#drainResizedWidgets}): {@code w} just resized —
+     * an anchor target, a window that packed itself, or the screen. {@link #moved} handles the first two (it
+     * re-derives whatever hangs off {@code w} as a WIDGET target) and fast-paths on {@link #derived} being
+     * empty, so a client with nothing anchored pays one volatile-backed check per resize.
+     *
+     * <p><b>The screen is not a WIDGET target</b> (an {@code anchor = {to = "screen", …}} carries no {@code
+     * target()} at all — {@link Anchor#SCREEN}, not {@link Anchor#WIDGET}), so {@link #moved}'s {@code
+     * to != WIDGET} filter skips every screen-anchored widget by construction. {@code UILoop} resizing {@code
+     * ui.root} is exactly this case, so it is handled here, separately: every SCREEN-anchored widget is
+     * re-applied — the same widgets {@code redrive()} used to walk every tick, now touched only on an actual
+     * screen resize.
+     */
+    static void dispatchResized(Widget w) {
+        UI u = AddonManager.ui;
+        if((u != null) && (w == u.root))
+            rederiveScreenAnchored();
+        moved(w);
+    }
+
+    /** Re-apply every widget anchored to the SCREEN (never the tree, never a WIDGET target) — the screen half
+     *  {@link #moved}'s WIDGET-target filter cannot see. Snapshotted under {@link Layout#class} before any
+     *  {@link #apply} call, exactly like {@link #sweep}, since applying writes {@code c}/{@code sz}, never the
+     *  {@link #derived} map itself, but a snapshot is what makes that a guarantee rather than a hope. */
+    private static void rederiveScreenAnchored() {
+        List<Widget> ws = null;
         synchronized(Layout.class) {
             if(derived.isEmpty())
                 return;
-            ws = new ArrayList<Widget>(derived.keySet());
+            for(Map.Entry<Widget, Anchor> e : derived.entrySet()) {
+                if(e.getValue().to != Anchor.SCREEN)
+                    continue;
+                if(ws == null)
+                    ws = new ArrayList<Widget>(4);
+                ws.add(e.getKey());
+            }
         }
-        for(int i = 0; i < ws.size(); i++) {
-            Widget w = ws.get(i);
-            if(w.hasparent(u.root))
-                apply(w);
-            else
-                synchronized(Layout.class) { derived.remove(w); }   // it left the tree: nothing to derive for
-        }
+        for(int i = 0; (ws != null) && (i < ws.size()); i++)
+            apply(ws.get(i));
     }
 
     /** Is a pending candidate still the same live widget? (Server-bound: by id; client-only: by reachability.) */

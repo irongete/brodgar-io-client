@@ -1349,26 +1349,32 @@ public final class LuaWidget {
     }
 
     /**
-     * Drop the records of widgets that have left the tree (036.2, from {@link Layout#poll}). Nothing is restored —
-     * there is nothing left to restore it to — but the record would otherwise outlive its widget and, worse, hold a
-     * strong reference to it: a rule that names a kind of window records one per window that opens.
+     * Drop the records of one widget that just left the tree (036.2, from {@link Layout#dispatchRemoved}, M1,
+     * 042.10). Nothing is restored — there is nothing left to restore it to — but the record would otherwise
+     * outlive its widget and, worse, hold a strong reference to it: a rule that names a kind of window records
+     * one per window that opens. Replaces the per-tick sweep over every owner's whole list (which used {@link
+     * Layout#alive} to ask each record whether its widget was still reachable): the removal seam already
+     * KNOWS which widget just died, so this targets it directly rather than re-deriving liveness for every
+     * record on every tick.
      */
-    static void pruneMoved(UI u) {
+    static void pruneRemoved(Widget w) {
+        if(!anyMoved)
+            return;
         boolean gone = false;
         List<Addon> as = AddonManager.addons;
         for(int i = 0, n = as.size(); i < n; i++)
-            gone |= pruneMovedIn(as.get(i), u);
-        gone |= pruneMovedIn(AddonManager.consoleOwner, u);
+            gone |= pruneRemovedIn(as.get(i), w);
+        gone |= pruneRemovedIn(AddonManager.consoleOwner, w);
         if(gone)
             recountMoved();
     }
 
-    private static boolean pruneMovedIn(Addon a, UI u) {
+    private static boolean pruneRemovedIn(Addon a, Widget w) {
         if((a == null) || a.movedNative.isEmpty())
             return false;
         boolean gone = false;
         for(Moved m : a.movedNative) {
-            if(Layout.alive(u, m.wdg, m.id))
+            if(m.wdg != w)
                 continue;
             a.movedNative.remove(m);
             gone = true;
