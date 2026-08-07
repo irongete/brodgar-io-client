@@ -37,11 +37,12 @@ import static io.brodgar.addon.AddonManager.*;
  * read-only widget-tree walk + hit-testing (W1/W2 node API). Owns the subscription registries + overlay paint
  * state. The widget-placement seam {@code onWidgetPlaced} (called from {@code haven.UI}) stays a facade in
  * {@link AddonManager} and delegates here — placement also drives {@link #dispatchWidgetSubsPlaced} (042.7); the
- * tick still drives {@link #pollReplaced}/{@link #pollSelectorWatches}/{@link #anyHudOverlays}, but {@code
- * WidgetSubs}'s {@code ItemAdded}/{@code ItemRemoved}/{@code Destroy} keys moved onto the placement/removal seams
- * ({@link #dispatchWidgetSubsPlaced}/{@link #dispatchWidgetSubsRemoved}, 042.7) and no longer poll; the per-gob
- * overlay attrib {@code LuaGobOverlay.draw} calls {@link #paintGobOverlays}. Shared gob-read/engine helpers stay in
- * {@link AddonManager}. Not instantiable.
+ * tick still drives {@link #pollSelectorWatches}/{@link #anyHudOverlays}, but {@code WidgetSubs}'s {@code
+ * ItemAdded}/{@code ItemRemoved}/{@code Destroy} keys moved onto the placement/removal seams ({@link
+ * #dispatchWidgetSubsPlaced}/{@link #dispatchWidgetSubsRemoved}, 042.7) and so has the {@code widget:replace(view)}
+ * substitution's own death test ({@link #dispatchReplacedRemoved}, 042.8); the per-gob overlay attrib {@code
+ * LuaGobOverlay.draw} calls {@link #paintGobOverlays}. Shared gob-read/engine helpers stay in {@link AddonManager}.
+ * Not instantiable.
  */
 final class UiApi {
     private UiApi() {}
@@ -1591,42 +1592,41 @@ final class UiApi {
     }
 
     /**
-     * Per-tick destroy-detection for the substitutions themselves (032.1, UI thread): the server destroying a
-     * replaced window — a chest closed, a relog — <b>ends the substitution</b>, so the record goes and the view dies
-     * with it rather than hanging over a container that no longer exists.
+     * The widget-removal seam's offer to the replacement substitutions (042.8): {@code w} may be the native
+     * window a hide record stands in for, just destroyed by the server (a chest closed, a relog) — <b>ends the
+     * substitution</b>, so the record goes and the view dies with it rather than hanging over a container that no
+     * longer exists. M1 already fires after the tree has settled, so the record's own two-branch death test
+     * ({@link #stillHidable}, reused unchanged inside {@link #endReplacement}'s {@link #releaseHidden}) is already
+     * false by the time this runs — nothing here re-derives that, it only says WHICH record to end.
      *
      * <p><b>Keyed on the hide record, not on a model</b> (D-071): a relationship's lifetime is watched on the
-     * relationship. The retired {@code hafen.ui.replace} minted a {@code LuaModel} around the widget it adopted and
-     * polled that; the verb adopts nothing, so the thing to watch is the record that IS the substitution — which is
-     * why 032.2 could delete the model and its poll outright rather than port them. The death test is
-     * {@link #stillHidable}, the same two-branch guard the teardown uses (by server id when the window has one, by
-     * tree reachability for a client-side wrapper like the inventory's, which never dies). A record with no view
-     * bound — a bare {@code w:hide()} — is not a substitution and is left alone.
+     * relationship. {@code w} is checked by identity against each owner's {@code hiddenNative} list — the same
+     * lookup {@link #hiddenOwner} uses on the click path — rather than rebuilding a model to poll. A record with no
+     * view bound — a bare {@code w:hide()} — is not a substitution and is left alone.
      *
-     * <p>Gated on the {@link LuaWidget#anyHidden} volatile the toggle seam already maintains, so a client that hides
-     * nothing pays one read per tick. {@link #endReplacement} is idempotent, so this sweep racing an undo or a
-     * teardown over the same record is harmless.
+     * <p>Gated on the {@link LuaWidget#anyHidden} volatile the toggle seam already maintains — not a loop to skip
+     * any more, but still the cheap "does anything hold a hide record at all" test, so a removal on a client that
+     * has never replaced or hidden a window costs one volatile read. The {@code :lua} REPL owner is covered the
+     * same way as every loaded addon: replacing a window from the console is the same substitution, held in the
+     * same {@code hiddenNative} list. {@link #endReplacement} is idempotent, so this racing an undo or a teardown
+     * over the same record is harmless.
      */
-    static void pollReplaced() {
+    static void dispatchReplacedRemoved(Widget w) {
         if(!LuaWidget.anyHidden)
-            return;
-        UI u = ui;
-        if((u == null) || (u.root == null))
             return;
         List<Addon> as = AddonManager.addons;
         for(int i = 0, n = as.size(); i < n; i++)
-            sweepReplaced(u, as.get(i));
-        sweepReplaced(u, consoleOwner);    // the :lua REPL replaces windows too, and owns them the same way
+            endReplacedIfHeld(as.get(i), w);
+        endReplacedIfHeld(consoleOwner, w);    // the :lua REPL replaces windows too, and owns them the same way
     }
 
-    /** One owner's substitutions: end every one whose window the server has taken away. */
-    private static void sweepReplaced(UI u, Addon a) {
+    /** End {@code a}'s substitution over {@code w}, if it holds one. */
+    private static void endReplacedIfHeld(Addon a, Widget w) {
         if((a == null) || a.hiddenNative.isEmpty())
             return;
-        for(LuaWidget.Hidden h : a.hiddenNative) {   // copy-on-write: endReplacement removes from this very list
-            if((h.view != null) && !stillHidable(u, h))
-                endReplacement(h);
-        }
+        LuaWidget.Hidden h = hiddenIn(a, w);
+        if((h != null) && (h.view != null))
+            endReplacement(h);
     }
 
     /**

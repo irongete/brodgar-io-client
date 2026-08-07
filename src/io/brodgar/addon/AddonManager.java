@@ -434,11 +434,10 @@ public final class AddonManager {
 
             CharApi.pollTreeAdapters();
 
-            // 1c. Replacements (032.1): per-tick check for the server destroying a window an addon replaced with
-            //     widget:replace(view) — the substitution ends, the window and its toggle go back under the one
-            //     rule, and the stand-in view is destroyed with it. Gated on the same volatile the toggle seam
-            //     reads, so a client that hides nothing pays one read.
-            UiApi.pollReplaced();
+            // 1c. Replacements (032.1, event-driven since 042.8): the server destroying a window an addon
+            //     replaced with widget:replace(view) is a removal, so it is offered at the removal seam
+            //     (drainRemovedWidgets, via UiApi.dispatchReplacedRemoved) — nothing left for the tick to drive
+            //     here.
 
             // 1c'. WidgetSubs tree keys (041.4, event-driven since 042.7): widget:on("ItemAdded"/"ItemRemoved", fn)
             //      and widget:on("Destroy", fn) no longer poll — they are offered every placement (above, via
@@ -1108,7 +1107,9 @@ public final class AddonManager {
      *
      * <p><b>Second consumer since 042.7</b>: {@link UiApi#dispatchWidgetSubsRemoved}, for {@code widget:on(
      * "Destroy"/"ItemAdded"/"ItemRemoved", fn)} — same drain, same thread, so firing those here is exactly as
-     * safe as the tree-adapter dispatch above.
+     * safe as the tree-adapter dispatch above. <b>Third since 042.8</b>: {@link UiApi#dispatchReplacedRemoved},
+     * for the {@code widget:replace(view)} substitution's own death test — the server destroying a window an
+     * addon replaced is a removal like any other.
      */
     private static void drainRemovedWidgets() {
         for(int n = removedWidgets.size(); n > 0; n--) {
@@ -1117,6 +1118,7 @@ public final class AddonManager {
                 break;
             CharApi.dispatchRemoved(w);
             UiApi.dispatchWidgetSubsRemoved(w);
+            UiApi.dispatchReplacedRemoved(w);
         }
     }
 

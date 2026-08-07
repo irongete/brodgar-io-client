@@ -172,7 +172,7 @@
       `[manual]` — open a container, move one item in and out, then close the container window.
       <!-- extra context: `src/io/brodgar/addon/WidgetSubs.java`, `src/io/brodgar/addon/UiApi.java` (pollWidgetSubs, the polling list), `src/io/brodgar/addon/LuaWidget.java`, `src/haven/Inventory.java` (:100-116 addchild/cdestroy), `041-unified-events/` -->
 
-- [ ] **042.8 — replacements.**
+- [x] **042.8 — replacements.**
       `UiApi.pollReplaced`/`sweepReplaced` go. The thing being watched for is *the server destroying a
       window an addon replaced with `widget:replace(view)`* — a removal, so M1 is the whole answer.
       **Gotchas:** the `LuaWidget.anyHidden` fast-path flag exists to keep the sweep free when nothing is

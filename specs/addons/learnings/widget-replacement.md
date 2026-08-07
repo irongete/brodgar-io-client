@@ -182,3 +182,21 @@
   saying it is gone and reads `nil` — that is the reader's answer when they meet old code — but it now names what
   it matched on ("the server's own widget-creation vocabulary") instead of spelling `{id, type, place, caption,
   parentType}` out. A hard cut owes the reader the fact, not the dead syntax.
+- **(042.8) Destroy-detection moved from a per-tick sweep to the removal seam (M1), and the identity key it
+  already rode (032.1, above) is what made that a pure retarget.** `pollReplaced`/`sweepReplaced` walked every
+  hidden record every tick asking `!stillHidable(u, h)`; `dispatchReplacedRemoved(w)` is instead OFFERED the
+  widget the removal seam just settled and looks up `w` by identity in each owner's `hiddenNative` (the same
+  `hiddenIn` the click-path toggle already used) — so the death test itself (`stillHidable`, inside
+  `endReplacement`'s `releaseHidden`) needed no change at all: by the time M1 fires the tree has already
+  settled, so the id-unbound/unreachable state `stillHidable` checks for is already true. `LuaWidget.anyHidden`
+  stays as the fast-path gate, just no longer gating a per-frame loop — a removal on a client that never
+  replaced/hid anything costs one volatile read.
+- **(042.8) Closing YOUR OWN stand-in's window (its X) does not end the substitution — only `replace(nil)` or
+  the SERVER destroying the native window does.** Verified in-game: an ad hoc `:lua` replacement whose view had
+  no `Close` handler wired to `w:replace(nil)` (unlike `bags`, which does exactly that) left the native window
+  hidden-but-alive after its stand-in was closed — the chest kept its "door open" world animation, because
+  nothing had told the client the container was done with. The fix is never in the engine: a stand-in's own X
+  is just a widget destroy like any other unless the addon itself chains it to `replace(nil)`, exactly as the
+  docs' `w:replace(nil)` "undoes it there and then" line already says. Walking away and letting the *server*
+  auto-close the container is what actually exercises M1's destroy path — and that one did clean up completely
+  (stand-in gone, no lingering state).

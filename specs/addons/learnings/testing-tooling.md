@@ -1147,3 +1147,17 @@
   `[manual]` line that asks the maintainer to trigger a specific widget-tree event, grep this file's own
   learnings for the widget/uimsg involved — a fresh-context task can rediscover a fact a sibling feature
   already paid for, and re-deriving it wrong costs a verification round.
+
+- **(042.8) The (036.1) fabricated-collaborator recipe needs no live `UI` at all when the code under test
+  only READS `AddonManager.ui` and branches on null.** `dispatchReplacedRemoved`'s death test
+  (`stillHidable`, inside `endReplacement`) checks `u == null` first and short-circuits false — which is
+  exactly the branch a server-destroyed window takes in-game anyway (M1 fires after the id is already
+  unbound), so leaving `AddonManager.ui` null in the probe exercises the real path, not a stand-in for it.
+  Two throwaway `Addon`s (`Manifest.internal`), a bare `new Widget(Coord)` for the "native window", a
+  package-private `new AddonWidget(owner, sz)` for the stand-in, and a hand-built `LuaWidget.Hidden`
+  (package-private ctor, same package) were enough for 12 checks: the record ends and the view is killed
+  when its OWN window reaches the seam, twice-offered is a no-op (not a double-kill), a view-less record
+  survives, an unrelated widget's removal never touches a different substitution, the `:lua` REPL owner
+  (`consoleOwner`) is covered identically, and `anyHidden` recomputes correctly both ways. The one thing
+  this cannot reach — confirmed separately, in-game — is the visible consequence of NOT going through
+  `replace(nil)`: see `widget-replacement.md`'s 042.8 entry.

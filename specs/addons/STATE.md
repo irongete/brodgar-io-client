@@ -2,8 +2,8 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 7 of 13 tasks done (042.1-042.7),
-042.8 (replacements) next. The addon layer synthesises its `*Changed`/`*Added` events by **polling the
+**ACTIVE: [`042-event-driven-reads`](042-event-driven-reads/)** — 8 of 13 tasks done (042.1-042.8),
+042.9 (selector watches) next. The addon layer synthesises its `*Changed`/`*Added` events by **polling the
 widget tree every frame** (11 sites, 6 of them `TreeAdapter`s) instead of listening at the moment a
 change happens. 042 wires them to the four seams the client already publishes — the `uimsg` tap, widget
 placement/removal, geometry, and `Loading`'s `Waitable` resolution notify — and **deletes the poll
@@ -15,6 +15,15 @@ not its late unlink), `Widget.resize` (which every size change funnels through, 
 notify inside the two `setbelt` paths that defer the `belt[]` write. Decisions D-178..D-182 (D-180 now
 has two consumers), of which **D-181 supersedes D-091** (*"a derived position is re-derived by POLLING
 what it reads"*). Closes the ROADMAP's *"Per-frame cost of the addon layer's polling suite"*.
+
+**042.8 DONE — `UiApi.pollReplaced`/`sweepReplaced` move onto the removal seam.** A server-destroyed
+`widget:replace(view)` substitution is a removal, so `dispatchReplacedRemoved(w)` is offered every widget
+M1 settles and ends the one substitution keyed to it (the same `hiddenIn` identity lookup the click-path
+toggle already used) — no per-tick sweep left; `stillHidable`'s death test needed no change (already false
+by the time M1 fires). `LuaWidget.anyHidden` kept as the fast-path gate, no longer gating a loop. Verified
+in-game: a real cupboard closed *natively* (server auto-close) removed the stand-in cleanly; closing the
+stand-in's own X first (no `replace(nil)` wired) left the native window hidden-but-alive — expected given
+the ad hoc test, not an engine bug (`learnings/widget-replacement.md`, 042.8).
 
 **042.7 DONE — `WidgetSubs`'s per-widget `Destroy`/`ItemAdded`/`ItemRemoved` move onto the placement/
 removal seams.** `Destroy` fires from M1 — including for a fading `Window`, which got `Buff`'s D-180

@@ -1,0 +1,9 @@
+{
+  "name": "042.8 -- replacements",
+  "id": "042-event-driven-reads.8",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 042.8: the server destroying a widget:replace(view) substitution ends it from the widget-removal seam (M1) instead of a per-tick sweep.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
