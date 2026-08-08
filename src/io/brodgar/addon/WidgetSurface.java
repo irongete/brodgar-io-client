@@ -5,6 +5,7 @@ import haven.Coord;
 import haven.FColor;
 import haven.GOut;
 import haven.Loading;
+import haven.SIWidget;
 import haven.TexRender;
 import haven.UI;
 import haven.Widget;
@@ -95,6 +96,8 @@ final class WidgetSurface extends Widget {
     private static final int MAXDIM = 2048;
 
     final Addon owner;
+    /** The entity standing this surface, set the moment it is built — see {@link #takesPointer}. */
+    LuaWidgetEntity ent;
     private Texture2D tex;
     private TexRender tr;
     private Coord tsz;                 // the texture's size, which is this widget's size at stand time
@@ -102,6 +105,20 @@ final class WidgetSurface extends Widget {
     private long sig;                  // the last content signature (see needsDraw)
     private boolean sigged;
     private boolean freed;
+
+    /** 044.4: the quad's four corners in the map view's pixels — BL, BR, TL, TR — as of {@link #qframe}. */
+    private volatile float[] quad;
+    /** ...the depth its centre projected to, so the frontmost of two overlapping panels takes the pointer. */
+    private volatile float qdepth;
+    /** ...and which frame recorded them, so a surface that has stopped being drawn stops being clickable. */
+    private volatile long qframe = Long.MIN_VALUE;
+
+    /**
+     * 044.4: where this surface's <b>widget-local origin currently is on screen</b>, kept following the
+     * pointer ({@link SurfaceInput#refreshOrigin}). It is what {@link #parentpos} answers with, and therefore
+     * what {@code rootpos()} means for everything inside a standing panel — see that method.
+     */
+    private volatile Coord origin = Coord.z;
 
     WidgetSurface(Addon owner, Coord sz) {
         super(clamp(sz));
@@ -139,6 +156,95 @@ final class WidgetSurface extends Widget {
     /** The texture wrapper the world quad samples ({@link SurfaceQuad}). Never disposed by the quad. */
     TexRender texture() {
         return tr;
+    }
+
+    // ---------------------------------------------------------------- input (044.4)
+
+    /** Every live surface — the pointer walk reads this, exactly as the render pass does. */
+    static java.util.List<WidgetSurface> all() {
+        return live;
+    }
+
+    /**
+     * The visual just projected this surface's four corners ({@link SurfaceDrawable}, or the blit rectangle in
+     * {@code "screen"} mode). Recording it here rather than on the entity is what lets one hit test serve all
+     * three facing modes: they differ in what reads the texture, never in the fact that the result is a flat
+     * quad somewhere on screen.
+     */
+    void corners(float[] q, float depth) {
+        this.quad = q;
+        this.qdepth = depth;
+        this.qframe = frames;
+    }
+
+    /**
+     * The corners, or {@code null} when they are stale — a surface that has stopped being drawn (hidden, its
+     * gob gone, off in a scene that is not rendering) must stop taking the pointer, and the frame counter the
+     * offscreen pass already keeps is the cheapest clock there is. Two frames of slack, because the pass runs
+     * before the world draw that records them.
+     */
+    float[] corners() {
+        return ((frames - qframe) <= 2) ? quad : null;
+    }
+
+    float depth() {
+        return qdepth;
+    }
+
+    /**
+     * <b>Does the pointer reach this panel at all?</b> A standing widget takes clicks by default — a window on
+     * the flat UI does, and this feature's whole rule is that the world one behaves the same — so
+     * {@code widget:clickable(false)} is the opt OUT, and it means what it means for a sprite: the thing is
+     * there to look at, and the pointer goes through it to the world beneath.
+     */
+    boolean takesPointer() {
+        LuaWidgetEntity e = ent;
+        if(freed || (e == null))
+            return false;
+        synchronized(e) {
+            return !e.dead && e.clickable;
+        }
+    }
+
+    /** {@link SurfaceInput} places the widget-local origin under the pointer; see {@link #parentpos}. */
+    void origin(Coord o) {
+        this.origin = o;
+    }
+
+    /**
+     * <b>Where a widget inside this surface is, as far as the rest of the client is concerned.</b> This is the
+     * one line that makes a grab work: {@code Widget.parentpos} builds every {@code rootpos()} through its
+     * parents, and {@code UI.PointerGrab} translates a grabbed widget's events by exactly that — so a
+     * scrollbar or a button that has taken the mouse is fed by the UI itself, never coming past
+     * {@code MapView} where the corner map could catch it. Answering with {@link #origin}, the screen point
+     * this surface's own {@code (0, 0)} currently sits at, makes that translation land on the same pixel the
+     * corner map would have produced.
+     *
+     * <p>It is deliberately NOT {@code xlate}: the draw traversal positions children through that one, and the
+     * offscreen pass must go on drawing this panel at its own origin whatever the pointer is doing.
+     */
+    public Coord parentpos(Widget in) {
+        return (in == this) ? Coord.z : origin;
+    }
+
+    /**
+     * Keep {@link #origin} following the pointer while a gesture is in flight (a grab bypasses MapView) — and
+     * <b>pin the standing widget at the surface's own origin</b>.
+     *
+     * <p>The pin is what keeps the spec's word once input arrives (044.4). A {@code Window}'s title bar drags it
+     * by writing its own {@code c}, and the feature's rule is that a widget standing in the world has no place
+     * of its own to drag — its place is the anchor's, and the title bar is a flat-UI gesture. Until this task
+     * the drag was inert because no pointer event ever reached it; now that one does, the drag has to be
+     * answered rather than merely unreachable. Undoing the write each tick, before the frame is drawn, is the
+     * smallest answer that leaves the gesture itself (the grab, the cursor, the release) exactly as the client
+     * built it — and it costs one comparison per surface per frame.
+     */
+    public void tick(double dt) {
+        super.tick(dt);
+        LuaWidgetEntity e = ent;
+        if((e != null) && (e.content != null) && (e.content.parent == this) && !Coord.z.equals(e.content.c))
+            e.content.c = Coord.z;
+        SurfaceInput.refreshOrigin(this);
     }
 
     // ---------------------------------------------------------------- the offscreen pass
@@ -196,7 +302,10 @@ final class WidgetSurface extends Widget {
         boolean changed = !sigged || (s != sig);
         sig = s;
         sigged = true;
-        return dirty || changed || changing();
+        // ...and a panel with a button HELD DOWN on it repaints every frame while the gesture lasts (044.4).
+        // A cached face says when it changed; a scrollbar or a slider being dragged has none and simply draws
+        // its new position, so the one thing that covers every control mid-drag is the drag itself.
+        return dirty || changed || changing() || SurfaceInput.gesturing(this);
     }
 
     /**
@@ -254,6 +363,12 @@ final class WidgetSurface extends Widget {
      *       know what it would paint is to run it, and running it <i>is</i> the draw. This is not a concession:
      *       a panel whose text is the smelter's fuel level must redraw when the fuel changes, and nothing but
      *       the handler knows that it did;</li>
+     *   <li>a widget that has <b>thrown away its cached face</b> ({@link SIWidget#redrawing}) — a button
+     *       depressing under a click, arming as the pointer re-enters it, being disabled. On the flat UI this
+     *       needs no signal because the screen is redrawn every frame; here it is the difference between a
+     *       button that visibly presses and one that does not, which is the whole of 044.4's rule. Found the
+     *       moment input arrived (044.4), for the same reason the {@code Window} fade was (044.3): what a
+     *       widget looks like is not always in its place, its size or its caption;</li>
      *   <li>a running transition, so a window reparented into a surface animates its way in exactly as it does
      *       on screen instead of freezing on the first frame of it. That is <b>two</b> lists, not one, and
      *       044.1 checked only the first: a {@link Widget.Anim} lives in {@code anims}/{@code nanims}, while a
@@ -272,6 +387,8 @@ final class WidgetSurface extends Widget {
             if(!c.anims.isEmpty() || !c.nanims.isEmpty())
                 return true;
             if((c instanceof Window) && ((Window)c).animating())
+                return true;
+            if((c instanceof SIWidget) && ((SIWidget)c).redrawing())
                 return true;
             WidgetSubs s = owner.widgetSubsOrNull(c);
             if((s != null) && s.subs.has("Draw"))
@@ -333,6 +450,7 @@ final class WidgetSurface extends Widget {
             return;
         freed = true;
         live.remove(this);
+        SurfaceInput.forget(this);         // no half-finished gesture goes on being delivered to a dead panel
         TexRender t = tr;
         tr = null;
         tex = null;

@@ -2130,6 +2130,16 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private UI.Grab camdrag = null;
 
     public boolean mousedown(MouseDownEvent ev) {
+	// addon: 044.4 spatial UI (hafen.vr():widget()) — a widget standing in the world takes the pointer here,
+	//        before anything of the map view's own, exactly as a window on the flat UI takes it before the map
+	//        view ever sees it. The test is the standing quad's own projected corners, so it answers inside
+	//        THIS event rather than a frame later like the pick pass — which is what lets the press, the drag
+	//        and the release be one gesture. A point on no panel returns false and everything below is
+	//        untouched, so a click that misses still reaches the world beneath it. (Also before setfocus: the
+	//        keyboard belongs to the panel that was clicked, not to the map view behind it.)
+	if((camdrag == null)
+	   && io.brodgar.addon.AddonManager.onSurfaceMouseDown(this, ev))
+	    return(true);
 	parent.setfocus(this);
 	Loader.Future<Plob> placing_l = this.placing;
 	if(ev.b == 2) {
@@ -2148,6 +2158,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
     
     public void mousemove(MouseMoveEvent ev) {
+	// addon: 044.4 — hover and drag over a standing panel, on the same terms as the press above. A camera
+	//        drag or a map grab already owns the pointer, so neither is interrupted.
+	if((camdrag == null) && (grab == null)
+	   && io.brodgar.addon.AddonManager.onSurfaceMouseMove(this, ev))
+	    return;
 	if(grab != null)
 	    grab.mmousemove(ev.c);
 	Loader.Future<Plob> placing_l = this.placing;
@@ -2162,6 +2177,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
     
     public boolean mouseup(MouseUpEvent ev) {
+	// addon: 044.4 — the release of the gesture the press above started, delivered to the panel that took it
+	//        even if the pointer has since left it.
+	if((camdrag == null) && (grab == null)
+	   && io.brodgar.addon.AddonManager.onSurfaceMouseUp(this, ev))
+	    return(true);
 	if(ev.b == 2) {
 	    if(camdrag != null) {
 		camera.release();
@@ -2177,6 +2197,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public boolean mousewheel(MouseWheelEvent ev) {
 	Loader.Future<Plob> placing_l = this.placing;
 	if((grab != null) && grab.mmousewheel(ev.c, ev.a))
+	    return(true);
+	// addon: 044.4 — the wheel over a standing panel is the panel's, and it stays the panel's even when
+	//        nothing inside it uses the wheel: a window on the flat UI blocks the camera zoom under it the
+	//        same way, and this feature's rule is that the world one behaves identically.
+	if(io.brodgar.addon.AddonManager.onSurfaceMouseWheel(this, ev))
 	    return(true);
 	if((placing_l != null) && placing_l.done()) {
 	    Plob placing = placing_l.get();

@@ -56,6 +56,18 @@ public abstract class SIWidget extends Widget {
 	surf = null;
     }
 
+    // addon: 044.4 spatial UI (hafen.vr():widget()) — has this widget thrown away its cached face, i.e. will its
+    //        next draw rasterize a new picture? On the flat UI nobody needs to ask: the screen is redrawn every
+    //        frame regardless. A widget standing in the WORLD is drawn into a texture that is re-uploaded only
+    //        when its content changed, and redraw() is the client's own statement that it did — a button
+    //        depressing under a click, arming and disarming as the pointer leaves and re-enters it, being
+    //        disabled, having its caption changed. None of that is visible in the widget's place, size,
+    //        visibility or caption, so without this the panel in the world would go on showing the picture from
+    //        before the click. Same shape and same reason as Window.animating() (044.3).
+    public boolean redrawing() {
+	return(surf == null);
+    }
+
     public void dispose() {
 	super.dispose();
 	if(surf != null)

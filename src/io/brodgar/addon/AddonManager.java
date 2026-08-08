@@ -738,6 +738,30 @@ public final class AddonManager {
     }
 
     /**
+     * The <b>spatial-UI pointer seam</b> (044.4) — called from {@code haven.MapView}'s four mouse entries before
+     * it does anything of its own, so a widget standing in the world takes the pointer exactly where a window on
+     * the flat UI would have taken it: first, and only where it actually is. Each returns {@code true} when a
+     * standing panel took the event; {@code false} leaves the map view's own behaviour completely untouched,
+     * which is how a click that misses a panel still reaches the world beneath it. Delegates to
+     * {@link SurfaceInput}, for the same reason {@link #onGhostClick} does: {@code haven} knows one class here.
+     */
+    public static boolean onSurfaceMouseDown(MapView mv, Widget.MouseDownEvent ev) {
+        return SurfaceInput.mouseDown(mv, ev);
+    }
+
+    public static boolean onSurfaceMouseUp(MapView mv, Widget.MouseUpEvent ev) {
+        return SurfaceInput.mouseUp(mv, ev);
+    }
+
+    public static boolean onSurfaceMouseMove(MapView mv, Widget.MouseMoveEvent ev) {
+        return SurfaceInput.mouseMove(mv, ev);
+    }
+
+    public static boolean onSurfaceMouseWheel(MapView mv, Widget.MouseWheelEvent ev) {
+        return SurfaceInput.mouseWheel(mv, ev);
+    }
+
+    /**
      * The <b>widget-placement seam</b> — called from the {@code UI.AddWidget.run} core edit, right after
      * {@code pwdg.addchild(wdg, pargs)}, i.e. the first COMPLETE moment: the widget is in the tree, so a
      * {@link Selector} can be applied to it. <b>One consumer since 032.2</b>: the 030.2 selector subscriptions

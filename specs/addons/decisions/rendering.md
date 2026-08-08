@@ -79,6 +79,15 @@ to that first clause, and it was WRONG**: a [`Window`](src/haven/Window.java:532
 freeze on the fade's first, near-transparent frame — which the world quad's `TexClip` then discarded **whole**.
 Corrected in **044.3** (`Window.animating()`, a `// addon:` one-liner, asked beside the two lists); the decision
 above stands unchanged, since "a transition is code" was always the rule — only the enumeration was short.
+⚠️ **And it was short by one more, found the moment input arrived (044.4).** A widget that caches its rasterised
+face — every [`SIWidget`](src/haven/SIWidget.java:31), so every `Button`, and the client is full of them — throws
+that cache away with `redraw()` when it depresses under a click, arms as the pointer re-enters it, or is
+disabled. None of that is in its place, its size, its visibility or its caption, so the signature never saw it
+and a standing button **clicked, played its sfx, and never visibly pressed**. `SIWidget.redrawing()` is the third
+`// addon:` one-liner, asked beside the other two; on the flat UI nobody needs it because the screen is redrawn
+every frame regardless. A **held press** repaints its panel every frame besides, since a control being dragged —
+a scrollbar, a slider — has no cached face to announce anything and simply draws its new position. The pattern in
+all three corrections is one: *what a widget looks like is not always in what a widget holds.*
 **Consequences.** The headline number is honest in both directions and the suite asserts **both**: a control panel
 holds `uploads` at 1 while `frames` climbs, and one label change costs exactly one more; a hand-painted panel moves
 them together. That second half is not a concession — the spec's own example paints the smelter's fuel level, which
@@ -119,3 +128,31 @@ that is the terrain's own plane, and it is lost in it. `<entity>:offset(x, y, z)
 is the answer; centring the quad on its anchor is not, since it stays coplanar either way.
 **See.** [D-190](architecture-api.md#d-190), [D-194](architecture-api.md#d-194),
 [D-113](architecture-api.md#d-113), [044-spatial-ui](../044-spatial-ui/spec.md).
+
+### D-195 — a flat thing in the world is picked by its own projected CORNERS, inside the event that arrived ✅ (044.4, 2026-08-08)
+**Decision.** Input on a widget standing in the world is resolved by **inverting the homography its four
+projected corners determine**, synchronously, in the very `MapView` mouse event the press arrived in — not by the
+engine's pick pass. Each surface's visual records those corners once per frame from inside the 2D overlay pass
+([`SurfaceDrawable`](src/io/brodgar/addon/SurfaceDrawable.java), a `PView.Render2D` that draws nothing and exists
+only to be handed the `Pipe` its own slot resolved to), and the `"screen"` blit records its rectangle the same
+way. A surface is a **plane**, so its picture reaches the screen through a projective map, and a projective map is
+fixed by four point pairs: the inverse is exact, perspective foreshortening included, and the constant-size blit
+falls out as the degenerate (affine) case of the same arithmetic rather than as a second code path.
+**Rationale.** The engine's [`MapView.Hittest`](../../codebase/world-3d.md) answers a frame later, on the render
+thread's callback. That is right for "the player clicked that tree" and useless for a button, which needs the
+press, whatever drag follows and the release to be **one uninterrupted gesture** dispatched from inside the event
+the press arrived in — a widget that grabs the mouse must grab it *now*. Inverting the projection and view
+matrices instead would work, but it exposes them to Lua for no gain: the corners are already being projected to
+put the quad on screen, so the map is read off the picture rather than solved for beside it, and the pointer
+follows the picture *by construction* rather than by a second calculation that could disagree with it.
+**Consequences.** Input does **not** consult the depth buffer: a panel behind a hill still takes the pointer, and
+between two overlapping panels the nearer one wins on its centre's projected depth. That is the price of
+answering in the same event, and it is stated rather than hidden. The corners carry a frame stamp, so a surface
+that has stopped being drawn stops being clickable; a corner behind the eye (`w <= 0` in clip space, where the
+projective divide is meaningless) drops the whole record rather than filling it with a plausible number; and an
+edge-on quad determines no map and is refused, so a degenerate panel takes no pointer instead of taking it
+everywhere. `hafen.vr():pointer(key, x, y)` enters this same function at a screen point and stops there — it is
+the client's path from the map view *inward*, so it can neither move the character nor reach the server — and
+`widget:screen(x, y)` is its exact inverse, both directions off the one map.
+**See.** [D-196](widgets-ui.md#d-196), [D-193](#d-193), [D-192](#d-192),
+[044-spatial-ui](../044-spatial-ui/spec.md), [world-3d](../../codebase/world-3d.md).

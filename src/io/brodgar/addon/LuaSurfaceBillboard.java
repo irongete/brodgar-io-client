@@ -59,24 +59,41 @@ public final class LuaSurfaceBillboard extends Drawable implements PView.Render2
      */
     public void draw(GOut g, Pipe state) {
         TexRender tr = surf.texture();
-        if(tr == null)
+        if(tr == null) {
+            surf.corners(null, 0f);
             return;                                  // the surface has been freed → draw nothing
+        }
         Coord sc;
         try {
             Coord3f v = Homo3D.obj2view(new Coord3f(0f, 0f, 0f), state, Area.sized(g.sz()));
-            if(v == null)
+            if(v == null) {
+                surf.corners(null, 0f);
                 return;                              // not projectable this frame
+            }
             sc = v.round2();
         } catch(RuntimeException e) {
+            surf.corners(null, 0f);
             return;
         }
         float scale = (gg != null) ? gg.scale : 1f;
-        if(scale <= 0f)
+        if(scale <= 0f) {
+            surf.corners(null, 0f);
             return;
+        }
         Coord base = surf.sz;                        // 1:1 with the texture — the widget drew itself at exactly
                                                      // this size, already DPI-scaled, so UI.scale would double it
         Coord sz = new Coord(Math.max(1, Math.round(base.x * scale)), Math.max(1, Math.round(base.y * scale)));
         Coord pos = new Coord(sc.x - (sz.x / 2), sc.y - sz.y);   // bottom-centre at the world point
+        // 044.4: the blit rectangle IS this mode's quad. Same four corners in the same order the world modes
+        // record (BL, BR, TL, TR, with v counted up from the panel's bottom edge), so the one homography that
+        // resolves a pointer onto a perspective quad resolves this one too — degenerately, as the plain
+        // rectangle test a screen blit deserves, without a second code path to keep in step. Depth -1 puts it
+        // in front of every world quad, which is exactly where it is drawn.
+        surf.corners(new float[] {
+            pos.x,          pos.y + sz.y,
+            pos.x + sz.x,   pos.y + sz.y,
+            pos.x,          pos.y,
+            pos.x + sz.x,   pos.y }, -1f);
         float alpha = (gg != null) ? gg.alpha : 1f;
         Color tint = (gg != null) ? gg.tint : null;
         int a8 = clampByte(Math.round(alpha * 255f));

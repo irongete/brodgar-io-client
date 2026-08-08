@@ -68,7 +68,22 @@
   `"fixed"` does not, and walk away and back to see both world modes shrink while `"screen"` does
   not.
 
-- [ ] **044.4 — Input: clicks land where they look like they land**
+- [x] **044.4 — Input: clicks land where they look like they land** ✅
+  *Shipped*: `SurfaceInput` (the corner homography, the front-to-back resolution, the four entries) and
+  `SurfaceDrawable` (the widget quad's `Drawable`, and a `PView.Render2D` that draws nothing and records the four
+  projected corners). **The pick pass is NOT used** — it answers a frame later, and a press, its drag and its
+  release must be one gesture dispatched inside the event the press arrived in (**D-195**); the cost, stated
+  rather than hidden, is that input ignores terrain occlusion. A standing widget therefore **left the world pick
+  entirely** (no `GobClick`), so a miss reaches the world beneath by construction and `widget:onClick`/
+  `WidgetClicked` are refused — a widget answers a click as a widget (**D-196**), with `:clickable(b)` now
+  meaning "does the panel take the pointer", default true. `WidgetSurface.parentpos` answers with a live origin
+  so a widget that grabs the mouse is fed correct coordinates by `UI.PointerGrab` (**D-197**). Two new verbs,
+  `hafen.vr():pointer(key, x, y [, a])` and `widget:screen(x, y)`, exact inverses off the one map. FIVE
+  `// addon:` core lines: four `MapView` hooks and `SIWidget.redrawing()`. **It found a 044.1 defect**: a
+  `Button` caches its rasterised face and `redraw()`s on press — invisible to the signature, so a standing button
+  clicked, played its sfx and never visibly pressed; D-192's enumeration is corrected in place a second time.
+  11/11 + 2/2, five rounds; two of the failures were the suite's own and both are `learnings/` entries (a held
+  synthetic press orphans a `Button`'s grab client-wide; a bare `hafen.ui():widget()` paints nothing at all).
   The pick on a surface routed before it becomes `wdgmsg("click", …)`, and the corner-homography
   turning a screen point into widget-local pixels. Both anchors, all three facing modes,
   `"screen"` degenerating to a rectangle test.

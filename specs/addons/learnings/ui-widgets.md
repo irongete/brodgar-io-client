@@ -811,3 +811,28 @@
   is skipped deliberately: it only drops `UI.Grab`s owned by the subtree, which a widget that is still alive should
   keep. **Rule:** before reusing an engine lifecycle method for a lifecycle it does not name, grep what it NOTIFIES
   — the observers were written for the meaning, not for the mechanics.
+
+- **(044.4) `Button.mousedown` takes a `ui.grabmouse` and does NOT test coordinates — an orphaned one is a
+  client-wide interceptor.** [`Button.mousedown`](src/haven/Button.java:254) depresses, plays its sfx and grabs
+  the mouse for *any* mousedown it is handed; only [`mouseup`](src/haven/Button.java:264) tests
+  `ev.c.isect(Coord.z, sz)`. While a grab is outstanding **every** pointer event in the client goes to it
+  ([`UI.dispatch`](src/haven/UI.java:626) checks `grabs` before the root traversal), so a second mousedown
+  re-enters `mousedown`, **overwrites `d`, and leaks the first grab permanently** — leaving a button that
+  depresses on every click anywhere, flat UI included, until the client restarts. Anything that synthesises a
+  press must release it in the same statement; never hold one across a timer.
+- **(044.4) `SIWidget` caches its rasterised face in a PRIVATE field, and `redraw()` is the only signal it
+  changed.** [`SIWidget.surf`](src/haven/SIWidget.java:31) is nulled by `redraw()`, which `Button` calls on
+  press, on arm/disarm as the pointer crosses it, and on `disable`. None of that shows in the widget's place,
+  size, visibility or caption — so anything caching a widget's picture (a spatial surface) needs
+  `SIWidget.redrawing()` to see it. On the flat UI the question never arises: the screen is redrawn every frame.
+- **(044.4) A bare `hafen.ui():widget()` paints NOTHING — it is a container, not a surface.** No background, no
+  border, only its children; stood in the world it reads as a title floating over the terrain. The stylesheet
+  cannot rescue it either: `bg` replaces a surface the client *already* paints and never invents one
+  ([D-083](../decisions/widgets-ui.md#d-083)). A panel that should look like a panel is a
+  `hafen.ui():window()`.
+- **(044.4) A window places its children in INNER coordinates and nothing converts them to outer ones.**
+  [`Window.xlate`](src/haven/Window.java:445) adds `deco.contarea().ul` at draw/hit time while the child's own
+  `c` stays inner, and no `hafen.*` verb exposes the inset. A surface pixel is an *outer* pixel, so anything that
+  must aim at a child of a standing window measures the offset instead: two 1-D sweeps of `hafen.ui():at()`
+  across the window on the flat UI *before* it stands (down the middle for the rows, across those for the
+  columns) give the child's box exactly, on whatever chrome the client happens to wear.

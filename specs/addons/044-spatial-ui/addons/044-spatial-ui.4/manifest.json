@@ -1,0 +1,9 @@
+{
+  "name": "044.4 — input: clicks land where they look like they land",
+  "id": "044-spatial-ui.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 044.4: a pointer put on a widget standing in the world arrives at the widget in its own pixels — MouseDown, MouseUp, MouseMove and Wheel, on both anchors and in all three facing modes — a button's callback runs, ev:preventDefault() still cancels, and a point on no panel is answered false so the world beneath keeps its click.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

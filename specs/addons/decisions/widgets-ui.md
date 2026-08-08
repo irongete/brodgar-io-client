@@ -1274,3 +1274,50 @@ ticking, focus, hover, popups and tooltips one at a time, each breaking differen
 *attached inert beats held out of the tree*, because the tree is what every other capability is resolved against.
 **See.** [D-119](#d-119), [D-070](#d-070), [044-spatial-ui](../044-spatial-ui/spec.md),
 [D-192](rendering.md#d-192) (what such a surface then costs to draw).
+
+### D-196 — a widget standing in the world answers a click AS A WIDGET, so it leaves the world pick entirely ✅ (044.4, 2026-08-08)
+**Decision.** A standing widget is **not in the 3D pick at all**: its quad carries no
+[`Gob.GobClick`](../../codebase/world-3d.md), and the whole-quad click surface every other
+[`hafen.vr()`](../043-vr-namespace/spec.md) kind has is **refused** on this one — `widget:onClick(fn)` throws
+naming `widget:widget():on("MouseDown", fn)`, and `WidgetClicked` never fires. What a click on a panel means is
+the widget's own `MouseDown`/`MouseUp`/`MouseMove`/`Wheel`, at the pixel it landed on, in the handler the addon
+already wrote for the flat UI. `widget:clickable(b)` keeps the word the shared core gives it and now means *does
+this panel take the pointer at all* — **default `true`**, against the picture kinds' `false`, because a window on
+the flat UI takes clicks without being asked.
+**Rationale.** The other three kinds are pictures: "it was clicked" is the whole of what they have to say, so a
+handle-level callback is the right and only shape. A widget is not a picture, and it already has a richer answer
+than the entity could ever give — which button, which pixel, which widget inside it, cancellable. Keeping both
+would be two ways to hear about one click, the dual API this area refuses; keeping only the entity's would make
+the feature's transparency rule unreachable. The default flips for the same reason the verb survives at all: the
+rule is *if it works on screen, it works in the world*, and on screen nothing opts in.
+**Consequences.** A pointer that **misses** the panel reaches the world beneath **by construction** — there is
+nothing in the clickmap to stop it, so the pick and the panel never compete for one click, and the miss needs no
+second test. `widget:clickable(false)` is therefore a real capability rather than a formality: the panel becomes
+click-through, which is what a decorative one wants. Setting it touches no scene state (no `GobClick` to re-prep,
+so nothing flickers), unlike the same verb on a sprite. The whole-quad branch 044.1 had put in the pick's entity
+lookup is gone.
+**See.** [D-195](rendering.md#d-195), [D-191](#d-191), [D-032](virtual-entities.md#d-032),
+[044-spatial-ui](../044-spatial-ui/spec.md).
+
+### D-197 — where the engine reaches a widget by ROOTPOS, a re-homed subtree answers with where the pointer put it ✅ (044.4, 2026-08-08)
+**Decision.** [`WidgetSurface`](src/io/brodgar/addon/WidgetSurface.java) overrides
+[`Widget.parentpos`](src/haven/Widget.java:522) to answer with a live `origin` — the screen point the panel's own
+`(0, 0)` is currently drawn at — instead of its (meaningless) place under `ui.root`. It is refreshed **only while
+a gesture is in flight on that surface**, and `xlate` is deliberately left alone.
+**Rationale.** Every button, scrollbar and slider takes the mouse on its press
+([`UI.grabmouse`](../../codebase/widgets.md)), and from then on the UI feeds it directly:
+[`UI.PointerGrab`](src/haven/UI.java:573) translates each event by `ev.c + target.rootpos() - wdg.rootpos()`, and
+that path is checked **before** the root traversal, so it never comes past `MapView` where the corner map could
+catch it. `rootpos` is therefore the one address the client uses to talk to a widget whose place it does not
+otherwise care about — and for a subtree that is drawn somewhere else entirely, the honest answer to "where are
+you" is "wherever the pointer currently makes you". `xlate` is the wrong hook for the same fact: the draw
+traversal positions children through it, and the offscreen pass must go on drawing the panel at its own origin
+whatever the pointer is doing.
+**Consequences.** A drag inside a standing panel works with no special case, including past the panel's edges
+(the map extrapolates, which is what a grabbed pointer wants). The gate matters: followed unconditionally, every
+widget in every standing panel would appear — to anything that asks where it is — to be permanently under the
+cursor wherever the cursor went, and a *stray* grab could then be aimed into a panel from across the screen.
+Nothing legitimate asks, but the answer to a question nobody should be asking ought not to be "yes, everywhere".
+The same `tick` puts the standing widget back at `(0, 0)` each frame, which is what keeps the spec's
+title-bar-drag-is-inert rule true now that a title bar can actually receive the press.
+**See.** [D-195](rendering.md#d-195), [D-191](#d-191), [widgets](../../codebase/widgets.md).

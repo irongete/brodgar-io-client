@@ -1283,3 +1283,20 @@
   added at the **end** of its parent's chain, so it comes back above whatever was covering it. `>=` (plus
   `before > 0`, so the probe is known to have been real) is the claim that is actually true. Generally: *a check
   over z-ordered hit-testing states a floor, never an equality, unless the test owns every widget on screen.*
+
+- **(044.4) A suite that synthesises input must leave NO press outstanding — a held one can maim the client.**
+  Round 3 of `:t044-4` held a synthetic `MouseDown` on a button across a 0.8 s timer to prove a panel repaints
+  while a gesture lasts. `haven`'s `Button` grabs the mouse on its press, so one real click by the maintainer
+  inside that window orphaned the grab for the rest of the session (`ui-widgets.md`, same task) — every click
+  anywhere then depressed the button, which reads exactly like a routing bug in the feature under test and cost
+  a verification round to chase. Pair every press with its release **in the same statement**; if a claim seems to
+  need a press held across frames, assert it some other way.
+- **(044.4) An explicit `nil` is a REFUSAL, so a helper with an optional trailing argument must omit it, not
+  forward it.** `poke(e, x, y, key, arg)` called `hafen.vr():pointer(key, sx, sy, arg)` unconditionally; for
+  `MouseMove` there is no `arg`, and Lua passes the explicit nil, which the verb rejects by design (arity is the
+  verb — §2 of `conventions.md`). Branch on `arg == nil` and make the shorter call. The refusal was correct and
+  the suite was wrong, which is the good failure of that convention.
+- **(044.4) `hafen.ui():at()` is a measuring instrument, not just an assertion.** Sweeping it over a widget's
+  rectangle locates a child of the client's own chrome to the pixel (`ui-widgets.md`), ~2×size calls for two 1-D
+  passes. Cheap enough to run once in a suite's setup, and it means a test aims at what is actually there rather
+  than at a constant that is right on one client's DPI and wrong on another's.

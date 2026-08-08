@@ -113,6 +113,23 @@ final class VrApi {
                 return self;
             }
         });
+        // pointer(key, x, y [, a]) — put the pointer on whatever is STANDING at a screen point (044.4). The key
+        // is one of the four a widget already answers to, so there is one input vocabulary and not two; x, y are
+        // screen pixels, the very numbers hafen.ui():mouse() reports; a is the button (MouseDown/MouseUp,
+        // default 1) or the wheel's amount. It hands back whether a panel took it — false meaning the point was
+        // on none, which is the moment the client's own world click goes on exactly as it always did. This is
+        // the client's path from the map view INWARD and stops there: it cannot move the character and it never
+        // reaches the server, so it is ungated like the rest of the section.
+        m.set("pointer", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "vr", "pointer");
+                String key = pointerKey(Args.required(a, 2, "hafen.vr():pointer", "key"));
+                int x = (int)Math.round(number(a, 3, "hafen.vr():pointer", "x"));
+                int y = (int)Math.round(number(a, 4, "hafen.vr():pointer", "y"));
+                int arg = Args.passed(a, 5) ? (int)Math.round(number(a, 5, "hafen.vr():pointer", "a")) : 1;
+                return LuaValue.valueOf(SurfaceInput.pointer(key, x, y, arg));
+            }
+        });
         Section.install(hafen, "vr", m);
     }
 
@@ -855,6 +872,21 @@ final class VrApi {
         return h;
     }
 
+    /** The four input keys, in the one spelling {@code widget:on(key, fn)} already uses (044.4). */
+    private static final String POINTER_KEYS = "\"MouseDown\", \"MouseUp\", \"MouseMove\" or \"Wheel\"";
+
+    /** The {@code key} of {@code hafen.vr():pointer(key, x, y)}, refused by name rather than ignored. */
+    private static String pointerKey(LuaValue kv) {
+        if(!kv.isstring())
+            throw new LuaError("hafen.vr():pointer(key, x, y): key is one of " + POINTER_KEYS + ", got "
+                + kv.typename());
+        String s = kv.tojstring();
+        if(s.equals("MouseDown") || s.equals("MouseUp") || s.equals("MouseMove") || s.equals("Wheel"))
+            return s;
+        throw new LuaError("hafen.vr():pointer(\"" + s + "\", x, y): the pointer says one of " + POINTER_KEYS
+            + " — the same four keys widget:on(key, fn) answers to");
+    }
+
     /** A required number argument, refused by name rather than silently coerced to zero. */
     private static double number(Varargs a, int i, String verb, String param) {
         LuaValue v = Args.required(a, i, verb, param);
@@ -1306,6 +1338,8 @@ final class VrApi {
         Coord2d rc = new Coord2d(opts.get("x").optdouble(0.0), opts.get("y").optdouble(0.0));
         WidgetSurface surf = new WidgetSurface(owner, content.sz);
         LuaWidgetEntity we = new LuaWidgetEntity(owner, surf, content, rc, 0.0);
+        surf.ent = we;                                 // 044.4: the surface asks the entity whether it takes the pointer
+        we.clickable = true;                           // ...and it does, by default — a window on screen takes clicks
         we.prevParent = content.parent;                // where it stood from, so :remove puts it back
         we.prevPos = content.c;
         we.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
@@ -1318,7 +1352,10 @@ final class VrApi {
         }
         GhostGob gob = new GhostGob(g, rc);
         gob.alpha = we.alpha; gob.tint = we.tint; gob.scale = we.scale;   // the look, before the first scene add
-        gob.clickable = we.clickable;
+        // NO GobClick (044.4): a standing widget is not in the world pick at all. Its clicks are resolved
+        // before the pick pass is ever started, off the quad's projected corners, and a pointer that MISSES
+        // the panel must reach the world beneath it — which it does because the quad puts nothing in the
+        // clickmap to stop it. The pick and the panel therefore never compete for the same click.
         gob.setattr(we.visual(gob, we.facing));        // the kind's one miller, shared with :facing(mode)
         gob.move(rc, 0.0);
         synchronized(we) {
@@ -1352,6 +1389,32 @@ final class VrApi {
             }
         });
         x.set("facing", facingVerb(we, "widget"));
+        // screen(x, y) — where a pixel of this panel is drawn, in the screen coordinates the pointer itself
+        // reports (044.4). The exact inverse of what a click does, and the same corner map both ways, so
+        // "where is my OK button on screen" and "what did the player click" can never disagree. Two numbers,
+        // like every screen point in this API; nil when the panel is not being drawn or is behind the camera.
+        x.set("screen", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                int wx = (int)Math.round(number(a, 2, "widget:screen", "x"));
+                int wy = (int)Math.round(number(a, 3, "widget:screen", "y"));
+                Coord p = SurfaceInput.screenOf(we, wx, wy);
+                return (p == null) ? LuaValue.NIL
+                    : LuaValue.varargsOf(LuaValue.valueOf(p.x), LuaValue.valueOf(p.y));
+            }
+        });
+        // onClick is refused HERE and nowhere else (044.4). Every other kind is a picture, so "the thing was
+        // clicked" is all there is to say about it; a widget is not a picture, and the answer to a click on one
+        // is the widget's OWN MouseDown, at the pixel it landed on, in the handler the addon already wrote for
+        // the flat UI. Two ways to hear about the same click would be exactly the dual API this area refuses.
+        x.set("onClick", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                throw new LuaError("widget:onClick(fn): a standing widget's clicks are the WIDGET's own —"
+                    + " subscribe with widget:widget():on(\"MouseDown\", fn) (or \"MouseUp\", \"MouseMove\","
+                    + " \"Wheel\"), the same line you would write for it on the flat UI, and read the pixel"
+                    + " off ev:x()/ev:y(). widget:clickable(false) makes the whole panel click-through"
+                    + " instead");
+            }
+        });
         return entityHandle(we, "widget", x);
     }
 
@@ -1427,6 +1490,9 @@ final class VrApi {
             if(e.dead || (e.clickable == on))
                 return;
             e.clickable = on;
+            if(e instanceof LuaWidgetEntity)
+                return;                                // 044.4: a panel's pointer gate, not a pick surface —
+                                                       // nothing in the scene to re-add, so nothing flickers
             if(e.gob instanceof GhostGob)
                 ((GhostGob)e.gob).clickable = on;      // read by obstate on the next scene (re)add
             refreshEntityScene(e);
@@ -1792,12 +1858,9 @@ final class VrApi {
             if(g == cg)
                 return ob;
         }
-        for(LuaWidgetEntity we : a.surfaces) {    // 044.1: a clickable standing widget answers the same whole-quad pick
-            Gob g;
-            synchronized(we) { g = we.dead ? null : we.gob; }
-            if(g == cg)
-                return we;
-        }
+        // NOT a.surfaces (044.4): a standing widget left the world pick entirely when its clicks became the
+        // widget's own. Its quad carries no GobClick, so it cannot reach here — and the same fact is what lets
+        // a pointer that missed the panel fall through to whatever is behind it.
         return null;
     }
 }

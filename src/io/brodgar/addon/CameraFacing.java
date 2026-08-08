@@ -42,7 +42,16 @@ final class CameraFacing extends SprDrawable {
 
     CameraFacing(Gob gob, Sprite.Mill<?> mk) {
         super(gob, mk);
-        this.place = new Place(gob.glob.map.trnplace);
+        this.place = viewPlane(gob);
+    }
+
+    /**
+     * The turn on its own, so the kind that needs it <i>and</i> something else — a standing widget, which also
+     * has to report where its corners landed ({@link SurfaceDrawable}, 044.4) — takes the same rotation rather
+     * than a second copy of it. One implementation, two visuals.
+     */
+    static Gob.Placer viewPlane(Gob gob) {
+        return new Place(gob.glob.map.trnplace);
     }
 
     /** The whole of this class: the visual is a fixed quad, placed by a rotation the camera decides. */

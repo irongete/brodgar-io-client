@@ -296,3 +296,25 @@
   `<entity>:offset(x, y, z)` D-187 already put on the handle. Worth stating because the first instinct on seeing
   it is to hunt for a depth/culling fault in the new code, and half an hour went that way before the elimination
   test (only the camera-facing things vanish; the `"screen"` blit never does) named it in one line.
+
+- **(044.4) A `PView.Render2D` that draws NOTHING is the only place a world node can be asked where it landed on
+  screen.** [`Homo3D.obj2clip(objc, state)`](src/haven/render/Homo3D.java:190) needs the `Pipe` the node's own
+  slot resolved to — the full chain, world placement, facing rotation and `GhostGob.obstate`'s scale alike — and
+  the 2D overlay pass ([`PView.ScreenList`](src/haven/PView.java:412)) is the one moment per frame a node is
+  handed it. So a `SprDrawable` that also `implements PView.Render2D` can record its quad's four projected
+  corners each frame and draw nothing at all. A `Drawable` added by `gob.setattr` reaches the `ScreenList` the
+  same way `LuaSpriteBillboard` does (the slot's obj is the drawable itself), and its 3D geometry is unaffected.
+- **(044.4) Four projected corners are an exact screen↔widget map for anything flat, perspective included.** A
+  quad is a plane, so its picture reaches the screen through a projective map, and a projective map is fixed by
+  four point pairs (unit square → quad, Heckbert's closed form, then a 3×3 inverse). No projection or view matrix
+  is inverted and nothing new is exposed. Watch three degeneracies, all real: a parallelogram (no perspective
+  term) needs the **affine branch** or the general formula divides by zero — this is the case a constant-size
+  screen blit is *always* in, so it costs nothing to support and buys the third facing mode for free; an
+  **edge-on** quad determines nothing and must be refused rather than answered with noise; and a corner behind
+  the eye has **no** screen position at all — check [`HomoCoord4f.w > 0`](src/haven/HomoCoord4f.java:118) before
+  `toview`, because `pdiv()` past the eye plane returns a plausible-looking number on the wrong side.
+- **(044.4) Corner order must be re-derived from the quad's own `t`, not copied.** `SurfaceQuad` counts `v` UP
+  from the widget's bottom edge (a render target's first texel row is its bottom — the 044.1 v-flip); so the
+  recorded corners are BL, BR, TL, TR against uv (0,0), (1,0), (0,1), (1,1), and widget `y` comes back as
+  `(1 - v) * h`. A screen blit's rectangle is recorded in the *same* order (BL = `pos + (0, sz.y)`), which is what
+  lets one map serve all three facing modes.

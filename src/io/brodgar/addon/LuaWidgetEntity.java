@@ -57,7 +57,7 @@ public final class LuaWidgetEntity extends LuaWorldEntity {
             return new LuaSurfaceBillboard(gob, surface);
         float[] wh = VrApi.surfaceWorldDims(surface.sz);
         haven.Sprite.Mill<SurfaceQuad> mill = SurfaceQuad.mill(surface.texture(), wh[0], wh[1]);
-        return VrApi.CAMERA.equals(mode) ? new CameraFacing(gob, mill) : new haven.SprDrawable(gob, mill);
+        return new SurfaceDrawable(gob, mill, surface, wh[0], wh[1], VrApi.CAMERA.equals(mode));
     }
 
     /**
@@ -70,6 +70,12 @@ public final class LuaWidgetEntity extends LuaWorldEntity {
         return ((t != null) && (t.length() > 0)) ? t : LuaWidget.typeName(content);
     }
 
+    /**
+     * <b>Never fires</b> (044.4). The other three kinds are pictures, so "it was clicked" is the whole of what
+     * they have to say; a widget answers a click the way it always did — its own {@code MouseDown} at the pixel
+     * the pointer landed on — so this entity is not in the world pick at all and nothing reaches this name.
+     * The method stays because every kind must answer it, and answering it with a lie would be worse.
+     */
     String clickEvent() {
         return "WidgetClicked";
     }
