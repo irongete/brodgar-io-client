@@ -115,3 +115,4 @@ replacing it.
 - [selectors](selectors.md) — naming the window you want to wait for
 - [items](items.md) — reading the container you replaced, while your view is up
 - [custom](custom.md) — building the view you hand to `:replace`
+- [widgets in the world](../vr/widgets.md) — where the view is drawn, which is the other question

@@ -63,7 +63,7 @@ one of these fails with an error that names the feature.
 
 ## The object
 
-The [shared vocabulary](README.md#one-vocabulary-three-kinds) — `:position`, `:offset`, `:rotate`, `:scale`,
+The [shared vocabulary](README.md#one-vocabulary-four-kinds) — `:position`, `:offset`, `:rotate`, `:scale`,
 `:alpha`, `:tint`, `:visible`, `:clickable`, `:onClick`, `:exists` — plus the one verb only an object has.
 
 | Method | Description |

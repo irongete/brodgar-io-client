@@ -119,7 +119,8 @@ painter has no key, so there would be nothing to address into.
 This is the **HUD**. To paint over a **game object** instead, the verb is on the object:
 [`gob:overlay()`](../gob.md#overlays) — you name the gob it hangs on, so nothing is searched per
 frame. To stand something in the **world** rather than over it, use [`hafen.vr`](../vr/README.md) — your
-own images and models, and the game's own props alike.
+own images and models, the game's own props, or [this very window](../vr/widgets.md), drawn out there
+instead of on the screen.
 
 The bundled **`widgetstack`** addon is all three at once: a window it builds and toggles, an inspector
 window per widget you click, and a HUD overlay that outlines whatever the cursor is over.

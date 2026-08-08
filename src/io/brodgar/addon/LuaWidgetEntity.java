@@ -41,6 +41,19 @@ public final class LuaWidgetEntity extends LuaWorldEntity {
     Widget prevParent;
     /** ...and the place it had there. */
     Coord prevPos = Coord.z;
+    /**
+     * <b>This entity is ending because its content is DYING</b> (044.8), not because the addon, a reload or the
+     * gob took it away — so there is nowhere to put the widget back to, and {@link #destroyed()} must not try.
+     *
+     * <p>It is a flag rather than a test on the widget because the widget cannot be asked. A {@link
+     * haven.Window} announces its removal at the <i>start</i> of its hide animation ({@code reqdestroy}, which
+     * is the path the server's own destroy takes) and only unlinks when the fade ends, so at the moment the
+     * removal drain reaches us it is still a perfectly ordinary child of the surface and every guard below
+     * passes. Putting it back then dropped a dead, empty window onto the flat UI — owned by nobody, so no
+     * teardown ever collected it and it outlived a {@code :reload}. Set by the one door that means
+     * <i>the content is gone</i>.
+     */
+    volatile boolean contentGone;
 
     LuaWidgetEntity(Addon owner, WidgetSurface surface, Widget content, Coord2d rc, double a) {
         super(owner, rc, a);
@@ -107,16 +120,19 @@ public final class LuaWidgetEntity extends LuaWorldEntity {
      * standing window the user toggled off comes back off; one they were looking at in the world comes back on
      * screen.
      *
-     * <p>Three guards, each for a case that really happens: the surface must still be under the <b>live</b> root
-     * (after a relogin {@code AddonManager.ui} is already the NEW session's, and the old tree's widget must not
-     * be re-homed into it — the whole tree it belongs to is gone); the recorded parent must still be in that tree
-     * (else the widget goes to the root rather than into a dead frame); and the content must still be in the
-     * surface at all (a server destroy got there first, and there is nothing left to give back).
+     * <p>Four guards, each for a case that really happens: the content must not be <b>dying</b>
+     * ({@link #contentGone} — a window announces its removal before it unlinks, so "is it still in the surface"
+     * cannot tell a live widget from one halfway through its own destruction); the surface must still be under
+     * the <b>live</b> root (after a relogin {@code AddonManager.ui} is already the NEW session's, and the old
+     * tree's widget must not be re-homed into it — the whole tree it belongs to is gone); the recorded parent
+     * must still be in that tree (else the widget goes to the root rather than into a dead frame); and the
+     * content must still be in the surface at all.
      */
     void destroyed() {
         UI u = AddonManager.ui;
         WidgetSurface s = surface;
-        if((u != null) && (u.root != null) && (content != null) && (content.parent == s) && s.hasparent(u.root)) {
+        if(!contentGone && (u != null) && (u.root != null) && (content != null) && (content.parent == s)
+           && s.hasparent(u.root)) {
             Widget np = ((prevParent != null) && prevParent.hasparent(u.root)) ? prevParent : u.root;
             try {
                 // A fresh Coord again (see where it was recorded): what goes into the widget's own c must not

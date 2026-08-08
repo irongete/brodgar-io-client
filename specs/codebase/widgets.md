@@ -26,6 +26,7 @@
 | **Server → widget destroy** ← lifecycle seam | [`UI.destroy(int)`](src/haven/UI.java:665) (shadow-children first, then a `DstWidget` command) → [`UI.destroy(Widget)`](src/haven/UI.java:622) = [`removeid`](src/haven/UI.java:603) (recursive unbind) **then** `reqdestroy()` |
 | Leaving the tree ← the one addon seam | [`Widget.destroy`](src/haven/Widget.java:586) → [`remove`](src/haven/Widget.java:570) (`unlink()`, `parent.cdestroy(this)`, **`parent = null`**) → `ui.removed(this)` → `onWidgetRemoved(this)` (last statement, `// addon:`, 042.1) + `rdispose()` |
 | **The override that breaks the sequence** | [`Window.reqdestroy`](src/haven/Window.java:609) — starts a hide *animation* (`animst = "dest"`) instead of removing; also [`Buff`](src/haven/Buff.java:190) |
+| **The UPWARD walk, and its ~30 callers** | [`Widget.getparent(Class)`](src/haven/Widget.java:2055) — a plain `w = w.parent` loop. `getparent(GameUI.class)` is how a widget finds the HUD it belongs to: `Inventory.mousewheel` ([:90](src/haven/Inventory.java:90), the shift-wheel bulk transfer) dereferences it **unguarded**, while `GItem`/`WItem.contparent` and `Equipory.drawslots` guard and fall back. Fork (D-204): it steps across a standing widget's surface to where that widget was |
 
 **Destroy gotcha.** Unbind and unlink are **not** simultaneous: `removeid` runs first, and for a `Window` the
 removal is deferred to the end of a fade. So a closing window has `getwidget(id) != wdg` while `hasparent(root)` is
@@ -34,6 +35,14 @@ id when server-bound, by reachability otherwise — or it fires a whole animatio
 a client-only widget, not at all sooner). **And the id goes back to the pool**: `removeid` drops both map entries,
 after which the server may issue the same number for a different widget — so a widget id is safe to *send* and
 unsafe to *store*, because a stored one does not go stale, it silently comes to mean something else (D-138).
+
+**...and the death notice arrives BEFORE the death.** `Window.reqdestroy` fires `onWidgetRemoved` as the fade
+*starts* ([:647](src/haven/Window.java:647), the 042.7 early signal), while the window is still linked and
+still full; the seam only **enqueues**, so consumers run a tick later. In that gap a dying widget passes every
+structural test — `hasparent(root)`, `parent == x`, its children — and anything that *acts* on the removal
+(rather than merely reporting it) must carry its own "on its way out" flag from the tap, not re-derive it at
+the drain (D-205). By drain time a closed container's grid and items are already unlinked, so the still-live
+window reads **0 items**: a snapshot taken from the removal handler is always empty.
 
 **`cdestroy`-override gotcha (why the addon seam is `remove`, not `cdestroy`).** 17 classes in `src/haven`
 override `cdestroy` and **9 never call `super.cdestroy`** — `Bufflist`, `ChatUI`, `GameUI` itself, the

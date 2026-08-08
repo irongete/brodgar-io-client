@@ -1,0 +1,11 @@
+{
+  "name": "044.8 — docs, the example addon, and the close",
+  "id": "044-spatial-ui.8",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 044.8: every surface the new reference pages describe answers as they say it does -- the widget collection and its own verbs, the three facing modes on a widget and on a sprite, the screen/pointer inverse pair, the tooltip and focus reads, the standing-surface counters, and the swap composition the cupboard example is built on.",
+  "api_version": 1,
+  "files": [
+    "main.lua"
+  ]
+}

@@ -164,7 +164,22 @@
   the collection cleanly and the handle reports `:exists()` false; `:reload` leaves the
   live-surface count at exactly 0. `[manual]`: aim the camera away from the anchor before running.
 
-- [ ] **044.8 — Docs, the example addon, and the close**
+- [x] **044.8 — Docs, the example addon, and the close** ✅
+  *Shipped*: `api/vr/widgets.md` (new page, 204 lines) plus the eleven edited pages, the `cupboard` example, and
+  the `:t044-8` suite — 12/12 and every `[manual]` confirmed. §12 sweep: 1454 links / 0 broken (falsified both
+  ways), no page over 300, retired names 0, all 65 `hafen.*` names present in `src/`. The `docs/addons/README.md`
+  "API at a glance" needed **no** change: it lists namespaces and `vr` was already one.
+  **The verification found two engine faults, both fixed here.** (1) Standing re-homes a widget under
+  `ui.root`, so every `getparent(Class)` out of a panel missed the `GameUI` — `Inventory`'s shift-wheel
+  transfer threw, `contparent`/`drawslots` guarded and did the lesser thing; one seam in `Widget.getparent`
+  crosses to **the record** (**D-204**). (2) `Window.reqdestroy` announces its removal **as the fade starts,
+  while still linked**, so the put-back could not tell a live widget from a dying one and dropped dead windows
+  on the flat UI — ten clicks on an open cupboard, ten of them, surviving `:reload`; `contentGone` is set at
+  the removal **tap**, which makes *on its way out* true for every door at once (**D-205**).
+  **And the example's record cost three rounds because two guesses were wrong**: `:items()` IS deep through a
+  standing surface (measured 37 = 37), but a container closes by unlinking its grid and items in one batch
+  before the window announces itself — so subscribing to the WINDOW, which outlives the grid, wiped the record
+  to zero through a still-live widget. Read the container, guard with `:exists()` (`learnings/`).
   `api/vr/widgets.md` (new page), `api/vr/README.md`'s fourth collection row, `api/vr/sprites.md`
   (the `"camera"` mode reaches sprites), `api/client/profiling/counters.md` — **`p:surfaces()` is
   `live`, `culled`, `uploads`, `frames`, and 044.7's `culled` is the one nothing has documented
@@ -204,6 +219,29 @@
   *Suite proves*: with the tile under a free entity unloaded it is not drawn (the live-surface or
   draw counters answer, as they do in 044.7) and it comes back when the tile does; an entity over
   loaded ground is untouched; the reach across all four kinds. `[manual]`: walk away and back.
+
+- [ ] **044.10 — The native fade, on a standing entity**
+  *New by maintainer directive, raised verifying 044.8.* A window appearing and disappearing on the
+  flat UI has the client's own transition; one standing in the world pops in and out. The client's is
+  [`Window.FadeAnim`](src/haven/Window.java:686): `time = 0.1s`, smoothstep alpha **plus** a
+  `minfac = 0.1` zoom — it starts 10% inset and grows to full.
+  **It lands on the shared entity core, so it reaches all four kinds** (D-194's reasoning): both of the
+  native animation's channels are already there — `alpha` (a `BaseColor` + blend + `maskdepth`) and
+  `scale` (a `Location.scale`) — so the effect is a ramp over two properties that already exist, not a
+  new visual. A widget's own fade already reaches the surface (`changing()` covers `Window.animating()`,
+  044.3), so this is about the QUAD, not about the picture on it.
+  **The open questions the task settles.** What does `:remove` mean mid-fade? Today it is immediate and
+  044.7's suite asserts exactly that — the live count drops and `:exists()` goes false on the spot — so
+  a fade-out means either an entity that lingers in `:list()` while it fades or a second verb; and for a
+  borrowed window, does the put-back wait for the fade, or does the window reappear on the flat UI while
+  its ghost is still fading in the world? Is the fade automatic, or opt-in with a duration?
+  **The cost is measured, not assumed**: `setEntityAlpha` re-adds the scene slot on every change, since
+  `GobState.equals` compares only the `SetupMod` mods and not `obstate`'s output — fine for the handful
+  of steps 0.1s takes, not something to drive per frame indefinitely.
+  *Suite proves*: an entity added with the fade on reads `:alpha()` climbing and settles at 1 within the
+  duration; `:remove` mid-fade behaves as the task decides and the live-surface count reaches 0 either
+  way; the mode reaches a ghost, a sprite and an object as well as a standing widget; the fade is off by
+  default or on by default exactly as documented. `[manual]`: it looks like the client's own.
 
 ## Notes
 

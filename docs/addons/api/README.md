@@ -97,6 +97,7 @@ you came for from the tables below. Every page in the tree is listed here.
 | [ghosts](vr/ghosts.md) | the game's own props, standing where you put them, translucent and tinted |
 | [sprites](vr/sprites.md) | a PNG in the world: its facing modes, clicks, following a gob |
 | [models](vr/models.md) | a glTF model: the subset that loads, the object's verbs, and clicks |
+| [widgets](vr/widgets.md) | a window standing in the world: its facing, its clicks, and standing the client's own |
 | [gizmo](vr/gizmo.md) | the drag handles that move, rotate and scale any of them |
 
 ## The client itself
@@ -106,7 +107,7 @@ you came for from the tables below. Every page in the tree is listed here.
 | [`hafen.client`](client/README.md) | the settings the Options window edits: interface, video, audio, camera, client |
 | [keybindings](client/keybindings.md) | the hotkey registry: declare your own, read or remap any |
 | [profiling](client/profiling/README.md) | arming the frame profiler, and reading a frame, a history and its overhead |
-| [the counters](client/profiling/counters.md) | memory, net, loader, render and text-cache counters, readable with it off |
+| [the counters](client/profiling/counters.md) | memory, net, loader, render, standing-surface and text-cache counters, readable with it off |
 | [attribution](client/profiling/attribution.md) | who spent the frame: addons, your own scopes, widgets, passes, GL |
 
 ## Infrastructure

@@ -2053,9 +2053,19 @@ public class Widget {
     }
     
     public <T extends Widget> T getparent(Class<T> cl) {
-	for(Widget w = this; w != null; w = w.parent) {
+	int hops = 0;
+	for(Widget w = this; w != null; ) {
 	    if(cl.isInstance(w))
 		return(cl.cast(w));
+	    /* addon: a widget standing in the 3D world (044) is re-homed into a surface hanging off the
+	     * root, so this walk would stop one step short of the GameUI it was standing out of -- and a
+	     * client widget that asks for one would get a null it never gets on the flat UI (an inventory's
+	     * shift-wheel transfer, an item's contents window, the equipory's slot hints). Cross to where
+	     * the standing widget came from: that is the answer this call gave a moment before it stood,
+	     * and the one it gives again the moment it is put back. Bounded, so no arrangement of surfaces
+	     * can make the walk loop. */
+	    Widget across = io.brodgar.addon.AddonManager.standingFrom(w);
+	    w = ((across != null) && (hops++ < 16)) ? across : w.parent;
 	}
 	return(null);
     }

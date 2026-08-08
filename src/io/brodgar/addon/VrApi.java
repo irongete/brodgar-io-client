@@ -1514,13 +1514,56 @@ final class VrApi {
         endStandingOf(AddonManager.consoleOwner, w);   // the :lua REPL stands widgets too, and owns them the same
     }
 
-    /** End {@code a}'s standing entity over {@code w}, if it holds one. */
+    /**
+     * <b>A widget has announced its removal</b> (044.8) — flag any standing entity over it as ending with its
+     * content, called from the removal TAP rather than from the drain that follows it.
+     *
+     * <p>The two are not the same moment, and the gap between them is where a real fault lived. A
+     * {@link haven.Window} announces its removal as its fade begins — the path {@code UI.destroy} takes, so
+     * every container the server closes — and only unlinks when that fade ends. Re-clicking an open cupboard
+     * makes the server close and immediately reopen it, so the NEW window's {@code appear} reaches the addon
+     * inside that gap: the addon takes its panel down, {@code :remove} runs the ordinary put-back, and a dead,
+     * emptied window is dropped onto the flat UI, owned by nobody and collected by no teardown. Ten clicks,
+     * ten windows. Flagging at the tap makes <i>it is on its way out</i> true for every door at once —
+     * {@code :remove}, {@code :reload}, disable and the drain alike.
+     *
+     * <p>Free when nothing stands (the live-surface count is the fast path), and flag-only, so it is safe on
+     * whichever thread reached {@code remove()}.
+     */
+    static void markContentGone(Widget w) {
+        if((w == null) || (WidgetSurface.liveCount() == 0))
+            return;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            markGoneIn(as.get(i), w);
+        markGoneIn(AddonManager.consoleOwner, w);
+    }
+
+    /** Flag {@code a}'s standing entity over {@code w}, if it holds one. */
+    private static void markGoneIn(Addon a, Widget w) {
+        if((a == null) || a.surfaces.isEmpty())
+            return;
+        for(LuaWidgetEntity we : a.surfaces) {         // copy-on-write: safe to walk off the UI thread
+            if(we.content == w)
+                we.contentGone = true;
+        }
+    }
+
+    /**
+     * End {@code a}'s standing entity over {@code w}, if it holds one — and mark it as ending because the
+     * <b>content</b> is gone (044.8), which is the one ending that must NOT put the widget back: there is
+     * nothing to put back, and a {@link haven.Window} says it is going while it is still linked, so the
+     * put-back's own guards cannot tell (see {@link LuaWidgetEntity#contentGone}). Belt and braces — the tap
+     * above has normally flagged it already, one drain earlier.
+     */
     private static void endStandingOf(Addon a, Widget w) {
         if((a == null) || a.surfaces.isEmpty())
             return;
         for(LuaWidgetEntity we : new ArrayList<LuaWidgetEntity>(a.surfaces)) {
-            if(we.content == w)
+            if(we.content == w) {
+                we.contentGone = true;
                 destroyEntity(we);
+            }
         }
     }
 

@@ -1412,3 +1412,37 @@ window that takes no items goes on to whatever is behind it, ultimately the grou
 between a flat inventory and a standing one. **Known gap, stated rather than hidden**: the drag-hover highlight
 (`DropTarget.drophover`) is not routed — cosmetic, and it has its own propagation override.
 **See.** [D-199](#d-199), [D-196](#d-196), [widget-input](../../codebase/widget-input.md).
+
+### D-204 — an UPWARD walk out of a standing panel crosses to the RECORD, not to the GameUI ✅ (044.8, 2026-08-09)
+**Decision.** [`Widget.getparent(Class)`](src/haven/Widget.java:2055) steps across a `WidgetSurface` to
+`AddonManager.standingFrom(w)` — the previous parent [D-191](#d-191) recorded — and walks on from there,
+bounded at 16 crossings. Every other widget is untouched, and a surface with no live record falls through to
+`ui.root` exactly as before.
+**Rationale.** Standing re-homes a widget under `ui.root`, so the walk out of a panel never passes the
+`GameUI` it came from. Thirty-odd `haven` sites ask for exactly that: `Inventory.mousewheel` reads
+`getparent(GameUI.class).maininv` with **no guard** and threw an NPE on shift+wheel, while `GItem`/`WItem`'s
+`contparent` and `Equipory.drawslots` guard and quietly do the lesser thing — an item's contents window
+opening on the flat UI, an equipory losing its slot hints. Transparency is false for all of them at once
+unless the walk crosses.
+**Consequences.** It crosses to the record rather than "find the GameUI", which is the same rule the rest of
+the feature restores under ([D-200](#d-200)): the answer while a widget stands is the answer it gave a moment
+before it stood and the one it gives again when it is put back, and a widget stood from somewhere else gets
+that somewhere else. The bound means no arrangement of surfaces can loop the walk.
+**See.** [D-191](#d-191), [D-198](#d-198), [D-199](#d-199), [widgets](../../codebase/widgets.md).
+
+### D-205 — a widget that has ANNOUNCED its removal is never put back, and that is known at the TAP ✅ (044.8, 2026-08-09)
+**Decision.** `LuaWidgetEntity.contentGone` suppresses the put-back, and it is set in
+[`AddonManager.onWidgetRemoved`](src/io/brodgar/addon/AddonManager.java:1148) via `VrApi.markContentGone` —
+at the removal **tap**, not when the queue is drained. The surface's own destroy then takes the dying widget
+out of the tree with it.
+**Rationale.** [D-201](#d-201) ends a standing entity with its content, but "is the content still in the
+surface?" cannot tell a live widget from a dying one: `Window.reqdestroy` — the path `UI.destroy` takes, so
+every container the server closes — announces the removal as its **fade starts, while the window is still
+linked**. Putting it back then dropped a dead, emptied window onto the flat UI, owned by nobody and collected
+by no teardown. The drain is one tick too late: re-click an open cupboard and the server closes and reopens
+it, so the new window's `appear` lands inside that gap and the addon's own `:remove` runs the ordinary
+put-back. Ten clicks, ten dead windows, surviving a `:reload`.
+**Consequences.** *On its way out* becomes true for every door at once — `:remove`, `:reload`, disable and the
+drain — instead of only the one the fix was first written for. Free when nothing stands (the live-surface
+count is the fast path) and flag-only, so it is safe on whichever thread reached `remove()`.
+**See.** [D-201](#d-201), [D-070](#d-070), [widgets](../../codebase/widgets.md).

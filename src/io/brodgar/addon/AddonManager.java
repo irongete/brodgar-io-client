@@ -1146,6 +1146,15 @@ public final class AddonManager {
      * #overlayEvents} (038.3).
      */
     public static void onWidgetRemoved(Widget w) {
+        // 044.8: mark a standing panel's content as GONE here, at the tap, rather than when the queue below is
+        // drained. A widget announces its removal before it unlinks (a Window says so as its fade starts, which
+        // is the path the server's own destroy takes), so between this line and the drain there is a window in
+        // which the widget is dying and still looks perfectly ordinary — and anything that ends its entity in
+        // that window (a :remove because the replacement window has already appeared, a :reload, a disable)
+        // would put a dead widget back on the flat UI, where nothing owns it and no teardown collects it.
+        // Marking here makes "it is on its way out" true for every door at once. Flag-only, so it is safe on
+        // whatever thread reached remove().
+        VrApi.markContentGone(w);
         removedWidgets.add(w);
     }
 
@@ -1198,6 +1207,36 @@ public final class AddonManager {
             log("surface query error: " + e);
             return false;
         }
+    }
+
+    /**
+     * <b>Where a standing widget's tree continues upward</b> (044.8) — the facade behind the {@code // addon:}
+     * lines in {@code haven.Widget.getparent}, and {@code null} for every widget that is not a surface, which
+     * is all of them but a handful.
+     *
+     * <p>Standing re-homes a widget into a {@link WidgetSurface} hanging off {@code ui.root}, so an upward walk
+     * out of a standing panel reaches the root without ever passing the {@link GameUI} it came from. Nearly
+     * thirty places in {@code haven} ask for exactly that — {@code Inventory}'s shift-wheel transfer reads
+     * {@code getparent(GameUI.class).maininv} with no guard at all and threw, while {@code GItem.contparent}
+     * and {@code Equipory.drawslots} guard and quietly do the lesser thing — so the walk has to cross, or
+     * "if it works on screen, it works in the world" is false for every one of them at once.
+     *
+     * <p><b>It crosses to the record, not to the {@code GameUI}</b>, which is the same rule the rest of this
+     * feature restores under: where the widget <i>was</i>. So the answer while it stands is the answer it gave
+     * a moment before it stood and the one it gives again when it is put back, and a widget that stood from
+     * somewhere else gets that somewhere else rather than a guess. Null when the record is gone or has left the
+     * live tree, and the caller then walks on exactly as it did before — a surface with nothing recorded is
+     * still an honest child of the root.
+     */
+    public static Widget standingFrom(Widget w) {
+        if(!(w instanceof WidgetSurface))
+            return null;
+        LuaWidgetEntity e = ((WidgetSurface)w).ent;
+        Widget p = (e == null) ? null : e.prevParent;
+        UI u = ui;
+        if((p == null) || (p == w) || (u == null) || (u.root == null) || !p.hasparent(u.root))
+            return null;
+        return p;
     }
 
     /**

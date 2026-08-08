@@ -1,15 +1,17 @@
 # hafen.vr: everything of yours standing in the world
 
 `hafen.vr()` is the one section for **client-only things standing in the 3D world** — a translucent copy of
-one of the game's own props, your addon's own PNG, your addon's own glTF model. What separates one of these
-from a real game object is not where it is, since both are in the world, but **whose** it is: nothing here
-ever reaches the server, so nothing here is gated.
+one of the game's own props, your addon's own PNG, your addon's own glTF model, a whole window drawn out
+there instead of on the screen. What separates one of these from a real game object is not where it is,
+since both are in the world, but **whose** it is: nothing here ever reaches the server, so nothing here is
+gated.
 
 ```lua
 local p = hafen.player():gob():position()
 hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)     -- the game's own prop, standing at a point
 hafen.vr():sprite():add(hafen.asset():get("icon.png"), p)  -- your own image
 hafen.vr():object():add(chair, p)                          -- your own glTF model
+hafen.vr():widget():add(win, p)                            -- a window, drawn in the world
 
 local rabbit = hafen.world():gob():nearest("rabbit")
 hafen.vr():sprite():add(icon, rabbit)                      -- following a game object
@@ -30,6 +32,7 @@ disable and relogin, leaking neither a scene slot nor a GPU texture.
 | `hafen.vr():ghost()` | the game's `.res` props this addon has stood — see [ghosts](ghosts.md) |
 | `hafen.vr():sprite()` | its own images — see [sprites](sprites.md) |
 | `hafen.vr():object()` | its own glTF models — see [models](models.md) |
+| `hafen.vr():widget()` | the UI it has standing out there — see [widgets](widgets.md) |
 
 Each is a [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) with the same five verbs, and each is the same object
 every call, so you can keep it in an upvalue.
@@ -44,7 +47,8 @@ every call, so you can keep it in an upvalue.
 
 `filter` is the canonical [filter](../conventions.md#the-filter-argument): `nil` is all of them, a **string**
 is a substring match on what the thing draws — a ghost's resource name, a sprite's or an object's
-addon-relative path — and a **function** is called with the entity, a truthy return keeping it.
+addon-relative path, a standing widget's caption — and a **function** is called with the entity, a truthy
+return keeping it.
 
 ## The anchor is an argument
 
@@ -61,6 +65,7 @@ all**.
 ```lua
 hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)     -- a plan on the ground
 hafen.vr():sprite():add(icon, prey):offset(0, 0, 14)       -- a marker floating over a creature
+hafen.vr():widget():add(win, cupboard):facing("camera")    -- a panel standing on a game object
 ```
 
 **An anchored one dies with its gob.** A felled tree takes the thing following it with it, and nothing is
@@ -76,12 +81,13 @@ An [image](sprites.md) or a [model](models.md) is passed as a [`hafen.asset`](..
 a path string; a path raises an error naming `hafen.asset` as the way in. There is nothing to save by
 allowing one, since assets are [interned](../asset.md#interning) and loading the same path again is free.
 
-## One vocabulary, three kinds
+## One vocabulary, four kinds
 
 Every entity of every kind answers the same verbs, each a read/write pair on one name: calling it bare
 **reads**, calling it with a value **writes** and hands the entity back, so a whole placement is one chain.
 Each kind then adds the one or two verbs only it has — [`g:res`](ghosts.md#the-ghost),
-[`s:image`](sprites.md#the-sprite) and [`s:facing`](sprites.md#facing), [`o:mesh`](models.md#the-object).
+[`s:image`](sprites.md#the-sprite) and [`s:facing`](sprites.md#facing), [`o:mesh`](models.md#the-object),
+[`x:widget`, `x:facing` and `x:screen`](widgets.md#the-standing-widget).
 
 | Method | Description |
 |---|---|
@@ -105,6 +111,11 @@ live point.
 
 `:tint(nil)` stays legal: "no tint" is a real value, not an accident.
 
+**A [standing widget](widgets.md) is the one kind that is not a picture, so it answers a click as a widget.**
+Three kinds have `:onClick(fn)`, because "it was clicked" is the whole of what a picture has to say; a panel
+fires its own `MouseDown` at the pixel the pointer landed on, so `:onClick` on one raises naming that
+subscription instead, and `:clickable(b)` there means *does this panel take the pointer at all*.
+
 ## The whole section at once
 
 Two verbs read and write the section as a whole, and both answer a question no single collection can be
@@ -117,8 +128,8 @@ asked.
 | `hafen.vr():visible(b)` | the section | take the whole section off screen, or put it back |
 
 `hafen.vr():list()` takes the same canonical filter a per-kind list takes, and returns the same entities
-those lists do — a ghost, a sprite and an object side by side, in **creation order**, which is the order you
-placed them.
+those lists do — a ghost, a sprite, an object and a standing widget side by side, in **creation order**,
+which is the order you placed them.
 
 ```lua
 for _, e in ipairs(hafen.vr():list()) do
@@ -149,6 +160,7 @@ the camera is pointing.
 | [ghosts](ghosts.md) | one of the game's own `.res` props, standing where you put it |
 | [sprites](sprites.md) | an image in the world: its facing modes, clicks |
 | [models](models.md) | glTF: the supported subset, the object's verbs, clicks |
+| [widgets](widgets.md) | a window standing in the world: its facing, its clicks, and the client's own |
 | [gizmo](gizmo.md) | the drag handles that move, rotate and scale any of them |
 
 ## See also
@@ -156,5 +168,6 @@ the camera is pointing.
 - [`hafen.asset`](../asset.md) — the one door for the images and meshes these collections take
 - [`hafen.world`](../world.md#the-position-type) — the Position type, and placement snapping
 - [`gob:overlay()`](../gob.md#overlays) — what is drawn *at* a gob, including these read-only
+- [the Widget object](../ui/widget.md) — what a standing widget goes on answering, unchanged
 - [drawing](../ui/drawing.md) — the same images, drawn on screen instead
 - [events](../event.md#world-ghosts-and-sprites) — `GhostClicked`, `SpriteClicked` and `ObjectClicked`

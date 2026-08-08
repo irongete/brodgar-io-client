@@ -1348,3 +1348,17 @@
   leaves standing is anchored to a **point**, and a free entity has no gob to lose. Nothing in the suite could
   fail on that: prose is not an assertion. Rule: *read every `[manual]` line back against the code path it
   describes, exactly as if it were a check — it is the one line in a suite with no compiler and no runtime.*
+- **(044.8) An instrument that samples at "the last event" measures whatever fired LAST, which in a teardown
+  is the wrong thing — name the moment you want, not the latest one.** Chasing a container record that read 0,
+  a debug line recorded the two candidate reads on every `ItemAdded`/`ItemRemoved`. The close fires 37
+  removals, so the line reported the state of an *emptied* container and answered nothing: `window=0` looked
+  like proof that the read was broken when it only meant "after the last removal". Re-sampled on **adds only**
+  it read `window=37 container=37` and settled the question in one round. Same class of error as 043.2's
+  "classify by the event you recorded, not by a snapshot at report time".
+- **(044.8) A `[dbg]` line is code and can crash the handler it is in — `tostring()` every field and dry-run
+  the format string before shipping it.** The first attempt interpolated `box:type()` with `%s`; on a stale
+  widget that read is `nil`, so the whole `Destroy` handler died with `bad argument: string expected, got nil`
+  and the round produced no data at all. (The crash was itself the finding — the container is stale by then —
+  but that was luck.) Both format strings were then run through the LuaJ CLI
+  (`java -cp lib/brodgar/luaj-jse-3.0.1.jar lua fmt.lua`) with worst-case values before the next round; that
+  costs a minute and buys back a whole in-game cycle.

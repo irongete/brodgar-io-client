@@ -19,6 +19,7 @@ if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items
 | `hafen.ui():root()` | the top of the whole client tree; walk down to any open window |
 | `hafen.ui():node(id)` | the widget for a **server widget id**, or `nil` if it does not resolve |
 | `hafen.ui():at(x, y)` | the **deepest** widget under a root-coord point — see [hit-testing](selectors.md#hit-testing) |
+| `hafen.ui():tipAt(x, y)` | the widget whose **tooltip** the client would show at that point, or `nil` — see [tooltips](#tooltips-and-focus) |
 | `hafen.ui():mouse()` | the pointer — not a Widget, see [the mouse](#the-mouse) below |
 | `hafen.ui():inventory()` | your main backpack grid, a container like any other |
 | `hafen.ui():equipment()` | your worn-equipment grid |
@@ -57,6 +58,8 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:size()` | `{x=, y=}` | size; for a window its **outer** box |
 | `:visible()` | boolean | whether it is visible — [`:visible(b)` writes it](native.md) |
 | `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, Window, TextEntry), else `nil` — [`:text(s)` writes it on a control you built](controls/README.md#setters) |
+| `:tooltip()` | string \| nil | the line that appears when the pointer rests on it, or `nil` — [`:tooltip(s)` writes it on a control you built](#tooltips-and-focus) |
+| `:focused()` | boolean | whether a keystroke would reach this widget — see [focus](#tooltips-and-focus) |
 | `:image()` | table \| nil | the faces of a [control](controls/interactive.md#a-caption-or-a-picture) that shows pictures, as `{up=, down=, hover=}`, else `nil` |
 | `:value()` | varies \| nil | what a [control](controls/README.md#setters) holds, or `nil` where it holds nothing — [`:value(v)` writes it](controls/README.md#setters) |
 | `:source()` | string \| userdata \| nil | the picture a [picture control](controls/display.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls/display.md#picture) |
@@ -146,6 +149,7 @@ provoke the error.
 | `:pack()` | shrink the chrome to fit its content (a no-op on a bare widget), and chain | **error** — that is not yours to do |
 | `:destroy()` | remove it and everything in it | **error**, same reason |
 | `:text(s)` | write the caption of a [control](controls/README.md) you built | **error** — that caption is the client's |
+| `:tooltip(s)` | write the line that appears when the pointer rests on it | **error** — those are the client's own words about its own button |
 | `:image(up, down [, hover])` | give a [control](controls/interactive.md#a-caption-or-a-picture) you are building its pictures | **error**, same reason |
 | `:value(v)` | write what a [control](controls/README.md#setters) holds | **error**, same reason |
 | `:source(h)` | give a [picture control](controls/display.md#picture) its content | **error**, same reason |
@@ -178,6 +182,33 @@ and hand back a plain `{x=, y=}` table, never a [Position](../world.md#the-posit
 same word because the question is the same one — *where is this thing, in the space it lives in* — and the
 object you ask says which space that is, so a spatial verb like `hafen.act():moveTo` refuses a widget's
 coordinates instead of walking you somewhere that merely has the same two numbers.
+
+## Tooltips and focus
+
+`w:tooltip()` is the line that appears when the pointer rests on a widget. It answers on **any** widget, the
+client's own included, and never throws: a plain string as it was given, the text of one of the client's own
+keybound tips (the shortcut it appends is the keymap's, not the text's), or `nil` where there is none.
+`w:tooltip(s)` writes it on a control you built — like `:text(s)`, and for the same reason — and `""` clears
+it.
+
+**Which widget's tooltip the client would actually *show* at a point is a different question**, because a
+tooltip is inherited from whatever ancestor carries one, so it is not always the widget under the pointer:
+
+```lua
+local m = hafen.ui():mouse()
+local from = hafen.ui():tipAt(m:x(), m:y())        -- who speaks for this point, or nil
+if from then hafen.log():write(from:tooltip()) end
+```
+
+`hafen.ui():at(x, y)` answers *what is under the point*; `hafen.ui():tipAt(x, y)` answers *who would speak
+for it*. Both resolve the way the client itself does, [panels standing in the 3D world](../vr/widgets.md)
+included, so a tooltip over a standing widget is that widget's and not the map's behind it.
+
+`w:focused()` asks whether a keystroke would reach a widget. The client resolves the keyboard down a chain
+of controllers from the root, so being focused is a property of a **path** rather than of one widget: it is
+true for the text entry you are typing into, and true for the window around it, because the key passes
+through on the way. It is read-only — focus follows the click, exactly as it always did, and a verb that
+stole it would be a second way to do what clicking already does.
 
 ## The mouse
 
@@ -247,4 +278,5 @@ Pair it with [`hafen.world():screenToWorld`](../world.md#screen-to-world-and-pla
 - [replace](replace.md) — standing your own window in place of a native one
 - [items](items.md) — `:items()` and the container subscriptions
 - [style](style/README.md) — `:rule()`, `:style()` and the cascade they sit in
+- [widgets in the world](../vr/widgets.md) — standing one of these in the 3D scene, unchanged
 - [events](../event.md) — everything that is not a widget or the pointer

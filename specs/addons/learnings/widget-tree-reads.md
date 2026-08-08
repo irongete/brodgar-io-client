@@ -335,3 +335,26 @@
   identical shape** (its own `pending`/`RECHECK_TICKS` bounded re-check, same reason) — 042.10, deleting
   `Layout.poll()`, needs the same audit: read the WHOLE poll method being deleted for side-effects beyond
   the event it fires, not just the event.
+- **(044.8) A container closes by UNLINKING its grid and every item widget in one batch, and the events reach
+  Lua after the fact — so "what was in it" can only be built while it is open, and the read that tells the two
+  apart is `:exists()`.** `Widget.remove()` unlinks *before* firing the removal seam, and the seam only
+  enqueues; the server destroys the grid and the items together and only then the window, which announces
+  itself at its fade start. By the time the drain runs the Lua handlers, the grid is already detached, the
+  still-live window reads **0 items**, and the close fires one `ItemRemoved` per item — every one of them
+  about something already gone. A snapshot taken at `Destroy` is therefore always empty.
+  **Subscribing to the WINDOW is not equivalent to subscribing to the GRID**, and that difference cost three
+  verification rounds: the window OUTLIVES the grid, so those after-the-fact removals are read back through a
+  widget that is still live and wipe the record to zero before the close is ever handled; the grid has left
+  the tree by then, so `snapshot`'s `if not w:exists() then return end` refuses exactly the reads that are
+  lying, while a removal the *user* makes (grid still live) updates it normally. Rule: **read a container's
+  contents from the container, guard every read with `:exists()`, and never expect to look once the thing is
+  going.** `addons/cupboard/` is the worked example.
+- **(044.8) `WidgetSubs.refreshItems` reads the RAW widget while `widget:items()` goes through `live()`.** The
+  event machinery diffs `LuaItem.items(wdg)` with no root-reachability test, so `ItemAdded`/`ItemRemoved` keep
+  firing correctly for a container that has already left the tree — while the same container's `:items()`
+  answers empty. The asymmetry is benign and is precisely what makes the `:exists()` guard above work, but it
+  means **an event firing is not proof that its subject is still live**: a handler that re-reads must check.
+- **(044.8) `:items()` IS a deep search, including through a standing surface — measured, not assumed.** With
+  a container window standing in the 3D world, `window:items()` and `grid:items()` both answered 37 while
+  both were in the tree, so `Widget.children(Class)` (a full depth-first walk of the subtree, despite its
+  name) is unaffected by the re-home. `docs/addons/api/ui/items.md`'s "the search is deep" holds.

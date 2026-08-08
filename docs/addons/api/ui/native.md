@@ -14,6 +14,9 @@ inv:position(nil)         -- drop YOUR move: back to where the user had it
 `:pack()` and `:destroy()` stay refused on a widget you do not own: those destroy the client's work rather
 than sit on top of it. See [owned vs borrowed](widget.md#owned-vs-borrowed) for the whole table.
 
+[Standing one in the 3D world](../vr/widgets.md) is a fourth write of the same family, restoring under the
+same rule.
+
 ## Moving and resizing (ungated)
 
 `w:position(x, y)` and `w:size(w, h)` move the client's own widgets, and they move them for real: the verb

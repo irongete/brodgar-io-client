@@ -20,17 +20,18 @@ one chain. A new sprite has scale `1`, full opacity, no tint, faces `"fixed"` an
 
 ## The sprite
 
-The [shared vocabulary](README.md#one-vocabulary-three-kinds) — `:position`, `:offset`, `:rotate`, `:scale`,
+The [shared vocabulary](README.md#one-vocabulary-four-kinds) — `:position`, `:offset`, `:rotate`, `:scale`,
 `:alpha`, `:tint`, `:visible`, `:clickable`, `:onClick`, `:exists` — plus the two verbs only a sprite has.
 
 | Method | Description |
 |---|---|
-| `s:facing()` / `s:facing(mode)` | how it meets the viewer: `"fixed"` or `"screen"` — see [facing](#facing) |
+| `s:facing()` / `s:facing(mode)` | how it meets the viewer: `"fixed"`, `"camera"` or `"screen"` — see [facing](#facing) |
 | `s:image()` | the addon-relative image path |
 
 A sprite's **image** is read-only: the texture is sampled when the sprite is placed, so another image is
-another sprite. A `"fixed"` sprite is about a tile tall at scale `1`, its width following the image aspect,
-and `:scale` is its world size; a `"screen"` one is drawn at native pixel size and `:scale` multiplies that.
+another sprite. A `"fixed"` or `"camera"` sprite is about a tile tall at scale `1`, its width following the
+image aspect, and `:scale` is its world size; a `"screen"` one is drawn at native pixel size and `:scale`
+multiplies that.
 
 ## Facing
 
@@ -39,14 +40,25 @@ A sprite is a flat picture, so how it meets the viewer is a property of its own,
 | Mode | What it draws |
 |---|---|
 | `"fixed"` | a textured **quad** standing upright in the world at the sprite's own angle, about a tile tall, drawn double-sided |
+| `"camera"` | the same world quad, **turned to the viewer** in yaw and pitch, keeping its world size |
 | `"screen"` | a **screen-space blit** that always faces the camera at a constant screen size |
 
-`"fixed"` is true world geometry, so world-rotate and world-scale apply and it occludes and is occluded like
-anything else in the scene. Any other mode raises, naming the two.
+`"fixed"` and `"camera"` are both true world geometry, so world-scale applies and each occludes and is
+occluded like anything else in the scene. The difference is where the angle comes from: `"fixed"` uses the
+sprite's own `:rotate`, and `"camera"` turns to face you, so a picture stays square-on and readable from
+wherever you are looking without giving up its world size or its place in the depth of the scene —
+`:rotate` is stored but unused while it does. Any other mode raises, naming the three.
 
 ```lua
 local b = hafen.vr():sprite():add(icon, p):facing("screen"):scale(2)
+local c = hafen.vr():sprite():add(icon, prey):facing("camera"):offset(0, 0, 14)
 ```
+
+> **A camera-facing quad rises along the camera's own *up* axis.** Tilt all the way to a top-down view and
+> that axis is horizontal, so the picture lies in the horizontal plane through its anchor — and at ground
+> level that is the terrain's own plane, which swallows it. Anchor it to a game object and lift it with
+> `:offset(0, 0, z)`; one standing at a **point** has no lift of its own, so give it a gob anchor or keep the
+> camera tilted.
 
 A `"screen"` sprite is the ergonomic, world-anchored version of drawing an image at
 [`hafen.player():worldToScreen`](../player.md) inside a [HUD overlay](../ui/custom.md#overlays). It is drawn
@@ -61,8 +73,8 @@ multiplier. `:alpha` and `:tint` work exactly as they do on a `"fixed"` one.
 
 ## Clickability
 
-A `"fixed"` sprite can be made clickable with `s:clickable(true)`, exactly like a
-[ghost](ghosts.md#clickability). It gains a pick surface, and a click on it is detected **client-side** and
+A sprite with world geometry — `"fixed"` or `"camera"` — can be made clickable with `s:clickable(true)`,
+exactly like a [ghost](ghosts.md#clickability). It gains a pick surface, and a click on it is detected **client-side** and
 **consumed** before any server click, so you never walk or interact and nothing reaches the server. Both the
 per-sprite `:onClick(fn)` and the owner-scoped [`SpriteClicked`](../event.md#world-ghosts-and-sprites) event
 fire; `SpriteClicked` reaches only *your* addon, since a sprite is private to the addon that made it.
@@ -76,7 +88,8 @@ local s = hafen.vr():sprite():add(icon, p)
 ```
 
 > **A `"screen"` sprite is click-through.** It has no world geometry, so it never wins a pick: `:clickable`
-> and `:onClick` on one are harmless no-ops. Use a `"fixed"` sprite when you need click selection.
+> and `:onClick` on one are harmless no-ops. Use a `"fixed"` or `"camera"` sprite when you need click
+> selection.
 
 ## Following a game object
 
@@ -104,6 +117,7 @@ complete answer — but you address it through this collection, which is the one
 
 - [`hafen.vr`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [models](models.md) — the same thing with a glTF mesh instead of an image
+- [widgets](widgets.md) — the same three facing modes, on a whole window standing in the world
 - [`hafen.asset`](../asset.md) — loading the PNG a sprite takes
 - [drawing](../ui/drawing.md) — the same image drawn on screen instead of in the world
 - [events](../event.md#world-ghosts-and-sprites) — `SpriteClicked`

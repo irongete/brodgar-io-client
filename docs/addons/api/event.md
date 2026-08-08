@@ -192,7 +192,7 @@ to its addon and its handle never leaves it.
 
 | `ev` on `GhostClicked`/`SpriteClicked`/`ObjectClicked` | Description |
 |---|---|
-| `ev:ghost()` / `ev:sprite()` / `ev:object()` | the clicked [entity](vr/README.md#one-vocabulary-three-kinds) — only the one matching the event fires reads non-nil |
+| `ev:ghost()` / `ev:sprite()` / `ev:object()` | the clicked [entity](vr/README.md#one-vocabulary-four-kinds) — only the one matching the event fires reads non-nil |
 | `ev:button()` | 1 for left, 3 for right |
 | `ev:x()` `ev:y()` | the world point the click resolved to |
 

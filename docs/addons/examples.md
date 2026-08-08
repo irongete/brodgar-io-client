@@ -16,6 +16,7 @@ hotkey or type their command — so having them all on costs you an untouched lo
 | [`atlas`](../../addons/atlas/main.lua) | a live minimap panel out of the map database, painted by the engine |
 | [`stockfilter`](../../addons/stockfilter/main.lua) | a whole panel of the client's own controls, filtering your real items |
 | [`planner`](../../addons/planner/main.lua) | your own props, images and models in the 3D world |
+| [`cupboard`](../../addons/cupboard/main.lua) | a container window standing in the world, on the thing it belongs to |
 | [`tagger`](../../addons/tagger/main.lua) | attaching things to a game object, and reading what is already on it |
 | [`widgetstack`](../../addons/widgetstack/main.lua) | what a widget is, and how to name it |
 | [`profiler`](../../addons/profiler/main.lua) | where the frame went |
@@ -97,6 +98,24 @@ facing and scale after a relog.
 
 `:planner gizmo` gives it a drag gizmo — move, rotate, scale — built in Lua over the drawing and snapping
 primitives, in a second file the manifest loads beside the first. `:planner grab` moves a prop by its body.
+
+## cupboard
+
+A window drawn **in the 3D world** instead of on the screen, standing on the game object it belongs to:
+[`hafen.vr():widget():add(w, gob)`](api/vr/widgets.md) with `:facing("camera")` and an `:offset(0, 0, z)`
+lift. What stands is the **client's own** cupboard window, re-homed rather than copied — so it is still bound
+to its server id, still filling with items, and what you drag goes into it where it hangs. There is no view
+to write and nothing to keep in sync.
+
+It is **entirely event-driven**, which is the shape worth copying: three subscriptions and not one timer or
+distance check. [`hafen.ui():on(sel, "appear", …)`](api/ui/replace.md#watching-for-a-widget) is the window
+opening, [`w:on("ItemAdded"/"ItemRemoved", …)`](api/ui/items.md) keeps a snapshot of what is inside it
+current, and `w:on("Destroy", …)` is the server closing it — at which point the panel in the world has
+already ended with its content, and the addon stands a small panel of its **own** in the same place, drawn
+from that snapshot. Open the window again and they swap back.
+
+`:cupboard` arms and disarms it; `:cupboard <window title>` watches a different window. Dormant until then,
+and read-only: dragging an item is your own hand, not the addon's.
 
 ## tagger
 

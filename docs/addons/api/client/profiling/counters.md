@@ -1,12 +1,13 @@
 # hafen.client: the counters
 
-`memory()`, `net()`, `loader()`, `render()` and `textcache()` are **pull-only**: they read counters the
-client keeps anyway, so they answer with [profiling](README.md) off and cost nothing while you are not
-asking. The first four are the numbers the client's own stats HUD formats, and always agree with it field
-by field.
+`memory()`, `net()`, `loader()`, `render()`, `surfaces()` and `textcache()` are **pull-only**: they read
+counters the client keeps anyway, so they answer with [profiling](README.md) off and cost nothing while you
+are not asking. The first four are the numbers the client's own stats HUD formats, and always agree with it
+field by field.
 
-Nothing here is sampled over time — each call is the value right now. `textcache()`'s hit, miss and
-eviction totals are the one running tally, cumulative since the addon loaded.
+Nothing here is sampled over time — each call is the value right now. The exceptions are the running
+tallies, and each says so: `surfaces()`'s uploads and frames are cumulative since the client started, and
+`textcache()`'s hit, miss and eviction totals since the addon loaded.
 
 **An absent key means "not measured", never zero.**
 
@@ -75,6 +76,40 @@ if r.drawSlots then
 end
 ```
 
+## `surfaces()`
+
+The [widgets standing in the 3D world](../../vr/widgets.md), and what drawing them costs. It counts every
+addon's, not only your own — a panel is a texture and a widget subtree wherever it came from.
+
+| Key | Description |
+|---|---|
+| `live` | how many surfaces exist right now, across every addon |
+| `culled` | how many of those are being skipped this instant, because nothing is looking at them |
+| `uploads` | offscreen passes actually issued, **cumulative since client start** |
+| `frames` | frames those passes were offered, **cumulative since client start** |
+
+`live` and `culled` are instantaneous counts, never totals. A surface is culled when the camera is pointing
+elsewhere, when the entity is hidden, or when the game object it stands on has left the scene — and being
+culled is not being gone: the collection still holds it, its `Tick` still fires, and it draws again the
+first frame it is looked at.
+
+`uploads` and `frames` mean something as a **delta between two reads**: take one, wait, take another. That
+pair is the whole cost claim. A panel nothing changes holds `uploads` still while `frames` climbs; a panel
+painted by a `widget:on("Draw", …)` handler moves them together, because a Lua function of anything can only
+be known by running it.
+
+`live` going back to zero is also the **leak check**: `:reload`, or disabling every addon, ends each
+standing entity through the same body `:remove` uses, freeing the texture rather than forgetting about it.
+
+```lua
+local a = hafen.client():profiling():surfaces()
+hafen.timer():after(2, function()
+  local b = hafen.client():profiling():surfaces()
+  hafen.log():write(string.format("%d standing (%d culled), %d uploads over %d frames",
+                          b.live, b.culled, b.uploads - a.uploads, b.frames - a.frames))
+end)
+```
+
 ## `textcache()`
 
 The rendered-text cache that [`g:text` and `g:atext`](../../ui/drawing.md#text-is-cached-across-frames)
@@ -113,3 +148,4 @@ hafen.log():write(string.format("%d entries / %.2f MiB, %.1f%% hit rate (%d evic
 - [profiling](README.md) — the handle, `frame()`, `history()` and what the switch changes
 - [attribution](attribution.md) — the armed-only half: who spent the frame
 - [drawing](../../ui/drawing.md#text-is-cached-across-frames) — the cache `textcache()` describes
+- [widgets in the world](../../vr/widgets.md) — what `surfaces()` counts, and when one stops drawing
