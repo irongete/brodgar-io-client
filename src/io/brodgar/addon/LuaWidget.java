@@ -639,6 +639,49 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // tooltip() / tooltip(s) — 044.5: THE LINE THAT APPEARS WHEN THE POINTER RESTS ON IT. The read answers on
+        // ANY widget, the client's own included, and never throws: a plain string as given, the text of one of the
+        // client's own keybound tips (the shortcut it appends is the keymap's, not the text's), else nil. The write
+        // is a control YOU built, like :text(s) and for the same reason — a native widget's tooltip is the
+        // client's own words about its own button. Which widget's tooltip the client would actually SHOW at a
+        // point is hafen.ui():tipAt(x, y), because that is a question about a place rather than about a widget.
+        m.set("tooltip", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:tooltip() → narg 1 · w:tooltip(s) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "tooltip"));
+                LuaValue v = Args.written(a, 2, "widget:tooltip", "s");
+                if(v == null) {
+                    String t = (w == null) ? null : tip(w);
+                    return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t);
+                }
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                if(!v.isstring())
+                    throw new LuaError("widget:tooltip(s): the tooltip is a string, got " + v.typename());
+                owned(owner, w, "tooltip(s)");
+                String s = v.tojstring();
+                UI u = AddonManager.ui;
+                synchronized(u) { w.tooltip = s.isEmpty() ? null : s; }
+                return self;
+            }
+        });
+        // focused() — 044.5: WOULD A KEYSTROKE REACH THIS WIDGET? The client resolves the keyboard down a chain of
+        // focus controllers from the root, so "focused" is a property of a path and not of one widget, and this
+        // answers the whole question in one read: true for a text entry the player is typing into, and true for
+        // the window around it, since the key passes through it on the way. A widget standing in the 3D world
+        // answers exactly as it did on the flat UI — its surface is a real place in the tree, so focus, and the
+        // keys that follow it, resolve through it unchanged, which is this task's whole claim.
+        //   Read-only, and an argument is refused rather than ignored: focus follows the pointer and the client's
+        // own rules, and a verb that stole it would be a second way to do what clicking already does.
+        m.set("focused", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:focused() → narg 1
+                LuaValue self = a.arg1();
+                if(Args.passed(a, 2))
+                    throw new LuaError("widget:focused() reads whether the keyboard reaches this widget and does"
+                        + " not write it — focus follows the click, exactly as it does on the flat UI");
+                return LuaValue.valueOf(focusPath(live(handle(self, "focused"))));
+            }
+        });
         // onPress/onChange/onSubmit/onSelect/onCell are GONE as chained-setter verbs (041.4): a control's own
         // notification answers through widget:on("Pressed"/"Changed"/"Submitted"/"Selected"/"Cell", fn) above,
         // like every other key — see Controls#fire and widgetKeys.
@@ -1568,6 +1611,79 @@ public final class LuaWidget {
             return (t == null) ? null : t.text;
         }
         return null;
+    }
+
+    /**
+     * Best-effort tooltip text ({@code widget:tooltip()}, 044.5) — the same shape and the same discipline as
+     * {@link #text(Widget)}: one switch over the two things the client's {@code Widget.tooltip} field actually
+     * holds as words (a plain {@link String}, and the {@link Widget.KeyboundTip} that {@code settip} builds,
+     * whose {@code base} is the text before the keymap appends a shortcut to it). A rendered {@code Tex} is a
+     * picture and has no text to give back, so it reads {@code nil} rather than a guess.
+     */
+    static String tip(Widget w) {
+        Object t = (w == null) ? null : w.tooltip;
+        if(t instanceof String)
+            return (String)t;
+        if(t instanceof Widget.KeyboundTip)
+            return ((Widget.KeyboundTip)t).base;
+        if(t instanceof Text)
+            return ((Text)t).text;
+        return null;
+    }
+
+    /**
+     * <b>Is {@code w} on the client's focus path?</b> ({@code widget:focused()}, 044.5.) The keyboard is not
+     * delivered to "the focused widget" but walked down from {@code ui.root} through a chain of focus
+     * controllers — {@code Widget.FocusedKeyEvent.propagation}: a {@code focusctl} hands the event to its one
+     * {@code focused} child, and anything else offers it to every VISIBLE child in turn. This mirrors that walk
+     * exactly, so what it answers is the question worth asking — <i>would a keystroke reach this widget</i> —
+     * rather than the raw {@code hasfocus} flag, which the client only maintains below a controller that has
+     * focus itself and is therefore false on almost everything that is in fact typing.
+     *
+     * <p>A widget standing in the 3D world needs no special case here, and that is the point: its host surface
+     * is an ordinary non-{@code focusctl} child of the root, so {@code setfocus} bubbles straight past it to the
+     * root exactly as it does from a window on the flat UI, and the key comes back down the same chain.
+     */
+    static boolean focusPath(Widget w) {
+        UI u = AddonManager.ui;
+        if((w == null) || (u == null) || (u.root == null))
+            return false;
+        synchronized(u) {
+            for(Widget p = u.root; p != null; p = p.focused) {
+                if(p == w)
+                    return true;
+                if(!p.focusctl) {                  // the broadcast: every visible child is offered the key
+                    for(Widget q = w; q != null; q = q.parent) {
+                        if(q == p)
+                            return true;
+                        if(!q.visible())
+                            return false;
+                    }
+                    return false;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * <b>Which widget's tooltip the client would show at a root-coord point</b> ({@code hafen.ui():tipAt(x, y)},
+     * 044.5) — the client's own resolution, run on demand: the panel standing under that point answers first
+     * (044.5's seam in {@link UI#tooltip}), and otherwise the ordinary walk from {@code ui.root}. Answers the
+     * widget rather than the text so the two questions stay separate — {@code w:tooltip()} is the text, and a
+     * tooltip that is a picture still has an owner worth naming.
+     *
+     * <p>The one difference from the tooltip actually on screen is {@code last}: the live query carries the
+     * widget that answered on the previous frame, which a couple of the client's own widgets use to keep a
+     * hovering tip stable. A question asked out of the blue has no previous frame, so it passes none.
+     */
+    static Widget tipAt(UI u, Coord c) {
+        Widget.TooltipQuery q = new Widget.TooltipQuery(c, null);
+        synchronized(u) {
+            if(!AddonManager.surfaceQuery(q, c))
+                u.dispatch(u.root, q);
+        }
+        return q.from;
     }
 
     /**

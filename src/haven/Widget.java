@@ -540,6 +540,19 @@ public class Widget {
     public Coord rootxlate(Coord c) {
 	return(c.sub(rootpos()));
     }
+
+    /* addon: spatial UI (spec 044, task 044.5) -- THE ROOT A POPUP OPENS INTO, which was ui.root spelled out
+     * at each site. A dropdown's list and a right-click menu are not children of the widget they belong to:
+     * they add themselves to ui.root and place themselves at rootpos(), because on a flat UI there is exactly
+     * one root and "over everything" is the only answer. A widget standing in the 3D world is hosted by an
+     * invisible surface of its own (044.1), so for it those two hard-wired facts are wrong in the same way:
+     * the list would open on the flat screen while the dropdown it belongs to is on a panel in the world.
+     * This answers with the nearest enclosing surface, and with ui.root for every widget that is not standing
+     * -- which is every widget, until an addon stands one. Its coordinate half is parentpos(popuproot()),
+     * which IS rootpos() in that same case, so a caller written this way is unchanged on the flat UI. */
+    public Widget popuproot() {
+	return(io.brodgar.addon.AddonManager.popupRoot(this));
+    }
 	
     public boolean hasparent(Widget w2) {
 	for(Widget w = this; w != null; w = w.parent) {

@@ -1165,6 +1165,42 @@ public final class AddonManager {
     }
 
     /**
+     * <b>The root a popup opens into</b> (044.5) — the facade behind {@code haven.Widget.popuproot()}. A widget
+     * standing in the 3D world is hosted by a {@link WidgetSurface}, which is a real root in every sense the
+     * client resolves things against; a widget that is not standing has {@code ui.root} above it and nothing
+     * else, so this answers exactly what the three popup sites spelled out before it existed. Walking the
+     * parent chain is O(depth) and happens when a list opens, never on a frame.
+     */
+    public static Widget popupRoot(Widget w) {
+        for(Widget p = w; p != null; p = p.parent) {
+            if(p instanceof WidgetSurface)
+                return p;
+        }
+        UI u = (w == null) ? null : w.ui;
+        if(u == null)
+            u = ui;
+        return ((u == null) || (u.root == null)) ? w : u.root;
+    }
+
+    /**
+     * <b>Resolve a pointer query on the panel under the pointer instead of on the flat tree</b> (044.5) — the
+     * facade behind the {@code // addon:} lines in {@link UI#tooltip}, {@link UI#getcurs} and
+     * {@link UI#mousehover}. Those three walk down from {@code ui.root}, which by construction steps over a
+     * standing widget (its surface is an invisible child, 044.1) and would hand it the screen's coordinates
+     * rather than the panel's. {@code true} means a panel took the query and the flat walk must be skipped —
+     * a tooltip, a cursor or a hover state resolved on a widget in the world, through the very corner map its
+     * clicks already come through. Never throws into the frame loop.
+     */
+    public static boolean surfaceQuery(Widget.PointerEvent ev, Coord c) {
+        try {
+            return SurfaceInput.query(ev, c);
+        } catch(RuntimeException e) {
+            log("surface query error: " + e);
+            return false;
+        }
+    }
+
+    /**
      * Deliver the widget removals captured since the last tick, one frame's worth (D-106) — the same bound as
      * {@link #drainOverlayEvents}, for the same reason: a torn-down parent whose own removal triggers more
      * removals must not spin this tick forever.

@@ -165,7 +165,10 @@ public abstract class SListMenu<I, W extends Widget> extends Widget {
     }
 
     public SListMenu<I, W> addat(Widget wdg, Coord c) {
-	wdg.ui.root.add(this, wdg.rootpos(c));
+	/* addon: spatial UI (spec 044, task 044.5) -- was ui.root.add(this, wdg.rootpos(c)). See
+	 * Widget.popuproot(): the same two values on the flat UI, the enclosing surface on a standing widget. */
+	Widget root = wdg.popuproot();
+	root.add(this, wdg.parentpos(root, c));
 	return(this);
     }
 

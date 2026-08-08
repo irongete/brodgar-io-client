@@ -836,3 +836,30 @@
   must aim at a child of a standing window measures the offset instead: two 1-D sweeps of `hafen.ui():at()`
   across the window on the flat UI *before* it stands (down the middle for the rows, across those for the
   columns) give the child's box exactly, on whatever chrome the client happens to wear.
+- **(044.5) `hasfocus` is the wrong read for "does this widget have the keyboard" — focus is a PATH, not a flag.**
+  `Widget.hasfocus` is only maintained *below* a controller that has focus itself, and **nothing ever sets
+  `ui.root.hasfocus`**, so it stays `false` on essentially everything that is in fact typing. The real answer is
+  the walk `Widget.FocusedKeyEvent.propagation` performs: from `ui.root`, a `focusctl` hands the key to its ONE
+  `focused` child, and anything else offers it to every VISIBLE child in turn. `LuaWidget.focusPath` (behind
+  `widget:focused()`) mirrors exactly that. Corollary for 044: a `WidgetSurface` needed **no** focus seam at all
+  — it is a plain non-`focusctl` child of the root, so `Widget.setfocus` forwards straight past it and the key
+  comes back down the same chain, which is why a text entry standing in the 3D world takes the keyboard with
+  nothing added anywhere.
+- **(044.5) `Window.mousedown` propagates to its children FIRST and takes focus only if one of them consumed the
+  click.** `if(ev.propagate(this)) { parent.setfocus(this); raise(); return true; }`. So a click on a window's
+  own background does NOT focus it, and a click on a text entry inside it focuses BOTH (the entry via its own
+  `parent.setfocus(this)`, then the window on the way back out). Anything reasoning about "who got focus from
+  this click" has to account for both halves.
+- **(044.5) `dropdown:size(w, h)` leaves the drop arrow behind — a pre-existing 040.10 gap, found by a suite that
+  could not click the arrow.** `widget:size` on an owned control is a plain `Widget.resize`, but `SDropBox`
+  places its arrow ONCE in its constructor via `adda(makedrop(), Coord.of(sz.x, sz.y/2), 1.0, 0.5)` — right-
+  aligned against the width it was BUILT with — and overrides `resize` nowhere. Resize it smaller and the arrow
+  sits outside its own parent's box: clipped in the draw, and unreachable by any hit test (`LuaWidget.hitTest`
+  and `PointerEvent.propagation` both rect-test the child against the parent before descending). Symptom is a
+  dropdown that simply cannot be opened. Same shape as every other "the constructor placed it" control.
+- **(044.5) `MouseMoveEvent.propagation` broadcasts to EVERY visible child with no rect test** — unlike
+  `PointerEvent.propagation`, which rect-tests and stops at the first that handles. That is how a control
+  un-hovers/un-arms when the pointer leaves it (`IButton.mousemove` recomputes `checkhit` and `redraw()`s). And
+  `MouseHoverEvent.propagation` goes further still: it dispatches to every child, invisible ones included,
+  carrying a per-child `hovering` flag — but its `derive` constructor leaves `hovering` **false**, so anything
+  dispatching a derived hover by hand must set it or it un-hovers the very widget the pointer is on.

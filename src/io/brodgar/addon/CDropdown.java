@@ -158,16 +158,21 @@ final class CDropdown extends SDropBox<LuaRows.Row, Widget> implements Owned.Con
 
     /**
      * The engine's own open/close toggle for the popup list (bound to the drop arrow's click). On OPEN, the
-     * popup was just added as the last child of {@code ui.root} inside {@link SDropBox#drop} above — found
+     * popup was just added as the last child of its popup root inside {@link SDropBox#drop} above — found
      * structurally (there is no other handle to it: {@code SDropList}'s field on the superclass is private,
      * even to this subclass) and queued for {@link #drainRaises} to re-raise once this frame's input
      * dispatch — including the enclosing window's own {@code raise()} — has finished. See the class doc.
+     *
+     * <p><b>{@code popuproot()}, not {@code ui.root}</b> (044.5): a dropdown standing in the 3D world opens its
+     * list into the surface hosting it, so that is where the just-added popup is the last child. It is the same
+     * widget on the flat UI, and the enclosing window still raises itself over the popup there too — so the
+     * re-raise is needed in both places and is one lookup either way.
      */
     public void drop(boolean st) {
         super.drop(st);
         if(st) {
             Widget last = null;
-            for(Widget w = ui.root.child; w != null; w = w.next)
+            for(Widget w = popuproot().child; w != null; w = w.next)
                 last = w;
             if(last instanceof SDropBox.SDropList) {
                 synchronized(toRaise) { toRaise.add(last); }

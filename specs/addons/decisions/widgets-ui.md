@@ -1321,3 +1321,47 @@ Nothing legitimate asks, but the answer to a question nobody should be asking ou
 The same `tick` puts the standing widget back at `(0, 0)` each frame, which is what keeps the spec's
 title-bar-drag-is-inert rule true now that a title bar can actually receive the press.
 **See.** [D-195](rendering.md#d-195), [D-191](#d-191), [widgets](../../codebase/widgets.md).
+
+### D-198 — a popup opens into the NEAREST root, and the seam is a method on Widget ✅ (044.5, 2026-08-08)
+**Decision.** `// addon:` [`Widget.popuproot()`](src/haven/Widget.java:553) answers "the root a popup opens
+into": the nearest enclosing [`WidgetSurface`](src/io/brodgar/addon/WidgetSurface.java) if the widget is
+standing in the 3D world, and `ui.root` otherwise. Its coordinate half is `parentpos(popuproot())`. The three
+sites that spelled `ui.root` out — [`SDropBox.SDropList.add`](src/haven/SDropBox.java:59),
+[`SListMenu.addat`](src/haven/SListMenu.java:167), [`BuddyWnd`'s flower menu](src/haven/BuddyWnd.java:427) —
+now go through both.
+**Rationale.** 044's transparency rule (*if it works on screen, it works in the world*) rests on the surface
+being a real UI **root** ([D-191](#d-191)), and it holds for everything the client resolves against a root by
+*walking* the tree — focus and the keyboard needed no seam at all, because
+[`Widget.setfocus`](src/haven/Widget.java:623) forwards through non-`focusctl` parents and
+`FocusedKeyEvent` comes back down the same chain. A popup is the exception: it is not a child of the widget it
+belongs to, and both the parent it picks and the position it takes were *constants*, not lookups. Constants
+cannot be made transparent, so they become one lookup each. Naming it on `Widget` rather than inside the addon
+layer is what keeps it one concept rather than three patched call sites, and `parentpos(r)` is **identical** to
+`rootpos()` whenever `r` is `ui.root` — so every non-standing widget's behaviour is unchanged by construction,
+not by testing.
+**Consequences.** A dropdown on a panel in the world opens its list on that panel; picking a row, the
+click-outside cancel and the popup's own mouse grab are all the client's own code, unmodified. A popup is
+clipped by the surface's texture, which is the honest meaning of "the panel is the screen" — a list opening
+near a panel's bottom edge is cut off rather than escaping into the flat UI. Anything else that ever grows a
+popup gets one line, and a fourth site that forgets is a bug with a name.
+**See.** [D-191](#d-191), [D-199](#d-199), [widget-input](../../codebase/widget-input.md).
+
+### D-199 — a per-frame query AT A POINT asks the surface under the pointer first, and is otherwise untouched ✅ (044.5, 2026-08-08)
+**Decision.** [`UI.tooltip`](src/haven/UI.java:942), [`UI.getcurs`](src/haven/UI.java:933) and
+[`UI.mousehover`](src/haven/UI.java:911) each call `AddonManager.surfaceQuery(ev, c)` before their own walk; a
+panel under the point takes the query, in ITS pixels, through the same corner map a click already comes through
+([D-195](rendering.md#d-195)). `mousehover` still walks the flat tree afterwards, with `hovering=false`.
+**Rationale.** These three are the only things the client resolves against a root by *coordinates* rather than
+by tree position, and both of their assumptions are wrong for a standing widget: the walk starts at `ui.root`
+and steps over the surface (invisible on purpose — that is what takes a standing panel off the flat UI's hit
+test, [D-191](#d-191)), and the point is in screen pixels, which are not the panel's. Re-implementing tooltip
+resolution or hover state against a texture is exactly the failure mode 044's root rule exists to avoid, so the
+query object is handed to the client's own traversal from the surface instead — `derive` keeps a `root`
+reference, so `ret`/`from` come back on the original and the call site is unchanged.
+**Consequences.** A tooltip, a cursor and a hover state on a widget in the world behave as they do on screen,
+and `hafen.ui():tipAt(x, y)` can ask the same question on demand. `mousehover`'s second walk is what stops a
+flat widget from staying stuck hovering while the pointer is on a panel. Two costs, stated rather than hidden:
+the surface is consulted **before** UI grabs (the flat walk consults them first), and the gate is
+`clickable(false)` — a panel that is there only to look at is transparent to a tooltip too, which is the same
+answer it gives a click.
+**See.** [D-198](#d-198), [D-195](rendering.md#d-195), [D-196](#d-196), [widget-input](../../codebase/widget-input.md).

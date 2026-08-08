@@ -266,6 +266,42 @@ final class SurfaceInput {
     }
 
     /**
+     * <b>The other things the client asks at a point</b> (044.5) — a tooltip, a cursor, a hover state. Each is
+     * an ordinary {@code PointerEvent} the client dispatches from {@code ui.root} once a frame, and each would
+     * step straight over a standing panel: the surface hosting it is an invisible child of the root, which is
+     * exactly what takes it out of the flat UI's hit-testing, and the point is in screen coordinates rather
+     * than the panel's pixels. So the same corner map that answers a click answers these, and the event is
+     * dispatched from the surface — the client's own traversal, from a real root, in the panel's own pixels.
+     *
+     * <p>{@code true} means a panel took it and the caller must not also walk the flat tree. The gate is
+     * {@link WidgetSurface#takesPointer()}, the same one a click passes, so {@code widget:clickable(false)}
+     * makes a panel transparent to a hover and a tooltip exactly as it does to a press: it is there to look at.
+     *
+     * <p><b>The hover flag has to be carried by hand.</b> {@code MouseHoverEvent}'s derive constructor leaves
+     * {@code hovering} false — the flat propagation sets it per child, on purpose — so a derived event handed
+     * straight to a surface would report "not hovering" and un-hover the very widget the pointer is on.
+     */
+    static boolean query(Widget.PointerEvent ev, Coord c) {
+        if((ev == null) || (c == null))
+            return false;
+        Coord mr = viewOrigin();
+        if(mr == null)
+            return false;
+        Hit h = hit(new Coord(c.x - mr.x, c.y - mr.y));
+        if(h == null)
+            return false;
+        Widget.PointerEvent dev = ev.derive(h.local);
+        if((dev instanceof Widget.MouseHoverEvent) && (ev instanceof Widget.MouseHoverEvent))
+            ((Widget.MouseHoverEvent)dev).hovering(((Widget.MouseHoverEvent)ev).hovering);
+        try {
+            dev.dispatch(h.s);
+        } catch(RuntimeException e) {
+            AddonManager.log("standing widget query error: " + e);
+        }
+        return true;
+    }
+
+    /**
      * {@code hafen.vr():pointer(key, x, y [, a])} — the same four entries, entered from Lua at a SCREEN point.
      * This is the client's own path from the map view inward and nothing more: it never falls through to the
      * world, so it can neither move the character nor reach the server, and a point on no panel is answered by
@@ -298,18 +334,27 @@ final class SurfaceInput {
      * pixel the corner map would have. Off-panel is fine and deliberate: a drag that has left the panel wants
      * the extrapolated point, not a clamp.
      *
-     * <p><b>Only while a gesture is actually in flight on this surface.</b> Outside one there is no grab being
-     * fed by {@code rootpos()}, so following the pointer would buy nothing — and it would mean every widget in
-     * every standing panel appeared, to anything asking where it is, to be permanently under the cursor
-     * wherever the cursor went. Nothing legitimate asks; but the answer to a question nobody should be asking
-     * ought not to be "yes, everywhere".
+     * <p><b>Following the pointer is only right while a gesture is in flight on this surface.</b> Outside one
+     * it would mean every widget in every standing panel appeared, to anything asking where it is, to be
+     * permanently under the cursor wherever the cursor went. At rest the honest answer is the panel's own
+     * top-left, projected — which is what the corner map says the widget-local origin is drawn at, and which
+     * is exact for a {@code "screen"} blit and for any world quad seen square-on. 044.5 needs a resting answer
+     * because a popup opened INSIDE a surface (a dropdown's list) grabs the mouse and is then fed by
+     * {@code rootpos()} arithmetic, which is this number; leaving it at whatever the last gesture happened to
+     * set would put that list's own clicks somewhere else entirely.
      */
     static void refreshOrigin(WidgetSurface s) {
-        if(held != s)
-            return;
-        UI u = AddonManager.ui;
         Coord mr = viewOrigin();
-        if((u == null) || (u.mc == null) || (mr == null))
+        if(mr == null)
+            return;
+        if(held != s) {
+            Coord tl = screen(s, 0, 0);
+            if(tl != null)
+                s.origin(tl.add(mr));
+            return;
+        }
+        UI u = AddonManager.ui;
+        if((u == null) || (u.mc == null))
             return;
         Coord l = local(s, u.mc.x - mr.x, u.mc.y - mr.y, false);
         if(l != null)

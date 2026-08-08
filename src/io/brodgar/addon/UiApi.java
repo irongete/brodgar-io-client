@@ -362,6 +362,26 @@ final class UiApi {
                 return nodeAt(owner, x, y);
             }
         });
+        // :tipAt(x, y) — 044.5: the Widget whose TOOLTIP the client would show at a root-coord point, or nil.
+        // A sibling of :at(x, y) and a different question: :at answers what is under the point, this answers who
+        // would speak for it, which is not always the same widget (a tooltip is inherited from whatever ancestor
+        // carries one). The text is w:tooltip() on what comes back. It resolves the way the client itself does,
+        // panels standing in the 3D world first — which is what makes it the read that says a tooltip on a
+        // standing widget is the standing widget's, not the map's.
+        m.set("tipAt", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "tipAt");
+                LuaValue x = Args.required(a, 2, "hafen.ui():tipAt", "x");
+                LuaValue y = Args.required(a, 3, "hafen.ui():tipAt", "y");
+                if(!x.isnumber() || !y.isnumber())
+                    throw new LuaError("hafen.ui():tipAt(x, y) expects numbers");
+                UI u = ui;
+                if((u == null) || (u.root == null))
+                    return LuaValue.NIL;
+                Widget from = LuaWidget.tipAt(u, new Coord(x.toint(), y.toint()));
+                return (from == null) ? LuaValue.NIL : LuaWidget.of(owner, from);
+            }
+        });
         // :window() / :widget() — YOUR OWN surface, built BARE and configured by chained setters (039.6, §2.5).
         // The thirteen keys of the old opts table are verbs on the Widget the builder hands back, each with a
         // matching bare read: :title(s) :parent(w) :position(x,y) :size(w,h) :font(h) and the eight callbacks

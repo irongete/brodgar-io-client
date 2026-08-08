@@ -19,8 +19,7 @@
 | **Image overloads (each a different thing)** | [`image(tex,c)`](src/haven/GOut.java:97) natural · [`(tex,c,sz)`](src/haven/GOut.java:117) **scaled** · [`(tex,c,ul,br)`](src/haven/GOut.java:124) natural + **clipped** · [`(tex,c,ul,br,sz)`](src/haven/GOut.java:140) both · [`rimage`](src/haven/GOut.java:170)/`rimagev`/`rimageh` **tile** |
 | **9-slice is a first-class engine concept** | [`IBox`](src/haven/IBox.java:29) is an **interface** — `draw(g, tl, sz)` + six inset queries; [`Images`](src/haven/IBox.java:38) takes eight `Tex`es in the order `(ctl, ctr, cbl, cbr, bl, br, bt, bb)` where **`bl`/`br` are the LEFT/RIGHT edge bars**, not the bottom corners; [`Scaled`](src/haven/IBox.java:89) stretches the edges and **never paints the centre** |
 | **Sub-rect texture view** | [`TexSI`](src/haven/TexSI.java:29) — `(parent, ul, br)`, sharing the parent's GPU texture. `Tex` coords are in **pixels** ([`Tex.crender`](src/haven/Tex.java:52)), so slicing an image costs eight small objects and **no** upload |
-| Modal mouse capture (drag) | [`UI.grabmouse(Widget)`](src/haven/UI.java:589) / [`UI.grab`](src/haven/UI.java:551) |
-| **A grab is checked BEFORE the tree, and reaches its owner by `rootpos`** | [`UI.dispatch(to, ev)`](src/haven/UI.java:626) walks `grabs` (newest first — `grab` does `add(0, g)`) and returns on the first that handles, so a grabbed pointer **never reaches the root traversal** and never reaches a widget lower down that would otherwise have seen it. [`PointerGrab`](src/haven/UI.java:573) translates by `ev.c.add(ev.target.rootpos()).sub(wdg.rootpos())` ⇒ **`rootpos()` is the address the client uses to talk to a grabbed widget**, and overriding [`parentpos`](src/haven/Widget.java:522) on an ancestor redirects it (`xlate` would too, but that one also positions children in the draw loop) |
+| **Input: grabs, propagation, focus, point queries, popups, drops** | [widget-input.md](widget-input.md) — split out of this file in 044.5 |
 | **A press that grabs may not test coordinates** | [`Button.mousedown`](src/haven/Button.java:254) depresses, plays its sfx and grabs for **any** mousedown handed to it; only [`mouseup`](src/haven/Button.java:264) checks `isect`. ⚠️ A second mousedown while one is outstanding re-enters it and **overwrites `d`, orphaning the first grab forever** — a client-wide interceptor until restart. Anything synthesising a press must release it immediately |
 | **The CPU-buffered face is private, and `redraw()` is the only signal** | [`SIWidget.surf`](src/haven/SIWidget.java:31) (a `Tex`, nulled by `redraw()`, rebuilt on the next `draw`). `Button` calls it on press, on arm/disarm as the pointer crosses, and on `disable` — none of which shows in the widget's place, size, visibility or caption. Fork: `SIWidget.redrawing()` (`// addon:`) |
 | **Pre-hook a widget's own event handling** | [`Widget.listen`](src/haven/Widget.java:916)/[`deafen`](src/haven/Widget.java:922) (a `CopyOnWriteArrayList<EventHandler.Listener<?>>`) + [`Widget.handle(Event)`](src/haven/Widget.java:945) — runs every listener **before** `ev.shandle(this)` (the widget's own `mousedown`/etc.); a listener returning `true` short-circuits both the default handling *and* child propagation |
@@ -99,7 +98,7 @@ what makes `Window.tick` a legal place to `chdeco` (035).
 |---|---|
 | **Where the screen `GOut` is built** | [`UILoop.display`](src/haven/UILoop.java:290): `basestate()` (a `BufPipe` + `FragColor.defcolor` + `DepthBuffer.defdepth`) `.prep` blend + [`States.Viewport`](src/haven/render/States.java:44) + [`Ortho2D`](src/haven/render/Ortho2D.java:48) + `FrameInfo`, `buf.clear(...)`, then `new GOut(buf, base, wnd.sz())` → `ui.draw(g)` under `synchronized(ui)`. **The 3D scene is inside that traversal** (the MapView is a widget), so this ONE `Render` carries the whole frame in order — see [world-3d.md](world-3d.md) for drawing a subtree into a texture instead |
 | **Re-homing a widget** | `unlink()` ([:505](src/haven/Widget.java:505)) + `parent.cdestroy(w)` + `parent = null`, then `neu.add(w, at)`. All public |
-| Focus bookkeeping | [`setcanfocus`](src/haven/Widget.java:640) (**permanent** — sets `autofocus` too), [`newfocusable`/`delfocusable`](src/haven/Widget.java:651) (bubble to the nearest `focusctl`), [`findfocus`](src/haven/Widget.java:673) (last visible `autofocus` child) |
+| Focus bookkeeping **and delivery** | [widget-input.md](widget-input.md) — including why `hasfocus` is the wrong read |
 | What `added()` can do to you | [`Window.added`](src/haven/Window.java:119) — `parent.setfocus(this)` **and** `initanim()` (a show transition). Both re-run on a re-home, since `add0` calls `added()` again |
 
 **Gotcha — `Widget.remove()` is a DEATH NOTICE, not a detach.** It ends with the `onWidgetRemoved` seam (above),
@@ -109,8 +108,10 @@ whose consumers fire `Destroy`, a selector `disappear` and the end of a `replace
 re-home row above (plus `delfocusable` if `canfocus`); `ui.removed(w)` is skipped on purpose, since it only drops
 `UI.Grab`s the still-live subtree should keep.
 
-*(This file is over its 70-line budget: "Drop & modifier seams" + "Per-frame allocation" are the natural split
-when a task next needs either.)*
+*(044.5 took the split this note called for — grabs, propagation, focus, the point queries, popups and drops
+moved to [widget-input.md](widget-input.md), leaving the tree, the two traversal seams and the read-only walk.
+Still over the 70-line budget: the four gotcha essays (destroy, `cdestroy`, listener, resize) are the bulk and
+are the next split, one task at a time.)*
 
 ## Introspection & hit-testing (read-only walk)
 
@@ -126,15 +127,6 @@ when a task next needs either.)*
 | **Coord translation (scroll offsets)** | [`Widget.xlate`](src/haven/Widget.java:482) / [`rootxlate`](src/haven/Widget.java:504) — a hit test must respect these, not a naïve rect test |
 | **Parent-relative `c` ⇄ root coords** | [`Widget.parentpos(in)`](src/haven/Widget.java:522) — `parent.xlate(parent.parentpos(in).add(c), true)`, recursing to `in`; `rootpos()` is `parentpos(ui.root)`. Folds every level's `xlate` in, so it is the only correct crossing of a scrolling container. **`c` is relative to the PARENT**: a screen-space answer becomes a `c` by subtracting the parent's own `parentpos(root)`. Prefer `parentpos(u.root)` over `rootpos()` where the `UI` is already in hand — the latter reads the widget's own `ui` field |
 | **The root's size, and who changes it** | [`UILoop.Frame.tick`](src/haven/UILoop.java:485) compares `ui.root.sz` with the OS window size **every iteration** and calls `ui.root.resize(sz)` when they differ; [`Widget.resize`](src/haven/Widget.java:1534) then cascades `presize()` to the children and notifies `parent.cresize`. **Has an addon seam since 042.10**: `AddonManager.onWidgetResized(this)`, the last statement of `resize`, after the `Utils.eq` no-op guard and the `presize`/`cresize` cascade — the root resizing is just another resize through this one tap |
-
-## Drop & modifier seams
-
-| What | Where |
-|---|---|
-| **Drop dispatch (the source)** | [`MenuGrid.mouseup`](src/haven/MenuGrid.java:588) → `DropTarget.dropthing(ui.root, ui.mc, dragging)`; `dragging` = a [`MenuGrid.Pagina`](src/haven/MenuGrid.java:63) |
-| Generic drop interface + tree walk | [`DropTarget`](src/haven/DropTarget.java:29) (`dropthing(Coord,Object)`); `Drop` event via `PointerEvent.propagation` ([`Widget`](src/haven/Widget.java:981)) — calls the first `DropTarget` under the cursor |
-| Pagina → `{kind,res}` descriptor | [`Pagina.res().name`](src/haven/MenuGrid.java:77) (Loading-guarded); res-vs-id split like the [belt `dropthing`](src/haven/GameUI.java:224) |
-| Modifier flags · native empty-slot look (NOT a `.res`) | `ui.modflags()` · [`Inventory.invsq`](src/haven/Inventory.java:34) `TexI` (code-built) + [`sqsz`](src/haven/Inventory.java:33) |
 
 ## Per-frame allocation (garbage, not time)
 

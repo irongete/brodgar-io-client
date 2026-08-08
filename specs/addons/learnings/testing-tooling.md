@@ -1300,3 +1300,17 @@
   rectangle locates a child of the client's own chrome to the pixel (`ui-widgets.md`), ~2×size calls for two 1-D
   passes. Cheap enough to run once in a suite's setup, and it means a test aims at what is actually there rather
   than at a constant that is right on one client's DPI and wrong on another's.
+- **(044.5) A "measure the child's box on the flat UI" helper must not sweep ONE column.** 044.4's `childRect`
+  found a child by sweeping `hafen.ui():at()` down the window's middle column, then across the row it found.
+  That works only for children the middle column happens to cross: a dropdown's drop arrow is right-aligned
+  inside its box, and a picture button is only as wide as its picture, so both came back `nil` and the suite
+  reported an honest but useless "not measurable". The fix is three sweeps — try ~9 columns at deciles until one
+  hits, take that row's x range, then the y range down the middle of THAT — plus an optional **known row** for a
+  child no column is guaranteed to cross (the arrow's row is its dropdown's own middle, because it is centred in
+  it). Cheap (~2·sz calls) and exact on any chrome.
+- **(044.5) A headless probe cannot reach any Widget verb: the handle needs a live UI.** `LuaWidget.live()`
+  returns null when `AddonManager.ui` is null, so every read answers nil and every write is the D-112 chaining
+  no-op — and the builders refuse outright ("no UI is up yet"). What a probe CAN still prove about a new verb is
+  everything decided before the handle is resolved: `Args.required`/`Args.passed` refusals, a section-level
+  verb's own argument checks, and that a section read answers `nil` rather than throwing with no UI. Anything
+  past that is an in-game check, so put the refusal checks in the suite too.

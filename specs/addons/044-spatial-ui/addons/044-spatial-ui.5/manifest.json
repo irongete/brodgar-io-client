@@ -1,0 +1,9 @@
+{
+  "name": "044.5 — the surface is a real root: focus, keyboard, popups, tooltips",
+  "id": "044-spatial-ui.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 044.5: a widget standing in the 3D world takes keyboard focus when clicked and gives it up again, opens its dropdown's list INSIDE the panel rather than on the flat UI, answers a tooltip at the point it is drawn at, and repaints when a hover state changes on it — the transparency rule, proved on everything the client resolves against a root.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

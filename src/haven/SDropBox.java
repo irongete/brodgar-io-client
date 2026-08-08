@@ -57,7 +57,11 @@ public abstract class SDropBox<I, W extends Widget> extends SListWidget<I, W> {
 	protected Widget makeitem(I item, int idx, Coord sz) {return(new Item(item, SDropBox.this.makeitem(item, idx, sz)));}
 
 	public void add() {
-	    SDropBox.this.ui.root.add(this, SDropBox.this.rootpos().add(0, SDropBox.this.sz.y));
+	    /* addon: spatial UI (spec 044, task 044.5) -- was ui.root.add(this, rootpos().add(0, sz.y)), both
+	     * halves hard-wired to the flat root. popuproot()/parentpos() are that same pair for a dropbox on
+	     * the flat UI and the enclosing surface for one standing in the world. See Widget.popuproot(). */
+	    Widget root = SDropBox.this.popuproot();
+	    root.add(this, SDropBox.this.parentpos(root).add(0, SDropBox.this.sz.y));
 	}
 
 	protected void attached() {

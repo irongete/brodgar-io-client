@@ -93,7 +93,20 @@
   still reaches the world beneath it; `ev:preventDefault()` still cancels. Driven through the same
   internal dispatch a real click takes, so no click hardware is needed.
 
-- [ ] **044.5 — The surface is a real root: focus, keyboard, popups, tooltips**
+- [x] **044.5 — The surface is a real root: focus, keyboard, popups, tooltips** ✅
+  *Shipped*: the answer is **split**. **Focus and the keyboard needed nothing** — a surface is a plain
+  non-`focusctl` child of the root, so `Widget.setfocus` forwards straight past it and `FocusedKeyEvent` comes
+  back down the same chain; `hasfocus` turned out to be the wrong read (it is false on nearly everything that is
+  typing), so `widget:focused()` walks the path the client actually delivers along. **Popups WERE hard-wired**:
+  `Widget.popuproot()` (new, `// addon:`) + `parentpos(popuproot())` replace `ui.root`/`rootpos()` at all three
+  sites (`SDropBox`, `SListMenu`, `BuddyWnd`), identical for any non-standing widget (**D-198**). **So were the
+  three per-frame point queries**: `UI.tooltip`/`getcurs`/`mousehover` ask `AddonManager.surfaceQuery` first,
+  the panel answering in its own pixels off 044.4's corner map, with `mousehover` still walking the flat tree at
+  `hovering=false` (**D-199**). `SurfaceInput.refreshOrigin` gained a RESTING origin (the projected top-left),
+  which an in-surface popup's own mouse grab needs. Six `// addon:` core lines and one new `Widget` method — a
+  seam, not the subsystem `tasks.md` feared. New: `widget:focused()`, `widget:tooltip()`/`:tooltip(s)`,
+  `hafen.ui():tipAt(x, y)`. 9/9 + 2/2 manual. **A pre-existing 040.10 defect surfaced and is NOT fixed here**:
+  `dropdown:size(w, h)` leaves the drop arrow outside the resized box, clipped and unhittable.
   The transparency proof, and the task that establishes whether popup/tooltip placement resolves
   against the nearest root or a fixed `ui.root` — adding the one `// addon:` seam if it is fixed.
   *Suite proves*: clicking a standing text entry gives it keyboard focus and typed text arrives;
@@ -128,7 +141,10 @@
 - [ ] **044.8 — Docs, the example addon, and the close**
   `api/vr/widgets.md` (new page), `api/vr/README.md`'s fourth collection row, `api/vr/sprites.md`
   (the `"camera"` mode reaches sprites), `api/client/profiling/counters.md`, both "API at a
-  glance" tables, and `examples.md`. **`widgets.md` and `sprites.md` must both carry 044.3's
+  glance" tables, and `examples.md`. **Plus the three verbs 044.5 put on the `ui` pages, not the
+  `vr` ones** — `widget:focused()` and `widget:tooltip()`/`:tooltip(s)` in `api/ui/widget.md`'s read
+  and write tables, and `hafen.ui():tipAt(x, y)` in its lookup table and `api/ui/README.md`. Say on
+  `widgets.md` that a popup opens **inside** the panel and is therefore clipped by it. **`widgets.md` and `sprites.md` must both carry 044.3's
   finding**: a camera-facing quad rises along the camera's *up* axis, so at a fully top-down
   camera it lies in the horizontal plane through its anchor — at ground level that is the
   terrain's own plane and it is lost in it; `<entity>:offset(x, y, z)` is the answer.

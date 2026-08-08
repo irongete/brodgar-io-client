@@ -909,7 +909,12 @@ public class UI {
     }
 
     public void mousehover(Coord c) {
-	dispatch(root, new Widget.MouseHoverEvent(c));
+	/* addon: spatial UI (spec 044, task 044.5) -- see tooltip() below for why the walk from root cannot
+	 * reach a standing panel. The flat tree is still walked, with hovering FALSE, so whatever was hovering
+	 * there stops the moment the pointer crosses onto a panel in the world; the panel is hovered instead,
+	 * in its own pixels. Nothing standing: one empty-list check and the ordinary dispatch. */
+	boolean std = io.brodgar.addon.AddonManager.surfaceQuery(new Widget.MouseHoverEvent(c), c);
+	dispatch(root, new Widget.MouseHoverEvent(c).hovering(!std));
     }
 	
     public void mousewheel(MouseEvent ev, Coord c, int ia, double sa) {
@@ -926,12 +931,25 @@ public class UI {
     }
 
     public Object getcurs(Coord c) {
-	return(dispatchq(root, new CursorQuery(c)).ret);
+	CursorQuery q = new CursorQuery(c);
+	/* addon: spatial UI (spec 044, task 044.5) -- see tooltip() below. */
+	if(!io.brodgar.addon.AddonManager.surfaceQuery(q, c))
+	    dispatch(root, q);
+	return(q.ret);
     }
 
     private Widget prevtt = null;
     public Object tooltip(Coord c) {
-	Widget.TooltipQuery q = dispatchq(root, new Widget.TooltipQuery(c, prevtt));
+	Widget.TooltipQuery q = new Widget.TooltipQuery(c, prevtt);
+	/* addon: spatial UI (spec 044, task 044.5). This walk cannot reach a widget standing in the 3D world:
+	 * its host surface is a child of root that is INVISIBLE on purpose (044.1), which is what takes a
+	 * standing panel out of the flat UI's hit-testing -- and the pointer's root coordinates are not that
+	 * panel's pixels anyway. So the surface under the pointer answers first, from itself, in its own
+	 * coordinates, by the same corner map a click already goes through (044.4); the query object is shared,
+	 * so `ret` and `from` come back exactly as the ordinary dispatch would set them. Nothing standing:
+	 * one empty-list check, then the line that was always here. */
+	if(!io.brodgar.addon.AddonManager.surfaceQuery(q, c))
+	    dispatch(root, q);
 	prevtt = q.from;
 	return(q.ret);
     }
