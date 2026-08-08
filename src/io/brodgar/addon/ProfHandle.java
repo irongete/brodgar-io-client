@@ -445,9 +445,12 @@ public final class ProfHandle {
     /**
      * {@code p:surfaces()} — the widgets standing in the 3D world, and what drawing them costs.
      *
-     * <p>{@code live} is how many surfaces exist right now, across every addon. {@code uploads} is how many
-     * offscreen passes have actually been issued and {@code frames} how many frames those passes were offered
-     * — <b>cumulative since the client started</b>, so both mean something as a <b>delta between two reads</b>:
+     * <p>{@code live} is how many surfaces exist right now, across every addon, and {@code culled} how many of
+     * those are being skipped this instant because nothing is looking at them (044.7): the camera is pointing
+     * elsewhere, the entity is hidden, or its gob has left the scene. Both are instantaneous counts, not totals.
+     * {@code uploads} is how many offscreen passes have actually been issued and {@code frames} how many frames
+     * those passes were offered — <b>cumulative since the client started</b>, so both mean something as a
+     * <b>delta between two reads</b>:
      * take one, wait, take another. That pair is the whole claim the feature makes about its own cost. A panel
      * nothing changes holds {@code uploads} still while {@code frames} climbs; a panel painted by a
      * {@code widget:on("Draw", …)} handler moves them together, because a Lua function of anything can only be
@@ -459,6 +462,7 @@ public final class ProfHandle {
     private static LuaTable surfaces() {
         LuaTable t = new LuaTable();
         t.set("live", LuaValue.valueOf(WidgetSurface.liveCount()));
+        t.set("culled", LuaValue.valueOf(WidgetSurface.culledCount()));
         t.set("uploads", LuaValue.valueOf((double)WidgetSurface.uploads()));
         t.set("frames", LuaValue.valueOf((double)WidgetSurface.frames()));
         return t;

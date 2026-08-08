@@ -140,7 +140,21 @@
   native toggle, and survives the server destroying the window it replaced. `[manual]`: open a
   real container window, stand it on its gob, use it, confirm it comes back.
 
-- [ ] **044.7 — Culling, and the ends of a surface**
+- [x] **044.7 — Culling, and the ends of a surface** ✅
+  *Shipped*: **there is no engine culling to reuse** — nothing in this client tests a gob against a frustum
+  (geometry goes to the GPU and is clipped there, and `PView.ScreenList` calls every `Render2D` slot every
+  frame), and it would be the wrong test anyway, since a panel's cost is a widget subtree plus a Lua `Draw`
+  handler rather than its quad. **But the test was already being computed**: 044.4 projects the four corners
+  every frame to resolve a click, and against the view they landed in those corners ARE the frustum test
+  (**D-203**). So culling is two field reads — was the quad drawn recently (the `qframe` clock that already
+  ends a stale panel's claim on the pointer, which covers `:hide()`, a gob out of the scene and a client with
+  no map view) and did what it drew meet the view — asked FIRST in `needsDraw`, before the signature read, so
+  what changes out of sight is still a change the first frame it is seen. One frame late by construction, which
+  costs at most one upload as a panel swings into view and can never show a stale picture. `p:surfaces()` gains
+  `culled`. **The five endings needed no new code** — 044.6 left them all wired — so the task asserts them.
+  9/9 + 1/1 on the `off` round, run twice including across a `:reload`. Two suite defects on the way, both
+  `learnings/testing-tooling.md`: a threshold picked first-past-the-post instead of by margin read red on a
+  working feature, and a `[manual]` line claimed a despawn that cannot happen to a point-anchored panel.
   Off-screen surfaces stop drawing (reusing the engine's own culling); `Tick` keeps firing while
   culled and `Draw` does not. Every way a surface ends: removed, gob gone, server destroys the
   standing window, `:reload`, disable — for both anchors.
@@ -152,8 +166,9 @@
 
 - [ ] **044.8 — Docs, the example addon, and the close**
   `api/vr/widgets.md` (new page), `api/vr/README.md`'s fourth collection row, `api/vr/sprites.md`
-  (the `"camera"` mode reaches sprites), `api/client/profiling/counters.md`, both "API at a
-  glance" tables, and `examples.md`. **Plus the three verbs 044.5 put on the `ui` pages, not the
+  (the `"camera"` mode reaches sprites), `api/client/profiling/counters.md` — **`p:surfaces()` is
+  `live`, `culled`, `uploads`, `frames`, and 044.7's `culled` is the one nothing has documented
+  yet** — both "API at a glance" tables, and `examples.md`. **Plus the three verbs 044.5 put on the `ui` pages, not the
   `vr` ones** — `widget:focused()` and `widget:tooltip()`/`:tooltip(s)` in `api/ui/widget.md`'s read
   and write tables, and `hafen.ui():tipAt(x, y)` in its lookup table and `api/ui/README.md`. Say on
   `widgets.md` that a popup opens **inside** the panel and is therefore clipped by it. **`widgets.md` and `sprites.md` must both carry 044.3's
@@ -169,6 +184,26 @@
   sweep is reported as counts, not prose. `[manual]`: the whole thing in-game — it looks right,
   clicking feels like clicking a normal window, walking away and back swaps cleanly, and ore goes
   from the flat inventory into it and comes back out.
+
+- [ ] **044.9 — A free entity stops drawing over ground that has unloaded**
+  *Raised verifying 043.2, seen again verifying 044.7, and made its own task by maintainer
+  directive.* Walk away from anything `hafen.vr()` placed at a **point** and the terrain cuts off
+  while the thing keeps drawing, hanging over the void until it leaves render range; walk back and
+  it is still there. Nothing is broken and nothing regressed: a client-only gob is in no `OCache`,
+  so nothing removes it — that is the very premise an *anchored* entity's death rests on — and
+  `Gob.Placed.autotick` catches the `Loading` a missing tile throws and keeps the previous
+  placement rather than dropping the gob (`codebase/world-3d.md`, `learnings/ghosts.md`). It is a
+  **cosmetic** gap and it is **not culling**: 044.7 stops the offscreen repaint, which leaves the
+  quad drawing its last texture, so the void is untouched by it.
+  **It lands on the shared entity core, so it reaches all four kinds** — ghost, sprite, object and
+  standing widget — which is why it is not part of 044.7. The shape it wants is the one 043.4
+  already built for `:visible`: per-entity desired state rather than a flag read at the draw,
+  driven by the tile's own `Waitable` rather than by any sweep. Open question the task settles: is
+  a free entity over unloaded ground **hidden** (and shown again when the tile returns) or
+  **ended** — and whether that is a policy the addon chooses.
+  *Suite proves*: with the tile under a free entity unloaded it is not drawn (the live-surface or
+  draw counters answer, as they do in 044.7) and it comes back when the tile does; an entity over
+  loaded ground is untouched; the reach across all four kinds. `[manual]`: walk away and back.
 
 ## Notes
 

@@ -60,11 +60,11 @@ final class SurfaceDrawable extends SprDrawable implements PView.Render2D {
             float[] q = new float[8];
             if(project(q, 0, 0f, -hw, 0f, state, a) && project(q, 2, 0f, hw, 0f, state, a)
                && project(q, 4, 0f, -hw, h, state, a) && project(q, 6, 0f, hw, h, state, a))
-                surf.corners(q, depth(state));
+                surf.corners(q, depth(state), a);      // 044.7: the view they landed in IS the culling test
             else
-                surf.corners(null, 0f);
+                surf.corners(null, 0f, null);
         } catch(RuntimeException e) {
-            surf.corners(null, 0f);
+            surf.corners(null, 0f, null);
         }
     }
 

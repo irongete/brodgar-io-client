@@ -1325,3 +1325,26 @@
   has to live in the claim string itself. Formatting the window's two positions into check 5's text turned "the
   put-back after a reload is wrong somehow" into one pasted line per run and a direct comparison — no extra
   command, no state carried across the reload (which a suite cannot do anyway: its Lua state dies with it).
+- **(044.7) A check that measures against a SCREEN EDGE picks by margin, never first-past-the-post — the camera
+  sways while the character stands still.** 044.7's suite stands eight probes in a ring, asks each through
+  `widget:screen(x, y)` where its corners are drawn, and puts the panel at one that is off screen — then measures
+  for 1.5 s that a culled panel draws 0 times. The first version took the **first** probe that was outside at all:
+  it landed 6 px past the bottom edge (`2385,1375..2461,1416` on a `3440x1369` screen), the camera drifted it back
+  into view halfway through, and the run reported `draws +138 uploads +138` over 267 frames — a red line for a
+  feature that was working. Fixes, all three needed: pick the probe **furthest** out, not the first; require that
+  margin to clear `max(100 px, 6% of the screen)` and say so in a guard line when nothing does ("zoom in and run
+  again"); and **re-measure at the end of the window**, folding "it was still off screen when this closed" into
+  the assertion so it can neither pass nor fail for the wrong reason. Rule: *any threshold a live camera can walk
+  across is measured at both ends of the window and chosen with room to spare.*
+- **(044.7) A probe measuring where something WILL be drawn must be the same kind and size as the thing.** The
+  same suite's probes started as bare `hafen.ui():widget()` at half the panel's size, so the rectangle they
+  measured was not the rectangle the panel would occupy. They are now built by the identical expression. The
+  related in-game finding: `hafen.ui():widget()` is a bare content rectangle with **no chrome**, so a panel built
+  from one shows nothing but what its own `Draw` handler paints — a `[manual]` line asking a human whether a
+  panel "looks right" wants `hafen.ui():window():title(...)`, which brings the title bar, border and background
+  (the 043.1 "a fixture that can be missed turns a green feature into a verification round" rule, again).
+- **(044.7) A `[manual]` line can assert something the code does not do, and nothing catches it.** 044.7's line
+  told the maintainer that walking far enough would despawn the panel's gob and take it down — but the panel it
+  leaves standing is anchored to a **point**, and a free entity has no gob to lose. Nothing in the suite could
+  fail on that: prose is not an assertion. Rule: *read every `[manual]` line back against the code path it
+  describes, exactly as if it were a check — it is the one line in a suite with no compiler and no runtime.*

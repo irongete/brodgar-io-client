@@ -70,6 +70,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * changes that a signature cannot see (a value, a row list, a picture) marks the surface through
  * {@link #touch}, and a surface whose content has not been armed yet is skipped outright ({@link #unarmed}),
  * so the first upload is the first one that draws anything.
+ *
+ * <p><b>And it does not draw at all when nothing is looking</b> (044.7, {@link #culled}). That is the cheapest
+ * of the questions and it is asked first, because a panel the camera is not pointing at costs nothing however
+ * busy its content is: the {@code Draw} handler that would otherwise repaint it every frame is not run, which is
+ * the whole reason to cull the surface rather than merely let the GPU throw its quad away. {@code Tick} goes on
+ * firing while it is culled — ticking is logic and it happens in the widget tree, which a culled surface never
+ * leaves — so nothing inside a panel drifts out of date while the player is facing the other way.
  */
 final class WidgetSurface extends Widget {
     /** Every live surface, across all addons — the render pass walks this and nothing else. */
@@ -112,6 +119,8 @@ final class WidgetSurface extends Widget {
     private volatile float qdepth;
     /** ...and which frame recorded them, so a surface that has stopped being drawn stops being clickable. */
     private volatile long qframe = Long.MIN_VALUE;
+    /** ...and 044.7: whether the rectangle those corners span met the view at all — see {@link #culled}. */
+    private volatile boolean onscreen;
 
     /**
      * 044.4: where this surface's <b>widget-local origin currently is on screen</b>, kept following the
@@ -171,10 +180,54 @@ final class WidgetSurface extends Widget {
      * three facing modes: they differ in what reads the texture, never in the fact that the result is a flat
      * quad somewhere on screen.
      */
-    void corners(float[] q, float depth) {
+    void corners(float[] q, float depth, Area view) {
         this.quad = q;
         this.qdepth = depth;
+        this.onscreen = (q != null) && (view != null) && meets(q, view);
         this.qframe = frames;
+    }
+
+    /**
+     * Does the rectangle spanned by the four projected corners meet {@code view} at all? The bounding box rather
+     * than the quad itself: a projected quad is convex, so the box is an over-estimate and never the other way
+     * about — a surface can be kept for a frame it did not actually need, and can never be dropped for one it
+     * did, which is the only asymmetry a culling test is allowed to have.
+     */
+    private static boolean meets(float[] q, Area view) {
+        float minx = q[0], maxx = q[0], miny = q[1], maxy = q[1];
+        for(int i = 2; i < 8; i += 2) {
+            minx = Math.min(minx, q[i]);     maxx = Math.max(maxx, q[i]);
+            miny = Math.min(miny, q[i + 1]); maxy = Math.max(maxy, q[i + 1]);
+        }
+        return (maxx >= view.ul.x) && (minx <= view.br.x) && (maxy >= view.ul.y) && (miny <= view.br.y);
+    }
+
+    /**
+     * <b>Is this surface's picture reaching the screen at all right now?</b> (044.7) — the whole of the feature's
+     * culling, and it costs two field reads.
+     *
+     * <p><b>There is no engine culling to reuse.</b> The plan assumed one; the client has none. Nothing walks the
+     * gobs testing them against a frustum — geometry is handed to the GPU and clipped there, which is the right
+     * answer for a mesh and the wrong one for us, because our cost is not the quad. Drawing a surface means
+     * running a whole widget subtree, and, where the panel has a {@code Draw} subscriber, a Lua function, every
+     * frame. Clipping the quad after the fact would save none of that.
+     *
+     * <p><b>But the test was already being computed.</b> Every frame the visual projects the quad's four corners
+     * into the map view's own pixels ({@link SurfaceDrawable}, or the blit rectangle in {@code "screen"} mode) so
+     * that a click can be resolved on it (044.4) — and those four points, against the view they were projected
+     * into, ARE the frustum test, arrived at by the very transform stack that draws the thing. So this asks two
+     * questions and neither of them is new work: was the quad drawn recently at all (the {@link #qframe} clock
+     * that already ends a stale panel's claim on the pointer — it covers {@code :hide()}, a gob that has left the
+     * scene, and a client with no map view up), and did what it drew meet the view.
+     *
+     * <p><b>It is one frame late, and it has to be.</b> The offscreen pass runs before the world draw that
+     * records the corners, so what it reads is last frame's answer. Being late is only ever an extra upload on
+     * the frame a panel swings into view — the texture itself is never stale, because a culled surface keeps its
+     * dirty flag and its last signature untouched and so redraws on the first frame it is looked at again if
+     * anything changed while it was not.
+     */
+    boolean culled() {
+        return ((frames - qframe) > 2) || !onscreen;
     }
 
     /**
@@ -296,6 +349,10 @@ final class WidgetSurface extends Widget {
      * change would cost two passes, one for the flag and one for the signature catching up.
      */
     private boolean needsDraw() {
+        if(culled())
+            return false;                              // 044.7: nothing is looking, so nothing is painted --
+                                                       // and the signature is deliberately NOT read, so whatever
+                                                       // changes out of sight is still a change when it is seen
         if(unarmed())
             return false;                              // still being built: it paints nothing, so it costs nothing
         long s = signature();
@@ -469,6 +526,16 @@ final class WidgetSurface extends Widget {
 
     static int liveCount() {
         return live.size();
+    }
+
+    /** How many of those are being skipped right now because nothing is looking at them (044.7). */
+    static int culledCount() {
+        int n = 0;
+        for(WidgetSurface s : live) {
+            if(s.culled())
+                n++;
+        }
+        return n;
     }
 
     static long uploads() {

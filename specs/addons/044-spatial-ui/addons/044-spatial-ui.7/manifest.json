@@ -1,0 +1,9 @@
+{
+  "name": "044.7 — culling, and the ends of a surface",
+  "id": "044-spatial-ui.7",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 044.7: a panel the camera is not pointing at stops being drawn while it goes on ticking, and every way a standing widget ends releases its surface.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

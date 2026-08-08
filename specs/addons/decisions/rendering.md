@@ -156,3 +156,29 @@ the client's path from the map view *inward*, so it can neither move the charact
 `widget:screen(x, y)` is its exact inverse, both directions off the one map.
 **See.** [D-196](widgets-ui.md#d-196), [D-193](#d-193), [D-192](#d-192),
 [044-spatial-ui](../044-spatial-ui/spec.md), [world-3d](../../codebase/world-3d.md).
+
+### D-203 — there is no engine culling to reuse, and the test was already being computed ✅ (044.7, 2026-08-08)
+**Decision.** A widget standing in the world stops being drawn when its quad is not reaching the screen, and the
+test is **two field reads on numbers 044.4 already produces**: was the quad drawn recently at all, and did what
+it drew meet the view. Each surface's visual records its four projected corners once per frame, in the map
+view's own pixels, so a click can be resolved on them ([D-195](#d-195)) — the bounding box of those corners
+against the `Area` they were projected into *is* the frustum test, arrived at by the very transform stack that
+draws the thing. `Tick` is untouched: ticking is logic and happens in the widget tree, which a culled surface
+never leaves. `p:surfaces()` gains `culled` beside `live` so the skip is measurable rather than asserted.
+**Rationale.** [plan.md](../044-spatial-ui/plan.md) said "reuse the culling the engine already applies to gobs
+and sprites". **There is none.** Nothing in this client walks the gobs testing them against a frustum —
+geometry goes to the GPU and is clipped there, and [`PView.ScreenList.draw`](../../codebase/world-3d.md) calls
+every registered `Render2D` slot every frame. That would be the wrong test anyway: a standing panel's cost is
+not its quad but running a whole widget subtree and, where the panel has a `Draw` subscriber, a Lua function.
+GPU clipping saves none of that, and a second visibility calculation beside the corner map could disagree with
+the picture — the same argument that made the corners the pick in the first place.
+**Consequences.** The answer is **one frame late**, because the offscreen pass runs before the world draw that
+records the corners. That only ever costs an extra upload on the frame a panel swings into view; it can never
+show a stale picture, because a culled surface leaves its dirty flag and its last content signature **untouched**
+— what changed out of sight is still a change the first frame it is looked at, which is why the cull test sits
+*before* the signature read in `needsDraw` and not after it. The recency half is free coverage: a surface whose
+visual is not being drawn at all — `:hide()`, a gob out of the scene, a client with no map view up — is culled
+by the same clock that already ends its claim on the pointer. The bounding box is an over-estimate of a convex
+quad, so a surface can be kept for a frame it did not need and never dropped for one it did.
+**See.** [D-192](#d-192), [D-195](#d-195), [D-199](widgets-ui.md#d-199),
+[044-spatial-ui](../044-spatial-ui/spec.md), [world-3d](../../codebase/world-3d.md).

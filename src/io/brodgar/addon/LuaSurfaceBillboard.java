@@ -58,26 +58,27 @@ public final class LuaSurfaceBillboard extends Drawable implements PView.Render2
      * into the render pass (mirrors {@link LuaSpriteBillboard}).
      */
     public void draw(GOut g, Pipe state) {
+        Area view = Area.sized(g.sz());
         TexRender tr = surf.texture();
         if(tr == null) {
-            surf.corners(null, 0f);
+            surf.corners(null, 0f, null);
             return;                                  // the surface has been freed → draw nothing
         }
         Coord sc;
         try {
-            Coord3f v = Homo3D.obj2view(new Coord3f(0f, 0f, 0f), state, Area.sized(g.sz()));
+            Coord3f v = Homo3D.obj2view(new Coord3f(0f, 0f, 0f), state, view);
             if(v == null) {
-                surf.corners(null, 0f);
+                surf.corners(null, 0f, null);
                 return;                              // not projectable this frame
             }
             sc = v.round2();
         } catch(RuntimeException e) {
-            surf.corners(null, 0f);
+            surf.corners(null, 0f, null);
             return;
         }
         float scale = (gg != null) ? gg.scale : 1f;
         if(scale <= 0f) {
-            surf.corners(null, 0f);
+            surf.corners(null, 0f, null);
             return;
         }
         Coord base = surf.sz;                        // 1:1 with the texture — the widget drew itself at exactly
@@ -93,7 +94,7 @@ public final class LuaSurfaceBillboard extends Drawable implements PView.Render2
             pos.x,          pos.y + sz.y,
             pos.x + sz.x,   pos.y + sz.y,
             pos.x,          pos.y,
-            pos.x + sz.x,   pos.y }, -1f);
+            pos.x + sz.x,   pos.y }, -1f, view);      // 044.7: and the same rectangle is this mode's cull test
         float alpha = (gg != null) ? gg.alpha : 1f;
         Color tint = (gg != null) ? gg.tint : null;
         int a8 = clampByte(Math.round(alpha * 255f));
