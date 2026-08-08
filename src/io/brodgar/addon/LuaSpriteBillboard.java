@@ -15,7 +15,7 @@ import haven.render.Homo3D;
 import haven.render.Pipe;
 
 /**
- * The <b>camera-facing billboard</b> visual behind a {@link LuaSprite} ({@code hafen.render.sprite{billboard=true}},
+ * The <b>camera-facing billboard</b> visual behind a {@link LuaSprite} ({@code hafen.vr():sprite() with :billboard(true)},
  * spec {@code 17-custom-rendering.md} §5, R2b) — a custom PNG standing in the world that always faces the camera,
  * the odd sibling of the fixed {@link SpriteQuad}. It is a screen-space blit anchored at the entity's projected
  * world point, exactly the {@code haven.SpeakerIcon} / {@link LuaGobOverlay} pattern: a {@link PView.Render2D}

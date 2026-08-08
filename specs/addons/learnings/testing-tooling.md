@@ -1178,3 +1178,23 @@
   `:reload`. TESTING.md's skeleton was fixed the same task (both calls updated to the current colon form) —
   if a future skeleton drifts from the API again, this is the check that catches it before a verification
   round is spent on "no such command."
+
+- **(043.1) A suite that must SHIP an asset can hand-write it — a one-triangle `.gltf` is ~900 bytes where
+  the shipped `.glb` is 2 MB.** A per-task suite is archived into `specs/` and its assets are addon-relative
+  and **sandboxed**, so it cannot borrow `hello`'s or `planner`'s — copying `tank.glb` would have put a 2 MB
+  blob in the repo per task that touches the object collection. `Gltf.parse` accepts a `.gltf` whose buffer is
+  a `data:…;base64` URI (`resolveBuffers`), so the whole model is one JSON file: `scenes`/`nodes`/`meshes`/
+  `accessors`/`bufferViews`/`buffers`, POSITION only (NORMALs are computed when absent, indices optional).
+  Verify it through the real parser before shipping — a 6-line throwaway `main` calling
+  `Gltf.parse(bytes, name, null)` prints `prims/nvert/ntri`; note it needs the **luaj jar** on the classpath
+  even though the class is pure, because its error path builds a `LuaError`.
+- **(043.1) A hand-made fixture has to be SEEABLE, or the `[manual]` line it exists for proves nothing.** The
+  first `tri.gltf` was a triangle lying flat in glTF's XZ plane with no material: after the basis conversion it
+  hugged the ground, and with no `material` the parser defaults `doubleSided` to **false**, so it was
+  back-face culled and invisible from the game camera. The maintainer reported seeing two of the three things
+  the manual line names — which reads exactly like "the object collection is broken" and is not. Rules that
+  came out of it: stand a fixture **upright** (glTF is Y-up and 1 metre = 1 tile via `Gltf.MODEL_UNIT = 11`,
+  so a `Y=0..1` triangle is one tile tall with its base on the ground), give it a material with
+  `"doubleSided": true` so no winding can hide it, and a `baseColorFactor` that is not the terrain's colour.
+  Generalisation: when a check's whole job is "a human confirms it looks the same", the thing being looked at
+  must be unmistakable — a fixture that can be *missed* turns a green feature into a verification round.

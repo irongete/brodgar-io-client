@@ -1,0 +1,9 @@
+{
+  "name": "043.1 — hafen.vr(): the section exists, and the three collections move into it",
+  "id": "043-vr-namespace.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 043.1: hafen.vr() is one section with :ghost(), :sprite() and :object(); each still places what it was given and answers every verb its old section answered; hafen.ghost and hafen.render raise naming hafen.vr().",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

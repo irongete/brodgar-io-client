@@ -168,7 +168,7 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
             LuaWorldEntity e = ent;
             ent = null;
             if(e != null)
-                RenderApi.destroyOverlayEntity(e);
+                VrApi.destroyOverlayEntity(e);
         }
 
         /**
@@ -194,19 +194,19 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
                 if(billboard)
                     spec.set("billboard", LuaValue.TRUE);
             }
-            LuaWorldEntity built = RenderApi.overlayEntity(owner, gobId, spec, kind, worldOffset());
+            LuaWorldEntity built = VrApi.overlayEntity(owner, gobId, spec, kind, worldOffset());
             LuaWorldEntity old = ent;
             ent = built;
             if(old != null)
-                RenderApi.destroyOverlayEntity(old);
+                VrApi.destroyOverlayEntity(old);
             if(scale != 1.0)
-                RenderApi.overlayScale(built, scale);
+                VrApi.overlayScale(built, scale);
             if(alpha != 1.0)
-                RenderApi.overlayAlpha(built, alpha);
+                VrApi.overlayAlpha(built, alpha);
             if(tint != null)
-                RenderApi.overlayTint(built, tint);
+                VrApi.overlayTint(built, tint);
             if(rotate != 0.0)
-                RenderApi.overlayRotate(built, rotate);
+                VrApi.overlayRotate(built, rotate);
         }
     }
 

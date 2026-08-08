@@ -5,7 +5,7 @@
 > Append new decisions of this kind here.
 > Legend: ✅ Accepted - 🔄 Revisit later - ❌ Rejected - 💤 Superseded.
 
-### D-034 — Custom (non-`.res`) rendering is a new `hafen.render.*` namespace ✅ (maintainer, 2026-07-26)
+### D-034 — Custom (non-`.res`) rendering is a new `hafen.render.*` namespace ✅ (maintainer, 2026-07-26) 💤 (its NAMESPACE half superseded by [D-184](architecture-api.md#d-184), 2026-08-08, 043.1 — the section is now `hafen.vr()`; the SAFE-tier ruling below stands)
 **Decision.** Rendering of assets that are **NOT engine `.res`** — **PNG images** (on screen and in the world) and
 **custom 3D models** ([glTF](../design/18-custom-models-gltf.md)) — lives in a **new `hafen.render.*` namespace**, separate
 from `hafen.ghost`. **`hafen.ghost` is reserved for `.res` game models** and is **unchanged** (maintainer:

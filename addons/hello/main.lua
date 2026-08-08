@@ -4,10 +4,10 @@
 -- the separate, opt-in `walker` addon, which DECLARES "permissions": ["actions"] and is therefore disabled by
 -- default; enabling it in Options > AddOns raises a consent dialog (write-actions are a per-addon permission — no
 -- global switch).
--- Built on V1+V2+V3: CLIENT-ONLY WORLD GHOSTS — hafen.ghost():add(res, p) places a virtual prop (a Gob
+-- Built on V1+V2+V3: CLIENT-ONLY WORLD GHOSTS — hafen.vr():ghost():add(res, p) places a virtual prop (a Gob
 -- NO server id) in the 3D world; it never reaches the server and grants no advantage, so it is SAFE-tier, NOT
 -- gated (D-029) — a visualization, like a HUD overlay (the motivating use is city/base planning). It returns a
--- bridge-owned handle with :position(p[,a]) / :res() / :clickable(b), ended by hafen.ghost():remove(g); :list(
+-- bridge-owned handle with :position(p[,a]) / :res() / :clickable(b), ended by hafen.vr():ghost():remove(g); :list(
 -- [filter]) returns this addon's live ghosts. Ghosts are torn down on reload/disable/relogin (P2). V2 adds OPT-IN
 -- CLICKABILITY — clickable=true (or :clickable(bool)) gives a ghost a pick surface; a click on it is detected
 -- client-side and CONSUMED before any server "click" (your character never walks/interacts — still SAFE-tier,
@@ -1166,10 +1166,10 @@ hafen.event():on("EnterWorld", function()
   readSound("login")
 end)
 
--- V1+V3: CLIENT-ONLY WORLD GHOSTS (hafen.ghost()). A ghost is a virtual prop rendered in the 3D world at world
+-- V1+V3: CLIENT-ONLY WORLD GHOSTS (hafen.vr():ghost()). A ghost is a virtual prop rendered in the 3D world at world
 -- coords — a Gob with NO server id, so it never reaches the server and grants no advantage: SAFE-tier, NOT
--- gated (D-029), a visualization like a HUD overlay. hafen.ghost():add(res, p) returns a bridge-owned
--- (:position/:res/:rotate/:alpha/:tint/:scale/:visible/:clickable); hafen.ghost():list([filter]) lists this
+-- gated (D-029), a visualization like a HUD overlay. hafen.vr():ghost():add(res, p) returns a bridge-owned
+-- (:position/:res/:rotate/:alpha/:tint/:scale/:visible/:clickable); hafen.vr():ghost():list([filter]) lists this
 -- addon's live ghosts. The visual streams in a beat later (the resource resolves on a loader thread, dodging
 -- Loading), so the handle works immediately while the prop appears shortly after. This handler is the V1+V3
 -- REGRESSION: it spawns a log cabin ~3 tiles E of you ROTATED 45° and TRANSLUCENT with a bluish tint (the V3
@@ -1181,13 +1181,13 @@ hafen.event():on("EnterWorld", function()
   local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
   local p = me and me:position()
   if not p then hafen.log():write("V1: ghost demo skipped -- no player position yet"); return end
-  local g = hafen.ghost():add("gfx/terobjs/arch/logcabin", p:offset(33, 0))   -- what it draws, and where
+  local g = hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p:offset(33, 0))   -- what it draws, and where
     :rotate(math.pi / 4)                                         -- +3 tiles E (tile=11), rotated 45 deg
     :alpha(0.5)                                                  -- V3: translucent "ghost" look (the DoD)
     :tint(120, 180, 255, 110)                                    -- V3: bluish colour overlay
   local q = g:position()
   hafen.log():write(("V1+V3: ghost spawned (%s) at %.0f,%.0f a=%.2f -- list=%d; translucent+rotated, moving 2 tiles N")
-    :format(tostring(g:res()), q:x(), q:y(), g:rotate(), hafen.ghost():count()))
+    :format(tostring(g:res()), q:x(), q:y(), g:rotate(), hafen.vr():ghost():count()))
   g:position(p:offset(33, 22))                                   -- prove the write half; the prop follows
   hafen.timer():after(3, function()
     g:res("gfx/terobjs/arch/timberhouse"):rotate(math.pi)       -- V3: live res-swap (DoD) + :rotate, chained
@@ -1196,8 +1196,8 @@ hafen.event():on("EnterWorld", function()
   hafen.timer():after(5, function() g:visible(false); hafen.log():write("V3: ghost :visible(false)") end)
   hafen.timer():after(6, function() g:visible(true); hafen.log():write("V3: ghost :visible(true)") end)
   hafen.timer():after(8, function()
-    hafen.ghost():remove(g)                                      -- the collection placed it, so it ends it
-    hafen.log():write(("V1: ghost auto-removed -- list=%d"):format(hafen.ghost():count()))
+    hafen.vr():ghost():remove(g)                                      -- the collection placed it, so it ends it
+    hafen.log():write(("V1: ghost auto-removed -- list=%d"):format(hafen.vr():ghost():count()))
   end)
 end)
 
@@ -1568,7 +1568,7 @@ end)
 -- (or computes them when absent) and each material adds a Phong light state, so the model now SHADES with the world
 -- lights instead of drawing fullbright -- :info().lit counts the lit primitives. The handle exposes :bounds() ->
 -- {min,max,size} world units, :info() -> {prims,textured,lit,textures,verts,tris}, and :dispose() (also automatic
--- on reload/disable, P2). Stand it with hafen.render():object():add(cube); ':hello object' places one.
+-- on reload/disable, P2). Stand it with hafen.vr():object():add(cube); ':hello object' places one.
 local cube   -- the model handle (nil until loaded; a fresh reload rebuilds the env -> nil, re-loaded below)
 hafen.event():on("Load", function()
   cube = hafen.asset():get("tank.glb")   -- 028.1: same door as the image; the .glb extension picks the mesh loader
@@ -1723,9 +1723,11 @@ hafen.event():on("EnterWorld", function() readSkin("login") end)
 -- asset and one TexI) and identity is stable only WHILE ALIVE -- :dispose() drops the entry, so the next load of
 -- that path is a NEW object (':hello assets dispose' proves that half). Every asset answers :type()/:path()/
 -- :dispose(); a BUILT-IN font (hafen.font():get("serif")) and a :derive'd variant carry NONE of them and are never
--- listed -- no file, no path, no lifetime (D-060). The three old loaders (hafen.font.load / hafen.render.image /
--- hafen.render.model) are a HARD CUT and read as plain nil, and the use sites are HANDLE-ONLY (D-012): a path
--- string into sprite():add() / object():add() is an error that points back at hafen.asset.
+-- listed -- no file, no path, no lifetime (D-060). The old loader hafen.font.load is a HARD CUT and reads as plain
+-- nil; its two siblings cannot be probed that way any more, because 043 retired the whole hafen.render SECTION into
+-- hafen.vr(), so reading hafen.render at all RAISES naming its replacement before any sub-name is reached. The use
+-- sites are HANDLE-ONLY (D-012): a path string into sprite():add() / object():add() is an error that points back at
+-- hafen.asset.
 local function readAssets(tag)
   local live = hafen.asset():list()
   local parts = {}
@@ -1757,9 +1759,9 @@ local function readAssets(tag)
   local p2 = okp and mygob and mygob:position()
   if p2 then
     hafen.log():write(("[%s] handle-only: sprite():add('icon.png') -> %s"):format(tag,
-      why(function() return hafen.render():sprite():add("icon.png", p2) end)))
+      why(function() return hafen.vr():sprite():add("icon.png", p2) end)))
     hafen.log():write(("[%s]              object():add('tank.glb') -> %s"):format(tag,
-      why(function() return hafen.render():object():add("tank.glb", p2) end)))
+      why(function() return hafen.vr():object():add("tank.glb", p2) end)))
   else
     hafen.log():write(("[%s] handle-only: skipped -- not in the world yet (the map-view refusal comes first)")
       :format(tag))
@@ -1771,10 +1773,12 @@ local function readAssets(tag)
     tostring(serif == hafen.font():get("serif")),
     tostring((serif.type == nil) and (serif.path == nil) and (serif.dispose == nil)),
     (function() local ok, e = pcall(function() return hafen.font():get("comic") end); return (not ok) and "refused" or "ACCEPTED (BUG)" end)()))
-  -- The hard cut (D-013): all three old loaders read as plain nil -- not flattened, not stubbed.
-  hafen.log():write(("[%s] asset contract: loadersGone=%s (font.load=%s render.image=%s render.model=%s)"):format(tag,
-    tostring((hafen.font.load == nil) and (hafen.render.image == nil) and (hafen.render.model == nil)),
-    tostring(hafen.font.load), tostring(hafen.render.image), tostring(hafen.render.model)))
+  -- The hard cut (D-013): hafen.font.load reads as plain nil -- not flattened, not stubbed. The other two old
+  -- loaders lived on hafen.render, and 043 retired that whole SECTION into hafen.vr(), so the probe for them is
+  -- no longer "reads nil" but "raises naming hafen.vr()" -- which fires before .image/.model is ever reached.
+  hafen.log():write(("[%s] asset contract: font.load=%s (gone=%s) | hafen.render -> %s"):format(tag,
+    tostring(hafen.font.load), tostring(hafen.font.load == nil),
+    why(function() return hafen.render end)))
 end
 
 hafen.event():on("EnterWorld", function()
@@ -1968,15 +1972,15 @@ hafen.slash():register("hello", function(args)
     dumpMenu()                                   -- 023: dump the ACTION MENU as a tree (roots + their children)
   elseif sub == "ghost" then
     if demoGhost then                            -- V1: TOGGLE a client-only ghost cabin at your position
-      hafen.ghost():remove(demoGhost); demoGhost = nil
-      hafen.log():write((":hello ghost -> removed (list=%d)"):format(hafen.ghost():count()))
+      hafen.vr():ghost():remove(demoGhost); demoGhost = nil
+      hafen.log():write((":hello ghost -> removed (list=%d)"):format(hafen.vr():ghost():count()))
     else
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:position()
       if not p then hafen.log():write(":hello ghost -> no player position yet"); return end
       local px, py = p:x(), p:y()
       local spin, faded = 0, false                           -- V3: per-spawn live-look state (closed over by onClick)
-      demoGhost = hafen.ghost():add("gfx/terobjs/arch/logcabin", p)  -- V2 clickable + V3 look: a cabin
+      demoGhost = hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)  -- V2 clickable + V3 look: a cabin
         :alpha(0.6)                                           -- V3: translucent
         :tint(255, 210, 120)                                  -- V3: warm colour overlay
         :clickable(true)                                      -- opt-in pick surface (the V2 core)
@@ -1990,20 +1994,20 @@ hafen.slash():register("hello", function(args)
       hafen.log():write((":hello ghost -> CLICKABLE translucent cabin at you (%.0f,%.0f) -- CLICK it (won't move; each click rotates + re-fades); :hello ghost again to remove"):format(px, py))
     end
   elseif sub == "sprite" then
-    -- R2a: CLIENT-ONLY WORLD SPRITE (hafen.render():sprite()). Stand our own PNG (the R1 icon.png handle) UPRIGHT
+    -- R2a: CLIENT-ONLY WORLD SPRITE (hafen.vr():sprite()). Stand our own PNG (the R1 icon.png handle) UPRIGHT
     -- in the 3D world as a fixed textured quad -- the non-.res sibling of a ghost, on the SAME virtual-entity core:
     -- a Gob with no server id, so it never reaches the server (SAFE-tier, NOT gated, D-034). It is a transform
     -- handle like a ghost (:position/:rotate/:scale), so 2s after placing we move + rotate + scale it to prove the
     -- gizmo-compatible transform works live; :hello sprite again removes it. Torn down on reload/disable.
     if demoSprite then
-      hafen.render():sprite():remove(demoSprite); demoSprite = nil
+      hafen.vr():sprite():remove(demoSprite); demoSprite = nil
       hafen.log():write(":hello sprite -> destroyed")
     else
       if not icon then hafen.log():write(":hello sprite -> icon.png not loaded yet (Load)"); return end
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:position()
       if not p then hafen.log():write(":hello sprite -> no player position yet"); return end
-      demoSprite = hafen.render():sprite():add(icon, p):scale(3)   -- ~3 tiles tall, clearly visible
+      demoSprite = hafen.vr():sprite():add(icon, p):scale(3)   -- ~3 tiles tall, clearly visible
       local pos = demoSprite:position()
       hafen.log():write((":hello sprite -> icon.png STANDING at (%.0f,%.0f) scale=%.0f -- transforms in 2s; :hello sprite again to remove")
         :format(pos:x(), pos:y(), demoSprite:scale()))
@@ -2021,14 +2025,14 @@ hafen.slash():register("hello", function(args)
     -- (rotate the camera / zoom -- it stays square-on and the same pixel size). Position + gizmo-move still apply
     -- (world-rotate/scale do not: it's 2D). Same handle as a fixed sprite; :hello billboard again removes it.
     if demoBill then
-      hafen.render():sprite():remove(demoBill); demoBill = nil
+      hafen.vr():sprite():remove(demoBill); demoBill = nil
       hafen.log():write(":hello billboard -> destroyed")
     else
       if not icon then hafen.log():write(":hello billboard -> icon.png not loaded yet (Load)"); return end
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:position()
       if not p then hafen.log():write(":hello billboard -> no player position yet"); return end
-      demoBill = hafen.render():sprite():add(icon, p):billboard(true):scale(2)   -- 2x native px, faces camera
+      demoBill = hafen.vr():sprite():add(icon, p):billboard(true):scale(2)   -- 2x native px, faces camera
       hafen.log():write((":hello billboard -> icon.png standing at (%.0f,%.0f) FACING THE CAMERA (screen-sized) -- rotate the camera to see; :hello billboard again to remove")
         :format(p:x(), p:y()))
     end
@@ -2053,7 +2057,7 @@ hafen.slash():register("hello", function(args)
       hafen.log():write(":hello follow -> icon.png now FLOATS above your head and FOLLOWS you -- walk around; :hello follow again to remove")
     end
   elseif sub == "object" then
-    -- R3a/R3b: CLIENT-ONLY WORLD 3D MODEL (hafen.render():object()). Stand our own glTF model (tank.glb) in
+    -- R3a/R3b: CLIENT-ONLY WORLD 3D MODEL (hafen.vr():object()). Stand our own glTF model (tank.glb) in
     -- the 3D world -- the mesh sibling of a sprite/ghost, on the SAME virtual-entity core: a Gob with no server id, so
     -- it never reaches the server (SAFE-tier, NOT gated, D-034). R3b makes it render TEXTURED (its embedded PNGs) with
     -- one material per primitive. It is a transform handle like a sprite (:position/:rotate/:scale), so 2s
@@ -2061,7 +2065,7 @@ hafen.slash():register("hello", function(args)
     -- object again removes it. Torn down on reload/disable. The scale is derived from :bounds() so ANY model (this
     -- tank is authored in big units) stands ~2 tiles tall.
     if demoObject then
-      hafen.render():object():remove(demoObject); demoObject = nil
+      hafen.vr():object():remove(demoObject); demoObject = nil
       hafen.log():write(":hello object -> destroyed")
     else
       if not cube then hafen.log():write(":hello object -> tank.glb not loaded yet (Load)"); return end
@@ -2071,7 +2075,7 @@ hafen.slash():register("hello", function(args)
       local b = cube:bounds()
       local tall = (b.size.z and b.size.z > 0.01) and b.size.z or 11       -- world-unit height
       local scale = (2 * 11) / tall                       -- stand ~2 tiles tall regardless of the model's authored units
-      demoObject = hafen.render():object():add(cube, p):scale(scale)
+      demoObject = hafen.vr():object():add(cube, p):scale(scale)
       local pos = demoObject:position()
       hafen.log():write((":hello object -> tank.glb (textured + LIT/R3c) STANDING at (%.0f,%.0f) scale=%.3f -- shaded by the world lights (rotate/relocate it to see the shading change); transforms in 2s; :hello object again to remove")
         :format(pos:x(), pos:y(), demoObject:scale()))
@@ -2936,6 +2940,6 @@ hafen.event():on("Disable", function()
     hafen.map():marker():remove(helloMarker)                -- leaves 'Hello marker' pins on your persistent map DB
     helloMarker = nil
   end
-  if demoGhost then hafen.ghost():remove(demoGhost); demoGhost = nil end   -- V1: drop the manual ghost
+  if demoGhost then hafen.vr():ghost():remove(demoGhost); demoGhost = nil end   -- V1: drop the manual ghost
   hafen.log():write("Disable fired")
 end)

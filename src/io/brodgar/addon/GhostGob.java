@@ -14,7 +14,7 @@ import haven.render.Pipe;
 import haven.render.States;
 
 /**
- * The {@link Gob} behind a client-only world ghost ({@code hafen.ghost}, spec {@code 16-virtual-entities.md}) —
+ * The {@link Gob} behind a client-only world ghost ({@code hafen.vr():ghost()}, spec {@code 16-virtual-entities.md}) —
  * a plain virtual gob (id {@code -1} ⇒ {@code Gob.virtual}: never in {@code OCache}, invisible to the server and
  * every read API) with two extra behaviours, both applied in {@link #obstate}: it can be made
  * <b>pick-selectable</b> (V2, {@link D-032}) and given a <b>look</b> — a colour {@link #tint} and/or a

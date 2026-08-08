@@ -429,7 +429,7 @@ public final class LuaOverlay {
                     rec.offX = x; rec.offY = y; rec.offZ = z;
                     LuaWorldEntity e = rec.ent;
                     if(e != null)
-                        RenderApi.overlayOffset(e, rec.worldOffset());
+                        VrApi.overlayOffset(e, rec.worldOffset());
                 }
                 return self;
             }
@@ -448,9 +448,9 @@ public final class LuaOverlay {
                 if(!sv.isnumber())
                     throw new LuaError("overlay:scale(s) expects a positive number (1 = original size)");
                 if(rec != null) {
-                    rec.scale = RenderApi.clampScale(sv.todouble());
+                    rec.scale = VrApi.clampScale(sv.todouble());
                     if(rec.ent != null)
-                        RenderApi.overlayScale(rec.ent, rec.scale);
+                        VrApi.overlayScale(rec.ent, rec.scale);
                 }
                 return self;
             }
@@ -465,9 +465,9 @@ public final class LuaOverlay {
                 if(!av.isnumber())
                     throw new LuaError("overlay:alpha(a) expects a number 0..1 (1 = opaque)");
                 if(rec != null) {
-                    rec.alpha = RenderApi.clampAlpha(av.todouble());
+                    rec.alpha = VrApi.clampAlpha(av.todouble());
                     if(rec.ent != null)
-                        RenderApi.overlayAlpha(rec.ent, rec.alpha);
+                        VrApi.overlayAlpha(rec.ent, rec.alpha);
                 }
                 return self;
             }
@@ -484,7 +484,7 @@ public final class LuaOverlay {
                 if(rec != null) {
                     rec.tint = c;
                     if(rec.ent != null)
-                        RenderApi.overlayTint(rec.ent, c);
+                        VrApi.overlayTint(rec.ent, c);
                 }
                 return self;
             }
@@ -501,7 +501,7 @@ public final class LuaOverlay {
                 if(rec != null) {
                     rec.rotate = av.todouble();
                     if(rec.ent != null)
-                        RenderApi.overlayRotate(rec.ent, rec.rotate);
+                        VrApi.overlayRotate(rec.ent, rec.rotate);
                 }
                 return self;
             }
@@ -558,7 +558,7 @@ public final class LuaOverlay {
             public LuaValue call(LuaValue self) {
                 LuaGobOverlay.Attach rec = worldOnly(owner, self, "position");
                 LuaWorldEntity e = (rec == null) ? null : rec.ent;
-                return (e == null) ? LuaValue.NIL : RenderApi.overlayPosition(owner, e);
+                return (e == null) ? LuaValue.NIL : VrApi.overlayPosition(owner, e);
             }
         });
         // count() — how many engine overlays this one entity stands for: 1 for ours, and for a native one the

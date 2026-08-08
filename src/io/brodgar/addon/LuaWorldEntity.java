@@ -17,8 +17,8 @@ import org.luaj.vm2.LuaValue;
  * the generalization of the V-series ghost core (spec {@code 16-virtual-entities.md}) into a reusable placement
  * engine (spec {@code 17-custom-rendering.md} §2, R-series): only the visual differs between subclasses —
  * <ul>
- *   <li>{@link LuaGhost} — a {@code .res} game model ({@code ResDrawable}), {@code hafen.ghost} (V1–V6);</li>
- *   <li>{@link LuaSprite} — a custom PNG as a world quad ({@code SprDrawable}), {@code hafen.render.sprite} (R2).</li>
+ *   <li>{@link LuaGhost} — a {@code .res} game model ({@code ResDrawable}), {@code hafen.vr():ghost()} (V1–V6);</li>
+ *   <li>{@link LuaSprite} — a custom PNG as a world quad ({@code SprDrawable}), {@code hafen.vr():sprite()} (R2).</li>
  * </ul>
  * Everything else — the transform ({@link #rc}/{@link #a}), the look ({@link #alpha}/{@link #tint}/{@link #scale}),
  * pick-selectability ({@link #clickable}/{@link #onClick}), scene add/hide/show/destroy, the deferred-vs-immediate

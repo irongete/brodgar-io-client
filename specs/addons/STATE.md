@@ -2,7 +2,34 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**No feature ACTIVE.** [`042-event-driven-reads`](042-event-driven-reads/) just closed, 13/13 tasks. The
+**ACTIVE: [`043-vr-namespace`](043-vr-namespace/)** — **1 of 5 tasks** (043.1 done), and its sibling
+[`044-spatial-ui`](044-spatial-ui/) is planned behind it (0 of 8). 043 is **pure reorganization, no new
+rendering**: `hafen.vr()` becomes the one section for client-only things standing in the 3D world,
+absorbing `hafen.ghost()` and `hafen.render()` whole, taking the world-space kinds **out** of
+`gob:overlay()`, and making the **anchor an argument** — `:add(what, p)` stands at a point, `:add(what,
+gob)` follows one. **043.1 landed the section itself**: `hafen.vr():ghost()/:sprite()/:object()`, each
+answering every verb its old section answered; `RenderApi` renamed `VrApi` with the kinds **registered**
+rather than branched on (044's `:widget()` is one line); `hafen.ghost` and `hafen.render` are `Retired`
+**section** rows, so the refusal fires on the field read and beats every sub-spelling; the 38 Lua sites in
+`hello` and `planner` ported. Decision **D-184** (a section is named for whose the thing is, not the
+mechanism), superseding D-034's namespace half. Anchors are still Position-only and `:billboard` is still
+`:billboard` — 043.2 and 043.5. **The docs tier still describes `hafen.ghost`/`hafen.render` and is retired
+into `docs/addons/api/vr/**` by 043.5**, which the feature's `tasks.md` deliberately batches there.
+`gob:overlay()` keeps a tighter identity — **what is drawn at this gob**: the game's own, read-only, plus
+your screen-space `draw`/`text` — and an anchored VR entity still shows up in its `:list()` read-only, so
+"what is at this gob?" keeps one complete answer (the three grounds are in `FEATURES.md` and the spec).
+043 also adds `hafen.vr():list()` and `:visible(b)`, and renames
+`:billboard(b)` → `:facing(mode)` with the two modes that exist today. **044 then adds the fourth
+collection**, `hafen.vr():widget()`: a Widget — yours or the client's own — standing in the world as a
+quad, held to one rule, **transparency** (if it works on screen it works in the world: same `Draw`, same
+input events, same controls, same theme, popups and keyboard included), which is why its surface is a real
+UI **root** that the widget is reparented into rather than a texture with clicks forwarded. 044 also brings
+`:facing("camera")` — a world quad turning in yaw and pitch, the mode with real world size, perspective and
+occlusion — to widgets and sprites alike. Every rendering piece already exists in the tree
+(`Streamer`/`HeadlessClient` render the whole UI to a `Texture2D`; `GOut`'s constructor is public; the
+`TexRender` world-quad recipe is in `codebase/world-3d.md`).
+
+[`042-event-driven-reads`](042-event-driven-reads/) closed before it, 13/13 tasks. The
 addon layer stopped **polling the widget tree every frame** to synthesise its `*Changed`/`*Added` events
 (12 sites, 6 of them `TreeAdapter`s) and wired them instead onto the four moments the client already
 announces a change at — the `uimsg` tap, widget placement/removal, geometry, and `Loading`'s `Waitable`

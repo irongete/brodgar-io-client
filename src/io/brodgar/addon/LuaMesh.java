@@ -14,7 +14,7 @@ import org.luaj.vm2.LuaValue;
  * <p><b>Handle, not a ref.</b> A model has no server identity, so it is addressed by a bridge-owned <b>handle</b>
  * (built by {@link AssetApi}) exposing the shared asset verbs, {@code :bounds()} &rarr; {@code {min={x,y,z}, max={x,y,z},
  * size={x,y,z}}} (world units) and {@code :dispose()}. The handle table carries this {@code LuaMesh} as an
- * <b>opaque userdata</b> (the {@link #KEY} field) so {@code hafen.render.object{model=…}} can {@link #resolve} it
+ * <b>opaque userdata</b> (the {@link #KEY} field) so {@code hafen.vr():object():add(asset, p)} can {@link #resolve} it
  * back to the parsed {@link #mesh}. This is the same facade-safe opaque round-trip {@link LuaImage}/{@link
  * LuaMarshal} use (principle P1): the userdata has no metatable, so no Java method is reachable from Lua, and it
  * cannot be forged (the sandbox omits {@code luajava}).
@@ -57,7 +57,7 @@ public final class LuaMesh {
     }
 
     /**
-     * Resolve a Lua value passed to {@code hafen.render.object{model=…}} back to its {@link LuaMesh}: the
+     * Resolve a Lua value passed to {@code hafen.vr():object():add(asset, p)} back to its {@link LuaMesh}: the
      * {@code hafen.asset} mesh handle table (via its {@link #KEY} userdata field) or the raw backing userdata
      * itself; returns {@code null} for anything else (a nil/typo/foreign value).
      */

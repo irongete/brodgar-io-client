@@ -40,19 +40,21 @@ already records typed quality as something the client does **not** get, so check
 What is left here after 039: finer event granularity deferred from 1d-4 — **per-slot `EquipChanged`**, a
 **`SkillsChanged`** event.
 
-## `hafen.render` / `hafen.ghost` belong under `hafen.world` — DEFERRED again by 039
-The maintainer's framing, and 038 makes it visible rather than causing it: after 038 there are exactly
-three places a drawn thing can live — **in the world at a fixed place** (`hafen.render.sprite/object`,
-`hafen.ghost`), **on a gob** (`gob:overlay`, which follows by definition — there is no `follow` option
-left anywhere), and **on the HUD** (`hafen.ui.overlay`). The first of those is named after the
-*mechanism* (rendering) while the other two are named after the *place*, which is the inconsistency.
-037 already split LIVE (`hafen.world`) from RECORDED (`hafen.map`) on exactly this axis, so the shape
-of the move is known. Not started, and it is a rename of two whole sections plus their docs. **[039-uniform-api](039-uniform-api/)
-gave both the new shape but deliberately NOT the move** (its spec §10): unlike `hafen.gob` — which 039 *had* to
-resolve, because the shape change forced a decision on what a no-argument `hafen.gob()` means — these two already
-have a coherent form and want only a relocation, so doing both at once would make neither reviewable. After 039 the
-move is cheap: `hafen.render()` and `hafen.ghost()` are ~64 Lua sites between them, and D-066 (a thing that lives
-inside another is a relation on it) is the rule that decides it, exactly as it decided `hafen.gob` and 037's markers.
+## World-space text — opened by [043-vr-namespace](043-vr-namespace/)
+`ov:text(s)` is **screen space**: a label drawn at the gob's projected point, at a constant size, however
+far away you are. Nothing puts a label *in* the world — with perspective, shrinking as you walk off, and
+occluded by what stands in front of it. It can be faked with a `hafen.vr():widget()` holding a single
+label, but that is a whole widget tree, a texture and a draw pass to put one word in the air. A
+`hafen.vr():text()` on the shared entity core would take the same anchors and the same `:facing` modes as
+its siblings; the open question is whether it earns a collection or is better served by making the
+widget path cheap enough that nobody notices.
+
+## World-space shapes — opened by [043-vr-namespace](043-vr-namespace/)
+Nothing draws a line, a path, an area outline or a radius **in the world**. A route, the border of a
+claim you are planning, a waypoint trail and a range circle are all faked today with repeated sprites.
+A `hafen.vr():shape()` — lines, polylines, filled polygons on the ground or upright — is the piece
+missing from spatial visualisation, and the one that would make `planner`-style addons stop
+approximating. `codebase/world-3d.md` already covers the `Model`/`Material` path a line list would use.
 
 ## Render polish — [design/17-custom-rendering.md](design/17-custom-rendering.md)
 Possible R-series follow-ons (animated glTF was explicitly out of the static-subset scope,

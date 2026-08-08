@@ -1668,7 +1668,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	Loader.Future<Plob> placing = this.placing;
 	if((placing != null) && placing.done())
 	    placing.get().gtick(g.out);
-	// addon: gtick the client-only ghost gobs (hafen.ghost.*) — not in OCache, like the Plob above.
+	// addon: gtick the client-only ghost gobs (hafen.vr()) — not in OCache, like the Plob above.
 	for(Gob gob : clientGobs) {
 	    try {
 		gob.gtick(g.out);
@@ -1757,7 +1757,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		ob.ctick(dt);
 	    }
 	}
-	// addon: ctick the client-only ghost gobs (hafen.ghost.*) — not in OCache, like the Plob above.
+	// addon: ctick the client-only ghost gobs (hafen.vr()) — not in OCache, like the Plob above.
 	for(Gob gob : clientGobs) {
 	    try {
 		synchronized(gob) {
@@ -1781,7 +1781,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     // addon: shared placement-snap math (spec 16-virtual-entities §4.1, D-033) — factored verbatim out of
-    //        StdPlace.adjust so the hafen.ghost gizmo (hafen.map.snapPlace) snaps client ghosts through the
+    //        StdPlace.adjust so the hafen.vr():ghost() gizmo (hafen.map.snapPlace) snaps client ghosts through the
     //        EXACT same code the client uses to place a building, honouring the live :placegrid setting with no
     //        drift. modflags = UI.MOD_* bits; SHIFT selects the sub-tile placegrid, otherwise the tile centre.
     //        Pure + static (no MapView instance needed), so the bridge can reuse it directly.
@@ -1871,7 +1871,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
     }
 
-    // addon: V1 virtual entities (hafen.ghost.*) — CLIENT-ONLY Gobs in the 3D `basic` scene. addClientGob
+    // addon: V1 virtual entities (hafen.vr()) — CLIENT-ONLY Gobs in the 3D `basic` scene. addClientGob
     //        does the exact operation Plob.place() does (`basic.add(placed)`), but `basic` (PView) and
     //        Gob.placed live in package `haven`, so this centralizes the scene mutation behind one public
     //        seam for `io.brodgar.addon` (spec 16 §6, option A — smallest, clearest, mirrors Plob). A ghost
@@ -2090,7 +2090,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 	
 	protected void hit(Coord pc, Coord2d mc, ClickData inf) {
-	    // addon: V2 virtual entities (hafen.ghost.*) — a click that resolved to a CLICKABLE client ghost is
+	    // addon: V2 virtual entities (hafen.vr()) — a click that resolved to a CLICKABLE client ghost is
 	    //        dispatched to the addon and CONSUMED here, BEFORE wdgmsg (the same choke point the voice
 	    //        feature hooks below): the ghost is a virtual Gob with no server id, so a "click" send would be
 	    //        bogus, and client-only detection means no server contact ⇒ this stays SAFE-tier (D-032). Fast

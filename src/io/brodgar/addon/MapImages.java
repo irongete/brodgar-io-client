@@ -27,7 +27,7 @@ import java.util.Map;
  * The <b>minimap drawings</b> of the recorded map — {@code grid:image(lvl)} and {@code grid:overlayImage(tag)},
  * spec {@code 037-map-database}, task 037.4. The one place the map database produces a <i>picture</i> rather
  * than a number, and the picture is an ordinary {@link LuaImage} handle: whatever draws
- * {@code hafen.asset("icon.png")} draws a grid ({@code g:image}, {@code hafen.render.sprite}, and a
+ * {@code hafen.asset("icon.png")} draws a grid ({@code g:image}, {@code hafen.vr():sprite()}, and a
  * stylesheet's {@code bg = {image = …}} — which is the one way to put a map on the screen with <b>no Lua
  * running at the draw at all</b>).
  *
@@ -294,7 +294,7 @@ final class MapImages {
 
     /**
      * The Lua handle for a rendered map image. It is an <b>image handle</b> — it carries the same opaque
-     * {@link LuaImage#KEY} userdata {@code g:image}, {@code hafen.render.sprite} and the stylesheet's
+     * {@link LuaImage#KEY} userdata {@code g:image}, {@code hafen.vr():sprite()} and the stylesheet's
      * {@code bg = {image = …}} resolve — plus {@code :size()}, {@code :type()}, {@code :path()},
      * {@code :info()} and {@code :dispose()}.
      *

@@ -1870,3 +1870,28 @@ already `Loading`-guarded to `nil` with no retry required (D-092's stated bounda
 `Resolve` no functional consumer. First real consumer lands with a task that has an actual bounded retry to
 make (an item's derived `info()`, a world entity waiting on its ground to stream in).
 **See.** [D-092](process.md), [042-event-driven-reads](../042-event-driven-reads/plan.md) §M2.
+
+### D-184 — a section is named for WHOSE the thing is, not for the mechanism that draws it — so two sections that differ only by mechanism collapse into one ✅ (maintainer, 2026-08-08, 043.1)
+**Decision.** `hafen.ghost()` (client-only `.res` props) and `hafen.render()` (`:sprite()`/`:object()` — the
+addon's own PNGs and glTF models) are **deleted into one section, `hafen.vr()`**, whose verbs are its
+collections: `hafen.vr():ghost()`, `:sprite()`, `:object()`. Both old spellings are `Retired` **section** rows
+naming it (`src/io/brodgar/addon/Retired.java`), so the refusal fires on the field read and beats every dotted
+or colon sub-spelling that used to hang off them. The kinds are **registered** through one helper in
+`VrApi.installVr` rather than branched on, so a fourth (`:widget()`, 044) is one line.
+**Rationale.** `hafen.render` was named after a *mechanism*, while the other places a drawn thing can live are
+named after the *place* — the ROADMAP's own standing complaint. But the axis that actually separates these from
+the gobs in `hafen.world()` is not **where** they are (both are in the 3D world) but **whose** they are: nothing
+under `hafen.vr()` ever reaches the server. That is why the ROADMAP's proposed `hafen.world():sprite()` was
+rejected — it would make your fake props siblings of real gobs. And once the section is named for ownership, the
+split between "a `.res` the game shipped" and "a PNG you shipped" is a difference of *asset source*, not of
+kind: the same `LuaWorldEntity` core, the same handle vocabulary, the same teardown. Two sections for one thing
+is the shape D-103 already refuses one level down.
+**Consequences.** `RenderApi.java` is renamed `VrApi.java` — the retired names are pure data in `Retired`, so no
+thin raiser file is needed and one class keeps owning the world-entity core. `GhostGob`/`SpriteQuad`/
+`MeshSprite` do **not** move: they are engine-side visuals, and only the Lua-facing section changed. Nothing
+renders differently — the whole feature is a relocation, which is the property every `:t043-*` suite checks.
+This supersedes the **namespace half** of [D-034](rendering.md#d-034) (its loader half was already cut by 028.1
+/ [D-013](#d-013)); [D-029](virtual-entities.md#d-029) and [D-034](rendering.md#d-034)'s SAFE-tier ruling is
+untouched and now reads as one rule for the whole section.
+**See.** [043-vr-namespace](../043-vr-namespace/spec.md), [D-103](#d-103), [D-034](rendering.md#d-034),
+[044-spatial-ui](../044-spatial-ui/spec.md) (the fourth collection).

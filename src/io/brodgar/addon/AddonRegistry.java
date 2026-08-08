@@ -124,9 +124,9 @@ public final class AddonRegistry {
         HookApi.teardownKeyBinds(a);      // 2e-2: unregister global hotkeys from the GlobKeyEvent dispatch list
         UiApi.teardownSelectorWatches(a);    // 030.2: drop the selector subscriptions (no disappear — reload != destroy)
         HookApi.teardownSlashCommands(a); // A11: drop the addon's live slash handlers (Console dispatchers stay — C1)
-        RenderApi.teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
-        RenderApi.teardownSprites(a);           // R2: destroy client-only world sprites (remove the slot + free the quad geometry)
-        RenderApi.teardownObjects(a);           // R3: destroy client-only world objects (remove the slot + free the glTF Models; before the meshes)
+        VrApi.teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
+        VrApi.teardownSprites(a);           // R2: destroy client-only world sprites (remove the slot + free the quad geometry)
+        VrApi.teardownObjects(a);           // R3: destroy client-only world objects (remove the slot + free the glTF Models; before the meshes)
         MapImages.teardown(a);                  // 037.4: free the map drawings the client rendered for this addon
                                                 //   (grid:image / grid:overlayImage) — they are TexIs like any
                                                 //   other image and ride the same registry, so this only has to

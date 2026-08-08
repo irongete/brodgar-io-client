@@ -206,7 +206,7 @@ public final class Addon {
      */
     public final List<LuaSlashCommand> slashCommands = new CopyOnWriteArrayList<LuaSlashCommand>();
     /**
-     * Live client-only world ghosts owned by this addon ({@code hafen.ghost.new}, V1): each is a virtual
+     * Live client-only world ghosts owned by this addon ({@code hafen.vr():ghost():add}, V1): each is a virtual
      * {@link haven.Gob} (no server id) rendered in the MapView's {@code basic} scene via
      * {@link haven.MapView#addClientGob} — a SAFE-tier visualization, never sent to the server (D-029). Unlike
      * the hook lists there is <b>no</b> global dispatch/poll list: a ghost is a passive render node driven by the
@@ -217,12 +217,12 @@ public final class Addon {
      */
     public final List<LuaGhost> ghosts = new CopyOnWriteArrayList<LuaGhost>();
     /**
-     * Live client-only world sprites owned by this addon ({@code hafen.render.sprite}, R2): each is a custom PNG
+     * Live client-only world sprites owned by this addon ({@code hafen.vr():sprite()}, R2): each is a custom PNG
      * (an {@link #images} texture) standing in the 3D world as a {@link haven.Gob} with no server id — the
      * non-{@code .res} sibling of a {@link #ghosts ghost}, on the same virtual-entity core (spec
      * {@code 17-custom-rendering.md} §2, SAFE-tier, D-034). Like ghosts there is no global dispatch/poll list (a
      * passive render node driven by the render tree's own tick); it lives only here. Teardown
-     * ({@link RenderApi#teardownSprites}) destroys each — removes its scene slot + disposes the quad geometry
+     * ({@link VrApi#teardownSprites}) destroys each — removes its scene slot + disposes the quad geometry
      * (the shared {@code TexI} is freed by {@link AssetApi#teardownAssets}) — so a reload/disable/relogin
      * leaks nothing. Copy-on-write: a firing callback may create or destroy a sprite.
      */
@@ -249,12 +249,12 @@ public final class Addon {
      */
     public final List<LuaMesh> meshes = new CopyOnWriteArrayList<LuaMesh>();
     /**
-     * Live client-only world 3D objects owned by this addon ({@code hafen.render.object}, R3): each is a custom
+     * Live client-only world 3D objects owned by this addon ({@code hafen.vr():object()}, R3): each is a custom
      * glTF model (a {@link #meshes} mesh) standing in the 3D world as a {@link haven.Gob} with no server id — the
      * mesh sibling of a {@link #sprites sprite} and a {@link #ghosts ghost}, on the same virtual-entity core (spec
      * {@code 18-custom-models-gltf.md}, SAFE-tier, D-034). Like ghosts/sprites there is no global dispatch/poll
      * list (a passive render node driven by the render tree's own tick); it lives only here. Teardown
-     * ({@link RenderApi#teardownObjects}) destroys each — removes its scene slot + disposes its engine
+     * ({@link VrApi#teardownObjects}) destroys each — removes its scene slot + disposes its engine
      * {@code Model}s (the shared mesh is freed by {@link AssetApi#teardownAssets}) — so a reload/disable/relogin
      * leaks nothing. Copy-on-write: a firing callback may create or destroy an object.
      */

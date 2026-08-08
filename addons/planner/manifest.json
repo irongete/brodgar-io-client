@@ -3,7 +3,7 @@
   "id": "planner",
   "version": "0.13.0",
   "author": "brodgar",
-  "description": "Example addon: your own props, images and models in the 3D world -- hafen.ghost(), hafen.render():sprite() and hafen.render():object() -- placed at a Position, selected by clicking, moved by a transform gizmo, and saved so a layout comes back at the same place after a relog. Client-only: it declares no permissions.",
+  "description": "Example addon: your own props, images and models in the 3D world -- hafen.vr():ghost(), hafen.vr():sprite() and hafen.vr():object() -- placed at a Position, selected by clicking, moved by a transform gizmo, and saved so a layout comes back at the same place after a relog. Client-only: it declares no permissions.",
   "api_version": 1,
   "files": [
     "gizmo.lua",

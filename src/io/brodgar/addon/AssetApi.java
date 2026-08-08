@@ -267,7 +267,7 @@ final class AssetApi {
      * while an internal {@code a/../b} is allowed; the two messages only say which shape got caught. Never
      * returns a path outside {@link Addon#dir}.
      *
-     * <p>Moved here verbatim from {@code RenderApi} (028.1): it is the loader's own boundary, and it was already
+     * <p>Moved here verbatim from {@code VrApi} (028.1): it is the loader's own boundary, and it was already
      * the single check — {@code FontApi} called it too.
      */
     static Path resolveAddonAsset(Addon owner, String name, String ctx) {
@@ -342,7 +342,7 @@ final class AssetApi {
     /**
      * The Lua handle for a {@link LuaImage}: the shared asset verbs plus {@code :size()} &rarr; {@code {w,h}}.
      * The table also carries the {@link LuaImage} as an <b>opaque userdata</b> (its {@link LuaImage#KEY} field)
-     * so {@code g:image}/{@code g:aimage} and {@code hafen.render.sprite} can {@link LuaImage#resolve} it back
+     * so {@code g:image}/{@code g:aimage} and {@code hafen.vr():sprite()} can {@link LuaImage#resolve} it back
      * to the texture — facade-safe (no Java method is reachable from Lua; the userdata has no metatable and
      * cannot be forged without {@code luajava}).
      */
@@ -526,12 +526,12 @@ final class AssetApi {
      * The Lua handle for a {@link LuaMesh}: the shared asset verbs plus {@code :bounds()} &rarr; {@code
      * {min={x,y,z}, max={x,y,z}, size={x,y,z}}} (world units) and {@code :info()} (what the parser produced).
      * The table also carries the {@link LuaMesh} as an <b>opaque userdata</b> ({@link LuaMesh#KEY}) so
-     * {@code hafen.render.object{model=…}} can {@link LuaMesh#resolve} it back to the parsed geometry —
+     * {@code hafen.vr():object():add(asset, p)} can {@link LuaMesh#resolve} it back to the parsed geometry —
      * facade-safe, like the image handle.
      */
     private static LuaValue meshHandle(Addon owner, String key, String path, final LuaMesh lm) {
         LuaTable h = new LuaTable();
-        h.set(LuaMesh.KEY, LuaValue.userdataOf(lm));   // opaque backing ref for hafen.render.object
+        h.set(LuaMesh.KEY, LuaValue.userdataOf(lm));   // opaque backing ref for hafen.vr():object()
         h.set("bounds", new ZeroArgFunction() {
             public LuaValue call() {
                 LuaTable t = new LuaTable();
@@ -680,7 +680,7 @@ final class AssetApi {
     /**
      * Dispose every asset this addon loaded (reload/disable/relogin, P2). <b>The cache is unified; the teardown
      * is not</b>: the typed owned-resource lists are walked in the order R3b requires — images, then meshes,
-     * whose shared {@link TexI}s the addon's {@link LuaObject}s sample and which {@code RenderApi.teardownObjects}
+     * whose shared {@link TexI}s the addon's {@link LuaObject}s sample and which {@code VrApi.teardownObjects}
      * (called <b>before</b> this, from {@link AddonRegistry#teardown}) has already freed their {@code Model}s
      * for. Font assets own nothing releasable, so dropping the cache is their whole teardown. Leaves no GL
      * resource behind.

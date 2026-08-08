@@ -34,42 +34,56 @@ import java.util.List;
 import static io.brodgar.addon.AddonManager.*;
 
 /**
- * The custom-rendering subsystem: {@code hafen.ghost()} (client-only {@code .res} props) and
- * {@code hafen.render()} ({@code :sprite()}/{@code :object()} — custom PNG + glTF props standing in the 3D
- * world). Owns the world-entity lifecycle (create/transform/follow/click/teardown) over {@link LuaWorldEntity}.
- * The click seam {@code onGhostClick} (called from {@code haven.MapView}) stays a facade in
- * {@link AddonManager} and delegates here; {@link AddonManager} calls the per-kind teardowns on reload/disable.
+ * {@code hafen.vr()} — <b>the one section for client-only things standing in the 3D world</b> (043): the
+ * {@code .res} props {@code hafen.ghost()} used to be, and the custom PNG + glTF props {@code hafen.render()}
+ * used to be, under one name. What separates these from the gobs in {@code hafen.world()} is not where they
+ * are — both are in the world — but <b>whose</b> they are: nothing here ever reaches the server. Owns the
+ * world-entity lifecycle (create/transform/follow/click/teardown) over {@link LuaWorldEntity}. The click seam
+ * {@code onGhostClick} (called from {@code haven.MapView}) stays a facade in {@link AddonManager} and delegates
+ * here; {@link AddonManager} calls the per-kind teardowns on reload/disable.
  *
- * <p><b>Three collections, one entity vocabulary.</b> Each kind is a {@link LuaCollection} — {@code :add(asset)}
- * or {@code :add(res)} places one and hands back its handle, {@code :list(filter)} reads them, and
- * {@code :remove(x)} ends one (R7: the collection placed it, so the collection ends it). Every handle then
- * speaks the same verbs, each a read/write pair on one name: {@code :position(p [, a])}, {@code :rotate}, {@code
- * :scale}, {@code :alpha}, {@code :tint}, {@code :visible}, {@code :clickable}, {@code :onClick} — plus the one
- * or two its own kind adds. The old {@code {image=, x=, y=, …}} constructors are retired rows naming them.
+ * <p><b>Three collections, one entity vocabulary.</b> Each kind is a {@link LuaCollection} — {@code :add(what,
+ * p)} places one and hands back its handle, {@code :list(filter)} reads them, and {@code :remove(x)} ends one
+ * (R7: the collection placed it, so the collection ends it). Every handle then speaks the same verbs, each a
+ * read/write pair on one name: {@code :position(p [, a])}, {@code :rotate}, {@code :scale}, {@code :alpha},
+ * {@code :tint}, {@code :visible}, {@code :clickable}, {@code :onClick} — plus the one or two its own kind
+ * adds. Every retired spelling, {@code hafen.ghost} and {@code hafen.render} included, is a {@link Retired} row
+ * naming what replaced it.
  *
- * <p><b>This is a SCENE namespace, not a loader</b> (028.1): {@code hafen.render.image}/{@code model} are cut,
- * and the addon's own files — images, fonts and meshes alike — come from the one door {@link AssetApi}
- * ({@code hafen.asset():get(path)}), which also owns the D-017 sandbox resolver and the intern cache. An entity
- * that backs a {@code gob:overlay()} record is built through the same {@code make*} bodies but is never a member
- * of these collections (038.2): an overlay is reached through the gob it is on. Not instantiable.
+ * <p><b>The dispatch is a table of collections, not a branch</b> — {@link #installVr} registers each kind by
+ * name, so a fourth ({@code :widget()}, 044) is one more line rather than a shape to re-open.
+ *
+ * <p><b>This is a SCENE section, not a loader</b> (028.1): the addon's own files — images, fonts and meshes
+ * alike — come from the one door {@link AssetApi} ({@code hafen.asset():get(path)}), which also owns the D-017
+ * sandbox resolver and the intern cache. An entity that backs a {@code gob:overlay()} record is built through
+ * the same {@code make*} bodies but is never a member of these collections (038.2): an overlay is reached
+ * through the gob it is on. Not instantiable.
  */
-final class RenderApi {
-    private RenderApi() {}
+final class VrApi {
+    private VrApi() {}
 
     /**
-     * Build {@code hafen.ghost} for {@code owner}: <b>the section object IS the collection</b> (spec §2.1 — a
-     * section that contains exactly one thing is that thing). {@code hafen.ghost():add(res)} places a client-only
+     * Build {@code hafen.vr()} for {@code owner}: a section whose verbs are its <b>collections</b>, each minted
+     * once and handed back by identity (§2.3). {@code hafen.vr():ghost():add(res, p)} places a client-only
      * {@code .res} prop and hands back the Ghost, {@code :list(filter)} reads this addon's, and
-     * {@code hafen.ghost():remove(g)} ends one — the collection owns it, so R7 puts the ending there rather than
-     * on a {@code :destroy()} of its own.
+     * {@code hafen.vr():ghost():remove(g)} ends one — the collection owns it, so R7 puts the ending there rather
+     * than on a {@code :destroy()} of its own; {@code :sprite()} and {@code :object()} answer the same verbs over
+     * the addon's own PNGs and glTF models.
+     *
+     * <p>The kinds are <b>registered</b> rather than branched on, so 044's {@code :widget()} is one more
+     * {@link #collection} line and nothing here has to be re-opened to admit it.
      */
-    static void installGhost(LuaTable hafen, final Addon owner) {
-        Section.mount(hafen, "ghost", ghostCollection(owner), null);
+    static void installVr(LuaTable hafen, final Addon owner) {
+        LuaTable m = new LuaTable();
+        collection(m, "ghost", ghostCollection(owner));
+        collection(m, "sprite", spriteCollection(owner));
+        collection(m, "object", objectCollection(owner));
+        Section.install(hafen, "vr", m);
     }
 
-    /** {@code hafen.ghost()} — this addon's client-only world props, keyless (a ghost has no name of its own). */
+    /** {@code hafen.vr():ghost()} — this addon's client-only world props, keyless (a ghost has no name of its own). */
     private static LuaValue ghostCollection(final Addon owner) {
-        return LuaCollection.create("hafen.ghost()", new LuaCollection.Source() {
+        return LuaCollection.create("hafen.vr():ghost()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 return entityMembers(owner.ghosts);
             }
@@ -88,13 +102,13 @@ final class RenderApi {
             }
 
             public LuaValue addMember(Varargs a) {
-                LuaValue rv = Args.required(a, 2, "hafen.ghost():add", "res");
+                LuaValue rv = Args.required(a, 2, "hafen.vr():ghost():add", "res");
                 if(!rv.isstring() || rv.isnumber())
-                    throw new LuaError("hafen.ghost():add(res, p) expects a resource NAME string (e.g."
+                    throw new LuaError("hafen.vr():ghost():add(res, p) expects a resource NAME string (e.g."
                         + " \"gfx/terobjs/arch/logcabin\"), got " + rv.typename() + " — an image or a model this"
-                        + " addon ships is hafen.render():sprite():add(asset, p) / :object():add(asset, p)");
-                LuaTable spec = placement(a, "hafen.ghost():add");
-                return born(makeGhost(owner, spec, rv.tojstring(), 0, null), "hafen.ghost():add");
+                        + " addon ships is hafen.vr():sprite():add(asset, p) / :object():add(asset, p)");
+                LuaTable spec = placement(a, "hafen.vr():ghost():add");
+                return born(makeGhost(owner, spec, rv.tojstring(), 0, null), "hafen.vr():ghost():add");
             }
 
             public boolean destroyable() {
@@ -102,41 +116,31 @@ final class RenderApi {
             }
 
             public void removeMember(LuaValue x) {
-                destroyEntity(memberArg(owner.ghosts, x, "hafen.ghost():remove", "ghost"));
+                destroyEntity(memberArg(owner.ghosts, x, "hafen.vr():ghost():remove", "ghost"));
             }
         }, null);
     }
 
     /**
-     * Build {@code hafen.render} for {@code owner}: a section with two collections, {@code :sprite()} and
-     * {@code :object()}, each minted once and handed back by identity (§2.3). The old table constructors are
-     * retired rows naming them.
+     * Register one kind under {@code hafen.vr()}: the verb hands back <b>the collection itself</b>, never a
+     * per-call view, so {@code hafen.vr():ghost() == hafen.vr():ghost()} and a section called in a draw callback
+     * allocates nothing. Every kind goes through here, which is what keeps the section open to a fourth.
      */
-    static void installRender(LuaTable hafen, final Addon owner) {
-        final LuaValue sprites = spriteCollection(owner);
-        final LuaValue objects = objectCollection(owner);
-        LuaTable m = new LuaTable();
-        m.set("sprite", collectionVerb("sprite", sprites));
-        m.set("object", collectionVerb("object", objects));
-        Section.install(hafen, "render", m);
-    }
-
-    /** {@code hafen.render():sprite()} / {@code :object()} — the collection itself, never a per-call view. */
-    private static LuaValue collectionVerb(final String nm, final LuaValue coll) {
-        return new VarArgFunction() {
+    private static void collection(LuaTable m, final String nm, final LuaValue coll) {
+        m.set(nm, new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "render", nm);
+                Section.self(a.arg1(), "vr", nm);
                 if(Args.passed(a, 2))
-                    throw new LuaError("hafen.render():" + nm + "() takes no arguments — it IS the collection,"
-                        + " and hafen.render():" + nm + "():add(asset) puts one in the world");
+                    throw new LuaError("hafen.vr():" + nm + "() takes no arguments — it IS the collection,"
+                        + " and hafen.vr():" + nm + "():add(what, p) stands one in the world");
                 return coll;
             }
-        };
+        });
     }
 
-    /** {@code hafen.render():sprite()} — this addon's custom-PNG world sprites. */
+    /** {@code hafen.vr():sprite()} — this addon's custom-PNG world sprites. */
     private static LuaValue spriteCollection(final Addon owner) {
-        return LuaCollection.create("hafen.render():sprite()", new LuaCollection.Source() {
+        return LuaCollection.create("hafen.vr():sprite()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 return entityMembers(owner.sprites);
             }
@@ -155,10 +159,10 @@ final class RenderApi {
             }
 
             public LuaValue addMember(Varargs a) {
-                LuaValue img = Args.required(a, 2, "hafen.render():sprite():add", "image");
-                LuaTable spec = placement(a, "hafen.render():sprite():add");
+                LuaValue img = Args.required(a, 2, "hafen.vr():sprite():add", "image");
+                LuaTable spec = placement(a, "hafen.vr():sprite():add");
                 spec.set("image", img);
-                return born(makeSprite(owner, spec, 0, null), "hafen.render():sprite():add");
+                return born(makeSprite(owner, spec, 0, null), "hafen.vr():sprite():add");
             }
 
             public boolean destroyable() {
@@ -166,14 +170,14 @@ final class RenderApi {
             }
 
             public void removeMember(LuaValue x) {
-                destroyEntity(memberArg(owner.sprites, x, "hafen.render():sprite():remove", "sprite"));
+                destroyEntity(memberArg(owner.sprites, x, "hafen.vr():sprite():remove", "sprite"));
             }
         }, null);
     }
 
-    /** {@code hafen.render():object()} — this addon's glTF world models. */
+    /** {@code hafen.vr():object()} — this addon's glTF world models. */
     private static LuaValue objectCollection(final Addon owner) {
-        return LuaCollection.create("hafen.render():object()", new LuaCollection.Source() {
+        return LuaCollection.create("hafen.vr():object()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 return entityMembers(owner.objects);
             }
@@ -192,10 +196,10 @@ final class RenderApi {
             }
 
             public LuaValue addMember(Varargs a) {
-                LuaValue mdl = Args.required(a, 2, "hafen.render():object():add", "model");
-                LuaTable spec = placement(a, "hafen.render():object():add");
+                LuaValue mdl = Args.required(a, 2, "hafen.vr():object():add", "model");
+                LuaTable spec = placement(a, "hafen.vr():object():add");
                 spec.set("model", mdl);
-                return born(makeObject(owner, spec, 0, null), "hafen.render():object():add");
+                return born(makeObject(owner, spec, 0, null), "hafen.vr():object():add");
             }
 
             public boolean destroyable() {
@@ -203,7 +207,7 @@ final class RenderApi {
             }
 
             public void removeMember(LuaValue x) {
-                destroyEntity(memberArg(owner.objects, x, "hafen.render():object():remove", "object"));
+                destroyEntity(memberArg(owner.objects, x, "hafen.vr():object():remove", "object"));
             }
         }, null);
     }
@@ -279,13 +283,13 @@ final class RenderApi {
         return null;
     }
 
-    // ------------------------------------------------------------------ world ghosts (hafen.ghost)
+    // ---------------------------------------------------------- world ghosts (hafen.vr():ghost())
 
     /**
      * Build a ghost and publish it — the body of {@link #newGhost}, shared with the world-space half of
      * {@code gob:overlay(key, {ghost = res})} (038.2). {@code tgt != 0} anchors it to that gob id (a
      * {@link FollowMoving}, applied at publish so a still-streaming visual is anchored the moment it lands);
-     * {@code tgt == 0} is the fixed placement {@code hafen.ghost():add(res)} makes. Returns {@code null} when there is
+     * {@code tgt == 0} is the fixed placement {@code hafen.vr():ghost():add(res)} makes. Returns {@code null} when there is
      * no map view (not in the world). Every other option is read from {@code opts} exactly as before.
      */
     private static LuaGhost makeGhost(final Addon owner, LuaValue opts, final String resName, long tgt, Coord3f off) {
@@ -646,10 +650,10 @@ final class RenderApi {
             destroyEntity(sp);          // removes each from a.sprites as it goes (copy-on-write list)
     }
 
-    // ---- custom 3D models in the world (hafen.render():object()) -------------------------------------------
+    // ---- custom 3D models in the world (hafen.vr():object()) -------------------------------------------
 
     /**
-     * Build an object and publish it — the body of {@code hafen.render():object():add}, shared with the world-space half of
+     * Build an object and publish it — the body of {@code hafen.vr():object():add}, shared with the world-space half of
      * {@code gob:overlay(key, {model = asset})} (038.2). {@code tgt != 0} anchors it to that gob id; {@code 0} is
      * the fixed placement. Returns {@code null} when there is no map view (not in the world).
      */
@@ -699,7 +703,7 @@ final class RenderApi {
     /**
      * The Lua handle for a {@link LuaObject}: the shared entity verbs plus {@code :mesh()}, its model's
      * addon-relative path. There is no write half — an object's geometry is milled at create, and swapping it is
-     * {@code hafen.render():object():add(other)} on a fresh one.
+     * {@code hafen.vr():object():add(other)} on a fresh one.
      */
     private static LuaValue objectHandle(final LuaObject ob) {
         LuaTable x = new LuaTable();
@@ -708,7 +712,7 @@ final class RenderApi {
                 if(Args.passed(a, 2))
                     throw new LuaError("object:mesh() reads the model path and does not write it — an object's"
                         + " geometry is milled when it is placed, so another model is another object:"
-                        + " hafen.render():object():add(asset)");
+                        + " hafen.vr():object():add(asset)");
                 return (ob.meshName == null) ? LuaValue.NIL : LuaValue.valueOf(ob.meshName);
             }
         });
@@ -724,15 +728,15 @@ final class RenderApi {
      */
     private static LuaMesh resolveObjectMesh(LuaValue modelv) {
         if(modelv.isstring() && !modelv.isnumber())    // in LuaJ a number IS a string — that one is just a wrong type
-            throw new LuaError("hafen.render():object():add(model): the argument is a hafen.asset mesh HANDLE, not a path string — load it"
+            throw new LuaError("hafen.vr():object():add(model): the argument is a hafen.asset mesh HANDLE, not a path string — load it"
                 + " once with hafen.asset():get(\"" + modelv.tojstring() + "\") and pass the handle (it is interned, so"
                 + " repeating the load is free)");
         LuaMesh lm = LuaMesh.resolve(modelv);          // a handle or its raw userdata
         if(lm == null)
-            throw new LuaError("hafen.render():object():add(model): the argument must be a hafen.asset mesh handle"
+            throw new LuaError("hafen.vr():object():add(model): the argument must be a hafen.asset mesh handle"
                 + " (hafen.asset():get(\"chair.glb\")), got " + modelv.typename());
         if(lm.dead)
-            throw new LuaError("hafen.render():object():add(model): that mesh has been disposed — after a :dispose(), hafen.asset():get(path)"
+            throw new LuaError("hafen.vr():object():add(model): that mesh has been disposed — after a :dispose(), hafen.asset():get(path)"
                 + " loads the file again as a NEW asset");
         return lm;
     }
@@ -745,10 +749,10 @@ final class RenderApi {
             destroyEntity(ob);          // removes each from a.objects as it goes (copy-on-write list)
     }
 
-    // ---- custom world sprites (hafen.render():sprite()) ------------------------------------------------------
+    // ---- custom world sprites (hafen.vr():sprite()) ------------------------------------------------------
 
     /**
-     * Build a sprite and publish it — the body of {@code hafen.render():sprite():add}, shared with the world-space half of
+     * Build a sprite and publish it — the body of {@code hafen.vr():sprite():add}, shared with the world-space half of
      * {@code gob:overlay(key, {image = asset})} (038.2). {@code tgt != 0} anchors it to that gob id (a
      * {@link FollowMoving} applied before the gob enters the scene); {@code tgt == 0} is the fixed placement.
      * Returns {@code null} when there is no map view (not in the world).
@@ -815,7 +819,7 @@ final class RenderApi {
                 if(Args.passed(a, 2))
                     throw new LuaError("sprite:image() reads the image path and does not write it — the texture"
                         + " is sampled when the sprite is placed, so another image is another sprite:"
-                        + " hafen.render():sprite():add(asset)");
+                        + " hafen.vr():sprite():add(asset)");
                 return (sp.imgName == null) ? LuaValue.NIL : LuaValue.valueOf(sp.imgName);
             }
         });
@@ -874,15 +878,15 @@ final class RenderApi {
      */
     private static LuaImage resolveSpriteImage(LuaValue imgv) {
         if(imgv.isstring() && !imgv.isnumber())        // in LuaJ a number IS a string — that one is just a wrong type
-            throw new LuaError("hafen.render():sprite():add(image): the argument is a hafen.asset image HANDLE, not a path string — load it"
+            throw new LuaError("hafen.vr():sprite():add(image): the argument is a hafen.asset image HANDLE, not a path string — load it"
                 + " once with hafen.asset():get(\"" + imgv.tojstring() + "\") and pass the handle (it is interned, so"
                 + " repeating the load is free)");
         LuaImage li = LuaImage.resolve(imgv);          // a handle or its raw userdata
         if(li == null)
-            throw new LuaError("hafen.render():sprite():add(image): the argument must be a hafen.asset image handle"
+            throw new LuaError("hafen.vr():sprite():add(image): the argument must be a hafen.asset image handle"
                 + " (hafen.asset():get(\"icon.png\")), got " + imgv.typename());
         if(li.dead)
-            throw new LuaError("hafen.render():sprite():add(image): that image has been disposed — after a :dispose(), hafen.asset():get(path)"
+            throw new LuaError("hafen.vr():sprite():add(image): that image has been disposed — after a :dispose(), hafen.asset():get(path)"
                 + " loads the file again as a NEW asset");
         return li;
     }
@@ -1089,7 +1093,7 @@ final class RenderApi {
      *
      * <p>The entity is registered in its addon's owned-resource registry exactly like any other, so {@code :reload}
      * and disable free it through the teardown that already exists — but it is flagged {@link
-     * LuaWorldEntity#asOverlay}, so it never appears in {@code hafen.ghost.list()}: an overlay is reached through
+     * LuaWorldEntity#asOverlay}, so it never appears in {@code hafen.vr():ghost():list()}: an overlay is reached through
      * {@code gob:overlay}, and a second door handing out a raw handle with {@code :destroy()} on it would let an
      * addon kill the visual behind a record that still reads as attached.
      */

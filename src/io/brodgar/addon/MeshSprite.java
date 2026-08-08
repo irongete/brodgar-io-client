@@ -25,7 +25,7 @@ import haven.render.VectorFormat;
 import haven.render.VertexArray;
 
 /**
- * The <b>custom glTF-model</b> visual behind a {@link LuaObject} ({@code hafen.render.object}, spec
+ * The <b>custom glTF-model</b> visual behind a {@link LuaObject} ({@code hafen.vr():object()}, spec
  * {@code 18-custom-models-gltf.md} §3, R3a/R3b) — a resource-free {@link Sprite} that renders a parsed {@link Gltf}
  * model in the 3D world. The non-{@code .res}, mesh-data sibling of {@link SpriteQuad}: instead of a single textured
  * quad it builds <b>one engine {@link Model} per glTF primitive</b> and wraps each in its own {@link Material},

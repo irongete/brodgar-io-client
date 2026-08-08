@@ -1,4 +1,4 @@
--- gizmo.lua -- a bundled Lua TRANSFORM-GIZMO library over the hafen.world / hafen.ghost primitives (spec
+-- gizmo.lua -- a bundled Lua TRANSFORM-GIZMO library over the hafen.world / hafen.vr() primitives (spec
 -- 16-virtual-entities §4, decision D-031: "Java exposes primitives, the gizmo BEHAVIOUR lives in a bundled Lua
 -- library, shipped in the planner example addon"). V5b shipped the MOVE gizmo; V6 adds ROTATE + SCALE + polish.
 --
@@ -29,7 +29,7 @@
 -- API (a planner-local Lua library, promotable to a shared one later with no behaviour change):
 --   local gz = gizmo(target, { mode="all", len=<world units>, onChange=fn, onCommit=fn })
 --     target   -- anything with :position() -> a Position and :position(p [, a]); ideally :rotate(a) and
---                :scale(s) too (a hafen.ghost() member qualifies). The library keeps its own {x,y,a,scale}
+--                :scale(s) too (a hafen.vr():ghost() member qualifies). The library keeps its own {x,y,a,scale}
 --                table shape internally: that is a VALUE it hands to its callbacks, not an API return.
 --     mode     -- "move" | "rotate" | "scale" | "all" (default "all").
 --     onChange -- called during the drag with {x,y,a,scale}; onCommit -- called on release with the final transform.
@@ -365,7 +365,7 @@ end
 gizmo = function(target, opts)
   if (type(target) ~= "table") or (type(target.position) ~= "function") then
     error("gizmo(target, opts): target must expose :position() and :position(p [, a])"
-      .. " (e.g. a hafen.ghost() member)", 2)
+      .. " (e.g. a hafen.vr():ghost() member)", 2)
   end
   opts = opts or {}
   local self = {

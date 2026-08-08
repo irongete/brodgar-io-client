@@ -1,4 +1,4 @@
--- Planner (V4): the LAYOUT + GRID-ANCHORED PERSISTENCE example for client-only world ghosts (hafen.ghost).
+-- Planner (V4): the LAYOUT + GRID-ANCHORED PERSISTENCE example for client-only world ghosts (hafen.vr():ghost()).
 --
 -- It is a small city/base PLANNER: place translucent "blueprint" ghosts over the real terrain, CLICK them to
 -- select (V2), rotate/remove them, and — the point of V4 — SAVE the layout so it comes back at the SAME spot
@@ -46,7 +46,7 @@
 -- the new facing AND scale, and ":planner scale <s>" sets scale directly. Rotation/scale ride the SAME grid-anchored
 -- persistence, so a relog restores position + facing + scale. Full move/rotate/scale = the V6 DoD.
 --
--- R2b (custom-PNG sprites): the planner now places SPRITES too (hafen.render():sprite() -- our own icon.png, NOT a .res
+-- R2b (custom-PNG sprites): the planner now places SPRITES too (hafen.vr():sprite() -- our own icon.png, NOT a .res
 -- model), on the SAME client-only world-entity core as a ghost (D-013). Because a sprite handle is identical to a
 -- ghost handle, selection, the gizmo, grab, and grid-anchored persistence are all KIND-AGNOSTIC -- one code path
 -- drives both. ":planner sprite" stands a FIXED upright quad (clickable, so a click selects it); ":planner sprite
@@ -54,7 +54,7 @@
 -- world mesh, so it is NOT clickable: select it with ":planner select <n>", then ":planner gizmo" to move it). Both
 -- persist grid-anchored, so a relog restores them alongside the ghosts. Records carry a `kind` ("ghost"/"sprite").
 --
--- R3b-2 (custom glTF models): the planner now also places 3D MODELS (hafen.render():object() -- our own cube.glb, a glTF
+-- R3b-2 (custom glTF models): the planner now also places 3D MODELS (hafen.vr():object() -- our own cube.glb, a glTF
 -- model, NOT a .res game model), on the SAME client-only world-entity core as a ghost/sprite (D-013). A model handle is
 -- the identical transform handle, so it rides the SAME kind-agnostic code path: ":planner object" stands the cube at
 -- your feet, CLICKABLE (its mesh is in the clickmap, so a click selects it), gizmo-driven, and grid-anchored persisted
@@ -83,11 +83,11 @@ local PALETTE = {
 }
 local DEFAULT_BP = "cabin"
 
--- R2b: the addon's own PNG used by ':planner sprite' -- a custom (non-.res) world sprite (hafen.render():sprite()) on
+-- R2b: the addon's own PNG used by ':planner sprite' -- a custom (non-.res) world sprite (hafen.vr():sprite()) on
 -- the SAME world-entity core as a ghost, so it selects + gizmos + persists identically. Ships in this addon's folder.
 local SPRITE_IMG = "icon.png"
 
--- R3b-2: the addon's own glTF model used by ':planner object' -- a custom (non-.res) world model (hafen.render():object())
+-- R3b-2: the addon's own glTF model used by ':planner object' -- a custom (non-.res) world model (hafen.vr():object())
 -- on the SAME world-entity core, so it selects + gizmos + persists identically too. A tiny 1-tile cube; ships here.
 local OBJECT_MODEL = "cube.glb"
 
@@ -186,18 +186,18 @@ local function spawn(it, p)
   if it.kind == "sprite" then
     -- 028.2: sprite/object are HANDLE-ONLY (D-012). The RECORD still stores a PATH (that is what persists to
     -- JSON); hafen.asset turns it into the handle here, at spawn -- interned, so re-spawning costs nothing.
-    it.entity = hafen.render():sprite():add(hafen.asset():get(it.img or SPRITE_IMG), p)
+    it.entity = hafen.vr():sprite():add(hafen.asset():get(it.img or SPRITE_IMG), p)
       :rotate(it.a):scale(it.scale or 1)
       :billboard(it.billboard or false)
       :clickable(not it.billboard)                        -- fixed sprites are pickable; billboards are not
       :onClick(function(s, button) selectItem(it) end)
   elseif it.kind == "object" then                         -- R3b-2: a glTF model on the same world-entity core
-    it.entity = hafen.render():object():add(hafen.asset():get(it.model or OBJECT_MODEL), p)
+    it.entity = hafen.vr():object():add(hafen.asset():get(it.model or OBJECT_MODEL), p)
       :rotate(it.a):scale(it.scale or 1)
       :clickable(true)                                    -- its mesh renders into the clickmap -> a click selects it
       :onClick(function(o, button) selectItem(it) end)
   else
-    it.entity = hafen.ghost():add(it.res, p)
+    it.entity = hafen.vr():ghost():add(it.res, p)
       :rotate(it.a):scale(it.scale or 1)                  -- V6: restore the saved scale on (re)spawn
       :alpha(LOOK.idle.alpha):tint(LOOK.idle.tint)
       :clickable(true)
@@ -214,11 +214,11 @@ local function unspawn(it)
   it.entity = nil
   if not e then return end
   if it.kind == "sprite" then
-    hafen.render():sprite():remove(e)
+    hafen.vr():sprite():remove(e)
   elseif it.kind == "object" then
-    hafen.render():object():remove(e)
+    hafen.vr():object():remove(e)
   else
-    hafen.ghost():remove(e)
+    hafen.vr():ghost():remove(e)
   end
 end
 
@@ -374,7 +374,7 @@ hafen.slash():register("planner", function(args)
       :format(shortRes(res), anchor.gridId, indexOf(it), #items))
 
   elseif sub == "sprite" then
-    -- R2b: place a CUSTOM-PNG SPRITE (hafen.render():sprite()) at your feet, on the SAME world-entity core as a ghost --
+    -- R2b: place a CUSTOM-PNG SPRITE (hafen.vr():sprite()) at your feet, on the SAME world-entity core as a ghost --
     -- so it selects (fixed = click / billboard = ':planner select'), gizmos, and PERSISTS grid-anchored identically.
     -- ':planner sprite' = a FIXED upright quad (clickable); ':planner sprite billboard' = a CAMERA-FACING screen blit.
     local me = hafen.player():gob()                        -- your character's Gob OBJECT (nil before enter-world)
@@ -398,7 +398,7 @@ hafen.slash():register("planner", function(args)
       :format(billboard and "billboard" or "fixed", SPRITE_IMG, anchor.gridId, indexOf(it), #items))
 
   elseif sub == "object" then
-    -- R3b-2: place a CUSTOM glTF MODEL (hafen.render():object() -- our own cube.glb, NOT a .res game model) at your feet,
+    -- R3b-2: place a CUSTOM glTF MODEL (hafen.vr():object() -- our own cube.glb, NOT a .res game model) at your feet,
     -- on the SAME world-entity core as a ghost/sprite (D-013) -- so it selects, gizmos, and PERSISTS grid-anchored
     -- identically. The model is CLICKABLE (its mesh renders into the clickmap), so a click selects it, like a ghost.
     local me = hafen.player():gob()                        -- your character's Gob OBJECT (nil before enter-world)

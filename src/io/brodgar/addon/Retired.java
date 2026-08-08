@@ -292,20 +292,20 @@ final class Retired {
 
         put("marker:onmap", "marker:onmap() is now marker:onMap(), and it writes too: marker:onMap(true)");
 
-        // ---- the world entities: two collections under hafen.render(), and hafen.ghost() IS one -------------
-        put("hafen.render.sprite", "hafen.render.sprite{image=..., x=, y=} is now"
-            + " hafen.render():sprite():add(imageAsset, p) plus chained setters: :position(p [, a]) :scale(k)"
-            + " :alpha(a) :tint(r, g, b) :billboard(b) :clickable(b) :onClick(fn). An image ON A GAME OBJECT is"
-            + " gob:overlay():add(key):image(asset), which keys it and dies with the gob");
-        put("hafen.render.object", "hafen.render.object{model=..., x=, y=} is now"
-            + " hafen.render():object():add(meshAsset, p) plus chained setters: :position(p [, a]) :scale(k)"
-            + " :alpha(a) :tint(r, g, b) :clickable(b) :onClick(fn). A model ON A GAME OBJECT is"
-            + " gob:overlay():add(key):model(asset), which keys it and dies with the gob");
-        put("hafen.ghost.new", "hafen.ghost.new{res=..., x=, y=} is now hafen.ghost():add(res, p) plus chained"
-            + " setters: :position(p [, a]) :scale(k) :alpha(a) :tint(r, g, b) :clickable(b) :onClick(fn)."
-            + " A .res model ON A GAME OBJECT is gob:overlay():add(key):ghost(res)");
-        put("hafen.ghost.list", "hafen.ghost.list(filter) is now hafen.ghost():list(filter) — hafen.ghost() IS"
-            + " the collection of the ghosts this addon placed");
+        // ---- 043.1: the two world-entity sections are DELETED into ONE, hafen.vr() — the section for --------
+        // ---- client-only things standing in the 3D world. Both are SECTION names, so each is one row on the
+        // ---- hafen table's own __index (hafenIndex()): reading hafen.ghost / hafen.render at all — bare, or on
+        // ---- the way to any sub-spelling, dotted or colon — throws here before anything else is reached, which
+        // ---- is why the per-verb rows those two used to carry are gone rather than kept unreachable.
+        put("hafen.ghost", "hafen.ghost is now hafen.vr():ghost() — hafen.vr() is the one section for"
+            + " client-only things standing in the 3D world, and the .res props are one of its collections:"
+            + " hafen.vr():ghost():add(res, p) places one, :list(filter) reads this addon's, :remove(g) ends"
+            + " one. A .res model ON A GAME OBJECT is gob:overlay():add(key):ghost(res)");
+        put("hafen.render", "hafen.render is now hafen.vr() — one section for everything client-only you stand"
+            + " in the 3D world, named for the place rather than the mechanism: hafen.render():sprite() is"
+            + " hafen.vr():sprite() and hafen.render():object() is hafen.vr():object(), each :add(asset, p)"
+            + " plus the chained setters :position(p [, a]) :scale(k) :alpha(a) :tint(r, g, b) :clickable(b)"
+            + " :onClick(fn). The .res props are hafen.vr():ghost() beside them");
 
         // ---- Sprite / Object / Ghost: one vocabulary, and every property a read/write pair on one name ------
         for(String kind : new String[] { "sprite", "object", "ghost" }) {
@@ -319,11 +319,11 @@ final class Retired {
             put(kind + ":hide", kind + ":hide() is now " + kind + ":visible(false) — a boolean property is a"
                 + " property, so the value is the argument rather than the verb's name");
         }
-        put("sprite:destroy", "sprite:destroy() is now hafen.render():sprite():remove(s) — the collection"
+        put("sprite:destroy", "sprite:destroy() is now hafen.vr():sprite():remove(s) — the collection"
             + " placed it, so the collection ends it");
-        put("object:destroy", "object:destroy() is now hafen.render():object():remove(o) — the collection"
+        put("object:destroy", "object:destroy() is now hafen.vr():object():remove(o) — the collection"
             + " placed it, so the collection ends it");
-        put("ghost:destroy", "ghost:destroy() is now hafen.ghost():remove(g) — the collection placed it, so the"
+        put("ghost:destroy", "ghost:destroy() is now hafen.vr():ghost():remove(g) — the collection placed it, so the"
             + " collection ends it");
         put("ghost:setRes", "ghost:setRes(res, sdt) is now ghost:res(res, spawnData) — ghost:res() already read"
             + " it, so the pair was one name too many");

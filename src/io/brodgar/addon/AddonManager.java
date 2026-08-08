@@ -725,10 +725,10 @@ public final class AddonManager {
     /**
      * The V2 ghost/entity click seam — called from {@code haven.MapView} when a virtual (client-only) gob is
      * clicked. Finds the owning addon world-entity and fires its {@code onClick} + the owner-scoped event.
-     * Delegates to {@link RenderApi}, which owns the world-entity registry.
+     * Delegates to {@link VrApi}, which owns the world-entity registry.
      */
     public static boolean onGhostClick(Gob cg, int button, Coord2d mc) {
-        return RenderApi.onGhostClick(cg, button, mc);
+        return VrApi.onGhostClick(cg, button, mc);
     }
 
     /**
@@ -1836,8 +1836,8 @@ public final class AddonManager {
         // hafen.asset(path) — the ONE loader for the files THIS addon ships (spec 028-asset-loader). A CALLABLE
         // namespace (D-056): hafen.asset(path) is one interned, typed handle; hafen.asset() is the array of the
         // addon's live assets. Dispatch is by EXTENSION — .png/.jpg/.jpeg/.gif/.bmp = an image (draw it with
-        // g:image / stand it with hafen.render.sprite), .ttf/.otf = a font (hafen.font.setFont / window{font=} /
-        // g:text{font=}), .glb/.gltf = a glTF mesh (hafen.render.object) — and anything else errors listing them.
+        // g:image / stand it with hafen.vr():sprite()), .ttf/.otf = a font (hafen.font.setFont / window{font=} /
+        // g:text{font=}), .glb/.gltf = a glTF mesh (hafen.vr():object()) — and anything else errors listing them.
         // Paths are addon-relative and SANDBOXED (absolute paths and ".." escapes are rejected, D-017; the one
         // containment check lives here now). It takes a PATH AND NOTHING ELSE: loading a file is expensive and
         // happens once, configuring a use of it is cheap and happens many times, so a font's size/style is
@@ -1849,21 +1849,18 @@ public final class AddonManager {
         // addressed rather than loaded: hafen.font("sans"|"serif"|"mono"|"fraktur").
         AssetApi.install(hafen, owner);
 
-        // hafen.ghost — CLIENT-ONLY world ghosts (spec 16-virtual-entities, V1). A ghost is a virtual prop
-        // rendered in the 3D world at arbitrary world coords: a Gob with NO server id, so it never reaches the
-        // server and grants no gameplay advantage — a visualization, like a HUD overlay (SAFE-tier, NOT gated;
-        // D-029). The motivating use is city/base planning: lay ghost buildings over the real terrain. new{...}
-        // spawns one and returns a bridge-owned handle (D-030); list([filter]) returns THIS addon's live ghosts
-        // (canonical filter: nil=all / a string matched against the ghost's res / a predicate over the handle).
-        // Ghosts are torn down on reload/disable/relogin (P2). Coords are WORLD (login-relative), like gob:pos().
-        RenderApi.installGhost(hafen, owner);
-
-        // hafen.render — stand CUSTOM assets that are NOT engine `.res` in the 3D world (spec 17-custom-rendering).
-        // The sibling of hafen.ghost (which places `.res` game models): this is for the addon's OWN files —
-        // sprite{image=} (R2: a PNG quad, fixed or camera-facing) and object{model=} (R3: a glTF model). Client-only
-        // ⇒ SAFE-tier, NOT gated (D-034), like a HUD overlay. It is a SCENE namespace only: the files themselves come
-        // from hafen.asset (028.1 — .image/.model are cut and read as nil).
-        RenderApi.installRender(hafen, owner);
+        // hafen.vr() — the ONE section for CLIENT-ONLY things standing in the 3D world (043; specs
+        // 16-virtual-entities + 17-custom-rendering). Three collections: :ghost() places a `.res` game model,
+        // :sprite() one of the addon's own PNGs, :object() one of its glTF models — each :add(what, p) standing
+        // it at a Position and handing back a bridge-owned handle (D-030) that speaks one vocabulary
+        // (:position/:rotate/:scale/:alpha/:tint/:visible/:clickable/:onClick), each :list([filter]) reading
+        // THIS addon's (canonical filter: nil=all / a string matched against the visual's name / a predicate).
+        // None of it is a Gob the server knows: no wdgmsg, invisible to OCache and every read API, so it grants
+        // no gameplay advantage — a visualization, like a HUD overlay (SAFE-tier, NOT gated; D-029/D-034). The
+        // motivating use is city/base planning: lay ghost buildings over the real terrain. Everything here is
+        // torn down on reload/disable/relogin (P2). It is a SCENE section only: the addon's own files come from
+        // hafen.asset (028.1). hafen.ghost and hafen.render are retired rows naming this.
+        VrApi.installVr(hafen, owner);
 
         // hafen.slash (WoW-style :name console commands) — L1 input, L2 action, L3 message and V5 grab have all
         // moved off hafen.hook() onto widgets/the bus/the mouse entity, and hook() itself is deleted (041.5).
@@ -2262,7 +2259,7 @@ public final class AddonManager {
 
     /**
      * Parse a Lua colour table (0..255 components) into a {@link java.awt.Color}, or {@code dflt}. Shared by
-     * map-marker pins (MapApi), ghost/entity {@code tint} (RenderApi), the {@code g:text} draw
+     * map-marker pins (MapApi), ghost/entity {@code tint} (VrApi), the {@code g:text} draw
      * wrapper and the stylesheet's {@code color} property (033.2) — a hub color util.
      *
      * <p><b>Two spellings, one shape.</b> The KEYED form {@code {r=,g=,b=[,a=]}} is what every reader in this API

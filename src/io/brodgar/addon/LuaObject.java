@@ -4,7 +4,7 @@ import haven.Coord2d;
 
 /**
  * A client-only world <b>3D object</b> (spec {@code 18-custom-models-gltf.md}, R3a) — the Java half of
- * {@code hafen.render.object{model=, x, y, ...}}. A {@link LuaWorldEntity} whose visual is a custom glTF model (an
+ * {@code hafen.vr():object():add(asset, p)}. A {@link LuaWorldEntity} whose visual is a custom glTF model (an
  * addon's own {@code .glb}/{@code .gltf}, parsed to baked geometry by {@link Gltf} and loaded via
  * {@code hafen.asset}) standing in the 3D world — the mesh sibling of a {@link LuaSprite} (a PNG quad) and
  * of a {@link LuaGhost} (a {@code .res} game model). Client-only ⇒ <b>SAFE-tier, NOT gated</b> (D-034): it never
