@@ -8,6 +8,7 @@ import haven.Loading;
 import haven.TexRender;
 import haven.UI;
 import haven.Widget;
+import haven.Window;
 import haven.render.BlendMode;
 import haven.render.BufPipe;
 import haven.render.DataBuffer;
@@ -109,7 +110,22 @@ final class WidgetSurface extends Widget {
         this.tsz = this.sz;
         this.tex = new Texture2D(this.sz, DataBuffer.Usage.STATIC, new VectorFormat(4, NumberFormat.UNORM8), null);
         this.tr = new TexRender(this.tex.sampler()) {
-            public void render(GOut g, float[] gc, float[] tc) { /* unused: the quad is drawn in 3D, not blitted */ }
+            /**
+             * The 2D blit, used by the {@code "screen"} facing alone (044.3) — the world quad samples through
+             * {@code draw}/{@code clip} and never comes here. It is the engine's own blit with the texture
+             * coordinates flipped in {@code t}, for the reason {@link SurfaceQuad#quadVerts} spells out: a
+             * render target's first row is its BOTTOM, while every 2D caller hands texel coordinates counted
+             * from the top. Without the flip the panel blits upside down.
+             */
+            public void render(GOut g, float[] gc, float[] tc) {
+                float h = this.sz().y;             // the TEXTURE's height (TexRender.sz), not the widget's
+                float[] f = new float[tc.length];
+                for(int i = 0; i < tc.length; i += 2) {
+                    f[i] = tc[i];
+                    f[i + 1] = h - tc[i + 1];
+                }
+                super.render(g, gc, f);
+            }
         };
         live.add(this);
     }
@@ -238,9 +254,13 @@ final class WidgetSurface extends Widget {
      *       know what it would paint is to run it, and running it <i>is</i> the draw. This is not a concession:
      *       a panel whose text is the smelter's fuel level must redraw when the fuel changes, and nothing but
      *       the handler knows that it did;</li>
-     *   <li>a running {@link Widget.Anim} — the client's own show/hide transitions are one, so a window
-     *       reparented into a surface animates its way in exactly as it does on screen instead of freezing on
-     *       the first frame of it.</li>
+     *   <li>a running transition, so a window reparented into a surface animates its way in exactly as it does
+     *       on screen instead of freezing on the first frame of it. That is <b>two</b> lists, not one, and
+     *       044.1 checked only the first: a {@link Widget.Anim} lives in {@code anims}/{@code nanims}, while a
+     *       {@link haven.Window}'s own show/hide fade lives in a private field of its own and is visible only
+     *       through {@link haven.Window#animating()}. Missing the second froze every standing window on the
+     *       first frame of its fade — nearly transparent, and therefore discarded outright by the world quad's
+     *       alpha clip, so the panel did not merely look faint: it was not there at all (044.3).</li>
      * </ul>
      */
     private boolean changing() {
@@ -250,6 +270,8 @@ final class WidgetSurface extends Widget {
     private boolean changing(Widget w) {
         for(Widget c = w.child; c != null; c = c.next) {
             if(!c.anims.isEmpty() || !c.nanims.isEmpty())
+                return true;
+            if((c instanceof Window) && ((Window)c).animating())
                 return true;
             WidgetSubs s = owner.widgetSubsOrNull(c);
             if((s != null) && s.subs.has("Draw"))

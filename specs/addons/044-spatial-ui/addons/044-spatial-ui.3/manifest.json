@@ -1,0 +1,9 @@
+{
+  "name": "044.3 — \"camera\": the mode the whole thing is for",
+  "id": "044-spatial-ui.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 044.3: :facing(\"camera\") stops raising and becomes a real world quad turned to the viewer, on standing widgets AND on sprites, off the one shared entity core — three modes, one vocabulary, and :rotate kept through every swap.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

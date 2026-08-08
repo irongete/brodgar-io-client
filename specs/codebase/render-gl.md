@@ -33,3 +33,12 @@ backend has no VRAM or program counts at all. Report an **absent** value, never 
 **Gotcha.** The GL calls are *written* at slot-compile time and *replayed* by `BufferBGL` on the render thread —
 neither is a per-frame count. Instrument the two **dispatch** seams above (`GLDrawList.draw`, `GLRender.draw`);
 the replay loop is far too hot to touch.
+
+## The 2D blit path (what `g.image` actually does)
+
+| What | Where |
+|---|---|
+| The interface | [`Tex`](src/haven/Tex.java:29): `sz()` + the one primitive `render(GOut, float[] gc, float[] tc)`; everything else ([`render(g,dul,dbr,tul,tbr)`](src/haven/Tex.java:35), [`crender`](src/haven/Tex.java:51)) is a `default` that builds `gc`/`tc` and calls it. `gc` = 4 screen corners, `tc` = the same 4 in **texel** coordinates, both interleaved x,y, corner *i* at `[2i], [2i+1]` |
+| `GOut.image` → the primitive | [`GOut.image(Tex,Coord[,Coord])`](src/haven/GOut.java:97) → `tex.crender(...)`, which **clips** against `g.ul`/`g.br` by trimming the texel rectangle, then calls `render` |
+| The concrete blit | [`TexRender.render`](src/haven/TexRender.java:121) divides `tc` by `sz()` and draws one 4-vertex `TRIANGLE_STRIP` of [`Ortho2D.pos`+`Tex2D.texc`](src/haven/TexRender.java:35) with `usestate(draw)` — an EPHEMERAL `VertexArray` through `GLRender.draw` |
+| **A render target blits UPSIDE DOWN unless flipped** | `tc` is always counted from the image **top**, which is right for a `TexI` and wrong for a texture the client drew into (see [world-3d.md](world-3d.md)'s v-flip gotcha). The engine's own answer is a flag: [`TexRaw(Sampler2D, boolean invert)`](src/haven/TexRaw.java:37), which [`Window.gbuf`](src/haven/Window.java:357) passes `true`. A hand-rolled `TexRender` over a render target must invert `t` itself (`t → sz().y - t`) before delegating |

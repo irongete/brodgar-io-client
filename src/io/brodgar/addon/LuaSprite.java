@@ -29,20 +29,29 @@ import haven.Coord2d;
 public final class LuaSprite extends LuaWorldEntity {
     final LuaImage img;            // the texture source (bridge-owned by Addon.images; NOT disposed by the sprite)
     final String   imgName;        // the addon-relative image path, for :image() and the list string-filter
-    String         facing;         // "fixed" = an upright world quad (SpriteQuad); "screen" = a constant-size camera-facing
-                                   // blit (LuaSpriteBillboard). A MODE rather than a boolean because a third one ("camera",
-                                   // a world quad that turns to the viewer) is a facing too, not the negation of a flag.
-                                   // NOT final: :facing(mode) is a construction property, so writing it re-mills the visual
-                                   // in place. Guarded by this.
 
     LuaSprite(Addon owner, LuaImage img, Coord2d rc, double a, String facing) {
         super(owner, rc, a);
         this.img = img;
         this.imgName = img.name;
-        this.facing = facing;
+        this.facing = facing;      // the shared core's field: the three modes are one vocabulary (044.3)
     }
 
     void unregister() { owner.sprites.remove(this); }
+
+    /**
+     * A sprite's three visuals, from the one image: an upright world quad at its own facing, the same quad
+     * turned to the screen plane ({@link CameraFacing}, 044.3), or a constant-size screen blit
+     * ({@link LuaSpriteBillboard}). The first two are world geometry and keep the sprite's world size; the
+     * third gives that up for constant pixels.
+     */
+    haven.Drawable visual(haven.Gob gob, String mode) {
+        if(VrApi.SCREEN.equals(mode))
+            return new LuaSpriteBillboard(gob, img);
+        float[] wh = VrApi.spriteWorldDims(img.sz);
+        haven.Sprite.Mill<SpriteQuad> mill = SpriteQuad.mill(img.tex, wh[0], wh[1]);
+        return VrApi.CAMERA.equals(mode) ? new CameraFacing(gob, mill) : new haven.SprDrawable(gob, mill);
+    }
 
     String visualName() { return imgName; }
 

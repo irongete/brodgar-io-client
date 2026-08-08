@@ -1261,3 +1261,25 @@
   probing the content child directly). Finally, `LuaWidget.hitTest` honours `Widget.checkhit` at the leaf, so a
   transparent window corner is a legitimate miss — assert *at least one* point reachable before, never all of
   them.
+- **(044.3) A counter that answers the same number for "correct", "correct another way" and "broken" is not an
+  assertion — and it took two green runs to see it.** After finding that a standing window could freeze on its
+  fade's first frame, the obvious guard looked like "a window must upload more than once while it fades in". It
+  is wrong three ways over: a surface skipped while its content is `pending` can outlast the whole 0.1 s fade and
+  upload **once**, already finished (a fresh client: 5 uploads for 5 surfaces); the same code after a `:reload`
+  arms sooner, rides the fade and uploads **nine or more**; and a **frozen** surface also reads once. The check
+  went red on a client whose windows were visibly perfect, which is the only reason it was re-examined rather than
+  believed. Withdrawn, and what replaced it is the honest floor — *every standing surface uploaded at least once*
+  — with the freeze left where it actually lives, on a `[manual]` line. **Rule: before writing an assertion over a
+  counter, name the value it takes in the BROKEN case and in every correct case; if any two coincide, the counter
+  cannot see the bug and the check will only ever mislead.** The corollary for `[manual]`: a line is not a
+  fallback for laziness — sometimes it is the only instrument that distinguishes the cases.
+- **(044.3) Assert what changed, not the literal a widget was built from — a `Window`'s `:size()` is its OUTER
+  size.** A check compared `cam:size().x == 180` against `hafen.ui():window():size(180, 110)` and read 229: the
+  builder sets the content size and the read answers content plus chrome. The fix was not a new number but a
+  different claim — record the size at stand time and assert it is *unchanged* across the mode swap, which is what
+  the check meant ("the window still answers its reads") and which no future chrome change can falsify.
+- **(044.3) A widget put back on the flat UI returns ON TOP, so a reachability count can only grow.** The
+  going-back check asserted `after == before` over nine hit-test probes and read `3 -> 5`: a re-homed widget is
+  added at the **end** of its parent's chain, so it comes back above whatever was covering it. `>=` (plus
+  `before > 0`, so the probe is known to have been real) is the claim that is actually true. Generally: *a check
+  over z-ordered hit-testing states a floor, never an equality, unless the test owns every widget on screen.*

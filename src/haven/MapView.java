@@ -1633,6 +1633,15 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	return(Math.atan2(eye.x, -eye.z));
     }
 
+    // addon: 044.3 — the camera's view matrix (render space -> eye space). A camera-facing world quad
+    // (hafen.vr():*():facing("camera")) is turned in Gob.Placer.getr, which runs on the render tree's
+    // per-frame placement tick and has no Pipe to read the camera from; Camera.view is protected and this
+    // is the only thing outside the client that needs it. Null before a camera exists.
+    public Matrix4f camview() {
+	Camera c = this.camera;
+	return((c == null) ? null : c.view.fin(Matrix4f.id));
+    }
+
     private void partydraw(GOut g) {
 	for(Party.Member m : ui.sess.glob.party.memb.values()) {
 	    if(m.gobid == this.plgob)

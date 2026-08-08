@@ -1,8 +1,7 @@
 # Subsystem: GameUI's own windows (the HUD wrappers, the menu bars, the toggle path, the position store)
 
-> `file:line` anchors for the windows **the client itself opens, closes and remembers**. Distinct from
-> [widgets.md](widgets.md) (generic tree + create/place/destroy) and [ui-chrome.md](ui-chrome.md) (`Window.Deco`,
-> `IBox`, the `iresize`/`contarea`/`csz` geometry). The **class + method name is the stable anchor**. Max 70.
+> `file:line` anchors for the windows **the client itself opens, closes and remembers**. Distinct from [widgets.md](widgets.md) (generic tree + create/place/destroy) and [ui-chrome.md](ui-chrome.md) (`Window.Deco`, `IBox`, the `iresize`/`contarea`/`csz` geometry).
+> The **class + method name is the stable anchor**. Max 70.
 
 ## The windows GameUI owns — fields on [`GameUI`](src/haven/GameUI.java:55): `invwnd`, `equwnd`, `makewnd`, `srchwnd`, `iconwnd`, `chrwdg`, `zerg`, `opts`, `mapfile`
 
@@ -41,9 +40,8 @@ to its content **before your call returns** (`pack()` = `resize(contentsz())`). 
 | The odd one out | [`menubuttons`](src/haven/GameUI.java:328) — `srchwnd`: focus it if visible-but-unfocused, else `togglewnd` |
 | Key → the button's own click | [`Widget.globtype`](src/haven/Widget.java:1478) matches `kb_gkey.key()` → [`gkeytype`](src/haven/Widget.java:1431), which [`ACheckBox`](src/haven/ACheckBox.java:63) overrides to `click()` |
 
-**The key and the button are ONE click.** `setgkey(KeyBinding)` ([`Widget`](src/haven/Widget.java:1492)) stores
-`kb_gkey`; a matching `GlobKeyEvent` reaches the widget's own `gkeytype`, which for an `ACheckBox` calls
-`click()` — no separate keyboard path, so one edit covers all seven call sites. **`state()` is polled every frame, per checkbox** (six) ⇒ allocation-free. **[`show(boolean)`](src/haven/Widget.java:2059) returns its ARGUMENT**, not whether anything changed (031.2).
+**The key and the button are ONE click.** `setgkey(KeyBinding)` ([`Widget`](src/haven/Widget.java:1492)) stores `kb_gkey`; a matching `GlobKeyEvent` reaches the widget's own `gkeytype`, which for an `ACheckBox` calls `click()` — no separate keyboard path, so one edit covers all seven call sites.
+**`state()` is polled every frame, per checkbox** (six) ⇒ allocation-free. **[`show(boolean)`](src/haven/Widget.java:2059) returns its ARGUMENT**, not whether anything changed (031.2).
 
 ## `Window`'s visibility is a small state machine (it wraps show/hide around a fade `Transition`)
 
@@ -52,8 +50,10 @@ to its content **before your call returns** (`pack()` = `resize(contentsz())`). 
 | `visible()` — **animation-aware** | [:556](src/haven/Window.java:556) — `visible && ((animst == null) \|\| (animst == "show"))` |
 | `hide()` does **not** clear `visible` | [:591](src/haven/Window.java:591) — starts `animst = "hide"`; [`tick`](src/haven/Window.java:524) calls `super.hide()` when the anim ends |
 | `reqdestroy()` → `animst = "dest"`; `trans` set on attach | [:609](src/haven/Window.java:609) — `tick` destroys at the end (the 030 fading corpse); [`added()`](src/haven/Window.java:119) → `initanim()`, and it also `setfocus`es a visible window |
+| **The fade is NOT a `Widget.Anim`** | [`Window.anim`](src/haven/Window.java:532) + `animst` are **private fields of `Window`**, ticked in [`Window.tick`](src/haven/Window.java:534) and nulled when [`Animation.tick`](src/haven/Window.java:521) returns true — nothing of it is in [`Widget.anims`/`nanims`](src/haven/Widget.java:2082). [`FadeAnim.time`](src/haven/Window.java:681) = **0.1 s**. Fork: `Window.animating()` (`// addon:`) — anything asking "is this widget still moving?" must ask BOTH (044.3) |
+| **`Window.draw` is itself a render-to-texture** | [:378](src/haven/Window.java:378) — every frame it makes a `GOut` over [`gbasic()`](src/haven/Window.java:353) (a `Texture2D` `gbuf` + `FragColor` + `Ortho2D`, rebuilt only when `sz` changes), clears it, draws the window into it, then [`drawfin`](src/haven/Window.java:371) blits `gbuf` back — through `anim.draw(g, buf)` while fading. So a window drawn inside another render target is a **nested** one, and `gbuf` is a [`TexRaw(…, invert=true)`](src/haven/TexRaw.java:37) |
 
-**A fading-out window already reads `visible() == false`**, so a menu tick reads one directly, no debounce.
+**A fading-out window already reads `visible() == false`**, so a menu tick reads one directly, no debounce; and
 [`RootWidget`](src/haven/RootWidget.java:41) sets `focusctl` — why `parent.setfocus(w)` terminates.
 
 ## The addon seams (031, 035, 036)

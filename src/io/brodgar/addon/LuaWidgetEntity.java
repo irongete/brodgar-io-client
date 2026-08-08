@@ -46,6 +46,21 @@ public final class LuaWidgetEntity extends LuaWorldEntity {
     }
 
     /**
+     * A standing widget's three visuals, all sampling the <b>same</b> surface — the offscreen pass is
+     * identical in every mode and only what reads the texture changes (044.3): an upright world quad at the
+     * entity's own facing, the same quad turned to the screen plane ({@link CameraFacing}), or a constant-size
+     * screen blit ({@link LuaSurfaceBillboard}). Sized from the widget's pixels either way, so a panel is the
+     * same panel whichever way it meets the viewer.
+     */
+    haven.Drawable visual(haven.Gob gob, String mode) {
+        if(VrApi.SCREEN.equals(mode))
+            return new LuaSurfaceBillboard(gob, surface);
+        float[] wh = VrApi.surfaceWorldDims(surface.sz);
+        haven.Sprite.Mill<SurfaceQuad> mill = SurfaceQuad.mill(surface.texture(), wh[0], wh[1]);
+        return VrApi.CAMERA.equals(mode) ? new CameraFacing(gob, mill) : new haven.SprDrawable(gob, mill);
+    }
+
+    /**
      * What a string filter matches on a standing widget: its caption when it has one — the "Ore Smelter"
      * window is found by its title, which is what anybody looking for it knows — and its widget type
      * otherwise, so a bare surface is still addressable.

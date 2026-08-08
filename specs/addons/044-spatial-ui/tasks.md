@@ -46,7 +46,17 @@
   `hafen.vr():list()` includes standing widgets alongside the other three kinds; a title-bar drag
   is inert on both.
 
-- [ ] **044.3 — `"camera"`: the mode the whole thing is for**
+- [x] **044.3 — `"camera"`: the mode the whole thing is for** ✅
+  *Shipped*: `CameraFacing` (a `SprDrawable` whose `Gob.Placer` returns a **view-plane aligned** rotation — the
+  render tree's own `Placed.autotick` applies it, so no tick loop, **D-193**), `LuaSurfaceBillboard` (the
+  `"screen"` blit of a surface), `facing` + `visual(gob, mode)` lifted onto `LuaWorldEntity`, one shared
+  `facingVerb`/`setEntityFacing`, and `:facing` on the widget handle with **all three** modes rather than the one
+  asked for (**D-194** — a property on the shared core reaches every kind whole; 044.4 clicks all three). TWO
+  `// addon:` one-liners: `MapView.camview()` and `Window.animating()`. 16/16 + 3/3 on the `off` round, three
+  runs including one across a `:reload`; all three `[manual]` lines confirmed. **It also found and fixed a 044.1
+  defect**: a `Window`'s fade is a private field, not a `Widget.Anim`, so `changing()` never saw it and a
+  standing window could freeze on the fade's first near-transparent frame — which the quad's `TexClip` discards
+  WHOLE, absent rather than faint. D-192's enumeration corrected in place.
   The third facing mode stops raising and becomes a real world quad turning in yaw and pitch — on
   **sprites as well as widgets**, since they share the entity core and special-casing one would be
   the larger change. This is the mode that gives real world size, perspective, occlusion and
@@ -103,7 +113,11 @@
 - [ ] **044.8 — Docs, the example addon, and the close**
   `api/vr/widgets.md` (new page), `api/vr/README.md`'s fourth collection row, `api/vr/sprites.md`
   (the `"camera"` mode reaches sprites), `api/client/profiling/counters.md`, both "API at a
-  glance" tables, and `examples.md`. The example addon is the maintainer's scenario and is
+  glance" tables, and `examples.md`. **`widgets.md` and `sprites.md` must both carry 044.3's
+  finding**: a camera-facing quad rises along the camera's *up* axis, so at a fully top-down
+  camera it lies in the horizontal plane through its anchor — at ground level that is the
+  terrain's own plane and it is lost in it; `<entity>:offset(x, y, z)` is the answer.
+  The example addon is the maintainer's scenario and is
   **entirely event-driven**: watch for the smelter's window to appear → stand it on the smelter;
   the server closes it → swap in your own panel built from the contents you snapshotted; it
   appears again → swap back. No distance checks and no timers — only widget open and close, which

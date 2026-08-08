@@ -65,6 +65,17 @@ public abstract class LuaWorldEntity {
     Coord3f followOff;             // the world-space follow offset (x east, y north, z up), or null = none; live (:offset)
 
     /**
+     * 044.3: <b>how this entity meets the viewer</b> — {@code "fixed"} (a world quad at {@link #a}),
+     * {@code "camera"} (a world quad turned to the screen plane) or {@code "screen"} (a constant-size blit).
+     * On the SHARED core because the two flat kinds — a sprite and a standing widget — pick between the same
+     * three modes with the same machinery ({@link #visual}, {@code VrApi.setEntityFacing}); special-casing
+     * either would be the larger change. A ghost and an object are models, so they carry the default and
+     * expose no {@code :facing} verb at all. Guarded by {@code this}; a MODE string rather than a flag, so a
+     * fourth would be a value and not a shape (D-190).
+     */
+    String facing = VrApi.FIXED;
+
+    /**
      * This entity's identity <b>as seen from the gob it is anchored to</b> (043.3): an anchored entity is
      * surfaced read-only in {@code gob:overlay():list()}, where every member answers to a key, and a thing
      * standing in the world has no name of its own. So it gets a serial — monotonic for the client's life, so a
@@ -103,6 +114,16 @@ public abstract class LuaWorldEntity {
      * {@link LuaWidgetEntity} puts its widget back where it stood from and frees its surface.
      */
     void destroyed() {
+    }
+
+    /**
+     * <b>Build this entity's visual for facing {@code mode}</b> — the one place a kind says what it looks
+     * like, so the create and {@code :facing(mode)} cannot disagree about it. Overridden by the two kinds
+     * that have a facing ({@link LuaSprite}, {@link LuaWidgetEntity}); a ghost or an object is a model with
+     * one visual and no facing verb, so it never reaches here.
+     */
+    haven.Drawable visual(Gob gob, String mode) {
+        throw new IllegalStateException("a " + kind() + " has one visual and no facing");
     }
 
     /**

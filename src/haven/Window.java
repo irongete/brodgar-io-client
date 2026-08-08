@@ -569,6 +569,15 @@ public class Window extends Widget {
 	return(visible && ((animst == null) || (animst == "show")));
     }
 
+    // addon: 044.3 -- is a show/hide transition still running? A widget standing in the world
+    // (io.brodgar.addon.WidgetSurface) is drawn into its texture only when something changed, and a
+    // Window's transition lives in THIS anim field rather than in Widget.anims/nanims -- so without
+    // this the surface cannot tell that the picture is still moving, and freezes on the transition's
+    // first, nearly transparent frame (which the world quad's alpha clip then discards entirely).
+    public boolean animating() {
+	return(anim != null);
+    }
+
     private void initanim() {
 	if(trans == null)
 	    trans = deftrans();

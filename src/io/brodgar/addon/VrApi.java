@@ -1133,13 +1133,13 @@ final class VrApi {
         sp.handle = handle;
         // Build the gob + visual OUTSIDE the sprite lock (no scene mutation yet), then publish atomically. No defer:
         // the TexI is already decoded (R1), so nothing here throws Loading. The visual is the ONLY thing the facing
-        // mode changes — an upright quad (SpriteQuad, a resource-free SprDrawable) or a camera-facing screen blit
-        // (LuaSpriteBillboard, a resource-free Drawable+Render2D) — the shared core supplies transform/look/gizmo.
+        // mode changes — an upright quad (SpriteQuad on a SprDrawable), the same quad turned to the viewer
+        // (CameraFacing) or a screen blit (LuaSpriteBillboard) — the shared core supplies transform/look/gizmo.
         GhostGob gob = new GhostGob(g, rc);
         gob.a = a;
         gob.alpha = sp.alpha; gob.tint = sp.tint; gob.scale = sp.scale;   // reflect the look before the first scene add
-        gob.clickable = sp.clickable;                  // R2b: a "fixed" sprite's quad renders into the clickmap → V2-pickable (see onGhostClick)
-        gob.setattr(spriteVisual(gob, img, sp.facing));                  // the one miller, shared with :facing(mode)
+        gob.clickable = sp.clickable;                  // R2b: a world-quad sprite renders into the clickmap → V2-pickable (see onGhostClick)
+        gob.setattr(sp.visual(gob, sp.facing));        // the kind's one miller, shared with :facing(mode)
         gob.move(rc, a);
         synchronized(sp) {
             if(sp.dead) { gob.dispose(); return sp; }   // destroyed mid-build (defensive; all UI-thread) → discard
@@ -1154,13 +1154,7 @@ final class VrApi {
 
     /**
      * The Lua handle for a {@link LuaSprite}: the shared entity verbs plus {@code :image()} (its image's
-     * addon-relative path) and {@code :facing()} / {@code :facing(mode)}.
-     *
-     * <p><b>{@code :facing} is a CONSTRUCTION property, so writing it REBUILDS the visual</b> — the mode picks
-     * which drawable is milled (an upright world quad or a camera-facing screen blit) and nothing can change that
-     * in place. Refusing it after the fact would make the natural reading order illegal, and deferring the whole
-     * build would move <i>there is no map view</i> off the call site that caused it; so the rebuild is the
-     * property's implementation rather than a rule the caller has to know.
+     * addon-relative path) and the shared {@code :facing()} / {@code :facing(mode)}.
      */
     private static LuaValue spriteHandle(final LuaSprite sp) {
         LuaTable x = new LuaTable();
@@ -1173,71 +1167,82 @@ final class VrApi {
                 return (sp.imgName == null) ? LuaValue.NIL : LuaValue.valueOf(sp.imgName);
             }
         });
-        x.set("facing", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
-                LuaValue mv = Args.written(a, 2, "sprite:facing", "mode");
-                if(mv == null) {
-                    synchronized(sp) { return LuaValue.valueOf(sp.facing); }
-                }
-                setSpriteFacing(sp, facingArg(mv));
-                return self;
-            }
-        });
+        x.set("facing", facingVerb(sp, "sprite"));
         return entityHandle(sp, "sprite", x);
     }
 
-    /** The upright world quad a sprite is placed as, and the constant-size camera-facing blit it can be swapped to. */
-    static final String FIXED = "fixed", SCREEN = "screen";
+    /** The three ways a flat entity — a sprite, a standing widget — can meet the viewer (044.3). */
+    static final String FIXED = "fixed", CAMERA = "camera", SCREEN = "screen";
 
     /**
-     * The {@code mode} of {@code sprite:facing(mode)}, refused by name. <b>{@code "camera"} is refused like any
-     * other unknown mode</b> and not quietly aliased onto {@code "screen"}: a camera facing is a world quad that
-     * turns to the viewer — it keeps its world size, perspective and occlusion, which a screen blit has none of —
-     * so accepting the word for the wrong visual would teach the wrong thing to every reader who tried it.
+     * <b>{@code <entity>:facing()} / {@code :facing(mode)}</b>, one verb for both kinds that have one, because
+     * both pick from the same three modes over the same shared core. Reads the mode string; writes it and hands
+     * back the handle, like every other property (§2.2).
+     *
+     * <p><b>It is a CONSTRUCTION property, so writing it REBUILDS the visual.</b> The mode picks <i>which</i>
+     * drawable is milled — a world quad, a world quad the camera turns, or a screen blit — and nothing can
+     * change that in place. Refusing it after the fact would make the natural reading order illegal, and
+     * deferring the build would move <i>there is no map view</i> off the call site that caused it; so the
+     * rebuild is the property's implementation rather than a rule the caller has to know.
      */
-    private static String facingArg(LuaValue mv) {
-        if(!mv.isstring() || mv.isnumber())
-            throw new LuaError("sprite:facing(mode) expects a mode STRING, \"fixed\" (an upright world quad) or"
-                + " \"screen\" (a constant-size blit that squares up to the camera), got " + mv.typename());
-        String s = mv.tojstring();
-        if(FIXED.equals(s) || SCREEN.equals(s))
-            return s;
-        throw new LuaError("sprite:facing(\"" + s + "\"): a sprite faces \"fixed\" (an upright world quad) or"
-            + " \"screen\" (a constant-size blit that squares up to the camera)");
+    private static VarArgFunction facingVerb(final LuaWorldEntity e, final String kind) {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue mv = Args.written(a, 2, kind + ":facing", "mode");
+                if(mv == null) {
+                    synchronized(e) { return LuaValue.valueOf(e.facing); }
+                }
+                setEntityFacing(e, facingArg(mv, kind));
+                return self;
+            }
+        };
     }
 
     /**
-     * {@code sprite:facing(mode)} — swap between the two visuals a sprite can have, in place. The gob keeps its
-     * identity, its transform and its scene slot; only the {@code Drawable} is replaced, under the gob's own
-     * monitor (the lock the engine's live res-swap holds, because {@code slots} is a plain list shared with the
-     * {@code ctick} path). No-op when unchanged, dead, or still waiting for its gob.
+     * The {@code mode} of {@code <entity>:facing(mode)}, refused by name. Three modes since 044.3, and the
+     * third is the one the spatial framing asks for: {@code "camera"} is still <b>world geometry</b> — real
+     * world size, perspective, occlusion, shrinking with distance — and merely turns to the screen plane,
+     * which is precisely what a {@code "screen"} blit is not and why the two were never the same word.
      */
-    private static void setSpriteFacing(LuaSprite sp, String mode) {
-        synchronized(sp) {
-            if(sp.dead || sp.facing.equals(mode))
+    private static String facingArg(LuaValue mv, String kind) {
+        if(!mv.isstring() || mv.isnumber())
+            throw new LuaError(kind + ":facing(mode) expects a mode STRING — " + MODES + ", got "
+                + mv.typename());
+        String s = mv.tojstring();
+        if(FIXED.equals(s) || CAMERA.equals(s) || SCREEN.equals(s))
+            return s;
+        throw new LuaError(kind + ":facing(\"" + s + "\"): a " + kind + " faces " + MODES);
+    }
+
+    /** The three modes as one phrase, so every refusal names all of them and says what each one is. */
+    private static final String MODES =
+        "\"fixed\" (a world quad at its own :rotate angle), \"camera\" (a world quad that turns to the viewer,"
+        + " in yaw and pitch, keeping its world size) or \"screen\" (a constant-size blit over the scene)";
+
+    /**
+     * {@code <entity>:facing(mode)} — swap between the three visuals a flat entity can have, in place. The gob
+     * keeps its identity, its transform and its scene slot; only the {@code Drawable} is replaced, under the
+     * gob's own monitor (the lock the engine's live res-swap holds, because {@code slots} is a plain list
+     * shared with the {@code ctick} path). No-op when unchanged, dead, or still waiting for its gob.
+     *
+     * <p>For a standing widget the <b>surface is untouched</b>: the offscreen pass, the texture and the widget
+     * inside it are the same objects before and after, so a swap costs a quad, not a re-stand.
+     */
+    private static void setEntityFacing(LuaWorldEntity e, String mode) {
+        synchronized(e) {
+            if(e.dead || e.facing.equals(mode))
                 return;
-            sp.facing = mode;
-            Gob g = sp.gob;
+            e.facing = mode;
+            Gob g = e.gob;
             if(g == null)
                 return;                                // not published yet — the create reads the mode
-            Drawable dr = spriteVisual(g, sp.img, mode);
+            Drawable dr = e.visual(g, mode);
             synchronized(g) {
                 g.setattr(dr);                         // swaps the Drawable attrib: old slots removed, new added
             }
-            refreshEntityScene(sp);                    // obstate reads the look fresh on the re-add
+            refreshEntityScene(e);                     // obstate reads the look fresh on the re-add
         }
-    }
-
-    /**
-     * The one place a sprite's visual is milled, so the create and {@code :facing(mode)} cannot disagree: an
-     * upright quad sized to the image aspect, or a camera-facing screen blit that reads the look live each frame.
-     */
-    private static Drawable spriteVisual(Gob gob, LuaImage img, String facing) {
-        if(SCREEN.equals(facing))
-            return new LuaSpriteBillboard(gob, img);
-        float[] wh = spriteWorldDims(img.sz);
-        return new SprDrawable(gob, SpriteQuad.mill(img.tex, wh[0], wh[1]));
     }
 
     /**
@@ -1267,7 +1272,7 @@ final class VrApi {
      * ~1 tile tall at {@code scale=1}; the uniform {@code :scale} (obstate) then adjusts both. A degenerate (zero)
      * pixel dimension falls back to a square tile. Pure — headless-testable.
      */
-    private static float[] spriteWorldDims(Coord isz) {
+    static float[] spriteWorldDims(Coord isz) {
         float base = (float)MCache.tilesz.y;               // ≈ 1 tile tall at scale 1
         float w = ((isz != null) && (isz.x > 0) && (isz.y > 0)) ? base * ((float)isz.x / (float)isz.y) : base;
         return new float[] { w, base };
@@ -1311,11 +1316,10 @@ final class VrApi {
             u.root.add(surf, Coord.z);                 // in the tree: liveness, ticking and focus all keep resolving
             WidgetSurface.reparent(u, content, surf, Coord.z);
         }
-        float[] wh = surfaceWorldDims(surf.sz);
         GhostGob gob = new GhostGob(g, rc);
         gob.alpha = we.alpha; gob.tint = we.tint; gob.scale = we.scale;   // the look, before the first scene add
         gob.clickable = we.clickable;
-        gob.setattr(new SprDrawable(gob, SurfaceQuad.mill(surf.texture(), wh[0], wh[1])));
+        gob.setattr(we.visual(gob, we.facing));        // the kind's one miller, shared with :facing(mode)
         gob.move(rc, 0.0);
         synchronized(we) {
             if(we.dead) { gob.dispose(); return we; }   // ended mid-build (defensive; all UI-thread)
@@ -1331,8 +1335,10 @@ final class VrApi {
     /**
      * The Lua handle for a {@link LuaWidgetEntity}: the shared entity verbs plus {@code :widget()}, the Widget
      * that is standing — the identity accessor every kind has ({@code :res()}, {@code :image()},
-     * {@code :mesh()}). There is no write half, for the same reason an object's mesh has none: standing another
-     * widget is another {@code hafen.vr():widget():add(w, p)}.
+     * {@code :mesh()}) — and the shared {@code :facing(mode)}, because a surface is flat and so meets the
+     * viewer one of the same three ways a sprite does (044.3). There is no write half to {@code :widget()},
+     * for the same reason an object's mesh has none: standing another widget is another
+     * {@code hafen.vr():widget():add(w, p)}.
      */
     private static LuaValue widgetHandle(final LuaWidgetEntity we) {
         LuaTable x = new LuaTable();
@@ -1345,6 +1351,7 @@ final class VrApi {
                 return LuaWidget.of(we.owner, we.content);
             }
         });
+        x.set("facing", facingVerb(we, "widget"));
         return entityHandle(we, "widget", x);
     }
 
@@ -1384,7 +1391,7 @@ final class VrApi {
      * pixels to the tile, so a 200&times;140 window stands two tiles wide and keeps its aspect exactly. The
      * uniform {@code :scale} adjusts it from there. Pure — headless-testable.
      */
-    private static float[] surfaceWorldDims(Coord sz) {
+    static float[] surfaceWorldDims(Coord sz) {
         float per = (float)MCache.tilesz.y / PX_PER_TILE;
         float w = ((sz == null) || (sz.x <= 0)) ? per : (sz.x * per);
         float h = ((sz == null) || (sz.y <= 0)) ? per : (sz.y * per);

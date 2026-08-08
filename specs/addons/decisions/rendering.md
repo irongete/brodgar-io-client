@@ -71,9 +71,14 @@ decided by **what its content is**, not by a switch the addon sets:
   writer of an owned control.
 - **code** — a `widget:on("Draw", fn)` handler is a Lua function of anything at all, so the only way to know what
   it *would* paint is to run it, and running it **is** the draw. Such a surface therefore redraws **every frame**.
-A running [`Widget.Anim`](src/haven/Widget.java:2085) counts as code for the same reason (the client's own
-show/hide transitions are one), and a surface whose content is still `pending` (D-119) is skipped outright, so the
-first pass is the first one that draws anything rather than a blank texture.
+A running [`Widget.Anim`](src/haven/Widget.java:2085) counts as code for the same reason, and a surface whose
+content is still `pending` (D-119) is skipped outright, so the first pass is the first one that draws anything
+rather than a blank texture. ⚠️ **This entry originally added "(the client's own show/hide transitions are one)"
+to that first clause, and it was WRONG**: a [`Window`](src/haven/Window.java:532)'s fade is its own private
+`anim` field, not a `Widget.Anim` in `anims`/`nanims`, so nothing here saw it and every standing window could
+freeze on the fade's first, near-transparent frame — which the world quad's `TexClip` then discarded **whole**.
+Corrected in **044.3** (`Window.animating()`, a `// addon:` one-liner, asked beside the two lists); the decision
+above stands unchanged, since "a transition is code" was always the rule — only the enumeration was short.
 **Consequences.** The headline number is honest in both directions and the suite asserts **both**: a control panel
 holds `uploads` at 1 while `frames` climbs, and one label change costs exactly one more; a hand-painted panel moves
 them together. That second half is not a concession — the spec's own example paints the smelter's fuel level, which
@@ -88,3 +93,29 @@ round trip per frame — each more expensive than the pass it would avoid. Split
 one walk and is exact on the half that matters, which is the half an addon fills with labels.
 **See.** [D-191](widgets-ui.md#d-191), [D-119](widgets-ui.md#d-119), [D-051](architecture-api.md#d-051),
 [026-text-cache](../026-text-cache/spec.md) (the same redraw-on-change principle, one level down).
+
+### D-193 — a thing that turns to the viewer aligns with the view PLANE, not with the eye point ✅ (044.3, 2026-08-08)
+**Decision.** `"camera"` — the third [`:facing`](architecture-api.md#d-190) mode, on a sprite and on a standing
+widget alike — orients its quad **parallel to the screen**: the quad's normal takes the camera's *back* axis, its
+width the camera's *right* and its height the camera's *up*, all three read straight off the columns of the
+inverse view matrix. It does **not** aim the quad at the eye point, which is the other thing "faces the viewer"
+can mean.
+**Rationale.** The mode exists to be *read*, and view-plane alignment is the one that is exactly square-on
+**everywhere on screen**: an eye-aimed quad is square-on only at the centre and is progressively sheared toward
+the edges, under a projection that is already a perspective frustum. It also keeps two panels standing side by
+side **parallel** to each other rather than splaying, which is what makes a row of them look placed rather than
+scattered. And it is cheaper and steadier: one rotation per frame for every camera-facing thing in the world,
+instead of one per entity per frame, and no dependence on the entity's own position — so a panel does not swim as
+you walk past it. The two modes agree exactly where they must: with the camera due east of a quad at
+`:rotate(0)`, the rotation composes to the identity, which is where the `"fixed"` quad already faces.
+**Consequences.** It is still **world geometry** — real world size, perspective, occlusion, shrinking with
+distance, and picked by the ordinary pick — which is the whole distinction from `"screen"`. `:rotate(a)` is
+*stored but unused* while it faces the camera and is honoured again the moment it is `"fixed"`, so the angle is
+never lost. The turn is a [`Gob.Placer`](../../codebase/world-3d.md) on the `Drawable`, so the render tree's own
+per-frame placement tick applies it: no tick loop, and one `// addon:` accessor (`MapView.camview()`) is the only
+thing the client had to expose. **The corollary is a fact the docs must carry**: a quad rising along the camera's
+up axis lies in the *horizontal plane through its anchor* when the camera looks straight down — at ground level
+that is the terrain's own plane, and it is lost in it. `<entity>:offset(x, y, z)` ([D-187](architecture-api.md#d-187))
+is the answer; centring the quad on its anchor is not, since it stays coplanar either way.
+**See.** [D-190](architecture-api.md#d-190), [D-194](architecture-api.md#d-194),
+[D-113](architecture-api.md#d-113), [044-spatial-ui](../044-spatial-ui/spec.md).

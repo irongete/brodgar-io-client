@@ -263,4 +263,36 @@
   `added()` calls `initanim()`, so a window REPARENTED into a surface starts a show transition, and a
   state-signature cannot see an animation's progress — a surface with anything in `anims`/`nanims` must count as
   changing or it freezes on the transition's first frame. Both are cases of the same thing: *a dirty check over
-  state must enumerate the things that change without changing state.*
+  state must enumerate the things that change without changing state.* **⚠️ (2) is HALF RIGHT and shipped broken —
+  see the 044.3 entry below: a `Window`'s transition is not in `anims`/`nanims` at all.**
+- **(044.3) "Enumerate the things that change without changing state" was the right rule and the WRONG list — a
+  `Window`'s transition is not a `Widget.Anim`.** 044.1 wrote that a surface with anything in `anims`/`nanims`
+  must count as changing, *naming the client's own show/hide transitions as the case it covered*. It does not
+  cover them: [`Window`](src/haven/Window.java:532) keeps its fade in its **own private `anim` field**, ticked in
+  `Window.tick`, entirely separate from [`Widget.anims`/`nanims`](src/haven/Widget.java:2082). So every standing
+  window was one frame's luck away from freezing on the first frame of its own fade-in. The failure is much worse
+  than "a bit faint", because the world quad's material carries `TexClip` (discard alpha `< 0.5`): a texture
+  captured at `na ≈ 0.05` is discarded **whole**, so the panel is *absent*, while the `"screen"` blit — no clip —
+  shows the same texture faintly. That difference is what finally located it. It is timing-dependent (the
+  `pending` gate can outlast the 0.1 s `FadeAnim`, in which case the single upload is already the finished
+  window), so a fresh client looked perfect and every post-`:reload` generation was broken — for two whole tasks.
+  Fixed with a `// addon:` `Window.animating()` asked beside the two lists. **Rule: when a learning names the
+  cases a rule covers, open the class and check that the case is IN the list you wrote — "the client's own
+  transitions are one" was an assumption about where an animation lives, stated as an enumeration.**
+- **(044.3) To turn a world quad every frame, override the `Drawable`'s `Gob.Placer` — the render tree already
+  re-reads it.** [`Gob.Placed.autotick`](src/haven/Gob.java:945) rebuilds a `Placement` each frame and takes its
+  rotation from [`Gob.placer().getr(rc, a)`](src/haven/Gob.java:875), and [`Gob.placer()`](src/haven/Gob.java:577)
+  asks the `Drawable` first ([`Drawable.placer()`](src/haven/Drawable.java:50), public and overridable). So a
+  camera-facing quad is a `SprDrawable` subclass whose `placer()` returns a `Placer` that computes the rotation and
+  delegates `getc` to `glob.map.trnplace` — **no tick loop, no polling, no per-frame write from the addon layer**,
+  and `Placement.equals` compares the matrix so a still camera costs nothing. The same shape as R2a's "attach a
+  `Moving` and the tree does the work", one slot along: *for a client-only entity, look for the engine hook the
+  render tree already re-evaluates before adding a loop of your own.* The camera itself is the only thing that had
+  to be exposed (`MapView.camview()`), because `Placer.getr` runs outside any render pass and has no `Pipe`.
+- **(044.3) A camera-facing quad anchored at the feet lies in the GROUND PLANE when the camera looks straight
+  down.** It rises along the camera's *up* axis; make up horizontal and the quad is horizontal, at the anchor's
+  own z — which at ground level is the terrain's plane, so it is lost in it. This is geometry, not a bug, and it
+  is not fixed by centring the quad on its anchor (still coplanar): the fix is **elevation**, i.e. the
+  `<entity>:offset(x, y, z)` D-187 already put on the handle. Worth stating because the first instinct on seeing
+  it is to hunt for a depth/culling fault in the new code, and half an hour went that way before the elimination
+  test (only the camera-facing things vanish; the `"screen"` blit never does) named it in one line.

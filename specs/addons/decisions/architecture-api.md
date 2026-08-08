@@ -2029,3 +2029,28 @@ of legal values changed. Generally: *when a property's domain is a family rather
 — and let the member that does not exist yet raise, because an alias is a wrong answer that survives the fix.*
 **See.** [D-113](#d-113), [D-184](#d-184), [D-189](#d-189),
 [043-vr-namespace](../043-vr-namespace/spec.md), [044-spatial-ui](../044-spatial-ui/spec.md).
+
+### D-194 — a property that lives on the SHARED core reaches every kind on that core, whole ✅ (044.3, 2026-08-08)
+**Decision.** `:facing(mode)` was a sprite's property. 044.3 needed its third value, `"camera"`, on a **standing
+widget** as well — and rather than give the widget the one mode it was asked for, the property moved down onto
+[`LuaWorldEntity`](src/io/brodgar/addon/LuaWorldEntity.java) with **all three of its values**, so a sprite and a
+standing widget answer the same `"fixed"`/`"camera"`/`"screen"` and the same refusal. The kinds that do *not* have
+the property — a ghost, an object — expose no `:facing` verb at all rather than a stubbed or partial one, because
+a model already meets the viewer from every side. Each kind supplies only `visual(gob, mode)`, one method saying
+what it looks like in each mode.
+**Rationale.** A shared core is a claim about vocabulary, not just about plumbing: two kinds on one core that
+answer *different subsets* of one verb are two vocabularies wearing one name, and the reader has to learn which
+subset each has — the thing [D-013](#d-013) exists to prevent. The partial alternative was concretely worse here:
+`"screen"` would have raised on a widget for exactly one feature's length, and 044.4 (input, "all three modes")
+would then have had to widen the domain — re-opening precisely the shape [D-190](#d-190) made a *value* so it
+would never be re-opened. Widening a domain later is also the migration the codebase keeps paying for, while
+shipping it whole cost one `Drawable` (`LuaSurfaceBillboard`, [`LuaSpriteBillboard`](src/io/brodgar/addon/LuaSpriteBillboard.java)'s
+twin over a render target instead of a PNG).
+**Consequences.** `:facing` is built once (`VrApi.facingVerb`) and installed on the two handles that have it;
+`setEntityFacing` is kind-agnostic and swaps the `Drawable` in place ([D-113](#d-113)), so for a standing widget
+the surface, its texture and the widget inside it are the **same objects** before and after — a mode change costs
+a quad, not a re-stand. The rule generalises: *when a property moves onto a shared core, move its whole domain, and
+give the kinds that do not have it no verb rather than a subset.* The corollary is that a kind joining the core
+later either answers the whole property or declines it — there is no third position.
+**See.** [D-190](#d-190), [D-113](#d-113), [D-013](#d-013), [D-193](rendering.md#d-193),
+[D-185](#d-185), [044-spatial-ui](../044-spatial-ui/spec.md).
