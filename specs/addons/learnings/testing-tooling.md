@@ -1233,3 +1233,13 @@
   absolute `C:/…` element of a `;`-separated list). Copying the compiled package into a throwaway repo-local dir
   (`probe-tmp/`, deleted after) and putting *that* on the classpath ran first time. Keep probe **classes**
   repo-local and transient; the scratchpad is fine for sources and outputs.
+- **(043.4) A `:list(filter)` refusal asserted on an EMPTY collection CANNOT fail — the filter is validated per
+  member, so with no members nothing raises.** `LuaCollection`'s `list`/`count`/`find` call `keeps(filter, …)`
+  *inside* the member loop, which is right (the needle is per member) but means a bad filter on an empty set is
+  silently accepted. A headless probe driving `hafen.vr():list(true)` with nothing standing reported
+  `filterRefused=<no error>` — which reads exactly like "the refusal is missing" and is really "the loop that
+  raises never ran"; in-game, with four entities standing, the same call refuses correctly. Two rules. *Assert a
+  per-member refusal with at least one member present* — in a suite that means placing before refusing, not
+  after clearing. And *when a probe reports `<no error>` for a refusal you have read the code for, check whether
+  the raising path was reachable at all before changing the code*: this is the empty-set twin of 043.2's "a check
+  whose failure list is only in the `got` slot cannot fail".

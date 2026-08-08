@@ -1982,3 +1982,28 @@ object belongs to two questions, hide the WRITE from one of them, never the obje
 read with refusals is honest, an incomplete read is a lie you cannot see.*
 **See.** [D-103](#d-103), [D-185](#d-185), [D-187](#d-187), [D-102](#d-102),
 [043-vr-namespace](../043-vr-namespace/spec.md).
+
+### D-189 — a section-wide switch is a SECOND boolean beside the thing's own, never a write over it ✅ (2026-08-08)
+**Decision.** `hafen.vr():visible(b)` takes an addon's whole section off screen and puts it back. It is one flag
+on the addon, and an entity is in the scene when **its own** `:visible()` says so **AND** the section's does —
+two independent booleans, ANDed at the two moments a scene slot is added or removed. So switching the section
+back on restores *what was visible*, not everything: an entity hidden on its own handle stays hidden, a
+`:visible(b)` written while the section is off is remembered and takes effect when it returns, and a thing
+placed while the section is off is created, listed, and simply stays out of the scene until it comes back.
+Nothing is destroyed by either write — the gob, the transform and the handle all survive, so `:exists()` stays
+true and every verb answers throughout.
+**Rationale.** (2026-08-08, 043.4.) Two shapes were rejected. The first has the switch **write** each entity's
+own flag and keep a saved list to restore from: that list is a second copy of state, and it is stale the moment
+an entity is created or destroyed while the switch is off — and "hide one, hide the section, show the section"
+loses which of the two hid it. The second is a single flag consulted at **draw** time: cheap to write, but it
+puts a per-frame branch on the render path for a state that changes by hand, which is exactly the shape
+[D-099](#d-099)/[D-100](#d-100) exist to refuse. The AND costs nothing, because it is read precisely where the
+slot is added or removed — already the only place either write does anything.
+**Consequences.** The two `:visible` verbs read **different** things, and must: `<entity>:visible()` is that
+entity's own answer and `hafen.vr():visible()` is the section's. Neither is "is it on the screen right now", and
+no verb claims to be — which is why the suite's two visual checks are `[manual]` rather than assertions. The
+same shape admits a fourth kind for free ([044](../044-spatial-ui/)): the switch walks the registered kinds, not
+a branch over three. Generally: *a bulk switch over things that each already carry the same property does not
+write that property — it stands beside it, and the effective value is the AND.*
+**See.** [D-099](#d-099), [D-100](#d-100), [D-184](#d-184),
+[043-vr-namespace](../043-vr-namespace/spec.md).

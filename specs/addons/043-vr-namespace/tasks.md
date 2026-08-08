@@ -53,7 +53,7 @@
   and every write through it refused, naming the collection that owns it; the **game's own**
   overlays read exactly as before — same keys, same `:count()` union, same `:info()` shape.
 
-- [ ] **043.4 — Seeing it all, and hiding it all**
+- [x] **043.4 — Seeing it all, and hiding it all**
   `hafen.vr():list()` across all three kinds, and `hafen.vr():visible(b)` as the section-wide
   switch. The restore rule is the one that needs care: showing the section back must restore
   **what was visible**, not turn everything on — an entity the addon had hidden individually
@@ -75,8 +75,11 @@
   gain one, and the 12 remaining pages naming the old sections are swept. **`api/gob.md` also owes what 043.3
   did**: the three kinds and the world verb set are gone from the Overlay object, `ov:offset(x, y)` is screen
   pixels and a third argument raises, and an anchored `hafen.vr()` entity is listed there read-only (D-188) —
-  while `api/vr/**` owes the verb that moved with the kinds, `<entity>:offset(x, y, z)` (D-187). Runs area
-  `docs`'s §12 checklist and reports it.
+  while `api/vr/**` owes the verb that moved with the kinds, `<entity>:offset(x, y, z)` (D-187). **And what 043.4
+  did**: the hub page owes `hafen.vr():list(filter)` — every entity across the kinds, in creation order, taking
+  the same canonical filter a per-kind list takes — and `hafen.vr():visible(b)`, the section switch that destroys
+  nothing and restores what WAS visible (D-189), stated beside `<entity>:visible(b)` so the two reads are
+  plainly different questions. Runs area `docs`'s §12 checklist and reports it.
   *Suite proves*: `:facing()` reads back `"fixed"` and `"screen"`; `"camera"` raises naming the
   valid modes; an unknown mode raises the same way; `:billboard` raises naming `:facing`; the
   stored-layout round-trip works through the new field; the docs sweep is reported as counts.

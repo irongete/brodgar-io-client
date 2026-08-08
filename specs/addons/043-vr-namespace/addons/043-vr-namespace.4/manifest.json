@@ -1,0 +1,9 @@
+{
+  "name": "043.4 — seeing it all, and hiding it all",
+  "id": "043-vr-namespace.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 043.4: hafen.vr():list() is everything this addon has stood in the world — all three kinds, in the order they were stood, and nobody else's — and hafen.vr():visible(b) is the section-wide switch that destroys nothing and restores exactly what was visible.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

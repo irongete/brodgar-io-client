@@ -72,13 +72,110 @@ final class VrApi {
      *
      * <p>The kinds are <b>registered</b> rather than branched on, so 044's {@code :widget()} is one more
      * {@link #collection} line and nothing here has to be re-opened to admit it.
+     *
+     * <p><b>Two verbs read and write the section as a whole</b> (043.4), and both are the answer to a question a
+     * per-kind collection cannot be asked: {@code :list(filter)} is <i>everything you have stood in the world</i>,
+     * across the kinds and in the order you stood it, and {@code :visible(b)} takes the lot off screen and puts it
+     * back. They span the registered kinds through {@link #allEntities}, so the fourth joins them for free.
      */
     static void installVr(LuaTable hafen, final Addon owner) {
         LuaTable m = new LuaTable();
         collection(m, "ghost", ghostCollection(owner));
         collection(m, "sprite", spriteCollection(owner));
         collection(m, "object", objectCollection(owner));
+        // list(filter) — every entity this addon has standing, all three kinds at once, as the plain 1-based
+        // array a collection's own :list() hands back. The filter is the canonical one (§2.3, and the very
+        // function the per-kind lists use), so it means here exactly what it means one verb down.
+        m.set("list", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "vr", "list");
+                LuaValue filter = a.arg(2);
+                LuaTable t = new LuaTable();
+                int n = 0;
+                for(LuaWorldEntity e : allEntities(owner)) {
+                    if(LuaCollection.keeps(filter, e.handle, true, e.visualName(), "hafen.vr()", "list"))
+                        t.set(++n, e.handle);
+                }
+                return t;
+            }
+        });
+        // visible() / visible(b) — the section switch, a property like every other: arity is the verb, and the
+        // write hands back the section so it chains. It is this ADDON's section; nobody else's entities move.
+        m.set("visible", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                Section.self(self, "vr", "visible");
+                LuaValue bv = Args.written(a, 2, "hafen.vr():visible", "b");
+                if(bv == null)
+                    return LuaValue.valueOf(!owner.vrHidden);
+                setSectionVisible(owner, bv.toboolean());
+                return self;
+            }
+        });
         Section.install(hafen, "vr", m);
+    }
+
+    /**
+     * <b>Everything this addon has standing in the world</b>, whatever kind — the one walk behind
+     * {@code hafen.vr():list()} and {@code hafen.vr():visible(b)}. It reads the registered kinds' registries and
+     * nothing else, so 044's fourth collection is covered by both verbs the moment its registry is added here.
+     *
+     * <p><b>In creation order</b>, by {@link LuaWorldEntity#eid} — the serial every entity already carries for its
+     * read-only key at a gob. Concatenating the three registries would answer the same SET, but grouped by an
+     * implementation detail; "the order you stood them" is a contract a reader can predict, and the sort is over
+     * an addon's handful of entities.
+     */
+    private static List<LuaWorldEntity> allEntities(Addon owner) {
+        List<LuaWorldEntity> out = new ArrayList<LuaWorldEntity>();
+        collectLive(out, owner.ghosts);
+        collectLive(out, owner.sprites);
+        collectLive(out, owner.objects);
+        java.util.Collections.sort(out, BY_BIRTH);
+        return out;
+    }
+
+    /** The live, published members of one registry (copy-on-write: a filter fn may create or destroy one). */
+    private static void collectLive(List<LuaWorldEntity> out, List<? extends LuaWorldEntity> reg) {
+        for(LuaWorldEntity e : reg) {
+            if(!e.dead && (e.handle != null))
+                out.add(e);
+        }
+    }
+
+    /** Creation order across the kinds: the {@code eid} serial, which is monotonic for the client's life. */
+    private static final java.util.Comparator<LuaWorldEntity> BY_BIRTH =
+        new java.util.Comparator<LuaWorldEntity>() {
+            public int compare(LuaWorldEntity x, LuaWorldEntity y) {
+                return (x.eid < y.eid) ? -1 : ((x.eid > y.eid) ? 1 : 0);
+            }
+        };
+
+    /**
+     * {@code hafen.vr():visible(b)} — take this addon's whole section off screen, or put it back. <b>Destroys
+     * nothing</b>: each entity keeps its gob, its transform and its handle, and only its scene slot goes, so
+     * {@code :exists()} stays true and every verb still answers throughout.
+     *
+     * <p><b>Showing restores what was visible, not everything.</b> The switch is a second boolean beside the
+     * entity's own {@link LuaWorldEntity#hidden} rather than a write over it, so an entity the addon had hidden
+     * individually is skipped by both halves of this loop and simply stays hidden — and a {@code :visible(b)}
+     * written while the section is off is remembered and takes effect when it comes back. Neither boolean is read
+     * at draw time: the slot is added and removed here, exactly as {@link #hideEntity}/{@link #showEntity} do it
+     * one entity at a time.
+     */
+    private static void setSectionVisible(Addon owner, boolean on) {
+        if(owner.vrHidden == !on)
+            return;                                    // already there: a no-op write touches no scene
+        owner.vrHidden = !on;                          // set FIRST, so an entity published mid-loop reads it
+        for(LuaWorldEntity e : allEntities(owner)) {
+            synchronized(e) {
+                if(e.dead || e.hidden)
+                    continue;                          // its own state governs: an individually hidden one stays out
+                if(on)
+                    attachScene(e);
+                else
+                    detachScene(e);
+            }
+        }
     }
 
     /** {@code hafen.vr():ghost()} — this addon's client-only world props, keyless (a ghost has no name of its own). */
@@ -523,7 +620,7 @@ final class VrApi {
                     gh.gob = gob;
                     gh.mv = mv;
                     applyEntityFollow(gh, gob);              // ANCHOR: if follow= was given, start tracking the gob now
-                    if(!gh.hidden)                           // V3: a ghost hidden before it published stays out of the scene
+                    if(shows(gh))                            // hidden before it published — its own, or its whole section's — stays out
                         addToScene(gh, mv);                  // the // addon: MapView seam; Resolve retries when the tile is not here yet
                 }
             }
@@ -831,8 +928,8 @@ final class VrApi {
      */
     private static void retryAdd(LuaWorldEntity e) throws Loading {
         synchronized(e) {
-            if(e.dead || e.hidden || (e.gob == null) || (e.mv == null))
-                return;                                // gone, hidden again, or detached while we waited
+            if(e.dead || !shows(e) || (e.gob == null) || (e.mv == null))
+                return;                                // gone, hidden again (its own or its section's), or detached while we waited
             e.slot = e.mv.addClientGob(e.gob);
             e.gob.move(e.rc, e.a);                      // apply any :position/:rotate that landed while pending
         }
@@ -897,7 +994,7 @@ final class VrApi {
             ob.gob = gob;
             ob.mv = mv;
             applyEntityFollow(ob, gob);                 // ANCHOR: an overlay's model starts tracking its gob now
-            if(!ob.hidden)
+            if(shows(ob))                               // 043.4: and its whole section has to be showing too
                 addToScene(ob, mv);                     // the // addon: MapView seam; Resolve retries when the tile is not here yet
         }
         return ob;
@@ -997,7 +1094,7 @@ final class VrApi {
             sp.gob = gob;
             sp.mv = mv;
             applyEntityFollow(sp, gob);                 // ANCHOR: an overlay's sprite starts tracking its gob now
-            if(!sp.hidden)                              // a sprite hidden before it published stays out of the scene
+            if(shows(sp))                               // hidden before it published — its own, or its whole section's — stays out
                 addToScene(sp, mv);                     // the // addon: MapView seam; Resolve retries when the tile is not here yet
         }
         return sp;
@@ -1173,41 +1270,70 @@ final class VrApi {
     }
 
     /**
-     * Remove the entity from the scene ({@code g:hide()}, V3) — drops the scene slot (so it stops rendering/ticking)
-     * but <b>keeps</b> the gob so {@code :show()} can re-add it. Marks {@link LuaWorldEntity#hidden} so a hide that
-     * lands before the deferred create published keeps the prop out of the scene. No-op if already hidden/dead.
-     * Under the entity monitor.
+     * <b>Should this entity be in the scene right now?</b> Two independent booleans, ANDed (043.4): what the entity
+     * itself was told ({@code <entity>:visible(b)}) and what its whole section was told
+     * ({@code hafen.vr():visible(b)}). Keeping them apart is the restore rule — the section switch never overwrites
+     * the entity's own answer, so showing the section back puts back exactly what was visible. Read by every
+     * publish and by both switches; never at draw time.
+     */
+    private static boolean shows(LuaWorldEntity e) {
+        return !e.hidden && !e.owner.vrHidden;
+    }
+
+    /**
+     * Put a live entity's gob into the scene. Shared by both visibility switches and by {@link #showEntity}, so the
+     * per-entity verb and the section-wide one cannot drift apart. No-op when the visual has not published yet (the
+     * create reads the flags when it does) or when it is already in. Caller holds the entity monitor.
+     */
+    private static void attachScene(LuaWorldEntity e) {
+        if((e.gob == null) || (e.mv == null) || (e.slot != null))
+            return;
+        try {
+            e.slot = e.mv.addClientGob(e.gob);
+            e.gob.move(e.rc, e.a);                     // re-assert position/facing after the re-add
+        } catch(RuntimeException ex) {
+            /* scene gone (relog), or the tile is not here — the entity simply stays out */
+        }
+    }
+
+    /** Take a live entity's gob out of the scene — the inverse of {@link #attachScene}. Caller holds the monitor. */
+    private static void detachScene(LuaWorldEntity e) {
+        if((e.gob == null) || (e.mv == null) || (e.slot == null))
+            return;
+        try { e.mv.removeClientGob(e.gob, e.slot); }
+        catch(RuntimeException ex) { /* scene gone (relog) — flag set, no scene op */ }
+        e.slot = null;
+    }
+
+    /**
+     * Remove the entity from the scene ({@code <entity>:visible(false)}, V3) — drops the scene slot (so it stops
+     * rendering/ticking) but <b>keeps</b> the gob so showing it re-adds it. Marks {@link LuaWorldEntity#hidden} so a
+     * hide that lands before the deferred create published keeps the prop out of the scene. No-op if already
+     * hidden/dead. Under the entity monitor.
      */
     private static void hideEntity(LuaWorldEntity e) {
         synchronized(e) {
             if(e.dead || e.hidden)
                 return;
             e.hidden = true;
-            if((e.gob != null) && (e.mv != null) && (e.slot != null)) {
-                try { e.mv.removeClientGob(e.gob, e.slot); }
-                catch(RuntimeException ex) { /* scene gone (relog) — flag set, no scene op */ }
-                e.slot = null;
-            }
+            detachScene(e);
         }
     }
 
     /**
-     * (Re)add the entity to the scene ({@code g:show()}, V3) — the inverse of {@link #hideEntity}. No-op if not
-     * hidden/dead. Under the entity monitor.
+     * (Re)add the entity to the scene ({@code <entity>:visible(true)}, V3) — the inverse of {@link #hideEntity}.
+     * No-op if not hidden/dead. <b>Independent of the section switch</b> (043.4): the entity's own answer is
+     * recorded either way, and it only enters the scene if its section is showing too — so this verb keeps working
+     * while {@code hafen.vr():visible(false)} is in force, and what it wrote is what the section restores.
+     * Under the entity monitor.
      */
     private static void showEntity(LuaWorldEntity e) {
         synchronized(e) {
             if(e.dead || !e.hidden)
                 return;
             e.hidden = false;
-            if((e.gob != null) && (e.mv != null) && (e.slot == null)) {
-                try {
-                    e.slot = e.mv.addClientGob(e.gob);
-                    e.gob.move(e.rc, e.a);             // re-assert position/facing after the re-add
-                } catch(RuntimeException ex) {
-                    /* scene gone (relog) — flag cleared, no scene op */
-                }
-            }
+            if(shows(e))
+                attachScene(e);
         }
     }
 

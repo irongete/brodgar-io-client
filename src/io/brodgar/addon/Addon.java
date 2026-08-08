@@ -260,6 +260,24 @@ public final class Addon {
      */
     public final List<LuaObject> objects = new CopyOnWriteArrayList<LuaObject>();
     /**
+     * <b>This addon's whole {@code hafen.vr()} is switched off</b> ({@code hafen.vr():visible(false)}, 043.4) — one
+     * flag beside the three registries above, because the switch is the SECTION's state and there is exactly one
+     * section per addon. It destroys nothing: every entity keeps its gob, its transform and its handle, and only
+     * its scene slot goes.
+     *
+     * <p><b>It never overwrites what an entity was told.</b> An entity is in the scene when its own
+     * {@link LuaWorldEntity#hidden} says so AND this says so, so switching the section back on restores <i>what was
+     * visible</i> rather than turning everything on — one the addon had hidden with {@code <entity>:visible(false)}
+     * stays hidden, and a {@code :visible(b)} written while the section is off is remembered and takes effect when
+     * it comes back. Two independent booleans, neither consulted at draw time: the scene slot is added and removed
+     * when one of them changes.
+     *
+     * <p>Volatile rather than guarded: the writes are UI-thread (the Lua verb) and the reads are the entity
+     * publishes, which include a ghost's deferred create on a loader thread. Reset with the addon object itself on
+     * {@code :reload}, so a reloaded addon starts visible.
+     */
+    public volatile boolean vrHidden;
+    /**
      * Live modal mouse-drag captures owned by this addon ({@code hafen.ui():mouse():grab()}, 041.5 — before,
      * {@code hafen.hook():grab}): each is a {@link LuaMouseGrab} widget on {@code ui.root} that forwards mouse
      * move/up to Lua over its own {@link Subs} while capturing the drag (the gizmo's drag primitive). Normally
