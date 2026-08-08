@@ -13,7 +13,6 @@ import haven.render.Pipe;
 import haven.render.RenderTree;
 
 import org.luaj.vm2.LuaError;
-import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 import java.awt.Color;
@@ -23,8 +22,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The <b>screen-space half of {@code gob:overlay}</b> — a thing an addon attached to one game object, painted at
- * that object's projected point (spec {@code 038-gob-overlays}, task 038.1). It is a {@link GAttrib} that is
+ * <b>What an addon draws at one game object</b> — a thing it attached to that gob, painted at that object's
+ * projected point (spec {@code 038-gob-overlays}, task 038.1; the world kinds left in 043.3, so this is no
+ * longer "the screen-space half" of anything — it is the whole of it). It is a {@link GAttrib} that is
  * <i>also</i> a {@link RenderTree.Node} and {@link PView.Render2D}, exactly like the voice
  * {@code haven.SpeakerIcon}: the render tree keeps it pinned above the gob in every camera and disposes it with
  * the gob, and its 2D pass runs once per frame from {@code PView.draw} &rarr; {@code list2d.draw} (on the UI
@@ -85,18 +85,18 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
      * with it the one-shot parse: a record's own state IS the configuration, so {@code ov:text("…")} relabels a
      * live overlay instead of replacing it.
      *
-     * <p><b>A bare record draws nothing.</b> It has no {@link #kind} until one of the five kind setters names
+     * <p><b>A bare record draws nothing.</b> It has no {@link #kind} until one of the two kind setters names
      * one, which is what makes "a half-configured overlay never paints" a property of the shape rather than a
      * rule to remember: there is nothing to paint until the overlay says what it is. A second, different kind is
      * refused — an overlay says ONE thing, and picking a winner is how one of them silently stops meaning
      * anything.
      *
-     * <p><b>Two spaces</b> (038.2, unchanged). {@code :draw(fn)} and {@code :text(s)} paint in <b>screen
-     * space</b> at the gob's projected point, from this attrib's own draw pass. {@code :image(a)},
-     * {@code :model(a)} and {@code :ghost(res)} stand in the <b>3D world</b> anchored to the gob: the record
-     * holds a client-only {@link LuaWorldEntity} carrying a {@link FollowMoving}, which is not painted here at
-     * all — the render tree draws it as it draws any other world entity, and this record is what OWNS it (a
-     * replace, a remove and the gob's own death each end it).
+     * <p><b>ONE space, since 043.3.</b> A record paints in <b>screen space</b> at the gob's projected point,
+     * from this attrib's own draw pass — {@code :draw(fn)} or {@code :text(s)}, and nothing else. The three
+     * world kinds ({@code :image}/{@code :model}/{@code :ghost}) are gone: what they built was never an engine
+     * overlay but a client gob of its own standing in the scene, so it is created, listed and ended in
+     * {@code hafen.vr()}, which is where such a thing lives. A record therefore owns no entity, which is why
+     * there is no {@code dispose} here any more and why {@code :offset} means exactly one thing (pixels).
      *
      * <p><b>Mutable, and read from the draw pass</b>, so every configured field is {@code volatile}: the writes
      * come from a Lua verb on the UI thread and the reads from {@link #paintRecords} one frame later, and a
@@ -105,37 +105,21 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
     static final class Attach {
         final Addon owner;
         final String key;
-        /** The gob this record is attached to — what a rebuilt world entity anchors itself to again. */
-        final long gobId;
 
-        /** {@code "draw"}, {@code "text"}, {@code "image"}, {@code "model"} or {@code "ghost"}, or null while bare. */
+        /** {@code "draw"} or {@code "text"}, or null while the record is still bare. */
         volatile String kind;
-        /** {@code :draw(fn)} — {@code fn(g, gob, sx, sy)}, or null for every other kind. */
+        /** {@code :draw(fn)} — {@code fn(g, gob, sx, sy)}, or null for a text record. */
         volatile LuaValue draw;
-        /** {@code :text(s)} — the label, or null for every other kind. */
+        /** {@code :text(s)} — the label, or null for a draw record. */
         volatile String text;
-        /** {@code :image(a)} / {@code :model(a)} — the asset handle the visual is milled from. */
-        volatile LuaValue visual;
-        /** {@code :ghost(res)} — the {@code .res} name of a game model. */
-        volatile String res;
-        /** {@code :spawnData(sdt)} — spawn-data bytes picking a resource variant (a ghost only). */
-        volatile LuaValue spawnData;
-        /** {@code :billboard(b)} — a camera-facing blit rather than an upright quad (an image only). */
-        volatile boolean billboard;
         /** {@code :color(…)} for a text record; null = the stock white. */
         volatile Color color;
-        /** {@code :offset(…)} — screen pixels on a screen kind, world units ({@code z} up) on a world one. */
-        volatile double offX, offY, offZ;
-        /** The look, kept here as well as on the entity so a rebuilt visual comes back looking the same. */
-        volatile double scale = 1.0, alpha = 1.0, rotate = 0.0;
-        volatile Color tint;
-        /** The client-only entity a WORLD-space record owns, or null while it is bare or screen-space. */
-        volatile LuaWorldEntity ent;
+        /** {@code :offset(x, y)} — screen pixels from the gob's projected point, and only ever that. */
+        volatile double offX, offY;
 
-        Attach(Addon owner, String key, long gobId) {
+        Attach(Addon owner, String key) {
             this.owner = owner;
             this.key = key;
-            this.gobId = gobId;
         }
 
         /** What this record paints, or null while it is bare (the {@code kind} of {@code overlay:info()}). */
@@ -143,79 +127,15 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
             return kind;
         }
 
-        /** Is this one painted in the 3D world (rather than at the gob's projected screen point)? */
-        boolean world() {
-            return worldKind(kind);
-        }
-
         /** Is it configured enough to paint at all? A bare record is not, and that is its whole guarantee. */
         boolean drawn() {
             return kind != null;
         }
 
-        /** The screen-space offset from the projected anchor point (the screen kinds). */
+        /** The screen-space offset from the projected anchor point. */
         Coord screenOffset() {
             return Coord.of((int)Math.round(offX), (int)Math.round(offY));
         }
-
-        /** The world-space offset from the gob ({@code z} up) — what a {@link FollowMoving} adds every frame. */
-        Coord3f worldOffset() {
-            return new Coord3f((float)offX, (float)offY, (float)offZ);
-        }
-
-        /** End this record: a world-space one destroys the entity it owns; a screen-space one has nothing to free. */
-        void dispose() {
-            LuaWorldEntity e = ent;
-            ent = null;
-            if(e != null)
-                VrApi.destroyOverlayEntity(e);
-        }
-
-        /**
-         * Build (or REBUILD) the world entity from the record's current configuration, and hand the look back to
-         * it. The new one is built <b>before</b> the old one is destroyed, so a bad asset handle or a missing map
-         * view raises with the overlay left exactly as it was — the 038 property that a failed attach changes
-         * nothing, kept now that the configuration arrives one setter at a time.
-         *
-         * <p>Only the two <b>construction</b> properties force a rebuild after the fact ({@code :billboard},
-         * {@code :spawnData}): they pick which visual is milled, and nothing can change that in place. Everything
-         * else — scale, alpha, tint, facing, offset — is set on the live entity and merely remembered here.
-         */
-        void materialise() {
-            if(!world())
-                return;
-            LuaTable spec = new LuaTable();
-            if(kind.equals("ghost")) {
-                spec.set("ghost", LuaValue.valueOf(res));
-                if(spawnData != null)
-                    spec.set("sdt", spawnData);
-            } else {
-                spec.set(kind, visual);
-                if(billboard)
-                    spec.set("billboard", LuaValue.TRUE);
-            }
-            LuaWorldEntity built = VrApi.overlayEntity(owner, gobId, spec, kind, worldOffset());
-            LuaWorldEntity old = ent;
-            ent = built;
-            if(old != null)
-                VrApi.destroyOverlayEntity(old);
-            if(scale != 1.0)
-                VrApi.overlayScale(built, scale);
-            if(alpha != 1.0)
-                VrApi.overlayAlpha(built, alpha);
-            if(tint != null)
-                VrApi.overlayTint(built, tint);
-            if(rotate != 0.0)
-                VrApi.overlayRotate(built, rotate);
-        }
-    }
-
-    /** The five kinds, in the order an error lists them: the two screen-space ones, then the three world ones. */
-    static final String[] KINDS = { "draw", "text", "image", "model", "ghost" };
-
-    /** Does {@code kind} stand in the 3D world (rather than at the gob's projected screen point)? */
-    static boolean worldKind(String kind) {
-        return "image".equals(kind) || "model".equals(kind) || "ghost".equals(kind);
     }
 
     // ---- the per-gob store ------------------------------------------------------------------------
@@ -248,8 +168,7 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
 
     /**
      * Attach or REPLACE — the same key twice leaves one overlay, which is what makes the verb idempotent. Answers
-     * the record it displaced (or null), which the caller must {@link Attach#dispose} : a replaced world-space
-     * record still owns a live entity in the scene, and dropping it from the map is not what ends it.
+     * the record it displaced (or null), so the caller can report the removal beside the add.
      */
     synchronized Attach put(Attach a) {
         Map<String, Attach> m = byAddon.get(a.owner);
@@ -258,7 +177,7 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         return m.put(a.key, a);
     }
 
-    /** Drop one record and answer it (or null) — the caller disposes it outside this monitor. */
+    /** Drop one record and answer it (or null) — the caller reports it outside this monitor. */
     synchronized Attach remove(Addon owner, String key) {
         Map<String, Attach> m = byAddon.get(owner);
         if(m == null)
@@ -288,23 +207,17 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
      * <b>An overlay dies with its gob</b> — called from the tick where the client's own {@code OCache} removal is
      * dispatched ({@code GobRemoved}), before the event reaches Lua, so a handler already reads the truth.
      *
-     * <p>For a screen-space overlay this is bookkeeping: the attrib goes when the {@link Gob} does. For a
-     * <b>world-space</b> one it is the whole of plan §2b, and it is the one thing "death with the gob" actually
-     * costs — the entity is its own client-only gob in the scene, and nothing disposes it just because the target
-     * left {@code OCache}. Today's {@code follow=} is exactly that bug: {@link FollowMoving#getc} holds at the
-     * last position, so a sprite following a felled tree floats there forever with no owner. The store being ON
-     * the gob is what makes the fix O(1): the removal hands us the records, and nothing is ever searched for.
+     * <p>Since 043.3 that is bookkeeping and a report, nothing more: the attrib goes when the {@link Gob} does,
+     * and a record no longer owns a client-only entity in the scene. The thing that DOES have to be ended with
+     * the gob — an entity {@code hafen.vr():sprite():add(img, gob)} anchored there — is ended by
+     * {@code VrApi.anchorGone}, off the same drain, through its own by-target index (D-185). Two mechanisms, one
+     * moment, and neither of them a sweep.
      */
     static void gobGone(Gob g) {
         LuaGobOverlay ol = on(g);
         if(ol == null)
             return;
         for(Attach a : ol.removeAll()) {
-            try {
-                a.dispose();
-            } catch(RuntimeException e) {
-                /* best-effort: one bad record never stops the rest from being freed */
-            }
             // 038.3: and it is REPORTED. Fired straight, not queued: this already runs on the UI thread from the
             // tick's GobRemoved drain, and firing here is what puts GobOverlayRemoved BEFORE the gob's own
             // GobRemoved — an overlay is never reported dying after the thing it was attached to. The record is
@@ -329,16 +242,14 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
     }
 
     /**
-     * A snapshot of the SCREEN-space records, addon by addon — what the draw pass paints. A world-space record is
-     * not in it: its entity is drawn by the render tree like any other world thing, so a gob carrying only world
-     * overlays costs this attrib's draw one empty list and no projection at all. Nor is a <b>bare</b> one, which
-     * has not yet said what it draws — that is how a half-configured overlay never paints.
+     * A snapshot of the records that paint, addon by addon — what the draw pass paints. A <b>bare</b> one is not
+     * in it, having not yet said what it draws; that is how a half-configured overlay never paints.
      */
     private synchronized List<Attach> paintRecords() {
         List<Attach> out = new ArrayList<Attach>();
         for(Map<String, Attach> m : byAddon.values()) {
             for(Attach a : m.values()) {
-                if(a.drawn() && !a.world())
+                if(a.drawn())
                     out.add(a);
             }
         }

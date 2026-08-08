@@ -44,5 +44,5 @@ public final class LuaSprite extends LuaWorldEntity {
     String visualName() { return imgName; }
 
     String clickEvent() { return "SpriteClicked"; }   // R2b: the sprite analog of a ghost's GhostClicked
-    String clickKey()   { return "sprite"; }
+    String kind()       { return "sprite"; }          // the hafen.vr() collection this one belongs to
 }

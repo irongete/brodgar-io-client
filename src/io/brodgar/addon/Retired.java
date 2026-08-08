@@ -172,14 +172,40 @@ final class Retired {
         put("gob:isplayer", "gob:isplayer() is now gob:isPlayer()");
         put("gob:overlays", "gob:overlays() is now gob:overlay():list() — gob:overlay() is the collection of"
             + " everything attached to the gob, and the verb says how many");
-        put("overlay:pos", "overlay:pos() is now overlay:position(), and it hands back a Position rather than"
-            + " an {x, y, a, scale} table: the facing and the size are ov:rotate() and ov:scale()");
         put("overlay:clickable", "overlay:clickable(b) does not exist — the thing under an overlay is the GOB,"
             + " and a click on a gob is the client's own (hafen.act():clickGob)");
         put("overlay:onClick", "overlay:onClick(fn) does not exist — the thing under an overlay is the GOB, and"
             + " a click on a gob is the client's own (hafen.act():clickGob)");
         put("overlay:move", "overlay:move(x, y) does not exist — an overlay's position IS its gob's, and what"
-            + " you set is where it sits relative to the gob: ov:offset(x, y[, z])");
+            + " you set is where it sits relative to the gob, in SCREEN PIXELS: ov:offset(x, y)");
+
+        // ---- 043.3: the three WORLD kinds leave gob:overlay(), and the verb set that served only them goes -----
+        // ---- with them. What they built was never an engine overlay -- it was a client gob of its own standing
+        // ---- in the scene -- so it is created, listed and ended in hafen.vr(), and gob:overlay() keeps the one
+        // ---- identity it always had a right to: what is DRAWN at this gob. An anchored vr entity is still
+        // ---- listed here, read-only, so "what is at this gob?" keeps one complete answer.
+        for(String[] r : new String[][] { { "image", "sprite", "asset" }, { "model", "object", "asset" },
+                                          { "ghost", "ghost", "res" } }) {
+            put("overlay:" + r[0], "overlay:" + r[0] + "(" + r[2] + ") is now hafen.vr():" + r[1] + "():add("
+                + r[2] + ", gob) — it never was an engine overlay, it was a client gob of its own standing in"
+                + " the world, so it lives in hafen.vr() with the rest of them and the anchor is the second"
+                + " argument. It is still listed by gob:overlay():list(), read-only; you address it through"
+                + " hafen.vr():" + r[1] + "()");
+        }
+        for(String v : new String[] { "scale", "alpha", "tint", "rotate", "billboard", "spawnData" }) {
+            put("overlay:" + v, "overlay:" + v + "() belonged to the world kinds, which are now"
+                + " hafen.vr():sprite() / :object() / :ghost() — so it is a verb on the handle"
+                + " hafen.vr():<kind>():add(what, gob) hands back, beside :position() :offset(x, y, z)"
+                + " :visible(b) :clickable(b). An overlay is painted at the gob's projected point and has"
+                + " :draw(fn), :text(s), :color(r, g, b) and :offset(x, y) in screen pixels");
+        }
+        put("overlay:position", "overlay:position() belonged to the world kinds, which are now hafen.vr() —"
+            + " an overlay is painted AT its gob, so where it is, is where the gob is: ov:gob():position()."
+            + " A thing standing in the world answers its own :position(), on the handle"
+            + " hafen.vr():<kind>():add(what, gob) hands back");
+        put("overlay:pos", "overlay:pos() is gone: an overlay is painted AT its gob, so where it is, is where"
+            + " the gob is — ov:gob():position(), which hands back a Position. A thing standing in the world"
+            + " is hafen.vr():sprite() / :object() / :ghost(), and answers its own :position()");
 
         // ---- hafen.map: five collections, and the two surfaces that sat beside it become two of them ----
         put("hafen.map.segment", "hafen.map.segment() is now hafen.map():segment():current() and"

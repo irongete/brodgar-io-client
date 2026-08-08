@@ -62,8 +62,19 @@ public abstract class LuaWorldEntity {
     LuaValue onClick;              // V2: per-entity click callback fn(handle, button, x, y), or null; set at create
 
     long    followTgt;             // ANCHOR: the gob id this entity follows, or 0 = free (not anchored); set at create only
-    Coord3f followOff;             // the world-space follow offset (x east, y north, z up), or null = none; live (overlay:offset)
-    boolean asOverlay;             // 038.2: this entity IS a gob:overlay record's visual — never listed as a free entity
+    Coord3f followOff;             // the world-space follow offset (x east, y north, z up), or null = none; live (:offset)
+
+    /**
+     * This entity's identity <b>as seen from the gob it is anchored to</b> (043.3): an anchored entity is
+     * surfaced read-only in {@code gob:overlay():list()}, where every member answers to a key, and a thing
+     * standing in the world has no name of its own. So it gets a serial — monotonic for the client's life, so a
+     * key is never reused and a stale handle never resolves onto a later entity. Free entities carry one too and
+     * simply never show it.
+     */
+    final long eid = nextEid.incrementAndGet();
+
+    private static final java.util.concurrent.atomic.AtomicLong nextEid =
+        new java.util.concurrent.atomic.AtomicLong();
 
     Gob gob;                       // the client-only Gob, or null until the (possibly deferred) create publishes it
     RenderTree.Slot slot;          // its scene slot, or null until added / while hidden; removed on destroy/teardown
@@ -99,8 +110,27 @@ public abstract class LuaWorldEntity {
     abstract String clickEvent();
 
     /**
-     * The {@code ev} field name under which the clicked entity's handle is delivered in its {@link #clickEvent()} —
-     * {@code "ghost"} for a ghost, {@code "sprite"} for a sprite (a ghost is a ghost, a sprite is a sprite).
+     * <b>Which collection of {@code hafen.vr()} this entity belongs to</b> — {@code "ghost"}, {@code "sprite"} or
+     * {@code "object"}. One word, three readers: it is the {@code ev} field name its {@link #clickEvent()}
+     * delivers the handle under, the {@code ov:kind()} of the read-only entry an anchored entity gets in
+     * {@code gob:overlay():list()} (043.3), and the collection every refusal on that entry names.
      */
-    abstract String clickKey();
+    abstract String kind();
+
+    /**
+     * The {@code ev} field name under which the clicked entity's handle is delivered in its {@link #clickEvent()} —
+     * a ghost is a ghost, a sprite is a sprite: the field is named for the kind, so there is one word, not two.
+     */
+    final String clickKey() {
+        return kind();
+    }
+
+    /**
+     * The key this entity answers to in {@code gob:overlay():list()} while it is anchored to a gob (043.3) —
+     * synthetic, because a thing standing in the world has no name of its own, and prefixed so it can never be
+     * mistaken for (or collide with) a key an addon chose for one of its own overlays.
+     */
+    final String overlayKey() {
+        return "vr#" + Long.toString(eid);
+    }
 }

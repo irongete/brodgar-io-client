@@ -1217,3 +1217,19 @@
   riding them` without ever having asserted it. Worse than a missing check: it read green over the very
   mismatch it had computed. Rule: *whatever you compute a discrepancy list for, `#list == 0` IS the condition —
   if a list appears only in the `got` slot, the assertion beside it is asserting something else.*
+- **(043.3) The 033.3 probe recipe run with `Manifest.test(id)` executes NO FILES — `error == null` and zero
+  slash commands, which reads exactly like "the suite failed to register" and is really "the probe never ran
+  it".** `Manifest.test` ([Manifest.java:121](../../../src/io/brodgar/addon/Manifest.java:121)) is a *synthetic*
+  manifest declaring nothing — including an empty `files` list — so `Addon.run()` loops over nothing and returns
+  cleanly. 039.1's note recommends it over `Manifest.internal` for the right reason (internal declares `actions`
+  + allow-all network, so no refusal can be asserted), but for a **suite** the honest answer is neither: load the
+  real `Manifest.load(dir)`, because a per-task suite already declares no permissions by protocol (TESTING.md),
+  so the real manifest IS the "declares nothing" shape. Check `owner.slashCommands.size()` explicitly and assert
+  it — a probe that only checks `owner.error == null` passes this bug.
+- **(043.3) `java -cp` will not find a class under the scratchpad from a Git Bash shell; `javac -d` there is
+  fine.** Compiling the probe into
+  `%LOCALAPPDATA%\Temp\claude\…\scratchpad` worked, but `java -cp "build/classes;…;$SCRATCH"` answered
+  `ClassNotFoundException` for a `.class` that demonstrably existed at that path (MSYS argument mangling on the
+  absolute `C:/…` element of a `;`-separated list). Copying the compiled package into a throwaway repo-local dir
+  (`probe-tmp/`, deleted after) and putting *that* on the classpath ran first time. Keep probe **classes**
+  repo-local and transient; the scratchpad is fine for sources and outputs.

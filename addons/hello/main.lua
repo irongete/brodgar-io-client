@@ -1921,7 +1921,7 @@ end)
 -- sound, ":hello sound" toggles a long clip through the 024.2 live set, and ":hello echo <text...>" shows the args rejoined (quoting survives — :hello echo "a b" c -> a b c).
 local demoGhost   -- V1: the handle of the manual :hello ghost demo while placed (nil = none); session-local
 local demoSprite  -- R2a: the handle of the manual :hello sprite demo while placed (nil = none); session-local
-local demoFollow  -- 038.2: the Overlay object of the :hello follow demo (an image ON your gob); session-local
+local demoFollow  -- 043.3: the Sprite of the :hello follow demo (a sprite ANCHORED to your gob); session-local
 local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-facing sprite); session-local
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 -- 026.2: the text-cache bound check. The toggle is assigned beside the HUD overlay far below (that is where the
@@ -2037,23 +2037,22 @@ hafen.slash():register("hello", function(args)
         :format(p:x(), p:y()))
     end
   elseif sub == "follow" then
-    -- 038.2: `follow=` is GONE. A drawn thing attached to a GAME OBJECT is gob:overlay():add(key) -- the same
-    -- collection that carries the screen-space kinds, now with the world-space ones: :image(asset), :model(asset),
-    -- :ghost(res), with a three-number :offset in WORLD units (z = up), so 18 floats it ~1.6 tiles over the head.
-    -- It is keyed per addon, reads back through gob:overlay():get(key), and it DIES WITH THE GOB -- which is what
-    -- the old anchor could not do (a sprite following a felled tree floated there forever). Removal is the
-    -- collection's own verb, gob:overlay():remove(key). Here it anchors to YOU -- walk around and it follows.
+    -- 043.2/043.3: THE ANCHOR IS AN ARGUMENT. hafen.vr():sprite():add(img, p) stands one at a point;
+    -- :add(img, gob) makes it FOLLOW that game object. There is no second door -- gob:overlay()'s world kinds
+    -- are gone, because what they built was never an engine overlay but a client gob of its own standing in the
+    -- scene. Where it sits relative to the gob is its own :offset(x, y, z), in WORLD units with z up, so 18
+    -- floats it ~1.6 tiles over the head. It DIES WITH THE GOB (a sprite following a felled tree used to float
+    -- there forever), and it is still listed by that gob's gob:overlay():list(), read-only. Removal is the
+    -- collection's own verb. Here it anchors to YOU -- walk around and it follows.
     if demoFollow then
-      local me = hafen.player() and hafen.player():gob()
-      if me then me:overlay():remove("hello-follow") end
+      if demoFollow:exists() then hafen.vr():sprite():remove(demoFollow) end
       demoFollow = nil
       hafen.log():write(":hello follow -> removed")
     else
       if not icon then hafen.log():write(":hello follow -> icon.png not loaded yet (Load)"); return end
       local me = hafen.player():gob()
       if not me then hafen.log():write(":hello follow -> no player gob yet"); return end
-      demoFollow = me:overlay():add("hello-follow"):image(icon):scale(2):offset(0, 0, 18)
-      if not demoFollow then hafen.log():write(":hello follow -> gob:overlay returned nil (not in the world yet?)"); return end
+      demoFollow = hafen.vr():sprite():add(icon, me):scale(2):offset(0, 0, 18)
       hafen.log():write(":hello follow -> icon.png now FLOATS above your head and FOLLOWS you -- walk around; :hello follow again to remove")
     end
   elseif sub == "object" then

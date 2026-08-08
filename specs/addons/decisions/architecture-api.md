@@ -1939,3 +1939,46 @@ Generally: *when a property's write would be undone by whoever really owns the v
 owner — a silent no-op is worse than an error, and worse than not having the verb.*
 **See.** [D-185](#d-185), [D-103](#d-103), [D-114](#d-114),
 [043-vr-namespace](../043-vr-namespace/spec.md).
+
+### D-187 — a verb that existed only for a KIND leaves with that kind; it moves to the thing's new home, it does not simply go ✅ (2026-08-08)
+**Decision.** When `gob:overlay()`'s three world kinds moved to `hafen.vr()`, the verbs that only ever served
+them moved too. `:scale`/`:alpha`/`:tint`/`:rotate`/`:billboard`/`:spawnData`/`:position` were already on the
+entity handle, so those rows simply retire naming it. `ov:offset`'s **three-number world form** was not: it had
+no counterpart, so it becomes `<entity>:offset(x, y, z)` (world units, z up) on the handle, refused on a FREE
+entity naming `:position(p)`. `ov:offset(x, y)` keeps the screen-pixel meaning and a third argument raises.
+**Rationale.** (2026-08-08, 043.3.) The task's stated win was that `ov:offset` stops meaning two things — but
+"one meaning" is achieved equally by deleting the world meaning outright, and that would have been a silent
+capability loss: `followOff` and the volatile `FollowMoving.off` already existed and were reachable **only**
+through the door being removed, so the port of `tagger`'s pin and `:hello follow` would have dropped both from
+~1.6 tiles overhead to the gob's feet. The feature's own out-of-scope line says a thing placed after it must
+look identical to one placed before, so the offset had to land somewhere; the handle is where the rest of the
+world verb set already lived. The refusal on a free entity is [D-186](#d-186) mirrored: each of the two anchors
+gets exactly one verb that means *where*, and the other names it.
+**Consequences.** A relocation's port surface is not just call sites — it is the fields the deleted door was the
+only writer of. Grepping for those is what turns "the verb is gone" into "the verb moved". Generally: *before
+deleting a door, look at what only that door could write; a capability with no other entrance disappears with
+it, and no compiler and no test will say so.*
+**See.** [D-186](#d-186), [D-188](#d-188), [D-103](#d-103),
+[043-vr-namespace](../043-vr-namespace/spec.md).
+
+### D-188 — a thing anchored to another is LISTED there read-only and ADDRESSED through its owner — one read, one door ✅ (2026-08-08)
+**Decision.** A `hafen.vr()` entity `:add(what, gob)` anchored to a gob appears in that gob's
+`gob:overlay():list()` as a read-only entry — `ov:native()` false, `ov:kind()` naming the collection that owns
+it (`"sprite"`/`"object"`/`"ghost"`), `ov:res()`/`:count()`/`:info()` answering — while **every** write through
+it raises naming that collection, as does `:add` onto its key and `:remove` of it. Its key is generated
+(`vr#<n>`, from a per-entity serial), because a thing standing in the world has no name of its own.
+**Rationale.** (2026-08-08, 043.3.) 038 faced the same tension and answered it the other way: it **hid** the
+anchored entity from the collection it was registered in, so that `gob:overlay()` was the one door
+([D-103](#d-103)). That kept one door at the cost of one read — `hafen.vr():sprite():list()` lied about what the
+addon had placed. Reversing which side is hidden is strictly better because the two properties are not actually
+in tension: **a door is a write, a list is a read.** An entry that refuses every write is not a second door; it
+is the answer to "what is at this gob?", which is the identity `gob:overlay()` keeps. And it costs no new
+bookkeeping — the by-target index [D-185](#d-185) built for the despawn answers the list in O(1) too, which is
+why a second reader of the same shape was worth having rather than a `GAttrib` back-pointer.
+**Consequences.** `asOverlay` disappears entirely: with no second creator there is nothing to flag, and the
+collections list everything they placed. `LuaOverlay` gains a third origin beside mine/native, and the refusal
+messages carry the kind, so a caller is told the exact collection rather than "read-only". Generally: *when one
+object belongs to two questions, hide the WRITE from one of them, never the object from the read — a complete
+read with refusals is honest, an incomplete read is a lie you cannot see.*
+**See.** [D-103](#d-103), [D-185](#d-185), [D-187](#d-187), [D-102](#d-102),
+[043-vr-namespace](../043-vr-namespace/spec.md).

@@ -7,12 +7,16 @@
 --   gob:overlay():add(key)   -- attach a BARE one, or REPLACE whatever that key already named
 --   gob:overlay():remove(key)-- remove it
 --
--- THE OVERLAY SAYS WHAT IT DRAWS, TWO SPACES. :text(s) and :draw(fn) paint on the SCREEN at the gob's
--- projected point; :image(a), :model(a) and :ghost(res) stand in the 3D WORLD, anchored to the gob, with a
--- three-number :offset in world units. Every setter answers the overlay, so one statement configures the whole
--- thing -- and until it names a kind it draws nothing, so a half-configured overlay never flickers.
--- You never place either one and you never poll: the record lives ON the gob, so it follows the gob for free
+-- AN OVERLAY IS WHAT IS *DRAWN* AT THE GOB, in screen space at its projected point: :text(s) and :draw(fn),
+-- with :color(r, g, b) and :offset(x, y) in PIXELS. Every setter answers the overlay, so one statement
+-- configures the whole thing -- and until it names a kind it draws nothing, so a half-configured overlay never
+-- flickers. You never place it and you never poll: the record lives ON the gob, so it follows the gob for free
 -- and it DIES WITH IT -- a felled tree takes your label with it and a gob that comes back is bare.
+--
+-- A THING STANDING IN THE WORLD IS NOT AN OVERLAY (043.3). :image/:model/:ghost are gone: what they built was a
+-- client gob of its own in the 3D scene, so it belongs to hafen.vr(), and the gob is the second argument of the
+-- placement -- hafen.vr():sprite():add(icon, gob). It still shows up in that gob's overlay list, READ-ONLY, so
+-- "what is at this gob?" has one complete answer; you address it through the collection that owns it.
 --
 -- THERE IS NO FILTER FORM, and this addon is what that trade looks like: "label every player" is a GobAdded
 -- handler plus one loop over the players already here (see tagAll/onAdded below). You name the gob, so nothing
@@ -20,23 +24,23 @@
 --
 -- COMMANDS (:tagger <sub>):
 --   (bare)   -- labels ON/OFF: a green name over every player body, kept up to date from GobAdded
---   pin      -- hang icon.png in the WORLD over the nearest object, and chain the composed verbs on it
+--   pin      -- stand icon.png in the WORLD over the nearest object, anchored to it
 --   unpin    -- take it off again
---   read     -- print every overlay on the nearest object: yours AND the game's own (native, keyed by resource)
+--   read     -- print everything at the nearest object: yours, what you stood there, and the game's own
 --   watch    -- toggle the two events, GobOverlayAdded / GobOverlayRemoved
 --
 -- SAFE tier: it declares NO permissions, sends nothing to the server and writes nothing persistent. Everything
 -- it attaches is removed on ':reload' or on disable, and the game's own overlays are never touched -- they are
 -- READ-ONLY, and both an attach onto a native key and a remove of one raise, naming the key.
 
-local LABEL = "name"                  -- our key for a player's label       (screen space)
-local RING  = "ring"                  -- our key for the ring under it      (screen space, a draw callback)
-local PIN   = "pin"                   -- our key for the world pin          (world space)
+local LABEL = "name"                  -- our key for a player's label       (an overlay: screen space)
+local RING  = "ring"                  -- our key for the ring under it      (an overlay: a draw callback)
 
 local labelling = false
 local watching  = false
 local tagged    = {}                  -- gob id -> true, the players we have labelled
-local pinned                          -- the gob id the pin is on, if any
+local pin_                            -- the hafen.vr() Sprite standing over a gob, if any
+local pinGob                          -- the id of the gob it is anchored to
 local icon
 
 hafen.event():on("Load", function() icon = hafen.asset():get("icon.png") end)
@@ -90,9 +94,10 @@ end
 
 -- What ':tagger read' and ':tagger pin' talk about. The PINNED gob wins when there is one -- otherwise the two
 -- commands would drift apart the moment you take a step, and 'read' would report an object 'pin' never touched.
+-- A pin dies with the gob it was anchored to, so a pin that no longer exists means nothing is pinned.
 local function target()
-  if pinned then
-    local g = hafen.world():gob():get(pinned)
+  if pin_ and pin_:exists() then
+    local g = hafen.world():gob():get(pinGob)
     if g:exists() then return g, true end
   end
   return nearestObject(), false
@@ -108,38 +113,46 @@ local function pin()
   if not icon then return hafen.log():write("tagger: icon.png did not load") end
   local g = nearestObject()
   if not g then return hafen.log():write("tagger: nothing near you to pin") end
-  if pinned then local old = hafen.world():gob():get(pinned) if old:exists() then old:overlay():remove(PIN) end end
-  -- A WORLD-space overlay: the offset takes three numbers, in world units with z up, so 18 floats it overhead.
-  -- Every setter answers the overlay, so the whole thing is one statement -- and the visual is built once.
-  local ov = g:overlay():add(PIN):image(icon):scale(2):offset(0, 0, 18):tint(255, 200, 90):alpha(0.85)
-  pinned = g:id()
-  local p = ov:position()
+  if pin_ and pin_:exists() then hafen.vr():sprite():remove(pin_) end
+  -- THE GOB IS THE ANCHOR, the second argument of the placement. :offset takes three numbers in WORLD units
+  -- with z up, so 18 floats it overhead; :position(p) is refused here, because a follower's point is its gob's.
+  -- Every setter answers the sprite, so the whole thing is one statement -- and the visual is built once.
+  pin_ = hafen.vr():sprite():add(icon, g):scale(2):offset(0, 0, 18):tint(255, 200, 90):alpha(0.85)
+  pinGob = g:id()
+  local p = pin_:position()
   hafen.log():write(string.format("tagger: pinned %s%s -- ':tagger read' now reads THAT object", label(g),
                           p and string.format(", at %.1f %.1f", p:x(), p:y()) or ""))
 end
 
 local function unpin()
-  if not pinned then return hafen.log():write("tagger: nothing is pinned") end
-  local g = hafen.world():gob():get(pinned)
-  if g:exists() then g:overlay():remove(PIN) end   -- and if it does NOT exist, the overlay went with it
-  pinned = nil
+  if not pin_ then return hafen.log():write("tagger: nothing is pinned") end
+  -- If the gob went, the pin went with it (it was anchored to it) -- so :exists() is the whole test.
+  if pin_:exists() then hafen.vr():sprite():remove(pin_) end
+  pin_, pinGob = nil, nil
   hafen.log():write("tagger: pin removed")
 end
 
 -- ---- the read -----------------------------------------------------------------------------------------
 
--- gob:overlay():list() is the one read, and it answers BOTH halves. ov:native() says which: ours are false and
--- carry a kind, the game's are true and are keyed by their RESOURCE NAME. A native one is a union over that name
--- -- a gob may carry several overlays of one resource -- so ov:count() publishes how many it stands for.
+-- gob:overlay():list() is the one read, and it answers ALL THREE groups: your own overlays first, then whatever
+-- you stood at that gob with hafen.vr(), then the game's own. ov:native() is true for the game's alone -- a vr
+-- entity is yours, it is simply addressed elsewhere -- and ov:kind() tells the two of yours apart: "draw"/"text"
+-- is an overlay, "sprite"/"object"/"ghost" names the hafen.vr() collection that owns it. A native one is a union
+-- over its RESOURCE NAME -- a gob may carry several of one resource -- so ov:count() says how many it stands for.
+local WORLD = { sprite = true, object = true, ghost = true }
+
 local function read()
   local g, isPinned = target()
   if not g then return hafen.log():write("tagger: nothing near you to read") end
   local all = g:overlay():list()
-  hafen.log():write(string.format("tagger: %s (%s) carries %d overlay(s)", label(g),
+  hafen.log():write(string.format("tagger: %s (%s) carries %d thing(s)", label(g),
                           isPinned and "the pinned one" or "the nearest object", #all))
   for _, ov in ipairs(all) do
-    hafen.log():write(string.format("  %-22s %s%s x%d", ov:key(),
-                            ov:native() and "the game's" or ("yours, " .. tostring(ov:kind())),
+    local kind = ov:kind()
+    local whose = ov:native() and "the game's"
+               or (WORLD[kind] and ("yours in the WORLD, hafen.vr():" .. kind .. "()")
+                                or ("yours, " .. tostring(kind)))
+    hafen.log():write(string.format("  %-22s %s%s x%d", ov:key(), whose,
                             ov:res() and (" [" .. ov:res() .. "]") or "", ov:count() or 0))
   end
   if #all == 0 then hafen.log():write("  (nothing -- try ':tagger pin' first, or stand next to a fire)") end

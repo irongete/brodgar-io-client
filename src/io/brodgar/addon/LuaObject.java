@@ -42,5 +42,5 @@ public final class LuaObject extends LuaWorldEntity {
     String visualName() { return meshName; }
 
     String clickEvent() { return "ObjectClicked"; }   // the object analog of a ghost's GhostClicked / a sprite's SpriteClicked
-    String clickKey()   { return "object"; }
+    String kind()       { return "object"; }          // the hafen.vr() collection this one belongs to
 }

@@ -1,0 +1,9 @@
+{
+  "name": "043.3 — the world kinds leave gob:overlay()",
+  "id": "043-vr-namespace.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 043.3: gob:overlay() keeps only what is DRAWN at a gob — the three world kinds and the verb set that served them raise naming hafen.vr(), ov:offset means screen pixels and nothing else, and a hafen.vr() entity anchored to a gob is listed there read-only while the game's own overlays read exactly as before.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

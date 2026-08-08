@@ -55,9 +55,9 @@ import static io.brodgar.addon.AddonManager.*;
  *
  * <p><b>This is a SCENE section, not a loader</b> (028.1): the addon's own files — images, fonts and meshes
  * alike — come from the one door {@link AssetApi} ({@code hafen.asset():get(path)}), which also owns the D-017
- * sandbox resolver and the intern cache. An entity that backs a {@code gob:overlay()} record is built through
- * the same {@code make*} bodies but is never a member of these collections (038.2): an overlay is reached
- * through the gob it is on. Not instantiable.
+ * sandbox resolver and the intern cache. Since 043.3 there is <b>no second door</b>: {@code gob:overlay()}'s
+ * world kinds are gone, so every client-only thing standing in the world is created here, listed here and ended
+ * here — a gob it is anchored to shows it read-only ({@link #anchoredMembers}) and nothing more. Not instantiable.
  */
 final class VrApi {
     private VrApi() {}
@@ -108,8 +108,7 @@ final class VrApi {
                         + " \"gfx/terobjs/arch/logcabin\"), got " + rv.typename() + " — an image or a model this"
                         + " addon ships is hafen.vr():sprite():add(asset, p) / :object():add(asset, p)");
                 Anchor an = anchorArg(a, "hafen.vr():ghost():add");
-                return born(makeGhost(owner, an.spec(), rv.tojstring(), an.tgt, null, false),
-                            "hafen.vr():ghost():add");
+                return born(makeGhost(owner, an.spec(), rv.tojstring(), an.tgt), "hafen.vr():ghost():add");
             }
 
             public boolean destroyable() {
@@ -164,7 +163,7 @@ final class VrApi {
                 Anchor an = anchorArg(a, "hafen.vr():sprite():add");
                 LuaTable spec = an.spec();
                 spec.set("image", img);
-                return born(makeSprite(owner, spec, an.tgt, null, false), "hafen.vr():sprite():add");
+                return born(makeSprite(owner, spec, an.tgt), "hafen.vr():sprite():add");
             }
 
             public boolean destroyable() {
@@ -202,7 +201,7 @@ final class VrApi {
                 Anchor an = anchorArg(a, "hafen.vr():object():add");
                 LuaTable spec = an.spec();
                 spec.set("model", mdl);
-                return born(makeObject(owner, spec, an.tgt, null, false), "hafen.vr():object():add");
+                return born(makeObject(owner, spec, an.tgt), "hafen.vr():object():add");
             }
 
             public boolean destroyable() {
@@ -216,15 +215,15 @@ final class VrApi {
     }
 
     /**
-     * The live, freely-placed entities of one registry as their handles — the members of its collection. An
-     * entity that backs a {@code gob:overlay()} record is <b>not</b> among them (038.2): an overlay is reached
-     * through the gob it is on, and a second door handing out a handle carrying an ending would let an addon kill
-     * the visual behind a record that still reads as attached.
+     * The live entities of one registry as their handles — the members of its collection. Since 043.3 that is
+     * <b>all</b> of them: an anchored one is no longer an overlay's hidden visual, so there is nothing to hide
+     * from the collection that placed it. The gob it follows shows it too, read-only, and that read is the copy
+     * ({@link #anchoredMembers}) — this is the original.
      */
     private static List<LuaValue> entityMembers(List<? extends LuaWorldEntity> reg) {
         List<LuaValue> out = new ArrayList<LuaValue>();
         for(LuaWorldEntity e : reg) {              // copy-on-write: a filter fn may create/destroy one
-            if(e.dead || (e.handle == null) || e.asOverlay)
+            if(e.dead || (e.handle == null))
                 continue;
             out.add(e.handle);
         }
@@ -297,24 +296,26 @@ final class VrApi {
     // ---- ANCHORED, AND FREE: the index that lets an anchored entity die with its gob (043.2) ------------------
 
     /**
-     * The <b>freely placed</b> entities anchored to a gob, by target id. It exists for exactly one reader,
-     * {@link #anchorGone}: D-102 says the end of a derived thing rides the event its source already raises, and
-     * the client already raises {@code GobRemoved} — but the record that made that O(1) for a
-     * {@code gob:overlay()} lived <i>on the gob</i>, and an entity {@code hafen.vr():sprite():add(img, gob)}
-     * placed has no such record. One id→entities map restores the O(1) without restoring the thing D-100 deleted:
-     * it is written only when an anchored entity is created or destroyed, and read only when a gob leaves the
-     * object cache. Nothing walks it per frame, and nothing walks it to find anything else.
+     * The entities anchored to a gob, by target id. It was written for one reader, {@link #anchorGone}: D-102 says
+     * the end of a derived thing rides the event its source already raises, and the client already raises
+     * {@code GobRemoved} — but the record that made that O(1) for a {@code gob:overlay()} lived <i>on the gob</i>,
+     * and an entity {@code hafen.vr():sprite():add(img, gob)} placed has no such record. One id→entities map
+     * restores the O(1) without restoring the thing D-100 deleted: it is written only when an anchored entity is
+     * created or destroyed, and read only on an event about that one gob. Nothing walks it per frame, and nothing
+     * walks it to find anything else.
      *
-     * <p>Overlay entities are deliberately NOT in it — they die through their record in
-     * {@code LuaGobOverlay.gobGone}, from the same drain, so the two mechanisms stay disjoint.
-     * Guarded by its own monitor (creates run on the UI thread, teardown may sweep from a session-bind thread).
+     * <p><b>043.3 gave it a second reader of exactly the same shape</b>, {@link #anchoredMembers}: with the world
+     * kinds gone from {@code gob:overlay()}, "what is at this gob?" answers through this index rather than through
+     * a record on the gob — the same key, the same O(1), still nothing swept.
+     *
+     * <p>Guarded by its own monitor (creates run on the UI thread, teardown may sweep from a session-bind thread).
      */
     private static final java.util.Map<Long, List<LuaWorldEntity>> anchored =
         new java.util.HashMap<Long, List<LuaWorldEntity>>();
 
-    /** Index a freshly created entity if it follows a gob and is not an overlay's; otherwise nothing to index. */
+    /** Index a freshly created entity if it follows a gob; a free one is anchored to nothing and stays out. */
     private static void anchorRegister(LuaWorldEntity e) {
-        if((e.followTgt == 0) || e.asOverlay)
+        if(e.followTgt == 0)
             return;
         Long k = Long.valueOf(e.followTgt);
         synchronized(anchored) {
@@ -327,7 +328,7 @@ final class VrApi {
 
     /** Drop an entity from the index — every ending goes through {@link #destroyEntity}, so this is its one caller. */
     private static void anchorUnregister(LuaWorldEntity e) {
-        if((e.followTgt == 0) || e.asOverlay)
+        if(e.followTgt == 0)
             return;
         Long k = Long.valueOf(e.followTgt);
         synchronized(anchored) {
@@ -375,6 +376,38 @@ final class VrApi {
     }
 
     /**
+     * <b>What this addon has standing at that gob</b> (043.3) — the entities {@code :add(what, gob)} anchored
+     * there, in creation order, for the read-only entries {@code gob:overlay():list()} shows beside the addon's own
+     * screen-space records and the game's own overlays. Another addon's are not in it, exactly as another addon's
+     * overlay records are not: a collection is per addon, all the way down.
+     *
+     * <p>"What is at this gob?" therefore keeps ONE complete answer even though the thing itself now lives in
+     * {@code hafen.vr()} — you read it there and you address it through the collection that owns it.
+     */
+    static List<LuaWorldEntity> anchoredMembers(Addon owner, long gobId) {
+        List<LuaWorldEntity> out = new ArrayList<LuaWorldEntity>();
+        synchronized(anchored) {
+            List<LuaWorldEntity> l = anchored.get(Long.valueOf(gobId));
+            if(l == null)
+                return out;
+            for(LuaWorldEntity e : l) {
+                if((e.owner == owner) && !e.dead && (e.handle != null))
+                    out.add(e);
+            }
+        }
+        return out;
+    }
+
+    /** The one this addon has standing at that gob under {@code key} ({@link LuaWorldEntity#overlayKey()}), or null. */
+    static LuaWorldEntity anchoredAt(Addon owner, long gobId, String key) {
+        for(LuaWorldEntity e : anchoredMembers(owner, gobId)) {
+            if(e.overlayKey().equals(key))
+                return e;
+        }
+        return null;
+    }
+
+    /**
      * The entity a creation produced, or a {@link LuaError} naming when one can be made at all. <b>A creation
      * RAISES where a removal is inert</b> (D-114): the caller is about to chain a setter onto what comes back, so
      * answering {@code nil} turns the very next {@code :position(p)} into <i>attempt to index a nil value</i> one
@@ -389,11 +422,11 @@ final class VrApi {
 
     /**
      * The entity a {@code :remove(x)} names: its own handle, and nothing else. It must belong to <i>this</i>
-     * registry, so removing another addon's — or an overlay's — is a refusal rather than a silent miss.
+     * registry, so removing another addon's is a refusal rather than a silent miss.
      */
     private static LuaWorldEntity memberArg(List<? extends LuaWorldEntity> reg, LuaValue x, String verb, String what) {
         for(LuaWorldEntity e : reg) {
-            if(!e.asOverlay && (e.handle != null) && (e.handle == x))
+            if((e.handle != null) && (e.handle == x))
                 return e;
         }
         throw new LuaError(verb + "(x) expects a " + what + " this addon placed — the value it hands back from"
@@ -416,16 +449,14 @@ final class VrApi {
     // ---------------------------------------------------------- world ghosts (hafen.vr():ghost())
 
     /**
-     * Build a ghost and publish it — the body of {@code hafen.vr():ghost():add}, shared with the world-space half
-     * of {@code gob:overlay(key, {ghost = res})} (038.2). {@code tgt != 0} anchors it to that gob id (a
-     * {@link FollowMoving}, applied at publish so a still-streaming visual is anchored the moment it lands);
-     * {@code tgt == 0} stands it where it was put. Since 043.2 the anchor is an ARGUMENT, so an anchored entity
-     * is no longer necessarily an overlay's: {@code overlay} says which, and that is the flag that decides
-     * whether it is listed by its collection and which mechanism ends it with its gob. Returns {@code null} when
-     * there is no map view (not in the world). Every other option is read from {@code opts} exactly as before.
+     * Build a ghost and publish it — the body of {@code hafen.vr():ghost():add}. {@code tgt != 0} anchors it to
+     * that gob id (a {@link FollowMoving}, applied at publish so a still-streaming visual is anchored the moment
+     * it lands); {@code tgt == 0} stands it where it was put. Since 043.2 the anchor is an ARGUMENT, and since
+     * 043.3 that is the only way one is anchored at all — {@code gob:overlay()}'s world kinds are gone, so there
+     * is no second creator and no flag saying which one called. Returns {@code null} when there is no map view
+     * (not in the world). Every other option is read from {@code opts} exactly as before.
      */
-    private static LuaGhost makeGhost(final Addon owner, LuaValue opts, final String resName, long tgt, Coord3f off,
-                                      boolean overlay) {
+    private static LuaGhost makeGhost(final Addon owner, LuaValue opts, final String resName, long tgt) {
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
@@ -445,8 +476,6 @@ final class VrApi {
         gh.tint = luaTint(opts.get("tint"));           // V3: colour overlay {r=,g=,b=[,a=]}, or null
         gh.scale = luaScale(opts.get("scale"));        // V6: uniform scale (default 1 = original size)
         gh.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
-        gh.followOff = off;
-        gh.asOverlay = overlay;
         gh.clickable = clickablev.toboolean();         // V2: nil/false → not clickable; true → clickable
         if(onclickv.isfunction())
             gh.onClick = onclickv;
@@ -526,16 +555,47 @@ final class VrApi {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 if(!Args.passed(a, 2))
-                    return overlayPosition(e.owner, e);
+                    return entityPosition(e.owner, e);
                 if(e.followTgt != 0)
                     throw new LuaError(kind + ":position(p): this " + kind + " follows a gob, so its place is"
-                        + " that gob's and setting it would be undone on the next frame. Its own facing is still"
-                        + " " + kind + ":rotate(a); a " + kind + " that stands still is placed with"
+                        + " that gob's and setting it would be undone on the next frame. Where it sits RELATIVE"
+                        + " to that gob is " + kind + ":offset(x, y, z) (world units, z up); its own facing is"
+                        + " still " + kind + ":rotate(a); a " + kind + " that stands still is placed with"
                         + " hafen.vr():" + kind + "():add(what, p)");
                 Coord2d rc = LuaPosition.worldArg(a, 2, kind + ":position", "p");
                 Double ang = Args.passed(a, 3)
                     ? Double.valueOf(number(a, 3, kind + ":position", "a")) : null;
                 moveEntity(e, rc, ang);
+                return self;
+            }
+        });
+        // offset() / offset(x, y, z) -- where an ANCHORED thing sits relative to the gob it follows, in world
+        // units with z up (so 18 floats it about 1.6 tiles over the head). It is the world half of what
+        // ov:offset(x, y, z) used to be: 043.3 took the world kinds out of gob:overlay(), and this is the verb
+        // they brought with them, on the handle that owns the thing rather than on a record about it. Refused on
+        // a FREE one naming :position(p) -- an offset from nothing is not a place, and the pair mirrors
+        // :position's own refusal so each of the two anchors has exactly one verb that means "where".
+        m.set("offset", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                if(e.followTgt == 0)
+                    throw new LuaError(kind + ":offset(): this " + kind + " stands where it was put, so it is"
+                        + " offset from nothing -- its place is " + kind + ":position(p). An offset is what a "
+                        + kind + " placed with hafen.vr():" + kind + "():add(what, gob) sits at relative to that"
+                        + " gob");
+                if(!Args.passed(a, 2)) {
+                    Coord3f off;
+                    synchronized(e) { off = e.followOff; }
+                    LuaTable t = new LuaTable();
+                    t.set("x", LuaValue.valueOf((off == null) ? 0.0 : (double)off.x));
+                    t.set("y", LuaValue.valueOf((off == null) ? 0.0 : (double)off.y));
+                    t.set("z", LuaValue.valueOf((off == null) ? 0.0 : (double)off.z));
+                    return t;
+                }
+                float x = (float)number(a, 2, kind + ":offset", "x");
+                float y = (float)number(a, 3, kind + ":offset", "y");
+                float z = Args.passed(a, 4) ? (float)number(a, 4, kind + ":offset", "z") : 0f;
+                setEntityOffset(e, new Coord3f(x, y, z));
                 return self;
             }
         });
@@ -797,12 +857,11 @@ final class VrApi {
     // ---- custom 3D models in the world (hafen.vr():object()) -------------------------------------------
 
     /**
-     * Build an object and publish it — the body of {@code hafen.vr():object():add}, shared with the world-space half of
-     * {@code gob:overlay(key, {model = asset})} (038.2). {@code tgt != 0} anchors it to that gob id; {@code 0}
-     * stands it where it was put; {@code overlay} says whether the anchor came from a {@code gob:overlay()} record
-     * or from {@code :add(model, gob)} (043.2). Returns {@code null} when there is no map view (not in the world).
+     * Build an object and publish it — the body of {@code hafen.vr():object():add}. {@code tgt != 0} anchors it to
+     * that gob id; {@code 0} stands it where it was put (043.2). Returns {@code null} when there is no map view
+     * (not in the world).
      */
-    private static LuaObject makeObject(Addon owner, LuaValue opts, long tgt, Coord3f off, boolean overlay) {
+    private static LuaObject makeObject(Addon owner, LuaValue opts, long tgt) {
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
@@ -820,8 +879,6 @@ final class VrApi {
         if(onclickv.isfunction())
             ob.onClick = onclickv;
         ob.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
-        ob.followOff = off;
-        ob.asOverlay = overlay;
         owner.objects.add(ob);
         anchorRegister(ob);                            // 043.2: so it dies with the gob it follows (D-102)
         LuaValue handle = objectHandle(ob);
@@ -898,13 +955,11 @@ final class VrApi {
     // ---- custom world sprites (hafen.vr():sprite()) ------------------------------------------------------
 
     /**
-     * Build a sprite and publish it — the body of {@code hafen.vr():sprite():add}, shared with the world-space half of
-     * {@code gob:overlay(key, {image = asset})} (038.2). {@code tgt != 0} anchors it to that gob id (a
-     * {@link FollowMoving} applied before the gob enters the scene); {@code tgt == 0} stands it where it was put;
-     * {@code overlay} says whether the anchor came from a {@code gob:overlay()} record or from
-     * {@code :add(image, gob)} (043.2). Returns {@code null} when there is no map view (not in the world).
+     * Build a sprite and publish it — the body of {@code hafen.vr():sprite():add}. {@code tgt != 0} anchors it to
+     * that gob id (a {@link FollowMoving} applied before the gob enters the scene); {@code tgt == 0} stands it
+     * where it was put (043.2). Returns {@code null} when there is no map view (not in the world).
      */
-    private static LuaSprite makeSprite(Addon owner, LuaValue opts, long tgt, Coord3f off, boolean overlay) {
+    private static LuaSprite makeSprite(Addon owner, LuaValue opts, long tgt) {
         boolean billboard = opts.get("billboard").toboolean();   // R2b: true = camera-facing screen blit; false = fixed world quad
         final MapView mv = view;
         final Glob g = glob();
@@ -923,8 +978,6 @@ final class VrApi {
         if(onclickv.isfunction())
             sp.onClick = onclickv;
         sp.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
-        sp.followOff = off;
-        sp.asOverlay = overlay;
         owner.sprites.add(sp);
         anchorRegister(sp);                            // 043.2: so it dies with the gob it follows (D-102)
         LuaValue handle = spriteHandle(sp);
@@ -1230,61 +1283,16 @@ final class VrApi {
         }
     }
 
-    // ---- ANCHOR: the world-space half of gob:overlay (038.2) ---------------------------------------------------
+    // ---- ANCHOR: what an entity that FOLLOWS a gob can still be told (043.2/043.3) ------------------------------
 
     /**
-     * Build the world-space half of {@code gob:overlay(key, spec)} (038.2): a client-only entity — a sprite
-     * ({@code image}), an object ({@code model}) or a ghost ({@code ghost}) — anchored to {@code tgt} by a
-     * {@link FollowMoving}, so the render tree places it at the gob's live interpolated position + {@code off}
-     * every frame with no Lua polling. The spec table doubles as the entity's own options table, so
-     * {@code scale}/{@code alpha}/{@code tint}/{@code a}/{@code billboard} all mean what they mean everywhere else.
-     *
-     * <p>The entity is registered in its addon's owned-resource registry exactly like any other, so {@code :reload}
-     * and disable free it through the teardown that already exists — but it is flagged {@link
-     * LuaWorldEntity#asOverlay}, so it never appears in {@code hafen.vr():ghost():list()}: an overlay is reached through
-     * {@code gob:overlay}, and a second door handing out a raw handle with {@code :destroy()} on it would let an
-     * addon kill the visual behind a record that still reads as attached.
+     * {@code <entity>:offset(x, y, z)} on an anchored entity — move it relative to the gob it follows <b>in
+     * place</b>, which is what makes the offset a property like every other rather than a reason to place it
+     * again. Both halves are written: the entity's own desired offset (read by a create that has not published
+     * yet) and the live {@link FollowMoving}, whose {@code off} is volatile precisely so the placement pass can
+     * pick it up on the next frame without a lock.
      */
-    static LuaWorldEntity overlayEntity(Addon owner, long tgt, LuaValue spec, String kind, Coord3f off) {
-        if(!spec.get("clickable").isnil() || !spec.get("onClick").isnil())
-            throw new LuaError("gob:overlay(key, spec): 'clickable'/'onClick' are not overlay properties — the thing"
-                + " under an overlay is the GOB, and a click on a gob is the client's own (hafen.act.clickGob)");
-        LuaWorldEntity e;
-        if(kind.equals("image"))
-            e = makeSprite(owner, spec, tgt, off, true);
-        else if(kind.equals("model"))
-            e = makeObject(owner, spec, tgt, off, true);
-        else
-            e = makeGhost(owner, spec, spec.get("ghost").tojstring(), tgt, off, true);
-        if(e == null)
-            throw new LuaError("gob:overlay(key, spec): there is no map view yet — a world-space overlay needs the"
-                + " 3D scene, so attach it once you are in the world (EnterWorld / GobAdded)");
-        return e;
-    }
-
-    /** Destroy the entity behind a world-space overlay — the record's own end (replace / remove / the gob's death). */
-    static void destroyOverlayEntity(LuaWorldEntity e) {
-        destroyEntity(e);
-    }
-
-    /**
-     * {@code overlay:tint/:alpha/:scale/:rotate} on a world-space overlay — the look and facing verbs the entity
-     * already has, composed onto the Overlay object (plan §3) rather than re-implemented, so absorbing
-     * {@code follow=} takes nothing away. Position is NOT among them: an overlay's position is its gob's, and the
-     * only thing an addon sets is the {@code offset} its spec names.
-     */
-    static void overlayTint(LuaWorldEntity e, java.awt.Color c) { setEntityTint(e, c); }
-    static void overlayAlpha(LuaWorldEntity e, double a)        { setEntityAlpha(e, clampAlpha(a)); }
-    static void overlayScale(LuaWorldEntity e, double s)        { setEntityScale(e, clampScale(s)); }
-
-    /**
-     * {@code overlay:offset(x, y, z)} on a world-space overlay — move the anchored visual relative to its gob
-     * <b>in place</b>, which is what makes the offset a property like every other rather than a reason to detach
-     * and re-attach. Both halves are written: the entity's own desired offset (read by a create that has not
-     * published yet) and the live {@link FollowMoving}, whose {@code off} is volatile precisely so the placement
-     * pass can pick it up on the next frame without a lock.
-     */
-    static void overlayOffset(LuaWorldEntity e, Coord3f off) {
+    private static void setEntityOffset(LuaWorldEntity e, Coord3f off) {
         synchronized(e) {
             if(e.dead)
                 return;
@@ -1298,24 +1306,14 @@ final class VrApi {
         }
     }
 
-    /** {@code overlay:rotate(a)} — the entity keeps its OWN facing while it follows (FollowMoving supplies only the point). */
-    static void overlayRotate(LuaWorldEntity e, double a) {
-        synchronized(e) {
-            if(e.dead)
-                return;
-            e.a = a;
-            if(e.gob != null)
-                e.gob.move(e.rc, e.a);
-        }
-    }
-
     /**
-     * {@code overlay:position()} — where a world-space overlay actually is, as a {@link LuaPosition}: the gob's
-     * live interpolated point plus the overlay's own offset. One position verb, one type (039.2/039.3), so the
-     * answer goes straight to {@code hafen.act():moveTo} or into {@code hafen.store} without conversion; the
-     * facing and size that used to ride in the same table are {@code ov:rotate()} and {@code ov:scale()}.
+     * {@code <entity>:position()} — where the thing actually is, as a {@link LuaPosition}: its own point when it
+     * stands still, and the followed gob's live interpolated point plus this entity's offset when it is anchored.
+     * One position verb, one type (039.2/039.3), so the answer goes straight to {@code hafen.act():moveTo} or into
+     * {@code hafen.store} without conversion; the facing and size that used to ride in the same table are
+     * {@code :rotate()} and {@code :scale()}.
      */
-    static LuaValue overlayPosition(Addon owner, LuaWorldEntity e) {
+    static LuaValue entityPosition(Addon owner, LuaWorldEntity e) {
         Coord2d rc;
         synchronized(e) {
             rc = entityWorldPos(e);
@@ -1326,22 +1324,12 @@ final class VrApi {
     /**
      * Attach the {@link FollowMoving} at (deferred/immediate) create time when the entity is anchored — called by
      * {@code makeSprite}/{@code makeObject}/{@code makeGhost} once the gob is built (before it enters the scene),
-     * so an overlay whose visual streams in a beat later is anchored the moment it lands. Caller holds the entity
+     * so an entity whose visual streams in a beat later is anchored the moment it lands. Caller holds the entity
      * monitor; the fresh gob is not yet published, so no {@code synchronized(gob)} is needed.
      */
     private static void applyEntityFollow(LuaWorldEntity e, Gob gob) {
         if(e.followTgt != 0)
             gob.setattr(new FollowMoving(gob, e.followTgt, e.followOff));
-    }
-
-    /** Parse a {@code {x=,y=,z=}} world-offset table → a {@link Coord3f} (missing components 0), or {@code null} (not a table). */
-    static Coord3f luaOffset(LuaValue v) {
-        if((v == null) || !v.istable())
-            return null;
-        float x = (float)v.get("x").optdouble(0.0);
-        float y = (float)v.get("y").optdouble(0.0);
-        float z = (float)v.get("z").optdouble(0.0);
-        return new Coord3f(x, y, z);
     }
 
     /**

@@ -28,10 +28,19 @@ import java.util.Map;
  * overlay's configuration is its own state, {@code ov:text("…")} relabels a live one, and a record that has not
  * yet named a kind draws nothing at all — which is how a half-configured overlay never paints.
  *
- * <p><b>Two spaces, one read.</b> {@code gob:overlay():list()} answers every overlay on the gob and each one says
- * which it is: {@code ov:native()} is {@code true} for the game's own and {@code false} for the addon's. The
- * native ones are <b>read-only</b> — an {@code :add} onto a native key and a {@code :remove} of one both raise,
- * naming the key, rather than silently doing nothing to something the addon does not own.
+ * <p><b>What it means, since 043.3: WHAT IS DRAWN AT THIS GOB.</b> An addon's own overlays are screen-space
+ * painters at the gob's projected point — {@code :draw(fn)} and {@code :text(s)}, and nothing else. The three
+ * world kinds are gone: what {@code ov:image}/{@code ov:model}/{@code ov:ghost} built was never an engine overlay
+ * but a client gob of its own standing in the scene, so it belongs to {@code hafen.vr()}, where such a thing is
+ * created, listed and ended. Each of the three retired spellings raises naming its replacement.
+ *
+ * <p><b>Three origins, one read.</b> {@code gob:overlay():list()} still answers everything drawn at the gob, and
+ * each member says what it is. The addon's own records are writable. The game's own ({@code ov:native()}) are
+ * <b>read-only</b>. And a {@code hafen.vr()} entity this addon anchored to the gob is surfaced here <b>read-only
+ * too</b> ({@code ov:native()} is {@code false}, {@code ov:kind()} names its collection) — so "what is at this
+ * gob?" keeps one complete answer, while the thing itself is still addressed through the collection that owns it.
+ * Every write through such an entry raises, naming that collection; so does an {@code :add} onto a native or a
+ * {@code hafen.vr()} key, and a {@code :remove} of either.
  *
  * <p><b>The key is the identity, and a native one is the RESOURCE NAME.</b> A {@code Gob.Overlay} carries an
  * {@code id} only when the server chose to give it one, and an id is a number no other part of this API speaks —
@@ -48,27 +57,40 @@ import java.util.Map;
  * Interned per (addon, gob id, native, key), the {@link LuaGob} shape one level down.
  */
 public final class LuaOverlay {
+    /** This addon's own record — the only writable kind. */
+    static final int MINE = 0;
+    /** One of the game's own overlays ({@code Gob.ols}), read-only and keyed by its resource name. */
+    static final int NATIVE = 1;
+    /** A {@code hafen.vr()} entity this addon anchored to the gob: read-only here, addressed through its collection. */
+    static final int VR = 2;
+
     /** The gob this overlay is attached to. */
     public final long gob;
-    /** The key: the addon's own for its overlays, the resource name for the game's. */
+    /** The key: the addon's own for its records, the resource name for the game's, {@code vr#<n>} for an entity. */
     public final String key;
-    /** Is this one of the game's own overlays (read-only) rather than the addon's? */
-    public final boolean nat;
+    /** Where the thing behind this handle lives: {@link #MINE}, {@link #NATIVE} or {@link #VR}. */
+    public final int src;
 
-    private LuaOverlay(long gob, String key, boolean nat) {
+    private LuaOverlay(long gob, String key, int src) {
         this.gob = gob;
         this.key = key;
-        this.nat = nat;
+        this.src = src;
     }
 
-    /** {@code tostring(ov)}: {@code Overlay(<key>@<gobId>)}, with a {@code *} on the game's own. */
+    /** Is this one of the game's own overlays? {@code ov:native()} — and a {@code hafen.vr()} entity is NOT. */
+    public boolean nat() {
+        return src == NATIVE;
+    }
+
+    /** {@code tostring(ov)}: {@code Overlay(<key>@<gobId>)}, {@code *} on the game's own, {@code ~} on a vr entity. */
     public String toString() {
-        return "Overlay(" + (nat ? "*" : "") + key + "@" + Long.toString(gob) + ")";
+        String mark = (src == NATIVE) ? "*" : ((src == VR) ? "~" : "");
+        return "Overlay(" + mark + key + "@" + Long.toString(gob) + ")";
     }
 
     /** An interned Overlay object in {@code owner}'s env — the one way one reaches Lua. */
-    static LuaValue of(Addon owner, long gob, String key, boolean nat) {
-        return owner.gobOverlayObjs.of(gob, key, nat);
+    static LuaValue of(Addon owner, long gob, String key, int src) {
+        return owner.gobOverlayObjs.of(gob, key, src);
     }
 
     /** The {@code LuaOverlay} behind a Lua value, or {@code null} for anything that is not an Overlay object. */
@@ -80,9 +102,10 @@ public final class LuaOverlay {
     }
 
     /**
-     * Every overlay on the gob, this addon's own first (in attach order) then the game's own. Another addon's
-     * overlays are not in it (keys are per addon, so two addons' {@code "tag"} on one gob neither collide nor
-     * see each other), and a departed gob simply has none.
+     * Everything drawn at the gob, in three groups: this addon's own records first (in attach order), then the
+     * {@code hafen.vr()} entities it anchored there (in placement order), then the game's own. Another addon's
+     * are in none of them — keys are per addon, so two addons' {@code "tag"} on one gob neither collide nor see
+     * each other, and the same is true of what each has standing there — and a departed gob simply has nothing.
      */
     private static List<LuaValue> members(Addon owner, long gobId) {
         List<LuaValue> out = new ArrayList<LuaValue>();
@@ -92,10 +115,12 @@ public final class LuaOverlay {
         LuaGobOverlay store = LuaGobOverlay.on(g);
         if(store != null) {
             for(String k : store.keys(owner))
-                out.add(of(owner, gobId, k, false));
+                out.add(of(owner, gobId, k, MINE));
         }
+        for(LuaWorldEntity e : VrApi.anchoredMembers(owner, gobId))
+            out.add(of(owner, gobId, e.overlayKey(), VR));
         for(String k : LuaGobOverlay.nativeKeys(g))
-            out.add(of(owner, gobId, k, true));
+            out.add(of(owner, gobId, k, NATIVE));
         return out;
     }
 
@@ -135,8 +160,10 @@ public final class LuaOverlay {
                     return LuaValue.NIL;
                 LuaGobOverlay store = LuaGobOverlay.on(g);
                 if((store != null) && (store.get(owner, k) != null))
-                    return of(owner, gobId, k, false);
-                return LuaGobOverlay.findNative(g, k) ? of(owner, gobId, k, true) : LuaValue.NIL;
+                    return of(owner, gobId, k, MINE);
+                if(VrApi.anchoredAt(owner, gobId, k) != null)
+                    return of(owner, gobId, k, VR);
+                return LuaGobOverlay.findNative(g, k) ? of(owner, gobId, k, NATIVE) : LuaValue.NIL;
             }
 
             public boolean creatable() {
@@ -157,13 +184,16 @@ public final class LuaOverlay {
                     throw new LuaError("gob:overlay():add(\"" + k + "\"): that key names one of the GAME's own"
                         + " overlays, which are read-only -- pick a key of your own (a native key is a resource"
                         + " name; gob:overlay():list() lists them)");
-                LuaGobOverlay.Attach old = LuaGobOverlay.ensure(g).put(new LuaGobOverlay.Attach(owner, k, gobId));
-                if(old != null) {
-                    old.dispose();
+                LuaWorldEntity vr = VrApi.anchoredAt(owner, gobId, k);
+                if(vr != null)
+                    throw new LuaError("gob:overlay():add(\"" + k + "\"): that key names a hafen.vr():" + vr.kind()
+                        + "() standing at this gob, which is listed here read-only -- pick a key of your own"
+                        + " (a vr key is generated, so it always looks like \"vr#7\")");
+                LuaGobOverlay.Attach old = LuaGobOverlay.ensure(g).put(new LuaGobOverlay.Attach(owner, k));
+                if(old != null)
                     AddonManager.queueGobOverlay(false, gobId, k, owner);
-                }
                 AddonManager.queueGobOverlay(true, gobId, k, owner);
-                return of(owner, gobId, k, false);
+                return of(owner, gobId, k, MINE);
             }
 
             public boolean destroyable() {
@@ -179,7 +209,7 @@ public final class LuaOverlay {
                     if(h.gob != gobId)
                         throw new LuaError("gob:overlay():remove(ov): that Overlay hangs on a different gob"
                             + " (ov:gob() says which)");
-                    if(h.nat)
+                    if(h.nat())
                         throw new LuaError("gob:overlay():remove(\"" + h.key + "\"): that is one of the GAME's"
                             + " own overlays, which are read-only");
                     k = h.key;
@@ -192,14 +222,17 @@ public final class LuaOverlay {
                 if(LuaGobOverlay.findNative(g, k))
                     throw new LuaError("gob:overlay():remove(\"" + k + "\"): that key names one of the GAME's own"
                         + " overlays, which are read-only");
+                LuaWorldEntity vr = VrApi.anchoredAt(owner, gobId, k);
+                if(vr != null)
+                    throw new LuaError("gob:overlay():remove(\"" + k + "\"): that is a hafen.vr():" + vr.kind()
+                        + "() standing at this gob, listed here read-only -- the collection placed it, so the"
+                        + " collection ends it: hafen.vr():" + vr.kind() + "():remove(x), with the handle :add"
+                        + " gave you (or one out of hafen.vr():" + vr.kind() + "():list())");
                 LuaGobOverlay store = LuaGobOverlay.on(g);
                 if(store == null)
                     return;
-                LuaGobOverlay.Attach old = store.remove(owner, k);
-                if(old != null) {
-                    old.dispose();                   // a world-space record owns a live entity; the map does not
+                if(store.remove(owner, k) != null)
                     AddonManager.queueGobOverlay(false, gobId, k, owner);
-                }
                 LuaGobOverlay.prune(g);
             }
         }, null);
@@ -226,10 +259,10 @@ public final class LuaOverlay {
             this.owner = owner;
         }
 
-        /** The interned handle for (gob, key, native) — a cache hit, or a freshly minted (and inserted) one. */
-        synchronized LuaValue of(long gob, String key, boolean nat) {
+        /** The interned handle for (gob, key, origin) — a cache hit, or a freshly minted (and inserted) one. */
+        synchronized LuaValue of(long gob, String key, int src) {
             drain();
-            String ck = Long.toString(gob) + (nat ? "\0*\0" : "\0-\0") + key;
+            String ck = Long.toString(gob) + "\0" + src + "\0" + key;
             Ref r = live.get(ck);
             if(r != null) {
                 LuaValue v = r.get();
@@ -237,7 +270,7 @@ public final class LuaOverlay {
                     return v;
                 live.remove(ck);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaOverlay(gob, key, nat), meta());
+            LuaValue v = LuaValue.userdataOf(new LuaOverlay(gob, key, src), meta());
             live.put(ck, new Ref(v, ck, dead));
             return v;
         }
@@ -298,37 +331,44 @@ public final class LuaOverlay {
                 return LuaGob.of(owner, handle(self, "gob").gob);
             }
         });
-        // native() — is this one of the GAME's overlays (read-only) rather than one of ours?
+        // native() — is this one of the GAME's overlays (read-only) rather than one of ours? A hafen.vr() entity
+        // this addon stood at the gob answers FALSE: it is yours, it is simply not addressed from here.
         m.set("native", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(handle(self, "native").nat);
+                return LuaValue.valueOf(handle(self, "native").nat());
             }
         });
         // res() — WHAT it is drawn from: the key itself for a native one (a native key IS its resource name), the
-        // .res name / asset path for a world-space one of ours, and nil for a screen-space one (it draws Lua, not
-        // a resource — which is exactly what distinguishes the two spaces from the outside).
+        // .res name / asset path for a hafen.vr() entity standing here, and nil for one of our own records (it
+        // draws Lua, not a resource — which is exactly what tells a painter from a thing, from the outside).
         m.set("res", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaOverlay h = handle(self, "res");
-                if(h.nat)
+                if(h.src == NATIVE)
                     return LuaValue.valueOf(h.key);
-                LuaGobOverlay.Attach a = mine(owner, h);
-                String nm = ((a == null) || (a.ent == null)) ? null : a.ent.visualName();
+                LuaWorldEntity e = vr(owner, h);
+                String nm = (e == null) ? null : e.visualName();
                 return (nm == null) ? LuaValue.NIL : LuaValue.valueOf(nm);
             }
         });
-        // kind() — "draw" / "text" (screen space) or "image" / "model" / "ghost" (the 3D world) for one of ours;
-        // nil for a native one (the game's overlays are read-only and say only that they are the game's), and nil
-        // for one of ours that has not yet said what it draws.
+        // kind() — "draw" / "text" for one of our own records; "ghost" / "sprite" / "object" for a hafen.vr()
+        // entity standing here, which is also the collection that owns it; nil for a native one (the game's
+        // overlays are read-only and say only that they are the game's), and nil for one of ours that has not yet
+        // said what it draws.
         m.set("kind", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                LuaGobOverlay.Attach a = mine(owner, handle(self, "kind"));
+                LuaOverlay h = handle(self, "kind");
+                if(h.src == VR) {
+                    LuaWorldEntity e = vr(owner, h);
+                    return (e == null) ? LuaValue.NIL : LuaValue.valueOf(e.kind());
+                }
+                LuaGobOverlay.Attach a = mine(owner, h);
                 String k = (a == null) ? null : a.kind();
                 return (k == null) ? LuaValue.NIL : LuaValue.valueOf(k);
             }
         });
 
-        // ---- what it draws: the five kind setters (039.3) -----------------------------------------------
+        // ---- what it draws: the two kind setters (039.3, cut to two by 043.3) ---------------------------
         // An overlay is attached BARE and says what it draws here — the spec table is gone, and with it its
         // one-shot parse: :text("…") on a live overlay relabels it. It says ONE thing, so a second, different
         // kind is refused naming the first, exactly as a spec naming two fields used to be.
@@ -367,47 +407,25 @@ public final class LuaOverlay {
                 return self;
             }
         });
-        m.set("image", visualSetter(owner, "image"));
-        m.set("model", visualSetter(owner, "model"));
-        // ghost(res) — a game .res model, named rather than handed over as an asset handle.
-        m.set("ghost", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
-                LuaValue rv = Args.written(a, 2, "overlay:ghost", "res");
-                LuaGobOverlay.Attach rec = writable(owner, self, "ghost");
-                if(rv == null)
-                    return ((rec == null) || (rec.res == null)) ? LuaValue.NIL : LuaValue.valueOf(rec.res);
-                if(!rv.isstring() || rv.isnumber())
-                    throw new LuaError("overlay:ghost(res) expects a .res name, got " + rv.typename());
-                if(rec != null) {
-                    becomes(rec, "ghost", "ghost");
-                    build(rec, "ghost", LuaValue.NIL, rv.tojstring());
-                }
-                return self;
-            }
-        });
 
         // ---- how it looks ------------------------------------------------------------------------------
-        // color(r, g, b[, a]) — the label's colour, on a SCREEN-space overlay. Positional components, and a
-        // colour VALUE passes straight back through, so ov:color(other:color()) is one call.
+        // color(r, g, b[, a]) — the label's colour. Positional components, and a colour VALUE passes straight
+        // back through, so ov:color(other:color()) is one call.
         m.set("color", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 LuaGobOverlay.Attach rec = writable(owner, self, "color");
                 if(!Args.passed(a, 2))
                     return (rec == null) ? LuaValue.NIL : colorValue(rec.color);
-                if((rec != null) && rec.world())
-                    throw new LuaError("overlay:color(): that is a WORLD-space overlay (kind '" + rec.kind()
-                        + "') -- :color is the label colour of a screen-space one; the world kinds take :tint");
                 java.awt.Color c = colorArg(a, 2, "overlay:color");
                 if(rec != null)
                     rec.color = c;
                 return self;
             }
         });
-        // offset(x, y) / offset(x, y, z) — where it sits relative to the gob: screen PIXELS from the projected
-        // point on a screen-space overlay, world UNITS (z = up) on a world-space one. Live on both: a world
-        // overlay's anchor is updated in place rather than re-attached.
+        // offset(x, y) — where it sits relative to the gob's projected point, in screen PIXELS. ONE meaning
+        // since 043.3: the third number used to switch the whole verb into world units for the world kinds, and
+        // those left, so a third argument is refused naming the verb that moves a thing in the world.
         m.set("offset", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
@@ -418,165 +436,38 @@ public final class LuaOverlay {
                     LuaTable t = new LuaTable();
                     t.set("x", LuaValue.valueOf(rec.offX));
                     t.set("y", LuaValue.valueOf(rec.offY));
-                    if(!"draw".equals(rec.kind()) && !"text".equals(rec.kind()))
-                        t.set("z", LuaValue.valueOf(rec.offZ));
                     return t;
                 }
+                if(Args.passed(a, 4))
+                    throw new LuaError("overlay:offset(x, y): an overlay is painted at the gob's projected point,"
+                        + " so its offset is SCREEN PIXELS and takes two numbers. The three-number world form is"
+                        + " gone with the world kinds -- a thing standing in the world is"
+                        + " hafen.vr():sprite():add(asset, gob) (or :object() / :ghost()), and what it sits at"
+                        + " relative to the gob is its own :offset(x, y, z), in world units with z up");
                 double x = numberArg(a, 2, "overlay:offset", "x");
                 double y = numberArg(a, 3, "overlay:offset", "y");
-                double z = Args.passed(a, 4) ? numberArg(a, 4, "overlay:offset", "z") : 0.0;
                 if(rec != null) {
-                    rec.offX = x; rec.offY = y; rec.offZ = z;
-                    LuaWorldEntity e = rec.ent;
-                    if(e != null)
-                        VrApi.overlayOffset(e, rec.worldOffset());
+                    rec.offX = x; rec.offY = y;
                 }
                 return self;
             }
         });
-        // The look and facing of a WORLD-space overlay (038.2's composed verbs, now with their reads). They are
-        // refused on a screen-space one naming the kinds — a screen overlay is painted by the addon, or is a
-        // label with its own colour — and are remembered on the record, so a rebuilt visual comes back the same.
-        // Once the overlay is gone they are clean no-ops: the thing they would act on is not there.
-        m.set("scale", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
-                LuaValue sv = Args.written(a, 2, "overlay:scale", "s");
-                LuaGobOverlay.Attach rec = worldOnly(owner, self, "scale");
-                if(sv == null)
-                    return (rec == null) ? LuaValue.NIL : LuaValue.valueOf(rec.scale);
-                if(!sv.isnumber())
-                    throw new LuaError("overlay:scale(s) expects a positive number (1 = original size)");
-                if(rec != null) {
-                    rec.scale = VrApi.clampScale(sv.todouble());
-                    if(rec.ent != null)
-                        VrApi.overlayScale(rec.ent, rec.scale);
-                }
-                return self;
-            }
-        });
-        m.set("alpha", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
-                LuaValue av = Args.written(a, 2, "overlay:alpha", "a");
-                LuaGobOverlay.Attach rec = worldOnly(owner, self, "alpha");
-                if(av == null)
-                    return (rec == null) ? LuaValue.NIL : LuaValue.valueOf(rec.alpha);
-                if(!av.isnumber())
-                    throw new LuaError("overlay:alpha(a) expects a number 0..1 (1 = opaque)");
-                if(rec != null) {
-                    rec.alpha = VrApi.clampAlpha(av.todouble());
-                    if(rec.ent != null)
-                        VrApi.overlayAlpha(rec.ent, rec.alpha);
-                }
-                return self;
-            }
-        });
-        // tint(nil) STAYS legal: "no tint" is a real value, not an accident — one of the two nils the whole API
-        // documents a meaning for.
-        m.set("tint", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
-                LuaGobOverlay.Attach rec = worldOnly(owner, self, "tint");
-                if(!Args.passed(a, 2))
-                    return (rec == null) ? LuaValue.NIL : colorValue(rec.tint);
-                java.awt.Color c = a.arg(2).isnil() ? null : colorArg(a, 2, "overlay:tint");
-                if(rec != null) {
-                    rec.tint = c;
-                    if(rec.ent != null)
-                        VrApi.overlayTint(rec.ent, c);
-                }
-                return self;
-            }
-        });
-        m.set("rotate", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
-                LuaValue av = Args.written(a, 2, "overlay:rotate", "a");
-                LuaGobOverlay.Attach rec = worldOnly(owner, self, "rotate");
-                if(av == null)
-                    return (rec == null) ? LuaValue.NIL : LuaValue.valueOf(rec.rotate);
-                if(!av.isnumber())
-                    throw new LuaError("overlay:rotate(a) expects a facing angle in radians");
-                if(rec != null) {
-                    rec.rotate = av.todouble();
-                    if(rec.ent != null)
-                        VrApi.overlayRotate(rec.ent, rec.rotate);
-                }
-                return self;
-            }
-        });
-        // billboard(b) and spawnData(sdt) are the two CONSTRUCTION properties: they pick which visual is milled,
-        // so setting one after the overlay already stands rebuilds it. Set them in the same chain as the kind and
-        // it is built once — which is what the chained form is for.
-        m.set("billboard", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
-                LuaValue bv = Args.written(a, 2, "overlay:billboard", "b");
-                LuaGobOverlay.Attach rec = worldOnly(owner, self, "billboard");
-                if(bv == null)
-                    return (rec == null) ? LuaValue.NIL : LuaValue.valueOf(rec.billboard);
-                if(!bv.isboolean())
-                    throw new LuaError("overlay:billboard(b) expects true or false -- true is a camera-facing"
-                        + " blit, false the upright quad");
-                if(rec != null) {
-                    boolean had = rec.billboard;
-                    rec.billboard = bv.toboolean();
-                    try {
-                        rec.materialise();
-                    } catch(RuntimeException e) {
-                        rec.billboard = had;
-                        throw e;
-                    }
-                }
-                return self;
-            }
-        });
-        m.set("spawnData", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
-                LuaValue sv = Args.written(a, 2, "overlay:spawnData", "spawnData");
-                LuaGobOverlay.Attach rec = worldOnly(owner, self, "spawnData");
-                if(sv == null)
-                    return ((rec == null) || (rec.spawnData == null)) ? LuaValue.NIL : rec.spawnData;
-                if(rec != null) {
-                    LuaValue had = rec.spawnData;
-                    rec.spawnData = sv;
-                    try {
-                        rec.materialise();
-                    } catch(RuntimeException e) {
-                        rec.spawnData = had;
-                        throw e;
-                    }
-                }
-                return self;
-            }
-        });
-        // position() — where the thing actually IS, as a Position: the gob's live interpolated point plus this
-        // overlay's offset. World-space only, and nil once it is gone. Its facing and size are :rotate()/:scale().
-        m.set("position", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaGobOverlay.Attach rec = worldOnly(owner, self, "position");
-                LuaWorldEntity e = (rec == null) ? null : rec.ent;
-                return (e == null) ? LuaValue.NIL : VrApi.overlayPosition(owner, e);
-            }
-        });
-        // count() — how many engine overlays this one entity stands for: 1 for ours, and for a native one the
-        // number the game has of that resource on that gob. A NATIVE OVERLAY IS A UNION, because the key is
-        // the resource name and a gob may carry several of one resource (038.1 measured 13 of 33 such gobs) —
-        // so the multiplicity keying by name would lose is published here instead. nil once it is gone.
+        // count() — how many engine overlays this one entity stands for: 1 for ours and for a hafen.vr() entity
+        // standing here, and for a native one the number the game has of that resource on that gob. A NATIVE
+        // OVERLAY IS A UNION, because the key is the resource name and a gob may carry several of one resource
+        // (038.1 measured 13 of 33 such gobs) — so the multiplicity keying by name would lose is published here
+        // instead. nil once it is gone.
         m.set("count", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaOverlay h = handle(self, "count");
                 Gob g = AddonManager.getgob(h.gob);
                 if(g == null)
                     return LuaValue.NIL;
-                if(h.nat) {
+                if(h.src == NATIVE) {
                     int n = LuaGobOverlay.countNative(g, h.key);
                     return (n == 0) ? LuaValue.NIL : LuaValue.valueOf(n);
                 }
-                LuaGobOverlay store = LuaGobOverlay.on(g);
-                return ((store == null) || (store.get(owner, h.key) == null)) ? LuaValue.NIL : LuaValue.valueOf(1);
+                return (rec(owner, h) == null) ? LuaValue.NIL : LuaValue.valueOf(1);
             }
         });
         // exists() — is it still attached? False once removed, and false once the gob itself is gone.
@@ -585,7 +476,7 @@ public final class LuaOverlay {
                 return LuaValue.valueOf(rec(owner, handle(self, "exists")) != null);
             }
         });
-        // info() — the snapshot escape hatch, for logging: {key, native, res?, kind?}.
+        // info() — the snapshot escape hatch, for logging: {key, native, count, res?, kind?, world?}.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaOverlay h = handle(self, "info");
@@ -594,19 +485,24 @@ public final class LuaOverlay {
                     return LuaValue.NIL;
                 LuaTable t = new LuaTable();
                 t.set("key", LuaValue.valueOf(h.key));
-                t.set("native", LuaValue.valueOf(h.nat));
-                if(h.nat) {
+                t.set("native", LuaValue.valueOf(h.nat()));
+                if(h.src == NATIVE) {
                     t.set("res", LuaValue.valueOf(h.key));
                     t.set("count", LuaValue.valueOf(LuaGobOverlay.countNative(AddonManager.getgob(h.gob), h.key)));
+                } else if(h.src == VR) {
+                    LuaWorldEntity e = (LuaWorldEntity)r;
+                    t.set("count", LuaValue.valueOf(1));
+                    t.set("kind", LuaValue.valueOf(e.kind()));
+                    t.set("world", LuaValue.TRUE);                 // it stands in the 3D world, not at a screen point
+                    if(e.visualName() != null)
+                        t.set("res", LuaValue.valueOf(e.visualName()));
                 } else {
                     LuaGobOverlay.Attach a = (LuaGobOverlay.Attach)r;
                     t.set("count", LuaValue.valueOf(1));
                     if(a.kind() != null) {                         // absent while the overlay is still bare
                         t.set("kind", LuaValue.valueOf(a.kind()));
-                        t.set("world", LuaValue.valueOf(a.world()));   // the 3D world, or the gob's screen point
+                        t.set("world", LuaValue.FALSE);            // painted at the gob's projected screen point
                     }
-                    if((a.ent != null) && (a.ent.visualName() != null))
-                        t.set("res", LuaValue.valueOf(a.ent.visualName()));
                 }
                 return t;
             }
@@ -615,53 +511,59 @@ public final class LuaOverlay {
     }
 
     /**
-     * What backs a handle right now, or {@code null} — the record for one of ours, a marker object for a native
-     * one, and {@code null} for either once the overlay (or the gob) is gone. One resolution behind
-     * {@code :exists()} and {@code :info()}, so the two can never disagree.
+     * What backs a handle right now, or {@code null} — the record for one of ours, the entity for a
+     * {@code hafen.vr()} one, a marker object for a native one, and {@code null} for any of them once the thing
+     * (or the gob) is gone. One resolution behind {@code :exists()} and {@code :info()}, so the two can never
+     * disagree.
      */
     private static Object rec(Addon owner, LuaOverlay h) {
         Gob g = AddonManager.getgob(h.gob);
         if(g == null)
             return null;
-        if(h.nat)
+        if(h.src == NATIVE)
             return LuaGobOverlay.findNative(g, h.key) ? h : null;
+        if(h.src == VR)
+            return VrApi.anchoredAt(owner, h.gob, h.key);
         LuaGobOverlay store = LuaGobOverlay.on(g);
         return (store == null) ? null : store.get(owner, h.key);
     }
 
-    /** This addon's record behind a handle, or {@code null} (a native one, a removed one, or a departed gob). */
+    /** This addon's record behind a handle, or {@code null} (a native one, a vr one, a removed one, a departed gob). */
     private static LuaGobOverlay.Attach mine(Addon owner, LuaOverlay h) {
-        Object r = h.nat ? null : rec(owner, h);
+        Object r = (h.src == MINE) ? rec(owner, h) : null;
         return (r instanceof LuaGobOverlay.Attach) ? (LuaGobOverlay.Attach)r : null;
+    }
+
+    /** The {@code hafen.vr()} entity behind a handle, or {@code null} (any other origin, or one already gone). */
+    private static LuaWorldEntity vr(Addon owner, LuaOverlay h) {
+        Object r = (h.src == VR) ? rec(owner, h) : null;
+        return (r instanceof LuaWorldEntity) ? (LuaWorldEntity)r : null;
     }
 
     /**
      * The record a verb on one of OUR overlays acts on — {@code null} once the overlay (or its gob) is gone,
      * which makes every setter a clean no-op there: the thing it would act on is not there, and that is a
-     * moment, not a mistake. The game's own overlays are read-only, so they are refused naming the key: a verb
-     * that can never mean anything here is a refusal, not a silent one.
+     * moment, not a mistake.
+     *
+     * <p>The other two origins are <b>read-only here and are refused</b>, each naming where the thing does answer
+     * to a write: the game's own overlays answer to nothing, and a {@code hafen.vr()} entity answers to the
+     * collection that placed it. A verb that can never mean anything on this handle is a refusal, not a silent
+     * one — that is the whole reason the entry is listed at all.
      */
     private static LuaGobOverlay.Attach writable(Addon owner, LuaValue self, String method) {
         LuaOverlay h = handle(self, method);
-        if(h.nat)
+        if(h.src == NATIVE)
             throw new LuaError("overlay:" + method + "(): the game's own overlays are READ-ONLY -- '" + h.key
                 + "' is one of them (gob:overlay():list() says which, ov:native())");
+        if(h.src == VR) {
+            LuaWorldEntity e = vr(owner, h);
+            String kind = (e == null) ? "sprite" : e.kind();
+            throw new LuaError("overlay:" + method + "(): that entry is a hafen.vr():" + kind + "() you stood at"
+                + " this gob, listed here READ-ONLY so \"what is at this gob?\" has one complete answer. You"
+                + " address it through the collection that owns it: the handle hafen.vr():" + kind + "():add(what,"
+                + " gob) gave you, or one out of hafen.vr():" + kind + "():list()");
+        }
         return mine(owner, h);
-    }
-
-    /**
-     * As {@link #writable}, for a verb that belongs to the <b>world-space</b> kinds only. A record that has not
-     * yet said what it draws passes — it may still become one of them — and a screen-space one is refused naming
-     * the kinds, because a label carries its own colour and a {@code draw} callback paints itself.
-     */
-    private static LuaGobOverlay.Attach worldOnly(Addon owner, LuaValue self, String method) {
-        LuaGobOverlay.Attach rec = writable(owner, self, method);
-        if((rec != null) && (rec.kind() != null) && !rec.world())
-            throw new LuaError("overlay:" + method + "(): that is a SCREEN-space overlay (kind '" + rec.kind()
-                + "') -- :scale/:alpha/:tint/:rotate/:billboard/:spawnData/:position belong to the world-space"
-                + " kinds ('image', 'model', 'ghost'); a 'draw' overlay paints itself and a 'text' one carries"
-                + " its own colour");
-        return rec;
     }
 
     /**
@@ -674,46 +576,6 @@ public final class LuaOverlay {
         if((had != null) && !had.equals(kind))
             throw new LuaError("overlay:" + method + "(): this overlay already draws '" + had + "', and an"
                 + " overlay says ONE thing -- gob:overlay():add(\"" + rec.key + "\") again to replace it");
-    }
-
-    /**
-     * Point a world-space record at a visual and (re)build it. The record's own fields are restored if the build
-     * raises, so a bad asset handle or a missing map view leaves the overlay exactly as it was — 038's property
-     * that a failed attach changes nothing, kept now that the configuration arrives one setter at a time.
-     */
-    private static void build(LuaGobOverlay.Attach rec, String kind, LuaValue visual, String res) {
-        String hadKind = rec.kind, hadRes = rec.res;
-        LuaValue hadVisual = rec.visual;
-        rec.kind = kind;
-        rec.visual = visual;
-        rec.res = res;
-        try {
-            rec.materialise();
-        } catch(RuntimeException e) {
-            rec.kind = hadKind;
-            rec.visual = hadVisual;
-            rec.res = hadRes;
-            throw e;
-        }
-    }
-
-    /** {@code :image(asset)} / {@code :model(asset)} — one shape, two kinds: the visual is an asset handle. */
-    private static LuaValue visualSetter(final Addon owner, final String kind) {
-        return new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
-                LuaValue av = Args.written(a, 2, "overlay:" + kind, "asset");
-                LuaGobOverlay.Attach rec = writable(owner, self, kind);
-                if(av == null)
-                    return ((rec == null) || !kind.equals(rec.kind()) || (rec.visual == null))
-                        ? LuaValue.NIL : rec.visual;
-                if(rec != null) {
-                    becomes(rec, kind, kind);
-                    build(rec, kind, av, null);
-                }
-                return self;
-            }
-        };
     }
 
     /** A colour argument / a colour read — the API's one spelling, shared with every other colour property. */

@@ -39,7 +39,7 @@
   anchored entity answers the gob's live point; the collection's `:list()` includes both kinds of
   anchor.
 
-- [ ] **043.3 — The world kinds leave `gob:overlay()`**
+- [x] **043.3 — The world kinds leave `gob:overlay()`**
   `ov:image`/`ov:model`/`ov:ghost` are cut, raising and naming their `hafen.vr()` replacement. The
   Overlay object loses the world verb set (`:scale`, `:rotate`, `:tint`, `:alpha`, `:billboard`,
   and `:offset`'s 3-argument world form), which is what makes `ov:offset` mean **one** thing and
@@ -72,8 +72,11 @@
   released. Then the docs: `api/ghost.md` and `api/render/**` retire into `api/vr/**` (hub +
   ghosts + sprites + models + the gizmo, which moves with the handles it drives), `api/gob.md`'s
   Overlays section is rewritten around what stays, both "API at a glance" tables lose two rows and
-  gain one, and the 12 remaining pages naming the old sections are swept. Runs area `docs`'s §12
-  checklist and reports it.
+  gain one, and the 12 remaining pages naming the old sections are swept. **`api/gob.md` also owes what 043.3
+  did**: the three kinds and the world verb set are gone from the Overlay object, `ov:offset(x, y)` is screen
+  pixels and a third argument raises, and an anchored `hafen.vr()` entity is listed there read-only (D-188) —
+  while `api/vr/**` owes the verb that moved with the kinds, `<entity>:offset(x, y, z)` (D-187). Runs area
+  `docs`'s §12 checklist and reports it.
   *Suite proves*: `:facing()` reads back `"fixed"` and `"screen"`; `"camera"` raises naming the
   valid modes; an unknown mode raises the same way; `:billboard` raises naming `:facing`; the
   stored-layout round-trip works through the new field; the docs sweep is reported as counts.

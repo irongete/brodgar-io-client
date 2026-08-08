@@ -194,3 +194,27 @@
   — so `hafen.ghost.list()` would have handed its raw handle (with `:destroy()`/`:move()`) straight back out. One
   `asOverlay` boolean on `LuaWorldEntity` plus one condition in `ghostList` closes it (D-103). Falsifying it (the
   flag ignored) reddened 2 probe checks.
+- **(043.3) Deleting a door orphans whatever only that door could WRITE — grep the fields, not just the call
+  sites.** Cutting `ov:image`/`ov:model`/`ov:ghost` and the verb set that served them read as a pure subtraction:
+  every one of `:scale`/`:alpha`/`:tint`/`:rotate`/`:billboard`/`:spawnData`/`:position` already existed on the
+  entity handle, so each became a `Retired` row and nothing was lost. Except `ov:offset`'s **three-number** form:
+  `LuaWorldEntity.followOff` + the volatile `FollowMoving.off` were written from there and **nowhere else**, so
+  after the cut an anchored entity had no way to sit anywhere but exactly on its gob — `tagger`'s pin and
+  `:hello follow` would both have dropped from ~1.6 tiles overhead to the feet, silently, with a green build and
+  a green suite. The fix was one verb on the handle (`<entity>:offset(x, y, z)`, refused on a free one naming
+  `:position(p)`, D-187) because the plumbing was already there and live. Practical rule for a relocation: after
+  listing the verbs that move, list the **fields** the removed surface was the sole writer of; each is either a
+  new verb on the new home or a capability you are deleting on purpose.
+- **(043.3) `asOverlay` was the whole cost of 038's "hide it so there is one door", and cutting the second
+  creator deleted the concept, not just the flag.** With the world kinds gone, `overlayEntity`,
+  `destroyOverlayEntity`, the four `overlay*` look forwarders, `luaOffset`, the `boolean overlay` parameter
+  threaded through all three `make*` bodies, and `Attach.ent`/`materialise`/`dispose`/`worldKind`/`KINDS`/`offZ`
+  all went with it — ~180 lines for one door that should never have been a second one. The tell that the flag was
+  load-bearing in the wrong direction: it had to be consulted in `entityMembers`, `memberArg`, `anchorRegister`
+  AND `anchorUnregister`, i.e. by every reader of the registries, to keep one object out of the list it was in.
+  A boolean that four unrelated readers must remember is usually a design being paid for in instalments.
+- **(043.3) The plan's measured port surface counted the addon NAMED for the feature and missed a site in
+  `hello`.** `plan.md` recorded "Lua overlay world-kind sites: **2**, `tagger/main.lua`" — but `:hello follow`
+  used `me:overlay():add("hello-follow"):image(icon):scale(2):offset(0, 0, 18)`, a third one, found only by
+  grepping `overlay()` across `addons/` before writing any code. `hello` is frozen, so it is easy to think of it
+  as not participating; it participates in everything. Grep for the **verb**, never for the addon you expect.

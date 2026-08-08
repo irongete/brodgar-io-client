@@ -48,5 +48,5 @@ public final class LuaGhost extends LuaWorldEntity {
     String visualName() { return resName; }
 
     String clickEvent() { return "GhostClicked"; }   // V2: the owner-scoped click event (unchanged)
-    String clickKey()   { return "ghost"; }
+    String kind()       { return "ghost"; }          // the hafen.vr() collection this one belongs to
 }
