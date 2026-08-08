@@ -1201,6 +1201,25 @@ public final class AddonManager {
     }
 
     /**
+     * <b>Drop something onto the panel under the pointer</b> (044.6) — the facade behind the {@code // addon:}
+     * lines in {@code haven.ItemDrag} and {@code haven.DropTarget}. A drop is dispatched from the dragged
+     * thing's own parent rather than from {@code ui.root}, so it reaches neither a standing panel's surface nor
+     * {@code MapView}'s intercept; this asks the corner map first, in the panel's own pixels.
+     *
+     * <p>{@code true} means a widget in the panel <b>accepted</b> it and the caller must stop — a drop that
+     * lands on a panel nothing takes goes on falling through exactly as it does on screen. Never throws into
+     * the click path.
+     */
+    public static boolean surfaceDrop(Widget.PointerEvent ev, Coord c) {
+        try {
+            return SurfaceInput.drop(ev, c);
+        } catch(RuntimeException e) {
+            log("surface drop error: " + e);
+            return false;
+        }
+    }
+
+    /**
      * Deliver the widget removals captured since the last tick, one frame's worth (D-106) — the same bound as
      * {@link #drainOverlayEvents}, for the same reason: a torn-down parent whose own removal triggers more
      * removals must not spin this tick forever.
@@ -1209,7 +1228,9 @@ public final class AddonManager {
      * "Destroy"/"ItemAdded"/"ItemRemoved", fn)} — same drain, same thread, so firing those here is exactly as
      * safe as the tree-adapter dispatch above. <b>Third since 042.8</b>: {@link UiApi#dispatchReplacedRemoved},
      * for the {@code widget:replace(view)} substitution's own death test — the server destroying a window an
-     * addon replaced is a removal like any other.
+     * addon replaced is a removal like any other. <b>Fifth since 044.6</b>:
+     * {@link VrApi#dispatchStandingRemoved}, for a widget standing in the 3D world — the same removal, one
+     * subsystem along, and the two meet where a replaced stand-in is also a standing panel.
      */
     private static void drainRemovedWidgets() {
         for(int n = removedWidgets.size(); n > 0; n--) {
@@ -1219,6 +1240,10 @@ public final class AddonManager {
             CharApi.dispatchRemoved(w);
             UiApi.dispatchWidgetSubsRemoved(w);
             UiApi.dispatchReplacedRemoved(w);
+            VrApi.dispatchStandingRemoved(w);             // addon: 044.6 — a widget standing in the 3D world whose
+                                                          //   content was destroyed (the server closing a container,
+                                                          //   a replaced stand-in dying with its substitution) ends
+                                                          //   its entity and frees its surface
             UiApi.dispatchSelectorRemoved(w);             // addon: 042.9 — widget removal → fire selector disappear
             Layout.dispatchRemoved(w);                    // addon: 042.10 — drop its layout record, its pending
                                                            // late-caption entry, and (if it was an anchor target)

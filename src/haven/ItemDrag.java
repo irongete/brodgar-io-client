@@ -58,9 +58,17 @@ public class ItemDrag extends WItem {
 	    }
 	}
 	if(ev.b == 1) {
+	    /* addon: a widget standing in the 3D world (044.6) is no longer under this parent, and the
+	     * drop below would go straight past it to the map underneath -- so the panel under the pointer
+	     * is asked first, in its own pixels. False = nothing there took it, and the client's own
+	     * dispatch runs unchanged. */
+	    if(io.brodgar.addon.AddonManager.surfaceDrop(new Drop(ev.c.add(this.c), this), ui.mc))
+		return(true);
 	    if(ui.dispatchq(parent, new Drop(ev.c.add(this.c), this)).handled)
 		return(true);
 	} else if(ev.b == 3) {
+	    if(io.brodgar.addon.AddonManager.surfaceDrop(new Interact(ev.c.add(this.c), this), ui.mc))	// addon: see above (044.6)
+		return(true);
 	    if(ui.dispatchq(parent, new Interact(ev.c.add(this.c), this)).handled)
 		return(true);
 	}

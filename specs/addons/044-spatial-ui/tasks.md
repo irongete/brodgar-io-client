@@ -115,7 +115,19 @@
   standing button. `[manual]`: hover and click a dropdown and confirm the list appears on the
   panel in the world rather than on the flat UI.
 
-- [ ] **044.6 — Native windows, going back, and `replace`**
+- [x] **044.6 — Native windows, going back, and `replace`** ✅
+  *Shipped*: the provenance refusal in `standable` is **gone** — a client window stands, ungated, and the record is
+  where it was, never whether it was shown, so D-070 holds with no branch and no second record and the window's
+  **toggle stays the client's** (standing hides nothing, so `togglewnd`/`wndstate` were already right — **D-200**).
+  `dispatchStandingRemoved` joins the 042.1 removal drain as its fifth consumer, so a standing widget ends with
+  its content — which is how the `replace` composition resolves when the server destroys the window (**D-201**).
+  `UiApi.stockPos` answers from the record, or `savewndpos` would have written the pinned origin to disk as the
+  user's own inventory position. **The manual round found a real gap**: an item aimed at a standing container
+  landed on the map beneath it, because a drop is dispatched from the dragged item's OWN parent and so reaches
+  neither the surface nor 044.4's `MapView` intercept — three `// addon:` lines (`ItemDrag` ×2, `DropTarget`),
+  answering *did a widget accept it* so the fall-through stays identical to the flat UI (**D-202**). 11/11 + 5/5,
+  four rounds, every `[manual]` confirmed: items in and out of the standing inventory, Tab, the Equipment toggle
+  over a stand-in, and `:reload` (its put-back verified numerically, the same pixel before and after).
   Borrowed widgets: the layer-that-restores, ungated, on the same footing as
   `:position`/`:visible`/`replace`. `:remove` as the undo, under one rule for both provenances —
   standing records where the widget was, removing puts it back. Then the composition with

@@ -863,3 +863,20 @@
   `MouseHoverEvent.propagation` goes further still: it dispatches to every child, invisible ones included,
   carrying a per-child `hovering` flag — but its `derive` constructor leaves `hovering` **false**, so anything
   dispatching a derived hover by hand must set it or it un-hovers the very widget the pointer is on.
+- **(044.6) A `Window`'s hide is a FADE, and re-homing it mid-transition CANCELS the hide.** `Window.hide()`
+  with a parent does not clear `visible`: it starts `trans.hide(...)` and sets `animst = "hide"`, and only the
+  tick that finishes the animation calls `super.hide()`. (`visible()` answers false at once — it reads
+  `visible && ((animst == null) || (animst == "show"))` — so the widget LOOKS hidden while the raw field is
+  still true.) Re-adding it in that window runs `Window.added()` → `initanim()`, which sees the raw `visible`
+  and starts a SHOW animation, so the hide is silently undone. Anything that re-parents a window — standing it
+  in the world, taking it back — must therefore act on the SETTLED state, not on one taken half a second
+  earlier; a suite that hid and removed in the same statement read the window back visible and was right to.
+- **(044.6) A standing window's own `c` is a transient, and only the RECORD is trustworthy.** The surface pins
+  its content at `Coord.z` every tick (`WidgetSurface.tick`, so a title-bar drag is inert), but one round read
+  it back as `0,-10` — once, never again, and the writer was never identified (`Window.chdeco` is the only
+  self-`c` write in `Window`, and every candidate is a one-shot the pin then corrects). The same round reported
+  the inventory returning to a wrong screen position after a `:reload`, also not reproduced afterwards. Two
+  things came out of it that hold regardless: `haven.Coord` is **mutable** and the client hands the same shared
+  `Coord.z` object to many widgets at once (`GameUI.maininv.c` IS that object), so a record that keeps the
+  reference is a record something else can move — copy it, both when recording and when handing it back; and
+  never assert an internal pin from Lua when what the feature claims is that the RECORD survives.

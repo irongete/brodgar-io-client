@@ -1365,3 +1365,50 @@ the surface is consulted **before** UI grabs (the flat walk consults them first)
 `clickable(false)` — a panel that is there only to look at is transparent to a tooltip too, which is the same
 answer it gives a click.
 **See.** [D-198](#d-198), [D-195](rendering.md#d-195), [D-196](#d-196), [widget-input](../../codebase/widget-input.md).
+
+### D-200 — standing a borrowed widget restores WHERE, not WHETHER — and it takes no toggle ✅ (044.6, 2026-08-08)
+**Decision.** `hafen.vr():widget():add(w, anchor)` accepts the client's own widgets, **ungated**. Standing
+records the parent and the place the widget had ([`LuaWidgetEntity.prevParent`/`prevPos`](src/io/brodgar/addon/LuaWidgetEntity.java:33),
+a defensive copy) and every ending puts back exactly those two. **Visibility is never written and no
+`Addon.hiddenNative` record is taken**, so the window's toggle stays the client's.
+**Rationale.** Hiding takes the toggle ([D-069](#d-069)) because the addon makes the window's visibility a lie.
+Standing does not hide: the window is on screen the whole time, in the world — so `GameUI.togglewnd`'s
+`show(!visible())` blanks and restores the panel and `wndstate` reads the truth, both unmodified. A hide record
+here would have swallowed the key and made the menu tick claim "closed" about a panel the user is looking at.
+And with visibility left alone, [D-070](#d-070) holds with **no branch**: what the widget's own `visible` says
+is what the user was seeing, in the was-visible and the was-hidden case alike.
+**Consequences.** One rule for both provenances — a client window returns to the frame it came out of, one of
+the addon's own to its default parent. The pinned `c` a standing widget carries must never reach the disk, so
+[`UiApi.stockPos`](src/io/brodgar/addon/UiApi.java:1444) answers from the record: 036.1's persistence trap
+through a new door, since `savewndpos` writes `wndc-inv` every 60 s. Stated cost: the entity's own
+`:visible(false)` hides the QUAD without hiding the widget, so a panel taken back while the entity was hidden
+comes back visible — the alternative leaves a server container open and unreachable.
+**See.** [D-069](#d-069), [D-070](#d-070), [D-191](#d-191), [gameui-windows](../../codebase/gameui-windows.md).
+
+### D-201 — a standing entity ends with the widget it stands ✅ (044.6, 2026-08-08)
+**Decision.** `VrApi.dispatchStandingRemoved` joins the 042.1 widget-removal drain as its **fifth** consumer:
+when the content widget is destroyed, its entity is destroyed with it — the surface freed, the handle
+`:exists()` false, exactly as `:remove` would have left it.
+**Rationale.** The composition the spec calls out: `w:replace(view)` plus standing that view. The server
+destroys the replaced window, the substitution's own death test ends it ([D-071](#d-071)) and destroys the
+stand-in — which is the very widget in the world. A panel whose content is gone cannot show anything again, so
+the honest answer is to end, not to hang over a container that no longer exists.
+**Consequences.** It covers every content death with one line: the server destroying a standing container, an
+addon destroying its own window, a stand-in dying with its substitution. The put-back then finds the widget
+already out of the surface and correctly restores nothing — there is nothing left to give back.
+**See.** [D-071](#d-071), [D-070](#d-070), [D-191](#d-191).
+
+### D-202 — a DROP is a query at a point too, and it arrives through a different door ✅ (044.6, 2026-08-08)
+**Decision.** [`ItemDrag.mousedown`](src/haven/ItemDrag.java:60) asks `AddonManager.surfaceDrop` before
+`ui.dispatchq(parent, …)`, for `DTarget.Drop` and `DTarget.Interact` alike, and the static
+[`DropTarget.dropthing`](src/haven/DropTarget.java:112) does the same when the walk starts at the root. The
+seam answers **whether a widget ACCEPTED it**, not whether a panel was under the pointer.
+**Rationale.** [D-199](#d-199) caught the three per-frame queries, all dispatched from `ui.root`. A drop is
+dispatched from the dragged thing's OWN parent — the HUD — so it reaches neither the surface nor 044.4's
+`MapView` intercept, and an item aimed at a container standing in the world landed on the map beneath it.
+That is the case the whole feature exists for ("putting ore into a smelter window standing on the smelter").
+**Consequences.** Answering "accepted" keeps the fall-through identical to the flat UI: a drop onto a part of a
+window that takes no items goes on to whatever is behind it, ultimately the ground. Items now move both ways
+between a flat inventory and a standing one. **Known gap, stated rather than hidden**: the drag-hover highlight
+(`DropTarget.drophover`) is not routed — cosmetic, and it has its own propagation override.
+**See.** [D-199](#d-199), [D-196](#d-196), [widget-input](../../codebase/widget-input.md).

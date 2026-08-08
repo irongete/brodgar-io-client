@@ -1,0 +1,9 @@
+{
+  "name": "044.6 — native windows, going back, and replace",
+  "id": "044-spatial-ui.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 044.6: standing the client's OWN windows in the world -- ungated, still live and server-bound while they stand, and given back where they came from on :remove, :reload and disable; plus the composition with widget:replace(view).",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

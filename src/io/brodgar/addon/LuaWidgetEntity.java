@@ -24,6 +24,13 @@ import haven.Widget;
  * :remove}, on {@code :reload}, on disable and on teardown alike, through {@link #destroyed()}. That is why the
  * previous parent and place are recorded at stand time rather than derived later: by the time an entity ends,
  * the tree it was standing out of may have moved on.
+ *
+ * <p><b>And it is not always the addon's own widget</b> (044.6). A window of the client's stands on exactly the
+ * same record: it is re-homed, not adopted, so it stays bound to its server id and goes on filling with items
+ * while it stands, and the record is what puts it back on the flat UI when the entity ends. That is the whole of
+ * what standing a borrowed widget is — the same layer-that-restores as {@code widget:position(x, y)} and
+ * {@code widget:replace(view)}, and ungated for the same reason: the clicks that reach the server are still the
+ * ones the user makes with their own hand.
  */
 public final class LuaWidgetEntity extends LuaWorldEntity {
     /** The offscreen surface the widget is drawn on, and the tree node it lives under while it stands. */
@@ -90,14 +97,31 @@ public final class LuaWidgetEntity extends LuaWorldEntity {
      * whole of it — a surface destroyed with the widget still inside it would take the widget's own subtree
      * down with it ({@code Widget.destroy} disposes recursively), which is the one outcome "removing it puts it
      * back" must never produce.
+     *
+     * <p><b>One rule for both provenances</b> (044.6): the record is <i>where the widget was</i>, and this puts
+     * it back there — a window of the client's returns to the flat UI under the frame it came out of, one of the
+     * addon's own to its default parent. <b>Visibility is not part of the record</b>, and that is what makes this
+     * D-070's rule rather than an exception to it: standing is the one write in that family which hides nothing,
+     * so the widget's own {@code visible} is what the user was seeing the whole time it stood, and carrying it
+     * through unwritten is the only answer that is right in both the was-visible and the was-hidden case. A
+     * standing window the user toggled off comes back off; one they were looking at in the world comes back on
+     * screen.
+     *
+     * <p>Three guards, each for a case that really happens: the surface must still be under the <b>live</b> root
+     * (after a relogin {@code AddonManager.ui} is already the NEW session's, and the old tree's widget must not
+     * be re-homed into it — the whole tree it belongs to is gone); the recorded parent must still be in that tree
+     * (else the widget goes to the root rather than into a dead frame); and the content must still be in the
+     * surface at all (a server destroy got there first, and there is nothing left to give back).
      */
     void destroyed() {
         UI u = AddonManager.ui;
         WidgetSurface s = surface;
-        if((u != null) && (u.root != null) && (content != null) && (content.parent == s)) {
+        if((u != null) && (u.root != null) && (content != null) && (content.parent == s) && s.hasparent(u.root)) {
             Widget np = ((prevParent != null) && prevParent.hasparent(u.root)) ? prevParent : u.root;
             try {
-                WidgetSurface.reparent(u, content, np, prevPos);
+                // A fresh Coord again (see where it was recorded): what goes into the widget's own c must not
+                // be the record itself, or the two become one object and the next reader of either is wrong.
+                WidgetSurface.reparent(u, content, np, new Coord(prevPos));
             } catch(RuntimeException e) {
                 AddonManager.log("standing widget could not be put back: " + e);
             }

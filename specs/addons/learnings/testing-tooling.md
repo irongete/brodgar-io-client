@@ -1314,3 +1314,14 @@
   everything decided before the handle is resolved: `Args.required`/`Args.passed` refusals, a section-level
   verb's own argument checks, and that a section read answers `nil` rather than throwing with no UI. Anything
   past that is an in-game check, so put the refusal checks in the suite too.
+- **(044.6) Assert the CLAIM, not the implementation detail that happens to be observable.** A check read the
+  standing window's `c` and demanded `0,0` — the surface's pin, which is internal, restored every tick and
+  therefore readable in a bad frame. It went red once on a value nothing in the feature promises. Rewritten to
+  assert what the task actually claims (*the place it stands at is NOT the place the user arranged it at, which
+  is why that place is recorded*), it is both stronger and unable to flap. The general shape: if a check can
+  fail without anything the task promises being broken, it is testing the wrong noun.
+- **(044.6) Put the diagnostic numbers on the PASS line when a later run has to compare across a `:reload`.**
+  `check()` only prints its `got` argument on failure, so a value the maintainer must compare between two runs
+  has to live in the claim string itself. Formatting the window's two positions into check 5's text turned "the
+  put-back after a reload is wrong somehow" into one pasted line per run and a direct comparison — no extra
+  command, no state carried across the reload (which a suite cannot do anyway: its Lua state dies with it).

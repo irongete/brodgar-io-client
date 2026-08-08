@@ -1341,7 +1341,10 @@ final class VrApi {
         surf.ent = we;                                 // 044.4: the surface asks the entity whether it takes the pointer
         we.clickable = true;                           // ...and it does, by default — a window on screen takes clicks
         we.prevParent = content.parent;                // where it stood from, so :remove puts it back
-        we.prevPos = content.c;
+        // A COPY, deliberately: haven.Coord is mutable and the client hands the SAME shared Coord.z object to
+        // many widgets at once (GameUI.maininv's own c is literally that object), so a record that kept the
+        // reference would be a record something else could move. What is being remembered here is two numbers.
+        we.prevPos = new Coord(content.c);
         we.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         owner.surfaces.add(we);
         anchorRegister(we);                            // 044.2: so it dies with the gob it follows (D-102)
@@ -1420,25 +1423,33 @@ final class VrApi {
 
     /**
      * The widget a {@code hafen.vr():widget():add(w, p)} names, or a refusal that says which of the four things
-     * went wrong: it is not a Widget at all, it is not <b>yours</b> (the client's own windows are 044.6's, and
-     * refusing them here is what keeps this task's claim honest), it is already standing, or it is inside
-     * something that is already standing — a surface within a surface, which the spec refuses outright rather
-     * than deferring.
+     * went wrong: it is not a Widget at all, it is already standing (naming the addon that holds it), it is
+     * inside something that is already standing, or it is (or contains) the 3D view itself. The last two are
+     * one refusal in two spellings — a surface within a surface, which the spec refuses outright rather than
+     * deferring. Nothing else can enclose a standing panel: standing <b>moves</b> the widget into its surface,
+     * so the only widget left containing one is the root the surface hangs off, and that is the second spelling.
+     *
+     * <p><b>Provenance is no longer one of them</b> (044.6). Standing the client's own windows is what this
+     * feature exists for, and it is the same family of write as {@code widget:position(x, y)},
+     * {@code widget:visible(false)} and {@code widget:replace(view)}: a layer over the client's state, never a
+     * write into it — so it is <b>ungated</b>, and {@link LuaWidgetEntity#destroyed()} gives the window back
+     * where it stood from when the entity ends. What a borrowed widget does NOT bring with it is the hide
+     * record's toggle ownership (D-069): standing does not hide anything, so the client's own toggle goes on
+     * doing exactly the right thing to a window that is standing in the world, and the menu tick goes on
+     * telling the truth about it.
      */
     private static Widget standable(Addon owner, LuaValue wv) {
         LuaWidget lw = LuaWidget.resolve(wv);
         Widget w = (lw == null) ? null : LuaWidget.live(lw);
         if(w == null)
-            throw new LuaError("hafen.vr():widget():add(w, anchor) expects a Widget you built —"
-                + " hafen.ui():window(), hafen.ui():widget(), or one of the control builders"
-                + " (hafen.ui():button(), :label(), …). Got " + wv.typename());
-        if(LuaWidget.ownedContent(owner, w) == null)
-            throw new LuaError("hafen.vr():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is a NATIVE"
-                + " widget (your addon did not create it) — standing the client's own windows in the world is"
-                + " not accepted yet. Build your own with hafen.ui():window() and stand that");
+            throw new LuaError("hafen.vr():widget():add(w, anchor) expects a Widget — one you built"
+                + " (hafen.ui():window(), hafen.ui():widget(), or a control builder), or one of the client's"
+                + " own (hafen.ui():find(…), hafen.ui():inventory(), …). Got " + wv.typename());
         if(w.parent instanceof WidgetSurface)
-            throw new LuaError("hafen.vr():widget():add(w, anchor): that widget is already standing in the"
-                + " world — take it back with hafen.vr():widget():remove(x) first. One standing at a point"
+            throw new LuaError("hafen.vr():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is already"
+                + " standing in the world, held by the addon \""
+                + AddonManager.ownerName(((WidgetSurface)w.parent).owner) + "\" — one widget stands in one"
+                + " place. Take it back with hafen.vr():widget():remove(x) first. One standing at a point"
                 + " moves with widget:position(p); one standing on a gob is where that gob is");
         for(Widget a = w.parent; a != null; a = a.parent) {
             if(a instanceof WidgetSurface)
@@ -1446,6 +1457,15 @@ final class VrApi {
                     + " standing, and a surface does not stand on another surface. Two panels in the world are"
                     + " two hafen.vr():widget():add(w, p), each on its own anchor");
         }
+        // ...and the world does not stand inside itself: a surface is drawn from the very frame that then draws
+        // the scene the surface is standing in, so a widget with the MapView under it (the HUD, ui.root) would
+        // be a picture of the world containing a picture of the world. Point at ONE window.
+        MapView mv = view;
+        if((mv != null) && ((w == mv) || mv.hasparent(w)))
+            throw new LuaError("hafen.vr():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is (or"
+                + " contains) the 3D view itself, and the world cannot stand inside itself — the panel is"
+                + " drawn from the same frame that draws the scene it stands in. Stand one window, not the"
+                + " whole interface");
         return w;
     }
 
@@ -1468,6 +1488,41 @@ final class VrApi {
      * default {@code hafen.ui():window()} at about two tiles across, which is a thing you walk up to.
      */
     private static final float PX_PER_TILE = 100f;
+
+    /**
+     * <b>The widget that was standing has been destroyed</b> (044.6) — the fifth consumer of the widget-removal
+     * seam ({@code AddonManager.drainRemovedWidgets}), and the answer to the one composition the spec calls out:
+     * the server destroys the window an addon replaced, {@code widget:replace(view)}'s own death test ends the
+     * substitution, and the stand-in it destroys is the very widget standing in the world. A panel whose content
+     * is gone shows nothing and can show nothing again, so the entity ends with it — the surface is freed and the
+     * handle reports {@code :exists()} false, exactly as {@code :remove} would have left it.
+     *
+     * <p>It is the same answer for every other way a content widget can die: a borrowed window the server
+     * destroys (a chest closed, a container walked away from), and an owned one the addon destroys itself. The
+     * put-back in {@link LuaWidgetEntity#destroyed()} finds a widget that is no longer in the surface and
+     * correctly restores nothing — there is nothing left to give back.
+     *
+     * <p>Costs an empty-list test per live addon per removed widget: standing is rare and the registries are
+     * per-addon tiny, and the seam already runs one frame's worth of removals at a time (D-106).
+     */
+    static void dispatchStandingRemoved(Widget w) {
+        if(w == null)
+            return;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            endStandingOf(as.get(i), w);
+        endStandingOf(AddonManager.consoleOwner, w);   // the :lua REPL stands widgets too, and owns them the same
+    }
+
+    /** End {@code a}'s standing entity over {@code w}, if it holds one. */
+    private static void endStandingOf(Addon a, Widget w) {
+        if((a == null) || a.surfaces.isEmpty())
+            return;
+        for(LuaWidgetEntity we : new ArrayList<LuaWidgetEntity>(a.surfaces)) {
+            if(we.content == w)
+                destroyEntity(we);
+        }
+    }
 
     /** Tear down every standing widget this addon owns (reload/disable/relogin, P2): each goes back where it was. */
     static void teardownSurfaces(Addon a) {

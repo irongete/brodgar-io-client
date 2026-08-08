@@ -1,8 +1,8 @@
 # Subsystem: widget input — where an event enters, what it resolves against
 
-> Split out of [widgets.md](widgets.md) (044.5), which keeps the tree, the traversal seams and the read-only walk.
-> This file is the **input** half: grabs, propagation, focus, the per-frame point queries, popups and drops.
-> Lines are indicative — the **class + method/field name is the stable anchor**. Max 70 lines.
+> Split out of [widgets.md](widgets.md) (044.5), which keeps the tree, the traversal seams and the read-only
+> walk. The **input** half: grabs, propagation, focus, the point queries, popups and drops. Lines are
+> indicative — the **class + method/field name is the stable anchor**. Max 70 lines.
 
 ## The doors, and the grab that comes first
 
@@ -52,9 +52,8 @@ to `ui.root` and place themselves at their owner's `rootpos()`. Both halves were
 [`BuddyWnd`'s flower menu](src/haven/BuddyWnd.java:427) (which passes `ui.mc` in root coords). Fork: all three
 now go through `// addon:` [`Widget.popuproot()`](src/haven/Widget.java:553) + `parentpos(popuproot())`, which
 IS `ui.root`/`rootpos()` for any widget that is not standing in the 3D world (044.5). ⚠️ `SDropBox` places its
-drop arrow ONCE in its constructor (`adda(..., 1.0, 0.5)`, right-aligned against the width it was **built**
-with) and overrides `resize` nowhere — a resized dropbox leaves its arrow outside its own box, clipped and
-unhittable.
+drop arrow ONCE in its constructor (`adda(..., 1.0, 0.5)`, right-aligned against the built width) and overrides
+`resize` nowhere — a resized dropbox leaves its arrow outside its box, clipped and unhittable.
 
 ## Drop & modifier seams
 
@@ -62,10 +61,12 @@ unhittable.
 |---|---|
 | **Drop dispatch (the source)** | [`MenuGrid.mouseup`](src/haven/MenuGrid.java:588) → `DropTarget.dropthing(ui.root, ui.mc, dragging)`; `dragging` = a [`MenuGrid.Pagina`](src/haven/MenuGrid.java:63) |
 | Generic drop interface + tree walk | [`DropTarget`](src/haven/DropTarget.java:29) (`dropthing(Coord,Object)`); `Drop` event via `PointerEvent.propagation` — calls the first `DropTarget` under the cursor |
-| Pagina → `{kind,res}` descriptor | [`Pagina.res().name`](src/haven/MenuGrid.java:77) (Loading-guarded); res-vs-id split like the [belt `dropthing`](src/haven/GameUI.java:224) |
-| Modifier flags · native empty-slot look (NOT a `.res`) | `ui.modflags()` · [`Inventory.invsq`](src/haven/Inventory.java:34) `TexI` (code-built) + [`sqsz`](src/haven/Inventory.java:33) |
+| **The ITEM drop is a different family** | [`DTarget`](src/haven/DTarget.java:29) (`drop`/`iteminteract`), dispatched by [`ItemDrag.mousedown`](src/haven/ItemDrag.java:60) as `ui.dispatchq(parent, …)` — from the dragged item's OWN parent (the HUD), so it never starts at `ui.root` and never passes `MapView`. `b==1` drops, `b==3` interacts; `Inventory.drop` reads `ul = ev.c.sub(src.doff)`, so the slot is derived from the coordinate the traversal hands it |
+| Pagina → `{kind,res}` · modifiers · the native empty slot (NOT a `.res`) | [`Pagina.res().name`](src/haven/MenuGrid.java:77) (Loading-guarded; res-vs-id split like the [belt `dropthing`](src/haven/GameUI.java:224)) · `ui.modflags()` · [`Inventory.invsq`](src/haven/Inventory.java:34) `TexI` (code-built) + [`sqsz`](src/haven/Inventory.java:33) |
 
-**Fork seams (`// addon:`)** — `Widget.popuproot()` + the three popup sites; `UI.tooltip`/`getcurs`/
-`mousehover` each ask `AddonManager.surfaceQuery` first, so a widget standing in the 3D world (invisible on
-the flat UI by design, and in its own pixels) answers instead of being walked past — both 044.5. `MapView`'s
-four pointer entries route a press to a standing panel before the world sees it (044.4, [world-3d.md](world-3d.md)).
+**Fork seams (`// addon:`)** — `Widget.popuproot()` + the three popup sites; `UI.tooltip`/`getcurs`/`mousehover`
+each ask `AddonManager.surfaceQuery` first, so a widget standing in the 3D world (invisible on the flat UI by
+design, and in its own pixels) answers instead of being walked past — both 044.5. `MapView`'s four pointer
+entries route a press to a standing panel before the world sees it (044.4, [world-3d.md](world-3d.md)). Both
+drop families ask `AddonManager.surfaceDrop` first (044.6) and go on falling through unless a widget
+**accepted** it; `DropTarget.drophover`'s highlight is deliberately not routed.

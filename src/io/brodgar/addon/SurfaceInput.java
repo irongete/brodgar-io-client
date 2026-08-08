@@ -302,6 +302,37 @@ final class SurfaceInput {
     }
 
     /**
+     * <b>Dropping something onto a panel in the world</b> (044.6) — putting ore into a smelter window standing
+     * on the smelter, which is the case this whole feature exists for. A drop is a {@link Widget.PointerEvent}
+     * like the three queries above, but it is dispatched neither from {@code ui.root} nor through
+     * {@code MapView}: the dragged item hands its {@code DTarget.Drop} to its own parent (the HUD), and a
+     * standing panel is not under the HUD any more — so without this the item lands on the map underneath the
+     * panel it was aimed at, which is the one place the player did not want it.
+     *
+     * <p><b>What comes back is whether a widget ACCEPTED it, not whether a panel was there</b> — and that
+     * difference is the transparency rule. Dropping onto a part of a window that takes no items falls through
+     * to whatever is behind it, on the flat UI and in the world alike; answering "a panel was under the
+     * pointer" would swallow those drops instead, and the client's own fall-through is what the caller then
+     * goes on to run.
+     */
+    static boolean drop(Widget.PointerEvent ev, Coord c) {
+        if((ev == null) || (c == null))
+            return false;
+        Coord mr = viewOrigin();
+        if(mr == null)
+            return false;
+        Hit h = hit(new Coord(c.x - mr.x, c.y - mr.y));
+        if(h == null)
+            return false;
+        try {
+            return ev.derive(h.local).dispatch(h.s);
+        } catch(RuntimeException e) {
+            AddonManager.log("standing widget drop error: " + e);
+            return false;
+        }
+    }
+
+    /**
      * {@code hafen.vr():pointer(key, x, y [, a])} — the same four entries, entered from Lua at a SCREEN point.
      * This is the client's own path from the map view inward and nothing more: it never falls through to the
      * world, so it can neither move the character nor reach the server, and a point on no panel is answered by

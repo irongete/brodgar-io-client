@@ -1440,10 +1440,26 @@ final class UiApi {
      *
      * <p>First live owner wins, which is the same order the moves themselves happened in. One volatile read for
      * a client no addon has laid out.
+     *
+     * <p><b>Standing a window in the 3D world is the same layer, and the same trap</b> (044.6): a standing
+     * widget's {@code c} is pinned at its surface's own origin ({@code WidgetSurface.tick}), so the client
+     * asking a standing window where it is would write {@code 0, 0} down as the user's preference and displace
+     * it forever — the exact failure this method exists to prevent, arriving through a different door. The
+     * answer is the place the entity recorded when it stood, which is by definition what the user last had.
+     * One reference comparison on the widget's own parent, for a question asked six times a minute.
      */
     static Coord stockPos(Widget w) {
         LuaWidget.Moved m = movedOwner(w, true);
-        return (m != null) ? m.pos : ((w == null) ? null : w.c);
+        if(m != null)
+            return m.pos;
+        if(w == null)
+            return null;
+        if(w.parent instanceof WidgetSurface) {
+            LuaWidgetEntity e = ((WidgetSurface)w.parent).ent;
+            if(e != null)
+                return e.prevPos;
+        }
+        return w.c;
     }
 
     /** The size argument {@code savewndpos} must persist ({@code wndsz-map}) — see {@link #stockPos}. */

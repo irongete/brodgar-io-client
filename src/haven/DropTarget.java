@@ -110,6 +110,12 @@ public interface DropTarget {
     }
 
     public static boolean dropthing(Widget wdg, Coord c, Object thing) {
+	/* addon: the same fall-through the item drop takes (044.6, see haven.ItemDrag): a widget standing
+	 * in the 3D world is not reachable by this walk, so the panel under the pointer is asked first.
+	 * Only when the walk starts at the root is `c` a screen point, which is what the corner map needs. */
+	if((wdg.ui != null) && (wdg == wdg.ui.root)
+	   && io.brodgar.addon.AddonManager.surfaceDrop(new Drop(c, thing), c))
+	    return(true);
 	return(wdg.ui.dispatch(wdg, new Drop(c, thing)));
     }
 

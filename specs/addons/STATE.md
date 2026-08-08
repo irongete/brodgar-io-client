@@ -2,49 +2,50 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`044-spatial-ui`](044-spatial-ui/) — 5 of 8 tasks.** `hafen.vr():widget()`: a Widget — yours or the
-client's own — standing in the world as a quad, held to one rule, **transparency** (same `Draw`, input, controls,
-theme, popups, keyboard), which is why its surface is a real UI **root** the widget is reparented into rather than
-a texture with clicks forwarded. Next: native windows (044.6), then culling (044.7) and the docs (044.8).
+**ACTIVE: [`044-spatial-ui`](044-spatial-ui/) — 6 of 8 tasks.** `hafen.vr():widget()`: a Widget — yours or the
+client's own — standing in the world as a quad, held to one rule, **transparency** (same `Draw`, input,
+controls, theme, popups, keyboard, items), which is why its surface is a real UI **root** the widget is
+reparented into. Next: culling (044.7), then the docs and the example addon (044.8).
 
-**044.5 done — the root rule paid off, and the bill was six lines.** The transparency proof, answered in two
-halves. **Focus and the keyboard needed NOTHING**: a surface is a plain non-`focusctl` child of `ui.root`, so
-`Widget.setfocus` forwards straight past it and `FocusedKeyEvent` walks back down the same chain — a standing text
-entry takes the keyboard with nothing added anywhere. `hasfocus` is the wrong read (false on nearly everything
-that is in fact typing), so `widget:focused()` walks the path the client actually delivers along. **Popups WERE
-hard-wired** — a list is not a child of its dropdown; it adds itself to `ui.root` at `rootpos()`, both
-*constants* — so `Widget.popuproot()` + `parentpos(popuproot())` replace them at all three sites, identical for
-any non-standing widget by construction (**D-198**). **So were the three per-frame
-queries AT A POINT**: `UI.tooltip`/`getcurs`/`mousehover` ask the panel under the pointer first, in its own pixels
-off 044.4's corner map, `mousehover` still walking the flat tree at `hovering=false` so nothing stays stuck
-hovering (**D-199**); `refreshOrigin` gained a RESTING origin (the projected top-left) for an in-surface popup's
-own grab. New: `widget:focused()`, `widget:tooltip()`/`:tooltip(s)`, `hafen.ui():tipAt(x, y)`. 9/9 + 2/2.
-**It surfaced a 040.10 defect, deliberately NOT fixed here**: `dropdown:size(w, h)` is a plain `Widget.resize`
-while `SDropBox` places its arrow once in its constructor, so a resized dropdown's arrow lands outside its own box
-— clipped, unclickable, so it cannot be opened. Coverage: `specs/codebase/widget-input.md`, off `widgets.md`.
+**044.6 done — the client's own windows stand, and the last thing that did not was the DROP.** The provenance
+refusal is gone: standing a native window is the same layer-that-restores as `:position`/`:visible`/`replace`,
+**ungated**, the window still bound to its id and filling with items while it hangs. One rule for both
+provenances, and it is **where the widget was, never whether it was shown** — so D-070 holds with no branch and
+no second record, and the **toggle stays the client's**: standing hides nothing, so `togglewnd`/`wndstate` were
+already right (**D-200**). A standing entity **ends with its content** (**D-201**, the 042.1 removal drain's
+fifth consumer) — how `replace` composes when the server destroys the window its stand-in replaced; `stockPos`
+answers from the record, or `savewndpos` would write the pinned origin to disk as the user's own window
+position. **The manual round found a real gap**: an item aimed at a standing container landed on the map
+beneath it — a drop is dispatched from the dragged item's OWN parent, reaching neither the surface nor 044.4's
+intercept. Three `// addon:` lines answer *did a widget ACCEPT it*, so the fall-through is the flat UI's
+(**D-202**). 11/11 + 5/5; `widget-input.md` gains the two drop families.
+
+**044.5 before it — the root rule paid off, and the bill was six lines.** **Focus and the keyboard needed
+NOTHING** (a surface is a plain non-`focusctl` child of `ui.root`, so `setfocus` forwards past it and
+`FocusedKeyEvent` comes back down; `hasfocus` is the wrong read, so `widget:focused()` walks the delivery path).
+**Popups WERE hard-wired** — a list adds itself to `ui.root` at `rootpos()`, both *constants* — so
+`Widget.popuproot()` + `parentpos(popuproot())` replace them at all three sites (**D-198**); **so were the three
+per-frame queries AT A POINT**, which now ask the panel under the pointer first (**D-199**). New:
+`widget:focused()`, `:tooltip()`, `hafen.ui():tipAt()`. **A 040.10 defect surfaced and is NOT fixed**:
+`dropdown:size(w, h)` leaves the drop arrow outside the box, clipped and unhittable.
 
 **044.1–044.4 before it** (per-task detail in [`tasks.md`](044-spatial-ui/tasks.md)). **The gate**: a widget
-subtree draws cleanly through an offscreen `GOut` when it is **re-homed into an invisible `WidgetSurface` under
-`ui.root`** rather than detached (**D-191**) — it leaves the flat UI's draw and hit test while `:exists()` and its
-`Tick`/`Draw` go on unchanged; the `Streamer`/`HeadlessClient` recipe narrowed to one subtree, sampled by a
-`SurfaceQuad`, its pass issued in `UILoop.display` **before** `ui.draw(g)` (same `Render`, never stale) and **not
-redrawn every frame** (**D-192**, corrected twice since — a `Window`'s fade and a `Button`'s cached face are both
-invisible to a content signature); `p:surfaces()` → `live`/`uploads`/`frames`. **Both anchors** for ~15 lines, the
-rest already the shared core's (**D-185** paying out). **`"camera"`** is **view-plane aligned** (**D-193**) and is
-a `Gob.Placer` the render tree already re-reads every frame — no tick loop; `facing` moved onto `LuaWorldEntity`
-with all three values (**D-194**). **Input** is the quad's own four projected corners inverted as a homography,
-inside the very `MapView` event the press arrived in (**D-195**) — the pick pass answers a frame late, and the
-stated cost is that input ignores terrain occlusion; a standing widget therefore left the world pick entirely and
-answers a click **as a widget** (**D-196**), `parentpos` handing `UI.PointerGrab` a live origin (**D-197**). New:
-`hafen.vr():pointer(key, x, y [, a])`, `widget:screen(x, y)`, `:facing`, `:clickable`. Docs wait for 044.8.
+subtree draws cleanly through an offscreen `GOut` when **re-homed into an invisible `WidgetSurface` under
+`ui.root`** rather than detached (**D-191**) — the `Streamer`/`HeadlessClient` recipe narrowed to one subtree,
+issued **before** `ui.draw(g)` in the same `Render` and **not redrawn every frame** (**D-192**, corrected twice).
+**Both anchors** for ~15 lines (**D-185** paying out). **`"camera"`** is **view-plane aligned** (**D-193**), a
+`Gob.Placer` the render tree re-reads every frame; `facing` carries all three values (**D-194**). **Input** is
+the quad's four projected corners inverted as a homography, inside the very `MapView` event the press arrived in
+(**D-195**, ignoring terrain occlusion); a standing widget left the world pick and answers a click **as a
+widget** (**D-196**), `parentpos` giving `UI.PointerGrab` a live origin (**D-197**). Docs wait for 044.8.
 
 [`043-vr-namespace`](043-vr-namespace/) **closed, 5/5 tasks** — pure reorganization, no new rendering.
 **`hafen.vr()` is the one section for client-only things standing in the 3D world.** It absorbed `hafen.ghost()`
 and `hafen.render()` whole, the kinds **registered** so 044's `:widget()` is one line (**D-184**, superseding
 D-034's namespace half); made the **anchor an argument** with death-with-the-gob off a create/destroy index
-(**D-185**) and `:position(p)` refused there (**D-186**); emptied `gob:overlay()` of the world, its homeless verb
-moving with the kinds as `<entity>:offset(x, y, z)` (**D-187**), an anchored one listed at its gob read-only
-(**D-188**); gave the section `:list(filter)`/`:visible(b)` (**D-189**); and made `:billboard(b)` into
+(**D-185**) and `:position(p)` refused there (**D-186**); emptied `gob:overlay()` of the world, its homeless
+verb moving with the kinds as `<entity>:offset(x, y, z)` (**D-187**), an anchored one listed at its gob
+read-only (**D-188**); gave the section `:list(filter)`/`:visible(b)` (**D-189**); and made `:billboard(b)` into
 **`:facing(mode)`**, a STRING so 044's `"camera"` is a value (**D-190**).
 
 **Before that**, all DONE (detail in each `NNN-` folder, one-line summaries in `FEATURES.md`): `042-event-driven-reads` (the addon layer stopped **polling the widget tree every frame** to synthesise its `*Changed`/`*Added` events — 12 sites wired onto the four moments the client already announces a change at, then the poll stage **deleted whole** on six core taps; D-178..D-182, of which **D-181 supersedes D-091**), `041-unified-events` (one verb for every notification — `X:on(key, fn)` → a `Sub`, `hafen.hook()` deleted whole), `040-ui-controls` (18 of the client's own controls reach Lua, one builder per role), `039-uniform-api` (one grammar for 33 sections, one `position()`, the OOP migration finished), `038-gob-overlays` (`gob:overlay()` — the engine's own word for a thing attached to a gob), `037-map-database` (the RECORDED map on disk beside the live world — segments, grids, markers, masks, minimap drawings), `036-ui-layout` (position/size/anchor in the sheet, and a whole theme as a data file), `035-ui-chrome` (the sheet learns to DRAW), `034-ui-stylesheet-tree` (a tree key says WHICH widgets), `033-ui-stylesheet` (ONE table says what the client looks like), `032-replace-verb` (replacement is a verb on the entity; the `UI.NewWidget` core seam deleted), `031-window-lifecycle` (hiding a native window takes its toggle), `030-ui-selectors` (a tiny CSS-shaped grammar parsed once into a predicate), `029-widget-oop` (three objects for one widget became ONE interned entity), `028-asset-loader` (one loader for an addon's own files), `027-meters-oop`, `026-text-cache` (130 → 220-240 FPS on the harness), `025-buffs-oop`, `024-audio-oop` (the Track section was built to spec and then CUT — this server sends no MIDI), `023-menugrid-oop`, `022-actionbar-set`, `021-actionbar-oop`, `020-kin-oop`, `019-profiling`, `018-client-options`, `017-gob-oop`, and 001–016.
