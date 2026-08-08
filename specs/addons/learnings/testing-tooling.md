@@ -1250,3 +1250,14 @@
   proper, so the tree is clean; what is missing is only the standing guard against a reintroduction. Rule: *when
   a rename retires a name that `docs/` used to spell, run the grep yourself and report the two counts — the
   owning area's list is a filing, not a blocker, and an unrun grep is the part that actually costs.*
+- **(044.2) A screen-rectangle probe must be captured BEFORE the widget stands — standing re-homes it, so its
+  own `:position()` becomes surface-local.** The suite's "a title-bar drag is inert" check is the flat UI's own
+  hit test read twice (`> 0` points before, exactly `0` after), and the second read has to use the rectangle
+  taken from the first: after `hafen.vr():widget():add`, `w:position()` answers `(0, 0)` in the surface, so
+  re-deriving the points there probes the screen corner and "finds nothing" for the wrong reason — a green line
+  that proves nothing. Same shape as 044.1's `px, py`. And accept a hit on any **descendant**: a `Window`'s
+  content area resolves to the addon's own `AddonWidget` child, not to the window, so the probe walks
+  `hit:parent()` up rather than comparing identity (036.3 reached the same place from the other side, by
+  probing the content child directly). Finally, `LuaWidget.hitTest` honours `Widget.checkhit` at the leaf, so a
+  transparent window corner is a legitimate miss — assert *at least one* point reachable before, never all of
+  them.

@@ -1,0 +1,9 @@
+{
+  "name": "044.2 — both anchors, and the collection",
+  "id": "044-spatial-ui.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 044.2: hafen.vr():widget() takes both anchors — :add(w, p) stands a widget at a point and carries :position(p, a), :add(w, gob) makes it follow that object and die with it — both are ordinary members of the collection and of hafen.vr():list(), and the title-bar drag is inert on either.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

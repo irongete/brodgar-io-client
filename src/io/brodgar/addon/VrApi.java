@@ -319,6 +319,11 @@ final class VrApi {
      * has, so its {@code Draw}, its controls, its stylesheet rules and its callbacks are the ones it always had
      * — only where they are drawn changes. Keyed by nothing, filtered by the widget's caption (or its type when
      * it has none).
+     *
+     * <p><b>Both anchors</b> (044.2), through the very {@link #anchorArg} the other three kinds read:
+     * {@code :add(w, p)} stands it at a point and it holds there, {@code :add(w, gob)} makes it follow that game
+     * object and die with it. Nothing here says which — the anchor is an argument, so the fourth kind gained the
+     * second form by passing {@code an.tgt} on.
      */
     private static LuaValue widgetCollection(final Addon owner) {
         return LuaCollection.create("hafen.vr():widget()", new LuaCollection.Source() {
@@ -342,11 +347,7 @@ final class VrApi {
             public LuaValue addMember(Varargs a) {
                 LuaValue wv = Args.required(a, 2, "hafen.vr():widget():add", "w");
                 Anchor an = anchorArg(a, "hafen.vr():widget():add");
-                if(an.tgt != 0)
-                    throw new LuaError("hafen.vr():widget():add(w, gob): a widget stands at a POINT — pass a"
-                        + " Position (hafen.world():position(x, y), gob:position()). Standing one ON a game"
-                        + " object, so that it follows the object, is not accepted yet");
-                return born(makeWidget(owner, an.spec(), wv), "hafen.vr():widget():add");
+                return born(makeWidget(owner, an.spec(), wv, an.tgt), "hafen.vr():widget():add");
             }
 
             public boolean destroyable() {
@@ -1281,10 +1282,16 @@ final class VrApi {
      * virtual gob is stood at the anchor with a {@link SurfaceQuad} sampling that surface; and the entity that
      * ties the two together joins the same registry, teardown and scene lifecycle the other three kinds use.
      *
+     * <p><b>Both anchors, and the same one line as every other kind</b> (044.2): {@code tgt != 0} makes the
+     * surface follow that gob — the {@link FollowMoving} the three picture kinds already use, applied before the
+     * gob enters the scene — and {@code tgt == 0} stands it where it was put. A widget standing on a gob has no
+     * place of its own, so its {@code :position(p)} is refused and its {@code :offset(x, y, z)} is the verb that
+     * means "where", exactly as for a sprite: the anchor is an argument (043.2), not a second kind.
+     *
      * <p>Returns {@code null} when there is no map view (not in the world) — checked before anything is touched,
      * so a call made too early leaves the widget exactly where it was.
      */
-    private static LuaWidgetEntity makeWidget(Addon owner, LuaValue opts, LuaValue wv) {
+    private static LuaWidgetEntity makeWidget(Addon owner, LuaValue opts, LuaValue wv, long tgt) {
         final MapView mv = view;
         final Glob g = glob();
         final UI u = ui;
@@ -1296,8 +1303,9 @@ final class VrApi {
         LuaWidgetEntity we = new LuaWidgetEntity(owner, surf, content, rc, 0.0);
         we.prevParent = content.parent;                // where it stood from, so :remove puts it back
         we.prevPos = content.c;
+        we.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         owner.surfaces.add(we);
-        anchorRegister(we);                            // free today (no gob anchor), so this is a no-op — and stays right
+        anchorRegister(we);                            // 044.2: so it dies with the gob it follows (D-102)
         we.handle = widgetHandle(we);
         synchronized(u) {
             u.root.add(surf, Coord.z);                 // in the tree: liveness, ticking and focus all keep resolving
@@ -1313,6 +1321,7 @@ final class VrApi {
             if(we.dead) { gob.dispose(); return we; }   // ended mid-build (defensive; all UI-thread)
             we.gob = gob;
             we.mv = mv;
+            applyEntityFollow(we, gob);                 // ANCHOR: a surface stood on a gob starts tracking it now
             if(shows(we))                               // its own visibility, and its whole section's
                 addToScene(we, mv);
         }
@@ -1350,20 +1359,20 @@ final class VrApi {
         LuaWidget lw = LuaWidget.resolve(wv);
         Widget w = (lw == null) ? null : LuaWidget.live(lw);
         if(w == null)
-            throw new LuaError("hafen.vr():widget():add(w, p) expects a Widget you built — hafen.ui():window(),"
-                + " hafen.ui():widget(), or one of the control builders (hafen.ui():button(), :label(), …)."
-                + " Got " + wv.typename());
+            throw new LuaError("hafen.vr():widget():add(w, anchor) expects a Widget you built —"
+                + " hafen.ui():window(), hafen.ui():widget(), or one of the control builders"
+                + " (hafen.ui():button(), :label(), …). Got " + wv.typename());
         if(LuaWidget.ownedContent(owner, w) == null)
-            throw new LuaError("hafen.vr():widget():add(w, p): " + LuaWidget.typeName(w) + " is a NATIVE widget"
-                + " (your addon did not create it) — standing the client's own windows in the world is not"
-                + " accepted yet. Build your own with hafen.ui():window() and stand that");
+            throw new LuaError("hafen.vr():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is a NATIVE"
+                + " widget (your addon did not create it) — standing the client's own windows in the world is"
+                + " not accepted yet. Build your own with hafen.ui():window() and stand that");
         if(w.parent instanceof WidgetSurface)
-            throw new LuaError("hafen.vr():widget():add(w, p): that widget is already standing in the world"
-                + " — take it back with hafen.vr():widget():remove(x) first, or move it where it stands with"
-                + " widget:position(p)");
+            throw new LuaError("hafen.vr():widget():add(w, anchor): that widget is already standing in the"
+                + " world — take it back with hafen.vr():widget():remove(x) first. One standing at a point"
+                + " moves with widget:position(p); one standing on a gob is where that gob is");
         for(Widget a = w.parent; a != null; a = a.parent) {
             if(a instanceof WidgetSurface)
-                throw new LuaError("hafen.vr():widget():add(w, p): that widget is INSIDE one that is already"
+                throw new LuaError("hafen.vr():widget():add(w, anchor): that widget is INSIDE one that is already"
                     + " standing, and a surface does not stand on another surface. Two panels in the world are"
                     + " two hafen.vr():widget():add(w, p), each on its own anchor");
         }

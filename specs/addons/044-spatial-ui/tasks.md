@@ -30,7 +30,13 @@
   confirmed still hit from the offscreen `GOut`. `[manual]`: confirm something is actually visible
   where it was put.
 
-- [ ] **044.2 — Both anchors, and the collection**
+- [x] **044.2 — Both anchors, and the collection** ✅
+  *Shipped*: ~15 lines of Java, all in `VrApi` — the collection's `addMember` drops 044.1's "a widget stands at
+  a POINT" refusal and passes `an.tgt` on; `makeWidget` takes it, sets `followTgt` **before** `anchorRegister`
+  and calls `applyEntityFollow` before the scene add. **Nothing else was needed**: the refused `:position(p)`,
+  the `:offset(x, y, z)`, `anchorGone`'s death-with-the-gob, `hafen.vr():list()` and the read-only entry at the
+  gob were all already the shared core's, so 043.2's "the anchor is an ARGUMENT" is what made the second form a
+  parameter rather than a kind. 20/20 green (run twice) plus 6/6 on the despawn round.
   `:add(w, gob)` alongside `:add(w, p)`, on 043's anchor argument. The free-standing one carries
   `:position(p, a)`; the gob-anchored one does not, because its place is the gob's. Full
   collection verbs.
