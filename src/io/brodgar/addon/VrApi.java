@@ -83,6 +83,7 @@ final class VrApi {
         collection(m, "ghost", ghostCollection(owner));
         collection(m, "sprite", spriteCollection(owner));
         collection(m, "object", objectCollection(owner));
+        collection(m, "widget", widgetCollection(owner));
         // list(filter) — every entity this addon has standing, all three kinds at once, as the plain 1-based
         // array a collection's own :list() hands back. The filter is the canonical one (§2.3, and the very
         // function the per-kind lists use), so it means here exactly what it means one verb down.
@@ -130,6 +131,7 @@ final class VrApi {
         collectLive(out, owner.ghosts);
         collectLive(out, owner.sprites);
         collectLive(out, owner.objects);
+        collectLive(out, owner.surfaces);
         java.util.Collections.sort(out, BY_BIRTH);
         return out;
     }
@@ -307,6 +309,52 @@ final class VrApi {
 
             public void removeMember(LuaValue x) {
                 destroyEntity(memberArg(owner.objects, x, "hafen.vr():object():remove", "object"));
+            }
+        }, null);
+    }
+
+    /**
+     * {@code hafen.vr():widget()} — <b>this addon's own UI surfaces, standing in the world</b> (044). The fourth
+     * collection, and the one that is not a picture: what it stands is a {@link haven.Widget} the addon already
+     * has, so its {@code Draw}, its controls, its stylesheet rules and its callbacks are the ones it always had
+     * — only where they are drawn changes. Keyed by nothing, filtered by the widget's caption (or its type when
+     * it has none).
+     */
+    private static LuaValue widgetCollection(final Addon owner) {
+        return LuaCollection.create("hafen.vr():widget()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                return entityMembers(owner.surfaces);
+            }
+
+            public String needle(LuaValue member) {
+                return visualNameOf(owner.surfaces, member);
+            }
+
+            /** These have a name (the widget's caption), so a string filter is a substring test over it. */
+            public boolean named() {
+                return true;
+            }
+
+            public boolean creatable() {
+                return true;
+            }
+
+            public LuaValue addMember(Varargs a) {
+                LuaValue wv = Args.required(a, 2, "hafen.vr():widget():add", "w");
+                Anchor an = anchorArg(a, "hafen.vr():widget():add");
+                if(an.tgt != 0)
+                    throw new LuaError("hafen.vr():widget():add(w, gob): a widget stands at a POINT — pass a"
+                        + " Position (hafen.world():position(x, y), gob:position()). Standing one ON a game"
+                        + " object, so that it follows the object, is not accepted yet");
+                return born(makeWidget(owner, an.spec(), wv), "hafen.vr():widget():add");
+            }
+
+            public boolean destroyable() {
+                return true;
+            }
+
+            public void removeMember(LuaValue x) {
+                destroyEntity(memberArg(owner.surfaces, x, "hafen.vr():widget():remove", "widget"));
             }
         }, null);
     }
@@ -883,6 +931,10 @@ final class VrApi {
         if(gob != null) {
             try { gob.dispose(); } catch(RuntimeException ex) { /* best-effort: free the visual */ }
         }
+        // ...and whatever this KIND has to undo beyond the scene (044.1): a standing widget puts its widget back
+        // where it stood from and frees its surface. Last, and outside the monitor, so it runs on a thing that is
+        // already out of the world — the same order the slot/gob teardown above uses.
+        try { e.destroyed(); } catch(RuntimeException ex) { log("entity teardown error: " + ex); }
     }
 
     /**
@@ -1218,6 +1270,132 @@ final class VrApi {
         float base = (float)MCache.tilesz.y;               // ≈ 1 tile tall at scale 1
         float w = ((isz != null) && (isz.x > 0) && (isz.y > 0)) ? base * ((float)isz.x / (float)isz.y) : base;
         return new float[] { w, base };
+    }
+
+    // ---- widgets standing in the world (hafen.vr():widget()) ---------------------------------------------
+
+    /**
+     * Build a standing widget and publish it — the body of {@code hafen.vr():widget():add}. Three things happen,
+     * and only the third is new: the widget is <b>re-homed</b> into a {@link WidgetSurface} (an invisible root
+     * under {@code ui.root}, so it keeps ticking, keeps existing and stops being hit-tested on the flat UI); a
+     * virtual gob is stood at the anchor with a {@link SurfaceQuad} sampling that surface; and the entity that
+     * ties the two together joins the same registry, teardown and scene lifecycle the other three kinds use.
+     *
+     * <p>Returns {@code null} when there is no map view (not in the world) — checked before anything is touched,
+     * so a call made too early leaves the widget exactly where it was.
+     */
+    private static LuaWidgetEntity makeWidget(Addon owner, LuaValue opts, LuaValue wv) {
+        final MapView mv = view;
+        final Glob g = glob();
+        final UI u = ui;
+        if((mv == null) || (g == null) || (u == null) || (u.root == null))
+            return null;                               // not in the world yet — no scene to add to
+        Widget content = standable(owner, wv);         // AFTER the world check (don't re-home when there is no scene)
+        Coord2d rc = new Coord2d(opts.get("x").optdouble(0.0), opts.get("y").optdouble(0.0));
+        WidgetSurface surf = new WidgetSurface(owner, content.sz);
+        LuaWidgetEntity we = new LuaWidgetEntity(owner, surf, content, rc, 0.0);
+        we.prevParent = content.parent;                // where it stood from, so :remove puts it back
+        we.prevPos = content.c;
+        owner.surfaces.add(we);
+        anchorRegister(we);                            // free today (no gob anchor), so this is a no-op — and stays right
+        we.handle = widgetHandle(we);
+        synchronized(u) {
+            u.root.add(surf, Coord.z);                 // in the tree: liveness, ticking and focus all keep resolving
+            WidgetSurface.reparent(u, content, surf, Coord.z);
+        }
+        float[] wh = surfaceWorldDims(surf.sz);
+        GhostGob gob = new GhostGob(g, rc);
+        gob.alpha = we.alpha; gob.tint = we.tint; gob.scale = we.scale;   // the look, before the first scene add
+        gob.clickable = we.clickable;
+        gob.setattr(new SprDrawable(gob, SurfaceQuad.mill(surf.texture(), wh[0], wh[1])));
+        gob.move(rc, 0.0);
+        synchronized(we) {
+            if(we.dead) { gob.dispose(); return we; }   // ended mid-build (defensive; all UI-thread)
+            we.gob = gob;
+            we.mv = mv;
+            if(shows(we))                               // its own visibility, and its whole section's
+                addToScene(we, mv);
+        }
+        return we;
+    }
+
+    /**
+     * The Lua handle for a {@link LuaWidgetEntity}: the shared entity verbs plus {@code :widget()}, the Widget
+     * that is standing — the identity accessor every kind has ({@code :res()}, {@code :image()},
+     * {@code :mesh()}). There is no write half, for the same reason an object's mesh has none: standing another
+     * widget is another {@code hafen.vr():widget():add(w, p)}.
+     */
+    private static LuaValue widgetHandle(final LuaWidgetEntity we) {
+        LuaTable x = new LuaTable();
+        x.set("widget", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("widget:widget() reads the Widget that is standing and does not write it"
+                        + " — standing another one is hafen.vr():widget():add(w, p), and taking this one back is"
+                        + " hafen.vr():widget():remove(x)");
+                return LuaWidget.of(we.owner, we.content);
+            }
+        });
+        return entityHandle(we, "widget", x);
+    }
+
+    /**
+     * The widget a {@code hafen.vr():widget():add(w, p)} names, or a refusal that says which of the four things
+     * went wrong: it is not a Widget at all, it is not <b>yours</b> (the client's own windows are 044.6's, and
+     * refusing them here is what keeps this task's claim honest), it is already standing, or it is inside
+     * something that is already standing — a surface within a surface, which the spec refuses outright rather
+     * than deferring.
+     */
+    private static Widget standable(Addon owner, LuaValue wv) {
+        LuaWidget lw = LuaWidget.resolve(wv);
+        Widget w = (lw == null) ? null : LuaWidget.live(lw);
+        if(w == null)
+            throw new LuaError("hafen.vr():widget():add(w, p) expects a Widget you built — hafen.ui():window(),"
+                + " hafen.ui():widget(), or one of the control builders (hafen.ui():button(), :label(), …)."
+                + " Got " + wv.typename());
+        if(LuaWidget.ownedContent(owner, w) == null)
+            throw new LuaError("hafen.vr():widget():add(w, p): " + LuaWidget.typeName(w) + " is a NATIVE widget"
+                + " (your addon did not create it) — standing the client's own windows in the world is not"
+                + " accepted yet. Build your own with hafen.ui():window() and stand that");
+        if(w.parent instanceof WidgetSurface)
+            throw new LuaError("hafen.vr():widget():add(w, p): that widget is already standing in the world"
+                + " — take it back with hafen.vr():widget():remove(x) first, or move it where it stands with"
+                + " widget:position(p)");
+        for(Widget a = w.parent; a != null; a = a.parent) {
+            if(a instanceof WidgetSurface)
+                throw new LuaError("hafen.vr():widget():add(w, p): that widget is INSIDE one that is already"
+                    + " standing, and a surface does not stand on another surface. Two panels in the world are"
+                    + " two hafen.vr():widget():add(w, p), each on its own anchor");
+        }
+        return w;
+    }
+
+    /**
+     * The world size {@code {w, h}} in map units of a standing widget, from its pixel size: {@link #PX_PER_TILE}
+     * pixels to the tile, so a 200&times;140 window stands two tiles wide and keeps its aspect exactly. The
+     * uniform {@code :scale} adjusts it from there. Pure — headless-testable.
+     */
+    private static float[] surfaceWorldDims(Coord sz) {
+        float per = (float)MCache.tilesz.y / PX_PER_TILE;
+        float w = ((sz == null) || (sz.x <= 0)) ? per : (sz.x * per);
+        float h = ((sz == null) || (sz.y <= 0)) ? per : (sz.y * per);
+        return new float[] { w, h };
+    }
+
+    /**
+     * How big a standing widget is in the world, at {@code :scale(1)} — a hundred pixels to the tile. Chosen
+     * rather than derived: a window is authored in pixels for a screen, and the one number that turns those
+     * into world units is what decides whether a panel reads as a signpost or as a billboard. A hundred puts a
+     * default {@code hafen.ui():window()} at about two tiles across, which is a thing you walk up to.
+     */
+    private static final float PX_PER_TILE = 100f;
+
+    /** Tear down every standing widget this addon owns (reload/disable/relogin, P2): each goes back where it was. */
+    static void teardownSurfaces(Addon a) {
+        if(a.surfaces.isEmpty())
+            return;
+        for(LuaWidgetEntity we : new ArrayList<LuaWidgetEntity>(a.surfaces))
+            destroyEntity(we);          // removes each from a.surfaces as it goes (copy-on-write list)
     }
 
     /**
@@ -1597,6 +1775,12 @@ final class VrApi {
             synchronized(ob) { g = ob.dead ? null : ob.gob; }
             if(g == cg)
                 return ob;
+        }
+        for(LuaWidgetEntity we : a.surfaces) {    // 044.1: a clickable standing widget answers the same whole-quad pick
+            Gob g;
+            synchronized(we) { g = we.dead ? null : we.gob; }
+            if(g == cg)
+                return we;
         }
         return null;
     }

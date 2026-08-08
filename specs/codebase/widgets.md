@@ -90,6 +90,25 @@ hence the cached `next` — and a widget may equally rebuild **its own** child l
 (→`shandle`, the widget itself) runs **before** `propagation`, which then re-reads `from.child` fresh. That is
 what makes `Window.tick` a legal place to `chdeco` (035).
 
+## The 2D draw target, re-homing and focus
+
+| What | Where |
+|---|---|
+| **Where the screen `GOut` is built** | [`UILoop.display`](src/haven/UILoop.java:290): `basestate()` (a `BufPipe` + `FragColor.defcolor` + `DepthBuffer.defdepth`) `.prep` blend + [`States.Viewport`](src/haven/render/States.java:44) + [`Ortho2D`](src/haven/render/Ortho2D.java:48) + `FrameInfo`, `buf.clear(...)`, then `new GOut(buf, base, wnd.sz())` → `ui.draw(g)` under `synchronized(ui)`. **The 3D scene is inside that traversal** (the MapView is a widget), so this ONE `Render` carries the whole frame in order — see [world-3d.md](world-3d.md) for drawing a subtree into a texture instead |
+| **Re-homing a widget** | `unlink()` ([:505](src/haven/Widget.java:505)) + `parent.cdestroy(w)` + `parent = null`, then `neu.add(w, at)`. All public |
+| Focus bookkeeping | [`setcanfocus`](src/haven/Widget.java:640) (**permanent** — sets `autofocus` too), [`newfocusable`/`delfocusable`](src/haven/Widget.java:651) (bubble to the nearest `focusctl`), [`findfocus`](src/haven/Widget.java:673) (last visible `autofocus` child) |
+| What `added()` can do to you | [`Window.added`](src/haven/Window.java:119) — `parent.setfocus(this)` **and** `initanim()` (a show transition). Both re-run on a re-home, since `add0` calls `added()` again |
+
+**Gotcha — `Widget.remove()` is a DEATH NOTICE, not a detach.** It ends with the `onWidgetRemoved` seam (above),
+whose consumers fire `Destroy`, a selector `disappear` and the end of a `replace()` substitution — all by
+**identity**, none checking liveness — and it calls `setcanfocus(false)`, which does not come back. So a
+`remove(); other.add(w)` pair reports three deaths and un-focuses a widget that is alive one line later. Use the
+re-home row above (plus `delfocusable` if `canfocus`); `ui.removed(w)` is skipped on purpose, since it only drops
+`UI.Grab`s the still-live subtree should keep.
+
+*(This file is over its 70-line budget: "Drop & modifier seams" + "Per-frame allocation" are the natural split
+when a task next needs either.)*
+
 ## Introspection & hit-testing (read-only walk)
 
 | What | Where |

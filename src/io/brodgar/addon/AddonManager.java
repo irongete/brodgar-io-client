@@ -1126,6 +1126,21 @@ public final class AddonManager {
     }
 
     /**
+     * <b>Draw every widget standing in the 3D world into its own texture</b> (044.1) — the facade behind the one
+     * {@code // addon:} line in {@code UILoop.display}, called with the frame's {@link haven.render.Render}
+     * before the widget traversal that draws the world. Kept here rather than called on {@link WidgetSurface}
+     * directly for the same reason {@link #onGhostClick} is: {@code haven} knows one class in this package.
+     * Never throws into the frame loop.
+     */
+    public static void drawSurfaces(UI u, haven.render.Render out) {
+        try {
+            WidgetSurface.renderAll(u, out);
+        } catch(RuntimeException e) {
+            log("surface pass error: " + e);
+        }
+    }
+
+    /**
      * Deliver the widget removals captured since the last tick, one frame's worth (D-106) — the same bound as
      * {@link #drainOverlayEvents}, for the same reason: a torn-down parent whose own removal triggers more
      * removals must not spin this tick forever.

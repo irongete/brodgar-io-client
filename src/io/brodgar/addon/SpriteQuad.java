@@ -90,7 +90,15 @@ final class SpriteQuad extends Sprite {
 
     /** Build the 4-vertex upright textured quad {@link Model} at world size {@code w}&times;{@code h}. */
     static Model quad(float w, float h) {
-        float[] vert = quadVerts(w, h);
+        return model(quadVerts(w, h));
+    }
+
+    /**
+     * The {@link Model} behind a 4-vertex interleaved {@code x,y,z, s,t} strip — the geometry plumbing on its
+     * own, so a quad that differs only in its texture coordinates ({@link SurfaceQuad}, whose source is a
+     * render target rather than an uploaded image) reuses the layout instead of copying it.
+     */
+    static Model model(float[] vert) {
         VertexArray.Layout fmt = new VertexArray.Layout(
             new VertexArray.Layout.Input(Homo3D.vertex, new VectorFormat(3, NumberFormat.FLOAT32),  0, 0, 20),
             new VertexArray.Layout.Input(Tex2D.texc,    new VectorFormat(2, NumberFormat.FLOAT32),  0, 12, 20));

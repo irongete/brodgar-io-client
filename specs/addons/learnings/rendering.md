@@ -227,3 +227,40 @@
   expensive spelling, and the day someone re-introduces the key it becomes two sources of truth. Rule, the
   D-187 one turned inward: *when a property changes door, grep the option KEY as well as the verb — the create
   body is a reader nothing points at.*
+- **(044.1) A render target is v-FLIPPED relative to an uploaded image, so the quad that stands a PNG up stands a
+  surface on its head.** `SpriteQuad.quadVerts` inverts `t` (bottom → `t=1`, top → `t=0`) because a `TexI` comes from
+  a `BufferedImage` whose **first row is the image top**. A texture the client just drew into is the opposite: the
+  framebuffer's first row is its **bottom**, and the [`Ortho2D`](src/haven/render/Ortho2D.java:41) the offscreen pass
+  preps has `k[1] = -2/h`, i.e. widget `y=0` (the top) → NDC `+1` → the **top** of the viewport → `v ≈ 1`. So for a
+  render target `t=0` is the widget's BOTTOM edge and the inversion must not be repeated. Reusing `SpriteQuad.quad`
+  shipped a panel that read perfectly and was upside down — a green build, a green 19-check suite, and the one
+  `[manual]` line catching it, which is exactly the class of thing that line exists for. Fixed as
+  `SurfaceQuad.quadVerts` (its own vertices; the `VertexArray.Layout` plumbing is shared through
+  `SpriteQuad.model(float[])` rather than copied). **Rule:** when a quad's texture changes PROVENANCE — uploaded
+  image vs. render target — re-derive `t` from the projection rather than inheriting it from the sibling class.
+- **(044.1) An offscreen pass ordered EARLIER IN THE SAME COMMAND STREAM is not "one frame stale" — it is the same
+  frame.** The choice looked like "render-to-texture before the world, or accept a frame of lag"; it is neither,
+  because `UILoop.display` builds ONE `Render buf` and everything is appended to it in order. Putting the surface
+  pass immediately before `ui.draw(g)` — inside which the whole 3D scene is drawn, the MapView being a widget —
+  puts the commands that WRITE each texture ahead of the commands that SAMPLE it, in the same submission. No second
+  buffer, no fence, no staleness. Generalisable: in a retained-command renderer, "before" is a position in the
+  stream, not a frame boundary — look for the single `Render` before reasoning about latency.
+- **(044.1) A UI surface in the world wants `TexDraw + TexClip + blend`, which is neither of the two recipes R2a
+  names.** A sprite is `draw + clip` (a solid cut-out) and the translucent-overlay recipe is `blend + maskdepth`
+  (the ~1% ghost trap). A widget is both at once: its background is genuinely translucent and its glyph edges are
+  antialiased (so it must blend), but the margin it never paints is fully transparent and must not write depth
+  across the quad's whole rectangle (so it must clip). Keeping all three states composes correctly — clip discards
+  the border, blend composites what survives, and depth is written by surviving fragments only, so the panel
+  occludes and is occluded like any other world surface. The offscreen pass itself blends with alpha factors
+  `ONE / INV_SRC_ALPHA` rather than the default `SRC_ALPHA / INV_SRC_ALPHA`: the client's own 2D pass targets an
+  opaque frame buffer where destination alpha is never read again, but ours is a texture that gets sampled, and the
+  default squares the alpha of everything drawn onto a cleared target.
+- **(044.1) A dirty flag has to know about the ARMING tick and about `Anim`, or it measures the wrong thing and
+  freezes the right one.** Two traps, both found by reasoning about the acceptance criterion "unchanged content
+  holds the counter at 1" before the in-game run: (1) a widget is attached inert and paints nothing until the tick
+  after the statement that built it (D-119), so a surface drawn on the frame it is stood spends an upload on a
+  blank texture and the criterion reads 2 — skip the pass entirely while any content is `pending`; (2) `Window`'s
+  `added()` calls `initanim()`, so a window REPARENTED into a surface starts a show transition, and a
+  state-signature cannot see an animation's progress — a surface with anything in `anims`/`nanims` must count as
+  changing or it freezes on the transition's first frame. Both are cases of the same thing: *a dirty check over
+  state must enumerate the things that change without changing state.*

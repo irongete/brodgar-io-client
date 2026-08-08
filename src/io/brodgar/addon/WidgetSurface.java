@@ -1,0 +1,341 @@
+package io.brodgar.addon;
+
+import haven.Area;
+import haven.Coord;
+import haven.FColor;
+import haven.GOut;
+import haven.Loading;
+import haven.TexRender;
+import haven.UI;
+import haven.Widget;
+import haven.render.BlendMode;
+import haven.render.BufPipe;
+import haven.render.DataBuffer;
+import haven.render.FragColor;
+import haven.render.FrameInfo;
+import haven.render.NumberFormat;
+import haven.render.Ortho2D;
+import haven.render.Pipe;
+import haven.render.Render;
+import haven.render.States;
+import haven.render.Texture;
+import haven.render.Texture2D;
+import haven.render.VectorFormat;
+
+import java.util.concurrent.CopyOnWriteArrayList;
+
+/**
+ * <b>The surface a standing widget is drawn on</b> ({@code hafen.vr():widget()}, 044.1) — an offscreen colour
+ * target, and the widget the target is drawn from. It is a {@link Widget} of its own, attached to
+ * {@code ui.root} and <b>invisible</b>, with the standing widget reparented into it: that one arrangement is
+ * what the whole feature's transparency rule rests on, because everything the client resolves against a
+ * widget's place in the tree — liveness, ticking, focus, hover, popups — goes on resolving unchanged, while
+ * the two things that must NOT happen on the flat UI stop by construction. An invisible widget is skipped by
+ * the flat draw traversal ({@code Widget.draw} steps over {@code !visible} children) and by every hit test
+ * (the mouse dispatch and {@code hafen.ui():at()} skip it the same way) — but it is still <b>ticked</b>
+ * ({@code TickEvent} carries visibility as a flag rather than a filter), and it is still under
+ * {@code ui.root}, so {@code widget:exists()} stays true and no handle goes stale.
+ *
+ * <p><b>The offscreen pass</b> ({@link #renderAll}) is the {@code Streamer}/{@code HeadlessClient} recipe
+ * narrowed to one subtree: a {@link Texture2D} colour image prepped as the {@link FragColor} of a fresh
+ * {@link BufPipe}, an {@link Ortho2D} + {@link States.Viewport} over the surface's own pixel size, and a
+ * {@link GOut} over that pipe — the very constructor the client's own UI loop uses. Those two loops redirect
+ * the ENTIRE client by overriding {@code UILoop.basestate()}; this is the per-surface version, so the widget
+ * traversal that runs on it is the ordinary one and nothing inside the widget can tell the difference.
+ *
+ * <p><b>Ordered before the world, never one frame stale</b> (044.1's first open question). The pass is issued
+ * from {@code UILoop.display} <i>before</i> {@code ui.draw(g)}, and the 3D scene is drawn inside that
+ * traversal (the MapView is a widget) — so the commands that write the texture are in the same frame's
+ * {@link Render} ahead of the commands that sample it. One command stream, in order: same frame, no staleness,
+ * and no second buffer to reconcile.
+ *
+ * <p><b>Blending, not clipping alone</b> (the second open question). A widget's own draw produces real alpha —
+ * a window background is translucent, text is antialiased — so the quad samples with
+ * {@link TexRender.TexDraw} <i>and</i> {@link FragColor#blend} rather than the alpha-cut-only recipe a sprite
+ * uses ({@code learnings/rendering.md} R2a). {@link TexRender.TexClip} stays in the material beside them: it
+ * discards the fully transparent border, so the quad is not a transparent rectangle writing depth over
+ * whatever is behind it, while everything that survives the cut composites properly. See {@link SurfaceQuad},
+ * which keeps the choice on one line.
+ *
+ * <p><b>It does not redraw every frame.</b> {@link #needsDraw} answers the only two questions there are about
+ * what a surface shows. <i>What the client's own controls paint</i> is visible in their state, so a signature
+ * over the subtree — structure, place, size, visibility, and the caption of every text-bearing widget — says
+ * when it changed; that is the whole cost of a static panel, one walk of a handful of widgets. <i>What your
+ * own {@code Draw} handler paints</i> is a Lua function of anything at all, and the only way to know what it
+ * would paint is to run it — so a surface with a {@code Draw} subscriber anywhere in it, or with one of the
+ * client's own transitions still running, redraws every frame ({@link #changing}), which is not a concession
+ * but the correct answer for a panel whose text is the smelter's fuel level. Everything a control setter
+ * changes that a signature cannot see (a value, a row list, a picture) marks the surface through
+ * {@link #touch}, and a surface whose content has not been armed yet is skipped outright ({@link #unarmed}),
+ * so the first upload is the first one that draws anything.
+ */
+final class WidgetSurface extends Widget {
+    /** Every live surface, across all addons — the render pass walks this and nothing else. */
+    private static final CopyOnWriteArrayList<WidgetSurface> live = new CopyOnWriteArrayList<WidgetSurface>();
+
+    /** Offscreen passes actually issued, and frames the pass was offered — the {@code p:surfaces()} counters. */
+    private static volatile long uploads, frames;
+
+    /**
+     * The offscreen blend: colour composites the ordinary way, but the ALPHA channel accumulates
+     * {@code ONE / INV_SRC_ALPHA} rather than {@code SRC_ALPHA / INV_SRC_ALPHA}. The client's own 2D pass
+     * blends onto an opaque frame buffer, where the destination alpha is never read again; ours is a texture
+     * the world pass samples, so squaring the alpha (what the default mode would do onto a cleared target)
+     * would make every translucent widget twice as see-through in the world as it is on screen.
+     */
+    private static final BlendMode BLEND =
+        new BlendMode(BlendMode.Function.ADD, BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
+                      BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA);
+
+    /** The surface starts fully transparent, so anything the widget does not paint shows the world through. */
+    private static final FColor CLEAR = new FColor(0f, 0f, 0f, 0f);
+
+    /** A surface is a panel, not a wall: past this the texture is the cost, and nothing is readable anyway. */
+    private static final int MAXDIM = 2048;
+
+    final Addon owner;
+    private Texture2D tex;
+    private TexRender tr;
+    private Coord tsz;                 // the texture's size, which is this widget's size at stand time
+    private boolean dirty = true;      // never drawn, or something the signature cannot see has changed
+    private long sig;                  // the last content signature (see needsDraw)
+    private boolean sigged;
+    private boolean freed;
+
+    WidgetSurface(Addon owner, Coord sz) {
+        super(clamp(sz));
+        this.owner = owner;
+        this.visible = false;          // not drawn by the flat pass, not hit-tested, still ticked
+        this.tsz = this.sz;
+        this.tex = new Texture2D(this.sz, DataBuffer.Usage.STATIC, new VectorFormat(4, NumberFormat.UNORM8), null);
+        this.tr = new TexRender(this.tex.sampler()) {
+            public void render(GOut g, float[] gc, float[] tc) { /* unused: the quad is drawn in 3D, not blitted */ }
+        };
+        live.add(this);
+    }
+
+    /** A surface is at least one pixel and at most {@link #MAXDIM} on a side. */
+    private static Coord clamp(Coord sz) {
+        int w = (sz == null) ? 1 : sz.x, h = (sz == null) ? 1 : sz.y;
+        return new Coord(Math.max(1, Math.min(MAXDIM, w)), Math.max(1, Math.min(MAXDIM, h)));
+    }
+
+    /** The texture wrapper the world quad samples ({@link SurfaceQuad}). Never disposed by the quad. */
+    TexRender texture() {
+        return tr;
+    }
+
+    // ---------------------------------------------------------------- the offscreen pass
+
+    /**
+     * Draw every surface that needs it into its own texture — called from {@code UILoop.display} with the
+     * frame's {@link Render}, <b>before</b> the widget traversal that draws the world. Takes the {@code ui}
+     * monitor for the same reason {@code ui.draw} does: this walks widgets.
+     */
+    static void renderAll(UI u, Render out) {
+        if((u == null) || (out == null) || live.isEmpty())
+            return;
+        frames++;
+        synchronized(u) {
+            for(WidgetSurface s : live)                // copy-on-write: a draw callback may stand or end one
+                s.render(out);
+        }
+    }
+
+    /** One surface's pass: clear to transparent, then the ordinary widget draw over an offscreen {@link GOut}. */
+    private void render(Render out) {
+        if(freed || (tex == null))
+            return;
+        if(!needsDraw())
+            return;
+        Pipe base = new BufPipe();
+        base.prep(new FragColor<Texture.Image<Texture2D>>(tex.image(0)));
+        base.prep(FragColor.blend(BLEND));
+        Area a = Area.sized(tsz);
+        base.prep(new States.Viewport(a)).prep(new Ortho2D(a));
+        base.prep(new FrameInfo());
+        try {
+            out.clear(base, FragColor.fragcol, CLEAR);
+            draw(new GOut(out, base, tsz), true);      // the standing widget's root is this surface's one child
+        } catch(Loading l) {
+            return;                                    // a resource is still streaming: stay dirty, try next frame
+        } catch(RuntimeException e) {
+            dirty = false;                             // a broken surface must not spin the frame loop
+            AddonManager.log("surface draw error: " + e);
+            return;
+        }
+        dirty = false;
+        uploads++;
+    }
+
+    /**
+     * Does this surface's picture need to be produced again? Reads the signature <b>every</b> frame, whatever
+     * the answer, so the frame that redraws is also the frame that records what it drew — otherwise a single
+     * change would cost two passes, one for the flag and one for the signature catching up.
+     */
+    private boolean needsDraw() {
+        if(unarmed())
+            return false;                              // still being built: it paints nothing, so it costs nothing
+        long s = signature();
+        boolean changed = !sigged || (s != sig);
+        sig = s;
+        sigged = true;
+        return dirty || changed || changing();
+    }
+
+    /**
+     * <b>Is anything in here still being built?</b> A widget is attached inert and paints nothing until the
+     * tick after the statement that built it (D-112, {@link Owned#pending}) — so a pass over it would clear a
+     * blank texture and charge an upload for a picture nobody asked for. Skipping the frame instead makes the
+     * FIRST upload the first one that draws something, which is what "a static panel costs one upload" has to
+     * mean to be worth measuring.
+     */
+    private boolean unarmed() {
+        return unarmed(this);
+    }
+
+    private static boolean unarmed(Widget w) {
+        for(Widget c = w.child; c != null; c = c.next) {
+            if((c instanceof Owned) && ((Owned)c).pending())
+                return true;
+            if(unarmed(c))
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * What the client's own widgets show, as one number: each widget's class, place, size, visibility and
+     * caption, depth-first. It sees a label's new text, a control appearing or leaving, anything moving or
+     * resizing, and anything hidden or shown — the changes a panel built from controls actually makes.
+     */
+    private long signature() {
+        return sig(this, 0xcbf29ce484222325L);
+    }
+
+    private static long sig(Widget w, long h) {
+        for(Widget c = w.child; c != null; c = c.next) {
+            h = mix(h, c.getClass().hashCode());
+            h = mix(h, (c.c == null) ? 0 : ((c.c.x * 31) + c.c.y));
+            h = mix(h, (c.sz == null) ? 0 : ((c.sz.x * 31) + c.sz.y));
+            h = mix(h, c.visible() ? 1 : 0);
+            String t = LuaWidget.text(c);
+            h = mix(h, (t == null) ? 0 : t.hashCode());
+            h = sig(c, h);
+        }
+        return h;
+    }
+
+    private static long mix(long h, int v) {
+        return (h ^ (v & 0xffffffffL)) * 0x100000001b3L;
+    }
+
+    /**
+     * <b>Is anything in here changing on its own?</b> Two things are, and neither leaves a trace a signature
+     * could read:
+     * <ul>
+     *   <li>a {@code widget:on("Draw", fn)} handler — a Lua function of whatever it likes, so the only way to
+     *       know what it would paint is to run it, and running it <i>is</i> the draw. This is not a concession:
+     *       a panel whose text is the smelter's fuel level must redraw when the fuel changes, and nothing but
+     *       the handler knows that it did;</li>
+     *   <li>a running {@link Widget.Anim} — the client's own show/hide transitions are one, so a window
+     *       reparented into a surface animates its way in exactly as it does on screen instead of freezing on
+     *       the first frame of it.</li>
+     * </ul>
+     */
+    private boolean changing() {
+        return changing(this);
+    }
+
+    private boolean changing(Widget w) {
+        for(Widget c = w.child; c != null; c = c.next) {
+            if(!c.anims.isEmpty() || !c.nanims.isEmpty())
+                return true;
+            WidgetSubs s = owner.widgetSubsOrNull(c);
+            if((s != null) && s.subs.has("Draw"))
+                return true;
+            if(changing(c))
+                return true;
+        }
+        return false;
+    }
+
+    /** Mark this surface's picture out of date (see {@link #touch}). */
+    void invalidate() {
+        dirty = true;
+    }
+
+    /**
+     * <b>Something changed inside {@code w} that a signature cannot see</b> — a control's value, its rows, a
+     * picture it draws. Walks up to the surface {@code w} stands on, if it stands on one, and marks it; the
+     * walk is O(depth) and runs on a setter, never on a frame. A widget on the flat UI finds no surface and
+     * this costs the walk and nothing else.
+     */
+    static void touch(Widget w) {
+        for(Widget p = w; p != null; p = p.parent) {
+            if(p instanceof WidgetSurface) {
+                ((WidgetSurface)p).dirty = true;
+                return;
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- lifecycle
+
+    /**
+     * Move {@code w} from wherever it is into {@code np} at {@code at}, <b>without</b> going through
+     * {@link Widget#remove()}. The engine's removal is the right call for a widget that is going away, and the
+     * wrong one for a widget that is only changing address: it runs the {@code onWidgetRemoved} seam, which
+     * would fire {@code widget:on("Destroy")}, a selector's {@code disappear}, and the end of a
+     * {@code widget:replace()} substitution — three notifications about a death that is not happening. So this
+     * does the two things a re-home genuinely is: unlink from the old sibling chain (telling the old parent its
+     * children changed, and dropping the focusable if it held one) and add to the new one.
+     */
+    static void reparent(UI u, Widget w, Widget np, Coord at) {
+        synchronized(u) {
+            Widget op = w.parent;
+            if(op != null) {
+                if(w.canfocus)
+                    op.delfocusable(w);
+                w.unlink();
+                op.cdestroy(w);
+                w.parent = null;
+            }
+            np.add(w, (at == null) ? Coord.z : at);
+        }
+    }
+
+    /** Free the texture and leave the render pass. Idempotent; the widget itself is removed by its entity. */
+    void free() {
+        if(freed)
+            return;
+        freed = true;
+        live.remove(this);
+        TexRender t = tr;
+        tr = null;
+        tex = null;
+        if(t != null) {
+            try { t.dispose(); }                       // disposes the sampler, and with it the texture we own
+            catch(RuntimeException e) { /* best-effort GPU free */ }
+        }
+    }
+
+    /** The engine's own teardown hook (a {@code destroy()} on this widget), so nothing can leak the texture. */
+    public void dispose() {
+        free();
+    }
+
+    // ---------------------------------------------------------------- the counters (p:surfaces())
+
+    static int liveCount() {
+        return live.size();
+    }
+
+    static long uploads() {
+        return uploads;
+    }
+
+    static long frames() {
+        return frames;
+    }
+}

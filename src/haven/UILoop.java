@@ -295,6 +295,12 @@ public abstract class UILoop implements Console.Directory {
 	base.prep(new FrameInfo());
 	buf.clear(base, FragColor.fragcol, FColor.BLACK);
 	GOut g = new GOut(buf, base, wnd.sz());
+	// addon: spatial UI (spec 044, task 044.1). Every widget standing in the 3D world is drawn into its own
+	// offscreen texture HERE, ahead of the traversal below -- and the 3D scene is drawn INSIDE that traversal
+	// (the MapView is a widget), so the commands that write a surface's texture precede the commands that
+	// sample it in this same frame's Render. One stream, in order: same frame, never one frame stale. Off
+	// (nothing standing), it is one empty-list check.
+	io.brodgar.addon.AddonManager.drawSurfaces(ui, buf);
 	synchronized(ui) {
 	    // addon: the "ui2d" named pass (spec 019, task 019.6). It brackets the WHOLE widget draw, of which
 	    // the 3D scene is a part (the MapView is a widget) -- so shadow/scene nest inside it and are

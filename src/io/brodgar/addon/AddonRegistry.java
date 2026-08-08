@@ -108,6 +108,11 @@ public final class AddonRegistry {
             /* isolation is per-handler in callLua; this is just a backstop */
         }
         StoreApi.flush(a);                     // ...then persist them (spec 05: flushed at Disable)
+        VrApi.teardownSurfaces(a);    // 044.1: take every widget this addon stood in the world back OUT of its
+                                      //   surface first, so the two teardowns below see an ordinary widget on the
+                                      //   flat UI. Standing is a re-home, so it has to be undone before anything
+                                      //   decides where a widget ends up — the hidden-native restore reads where
+                                      //   the widget is, and destroyWidgets disposes what it finds.
         UiApi.teardownHidden(a);      // 029.2/031.2: give back every native widget the addon hid — and its toggle —
                                       //   under the one rule: the window ends up as the user was seeing it, and a
                                       //   substitution ends whole (the stand-in view dies with it, 032.1). BEFORE

@@ -59,3 +59,32 @@ native dependency** (the reason FBX is rejected: it effectively needs Assimp/JNI
 **Rationale.** glTF is the open, modern runtime standard (scene + material graph + optional animation) — richer than
 OBJ, and unlike FBX needs no proprietary/native lib. Static-first keeps the first delivery bounded and pure-Java.
 **See.** [18-custom-models-gltf.md](../design/18-custom-models-gltf.md), [17-custom-rendering.md](../design/17-custom-rendering.md), [D-034](rendering.md).
+
+### D-192 — a surface redraws on a SIGNATURE where its content is readable state, and every frame where it is code ✅ (044.1, 2026-08-08)
+**Decision.** A widget standing in the world is drawn into its own texture, and *when* that costs anything is
+decided by **what its content is**, not by a switch the addon sets:
+- **readable state** — a panel built from the client's own [controls](../040-ui-controls/spec.md) shows what those
+  controls hold, and that is inspectable. A **signature** over the surface's own subtree (each widget's class,
+  place, size, visibility and [`LuaWidget.text`](src/io/brodgar/addon/LuaWidget.java:1555), depth-first) says when
+  it changed; unchanged means no pass. What a signature cannot see — a control's `value`, its `rows`, its picture —
+  is marked at the setter (`WidgetSurface.touch`, seven one-liners in `Controls`), because the bridge is the only
+  writer of an owned control.
+- **code** — a `widget:on("Draw", fn)` handler is a Lua function of anything at all, so the only way to know what
+  it *would* paint is to run it, and running it **is** the draw. Such a surface therefore redraws **every frame**.
+A running [`Widget.Anim`](src/haven/Widget.java:2085) counts as code for the same reason (the client's own
+show/hide transitions are one), and a surface whose content is still `pending` (D-119) is skipped outright, so the
+first pass is the first one that draws anything rather than a blank texture.
+**Consequences.** The headline number is honest in both directions and the suite asserts **both**: a control panel
+holds `uploads` at 1 while `frames` climbs, and one label change costs exactly one more; a hand-painted panel moves
+them together. That second half is not a concession — the spec's own example paints the smelter's fuel level, which
+*must* redraw when the fuel changes, and nothing but the handler knows that it did. The pair is readable from Lua
+as `hafen.client():profiling():surfaces()` → `live`/`uploads`/`frames`, pull-only like every counter beside it
+([D-051](architecture-api.md#d-051)). The signature walk is over the surface's **own** handful of widgets, once per
+frame per surface — it is what a dirty check *is*, not the tree-wide poll [042](../042-event-driven-reads/spec.md)
+deleted, whose cost scaled with the whole HUD and which existed to synthesise events nobody had raised.
+**Rationale.** The two candidates that cover both cases uniformly are worse: hashing the emitted draw commands
+needs a recording `Render` and a comparison of `Pipe`/`Model` objects, and reading the texture back is a GPU→CPU
+round trip per frame — each more expensive than the pass it would avoid. Splitting by *what the content is* costs
+one walk and is exact on the half that matters, which is the half an addon fills with labels.
+**See.** [D-191](widgets-ui.md#d-191), [D-119](widgets-ui.md#d-119), [D-051](architecture-api.md#d-051),
+[026-text-cache](../026-text-cache/spec.md) (the same redraw-on-change principle, one level down).

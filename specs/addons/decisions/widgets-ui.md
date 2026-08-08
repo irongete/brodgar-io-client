@@ -1245,3 +1245,32 @@ the five 042.7 last counted.
 **See.** [D-091](#d-091) (superseded), [D-179](#d-179) (the same "don't hook the field, hook the settled
 moment" reasoning for removal), [D-180](#d-180), [042-event-driven-reads](../042-event-driven-reads/spec.md),
 [`041-unified-events`](../041-unified-events/spec.md) (`Widget.listen`/`deafen`, the seam this reuses).
+
+### D-191 — a widget that must leave the flat UI and stay ALIVE is hidden IN PLACE, not detached ✅ (044.1, 2026-08-08)
+**Decision.** `hafen.vr():widget():add(w, p)` takes a widget off the flat UI by **re-homing it into an
+invisible widget that is itself a child of `ui.root`** ([`WidgetSurface`](src/io/brodgar/addon/WidgetSurface.java)),
+never by removing it from the tree. Three different questions in `haven` are answered by three different
+properties of the same node, and one flag separates them exactly where this feature needs them separated:
+- **drawn?** — [`Widget.draw(GOut, boolean)`](src/haven/Widget.java:821) steps over `!visible` children, so an
+  invisible surface and everything under it is skipped by the flat pass;
+- **hit?** — every [`PointerEvent`](src/haven/Widget.java:1065) propagation and
+  [`LuaWidget.hitTest`](src/io/brodgar/addon/LuaWidget.java:1638) (`hafen.ui():at`) skip `!visible` the same way;
+- **alive?** — [`LuaWidget.live`](src/io/brodgar/addon/LuaWidget.java:1416) is `hasparent(ui.root)`, and
+  [`TickEvent.dispatch`](src/haven/Widget.java:978) carries visibility as a **flag on the event** rather than as a
+  filter, so an invisible subtree goes on ticking.
+So a standing widget is invisible to the flat UI and, by construction, unchanged in every other respect:
+`widget:exists()` is true, `widget:on("Tick")` still fires, focus/hover/popups still resolve against a real root.
+**Consequences.** The surface is a normal `Widget`, so nothing in the client had to learn about it — this is the
+mechanism behind the feature's transparency rule rather than a substitute for it. Re-homing must **not** go
+through [`Widget.remove()`](src/haven/Widget.java:569): that fires the `onWidgetRemoved` seam and would report a
+death that is not happening (`widget:on("Destroy")`, a selector's `disappear`, the end of a `w:replace()`
+substitution) — `WidgetSurface.reparent` does the two things a re-home genuinely is (`unlink` + `cdestroy` +
+`delfocusable`, then `add`). Standing records the previous parent and place, so `:remove`, `:reload` and disable
+put the widget back; the teardown of the standing set therefore runs **before** `teardownHidden`/`destroyWidgets`,
+which both decide where a widget ends up and must see it on the flat UI.
+**Rationale.** The alternative — hold the widget out of the tree and drive it by hand — re-implements liveness,
+ticking, focus, hover, popups and tooltips one at a time, each breaking differently, which is exactly what
+[the spec](../044-spatial-ui/spec.md) rules out. It is also the same shape D-119 already chose one level down:
+*attached inert beats held out of the tree*, because the tree is what every other capability is resolved against.
+**See.** [D-119](#d-119), [D-070](#d-070), [044-spatial-ui](../044-spatial-ui/spec.md),
+[D-192](rendering.md#d-192) (what such a surface then costs to draw).

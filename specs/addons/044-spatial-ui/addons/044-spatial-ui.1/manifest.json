@@ -1,0 +1,9 @@
+{
+  "name": "044.1 — a widget drawn into a texture, standing in the world",
+  "id": "044-spatial-ui.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 044.1: hafen.vr():widget():add(w, p) stands one of your own widgets in the 3D world — its Draw still fires, it leaves the flat UI's hit-testing while staying in the tree, it redraws only when what it shows changed, and 026's text cache is still hit from the offscreen GOut.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

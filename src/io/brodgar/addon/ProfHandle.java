@@ -195,6 +195,16 @@ public final class ProfHandle {
             }
         });
 
+        // p:surfaces() -- what the widgets standing in the 3D world (044) actually cost: how many there are, how
+        // many offscreen passes have been issued, and how many frames those passes were offered. Pull-only: the
+        // surface pass keeps these to bound ITSELF, so reading them is three field reads and answers with
+        // profiling off. Global rather than per addon, because the pass is one walk of one list.
+        m.set("surfaces", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return surfaces();
+            }
+        });
+
         // p:textcache() -- the rendered-text cache behind g:text/g:atext (026). Pull-only like the four above:
         // it answers with profiling OFF, because nothing in it is a probe -- the cache keeps these numbers to
         // bound ITSELF, and this only reads them. Per addon, so the top level is the CALLER's own cache.
@@ -427,6 +437,30 @@ public final class ProfHandle {
             if(ds >= 0)                 // negative = this DrawList implementation does not count them
                 t.set("drawSlots", LuaValue.valueOf(ds));
         }
+        return t;
+    }
+
+    // ------------------------------------------------------------------------- standing widgets (044.1)
+
+    /**
+     * {@code p:surfaces()} — the widgets standing in the 3D world, and what drawing them costs.
+     *
+     * <p>{@code live} is how many surfaces exist right now, across every addon. {@code uploads} is how many
+     * offscreen passes have actually been issued and {@code frames} how many frames those passes were offered
+     * — <b>cumulative since the client started</b>, so both mean something as a <b>delta between two reads</b>:
+     * take one, wait, take another. That pair is the whole claim the feature makes about its own cost. A panel
+     * nothing changes holds {@code uploads} still while {@code frames} climbs; a panel painted by a
+     * {@code widget:on("Draw", …)} handler moves them together, because a Lua function of anything can only be
+     * known by running it.
+     *
+     * <p><b>Pull-only</b> (D-051), like {@code p:memory()} and the four counters beside it: nothing here is a
+     * probe. It answers whether profiling is armed or not.
+     */
+    private static LuaTable surfaces() {
+        LuaTable t = new LuaTable();
+        t.set("live", LuaValue.valueOf(WidgetSurface.liveCount()));
+        t.set("uploads", LuaValue.valueOf((double)WidgetSurface.uploads()));
+        t.set("frames", LuaValue.valueOf((double)WidgetSurface.frames()));
         return t;
     }
 

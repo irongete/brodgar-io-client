@@ -260,6 +260,17 @@ public final class Addon {
      */
     public final List<LuaObject> objects = new CopyOnWriteArrayList<LuaObject>();
     /**
+     * Live <b>widgets this addon has stood in the 3D world</b> ({@code hafen.vr():widget()}, 044): each is one of
+     * the addon's own UI surfaces drawn into an offscreen texture and hung on a virtual {@link haven.Gob} — the
+     * fourth kind on the same client-only entity core as {@link #ghosts}, {@link #sprites} and {@link #objects},
+     * and ungated for the same reason (nothing here reaches the server; only where a button is drawn changed).
+     * Teardown ({@link VrApi#teardownSurfaces}) destroys each, which puts the widget back where it stood from
+     * (D-070's rule for the borrowed case, the default parent for an owned one) and frees the surface's texture,
+     * so a reload/disable/relogin leaves neither an orphaned widget nor GPU memory. Copy-on-write: a firing
+     * callback may stand or end one.
+     */
+    public final List<LuaWidgetEntity> surfaces = new CopyOnWriteArrayList<LuaWidgetEntity>();
+    /**
      * <b>This addon's whole {@code hafen.vr()} is switched off</b> ({@code hafen.vr():visible(false)}, 043.4) — one
      * flag beside the three registries above, because the switch is the SECTION's state and there is exactly one
      * section per addon. It destroys nothing: every entity keeps its gob, its transform and its handle, and only

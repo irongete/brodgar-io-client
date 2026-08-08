@@ -799,3 +799,15 @@
   resize — invisible in an automated suite (nothing but a real OS-level window resize exercises it) and
   caught only by an in-game manual check. When a fold-based mechanism is replaced by shape-specific taps, each
   shape the fold used to treat uniformly needs its OWN tap, not just the most obvious one.
+- **(044.1) Re-homing a widget must not go through `Widget.remove()` — that call is a DEATH NOTICE, not a
+  detach.** [`Widget.remove()`](src/haven/Widget.java:569) ends with the 042.1 seam
+  `AddonManager.onWidgetRemoved(this)`, whose drain fires `widget:on("Destroy")`, a selector subscription's
+  `disappear`, and `dispatchReplacedRemoved` (which ENDS a live `w:replace()` substitution). None of those consult
+  liveness — they match on identity — so a `remove(); newparent.add(w)` pair reports three deaths for a widget that
+  is alive one line later. It also calls `setcanfocus(false)`, which is permanent: the widget would come back
+  unfocusable. The correct re-home is the two things a re-home actually is:
+  `if(w.canfocus) old.delfocusable(w); w.unlink(); old.cdestroy(w); w.parent = null; neu.add(w, at);` — every one
+  of those is `public` (`unlink`, `cdestroy`, `delfocusable` are all reachable from another package). `ui.removed(w)`
+  is skipped deliberately: it only drops `UI.Grab`s owned by the subtree, which a widget that is still alive should
+  keep. **Rule:** before reusing an engine lifecycle method for a lifecycle it does not name, grep what it NOTIFIES
+  — the observers were written for the meaning, not for the mechanics.

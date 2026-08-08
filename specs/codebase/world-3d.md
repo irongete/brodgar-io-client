@@ -32,9 +32,6 @@
 tag reaches both. And because `oltags` is a *count* with several owners, nothing can turn an overlay off —
 only stop asking; a caller that "sets" it must instead take and release exactly one reference.
 
-*(This file is at 75 lines, over the 70-line budget: the "Scene counters" + "GL submission" halves are the
-natural split when a task next needs them.)*
-
 ## Textures & materials (no `.res` required)
 
 | What | Where |
@@ -50,32 +47,24 @@ natural split when a task next needs them.)*
 | **Lighting** | material state = [`Light.PhongLight`](src/haven/Light.java:145) (frag; ctor takes emi/amb/dif/spc/shine; `defamb/defdif/defspc` neutral defaults) → the [`Phong`](src/haven/render/Phong.java:35) shader multiplies the scene's [`Lighting.lights`](src/haven/render/Lighting.java:38)/[`Light.LightList`](src/haven/Light.java:81) (applied at the PView scene root — [`PView.lights`](src/haven/PView.java:40)) into the fragment. Normals need the **inverse-transpose** of `basis·node` ([`Matrix4f.invert`](src/haven/Matrix4f.java:175)/[`transpose`](src/haven/Matrix4f.java:149)/[`trim3`](src/haven/Matrix4f.java:159)). **sRGB = no-op** ([`Texture.srgb`](src/haven/render/Texture.java:38) left `false`, like all game textures) |
 | glTF → geometry | per primitive → a `Model` (POSITION→[`Homo3D.vertex`](src/haven/render/Homo3D.java:41), NORMAL→[`Homo3D.normal`](src/haven/render/Homo3D.java:42) [VEC3 `"normal"`, shaded to eye space as `mat3(cam)·mat3(wxf)·objn`], TEXCOORD_0→[`Tex2D.texc`](src/haven/render/Tex2D.java:36), indices via `Model.Indices`); baseColor `TexI.st()` + `BaseColor` factor → `Material.apply` |
 
-## Scene counters (what the `:stats on` HUD reads)
+## Render to texture (drawing a UI subtree off screen)
 
 | What | Where |
 |---|---|
-| The scene's render objects (**on `PView`, not `MapView`**) | [`PView.instancer`](src/haven/PView.java:47) (an `InstanceList`) + [`PView.back`](src/haven/PView.java:48) (the `DrawList`) — `protected`, **null before the first draw** builds the env-bound lists; fork accessors [`instancer()`/`drawlist()`](src/haven/PView.java:63) (`// addon:`) |
-| Scene tree size | [`RenderTree.stats`](src/haven/render/RenderTree.java:921) over `nleaves`/`nslots`; fork getters [`nleaves()/nslots()`](src/haven/render/RenderTree.java:926) |
-| Batching effectiveness | [`InstanceList.stats`](src/haven/render/InstanceList.java:889) over `nuinst`+`nbatches`(`ninst`) `ninvalid` `nbypass`; fork getters at [:881](src/haven/render/InstanceList.java:881). Written on the render side ⇒ a read may be **one frame stale** |
-| Draw slots ("draw calls") | [`DrawList.stats`](src/haven/render/DrawList.java:34) is an interface default; the real count is [`GLDrawList.btsubsize(root)`](src/haven/render/gl/GLDrawList.java:1089). Fork: `DrawList.drawslots()` defaults **`-1`** = "does not count", overridden in [`GLDrawList`](src/haven/render/gl/GLDrawList.java:1093) |
-| VRAM pools + shader programs | [`GLEnvironment.memstats`](src/haven/render/gl/GLEnvironment.java:1032) over `stats_obj`/`stats_mem` indexed by the **package-private** `MemStats` enum, and [`numprogs()`](src/haven/render/gl/GLEnvironment.java:1015); fork exposes the pool **names** as `String[] mempools()` + `memobjects(i)`/`membytes(i)` at [:1018](src/haven/render/gl/GLEnvironment.java:1018) |
-| Render-state slots (process-wide) | [`State.Slot.numslots()`](src/haven/render/State.java) |
+| **The whole-client precedent** | [`Streamer.StreamerLoop`](src/haven/Streamer.java:85) / [`HeadlessClient.HeadlessLoop`](src/haven/HeadlessClient.java:46) override [`UILoop.basestate`](src/haven/UILoop.java:284) to `prep` a `FragColor`+`DepthBuffer` over `Texture2D` images — the ENTIRE UI then draws into textures with no other change |
+| Colour target | `new Texture2D(sz, Usage.STATIC, new VectorFormat(4, NumberFormat.UNORM8), null)`; [`.image(0)`](src/haven/render/Texture2D.java:59) → [`FragColor`](src/haven/render/FragColor.java) on a fresh [`BufPipe`](src/haven/render/BufPipe.java) |
+| **Colour-only FBO is legal** | [`RenderedNormals`](src/haven/RenderedNormals.java:90) and [`PView`](src/haven/PView.java:241) prep a `FragColor` with **no** `DepthBuffer` — a 2D pass needs no depth attachment |
+| The 2D pipe over it | `prep(FragColor.blend(mode))` + [`States.Viewport(area)`](src/haven/render/States.java:44) + [`Ortho2D(area)`](src/haven/render/Ortho2D.java:48) + [`FrameInfo`](src/haven/render/FrameInfo.java:32), then `out.clear(base, FragColor.fragcol, colour)` |
+| Drawing onto it | [`new GOut(Render, Pipe, Coord)`](src/haven/GOut.java:57) — **public**, the very ctor `UILoop.display` uses; hand it to any `Widget.draw` |
+| Sampling it back | [`Texture2D.sampler()`](src/haven/render/Texture2D.java:101) → [`new TexRender(Sampler2D)`](src/haven/TexRender.java:40) → `tr.draw`/`tr.clip` in a `Material`, as for any texture |
 
-**Gotcha.** Everything above except `State.Slot.numslots()` needs a live scene: `ui.root.findchild(MapView.class)`
-is null before the world loads, `instancer`/`back` are null before the first draw, and a non-`GLEnvironment`
-backend has no VRAM or program counts at all. Report an **absent** value, never a `0`.
+**Gotcha — a render target is v-FLIPPED against an uploaded image.** `Ortho2D` has `k[1] = -2/h`
+([:44](src/haven/render/Ortho2D.java:44)), so widget `y=0` (the top) maps to NDC `+1`, the top of the viewport,
+i.e. `v ≈ 1`; a framebuffer's first texel row is its BOTTOM. A `TexI` is the opposite — its first row is the
+image's TOP. So a quad whose `t` is inverted to stand a PNG upright (`SpriteQuad.quadVerts`) stands a render
+target on its head, and every re-use of such geometry must re-derive `t` from the projection.
 
-## GL submission: where a frame's draw calls actually happen
-
-| What | Where |
-|---|---|
-| The 3D scene draw boundary | [`PView.draw`](src/haven/PView.java:327) → `instancer.commit(out)` then [`maindraw(out)`](src/haven/PView.java:319) = `back.draw(out)`, the draw-list dispatch; `resolve(g)` + `list2d.draw(g)` follow it. [`MapView.maindraw`](src/haven/MapView.java:1642) prepends [`drawsmap`](src/haven/MapView.java:1027) → `smap.update(out, slist)` — **the entire shadow render in one call** |
-| Batched submission (per frame) | [`GLDrawList.draw(Render)`](src/haven/render/gl/GLDrawList.java:941) walks the sorted `DrawSlot` list on the **UI/dispatch** thread: `gl.bglCallList(cur.compiled)` per slot = **one draw call each**, and a program bind wherever `cur.prog` changes (the list is sorted by program, so binds ≪ calls means the sort works) |
-| Slot **compile** (rare, not per frame) | [`GLDrawList.SlotRender.draw(Pipe,Model)`](src/haven/render/gl/GLDrawList.java:848), from the [`DrawSlot` ctor](src/haven/render/gl/GLDrawList.java:336) — the only place the `Model` is in hand; [`glupdate`](src/haven/render/gl/GLDrawList.java:265) bakes `GLProgram.apply` + settings into `compiled`. Fork: `DrawSlot.nverts/ntris` are computed **here**, once |
-| Immediate submission | [`GLRender.draw(Pipe,Model)`](src/haven/render/gl/GLRender.java:173) — every 2D blit and ephemeral model, `state.apply` then `glDrawArrays`/`glDrawElements`(`Instanced`) |
-| Immediate program binds | [`Applier.apply2`](src/haven/render/gl/Applier.java:259) and [`apply(BGL,Applier)`](src/haven/render/gl/Applier.java:322) — the two `GLProgram.apply` sites that run per frame |
-| Geometry per model | [`Model`](src/haven/render/Model.java:33): `mode` ([`Mode`](src/haven/render/Model.java:41)), `n` (vertices, or **indices** when `ind != null`), `ninst`. Triangles = `n/3` (TRIANGLES) or `n-2` (STRIP/FAN), × `ninst`; POINTS/LINES contribute none |
-
-**Gotcha.** The GL calls are *written* at slot-compile time and *replayed* by `BufferBGL` on the render thread —
-neither is a per-frame count. Instrument the two **dispatch** seams above (`GLDrawList.draw`, `GLRender.draw`);
-the replay loop is far too hot to touch.
+**Gotcha — ordering is a position in the command stream, not a frame.** `UILoop.display` builds ONE `Render`
+and appends everything to it, so a pass issued before `ui.draw(g)` (inside which the 3D scene draws, the MapView
+being a widget) writes its texture ahead of the commands that sample it **in the same frame**. There is no
+double-buffering to reason about and no staleness to accept.

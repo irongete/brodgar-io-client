@@ -433,16 +433,19 @@ final class Controls {
         if(c instanceof CtlButton) {
             UI u = AddonManager.ui;
             synchronized(u) { ((CtlButton)c).change(s); }
+            WidgetSurface.touch(w);   // 044.1: if it is standing in the world, its picture is out of date
             return;
         }
         if(c instanceof CLabel) {
             UI u = AddonManager.ui;
             synchronized(u) { ((CLabel)c).settext(s); }   // resizes itself; see spec 040 risks/gotchas
+            WidgetSurface.touch(w);   // 044.1: if it is standing in the world, its picture is out of date
             return;
         }
         if(c instanceof CCheck) {
             UI u = AddonManager.ui;
             synchronized(u) { ((CCheck)c).settext(s); }   // resizes itself, same as CLabel above
+            WidgetSurface.touch(w);   // 044.1: if it is standing in the world, its picture is out of date
             return;
         }
         if(c instanceof CtlIButton)
@@ -680,6 +683,7 @@ final class Controls {
     static void value(Owned c, Widget w, LuaValue v) {
         if(c instanceof Value) {
             ((Value)c).value(v);
+            WidgetSurface.touch(w);   // 044.1: a value is what a signature over the tree cannot see
             return;
         }
         throw new LuaError("widget:value(v) writes what a control HOLDS, and " + LuaWidget.typeName(w)
@@ -714,6 +718,7 @@ final class Controls {
         CImg img = (CImg)c;
         img.setimg(tex);
         img.source(v);
+        WidgetSurface.touch(w);       // 044.1: ...nor the picture a control shows
     }
 
     /** {@code widget:source(h)}'s handle → a {@link Tex}. Same two doors {@link #face} resolves, minus the plural. */
@@ -768,6 +773,7 @@ final class Controls {
     static void rows(Owned c, Widget w, LuaValue t) {
         if(c instanceof Rows) {
             ((Rows)c).rows(t);
+            WidgetSurface.touch(w);   // 044.1: ...and neither is a row list
             return;
         }
         throw new LuaError("widget:rows(t) sets a control's ROW SOURCE, and hafen.ui():radio(), hafen.ui():list(),"
@@ -798,6 +804,7 @@ final class Controls {
         LuaValue minv = Args.required(a, 2, "widget:range", "min");
         LuaValue maxv = Args.required(a, 3, "widget:range", "max");
         ((Range)c).range(minv, maxv);
+        WidgetSurface.touch(w);       // 044.1: ...nor a slider's bounds
     }
 
     // ------------------------------------------------------------------ the rowHeight verb (040.9)

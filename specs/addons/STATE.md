@@ -2,40 +2,43 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: none — [`044-spatial-ui`](044-spatial-ui/) is planned and waiting** (0 of 8 tasks): `hafen.vr():widget()`,
-the fourth collection of the section 043 just finished. A Widget — yours or the client's own — standing in the world
-as a quad, held to one rule, **transparency** (same `Draw`, input, controls, theme, popups, keyboard), which is why
-its surface is a real UI **root** the widget is reparented into rather than a texture with clicks forwarded; plus
-`:facing("camera")`, a world quad turning in yaw and pitch with real size, perspective and occlusion. Every
-rendering piece exists.
+**ACTIVE: [`044-spatial-ui`](044-spatial-ui/) — 1 of 8 tasks.** `hafen.vr():widget()`, the fourth collection. A
+Widget — yours or the client's own — standing in the world as a quad, held to one rule, **transparency** (same
+`Draw`, input, controls, theme, popups, keyboard), which is why its surface is a real UI **root** the widget is
+reparented into rather than a texture with clicks forwarded; plus `:facing("camera")`, real size and occlusion.
+
+**044.1 done — the gate holds: a widget subtree draws cleanly through an offscreen `GOut`.** `:add(w, p)` stands
+one of your own widgets at a point, on the shared world-entity core. The widget is **re-homed into an invisible
+`WidgetSurface` under `ui.root`** rather than detached (**D-191**), so it leaves the flat UI's draw and hit-testing
+(`hafen.ui():at()` no longer finds it) while `:exists()`, its `Tick` and its `Draw` go on unchanged — three
+questions `haven` answers with three properties of one node. The surface is the `Streamer`/`HeadlessClient` recipe
+narrowed to one subtree (`Texture2D` → `FragColor` on a `BufPipe`, `Ortho2D`, the public `new GOut(Render, Pipe,
+Coord)`), sampled by a `SurfaceQuad` in the entity's `Drawable` slot. Both open questions are decided: the pass is
+issued from `UILoop.display` **before** `ui.draw(g)` — one `Render`, so "before" is a position in the stream and
+the world samples a texture written **this** frame — and the material is `TexDraw + TexClip + blend`, neither of
+R2a's two recipes, because a widget is translucent AND has a margin that must not write depth. **It does not redraw
+every frame** (**D-192**): readable state redraws on a signature over the subtree; a `Draw` handler (or a running
+`Anim`) redraws every frame, because only running it says what it paints; unarmed content is skipped, so the first
+upload is the first that draws anything. `hafen.client():profiling():surfaces()` → `live`/`uploads`/`frames`,
+pull-only. `:remove`/`:reload`/disable put the widget back where it stood from. 22/22 green, and the one `[manual]`
+line earned its keep: a render target is v-flipped against an uploaded image, so `SpriteQuad`'s inverted `t` stood
+the panel on its head. **Docs wait for 044.8** (mid-feature surface — no gob anchor, `:facing`, clicks or native
+windows yet), exactly as 043 wrote its whole tier in 043.5. Coverage paid: `codebase/world-3d.md` gained
+render-to-texture and **split** its two flagged halves into the new `codebase/render-gl.md`; `codebase/widgets.md`
+gained the 2D draw target, the re-home recipe and focus.
 
 [`043-vr-namespace`](043-vr-namespace/) **closed, 5/5 tasks** — pure reorganization, no new rendering.
 **`hafen.vr()` is the one section for client-only things standing in the 3D world.** It absorbed `hafen.ghost()`
-and `hafen.render()` whole (**043.1** — `:ghost()/:sprite()/:object()`, each answering every verb its old section
-answered, the kinds **registered** rather than branched on so 044's `:widget()` is one line; the old sections are
-`Retired` **section** rows, so the refusal fires on the field read; 38 Lua sites ported; **D-184**, a section is
-named for whose the thing is, not the mechanism, supersedes D-034's half). It made the **anchor an argument**
-(**043.2** — `:add(what, p)` stands, `:add(what, gob)` follows, anything else refused naming **both**; an anchored
-entity dies with its gob off the `GobRemoved` drain through a by-target index, **D-185**, an index written at
-create/destroy rather than the sweep D-100 deleted; `:position(p)` on a follower is **refused**, **D-186**). It
-emptied `gob:overlay()` of the world (**043.3** — `ov:image`/`ov:model`/`ov:ghost` and the verb set serving only
-them are `Retired` rows naming `hafen.vr()`, so `ov:offset(x, y)` means screen pixels and a third argument raises;
-the one world verb with no home moved with them as `<entity>:offset(x, y, z)`, **D-187** — grep the fields the
-deleted door SOLELY wrote, not just the call sites. An anchored entity is **listed at its gob read-only**, every
-write refused naming its collection, **D-188**, a door is a write and a list is a read — which deleted `asOverlay`
-whole). It gave the section the two verbs no single collection can be asked (**043.4** — `hafen.vr():list(filter)`
-is everything you have stood, across the kinds, in **creation order**, taking the same canonical filter a per-kind
-list takes; `hafen.vr():visible(b)` switches the whole section off and back, destroying nothing, and the restore is
-**D-189**: a section-wide switch is a **second boolean beside the thing's own**, never a write over it, ANDed where
-the scene slot is added — so one hidden on its own handle stays hidden. `<entity>:visible()` and
-`hafen.vr():visible()` are different questions and neither is "is it on screen"; both verbs walk one registry
-sweep, so 044's fourth kind joins for free). And it closed (**043.5** — `:billboard(b)` → **`:facing(mode)`**,
-`"fixed"` or `"screen"`, the mode stored **as the string** so 044's `"camera"` is a value rather than a re-opened
-shape and a saved layout round-trips it as itself; `"camera"` is refused today like any unknown word, because an
-alias is a wrong answer that survives the fix — **D-190**. `planner`'s persisted `billboard` boolean became a
-`facing` string with no shim. The docs tier moved wholesale into **`docs/addons/api/vr/**`** — hub, ghosts,
-sprites, models and the gizmo — `api/gob.md`'s Overlays was rewritten around what stays, both glance tables
-re-rowed and 14 pages swept, 1404 links/anchors checked and 0 broken).
+and `hafen.render()` whole, the kinds **registered** rather than branched on so 044's `:widget()` is one line
+(**D-184**, a section is named for whose the thing is, not the mechanism — supersedes D-034's half); made the
+**anchor an argument**, `:add(what, p)` or `:add(what, gob)`, an anchored entity dying with its gob off an index
+written at create/destroy (**D-185**) and its `:position(p)` refused (**D-186**); emptied `gob:overlay()` of the
+world, the one homeless verb moving with the kinds as `<entity>:offset(x, y, z)` (**D-187** — grep the FIELDS a
+deleted door solely wrote) and an anchored entity now **listed at its gob read-only** (**D-188**); gave the
+section `:list(filter)` and `:visible(b)`, the restore being a **second boolean beside the thing's own**
+(**D-189**); and closed by turning `:billboard(b)` into **`:facing(mode)`**, the mode stored as the STRING so
+044's `"camera"` is a value rather than a re-opened shape and the absent name raises rather than aliasing
+(**D-190**). Docs moved wholesale into `docs/addons/api/vr/**`; 1404 links/anchors checked, 0 broken.
 
 [`042-event-driven-reads`](042-event-driven-reads/) closed before it, 13/13 tasks. The addon layer stopped
 **polling the widget tree every frame** to synthesise its `*Changed`/`*Added` events (12 sites, 6 of them

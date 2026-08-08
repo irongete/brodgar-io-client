@@ -97,6 +97,15 @@ public abstract class LuaWorldEntity {
     abstract void unregister();
 
     /**
+     * <b>What this kind has to undo when it ends</b>, beyond the scene slot and the gob every kind shares —
+     * called by {@code VrApi.destroyEntity} once the entity is out of the scene, on the UI thread and outside
+     * the entity monitor. Nothing for the three kinds whose whole existence is their visual; a
+     * {@link LuaWidgetEntity} puts its widget back where it stood from and frees its surface.
+     */
+    void destroyed() {
+    }
+
+    /**
      * The entity's visual identity / filter key — a {@code .res} name for a ghost, the image path for a sprite;
      * may be {@code null}. Used by the {@code list([filter])} string-filter and the {@code :res()}/{@code :image()}
      * accessor.
