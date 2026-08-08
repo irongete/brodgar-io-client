@@ -631,7 +631,7 @@ final class VrApi {
     /**
      * The Lua handle of a client-only world entity — <b>one vocabulary for all three kinds</b> (a
      * {@link LuaGhost}, a {@link LuaSprite}, a {@link LuaObject}), plus whatever {@code extra} verbs its own kind
-     * adds ({@code :res} for a ghost, {@code :image}/{@code :billboard} for a sprite, {@code :mesh} for an
+     * adds ({@code :res} for a ghost, {@code :image}/{@code :facing} for a sprite, {@code :mesh} for an
      * object). Every property here is a read/write pair on ONE name (§2.2): {@code :scale()} reads and
      * {@code :scale(2)} writes and hands back the handle, so a placement is one statement.
      *
@@ -1057,7 +1057,6 @@ final class VrApi {
      * where it was put (043.2). Returns {@code null} when there is no map view (not in the world).
      */
     private static LuaSprite makeSprite(Addon owner, LuaValue opts, long tgt) {
-        boolean billboard = opts.get("billboard").toboolean();   // R2b: true = camera-facing screen blit; false = fixed world quad
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
@@ -1066,11 +1065,11 @@ final class VrApi {
         LuaValue av = opts.get("a");
         double a = av.isnumber() ? av.todouble() : 0.0;
         Coord2d rc = new Coord2d(opts.get("x").optdouble(0.0), opts.get("y").optdouble(0.0));   // 0,0 placeholder when anchored
-        LuaSprite sp = new LuaSprite(owner, img, rc, a, billboard);
+        LuaSprite sp = new LuaSprite(owner, img, rc, a, FIXED);   // a sprite is placed upright; :facing(mode) re-mills it
         sp.alpha = luaAlpha(opts.get("alpha"));        // opacity 0..1 (default 1); combines with the PNG's own alpha
         sp.tint = luaTint(opts.get("tint"));           // colour overlay {r=,g=,b=[,a=]}, or null
-        sp.scale = luaScale(opts.get("scale"));        // uniform scale (fixed quad: ~1 tile tall; billboard: screen-size ×)
-        sp.clickable = opts.get("clickable").toboolean();   // R2b: opt-in pick (fixed sprites only; a billboard has no world mesh → never picked)
+        sp.scale = luaScale(opts.get("scale"));        // uniform scale ("fixed": ~1 tile tall; "screen": screen-size ×)
+        sp.clickable = opts.get("clickable").toboolean();   // R2b: opt-in pick (a "screen" sprite has no world mesh → never picked)
         LuaValue onclickv = opts.get("onClick");       // R2b: per-sprite click callback fn(s, button, x, y) — like a ghost
         if(onclickv.isfunction())
             sp.onClick = onclickv;
@@ -1080,14 +1079,14 @@ final class VrApi {
         LuaValue handle = spriteHandle(sp);
         sp.handle = handle;
         // Build the gob + visual OUTSIDE the sprite lock (no scene mutation yet), then publish atomically. No defer:
-        // the TexI is already decoded (R1), so nothing here throws Loading. The visual is the ONLY thing that differs
-        // between a fixed quad (SpriteQuad, a resource-free SprDrawable) and a camera-facing billboard
+        // the TexI is already decoded (R1), so nothing here throws Loading. The visual is the ONLY thing the facing
+        // mode changes — an upright quad (SpriteQuad, a resource-free SprDrawable) or a camera-facing screen blit
         // (LuaSpriteBillboard, a resource-free Drawable+Render2D) — the shared core supplies transform/look/gizmo.
         GhostGob gob = new GhostGob(g, rc);
         gob.a = a;
         gob.alpha = sp.alpha; gob.tint = sp.tint; gob.scale = sp.scale;   // reflect the look before the first scene add
-        gob.clickable = sp.clickable;                  // R2b: a fixed sprite's quad renders into the clickmap → V2-pickable (see onGhostClick)
-        gob.setattr(spriteVisual(gob, img, billboard));                  // the one miller, shared with :billboard(b)
+        gob.clickable = sp.clickable;                  // R2b: a "fixed" sprite's quad renders into the clickmap → V2-pickable (see onGhostClick)
+        gob.setattr(spriteVisual(gob, img, sp.facing));                  // the one miller, shared with :facing(mode)
         gob.move(rc, a);
         synchronized(sp) {
             if(sp.dead) { gob.dispose(); return sp; }   // destroyed mid-build (defensive; all UI-thread) → discard
@@ -1102,9 +1101,9 @@ final class VrApi {
 
     /**
      * The Lua handle for a {@link LuaSprite}: the shared entity verbs plus {@code :image()} (its image's
-     * addon-relative path) and {@code :billboard()} / {@code :billboard(b)}.
+     * addon-relative path) and {@code :facing()} / {@code :facing(mode)}.
      *
-     * <p><b>{@code :billboard} is a CONSTRUCTION property, so writing it REBUILDS the visual</b> — the flag picks
+     * <p><b>{@code :facing} is a CONSTRUCTION property, so writing it REBUILDS the visual</b> — the mode picks
      * which drawable is milled (an upright world quad or a camera-facing screen blit) and nothing can change that
      * in place. Refusing it after the fact would make the natural reading order illegal, and deferring the whole
      * build would move <i>there is no map view</i> off the call site that caused it; so the rebuild is the
@@ -1121,35 +1120,55 @@ final class VrApi {
                 return (sp.imgName == null) ? LuaValue.NIL : LuaValue.valueOf(sp.imgName);
             }
         });
-        x.set("billboard", new VarArgFunction() {
+        x.set("facing", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                LuaValue bv = Args.written(a, 2, "sprite:billboard", "b");
-                if(bv == null) {
-                    synchronized(sp) { return LuaValue.valueOf(sp.billboard); }
+                LuaValue mv = Args.written(a, 2, "sprite:facing", "mode");
+                if(mv == null) {
+                    synchronized(sp) { return LuaValue.valueOf(sp.facing); }
                 }
-                setSpriteBillboard(sp, bv.toboolean());
+                setSpriteFacing(sp, facingArg(mv));
                 return self;
             }
         });
         return entityHandle(sp, "sprite", x);
     }
 
+    /** The upright world quad a sprite is placed as, and the constant-size camera-facing blit it can be swapped to. */
+    static final String FIXED = "fixed", SCREEN = "screen";
+
     /**
-     * {@code sprite:billboard(b)} — swap between the two visuals a sprite can have, in place. The gob keeps its
+     * The {@code mode} of {@code sprite:facing(mode)}, refused by name. <b>{@code "camera"} is refused like any
+     * other unknown mode</b> and not quietly aliased onto {@code "screen"}: a camera facing is a world quad that
+     * turns to the viewer — it keeps its world size, perspective and occlusion, which a screen blit has none of —
+     * so accepting the word for the wrong visual would teach the wrong thing to every reader who tried it.
+     */
+    private static String facingArg(LuaValue mv) {
+        if(!mv.isstring() || mv.isnumber())
+            throw new LuaError("sprite:facing(mode) expects a mode STRING, \"fixed\" (an upright world quad) or"
+                + " \"screen\" (a constant-size blit that squares up to the camera), got " + mv.typename());
+        String s = mv.tojstring();
+        if(FIXED.equals(s) || SCREEN.equals(s))
+            return s;
+        throw new LuaError("sprite:facing(\"" + s + "\"): a sprite faces \"fixed\" (an upright world quad) or"
+            + " \"screen\" (a constant-size blit that squares up to the camera)");
+    }
+
+    /**
+     * {@code sprite:facing(mode)} — swap between the two visuals a sprite can have, in place. The gob keeps its
      * identity, its transform and its scene slot; only the {@code Drawable} is replaced, under the gob's own
      * monitor (the lock the engine's live res-swap holds, because {@code slots} is a plain list shared with the
      * {@code ctick} path). No-op when unchanged, dead, or still waiting for its gob.
      */
-    private static void setSpriteBillboard(LuaSprite sp, boolean on) {
+    private static void setSpriteFacing(LuaSprite sp, String mode) {
         synchronized(sp) {
-            if(sp.dead || (sp.billboard == on))
+            if(sp.dead || sp.facing.equals(mode))
                 return;
-            sp.billboard = on;
+            sp.facing = mode;
             Gob g = sp.gob;
             if(g == null)
-                return;                                // not published yet — the create reads the flag
-            Drawable dr = spriteVisual(g, sp.img, on);
+                return;                                // not published yet — the create reads the mode
+            Drawable dr = spriteVisual(g, sp.img, mode);
             synchronized(g) {
                 g.setattr(dr);                         // swaps the Drawable attrib: old slots removed, new added
             }
@@ -1158,11 +1177,11 @@ final class VrApi {
     }
 
     /**
-     * The one place a sprite's visual is milled, so the create and {@code :billboard(b)} cannot disagree: a fixed
+     * The one place a sprite's visual is milled, so the create and {@code :facing(mode)} cannot disagree: an
      * upright quad sized to the image aspect, or a camera-facing screen blit that reads the look live each frame.
      */
-    private static Drawable spriteVisual(Gob gob, LuaImage img, boolean billboard) {
-        if(billboard)
+    private static Drawable spriteVisual(Gob gob, LuaImage img, String facing) {
+        if(SCREEN.equals(facing))
             return new LuaSpriteBillboard(gob, img);
         float[] wh = spriteWorldDims(img.sz);
         return new SprDrawable(gob, SpriteQuad.mill(img.tex, wh[0], wh[1]));
@@ -1518,7 +1537,7 @@ final class VrApi {
      * private to its addon, not a global {@link #fire})
      * and its per-entity {@code onClick(handle, button, x, y)}, then return {@code true} so the caller CONSUMES the
      * click — no {@code wdgmsg}, so nothing reaches the server (client-only ⇒ still SAFE-tier, D-032). Returns {@code
-     * false} for any non-entity / non-clickable gob, so a normal click proceeds. (A billboard sprite has no world
+     * false} for any non-entity / non-clickable gob, so a normal click proceeds. (A {@code "screen"} sprite has no world
      * mesh, so it never renders into the clickmap and never reaches here — only fixed sprites are pickable.) {@code x,
      * y} = the world coord the click resolved to. Reached under {@code synchronized(ui)} (like the L3 message hook),
      * so {@link #callLua} is safe with no extra thread guard; the entity lock is released before dispatch so a handler

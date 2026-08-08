@@ -83,7 +83,7 @@ for _, g in ipairs(hafen.world():gob():list()) do tag(g) end     -- ...and every
 The label is drawn at that object's projected screen point, just above the head, and it follows the gob
 because it is attached to it — no projection to do and nothing to poll. A `:draw(fn)` overlay gets that
 point as `sx, sy` when you want to paint it yourself. Standing something **in** the world instead of over
-it is [`hafen.render`](../api/render/README.md) or [`hafen.ghost`](../api/ghost.md).
+it is [`hafen.vr`](../api/vr/README.md).
 
 ## Input
 

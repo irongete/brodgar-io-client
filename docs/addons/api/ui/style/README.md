@@ -211,8 +211,7 @@ rather than from code.
   persists
   tables — and an addon ships the experience, as `theme` does.
 - **The 3D world.** The sheet is the UI. Terrain, objects, animations and their materials are game
-  resources; what an addon adds there is [`hafen.render`](../../render/README.md) and
-  [`hafen.ghost`](../../ghost.md), not a rule.
+  resources; what an addon adds there is [`hafen.vr`](../../vr/README.md), not a rule.
 - **Text the client baked at class-load**, and `$col[…]` markup inside a string — both
   [in the key table](keys.md#what-each-key-accepts), and both structural rather than missing.
 

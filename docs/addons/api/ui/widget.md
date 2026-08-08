@@ -205,7 +205,7 @@ data.
 ### The grab
 
 A modal press-drag-release capture: while it is held the map view neither pans nor clicks, so a drag
-leaves the camera put. It is what a [ghost](../ghost.md#the-transform-gizmo) gizmo is built on.
+leaves the camera put. It is what the [gizmo](../vr/gizmo.md) is built on.
 
 ```lua
 local g = hafen.ui():mouse():grab()   -- bare: from here the pointer is yours

@@ -1922,7 +1922,7 @@ end)
 local demoGhost   -- V1: the handle of the manual :hello ghost demo while placed (nil = none); session-local
 local demoSprite  -- R2a: the handle of the manual :hello sprite demo while placed (nil = none); session-local
 local demoFollow  -- 043.3: the Sprite of the :hello follow demo (a sprite ANCHORED to your gob); session-local
-local demoBill    -- R2b: the handle of the :hello billboard demo (a camera-facing sprite); session-local
+local demoBill    -- R2b: the handle of the :hello facing demo (a camera-facing sprite); session-local
 local demoObject  -- R3a: the handle of the :hello object demo (a glTF cube in the world); session-local
 -- 026.2: the text-cache bound check. The toggle is assigned beside the HUD overlay far below (that is where the
 -- drawing happens); its two constants live here so `:hello textcache` can quote them in the same breath.
@@ -1930,7 +1930,7 @@ local textcacheStress
 local STRESS_POOL, STRESS_PER_FRAME = 2000, 32
 hafen.slash():register("hello", function(args)
   if #args == 0 then
-    hafen.log():write("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | widget | selector | wnd [swallow] | prof | widgets | passes | textcache")
+    hafen.log():write("A11: :hello -- hi from the hello addon! try  :hello toggle | ping | sound | echo <text...> | craft | quest | wound | fight | actions | ghost | sprite | facing | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | widget | selector | wnd [swallow] | prof | widgets | passes | textcache")
     return
   end
   local sub = args[1]
@@ -2019,21 +2019,21 @@ hafen.slash():register("hello", function(args)
         end
       end)
     end
-  elseif sub == "billboard" then
-    -- R2b: CAMERA-FACING BILLBOARD SPRITE (sprite:billboard(true)). The SAME PNG, but drawn as a
+  elseif sub == "facing" then
+    -- R2b/043.5: A SPRITE'S FACING (sprite:facing("screen")). The SAME PNG as ':hello sprite', but drawn as a
     -- screen-space blit at the projected world point, so it ALWAYS faces the camera and is a constant screen size
     -- (rotate the camera / zoom -- it stays square-on and the same pixel size). Position + gizmo-move still apply
-    -- (world-rotate/scale do not: it's 2D). Same handle as a fixed sprite; :hello billboard again removes it.
+    -- (world-rotate/scale do not: it's 2D). Same handle as a "fixed" sprite; :hello facing again removes it.
     if demoBill then
       hafen.vr():sprite():remove(demoBill); demoBill = nil
-      hafen.log():write(":hello billboard -> destroyed")
+      hafen.log():write(":hello facing -> destroyed")
     else
-      if not icon then hafen.log():write(":hello billboard -> icon.png not loaded yet (Load)"); return end
+      if not icon then hafen.log():write(":hello facing -> icon.png not loaded yet (Load)"); return end
       local me = hafen.player():gob()                 -- your character's Gob OBJECT (nil pre-world)
       local p = me and me:position()
-      if not p then hafen.log():write(":hello billboard -> no player position yet"); return end
-      demoBill = hafen.vr():sprite():add(icon, p):billboard(true):scale(2)   -- 2x native px, faces camera
-      hafen.log():write((":hello billboard -> icon.png standing at (%.0f,%.0f) FACING THE CAMERA (screen-sized) -- rotate the camera to see; :hello billboard again to remove")
+      if not p then hafen.log():write(":hello facing -> no player position yet"); return end
+      demoBill = hafen.vr():sprite():add(icon, p):facing("screen"):scale(2)   -- 2x native px, faces camera
+      hafen.log():write((":hello facing -> icon.png standing at (%.0f,%.0f) FACING THE CAMERA (screen-sized) -- rotate the camera to see; :hello facing again to remove")
         :format(p:x(), p:y()))
     end
   elseif sub == "follow" then
@@ -2628,7 +2628,7 @@ hafen.slash():register("hello", function(args)
       .. " line` hits every frame; `026 volatile line` misses every frame because its text changes every frame"
       .. " -- budget a live readout by how often its TEXT changes, not by how many lines it has.")
   else
-    hafen.log():write((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | billboard | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets | passes | overhead | textcache)")
+    hafen.log():write((":hello got %d arg(s): %s  (try: toggle | ping | echo | craft | quest | wound | fight | ghost | sprite | facing | follow | object | assets | font | title | button | entry | label | heading | menu | tip | chat | speech | nick | node | prof | widgets | passes | overhead | textcache)")
       :format(#args, table.concat(args, " | ")))
   end
 end)

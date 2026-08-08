@@ -182,9 +182,9 @@ event is about *visibility*, and at `disappear` the widget is a key to match, no
 
 | Event | Payload | Fires |
 |---|---|---|
-| `GhostClicked` | `ev` — `:ghost()` `:button()` `:x()` `:y()` | a **clickable** [ghost](ghost.md) of *your* addon is clicked |
-| `SpriteClicked` | `ev` — `:sprite()` `:button()` `:x()` `:y()` | a **clickable** fixed [sprite](render/sprites.md#clickability) of *your* addon is clicked |
-| `ObjectClicked` | `ev` — `:object()` `:button()` `:x()` `:y()` | a **clickable** [glTF object](render/models.md#clickability) of *your* addon is clicked |
+| `GhostClicked` | `ev` — `:ghost()` `:button()` `:x()` `:y()` | a **clickable** [ghost](vr/ghosts.md) of *your* addon is clicked |
+| `SpriteClicked` | `ev` — `:sprite()` `:button()` `:x()` `:y()` | a **clickable** [sprite](vr/sprites.md#clickability) of *your* addon is clicked |
+| `ObjectClicked` | `ev` — `:object()` `:button()` `:x()` `:y()` | a **clickable** [glTF object](vr/models.md#clickability) of *your* addon is clicked |
 
 All three are **owner-scoped**: they fire only to the addon that owns the clicked entity, unlike the
 world and roster events above, which broadcast. That is because a ghost, sprite or object is private
@@ -192,13 +192,13 @@ to its addon and its handle never leaves it.
 
 | `ev` on `GhostClicked`/`SpriteClicked`/`ObjectClicked` | Description |
 |---|---|
-| `ev:ghost()` / `ev:sprite()` / `ev:object()` | the clicked [entity](render/sprites.md#the-sprite) — only the one matching the event fires reads non-nil |
+| `ev:ghost()` / `ev:sprite()` / `ev:object()` | the clicked [entity](vr/README.md#one-vocabulary-three-kinds) — only the one matching the event fires reads non-nil |
 | `ev:button()` | 1 for left, 3 for right |
 | `ev:x()` `ev:y()` | the world point the click resolved to |
 
 The click is **consumed** — no server click, no character walk. An entity fires this only while
-clickable; a non-clickable one is click-through and silent, and a **billboard** sprite has no world
-mesh, so it is never picked at all.
+clickable; a non-clickable one is click-through and silent, and a sprite facing `"screen"` has no
+world mesh, so it is never picked at all.
 
 ## Intercepting an outbound action
 

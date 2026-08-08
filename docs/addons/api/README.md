@@ -93,10 +93,11 @@ you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [`hafen.ghost`](ghost.md) | the game's own props, standing where you put them, translucent and tinted |
-| [`hafen.render`](render/README.md) | the hub: the two collections that stand your own images and models in the world |
-| [sprites](render/sprites.md) | a PNG in the world: fixed or camera-facing, clickable, anchored |
-| [models](render/models.md) | a glTF model: the subset that loads, the object's verbs, and clicks |
+| [`hafen.vr`](vr/README.md) | the hub: the anchor, the shared verbs, and the switch for the whole section |
+| [ghosts](vr/ghosts.md) | the game's own props, standing where you put them, translucent and tinted |
+| [sprites](vr/sprites.md) | a PNG in the world: its facing modes, clicks, following a gob |
+| [models](vr/models.md) | a glTF model: the subset that loads, the object's verbs, and clicks |
+| [gizmo](vr/gizmo.md) | the drag handles that move, rotate and scale any of them |
 
 ## The client itself
 

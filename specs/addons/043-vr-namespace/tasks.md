@@ -64,7 +64,7 @@
   exactly the prior visibility, with an individually-hidden entity still hidden; per-handle
   `:visible` keeps working independently of the section switch.
 
-- [ ] **043.5 — `:facing()`, the docs, and the close**
+- [x] **043.5 — `:facing()`, the docs, and the close**
   `:billboard(b)` → `:facing(mode)` with the two modes that exist today, `"fixed"` and `"screen"`;
   `"camera"` raises naming the valid ones, because it arrives in [044](../044-spatial-ui/) as a
   world quad and must not mean the wrong thing meanwhile. `planner`'s **persisted** `billboard`

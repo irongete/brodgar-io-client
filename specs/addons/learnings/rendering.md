@@ -218,3 +218,12 @@
   used `me:overlay():add("hello-follow"):image(icon):scale(2):offset(0, 0, 18)`, a third one, found only by
   grepping `overlay()` across `addons/` before writing any code. `hello` is frozen, so it is easy to think of it
   as not participating; it participates in everything. Grep for the **verb**, never for the addon you expect.
+- **(043.5) When a construction property moves from the create's option table to a chained setter, the option
+  key it left behind goes on being READ — dead, but silently.** `makeSprite` still opened with
+  `boolean billboard = opts.get("billboard").toboolean()`, yet nothing had set that key since the sprite
+  builder became `:add(image, anchor)` + chained setters: `Anchor.spec()` writes `x`/`y` and the collection
+  adds `image`, so the read was permanently `false` and the create happened to agree with the field's default.
+  It is invisible precisely because it *works* — a create that reads a key nobody writes is a default with an
+  expensive spelling, and the day someone re-introduces the key it becomes two sources of truth. Rule, the
+  D-187 one turned inward: *when a property changes door, grep the option KEY as well as the verb — the create
+  body is a reader nothing points at.*

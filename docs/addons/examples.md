@@ -28,7 +28,7 @@ hotkey or type their command — so having them all on costs you an untouched lo
 
 The broad one: [events](api/event.md) and [timers](api/timer.md), [saved variables](api/store.md), a
 window, a HUD overlay and per-gob overlays drawn with [the `g` wrapper](api/ui/drawing.md),
-[world ghosts](api/ghost.md), [the kin roster](api/kin.md), [markers](api/map/markers.md),
+[world ghosts](api/vr/ghosts.md), [the kin roster](api/kin.md), [markers](api/map/markers.md),
 [icon categories](api/map/icons.md), [container reads](api/ui/items.md) and the
 [hide and replace](api/ui/replace.md) rules. It reads only — it declares no permissions — and it asserts
 each surface at login rather than merely demonstrating it, so its console output is a pass list.
@@ -89,8 +89,8 @@ equipment — by name, by quality, by wear — so there is nothing invented to l
 
 ## planner
 
-A base planner over the real terrain: translucent [ghosts](api/ghost.md) of the game's own props, your own
-PNGs as [sprites](api/render/sprites.md) and a glTF [model](api/render/models.md), all placed, selected by
+A base planner over the real terrain: translucent [ghosts](api/vr/ghosts.md) of the game's own props, your
+own PNGs as [sprites](api/vr/sprites.md) and a glTF [model](api/vr/models.md), all placed, selected by
 clicking, transformed and saved as one layout. The layout is anchored by
 [grid position](api/world.md#the-position-type), so it comes back at the same spot,
 facing and scale after a relog.
@@ -101,14 +101,15 @@ primitives, in a second file the manifest loads beside the first. `:planner grab
 ## tagger
 
 [`gob:overlay()`](api/gob.md#overlays) from both ends. `:tagger` puts a green name and a ring over every
-player body — a `text` and a `draw` record in **screen space**, at the gob's projected point — and
-`:tagger pin` floats a PNG 18 world units over the nearest object, a **world-space** record whose setters
-chain (`:offset(0, 0, 18):tint(255, 200, 90):alpha(0.85)`). Nothing is placed and nothing is polled: the
-record lives on the gob, so it follows the gob and dies with it.
+player body — a `text` and a `draw` record at the gob's projected **screen** point — and `:tagger pin`
+floats a PNG 18 world units over the nearest object, this time a [sprite](api/vr/sprites.md) standing in the
+world with the gob as its anchor, its setters chaining
+(`:offset(0, 0, 18):tint(255, 200, 90):alpha(0.85)`). Nothing is polled either way: each follows the gob and
+dies with it.
 
-`:tagger read` is the other half of the same verb — it prints yours beside **the game's own**, which come
-back `native = true`, keyed by resource name, read-only, and counted (`ov:count()`), because a native overlay
-is a union over that name. `:tagger watch` turns on
+`:tagger read` is the other half of the same verb — it prints yours, and what you stood at the gob, beside
+**the game's own**, which come back `native = true`, keyed by resource name, read-only, and counted
+(`ov:count()`), because a native overlay is a union over that name. `:tagger watch` turns on
 [`GobOverlayAdded`/`GobOverlayRemoved`](api/event.md#overlays-coming-and-going).
 
 It is also what the missing filter form looks like in practice: "label every player" is a

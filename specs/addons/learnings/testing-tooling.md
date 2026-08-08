@@ -1243,3 +1243,10 @@
   after clearing. And *when a probe reports `<no error>` for a refusal you have read the code for, check whether
   the raising path was reachable at all before changing the code*: this is the empty-set twin of 043.2's "a check
   whose failure list is only in the `got` slot cannot fail".
+- **(043.5) A section rename adds two names to the docs' retired-name guard, and that list lives in the OTHER
+  area.** `hafen.ghost` and `hafen.render` are retired spellings as of 043, so `docs/`'s §7 grep list
+  (`specs/docs/design/style-guide.md`) should carry them — but that file is area `docs`'s, and an `addons` task
+  does not edit it. Both read **zero** over `docs/` at 043.5's close, checked by hand alongside the §7 list
+  proper, so the tree is clean; what is missing is only the standing guard against a reintroduction. Rule: *when
+  a rename retires a name that `docs/` used to spell, run the grep yourself and report the two counts — the
+  owning area's list is a filing, not a blocker, and an unrun grep is the part that actually costs.*

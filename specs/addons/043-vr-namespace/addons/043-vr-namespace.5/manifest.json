@@ -1,0 +1,10 @@
+{
+  "name": "043.5 — a sprite's facing, by name",
+  "id": "043-vr-namespace.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 043.5: sprite:facing(mode) reads back \"fixed\" and \"screen\", \"camera\" and any other mode raise naming the valid ones, :billboard raises naming :facing, and a facing survives a store round-trip.",
+  "api_version": 1,
+  "saved_variables": ["layout"],
+  "files": ["main.lua"]
+}

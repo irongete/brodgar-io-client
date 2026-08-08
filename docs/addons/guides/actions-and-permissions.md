@@ -21,7 +21,7 @@ several of them look like writes:
 | [`w:position`, `w:size`, `w:visible`](../api/ui/native.md) | where the client's own windows sit |
 | [`w:replace(view)`](../api/ui/replace.md) | which window a client toggle opens |
 | [`hafen.ui():sheet()`](theming.md) | what the client looks like |
-| [`hafen.ghost`, `hafen.render`](../api/ghost.md) | props only you can see |
+| [`hafen.vr`](../api/vr/README.md) | props only you can see |
 | [`hafen.sound`](../api/sound.md) | what you hear |
 | [client options](../api/client/README.md) | the settings you could have edited by hand |
 

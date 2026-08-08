@@ -203,6 +203,14 @@ final class Retired {
             + " an overlay is painted AT its gob, so where it is, is where the gob is: ov:gob():position()."
             + " A thing standing in the world answers its own :position(), on the handle"
             + " hafen.vr():<kind>():add(what, gob) hands back");
+        // ---- 043.5: a sprite has a FACING, not a boolean. "fixed" and "screen" are two of the ways a flat thing
+        // ---- can meet the viewer, and a third ("camera": a world quad that turns to face them, keeping its world
+        // ---- size, perspective and occlusion) is neither the true nor the false of a flag. So the property is
+        // ---- named for what it answers and takes the mode by name.
+        put("sprite:billboard", "sprite:billboard(b) is now sprite:facing(mode): \"fixed\" is an upright world"
+            + " quad (what billboard(false) drew) and \"screen\" is a constant-size blit that squares up to the"
+            + " camera (what billboard(true) drew). It reads back the mode string");
+
         put("overlay:pos", "overlay:pos() is gone: an overlay is painted AT its gob, so where it is, is where"
             + " the gob is — ov:gob():position(), which hands back a Position. A thing standing in the world"
             + " is hafen.vr():sprite() / :object() / :ghost(), and answers its own :position()");

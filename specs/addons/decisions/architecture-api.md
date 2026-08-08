@@ -2007,3 +2007,25 @@ a branch over three. Generally: *a bulk switch over things that each already car
 write that property — it stands beside it, and the effective value is the AND.*
 **See.** [D-099](#d-099), [D-100](#d-100), [D-184](#d-184),
 [043-vr-namespace](../043-vr-namespace/spec.md).
+
+### D-190 — a two-valued property whose third value is coming is a NAMED MODE, and the absent name RAISES rather than aliasing ✅ (2026-08-08)
+**Decision.** `sprite:billboard(b)` became `sprite:facing(mode)`, taking `"fixed"` (an upright world quad) or
+`"screen"` (a constant-size blit that squares up to the camera). `"camera"` — a world quad that turns to the
+viewer, keeping its world size, perspective and occlusion — is **refused exactly like any other unknown word**,
+naming the two that work, until [044](../044-spatial-ui/) builds it. The mode is stored as the string itself, on
+the entity and in a saved layout, not as a boolean with a lookup at the edges.
+**Rationale.** (2026-08-08, 043.5.) A boolean can only ever answer *which of my two*, so the moment a third
+member of the same family exists the flag has to be replaced anyway — and the replacement is a rename of every
+call site, which is what made doing it here rather than in 044 free: 043 was porting those sites regardless.
+Shipping `"camera"` as an alias for today's screen blit was rejected outright: for one feature's length the word
+would name the visual it is precisely *not*, and every reader who tried it would learn the wrong thing and keep
+it. A refusal that names the two working modes teaches the boundary instead, and costs one line
+([style-guide §7](../../docs/design/style-guide.md) calls the same thing a boundary, not history).
+**Consequences.** The mode being a string is what makes a persisted layout round-trip it as itself — `planner`'s
+stored `billboard` boolean became a `facing` string with no shim, since nothing is released — and what lets
+044 add a value rather than re-open a shape.
+`:facing` stays a **construction** property that re-mills the visual in place ([D-113](#d-113)); only the number
+of legal values changed. Generally: *when a property's domain is a family rather than a switch, name the members
+— and let the member that does not exist yet raise, because an alias is a wrong answer that survives the fix.*
+**See.** [D-113](#d-113), [D-184](#d-184), [D-189](#d-189),
+[043-vr-namespace](../043-vr-namespace/spec.md), [044-spatial-ui](../044-spatial-ui/spec.md).

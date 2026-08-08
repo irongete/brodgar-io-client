@@ -187,7 +187,7 @@ through [`hafen.client():options():interface()`](client/README.md#interface): `p
 ## Screen to world, and placement snapping
 
 These are the inverse of [`hafen.player():worldToScreen`](player.md) plus the client's own placement
-snapper — the primitives a [ghost](ghost.md) gizmo, or any drag-on-the-ground tool, is built from.
+snapper — the primitives the [gizmo](vr/gizmo.md), or any drag-on-the-ground tool, is built from.
 
 **`screenToWorld` is asynchronous.** It reads the true terrain point from the GPU, the same pass the
 client uses to place a building, so the answer cannot come back inline: it arrives a frame later
@@ -230,6 +230,6 @@ ghost:rotate(a)
 - [`hafen.map`](map/README.md) — the recorded map: its segments and grids, your markers, the icon categories
 - [the `filter` argument](conventions.md#the-filter-argument) — the three forms the object readers accept
 - [events](event.md#world) — `GobAdded` and `GobRemoved`
-- [`hafen.ghost`](ghost.md) — what placement snapping is usually for
+- [`hafen.vr`](vr/README.md) — what placement snapping is usually for
 - [`hafen.store`](store.md) — where a Position is saved
 - [coordinates](conventions.md#coordinates) — the spaces, side by side

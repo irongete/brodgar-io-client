@@ -13,8 +13,8 @@ import haven.Coord2d;
  * upright at the entity's feet, facing {@link #a}, wrapped in a {@link SpriteQuad} → {@code SprDrawable} — a
  * <i>resource-free</i> {@code Drawable}. Because it is a real world gob with a {@code Drawable}, it gets the full
  * transform ({@code :move}/{@code :rotate}/{@code :scale}), look ({@code :alpha}/{@code :tint}), scene lifecycle,
- * and gizmo from the shared core for free (spec 17 §2). The camera-facing <b>billboard</b> form (R2b) will attach
- * a screen-space {@code Render2D} visual to this same entity instead.
+ * and gizmo from the shared core for free (spec 17 §2). The {@code "screen"} facing (R2b) attaches a screen-space
+ * {@code Render2D} visual to this same entity instead.
  *
  * <p><b>Image ownership.</b> {@link #img} is the {@link LuaImage} the quad samples; it is bridge-owned by
  * {@link Addon#images} (whether passed as a handle or auto-loaded from a path), so the sprite <b>does not</b>
@@ -29,14 +29,17 @@ import haven.Coord2d;
 public final class LuaSprite extends LuaWorldEntity {
     final LuaImage img;            // the texture source (bridge-owned by Addon.images; NOT disposed by the sprite)
     final String   imgName;        // the addon-relative image path, for :image() and the list string-filter
-    boolean        billboard;      // true = camera-facing screen blit (LuaSpriteBillboard); false = fixed world quad (SpriteQuad).
-                                   // NOT final: :billboard(b) is a construction property, so writing it re-mills the visual in place. Guarded by this.
+    String         facing;         // "fixed" = an upright world quad (SpriteQuad); "screen" = a constant-size camera-facing
+                                   // blit (LuaSpriteBillboard). A MODE rather than a boolean because a third one ("camera",
+                                   // a world quad that turns to the viewer) is a facing too, not the negation of a flag.
+                                   // NOT final: :facing(mode) is a construction property, so writing it re-mills the visual
+                                   // in place. Guarded by this.
 
-    LuaSprite(Addon owner, LuaImage img, Coord2d rc, double a, boolean billboard) {
+    LuaSprite(Addon owner, LuaImage img, Coord2d rc, double a, String facing) {
         super(owner, rc, a);
         this.img = img;
         this.imgName = img.name;
-        this.billboard = billboard;
+        this.facing = facing;
     }
 
     void unregister() { owner.sprites.remove(this); }

@@ -64,17 +64,18 @@ prefer the methods — they are always fresh, while a snapshot is frozen at the 
 
 ## Overlays
 
-An **overlay** is a thing attached to a game object — the game's own (a fire's flame, a crop's growth
-stage) and yours alike. `gob:overlay()` is the **collection** of everything attached to one gob: the one
-way to attach, the one way to read what is attached, and the key is your own name for it.
+`gob:overlay()` answers one question: **what is drawn at this gob?** It is the collection of everything
+painted there — the game's own (a fire's flame, a crop's growth stage), your own screen-space painters, and
+whatever you have [standing in the world](vr/README.md) anchored to it — and the key is your own name for
+one of yours.
 
-It is **ungated**, the attach included: what you hang on a gob is your own drawing, and it changes nothing
+It is **ungated**, the attach included: what you paint at a gob is your own drawing, and it changes nothing
 the server, the client or another addon owns — the same footing as
 [a HUD overlay](ui/custom.md#overlays).
 
 | Call | Returns | Description |
 |---|---|---|
-| `gob:overlay():list(filter)` | `Overlay[]` | every overlay on the gob: yours first, then the game's own |
+| `gob:overlay():list(filter)` | `Overlay[]` | everything drawn at the gob: yours, then what you stood there, then the game's own |
 | `gob:overlay():count(filter)` | number | how many |
 | `gob:overlay():get(key)` | `Overlay` \| nil | that one |
 | `gob:overlay():find(filter)` | `Overlay` \| nil | the first one matching |
@@ -88,64 +89,55 @@ while `:add` raises, because there is nothing left to attach it to.
 ```lua
 me:overlay():add("hp"):text("hurt"):color(255, 90, 90):offset(0, -6)
 me:overlay():add("ring"):draw(function(g, gob, sx, sy) g:frect(sx - 2, sy - 2, 4, 4) end)
-me:overlay():add("mark"):image(hafen.asset():get("icon.png")):scale(2):offset(0, 0, 18)
 me:overlay():remove("hp")
 ```
 
-### What it draws: one overlay, two spaces
+### What an overlay of yours draws
 
-`:add(key)` attaches a **bare** overlay, and the setters below say what it draws. Each answers the overlay,
-so one statement configures the whole thing — and until it names a kind it draws nothing, so a
-half-configured overlay never paints. It says exactly **one** thing: a second, different kind raises naming
-the first, because picking a winner is how one of them silently stops meaning anything.
+`:add(key)` attaches a **bare** overlay, and the two setters below say what it draws, at the gob's
+**projected screen point**, just above the head. Each answers the overlay, so one statement configures the
+whole thing — and until it names a kind it draws nothing, so a half-configured overlay never paints. It says
+exactly **one** thing: a second, different kind raises naming the first, because picking a winner is how one
+of them silently stops meaning anything.
 
-| Setter | Space | Meaning |
-|---|---|---|
-| `ov:draw(fn)` | screen | `fn(g, gob, sx, sy)` runs every frame at the gob's projected point, just above the head |
-| `ov:text(s)` | screen | a label at that point — drawn by the engine, so it costs no Lua at the draw |
-| `ov:image(asset)` | world | a [`hafen.asset`](asset.md) image standing in the world, like a [sprite](render/sprites.md) |
-| `ov:model(asset)` | world | a [`hafen.asset`](asset.md) glTF mesh, like an [object](render/models.md) |
-| `ov:ghost(res)` | world | a game `.res` model, like a [ghost](ghost.md) |
-
-The rest depends on which space you are in. Every one of them has a bare read of the same name, so what you
-wrote is what you can read back, and the configuration is the overlay's own state: `ov:text("healed")`
-relabels a live overlay rather than replacing it.
-
-| Setter | Space | Meaning |
-|---|---|---|
-| `ov:color(r, g, b, a)` | screen | the label's colour, `0..255`; `a` is optional |
-| `ov:offset(x, y)` | screen | **screen pixels** from the projected anchor point |
-| `ov:offset(x, y, z)` | world | **world units** from the gob, `z` being up — `18` floats it overhead |
-| `ov:scale(s)` `ov:alpha(a)` `ov:tint(c)` `ov:rotate(a)` | world | the look and facing, live — see below |
-| `ov:billboard(b)` | world | with an image: a camera-facing blit instead of an upright quad |
-| `ov:spawnData(sdt)` | world | with a ghost: spawn-data bytes picking a resource variant, as [`g:res`](ghost.md#the-ghost) takes |
-
-`ov:billboard` and `ov:spawnData` choose how the visual is **built**, so setting one after the overlay
-already stands rebuilds it; set them in the same statement as the kind and it is built once. There is no
-`ov:clickable` and no `ov:onClick`: the thing under an overlay is the gob, and clicking a gob is the
-client's own — [`hafen.act():clickGob`](act.md).
-
-### The verbs on a world overlay
-
-A world-space overlay carries the look and facing its entity already had, live: setting one moves or
-recolours the thing where it stands. The setters **chain** — each answers the overlay — and each reads back
-bare. All of them are refused on a screen-space overlay, naming the kinds, and they are quiet no-ops once
-the overlay is gone. There is no `:move`: an overlay's position **is** its gob's, and what you set is where
-it sits relative to the gob.
-
-| Method | Description |
+| Setter | Meaning |
 |---|---|
-| `ov:tint(color)` \| `ov:tint(nil)` | colour overlay, positional `0..255` components, or `nil` to clear |
-| `ov:alpha(a)` | opacity `0..1` (1 = opaque) |
-| `ov:scale(s)` | uniform scale (1 = original size) |
-| `ov:rotate(a)` | its **own** facing in radians — independent of the gob's |
-| `ov:offset(x, y, z)` | where it sits relative to the gob, in world units, `z` up |
-| `ov:position()` | [Position](world.md#the-position-type) \| nil — where it actually is: the gob's live point plus your offset |
+| `ov:draw(fn)` | `fn(g, gob, sx, sy)` runs every frame at that point, painting with [`g`](ui/drawing.md) |
+| `ov:text(s)` | a label at that point — drawn by the engine, so it costs no Lua at the draw |
+
+Every one of them has a bare read of the same name, so what you wrote is what you can read back, and the
+configuration is the overlay's own state: `ov:text("healed")` relabels a live overlay rather than replacing
+it.
+
+| Setter | Meaning |
+|---|---|
+| `ov:color(r, g, b, a)` | the label's colour, `0..255`; `a` is optional |
+| `ov:offset(x, y)` | **screen pixels** from the projected anchor point |
+
+**`ov:offset` means exactly one thing: pixels.** An overlay is painted at a projected point, so that is the
+only unit it could be in, and a third argument raises. There is no `ov:clickable` and no `ov:onClick`: the
+thing under an overlay is the gob, and clicking a gob is the client's own —
+[`hafen.act():clickGob`](act.md). There is no `ov:move` either: an overlay's position **is** its gob's, and
+what you set is the offset.
+
+### A thing you stood at the gob is listed here, read-only
+
+Anything you [stood in the world](vr/README.md) anchored to this gob — a
+[sprite](vr/sprites.md), an [object](vr/models.md), a [ghost](vr/ghosts.md) — is drawn at the gob, so it is
+listed here too, under a generated key. It is **read-only from here**: every setter above raises on such an
+entry, naming the collection that owns it.
 
 ```lua
-local ov = tree:overlay():add("mark"):image(icon):offset(0, 0, 20)
-ov:tint(255, 90, 90):alpha(0.7):scale(2)
+hafen.vr():sprite():add(icon, tree):offset(0, 0, 20)      -- stood in the world, anchored to the gob
+for _, ov in ipairs(tree:overlay():list()) do
+  hafen.log():write(ov:key() .. " " .. tostring(ov:kind()))   -- ... and listed here: "vr#7 sprite"
+end
 ```
+
+That keeps **one complete answer** to "what is drawn at this gob?" without a second door onto the same
+thing: you read it here, and you address it through `hafen.vr():sprite()` / `:object()` / `:ghost()` — the
+handle `:add` gave you, or one out of that collection's `:list()`. Its `:native()` is `false`, because it is
+yours; it is simply not written from here.
 
 **Keys are per addon.** Two addons using `"tag"` on one gob do not collide, and neither can see the
 other's — the collection answers yours and the game's, never a third party's. `:add` on a key that is
@@ -153,25 +145,23 @@ already there **replaces** it, leaving **one** overlay.
 
 **The game's own overlays are read-only.** They come back from the same read with `native = true`, keyed
 by their **resource name**. An `:add` onto such a key **raises**, so does a `:remove` of one, and so does
-each of the verbs above — always naming the key, never a silent no-op.
+each setter — always naming the key, never a silent no-op.
 
-An attach raises in two more places, both of them about *when*. A gob the client cannot draw yet takes no
-overlay at all: attach from [`GobAdded`](event.md#world) or a timer instead. A **world-space** kind needs
-the 3D scene, so it raises while there is no map view — that is what naming one before you are in the
-world looks like. Both errors name what to do instead. A setter that raises leaves the overlay exactly as
-it was, drawing exactly what it drew before: the new visual is milled before the old one is let go, and a
-kind that never landed leaves a bare overlay, which draws nothing.
+An attach raises in one more place, about *when*: a gob the client cannot draw yet takes no overlay at all,
+so attach from [`GobAdded`](event.md#world) or a timer instead. A setter that raises leaves the overlay
+exactly as it was, drawing exactly what it drew before, and a kind that never landed leaves a bare overlay,
+which draws nothing.
 
 | Method | Returns | Description |
 |---|---|---|
-| `ov:key()` | string | what it answers to; the resource name for a native one |
+| `ov:key()` | string | what it answers to; the resource name for a native one, a generated one for a thing standing there |
 | `ov:gob()` | Gob | the gob it hangs on |
 | `ov:native()` | bool | is this the game's own rather than yours? |
-| `ov:kind()` | string \| nil | `"draw"`/`"text"`/`"image"`/`"model"`/`"ghost"`; `nil` for a native one, and for one that has not said yet |
-| `ov:res()` | string \| nil | what it is drawn from — the resource name, the asset path; `nil` for a screen-space one, which draws Lua |
-| `ov:count()` | number \| nil | how many engine overlays this one entity stands for |
-| `ov:exists()` | bool | still attached? |
-| `ov:info()` | table \| nil | a plain snapshot; the shape follows what the overlay is |
+| `ov:kind()` | string \| nil | `"draw"`/`"text"` for one of yours, `"ghost"`/`"sprite"`/`"object"` for one you stood there; `nil` for a native one, and for one that has not said yet |
+| `ov:res()` | string \| nil | what it is drawn from — the resource name, the asset path; `nil` for a painter of yours, which draws Lua |
+| `ov:count()` | number \| nil | how many engine overlays this one entry stands for |
+| `ov:exists()` | bool | still there? |
+| `ov:info()` | table \| nil | a plain snapshot; the shape follows what the entry is |
 
 `:count()` is there because **a native overlay is a union**. A gob may carry several overlays of one
 resource, and the resource name is the only part of one a name can address, so they collapse to a single
@@ -181,10 +171,10 @@ the uncollapsed view — and, like every other [`GobInfo`](types.md#gobinfo) fie
 than empty when the gob carries none.)
 
 `:info()` is the snapshot escape hatch, and it hands back **two shapes**. Both carry `key`, `native` and
-`count`. **Yours** adds `kind` and `world` — `world` is `true` for `image`, `model` and `ghost`, `false`
-for `draw` and `text`, and both are absent while the overlay has not said what it draws — plus `res` when
-what it stands is named by a resource or an asset path. **A native one** adds `res`, which is the key
-itself, and carries neither `kind` nor `world`: the game's overlays say only that they are the game's.
+`count`. **Yours** adds `kind` and `world` — `world` is `true` for a thing standing in the world and `false`
+for a painter, and both are absent while a bare overlay has not said what it draws — plus `res` when what it
+draws is named by a resource or an asset path. **A native one** adds `res`, which is the key itself, and
+carries neither `kind` nor `world`: the game's overlays say only that they are the game's.
 
 An Overlay object is **interned on the key**, so `gob:overlay():get(key)` hands back the same object every
 time and a replace leaves the handle you were holding naming the *new* record. `:exists()` goes false
@@ -194,9 +184,9 @@ a `*` in front of the key on the game's own.
 **An overlay dies with its gob.** The record lives on the game object, so a felled tree takes yours with
 it and nothing is kept in case it comes back — a gob that returns is bare, and re-attaching is your own
 call from [`GobAdded`](event.md#world). A `:reload` or a disable likewise removes every overlay you
-attached and leaves the game's untouched. For a **world-space** overlay that is not just bookkeeping:
-its visual is a client-only object of its own, and it is destroyed with the gob rather than left
-floating where the target used to stand.
+attached and leaves the game's untouched. A thing you stood in the world and anchored here
+[dies with the gob too](vr/README.md#the-anchor-is-an-argument), rather than being left floating where the
+target used to stand.
 
 Both halves of this read are also **events**:
 [`GobOverlayAdded`/`GobOverlayRemoved`](event.md#overlays-coming-and-going) fire for what you attach and
@@ -253,12 +243,13 @@ Anything that acts on a gob takes the **Gob object**, not an id:
 ```lua
 hafen.act():clickGob(tree, 3)
 me:overlay():add("tag"):text("here")
-me:overlay():add("mark"):image(icon):offset(0, 0, 18)
+hafen.vr():sprite():add(icon, me):offset(0, 0, 18)
 ```
 
 ## See also
 
 - [`hafen.world`](world.md) — finding the gobs you want to read
+- [`hafen.vr`](vr/README.md) — standing something in the world and anchoring it to a gob
 - [`hafen.kin`](kin.md) — the roster side of `gob:kin()`
 - [`hafen.act`](act.md) — clicking a gob and walking to it
 - [`GobInfo`](types.md#gobinfo) — the shape `:info()` returns

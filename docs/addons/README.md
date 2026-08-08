@@ -43,7 +43,7 @@ One page per namespace, and a directory where a namespace is large. The
 | **Subsystems** | [`kin`](api/kin.md) · [`speed`](api/speed.md) · [`craft`](api/craft.md) · [`quest`](api/quest.md) · [`wound`](api/wound.md) · [`fight`](api/fight.md) · [`actionbar`](api/actionbar.md) |
 | **Acting** | [`act`](api/act.md) *(gated)* · [`menugrid`](api/menugrid.md) |
 | **UI** | [`ui`](api/ui/README.md) · [the stylesheet](api/ui/style/README.md) · [`font`](api/font.md) · [`client`](api/client/README.md) |
-| **Your own content** | [`asset`](api/asset.md) · [`ghost`](api/ghost.md) · [`render`](api/render/README.md) |
+| **Your own content** | [`asset`](api/asset.md) · [`vr`](api/vr/README.md) |
 | **Data and network** | [`json`](api/json.md) · [`http`](api/http.md) *(gated by your manifest)* |
 | **Infrastructure** | [`event`](api/event.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash`](api/slash.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |
 

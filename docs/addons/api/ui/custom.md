@@ -118,8 +118,8 @@ painter has no key, so there would be nothing to address into.
 
 This is the **HUD**. To paint over a **game object** instead, the verb is on the object:
 [`gob:overlay()`](../gob.md#overlays) — you name the gob it hangs on, so nothing is searched per
-frame. To stand something in the **world** rather than over it, use [`hafen.render`](../render/README.md)
-for your own images and models, or [`hafen.ghost`](../ghost.md) for the game's own props.
+frame. To stand something in the **world** rather than over it, use [`hafen.vr`](../vr/README.md) — your
+own images and models, and the game's own props alike.
 
 The bundled **`widgetstack`** addon is all three at once: a window it builds and toggles, an inspector
 window per widget you click, and a HUD overlay that outlines whatever the cursor is over.
@@ -141,4 +141,4 @@ is an overlay's.
 - [widget](widget.md) — the object both builders return, and what you can do to it afterwards
 - [`hafen.font`](../font.md) — the handle `:font(h)` takes
 - [style](style/README.md) — restyling the client's surfaces rather than drawing your own
-- [`hafen.render`](../render/README.md) — the same idea in the 3D world
+- [`hafen.vr`](../vr/README.md) — the same idea in the 3D world

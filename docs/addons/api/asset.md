@@ -16,20 +16,20 @@ and [`:list(filter)`](#the-collection) is all of them.
 
 There is exactly **one flow** for a local file: load, then draw or decorate or stand or read. Load it once,
 keep the handle, hand the *handle* to whatever uses it. The use sites take a handle and nothing else —
-passing a path string to a [sprite](render/sprites.md) or an [object](render/models.md) is an error that
+passing a path string to a [sprite](vr/sprites.md) or an [object](vr/models.md) is an error that
 points you back here.
 
 > **Ungated.** An asset is a client-side file *you shipped*: it never reaches the server and grants no
 > gameplay advantage, so it needs no `actions` permission, like a [HUD overlay](ui/custom.md#overlays) or a
-> [ghost](ghost.md).
+> [ghost](vr/ghosts.md).
 
 ## The types
 
 | Extensions | `a:type()` | What you get | Use it with |
 |---|---|---|---|
-| `.png` `.jpg` `.jpeg` `.gif` `.bmp` | `"image"` | a GPU texture, alpha preserved | [`g:image`/`g:aimage`](ui/drawing.md), [a sprite](render/sprites.md), [a button's face](ui/controls/interactive.md#a-caption-or-a-picture) |
+| `.png` `.jpg` `.jpeg` `.gif` `.bmp` | `"image"` | a GPU texture, alpha preserved | [`g:image`/`g:aimage`](ui/drawing.md), [a sprite](vr/sprites.md), [a button's face](ui/controls/interactive.md#a-caption-or-a-picture) |
 | `.ttf` `.otf` | `"font"` | a [`FontHandle`](font.md) whose family is registered, so `$font[…]` works | [`font =`](font.md#draw-with-it), [`rule:font`](ui/style/README.md), [`widget:rule()`](ui/style/README.md#restyle-one-widget) |
-| `.glb` `.gltf` | `"mesh"` | parsed glTF 2.0 static geometry and its textures | [an object](render/models.md) |
+| `.glb` `.gltf` | `"mesh"` | parsed glTF 2.0 static geometry and its textures | [an object](vr/models.md) |
 | `.json` `.txt` | `"data"` | the file's **text**, read as UTF-8 | [`hafen.json():parse`](json.md), and anything else that takes a string |
 
 PNG is the recommended image format, for transparency, and `.glb` the recommended model format, being a
@@ -113,7 +113,7 @@ drops the cache entry, so the next load re-reads and re-registers the file.
 | `mdl:bounds()` | `{min={x,y,z}, max={x,y,z}, size={x,y,z}}` — axis-aligned bounds in **world units** |
 | `mdl:info()` | `{prims, textured, lit, textures, verts, tris}` — what the parser produced |
 
-The supported glTF subset is documented in [`hafen.render`](render/models.md#the-gltf-subset). A malformed
+The supported glTF subset is documented in [`hafen.vr`](vr/models.md#the-gltf-subset). A malformed
 file, or one using an unsupported feature, raises a clear error that **names** the feature.
 
 > **Disposing a mesh an object is still standing does not break that object.** The object keeps drawing,
@@ -200,7 +200,7 @@ namespace is *your files*; the table below is *the game's*.
 | a `.res` image — action icons, HUD art | [`g:resource(name, x, y)`](ui/drawing.md) |
 | a minimap drawing of ground you explored | [`grid:image(lvl)`](map/drawings.md) |
 | a `.res` sound | [`hafen.sound():get(name)`](sound.md) |
-| a `.res` prop in the world | [`hafen.ghost`](ghost.md) |
+| a `.res` prop in the world | [`hafen.vr`](vr/ghosts.md) |
 | a built-in font | [`hafen.font():get(name)`](font.md#the-built-ins) |
 
 ## Example
@@ -225,13 +225,13 @@ end)
 
 hafen.slash():register("stand", function()
   local p = hafen.player():gob():position()
-  hafen.render():object():add(chair, p)           -- the handle, again
+  hafen.vr():object():add(chair, p)               -- the handle, again
 end)
 ```
 
 ## See also
 
-- [`hafen.render`](render/README.md) — stand an image or a mesh **in the world**
+- [`hafen.vr`](vr/README.md) — stand an image or a mesh **in the world**
 - [drawing](ui/drawing.md) — `g:image` and `g:aimage` draw an image asset on screen
 - [`hafen.font`](font.md) — what a font asset does once you have it, and the built-ins that are not assets
 - [`hafen.json`](json.md) — turning a data asset's `:text()` into a table
