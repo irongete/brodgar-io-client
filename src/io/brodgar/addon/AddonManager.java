@@ -279,6 +279,8 @@ public final class AddonManager {
         gobEvents.clear();
         overlayEvents.clear();        // 038.3: and the overlay queue with it — the gobs it named are the old session's
         overlaySubs = false;          //   (loadAll below re-subscribes whoever listens, which re-arms the seams)
+        VrApi.resetAnchors();         // 043.2: and the by-target index of anchored hafen.vr() entities — a gob id
+                                      //   means a different gob next session, and the addons' own were just torn down
         removedWidgets.clear();       // 042.1: and the widget-removal queue — the old session's widgets are gone
         resolveQueue.clear();         // 042.1: and any Resolve retry queued from the old session
         beltSetQueue.clear();         // 042.6: and any deferred belt-write notify queued from the old session
@@ -396,8 +398,12 @@ public final class AddonManager {
                 // 038.2: an overlay dies with its gob. Done BEFORE the event reaches Lua, so a GobRemoved handler
                 // already reads the truth — and it is what a world-space overlay costs: its visual is a
                 // client-only gob of its own, which nothing disposes just because the target left OCache.
-                if(!ge.added)
+                // 043.2: the same is true of a hafen.vr() entity that :add(what, gob) anchored, which has no
+                // record on the gob to be found through — VrApi's by-target index is what makes that O(1) too.
+                if(!ge.added) {
                     LuaGobOverlay.gobGone(ge.gob);
+                    VrApi.anchorGone(ge.gob.id);
+                }
                 fireGob(ge.added ? "GobAdded" : "GobRemoved", ge.gob.id);
             }
 

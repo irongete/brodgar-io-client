@@ -56,6 +56,16 @@ A `hafen.vr():shape()` — lines, polylines, filled polygons on the ground or up
 missing from spatial visualisation, and the one that would make `planner`-style addons stop
 approximating. `codebase/world-3d.md` already covers the `Model`/`Material` path a line list would use.
 
+## A free world entity draws over ground that has unloaded — raised verifying [043.2](043-vr-namespace/)
+Walk away from a `hafen.vr()` thing you placed at a point and the terrain cuts off while the prop keeps
+drawing, hanging over the void until it leaves the render range; walk back and it is still there. Nothing is
+broken — a client-only gob is in no `OCache` so nothing removes it (the premise the anchored entity's death
+rests on), and `Gob.Placed.autotick` catches the `Loading` from the missing tile and keeps the previous
+placement rather than dropping the gob (`learnings/ghosts.md`, `codebase/world-3d.md`). It is a *cosmetic*
+gap: hiding a free entity while its tile is unloaded is a change to what is drawn, which 043 puts out of
+scope. The shape it wants is the one 043.4 already builds for `:visible` — per-entity desired state, not a
+flag read at the draw — driven by the tile's own `Waitable` rather than any sweep.
+
 ## Render polish — [design/17-custom-rendering.md](design/17-custom-rendering.md)
 Possible R-series follow-ons (animated glTF was explicitly out of the static-subset scope,
 [design/18-custom-models-gltf.md](design/18-custom-models-gltf.md)).

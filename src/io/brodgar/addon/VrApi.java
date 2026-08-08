@@ -107,8 +107,9 @@ final class VrApi {
                     throw new LuaError("hafen.vr():ghost():add(res, p) expects a resource NAME string (e.g."
                         + " \"gfx/terobjs/arch/logcabin\"), got " + rv.typename() + " — an image or a model this"
                         + " addon ships is hafen.vr():sprite():add(asset, p) / :object():add(asset, p)");
-                LuaTable spec = placement(a, "hafen.vr():ghost():add");
-                return born(makeGhost(owner, spec, rv.tojstring(), 0, null), "hafen.vr():ghost():add");
+                Anchor an = anchorArg(a, "hafen.vr():ghost():add");
+                return born(makeGhost(owner, an.spec(), rv.tojstring(), an.tgt, null, false),
+                            "hafen.vr():ghost():add");
             }
 
             public boolean destroyable() {
@@ -160,9 +161,10 @@ final class VrApi {
 
             public LuaValue addMember(Varargs a) {
                 LuaValue img = Args.required(a, 2, "hafen.vr():sprite():add", "image");
-                LuaTable spec = placement(a, "hafen.vr():sprite():add");
+                Anchor an = anchorArg(a, "hafen.vr():sprite():add");
+                LuaTable spec = an.spec();
                 spec.set("image", img);
-                return born(makeSprite(owner, spec, 0, null), "hafen.vr():sprite():add");
+                return born(makeSprite(owner, spec, an.tgt, null, false), "hafen.vr():sprite():add");
             }
 
             public boolean destroyable() {
@@ -197,9 +199,10 @@ final class VrApi {
 
             public LuaValue addMember(Varargs a) {
                 LuaValue mdl = Args.required(a, 2, "hafen.vr():object():add", "model");
-                LuaTable spec = placement(a, "hafen.vr():object():add");
+                Anchor an = anchorArg(a, "hafen.vr():object():add");
+                LuaTable spec = an.spec();
                 spec.set("model", mdl);
-                return born(makeObject(owner, spec, 0, null), "hafen.vr():object():add");
+                return born(makeObject(owner, spec, an.tgt, null, false), "hafen.vr():object():add");
             }
 
             public boolean destroyable() {
@@ -229,19 +232,146 @@ final class VrApi {
     }
 
     /**
-     * The place a {@code :add(thing, p)} stands its entity, as the argument spec {@code §2.5} calls
-     * positional: <b>a required argument stays on the constructor where the thing is meaningless without
-     * it</b>. For a thing standing in the 3D world that is not a matter of taste — the scene resolves the
-     * TILE under a gob the moment it is added, so an entity with no place cannot enter the scene at all: at
-     * the world origin the engine raises <i>waiting for map data</i>, which is not a state a builder may
-     * pass through. So a place is not a setter with a default; it is half of what an entity IS.
+     * Where a {@code :add(what, anchor)} stands its entity — <b>the anchor is an ARGUMENT, not a choice of door</b>
+     * (043.2). A {@link LuaPosition} stands the thing at that point and it holds it; a {@link LuaGob} makes it
+     * <i>follow</i> that game object, which is the same {@link FollowMoving} the world-space half of
+     * {@code gob:overlay()} has always used — so the two forms differ by one field, not by a second creator.
+     *
+     * <p>An anchored entity still carries a point ({@link #rc}): it is the target's position at create, so the
+     * gob it enters the scene beside is the right one from the very first frame rather than the world origin, and
+     * so {@code :position()} has something truthful to fall back on while the target is still streaming.
      */
-    private static LuaTable placement(Varargs a, String verb) {
-        Coord2d rc = LuaPosition.worldArg(a, 3, verb, "p");
-        LuaTable spec = new LuaTable();
-        spec.set("x", LuaValue.valueOf(rc.x));
-        spec.set("y", LuaValue.valueOf(rc.y));
-        return spec;
+    private static final class Anchor {
+        /** Where it stands (free), or the target's position when it was anchored (followed). Never null. */
+        final Coord2d rc;
+        /** The gob id it follows, or {@code 0} when it stands where it was put. */
+        final long tgt;
+
+        Anchor(Coord2d rc, long tgt) {
+            this.rc = rc;
+            this.tgt = tgt;
+        }
+
+        /** The options table the {@code make*} bodies read the placement out of (their one shared shape). */
+        LuaTable spec() {
+            LuaTable t = new LuaTable();
+            t.set("x", LuaValue.valueOf(rc.x));
+            t.set("y", LuaValue.valueOf(rc.y));
+            return t;
+        }
+    }
+
+    /**
+     * The anchor a {@code :add(what, anchor)} was given, as the argument spec {@code §2.5} calls positional:
+     * <b>a required argument stays on the constructor where the thing is meaningless without it</b>. For a thing
+     * standing in the 3D world that is not a matter of taste — the scene resolves the TILE under a gob the moment
+     * it is added, so an entity with no place cannot enter the scene at all: at the world origin the engine raises
+     * <i>waiting for map data</i>, which is not a state a builder may pass through. So an anchor is not a setter
+     * with a default; it is half of what an entity IS.
+     *
+     * <p>Exactly two things are a place for one of these: a <b>Position</b> and a <b>Gob</b>. Anything else is
+     * refused naming <i>both</i> — the mistake is not knowing which shape is wanted, so a message that names one
+     * of them teaches half the verb.
+     */
+    private static Anchor anchorArg(Varargs a, String verb) {
+        LuaValue v = Args.required(a, 3, verb, "anchor");
+        LuaGob lg = LuaGob.resolve(v);
+        if(lg != null) {
+            Gob g = getgob(lg.id);
+            if(g == null)
+                throw new LuaError(verb + "(what, gob): that gob is gone — it had already left the object cache"
+                    + " when this call ran, so there is nothing to follow (read gob:exists() first, or place it"
+                    + " at a point with " + verb + "(what, p))");
+            Coord2d rc;
+            synchronized(g) { rc = g.rc; }
+            return new Anchor((rc == null) ? Coord2d.z : rc, lg.id);
+        }
+        if(LuaPosition.resolve(v) == null)
+            throw new LuaError(verb + ": the anchor is a Position OR a Gob — a Position (gob:position(),"
+                + " hafen.world():position(x, y)) stands it at that point, a Gob"
+                + " (hafen.world():gob():get(id), hafen.player():gob()) makes it follow that object. Got "
+                + v.typename());
+        return new Anchor(LuaPosition.worldArg(a, 3, verb, "p"), 0L);
+    }
+
+    // ---- ANCHORED, AND FREE: the index that lets an anchored entity die with its gob (043.2) ------------------
+
+    /**
+     * The <b>freely placed</b> entities anchored to a gob, by target id. It exists for exactly one reader,
+     * {@link #anchorGone}: D-102 says the end of a derived thing rides the event its source already raises, and
+     * the client already raises {@code GobRemoved} — but the record that made that O(1) for a
+     * {@code gob:overlay()} lived <i>on the gob</i>, and an entity {@code hafen.vr():sprite():add(img, gob)}
+     * placed has no such record. One id→entities map restores the O(1) without restoring the thing D-100 deleted:
+     * it is written only when an anchored entity is created or destroyed, and read only when a gob leaves the
+     * object cache. Nothing walks it per frame, and nothing walks it to find anything else.
+     *
+     * <p>Overlay entities are deliberately NOT in it — they die through their record in
+     * {@code LuaGobOverlay.gobGone}, from the same drain, so the two mechanisms stay disjoint.
+     * Guarded by its own monitor (creates run on the UI thread, teardown may sweep from a session-bind thread).
+     */
+    private static final java.util.Map<Long, List<LuaWorldEntity>> anchored =
+        new java.util.HashMap<Long, List<LuaWorldEntity>>();
+
+    /** Index a freshly created entity if it follows a gob and is not an overlay's; otherwise nothing to index. */
+    private static void anchorRegister(LuaWorldEntity e) {
+        if((e.followTgt == 0) || e.asOverlay)
+            return;
+        Long k = Long.valueOf(e.followTgt);
+        synchronized(anchored) {
+            List<LuaWorldEntity> l = anchored.get(k);
+            if(l == null)
+                anchored.put(k, l = new ArrayList<LuaWorldEntity>());
+            l.add(e);
+        }
+    }
+
+    /** Drop an entity from the index — every ending goes through {@link #destroyEntity}, so this is its one caller. */
+    private static void anchorUnregister(LuaWorldEntity e) {
+        if((e.followTgt == 0) || e.asOverlay)
+            return;
+        Long k = Long.valueOf(e.followTgt);
+        synchronized(anchored) {
+            List<LuaWorldEntity> l = anchored.get(k);
+            if(l == null)
+                return;
+            l.remove(e);
+            if(l.isEmpty())
+                anchored.remove(k);
+        }
+    }
+
+    /**
+     * Per-session reset: <b>a gob id means a different gob in the next session</b>, so an index keyed by one must
+     * not survive a relogin — the addons' own entities were destroyed by the teardown that runs just before this
+     * (which unregistered them), and what this drops is whatever the REPL owner, which deliberately outlives a
+     * session, left anchored to the old world.
+     */
+    static void resetAnchors() {
+        synchronized(anchored) {
+            anchored.clear();
+        }
+    }
+
+    /**
+     * <b>An anchored entity dies with its gob</b> (D-102, generalized from the overlay to the free anchor):
+     * called from the tick that drains the client's own {@code OCache} removal, just before {@code GobRemoved}
+     * reaches Lua, so a handler already reads {@code :exists() == false}. A free entity is untouched — it was
+     * never derived from anything, so nothing ends it but its own collection.
+     */
+    static void anchorGone(long id) {
+        List<LuaWorldEntity> l;
+        synchronized(anchored) {
+            l = anchored.remove(Long.valueOf(id));
+        }
+        if(l == null)
+            return;
+        for(LuaWorldEntity e : l) {
+            try {
+                destroyEntity(e);
+            } catch(RuntimeException ex) {
+                /* best-effort: one bad entity never stops the rest from being freed */
+            }
+        }
     }
 
     /**
@@ -286,13 +416,16 @@ final class VrApi {
     // ---------------------------------------------------------- world ghosts (hafen.vr():ghost())
 
     /**
-     * Build a ghost and publish it — the body of {@link #newGhost}, shared with the world-space half of
-     * {@code gob:overlay(key, {ghost = res})} (038.2). {@code tgt != 0} anchors it to that gob id (a
+     * Build a ghost and publish it — the body of {@code hafen.vr():ghost():add}, shared with the world-space half
+     * of {@code gob:overlay(key, {ghost = res})} (038.2). {@code tgt != 0} anchors it to that gob id (a
      * {@link FollowMoving}, applied at publish so a still-streaming visual is anchored the moment it lands);
-     * {@code tgt == 0} is the fixed placement {@code hafen.vr():ghost():add(res)} makes. Returns {@code null} when there is
-     * no map view (not in the world). Every other option is read from {@code opts} exactly as before.
+     * {@code tgt == 0} stands it where it was put. Since 043.2 the anchor is an ARGUMENT, so an anchored entity
+     * is no longer necessarily an overlay's: {@code overlay} says which, and that is the flag that decides
+     * whether it is listed by its collection and which mechanism ends it with its gob. Returns {@code null} when
+     * there is no map view (not in the world). Every other option is read from {@code opts} exactly as before.
      */
-    private static LuaGhost makeGhost(final Addon owner, LuaValue opts, final String resName, long tgt, Coord3f off) {
+    private static LuaGhost makeGhost(final Addon owner, LuaValue opts, final String resName, long tgt, Coord3f off,
+                                      boolean overlay) {
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
@@ -311,13 +444,14 @@ final class VrApi {
         gh.alpha = luaAlpha(opts.get("alpha"));        // V3: opacity 0..1 (default 1 = opaque)
         gh.tint = luaTint(opts.get("tint"));           // V3: colour overlay {r=,g=,b=[,a=]}, or null
         gh.scale = luaScale(opts.get("scale"));        // V6: uniform scale (default 1 = original size)
-        gh.followTgt = tgt;                            // 038.2: the ANCHOR, now reachable only through gob:overlay
+        gh.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         gh.followOff = off;
-        gh.asOverlay = (tgt != 0);
+        gh.asOverlay = overlay;
         gh.clickable = clickablev.toboolean();         // V2: nil/false → not clickable; true → clickable
         if(onclickv.isfunction())
             gh.onClick = onclickv;
         owner.ghosts.add(gh);
+        anchorRegister(gh);                            // 043.2: so it dies with the gob it follows (D-102)
         LuaValue handle = ghostHandle(gh);
         gh.handle = handle;
         g.loader.defer(new Runnable() {
@@ -384,11 +518,20 @@ final class VrApi {
         // position() -> a Position, the one type a place in the world has; position(p [, a]) moves it there, and
         // the optional second argument is the facing, because "put it there facing that way" is one act. It is
         // the read/write pair the old :pos()/:move(x, y, a) split across two names and two shapes.
+        //
+        // The READ answers where the thing actually is, which for an anchored one is the gob's live point. The
+        // WRITE is refused there (043.2): a FollowMoving owns the point and re-supplies it every frame, so the
+        // write would be a silent no-op — the one outcome an API this size should never hand back.
         m.set("position", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 if(!Args.passed(a, 2))
                     return overlayPosition(e.owner, e);
+                if(e.followTgt != 0)
+                    throw new LuaError(kind + ":position(p): this " + kind + " follows a gob, so its place is"
+                        + " that gob's and setting it would be undone on the next frame. Its own facing is still"
+                        + " " + kind + ":rotate(a); a " + kind + " that stands still is placed with"
+                        + " hafen.vr():" + kind + "():add(what, p)");
                 Coord2d rc = LuaPosition.worldArg(a, 2, kind + ":position", "p");
                 Double ang = Args.passed(a, 3)
                     ? Double.valueOf(number(a, 3, kind + ":position", "a")) : null;
@@ -574,6 +717,7 @@ final class VrApi {
             mv   = e.mv;   e.mv   = null;
         }
         e.unregister();
+        anchorUnregister(e);                          // 043.2: and out of the by-target index, if it followed one
         if(mv != null) {
             mv.removeClientGob(gob, slot);            // drops it from the MapView tick list + removes the slot (swallows SlotRemoved)
         } else if(slot != null) {
@@ -654,10 +798,11 @@ final class VrApi {
 
     /**
      * Build an object and publish it — the body of {@code hafen.vr():object():add}, shared with the world-space half of
-     * {@code gob:overlay(key, {model = asset})} (038.2). {@code tgt != 0} anchors it to that gob id; {@code 0} is
-     * the fixed placement. Returns {@code null} when there is no map view (not in the world).
+     * {@code gob:overlay(key, {model = asset})} (038.2). {@code tgt != 0} anchors it to that gob id; {@code 0}
+     * stands it where it was put; {@code overlay} says whether the anchor came from a {@code gob:overlay()} record
+     * or from {@code :add(model, gob)} (043.2). Returns {@code null} when there is no map view (not in the world).
      */
-    private static LuaObject makeObject(Addon owner, LuaValue opts, long tgt, Coord3f off) {
+    private static LuaObject makeObject(Addon owner, LuaValue opts, long tgt, Coord3f off, boolean overlay) {
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
@@ -674,10 +819,11 @@ final class VrApi {
         LuaValue onclickv = opts.get("onClick");
         if(onclickv.isfunction())
             ob.onClick = onclickv;
-        ob.followTgt = tgt;                            // 038.2: the ANCHOR, now reachable only through gob:overlay
+        ob.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         ob.followOff = off;
-        ob.asOverlay = (tgt != 0);
+        ob.asOverlay = overlay;
         owner.objects.add(ob);
+        anchorRegister(ob);                            // 043.2: so it dies with the gob it follows (D-102)
         LuaValue handle = objectHandle(ob);
         ob.handle = handle;
         // Build the gob + visual, then publish atomically. No defer: the glTF geometry is already parsed (R3), so
@@ -754,10 +900,11 @@ final class VrApi {
     /**
      * Build a sprite and publish it — the body of {@code hafen.vr():sprite():add}, shared with the world-space half of
      * {@code gob:overlay(key, {image = asset})} (038.2). {@code tgt != 0} anchors it to that gob id (a
-     * {@link FollowMoving} applied before the gob enters the scene); {@code tgt == 0} is the fixed placement.
-     * Returns {@code null} when there is no map view (not in the world).
+     * {@link FollowMoving} applied before the gob enters the scene); {@code tgt == 0} stands it where it was put;
+     * {@code overlay} says whether the anchor came from a {@code gob:overlay()} record or from
+     * {@code :add(image, gob)} (043.2). Returns {@code null} when there is no map view (not in the world).
      */
-    private static LuaSprite makeSprite(Addon owner, LuaValue opts, long tgt, Coord3f off) {
+    private static LuaSprite makeSprite(Addon owner, LuaValue opts, long tgt, Coord3f off, boolean overlay) {
         boolean billboard = opts.get("billboard").toboolean();   // R2b: true = camera-facing screen blit; false = fixed world quad
         final MapView mv = view;
         final Glob g = glob();
@@ -775,10 +922,11 @@ final class VrApi {
         LuaValue onclickv = opts.get("onClick");       // R2b: per-sprite click callback fn(s, button, x, y) — like a ghost
         if(onclickv.isfunction())
             sp.onClick = onclickv;
-        sp.followTgt = tgt;                            // 038.2: the ANCHOR, now reachable only through gob:overlay
+        sp.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         sp.followOff = off;
-        sp.asOverlay = (tgt != 0);
+        sp.asOverlay = overlay;
         owner.sprites.add(sp);
+        anchorRegister(sp);                            // 043.2: so it dies with the gob it follows (D-102)
         LuaValue handle = spriteHandle(sp);
         sp.handle = handle;
         // Build the gob + visual OUTSIDE the sprite lock (no scene mutation yet), then publish atomically. No defer:
@@ -1103,11 +1251,11 @@ final class VrApi {
                 + " under an overlay is the GOB, and a click on a gob is the client's own (hafen.act.clickGob)");
         LuaWorldEntity e;
         if(kind.equals("image"))
-            e = makeSprite(owner, spec, tgt, off);
+            e = makeSprite(owner, spec, tgt, off, true);
         else if(kind.equals("model"))
-            e = makeObject(owner, spec, tgt, off);
+            e = makeObject(owner, spec, tgt, off, true);
         else
-            e = makeGhost(owner, spec, spec.get("ghost").tojstring(), tgt, off);
+            e = makeGhost(owner, spec, spec.get("ghost").tojstring(), tgt, off, true);
         if(e == null)
             throw new LuaError("gob:overlay(key, spec): there is no map view yet — a world-space overlay needs the"
                 + " 3D scene, so attach it once you are in the world (EnterWorld / GobAdded)");

@@ -10,7 +10,7 @@
 | **Client-only world entity (template)** | [`MapView.Plob extends Gob`](src/haven/MapView.java:1779) — `super(glob, rc)` + `setattr(new ResDrawable(...))` + `basic.add(placed)`; `move(Coord2d,double)`; `slot.remove()` |
 | Gob construction (no server id) | [`Gob(Glob,Coord2d)`](src/haven/Gob.java:441) / [`Gob(Glob,Coord2d,long)`](src/haven/Gob.java:433); `Gob implements RenderTree.Node, Sprite.Owner` ([:33](src/haven/Gob.java:33)) |
 | Visual attr (`.res`-backed) | [`ResDrawable`](src/haven/ResDrawable.java:79) (`Gob.setattr`) |
-| Add/remove in the 3D scene | [`MapView.addClientGob`](src/haven/MapView.java:1868) (`// addon:` seam) + `Gob.placed`; transform [`Gob.Placed`](src/haven/Gob.java:922) |
+| Add/remove in the 3D scene | [`MapView.addClientGob`](src/haven/MapView.java:1887) (`// addon:` seam) + `Gob.placed`; transform [`Gob.Placed`](src/haven/Gob.java:846). **A client gob is in no `OCache`, so nothing but its placer removes it** — and [`Placed.autotick`](src/haven/Gob.java:946) *catches* the `Loading` a `new Placement()` throws when the tile under it is unloaded (`getmapstate` → `glob.map.tiler`) and keeps `cur`, so it goes on drawing at its last placement rather than vanishing with the ground |
 | Screen → world (ground raycast) | [`MapView.Maptest`](src/haven/MapView.java:1810) (`Plob.Adjust.hit(Coord pc, Coord2d mc)`) |
 | World → screen | `MapView.screenxf` |
 | **Placement snapping — placegrid/placeangle** | [`PlobAdjust`](src/haven/MapView.java:1740) / [`StdPlace`](src/haven/MapView.java:1746) (position [:1749](src/haven/MapView.java:1749), rotation [:1764](src/haven/MapView.java:1764)); **public** [`plobpgran`/`plobagran`](src/haven/MapView.java:57); `:placegrid`/`:placeangle` cmds ([:2391](src/haven/MapView.java:2391)) |

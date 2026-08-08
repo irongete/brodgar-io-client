@@ -219,3 +219,18 @@
   Lesson: before capping a `Resolve` retry chain at the library default, check whether the `Loading`
   thrown at that call site has ONE stable identity across retries or can legitimately rotate through many
   unrelated blockers — the two need very different bounds.
+
+- **(043.2, raised at verification) A client-only world entity keeps rendering over ground that has unloaded,
+  and this is two independent facts.** Walk away from a free `hafen.vr():ghost()` and the terrain cuts off
+  while the prop keeps drawing, until it finally leaves the render range; walk back and it is still there.
+  (1) Nothing *removes* it: the engine drops its own gobs from the scene when `OCache` drops them, and a
+  client-only gob is in no `OCache` — the premise D-102 rests on, and the reason an *anchored* entity needed
+  an explicit death at all. (2) Nothing *hides* it either: `Gob.Placed.autotick`
+  ([`src/haven/Gob.java:946`](../../../src/haven/Gob.java:946)) rebuilds the `Placement` each tick, building
+  one reads the tile under the gob (`getmapstate` → `glob.map.tiler(...)`), and when that ground is not
+  streamed the `Loading` is **caught and `return`ed** — so the gob keeps drawing with its last-known placement
+  instead of vanishing. Neither is a regression from the 042.12 `Resolve` work: the `armPending` it replaced
+  only ever *added* pending entities, never removed them. Making a free entity hide while its tile is unloaded
+  would be a change to what is drawn (043's spec puts that out of scope) and is on the ROADMAP. Practical
+  rule: *"it disappeared with the ground" is an OCache property, not a rendering one — anything you place
+  outside OCache stays until you remove it.*

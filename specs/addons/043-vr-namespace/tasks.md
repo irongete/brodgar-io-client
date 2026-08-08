@@ -26,7 +26,7 @@
   place and still read back what they were given. `[manual]`: confirm all three still look exactly
   as they did.
 
-- [ ] **043.2 — The anchor becomes an argument**
+- [x] **043.2 — The anchor becomes an argument**
   `:add(what, p)` stands at a point, `:add(what, gob)` follows a game object. No new plumbing —
   the entity core already supports both, and `learnings/rendering.md` (038.2) records that an
   anchored entity is *already* registered in these very collections and merely hidden. This task

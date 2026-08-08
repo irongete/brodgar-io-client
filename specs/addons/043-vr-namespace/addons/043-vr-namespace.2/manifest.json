@@ -1,0 +1,9 @@
+{
+  "name": "043.2 — the anchor becomes an argument",
+  "id": "043-vr-namespace.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 043.2: hafen.vr():<kind>():add(what, p) stands a thing at a point and :add(what, gob) makes it follow that game object — one collection, two anchors — and an anchored entity dies with its gob while a free one is untouched.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

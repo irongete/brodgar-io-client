@@ -1198,3 +1198,22 @@
   `"doubleSided": true` so no winding can hide it, and a `baseColorFactor` that is not the terrain's colour.
   Generalisation: when a check's whole job is "a human confirms it looks the same", the thing being looked at
   must be unmistakable — a fixture that can be *missed* turns a green feature into a verification round.
+
+- **(043.2) An in-game round that reports on a DESPAWN must classify by the event it recorded, not by a
+  snapshot at report time — walking back re-sends the same object under the SAME id.** The despawn round asked
+  `hafen.world():gob():get(id):exists()` when the maintainer ran `:t043-2 gone`, having walked ~100 tiles out
+  and back. All three parked gobs read as *still loaded* — the server re-sent those very objects under their
+  original ids on the return trip — so entities the feature had correctly destroyed were classified as "never
+  left", and the round reported the opposite of what the maintainer could see with his own eyes (icons gone,
+  free cabin still standing). The fix is not a better tolerance but a better source of truth: the suite already
+  had a `GobRemoved` handler recording `ent:exists()` **as the removal happened**, so `atRemoval[id] ~= nil`
+  *is* the despawn, and the recorded `false` is also the proof the end ran before the event reached Lua. Rule:
+  *for anything a walk makes happen, the only durable evidence is what you recorded while it happened — a gob
+  id is not a lifetime.*
+- **(043.2) A check whose failure list is passed only as the `got` argument is a check that CANNOT fail.** The
+  same round built a `wrong` list of mismatches and then wrote
+  `check(alive == #parked, "…all icons are still riding them", table.concat(wrong, "; "))` — the condition was
+  trivially true and `wrong` only ever *prints* on failure, so the line printed `[pass] all 3 icons are still
+  riding them` without ever having asserted it. Worse than a missing check: it read green over the very
+  mismatch it had computed. Rule: *whatever you compute a discrepancy list for, `#list == 0` IS the condition —
+  if a list appears only in the `got` slot, the assertion beside it is asserting something else.*

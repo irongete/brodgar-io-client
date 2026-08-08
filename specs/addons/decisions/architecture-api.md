@@ -1895,3 +1895,47 @@ This supersedes the **namespace half** of [D-034](rendering.md#d-034) (its loade
 untouched and now reads as one rule for the whole section.
 **See.** [043-vr-namespace](../043-vr-namespace/spec.md), [D-103](#d-103), [D-034](rendering.md#d-034),
 [044-spatial-ui](../044-spatial-ui/spec.md) (the fourth collection).
+
+### D-185 — where a derived thing has no record on its SOURCE, index it by the source's key — an index written at create/destroy is not a sweep ✅ (2026-08-08)
+**Decision.** A `hafen.vr()` entity anchored to a gob by `:add(what, gob)` — one an addon placed freely, not
+one a `gob:overlay()` record owns — is destroyed from a `Map<Long, List<LuaWorldEntity>>` in `VrApi`, keyed by
+the target's gob id, looked up by `anchorGone(id)` on the same `GobRemoved` drain that already runs
+`LuaGobOverlay.gobGone`. The two mechanisms stay disjoint: an overlay's entity is never in the index.
+**Rationale.** (2026-08-08, 043.2.) [D-102](#d-102) says the end of a derived thing rides the event its source
+already raises, and it could say "and needs no list of anything" because [D-100](#d-100) had put the store **on
+the gob** — the removal arrives holding the exact records. Making the anchor an argument breaks that premise
+without touching the principle: an entity `hafen.vr():sprite():add(img, gob)` placed has no record on the gob to
+be handed. The alternatives were a walk of every addon's entity lists on every gob removal (gobs leave the cache
+constantly while you move — O(entities) per removal, for a case that is almost always empty) or a `GAttrib` on
+the gob purely to hold a back-pointer, which is D-100's store rebuilt for one field. **The distinction that
+matters is not "index vs no index" but WHEN it is touched**: this one is written only when an anchored entity is
+created or destroyed and read only when a gob leaves `OCache`, so there is no per-frame work and nothing walks
+it to *find* anything — which is the shape D-100 deleted. Cleared in `AddonManager.init()` beside the other
+session queues, because a gob id means a different gob next login.
+**Consequences.** `asOverlay` stops being inferred from `tgt != 0` and becomes an explicit `make*` parameter —
+anchored and overlay-owned are now two different things, which is exactly what "the anchor is an argument"
+means. The proof is the recorded event, not a later snapshot: walking back makes the server re-send the same
+object under the same id (`learnings/testing-tooling.md`). Generally: *a principle that says "ride the event"
+survives the loss of its O(1) store; what it forbids is the sweep, not the map.*
+**See.** [D-102](#d-102), [D-100](#d-100), [D-103](#d-103),
+[043-vr-namespace](../043-vr-namespace/spec.md).
+
+### D-186 — a write the engine would silently undo is REFUSED, naming the verb that does work ✅ (2026-08-08)
+**Decision.** `:position(p)` on a `hafen.vr()` entity that follows a gob raises, naming `:rotate(a)` (which
+still writes) and `hafen.vr():<kind>():add(what, p)` (which places one that stands still). The **read**
+`:position()` is untouched and answers the gob's live point.
+**Rationale.** (2026-08-08, 043.2.) Once the anchor is an argument, one read/write pair spans two kinds of
+entity, and for the anchored kind the write has no effect: a `FollowMoving` supplies the point to
+`Gob.Placed` every frame, so `e.rc` is overwritten before anyone can observe it. Accepting it would hand back
+the handle for chaining and change nothing — the failure that takes longest to diagnose, because nothing
+reports it and the value even reads back correctly for one frame. The competing shape, "the write silently
+detaches the anchor", was rejected for the same reason [D-103](#d-103) refuses two doors: `:add(what, p)`
+already means *stands still*, and a setter that quietly changes what kind of thing you are holding is a second
+spelling of a constructor.
+**Consequences.** The read/write pair stays ONE name (§2.2) — what varies is which half an anchored entity
+answers, and it says so. This is the `overlay:position()` rule (038.2, read-only because an overlay's position
+is its gob's) arriving at the free anchor, which is the right outcome: the two are the same entity now.
+Generally: *when a property's write would be undone by whoever really owns the value, refuse it and name the
+owner — a silent no-op is worse than an error, and worse than not having the verb.*
+**See.** [D-185](#d-185), [D-103](#d-103), [D-114](#d-114),
+[043-vr-namespace](../043-vr-namespace/spec.md).
