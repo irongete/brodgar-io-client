@@ -1,0 +1,9 @@
+{
+  "name": "048.1 — hafen.player():move and gob:click",
+  "id": "048-act-dissolved.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 048.1: the two click verbs leave hafen.act() for the things they change — the character walks itself, a gob answers its own click — proven by their refusal, since this suite declares no permissions.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

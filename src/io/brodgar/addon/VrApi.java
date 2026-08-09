@@ -2133,7 +2133,7 @@ final class VrApi {
     /**
      * {@code <entity>:position()} — where the thing actually is, as a {@link LuaPosition}: its own point when it
      * stands still, and the followed gob's live interpolated point plus this entity's offset when it is anchored.
-     * One position verb, one type (039.2/039.3), so the answer goes straight to {@code hafen.act():moveTo} or into
+     * One position verb, one type (039.2/039.3), so the answer goes straight to {@code hafen.player():move} or into
      * {@code hafen.store} without conversion; the facing and size that used to ride in the same table are
      * {@code :rotate()} and {@code :scale()}.
      *

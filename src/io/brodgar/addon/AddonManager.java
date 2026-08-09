@@ -180,7 +180,7 @@ public final class AddonManager {
     static final Map<String, String> autoDisabledWarn = new ConcurrentHashMap<String, String>();
 
     // -- write-actions permission (spec 12-security-and-permissions / D-010 / D-025 / D-027; refined by D-028):
-    // the ONE gated surface. Every hafen.act.* verb (and the per-subsystem *(gated action)* verbs — speed.set,
+    // the ONE protected surface. Every hafen.act.* verb (and the per-subsystem *(protected action)* verbs — speed.set,
     // craft.make, actionbar.use, kin.* — arriving in later Phase-4 slices) DRIVES the character by sending a
     // player-action wdgmsg — it acts on the user's behalf (moves them, uses items, interacts with the world),
     // which is powerful, so it is a PER-ADDON permission granted to an addon that DECLARED "actions" in its
@@ -1850,7 +1850,7 @@ public final class AddonManager {
         //   :marker() — the pins (the old hafen.markers). Two kinds: PLAYER markers (user pins: a name +
         //     colour) and SYSTEM markers (server/quest pins: a name + icon). :add(name, p) takes a Position
         //     and hands back a bare pin whose colour and on-map flag are setters; :remove(m) takes it out.
-        //     Both writes are ungated — they edit the user's own on-disk database. The DB streams in a beat
+        //     Both writes are unprotected — they edit the user's own on-disk database. The DB streams in a beat
         //     after enter-world (empty until then); MarkersChanged fires on any change, ours or the user's.
         //   :icon() — the minimap icon registry (the old hafen.radar; the engine has no "radar", it has
         //     GobIcon.Settings — D-061). :get(res) is one category by its icon RESOURCE NAME (the identity),
@@ -1870,6 +1870,10 @@ public final class AddonManager {
         // world. :name() is the LOCAL character name (GameUI.chrid); other players' display names are not
         // reliably available. :worldToScreen(p) takes a POSITION and answers MAP-VIEW-relative pixels as a plain
         // {x, y} — deliberately not a Position, because a pixel is not a place in the world.
+        //   :move(p) (048.1) is the Player's first WRITE and the one thing here that is not a read: it walks the
+        // character to a Position, protected by the "actions" permission. It does not bend D-046 — Player carries
+        // what has no per-gob equivalent, and the server accepts a walk command only for your own character, so
+        // there is no gob:move() this could have been forwarded from.
         CharApi.installPlayer(hafen, owner);
 
         // hafen.time():* — game clock + astronomy. clock() is always available; the astronomy readers are
@@ -1898,7 +1902,7 @@ public final class AddonManager {
         // hafen.ui():inventory():items() / hafen.ui():equipment():items() / hafen.ui():hand(), and widget:items()
         // answers on ANY container — a chest, a cupboard — with its window visible and interactive. What it hands
         // back is an interned LuaItem keyed on the item WIDGET (039.14): a server widget id is recycled, so an
-        // entity keyed on the number would silently start naming a different item and a gated write through it
+        // entity keyed on the number would silently start naming a different item and a protected write through it
         // would move the wrong thing. hafen.act():item takes the object and never the number.
 
         // hafen.char.* — character attributes (Glob.getcattr; a zero-info entry is reported as nil),
@@ -1924,11 +1928,11 @@ public final class AddonManager {
         // same list the in-client Kin tab shows). The section object IS the roster collection (039.9):
         // :list([filter]) is a fresh array of interned Kin objects in the window's sort order, :count/:find the
         // usual pair, :get(id) / :get(name) one Kin (a number is a buddy id and is NEVER nil — :exists() is the
-        // liveness test — while a name that nobody carries is), and :add(secret) is the gated add.
+        // liveness test — while a name that nobody carries is), and :add(secret) is the protected add.
         // A Kin wraps only the buddy id and re-resolves through buddywnd().find(id) every call (D-012), so
         // it tracks renames/regroups/online flips; see LuaKin. Subscribe to KinChanged (a Kin[] payload, minted
         // per subscribing addon by fireKin) for a kin added/removed, renamed/regrouped, or flipping
-        // online/offline. The GATED verbs (requireActions) drive BuddyWnd.Buddy's own methods (D-009):
+        // online/offline. The PROTECTED verbs (requireActions) drive BuddyWnd.Buddy's own methods (D-009):
         //   :add(secret)   — kinning needs the other player's HEARTH SECRET (wdgmsg("bypwd", secret), the
         //                  Kin window's "Add kin" field); there is no add-by-NAME message.
         //   kin:endKin()   = END KINSHIP (Buddy.endkin) — ends the kinship; the kin STAYS in the list, now
@@ -1943,7 +1947,7 @@ public final class AddonManager {
         // hafen.speed() — movement speed (A7), read from the speed selector widget (Speedget: the four-way
         // crawl/walk/run/sprint toggle at the bottom of the HUD). :current() returns the CURRENT speed as 0..3
         // (0=crawl 1=walk 2=run 3=sprint), or nil if the widget isn't up yet, and :current(n) SELECTS speed n —
-        // the get/set pair collapsed onto one name whose arity is the verb (R2). The write is the GATED verb
+        // the get/set pair collapsed onto one name whose arity is the verb (R2). The write is the PROTECTED verb
         // (4g, requireActions): it drives the client's own Speedget.set (wrap-not-reimplement, D-009 →
         // wdgmsg("set", n)), exactly what clicking/hotkeying that speed does, and it returns the section so a
         // run of writes chains. :max() returns the highest speed currently SELECTABLE (0..3) — speeds 0..max()
@@ -1959,7 +1963,7 @@ public final class AddonManager {
         // {res, name, num, opt} values — res is the DISPLAYED resource, i.e. the constraint category when the
         // recipe accepts one, else the concrete item; num = the required/produced count, -1 = unspecified ~ 1;
         // opt = an optional ingredient / chance byproduct), :qualityInputs() and :tools() ({res, name} values),
-        // :exists() and :info(). The GATED :make(all) is on it too (039.13 — the button belongs to the recipe):
+        // :exists() and :info(). The PROTECTED :make(all) is on it too (039.13 — the button belongs to the recipe):
         // it presses Craft (wdgmsg("make", 0)) or Craft All (all=true → 1), so it CONSUMES the ingredients
         // exactly as a click does. No CraftChanged event (read on demand, like A7 speed — a recipe changes
         // only when the player opens one).
@@ -2005,7 +2009,7 @@ public final class AddonManager {
         // budget cap), used (total points spent = sum of maneuvers' used), nact (deck size), nsave (number of
         // saved-school slots), usesave (the active saved-school slot, 0-based)}, or nil before the tab exists.
         // Read-only — editing a school / switching saved schools (load/save/use, drag cards, set counts) is
-        // the gated Phase-4 action tier; no FightChanged event (a school changes only on explicit player
+        // the protected Phase-4 action tier; no FightChanged event (a school changes only on explicit player
         // action, like A4 skills / A8 craft — read on demand). Saved-school NAMES are deferred (the private
         // FightWnd.saves[] would need a haven-package accessor; usesave/nsave identify the active slot).
         CharApi.installFight(hafen, owner);
@@ -2052,14 +2056,14 @@ public final class AddonManager {
         // (0..1, a pagina action's meter — ability slots only, NOT seconds)/:empty()/:info() (the old flat
         // snapshot). Subscribe to ActionbarChanged{slot} (fired when a slot's content changes — a
         // set/clear/drag or its data resolving, event-driven off the belt uimsg/notify, never per frame;
-        // the payload is that Slot). slot:use([mods]) is the GATED write verb (4g,
+        // the payload is that Slot). slot:use([mods]) is the PROTECTED write verb (4g,
         // requireActions) — exactly a LEFT-click on that action-bar button (GameUI belt act →
         // wdgmsg("belt", n, …)); mods is an optional modifier bitfield (0 default; Shift=1 Ctrl=2 Alt=4,
         // matching the keybind syntax). A ground-targeted ability then enters targeting mode (as clicking
         // the button does) — supply the target with the MapView verbs.
         CharApi.installActionbar(hafen, owner);
 
-        // hafen.act():* — the GATED write-actions surface (spec 12 / D-010 / D-025 / D-027; D-028), the ONLY part of
+        // hafen.act():* — the PROTECTED write-actions surface (spec 12 / D-010 / D-025 / D-027; D-028), the ONLY part of
         // hafen.* that DRIVES the character: it sends player-action wdgmsgs to the server. Everything else observes;
         // this acts. A verb runs only when THIS addon declared the "actions" permission in its manifest (else
         // requireActions throws a guiding error) — a PER-ADDON permission (D-028: no global master switch; the tier
@@ -2068,16 +2072,15 @@ public final class AddonManager {
         // permitted. It stays server-authoritative: an addon can only send what a player click could send.
         //   enabled()   -> bool; is THIS addon allowed to act (did it declare the "actions" permission)? Reports
         //                  WITHOUT throwing, so an addon can adapt (no pcall needed).
-        //   moveTo(p)   -> walk the character to a POSITION (what gob:position() hands back). This is exactly
-        //                  the MapView "click" a left-click on that ground spot sends; the screen coord it
-        //                  carries is a dummy (the current mouse pos), like MiniMap.mvclick when you click the
-        //                  minimap to walk. Off-screen destinations are fine (the server uses the world coord).
-        //   clickGob/useItemOn/place/select (4d) -> the rest of the MapView action verbs; all send a Widget.wdgmsg
-        //                  from the MapView, sharing moveTo's coord encoding (world → Coord via moveClickCoord; the
-        //                  dummy pc), and the three spatial ones take Positions too. raw(target,msg,…) is the
-        //                  escape hatch (send any wdgmsg from a bound widget).
-        // The per-subsystem gated verbs (speed.set, craft.make, slot:use, the kin writes) share this same gate
+        //   useItemOn/place/select (4d) -> the MapView action verbs; all send a Widget.wdgmsg from the MapView,
+        //                  sharing one world→Coord encoding (moveClickCoord) and a dummy screen coord (the
+        //                  current mouse pos, like MiniMap.mvclick when you click the minimap to walk), and each
+        //                  takes Positions. raw(target,msg,…) is the escape hatch (any wdgmsg from a bound widget).
+        // The per-subsystem protected verbs (speed.set, craft.make, slot:use, the kin writes) share this same gate
         // (requireActions(owner, …)).
+        //   048.1: moveTo and clickGob have LEFT this section — a verb lives with what it CHANGES, so walking the
+        // character is hafen.player():move(p) and clicking an object is gob:click(button, mods). Same messages,
+        // same gate, on the thing they act on; both old spellings throw from Retired naming the new one.
         ActApi.installAct(hafen, owner);
 
         // hafen.ui — custom client-side UI (spec 07, Phase 2a). window(opts) = a draggable, titled window;
@@ -2112,7 +2115,7 @@ public final class AddonManager {
         // (:position/:rotate/:scale/:alpha/:tint/:visible/:clickable/:onClick), each :list([filter]) reading
         // THIS addon's (canonical filter: nil=all / a string matched against the visual's name / a predicate).
         // None of it is a Gob the server knows: no wdgmsg, invisible to OCache and every read API, so it grants
-        // no gameplay advantage — a visualization, like a HUD overlay (SAFE-tier, NOT gated; D-029/D-034). The
+        // no gameplay advantage — a visualization, like a HUD overlay (SAFE-tier, NOT protected; D-029/D-034). The
         // motivating use is city/base planning: lay ghost buildings over the real terrain. Everything here is
         // torn down on reload/disable/relogin (P2). It is a SCENE section only: the addon's own files come from
         // hafen.asset (028.1). hafen.ghost and hafen.render are retired rows naming this.
@@ -2158,7 +2161,7 @@ public final class AddonManager {
         });
         Section.install(hafen, "log", logm, "hafen.log(msg) is now hafen.log():write(msg)");
 
-        // hafen.json — parse/encode JSON (N1 / D-036). Ungated (pure CPU), independent of the network.
+        // hafen.json — parse/encode JSON (N1 / D-036). Unprotected (pure CPU), independent of the network.
         // parse(str) -> Lua value: objects -> string-keyed tables, arrays -> 1-based tables; a JSON null
         // becomes nil (an absent key in an object, a hole in an array — the standard Lua-JSON trade-off);
         // integral numbers come back as Lua ints. Malformed input, or input over the size/depth caps
@@ -2194,7 +2197,7 @@ public final class AddonManager {
         });
         Section.install(hafen, "json", json);
 
-        // hafen.http — external HTTP requests (N2a / D-037), gated by a manifest "network" host allowlist.
+        // hafen.http — external HTTP requests (N2a / D-037), protected by a manifest "network" host allowlist.
         HttpApi.install(hafen, owner);
 
         // hafen.event():on(key, fn) -> a Sub; sub:off() ends it. The bus is the door for a notification with

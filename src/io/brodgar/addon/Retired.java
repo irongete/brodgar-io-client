@@ -145,10 +145,16 @@ final class Retired {
         put("hafen.world.placeAngle", "hafen.world.placeAngle() is gone — it read the same setting as"
             + " hafen.client():options():interface():angGran(), which also writes it (in DEGREES per step)");
 
-        // ---- hafen.act: R1 throughout, and the four spatial verbs take Positions -----------------------
-        section("act", "enabled", "clickGob", "item", "menu", "flower", "raw");
-        put("hafen.act.moveTo", "hafen.act.moveTo(x, y) is now hafen.act():moveTo(p), where p is a Position"
-            + " (gob:position(), or hafen.world():position(x, y))");
+        // ---- hafen.act: R1 throughout, and the spatial verbs take Positions ----------------------------
+        section("act", "enabled", "item", "menu", "flower", "raw");
+        // ---- 048.1: hafen.act() is being DISSOLVED -- a verb lives with WHAT IT CHANGES, not with what it -----
+        // ---- costs (D-187 generalised), so the section that grouped nine unrelated verbs by their PERMISSION
+        // ---- is emptying one task at a time. A moved verb is registered by act() below, under BOTH spellings:
+        // ---- the pre-039 dotted one and the colon call that is what a shipped addon actually wrote.
+        act("moveTo", "hafen.act():moveTo(p) is now hafen.player():move(p) — the verb lives on the character"
+            + " it moves");
+        act("clickGob", "hafen.act():clickGob(gob, button, mods) is now gob:click(button, mods) — the verb"
+            + " lives on the object it clicks");
         put("hafen.act.useItemOn", "hafen.act.useItemOn(x, y, mods) is now hafen.act():useItemOn(p, mods),"
             + " where p is a Position");
         put("hafen.act.place", "hafen.act.place(x, y, angle, button, mods) is now"
@@ -173,9 +179,9 @@ final class Retired {
         put("gob:overlays", "gob:overlays() is now gob:overlay():list() — gob:overlay() is the collection of"
             + " everything attached to the gob, and the verb says how many");
         put("overlay:clickable", "overlay:clickable(b) does not exist — the thing under an overlay is the GOB,"
-            + " and a click on a gob is the client's own (hafen.act():clickGob)");
+            + " and a click on a gob is the client's own (gob:click)");
         put("overlay:onClick", "overlay:onClick(fn) does not exist — the thing under an overlay is the GOB, and"
-            + " a click on a gob is the client's own (hafen.act():clickGob)");
+            + " a click on a gob is the client's own (gob:click)");
         put("overlay:move", "overlay:move(x, y) does not exist — an overlay's position IS its gob's, and what"
             + " you set is where it sits relative to the gob, in SCREEN PIXELS: ov:offset(x, y)");
 
@@ -284,7 +290,7 @@ final class Retired {
 
         // ---- the Widget entity: two renames, one hard cut, and the read that needed a noun ---------------
         put("widget:pos", "widget:pos() is now widget:position(), and it still answers in PIXELS within the"
-            + " parent — a widget lives on the screen, so this is not a Position and hafen.act():moveTo refuses it");
+            + " parent — a widget lives on the screen, so this is not a Position and hafen.player():move refuses it");
         put("widget:rootpos", "widget:rootpos() is now widget:rootPos()");
         put("widget:show", "widget:show() is now widget:visible(true) — a boolean property is a property, so the"
             + " value is the argument rather than the verb's name");
@@ -445,6 +451,19 @@ final class Retired {
         // ---- the HUD overlay: a two-line handle table became a builder, so it ends the way the other two do --
         put("uioverlay:remove", "hafen.ui():overlay() hands back something you created and hold, so it ends with"
             + " ov:destroy() — :remove() is the collection verb, and a HUD painter is in no collection");
+    }
+
+    /**
+     * Register one verb that has <b>left</b> {@code hafen.act()} (048), under the <b>two</b> spellings a caller
+     * can reach it by. They are two different reads and each has its own {@code __index}: {@code hafen.act.moveTo}
+     * is a field on the section's callable table ({@link #sectionIndex}), while {@code hafen.act():moveTo} is a
+     * field on the section OBJECT ({@code Section.meta}, keyed with the {@code "():"} spelling). Only the second
+     * is what a shipped addon wrote, and it is the one a generic <i>"hafen.act() has no verb 'moveTo'"</i> would
+     * otherwise answer — so both carry the same message naming the verb's new home.
+     */
+    private static void act(String verb, String message) {
+        put("hafen.act." + verb, message);
+        put("hafen.act():" + verb, message);
     }
 
     /** Register the plain {@code hafen.<section>.<verb>(…)} → {@code hafen.<section>():<verb>(…)} rows. */

@@ -5,7 +5,6 @@ import haven.Coord2d;
 import haven.FlowerMenu;
 import haven.GameUI;
 import haven.GItem;
-import haven.Gob;
 import haven.Indir;
 import haven.Loading;
 import haven.Makewindow;
@@ -34,9 +33,9 @@ import java.util.List;
 
 
 /**
- * The gated automation subsystem (Phase 4: {@code hafen.act}) + crafting read/make ({@code hafen.craft}) +
+ * The protected automation subsystem (Phase 4: {@code hafen.act}) + crafting read/make ({@code hafen.craft}) +
  * movement speed ({@code hafen.speed}). Every act verb is a {@link haven.Widget#wdgmsg} from a bound widget
- * (literally what a player click sends, so the client stays server-authoritative), gated by
+ * (literally what a player click sends, so the client stays server-authoritative), protected by
  * {@code requireActions} (the declared per-addon permission). No lifecycle/tick/teardown state — these are
  * invoked only from Lua callbacks. Not instantiable.
  */
@@ -44,8 +43,8 @@ final class ActApi {
     private ActApi() {}
 
     /**
-     * Build {@code hafen.act()} (the gated MapView/menu/flower/item verbs) for {@code owner}. From installHafen.
-     * A plain section object, and the four <b>spatial</b> verbs take a {@link LuaPosition} rather than a pair of
+     * Build {@code hafen.act()} (the protected MapView/menu/flower/item verbs) for {@code owner}. From installHafen.
+     * A plain section object, and the <b>spatial</b> verbs take a {@link LuaPosition} rather than a pair of
      * numbers: a place in this API is a type now, so handing one a widget's pixel position <i>throws</i> where it
      * used to walk the character somewhere wrong.
      */
@@ -57,31 +56,9 @@ final class ActApi {
                 return LuaValue.valueOf(AddonManager.actionsGranted(owner));
             }
         });
-        act.set("moveTo", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "act", "moveTo");
-                AddonManager.requireActions(owner, "hafen.act():moveTo");
-                Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.act():moveTo", "p");
-                actMoveTo(rc.x, rc.y);
-                return LuaValue.NIL;
-            }
-        });
-        // clickGob(gob [, button [, mods]]) — click a game object: exactly the MapView "click" that a
-        // left/right-click on that gob sends. gob = a Gob OBJECT from the read API (hafen.world():gob():get(id),
-        // :nearest(...), hafen.player():gob()); raw ids and the old GobRef tokens are NOT accepted
-        // (D-044 — one canonical way). button: 1 = left (default; select/interact), 3 = right (the context/
-        // flower-menu click). mods = a modifier bitfield (0 default; Shift=1 Ctrl=2 Alt=4, matching the keybind syntax).
-        // Sends the bare gob-click encoding {…, 0, gobid, gobrc, 0, -1} — a generic "click the whole object",
-        // faithful for world objects (trees/containers/…); a specific sub-mesh / composite body part is not
-        // targeted (deferred). Throws if the gob is out of view or the map view is gone.
-        act.set("clickGob", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "act", "clickGob");
-                AddonManager.requireActions(owner, "hafen.act():clickGob");
-                actClickGob(a.arg(2), a.arg(3).optint(1), a.arg(4).optint(0));
-                return LuaValue.NIL;
-            }
-        });
+        // 048.1: moveTo and clickGob have LEFT — a verb lives with what it changes, so walking the character is
+        // hafen.player():move(p) and clicking an object is gob:click(button, mods). Both old spellings throw
+        // from Retired naming their replacement; the section stays mounted for the verbs still here (D-117).
         // useItemOn(p [, mods]) — use the item on your cursor on the GROUND at a Position: the MapView
         // "itemact". With nothing on the cursor the server ignores it. mods optional (0 default).
         act.set("useItemOn", new VarArgFunction() {
@@ -149,7 +126,7 @@ final class ActApi {
         // D-009: reuses the client's selection, including its client-side petals). Returns true if a matching
         // petal was chosen, false if no flower menu is open or no petal matched (never throws for those — an
         // addon can just test the result). The classic use is automation: an addon right-clicks a target
-        // (clickGob button 3) and then auto-picks a petal — while a flower menu is open it grabs the mouse +
+        // (gob:click(3)) and then auto-picks a petal — while a flower menu is open it grabs the mouse +
         // keyboard, so a programmatic pick (from a timer / event) is the only way to select without a click.
         act.set("flower", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -161,7 +138,7 @@ final class ActApi {
                 return LuaValue.valueOf(actFlower(label.tojstring()));
             }
         });
-        // item(item, verb [, n]) — the gated item verbs. `item` = an Item OBJECT you got from a READ: a member of
+        // item(item, verb [, n]) — the protected item verbs. `item` = an Item OBJECT you got from a READ: a member of
         // a container's :items(), or hafen.ui():hand(). It is the object and never a widget id, because the server
         // re-uses an id: acting on the number would move whatever holds it now. The entity carries its own item
         // widget, so a moved/used one raises a guiding error (nothing is sent) rather than driving a stranger. Then
@@ -193,7 +170,7 @@ final class ActApi {
     /**
      * Build {@code hafen.craft()} for {@code owner}. From installHafen. A section of <b>one verb</b>:
      * {@code :current()} is the recipe the player has open, as a {@link LuaCraft} entity that carries the
-     * recipe's slots <i>and</i> its gated {@code :make(all)} — the button belongs to the recipe, not to a
+     * recipe's slots <i>and</i> its protected {@code :make(all)} — the button belongs to the recipe, not to a
      * namespace hovering above it.
      *
      * <p><b>{@code :current()} is {@code nil} when no recipe is open</b>, which is §2.2's own rule for a
@@ -207,7 +184,7 @@ final class ActApi {
      */
     static void installCraft(LuaTable hafen, final Addon owner) {
         LuaTable craft = new LuaTable();
-        // current() — the open recipe, or nil. The gated make() lives on what this hands back.
+        // current() — the open recipe, or nil. The protected make() lives on what this hands back.
         craft.set("current", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "craft", "current");
@@ -221,14 +198,14 @@ final class ActApi {
     }
 
     /**
-     * Build {@code hafen.speed()} (movement-speed read + gated write, A7) for {@code owner}. From installHafen.
+     * Build {@code hafen.speed()} (movement-speed read + protected write, A7) for {@code owner}. From installHafen.
      * The {@code get}/{@code set} pair collapses onto <b>one name</b> whose arity is the verb (R2):
      * {@code :current()} reads the selected speed and {@code :current(n)} selects it and chains. The read half
-     * is ungated and the write half keeps the {@code actions} permission it always had.
+     * is unprotected and the write half keeps the {@code actions} permission it always had.
      */
     static void installSpeed(LuaTable hafen, final Addon owner) {
         LuaTable speed = new LuaTable();
-        // current() / current(n) — the whole of the old get()/set() pair. The write is gated (D-027/D-028) and
+        // current() / current(n) — the whole of the old get()/set() pair. The write is protected (D-027/D-028) and
         // returns the section object, so a run of writes chains like every other setter in the API.
         speed.set("current", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -281,74 +258,28 @@ final class ActApi {
     }
 
     // ---- actions tier (Phase 4: hafen.act) -------------------------------------------------------
-    // The GATED automation surface (gate: requireActions / the declared per-addon permission, above). Every verb is a
-    // Widget.wdgmsg from a bound widget — literally what a player click would send, so the client stays
+    // The PROTECTED automation surface (gate: requireActions / the declared per-addon permission, above). Every
+    // verb is a Widget.wdgmsg from a bound widget — literally what a player click would send, so the client stays
     // server-authoritative (an addon can do only what a player could do; the permission is about user control,
-    // not a client exploit — spec 12). moveTo sends the MapView "click" that a left-click on the ground sends:
-    // {pc (screen coord), mc (world coord floored to posres), button, mods}. For a PROGRAMMATIC move the
-    // destination is the world coord (2nd arg); the screen coord (pc) is a dummy — the current mouse position
-    // — exactly as MiniMap.mvclick does when you click the minimap to walk (MiniMap.java:1218), so an
-    // off-screen destination is fine. button 1 = walk; mods 0 = no modifier. Runs on the UI thread (addon
-    // callback / REPL); wdgmsg queues to the session, and any 2d "click" action-hook sees it (it is a real
-    // action) — the 2d re-entrancy guard prevents a hook-issued moveTo from looping.
+    // not a client exploit — spec 12). Runs on the UI thread (addon callback / REPL); wdgmsg queues to the
+    // session, and a 2d action-hook sees the send (it is a real action) — the 2d re-entrancy guard prevents a
+    // hook-issued verb from looping.
+    //
+    // 048.1: the two CLICK verbs are gone from here. Walking the character is hafen.player():move(p) (CharApi)
+    // and clicking an object is gob:click(button, mods) (LuaGob) — each sends the same message it always did,
+    // from the thing it changes. What is left below is the MapView verbs later tasks in 048 move out.
 
     /** The world "click" destination Coord for a move to world (x, y) — MapView floors world coords to posres. */
     static Coord moveClickCoord(double x, double y) {
         return new Coord2d(x, y).floor(OCache.posres);
     }
 
-    /** {@code hafen.act():moveTo} backing — send the ground-"click" that walks the character to world (x, y). */
-    private static void actMoveTo(double x, double y) {
-        MapView m = AddonManager.view;
-        if(m == null)
-            throw new LuaError("hafen.act():moveTo: no map view (not in the world yet)");
-        Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;   // dummy screen coord (current mouse), like MiniMap.mvclick
-        m.wdgmsg("click", pc, moveClickCoord(x, y), 1, 0);
-    }
-
-    // -- 4d: the rest of the MapView action verbs (clickGob / useItemOn / place / select) + raw --------------
-    // Each is the SAME kind of send as moveTo — a Widget.wdgmsg from the MapView, exactly what the matching
-    // mouse gesture produces (MapView.Click.hit / iteminteract / mousedown-place / Selector.mmouseup). They
-    // reuse moveTo's world→Coord encoding (moveClickCoord = Coord2d.floor(posres)) and its dummy screen coord
-    // (pc = the current mouse, meaningless for a programmatic action but part of the wire shape). The arg-array
-    // BUILDERS below are pure (no live state) so they are headless-testable; the act* SENDERS grab the live
-    // MapView, fill pc, and wdgmsg. All run on the UI thread (addon callback / REPL); wdgmsg queues to the
-    // session, and a 2d "click" action-hook sees a clickGob (it is a real "click") — the 2d re-entrancy guard
-    // stops a hook-issued verb from looping.
-
-    /**
-     * The full MapView {@code "click"} args for a generic click on the gob {@code (gobId, gobRc)} — the
-     * {@code {pc, mc, button, mods}} prefix extended with {@link haven.Gob.GobClick#clickargs}'
-     * {@code {0, gobid, gobrc, 0, -1}} (no overlay, no specific sub-mesh). {@code mc} = the gob's own floored
-     * position, as a click landing on its base would carry. Pure/testable.
-     */
-    static Object[] clickGobArgs(Coord pc, int button, int mods, int gobId, Coord gobRc) {
-        return new Object[] {pc, gobRc, button, mods, 0, gobId, gobRc, 0, -1};
-    }
-
-    /** {@code hafen.act():clickGob} backing — click the gob a read-API {@link LuaGob} object names (D-044). */
-    private static void actClickGob(LuaValue ref, int button, int mods) {
-        MapView m = AddonManager.view;
-        if(m == null)
-            throw new LuaError("hafen.act():clickGob: no map view (not in the world yet)");
-        LuaGob h = LuaGob.resolve(ref);
-        if(h == null)
-            throw new LuaError("hafen.act():clickGob(gob [, button, mods]): expected a Gob object (hafen.world():gob():get(id) / :nearest(...)) — raw ids and the old GobRef tokens are gone");
-        Gob g = AddonManager.getgob(h.id);
-        if(g == null)
-            throw new LuaError("hafen.act():clickGob: no such gob (that Gob is not in view — check gob:exists())");
-        Coord2d rc;
-        synchronized(g) { rc = g.rc; }                   // OCache discipline: copy under the gob lock
-        if(rc == null)
-            throw new LuaError("hafen.act():clickGob: the gob has no position yet");
-        Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;
-        m.wdgmsg("click", clickGobArgs(pc, button, mods, (int)g.id, rc.floor(OCache.posres)));
-        // 047.3: the same token the real click records in MapView.Click.hit — and here the gob is not correlated
-        // but KNOWN, this being addon code that named it. lcc is untouched by a programmatic click, so a menu the
-        // server opens in reply matches on the press point exactly as it does for a mouse click, and a player
-        // press in between moves lcc and invalidates it, which is the point.
-        ClickToken.note(g.id, (m.ui != null) ? m.ui.lcc : null);
-    }
+    // -- 4d: the rest of the MapView action verbs (useItemOn / place / select) + raw --------------------------
+    // Each is the same kind of send — a Widget.wdgmsg from the MapView, exactly what the matching mouse gesture
+    // produces (MapView.iteminteract / mousedown-place / Selector.mmouseup). They share one world→Coord encoding
+    // (moveClickCoord = Coord2d.floor(posres)) and a dummy screen coord (pc = the current mouse, meaningless for
+    // a programmatic action but part of the wire shape). The arg-array BUILDERS below are pure (no live state)
+    // so they are headless-testable; the act* SENDERS grab the live MapView, fill pc, and wdgmsg.
 
     /** The MapView {@code "itemact"} args (use held item on the ground at world x,y). Pure/testable. */
     static Object[] itemactArgs(Coord pc, double x, double y, int mods) {
@@ -499,7 +430,7 @@ final class ActApi {
     }
 
     // -- 4f: item verbs (hafen.act():item) ---------------------------------------------------------------
-    // The item half of the gated tier. Unlike the MapView verbs (which act on world coords) an item verb acts
+    // The item half of the protected tier. Unlike the MapView verbs (which act on world coords) an item verb acts
     // on a specific item, addressed by the Item ENTITY (039.14) — the object holds the item widget itself, so a
     // moved/used one is a guiding error and never a write aimed at whatever now owns its recycled server id.
     // (That id used to BE the reference, which is the hazard this replaced: it is reused.) Then we send the SAME
@@ -567,7 +498,7 @@ final class ActApi {
     // walk from the HUD) — the same way vitals finds its IMeters. Both fields we read (cur = current
     // speed, max = highest currently-selectable speed) are public ints, so this is a zero-haven-edit
     // read. All calls run on the UI thread (addon tick / REPL). Selecting a speed is :current(n), the
-    // write half of the one name that replaced the get()/set() pair, and it is the gated Phase-4 tier.
+    // write half of the one name that replaced the get()/set() pair, and it is the protected Phase-4 tier.
 
     /** The (unique) movement-speed widget under the HUD, or {@code null} before it has streamed in. */
     private static Speedget speedget() {
@@ -589,7 +520,7 @@ final class ActApi {
     }
 
     /**
-     * {@code hafen.speed():current(n)} backing (4g, gated) — select movement speed {@code n} (0..3) via the
+     * {@code hafen.speed():current(n)} backing (4g, protected) — select movement speed {@code n} (0..3) via the
      * client's own {@link Speedget#set} (wrap-not-reimplement, D-009 → {@code wdgmsg("set", n)}). The server is
      * authoritative on whether a speed is currently allowed (e.g. sprint may be locked); this only sends the
      * request, exactly as clicking/hotkeying that speed would. Throws for out-of-range {@code n} or before the
@@ -612,7 +543,7 @@ final class ActApi {
     // slots), outputs (product slots), qmod (quality-affecting input resources) and tools (required tool
     // resources). All backings are public → zero haven edit, like A7/A6/A4/A2.
     //
-    // The READS and the gated make() moved onto LuaCraft with 039.13 (the entity owns them, keyed by the
+    // The READS and the protected make() moved onto LuaCraft with 039.13 (the entity owns them, keyed by the
     // WINDOW: the server builds a fresh one per recipe, so opening another recipe ends this Craft rather
     // than changing it). What stays here is locating that window.
 

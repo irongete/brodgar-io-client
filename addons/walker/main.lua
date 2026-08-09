@@ -10,19 +10,19 @@
 -- can only send what a player click could send; the permission exists so YOU control which addons act for you.
 -- Kept SEPARATE from the always-on read-only `hello` regression harness (which declares no permissions).
 --
--- Slice 4d adds the rest of the MapView action verbs on top of moveTo (4a); slice 4e adds menu + flower;
--- slice 4f adds the ITEM verbs (hafen.act():item); slice 4g adds the PER-SUBSYSTEM gated verbs that live in
+-- Slice 4d adds the rest of the MapView action verbs; slice 4e adds menu + flower;
+-- slice 4f adds the ITEM verbs (hafen.act():item); slice 4g adds the PER-SUBSYSTEM protected verbs that live in
 -- their own namespace (not hafen.act()): hafen.speed():current(n), the Craft's :make, the Slot's :use, and
 -- the kin verbs on the Kin object (hafen.kin():add(secret) and kin:rename/:group/:endKin/:forget)
 -- — all behind the SAME "actions" permission.
 -- Each is a DELIBERATE, opt-in trigger — a `:walker <sub>` command — so nothing acts unless you ask.
 -- Sub-commands:
---   :walker walk        -- moveTo: walk ~2 tiles south  (the original 4a demo)
---   :walker click       -- clickGob: RIGHT-click the nearest object (opens its context menu — safe/cancelable)
+--   :walker walk        -- hafen.player():move: walk ~2 tiles south
+--   :walker click       -- gob:click(3): RIGHT-click the nearest object (opens its context menu — safe/cancelable)
 --   :walker use         -- useItemOn: use the item on your cursor on the ground under you (no-op if empty-handed)
 --   :walker sel         -- select: area-select the ~3x3 tiles around you (drives tile-area tools)
 --   :walker place       -- place: drop the object on your cursor at your feet facing north (no-op if not placing)
---   :walker raw         -- raw: send the same walk "click" straight to the MapView (the escape hatch == moveTo)
+--   :walker raw         -- raw: send the same walk "click" straight to the MapView (the escape hatch)
 --   :walker menu <t...> -- menu: invoke a menu/pagina action by path (e.g. ':walker menu lo cs' = log out to
 --                          character select — reversible). Path tokens are content-defined, so YOU supply them.
 --   :walker flower <l>  -- flower: RIGHT-click the nearest object, then auto-select its petal named <l> after a
@@ -60,18 +60,18 @@ local SOUTH = 22   -- world units ~ 2 tiles (tilesz = 11) to the south
 -- the first instead of stacking a second picker onto the same menu.
 local petalSub = nil
 
--- One command with sub-verbs, each exercising one gated hafen.act() MapView verb.
+-- One command with sub-verbs, each exercising one protected hafen.act() MapView verb.
 hafen.slash():register("walker", function(args)
   local sub = args[1] or "help"
 
   if sub == "help" then
     hafen.log():write(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | petal | item | speed | craft | bar | setbar | menugrid | kin")
-    hafen.log():write("   walk=moveTo  click=clickGob(right)  use=useItemOn  sel=select  place=place  raw=raw escape hatch")
+    hafen.log():write("   walk=hafen.player():move  click=gob:click(3)  use=useItemOn  sel=select  place=place  raw=raw escape hatch")
     hafen.log():write("   menu=hafen.act():menu(path...)  e.g. ':walker menu lo cs' = log out to char select (reversible)")
     hafen.log():write("   flower=hafen.act():flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
     hafen.log():write("   petal <label...>|n <k>|cancel=hafen.flowermenu():select/:cancel  arms the NEXT menu you open, picked from FlowerMenuOpened")
     hafen.log():write("   item [verb]=hafen.act():item(firstInvItem, verb)  default take (lifts to cursor); take|drop|transfer|iact|itemact")
-    hafen.log():write("   -- 4g per-subsystem gated verbs (own namespace, same permission):")
+    hafen.log():write("   -- 4g per-subsystem protected verbs (own namespace, same permission):")
     hafen.log():write("   speed [n]=hafen.speed():current(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
     hafen.log():write("   craft [all]=hafen.craft():current():make(all)  press Craft on the OPEN recipe (CONSUMES ingredients; 'all'=Craft All)")
     hafen.log():write("   bar <n>=hafen.actionbar():get(n):use()  activate action-bar slot n (raw 0-based index)")
@@ -81,7 +81,7 @@ hafen.slash():register("walker", function(args)
     return
   end
 
-  -- Every verb is gated: bail with a clear hint if this addon somehow isn't granted (it declared the perm,
+  -- Every verb is protected: bail with a clear hint if this addon somehow isn't granted (it declared the perm,
   -- so this only trips if you edited the manifest). enabled() never throws, so no pcall is needed.
   if not hafen.act():enabled() then
     hafen.log():write((":walker %s -> write-actions not granted (enable this addon + confirm the consent dialog)."):format(sub))
@@ -96,13 +96,13 @@ hafen.slash():register("walker", function(args)
     -- p:offset asks the ENGINE for the point 22 units south. A grid is 1100 units wide, so `p.y + SOUTH`
     -- was only ever right until it was not: past the edge the answer is a different grid.
     local to = p:offset(0, SOUTH)
-    hafen.act():moveTo(to)                             -- the MapView "click" a left-click on that spot sends
-    hafen.log():write((":walker walk -> moveTo(%.1f, %.1f)  [~2 tiles south -- watch your character walk]"):format(to:x(), to:y()))
+    hafen.player():move(to)                            -- the MapView "click" a left-click on that spot sends
+    hafen.log():write((":walker walk -> hafen.player():move(%.1f, %.1f)  [~2 tiles south -- watch your character walk]"):format(to:x(), to:y()))
 
   elseif sub == "click" then
     local g = hafen.world():gob():nearest(function(g) return not g:isPlayer() end)  -- nearest non-player Gob OBJECT
     if not g then hafen.log():write(":walker click -> no object nearby"); return end
-    hafen.act():clickGob(g, 3)                            -- clickGob takes the Gob itself; 3 = RIGHT-click (safe/cancelable)
+    g:click(3)                                         -- 048.1: the click is a verb on the gob; 3 = RIGHT-click (safe/cancelable)
     hafen.log():write((":walker click -> right-clicked %s (id %d) -- its context menu should open"):format(g:name() or "?", g:id()))
 
   elseif sub == "use" then
@@ -150,7 +150,7 @@ hafen.slash():register("walker", function(args)
     end
     local g = hafen.world():gob():nearest(function(g) return not g:isPlayer() end)
     if not g then hafen.log():write(":walker flower -> no object nearby"); return end
-    hafen.act():clickGob(g, 3)                            -- button 3 = RIGHT-click => opens its flower menu (after a round-trip)
+    g:click(3)                                         -- button 3 = RIGHT-click => opens its flower menu (after a round-trip)
     hafen.log():write((":walker flower -> right-clicked %s (id %d); auto-picking petal '%s' in 0.5s..."):format(g:name() or "?", g:id(), label))
     hafen.timer():after(0.5, function()
       local ok = hafen.act():flower(label)               -- returns true iff a matching petal was selected
@@ -208,21 +208,21 @@ hafen.slash():register("walker", function(args)
     local inv = invw and invw:items() or {}            -- array of Item objects, live while the item is
     local it = inv[1]
     if not it then hafen.log():write(":walker item -> your inventory is empty (put something in it, then retry)"); return end
-    hafen.act():item(it, verb)                            -- gated; resolves the item's own widget, sends `verb`
+    hafen.act():item(it, verb)                            -- protected; resolves the item's own widget, sends `verb`
     hafen.log():write((":walker item -> hafen.act():item('%s' [handle %s], '%s')")
       :format(it:name() or it:res() or "?", tostring(it:handle()), verb))
     if verb == "take" then
       hafen.log():write("   (take lifts the item onto your cursor -- left-click an empty inventory slot to put it back)")
     end
 
-  -- 4g: per-subsystem gated verbs. These live in their OWN namespace (hafen.speed/craft/actionbar/kin) — on the
+  -- 4g: per-subsystem protected verbs. These live in their OWN namespace (hafen.speed/craft/actionbar/kin) — on the
   -- OBJECT itself where the subsystem is OOP (a Slot, a Kin) — not
   -- under hafen.act(), but share the exact same "actions" permission gate (requireActions) as the verbs above.
   elseif sub == "speed" then
     -- speed:current(n): pick a movement speed 0..3, the write half of the one name that reads it. Fully reversible (just set another), so a safe default is fine.
     local n = tonumber(args[2]) or 2                   -- default 2 = run
     local before = hafen.speed():current()
-    hafen.speed():current(n)                                 -- gated; drives the client's own Speedget.set
+    hafen.speed():current(n)                                 -- protected; drives the client's own Speedget.set
     hafen.log():write((":walker speed -> hafen.speed():current(%d) [%s]  (was %s; max selectable=%s)")
       :format(n, hafen.speed():name(n) or "?", tostring(before), tostring(hafen.speed():max())))
 
@@ -232,7 +232,7 @@ hafen.slash():register("walker", function(args)
     local all = (args[2] == "all")
     local cur = hafen.craft():current()               -- nil while no recipe is open: the guard still guards
     if not cur then hafen.log():write(":walker craft -> no recipe window open (open one in the crafting menu first)"); return end
-    cur:make(all)                                      -- gated; wdgmsg("make", all and 1 or 0)
+    cur:make(all)                                      -- protected; wdgmsg("make", all and 1 or 0)
     hafen.log():write((":walker craft -> cur:make(%s) on '%s'  (%s -- ingredients consumed)")
       :format(tostring(all), cur:name() or "?", all and "Craft All" or "Craft one"))
 
@@ -243,7 +243,7 @@ hafen.slash():register("walker", function(args)
     if not n then hafen.log():write(":walker bar <n> -> activate action-bar slot n (0-based). Read a slot: :lua hafen.actionbar():get(0):info()"); return end
     local slot = hafen.actionbar():get(n)              -- throws if n is outside 0..143
     local held = (not slot:empty()) and (slot:name() or slot:res() or "?") or "empty"
-    slot:use()                                         -- gated; the belt "act" a left-click on the slot sends
+    slot:use()                                         -- protected; the belt "act" a left-click on the slot sends
     hafen.log():write((":walker bar -> hafen.actionbar():get(%d):use()  [slot holds: %s]"):format(n, held))
 
   elseif sub == "setbar" then
@@ -259,7 +259,7 @@ hafen.slash():register("walker", function(args)
     end
     local slot = hafen.actionbar():get(n)              -- throws if n is outside 0..143
     local was = (not slot:empty()) and (slot:name() or slot:res() or "?") or "empty"
-    slot:res(res)                                      -- gated; wdgmsg("setbelt", n, "res", res) -- returns self
+    slot:res(res)                                      -- protected; wdgmsg("setbelt", n, "res", res) -- returns self
     -- The write is ASYNCHRONOUS (the server echoes a "setbelt" back), so the slot still reads the OLD content
     -- right here -- re-read after a beat to show it landed. An unknown res name is silently ignored (no change).
     hafen.log():write((":walker setbar -> hafen.actionbar():get(%d):res('%s')  [slot held: %s -- sent, watch ActionbarChanged]")
@@ -300,7 +300,7 @@ hafen.slash():register("walker", function(args)
 
   elseif sub == "kin" then
     -- 4g kin verbs, now on the Kin OBJECT (020-kin-oop): hafen.kin() is the roster collection (with the
-    -- gated :add(secret)) and :get(name) is one Kin, whose gated verbs are :rename/:group/:endKin/:forget
+    -- protected :add(secret)) and :get(name) is one Kin, whose protected verbs are :rename/:group/:endKin/:forget
     -- and each returns SELF, so they chain. 'add' takes a HEARTH SECRET (not a name): ':walker kin add
     -- <secret>'. The rest act on a NAMED kin (exact name) + an explicit op -- these mutate your real roster.
     -- group/rename are reversible. endkin + forget are the TWO STEPS of dropping a kin (the game's "End
@@ -309,7 +309,7 @@ hafen.slash():register("walker", function(args)
     if args[2] == "add" then
       local secret = args[3]
       if not secret then hafen.log():write(":walker kin add <hearth-secret> -> add a kin by the other player's hearth secret"); return end
-      hafen.kin():add(secret)                           -- gated; wdgmsg("bypwd", secret) -- the "Add kin" field
+      hafen.kin():add(secret)                           -- protected; wdgmsg("bypwd", secret) -- the "Add kin" field
       hafen.log():write((":walker kin -> hafen.kin():add('%s')  (sent -- the server adds them if the secret is valid)"):format(secret))
       return
     end
@@ -325,20 +325,20 @@ hafen.slash():register("walker", function(args)
       if not grp then hafen.log():write(":walker kin <name> group <0..7> -> a group number is required"); return end
       -- The server takes 0..254, but the client only DRAWS 8 kin colours -- stay in 0..7 in-game.
       local was = who:group()
-      who:group(grp)                                   -- gated; wdgmsg("grp", id, grp) -- their colour (reversible)
+      who:group(grp)                                   -- protected; wdgmsg("grp", id, grp) -- their colour (reversible)
       hafen.log():write((":walker kin -> hafen.kin():get('%s') [id %d]:group(%d)  (was group %d, now %d)")
         :format(name, who:id(), grp, was, who:group()))   -- re-read: the SAME object already tracks the change
     elseif op == "rename" then
       local newname = args[4]
       if not newname then hafen.log():write(":walker kin <name> rename <newname> -> a new name is required"); return end
-      who:rename(newname)                              -- gated; wdgmsg("nick", id, newname) -- reversible (rename back)
+      who:rename(newname)                              -- protected; wdgmsg("nick", id, newname) -- reversible (rename back)
       hafen.log():write((":walker kin -> hafen.kin():get('%s') [id %d]:rename('%s')"):format(name, who:id(), newname))
     elseif op == "endkin" then
-      who:endKin()                                     -- gated; Buddy.endkin ("End kinship") -> wdgmsg("rm", id)
+      who:endKin()                                     -- protected; Buddy.endkin ("End kinship") -> wdgmsg("rm", id)
       hafen.log():write((":walker kin -> hafen.kin():get('%s') [id %d]:endKin()  (END KINSHIP -- they stay MEMORIZED; ':walker kin %s forget' to drop them)"):format(name, who:id(), name))
     elseif op == "forget" then
       local id = who:id()                              -- read the id BEFORE they leave the roster
-      who:forget()                                     -- gated; Buddy.forget ("Forget") -> wdgmsg("rm", id) -- drops a memorized kin
+      who:forget()                                     -- protected; Buddy.forget ("Forget") -> wdgmsg("rm", id) -- drops a memorized kin
       hafen.log():write((":walker kin -> hafen.kin():get('%s') [id %d]:forget()  (FORGOTTEN -- re-add via hearth secret/right-click)"):format(name, id))
     else
       hafen.log():write((":walker kin -> unknown op '%s'  (group | rename | endkin | forget)"):format(op))

@@ -5,6 +5,7 @@ import haven.BuddyWnd;
 import haven.Buff;
 import haven.Bufflist;
 import haven.CharWnd;
+import haven.Coord;
 import haven.Coord2d;
 import haven.Coord3f;
 import haven.Coord3f;
@@ -19,6 +20,7 @@ import haven.Inventory;
 import haven.ItemInfo;
 import haven.Loading;
 import haven.MapView;
+import haven.OCache;
 import haven.Party;
 import haven.QuestWnd;
 import haven.Resource;
@@ -185,7 +187,7 @@ final class CharApi {
      * A widget-tree read adapter (spec {@code 14-widget-tree-reads.md}): the one place that knows a
      * target widget tree's shape, localizing that upstream-volatile knowledge. Two update paths, both
      * event-driven (spec {@code 042-event-driven-reads} — the per-tick {@code poll()} this interface
-     * used to also carry is gone, not gated):
+     * used to also carry is gone, not protected):
      * <ul>
      *   <li><b>uimsg-driven</b> ({@link #interested} off-thread → dirty → {@link #refresh} on the UI
      *       thread): for state the server pushes via a targeted {@code uimsg} (meter values, FEP, buff
@@ -883,7 +885,9 @@ final class CharApi {
      * Build {@code hafen.player()} for {@code owner}. From installHafen. The section contains exactly one thing,
      * so the <b>section object IS that thing</b> (§2.1): {@code hafen.player()} hands back the addon's single
      * <b>Player object</b>, and {@code hafen.player():gob()} is the composition anchor for every per-gob read of
-     * the player (position/health/moving/facing/…). Player forwards <b>nothing</b> — a {@code player:pos()}
+     * the player (position/health/moving/facing/…), plus {@code :move(p)}, which walks the character and is the
+     * Player's first write (048.1) — a verb with no per-gob equivalent, since the server accepts a walk command
+     * only for your own character. Player forwards <b>nothing</b> — a {@code player:pos()}
      * living beside {@code player:gob():position()} is exactly the dual style D-013 forbids — and
      * {@code exists}/{@code id} are dropped: {@code player:gob()} (nil before entering the world) and
      * {@code gob:id()} already answer both. It is a per-addon singleton (cached on {@link Addon#playerObj}), so
@@ -928,6 +932,27 @@ final class CharApi {
                 }
             }
         });
+        // move(p) — walk the character to a Position, and the Player's FIRST write (048.1). It is the MapView
+        // "click" a left-click on that patch of ground sends; the screen coord the message carries is a DUMMY
+        // (the current mouse), exactly as MiniMap.mvclick does when you click the minimap to walk, which is what
+        // makes an off-screen destination legal. It is not a forwarded Gob method and so does not bend D-046:
+        // the server accepts a walk command only for your OWN character, so there is no gob:move() beside it,
+        // and gob:moving() is a property of a gob rather than an imperative on the player.
+        //   The verb is PROTECTED (the per-addon "actions" permission), and the gate runs FIRST — before the
+        // argument is looked at and before the map view is: an addon that never declared the permission is told
+        // that, rather than being told its Position is wrong (D-213).
+        methods.set("move", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                requireActions(owner, "hafen.player():move");
+                Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.player():move", "p");
+                MapView m = view;
+                if(m == null)
+                    throw new LuaError("hafen.player():move: no map view (not in the world yet)");
+                Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;   // dummy screen coord, like MiniMap.mvclick
+                m.wdgmsg("click", pc, rc.floor(OCache.posres), 1, 0);
+                return owner.playerObj;                          // the Player, so a move chains
+            }
+        });
         final LuaTable pmt = new LuaTable();
         // A section object's vocabulary is CLOSED: an unknown verb throws naming what does exist, exactly as
         // Section.meta and LuaCollection do for every other section. Pointing __index straight at the methods
@@ -935,7 +960,7 @@ final class CharApi {
         // to call a nil value" — the failure the whole grammar exists to delete, and the one Player would have
         // been alone in keeping, since the section object here IS the one thing the section contains (§2.1).
         pmt.set(LuaValue.INDEX, Retired.closedIndex("hafen.player()", methods,
-            "the section object is the character itself: :gob() :name() :worldToScreen(p)"));
+            "the section object is the character itself: :gob() :name() :move(p) :worldToScreen(p)"));
         pmt.set("__name", LuaValue.valueOf("Player"));
         pmt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -1166,7 +1191,7 @@ final class CharApi {
      * Build a char namespace for owner. From installHafen. <b>The section object IS the bar</b> (uniform
      * grammar §2.1): {@code hafen.actionbar()} is the {@link LuaCollection} of all 144 slots and
      * {@code hafen.actionbar():get(n)} is one {@link LuaSlot} by its raw game index; the reads and the two
-     * gated verbs live on the Slot object itself.
+     * protected verbs live on the Slot object itself.
      */
     static void installActionbar(LuaTable hafen, final Addon owner) {
         Section.mount(hafen, "actionbar", LuaSlot.collection(owner),
@@ -1411,7 +1436,7 @@ final class CharApi {
     // kin online" question; the group index maps to a fixed colour palette (BuddyWnd.gc).
     //
     // Since 020-kin-oop the Lua-facing surface is OOP and lives in LuaKin (hafen.kin() = the roster
-    // collection, :get(idOrName) = an interned Kin object, gated verbs on the object). What stays HERE is the
+    // collection, :get(idOrName) = an interned Kin object, protected verbs on the object). What stays HERE is the
     // plumbing LuaKin and the KinAdapter share: the buddywnd() resolve funnel, the kinSnapshot() escape
     // hatch (kin:info()) and the snapshot diff that drives KinChanged.
 
@@ -1570,7 +1595,7 @@ final class CharApi {
     //   • saves[] + usesave/nsave/maxact — the saved schools (names in the PRIVATE saves[], so deferred) plus
     //              the active slot (usesave), slot count (nsave) and the action-point budget cap (maxact).
     // All the fields we read are public → zero haven edit (like A9/A8/A7/A6/A4/A2). Read-only; editing/
-    // switching schools (wdgmsg load/save/use, drag, set counts) is the gated Phase-4 tier.
+    // switching schools (wdgmsg load/save/use, drag, set counts) is the protected Phase-4 tier.
     //
     // Threading: the FightWnd.uimsg handlers run on a Loader thread under synchronized(ui): "avail" REPLACES
     // acts wholesale, "used"/"max" mutate act.u / maxact / order[] entries, and Actions.tick re-sorts acts on

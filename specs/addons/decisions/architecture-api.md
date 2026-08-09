@@ -2150,3 +2150,73 @@ that went `nil` at the close would have the three reads describing different men
 what a later `:item()` (which inventory item opened the menu) would reuse unchanged.
 **See.** [D-212](#d-212), [D-213](actions-permissions.md#d-213), [D-101](#d-101), [D-103](#d-103),
 [047-flowermenu](../047-flowermenu/spec.md).
+
+---
+
+### D-215 — a verb lives with WHAT IT CHANGES, not with what it COSTS: a permission is not a namespace ✅ (048.1, 2026-08-10)
+**Decision.** Every verb of `hafen.act()` moves onto the thing it acts on, and the section is deleted once it is
+empty. 048.1 is the first pair: walking the character is `hafen.player():move(p)` and clicking an object is
+`gob:click(button, mods)`. Nothing about the permission model changes — same gate, same manifest declaration,
+same consent dialog — and nothing about the wire changes either: each verb sends byte-for-byte the message it
+sent from `act`. Only *where the door is* moves.
+**Rationale.** [D-187](#d-187) said a verb that existed only for a KIND leaves with that kind; this is the same
+sentence with the kind generalised to the whole surface. Every other section in the API is named for a thing —
+a player, a gob, the world, a widget, an item — and carries whatever verbs that thing answers, reads and writes
+side by side. `act` was the one section named for a *cost*, and grouping by cost put the door to moving your
+character somewhere other than on the character, and the door to placing a building a page away from the
+`snapPlace` that prepares its argument. It also cost capability: because the held-item verbs were grouped by
+gate rather than by subject, they could send a gesture the client itself cannot produce (see the Hand, 048.2).
+A permission is an attribute of a verb, like being slow or being client-local; none of the others earned a
+namespace, and this one should not have either.
+**Consequences.** The tier does not disappear, it stops being a *place*: a protected verb is marked on its own
+page, and `AddonManager.requireActions` is still the one gate. The adjective changes with it — **gated** becomes
+**protected** across `src/` and the docs tier — because *gated* described membership of a section that no longer
+exists, while *protected* is a property a verb can carry anywhere. `hafen.act()` stays mounted while it empties
+([D-117](#d-117)) and is removed in 048.7; no verb ever answers under both names, because the old spelling
+throws from [`Retired`](#d-216) the moment the new one exists.
+**See.** [D-187](#d-187), [D-117](#d-117), [D-216](#d-216), [D-013](#d-013), [D-046](#d-046),
+[D-028](actions-permissions.md#d-028), [048-act-dissolved](../048-act-dissolved/spec.md).
+
+---
+
+### D-216 — a verb that LEAVES a still-mounted section is retired under BOTH of its field reads ✅ (048.1, 2026-08-10)
+**Decision.** A moved section verb gets two rows in [`Retired`](../../../src/io/brodgar/addon/Retired.java), not
+one: `"hafen.act.moveTo"` and `"hafen.act():moveTo"`, carrying the same message. `Retired.act(verb, msg)` writes
+the pair, so the whole feature's inventory stays one line per verb.
+**Rationale.** The two spellings are two different reads, answered by two different `__index` functions, and
+only one of them was ever covered. `hafen.act.moveTo` is a field on the section's *callable table*, caught by
+`Retired.sectionIndex` — that is the pre-039 dotted spelling, which almost nothing still writes.
+`hafen.act():moveTo(p)` indexes the section **object**, and `Section.meta` looks that up under the `"():"`
+spelling before falling through to its own generic *"hafen.act() has no verb 'moveTo'"*. That generic message is
+exactly the failure [D-118](#d-118) exists to prevent — it says the call is wrong without saying what is right —
+and it is what every shipped addon would have got, because the colon call is the only form the grammar has
+taught since 039. The mechanism was already there; the rows were not.
+**Consequences.** This is only a problem for a section that is still mounted while it empties ([D-117](#d-117)).
+A section deleted **whole** — `hafen.hook`, `hafen.ghost` — needs one row on the `hafen` table itself, because
+reading the section name throws before any sub-spelling is reached; that is why those carry no per-verb rows.
+So the rule is: *while the section survives, retire the colon spelling; once it dies, retire the section.* 048.7
+does both, and its assertion loop over the full inventory is what makes the coverage mechanical rather than
+remembered.
+**See.** [D-118](#d-118), [D-117](#d-117), [D-215](#d-215), [D-130](#d-130),
+[048-act-dissolved](../048-act-dissolved/tasks.md).
+
+---
+
+### D-217 — on a departed thing a client-local write is INERT and a server write RAISES ✅ (048.1, 2026-08-10)
+**Decision.** `gob:click()` on a gob that is gone **throws**, naming staleness and saying nothing was sent —
+while every read on that same handle answers `nil` and `gob:scale(k)` takes the write and quietly does nothing
+([D-210](#d-210)). Two writes on one handle, two different answers, and the difference is not the handle.
+**Rationale.** A read asks *what is this now*, and *gone* is an answer: `nil` is the truth, and a stale handle
+that goes quiet is the whole point of re-resolving every call ([D-012](#d-012)). `scale` is a client-local
+property of a drawn object — with nothing drawn there is nothing to set and nothing to be wrong about, so
+inertness is also the truth. A click is neither: it is a **message to the server about one specific object**,
+addressed by an id the server re-uses, and there is no honest thing to send when the object it names has left.
+Silence there would be the worst of the three answers — the caller would believe an action was taken, and the
+next id-holder would be a plausible victim if the send were attempted anyway.
+**Consequences.** The rule reads off the verb, not the entity: *does this put something on the wire about this
+particular thing?* That is what makes the four item verbs of 048.3 refuse a stale Item on the same grounds,
+while `gob:scale` and the `hafen.vr()` setters stay inert. It also sets the refusal's shape — name the
+staleness, name the liveness test (`gob:exists()`), and state that **nothing was sent**, so a caller reading the
+message alone knows there is nothing to undo.
+**See.** [D-210](#d-210), [D-114](#d-114), [D-012](#d-012), [D-138](#d-138),
+[048-act-dissolved](../048-act-dissolved/spec.md).

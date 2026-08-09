@@ -1,9 +1,12 @@
 package io.brodgar.addon;
 
+import haven.Coord;
 import haven.Coord2d;
 import haven.Gob;
 import haven.GobHealth;
+import haven.MapView;
 import haven.Moving;
+import haven.OCache;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -72,7 +75,7 @@ public final class LuaGob {
     }
 
     /**
-     * Resolve a Lua value handed to a Gob consumer ({@code hafen.act.clickGob}, {@code follow=}, {@code :same}-
+     * Resolve a Lua value handed to a Gob consumer ({@code gob:click}, {@code follow=}, {@code :same}-
      * style comparisons) back to its {@code LuaGob}; {@code null} for anything that is not a Gob object (nil, a
      * raw id, a token string — the hard cut accepts none of those, D-044).
      */
@@ -286,7 +289,7 @@ public final class LuaGob {
         // scale() / scale(k) -- how big the game object is DRAWN, and the handle's first WRITE (046.1). Bare
         // reads the factor (1 for a gob nobody scaled, nil once the gob is gone); one number writes it and
         // hands the GOB back, so gob:scale(2):name() is one chain. It is the read/write pair every hafen.vr()
-        // entity answers, on the same footing gob:overlay() stands on: client-local, purely visual, ungated —
+        // entity answers, on the same footing gob:overlay() stands on: client-local, purely visual, unprotected —
         // nothing goes on the wire and nothing about what the gob IS changes. The size is applied in place
         // (T·R·S), so the object's feet stay where they were and it still turns and moves normally, and it
         // ENDS WITH THE LOADED OBJECT: walk far enough to unload it and it comes back its original size.
@@ -303,6 +306,43 @@ public final class LuaGob {
                 // once the gob is gone and none of them throws, and the first write is no exception to that.
                 if(g != null)
                     GobScale.apply(g, owner, k);
+                return self;
+            }
+        });
+        // click([button [, mods]]) — click the game object, and the handle's first SERVER write (048.1): exactly
+        // the MapView "click" a left/right-click on this gob sends, so the client stays server-authoritative.
+        // button 1 = left (default; select/interact), 3 = right (the radial menu); mods = a modifier bitfield
+        // (0 default; Shift=1 Ctrl=2 Alt=4, matching the keybind syntax). It sends the bare gob-click encoding
+        // {…, 0, gobid, gobrc, 0, -1} — a generic "the WHOLE object", faithful for world objects
+        // (trees/containers/…); a specific sub-mesh or composite body part is not targeted (deferred).
+        //   PROTECTED by the per-addon "actions" permission, and the gate runs FIRST — before the gob is even
+        // looked up (D-213), so an addon that never declared it is told that rather than "no such gob". Unlike
+        // every read here, a gob that is GONE throws: a click is a message about a specific object, and there is
+        // no such thing as sending it to nothing. Hands the Gob back, so a click chains.
+        m.set("click", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                AddonManager.requireActions(owner, "gob:click");
+                LuaGob h = handle(self, "click");
+                MapView mv = AddonManager.view;
+                if(mv == null)
+                    throw new LuaError("gob:click: no map view (not in the world yet)");
+                Gob g = AddonManager.getgob(h.id);
+                if(g == null)
+                    throw new LuaError("gob:click: this gob is gone — it left view or despawned"
+                        + " (gob:exists() is false). Nothing was sent.");
+                Coord2d rc;
+                synchronized(g) { rc = g.rc; }              // OCache discipline: copy under the gob lock
+                if(rc == null)
+                    throw new LuaError("gob:click: the gob has no position yet");
+                Coord pc = (mv.ui != null) ? mv.ui.mc : Coord.z;   // dummy screen coord, like MiniMap.mvclick
+                mv.wdgmsg("click", clickGobArgs(pc, a.arg(2).optint(1), a.arg(3).optint(0),
+                                                (int)g.id, rc.floor(OCache.posres)));
+                // 047.3: the same token the real click records in MapView.Click.hit — and here the gob is not
+                // correlated but KNOWN, this being addon code that named it. lcc is untouched by a programmatic
+                // click, so a menu the server opens in reply matches on the press point exactly as it does for a
+                // mouse click, and a player press in between moves lcc and invalidates it, which is the point.
+                ClickToken.note(g.id, (mv.ui != null) ? mv.ui.lcc : null);
                 return self;
             }
         });
@@ -347,6 +387,17 @@ public final class LuaGob {
             }
         });
         return m;
+    }
+
+    /**
+     * The full MapView {@code "click"} args for a generic click on the gob {@code (gobId, gobRc)} — the
+     * {@code {pc, mc, button, mods}} prefix extended with {@link haven.Gob.GobClick#clickargs}'
+     * {@code {0, gobid, gobrc, 0, -1}} (no overlay, no specific sub-mesh). {@code mc} = the gob's own floored
+     * position, as a click landing on its base would carry. Pure/testable — it holds no live state, so the wire
+     * shape can be asserted without a session.
+     */
+    static Object[] clickGobArgs(Coord pc, int button, int mods, int gobId, Coord gobRc) {
+        return new Object[] {pc, gobRc, button, mods, 0, gobId, gobRc, 0, -1};
     }
 
     /**

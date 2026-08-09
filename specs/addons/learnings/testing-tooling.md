@@ -1428,3 +1428,18 @@
   nil"; clearing the attribution at the close reddened *only* "while the ring fades it still names it". Neither
   bug touched the other's check, which is what proves the two mechanisms guard two different claims rather
   than being one mechanism counted twice (the 034.2/035.1 rule: one falsification per mechanism).
+
+- **(048.1) A protected verb's whole refusal surface is HEADLESS — the 033.3 probe runs the suite nearly
+  green before the client is started.** `requireActions` needs neither a `UI` nor a session, and it runs
+  before everything that does (D-213), so every gate assertion, every `Retired` throw and every closed-vocabulary
+  refusal answers under `Sandbox.create()` + `installHafen` + `Manifest.load(dir)` alone. 048.1's suite reported
+  **11 pass / 2 fail** headlessly, and the two fails were precisely the checks that need a world (the player-Gob
+  premise and the refusal asserted on the live player Gob) — so the in-game round had one prediction to confirm
+  rather than thirteen results to read. Rule: *for a task whose proof is refusals, treat a non-green headless run
+  as a bug in the suite, and write down which lines are expected to be red and why.*
+- **(048.1) A never-nil handle gives a read-only suite a receiver with no world.**
+  `hafen.world():gob():get(-1)` mints a `LuaGob` for an id nothing ever published (`:get(id)` is documented as
+  never nil, `gob:exists()` being the liveness test), so `hafen.world():gob():get(-1):click(3)` is a real colon
+  call on a real entity that reaches the gate — proving *gate before live-object lookup* both headlessly and
+  in-game, where asserting it on the player's own gob could not distinguish the two orders. Generalises to any
+  entity whose `:get` interns rather than searches.

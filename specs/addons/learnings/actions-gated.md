@@ -177,3 +177,25 @@
   open ring numbered (`1. Chop, 2. Pick branch`) — which is the one thing a boolean return can never say, and the whole
   reason raising is an upgrade here rather than a nuisance. The caller guessed a caption; the message hands them the
   captions. Same shape as 4g's kin verbs listing the valid groups, and it costs one `StringBuilder`.
+
+- **(048.1) A verb that leaves a still-mounted section needs a `Retired` row keyed with the `"():"` spelling —
+  the dotted one catches almost nobody.** `Retired.sectionIndex("act")` hangs off the section's *callable
+  table*, so it answers `hafen.act.moveTo`, which is the pre-039 spelling. The call every shipped addon
+  actually writes is `hafen.act():moveTo(p)`, and that indexes the section **object**, whose `__index`
+  ([`Section.meta`](../../../src/io/brodgar/addon/Section.java:158)) looks the key up as
+  `"hafen.act():moveTo"` and otherwise throws its own generic *"hafen.act() has no verb 'moveTo'"*. The
+  mechanism was already there and unused: no row in the table had ever been keyed that way, because until now
+  every retired verb belonged to a section that was deleted whole (one row on the `hafen` table catches
+  everything under it). `Retired.act(verb, msg)` writes both, and 048.2–048.7 must keep using it — the
+  difference is a message naming the new home versus one saying only that the old name is wrong (D-216).
+- **(048.1) `moveClickCoord` did not need to move with the verb it was extracted for.** The whole builder is
+  `Coord2d.floor(OCache.posres)`, and it took a `(double, double)` pair only because 4a's senders did;
+  `LuaPosition.worldArg` already hands back the `Coord2d`, so the new site writes `rc.floor(OCache.posres)`
+  inline — which is exactly how 048.2/048.4 spell their own wire notes. It stays in `ActApi` for
+  `itemactArgs`/`placeArgs` and dies with them. `clickGobArgs` moved: a nine-element wire shape earns a named
+  pure builder, a one-call conversion does not.
+- **(048.1) `gob:click` gates BEFORE `handle(self, …)`, which is what makes the ordering assertable.**
+  `AddonManager.requireActions(owner, "gob:click")` runs first, then the self-resolve, then the live-gob
+  lookup — so a Gob handle for an id that was never in view (handles are never nil) still answers the
+  *permission* error rather than "this gob is gone". That is D-213's order, and it is the one property of a
+  protected verb a read-only suite can prove without a world.
