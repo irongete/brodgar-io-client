@@ -95,6 +95,9 @@ Select a petal of the open radial (flower) menu by its `label`, matched case-ins
 `true` when a petal matched and `false` when no menu is open or nothing matched — it does not throw for
 either. Typically used after `clickGob(gob, 3)`. A non-string `label` raises an error.
 
+[`hafen.flowermenu`](flowermenu.md) is the other half of that menu: what it offers, how many petals it has,
+and the two events that say when one opens and closes.
+
 ## Items (gated: `actions`)
 
 ### `hafen.act():item(item, verb, n)`

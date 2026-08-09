@@ -2098,3 +2098,27 @@ read/write arity — not about identical argument policing, and [D-194](#d-194) 
 *subset* of the property. Both pages say what their own form does. If the vr entities ever gain a direct
 `:scale` door that is not part of a table parse, that door refuses too.
 **See.** [D-194](#d-194), [D-210](#d-210), [D-072](#d-072), [046-gob-scale](../046-gob-scale/spec.md).
+
+---
+
+### D-212 — a lifecycle PAIR is made exactly-once by a record keyed on the thing, and every ending door calls one method ✅ (047.1, 2026-08-09)
+**Decision.** `FlowerMenuOpened`/`FlowerMenuClosed` promise *every open is followed by exactly one close*, and a
+radial menu can end through three unrelated doors: the server's `uimsg("act")`, its `uimsg("cancel")`, and the
+widget simply dying. The promise is not kept by reasoning about those three. It is kept by a record keyed on the
+**menu itself** — [`FlowerMenuApi.live`](src/io/brodgar/addon/FlowerMenuApi.java), a weak map whose *key presence*
+means "opened has fired and closed has not" — with all three doors calling one `closed(menu, label)`: the first to
+arrive takes the key out and fires, the rest find nothing and are inert. The open seam is idempotent the same way.
+**Rationale.** The alternative is a flag per closing path plus a rule about which wins, which is a case analysis
+that grows every time a fourth way to end is discovered — and one *was*: the fork's client-side voice petal
+cancels the server's menu and handles itself, so it arrives at the `"cancel"` door carrying a real choice. With
+the record in place that cost one line (`choosing()` writes the label into the same entry) instead of a fourth
+branch. Keying on the thing rather than on a "current menu" field also survives two menus at once without the
+second one silently orphaning the first's close. Weak keys mean a session that ends without destroying its
+widgets leaves nothing behind, and identity semantics come free because `Widget` does not override `equals`.
+**Consequences.** Adding a seam is adding a call, never a rule: a fifth ending door is one line and cannot
+double-fire. The `label` argument is *what this door knows*, `null` meaning "ask the record" — so the
+authoritative `"act"` label wins where the server committed one, and the recorded one covers everything else. The
+same shape fits any future open/close pair over an engine object with more than one ending (a window, a dialog, a
+targeting mode). It says nothing about *where* the open fires: that is the separate question of when the thing is
+complete, and here it is the END of `added()`, because the petal array is replaced inside it.
+**See.** [D-102](#d-102), [D-105](#d-105), [D-100](#d-100), [047-flowermenu](../047-flowermenu/spec.md).

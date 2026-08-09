@@ -62,6 +62,6 @@ delegates so `haven` core edits never move. `haven.Fonts` + `haven.AddonWidgets`
 | Static facade | [`io.brodgar.voice.Voice`](src/io/brodgar/voice/Voice.java) (all-static, `attach`/`detach`/`tick`) |
 | Lifecycle hooks (~14 lines) | `MapView` ctor (~:502), `dispose` (~:514), `tick` (~:1690), keydown/keyup (~:2128) |
 | UI piggyback: gob overlay | [`SpeakerIcon`](src/haven/SpeakerIcon.java) (`GAttrib` + `RenderTree.Node` + `PView.Render2D`) |
-| UI piggyback: flower petal | `FlowerMenu.addVoicePetal` (~:224), `choose` intercept (~:278) |
+| UI piggyback: flower petal | `FlowerMenu.addVoicePetal` (~:258), `choose` intercept (~:315) |
 | UI piggyback: options panel | `OptWnd.VoiceChatPanel` (~:458), main button (~:843) |
 | Keybinding | `Voice.kb_ptt = KeyBinding.get("brodgar/ptt", …)` (~:65) |

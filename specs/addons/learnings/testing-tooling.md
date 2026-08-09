@@ -1369,3 +1369,22 @@
   page touched and not just the ones a section was added to. The fix is not to split the page — it is to write the
   correction to the same line count (a 2-for-2 swap), which took one attempt once the constraint was known. Same
   class as the wrap check: **the unit that matters is the wrapped line, and prose edits move it invisibly.**
+- **(047.1) For a surface that GRABS input, a suite runs in two halves of one command: `:tNNN-X` arms, and
+  `:tNNN-X done` closes.** An open `FlowerMenu` grabs mouse **and** keyboard, so nothing can be typed while
+  one is up and no timer-based summary can know when the maintainer has finished. Splitting on the argument
+  (043.2's `:t043-2 gone` shape) gives the arming half the synchronous assertions plus the `[manual]` steps,
+  lets the armed handlers print their own `[pass]` lines live as each gesture happens, and puts the
+  cross-round invariants (`opens == closes`, none overlapping, one close with a label and one without) plus
+  the single `[summary]` in the second half. Keep the counters at file scope so they survive between the two,
+  and reset them in the arming half so a re-run starts clean — and `:off()` the previous subscriptions there
+  too, or a second arming double-counts every event.
+- **(047.1) The 033.3 probe recipe extends to driving `haven` WIDGET seams directly, if the res jars go on
+  the classpath.** Constructing a real `FlowerMenu` headlessly needs
+  `-cp "probe-tmp;lib/brodgar/luaj-jse-3.0.1.jar;lib/jglob.jar;bin/builtin-res.jar;bin/hafen-res.jar"` —
+  `jglob` for `Resource.<clinit>`, and the two res jars because `Text.<clinit>` load-waits on `ui/fraktur`.
+  The GL provider then prints a `NoClassDefFoundError: com/jogamp/opengl/GLException` stack that is **not
+  fatal** (`haven.iosys.Providers` logs it and moves on), so read past it to the probe's own output. To make
+  the addon-side subscription fire, reflect the throwaway `Addon` into `AddonManager.addons` — `installHafen`
+  alone does not register it, so `hasSub` finds nobody and every `fire*` is silently a no-op. That bought the
+  whole event-pairing proof (3 opened / 3 closed, the right label on each, repeat calls inert) before the
+  client was started, on a feature whose in-game half needs a human holding a mouse.

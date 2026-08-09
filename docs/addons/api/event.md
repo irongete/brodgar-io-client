@@ -181,6 +181,18 @@ because registering scans the live tree — so an addon reloaded with the window
 [watching for a widget](ui/replace.md#watching-for-a-widget) for the two rules that matter: neither
 event is about *visibility*, and at `disappear` the widget is a key to match, not something to read.
 
+## The radial menu
+
+| Event | Payload | Fires |
+|---|---|---|
+| `FlowerMenuOpened` | `string[]` — the petal captions, in ring order | a right-click puts up a radial menu |
+| `FlowerMenuClosed` | `string` \| nil — the label picked | that menu goes away |
+
+**Every `FlowerMenuOpened` is followed by exactly one `FlowerMenuClosed`**, whether you picked a petal,
+pressed Esc, clicked away, or the menu died under you; the payload is `nil` for everything but a pick. Both
+cover the menus the client puts up itself, such as the Kin window's, as well as the server's. Read the ring
+from the payload or from [`hafen.flowermenu()`](flowermenu.md), which is the open menu.
+
 ## World ghosts and sprites
 
 | Event | Payload | Fires |

@@ -880,3 +880,27 @@
   `Coord.z` object to many widgets at once (`GameUI.maininv.c` IS that object), so a record that keeps the
   reference is a record something else can move — copy it, both when recording and when handing it back; and
   never assert an internal pin from Lua when what the feature claims is that the RECORD survives.
+- **(047.1) `Widget.add0` LINKS the child before it calls `added()`, so a widget is already reachable from
+  the root inside its own `added`.** [`add0`](../../../src/haven/Widget.java:272) runs `child.parent = this;
+  child.link(); child.added();` in that order — which is what makes an event fired at the end of `added()`
+  usable: a handler that calls back into the API (`hafen.flowermenu():list()`, a recursive
+  `ui.root.children(Class)` walk) finds the widget that is announcing itself. Fire *before* `link()` and the
+  same handler reads an empty world. The corollary is the trap: `added()` is also where a widget still
+  MUTATES itself, so "the widget exists" and "the widget is finished" are different moments.
+- **(047.1) `FlowerMenu.added()` REPLACES `opts` with a longer array, so any seam earlier than its last line
+  ships an incomplete petal set.** The fork's `addVoicePetal` builds a new `Petal[]`, copies the old one into
+  it and assigns — it does not append in place. Hooking the constructor, or the top of `added`, reads the
+  server's petals and silently drops the client-side one. Same class as 042's D-179/D-180 second sites: when
+  a set is assembled in a method, the only complete moment is that method's END.
+- **(047.1) A subclass that overrides the widget's ACTION method and never calls `super` is why a close seam
+  hangs off `uimsg`.** [`BuddyWnd`'s anonymous `FlowerMenu`](../../../src/haven/BuddyWnd.java:430) overrides
+  `choose(Petal)`, runs a local `Runnable`, and calls `uimsg("act", num)` / `uimsg("cancel")` **by hand** —
+  it never reaches `FlowerMenu.choose` and sends no `"cl"` at all. So `choose` is not where a menu ends;
+  `uimsg` is, and it is the one seam the client-side menu shares with the server's. Its `destroy()` override
+  *does* call `super.destroy()`, which is what lets a `destroy()` fallback cover both. Read the subclass
+  before picking a seam on the base class — an override that skips `super` is invisible from the base.
+- **(047.1) A menu OUTLIVES its own close by up to 0.75 s, so "is one open" and "has one been chosen" are
+  different questions.** `uimsg("act")`/`"cancel"` start a `Chosen` (0.75 s) or `Cancel` (0.25 s) `NormAnim`
+  and only `ui.destroy` at `s == 1`. The widget is therefore still in the tree throughout — so a section that
+  answers "the open menu" keeps answering during the fade, and a close event read back through that section
+  is not yet empty. Document which of the two a read means rather than assuming they coincide.

@@ -867,6 +867,28 @@ public final class AddonManager {
     /** @see #stockPos */
     public static Coord stockSize(Widget w) {            return UiApi.stockSizeArg(w);   }
 
+    /**
+     * The <b>radial-menu seams</b> (047.1) — the four {@code // addon:} lines in {@link FlowerMenu} that turn
+     * the client's own context menu into {@code FlowerMenuOpened}/{@code FlowerMenuClosed} and feed
+     * {@code hafen.flowermenu()}. {@link FlowerMenuApi} holds the rules; these are the door haven calls
+     * through.
+     *
+     * <p>{@link #flowerOpened} is the end of {@code added()} (the only point where the petal set is complete);
+     * {@link #flowerClosed} is both {@code uimsg} branches <i>and</i> the {@code destroy()} fallback, and fires
+     * at most once per open however the menu ended; {@link #flowerChoosing} records the petal a click picked,
+     * so a client-side one closes carrying its own label.
+     *
+     * <p><b>Threading.</b> UI thread throughout, under the monitor the caller already holds, so the Lua raised
+     * here never races other Lua. With nobody subscribing each call is a hash lookup and allocates nothing.
+     */
+    public static void flowerOpened(FlowerMenu m) {      FlowerMenuApi.opened(m);        }
+
+    /** @see #flowerOpened */
+    public static void flowerClosed(FlowerMenu m, String label) { FlowerMenuApi.closed(m, label); }
+
+    /** @see #flowerOpened */
+    public static void flowerChoosing(FlowerMenu m, FlowerMenu.Petal p) { FlowerMenuApi.choosing(m, p); }
+
     // The widget-targeting descriptor {id, type, place, caption, parentType} (D-024) is GONE (032.2). It was the
     // argument of replace{match=fn} and nothing else once 030.2 hard-cut the onWidgetCreate observer that shared
     // it; with hafen.ui.replace deleted there is exactly one vocabulary for "which window" left — the Selector.
@@ -876,15 +898,15 @@ public final class AddonManager {
     // ------------------------------------------------------------- event dispatch
 
     /**
-     * The bus's <b>closed key set</b> — the 26 events {@code hafen.event():on(key, fn)} accepts, in the order
+     * The bus's <b>closed key set</b> — the 28 events {@code hafen.event():on(key, fn)} accepts, in the order
      * the catalogue lists them (lifecycle, world, character, roster, own entities). Closed because the client
      * knows the whole set at load, so an unknown key is a typo with no future meaning to wait for (D-129):
      * before 041 {@code hafen.event():on("GobAdded ", fn)} was accepted and simply never fired, which is the
      * most common silent addon bug there is.
      *
      * <p>PascalCase throughout, and it is the bus's <i>own</i> spelling that the rest of the API adopted in
-     * 041 — so 22 of these are the exact string the corpus already called. Only the four lifecycle keys moved,
-     * dropping the {@code On} prefix that {@code :on} already says (see {@link Retired#eventKey}).
+     * 041 — so 22 of the 26 it found were already the exact string the corpus called. Only the four lifecycle
+     * keys moved, dropping the {@code On} prefix that {@code :on} already says (see {@link Retired#eventKey}).
      */
     static final String[] BUS_KEYS = {
         "Load", "EnterWorld", "Update", "Disable",
@@ -893,10 +915,11 @@ public final class AddonManager {
         "BuffAdded", "BuffRemoved", "BuffChanged",
         "FepChanged", "StudyChanged", "EquipChanged", "ActionbarChanged", "WoundChanged",
         "KinChanged", "QuestAdded", "QuestDone", "MarkersChanged",
+        "FlowerMenuOpened", "FlowerMenuClosed",
         "GhostClicked", "SpriteClicked", "ObjectClicked",
     };
 
-    /** Is {@code key} one of the {@link #BUS_KEYS}? (Linear over 26 constants, once per subscription.) */
+    /** Is {@code key} one of the {@link #BUS_KEYS}? (Linear over 28 constants, once per subscription.) */
     private static boolean busKey(String key) {
         for(String k : BUS_KEYS) {
             if(k.equals(key))
@@ -1658,6 +1681,33 @@ public final class AddonManager {
         return t;
     }
 
+    /**
+     * Fire a radial-menu event (047.1) — {@code FlowerMenuOpened}, whose payload is the petal captions as an
+     * array of strings in ring order, or {@code FlowerMenuClosed}, whose payload is the label picked or
+     * {@code nil}. Same {@code hasSub} shape as {@link #fireGob}: the payload is built only for an owner that
+     * actually subscribes, and it is built <i>per owner</i> even though nothing here is interned — a table
+     * handed to Lua is mutable, and one addon must not be able to edit another's petal list.
+     */
+    static void fireFlowerMenu(String event, String[] petals, String label) {
+        for(Addon a : addons) {
+            if(hasSub(a, event))
+                fireTo(a, event, flowerPayload(petals, label));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, event))
+            fireTo(c, event, flowerPayload(petals, label));
+    }
+
+    /** One owner's radial-menu payload: the captions on an open, the label (or nil) on a close. */
+    private static LuaValue flowerPayload(String[] petals, String label) {
+        if(petals == null)
+            return (label == null) ? LuaValue.NIL : LuaValue.valueOf(label);
+        LuaTable t = new LuaTable();
+        for(int i = 0; i < petals.length; i++)
+            t.set(i + 1, LuaValue.valueOf((petals[i] == null) ? "" : petals[i]));
+        return t;
+    }
+
     /** One owner's {@code KinChanged} payload: its own interned Kin objects, in roster order. */
     private static LuaValue kinPayload(Addon owner, int[] ids) {
         LuaTable t = new LuaTable();
@@ -1751,6 +1801,15 @@ public final class AddonManager {
         Section.mount(hafen, "menugrid", LuaPagina.collection(owner),
                       "hafen.menugrid(key) is now hafen.menugrid():get(key), and hafen.menugrid() is"
                       + " hafen.menugrid():list()");
+
+        // hafen.flowermenu() — the OPEN RADIAL MENU (the ring of petals a right-click puts up), which is a
+        // different thing from the action menu above: that one is a catalogue the character carries, this one
+        // is a menu that exists for a second. So the section IS the open menu and its members are bare
+        // LABELS — :list() and :count() — because a petal set is frozen from the moment it opens until it
+        // dies and there is nothing for a live object to track. Every read answers with no menu up ({} and
+        // 0): none being open is the normal state, not an error. The two events, FlowerMenuOpened and
+        // FlowerMenuClosed, are where an automation addon actually reacts.
+        FlowerMenuApi.installFlowerMenu(hafen, owner);
 
         // hafen.world():* — the LIVE world (037.1, re-shaped in 039.2). hafen.world():gob() is the read-only
         // Gob collection and the ONE by-id door (:get/:list/:count/:find/:nearest/:within); nearest/within

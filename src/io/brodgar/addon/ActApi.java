@@ -434,8 +434,9 @@ final class ActApi {
     // menu goes through GameUI.act (the "act" wdgmsg by path — what the action-bar menu grid sends); flower
     // through the OPEN FlowerMenu's own choose (wrap-not-reimplement, D-009 — reuses the client's petal
     // selection, including its client-side petals). Both run on the UI thread (addon callback / REPL / timer),
-    // like the MapView verbs above, and locate their target by walking the live widget tree (AddonManager.gui() / the
-    // recursive children(FlowerMenu.class)). flower is non-throwing on "no menu / no match" (returns false).
+    // like the MapView verbs above, and locate their target by walking the live widget tree (AddonManager.gui() /
+    // FlowerMenuApi.open(), the finder hafen.flowermenu() owns since 047.1). flower is non-throwing on "no menu /
+    // no match" (returns false); reading a menu's petals and the two menu events live in that section, not here.
 
     /** Build the menu path {@code String[]} from the 1-based varargs; throws on an empty path or a non-string
      *  token (numbers coerce to their string form, like a console token). Pure/testable. */
@@ -461,16 +462,6 @@ final class ActApi {
         g.act(menuPath(a));
     }
 
-    /** The single OPEN radial context menu ({@link FlowerMenu}), or {@code null} if none is up. */
-    private static FlowerMenu openFlower() {
-        UI u = AddonManager.ui;
-        if((u == null) || (u.root == null))
-            return null;
-        for(FlowerMenu fm : u.root.children(FlowerMenu.class))   // recursive walk; only one is ever open (it grabs input)
-            return fm;
-        return null;
-    }
-
     /** Index of the first petal name equal to {@code label} (case-insensitive), or {@code -1}. Pure/testable. */
     static int flowerPetalIndex(String[] names, String label) {
         if(names == null)
@@ -487,16 +478,13 @@ final class ActApi {
      * (case-insensitive), via the client's own {@link FlowerMenu#choose}. Returns whether a petal matched.
      */
     private static boolean actFlower(String label) {
-        FlowerMenu fm = openFlower();
+        FlowerMenu fm = FlowerMenuApi.open();     // 047.1: the finder lives with the section now (D-103)
         if(fm == null)
             return false;                        // no menu open
         FlowerMenu.Petal[] opts = fm.opts;
         if(opts == null)
             return false;
-        String[] names = new String[opts.length];
-        for(int i = 0; i < opts.length; i++)
-            names[i] = (opts[i] == null) ? null : opts[i].name;
-        int idx = flowerPetalIndex(names, label);
+        int idx = flowerPetalIndex(FlowerMenuApi.names(fm), label);
         if(idx < 0)
             return false;                        // no petal matched
         fm.choose(opts[idx]);                    // wrap-not-reimplement: the client's own petal selection

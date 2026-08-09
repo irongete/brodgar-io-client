@@ -251,6 +251,7 @@ public class FlowerMenu extends Widget {
 	addVoicePetal();
 	organize(opts);
 	new Opening().ntick(0);
+	io.brodgar.addon.AddonManager.flowerOpened(this);   // addon: 047.1 -> FlowerMenuOpened. HERE, at the END: addVoicePetal above REPLACES `opts`, so this is the only point the petal set is complete.
     }
 
     // brodgar voice: append a client-side Mute/Unmute petal when a player was just clicked.
@@ -281,10 +282,13 @@ public class FlowerMenu extends Widget {
 	    new Cancel();
 	    mg.remove();
 	    kg.remove();
+	    io.brodgar.addon.AddonManager.flowerClosed(this, null);   // addon: 047.1 -> FlowerMenuClosed with nothing chosen -- unless choose() recorded a CLIENT-SIDE petal, which cancels the server's menu and handles itself.
 	} else if(msg == "act") {
-	    new Chosen(opts[Utils.iv(args[0])]);
+	    int num = Utils.iv(args[0]);   // addon: 047.1 -- was inline; the seam below needs the same index
+	    new Chosen(opts[num]);
 	    mg.remove();
 	    kg.remove();
+	    io.brodgar.addon.AddonManager.flowerClosed(this, opts[num].name);   // addon: 047.1 -> FlowerMenuClosed with the label the server committed. This branch is also the one seam a CLIENT-SIDE menu takes (BuddyWnd calls uimsg by hand).
 	}
     }
 
@@ -309,6 +313,7 @@ public class FlowerMenu extends Widget {
     }
 
     public void choose(Petal option) {
+	io.brodgar.addon.AddonManager.flowerChoosing(this, option);   // addon: 047.1 -- record the petal, so the client-side voice petal (which cancels the server's menu) closes carrying its own label instead of reading as "nothing chosen"
 	if(option != null && option.voiceMuteGob >= 0) {   // brodgar voice: client-side petal, handled locally
 	    io.brodgar.voice.Voice.togglePlayerMuted(option.voiceMuteGob);
 	    wdgmsg("cl", -1);   // cancel the server's menu; no server petal was chosen
@@ -319,5 +324,15 @@ public class FlowerMenu extends Widget {
 	} else {
 	    wdgmsg("cl", option.num, ui.modflags());
 	}
+    }
+
+    /* addon: 047.1 -- the FALLBACK seam. The two uimsg branches above are the commit points, but a menu can
+     * also just die (a relog, a server destroy), and then nothing has been committed. Firing here keeps
+     * "every FlowerMenuOpened is followed by exactly ONE FlowerMenuClosed" true either way: the seam is
+     * one-shot per open, so whichever of the three gets here first is the one that fires. BuddyWnd's
+     * subclass overrides destroy() and DOES call super, so a client-side menu is covered too. */
+    public void destroy() {
+	io.brodgar.addon.AddonManager.flowerClosed(this, null);
+	super.destroy();
     }
 }

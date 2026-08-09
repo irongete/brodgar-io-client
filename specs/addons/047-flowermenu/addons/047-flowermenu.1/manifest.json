@@ -1,0 +1,9 @@
+{
+  "name": "047.1 — the radial menu's reads, and its two events",
+  "id": "047-flowermenu.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 047.1: hafen.flowermenu():list()/:count() answer with no menu open and refuse an argument, and FlowerMenuOpened/FlowerMenuClosed pair up exactly once per menu — including the Kin window's client-side one.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
