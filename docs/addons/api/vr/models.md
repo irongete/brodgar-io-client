@@ -16,9 +16,10 @@ local o = hafen.vr():object():add(mdl, p)
 o:rotate(math.pi / 4):scale(1.5)                   -- face 45 degrees, 1.5 times bigger; chained
 ```
 
-`asset` is a [`hafen.asset`](../asset.md) **mesh handle** — [handle-only](README.md#the-anchor-is-an-argument),
-so a path string is an error — and the [anchor](README.md#the-anchor-is-an-argument) is a
-[Position](../world.md#the-position-type) to stand it at a point or a [Gob](../gob.md) to make it follow one.
+`asset` is a [`hafen.asset`](../asset.md) **mesh handle** —
+[handle-only](README.md#the-anchor-is-an-argument), so a path string is an error — and the
+[anchor](README.md#the-anchor-is-an-argument) is a [Position](../world.md#the-position-type) to stand it
+at a point or a [Gob](../gob.md) to make it follow one.
 A new object has scale `1`, full opacity, no tint and is not clickable.
 
 ## The model
@@ -33,10 +34,10 @@ what the parser produced.
 > **Sizing.** glTF authored units vary wildly — a model may be one unit tall or a hundred. Read
 > `mdl:bounds().size.z` and pick a `:scale` that stands it the height you want.
 
-> **Coordinate system.** glTF is right-handed, +Y up, in metres; the client's world is Z up with a
-> tile-based scale. The loader bakes a fixed conversion once, so glTF's up becomes world up and **one glTF
-> metre is one tile** at scale `1`. The glTF **origin maps to the object's own point**, so author a model
-> with its base at `Y = 0` and it stands on the ground, like a ghost.
+**Coordinate system.** glTF is right-handed, +Y up, in metres; the client's world is Z up with a
+tile-based scale. The loader bakes a fixed conversion once, so glTF's up becomes world up and **one glTF
+metre is one tile** at scale `1`. The glTF **origin maps to the object's own point**, so author a model
+with its base at `Y = 0` and it stands on the ground, like a ghost.
 
 ### The glTF subset
 

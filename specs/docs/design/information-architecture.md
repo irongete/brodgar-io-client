@@ -1,13 +1,14 @@
 # Docs information architecture
 
-> Where every page lives, and where every page that exists today ends up. Written by 001.2 from
-> 001.1's evidence (`specs/docs/001-docs-overhaul/audit.md`). The companion is
-> [`style-guide.md`](style-guide.md), which says what a page looks like. **This file moves
-> nothing** — tasks 001.3..001.7 execute the map below.
+> Where every page lives. Written by 001.2 from 001.1's evidence
+> (`specs/docs/001-docs-overhaul/audit.md`). The companion is
+> [`style-guide.md`](style-guide.md), which says what a page looks like. **§3 is the tree as it
+> stands and is the authority**; §1, §5, §6 and §8 record the migration `001` executed and are not
+> rewritten as the tree moves on.
 
-## 1. What the tree has to fix
+## 1. What the tree had to fix
 
-Today: 39 pages, 5,727 lines, and four of them hold 45% of it (`ui.md` 1171, `client.md` 688,
+As `001` found it: 39 pages, 5,727 lines, and four of them hold 45% of it (`ui.md` 1171, `client.md` 688,
 `fonts.md` 436, `render.md` 336) while 14 sit under 40 lines and nothing sits between 260 and
 330. There is one tutorial and then a wall of reference: no task-first tier at all, so
 `getting-started.md` is a tutorial *and* six guides *and* the only description of the runtime.
@@ -38,96 +39,102 @@ subject, and pages small enough to be re-read.
 6. Non-namespace reader-facing pages live at the top of `docs/addons/`, not under `api/`:
    `runtime.md`, `examples.md`. `api/` is the `hafen.*` contract and nothing else.
 
-## 3. The target tree
+## 3. The tree
 
-75 pages, ~7,900 lines, average ~105 — up from 5,727 because the task tier, the runtime page and
-the examples page are new, three gaps get filled and `hafen.map` is a directory, while the
-duplicated stylesheet and the history come out. Sizes below are estimates from the source ranges
-in §5, except `api/map/`, whose sizes are the pages as they shipped.
+80 pages, 10,059 lines, average ~126. Nothing is over the 300-line ceiling; the four with no
+headroom left are `api/conventions.md` (exactly 300), `api/gob.md`, `api/types.md` and
+`api/ui/widget.md`. Both totals and every size are one command away
+(`find docs -name '*.md' | xargs wc -l`) and are re-derived at each close rather than carried
+forward — a size written down here is a measurement, and it rots.
 
 ```text
-docs/README.md                     the site root, one screen                             ~25
-docs/addons/README.md              landing: what an addon is, the three tiers, the nav   ~70
-docs/addons/getting-started.md     the tutorial: zero to a running addon, one path      ~200
+docs/README.md                     the site root, one screen
+docs/addons/README.md              landing: what an addon is, the three tiers, the nav
+docs/addons/getting-started.md     the tutorial: zero to a running addon, one path
 docs/addons/runtime.md             the runtime: folder layout, manifest fields, the
                                    sandbox, budgets and the watchdog, :reload, the
-                                   AddOns panel, the console commands                   ~200
+                                   AddOns panel, the console commands
 docs/addons/examples.md            every addon that ships, what it demonstrates,
-                                   which reference pages it exercises                   ~120
+                                   which reference pages it exercises
 
-docs/addons/guides/README.md       the task index                                        ~30
-                  /reading-the-world.md        gobs, scans, terrain, the player          ~90
-                  /events-and-timers.md        the bus, the lifecycle, scheduling        ~90
-                  /custom-ui.md                windows, widgets, overlays, drawing      ~120
-                  /saved-data.md               store scopes, data files                  ~80
-                  /hotkeys-and-commands.md     keybindings and console commands          ~70
-                  /actions-and-permissions.md  the gate, and what it does not gate       ~90
-                  /theming.md                  a sheet, then a theme as a data file     ~120
+docs/addons/guides/README.md       the task index
+                  /reading-the-world.md        gobs, scans, terrain, the player
+                  /events-and-timers.md        the bus, the lifecycle, scheduling
+                  /custom-ui.md                windows, widgets, overlays, drawing
+                  /saved-data.md               store scopes, data files
+                  /hotkeys-and-commands.md     keybindings and console commands
+                  /actions-and-permissions.md  the gate, and what it does not gate
+                  /theming.md                  a sheet, then a theme as a data file
                   /debugging.md                the reload loop, the inspector, the
-                                               profiler, reading the log                ~110
+                                               profiler, reading the log
 
-docs/addons/api/README.md          the reference index: every leaf page                 ~120
+docs/addons/api/README.md          the reference index: every leaf page
                    /conventions.md  the vocabulary: references, snapshots, filters,
-                                    coordinates, colours, nil, threading, gating        ~200
-                   /types.md        every snapshot shape                                ~230
-                   /events.md       the bus and the catalogue                           ~140
+                                    coordinates, colours, nil, threading, gating
+                   /types.md        every snapshot shape
+                   /event.md        the one bus, the door onto it, and the catalogue
 
                    /gob.md /world.md
                    /player.md /time.md /char.md /study.md /party.md /buff.md /meter.md
-                   /kin.md /speed.md /craft.md /quests.md /wounds.md /fight.md
+                   /kin.md /speed.md /craft.md /quest.md /wound.md /fight.md
                    /actionbar.md /act.md /menugrid.md
-                   /ghost.md /asset.md /font.md /hook.md
+                   /asset.md /font.md
                    /http.md /json.md /timer.md /store.md /log.md /slash.md /sound.md
 
                    /map/README.md       hub: what the recorded database is, the
-                                        nil-until-loaded rule, interning, the order       ~70
-                       /grids.md        segments, grids, and saving an anchor            ~105
-                       /overlays.md     the recorded masks, and the display toggles      ~105
-                       /drawings.md     grid images: levels, ownership, the cache         ~75
-                       /markers.md      the Marker object, anchor(), the ungated writes   ~70
-                       /icons.md        the icon registry and the IconCat object          ~65
+                                        nil-until-loaded rule, interning, the order
+                       /grids.md        segments, grids, and saving an anchor
+                       /overlays.md     the recorded masks, and the display toggles
+                       /drawings.md     grid images: levels, ownership, the cache
+                       /markers.md      the Marker object, its Position, the ungated writes
+                       /icons.md        the icon registry and the IconCat object
 
-                   /ui/README.md        hub and reading order                            ~60
-                      /custom.md        your own windows, widgets and overlays           ~90
+                   /ui/README.md        hub and reading order
+                      /custom.md        your own windows, widgets and overlays
                       /controls/README.md  hub: what a control is, the roster,
-                                        the shared setters, gating in prose (D-014)      ~125
+                                        the shared setters, gating in prose (D-014)
                                /display.md     the passive controls: label, picture,
-                                                separator, progress bar                   ~65
+                                                separator, progress bar
                                /interactive.md the controls the user drives: button,
                                                 entry, checkbox, radio, slider, scroll,
-                                                scrollbar                                ~155
+                                                scrollbar
                       /lists.md         the row-source controls: list, dropdown,
-                                        menu, grid, table                               ~150
-                      /widget.md        the Widget object: reads, owned vs borrowed     ~120
+                                        menu, grid, table
+                      /widget.md        the Widget object: reads, owned vs borrowed,
+                                        subscribing, the mouse and its grab
                       /selectors.md     naming a widget, roles, hit-testing,
-                                        the inspector                                   ~140
-                      /items.md         the items inside a container                     ~75
-                      /native.md        placing and hiding the client's own widgets     ~120
-                      /replace.md       watching for a widget, and replacing it         ~130
-                      /drawing.md       the g wrapper, images, the text cache           ~110
-                      /style/README.md  the sheet: skin{}, w:style, widget:skin,
-                                        the cascade, where skinning ends                ~210
+                                        the inspector
+                      /items.md         the items inside a container
+                      /native.md        placing and hiding the client's own widgets
+                      /replace.md       watching for a widget, and replacing it
+                      /drawing.md       the g wrapper, images, the text cache
+                      /style/README.md  the sheet, one widget's own rule,
+                                        the cascade, where skinning ends
                             /keys.md    site keys vs tree keys, resolution, and
-                                        which properties each key honours               ~190
+                                        which properties each key honours
                             /surfaces.md every surface the client ships, and what
-                                        it does with a rule                             ~200
-                            /text.md    font and color                                   ~90
-                            /chrome.md  bg, border, pad                                 ~110
-                            /geometry.md pos, size, anchor                              ~110
+                                        it does with a rule
+                            /text.md    font and color
+                            /chrome.md  bg, border, pad
+                            /geometry.md pos, size, anchor
 
-                   /client/README.md    settings: the five option handles               ~160
-                          /keybindings.md                                                ~80
+                   /client/README.md    settings: the five option handles
+                          /keybindings.md
                           /profiling/README.md      turning it on, frame, history,
-                                                    overhead, when it is off            ~150
+                                                    overhead, when it is off
                                     /counters.md    memory, net, loader, render,
-                                                    textcache                           ~110
+                                                    standing surfaces, textcache
                                     /attribution.md addons, custom scopes, widgets,
-                                                    passes, gl                          ~200
+                                                    passes, gl
 
-                   /render/README.md    what render is, and the handle-only rule         ~60
-                          /sprites.md   an image in the world: fixed, billboard,
-                                        clicks, anchoring                               ~150
-                          /models.md    glTF: the subset, the object handle, clicks     ~150
+                   /vr/README.md        hub: the anchor, the place a thing keeps, the
+                                        shared verbs, and the switch for the section
+                      /ghosts.md        the game's own props, stood where you put them
+                      /sprites.md       an image in the world: its facing modes,
+                                        clicks, following a gob
+                      /models.md        glTF: the subset, the object handle, clicks
+                      /widgets.md       a window standing in the world
+                      /gizmo.md         the drag handles that move, rotate and scale one
 ```
 
 ## 4. Reading orders (what each hub says)
@@ -139,15 +146,20 @@ docs/addons/api/README.md          the reference index: every leaf page         
 - **`api/ui/README.md`**: draw your own UI (`custom` → `drawing`) · put the client's own widgets in it
   instead (`controls/` → `lists`) · point at the client's UI (`selectors` → `widget` → `items`) · change it
   (`native` → `replace`) · restyle it (`style/`).
+- **`api/ui/controls/README.md`**: what a control is and the roster → the ones that only show
+  (`display`) → the ones the user drives (`interactive`) → the ones with rows (`lists`).
 - **`api/ui/style/README.md`**: what a sheet is → `keys` (which widgets) → `surfaces` (what they
   do with a rule) → the property pages → where it ends.
 - **`api/client/profiling/README.md`**: switch it on and read a frame → the counters → who spent
   it.
-- **`api/render/README.md`**: the handle-only rule, then sprites or models.
+- **`api/vr/README.md`**: the anchor and the place a thing keeps, then the kind you are standing
+  (`ghosts`, `sprites`, `models`, `widgets`), then `gizmo` to drag one about.
 
 ## 5. The migration map
 
-Every current page and section, and where it lands. Source line ranges are 001.1's.
+Every page and section as `001` found it, and where that task put it. Source line ranges are 001.1's.
+**This is the record of one migration, not the current map** — where a later feature moved a target
+again, §3 is the authority and this table is not rewritten to match.
 
 ### 5.1 The four oversized pages
 
@@ -224,13 +236,13 @@ Every current page and section, and where it lands. Source line ranges are 001.1
 | `api/asset.md` | `api/asset.md` | D-12 count fixed; "Why there are no URLs" / "Why engine resources are addressed" cut to one sentence each inside the sections they explain |
 | `api/ghost.md` | `api/ghost.md` | `(V2)`…`(V6)` stripped from six headings (D-13) — every inbound anchor re-pointed in the same task |
 | `api/map.md` | `api/map.md` | same, one heading |
-| `api/markers.md` · `api/radar.md` | unchanged paths | each states its gating: these verbs write and are **not** gated (D-3) |
+| `api/markers.md` · `api/radar.md` | `api/map/markers.md` · `api/map/icons.md` | folded into the map directory with the rest of the database; each states its gating, since these verbs write and are **not** gated (D-3) |
 | `api/menugrid.md` | `api/menugrid.md` | D-2 restated as a present-tense boundary, not a promise |
 | `api/events.md` | `api/events.md` | D-10's obituary deleted, the present-tense half kept |
 | `api/gob.md` `api/world.md` `api/player.md` `api/time.md` `api/party.md` `api/kin.md` `api/speed.md` `api/craft.md` `api/quests.md` `api/wounds.md` `api/fight.md` `api/actionbar.md` `api/conventions.md` `api/types.md` `api/http.md` `api/json.md` `api/timer.md` `api/store.md` | unchanged paths | template, voice and accuracy pass only |
 | — | `docs/README.md` | new: the site root |
 | — | `docs/addons/runtime.md` | new: closes the four THIN rows of the engine/dev tier (001.1, 005.1, 005.2, 005.3) |
-| — | `docs/addons/examples.md` | new: closes G-1, G-2, G-3 and the `planner`/`profiler` THIN rows. Ten addons ship: `hello`, `bags`, `hogtest`, `netdemo`, `walker`, `optionstest`, `planner`, `widgetstack`, `profiler`, `theme` |
+| — | `docs/addons/examples.md` | new: closes G-1, G-2, G-3 and the `planner`/`profiler` THIN rows. One row per addon that ships, added by the feature that ships it |
 | — | `docs/addons/guides/*` | new: the task tier |
 
 ## 6. Which task lands what

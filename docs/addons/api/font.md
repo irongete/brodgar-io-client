@@ -75,11 +75,11 @@ A derived handle is a **variant of a font, not a file**: like a built-in it carr
 > it — so a later write is refused too, rather than looking like it took and changing nothing. Derive
 > another variant instead; deriving from a handle always works.
 
-> **`color` is the one option that does not travel.** It applies wherever *you* draw with the handle, and is
-> **ignored** when the handle is installed on a client surface through
-> [a sheet rule](ui/style/text.md#font) or [`widget:rule()`](ui/style/README.md#restyle-one-widget). A
-> surface's colour is a [sheet property](ui/style/text.md#color), stated where you can read it, not a value
-> hidden inside a font handle. `size`, `aa`, `bold` and `italic` travel everywhere.
+**`color` is the one option that does not travel.** It applies wherever *you* draw with the handle, and is
+**ignored** when the handle is installed on a client surface through
+[a sheet rule](ui/style/text.md#font) or [`widget:rule()`](ui/style/README.md#restyle-one-widget). A
+surface's colour is a [sheet property](ui/style/text.md#color), stated where you can read it, not a value
+hidden inside a font handle. `size`, `aa`, `bold` and `italic` travel everywhere.
 
 ## Draw with it
 
@@ -92,7 +92,7 @@ no conflict and nothing to revert. The stock UI and every other addon are untouc
 local h = hafen.font():get("serif"):derive():size(12)
 local win = hafen.ui():window():title("Mine"):size(200, 120):font(h)
 win:on("Draw", function(ev)
-  ev:g():text("this text is in my font", 6, 6)   -- no per-call opts, so it uses the widget's own font
+  ev:g():text("this text is in my font", 6, 6)   -- no per-call opts: the widget's own font
 end)
 hafen.ui():widget():size(80, 20):font(h)     -- same, for a bare widget
 ```

@@ -28,9 +28,14 @@
   admitted instead); the IA's tree and `api/ui` reading order taught the pages exist — **79 pages, 9,507
   lines, 1,392 links, 0 broken** (`design/style-guide.md`, `design/information-architecture.md`,
   `decisions/docs-standard.md` D-014) — tasks 004.1..004.2
-- `005-api-rewrite-review` — ACTIVE — the seven area-`addons` features that closed with no docs review
-  (`039-uniform-api`, `041`..`046`): coverage both ways, accuracy against `src/`, §7's grep list brought
-  current (it predates `039` and still calls deleted names live), a tree-wide no-history and wording
-  sweep, and the ROADMAP's wrap line folded in (`design/style-guide.md`,
-  `design/information-architecture.md`) — tasks 005.1..005.4 (005.1 done: the census, `census.md`;
-  005.2 done: five corrections on `api/event.md` and `api/ui/items.md`)
+- `005-api-rewrite-review` — DONE — the seven area-`addons` features that closed with no docs review
+  (`039-uniform-api`, `041`..`046`): the census both ways (`census.md`), **ten** wrong claims corrected
+  against `src/` on `api/event.md`, `api/ui/items.md`, `api/ui/widget.md`, `api/world.md` and
+  `api/ui/style/README.md`, and the THIN rows filled on `api/vr/**`; §7 **derived from the engine's refusal
+  table** (**D-015**: 93 `hafen.*` + 75 entity + 4 event keys, one regex for 86 of them, the entity half
+  guarded by the backward verb sweep) replacing 28 hand-kept names that called six refused names live;
+  §2's word ban scoped to the change-note (**D-016**: 243 legitimate hits, 7 real ones fixed); the IA's
+  tree, reading orders and `001`-record boundary; the two READMEs, all ten over-wide lines and three
+  §10 callout pairs — **80 pages, 10,059 lines, 1,473 links, 0 broken**
+  (`design/style-guide.md`, `design/information-architecture.md`, `decisions/docs-standard.md`
+  D-015/D-016) — tasks 005.1..005.4

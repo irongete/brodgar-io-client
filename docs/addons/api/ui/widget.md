@@ -100,11 +100,12 @@ server-bound ancestor.
 
 **Any** widget — one you built, one you found by [selector](selectors.md), one an event handed you —
 answers `:on(key, fn)` for the five keys below. This is what makes the widget half of `hafen.ui`
-reachable at all: a native widget found by selector had no input surface before this.
+reachable at all: input on a widget you found by selector goes through the same door as input on one you
+built.
 
 ```lua
 local sub = hafen.ui():find("inventory[title=Cupboard]"):on("MouseDown", function(ev)
-  if ev:button() == 3 then ev:preventDefault() end     -- right-click disabled on this cupboard only
+  if ev:button() == 3 then ev:preventDefault() end    -- right-click disabled on this cupboard only
 end)
 sub:off()
 ```
@@ -208,8 +209,8 @@ included, so a tooltip over a standing widget is that widget's and not the map's
 `w:focused()` asks whether a keystroke would reach a widget. The client resolves the keyboard down a chain
 of controllers from the root, so being focused is a property of a **path** rather than of one widget: it is
 true for the text entry you are typing into, and true for the window around it, because the key passes
-through on the way. It is read-only — focus follows the click, exactly as it always did, and a verb that
-stole it would be a second way to do what clicking already does.
+through on the way. It is read-only — focus follows the click, and a verb that stole it would be a second
+way to do what clicking already does.
 
 ## The mouse
 
@@ -268,7 +269,7 @@ g:on("Up", function(ev) hafen.log():write("dropped with button " .. ev:button())
 ```
 
 Pair it with [`hafen.world():screenToWorld`](../world.md#screen-to-world-and-placement-snapping) and
-`snapPlace` to drag something along the ground, exactly as before.
+`snapPlace` to drag something along the ground.
 
 ## See also
 

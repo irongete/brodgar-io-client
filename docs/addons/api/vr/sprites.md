@@ -9,12 +9,13 @@ local icon = hafen.asset():get("icon.png")
 local p = hafen.player():gob():position()
 local s = hafen.vr():sprite():add(icon, p):scale(3)      -- ~3 tiles tall, at your feet
 s:rotate(math.pi / 2):alpha(0.8)                         -- face 90 degrees, slightly translucent
-hafen.vr():sprite():remove(s)                            -- or just let reload or disable clean it up
+hafen.vr():sprite():remove(s)                            -- or let reload or disable clean it up
 ```
 
-`asset` is a [`hafen.asset`](../asset.md) **image handle** — [handle-only](README.md#the-anchor-is-an-argument),
-so a path string is an error — and the [anchor](README.md#the-anchor-is-an-argument) is a
-[Position](../world.md#the-position-type) to stand it at a point or a [Gob](../gob.md) to make it follow one.
+`asset` is a [`hafen.asset`](../asset.md) **image handle** —
+[handle-only](README.md#the-anchor-is-an-argument), so a path string is an error — and the
+[anchor](README.md#the-anchor-is-an-argument) is a [Position](../world.md#the-position-type) to stand it
+at a point or a [Gob](../gob.md) to make it follow one.
 Everything else is a setter on what comes back, and every setter returns the sprite, so a whole placement is
 one chain. A new sprite has scale `1`, full opacity, no tint, faces `"fixed"` and is not clickable.
 
@@ -74,10 +75,11 @@ multiplier. `:alpha` and `:tint` work exactly as they do on a `"fixed"` one.
 ## Clickability
 
 A sprite with world geometry — `"fixed"` or `"camera"` — can be made clickable with `s:clickable(true)`,
-exactly like a [ghost](ghosts.md#clickability). It gains a pick surface, and a click on it is detected **client-side** and
-**consumed** before any server click, so you never walk or interact and nothing reaches the server. Both the
-per-sprite `:onClick(fn)` and the owner-scoped [`SpriteClicked`](../event.md#world-ghosts-and-sprites) event
-fire; `SpriteClicked` reaches only *your* addon, since a sprite is private to the addon that made it.
+exactly like a [ghost](ghosts.md#clickability). It gains a pick surface, and a click on it is detected
+**client-side** and **consumed** before any server click, so you never walk or interact and nothing
+reaches the server. Both the per-sprite `:onClick(fn)` and the owner-scoped
+[`SpriteClicked`](../event.md#world-ghosts-and-sprites) event fire; `SpriteClicked` reaches only *your*
+addon, since a sprite is private to the addon that made it.
 
 ```lua
 local s = hafen.vr():sprite():add(icon, p)

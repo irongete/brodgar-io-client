@@ -31,8 +31,8 @@ The same permission gates the write verbs that live in their own namespaces:
 **Places.** The four verbs that act on the ground take a
 [Position](world.md#the-position-type) — `gob:position()`, `hafen.world():position(x, y)`, or one you
 saved. A plain `{x, y}` table is refused, and so is a widget's pixel position: a place in the world and a
-point on the screen are different kinds of thing, and this is where confusing them used to walk you
-somewhere wrong.
+point on the screen are different kinds of thing, and a verb that takes one refuses the other rather than
+acting somewhere wrong.
 
 > Every verb below except `enabled` needs a live map view or game UI, and **throws** before you are in
 > the world. Guard the first action of a session on `EnterWorld`, not on addon load.

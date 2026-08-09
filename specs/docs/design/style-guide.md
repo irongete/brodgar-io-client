@@ -16,7 +16,15 @@ reference split the IA implements.
 ## 2. Voice
 
 - **Second person, present tense, active.** "You get a handle back", not "a handle is returned".
-- **State what is, not what happened.** No "now", "already", "still", "as of", "recently".
+- **State what is, not what happened.** What goes is the **change-note**: a sentence that only makes
+  sense to a reader who knew an earlier version of the API or of the page. The ban is on that use and
+  not on a word list — `now`, `already` and `still` are ordinary present tense in this tier ("is it
+  still there", "the client already owns it", "what is standing right now"), 243 hits of which none is
+  a change-note, so grepping the bare words cries wolf and stops being run (D-016). What the sweep
+  greps is the construction, and it is short enough to read every hit: `used to`, `was called`,
+  `formerly`, `previously`, `renamed`, `as before`, `as it always did`, `before this`, `these days`,
+  `Corrected`. `no longer` is on neither list — in this tier it is nearly always runtime state ("a
+  marker no longer there"), so it is read, not grepped.
 - **The client, the server, your addon** — those are the three actors. Never "we".
 - **Short first sentences.** Every page's and every section's first sentence answers *what is this
   and when do I reach for it*, in one line, before any qualification.
@@ -41,12 +49,12 @@ uses it, if there is one.
 ```
 
 ## Read                                   <- h2 groups the verbs
-### `hafen.speed()`                       <- h3 is the call, and nothing but the call
+### `hafen.speed():current()`             <- h3 is the call, and nothing but the call
 What it answers, in one line. Arguments and returns as a table when there is more than one.
 What it gives back when the data is not there.
 
 ## Write (gated: `actions`)               <- gating in the group heading, always present
-### `hafen.speed.set(n)`
+### `hafen.speed():current(n)`
 
 ## See also                               <- required, 2-5 links, last section
 ````
@@ -61,7 +69,8 @@ something, wherever the change lands** (D-010): a client-local change — a map 
 sound — is a write and its heading says `(ungated)`, which is exactly where "no permission" is
 information. `## Read` stays plain — a read is ungated by construction, and annotating every reader
 buries the write that is surprisingly ungated. **A subscription and your own drawing are not writes**
-(`hafen.ui.on`, `:onItemAdded`, `hafen.ui.overlay`, the `g:` verbs): they change no state at all, so
+(`hafen.ui():on`, `widget:on("ItemAdded", fn)`, `hafen.ui():overlay()`, the `g:` verbs): they change no
+state at all, so
 their group heading stays plain and the page's opening lines say the namespace is ungated. That also
 keeps their anchors stable — an annotation appended to a heading *is* an anchor change, and 001.4 broke
 18 inbound links that way before the sweep caught it.
@@ -84,10 +93,10 @@ carries no explanation that its pages do not carry.
   reference page's verb detail. **`#####` and deeper are forbidden** — a page needing them is two
   pages.
 - **Call headings** are the fully qualified call in backticks and nothing else:
-  `### \`hafen.act.moveTo(x, y)\``, `### \`gob:name()\``. No arrows, no return types, no prose —
+  `### \`hafen.act():moveTo(p)\``, `### \`gob:name()\``. No arrows, no return types, no prose —
   the return goes in the first line below. This keeps anchors short and predictable.
 - **A call heading carries its parameters, without `[ ]`** (D-007):
-  `### \`hafen.act.clickGob(gob, button, mods)\``, never `(gob [, button [, mods]])`. Which
+  `### \`hafen.act():clickGob(gob, button, mods)\``, never `(gob [, button [, mods]])`. Which
   parameters are optional is stated in the line below or in the argument table.
 - **Topic headings** are sentence case; a subtitle uses a colon: `## Selectors: naming a widget`.
 - **No em dash in any heading, ever** — and no other deleted character between two spaces. ` — `
@@ -132,8 +141,8 @@ notes were wrong). So:
   cannot be checked by grep; `asset.md`'s "identical for all three types" sat 25 lines under a
   heading reading "The four types" (D-12).
 - **Every verb states its gating**, including the ungated ones: `ungated`, `gated: actions`, or
-  `gated: network`. `markers.add` and `radar.setVisible` write and are *not* gated, and no page
-  says so while `actions.md` tells the reader the permission gates the per-subsystem writes
+  `gated: network`. A map marker's `:add`, an icon's `:show(on)` and a sound's `:play` write and are
+  *not* gated, while the actions guide tells the reader the permission gates the per-subsystem writes
   (D-3). Silence is not a statement.
 - **Every verb states its absence case** — what it returns when the thing is not there (usually
   `nil`, per `conventions.md`) — and whether it can throw, and on what.
@@ -157,57 +166,94 @@ lives in git and in `specs/`.
 - **Delete, do not relocate.** No obituaries ("`hafen.font.load` is gone"), no renames ("was
   called X"), no corrections addressed to a reader of a previous version ("**Corrected.** Until
   this was measured the table claimed…"), no promises ("a later task of the same feature").
-- **A retired name may not appear anywhere under `docs/`** — not in prose, not in a note, not in
-  an example. The names 001.1 found retired are the grep list below; each must return zero hits
-  at the close. Verify against `src/` before deleting a mention: the list is a target, not truth.
+- **A retired name may not appear anywhere under `docs/`** — not in prose, not in a note, not in an
+  example. The list is **derived from the engine's own refusal table**, not remembered (D-015):
+  `src/io/brodgar/addon/Retired.java` maps every spelling this API replaced to the message that names its
+  replacement, in three tables — section and verb keys (`hafen.<section>`, `hafen.<section>.<verb>`),
+  entity-verb keys (`<entity>:<verb>`), and retired event keys. The derivation below is re-run and
+  reported by every task that sweeps (§12), never carried over from an earlier report: an entry's proof
+  has a shelf life (004.2), and a *derived* name can collide with a live spelling exactly as a
+  hand-written one can.
+
+  **The `hafen.*` half is one expression and seven names.** Every retired verb spelling is *dotted*,
+  because the grammar is that a section is **called** — so one regex covers all of them, and covers a
+  dotted spelling of a section the table has no row for:
 
   ```text
-  hafen.items      hafen.buffs      hafen.vitals     hafen.key.bind
-  hafen.ui.adopt   hafen.ui.replace hafen.ui.onWidgetCreate    hafen.ui.root
-  WidgetNode       hafen.font.load  setFont          resetFont
-  hafen.render.image                hafen.render.model
-  hafen.markers    hafen.radar      hafen.map.tile   hafen.map.gridPos
-  hafen.map.fromGridPos             hafen.map.screenToWorld
-  hafen.map.snapPlace               hafen.map.snapAngle
-  gobOverlay       gob:overlays
+  grep -rnE 'hafen\.[a-z]+\.[a-zA-Z]' docs/
   ```
 
-  Four more are retired but cannot be grepped as bare names, because the bare word is ordinary English or
-  a live option elsewhere. They are on the list in the **spelling** that reads zero on a healthy tree and
-  still catches a reintroduction, and the grep is `grep -rnF`:
+  and the sections that went whole are bare names, grepped with `grep -rnF`:
 
   ```text
-  follow =         follow=          :follow(         entry:text(
+  hafen.events   hafen.quests   hafen.wounds   hafen.gob
+  hafen.hook     hafen.ghost    hafen.render
+  ```
+
+  **The entity half is guarded backwards, not by a name list.** A retired entity verb is keyed
+  `<entity>:<verb>` — `widget:onClick`, `gob:pos`, `overlay:scale` — and the entity is a *variable* at
+  every call site (`w:on(…)`, `ov:offset(…)`), so the key's own spelling reads zero on any tree for the
+  wrong reason: nothing writes `widget:` in an example, so nothing would catch a reintroduction either.
+  The guard is the other direction: **every colon verb the tier uses, against the registration set** —
+  `grep -rnoE '[\w)\]]:(\w+)\('` over `docs/`, each verb tested with `grep -rn 'set("<verb>"'` over
+  `src/io/brodgar/addon/`. A verb the tier calls and nothing registers is a defect either way round — a
+  retirement nobody re-pointed, or a name a page invented, which no retired-name list could ever carry
+  (005.1). **What that sweep cannot see, stated rather than pretended**: a verb retired on one entity and
+  live on another. `widget:onClick` is retired while `sprite:onClick` is live; `overlay:scale` is retired
+  while `gob:scale` is live; `:position(`, `:destroy(`, `:show(`, `:text(`, `:alpha(`, `:tint(` and
+  `:rotate(` are each in the table for one entity and registered for another. No spelling separates them,
+  so none is admitted (D-013) — the page's own accuracy pass against the owning file is what catches
+  those, and the page that refuses one writes it as a boundary.
+
+  **The event keys** are string *arguments*, so no field read carries them and the refusal lives at the
+  emitter's door. They are grepped as a subscription writes them, `grep -rnF`:
+
+  ```text
+  "OnLoad"   "OnEnterWorld"   "OnUpdate"   "OnDisable"
+  ```
+
+  **The residue is hand-written**: a name cut before the refusal table existed leaves nothing to throw,
+  so it has no row to derive from. Everything else 001.1 listed is dotted, and the regex above already
+  carries it (`hafen.key.bind`, `hafen.ui.adopt`, `hafen.ui.replace`, `hafen.ui.onWidgetCreate`,
+  `hafen.ui.root`, `hafen.font.load`, `hafen.map.tile`, and the `hafen.map.*` spelling of the live-world
+  verbs).
+
+  ```text
+  hafen.items    hafen.buffs    hafen.vitals   hafen.markers   hafen.radar
+  WidgetNode     setFont        resetFont      gobOverlay
+  ```
+
+  Three spellings cannot be grepped as bare names, because the bare word is ordinary English or a live
+  option elsewhere. They are admitted in the **spelling** that reads zero on a healthy tree and still
+  catches a reintroduction (D-013), and the grep is `grep -rnF`:
+
+  ```text
+  follow =         follow=          :follow(
   ```
 
   Bare `follow` is **not** admitted: 30+ legitimate hits ("the ghost follows the cursor", "redirects are
   followed"), and a list that cries wolf stops being run. Nor is bare `offset`, which is a live spec
-  field on `gob:overlay` and a live style key. What went is the `follow`/`offset` **anchor** on
-  `hafen.ghost.new`, `hafen.render.sprite` and `hafen.render.object`, and the handle methods of the same
-  names; anchoring to a game object is `gob:overlay`. Naming the refused option on the page that refuses
-  it is a boundary, not history — write it as `a \`follow\` key`, which no spelling above hits.
+  field on `gob:overlay` and a live style key. What went is the `follow`/`offset` **anchor** on the
+  world-entity builders and the handle methods of the same names; anchoring to a game object is the
+  anchor argument. Naming the refused option on the page that refuses it is a boundary, not history —
+  write it as `a \`follow\` key`, which no spelling above hits.
 
   **`:offset(` is not admitted either (004.2), for the same reason as bare `offset`.** `ov:offset(x, y[,
-  z])` — a gob overlay's own anchor (038.2) — and `p:offset(dx, dy)` — a Position's own translate — are
-  both live and share the retired handle method's exact call spelling, so the entry cannot be falsified:
-  it read 15 hits on a healthy tree (`gob.md`, `ghost.md`, `world.md`, `conventions.md`,
-  `render/sprites.md`), not zero. The retired anchor has no admissible spelling of its own, the same as
-  bare `offset` — the boundary sentence on the page that refuses it is what a reader needs, not a guard
-  that cannot tell the two `:offset(`s apart.
+  z])` — a gob overlay's own anchor — and `p:offset(dx, dy)` — a Position's own translate — are both live
+  and share the retired handle method's exact call spelling, so the entry cannot be falsified: it read 15
+  hits on a healthy tree, not zero. The retired anchor has no admissible spelling of its own — the
+  boundary sentence on the page that refuses it is what a reader needs, not a guard that cannot tell the
+  two `:offset(`s apart. `entry:text(` is refused on the entity-half rule above: `entry` is not a name
+  the docs give a variable, so the entry reads zero however wrong the tree gets, while a reintroduction
+  would be written `e:text(s)` — and `:text(` is live on every text-bearing widget. The boundary belongs
+  on the control's own page, which states that the bare read answers and the write refuses.
 
-  `entry:text(` (040.7) is the one control whose **write** is retired, not its read: `entry:text(s)` used
-  to set a text entry's content and now throws, naming `:value(s)` instead. The read, `entry:text()`,
-  stays live on every text-bearing widget and would match the same substring — the spelling is safe only
-  because the docs never name a variable `entry` (the worked examples use `e`), which is checked, not
-  assumed: `grep -rn 'entry:' docs/` reads zero today, the same falsification a bare name gets.
-
-  The grep is the regression guard for the whole list: each name returns zero hits over `docs/`. Note
-  what is **not** on the list: `hafen.ui.node(id)`, `hafen.ui.all`, `widget:items()` and
-  `widget:replace()` are live — the flat `hafen.items` section and the free `hafen.ui.replace` are what
-  went. The map names divide the same way: `hafen.world.gridPos`, `hafen.world.fromGridPos`,
-  `hafen.world.screenToWorld`, `hafen.world.snapPlace`, `hafen.world.snapAngle` and `hafen.map.markers`
-  are live; what went is the top-level `hafen.markers` and `hafen.radar`, and the `hafen.map.*` spelling
-  of the live-world verbs.
+  **What is live, and is on no list.** The *called* spelling of everything above: `hafen.ui():node(id)`,
+  `hafen.ui():all(sel)`, `hafen.ui():root()`, `hafen.world():screenToWorld(…)`, `:snapPlace`,
+  `:snapAngle`, `hafen.map():marker()`, `widget:items()`, `widget:replace()`. What went is the *dotted*
+  spelling of each, which is why the regex is anchored on the dot and not on the verb: admitting bare
+  `:root(` or `:all(` instead would read non-zero on a healthy tree, which is `:offset(`'s failure
+  exactly.
 
 - **A boundary is allowed, and it is present tense.** A capability the reader would reasonably
   expect and that deliberately does not exist stays on the page, phrased as what the design does
@@ -219,13 +265,13 @@ lives in git and in `specs/`.
 
 - **Relative paths only.** Never absolute, never a URL to the repo.
 - **No link leaves `docs/`, with one exception**: a shipped example addon under `addons/`, and
-  only from a page that also *describes* it. **Never link `specs/`** — internal, and historical
-  at write time (030.4); the 16 outbound links today are drift D-4. If the reason behind a rule
-  matters to the reader, write the sentence; if it does not, drop it.
+  only from a page that also *describes* it — which today is `examples.md` and nothing else
+  (D-009). **Never link `specs/`** — internal, and historical at write time (030.4). If the reason
+  behind a rule matters to the reader, write the sentence; if it does not, drop it.
 - Link the **page**, not an anchor, unless the anchor is the actual answer.
 - Every page is reachable from an index in **at most two clicks** from `docs/addons/README.md`;
   the reference index therefore lists every leaf page, including nested ones.
-- Link text is the thing being linked (`hafen.gob`, "the actions permission"), never "here" or
+- Link text is the thing being linked (`hafen.world`, "the actions permission"), never "here" or
   "this page".
 - **When you retitle a heading or move a page, you re-point every link into it in the same
   task.** The tree is link-clean at every task boundary, not only at the close.
@@ -269,7 +315,15 @@ offenders listed — that report *is* the task's verification material:
    remove it. An over-reporting checker is the failure mode that actually happened.
 2. **Size** — `wc -l` on every page touched, none over 300.
 3. **Headings** — no em dash, no `#####`, no internal codes.
-4. **Retired names** — the §7 grep list, zero hits.
-5. **Symbols** — every `hafen.*` name the task wrote exists in `src/`.
-6. Any engine gap or wrong behaviour found is **filed to the owning area**, named in the report,
+4. **Retired names** — §7's list, **derived again** from `Retired.java` rather than copied from the
+   last report: the dotted regex, the seven sections, the event keys, the hand-written residue and
+   the three admitted spellings, each at zero, and the falsification (plant one, confirm it is
+   caught, remove it). A count of the table's rows goes in the report, so a table that grew since
+   the last sweep is visible.
+5. **Symbols, both directions** — every `hafen.*` name the task wrote exists in `src/`; and the
+   backward sweep of §7, every colon verb the tier uses against the registration set, with each
+   unregistered verb named and accounted for. That is what catches an invented verb, which no
+   retired-name list can.
+6. **Wording** — §2's change-note constructions, every hit read rather than counted.
+7. Any engine gap or wrong behaviour found is **filed to the owning area**, named in the report,
    and never fixed here.

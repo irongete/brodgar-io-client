@@ -117,7 +117,7 @@ A [site key](keys.md#site-keys) restyles a *family* of surfaces across the whole
 already hold, ask it for its own rule — the same Rule object a sheet's selectors hand back:
 
 ```lua
-local n = hafen.ui():at(hafen.ui():mouse().x, hafen.ui():mouse().y)   -- the widget under the cursor
+local n = hafen.ui():mouse():over()      -- the widget under the cursor
 n:rule():font(h):color(200, 180, 140)   -- this widget and all inside it; SIBLINGS untouched
 n:rule():info()                         --> { font = h, color = {r=200, g=180, b=140, a=255} }
 n:rule():remove()                       -- drop it again

@@ -250,3 +250,57 @@ section closes on "None of this is gated…", and `lists.md` states the same in 
 feature: a future control or a future row-source verb that reaches the server gets its own gated write group
 with the annotation, and the day that happens is the day these two pages' plain prose sentence is wrong and
 has to be replaced by the heading form — which is the same trade D-010 made for `sound.md`.
+
+### D-015 — §7's retired-name list is derived from the engine's refusal table, not maintained by hand
+
+**Context (005.4).** §7's guard was 28 hand-written names with no relationship to what the engine actually
+refuses. `src/io/brodgar/addon/Retired.java` is that relationship, written as data: three tables mapping
+every replaced spelling to the message naming its replacement — 93 `hafen.*` section and verb keys, 75
+entity-verb keys and 4 retired event keys once the `section(…)` helper and the three loops are expanded (69
+and 54 literal `put(` rows before expansion). The hand-written list omitted `hafen.gob`, `hafen.hook`,
+`hafen.ghost`, `hafen.render` and every one of the entity verbs, and it annotated as **live** six names the
+engine now throws on: `hafen.world.gridPos`, `hafen.world.fromGridPos`, `hafen.world.screenToWorld`,
+`hafen.world.snapPlace`, `hafen.world.snapAngle`, `hafen.map.markers`. Three features had moved under it and
+nobody had re-derived it — which is the failure mode a list maintained by memory has, not a lapse.
+
+**Decision.** §7 states a **derivation** and the sweep re-runs it (§12), rather than carrying names. The
+derivation collapses the table into four checks, because the retirements have shapes, not just names: every
+retired verb spelling is *dotted* (a section is called), so one regex `hafen\.[a-z]+\.[a-zA-Z]` carries all
+86 of them **and** a dotted spelling of a section the table has no row for; the 7 sections that went whole
+are bare names; the 4 event keys are grepped as a subscription writes them; and the entity half is guarded
+**backwards** — every colon verb the tier uses against the registration set — because the receiver is a
+variable at every call site, so a `<entity>:<verb>` entry reads zero for the wrong reason and would catch no
+reintroduction. Hand-writing survives only for a name cut before the table existed (`hafen.items`,
+`WidgetNode`, `setFont`, `gobOverlay`, …), which has nothing to throw and therefore no row to derive from.
+D-013's admissibility test is unchanged and now applies to a *derived* entry too: zero on the healthy tree,
+and it catches a plant.
+
+**Consequences.** The list stops rotting between features, and it grew from 28 names to a guard that covers
+172 refusals. Two things it does not do, stated in §7 rather than papered over: a verb retired on one entity
+and live on another (`widget:onClick` vs `sprite:onClick`) has no admissible spelling at all, and the page's
+own accuracy pass is what catches it; and the backward verb sweep it now leans on is also the only guard
+against an **invented** verb, which no retired-name list can express (005.1's `ghost:move`).
+
+### D-016 — A voice rule stated as a word ban is admitted only in a spelling that reads zero
+
+**Context (005.4).** §2 said "state what is, not what happened" and made it checkable as a word ban: no
+"now", "already", "still", "as of", "recently". Over the tree those words read **243** hits and **not one**
+is a change-note — `is it still there`, `the client already owns it`, `what is standing right now` are the
+tier's ordinary present tense, and `:exists()` rows alone account for a third of them. So the rule as
+written condemns 243 correct sentences and a sweep run literally against it would damage prose to satisfy a
+grep. That is D-013's finding on the other side of the standard: a guard that cries wolf stops being run,
+and one that manufactures work is worse than one that finds nothing.
+
+**Decision.** The prohibition is on the **change-note** — a sentence that only makes sense to a reader who
+knew an earlier version of the API or of the page — and a voice rule is only stated as a word ban when the
+bare word reads zero on the healthy tree. Where it cannot, the rule names the **construction** instead:
+`used to`, `was called`, `formerly`, `previously`, `renamed`, `as before`, `as it always did`, `before
+this`, `these days`, `Corrected`. Those read 3 hits tree-wide, few enough that the check is grep **and
+read**, not a count. `no longer` is on neither list: in this tier it is nearly always runtime state ("a
+marker no longer there").
+
+**Consequences.** §2's rule becomes runnable for the first time — the sweep that took it literally found
+seven real change-notes (`api/act.md`'s "used to walk you somewhere wrong", `ui/widget.md`'s "before this"
+and two "as it always did", `vr/widgets.md`'s two, `client/profiling/attribution.md`'s "has always") and
+left 243 correct present-tense sentences alone. The admissibility test D-013 wrote for a retired-name entry
+is now the standard's general rule for any grep-checkable prohibition, wherever it appears.

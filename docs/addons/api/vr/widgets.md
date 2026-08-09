@@ -95,8 +95,8 @@ before and after, so a swap costs a quad, not a re-stand. Any other mode raises,
 ## Clicks are the widget's own
 
 There is no `:onClick` here, and that is the point: the other three kinds are pictures, so "it was clicked"
-is the whole of what they have to say, while a widget answers a click the way it always did — its own
-`MouseDown` at the pixel the pointer landed on, in the handler you already wrote for the flat UI.
+is the whole of what they have to say, while a widget answers a click the way it does anywhere else — its
+own `MouseDown` at the pixel the pointer landed on, in the handler you already wrote for the flat UI.
 
 ```lua
 local ok = hafen.ui():button():text("Sort")
@@ -120,7 +120,7 @@ is my button on screen* and *what did the player click* can never disagree:
 [`widget:on`](../ui/widget.md#subscribing) answers to, so there is one input vocabulary and not two. `a` is
 the button on a press or release (`1` left, `3` right, default `1`) and the amount on a wheel. It hands back
 whether a panel took it; `false` means the point was on none, which is the moment the client's own world
-click goes on exactly as it always did. `x:screen` answers `nil` when the panel is not being drawn or is
+click goes through untouched. `x:screen` answers `nil` when the panel is not being drawn or is
 behind the camera.
 
 Both are ungated: this is the client's path from the map view inward, it cannot move the character, and

@@ -25,7 +25,7 @@ a permission, a build step or a restart: drop the folder into `addons/`, type `:
 
 | Page | Read it when |
 |---|---|
-| [getting started](getting-started.md) | you have not written one yet: eight steps, from an empty folder to a window with a hotkey that remembers its state |
+| [getting started](getting-started.md) | you have not written one yet: from an empty folder to a window with a hotkey that remembers its state |
 | [the guides](guides/README.md) | you know the shape and want to do a thing — read the world, schedule work, draw UI, save data, add hotkeys, act, theme, debug |
 | [the API reference](api/README.md) | you want a name: every namespace, verb, argument, return and error |
 | [the runtime](runtime.md) | the manifest field by field, the sandbox, the CPU budgets, the AddOns panel, and the console commands |

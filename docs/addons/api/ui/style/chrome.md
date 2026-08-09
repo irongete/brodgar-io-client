@@ -81,7 +81,7 @@ panel.
 own content **sits**: it is the space between a frame and what is inside it.
 
 ```lua
-hafen.ui():sheet():rule("window.frame"):pad(6)    -- every window keeps 6 px more around its content
+hafen.ui():sheet():rule("window.frame"):pad(6)   -- every window keeps 6 px more around its content
   :sheet():install()
 ```
 

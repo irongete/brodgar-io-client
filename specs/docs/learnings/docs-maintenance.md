@@ -401,3 +401,60 @@
   workaround. This is the third member of 005.2's family (a spec repeating a claim duplicates it rather than
   corroborating it): **a defensive workaround is a claim about a runtime its author did not measure.** The
   oracle is the jar on the classpath, one `unzip -l` away.
+
+- **(005.4) Where the engine already encodes the fact, the standard's guard is DERIVED from it and
+  re-derived every sweep — a transcribed guard drifts exactly where the engine moved.** §7's retired-name
+  list was 28 hand-maintained names; `src/io/brodgar/addon/Retired.java` is the same fact as data, 172
+  rows, each mapping a replaced spelling to the message naming its replacement. The two had no
+  relationship: the list omitted every entity verb and four whole sections, and it annotated as **live**
+  six names the engine throws on. Nothing was neglected — three features had landed under it, and a list
+  maintained by memory has no way to notice that. The derivation is not free of the same trap, which is
+  why it is re-run rather than stored: `grep -c 'put("hafen\.'` reports **69** and the real set is **93**,
+  because a `section(…)` helper and three `for` loops generate 44 rows that no literal-string grep can
+  see. **A count of a Java table by grep is a count of source lines, not of entries** — expand the
+  generators, or state the number as what it is.
+
+- **(005.4) A guard for a grammar change compresses to a SHAPE, and the shape is strictly stronger than the
+  enumeration it replaces.** 86 of the 93 retired `hafen.*` keys are dotted verb spellings, because the
+  whole of `039` was "a section is *called*". One regex — `hafen\.[a-z]+\.[a-zA-Z]` — carries all 86, and
+  carries the dotted spelling of a section the refusal table has no row for, which no enumeration ever
+  could. 005.3's entry said a grammar change needs a grep for its old *grammar*; the constructive half is
+  that the guard list should be *read* for its shape before it is written down, because the shape is
+  usually one line and the names are usually dozens.
+
+- **(005.4) Zero hits is not evidence — the falsification direction that matters is whether a REALISTIC
+  reintroduction would be caught, and a receiver-qualified key fails it silently.** `widget:onClick(`,
+  `gob:pos(`, `overlay:scale(` all read zero over `docs/`, and all three would go on reading zero however
+  wrong the tree got: nothing in a worked example is ever named `widget` — the receivers are `w`, `ov`,
+  `g`. D-013 already demanded both directions, and direction (a) is the one that is trivially satisfiable,
+  so it is the one that gets reported. The test that survives is: **write the plant the way a page would
+  actually write it**, then see whether the entry fires. Under that test the whole entity half of a
+  retired-name list is inadmissible, and what replaces it is the backward sweep (every colon verb the tier
+  uses against the registration set) — which also catches the invented verb a retired-name list can never
+  express. `entry:text(`, admitted at 004.2, fails the same test and was dropped.
+
+- **(005.4) A style rule stated as a word ban and never run is not a rule, and running it literally is how
+  a review manufactures damage.** §2 banned "now", "already" and "still" since 001.2. They read **243**
+  hits across the tier and **not one** is a change-note: *is it still there*, *the client already owns
+  it*, *what is standing right now* are this tier's ordinary present tense, and a sweep that "fixed" them
+  would have rewritten 243 correct sentences to satisfy a grep. The seven real change-notes were found by
+  a different pattern set entirely (`used to`, `as it always did`, `before this`, `as before`, `has
+  always`), which reads three hits tree-wide and is therefore checkable by reading every one. D-013's
+  admissibility test is not about retired names at all — it is about **any** grep-checkable prohibition,
+  and a prohibition nobody could run has been decorative for eleven features.
+
+- **(005.4) A two-threshold mechanic needs a two-state checker; one threshold silently applies the loose
+  bound to the strict half.** §10 is 110 columns for prose and under 100 inside a fence, and every wrap
+  check this area has ever run (002.1's `awk`, 002.2's and 003.1's `perl -CSD`) tested one bound and
+  excluded table rows. Fenced lines were therefore measured against 110, and **six** of the ten offenders
+  this sweep found were code lines at exactly 100 — invisible to every previous run, on pages those runs
+  reported clean. Tracking fence state is four lines of the same script.
+
+- **(005.4) A crashing tool reports a clean tree, because the failure lands in the exit status and the
+  report is built from `wc -l`.** `grep -rniF` aborts (core dump) on this shell, and a conformance loop
+  written as `printf '%s %s' "$p" "$(grep -rniF "$p" docs/ | wc -l)"` printed **0** for every pattern —
+  including one already known to have 11 hits, which is the only reason it was caught. The family is
+  002.2's byte `length` and 005.1's token boundaries, with a new member: **a tool that died still produces
+  a passing number.** Reproduce a known-good POSITIVE with the exact command line you are about to trust,
+  every time the shell, the flags or the tool changes — and prefer `-E` over `-F` here, since the crash is
+  in the `-i -F -r` combination.

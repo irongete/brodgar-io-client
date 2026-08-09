@@ -161,7 +161,7 @@ listed here too, under a generated key. It is **read-only from here**: every set
 entry, naming the collection that owns it.
 
 ```lua
-hafen.vr():sprite():add(icon, tree):offset(0, 0, 20)      -- stood in the world, anchored to the gob
+hafen.vr():sprite():add(icon, tree):offset(0, 0, 20)     -- stood in the world, anchored to the gob
 for _, ov in ipairs(tree:overlay():list()) do
   hafen.log():write(ov:key() .. " " .. tostring(ov:kind()))   -- ... and listed here: "vr#7 sprite"
 end
@@ -225,9 +225,9 @@ Both halves of this read are also **events**:
 [`GobOverlayAdded`/`GobOverlayRemoved`](event.md#overlays-coming-and-going) fire for what you attach and
 for what the game attaches, so you can watch a gob become decorated instead of polling it.
 
-> There is no filter form. "Every player gets a label" is a [`GobAdded`](event.md#world) handler plus a
-> loop over [`hafen.world():gob():list()`](world.md#objects) — you name the gob, so nothing is searched
-> per frame.
+There is no filter form. "Every player gets a label" is a [`GobAdded`](event.md#world) handler plus a
+loop over [`hafen.world():gob():list()`](world.md#objects) — you name the gob, so nothing is searched
+per frame.
 
 > A `draw` callback runs inside the client's draw pass, which is **outside** the per-tick CPU budget.
 > Keep it short; a `text` overlay never enters Lua at all and is the cheaper way to put a label up.

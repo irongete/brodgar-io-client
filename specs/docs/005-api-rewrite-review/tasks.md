@@ -38,7 +38,7 @@
       non-finite; the siblings clamp) — a page that harmonises them is wrong.
       <!-- extra context: `specs/addons/043-vr-namespace/`, `044-spatial-ui/`, `045-durable-places/`, `046-gob-scale/` -->
 
-- [ ] **005.4 — The standard, the sweep, and the close.** **(a) §7 becomes derived** from
+- [x] **005.4 — The standard, the sweep, and the close.** **(a) §7 becomes derived** from
       `Retired.java`'s three tables (69 `hafen.*` keys, 54 entity-verb keys, the retired event keys),
       hand-written only where a retirement has **no row** there, an inadmissible spelling refused **in
       writing** with its reason (`:offset(`'s precedent), and the six names §7 today calls *live* that

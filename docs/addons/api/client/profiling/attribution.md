@@ -38,7 +38,7 @@ mouse grab's move and release; `events` the event bus and the two message stream
 callbacks.
 
 > A callback that calls back into the engine, which calls your Lua again, is charged to **both** brackets,
-> the same way the watchdog has always charged it. So `cost` can add up to slightly more than `ms` on a
+> the same way the watchdog charges it. So `cost` can add up to slightly more than `ms` on a
 > re-entrant frame. `ms` is the number to trust.
 
 ## Custom scopes
