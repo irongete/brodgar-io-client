@@ -262,6 +262,17 @@ public final class AddonManager {
     }
 
     /**
+     * Call site — both mutation points of MapView's terrain cut map (044.9). A cut entering or leaving the
+     * scene is the one event that says the ground under a free {@code hafen.vr()} entity has come or gone;
+     * nothing else would, because a client-only gob is in no {@code OCache}. Raises a flag and returns — the
+     * work happens on the addon tick ({@code VrApi.drainGround}), which is where every other tap in this layer
+     * puts it (D-106).
+     */
+    public static void groundChanged() {
+        VrApi.groundChanged();
+    }
+
+    /**
      * Per-session init (from RemoteUI.init, where ui.sess is bound): tear down the previous session's
      * addons, reset engine state, attach the tick pump + gob event source, then (re)load from disk.
      */
@@ -279,7 +290,7 @@ public final class AddonManager {
         gobEvents.clear();
         overlayEvents.clear();        // 038.3: and the overlay queue with it — the gobs it named are the old session's
         overlaySubs = false;          //   (loadAll below re-subscribes whoever listens, which re-arms the seams)
-        VrApi.resetAnchors();         // 043.2: and the by-target index of anchored hafen.vr() entities — a gob id
+        VrApi.resetEntityIndex();     // 043.2/044.9: and both indexes of standing hafen.vr() entities — a gob id
                                       //   means a different gob next session, and the addons' own were just torn down
         removedWidgets.clear();       // 042.1: and the widget-removal queue — the old session's widgets are gone
         resolveQueue.clear();         // 042.1: and any Resolve retry queued from the old session
@@ -485,6 +496,14 @@ public final class AddonManager {
             //     The bump is caught at its source and marshalled onto the tick to avoid deadlock with the
             //     map DB's RW lock. Global event.
             drainMarkerChanges();
+
+            // 1e. The ground under a free hafen.vr() entity (044.9): the terrain's own cut map changed — the
+            //     player crossed a cut boundary, or a grid streamed in or out — so re-ask which of the
+            //     entities standing at a POINT still have ground under them. Flagged at the two mutation
+            //     points inside MapView's render tick and drained here (D-106), because a client-only gob is
+            //     in no OCache and so nothing else would ever take it out of the scene. Free when nothing
+            //     moved: one boolean read.
+            VrApi.drainGround();
 
             // 2. "Entered the world" — fire EnterWorld once the HUD (GameUI) is not just built but
             //    ATTACHED to ui.root. The map view sets enterWorldPending from its ctor (loader thread),

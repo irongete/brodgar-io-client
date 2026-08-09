@@ -119,3 +119,40 @@ row's message names the two-argument spelling, which is asserted as text by two 
 **See.** [D-119](architecture-api.md) (a builder is attached inert — the rule this one bounds),
 [D-112](architecture-api.md), [D-114](architecture-api.md) (a creation raises where a removal is inert),
 [D-095](architecture-api.md) (kick the load, answer nil), [ghosts.md](../learnings/ghosts.md).
+
+### D-206 — a thing standing at a POINT is drawn while the GROUND under it is drawn, and the engine's own display structure is the test ✅ (044.9, 2026-08-09)
+**Decision.** A client-only entity anchored to a **point** — a ghost, a sprite, an object or a standing
+widget, all four on the shared core — is in the scene only while the terrain under it is drawn. It is
+**hidden, not ended**: the handle, the place, the look and `:exists()` all survive, and it returns by itself
+when the ground does. It is **not a policy** the addon chooses. One that is **anchored to a gob** is
+untouched — its place is that gob's, so it behaves exactly like the gob and ends with it (D-102).
+**Rationale.** (Raised verifying 043.2, seen again in 044.7, made its own task by maintainer directive.) A
+client-only gob is in no `OCache` — the very premise D-102 rests on — so nothing removed it and
+`Gob.Placed.autotick` catches the `Loading` a missing tile throws and keeps the last placement, so nothing
+hid it either. It hung over the void until it left the screen, and walking back found it still there.
+Ending it instead would lose an addon's placement the first time the player walked away and make
+`:exists()` a function of where the camera has been; and there is nothing to opt into, because drawing over
+ground that is not there is never what an addon asked for — so a switch would only be a way to keep the
+bug.
+**The test is `MapView`'s own per-cut map, not `MCache`'s grid set.** A grid stays loaded well past the
+point where the terrain stops being *drawn* (the display list is `view = 2` cuts around the player's cut,
+~75 tiles at most, while the server trims grids far later), so the obvious "is the grid loaded" test would
+still leave the thing hanging over the void for about a grid's width. `MapRaster.Grid.cuts` holds a cut
+**exactly while that cut's mesh is in the scene**, so the question is asked of the very structure that
+draws the ground and there is no second rule to drift out of step with what the player can see — the same
+shape as D-203, where the answer was already being computed and only had to be read.
+**The event is that map changing**, tapped at its two mutation points, flag only, drained on the addon tick
+(D-106). It fires when the player crosses a cut boundary or a grid streams in or out — never per frame, and
+not at all while standing still. `MCache.gridwait`, which the task's plan guessed at, was not needed.
+**Consequences.** A **third** boolean ANDed into `shows()`, beside the entity's own `:visible(b)` and the
+section's (D-189) — so nothing the addon wrote is ever overwritten and `:visible()` still reads back what
+it was told while the thing itself waits for its ground. What the world is doing needed a read of its own,
+so the shared core gained `<entity>:drawn()` (read-only, refuses an argument): *is it in the scene right
+now* — false while hidden, while the section is off, while the visual is still streaming in, and while a
+free one's ground is not drawn. It says nothing about the camera; that is 044.7's `culled`. A free create
+over undrawn ground now simply does not enter the scene, so it no longer starts a bounded `Resolve` chain
+on a tile that may never arrive (D-127's honest case, answered better).
+**See.** [D-102](architecture-api.md) (the end of a derived thing rides its source's event — the anchored
+half), [D-189](architecture-api.md) (a switch is a SECOND boolean, never a write over the thing's own),
+[D-203](rendering.md) (the test was already being computed), D-127 above (the create-over-unstreamed-ground case whose retry this replaces), [ghosts.md](../learnings/ghosts.md),
+[world-3d.md](../../codebase/world-3d.md).

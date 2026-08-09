@@ -1,0 +1,20 @@
+{
+  "asset": { "version": "2.0", "generator": "hand-written: one upright double-sided triangle, 043.1 suite" },
+  "scene": 0,
+  "scenes": [ { "nodes": [ 0 ] } ],
+  "nodes": [ { "mesh": 0 } ],
+  "meshes": [ { "primitives": [ { "attributes": { "POSITION": 0 }, "material": 0, "mode": 4 } ] } ],
+  "materials": [
+    { "name": "flat", "doubleSided": true,
+      "pbrMetallicRoughness": { "baseColorFactor": [ 0.9, 0.2, 0.2, 1.0 ] } }
+  ],
+  "accessors": [
+    { "bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3",
+      "min": [ -0.5, 0.0, 0.0 ], "max": [ 0.5, 1.0, 0.0 ] }
+  ],
+  "bufferViews": [ { "buffer": 0, "byteOffset": 0, "byteLength": 36 } ],
+  "buffers": [
+    { "byteLength": 36,
+      "uri": "data:application/octet-stream;base64,AAAAvwAAAAAAAAAAAAAAPwAAAAAAAAAAAAAAAAAAgD8AAAAA" }
+  ]
+}

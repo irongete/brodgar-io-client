@@ -1,0 +1,9 @@
+{
+  "name": "044.9 — a free entity stops drawing over ground that has unloaded",
+  "id": "044-spatial-ui.9",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 044.9: a hafen.vr() entity standing at a POINT is in the scene only while the ground under it is drawn — it hides when the terrain goes and comes back when it returns, across all four kinds, without touching anything the addon wrote.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

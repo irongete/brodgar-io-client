@@ -234,3 +234,27 @@
   would be a change to what is drawn (043's spec puts that out of scope) and is on the ROADMAP. Practical
   rule: *"it disappeared with the ground" is an OCache property, not a rendering one — anything you place
   outside OCache stays until you remove it.*
+
+- **(044.9) "The ground has unloaded" and "the ground is not drawn" are a GRID apart, and only the second is
+  what you can see.** The obvious test for the 043.2 gap above is `MCache.grids.containsKey(gc)` — the very
+  thing `MCache.LoadingMap` waits on, with `gridwait` as its ready-made event. It is the wrong one. Map data
+  is dropped only when the **server** says so (`invalblob` type 1 → `MCache.trim`; `MCache.trim` has **no
+  caller inside the client**), while the terrain the player sees is a much smaller window: `MapRaster.tick`
+  ([`MapView.java:718`](../../../src/haven/MapView.java:718)) sets `area = Area(cc - view, cc + view + 1)`
+  with `view = 2` and `MCache.cutsz = 25×25` tiles, i.e. **~50–75 tiles** from the player's own cut. So a
+  grid test would have kept the thing drawing over the void for about a grid's width past the visible edge —
+  green on paper, unchanged in the game. The answer is the engine's own display structure: `MapRaster.Grid.
+  cuts` holds a cut **exactly while that cut's mesh is in the scene**, so `cuts.containsKey(cutc)` IS "the
+  ground here is drawn", and its two mutation points are the event. General rule: *when a feature's claim is
+  about what the player sees, test the structure that DRAWS it, not the one that stores it — they are
+  usually different sizes.*
+- **(044.9) Adding a gob to the scene reads the map WHERE THE GOB IS, so a re-attach after a move must move
+  the gob FIRST.** Caught by the first in-game round. `MapView.addClientGob` → `Gob.Placed.added` →
+  `slot.ostate(curplace())` builds a `Placement`, and building one resolves the tile under the gob (039.8,
+  above). The attach helper had always done `addClientGob` then `gob.move(rc, a)` — harmless while the
+  position had not changed, and wrong the moment a `:position(p)` preceded it: a panel moved onto the
+  player's own ground was added while its gob still sat 400 tiles away, so the add read the ground it had
+  just **left**, threw `LoadingMap` there, and went into a `Resolve` chain waiting on a tile that never
+  arrives. It read as "moving it onto drawn ground does not draw it". Order is `gob.move` → `addClientGob`,
+  everywhere. Rule: *any scene add is a map read at the gob's CURRENT point — set the point before the add,
+  never after.*

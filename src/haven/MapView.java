@@ -688,6 +688,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			    cuts.put(cc, new Pair<>(cut, slot.add(draw, cs)));
 			    if(cur != null)
 				cur.b.remove();
+			    io.brodgar.addon.AddonManager.groundChanged();   // addon: 044.9 -- a cut's ground entered the scene
 			}
 		    } catch(Loading l) {
 			l.boostprio(5);
@@ -700,6 +701,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    if(!area.contains(ent.getKey())) {
 			ent.getValue().b.remove();
 			i.remove();
+			io.brodgar.addon.AddonManager.groundChanged();   // addon: 044.9 -- ...and one left it
 		    }
 		}
 	    }
@@ -1908,6 +1910,19 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		/* already gone (e.g. the scene was torn down by a relog) — teardown is idempotent */
 	    }
 	}
+    }
+
+    // addon: 044.9 — is the GROUND under this world point being drawn right now? A client-only gob is in no
+    //        OCache, so nothing removes it when the ground it stands on goes; the addon layer asks this
+    //        instead, and hides a free entity whose ground is not there. The terrain's own per-cut map IS
+    //        the answer — a cut is in it exactly while its mesh is in the scene — so there is no second rule
+    //        to keep in step with what the player can actually see. UI thread (the cut map is mutated by
+    //        MapRaster.Grid.tick, which taps groundChanged() at both of its mutation points).
+    public boolean grounddrawn(Coord2d rc) {
+	Terrain t = this.terrain;
+	if((t == null) || (rc == null))
+	    return(true);			/* no terrain to contradict it */
+	return(t.main.cuts.containsKey(rc.floor(tilesz).div(MCache.cutsz)));
     }
 
     private Collection<String> olflash = null;

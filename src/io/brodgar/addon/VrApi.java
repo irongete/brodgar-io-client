@@ -189,7 +189,7 @@ final class VrApi {
             synchronized(e) {
                 if(e.dead || e.hidden)
                     continue;                          // its own state governs: an individually hidden one stays out
-                if(on)
+                if(shows(e))                           // ...and so does the ground under a free one (044.9)
                     attachScene(e);
                 else
                     detachScene(e);
@@ -476,23 +476,41 @@ final class VrApi {
     private static final java.util.Map<Long, List<LuaWorldEntity>> anchored =
         new java.util.HashMap<Long, List<LuaWorldEntity>>();
 
-    /** Index a freshly created entity if it follows a gob; a free one is anchored to nothing and stays out. */
-    private static void anchorRegister(LuaWorldEntity e) {
-        if(e.followTgt == 0)
+    /**
+     * <b>Every free entity</b>, the mirror of {@link #anchored} for the other anchor (044.9). An anchored entity
+     * ends with its gob and is reached through the map above; a free one has no gob to be reached through, and
+     * the one thing that has to reach it is the ground moving under it. Read only when the terrain's own cut map
+     * changes ({@link #drainGround}) — nothing walks it per frame.
+     */
+    private static final List<LuaWorldEntity> free = new ArrayList<LuaWorldEntity>();
+
+    /**
+     * Index a freshly created entity: by target id when it follows a gob, in the flat {@link #free} list when it
+     * stands where it was put. A free one also has the ground under it read once, right here, so a create over
+     * ground that is not drawn simply does not enter the scene (044.9) — and the cut arriving is what puts it
+     * there, rather than a bounded {@link Resolve} retry chain on the {@code Loading} the add would have thrown.
+     */
+    private static void entityRegister(LuaWorldEntity e) {
+        if(e.followTgt != 0) {
+            Long k = Long.valueOf(e.followTgt);
+            synchronized(anchored) {
+                List<LuaWorldEntity> l = anchored.get(k);
+                if(l == null)
+                    anchored.put(k, l = new ArrayList<LuaWorldEntity>());
+                l.add(e);
+            }
             return;
-        Long k = Long.valueOf(e.followTgt);
-        synchronized(anchored) {
-            List<LuaWorldEntity> l = anchored.get(k);
-            if(l == null)
-                anchored.put(k, l = new ArrayList<LuaWorldEntity>());
-            l.add(e);
         }
+        synchronized(e) { e.grounded = groundDrawn(e.rc); }
+        synchronized(free) { free.add(e); }
     }
 
     /** Drop an entity from the index — every ending goes through {@link #destroyEntity}, so this is its one caller. */
-    private static void anchorUnregister(LuaWorldEntity e) {
-        if(e.followTgt == 0)
+    private static void entityUnregister(LuaWorldEntity e) {
+        if(e.followTgt == 0) {
+            synchronized(free) { free.remove(e); }
             return;
+        }
         Long k = Long.valueOf(e.followTgt);
         synchronized(anchored) {
             List<LuaWorldEntity> l = anchored.get(k);
@@ -508,12 +526,17 @@ final class VrApi {
      * Per-session reset: <b>a gob id means a different gob in the next session</b>, so an index keyed by one must
      * not survive a relogin — the addons' own entities were destroyed by the teardown that runs just before this
      * (which unregistered them), and what this drops is whatever the REPL owner, which deliberately outlives a
-     * session, left anchored to the old world.
+     * session, left standing in the old world. Both indexes, and the ground flag with them (044.9): the terrain
+     * of the session just ended has nothing to say about the one starting.
      */
-    static void resetAnchors() {
+    static void resetEntityIndex() {
         synchronized(anchored) {
             anchored.clear();
         }
+        synchronized(free) {
+            free.clear();
+        }
+        groundDirty = false;
     }
 
     /**
@@ -643,7 +666,8 @@ final class VrApi {
         if(onclickv.isfunction())
             gh.onClick = onclickv;
         owner.ghosts.add(gh);
-        anchorRegister(gh);                            // 043.2: so it dies with the gob it follows (D-102)
+        entityRegister(gh);                            // 043.2: so it dies with the gob it follows (D-102),
+                                                       //   or 044.9: with the ground under it when it is free
         LuaValue handle = ghostHandle(gh);
         gh.handle = handle;
         g.loader.defer(new Runnable() {
@@ -855,6 +879,21 @@ final class VrApi {
                 synchronized(e) { return LuaValue.valueOf(!e.dead); }
             }
         });
+        // drawn() -- is it IN THE SCENE right now? Read-only, because every way of writing it already has a
+        // name: :visible(b) is yours, hafen.vr():visible(b) is your section, and the ground under a free one
+        // is the world's (044.9). This is what those three come to, plus the moment before a visual has
+        // finished streaming in -- the one honest answer to "why can I not see it?". It says nothing about
+        // where the camera is pointing: a panel standing behind you is drawn and merely culled, which is a
+        // different question and p:surfaces() counts it.
+        m.set("drawn", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError(kind + ":drawn() reads whether it is in the scene and does not write it"
+                        + " -- taking it out and putting it back is " + kind + ":visible(b), and the ground"
+                        + " under a free one coming and going is the world's answer, not a setting");
+                synchronized(e) { return LuaValue.valueOf(!e.dead && (e.slot != null)); }
+            }
+        });
         if(extra != null) {
             LuaValue k = LuaValue.NIL;
             while(true) {
@@ -910,6 +949,20 @@ final class VrApi {
                 e.a = ang.doubleValue();
             if(e.gob != null)
                 e.gob.move(e.rc, e.a);
+            // 044.9: it may have been put down on ground that is drawn, or off the far edge of it. Asked
+            // AFTER the gob has been moved, because attaching it reads the map where the gob now is; and
+            // asked by the write itself rather than waited for, so a :position(p) onto drawn ground is in
+            // the scene by the time it returns.
+            if((rc != null) && (e.followTgt == 0)) {
+                boolean g = groundDrawn(e.rc);
+                if(g != e.grounded) {
+                    e.grounded = g;
+                    if(shows(e))
+                        attachScene(e);
+                    else
+                        detachScene(e);
+                }
+            }
         }
     }
 
@@ -955,7 +1008,7 @@ final class VrApi {
             mv   = e.mv;   e.mv   = null;
         }
         e.unregister();
-        anchorUnregister(e);                          // 043.2: and out of the by-target index, if it followed one
+        entityUnregister(e);                          // 043.2/044.9: and out of whichever index it was in
         if(mv != null) {
             mv.removeClientGob(gob, slot);            // drops it from the MapView tick list + removes the slot (swallows SlotRemoved)
         } else if(slot != null) {
@@ -1062,7 +1115,7 @@ final class VrApi {
             ob.onClick = onclickv;
         ob.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         owner.objects.add(ob);
-        anchorRegister(ob);                            // 043.2: so it dies with the gob it follows (D-102)
+        entityRegister(ob);                            // 043.2/044.9: dies with its gob, or hides with its ground
         LuaValue handle = objectHandle(ob);
         ob.handle = handle;
         // Build the gob + visual, then publish atomically. No defer: the glTF geometry is already parsed (R3), so
@@ -1160,7 +1213,7 @@ final class VrApi {
             sp.onClick = onclickv;
         sp.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         owner.sprites.add(sp);
-        anchorRegister(sp);                            // 043.2: so it dies with the gob it follows (D-102)
+        entityRegister(sp);                            // 043.2/044.9: dies with its gob, or hides with its ground
         LuaValue handle = spriteHandle(sp);
         sp.handle = handle;
         // Build the gob + visual OUTSIDE the sprite lock (no scene mutation yet), then publish atomically. No defer:
@@ -1347,7 +1400,7 @@ final class VrApi {
         we.prevPos = new Coord(content.c);
         we.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         owner.surfaces.add(we);
-        anchorRegister(we);                            // 044.2: so it dies with the gob it follows (D-102)
+        entityRegister(we);                            // 044.2/044.9: dies with its gob, or hides with its ground
         we.handle = widgetHandle(we);
         synchronized(u) {
             u.root.add(surf, Coord.z);                 // in the tree: liveness, ticking and focus all keep resolving
@@ -1647,14 +1700,101 @@ final class VrApi {
     }
 
     /**
-     * <b>Should this entity be in the scene right now?</b> Two independent booleans, ANDed (043.4): what the entity
-     * itself was told ({@code <entity>:visible(b)}) and what its whole section was told
-     * ({@code hafen.vr():visible(b)}). Keeping them apart is the restore rule — the section switch never overwrites
-     * the entity's own answer, so showing the section back puts back exactly what was visible. Read by every
-     * publish and by both switches; never at draw time.
+     * <b>Should this entity be in the scene right now?</b> Three independent booleans, ANDed: what the entity
+     * itself was told ({@code <entity>:visible(b)}), what its whole section was told
+     * ({@code hafen.vr():visible(b)}, 043.4), and whether the ground under a free one is drawn at all (044.9).
+     * Keeping them apart is the restore rule — neither of the other two overwrites the entity's own answer, so
+     * showing the section back puts back exactly what was visible, and a walk to the far side of the map changes
+     * nothing the addon wrote. Read by every publish, by both switches and by the ground drain; never at draw time.
      */
     private static boolean shows(LuaWorldEntity e) {
-        return !e.hidden && !e.owner.vrHidden;
+        return !e.hidden && !e.owner.vrHidden && e.grounded;
+    }
+
+    // ---- THE GROUND UNDER A FREE ENTITY (044.9) --------------------------------------------------------------
+
+    /**
+     * <b>Is the ground under this point drawn?</b> — the whole of 044.9's test, and the client already knows the
+     * answer. A client-only gob is in no {@code OCache}, which is exactly the premise an anchored entity's death
+     * rests on (D-102): nothing removes it. So a free entity placed at a POINT went on drawing over ground that
+     * had gone, hanging in the void until it left the screen — and walking back found it still there.
+     *
+     * <p><b>The terrain's own per-cut map IS the test</b> ({@code MapView.grounddrawn}, one {@code // addon:}
+     * accessor): a cut is in that map exactly while its mesh is in the scene, so <i>is the ground under it
+     * drawn</i> is asked of the very structure that draws the ground, and there is no second rule to keep in step
+     * with what the player can see. Answering {@code true} with no map view is deliberate — an entity is never
+     * taken out of a scene that is not there, and every publish path already refuses to place one before the
+     * world is up.
+     */
+    private static boolean groundDrawn(Coord2d rc) {
+        MapView mv = view;
+        if((mv == null) || (rc == null))
+            return true;
+        try {
+            return mv.grounddrawn(rc);
+        } catch(RuntimeException ex) {
+            return true;                               // scene mid-teardown: never a reason to hide anything
+        }
+    }
+
+    /** Raised by the terrain's cut map changing; drained on the addon tick. */
+    private static volatile boolean groundDirty;
+
+    /**
+     * The terrain's cut map changed — a cut entered the scene or left it. Called from the two mutation points in
+     * {@code MapView.MapRaster.Grid.tick} (via {@link AddonManager#groundChanged}), on the UI thread but inside
+     * the render tick, so it does no more than raise a flag; {@link #drainGround} does the work on the addon
+     * tick, the same shape every other off-moment tap in this layer has (D-106).
+     *
+     * <p><b>This is the event, and there is no sweep.</b> It fires when the player crosses a cut boundary or a
+     * grid streams in or out — a handful of times a minute while walking, and not at all while standing still.
+     */
+    static void groundChanged() {
+        groundDirty = true;
+    }
+
+    /**
+     * Re-ask the ground question for every free entity, on the addon tick, and only when something moved. An
+     * entity whose answer changed is attached or detached exactly as a {@code :visible(b)} would be — the same
+     * two helpers, so there is one way in and out of the scene and not a fourth.
+     */
+    static void drainGround() {
+        if(!groundDirty)
+            return;
+        groundDirty = false;
+        List<LuaWorldEntity> l;
+        synchronized(free) {
+            if(free.isEmpty())
+                return;
+            l = new ArrayList<LuaWorldEntity>(free);
+        }
+        for(LuaWorldEntity e : l) {
+            try {
+                reground(e);
+            } catch(RuntimeException ex) {
+                /* best-effort: one bad entity never stops the rest from being re-asked */
+            }
+        }
+    }
+
+    /**
+     * Re-read the ground under one free entity and put it in or out of the scene if the answer changed. Takes the
+     * entity monitor itself; a no-op when the answer is the same, which is what it is on all but the handful of
+     * ticks a cut actually appears or disappears on.
+     */
+    private static void reground(LuaWorldEntity e) {
+        synchronized(e) {
+            if(e.dead || (e.followTgt != 0))
+                return;
+            boolean g = groundDrawn(e.rc);
+            if(g == e.grounded)
+                return;
+            e.grounded = g;
+            if(shows(e))
+                attachScene(e);
+            else
+                detachScene(e);
+        }
     }
 
     /**
@@ -1666,10 +1806,15 @@ final class VrApi {
         if((e.gob == null) || (e.mv == null) || (e.slot != null))
             return;
         try {
-            e.slot = e.mv.addClientGob(e.gob);
-            e.gob.move(e.rc, e.a);                     // re-assert position/facing after the re-add
+            // 044.9: position/facing FIRST, then the add. Adding a gob builds its Placement, and building
+            // one reads the map at the gob's CURRENT point — so a re-attach that follows a :position(p) has
+            // to have moved the gob already, or the add reads the ground it came FROM and throws Loading
+            // there (which is exactly what the first in-game round caught: a panel moved onto your own
+            // ground stayed out, waiting on the tile 400 tiles away it had just left).
+            e.gob.move(e.rc, e.a);
+            addToScene(e, e.mv);                       // Resolve still retries a texture mid-upload
         } catch(RuntimeException ex) {
-            /* scene gone (relog), or the tile is not here — the entity simply stays out */
+            /* scene gone (relog) — the entity simply stays out */
         }
     }
 

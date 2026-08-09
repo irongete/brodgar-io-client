@@ -200,7 +200,19 @@
   clicking feels like clicking a normal window, walking away and back swaps cleanly, and ore goes
   from the flat inventory into it and comes back out.
 
-- [ ] **044.9 — A free entity stops drawing over ground that has unloaded**
+- [x] **044.9 — A free entity stops drawing over ground that has unloaded** ✅
+  *Shipped*: a thing standing at a POINT is in the scene only while the ground under it is drawn — **hidden, not
+  ended, and not a policy** (**D-206**), on the shared core so it reaches all four kinds; an anchored one is
+  untouched, because its place is its gob's. **The test is not the one the task named**: `MCache`'s grid set is a
+  grid WIDER than what is drawn (the server alone trims it; `MCache.trim` has no caller in the client), so a grid
+  test would have left the thing over the void past the visible edge. `MapRaster.Grid.cuts` holds a cut exactly
+  while its mesh is in the scene, so `MapView.grounddrawn(Coord2d)` asks the very structure that draws the ground,
+  and its two mutation points are the event — flag only, drained on the addon tick, never a sweep. `MCache.gridwait`
+  was not needed. A **third** boolean ANDed into `shows()` beside the entity's own and the section's, so nothing the
+  addon wrote is overwritten; new read `<entity>:drawn()`. THREE `// addon:` lines. 10/10 plus both `[manual]`
+  lines. **The first round found a real fault**: a scene add is a map read at the gob's CURRENT point, so a
+  re-attach after `:position(p)` was reading the ground it had just left and waiting on a tile 400 tiles away —
+  `gob.move` now precedes every `addClientGob` (`learnings/ghosts.md`).
   *Raised verifying 043.2, seen again verifying 044.7, and made its own task by maintainer
   directive.* Walk away from anything `hafen.vr()` placed at a **point** and the terrain cuts off
   while the thing keeps drawing, hanging over the void until it leaves render range; walk back and

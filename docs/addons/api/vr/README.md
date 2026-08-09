@@ -74,8 +74,8 @@ kept in case the gob comes back: a gob that returns is bare, and re-anchoring is
 
 > **`:add` raises when you are not in the world.** A thing in the 3D scene needs that scene, so placing one
 > before you have entered the world is an error rather than a `nil` you would discover one setter later.
-> Place from `EnterWorld` onward. Ground you have walked but that has not streamed back in is *not* an
-> error: the thing waits and appears as its tiles arrive.
+> Place from `EnterWorld` onward. Ground you have walked but that is not drawn right now is *not* an error:
+> the thing waits and appears with [its ground](#the-ground-under-one-that-stands-still).
 
 An [image](sprites.md) or a [model](models.md) is passed as a [`hafen.asset`](../asset.md) **handle**, never
 a path string; a path raises an error naming `hafen.asset` as the way in. There is nothing to save by
@@ -98,7 +98,8 @@ Each kind then adds the one or two verbs only it has — [`g:res`](ghosts.md#the
 | `e:scale()` / `e:scale(k)` | uniform scale, `1` being original size |
 | `e:alpha()` / `e:alpha(a)` | opacity `0..1`, where `1` is opaque |
 | `e:tint()` / `e:tint(r, g, b, a)` | colour overlay `0..255`, the fourth component being blend strength; `nil` clears it |
-| `e:visible()` / `e:visible(b)` | whether this one is in the 3D scene; `false` takes it out and keeps the entity |
+| `e:visible()` / `e:visible(b)` | whether you have this one showing; `false` takes it out and keeps the entity |
+| `e:drawn()` | is it in the 3D scene right now? — see [the ground under it](#the-ground-under-one-that-stands-still) |
 | `e:clickable()` / `e:clickable(b)` | the pick surface — opt-in, and client-side only |
 | `e:onClick()` / `e:onClick(fn)` | `fn(e, button, x, y)` fired on click |
 | `e:exists()` | is it still in the world? `false` once the collection removed it |
@@ -115,6 +116,30 @@ live point.
 Three kinds have `:onClick(fn)`, because "it was clicked" is the whole of what a picture has to say; a panel
 fires its own `MouseDown` at the pixel the pointer landed on, so `:onClick` on one raises naming that
 subscription instead, and `:clickable(b)` there means *does this panel take the pointer at all*.
+
+## The ground under one that stands still
+
+Something standing at a **point** is in the scene only while the terrain under it is drawn. Walk far enough
+and the ground it stands on stops being drawn; it goes with that ground, and it is back — whole, in the same
+place — the moment the ground returns. Nothing is lost meanwhile: it keeps its handle, its place, its look
+and its `:exists()`, and every verb goes on answering.
+
+There is nothing to turn off here, because a thing hanging over the edge of the world is never what you
+asked for. Nor is it a write over anything of yours: `e:visible()` still reads back exactly what you last
+told it while the thing itself waits for its ground.
+
+One that **follows a gob** is not subject to any of this. Its place is the gob's, so it comes and goes
+exactly as that game object does, and it ends with it.
+
+`e:drawn()` is the one answer to *why can I not see it*. It is `false` while you have hidden it, while the
+whole section is off, while its visual is still streaming in, and while a free one's ground is not drawn.
+
+```lua
+local e = hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", faraway)
+e:exists()      --> true    it is yours and it is placed
+e:visible()     --> true    you never hid it
+e:drawn()       --> false   there is no ground out there to stand on yet
+```
 
 ## The whole section at once
 
@@ -150,8 +175,9 @@ beside each entity's own, never a write over it, so:
 - one placed while the section is off is created and listed, and waits.
 
 `e:visible()` and `hafen.vr():visible()` are therefore different questions — *is this one hidden* and *is
-the section switched off* — and neither of them is "is it on screen right now", which also depends on where
-the camera is pointing.
+the section switched off* — and `e:drawn()` is a third: what those two and
+[the ground](#the-ground-under-one-that-stands-still) come to. None of them is "is it on screen right now",
+which also depends on where the camera is pointing.
 
 ## Pages
 

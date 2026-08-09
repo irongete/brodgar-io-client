@@ -37,6 +37,11 @@ import org.luaj.vm2.LuaValue;
  * {@link #gob}'s {@link GhostGob} fields when it exists and are read by the (possibly deferred) create at publish
  * time — so a verb that lands <i>before</i> the visual streams in still takes effect.
  *
+ * <p><b>{@link #grounded} is not one of them</b> (044.9) — it is what the WORLD says rather than what the addon
+ * asked for, and it is the third boolean {@code VrApi.shows} ANDs: a free entity is in the scene only while the
+ * ground under it is drawn. Nothing the addon writes ever touches it, which is why {@code :visible()} keeps
+ * reading back exactly what it was told while the thing itself waits out a walk to the far side of the map.
+ *
  * <p><b>Ownership (P2).</b> The entity is bridge-owned: it lives only in its addon's owned-resource registry
  * ({@link Addon#ghosts} / {@link Addon#sprites}). There is no global tick/poll list, because it is a passive
  * render node driven by the render tree's own tick, not the addon tick loop. {@code Disable} / {@code :reload} /
@@ -59,6 +64,7 @@ public abstract class LuaWorldEntity {
     Color   tint;                  // V3: desired colour-overlay tint, or null; mirrored onto the GhostGob; guarded by this
     float   scale = 1f;            // V6: desired uniform scale (1 = original size); mirrored onto the GhostGob; guarded by this
     boolean hidden;                // V3: :hide() removed the scene slot (gob kept); :show() re-adds it; guarded by this
+    boolean grounded = true;       // 044.9: is the ground under it drawn? FREE entities only; guarded by this
     LuaValue onClick;              // V2: per-entity click callback fn(handle, button, x, y), or null; set at create
 
     long    followTgt;             // ANCHOR: the gob id this entity follows, or 0 = free (not anchored); set at create only

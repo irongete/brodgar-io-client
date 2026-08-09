@@ -189,6 +189,10 @@ proportional to what is actually being looked at.
   inside it drifts out of date while you are facing the other way and the picture is correct the instant it
   comes back into view.
 
+Being skipped for the view is not the same as being out of the scene: a panel standing at a point whose
+ground is not drawn is not there at all, and [`x:drawn()`](README.md#the-ground-under-one-that-stands-still)
+is what tells the two apart.
+
 [`hafen.client():profiling():surfaces()`](../client/profiling/counters.md#surfaces) is where that is a
 number rather than a claim: how many panels are standing, how many are being skipped right now, and the
 uploads-against-frames pair that says whether one is repainting.
