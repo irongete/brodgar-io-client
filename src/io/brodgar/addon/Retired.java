@@ -146,7 +146,7 @@ final class Retired {
             + " hafen.client():options():interface():angGran(), which also writes it (in DEGREES per step)");
 
         // ---- hafen.act: R1 throughout, and the spatial verbs take Positions ----------------------------
-        section("act", "enabled", "item", "menu", "flower", "raw");
+        section("act", "enabled", "menu", "flower", "raw");
         // ---- 048.1: hafen.act() is being DISSOLVED -- a verb lives with WHAT IT CHANGES, not with what it -----
         // ---- costs (D-187 generalised), so the section that grouped nine unrelated verbs by their PERMISSION
         // ---- is emptying one task at a time. A moved verb is registered by act() below, under BOTH spellings:
@@ -160,6 +160,11 @@ final class Retired {
             + " so it can no longer be sent blind. The target is an Item, a Position or a Gob:"
             + " hafen.player():hand():use(gob) applies the held item to that object, which this verb could"
             + " not do");
+        act("item", "hafen.act():item(item, verb, n) is gone: the verbs are on the item — item:use(mods)"
+            + " (was \"iact\"), item:take(), item:drop(n), item:transfer(n), and"
+            + " hafen.player():hand():use(item) (was \"itemact\"). A verb string was never a vocabulary,"
+            + " and only \"iact\" ever carried modifiers — for take/drop/transfer the modifier keys select"
+            + " the COUNT, which n states directly");
         put("hafen.act.place", "hafen.act.place(x, y, angle, button, mods) is now"
             + " hafen.act():place(p, angle, button, mods), where p is a Position");
         put("hafen.act.select", "hafen.act.select(x1, y1, x2, y2, mods) is now"

@@ -1462,3 +1462,23 @@
   moved the real claim into an assertion (above) so the aim no longer has to be lucky. This is 043.1's *a
   fixture that can be missed turns a green feature into a verification round*, one step out from a shipped asset
   to the live world: **a manual line must not depend on a fixture the world may not have.**
+- **(048.3) When the gate runs FIRST, a protected surface is headless-testable WHOLE — and an entity that was
+  never live is a free stale one.** D-213's ordering (`requireActions` before the argument check and before the
+  live lookup) means a refusal needs no session at all, so the 033.3 probe can reach every verb of an entity the
+  game normally supplies: `new haven.GItem(null)` constructs with no `UI`, `LuaItem.of(owner, it)` interns it,
+  and the entity's whole metatable is callable. Run it under **two owners in the one probe** —
+  `Manifest.test(id)` declares nothing (the shipped suite's own shape) and `Manifest.internal(id)` declares
+  everything (what the `:lua` console runs as) — and both sides of every gate are proved before the maintainer
+  logs in: the undeclared owner gets the permission error naming the verb, the declared one falls through to the
+  *next* refusal. And because a `GItem` with no `ui` can never satisfy `live()`, that second run is also the
+  **stale** case, which the shipped suite can only reach by holding a handle across a `[manual]` move. 048.3
+  pre-checked all four verbs, the argument refusals and the retired-row throw this way; the in-game run added
+  nothing but the reads.
+- **(048.3) `ant hafen-client` does not install a suite — `ant bin` does.** The build check compiles into
+  `build/classes`; `bin/addons/` (the directory the running client actually scans, TESTING.md) is populated by
+  the `bin` target's `<copy todir="bin/addons">`. Hand a task over without it and the maintainer restarts into a
+  client that has the new engine and none of the new suite — a bare "no such command" with the same symptom as
+  042.11's file-scope throw and a different cause. Also: compile a throwaway probe **into `build/classes`** and
+  delete the class afterwards; a `-cp` naming a scratchpad directory alongside `build/classes` is exactly the
+  `;`-separated path MSYS mangles (see the Windows/Git-Bash entry above), and the failure reads as
+  `ClassNotFoundException` on a class that is plainly on disk.

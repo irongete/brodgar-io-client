@@ -11,7 +11,8 @@
 -- Kept SEPARATE from the always-on read-only `hello` regression harness (which declares no permissions).
 --
 -- Slice 4d adds the rest of the MapView action verbs; slice 4e adds menu + flower;
--- slice 4f adds the ITEM verbs (hafen.act():item); slice 4g adds the PER-SUBSYSTEM protected verbs that live in
+-- the ITEM verbs are on the Item itself (048.3: item:use/:take/:drop/:transfer); slice 4g adds the
+-- PER-SUBSYSTEM protected verbs that live in
 -- their own namespace (not hafen.act()): hafen.speed():current(n), the Craft's :make, the Slot's :use, and
 -- the kin verbs on the Kin object (hafen.kin():add(secret) and kin:rename/:group/:endKin/:forget)
 -- — all behind the SAME "actions" permission.
@@ -31,10 +32,11 @@
 --   :walker petal <l...>|n <k>|cancel
 --                       -- the radial menu's OWN write half: arm the NEXT menu you open and, from inside
 --                          FlowerMenuOpened, hafen.flowermenu():select(caption) / :select(position) / :cancel().
---   :walker item [verb] -- item: act on your FIRST inventory item, addressed by the Item OBJECT (from a
---                          read). Default 'take' lifts it to your cursor (safe/reversible: click an empty slot to
---                          undo). Pass a verb: take|drop|transfer|iact, or itemact, which is now
---                          hafen.player():hand():use(item) -- apply what you hold onto that item.
+--   :walker item [verb] [n]
+--                       -- the ITEM's own verbs, on your FIRST inventory item (the Item OBJECT, from a read).
+--                          Default 'take' lifts it to your cursor (safe/reversible: click an empty slot to
+--                          undo). use|take|drop [n]|transfer [n] -- n = how many of the stack, all of it by
+--                          default. 'itemact' is hafen.player():hand():use(item): apply what you HOLD onto it.
 --   :walker speed [n]   -- speed:current(n): select movement speed n=0..3 (crawl/walk/run/sprint; default 2=run). Reversible.
 --   :walker craft [all] -- craft.make: press Craft on the OPEN recipe (add 'all' for Craft All). CONSUMES ingredients!
 --   :walker bar <n>     -- slot:use: activate slot n (raw 0-based index; read hafen.actionbar():get(n) first)
@@ -48,7 +50,7 @@
 --                       -- kin:group/:rename a named kin (reversible), OR the two-step drop: endkin = End
 --                          kinship (stays memorized), then forget = drop the memorized kin from the list
 
-hafen.log():write("walker loaded -- write-actions demo (4d MapView verbs + 4e menu/flower + 4f item + 4g speed/craft/bar/setbar/kin + menugrid)")
+hafen.log():write("walker loaded -- write-actions demo (4d MapView verbs + 4e menu/flower + the item verbs + 4g speed/craft/bar/setbar/kin + menugrid)")
 
 -- At login, confirm we're granted (we only load once YOU enabled us, and we declared the permission).
 hafen.event():on("EnterWorld", function()
@@ -72,7 +74,7 @@ hafen.slash():register("walker", function(args)
     hafen.log():write("   menu=hafen.act():menu(path...)  e.g. ':walker menu lo cs' = log out to char select (reversible)")
     hafen.log():write("   flower=hafen.act():flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
     hafen.log():write("   petal <label...>|n <k>|cancel=hafen.flowermenu():select/:cancel  arms the NEXT menu you open, picked from FlowerMenuOpened")
-    hafen.log():write("   item [verb]=hafen.act():item(firstInvItem, verb)  default take (lifts to cursor); take|drop|transfer|iact")
+    hafen.log():write("   item [verb] [n]=item:use/:take/:drop(n)/:transfer(n) on your first inventory item  default take (lifts to cursor)")
     hafen.log():write("   item itemact=hafen.player():hand():use(firstInvItem)  apply what you HOLD onto that item (048.2)")
     hafen.log():write("   -- 4g per-subsystem protected verbs (own namespace, same permission):")
     hafen.log():write("   speed [n]=hafen.speed():current(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
@@ -205,29 +207,44 @@ hafen.slash():register("walker", function(args)
     hafen.log():write((":walker petal -> armed hafen.flowermenu():%s for the NEXT menu -- right-click something now."):format(shown))
 
   elseif sub == "item" then
-    -- 4f: item verbs act on the Item OBJECT itself -- you get one from a READ (widget:items() on any
-    -- container, or hafen.player():hand():item()). Deliberately not a number: the server re-uses an item's widget id, so
-    -- a verb aimed at a number would move whatever holds it now. The object carries its own item, so a moved
-    -- or eaten one errors (item:exists() is false) and nothing is sent. Demo: act on the FIRST inventory item;
-    -- default 'take' is the
-    -- safest + most visible (it lifts the item onto your cursor -- click an empty slot to put it back).
+    -- 048.3: what you can do TO an item is ON the item -- item:use(mods) (the old "iact" verb string),
+    -- item:take(), item:drop(n), item:transfer(n). The receiver is the Item OBJECT itself, which you get from
+    -- a READ (widget:items() on any container, or hafen.player():hand():item()). Deliberately not a number:
+    -- the server re-uses an item's widget id, so a verb aimed at a number would move whatever holds it now.
+    -- The object carries its own item, so a moved or eaten one errors (item:exists() is false) and nothing is
+    -- sent. Demo: act on the FIRST inventory item; default 'take' is the safest + most visible (it lifts the
+    -- item onto your cursor -- click an empty slot to put it back).
     local verb = args[2] or "take"
     local invw = hafen.ui():inventory()                -- the backpack's Widget object (029.3; hafen.items is GONE)
     local inv = invw and invw:items() or {}            -- array of Item objects, live while the item is
     local it = inv[1]
     if not it then hafen.log():write(":walker item -> your inventory is empty (put something in it, then retry)"); return end
+    local name = it:name() or it:res() or "?"
     if verb == "itemact" then
-      -- 048.2: "itemact" LEFT hafen.act():item -- the gesture originates from the item ON THE CURSOR, so it
-      -- is a verb on the Hand. hafen.act():item could send it with an empty cursor; this cannot.
+      -- 048.2: "itemact" was never an item verb at all -- the gesture originates from the item ON THE CURSOR,
+      -- so it is a verb on the Hand. hafen.act():item could send it with an empty cursor; this cannot.
       local hand = hafen.player():hand()
       if not hand then hafen.log():write(":walker item itemact -> nothing on your cursor (take something first)"); return end
       hand:use(it)                                        -- apply what you hold ONTO the first inventory item
-      hafen.log():write((":walker item -> hafen.player():hand():use('%s')"):format(it:name() or it:res() or "?"))
+      hafen.log():write((":walker item -> hafen.player():hand():use('%s')"):format(name))
       return
     end
-    hafen.act():item(it, verb)                            -- protected; resolves the item's own widget, sends `verb`
-    hafen.log():write((":walker item -> hafen.act():item('%s' [handle %s], '%s')")
-      :format(it:name() or it:res() or "?", tostring(it:handle()), verb))
+    -- n = how many of the stack, for the two verbs that carry a count. Passing an explicit nil is an ERROR in
+    -- this API (arity is the verb), so the no-count call is made with NO argument rather than with nil.
+    local n = tonumber(args[3])
+    local shown = verb .. "()"
+    if verb == "take" then it:take()
+    elseif verb == "use" then it:use()                    -- protected; the "iact" a right-click sends
+    elseif verb == "drop" then
+      if n then it:drop(n); shown = ("drop(%d)"):format(n) else it:drop() end
+    elseif verb == "transfer" then
+      if n then it:transfer(n); shown = ("transfer(%d)"):format(n) else it:transfer() end
+    else
+      hafen.log():write((":walker item -> no such verb '%s' -- use|take|drop [n]|transfer [n], or itemact"
+        .. " (which is hafen.player():hand():use(item))"):format(verb))
+      return
+    end
+    hafen.log():write((":walker item -> item:%s on '%s' [handle %s]"):format(shown, name, tostring(it:handle())))
     if verb == "take" then
       hafen.log():write("   (take lifts the item onto your cursor -- left-click an empty inventory slot to put it back)")
     end

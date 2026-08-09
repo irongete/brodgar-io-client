@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.Coord;
 import haven.Equipory;
 import haven.GItem;
 import haven.Inventory;
@@ -11,7 +12,9 @@ import haven.Widget;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
@@ -51,6 +54,19 @@ import java.util.Set;
  * verb whose return type depends on the container. {@code :slots()} is plural because an
  * {@link Equipory} draws one worn item in as many slots as it fills — the same item, twice on screen.
  *
+ * <p><b>What you can do TO an item is on the item</b> (048.3): {@code :use(mods)} activates it (the
+ * {@code iact} gesture — eat, open, light), {@code :take()} lifts it onto the cursor or unequips it, and
+ * {@code :drop(n)} / {@code :transfer(n)} move it, {@code n} defaulting to the whole stack. All four are
+ * <b>protected</b> by the per-addon {@code actions} permission, all four hand the Item back so they chain,
+ * and all four <b>refuse a stale one</b>: the handle is the item it was, so a verb through it can only reach
+ * <i>that</i> item or nothing, and nothing is sent rather than a write landing on whatever took its place.
+ *
+ * <p><b>Only {@code :use} takes modifiers, and that is the wire talking, not a style choice.</b> Of the four
+ * messages only {@code iact} carries a modifier field ({@code {cc, modflags}}); {@code take},
+ * {@code drop} and {@code transfer} carry none, because in the client the modifier keys select the
+ * <i>count</i> ({@link WItem#mousedown}: shift = transfer 1, ctrl = drop 1, …). So {@code n} <i>is</i> the
+ * modifier for those three, and a {@code mods} parameter beside it would be a field with nowhere to go.
+ *
  * <p><b>Quality is read off the item's own published tooltip code, by class name.</b> The engine has no
  * quality type: the number lives in a field of a class that ships inside a resource. Reading it by name
  * (rather than pinning a local copy of that class) cannot go wrong when the resource is revised — it can
@@ -85,13 +101,20 @@ public final class LuaItem {
 
     // ---- the per-addon intern cache + metatable ---------------------------------------------------
 
-    /** One addon's Item cache and metatable (its {@link Addon#items}), keyed by widget identity. */
+    /**
+     * One addon's Item cache and metatable (its {@link Addon#items}), keyed by widget identity. Holds its
+     * {@link Addon} because the four protected verbs (048.3) turn on the <b>caller's</b> declared
+     * permission, and the metatable is where the gate has to be closed — the same reason
+     * {@link LuaGob.Cache} holds one.
+     */
     static final class Cache {
+        private final Addon owner;
         private final Map<GItem, Ref> live = new IdentityHashMap<GItem, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
         Cache(Addon owner) {
+            this.owner = owner;
         }
 
         synchronized LuaValue of(GItem it) {
@@ -121,7 +144,7 @@ public final class LuaItem {
 
         private LuaValue meta() {
             if(mt == null)
-                mt = buildMeta();
+                mt = buildMeta(owner);
             return mt;
         }
     }
@@ -137,9 +160,9 @@ public final class LuaItem {
 
     // ---- the Item metatable -------------------------------------------------------------------------
 
-    private static LuaValue buildMeta() {
+    private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("item", methods()));
+        mt.set(LuaValue.INDEX, Retired.methodIndex("item", methods(owner)));
         mt.set("__name", LuaValue.valueOf("Item"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -150,7 +173,7 @@ public final class LuaItem {
         return mt;
     }
 
-    private static LuaTable methods() {
+    private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         // res() — the item's resource name, its stable identity, or nil while it resolves.
         m.set("res", new OneArgFunction() {
@@ -220,7 +243,114 @@ public final class LuaItem {
                 return snapshot(handle(self, "info").wdg);
             }
         });
+        // -- the four PROTECTED verbs (048.3) ----------------------------------------------------------
+        // What you can do TO an item, on the item — the old hafen.act():item(item, verb, n)'s five verb
+        // strings become four named verbs plus hafen.player():hand():use(item) (048.2). Each sends exactly
+        // the GItem.wdgmsg the matching click sends (WItem.mousedown), so the client stays server-
+        // authoritative, and each hands the Item back so a run of verbs chains.
+        //   The gate runs FIRST — before the argument check and before the live item is looked up (D-213),
+        // so an addon that never declared "actions" is told THAT rather than "this item is gone".
+
+        // use([mods]) — the "iact" gesture: activate it (eat, open, light), what a right-click on the item
+        // does. mods optional (0 default; Shift=1 Ctrl=2 Alt=4). iact is one of the two item messages that
+        // carries a modifier field at all, and the verb this replaces hardcoded it to 0.
+        m.set("use", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                AddonManager.requireActions(owner, "item:use");
+                int mods = count(a, 2, "item:use", "mods", 0);
+                target(self, "use").wdgmsg("iact", iactArgs(mods));
+                return self;
+            }
+        });
+        // take() — lift it onto the cursor (from a container), or unequip a worn one. NO arguments: the
+        // message carries a grab point and nothing else, so there is no count and no modifier to state.
+        m.set("take", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                AddonManager.requireActions(owner, "item:take");
+                noArgs(a, "item:take");
+                target(self, "take").wdgmsg("take", takeArgs());
+                return self;
+            }
+        });
+        // drop([n]) — drop it on the ground; n = how many of the stack, -1 (the default) being all of it.
+        m.set("drop", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                AddonManager.requireActions(owner, "item:drop");
+                int n = count(a, 2, "item:drop", "n", -1);
+                target(self, "drop").wdgmsg("drop", countArgs(n));
+                return self;
+            }
+        });
+        // transfer([n]) — move it to the linked container (an open container, or your inventory); n as for
+        // drop. This is the verb the modifier keys spell as shift / shift+ctrl on a real click.
+        m.set("transfer", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                AddonManager.requireActions(owner, "item:transfer");
+                int n = count(a, 2, "item:transfer", "n", -1);
+                target(self, "transfer").wdgmsg("transfer", countArgs(n));
+                return self;
+            }
+        });
         return m;
+    }
+
+    // ---- the protected verbs' shared plumbing --------------------------------------------------------
+
+    /**
+     * The live {@link GItem} a protected verb acts on, or the guiding refusal that <b>nothing was sent</b>.
+     *
+     * <p>This is the whole reason the handle holds the item widget rather than its server id: a stale
+     * handle can only resolve to <i>that item</i> or to nothing, so the failure is a message the caller
+     * reads instead of a write landing on whatever inherited the recycled number.
+     */
+    private static GItem target(LuaValue self, String verb) {
+        GItem g = live(handle(self, verb));
+        if(g == null)
+            throw new LuaError("item:" + verb + ": this item is gone — it was moved, used or consumed, or"
+                + " you are not in the world (item:exists() is false). Nothing was sent: an item that has"
+                + " left is not the item that took its place. Re-read the container and retry.");
+        return g;
+    }
+
+    /** An optional whole-number argument ({@code n}, {@code mods}), or {@code def} when none was passed. */
+    private static int count(Varargs a, int i, String verb, String param, int def) {
+        LuaValue v = Args.written(a, i, verb, param);
+        if(v == null)
+            return def;
+        if(!v.isnumber())
+            throw new LuaError(verb + "(" + param + "): " + param + " must be a number, got " + v.typename());
+        return v.toint();
+    }
+
+    /** Refuse an argument to a verb that has none, naming what the caller probably meant instead. */
+    private static void noArgs(Varargs a, String verb) {
+        if(Args.passed(a, 2))
+            throw new LuaError(verb + "() takes no arguments — a take lifts the whole thing, the count is"
+                + " item:drop(n) / item:transfer(n), and this message carries no modifier field: on a real"
+                + " click the modifier keys select the COUNT, which n states directly.");
+    }
+
+    // ---- the four wire shapes, pure so they are testable without a session ---------------------------
+    // The coord every one of them carries is the intra-item GRAB POINT; Coord.z (the item's own corner) is a
+    // faithful, deterministic substitute for a programmatic action, exactly as it was under hafen.act():item.
+
+    /** The {@link GItem} {@code "take"} args ({@code {grab}}) — a bare grab, no count, no modifiers. */
+    static Object[] takeArgs() {
+        return new Object[] {Coord.z};
+    }
+
+    /** The {@code "drop"} / {@code "transfer"} args ({@code {grab, n}}); {@code n == -1} is the whole stack. */
+    static Object[] countArgs(int n) {
+        return new Object[] {Coord.z, n};
+    }
+
+    /** The {@code "iact"} args ({@code {grab, mods}}) — the one of the four that carries modifiers. */
+    static Object[] iactArgs(int mods) {
+        return new Object[] {Coord.z, mods};
     }
 
     private static LuaItem handle(LuaValue self, String method) {

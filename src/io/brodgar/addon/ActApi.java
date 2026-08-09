@@ -4,7 +4,6 @@ import haven.Coord;
 import haven.Coord2d;
 import haven.FlowerMenu;
 import haven.GameUI;
-import haven.GItem;
 import haven.Indir;
 import haven.Loading;
 import haven.Makewindow;
@@ -15,7 +14,6 @@ import haven.OCache;
 import haven.Resource;
 import haven.Speedget;
 import haven.UI;
-import haven.WItem;
 import haven.Widget;
 import haven.Window;
 
@@ -133,35 +131,10 @@ final class ActApi {
                 return LuaValue.valueOf(actFlower(label.tojstring()));
             }
         });
-        // item(item, verb [, n]) — the protected item verbs. `item` = an Item OBJECT you got from a READ: a member of
-        // a container's :items(), or hafen.player():hand():item(). It is the object and never a widget id, because the server
-        // re-uses an id: acting on the number would move whatever holds it now. The entity carries its own item
-        // widget, so a moved/used one raises a guiding error (nothing is sent) rather than driving a stranger. Then
-        // it sends exactly the GItem.wdgmsg a click on the item sends (WItem.mousedown / iteminteract) — so the
-        // client stays server-authoritative. `verb`:
-        //   "take"     pick it up onto your cursor/hand (from a container, or unequip a worn item).
-        //   "drop"     drop it on the ground; `n` = how many of a stack (default -1 = the whole stack/item).
-        //   "transfer" move it to the linked container (an open container / your inventory); `n` as for drop.
-        //   "iact"     right-click / activate it (its default context action: eat, open, light, …).
-        // 048.2: "itemact" is GONE from here — applying what is on your cursor ONTO this item is
-        // hafen.player():hand():use(item, mods), because the gesture originates from the CURSOR and the message
-        // carries no reference to the held item, so this door could send it with an empty cursor. The verb
-        // string throws naming that replacement rather than falling into the unknown-verb list.
-        // `n` is ignored for take/iact (no count). iact sends no modifiers; for a MODIFIED item
-        // interaction use the escape hatch: hafen.act():raw(item:handle(), "iact", {x=0,y=0}, mods) — where the
-        // number is read off the item at the moment it is sent, not stashed.
-        act.set("item", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "act", "item");
-                AddonManager.requireActions(owner, "hafen.act():item");
-                LuaValue verb = a.arg(3);
-                if(!verb.isstring())
-                    throw new LuaError("hafen.act():item(item, verb): verb must be a string"
-                        + " (\"take\", \"drop\", \"transfer\" or \"iact\")");
-                actItem(a.arg(2), verb.tojstring(), a.arg(4).optint(-1));
-                return LuaValue.NIL;
-            }
-        });
+        // 048.3: item(item, verb [, n]) has LEFT, and with it the last of the five verb strings. What you can do
+        // TO an item is on the item now — item:use(mods) (was "iact"), item:take(), item:drop(n),
+        // item:transfer(n) — and applying what is on your cursor onto one is hafen.player():hand():use(item).
+        // A fifth argument was never a vocabulary: it was a switch statement standing where four verb names go.
         Section.install(hafen, "act", act);
     }
 
@@ -414,76 +387,10 @@ final class ActApi {
         return true;
     }
 
-    // -- 4f: item verbs (hafen.act():item) ---------------------------------------------------------------
-    // The item half of the protected tier. Unlike the MapView verbs (which act on world coords) an item verb acts
-    // on a specific item, addressed by the Item ENTITY (039.14) — the object holds the item widget itself, so a
-    // moved/used one is a guiding error and never a write aimed at whatever now owns its recycled server id.
-    // (That id used to BE the reference, which is the hazard this replaced: it is reused.) Then we send the SAME
-    // GItem.wdgmsg the corresponding click sends
-    // (WItem.mousedown: take/drop/transfer/iact — 048.2 moved WItem.iteminteract's "itemact" onto the Hand,
-    // which is the receiver the gesture actually originates from) — the client stays server-
-    // authoritative. The coord these messages carry is the intra-item grab point; Coord.z (the item's corner)
-    // is a faithful, deterministic substitute for a programmatic action. The arg BUILDER is pure/testable; the
-    // sender resolves the live GItem and wdgmsgs. Runs on the UI thread (addon callback / REPL / timer), like
-    // every act verb; a 2d "take"/… action-hook can still see it (it is a real wdgmsg).
-
-    /**
-     * The {@link GItem} {@code wdgmsg} args for an item {@code verb}, or {@code null} for an unknown verb.
-     * {@code n} is the stack count for {@code drop}/{@code transfer} ({@code -1} = the whole stack). The others
-     * carry no count: {@code take} is a bare grab; {@code iact} sends modifiers {@code 0} (a modified
-     * interaction goes through {@code hafen.act():raw}). Pure/testable — the grab coord is a fixed corner.
-     *
-     * <p>048.2: {@code "itemact"} is no longer one of them — it is
-     * {@code hafen.player():hand():use(item, mods)}, and {@link #actItem} refuses the string by name.
-     */
-    static Object[] itemVerbArgs(String verb, int n) {
-        switch(verb) {
-            case "take":     return new Object[] {Coord.z};
-            case "drop":     return new Object[] {Coord.z, n};
-            case "transfer": return new Object[] {Coord.z, n};
-            case "iact":     return new Object[] {Coord.z, 0};   // mods 0 — plain right-click / activate
-            default:         return null;
-        }
-    }
-
-    /**
-     * Resolve the Item argument to the live {@link GItem} it names, or {@code null} when that item is gone.
-     *
-     * <p><b>Through the object, never through the id.</b> An item is addressed on the wire by a server widget
-     * id, and that id goes back into the pool when the widget dies — so looking one up by number is a write
-     * aimed at whatever holds the number <i>now</i>, which after a move is a different item and after a
-     * relog may be a window. The Item entity holds the item widget itself, so this resolve can only answer
-     * <i>the same item</i> or <i>nothing</i>. That is the whole reason {@code widget:items()} stopped handing
-     * back tables of numbers, and it is why the number and the table are both refused here.
-     */
-    private static GItem resolveItem(LuaValue item) {
-        LuaItem h = LuaItem.resolve(item);
-        if(h == null) {
-            throw new LuaError("hafen.act():item(item, verb): item must be an Item object from a container's"
-                + " :items() or from hafen.player():hand():item(). A widget id is not an item reference: the server"
-                + " re-uses one, so acting on a number moves whatever holds it now.");
-        }
-        return LuaItem.live(h);
-    }
-
-    /** {@code hafen.act():item} backing — resolve the item's own widget and send the verb's wdgmsg. */
-    private static void actItem(LuaValue item, String verb, int n) {
-        if(verb.equals("itemact"))
-            throw new LuaError("hafen.act():item(item, \"itemact\") is now"
-                + " hafen.player():hand():use(item, mods) — the gesture originates from the item ON THE"
-                + " CURSOR and the message names no held item, so it belongs to the Hand, which is nil when"
-                + " nothing is held. The other verbs are still here.");
-        Object[] args = itemVerbArgs(verb, n);
-        if(args == null)
-            throw new LuaError("hafen.act():item(item, verb): verb must be one of \"take\", \"drop\","
-                + " \"transfer\", \"iact\" (got \"" + verb + "\")");
-        GItem g = resolveItem(item);
-        if(g == null)
-            throw new LuaError("hafen.act():item: this item is gone — it was moved, used or consumed, or you"
-                + " are not in the world (item:exists() is false). Nothing was sent: an item that has left is"
-                + " not the item that took its place. Re-read the container and retry.");
-        g.wdgmsg(verb, args);
-    }
+    // 048.3: the item verbs are GONE from here. They were the one half of this section that did not even act on
+    // world coords — each acted on a specific item, addressed by the Item ENTITY — so they are four verbs on
+    // LuaItem now (item:use / :take / :drop / :transfer), sending the same GItem.wdgmsgs from the thing they
+    // change. Their pure arg builders went with them.
 
     // ---- movement speed (A7: hafen.speed()) ------------------------------------------------------
     // The speed selector is a Speedget widget (crawl/walk/run/sprint) the server places under the HUD.

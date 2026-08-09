@@ -2,7 +2,7 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`048-act-dissolved`](048-act-dissolved/), 2 of 8** — the one section grouped by PERMISSION rather than by what
+**ACTIVE: [`048-act-dissolved`](048-act-dissolved/), 3 of 8** — the one section grouped by PERMISSION rather than by what
 it acts on is being dissolved (**D-187** generalised as **D-215**: a verb lives with what it CHANGES, not with what it
 COSTS — a permission is not a namespace). Every verb moves onto the thing it changes (the whole map is
 [spec.md](048-act-dissolved/spec.md)), while `:flower`, `:menu` and `:enabled` are DELETED — 047 and 023 own those doors
@@ -19,6 +19,12 @@ with an empty cursor: **D-218** — a gesture the client itself cannot produce i
 receiver must BE the message's implicit subject (`itemact` names no held item — `DTarget.Interact`'s `src` IS the
 `ItemDrag`) and absent whenever the subject is. `hafen.ui():hand()` and `act():useItemOn` retired,
 `act():item(x, "itemact")` throws naming the Hand. A take builds a **new** `GItem`, so no Item identity survives it.
+**048.3 DONE, 14/14**: what you can do TO an item is **on the item** — `item:use(mods)` (the `iact` gesture), `:take()`,
+`:drop(n)`, `:transfer(n)`: protected, chaining, and each refusing a **stale** handle without sending, since an item that
+has left is not the item that took its place. `hafen.act():item` is deleted whole and names all five replacements.
+**Only `:use` takes `mods`** — the other three messages have no modifier field, because on a real click the keys select
+the COUNT (`WItem.mousedown`), so `n` IS the modifier and `take()` refuses arguments. The structural half was already
+plumbed: `LuaItem.Cache` had been handed the owner since 039.14 and discarded it.
 
 **[`047-flowermenu`](047-flowermenu/) is CLOSED, 3 of 3** — `hafen.flowermenu()` **is** the open radial menu: unprotected
 `:list()`/`:count()`/`:gob()` · protected `:select(label|n)`/`:cancel()` · `FlowerMenuOpened`/`FlowerMenuClosed`. The reads

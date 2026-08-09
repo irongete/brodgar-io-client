@@ -27,7 +27,7 @@
 --                            custom view was on screen, closed if you had toggled it away with Tab.
 --   * Or disable/`:reload` while replaced -> the same one rule runs on teardown (no leak, no orphaned key).
 --
--- Item MOVING (take/transfer/drop) is an outbound gameplay action -> the gated Phase-4 actions tier (hafen.act),
+-- Item MOVING is an outbound gameplay action -> the PROTECTED tier (item:take() / :transfer(n) / :drop(n)),
 -- so this view is READ-ONLY: it draws the real items and logs the one you click. `hafen` is the API facade.
 
 hafen.log():write("bags loaded -- assign the 'toggle' hotkey in Options > Keybindings > Bags, then press it in-world"
@@ -108,7 +108,7 @@ local function buildBagsView(w)
     for _, it in ipairs(w:items()) do
       local p = it:cell()
       if p and p.x == cx and p.y == cy then
-        hafen.log():write(("bags: clicked %s x%s @cell %d,%d -- moving items is the gated Phase-4 tier (read-only here)")
+        hafen.log():write(("bags: clicked %s x%s @cell %d,%d -- moving items is the protected tier (read-only here)")
           :format(tostring(it:name() or it:res()), tostring(it:num() or 1), cx, cy))
         ev:preventDefault()
         return

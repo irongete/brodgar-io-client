@@ -1,0 +1,9 @@
+{
+  "name": "048.3 — the Item verbs: use / take / drop / transfer",
+  "id": "048-act-dissolved.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 048.3: the four protected verbs live on the Item and each refuses an undeclared addon naming itself, hafen.act():item throws naming all five replacements, and a handle held across a move still reads what it was while its verbs send nothing.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

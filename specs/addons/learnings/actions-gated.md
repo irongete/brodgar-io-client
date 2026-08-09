@@ -216,3 +216,20 @@
   not hold. Compare `:res()` instead. (This is the same recycling hazard `LuaItem` keys on object identity to
   avoid; here it cuts the other way, and 048.2's tasks.md had written the claim from the API's shape rather than
   the engine's.)
+- **(048.3) The plumbing a gate needs was already there — it was being handed in and thrown away.**
+  `LuaItem.Cache(Addon owner)` had taken the owner since 039.14 and had an **empty constructor body**, so the
+  four protected verbs cost one field and three call sites (`Cache(owner)` → `meta()` → `buildMeta(owner)` →
+  `methods(owner)`), exactly `LuaGob`'s shape. Worth checking first on any entity that is about to grow a write:
+  the per-addon cache is constructed from `Addon`'s own field initialiser, so the caller is always in scope
+  whether or not the type kept it. What has to change is the **metatable build**, because that is where the
+  methods table closes over the owner the gate asks about — an owner-less `methods()` cannot be gated at all,
+  and that, not the verbs, is the structural half of a task like this.
+- **(048.3) A verb string is not a vocabulary, and deleting one deletes its argument-shape lies too.**
+  `hafen.act():item(item, verb, n)` had to accept `n` for all five strings and hardcode `mods` to `0`, because
+  one signature served messages with three different argument shapes. Split into four verbs, each carries only
+  what its own message has: `item:use(mods)` (the only one of the four whose message, `iact`, has a modifier
+  field), `item:take()` (**no arguments at all** — a take carries a grab point and nothing else), and
+  `item:drop(n)` / `item:transfer(n)`. The count is the modifier for those three (`WItem.mousedown`), so
+  refusing an argument on `take` is not pedantry: it is the wire's own shape, stated where the caller can read
+  it. Note the consequence for a suite — an argument refusal on a protected verb is **invisible** to an
+  undeclared caller (the gate answers first), so it belongs on a `[manual]` `:lua` line.

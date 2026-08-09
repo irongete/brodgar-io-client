@@ -182,7 +182,19 @@ the gesture guardable, where `act():useItemOn` sent blind.
 
 ---
 
-## 048.3 — the Item verbs: `item:use(mods)`, `:take()`, `:drop(n)`, `:transfer(n)`
+## 048.3 — the Item verbs: `item:use(mods)`, `:take()`, `:drop(n)`, `:transfer(n)` ✅ 14/14 pass, 0 fail, 5 manual confirmed
+
+> **Closed 2026-08-10.** All four ship, `hafen.act():item` is deleted whole and throws under both field reads
+> naming all five replacements. Three things the next tasks inherit. **The structural half was already
+> plumbed**: `LuaItem.Cache(Addon owner)` had taken the owner since 039.14 with an *empty constructor body*, so
+> gating cost one field and three call sites — check that before assuming a `haven`-adjacent entity needs new
+> wiring to grow a write. **The whole protected surface is headless-testable when the gate runs first** (D-213):
+> `new haven.GItem(null)` + `LuaItem.of(owner, it)` reaches every verb with no session, and running the probe
+> under **two** owners — `Manifest.test` (declares nothing) and `Manifest.internal` (declares everything) —
+> proves both sides of each gate, the second run doubling as the **stale** case since an item with no `ui` can
+> never be `live()`. 048.4/.5/.6 should copy that probe rather than end on an eyeball. And **`ant bin`, not
+> `ant hafen-client`, is what installs the suite** into the `bin/addons/` the client actually scans.
+> The one thing left deliberately un-unified: `take` refuses arguments, because its message carries none.
 
 **Build**
 - `item:use(mods)` — the `iact` gesture: activate it (eat, open, light). `mods` optional, default `0`.
