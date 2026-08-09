@@ -27,6 +27,9 @@
 --                          character select — reversible). Path tokens are content-defined, so YOU supply them.
 --   :walker flower <l>  -- flower: RIGHT-click the nearest object, then auto-select its petal named <l> after a
 --                          brief delay (a flower menu grabs input, so a timed pick is the only programmatic way).
+--   :walker petal <l...>|n <k>|cancel
+--                       -- the radial menu's OWN write half: arm the NEXT menu you open and, from inside
+--                          FlowerMenuOpened, hafen.flowermenu():select(caption) / :select(position) / :cancel().
 --   :walker item [verb] -- item: act on your FIRST inventory item, addressed by the Item OBJECT (from a
 --                          read). Default 'take' lifts it to your cursor (safe/reversible: click an empty slot to
 --                          undo). Pass a verb: take|drop|transfer|iact|itemact.
@@ -53,15 +56,20 @@ end)
 
 local SOUTH = 22   -- world units ~ 2 tiles (tilesz = 11) to the south
 
+-- The single armed one-shot of `:walker petal` (047.2). Held out here so a second `:walker petal` replaces
+-- the first instead of stacking a second picker onto the same menu.
+local petalSub = nil
+
 -- One command with sub-verbs, each exercising one gated hafen.act() MapView verb.
 hafen.slash():register("walker", function(args)
   local sub = args[1] or "help"
 
   if sub == "help" then
-    hafen.log():write(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | item | speed | craft | bar | setbar | menugrid | kin")
+    hafen.log():write(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | petal | item | speed | craft | bar | setbar | menugrid | kin")
     hafen.log():write("   walk=moveTo  click=clickGob(right)  use=useItemOn  sel=select  place=place  raw=raw escape hatch")
     hafen.log():write("   menu=hafen.act():menu(path...)  e.g. ':walker menu lo cs' = log out to char select (reversible)")
     hafen.log():write("   flower=hafen.act():flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
+    hafen.log():write("   petal <label...>|n <k>|cancel=hafen.flowermenu():select/:cancel  arms the NEXT menu you open, picked from FlowerMenuOpened")
     hafen.log():write("   item [verb]=hafen.act():item(firstInvItem, verb)  default take (lifts to cursor); take|drop|transfer|iact|itemact")
     hafen.log():write("   -- 4g per-subsystem gated verbs (own namespace, same permission):")
     hafen.log():write("   speed [n]=hafen.speed():current(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
@@ -149,6 +157,44 @@ hafen.slash():register("walker", function(args)
       hafen.log():write((":walker flower -> hafen.act():flower('%s') => %s"):format(
         label, ok and "chosen" or "no such petal / no menu open (right-click gave a direct action, or retry)"))
     end)
+
+  elseif sub == "petal" then
+    -- 047.2: the radial menu's OWN write half. hafen.act():flower(label) fires blind on a timer -- it has no way
+    -- to know a menu came up, so the delay is a guess. The section does know: the pick happens from INSIDE
+    -- FlowerMenuOpened, the earliest moment there is, during the opening animation that swallows real clicks.
+    -- It picks by caption or by the petal's 1-based position on the ring, and :cancel() closes it as Esc does.
+    local what = args[2]
+    if not what then
+      hafen.log():write(":walker petal <label...> | n <k> | cancel -> arms the NEXT radial menu you open:")
+      hafen.log():write("   :walker petal Pick branch -> hafen.flowermenu():select('Pick branch')  (caption, case-insensitive)")
+      hafen.log():write("   :walker petal n 2         -> hafen.flowermenu():select(2)              (1-based ring position)")
+      hafen.log():write("   :walker petal cancel      -> hafen.flowermenu():cancel()               (exactly as Esc does)")
+      hafen.log():write("   then RIGHT-CLICK anything: a tree, another player, a kin row in the Kin window.")
+      return
+    end
+    local key, shown
+    if what == "cancel" then
+      key, shown = nil, "cancel()"
+    elseif what == "n" then
+      key = tonumber(args[3])
+      if not key then hafen.log():write(":walker petal n <k> -> k must be a number (the 1-based ring position)"); return end
+      shown = ("select(%s)"):format(tostring(key))
+    else
+      local parts = {}
+      for i = 2, #args do parts[#parts + 1] = args[i] end
+      key = table.concat(parts, " ")                       -- captions have spaces ("Pick branch")
+      shown = ("select('%s')"):format(key)
+    end
+    if petalSub then petalSub:off() end                    -- only ever ONE armed picker
+    petalSub = hafen.event():on("FlowerMenuOpened", function(petals)
+      if petalSub then petalSub:off(); petalSub = nil end   -- one-shot, and disarmed BEFORE we act
+      hafen.log():write((":walker petal -> menu opened with %d petals: %s"):format(#petals, table.concat(petals, ", ")))
+      local ok, err = pcall(function()
+        if key == nil then hafen.flowermenu():cancel() else hafen.flowermenu():select(key) end
+      end)
+      hafen.log():write((":walker petal -> hafen.flowermenu():%s => %s"):format(shown, ok and "chosen" or tostring(err)))
+    end)
+    hafen.log():write((":walker petal -> armed hafen.flowermenu():%s for the NEXT menu -- right-click something now."):format(shown))
 
   elseif sub == "item" then
     -- 4f: item verbs act on the Item OBJECT itself -- you get one from a READ (widget:items() on any

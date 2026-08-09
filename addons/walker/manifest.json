@@ -1,9 +1,9 @@
 {
   "name": "Walker",
   "id": "walker",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "author": "brodgar",
-  "description": "Example addon: the gated write tier, one deliberate verb at a time. It declares the 'actions' permission, so it is disabled by default and enabling it asks for your consent; each ':walker <sub>' fires exactly one gated verb -- hafen.act()'s MapView, menu, flower and item actions, plus the per-subsystem writes on the movement speed, the action bar, the action menu and the kin roster.",
+  "description": "Example addon: the gated write tier, one deliberate verb at a time. It declares the 'actions' permission, so it is disabled by default and enabling it asks for your consent; each ':walker <sub>' fires exactly one gated verb -- hafen.act()'s MapView, menu, flower and item actions, plus the per-subsystem writes on the movement speed, the action bar, the action menu, the kin roster and the radial menu's own petal selection.",
   "api_version": 1,
   "files": [
     "main.lua"

@@ -160,3 +160,20 @@
   throw — a "demo" in `hello` would be testing nothing. The split that already holds for `slot:use`/kin/speed/
   craft is the rule: `walker` (opt-in, `actions`) does the write, and `hello`'s per-login contract line asserts
   the gate fires (`setGated=true` via `pcall`). A refusal check is cheap and catches a gate silently going away.
+
+- **(047.2) A gated verb's failure shape is a property of WHERE it is called from, not of the verb.** `hafen.act():flower`
+  and `hafen.flowermenu():select` drive the same `FlowerMenu.choose`, and they disagree on purpose: the first is
+  fired blind from a timer (so "no menu yet" is a retry and `false` is right), the second from inside
+  `FlowerMenuOpened` (so the same condition is a lost race nobody will test for, and it raises). Before reaching for
+  4e's "an action that does nothing to pick returns false", ask what the caller was holding when it called — that is
+  what decides. Recorded as **D-213**.
+- **(047.2) Order the gate BEFORE the argument check and before the target lookup, or the author reads the wrong
+  error.** `requireActions(owner, verb)` is the first statement of both new verbs, so an addon that forgot
+  `"permissions": ["actions"]` hears about its manifest even when it also passed no argument and even when nothing is
+  open. Got for free the assertion that makes a read-only suite's proof airtight (see `testing-tooling.md`, same task):
+  a bare `:select()` and a `:select(1)` with nothing open must BOTH refuse on the permission. This is 4a's
+  "declaration first, switch second" rule extended one step further left.
+- **(047.2) A refusal on a set the caller cannot see must PRINT the set.** Every `:select`/`:cancel` error carries the
+  open ring numbered (`1. Chop, 2. Pick branch`) — which is the one thing a boolean return can never say, and the whole
+  reason raising is an upgrade here rather than a nuisance. The caller guessed a caption; the message hands them the
+  captions. Same shape as 4g's kin verbs listing the valid groups, and it costs one `StringBuilder`.

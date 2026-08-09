@@ -2,16 +2,19 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`047-flowermenu`](047-flowermenu/), 1 of 3** — `hafen.flowermenu()`: the open radial menu as a section
-(`:list()` labels · `:count()` · `:gob()` · gated `:select(label|n)`/`:cancel()`) + `FlowerMenuOpened`/`FlowerMenuClosed`.
-**047.1 is CLOSED**: the section (`:list()` — bare **strings** in ring order, no filter, a petal set being frozen from
-`added()` to death with no field to match on — and `:count()`, both answering `{}`/`0` with no menu up and neither
-ever throwing), the two bus keys, and the finder moved out of `ActApi` (**D-103**). The promise — *every Opened is followed by exactly one Closed* — is kept **structurally** (**D-212**):
-a weak map keyed on the menu itself, key presence meaning "opened, not yet closed", with all three ending doors
-(`uimsg("act")`, `uimsg("cancel")`, a new `destroy()` override) calling one `closed()` — which is what let the
-fork's client-side *Mute voice* petal report its own label in one line at the head of `choose`. Opened fires at the
-**END** of `added()`, the only point the set is complete (`addVoicePetal` replaces `opts` inside it). 26/26 over 5
-menus; the **client-side (`BuddyWnd`) path is proven only headlessly** — 047.3 exercises it in-game.
+**ACTIVE: [`047-flowermenu`](047-flowermenu/), 2 of 3** — `hafen.flowermenu()` **is** the open radial menu: `:list()`/`:count()`
+(ungated) · gated `:select(label|n)`/`:cancel()` · `:gob()` · `FlowerMenuOpened`/`FlowerMenuClosed`.
+**047.1 CLOSED** — the reads hand back bare **strings** in ring order (a petal set is frozen from `added()` to death, so a live
+object would track nothing), answer `{}`/`0` with no menu up and never throw; the finder moved out of `ActApi` (**D-103**).
+*Every Opened is followed by exactly one Closed* is kept **structurally** (**D-212**): a weak map keyed on the menu, key
+presence = "opened, not yet closed", all three ending doors calling one `closed()` — which let the fork's client-side *Mute
+voice* petal report its own label in one line. Opened fires at the **END** of `added()`, the only complete moment. 26/26.
+**047.2 CLOSED** — the write half drives `FlowerMenu.choose(Petal)`, never a re-encoded `"cl"`, so a client-side petal still
+handles itself; a **string is always a caption, a number always a position** (`type()`, not `isstring()`, or `:select("3")`
+picks the third). Unlike the reads they **REFUSE** (**D-213**), naming the open ring numbered, and the gate runs before both
+the argument check and the menu lookup. 19/19, the suite alone: one bare right-click, its handler re-asserting all four
+refusals **with a real ring on screen**. `hafen.act():flower` is untouched. **047.3** (`:gob()`) still owes the client-side
+(`BuddyWnd`) path an in-game run — it is proven only headlessly.
 
 **[`046-gob-scale`](046-gob-scale/) is CLOSED, 1 of 1** — a **native** gob answers `:scale`, the verb its `hafen.vr()`
 siblings have: client-local, purely visual, in place, and the **first WRITE** on a handle that had been read-only.
@@ -24,25 +27,22 @@ and `UiApi.teardownGobScales` sweeps beside `teardownGobOverlays` — which is w
 deliberate divergence from the vr siblings is validation** (**D-211**): they clamp, their factor arriving in an
 options table; a direct argument on a direct verb refuses `0`, a negative, a non-finite and a non-number.
 
-**[`045-durable-places`](045-durable-places/) is CLOSED, 3 of 3** — a thing you stand at a **point** is at that
-point tomorrow, and after a cave. A free `hafen.vr()` entity's place is its **durable anchor** (grid id + the offset
-inside it) and the session coordinate a derived cache, because that space is re-based whenever the map is dropped:
-`:info()` is the place and `:x()` this session's answer to it (**D-207**), and a place with no durable form is
-refused at both doors. A place this session cannot **locate** is legal (**D-208**) — the entity exists, holds its
-grid, is not drawn, and stands itself up when that ground resolves, with no `Resolve` chain and no cap. **The second
-event** (**D-209**) is one guarded `// addon:` line at `MiniMap.tick`'s `sessloc` assignment (the only `haven` edit;
-a `(seg, tc)` test, because `tick` mints a fresh `Location` every frame), witnessed by a seventh pull-only counter.
+**[`045-durable-places`](045-durable-places/) is CLOSED, 3 of 3** — a thing you stand at a **point** is at that point tomorrow,
+and after a cave. A free `hafen.vr()` entity's place is its **durable anchor** (grid id + the offset inside it) and the session
+coordinate a derived cache, because that space is re-based whenever the map is dropped: `:info()` is the place and `:x()` this
+session's answer to it (**D-207**); a place with no durable form is refused at both doors. A place this session cannot
+**locate** is legal (**D-208**) — the entity exists, holds its grid, is not drawn, and stands itself up when that ground
+resolves, with no `Resolve` chain and no cap. **The second event** (**D-209**) is the only `haven` edit: one guarded
+`// addon:` line at `MiniMap.tick`'s `sessloc` assignment (a `(seg, tc)` test — `tick` mints a fresh `Location` every frame).
 
-**[`044-spatial-ui`](044-spatial-ui/) is CLOSED, 9 of 9**: `hafen.vr():widget()` — a Widget, yours or the client's
-own, standing as a quad under the one rule **transparency**, which is why its surface is a real UI **root** it is
-reparented into (`docs/addons/api/vr/widgets.md`, `cupboard` the example). A tenth task, the client's own 0.1s fade
-on a standing entity, was **dropped by maintainer directive** and its code removed whole. Along the way: a thing
-standing at a POINT is in the scene only while the ground under it is DRAWN — hidden, not ended (**D-206**,
-`<entity>:drawn()`), and `MapRaster.Grid.cuts` is what knows it; `getparent(Class)` out of a panel missed the
-`GameUI`, so one seam crosses to **the record** (**D-204**); a window **announces its removal before it unlinks**
-(**D-205**); culling is the four projected corners as a frustum test (**D-203**), and input those same corners
-inverted as a homography (**D-195**). **A 040.10 defect is still NOT fixed**: `dropdown:size(w, h)` leaves its
-drop arrow outside its box.
+**[`044-spatial-ui`](044-spatial-ui/) is CLOSED, 9 of 9**: `hafen.vr():widget()` — a Widget, yours or the client's own,
+standing as a quad under the one rule **transparency**, which is why its surface is a real UI **root** it is reparented
+into (`docs/addons/api/vr/widgets.md`, `cupboard` the example). A tenth task (the client's own 0.1s fade) was **dropped
+by maintainer directive**, its code removed whole. Along the way: a thing at a POINT is in the scene only while the
+ground under it is DRAWN — hidden, not ended (**D-206**, `<entity>:drawn()`); an upward walk out of a standing panel
+crosses to **the record** (**D-204**); a window **announces its removal before it unlinks** (**D-205**); culling is the
+four projected corners as a frustum test (**D-203**), input those same corners inverted as a homography (**D-195**).
+**A 040.10 defect is still NOT fixed**: `dropdown:size(w, h)` leaves its drop arrow outside its box.
 [`043-vr-namespace`](043-vr-namespace/) **closed, 5/5** before it — pure reorganization: `hafen.vr()` absorbed
 `hafen.ghost()`/`hafen.render()`, made the **anchor an argument**, emptied `gob:overlay()` of the world, and turned
 `:billboard(b)` into **`:facing(mode)`** (**D-184**–**D-190**).

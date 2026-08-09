@@ -15,7 +15,7 @@
 > `Mute voice`). 047.3 right-clicks a kin row for its own `:gob()` check and will exercise it in-game.
 >
 > The refusal on `:list("x")` names `hafen.act():flower(label)`, not `:select` as this file asked: that verb
-> does not exist until 047.2 and the page cannot document one that is not there. **047.2 switches it.**
+> does not exist until 047.2 and the page cannot document one that is not there. **047.2 switched it.**
 
 - `FlowerMenuApi` mounted as `hafen.flowermenu()` with `:list()` and `:count()`; the open-menu finder
   moves here out of `ActApi.openFlower` and `ActApi` calls it.
@@ -32,7 +32,14 @@
   screen; right-click it again and press Esc; right-click a kin in the Kin window and pick "Change group"
   — expect both events to fire there too (client-side menu, no server id).
 
-## 047.2 — `:select` and `:cancel`, gated
+## 047.2 — `:select` and `:cancel`, gated ✅ 19/19 pass, 0 fail
+
+> Verified in-game. The suite stands **alone** — it enables and drives nothing else: `walker` ships the firing
+> demo as documentation, and was deliberately kept out of the verification path after the maintainer's call that
+> a current task is never validated through an older addon. Its one `[manual]` step is a bare right-click, and
+> the armed handler re-asserts all four refusals **with a real ring on screen** (`"Chop"` at position 1), which
+> is the half no headless probe can reach. The write half **raises** where the read half answers (**D-213**), and
+> the gate runs before both the argument check and the menu lookup.
 
 - `:select(label)` (case-insensitive, exact) and `:select(n)` (1-based), and `:cancel()`, both through
   `FlowerMenu.choose(Petal)` — never a re-encoded `"cl"` — behind the `actions` permission.

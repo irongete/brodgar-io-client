@@ -307,3 +307,11 @@
   `v.type() != LuaValue.TSTRING`, immune to content either way. The older call sites above never hit this
   because a resource name is never purely numeric, but the idiom itself is broken there too, waiting for the
   first all-digits resource path.
+- **(047.2) When a string and a number are two MEANINGS rather than two error messages, `isstring()` does not
+  merely blur the refusal — it silently performs the wrong action.** `:select(key)` takes a petal's caption OR
+  its 1-based position, so `key.isstring()` first would make `:select("3")` pick the **third** petal instead of
+  the one captioned `3`, with no error anywhere and a committed choice at the end of it. 039.11 says to use
+  `key.type() != LuaValue.TSTRING` "when the distinction matters, which it does exactly when the two mistakes
+  deserve different messages" — this is the harder case one step past that: the two readings deserve different
+  *behaviour*, so the `type()` test is load-bearing rather than a nicety. Rule of thumb: the moment one argument
+  is overloaded on type, `isstring()`/`isnumber()` are both wrong and `type()` is the only correct test.

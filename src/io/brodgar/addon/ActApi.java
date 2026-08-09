@@ -436,7 +436,9 @@ final class ActApi {
     // selection, including its client-side petals). Both run on the UI thread (addon callback / REPL / timer),
     // like the MapView verbs above, and locate their target by walking the live widget tree (AddonManager.gui() /
     // FlowerMenuApi.open(), the finder hafen.flowermenu() owns since 047.1). flower is non-throwing on "no menu /
-    // no match" (returns false); reading a menu's petals and the two menu events live in that section, not here.
+    // no match" (returns false); reading a menu's petals, the two menu events and the 047.2 write half
+    // (hafen.flowermenu():select(label|n) / :cancel(), which REFUSE naming what is open) live in that section.
+    // The two doors coexist by maintainer directive and behave exactly as they always have.
 
     /** Build the menu path {@code String[]} from the 1-based varargs; throws on an empty path or a non-string
      *  token (numbers coerce to their string form, like a console token). Pure/testable. */

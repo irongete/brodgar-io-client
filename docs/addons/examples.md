@@ -173,6 +173,9 @@ on the ground, area-select, placing, a menu path, a flower petal, an item verb, 
 live in their own namespaces — [speed](api/speed.md), [crafting](api/craft.md) and the
 [action bar](api/actionbar.md).
 
+`:walker petal` arms the next [radial menu](api/flowermenu.md) you open and picks from it — by caption,
+by position on the ring, or cancelling it — from inside the event that says the menu is up.
+
 ## netdemo
 
 [`hafen.http`](api/http.md) against a `network` block: its manifest lists three hosts and that list **is**

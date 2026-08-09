@@ -88,3 +88,28 @@ per-addon consent (4c) already makes granting a knowing, explicit act; a second 
 without adding user control. One canonical way: enable-with-consent = grant.
 **See.** [12-security-and-permissions.md](../design/12-security-and-permissions.md), [10-options-panel.md](../design/10-options-panel.md),
 [D-027](actions-permissions.md) (the model this refines), [D-006](lifecycle.md) (default-enabled, narrowed for write addons).
+
+---
+
+### D-213 — a write onto something the API also ANNOUNCES refuses rather than answering, and the refusal names what is there ✅ (047.2, 2026-08-09)
+**Decision.** `hafen.flowermenu():select(label|n)` and `:cancel()` **raise** when no menu is open, when no
+caption matches, when the position is outside `1..count`, and when the key is neither a string nor a number —
+and every one of those errors carries the ring that IS open, numbered (`1. Chop, 2. Pick branch`). The older
+door onto the same `FlowerMenu.choose`, `hafen.act():flower(label)`, keeps returning `false` for "no menu / no
+match" and is untouched.
+**Rationale.** [4e's rule](../learnings/actions-gated.md) — *an action that does nothing to pick returns
+`false`, doesn't throw* — was written for a verb fired **blind on a timer**, where "the menu was not up yet" is
+an ordinary retry the caller obviously tests. `:select` is reached from `FlowerMenuOpened`, i.e. from inside the
+moment the menu **is** up, and there the same `false` means a race that was lost, which the caller has no reason
+to test and will not. A radial menu lives about a second, so a silently skipped pick has no symptom until the
+automation is wrong three steps later. A refusal can also say what a boolean cannot: what the ring actually
+offers — which is exactly what a caller that guessed a caption needs.
+**Consequences.** The rule generalises past this menu: **a write onto a transient the API itself announces
+refuses; a write onto a target that may simply not have arrived yet answers.** Two doors onto one engine method
+now differ in failure shape and each page states its own — deliberate, and it lasts only until the older door is
+retired (a separate, already-planned task). Also settled here is the gate's ORDER: `requireActions` runs before
+the argument check **and** before the target lookup, so an addon that did not declare the permission always
+hears about its manifest and never about "no menu open" — [D-027](#d-027)'s own declaration-first ordering,
+applied at a second door.
+**See.** [D-027](#d-027), [D-072](architecture-api.md#d-072), [D-009](widgets-ui.md#d-009),
+[D-212](architecture-api.md#d-212), [047-flowermenu](../047-flowermenu/spec.md).

@@ -1388,3 +1388,23 @@
   alone does not register it, so `hasSub` finds nobody and every `fire*` is silently a no-op. That bought the
   whole event-pairing proof (3 opened / 3 closed, the right label on each, repeat calls inert) before the
   client was started, on a feature whose in-game half needs a human holding a mouse.
+- **(047.2) A read-only suite CAN prove a gate properly — assert the refusal from inside the event that says the
+  target is really there.** `TESTING.md` forbids a suite declaring `permissions`, so a gated verb is proven by its
+  refusal; but a refusal asserted with nothing open is weak evidence, because it could equally have been "there was
+  nothing to pick". Arming a `FlowerMenuOpened` handler and re-asserting the same four refusals **with a real ring on
+  screen** — `:select(1)` against a petal that genuinely sits at position 1, `:select("<its own first caption>")`
+  against a caption that genuinely matches, `:cancel()` with something there to cancel — leaves the permission as the
+  only explanation. That is also the half a headless probe cannot reach, so it is exactly what the in-game round is
+  worth spending. Generalises to any gated verb whose subsystem emits an "it exists now" event.
+- **(047.2) Do NOT reach for an example addon (`walker`, `planner`, …) to drive a suite's verification.** D-085 is
+  usually read as "do not depend on another *suite*", but leaning on an example addon breaks the same promise in a
+  worse way: it makes the maintainer enable a write addon and clear a consent dialog before a single line of THIS
+  task can be checked. The example addon is documentation and ships with the task; it is never part of the ask. If
+  the suite genuinely cannot reach a behaviour alone, that behaviour is a `[manual]` line the maintainer performs
+  with their own mouse — not a second addon to install.
+- **(047.2) Splitting the target lookup off a verb makes its whole resolution headless-testable.** `select` =
+  `selectOn(required(verb), key)`: `required` is the one part that needs a live `UI`, so `selectOn(fm, key)` takes a
+  hand-built `FlowerMenu` and the entire index/caption/refusal matrix runs under the 033.3 classpath with a
+  subclass whose `choose(Petal)` just records — 10 checks (position, caption, the `"3"` trap, both range ends,
+  fractional, wrong type) before the client is ever started, and no `wdgmsg` on the wire. Same "pure builder + thin
+  sender" split as 4d's `clickGobArgs`, applied to a resolver instead of an encoder.

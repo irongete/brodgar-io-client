@@ -2,7 +2,7 @@
 
 The **radial menu** is the ring of petals a right-click puts up: the game's main context gesture, and the
 way almost every interaction with an object starts. `hafen.flowermenu()` **is** the open menu — what it
-offers, and how many petals that is.
+offers, how many petals that is, and which one to pick.
 
 ```lua
 hafen.event():on("FlowerMenuOpened", function(petals)
@@ -13,6 +13,8 @@ hafen.event():on("FlowerMenuClosed", function(label)
   hafen.log():write(label and ("picked " .. label) or "cancelled")
 end)
 ```
+
+## Read
 
 | Call | Returns |
 |---|---|
@@ -37,8 +39,7 @@ from the keyboard. This is the opposite of [`hafen.menugrid`](menugrid.md), wher
 and is refused — there the catalogue grows as you play, and here the ring is frozen the instant it opens.
 
 `:list()` takes **no filter**. There is no field to match on, and a string argument would read as *pick
-this one*; passing anything raises an error pointing at [`hafen.act():flower`](act.md#hafenactflowerlabel),
-which is how a petal is chosen.
+this one*; passing anything raises an error pointing at `:select`, which is how a petal is chosen.
 
 > **The menu answers while it is on screen, closing animation included.** A pick or an Esc starts a
 > quarter-to-three-quarter-second fade, and the ring is still there for it — so a `:count()` read from
@@ -47,6 +48,35 @@ which is how a petal is chosen.
 **Two menus at once** should not happen — an open menu grabs the mouse and the keyboard, which is what
 makes "the open menu" a well-defined thing. If it ever does, these verbs answer for the first one the
 client is holding.
+
+## Write (gated: `actions`)
+
+| Method | Description |
+|---|---|
+| `hafen.flowermenu():select(label)` | pick the petal captioned `label`, matched whole and case-insensitively |
+| `hafen.flowermenu():select(n)` | pick the petal at position `n` on the ring, counting from `1` |
+| `hafen.flowermenu():cancel()` | close the menu with nothing chosen, exactly as Esc does |
+
+Called from an addon that did not declare the permission, each raises an error; see [`hafen.act`](act.md).
+
+A string is always a caption and a number is always a position, so
+`hafen.flowermenu():select("3")` picks the petal captioned `3` and never the third one.
+
+Both verbs go through the client's own selection, which is what makes them exact rather than
+approximate: a petal the **client** handles by itself — the Kin window's entries, the mute toggle on
+another player — is handled locally, and nothing is sent to the server for it.
+
+Where the reads answer, these **raise**. A menu is up for about a second, so *there was nothing to pick*
+is a race you have to hear about rather than a value you might forget to test. `:select` raises when no
+menu is open, when no caption matches, when the position is outside `1`..the petal count, and when the
+key is neither a string nor a number; `:cancel()` raises when no menu is open. Each of those errors
+lists the ring that **is** open, numbered, so the spelling you missed is in the message.
+
+You can pick from inside a `FlowerMenuOpened` handler, and that is the usual place. The ring is still
+animating open at that moment — the one window a real click cannot use, because the menu swallows mouse
+input until the animation finishes.
+
+The `walker` addon arms the next menu you open and picks from it, by caption and by position.
 
 ## The two events
 
@@ -84,6 +114,6 @@ console command or a hotkey cannot be the thing that reacts to a menu. A handler
 
 ## See also
 
-- [`hafen.act`](act.md#hafenactflowerlabel) — picking a petal of the menu these events tell you about
+- [`hafen.act`](act.md) — the permission `:select` and `:cancel` share with every other write
 - [`hafen.menugrid`](menugrid.md) — the *other* menu: the catalogue of everything your character can do
 - [`hafen.event`](event.md#the-radial-menu) — the bus these two events sit on, and every other key

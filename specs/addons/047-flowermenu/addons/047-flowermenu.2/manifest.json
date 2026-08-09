@@ -1,0 +1,9 @@
+{
+  "name": "047.2 — hafen.flowermenu():select / :cancel, gated",
+  "id": "047-flowermenu.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 047.2: the radial menu's write half refuses an addon that did not declare \"actions\" -- with no menu open AND with a real ring on screen -- while its ungated reads answer in the same run.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
