@@ -343,6 +343,11 @@ final class ActApi {
             throw new LuaError("hafen.act():clickGob: the gob has no position yet");
         Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;
         m.wdgmsg("click", clickGobArgs(pc, button, mods, (int)g.id, rc.floor(OCache.posres)));
+        // 047.3: the same token the real click records in MapView.Click.hit — and here the gob is not correlated
+        // but KNOWN, this being addon code that named it. lcc is untouched by a programmatic click, so a menu the
+        // server opens in reply matches on the press point exactly as it does for a mouse click, and a player
+        // press in between moves lcc and invalidates it, which is the point.
+        ClickToken.note(g.id, (m.ui != null) ? m.ui.lcc : null);
     }
 
     /** The MapView {@code "itemact"} args (use held item on the ground at world x,y). Pure/testable. */

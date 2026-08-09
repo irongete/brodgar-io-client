@@ -55,7 +55,21 @@
   select from **inside** an `FlowerMenuOpened` handler — expect the petal to fire during the opening
   animation without a stuck menu.
 
-## 047.3 — `:gob()`
+## 047.3 — `:gob()` ✅ 15/15 pass, 0 fail
+
+> Verified in-game, all three gestures performed. The claim the run is worth is the two **negatives**: an
+> inventory item's ring and the Kin window's own answered `nil` while `:count() > 0` proved a ring was really
+> up — a nil asserted with nothing open would prove nothing. That round also closed 047.1's outstanding gap:
+> the client-side (`BuddyWnd`) path has now fired its events in-game, not only headlessly.
+>
+> Two departures from what this file and `plan.md` wrote. The attribution is **not** cleared at the close: it
+> lives in a second weak map that dies with the widget, because `:list()`/`:count()` keep answering through the
+> closing animation and a `:gob()` that went `nil` there would have the three reads describing different menus
+> (**D-214**). And the suite asserts `gob:name()`, not `:res()` — a Gob object has no `:res()`.
+>
+> "A second `FlowerMenuOpened` never re-consumes a spent token" is not reachable from Lua (nothing can announce
+> a menu twice), so it is proven headlessly, in the probe that drove the seam directly; the suite's Lua-visible
+> form is that two reads inside one handler hand back the same Gob object.
 
 - `ClickToken` + the `MapView.Click.hit` line and the `ActApi.actClickGob` record; consumed at the Opened
   seam, held beside the open menu, cleared on close.

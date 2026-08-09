@@ -53,7 +53,7 @@ you came for from the tables below. Every page in the tree is listed here.
 |---|---|
 | [`hafen.act`](act.md) | drive the character — move, click, use items, pick menu entries. Gated by the `actions` permission |
 | [`hafen.menugrid`](menugrid.md) | the action menu: every action the character knows, and invoking one |
-| [`hafen.flowermenu`](flowermenu.md) | the radial menu a right-click puts up: its petals, picking one, and when one opens and closes |
+| [`hafen.flowermenu`](flowermenu.md) | the radial menu a right-click puts up: its petals, the object it belongs to, picking one, and when one opens and closes |
 
 ## The UI
 

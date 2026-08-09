@@ -2,19 +2,19 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`047-flowermenu`](047-flowermenu/), 2 of 3** — `hafen.flowermenu()` **is** the open radial menu: `:list()`/`:count()`
-(ungated) · gated `:select(label|n)`/`:cancel()` · `:gob()` · `FlowerMenuOpened`/`FlowerMenuClosed`.
-**047.1 CLOSED** — the reads hand back bare **strings** in ring order (a petal set is frozen from `added()` to death, so a live
-object would track nothing), answer `{}`/`0` with no menu up and never throw; the finder moved out of `ActApi` (**D-103**).
-*Every Opened is followed by exactly one Closed* is kept **structurally** (**D-212**): a weak map keyed on the menu, key
-presence = "opened, not yet closed", all three ending doors calling one `closed()` — which let the fork's client-side *Mute
-voice* petal report its own label in one line. Opened fires at the **END** of `added()`, the only complete moment. 26/26.
-**047.2 CLOSED** — the write half drives `FlowerMenu.choose(Petal)`, never a re-encoded `"cl"`, so a client-side petal still
-handles itself; a **string is always a caption, a number always a position** (`type()`, not `isstring()`, or `:select("3")`
-picks the third). Unlike the reads they **REFUSE** (**D-213**), naming the open ring numbered, and the gate runs before both
-the argument check and the menu lookup. 19/19, the suite alone: one bare right-click, its handler re-asserting all four
-refusals **with a real ring on screen**. `hafen.act():flower` is untouched. **047.3** (`:gob()`) still owes the client-side
-(`BuddyWnd`) path an in-game run — it is proven only headlessly.
+**[`047-flowermenu`](047-flowermenu/) is CLOSED, 3 of 3** — `hafen.flowermenu()` **is** the open radial menu: ungated
+`:list()`/`:count()`/`:gob()` · gated `:select(label|n)`/`:cancel()` · `FlowerMenuOpened`/`FlowerMenuClosed`. The reads
+hand back bare **strings** in ring order (a petal set is frozen from `added()` to death, so a live object would track
+nothing) and answer `{}`/`0`/`nil` with no menu up; the finder moved out of `ActApi` (**D-103**). *Every Opened is
+followed by exactly one Closed* is kept **structurally** (**D-212**) — a weak map keyed on the menu, key presence =
+"opened, not yet closed", all three ending doors calling one `closed()` — and Opened fires at the **END** of `added()`,
+the only complete moment. The write half drives `FlowerMenu.choose(Petal)`, never a re-encoded `"cl"`, so a client-side
+petal still handles itself, and unlike the reads it **REFUSES** (**D-213**) naming the open ring numbered.
+**`:gob()` is a CORRELATION, not a message** (**D-214**): a press records `(gob, UI.lcc)` and the menu claims it once, and
+since `lcc` moves on **every** press *before* dispatch, equality proves nothing else was clicked in between — which is why
+an item's ring and the Kin window's answer `nil` with no list of openers anywhere. Its second rule generalises — **state
+that DESCRIBES a transient lives as long as the transient is READABLE** — so the attribution outlives the close, dying
+with the widget. `hafen.act():flower` is untouched by directive. 26/26 · 19/19 · 15/15.
 
 **[`046-gob-scale`](046-gob-scale/) is CLOSED, 1 of 1** — a **native** gob answers `:scale`, the verb its `hafen.vr()`
 siblings have: client-local, purely visual, in place, and the **first WRITE** on a handle that had been read-only.

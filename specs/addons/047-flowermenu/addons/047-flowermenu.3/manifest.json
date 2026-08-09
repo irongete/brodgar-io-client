@@ -1,0 +1,9 @@
+{
+  "name": "047.3 — which object the radial menu was opened on",
+  "id": "047-flowermenu.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 047.3: hafen.flowermenu():gob() names the object a ring was opened on, is nil with no menu open, and is nil for a menu no click on a game object put up — an inventory item's, the Kin window's.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

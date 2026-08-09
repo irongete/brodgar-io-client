@@ -191,7 +191,8 @@ event is about *visibility*, and at `disappear` the widget is a key to match, no
 **Every `FlowerMenuOpened` is followed by exactly one `FlowerMenuClosed`**, whether you picked a petal,
 pressed Esc, clicked away, or the menu died under you; the payload is `nil` for everything but a pick. Both
 cover the menus the client puts up itself, such as the Kin window's, as well as the server's. Read the ring
-from the payload or from [`hafen.flowermenu()`](flowermenu.md), which is the open menu.
+from the payload or from [`hafen.flowermenu()`](flowermenu.md), which is the open menu and also names the
+object it was opened on.
 
 ## World ghosts and sprites
 

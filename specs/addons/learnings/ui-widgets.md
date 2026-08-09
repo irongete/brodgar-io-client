@@ -904,3 +904,16 @@
   and only `ui.destroy` at `s == 1`. The widget is therefore still in the tree throughout — so a section that
   answers "the open menu" keeps answering during the fade, and a close event read back through that section
   is not yet empty. Document which of the two a read means rather than assuming they coincide.
+- **(047.3) `UI.lcc` moves on EVERY mouse press, before dispatch — which makes it an exact correlator, not a
+  heuristic.** [`UI.mousedown`](../../../src/haven/UI.java:893) does `lcc = mc = c;` and *then* dispatches, so
+  the value is already the new press point by the time any widget sees the event; and
+  [`FlowerMenu.added()`](../../../src/haven/FlowerMenu.java:247) places itself at `parent.ui.lcc`. So "the point
+  recorded at a click equals the point a menu opened at" is a proof that **no other press happened in between**
+  — every unrelated interaction self-invalidates the record without anything having to enumerate what those
+  interactions are. Anything that needs to attribute a later widget to an earlier click should key on `lcc`
+  rather than on a time window (`VoiceTarget`'s 3 s, the shipped approximation).
+- **(047.3) `haven.Coord` is MUTABLE (`public int x, y`) and `Coord.z` is one shared object — copy anything you
+  record.** [`Coord`](../../../src/haven/Coord.java:33) has public non-final fields and a copy constructor; a
+  stored reference is a value someone else can move under you, and `UI.lcc` starts life *as* `Coord.z`. Same
+  class as the 036.1 note about recording a widget's `c`: `equals` is by value and is the right comparison, but
+  the thing you keep must be `new Coord(c)`.

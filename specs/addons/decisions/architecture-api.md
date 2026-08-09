@@ -2122,3 +2122,31 @@ same shape fits any future open/close pair over an engine object with more than 
 targeting mode). It says nothing about *where* the open fires: that is the separate question of when the thing is
 complete, and here it is the END of `added()`, because the petal array is replaced inside it.
 **See.** [D-102](#d-102), [D-105](#d-105), [D-100](#d-100), [047-flowermenu](../047-flowermenu/spec.md).
+
+---
+
+### D-214 — a value the server never sends is a CORRELATION the client makes, and it answers nil wherever that correlation cannot vouch ✅ (047.3, 2026-08-09)
+**Decision.** `hafen.flowermenu():gob()` names the object a radial menu was opened on. The server sends no such
+thing — a menu arrives as a bare `"sm"` widget carrying captions and nothing else — so the answer is built
+client-side by [`ClickToken`](src/io/brodgar/addon/ClickToken.java): a press records `(gob, UI.lcc)`, the menu
+claims it **once** at the end of `added()`, and the claim is kept only when the recorded point equals the point
+the ring is placed at. A claim that does not match spends the token anyway, a press on the ground replaces it,
+and a time window backstops the case the point cannot rule out. Everything the correlation cannot vouch for —
+an inventory item's menu, the Kin window's own, a menu the player's next click intervened on — answers `nil`.
+**Rationale.** The correlator is not a heuristic dressed up as one: `UI.mousedown` assigns `lcc` on **every**
+press before dispatching anything, and `FlowerMenu.added()` places the ring at exactly that value. So equality
+is a *proof* that no other interaction happened in between, and every way of opening a menu that this feature
+does not know about invalidates itself — which is what lets the rule be written once instead of as a growing
+list of "and also not when…". The shipped precedent, `VoiceTarget`, attributes a click to a menu by a **time
+window alone** and is correspondingly approximate; this is that shape made exact. The alternative — asking the
+server, or enumerating the openers — is respectively impossible and unbounded.
+**Consequences.** The page states *why* it is `nil`, not just *when*: a reader who knows the answer comes from
+the click can predict the nil cases themselves, which is the difference between a documented rule and a list to
+memorise. **A second rule falls out and generalises: state that DESCRIBES a transient lives as long as the
+transient is readable, not as long as its event window is open.** The attribution is therefore held in a weak
+map separate from [D-212](#d-212)'s pairing map — that one loses its key at the close, this one dies with the
+widget — because `:list()`/`:count()` keep answering through the 0.25–0.75 s closing animation, and a `:gob()`
+that went `nil` at the close would have the three reads describing different menus. The same token shape is
+what a later `:item()` (which inventory item opened the menu) would reuse unchanged.
+**See.** [D-212](#d-212), [D-213](actions-permissions.md#d-213), [D-101](#d-101), [D-103](#d-103),
+[047-flowermenu](../047-flowermenu/spec.md).

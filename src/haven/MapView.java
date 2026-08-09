@@ -2126,6 +2126,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		return;
 	    if(inf == null) io.brodgar.voice.Voice.onMove(MapView.this, mc);   // brodgar voice: report move intent
 	    VoiceTarget.note(clickedgob(inf), plgob);   // brodgar voice: remember clicked player for the radial menu
+	    io.brodgar.addon.AddonManager.noteClick(cg, ui.lcc);   // addon: 047.3 -> hafen.flowermenu():gob(). The server's "sm" carries no gob, so the client correlates it here, keyed on the press point (ui.lcc) the menu will place itself at.
 	    Object[] args = {pc, mc.floor(posres), clickb, ui.modflags()};
 	    if(inf != null)
 		args = Utils.extend(args, inf.clickargs());

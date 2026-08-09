@@ -889,6 +889,22 @@ public final class AddonManager {
     /** @see #flowerOpened */
     public static void flowerChoosing(FlowerMenu m, FlowerMenu.Petal p) { FlowerMenuApi.choosing(m, p); }
 
+    /**
+     * The <b>click token</b> seam (047.3) — the one {@code // addon:} line in {@code MapView.Click.hit}, beside
+     * the voice feature's own {@code VoiceTarget.note}. It records which object a press resolved to, so a radial
+     * menu that opens straight afterwards can say what it belongs to ({@code hafen.flowermenu():gob()}); the
+     * server sends no such thing, so the client correlates it itself. {@link ClickToken} holds the rules.
+     *
+     * <p>{@code g} is {@code null} for a press that hit the ground, and that is recorded too — it <b>replaces</b>
+     * any older attribution, which is what a click on nothing should do.
+     *
+     * <p><b>Threading.</b> The click hit-test's own thread, under {@link ClickToken}'s monitor. It raises no Lua
+     * and allocates one {@link Coord}.
+     */
+    public static void noteClick(Gob g, Coord lcc) {
+        ClickToken.note((g == null) ? -1 : g.id, lcc);
+    }
+
     // The widget-targeting descriptor {id, type, place, caption, parentType} (D-024) is GONE (032.2). It was the
     // argument of replace{match=fn} and nothing else once 030.2 hard-cut the onWidgetCreate observer that shared
     // it; with hafen.ui.replace deleted there is exactly one vocabulary for "which window" left — the Selector.
@@ -1807,8 +1823,10 @@ public final class AddonManager {
         // is a menu that exists for a second. So the section IS the open menu and its members are bare
         // LABELS — :list() and :count() — because a petal set is frozen from the moment it opens until it
         // dies and there is nothing for a live object to track. Every read answers with no menu up ({} and
-        // 0): none being open is the normal state, not an error. The two events, FlowerMenuOpened and
-        // FlowerMenuClosed, are where an automation addon actually reacts.
+        // 0): none being open is the normal state, not an error. :gob() names the object the ring was opened
+        // ON — a correlation the client makes from the press that opened it, since the server sends no such
+        // thing, and nil wherever that correlation cannot vouch for an answer. The two events,
+        // FlowerMenuOpened and FlowerMenuClosed, are where an automation addon actually reacts.
         FlowerMenuApi.installFlowerMenu(hafen, owner);
 
         // hafen.world():* — the LIVE world (037.1, re-shaped in 039.2). hafen.world():gob() is the read-only

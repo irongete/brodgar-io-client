@@ -23,6 +23,12 @@ import java.util.WeakHashMap;
  * nobody asks. With no menu open every read answers ({@code {}}, {@code 0}) rather than throwing — a menu is
  * the player's, and "none is up" is the normal state, not an error.
  *
+ * <p><b>{@code :gob()} is a correlation, not a message</b> (047.3). The server's {@code "sm"} carries captions
+ * and nothing else, so <i>which object this ring belongs to</i> is something the client works out for itself:
+ * {@link ClickToken} records the gob a press resolved to, keyed on the press point the menu will place itself
+ * at, and the menu claims it once when it opens. Everything the correlation cannot vouch for answers
+ * {@code nil} — an inventory item's menu, the Kin window's, one the player's next click intervened on.
+ *
  * <p><b>The write half is gated</b> (047.2): {@code :select(label|n)} and {@code :cancel()} commit a choice, so
  * they sit behind the per-addon {@code actions} permission like every other write, and they drive
  * {@link FlowerMenu#choose} rather than re-encoding {@code wdgmsg("cl", num)} (D-009) — which is the only reason
@@ -61,6 +67,22 @@ final class FlowerMenuApi {
     private static final Map<FlowerMenu, String> live = new WeakHashMap<FlowerMenu, String>();
 
     /**
+     * The gob each announced menu was opened <b>on</b>, for {@code :gob()} (047.3) — claimed from
+     * {@link ClickToken} once, at the moment the menu opens, and never re-derived. A menu with no attribution
+     * (an inventory item's, the Kin window's, one the player's own next click invalidated) simply has no entry.
+     *
+     * <p><b>Deliberately NOT {@link #live}.</b> That map is the event-pairing state and a close takes the key
+     * out; this one is the menu's own identity and dies with the widget, because {@code :gob()} has to describe
+     * the same menu {@code :list()} and {@code :count()} do — and those keep answering through the 0.25–0.75 s
+     * closing animation, during which the widget is still in the tree. One map removed at the close and one
+     * held to the end is what makes all three reads agree about <i>which menu</i> is being described.
+     *
+     * <p>Weak-keyed for the same reason as {@link #live}, and the value is an id rather than a {@link haven.Gob},
+     * so a stashed menu can never pin a despawned object. UI thread only.
+     */
+    private static final Map<FlowerMenu, Long> clicked = new WeakHashMap<FlowerMenu, Long>();
+
+    /**
      * Build {@code hafen.flowermenu()} for {@code owner}. From installHafen. A plain section object whose
      * verbs all answer with no menu open.
      */
@@ -90,6 +112,20 @@ final class FlowerMenuApi {
                     throw new LuaError("hafen.flowermenu():count() takes no arguments: there is nothing to"
                         + " filter on — a petal is a bare label");
                 return LuaValue.valueOf(names(open()).length);
+            }
+        });
+        // gob() — the game object the open menu was opened ON, or nil. A CORRELATION, not something the server
+        // sends (see ClickToken): the answer is the gob the press that put this ring up resolved to, and it is
+        // nil for a menu opened from an inventory item, for the Kin window's own menu, and whenever any other
+        // press intervened. Ungated: it names what is already on screen.
+        menu.set("gob", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "flowermenu", "gob");
+                if(Args.passed(a, 2))
+                    throw new LuaError("hafen.flowermenu():gob() takes no arguments: there is one open menu"
+                        + " and it was opened on one object — to read that object, call it bare");
+                long id = gobOf(open());
+                return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, id);
             }
         });
         // select(label | n) — pick a petal of the OPEN menu, exactly as a click on it does: by its caption
@@ -148,6 +184,25 @@ final class FlowerMenuApi {
         for(int i = 0; i < opts.length; i++)
             names[i] = (opts[i] == null) ? null : opts[i].name;
         return names;
+    }
+
+    /** The gob id {@code fm} was opened on, or {@code -1} — no menu, or no attribution for this one. */
+    static long gobOf(FlowerMenu fm) {
+        Long id = (fm == null) ? null : clicked.get(fm);
+        return (id == null) ? -1 : id.longValue();
+    }
+
+    /**
+     * The press point a menu is placed at — {@code added()} does {@code c = parent.ui.lcc}, and that is the very
+     * value {@link ClickToken} keys on. Read off the widget's own {@code ui} so a probe can drive the seam
+     * without the manager's live one; {@link AddonManager#ui} is the fallback for a menu asked before it is
+     * parented.
+     */
+    private static haven.Coord lcc(FlowerMenu fm) {
+        if((fm != null) && (fm.ui != null))
+            return fm.ui.lcc;
+        UI u = AddonManager.ui;
+        return (u == null) ? null : u.lcc;
     }
 
     // ---- the write half (gated) ------------------------------------------------------------------
@@ -239,6 +294,11 @@ final class FlowerMenuApi {
         if((fm == null) || live.containsKey(fm))
             return;
         live.put(fm, null);
+        // 047.3: claim the click that put this ring up, ONCE and here — the guard above is also what stops a
+        // second announcement of the same menu from spending a fresh token on it.
+        long g = ClickToken.take(lcc(fm));
+        if(g >= 0)
+            clicked.put(fm, Long.valueOf(g));
         AddonManager.fireFlowerMenu("FlowerMenuOpened", names(fm), null);
     }
 

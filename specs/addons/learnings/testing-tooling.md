@@ -1408,3 +1408,23 @@
   subclass whose `choose(Petal)` just records — 10 checks (position, caption, the `"3"` trap, both range ends,
   fractional, wrong type) before the client is ever started, and no `wdgmsg` on the wire. Same "pure builder + thin
   sender" split as 4d's `clickGobArgs`, applied to a resolver instead of an encoder.
+- **(047.3) The fabricated-UI probe reaches all the way to a `haven` widget seam — drive the LUA verb, not the
+  Java under it.** 036.1/036.3's recipe (Unsafe-allocate `UI` + a `RootWidget`, hand-link `child`/`lchild`,
+  point `AddonManager.ui` at it) composes with 047.1's (real `FlowerMenu` objects, res jars on the classpath):
+  hang the menu under the fabricated root, set `fm.ui`, call the engine seam (`FlowerMenuApi.opened`) and then
+  read the answer back through `hafen.get("flowermenu").call().method("gob")` — the same call Lua makes. That
+  covered the whole attribution matrix headlessly (claim, re-read identity, a second announce, the fade, a
+  moved press point, consume-once, a ground press) plus both grammar refusals: **14/14 before the client
+  started**, on a feature whose in-game half needs a human holding a mouse.
+- **(047.3) A suite whose gestures are ARMED one at a time can be half dry-run — arm the NEGATIVE one.** The
+  shipping suite's tree gesture needs a real gob (`:name()` reads the resource, which needs a live `OCache`),
+  but its *negative* gestures assert `:gob() == nil` with a ring up — and a ring with no token behind it is
+  exactly what the probe can build. Calling the registered slash command for the arming half and then firing a
+  token-less menu ran 7 of the suite's own verdict lines green headlessly, including the branch that matters
+  most. Generalises: when a suite is split into armed steps, at least the steps whose claim is an ABSENCE are
+  usually reachable without the live game.
+- **(047.3) Two falsifications, two distinct single-red signatures — that is the report worth writing down.**
+  Dropping the `lcc` equality from the token reddened *only* "a ring that opens at a different point answers
+  nil"; clearing the attribution at the close reddened *only* "while the ring fades it still names it". Neither
+  bug touched the other's check, which is what proves the two mechanisms guard two different claims rather
+  than being one mechanism counted twice (the 034.2/035.1 rule: one falsification per mechanism).

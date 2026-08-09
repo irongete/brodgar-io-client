@@ -18,7 +18,9 @@
 | What | Where |
 |---|---|
 | **Universal action send** | [`Widget.wdgmsg`](src/haven/Widget.java:737) → [`UI.wdgmsg`](src/haven/UI.java:665) → [`RemoteUI.rcvmsg`](src/haven/RemoteUI.java:39) → `Session.queuemsg` |
-| Map clicks / move / itemact / place / sel | [`MapView`](src/haven/MapView.java) (Click.hit ~:2007, drop ~:2085, itemact ~:2094, place ~:2038, sel ~:2279) |
+| Map clicks / move / itemact / place / sel | [`MapView`](src/haven/MapView.java) (Click.hit ~:2116, drop ~:2085, itemact ~:2094, place ~:2038, sel ~:2279) |
+| **`Click.hit` is the one point where a click's GOB is known** | [`Click.hit`](src/haven/MapView.java:2116) resolves `clickedgob(inf)` and then sends; every fork tap hangs there (`onGhostClick` consumes and returns, `VoiceTarget.note`, 047.3's click token). ⚠️ It runs on the **hit-test's own thread**, not the UI thread, and only for clicks that reach the map — an inventory or HUD click never passes here, which is exactly what makes "was this menu opened on a gob?" answerable |
+| Attributing a later widget to an earlier click | [`VoiceTarget`](src/haven/VoiceTarget.java:7) is the shipped precedent and uses a **3 s time window alone** (approximate, by design). The exact form keys on `UI.lcc` instead — see [widget-input.md](widget-input.md) |
 | Gob click arg encoding | [`Gob.GobClick.clickargs`](src/haven/Gob.java:677), [`Composited.CompositeClick`](src/haven/Composited.java:480) |
 | Menu action by path / id | [`GameUI.act`](src/haven/GameUI.java:1683), [`MenuGrid.PagButton.use`](src/haven/MenuGrid.java:169) |
 | Flower petal select | [`FlowerMenu.choose`](src/haven/FlowerMenu.java:315) — `wdgmsg("cl", num, mods)`; cancel/client-side petal = `"cl", -1`. **Not a close seam**: [`BuddyWnd`'s subclass](src/haven/BuddyWnd.java:430) overrides it, never calls `super`, and sends **no** `cl` — it calls `uimsg` by hand. `choose(null)` is the one door Esc ([`keydown`](src/haven/FlowerMenu.java:299)) and a click away ([`mousedown`](src/haven/FlowerMenu.java:272)) share, so it is what a programmatic cancel drives |

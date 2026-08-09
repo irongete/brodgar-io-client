@@ -20,9 +20,40 @@ end)
 |---|---|
 | `hafen.flowermenu():list()` | the petal captions, as strings, in ring order — an empty array when no menu is open |
 | `hafen.flowermenu():count()` | how many petals are on the ring; `0` when no menu is open |
+| `hafen.flowermenu():gob()` | the object the ring was opened on, or `nil` |
 
-Neither throws, ever: no menu being open is the ordinary state of the game rather than an error, and both
-answer before you have entered the world. Both are ungated.
+None of them throws, ever: no menu being open is the ordinary state of the game rather than an error, and
+all three answer before you have entered the world. All three are ungated.
+
+## Which object the menu belongs to
+
+`hafen.flowermenu():gob()` is the [Gob](gob.md) you right-clicked to put the ring up — the tree you are
+about to chop, the animal you are about to butcher. It is what turns a list of captions into a decision an
+addon can make.
+
+Where that answer comes from is worth knowing, because it is what decides when there is none. **The menu
+carries no object of its own**: what arrives is a list of captions and nothing else, so the client works
+out which object a ring belongs to by matching it against the click that opened it. The match is exact —
+it is the press the ring is drawn at — but it can only vouch for a menu that a click on an object put up.
+Everything else answers `nil`:
+
+- a menu opened from an item in your inventory, which is a click on a window and not on the world;
+- the Kin window's own menu, and every other menu the client puts up for itself;
+- a menu that was not opened by the click it would have been matched to — you clicked something else in
+  between, or the menu arrived long after the click that asked for it.
+
+Read it from inside a `FlowerMenuOpened` handler, which is where you need it. Like the other two reads it
+keeps answering while the ring fades, and it is `nil` once the ring is gone.
+
+```lua
+hafen.event():on("FlowerMenuOpened", function(petals)
+  local gob = hafen.flowermenu():gob()
+  local name = gob and gob:name()
+  if name and name:find("tree") then
+    hafen.log():write("a tree offers: " .. table.concat(petals, ", "))
+  end
+end)
+```
 
 ## Petals are labels, not objects
 
@@ -114,6 +145,7 @@ console command or a hotkey cannot be the thing that reacts to a menu. A handler
 
 ## See also
 
+- [Gob](gob.md) — what `:gob()` hands you, and everything you can ask it
 - [`hafen.act`](act.md) — the permission `:select` and `:cancel` share with every other write
 - [`hafen.menugrid`](menugrid.md) — the *other* menu: the catalogue of everything your character can do
 - [`hafen.event`](event.md#the-radial-menu) — the bus these two events sit on, and every other key
