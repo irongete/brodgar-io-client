@@ -314,3 +314,35 @@
   (nothing to click vs. something to drive) that a size-only reading would have missed. Split by that
   seam into a hub + two leaves, none over 155 lines. **Treat "no room to grow" as a second, independent
   split signal alongside D-001's prose test**, not an inferior stand-in for it.
+
+- **(005.1) The name a page invents has no guard at all, because every guard this standard runs is aimed at
+  names that once existed.** Two pages call `ghost:move(...)` in worked examples. `move` is registered
+  nowhere in `src/io/brodgar/addon/` and never was — it is not a retirement, so no §7 entry could ever carry
+  it and no `Retired` row answers it; the reader gets the generic "has no verb". And §12's symbol check is
+  scoped twice over — to `hafen.*` names, and to the ones *the task wrote* — so a handle verb on a page the
+  task did not touch falls outside it in both directions. 001.5 found the same blind spot one step in (a
+  fenced block is a claim nobody re-reads) and its rule still said *every `hafen.*` name inside a fence*. The
+  complete check is **every colon verb the tier uses, tree-wide, against the registration set** — one sweep
+  for `[\w)\]]:(\w+)\(` over `docs/` yielded 304 distinct verbs, of which exactly one was fiction. A
+  retired-name list guards the past; only a backward sweep guards the invented.
+
+- **(005.1) The registration oracle has a blind spot, and it is a verb whose key is computed.**
+  `grep 'set("<name>"'` (001.2) reports `ev:sender()` absent from `src/`, and `api/event.md` documents it on
+  two lines — a textbook WRONG that is not one. `LuaEvent.common` writes
+  `final String noun = (shape == ACTION) ? "sender" : "target"; m.set(noun, …)`, so the literal never appears
+  beside `set(`. The failure is one-sided and dangerous in the direction that *manufactures* work, exactly
+  like 001.1's slugger and 002.2's byte `length`: it cannot hide a real defect, it can only invent one. **A
+  backward sweep's "absent" is a lead, not a verdict — open the registration site before deleting or
+  correcting anything**, and expect a computed key wherever one class serves several shapes of one object.
+
+- **(005.1) Pairing quotes with one regex across a whole corpus desynchronises on the first unpaired quote,
+  and Java is full of them.** Checking every backticked string literal in `docs/` against the engine's own
+  literals reported `"MouseDown"` as absent from a corpus where `grep` finds it on three lines of
+  `WidgetSubs.java`. The cause is not the pattern for a literal but the *scan*: a char literal (`'"'`) or an
+  escaped quote inside a string shifts every subsequent open/close pairing by one, so from that byte onward
+  the extracted set is offset garbage — and it still looks like a plausible set, which is why the first read
+  of the output was believed. This is 002.2 and 003.1's family again (a tool silently choosing its own unit),
+  with a new member: **a tool silently choosing its own token boundaries.** The fix is to stop parsing and
+  start testing — build the candidate list from the *docs* side, then ask `"<s>"` ∈ `SRC` per candidate. The
+  rule those three entries now share: **reproduce a known-good POSITIVE with the new tool before believing
+  any negative it reports.**

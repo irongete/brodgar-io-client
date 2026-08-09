@@ -28,3 +28,8 @@
   admitted instead); the IA's tree and `api/ui` reading order taught the pages exist — **79 pages, 9,507
   lines, 1,392 links, 0 broken** (`design/style-guide.md`, `design/information-architecture.md`,
   `decisions/docs-standard.md` D-014) — tasks 004.1..004.2
+- `005-api-rewrite-review` — ACTIVE — the seven area-`addons` features that closed with no docs review
+  (`039-uniform-api`, `041`..`046`): coverage both ways, accuracy against `src/`, §7's grep list brought
+  current (it predates `039` and still calls deleted names live), a tree-wide no-history and wording
+  sweep, and the ROADMAP's wrap line folded in (`design/style-guide.md`,
+  `design/information-architecture.md`) — tasks 005.1..005.4 (005.1 done: the census, `census.md`)
