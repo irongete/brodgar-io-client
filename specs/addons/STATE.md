@@ -2,11 +2,12 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`044-spatial-ui`](044-spatial-ui/) — 9 of 10 tasks.** `hafen.vr():widget()`: a Widget — yours or the
-client's own — standing in the world as a quad, held to one rule, **transparency** (same `Draw`, input, controls,
-theme, popups, keyboard, items), which is why its surface is a real UI **root** the widget is reparented into.
-Documented in `docs/addons/api/vr/widgets.md`, `cupboard` the example. Next and last: **044.10**, the client's own
-0.1s fade on a standing entity, on the shared core.
+**ACTIVE: [`045-durable-places`](045-durable-places/) — planned, 0 of 3.** A free `hafen.vr()` entity's place becomes its **durable
+anchor** (grid id + offset) and the session coordinate a derived cache — that space is re-based whenever the map is dropped, so a cave
+and back leaves the thing not where it was put. Extends 044.9; one guarded `haven` line. **[`044-spatial-ui`](044-spatial-ui/) is CLOSED, 9 of 9**:
+its `hafen.vr():widget()` shipped — a Widget, yours or the client's own, standing as a quad under the one rule **transparency**, which is why its surface is a real UI **root** it is reparented into (`docs/addons/api/vr/widgets.md`, `cupboard` the example).
+A tenth task, the client's own 0.1s fade on a standing entity, was **dropped by maintainer directive** and its code removed whole: the ramp
+reached a ghost and never the panel, through two different publish channels, and neither failure reproduced outside the running client.
 
 **044.9 done — the ground under a free entity, and the test was not the one the task named.** A thing standing at a
 POINT is in the scene only while the ground under it is drawn: **hidden, not ended, and not a policy** (**D-206**), on
