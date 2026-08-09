@@ -2,35 +2,33 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**NOTHING IN FLIGHT.** [`045-durable-places`](045-durable-places/) closed at 3 of 3; the next feature comes from
-[`ROADMAP.md`](ROADMAP.md) through `/plan`.
+**ACTIVE: none.** The next feature is `/plan addons <desc>`; `ROADMAP.md` holds what is waiting.
+
+**[`046-gob-scale`](046-gob-scale/) is CLOSED, 1 of 1** — a **native** gob answers `:scale`, the verb its `hafen.vr()`
+siblings have: `gob:scale(1.5)`, client-local, purely visual, in place (T·R·S around the gob's own origin), and the
+**first WRITE** on a handle that had been read-only. The size is a `GobScale extends GAttrib implements Gob.SetupMod`
+on the engine's own `Gob`, so `Gob.ctick`'s per-tick `GobState` compare propagates it with **zero `haven` edits** —
+and the `Location.scale(k)` is minted once per VALUE, which is the mechanism rather than an optimisation: `Location`
+has no `equals`, so a fresh op each tick would re-push every scaled gob's render state forever (**D-210**). Writing
+`1` **removes** the attrib. It **ends with the loaded object** by directive — walk out of range and back and it is
+its original size; re-applying on `GobAdded` is the addon's — while an addon that *stops running* leaves nothing
+distorted: the attrib records its writer and `UiApi.teardownGobScales` sweeps beside `teardownGobOverlays`, which is
+what pays for the ungating. **The one deliberate divergence from the vr siblings is validation** (**D-211**): they
+clamp because their factor arrives in an options table; a direct argument on a direct verb refuses `0`, a negative,
+a non-finite and a non-number, each naming the rule. 12/12 + 3 manual. The suite went red once, on the *suite*:
+`hafen.world():gob():list()` hands back the client's own transient effect gobs (id `-1`) whose handles `getgob`
+answers null for at once, and a `nil` read is "the gob is gone", never "the property is unset".
 
 **[`045-durable-places`](045-durable-places/) is CLOSED, 3 of 3** — a thing you stand at a **point** is at that
-point tomorrow, and after a cave. A free `hafen.vr()` entity's place is now its **durable anchor** (the server's
-grid id + the offset inside it) and the session coordinate a derived cache: that space is re-based whenever the map
-is dropped, so a walk into a cave and back used to leave the thing not where it was put. The walk is what proved it.
-**045.1, 14/14**: the anchor lands beside `rc`, `rc` becomes the DERIVED and nullable session coordinate
-(`rc == null ⇒ !grounded`, which is what makes the null free), and `<entity>:position()` answers the **anchor form**
-for a free entity and the gob's live point for an anchored one — so `:info()` is the place and `:x()` this session's
-answer to it (**D-207**). `LuaPosition.anchorArg` replaced `worldArg` at **exactly two** call sites, refusing a
-place with no durable form and naming why — a hard cut that changed one line of 044.9's own archived suite.
-**045.2, 13/13 + 5/5**: a place this session cannot locate is a **legal** place to stand something (**D-208**) —
-the entity exists, holds the grid it was given, answers `:x()` nil, is not drawn, and stands itself up when that
-ground resolves, with **no `Resolve` chain and no cap** (042.12: "the player has not walked there" is not a blocker
-that clears). The gob is still built at `:add`, at the origin and outside the scene: `attachScene` stays the ONE
-door in, and `:drawn()` is false either way. **The second event** (**D-209**) is one guarded `// addon:` line at
-`MiniMap.tick`'s `sessloc` assignment — the feature's only `haven` edit — because `sessloc` is re-resolved a frame
-or more AFTER the cuts come back. The **`(seg, tc)` equality test IS the tap** (`tick` mints a fresh `Location`
-every frame; notifying on all of them would be the poll 042 deleted), and it listens to the **one** `MiniMap` the
-derivation reads — the map window carries a second, and either-instance dedup lets the earlier tick consume the
-change for the later. `<entity>:position(p)` was relaxed with `:add` (one rule for both doors), leaving
-`LuaPosition.hereArg` dead and deleted. A **seventh pull-only counter** shipped as the guard's witness:
-`hafen.client():profiling():entities()` → `{placed, waiting, passes}`.
-**045.3, the pages**: the vr hub carries the contract in its own voice — what a free entity's place *is*, that
-`:info()` survives while `:x()` is this session's answer, that an unreached place waits silently and forever, and
-that a place with no durable form is refused. **Three pages the task did not name carried the same "coordinates
-reset each login" model** (`api/conventions.md`, `guides/reading-the-world.md`, `api/vr/widgets.md`) and were
-corrected alongside `api/world.md` rather than left to contradict it. §12: 1465 links / 0 broken, none over 300.
+point tomorrow, and after a cave. A free `hafen.vr()` entity's place is its **durable anchor** (grid id + the offset
+inside it) and the session coordinate a derived cache, because that space is re-based whenever the map is dropped:
+`:info()` is the place and `:x()` this session's answer to it (**D-207**), and a place with no durable form is
+refused at both doors. A place this session cannot **locate** is legal (**D-208**) — the entity exists, holds its
+grid, is not drawn, and stands itself up when that ground resolves, with no `Resolve` chain and no cap. **The second
+event** (**D-209**) is one guarded `// addon:` line at `MiniMap.tick`'s `sessloc` assignment — the feature's only
+`haven` edit, guarded by a `(seg, tc)` equality test because `tick` mints a fresh `Location` every frame — plus a
+seventh pull-only counter as its witness (`hafen.client():profiling():entities()`). The pages took the contract, and
+three the task did not name carried the same "coordinates reset each login" model and were corrected with it.
 
 **[`044-spatial-ui`](044-spatial-ui/) is CLOSED, 9 of 9**: `hafen.vr():widget()` — a Widget, yours or the client's
 own, standing as a quad under the one rule **transparency**, which is why its surface is a real UI **root** it is

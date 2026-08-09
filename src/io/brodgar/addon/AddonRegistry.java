@@ -161,6 +161,10 @@ public final class AddonRegistry {
                                       //   hangs — the ONE sweep of the object cache the feature costs, and the
                                       //   only one left: an overlay's state lives on the gob, so nothing else
                                       //   ever looks for it. The game's own overlays are untouched.
+        UiApi.teardownGobScales(a);   // 046.1: put back every game object this addon resized — the same sweep,
+                                      //   for the same reason, on the state's other half. A gob's size records
+                                      //   who wrote it, so another addon's scale is left alone; nothing an
+                                      //   addon that stopped running left distorted stays distorted.
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         a.subs.clear();               // 041.1: the whole bus, in one drop — nothing to unsubscribe by hand
         a.timers.clear();

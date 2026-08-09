@@ -1811,4 +1811,31 @@ final class UiApi {
             detach.run();
         }
     }
+
+    /**
+     * Put every gob {@code a} resized back to its original size ({@code :reload}/disable) — the twin of
+     * {@link #teardownGobOverlays} and, like it, one walk of the object cache at a rare moment. Nothing an
+     * addon that is no longer running left distorted stays distorted, which is what makes a purely visual
+     * write on the game's own objects safe to leave ungated.
+     *
+     * <p>A gob scaled by a <i>different</i> addon is untouched: the size records who wrote it, and a gob has
+     * one size, so teardown reverts only what this addon last set. Under {@code synchronized(ui)} like its
+     * twin, because teardown may run off the UI thread (session bind) while {@code ctick} rebuilds the state.
+     */
+    static void teardownGobScales(Addon a) {
+        UI u = ui;
+        Runnable unscale = () -> {
+            try {
+                for(Gob g : allGobs())
+                    GobScale.revert(g, a);
+            } catch(RuntimeException e) {
+                /* best-effort cleanup — a leftover scale is visual only, and dies with the gob anyway */
+            }
+        };
+        if(u != null) {
+            synchronized(u) { unscale.run(); }
+        } else {
+            unscale.run();
+        }
+    }
 }

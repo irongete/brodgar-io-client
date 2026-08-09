@@ -2054,3 +2054,47 @@ give the kinds that do not have it no verb rather than a subset.* The corollary 
 later either answers the whole property or declines it — there is no third position.
 **See.** [D-190](#d-190), [D-113](#d-113), [D-013](#d-013), [D-193](rendering.md#d-193),
 [D-185](#d-185), [044-spatial-ui](../044-spatial-ui/spec.md).
+
+### D-210 — a client-local write over what the GAME drew lives on the engine's own object, ends with it, and is undone when its author leaves ✅ (046.1, 2026-08-09)
+**Decision.** `gob:scale(k)` — the first WRITE on the Gob handle — keeps its value in a
+[`GobScale`](src/io/brodgar/addon/GobScale.java) `GAttrib implements Gob.SetupMod` on the `Gob` itself, exactly
+where `haven.GobHealth` keeps a crack texture. Three consequences follow from that one placement and are the
+decision: the size **ends with the loaded object** (a gob that unloads returns as a new `Gob`, so re-applying on
+`GobAdded` is the addon's, and nothing is persisted anywhere); a gob has **one** size, so the attrib records the
+last writer and last write wins rather than layering factors or refusing a second owner; and the write is
+**ungated**, on `gob:overlay()`'s footing, because it changes nothing the server, the client or another addon
+owns. The ungating is paid for by `UiApi.teardownGobScales`, one walk of the object cache on `:reload`/disable
+that reverts only what the departing addon set.
+**Rationale.** [D-100](#d-100) already says the state belongs on the thing; this is what that buys on an object
+the *game* owns. Propagation costs no seam at all — `Gob.ctick`'s private `updstate()` rebuilds `GobState` from
+`setupmods` every tick and pushes `slot.ostate` only when `Utils.eq` says it differs — so the whole feature edits
+no `haven` file. That is also why the `Location.scale(k)` op must be **cached per value**: `Location` does not
+override `equals`, so a fresh op each tick would re-push every scaled gob's render state forever. The cache is
+the mechanism, not an optimisation. Persisting the size across an unload was considered and refused: it would
+need an addon-side map keyed by gob id, a prune the attrib gets for free, and a re-application the addon can
+write in one line from a subscription it already has.
+**Consequences.** Writing exactly `1` **removes** the attrib rather than leaving one that means "nothing", so
+"back to the original size" and "carries none of this state" are the same sentence. The mechanism would carry
+alpha, tint and visibility on a native gob unchanged — that is deliberate room, not a promise; each is its own
+question about writing over what the game drew. The same shape is available to any future client-local property
+of a game object: put it on the gob, cache the op, record the owner, and add one line to the teardown list.
+**See.** [D-100](#d-100), [D-194](#d-194), [D-211](#d-211), [D-206](virtual-entities.md#d-206),
+[046-gob-scale](../046-gob-scale/spec.md).
+
+### D-211 — one verb, two kinds: the direct argument REFUSES where the options-table sibling clamps ✅ (046.1, 2026-08-09)
+**Decision.** `gob:scale(k)` refuses `0`, a negative, a non-finite and a non-number, each naming the rule it
+broke. Its `hafen.vr()` siblings answer the same `:scale` and **clamp** the same range (`VrApi.clampScale`, to
+`0.01..100`). The two are left different on purpose, and the difference is written down in both places rather
+than reconciled by making one behave like the other.
+**Rationale.** The vr factor's original door is an **options table** handed to `:add` — a bag of optional keys
+parsed together, where a refusal has no call site of its own to land on and would take down a whole placement
+over one field. `gob:scale(k)` is a direct argument to a verb whose entire job is that argument, so the loudest
+possible failure is the one at the line that caused it. Clamping the direct form would be worse than merely
+inconsistent: a size is one of the few numbers whose wrong value does not *look* wrong — `0` collapses the model
+to a point and a negative flips every triangle's winding — so a silently corrected `0` is a bug with no symptom,
+which is the same argument [`Args`](src/io/brodgar/addon/Args.java) makes for refusing an explicit `nil`.
+**Consequences.** "One verb, two kinds" is a claim about the **vocabulary** — same name, same meaning, same
+read/write arity — not about identical argument policing, and [D-194](#d-194) is unaffected: no kind answers a
+*subset* of the property. Both pages say what their own form does. If the vr entities ever gain a direct
+`:scale` door that is not part of a table parse, that door refuses too.
+**See.** [D-194](#d-194), [D-210](#d-210), [D-072](#d-072), [046-gob-scale](../046-gob-scale/spec.md).

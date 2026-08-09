@@ -134,3 +134,12 @@
   `MapApi.gridUL` happily derives a coordinate in the old frame instead of the honest null. It resolves
   itself a beat later (and the tap then fires), but anything that must be right *within* that window cannot
   trust `sessloc` freshness — check the segment, not just non-null.
+- **(046.1) An id `OCache`'s ITERATOR yields is not necessarily one `getgob` resolves.** `OCache.iterator()`
+  walks `objs.values()` *plus* the registered `local` collections, while `getgob(id)` looks only in `objs`
+  (`OCache.java:164`, `:199`) — and `objs` is a `MultiMap<Long, Gob>`, so several gobs can share one key.
+  Concretely: `Skeleton.java:903-911` stands up an `OCache.FixedPlace` (id **-1**, `virtual`) purely to hang
+  a one-shot effect overlay and `glob.oc.add`s it, and `Gob.ctick`'s `virtual && ols.isEmpty() && no Drawable
+  ⇒ oc.remove` drops it again the tick that overlay ends. So `hafen.world():gob():list()` really does hand
+  back handles whose every method answers `nil` **immediately**, with no despawn in between. Rule for any
+  sweep over that list: `nil` from a read means *this handle names no live gob*, never *this property is
+  unset* — 046.1's suite counted a `nil` scale as "scaled" and went red on a passing engine.

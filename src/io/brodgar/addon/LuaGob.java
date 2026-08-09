@@ -283,6 +283,29 @@ public final class LuaGob {
                 return LuaOverlay.collection(owner, h.id);
             }
         });
+        // scale() / scale(k) -- how big the game object is DRAWN, and the handle's first WRITE (046.1). Bare
+        // reads the factor (1 for a gob nobody scaled, nil once the gob is gone); one number writes it and
+        // hands the GOB back, so gob:scale(2):name() is one chain. It is the read/write pair every hafen.vr()
+        // entity answers, on the same footing gob:overlay() stands on: client-local, purely visual, ungated —
+        // nothing goes on the wire and nothing about what the gob IS changes. The size is applied in place
+        // (T·R·S), so the object's feet stay where they were and it still turns and moves normally, and it
+        // ENDS WITH THE LOADED OBJECT: walk far enough to unload it and it comes back its original size.
+        m.set("scale", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaGob h = handle(self, "scale");
+                LuaValue sv = Args.written(a, 2, "gob:scale", "k");
+                Gob g = AddonManager.getgob(h.id);
+                if(sv == null)
+                    return (g == null) ? LuaValue.NIL : LuaValue.valueOf((double)GobScale.value(g));
+                float k = scaleArg(sv);
+                // A gob that is gone takes the write and does nothing with it: every method here answers nil
+                // once the gob is gone and none of them throws, and the first write is no exception to that.
+                if(g != null)
+                    GobScale.apply(g, owner, k);
+                return self;
+            }
+        });
         m.set("isPlayer", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Gob g = gob(self, "isPlayer");
@@ -324,6 +347,26 @@ public final class LuaGob {
             }
         });
         return m;
+    }
+
+    /**
+     * The factor of a {@code gob:scale(k)} write, or a refusal that names the rule it broke. Three rules, and
+     * each one is a different way to lose the object: a non-number is not a size at all, a non-finite one has
+     * no matrix, {@code 0} collapses the model to a point and a negative mirrors it (flipping every triangle's
+     * winding, so the thing renders inside out). The vr siblings clamp the same range because their factor
+     * arrives inside an options table where a refusal has nowhere to land; here it is a direct argument on a
+     * direct verb, and the loudest failure is the one at the call site that caused it.
+     */
+    private static float scaleArg(LuaValue v) {
+        if(!v.isnumber())
+            throw new LuaError("gob:scale(k): k must be a number, got " + v.typename());
+        double k = v.todouble();
+        if(Double.isNaN(k) || Double.isInfinite(k))
+            throw new LuaError("gob:scale(k): k must be a finite number, got " + k);
+        if(k <= 0.0)
+            throw new LuaError("gob:scale(k): k must be greater than 0, got " + k + " — 0 collapses the object"
+                + " to a point and a negative one turns it inside out. gob:scale(1) is the original size");
+        return (float)k;
     }
 
     // ---- self resolution ------------------------------------------------------------------------

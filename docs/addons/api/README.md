@@ -15,7 +15,7 @@ you came for from the tables below. Every page in the tree is listed here.
 | Page | What it holds |
 |---|---|
 | [`hafen.world`](world.md) | the live world: every object loaded, the terrain, and a position that survives the coordinates moving under it |
-| [Gob](gob.md) | one object in the world — `hafen.world():gob():get(id)` gives a Gob you read with methods, and `gob:overlay()` attaches things to it |
+| [Gob](gob.md) | one object in the world — `hafen.world():gob():get(id)` gives a Gob you read with methods, `gob:scale(k)` says how big it is drawn, and `gob:overlay()` attaches things to it |
 | [`hafen.map`](map/README.md) | the hub: the map you have explored, kept on disk, and the order to read these pages in |
 | [segments and grids](map/grids.md) | the shape of the database, the one Grid entity both halves hand back, and storing a place |
 | [overlays](map/overlays.md) | the recorded claim and province masks, and the switches that draw them |

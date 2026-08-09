@@ -1,0 +1,9 @@
+{
+  "name": "046.1 — a native gob answers :scale",
+  "id": "046-gob-scale.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 046.1: a game object the server owns takes gob:scale(k) — the read/write pair its hafen.vr() siblings already answer — client-local, purely visual, in place, and undone when the addon goes away.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

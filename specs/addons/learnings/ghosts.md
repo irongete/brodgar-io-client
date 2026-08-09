@@ -283,3 +283,16 @@
   becomes the map origin — a real point, on real ground, that the thing would stand at. The fix is to leave
   the keys **absent** and test `isnumber()`, so "not here yet" and "at 0,0" stay distinguishable. Rule:
   *a defaulted zero is a lie wherever zero is a legal value of the thing.*
+- **(046.1) A `SetupMod` attrib is how you change how a NATIVE gob is drawn, and its `Pipe.Op` must be cached
+  per value.** `Gob.SetupMod` (`Gob.java:154`) is an interface a `GAttrib` may also implement; `gobstate()`
+  contributes an op to the gob's own child render slot, under `Placed`'s `"gobx"` translate and `"gob"`
+  rotate ⇒ **T·R·S**, the same level and the same math `GhostGob.obstate` uses for a ghost (V6 above). So a
+  native gob and a client-only one scale identically, in place around the gob's origin. Propagation costs no
+  seam: `Gob.ctick` calls the private `updstate()` every tick, which rebuilds `GobState` from `setupmods`
+  and pushes `slot.ostate` **only** when `Utils.eq(mods)` differs (`Gob.java:741`). ⚠️ `Location` does **not**
+  override `equals`, so a fresh `Location.scale(k)` per tick compares unequal every tick and re-pushes the
+  render state of every affected gob forever — mint the op once per *value* and hand back the same instance.
+  `Pipe.Op.compose` helps here: it drops nulls and returns the single remaining op **itself** when only one
+  survives, so with one `SetupMod` on the gob the identity comparison is exact. Copy `haven.GobHealth` (its
+  whole body is a cached `fx` field and a one-line `gobstate()`); do NOT make such an attrib a
+  `RenderTree.Node` — that is the only shape for which `Gob.setattr` can throw `Loading`.

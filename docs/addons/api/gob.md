@@ -62,6 +62,39 @@ None of them throws.
 data, since [`hafen.json`](json.md) can encode a plain table and a Gob object cannot. For reading,
 prefer the methods — they are always fresh, while a snapshot is frozen at the moment you took it.
 
+## Size (ungated)
+
+`gob:scale(k)` draws the object `k` times its size — the herb you keep walking past, the boar you want to
+see coming, the cupboard you are lining up. It is the same read/write pair every
+[thing you stand in the world](vr/README.md) answers, so one number is the whole of it.
+
+| Method | Returns | Description |
+|---|---|---|
+| `gob:scale()` | number \| nil | how big it is drawn; `1` for an object nobody resized |
+| `gob:scale(k)` | the Gob | draw it `k` times its size |
+
+```lua
+local boar = hafen.world():gob():nearest("kritter/boar")
+if boar then
+  boar:scale(2)          -- twice the size, and it hands the Gob back, so this chains
+  boar:scale(1)          -- back to the size the game draws it at
+end
+```
+
+It is **client-local and purely visual**, on the same footing as the overlays below: only you see it, the
+size is applied in place so the object's feet stay where they were, and it still turns, moves and takes a
+click exactly as it did — the pick follows the drawn size. Nothing about what the object *is* changes: its
+footprint, what it collides with and what a click sends are the game's, untouched. A few special resource
+types reset their own transform — the same ones that ignore a ghost's rotation — and those ignore scale too.
+
+`k` must be a number greater than zero, and finite. `0` collapses the object to a point and a negative one
+turns it inside out, so both raise naming the rule; `gob:scale(1)` is the original size and leaves nothing
+behind. Once the gob is gone the read answers `nil` and a write does nothing, like every other method here.
+
+> **The size ends with the loaded object.** Walk far enough away for it to unload and it comes back the
+> size the game draws it at. Re-apply it from [`GobAdded`](event.md#world) if you want it kept — and a
+> `:reload` or a disable puts back everything you resized, so nothing is left distorted behind you.
+
 ## Overlays
 
 `gob:overlay()` answers one question: **what is drawn at this gob?** It is the collection of everything
@@ -233,8 +266,8 @@ end
 
 Identity is per addon: your Gob objects are yours, never shared with another addon.
 
-A Gob is read-only. `gob.foo = 1` raises an error, and `gob.position` is the method itself, so call it
-with a colon: `gob:position()`. `tostring(gob)` gives `Gob(<id>)`.
+A Gob object is immutable: `gob.foo = 1` raises an error, and `gob.position` is the method itself, so call
+it with a colon: `gob:position()`. `tostring(gob)` gives `Gob(<id>)`.
 
 ## Passing a Gob to the rest of the API
 
