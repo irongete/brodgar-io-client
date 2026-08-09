@@ -241,8 +241,8 @@ so it goes into [`hafen.store`](store.md) and comes back unchanged. Everything e
 **lattice** and keeps its own name: tile, grid and segment coords are indices, not places, and screen
 pixels are plain `{x, y}` numbers.
 
-> **There is no global position.** A world coordinate is session-local — it starts near the origin each
-> login — and compares across neither players nor logins. What a Position saves is a **grid id** plus an
+> **There is no global position.** A world coordinate is this session's answer, re-based whenever the
+> server drops the map — a login, a walk into a cave. What a Position saves is a **grid id** plus an
 > offset inside it, and that id comes from the **server**, so it means the same thing to everyone. A map
 > marker records its place differently, in ids this client invented and a map merge rewrites, so one you
 > want to keep is stored as its [`marker:position()`](map/markers.md#the-marker-object); see

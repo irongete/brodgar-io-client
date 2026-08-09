@@ -36,8 +36,8 @@ server-bound one is still bound to its id and still filling with [items](../ui/i
 that it is no longer under the flat UI's hit-testing, so [`hafen.ui():at(x, y)`](../ui/widget.md) never
 answers with it while it stands.
 
-> **The title bar does not move it.** Dragging a window's caption is a flat-UI gesture and its place is now a
-> world coordinate. One standing at a point is moved with `:position(p, a)`; one standing on a game object
+> **The title bar does not move it.** Dragging a window's caption is a flat-UI gesture and its place is now
+> out in the world. One standing at a point is moved with `:position(p, a)`; one standing on a game object
 > has no place of its own at all, because its place is that object's.
 
 ## The standing widget

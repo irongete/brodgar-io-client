@@ -95,8 +95,9 @@ local t = hafen.world():tile(p)
 hafen.log():write(t and (t.name or t.id) or "not loaded yet")
 ```
 
-> **World coordinates are session-local.** They reset at every login and mean nothing to another player,
-> which is why a place is a [Position](../api/world.md#the-position-type) rather than a pair of numbers:
+> **World coordinates do not hold.** The client re-bases them whenever the server drops the map — every
+> login does it, and so does a walk into a cave — and they mean nothing to another player, which is why a
+> place is a [Position](../api/world.md#the-position-type) rather than a pair of numbers:
 > it anchors itself to a map grid, so it goes into [`hafen.store`](../api/store.md) and comes back the
 > same place next session.
 

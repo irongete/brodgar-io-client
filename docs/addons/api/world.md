@@ -132,11 +132,13 @@ local home = hafen.store():get("spot").home
 if home and home:x() then hafen.act():moveTo(home) end
 ```
 
-> **There is no global position, and grid ids are strings.** Raw world coordinates are session-local: they
-> reset each login and are not comparable across players, which is why a Position saves as a grid id plus
-> an offset. A grid id is a 64-bit number and Lua numbers are doubles, so it appears as an exact decimal
-> **string** — the only form safe to store and compare. It is also the only anchor that means the same
-> thing to another player: a grid id comes from the **server**.
+> **There is no global position, and grid ids are strings.** Raw world coordinates are not comparable
+> across players, and they do not even hold for one session: the client re-bases them every time the
+> server drops the map — a login does it, and so does walking into a cave or a house — so the same numbers
+> name different ground before and after. That is why a Position saves as a grid id plus an offset. A grid
+> id is a 64-bit number and Lua numbers are doubles, so it appears as an exact decimal **string** — the
+> only form safe to store and compare. It is also the only anchor that means the same thing to another
+> player: a grid id comes from the **server**.
 
 A durable form also reaches the **recorded** map: `hafen.map():grid():get(p:info().gridId)` hands back the
 very same [`Grid`](map/grids.md#the-grid-object) the live query does, and it answers what the client wrote

@@ -1362,3 +1362,10 @@
   but that was luck.) Both format strings were then run through the LuaJ CLI
   (`java -cp lib/brodgar/luaj-jse-3.0.1.jar lua fmt.lua`) with worst-case values before the next round; that
   costs a minute and buys back a whole in-game cycle.
+- **(045.3) The 300-line ceiling is breached by CORRECTING a sentence, not by adding a section — on a page at the
+  ceiling, correct in place at equal line count.** `conventions.md` sat at exactly 300. Replacing two wrapped lines
+  of a callout with a three-line correction put it at **301**, and nothing about the edit looked like growth: the
+  diff was one sentence for another. The §12 size check is the only thing that catches this, so run it on every
+  page touched and not just the ones a section was added to. The fix is not to split the page — it is to write the
+  correction to the same line count (a 2-for-2 swap), which took one attempt once the constraint was known. Same
+  class as the wrap check: **the unit that matters is the wrapped line, and prose edits move it invisibly.**

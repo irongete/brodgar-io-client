@@ -8,7 +8,7 @@ gated.
 
 ```lua
 local p = hafen.player():gob():position()
-hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)     -- the game's own prop, standing at a point
+hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)     -- the game's own prop, at a point
 hafen.vr():sprite():add(hafen.asset():get("icon.png"), p)  -- your own image
 hafen.vr():object():add(chair, p)                          -- your own glTF model
 hafen.vr():widget():add(win, p)                            -- a window, drawn in the world
@@ -34,8 +34,8 @@ disable and relogin, leaking neither a scene slot nor a GPU texture.
 | `hafen.vr():object()` | its own glTF models — see [models](models.md) |
 | `hafen.vr():widget()` | the UI it has standing out there — see [widgets](widgets.md) |
 
-Each is a [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) with the same five verbs, and each is the same object
-every call, so you can keep it in an upvalue.
+Each is a [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) with the
+verbs below, and each is the same object every call, so you can keep it in an upvalue.
 
 | Call | Returns | Description |
 |---|---|---|
@@ -64,11 +64,11 @@ all**.
 
 **A Position anchor has to be a place that can be kept.** What one standing at a point holds is the
 [durable](../world.md#the-position-type) form of that place — the grid the ground belongs to, and where
-inside that grid the point sits — because a plain world coordinate is this session's answer and nothing
-more: the client re-bases those numbers whenever the server drops the map. Ground nobody has ever walked
-has no durable form at all, so `:add(what, p)` and `e:position(p)` refuse such a place rather than stand
-something on a number that will stop meaning anywhere. `p:durable()` is the same question asked ahead of
-time.
+inside that grid the point sits — rather than a plain world coordinate, which is
+[this session's answer and nothing more](#the-ground-under-one-that-stands-still). Ground nobody has ever
+walked has no durable form at all, so `:add(what, p)` and `e:position(p)` refuse such a place rather than
+stand something on a number that will stop meaning anywhere. `p:durable()` is the same question asked ahead
+of time.
 
 ```lua
 hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)     -- a plan on the ground
@@ -82,8 +82,9 @@ kept in case the gob comes back: a gob that returns is bare, and re-anchoring is
 
 > **`:add` raises when you are not in the world.** A thing in the 3D scene needs that scene, so placing one
 > before you have entered the world is an error rather than a `nil` you would discover one setter later.
-> Place from `EnterWorld` onward. Ground you have walked but that is not drawn right now is *not* an error:
-> the thing waits and appears with [its ground](#the-ground-under-one-that-stands-still).
+> Place from `EnterWorld` onward. A place that *can* be held is never too far away to use, though: ground
+> that is not drawn right now, and ground this session cannot locate at all, both
+> [wait](#the-ground-under-one-that-stands-still) rather than raising.
 
 An [image](sprites.md) or a [model](models.md) is passed as a [`hafen.asset`](../asset.md) **handle**, never
 a path string; a path raises an error naming `hafen.asset` as the way in. There is nothing to save by
@@ -116,9 +117,9 @@ Each kind then adds the one or two verbs only it has — [`g:res`](ghosts.md#the
 has the gob's place, so writing `:position(p)` on it would be undone on the next frame — it raises instead,
 naming `:offset`. A thing that stands still is offset from nothing, so `:offset` on it raises naming
 `:position`. The **read** side of `:position()` always answers: for one that follows it is the gob's live
-point, and for one that stands still it is the place being held — so `:info()` on it reads back the same
-grid and offset for as long as it stands there, while `:x()` and `:y()` stay this session's answer to where
-that is.
+point, and for one that stands still it is
+[the place being held](#the-ground-under-one-that-stands-still), which is not the same thing as a
+coordinate.
 
 `:tint(nil)` stays legal: "no tint" is a real value, not an accident.
 
@@ -134,6 +135,24 @@ and the ground it stands on stops being drawn; it goes with that ground, and it 
 place — the moment the ground returns. Nothing is lost meanwhile: it keeps its handle, its place, its look
 and its `:exists()`, and every verb goes on answering.
 
+**The numbers move under it, and it does not move with them.** Stepping into a cave or a house makes the
+server drop the map and hand it back re-based, so one and the same world coordinate names different ground
+before and after. What one standing at a point holds is the durable place, never those numbers, so it is
+where you left it when you walk back out — and the two halves of `e:position()` are what say so: `:info()`
+reads back the same grid and the same offset across the whole trip, while `:x()` and `:y()` are only this
+session's answer to that place and are free to come back different. That asymmetry is the contract, not an
+accident of how the place is stored.
+
+**A place this session cannot locate is a legal place to stand something.** Hand `:add` a
+[Position](../world.md#the-position-type) rebuilt from somewhere you have not been since you logged in — one
+out of [`hafen.store`](../store.md), one recorded in another part of the world — and nothing raises. The
+entity exists, `:position():info()` answers the grid it was given, `:x()` answers `nil`, and `:drawn()` is
+`false`; it stands itself up the moment that ground resolves, with nothing further done to it. Nothing
+bounds the wait — there is no timeout and no attempt count — so a place you never walk to simply waits,
+quietly and forever. That is the state a cave puts every overworld thing of yours into for as long as you
+are underground, and [`hafen.client():profiling():entities()`](../client/profiling/counters.md#entities)
+counts how many are in it.
+
 There is nothing to turn off here, because a thing hanging over the edge of the world is never what you
 asked for. Nor is it a write over anything of yours: `e:visible()` still reads back exactly what you last
 told it while the thing itself waits for its ground.
@@ -145,10 +164,14 @@ exactly as that game object does, and it ends with it.
 whole section is off, while its visual is still streaming in, and while a free one's ground is not drawn.
 
 ```lua
-local e = hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", faraway)
-e:exists()      --> true    it is yours and it is placed
-e:visible()     --> true    you never hid it
-e:drawn()       --> false   there is no ground out there to stand on yet
+local home = hafen.store():get("spot").home            -- a place saved in an earlier session
+local e = hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", home)
+
+e:exists()             --> true    it is yours and it is placed
+e:visible()            --> true    you never hid it
+e:position():info()    --> the grid and the offset it was given: the place it holds
+e:position():x()       --> nil     this session has not located that grid
+e:drawn()              --> false   so there is no ground out there to stand it on, yet
 ```
 
 ## The whole section at once

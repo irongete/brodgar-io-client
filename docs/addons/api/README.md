@@ -14,7 +14,7 @@ you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [`hafen.world`](world.md) | the live world: every object loaded, the terrain, and a position that survives a relog |
+| [`hafen.world`](world.md) | the live world: every object loaded, the terrain, and a position that survives the coordinates moving under it |
 | [Gob](gob.md) | one object in the world — `hafen.world():gob():get(id)` gives a Gob you read with methods, and `gob:overlay()` attaches things to it |
 | [`hafen.map`](map/README.md) | the hub: the map you have explored, kept on disk, and the order to read these pages in |
 | [segments and grids](map/grids.md) | the shape of the database, the one Grid entity both halves hand back, and storing a place |
@@ -93,7 +93,7 @@ you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [`hafen.vr`](vr/README.md) | the hub: the anchor, the shared verbs, and the switch for the whole section |
+| [`hafen.vr`](vr/README.md) | the hub: the anchor, the place a thing keeps, the shared verbs, and the switch for the whole section |
 | [ghosts](vr/ghosts.md) | the game's own props, standing where you put them, translucent and tinted |
 | [sprites](vr/sprites.md) | a PNG in the world: its facing modes, clicks, following a gob |
 | [models](vr/models.md) | a glTF model: the subset that loads, the object's verbs, and clicks |

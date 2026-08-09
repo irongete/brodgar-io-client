@@ -49,7 +49,7 @@ writes it down. Each ships its own suite per [`TESTING.md`](../TESTING.md).
       *Found on the way*: the tap must listen to the ONE `MiniMap` the derivation reads — the map window
       carries a second, and either-instance dedup lets the earlier tick consume the change for the later.
 
-- [ ] **045.3 — The pages, and the close**
+- [x] **045.3 — The pages, and the close** ✅ §12: 1465 links / 0 broken, no page over 300, 28 retired names at zero
       `docs/addons/api/vr/README.md` carries the place contract: what a free entity's place *is*, that `:info()`
       is what survives while `:x()` is this session's answer, that an unreached place is legal and simply waits,
       and that a place with no durable form is refused — in the vr pages' own voice, not as a changelog.
@@ -59,6 +59,15 @@ writes it down. Each ships its own suite per [`TESTING.md`](../TESTING.md).
       tables only if a row's wording is now wrong. Read area `docs`'s standard **before** writing
       (`specs/docs/design/style-guide.md` §9–§12 plus the `### D-` one-liners) and run and report its §12 checks.
       *Suite*: none of its own, and it says so — its proof is the §12 report plus 045.1's and 045.2's commands still green.
+      *As built*: the vr hub's ground section took **both** halves of the contract — the numbers moving under a
+      thing that does not move with them, and *a place this session cannot locate is a legal place to stand
+      something* — and the `:info()`/`:x()` asymmetry, which had been stated twice on that page, now lives there
+      once with the vocabulary table linking to it. **Three pages the task did not name carried the same wrong
+      model verbatim** and were corrected in one clause each rather than left to contradict `world.md`:
+      `api/conventions.md`, `guides/reading-the-world.md`, and `api/vr/widgets.md`'s "its place is now a world
+      coordinate". Two pre-existing breaches on the pages this task owns were paid off on the way — `conventions.md`
+      went to **301** lines on a two-into-three reflow (rewritten to correct in place at equal line count), and the
+      vr hub carried a 149-column line and "the same five verbs", a count in prose duplicating the table under it.
 
 ## Notes
 
