@@ -194,3 +194,55 @@ D-127 above (a thing that cannot exist without a place takes it on the construct
 re-aims), [D-109](architecture-api.md) (a value with two forms derives, never converts — the one type this rests on),
 [D-106](architecture-api.md) (a tap raises a flag, the tick does the work),
 [ghosts.md](../learnings/ghosts.md), [world-reads.md](../learnings/world-reads.md).
+
+### D-208 — a place you have not reached is a legal place to stand something, and it waits forever ✅ (045.2, 2026-08-09)
+**Decision.** `:add(what, p)` and `<entity>:position(p)` accept a durable place this session **cannot
+locate**. The entity is created, holds that place, reports it through `:info()`, answers `nil` for `:x()`,
+is not drawn, and enters the scene by itself the moment that ground resolves. Nothing bounds the wait and
+nothing reports it as a failure.
+**Rationale.** Once the place is what the entity keeps (D-207), *can this place be held* and *where is it
+right now* are two different questions, and only the first one has an answer that is true forever. Refusing
+the second made a legal saved place — one read back out of `hafen.store` from a corner of the world the
+character is not standing in — into an error at the one moment an addon would restore it, which is the
+first thing anybody will do with a durable place. The honest answer is the one a Position already gives:
+`p:x()` is nil, and the thing waits.
+**No `Resolve` chain, and no retry cap.** 042.12's lesson is that a bounded retry chain wants one stable
+blocker that clears on notify; "the player has not walked there" is not one, and may never be. The entity
+sits in the free index and is re-asked on the two events below — silently, and for as long as it takes.
+**The gob is still built at `:add`**, at the origin, un-moved and outside the scene. `shows()` is false
+with no coordinate, so it cannot get in from there, and `attachScene` stays the ONE door into the scene
+rather than four creators becoming re-runnable. Deferring the build until the place resolved would have
+bought nothing observable: `:drawn()` is false either way.
+**What is still refused is the other edge**, unchanged: a place with **no durable form at all** — a raw
+coordinate over ground nobody has recorded. Unreached and un-holdable are different answers, and only the
+first waits.
+**See.** D-207 above (the place this holds), D-206 above (the ground rule that keeps it out of the scene),
+D-127 above (a thing meaningless without a place takes it on the constructor — still true; what changed is
+what counts as one), D-209 below (the second event it waits on),
+[D-114](architecture-api.md) (a creation raises where a removal is inert),
+[ghosts.md](../learnings/ghosts.md).
+
+### D-209 — the session location's own assignment is the second event, and the equality test is the whole tap ✅ (045.2, 2026-08-09)
+**Decision.** Re-deriving a free entity's coordinate rides **two** events, both mutation points the client
+already has: the terrain's cut map (D-206's drain) and the assignment of `MiniMap.sessloc`. The second is
+one guarded `// addon:` line raising the same flag the first does, drained on the addon tick (D-106).
+**Rationale.** The anchor→world derivation runs through `sessloc`, which is re-resolved a frame or more
+**after** the cuts have come back. Without the second tap, an entity whose ground returned while the player
+stood still would wait for a cut change that may never come — the walk back out of a cave would leave it
+out of the scene until something else happened to move.
+**The guard is not an optimisation, it is the decision.** `tick` mints a fresh `Location` object every
+frame, so notifying on the assignment alone would raise the flag sixty times a second and turn the drain
+into exactly the per-frame poll D-181 deleted. What actually changes is the segment and the tile origin —
+a handful of times an hour — so the tap compares those two and says nothing otherwise.
+**And it listens to ONE minimap**, the instance the derivation reads. The map window carries a second one
+ticking the same locator against the same file; letting both through would let whichever ticked first
+consume the change for the other, and the memo would already match by the time the instance that matters
+had been assigned. A tap keyed on a value must listen to the reader of that value, not to the type.
+**Made assertable rather than asserted.** The counter behind `hafen.client():profiling():entities()`
+reports how many times the drain has actually walked the list, so "this is an event, not a poll" is a line
+a suite checks over an idle stretch instead of a claim in a comment.
+**See.** D-208 above (what waits on it), D-206 above (the first source, and the drain both share),
+[D-106](architecture-api.md) (a tap raises a flag, the tick does the work),
+[D-181](architecture-api.md) (the layer does not poll what the client already announces),
+[D-051](architecture-api.md) (a pull-only counter answers whether profiling is armed or not),
+[minimap.md](../../codebase/minimap.md).

@@ -205,6 +205,16 @@ public final class ProfHandle {
             }
         });
 
+        // p:entities() -- the things standing at a POINT in the 3D world (045.2): how many there are, how many
+        // are waiting for a place this session cannot locate yet, and how many times the layer has re-derived
+        // where they are. Pull-only like the counters above: two list reads and a long, answering with
+        // profiling off. Global rather than per addon, because the re-derivation is one walk of one list.
+        m.set("entities", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return entities();
+            }
+        });
+
         // p:textcache() -- the rendered-text cache behind g:text/g:atext (026). Pull-only like the four above:
         // it answers with profiling OFF, because nothing in it is a probe -- the cache keeps these numbers to
         // bound ITSELF, and this only reads them. Per addon, so the top level is the CALLER's own cache.
@@ -465,6 +475,30 @@ public final class ProfHandle {
         t.set("culled", LuaValue.valueOf(WidgetSurface.culledCount()));
         t.set("uploads", LuaValue.valueOf((double)WidgetSurface.uploads()));
         t.set("frames", LuaValue.valueOf((double)WidgetSurface.frames()));
+        return t;
+    }
+
+    // ------------------------------------------------------------------------- places that wait (045.2)
+
+    /**
+     * {@code p:entities()} — the client-only things standing at a <b>point</b> in the world, and what keeping
+     * them there costs. An entity anchored to a game object is not counted: its place is that object's, so
+     * there is nothing to re-derive for it.
+     *
+     * <p>{@code placed} is how many there are right now and {@code waiting} how many of those hold a place this
+     * session cannot locate — a place recorded in another part of the world, or (while the player is in a cave)
+     * every overworld place at once. Both are instantaneous counts. {@code passes} is how many times the layer
+     * has re-derived the lot, <b>cumulative since the client started</b>, and it is the number that says this is
+     * an event rather than a poll: it moves a handful of times while walking and not at all while standing
+     * still.
+     *
+     * <p><b>Pull-only</b> (D-051), like the counters above: it answers whether profiling is armed or not.
+     */
+    private static LuaTable entities() {
+        LuaTable t = new LuaTable();
+        t.set("placed", LuaValue.valueOf(VrApi.freeCount()));
+        t.set("waiting", LuaValue.valueOf(VrApi.waitingCount()));
+        t.set("passes", LuaValue.valueOf((double)VrApi.regroundPasses()));
         return t;
     }
 

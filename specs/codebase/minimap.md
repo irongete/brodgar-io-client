@@ -14,6 +14,19 @@
   never wait for a lock a disk write may be holding. `SessionLocator` (`:102`) derives `sessloc` from any
   live `MCache.Grid` whose `gridinfo` is known; `MapLocator` (`:142`) and `SpecLocator` (`:162`) are the
   other two. `tick` (`:373`) re-resolves `sessloc` every frame and swallows `Loading`.
+- **That assignment (`:387`) is the coordinate space's own mutation point**, and carries the one
+  `// addon:` seam in this file (`:388` → `AddonManager.sessionRebased(this, sessloc)`, 045.2): every
+  session world coordinate the addon layer derives from a durable place goes through `sessloc`, so when it
+  moves, all of them have. Two things make the seam correct rather than a poll. **It is guarded on
+  `(seg.id, tc)`** — `resolve` mints a fresh `Location` object every frame, so identity says nothing and
+  only those two values changing is news. And **it is filtered to `GameUI.mmap`**, the one instance
+  `MapApi.sessloc()` reads: the map window's `MiniMap` ticks the same locator against the same file, and
+  accepting either would let whichever ticked first consume the change for the other.
+- **`sessloc` goes STALE, never null.** `tick`'s `catch(Loading){}` keeps the previous value, and
+  `SessionLocator.locate` throws `Loading("No mapped grids found.")` while the new area's grids are not yet
+  in `gridinfo` — so for a window after the server drops the map (a cave, a house) `sessloc` still names
+  the segment you left. Anything deriving a coordinate in that window gets an old-frame answer, not a
+  refusal; compare the segment rather than testing for null.
 
 ## Drawing a grid
 

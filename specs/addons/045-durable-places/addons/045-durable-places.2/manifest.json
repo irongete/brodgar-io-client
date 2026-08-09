@@ -1,0 +1,9 @@
+{
+  "name": "045.2 — the place that is not here yet, and the moment the numbers move",
+  "id": "045-durable-places.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 045.2: a free hafen.vr() entity may be stood at a place this session cannot locate — it exists, waits, holds the grid id it was given, and enters the scene by itself when that ground resolves.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

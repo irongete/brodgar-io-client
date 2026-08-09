@@ -277,3 +277,9 @@
   cannot enter the scene from there anyway) and `moveEntity`'s `gob.move` on a rotate-only call. Rule:
   *before making a field nullable, find the boolean that is already false whenever it would be null — if
   there is one, the null is free; if there is not, you are adding a state, not a value.*
+- **(045.2) An absent option key and `optdouble(0.0)` are not the same thing when the value is a PLACE.**
+  The four `hafen.vr()` creators read their point out of one shared options table with
+  `opts.get("x").optdouble(0.0)`. Once a place may be one this session cannot locate, that default silently
+  becomes the map origin — a real point, on real ground, that the thing would stand at. The fix is to leave
+  the keys **absent** and test `isnumber()`, so "not here yet" and "at 0,0" stay distinguishable. Rule:
+  *a defaulted zero is a lie wherever zero is a legal value of the thing.*

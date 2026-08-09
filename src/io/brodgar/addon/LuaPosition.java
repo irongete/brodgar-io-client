@@ -210,6 +210,12 @@ public final class LuaPosition {
      * place kept as one quietly stops naming anywhere. What can be kept is the anchor, and ground nobody has
      * ever recorded has none — the client cannot invent a grid id, so that place is refused rather than pinned
      * to a number that will lie.
+     *
+     * <p><b>Whether the place can be REACHED is a different question and is not asked here</b> (045.2). A
+     * durable place with no coordinate this session — recorded in another segment, or anywhere at all while
+     * the player is in a cave — is perfectly holdable; {@link #worldOf(Anchor)} answers {@code null} for it and
+     * the caller waits. Only {@link #worldArg}, the door for verbs that need somewhere to go <i>now</i>,
+     * refuses that.
      */
     static Anchor anchorArg(Varargs a, int i, String verb, String param) {
         LuaPosition p = posArg(a, i, verb, param);
@@ -222,18 +228,6 @@ public final class LuaPosition {
                 + " anywhere. p:durable() says whether a place can be held; ground you have walked can");
         }
         return an;
-    }
-
-    /**
-     * The session coordinate of an already-durable place, or the same refusal {@link #worldArg} raises: the
-     * place is keepable but this session cannot locate that grid (it was recorded in another part of the
-     * world). Split out so both doors say it in one voice.
-     */
-    static Coord2d hereArg(Anchor an, String verb, String param) {
-        Coord2d rc = worldOf(an);
-        if(rc == null)
-            throw new LuaError(verb + ": " + param + " " + UNREACHABLE);
-        return rc;
     }
 
     private static final String UNREACHABLE =

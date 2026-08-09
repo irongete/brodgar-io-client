@@ -273,6 +273,21 @@ public final class AddonManager {
     }
 
     /**
+     * Call site — {@code MiniMap.tick}, where {@code sessloc} is assigned (045.2). That assignment is the
+     * session coordinate space's own mutation point: a free {@code hafen.vr()} entity holds a durable place and
+     * derives its coordinate through this location, so when it moves, every one of those coordinates has moved.
+     * The terrain's cuts (above) say the ground came and went; this says the numbers naming it changed, and the
+     * two are not the same frame.
+     *
+     * <p><b>Guarded, and that is the point</b>: {@code tick} mints a fresh {@code Location} every frame, so the
+     * work here is an equality test on the segment and tile origin, and the flag is raised only when they
+     * actually differ ({@code VrApi.sessionRebased}). Everything else happens on the addon tick (D-106).
+     */
+    public static void sessionRebased(haven.MiniMap mm, haven.MiniMap.Location loc) {
+        VrApi.sessionRebased(mm, loc);
+    }
+
+    /**
      * Per-session init (from RemoteUI.init, where ui.sess is bound): tear down the previous session's
      * addons, reset engine state, attach the tick pump + gob event source, then (re)load from disk.
      */

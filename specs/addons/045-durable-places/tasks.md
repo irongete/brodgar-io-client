@@ -23,7 +23,7 @@ writes it down. Each ships its own suite per [`TESTING.md`](../TESTING.md).
       a refusal, and this task changes that one line to a durable place that is merely not drawn.
       <!-- extra context: `specs/addons/044-spatial-ui/addons/044-spatial-ui.9/main.lua` -->
 
-- [ ] **045.2 — The place that is not here yet, and the moment the numbers move**
+- [x] **045.2 — The place that is not here yet, and the moment the numbers move** ✅ 13/13 + 5/5
       `:add(what, p)` with an anchor this session cannot locate stops raising: the entity exists with no gob,
       `:drawn()` false, `:position():info()` answering the grid it was given and `:x()` nil, and it enters the
       scene by itself when that ground resolves — no `Resolve` chain and no retry cap (042.12's lesson). The
@@ -39,6 +39,15 @@ writes it down. Each ships its own suite per [`TESTING.md`](../TESTING.md).
       module state, prints `[manual] walk into a cave (or a house) and back out, then run :t045-2 again`, and on
       the **re-run** compares — same `gridId`, same offset to the tile, `:drawn()` true again, `:x()` differing
       allowed and reported rather than failed. So criterion 1 is an assertion, not an eyeball.
+      *As built*: **D-208** (a place you have not reached waits, forever, with no `Resolve` chain) and **D-209**
+      (the `sessloc` assignment is the second event; the `(seg, tc)` equality test IS the tap). Three things the
+      task text did not foresee. The gob is still built at `:add`, at the origin and outside the scene, rather
+      than deferred until the place resolves — `attachScene` stays the one door in, and `:drawn()` is false
+      either way. `<entity>:position(p)` was relaxed with `:add`, which left `LuaPosition.hereArg` dead and
+      deleted. And the guard needed a witness, so a seventh pull-only counter shipped:
+      `hafen.client():profiling():entities()` → `{placed, waiting, passes}`, documented with this task.
+      *Found on the way*: the tap must listen to the ONE `MiniMap` the derivation reads — the map window
+      carries a second, and either-instance dedup lets the earlier tick consume the change for the later.
 
 - [ ] **045.3 — The pages, and the close**
       `docs/addons/api/vr/README.md` carries the place contract: what a free entity's place *is*, that `:info()`

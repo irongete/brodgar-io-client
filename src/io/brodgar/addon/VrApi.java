@@ -13,6 +13,7 @@ import haven.MapView;
 import haven.Message;
 import haven.MessageBuf;
 import haven.MCache;
+import haven.MiniMap;
 import haven.Moving;
 import haven.Music;
 import haven.ResDrawable;
@@ -404,7 +405,12 @@ final class VrApi {
      * so {@code :position()} has something truthful to fall back on while the target is still streaming.
      */
     private static final class Anchor {
-        /** Where it stands (free), or the target's position when it was anchored (followed). Never null. */
+        /**
+         * Where it stands (free), or the target's position when it was anchored (followed). <b>Null when the
+         * place is legal but this session cannot locate it</b> (045.2) — ground recorded in another segment,
+         * and every overworld place while the player is in a cave. The entity is still created: it holds
+         * {@link #place}, waits, and enters the scene by itself when that ground resolves.
+         */
         final Coord2d rc;
         /** The gob id it follows, or {@code 0} when it stands where it was put. */
         final long tgt;
@@ -421,11 +427,18 @@ final class VrApi {
             this.place = place;
         }
 
-        /** The options table the {@code make*} bodies read the placement out of (their one shared shape). */
+        /**
+         * The options table the {@code make*} bodies read the placement out of (their one shared shape). The
+         * two keys are <b>absent</b> for a place this session cannot locate (045.2), which is how
+         * {@link #optPlace} tells "here" from "not here yet" — an absent coordinate, never a zero, because
+         * {@code 0, 0} is a real point in the world and would stand the thing at the map origin.
+         */
         LuaTable spec() {
             LuaTable t = new LuaTable();
-            t.set("x", LuaValue.valueOf(rc.x));
-            t.set("y", LuaValue.valueOf(rc.y));
+            if(rc != null) {
+                t.set("x", LuaValue.valueOf(rc.x));
+                t.set("y", LuaValue.valueOf(rc.y));
+            }
             return t;
         }
     }
@@ -446,6 +459,12 @@ final class VrApi {
      * — {@link LuaPosition#anchorArg} rather than {@code worldArg}: what a thing standing in the world keeps is
      * the anchor, and a raw coordinate over ground nobody has recorded has none. The coordinate is then derived
      * from that anchor here, so what enters the scene and what the entity holds cannot disagree at birth.
+     *
+     * <p><b>And a place this session cannot LOCATE is no longer a refusal</b> (045.2): the derivation may
+     * answer null — a place recorded in another segment, or any overworld place while the player is in a cave
+     * — and the entity is created anyway, holding the place and waiting for it. The two questions the two
+     * doors ask are therefore different in kind: <i>can this place be held at all</i> is answered now and
+     * refused now, while <i>where is it this session</i> is answered again every time the world moves.
      */
     private static Anchor anchorArg(Varargs a, String verb) {
         LuaValue v = Args.required(a, 3, verb, "anchor");
@@ -466,7 +485,25 @@ final class VrApi {
                 + " (hafen.world():gob():get(id), hafen.player():gob()) makes it follow that object. Got "
                 + v.typename());
         LuaPosition.Anchor place = LuaPosition.anchorArg(a, 3, verb, "p");
-        return new Anchor(LuaPosition.hereArg(place, verb, "p"), 0L, place);
+        return new Anchor(LuaPosition.worldOf(place), 0L, place);   // 045.2: null ⇒ not here yet, and that is legal
+    }
+
+    /**
+     * The point one of the {@code make*} bodies is to stand its entity at, or <b>null</b> when the place it was
+     * given cannot be located this session (045.2) — {@link Anchor#spec()} leaves the two keys absent for
+     * exactly that case. Not {@code optdouble(0.0)}: the map origin is a real place, and defaulting to it would
+     * put a thing that is merely waiting into the middle of the world.
+     */
+    private static Coord2d optPlace(LuaValue opts) {
+        LuaValue x = opts.get("x");
+        if(!x.isnumber())
+            return null;
+        return new Coord2d(x.todouble(), opts.get("y").optdouble(0.0));
+    }
+
+    /** The point a fresh gob is built at — its place, or the origin as a placeholder it never stands at (045.2). */
+    private static Coord2d birthPoint(Coord2d rc) {
+        return (rc == null) ? Coord2d.z : rc;
     }
 
     // ---- ANCHORED, AND FREE: the index that lets an anchored entity die with its gob (043.2) ------------------
@@ -558,6 +595,9 @@ final class VrApi {
             free.clear();
         }
         groundDirty = false;
+        synchronized(sessLock) {
+            sessSeen = false;                          // 045.2: and the memo — the next session's first location is news
+        }
     }
 
     /**
@@ -676,8 +716,7 @@ final class VrApi {
         // client-bundled resources — the pool the engine itself uses for gob drawables (Session/Music/Widget).
         // local() alone would only find the client jar, so a terobj like gfx/terobjs/arch/logcabin never resolves.
         final Indir<Resource> resid = Resource.remote().load(resName);
-        final LuaGhost gh = new LuaGhost(owner, resid, resName,
-                                         new Coord2d(opts.get("x").optdouble(0.0), opts.get("y").optdouble(0.0)),
+        final LuaGhost gh = new LuaGhost(owner, resid, resName, optPlace(opts),   // 045.2: null ⇒ waiting for its place
                                          av.isnumber() ? av.todouble() : 0.0);
         gh.sdt = luaSdt(opts.get("sdt"));              // V3: optional spawn-data bytes (null ⇒ MessageBuf.nil)
         gh.alpha = luaAlpha(opts.get("alpha"));        // V3: opacity 0..1 (default 1 = opaque)
@@ -718,10 +757,11 @@ final class VrApi {
                 synchronized(gh) {
                     if(gh.dead) return;
                     // 045.1: the place may have stopped resolving while the resource streamed in (the map was
-                    // dropped under it). The gob is still built — at the origin, as a placeholder it never
-                    // stands at — because shows() is false with no coordinate, so it cannot enter the scene
-                    // from here; the ground drain moves it and puts it in when the place resolves again.
-                    rc0 = (gh.rc == null) ? Coord2d.z : gh.rc;
+                    // dropped under it), and since 045.2 it may never have resolved at all. The gob is still
+                    // built — at the origin, as a placeholder it never stands at — because shows() is false
+                    // with no coordinate, so it cannot enter the scene from here; the ground drain moves it
+                    // and puts it in when the place resolves.
+                    rc0 = birthPoint(gh.rc);
                     a0 = gh.a;
                 }
                 GhostGob gob = new GhostGob(g, rc0);      // V2/V3: a Gob subclass whose obstate adds the click surface + look
@@ -778,9 +818,11 @@ final class VrApi {
                         + " still " + kind + ":rotate(a); a " + kind + " that stands still is placed with"
                         + " hafen.vr():" + kind + "():add(what, p)");
                 // 045.1: the SECOND of the two doors that ask for a durable place — a thing is moved to a
-                // place it can go on holding, or it is not moved. The coordinate follows from the anchor.
+                // place it can go on holding, or it is not moved. The coordinate follows from the anchor,
+                // and since 045.2 it may not be here yet: the same door :add uses, so moving something to
+                // the far side of the world is the same act as placing it there, and it waits the same way.
                 LuaPosition.Anchor place = LuaPosition.anchorArg(a, 2, kind + ":position", "p");
-                Coord2d rc = LuaPosition.hereArg(place, kind + ":position", "p");
+                Coord2d rc = LuaPosition.worldOf(place);
                 Double ang = Args.passed(a, 3)
                     ? Double.valueOf(number(a, 3, kind + ":position", "a")) : null;
                 moveEntity(e, place, rc, ang);
@@ -973,6 +1015,10 @@ final class VrApi {
      * <p><b>The place and the coordinate are written together</b> (045.1) — {@code place} is what the entity
      * keeps and {@code rc} is that place resolved in this session, so a mover that had only one of the two would
      * be writing half a position. {@code :rotate(a)} passes neither and is untouched by any of it.
+     *
+     * <p><b>{@code place} is therefore what says a MOVE happened</b>, not {@code rc} (045.2): a place this
+     * session cannot locate resolves to a null coordinate, and writing that null is the whole point — the
+     * entity is now somewhere else, that somewhere is not here, and it leaves the scene until it is.
      */
     private static void moveEntity(LuaWorldEntity e, LuaPosition.Anchor place, Coord2d rc, Double ang) {
         synchronized(e) {
@@ -982,9 +1028,8 @@ final class VrApi {
                 e.anchorGrid = place.id;
                 e.agx = place.x;
                 e.agy = place.y;
+                e.rc = rc;                             // 045.2: null ⇒ moved to a place that is not here yet
             }
-            if(rc != null)
-                e.rc = rc;
             if(ang != null)
                 e.a = ang.doubleValue();
             if((e.gob != null) && (e.rc != null))      // 045.1: no coordinate ⇒ nothing to move it to (and it is out of the scene)
@@ -992,8 +1037,9 @@ final class VrApi {
             // 044.9: it may have been put down on ground that is drawn, or off the far edge of it. Asked
             // AFTER the gob has been moved, because attaching it reads the map where the gob now is; and
             // asked by the write itself rather than waited for, so a :position(p) onto drawn ground is in
-            // the scene by the time it returns.
-            if((rc != null) && (e.followTgt == 0)) {
+            // the scene by the time it returns. Keyed on `place`, so a move to a place with no coordinate
+            // this session takes it OUT by the same line that would have put it in (045.2).
+            if((place != null) && (e.followTgt == 0)) {
                 boolean g = groundDrawn(e.rc);
                 if(g != e.grounded) {
                     e.grounded = g;
@@ -1144,7 +1190,7 @@ final class VrApi {
         LuaMesh mesh = resolveObjectMesh(opts.get("model"));   // AFTER the world check (don't validate when not in world)
         LuaValue av = opts.get("a");
         double a = av.isnumber() ? av.todouble() : 0.0;
-        Coord2d rc = new Coord2d(opts.get("x").optdouble(0.0), opts.get("y").optdouble(0.0));   // 0,0 placeholder when anchored
+        Coord2d rc = optPlace(opts);                   // 045.2: null ⇒ the place is not locatable this session
         LuaObject ob = new LuaObject(owner, mesh, rc, a);
         ob.alpha = luaAlpha(opts.get("alpha"));
         ob.tint = luaTint(opts.get("tint"));
@@ -1161,12 +1207,13 @@ final class VrApi {
         // Build the gob + visual, then publish atomically. No defer: the glTF geometry is already parsed (R3), so
         // nothing here throws Loading. The MeshSprite adds one Model per primitive; the shared core supplies
         // transform/look/gizmo, exactly like a sprite's quad.
-        GhostGob gob = new GhostGob(g, rc);
+        GhostGob gob = new GhostGob(g, birthPoint(rc));
         gob.a = a;
         gob.alpha = ob.alpha; gob.tint = ob.tint; gob.scale = ob.scale;   // reflect the look before the first scene add
         gob.clickable = ob.clickable;                  // a clickable object's mesh renders into the clickmap → V2-pickable
         gob.setattr(new SprDrawable(gob, MeshSprite.mill(mesh)));    // resource-free glTF-model visual (R3b: shared textures + per-material states)
-        gob.move(rc, a);
+        if(rc != null)
+            gob.move(rc, a);                           // 045.2: nothing to move it to yet — attachScene does it when there is
         synchronized(ob) {
             if(ob.dead) { gob.dispose(); return ob; }   // destroyed mid-build (defensive; all UI-thread)
             ob.gob = gob;
@@ -1242,7 +1289,7 @@ final class VrApi {
         LuaImage img = resolveSpriteImage(opts.get("image"));   // AFTER the world check (don't validate when not in world)
         LuaValue av = opts.get("a");
         double a = av.isnumber() ? av.todouble() : 0.0;
-        Coord2d rc = new Coord2d(opts.get("x").optdouble(0.0), opts.get("y").optdouble(0.0));   // 0,0 placeholder when anchored
+        Coord2d rc = optPlace(opts);                   // 045.2: null ⇒ the place is not locatable this session
         LuaSprite sp = new LuaSprite(owner, img, rc, a, FIXED);   // a sprite is placed upright; :facing(mode) re-mills it
         sp.alpha = luaAlpha(opts.get("alpha"));        // opacity 0..1 (default 1); combines with the PNG's own alpha
         sp.tint = luaTint(opts.get("tint"));           // colour overlay {r=,g=,b=[,a=]}, or null
@@ -1260,12 +1307,13 @@ final class VrApi {
         // the TexI is already decoded (R1), so nothing here throws Loading. The visual is the ONLY thing the facing
         // mode changes — an upright quad (SpriteQuad on a SprDrawable), the same quad turned to the viewer
         // (CameraFacing) or a screen blit (LuaSpriteBillboard) — the shared core supplies transform/look/gizmo.
-        GhostGob gob = new GhostGob(g, rc);
+        GhostGob gob = new GhostGob(g, birthPoint(rc));
         gob.a = a;
         gob.alpha = sp.alpha; gob.tint = sp.tint; gob.scale = sp.scale;   // reflect the look before the first scene add
         gob.clickable = sp.clickable;                  // R2b: a world-quad sprite renders into the clickmap → V2-pickable (see onGhostClick)
         gob.setattr(sp.visual(gob, sp.facing));        // the kind's one miller, shared with :facing(mode)
-        gob.move(rc, a);
+        if(rc != null)
+            gob.move(rc, a);                           // 045.2: nothing to move it to yet — attachScene does it when there is
         synchronized(sp) {
             if(sp.dead) { gob.dispose(); return sp; }   // destroyed mid-build (defensive; all UI-thread) → discard
             sp.gob = gob;
@@ -1429,7 +1477,7 @@ final class VrApi {
         if((mv == null) || (g == null) || (u == null) || (u.root == null))
             return null;                               // not in the world yet — no scene to add to
         Widget content = standable(owner, wv);         // AFTER the world check (don't re-home when there is no scene)
-        Coord2d rc = new Coord2d(opts.get("x").optdouble(0.0), opts.get("y").optdouble(0.0));
+        Coord2d rc = optPlace(opts);                   // 045.2: null ⇒ the place is not locatable this session
         WidgetSurface surf = new WidgetSurface(owner, content.sz);
         LuaWidgetEntity we = new LuaWidgetEntity(owner, surf, content, rc, 0.0);
         surf.ent = we;                                 // 044.4: the surface asks the entity whether it takes the pointer
@@ -1447,14 +1495,15 @@ final class VrApi {
             u.root.add(surf, Coord.z);                 // in the tree: liveness, ticking and focus all keep resolving
             WidgetSurface.reparent(u, content, surf, Coord.z);
         }
-        GhostGob gob = new GhostGob(g, rc);
+        GhostGob gob = new GhostGob(g, birthPoint(rc));
         gob.alpha = we.alpha; gob.tint = we.tint; gob.scale = we.scale;   // the look, before the first scene add
         // NO GobClick (044.4): a standing widget is not in the world pick at all. Its clicks are resolved
         // before the pick pass is ever started, off the quad's projected corners, and a pointer that MISSES
         // the panel must reach the world beneath it — which it does because the quad puts nothing in the
         // clickmap to stop it. The pick and the panel therefore never compete for the same click.
         gob.setattr(we.visual(gob, we.facing));        // the kind's one miller, shared with :facing(mode)
-        gob.move(rc, 0.0);
+        if(rc != null)
+            gob.move(rc, 0.0);                         // 045.2: nothing to move it to yet — attachScene does it when there is
         synchronized(we) {
             if(we.dead) { gob.dispose(); return we; }   // ended mid-build (defensive; all UI-thread)
             we.gob = gob;
@@ -1780,8 +1829,40 @@ final class VrApi {
         }
     }
 
-    /** Raised by the terrain's cut map changing; drained on the addon tick. */
+    /** Raised by the terrain's cut map changing, or by the session coordinate space moving; drained on the addon tick. */
     private static volatile boolean groundDirty;
+
+    /**
+     * How many times {@link #drainGround} has actually walked the free list — cumulative for the client's life,
+     * and the number that makes "this is an event, not a poll" a thing a suite can ASSERT rather than a claim
+     * (045.2). It moves a handful of times while walking and not at all while standing still; a tap that had
+     * lost its guard would move it every frame. UI thread only (the addon tick), so a plain long.
+     */
+    private static long passes;
+
+    /** {@code p:entities()}: free entities standing right now, how many of them are waiting, and {@link #passes}. */
+    static int freeCount() {
+        synchronized(free) { return free.size(); }
+    }
+
+    /** Of those, how many hold a place this session cannot locate — the ones waiting for their ground (045.2). */
+    static int waitingCount() {
+        List<LuaWorldEntity> l;
+        synchronized(free) { l = new ArrayList<LuaWorldEntity>(free); }
+        int n = 0;
+        for(LuaWorldEntity e : l) {
+            synchronized(e) {
+                if(!e.dead && (e.rc == null))
+                    n++;
+            }
+        }
+        return n;
+    }
+
+    /** How many re-derivation passes the drain has run (see {@link #passes}). */
+    static long regroundPasses() {
+        return passes;
+    }
 
     /**
      * The terrain's cut map changed — a cut entered the scene or left it. Called from the two mutation points in
@@ -1793,6 +1874,41 @@ final class VrApi {
      * grid streams in or out — a handful of times a minute while walking, and not at all while standing still.
      */
     static void groundChanged() {
+        groundDirty = true;
+    }
+
+    /** The last session location the tap below let through — the equality test that keeps it from being a poll. */
+    private static final Object sessLock = new Object();
+    private static long sessSeg;
+    private static Coord sessTc;
+    private static boolean sessSeen;
+
+    /**
+     * <b>The session coordinate space itself moved</b> (045.2) — the second of the drain's two sources, and the
+     * one the first cannot cover. A free entity's coordinate is derived through {@code MiniMap.sessloc}, and
+     * that location is re-resolved a frame or more <i>after</i> the terrain's cuts have come back: an entity
+     * whose ground returned while the player stood still would otherwise wait for a cut change that never comes.
+     *
+     * <p><b>The equality test is the whole of it.</b> {@code MiniMap.tick} mints a fresh {@code Location} every
+     * frame, so notifying on the assignment alone would raise the flag sixty times a second and turn the drain
+     * into the per-frame poll 042 deleted. What matters is the segment and the tile origin, which change only
+     * when the server drops the map — a handful of times an hour. Flag only, drained on the addon tick (D-106).
+     *
+     * <p>It listens to <b>one</b> minimap: the very instance {@code MapApi.sessloc()} reads. The map window
+     * carries a second one, ticking the same locator against the same file, and letting both through would let
+     * the earlier of the two consume the change for the later — the memo would already match by the time the
+     * instance the derivation actually reads had been assigned.
+     */
+    static void sessionRebased(MiniMap mm, MiniMap.Location loc) {
+        if((loc == null) || (mm != MapApi.minimap()))
+            return;
+        synchronized(sessLock) {
+            if(sessSeen && (sessSeg == loc.seg.id) && loc.tc.equals(sessTc))
+                return;                                // same place, a new object: the frame said nothing
+            sessSeen = true;
+            sessSeg = loc.seg.id;
+            sessTc = loc.tc;
+        }
         groundDirty = true;
     }
 
@@ -1811,6 +1927,7 @@ final class VrApi {
                 return;
             l = new ArrayList<LuaWorldEntity>(free);
         }
+        passes++;                                      // 045.2: what p:entities() reports, and the poll test
         for(LuaWorldEntity e : l) {
             try {
                 reground(e);

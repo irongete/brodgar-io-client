@@ -1,13 +1,13 @@
 # hafen.client: the counters
 
-`memory()`, `net()`, `loader()`, `render()`, `surfaces()` and `textcache()` are **pull-only**: they read
-counters the client keeps anyway, so they answer with [profiling](README.md) off and cost nothing while you
-are not asking. The first four are the numbers the client's own stats HUD formats, and always agree with it
-field by field.
+`memory()`, `net()`, `loader()`, `render()`, `surfaces()`, `entities()` and `textcache()` are **pull-only**:
+they read counters the client keeps anyway, so they answer with [profiling](README.md) off and cost nothing
+while you are not asking. The first four are the numbers the client's own stats HUD formats, and always
+agree with it field by field.
 
 Nothing here is sampled over time — each call is the value right now. The exceptions are the running
-tallies, and each says so: `surfaces()`'s uploads and frames are cumulative since the client started, and
-`textcache()`'s hit, miss and eviction totals since the addon loaded.
+tallies, and each says so: `surfaces()`'s uploads and frames and `entities()`'s passes are cumulative since
+the client started, and `textcache()`'s hit, miss and eviction totals since the addon loaded.
 
 **An absent key means "not measured", never zero.**
 
@@ -110,6 +110,33 @@ hafen.timer():after(2, function()
 end)
 ```
 
+## `entities()`
+
+The client-only things you have [standing at a point in the world](../../vr/README.md) — a ghost, a sprite,
+a model or a panel — and what keeping them there costs. One standing on a game object is not counted: its
+place is that object's, so there is nothing to work out for it.
+
+| Key | Description |
+|---|---|
+| `placed` | how many are standing at a point right now, across every addon |
+| `waiting` | how many of those hold a place this session cannot locate |
+| `passes` | times the client has worked out where they all are, **cumulative since client start** |
+
+`placed` and `waiting` are instantaneous counts, never totals. A thing is **waiting** when the place it
+holds is real but has no coordinate here — ground recorded in another part of the world, or, while you are
+underground, every place above at once. It is not lost and it is not an error: it exists, it answers every
+verb, it reports the place it was given, and it stands itself up the moment that ground resolves.
+
+`passes` is the running tally, and it is what makes the cost claim checkable: where those things are gets
+worked out when the world moves under them and at no other time, so `passes` climbs by a handful while you
+walk and holds still while you stand. Two reads a few seconds apart, with nothing happening in between,
+return the same number.
+
+```lua
+local e = hafen.client():profiling():entities()
+hafen.log():write(string.format("%d standing, %d waiting for their ground", e.placed, e.waiting))
+```
+
 ## `textcache()`
 
 The rendered-text cache that [`g:text` and `g:atext`](../../ui/drawing.md#text-is-cached-across-frames)
@@ -149,3 +176,4 @@ hafen.log():write(string.format("%d entries / %.2f MiB, %.1f%% hit rate (%d evic
 - [attribution](attribution.md) — the armed-only half: who spent the frame
 - [drawing](../../ui/drawing.md#text-is-cached-across-frames) — the cache `textcache()` describes
 - [widgets in the world](../../vr/widgets.md) — what `surfaces()` counts, and when one stops drawing
+- [things in the world](../../vr/README.md) — what `entities()` counts, and what a place that waits is

@@ -385,6 +385,7 @@ public class MiniMap extends Widget {
 	if(sesslocator != null) {
 	    try {
 		sessloc = resolve(sesslocator);
+		io.brodgar.addon.AddonManager.sessionRebased(this, sessloc);   // addon: 045.2 -- the session coordinate space's own mutation point (guarded there: a fresh Location every frame is not a change)
 	    } catch(Loading l) {
 	    }
 	}

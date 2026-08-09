@@ -62,8 +62,9 @@ public abstract class LuaWorldEntity {
      * <b>The SESSION coordinate this entity is drawn at — derived, and nullable</b> (045.1). For a free entity
      * it is {@link #anchorGrid}/{@link #agx}/{@link #agy} resolved against this session's map, recomputed
      * whenever the world moves under it, and {@code null} while this session cannot locate that grid at all
-     * (every overworld place, while the player is in a cave). For an anchored one it is the target's point at
-     * create and is never null. <b>The invariant is {@code rc == null ⇒ !grounded}</b> (see {@link #grounded}),
+     * (every overworld place, while the player is in a cave). Since 045.2 it may be null <b>from birth</b>: a
+     * place that has not been reached is a legal place to stand something, and the entity simply waits for it.
+     * For an anchored one it is the target's point at create and is never null. <b>The invariant is {@code rc == null ⇒ !grounded}</b> (see {@link #grounded}),
      * which is what makes the null safe: nothing on a scene path is reached without {@code VrApi.shows}, and
      * that is false the moment the coordinate is gone. Guarded by {@code this}.
      */

@@ -119,3 +119,18 @@
   from memory for every grid of that segment. `Segment.grid(sc)` is the expensive door — it returns an
   `Indir` backed by `Defer` and needs the grid's tiles off the disk — and is the wrong one when all you want
   is the id (D-111).
+- **(045.2) A tap keyed on a VALUE must listen to the reader of that value, not to the type.** `sessloc` is
+  assigned in `MiniMap.tick`, and there are two live `MiniMap`s — the corner one (`GameUI.mmap`, the only
+  one `MapApi.sessloc()` ever reads) and the map window's. Both tick the same `SessionLocator` against the
+  same `MapFile`, so both compute the same location; a change-notify that dedupes on `(seg, tc)` and accepts
+  either instance therefore lets whichever ticked FIRST consume the change — by the time the instance the
+  derivation reads is assigned, the memo already matches and the notify is suppressed. Fix is one line
+  (`mm != MapApi.minimap()` → return), but the class of bug is worth the note: an equality-guarded tap on a
+  field that several objects own is only correct if it listens to the object whose field is read.
+- **(045.2) `sessloc` does NOT go null when the map is dropped — it goes STALE.**
+  `MiniMap.tick` wraps `resolve(sesslocator)` in `catch(Loading){}`, and `SessionLocator.locate` throws
+  `Loading("No mapped grids found.")` while the new area's grids are not yet in the map database. So for a
+  window after entering a cave, `MapApi.sessloc()` still answers the OVERWORLD location, and
+  `MapApi.gridUL` happily derives a coordinate in the old frame instead of the honest null. It resolves
+  itself a beat later (and the tap then fires), but anything that must be right *within* that window cannot
+  trust `sessloc` freshness — check the segment, not just non-null.

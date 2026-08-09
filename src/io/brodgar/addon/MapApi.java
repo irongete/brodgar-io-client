@@ -336,9 +336,19 @@ final class MapApi {
      * corner minimap; null until the map grid-info has streamed in (a beat after enter-world).
      */
     static MiniMap.Location sessloc() {
-        GameUI g = gui();
-        MiniMap mm = (g == null) ? null : g.mmap;
+        MiniMap mm = minimap();
         return (mm == null) ? null : mm.sessloc;
+    }
+
+    /**
+     * <b>The one minimap the session location is read from</b> — the corner one. Named because the 045.2 tap
+     * has to listen to exactly this instance and no other: the map window carries a second {@link MiniMap},
+     * ticking the same locator against the same file, and a change announced by that one would be about a
+     * {@code sessloc} nothing here ever reads.
+     */
+    static MiniMap minimap() {
+        GameUI g = gui();
+        return (g == null) ? null : g.mmap;
     }
 
     /** Assign (or look up) a stable per-session ref id for a marker. Touched from UI + REPL threads → guarded. */

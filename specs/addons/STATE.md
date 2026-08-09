@@ -2,15 +2,25 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`045-durable-places`](045-durable-places/) — 1 of 3.** A free `hafen.vr()` entity's place becomes its **durable
+**ACTIVE: [`045-durable-places`](045-durable-places/) — 2 of 3.** A free `hafen.vr()` entity's place becomes its **durable
 anchor** (grid id + offset) and the session coordinate a derived cache — that space is re-based whenever the map is dropped, so a cave
-and back leaves the thing not where it was put. **045.1 done, 14/14**: the anchor lands beside `rc`, `rc` becomes the DERIVED and
+and back left the thing not where it was put. **The feature now WORKS end to end**; only the pages (045.3) are left.
+**045.2 done, 13/13 + 5/5, and the walk is what proved it**: a place this session cannot locate is a **legal** place to stand
+something (**D-208**) — the entity exists, holds the grid it was given, answers `:x()` nil, is not drawn, and stands itself up when
+that ground resolves, with **no `Resolve` chain and no cap** (042.12: "the player has not walked there" is not a blocker that clears).
+The gob is still built at `:add`, at the origin and outside the scene: `attachScene` stays the ONE door in, and `:drawn()` is false
+either way. **The second event landed** (**D-209**): one guarded `// addon:` line at `MiniMap.tick`'s `sessloc` assignment — the
+feature's only `haven` edit — because `sessloc` is re-resolved a frame or more AFTER the cuts come back. The **`(seg, tc)` equality
+test IS the tap** (`tick` mints a fresh `Location` every frame; notifying on all of them would be the poll 042 deleted), and it
+listens to the **one** `MiniMap` the derivation reads — the map window carries a second, and either-instance dedup lets the earlier
+tick consume the change for the later. `<entity>:position(p)` was relaxed with `:add` (one rule for both doors), leaving
+`LuaPosition.hereArg` dead and deleted. A **seventh pull-only counter** shipped so the guard has a witness:
+`hafen.client():profiling():entities()` → `{placed, waiting, passes}`.
+**045.1 before it, 14/14**: the anchor lands beside `rc`, `rc` becomes the DERIVED and
 nullable session coordinate (`rc == null ⇒ !grounded`, which is what makes the null free), and `<entity>:position()` answers the
 **anchor form** for a free entity and the gob's live point for an anchored one — so `:info()` is the place and `:x()` this session's
-answer to it (**D-207**). `LuaPosition.anchorArg` replaces `worldArg` at **exactly two** call sites (`:add`'s Position branch and
-`<entity>:position(p)`), refusing a place with no durable form and naming why — a hard cut that changed one line of 044.9's own
-archived suite. Re-derivation rides 044.9's ground drain, one step in front of its ground test: no new event, and no `haven` edit yet
-— the guarded `sessloc` tap is 045.2's, with the walk into a cave and back, and 045.3 writes the pages.
+answer to it (**D-207**). `LuaPosition.anchorArg` replaced `worldArg` at **exactly two** call sites, refusing a place with no durable
+form and naming why — a hard cut that changed one line of 044.9's own archived suite.
 **[`044-spatial-ui`](044-spatial-ui/) is CLOSED, 9 of 9**: its `hafen.vr():widget()` shipped — a Widget, yours or the client's own,
 standing as a quad under the one rule **transparency**, which is why its surface is a real UI **root** it is reparented into
 (`docs/addons/api/vr/widgets.md`, `cupboard` the example). A tenth task, the client's own 0.1s fade on a standing entity, was
@@ -25,22 +35,14 @@ than what is DRAWN, while `MapRaster.Grid.cuts` holds a cut exactly while its me
 **third** boolean ANDed into `shows()`; new read `<entity>:drawn()`. 10/10 + 2/2. **Round one found a real fault**: a
 scene add is a map read at the gob's CURRENT point, so `gob.move` precedes every `addClientGob`.
 
-**044.8 before it — writing it down is where two engine faults surfaced.** The page, eleven edits, the `cupboard`
-example, 12/12 and a clean §12 sweep. **Standing broke the UPWARD walk** — `getparent(Class)` out of a panel missed the
-`GameUI`, so `Inventory`'s shift-wheel transfer threw; one seam crosses to **the record** (**D-204**). **And a window
-announces its removal BEFORE it unlinks**, so the put-back left dead windows on the flat UI — `contentGone` is set at
-the removal **tap**, true for every door at once (**D-205**).
-
-**044.7 before it — no engine culling to reuse, and the test was already being computed**: **044.4's four projected
-corners, against the view they landed in, ARE** the frustum test (**D-203**), asked FIRST in `needsDraw`;
-`p:surfaces()` gained `culled`. **044.5–044.6 before that — the root rule paid off, and the client's own windows stand.**
-Focus and the keyboard needed **nothing** (a surface is a plain non-`focusctl` child of `ui.root`); popups and the three
-per-frame queries AT A POINT **were** hard-wired to `ui.root` and now resolve against the nearest root (**D-198**,
-**D-199**); new `widget:focused()`, `:tooltip()`, `hafen.ui():tipAt()`. Standing a native window is the same
-layer-that-restores as `:position`/`:visible`/`replace`, **ungated**, under one rule for both provenances — **where the
-widget was, never whether it was shown** (**D-200**); a standing entity **ends with its content** (**D-201**), a drop is
-answered by *did a widget ACCEPT it* (**D-202**). **A 040.10 defect is still NOT fixed**: `dropdown:size(w, h)` leaves
-its drop arrow outside its box.
+**044.5–044.8 before it** (detail in [`tasks.md`](044-spatial-ui/tasks.md)): writing the page surfaced two engine faults —
+`getparent(Class)` out of a panel missed the `GameUI`, so one seam crosses to **the record** (**D-204**), and a window
+**announces its removal before it unlinks**, so `contentGone` is set at the removal **tap** (**D-205**). Culling needed
+nothing new: 044.4's four projected corners ARE the frustum test (**D-203**). Focus and the keyboard needed nothing at all;
+popups and the three per-frame queries AT A POINT now resolve against the nearest root (**D-198**, **D-199**). Standing a
+native window is **ungated** and restores **where the widget was, never whether it was shown** (**D-200**); a standing
+entity **ends with its content** (**D-201**); a drop is answered by *did a widget ACCEPT it* (**D-202**).
+**A 040.10 defect is still NOT fixed**: `dropdown:size(w, h)` leaves its drop arrow outside its box.
 
 **044.1–044.4 before it** (detail in [`tasks.md`](044-spatial-ui/tasks.md)). **The gate**: a widget subtree draws cleanly through an offscreen `GOut` when **re-homed into an invisible `WidgetSurface` under `ui.root`** rather than detached (**D-191**), the pass issued before `ui.draw(g)` in the same `Render` (**D-192**). `"camera"` is **view-plane aligned** (**D-193**), `facing` carrying all three values (**D-194**); **input** is those four corners inverted as a homography inside the `MapView` event the press arrived in (**D-195**), and a standing widget left the world pick to answer as a widget (**D-196**, **D-197**).
 [`043-vr-namespace`](043-vr-namespace/) **closed, 5/5** before all of it — pure reorganization: `hafen.vr()` absorbed `hafen.ghost()`/`hafen.render()` with the kinds **registered**, made the **anchor an argument**, emptied `gob:overlay()` of the world, turned `:billboard(b)` into **`:facing(mode)`** (**D-184**–**D-190**).

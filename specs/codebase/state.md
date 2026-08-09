@@ -50,5 +50,11 @@
   wrong for "where is this place" — a locating read uses a plain `synchronized(grids)` lookup instead, which
   is what `AddonWidgets.loadedGrid` is (D-110). `Grid.ul` is `gc * cmaps` in session tiles, the same point
   the map file derives as `(sc * cmaps) - sessloc.tc`, which is why one anchor survives a grid unloading.
+- **The session coordinate space is re-based MID-SESSION, not only at login** — `invalblob`
+  ([:888](src/haven/MCache.java:888)) type 2 calls `trimall()` ([:1142](src/haven/MCache.java:1142)),
+  dropping every grid, and the ground that streams back in arrives under different grid coords. Entering a
+  cave or a house does exactly this, so the same `Gob.rc` numbers name different ground before and after.
+  Anything that must still mean somewhere afterwards has to be kept as a **grid id + offset**, never as a
+  session coordinate (see [minimap.md](minimap.md) for the `sessloc` side, which lags the drop).
 - **Several overlays may share one resource** — measured 13 of 33 gobs carrying overlays (038.1), so a
   resource name identifies a *set*, not one overlay (D-101).
