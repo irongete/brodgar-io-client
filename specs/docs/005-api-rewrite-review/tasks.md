@@ -17,7 +17,7 @@
       **Reports**: the two counts or their offenders · the traversal · the greps · the worklist.
       <!-- extra context: `specs/codebase/addon-engine.md` -->
 
-- [ ] **005.2 — Accuracy: the grammar, the one event door, the end of polling** (`039`, `041`, `042`).
+- [x] **005.2 — Accuracy: the grammar, the one event door, the end of polling** (`039`, `041`, `042`).
       Work `005.1`'s worklist for these three against the **second oracle**: `LuaError` strings and
       `spec.get("…")` reads over the owning files are where the corrections are (`003.1`: nine of
       nine), and `Args.java` enforces arity-as-verb, so every "`f()` answers X, `f(x)` answers Y" row on

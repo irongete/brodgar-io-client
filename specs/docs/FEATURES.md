@@ -32,4 +32,5 @@
   (`039-uniform-api`, `041`..`046`): coverage both ways, accuracy against `src/`, §7's grep list brought
   current (it predates `039` and still calls deleted names live), a tree-wide no-history and wording
   sweep, and the ROADMAP's wrap line folded in (`design/style-guide.md`,
-  `design/information-architecture.md`) — tasks 005.1..005.4 (005.1 done: the census, `census.md`)
+  `design/information-architecture.md`) — tasks 005.1..005.4 (005.1 done: the census, `census.md`;
+  005.2 done: five corrections on `api/event.md` and `api/ui/items.md`)

@@ -346,3 +346,36 @@
   start testing — build the candidate list from the *docs* side, then ask `"<s>"` ∈ `SRC` per candidate. The
   rule those three entries now share: **reproduce a known-good POSITIVE with the new tool before believing
   any negative it reports.**
+
+- **(005.2) A page-level generalisation is a claim about every section beneath it, and the page's own body is
+  where it gets falsified — no check the standard runs reads two paragraphs at once.** `api/event.md`'s
+  opening callout said every event on the bus *"fires in the frame its change happens, never a frame later"*;
+  eighty lines down, the overlay section said the pair *"arrive on the next frame"*, which is what
+  `drainOverlayEvents` and `drainMarkerChanges` actually do. Both sentences were written by feature tasks that
+  each had it right locally. §6 already warns that a claim made twice on one page will disagree with itself,
+  but this pair does not *look* like a duplicate: one is a summary at the top and one is a detail in a
+  section's prose, and the greps compare pages to `src/`, never a page to itself. So when a review meets a
+  sweeping always/never sentence, **read the page's own exceptions before opening the engine** — the cheapest
+  oracle for an overstatement is the paragraph that contradicts it, already in the file you are editing.
+
+- **(005.2) A wrong sentence in `docs/` is often the feature spec's own rationale, copied verbatim — so
+  `specs/` is not a second opinion, it is the same source.** `041/spec.md:214` justified the ungated event
+  tier with *"subscribing observes, and cancelling cancels the client's own behaviour rather than sending
+  anything"*, and `api/event.md`'s opening carried that clause word for word — while the same page's own table
+  documents `ev:resend()` and `ev:send(t)`, which call `UI.rawWdgmsg`. The docs did not drift from the spec;
+  they inherited its blind spot, and a reviewer reading the spec to "check" the page would have confirmed the
+  error twice. This is why AREA.md makes `src/` the only admissible backing: **a claim repeated in the spec is
+  not corroborated, it is duplicated.** A design rationale is also the sentence most likely to be wrong,
+  because it is written before the surface is finished and nobody re-derives it afterwards.
+
+- **(005.2) A line-based link checker cannot see a link whose TEXT wraps, and this tree has three.** The
+  per-line regex `\[[^\]]*\]\([^)\s]+\)` validated 1,467 of the tree's 1,471 `](` occurrences; the four it
+  never looked at are three links whose `[` sits on the previous line (`act.md:29`, `buff.md`,
+  `ui/controls/README.md`) and one whose text contains brackets (a `$font[…]` tag). All four happen to
+  resolve, so the miss cost nothing this time — but the failure is one-sided in the dangerous direction, the
+  opposite of 001.1's slugger and 002.2's byte `length`: it under-reports, so a break planted inside a wrapped
+  link is caught by no falsification either, and the "0 broken" reads exactly as clean. The fix is to scan the
+  file whole rather than line by line (slurp, blank the fences, then match), which also lets the falsification
+  plant a break *in one of the wrapped links* — the only way to prove the checker can see them. The rule this
+  joins: **before believing a checker's total, reconcile it against a dumber count of the raw token** (`](`),
+  and account for every unit of the difference.

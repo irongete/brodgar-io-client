@@ -2,8 +2,10 @@
 
 Subscribe to something the client does, instead of polling for it every frame. `hafen.event()` is where
 you subscribe when there is no widget or control to hold — a client-wide fact, or a message stream any
-widget can produce. `hafen.event()` is **ungated**: subscribing observes, and cancelling a message
-cancels the client's own behaviour rather than sending anything.
+widget can produce. `hafen.event()` is **ungated**: subscribing observes, and cancelling stops the
+client's own behaviour. The one thing here that reaches the server is
+[intercepting an outbound action](#intercepting-an-outbound-action), where `ev:resend()` and `ev:send(t)`
+issue that same message in place of the one the widget was about to send.
 
 ```lua
 local sub = hafen.event():on("GobAdded", function(gob)
@@ -13,7 +15,8 @@ end)
 sub:off()
 ```
 
-> Every event on this bus fires in the frame its change happens, never a frame later.
+> Nothing on this bus is polled. Every event fires from the change itself, not from a scan of what is
+> different since the last frame.
 
 ## Subscribe
 
@@ -30,8 +33,8 @@ it reloads or is disabled, so there is nothing to unsubscribe by hand. **Two han
 fire**, in the order they registered; `off()` on one leaves the other running. A handler that errors is
 isolated: the error is logged and it breaks neither your other handlers nor the client.
 
-**The bus keys below are a closed set** — a name that is not one of them throws, naming the ones that
-are:
+**The bus keys below are a closed set** — a name that is not one of them throws at the line that wrote
+it, pointing at the catalogue rather than reading as a subscription that never fires:
 
 ```lua
 hafen.event():on("GobAdded ", fn)
@@ -211,7 +214,7 @@ reaches the server, which an event on the bus above would arrive too late to do.
 |---|---|
 | `ev:msg()` | the message name |
 | `ev:sender()` | the sending [Widget](ui/widget.md) |
-| `ev:args()` | a 1-based array snapshot of the arguments; a coordinate is `{x, y}` |
+| `ev:args()` | a 1-based array snapshot of the arguments; a coordinate is `{x=, y=}` |
 | `ev:preventDefault()` | cancel the send |
 | `ev:resend()` | re-send the original arguments verbatim; implies `preventDefault` |
 | `ev:send(t)` | send a new argument table; implies `preventDefault` |

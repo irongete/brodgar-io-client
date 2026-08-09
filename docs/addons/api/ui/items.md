@@ -74,19 +74,19 @@ chest:on("ItemRemoved", function(item) hafen.log():write("out: " .. label(item))
 chest:on("Destroy",     function() hafen.log():write("chest closed") end)
 ```
 
-**The subscription is the registration.** A container nobody subscribed to is never polled, so leaving
-`:items()` alone costs nothing, and dropping the last subscription on `ItemAdded`/`ItemRemoved` takes the
-widget out of the poll entirely. There is no separate watch/unwatch pair because there is nothing extra to
-say.
+**The subscription is the registration.** A container nobody subscribed to is watched for nothing, so
+leaving `:items()` alone costs nothing, and dropping the last subscription on `ItemAdded`/`ItemRemoved`
+stops the watching. There is no separate watch/unwatch pair because there is nothing extra to say.
 
-An item entering or leaving is a widget create or destroy rather than a server message, so these are
-detected on a per-tick diff. Two consequences are worth knowing: the items **already** inside a container
-fire `ItemAdded` on the first poll after you subscribe, so the state arrives as events the way
-[`BuffAdded`](../event.md#character-and-status) does; and a container that is hidden still
-fires them, which is why you can [hide a grid](native.md) and keep reading it. The item handed to
-`ItemRemoved` is the same object the add reported, so it is worth keeping — it answers after it has
-left. Worn equipment additionally has the global
-[`EquipChanged`](../event.md#character-and-status) event, which carries the whole new list.
+An item entering or leaving is a widget create or destroy rather than a server message, so both are seen
+at the moment the client puts that widget into the tree or takes it out. Three consequences are worth
+knowing: the items **already** inside a container fire `ItemAdded` while you subscribe, before `:on`
+returns, so the state arrives as events the way [`BuffAdded`](../event.md#character-and-status) does; a
+container that is hidden still fires them, which is why you can [hide a grid](native.md) and keep reading
+it; and subscribing to any of the three on a widget that has already left the tree fires `Destroy` there
+and then, and drops every subscription on it. The item handed to `ItemRemoved` is the same object the add
+reported, so it is worth keeping — it answers after it has left. Worn equipment additionally has the
+global [`EquipChanged`](../event.md#character-and-status) event, which carries the whole new list.
 
 ## Where the item reads end
 
