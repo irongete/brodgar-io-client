@@ -212,9 +212,9 @@ placement-grid setting: without `fine`, the tile centre; with `fine = true`, the
 through it lands where a real building would.
 
 ```lua
--- from inside a grab's "Move" handler:
+-- from inside a grab's "Move" handler, with p the Position screenToWorld handed back:
 local s = hafen.world():snapPlace(p, ev:shift())   -- SHIFT picks the fine grid
-ghost:move(s:x(), s:y())
+ghost:position(s)                                  -- a Position in, a Position out
 ```
 
 **`snapAngle(a, fine)`** is the rotation counterpart: without `fine`, 45° steps; with `fine = true`, the
@@ -222,7 +222,9 @@ finer placement-angle grid (`angGran()` steps). It honours the live setting just
 ghost rotate feels identical to rotating a real building. The result is normalized to `(-π, π]`.
 
 ```lua
-local a = hafen.world():snapAngle(math.atan2(p:y() - c.y, p:x() - c.x), ev:shift())
+-- and from the same handler, to turn it to face the cursor point p:
+local c = ghost:position()
+local a = hafen.world():snapAngle(math.atan2(p:y() - c:y(), p:x() - c:x()), ev:shift())
 ghost:rotate(a)
 ```
 

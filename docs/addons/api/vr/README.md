@@ -123,6 +123,10 @@ coordinate.
 
 `:tint(nil)` stays legal: "no tint" is a real value, not an accident.
 
+**A look value outside its range is brought into it.** `:scale` holds to `0.01..100` and `:alpha` to `0..1`,
+so `:scale(0)` gives the smallest size these take rather than an error. Resizing a **game** object is
+[`gob:scale(k)`](../gob.md#size-ungated), and that one refuses a `0` or a negative instead of clamping it.
+
 **A [standing widget](widgets.md) is the one kind that is not a picture, so it answers a click as a widget.**
 Three kinds have `:onClick(fn)`, because "it was clicked" is the whole of what a picture has to say; a panel
 fires its own `MouseDown` at the pixel the pointer landed on, so `:onClick` on one raises naming that
@@ -176,14 +180,14 @@ e:drawn()              --> false   so there is no ground out there to stand it o
 
 ## The whole section at once
 
-Two verbs read and write the section as a whole, and both answer a question no single collection can be
-asked.
+The section itself answers the verbs below, each of them a question no single collection can be asked.
 
 | Call | Returns | Description |
 |---|---|---|
 | `hafen.vr():list(filter)` | entity`[]` | everything this addon has standing, across the kinds, in the order it was stood |
 | `hafen.vr():visible()` | bool | is the section on screen? |
 | `hafen.vr():visible(b)` | the section | take the whole section off screen, or put it back |
+| `hafen.vr():pointer(key, x, y [, a])` | bool | put the pointer on whatever is standing at a screen point — see [clicks](widgets.md#clicks-are-the-widgets-own) |
 
 `hafen.vr():list()` takes the same canonical filter a per-kind list takes, and returns the same entities
 those lists do — a ghost, a sprite, an object and a standing widget side by side, in **creation order**,

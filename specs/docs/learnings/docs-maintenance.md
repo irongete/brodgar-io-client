@@ -379,3 +379,25 @@
   plant a break *in one of the wrapped links* — the only way to prove the checker can see them. The rule this
   joins: **before believing a checker's total, reconcile it against a dumber count of the raw token** (`](`),
   and account for every unit of the difference.
+
+- **(005.3) 005.1's backward sweep guards the invented VERB and is structurally blind to the invented FIELD,
+  which is the same defect one keystroke away.** The one sweep for `[\w)\]]:(\w+)\(` over `docs/` found
+  `ghost:move(` and nothing else, and it was right about verbs. But two of the four wrong claims 005.3 fixed
+  were `m.x`/`m.y` on the mouse — whose verbs are `m:x()`/`m:y()`, documented 200 lines lower on the same page
+  — and `c.x`/`c.y` on a Position: object reads spelt as table reads, which no `:` pattern can see, which no
+  retired-name entry can ever carry (nothing was *renamed* — the field never existed), and which the link,
+  size and symbol checks do not read at all. Both sat on pages the census had already walked for other
+  reasons. A tier that hard-cut tables to objects (039's grammar, 045's Position) has to sweep for the
+  **shape** it left behind as well as for the names: `grep -rnE '\b[a-z]\.(x|y)\b' docs/` is one line and
+  finds it. The general form: **a grammar change needs a grep for its old GRAMMAR, not only for its old
+  spellings** — a retired-name list cannot express "a field access where a call belongs".
+
+- **(005.3) A shipped addon's defensive comment is not evidence about what the runtime has.**
+  `planner/gizmo.lua` builds its own `atan2` out of `math.atan` "so we never depend on `math.atan2` (absent in
+  some Lua 5.1 stdlibs / LuaJ)", and a page under review called `math.atan2` directly — which reads exactly
+  like a defect the example addon had already met. It is not one: the sandbox loads `JseMathLib`, and
+  `JseMathLib$atan2` is in `luaj-jse-3.0.1.jar`. The comment is true of *some* LuaJ builds and says nothing
+  about this one, so treating it as a finding would have replaced a correct call with a hand-rolled
+  workaround. This is the third member of 005.2's family (a spec repeating a claim duplicates it rather than
+  corroborating it): **a defensive workaround is a claim about a runtime its author did not measure.** The
+  oracle is the jar on the classpath, one `unzip -l` away.

@@ -59,6 +59,13 @@ A panel's world size comes from the widget's own pixels, at **a hundred pixels t
 there, and a string [filter](README.md#the-collections-ungated) over the collection matches the widget's
 caption — the "Cupboard" window is found by its title, which is what anybody looking for it knows.
 
+**A panel is composited, not cut out.** A window frame that is translucent on screen is translucent in the
+world, and antialiased text keeps its soft edges: what the widget paints is blended against the scene behind
+it. Only what is fully transparent — the margin a widget never paints — is dropped outright, and that is
+what keeps a world quad from standing a rectangle of depth in front of the scene: a `"fixed"` or `"camera"`
+panel occludes, and is occluded, over exactly the pixels it painted. `:alpha(a)` fades the whole panel on
+top of that, and a faded one no longer writes depth at all, so the world comes through it.
+
 ## Facing
 
 A panel is flat, so how it meets the viewer is a property of its own, and it is the same three modes a

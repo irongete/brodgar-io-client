@@ -28,7 +28,7 @@
       wrong. **Reports**: every correction with its citation · the refusal and absence-case rows checked.
       <!-- extra context: `specs/addons/039-uniform-api/`, `041-unified-events/`, `042-event-driven-reads/` -->
 
-- [ ] **005.3 — Accuracy: the world you stand things in** (`043`..`046`). Same method, same worklist.
+- [x] **005.3 — Accuracy: the world you stand things in** (`043`..`046`). Same method, same worklist.
       The risks: `043`'s `:facing(mode)`, and that `"camera"` stopped raising in `044`; `044`'s
       transparency rule stated as what it **is**, never as what became possible; `045`'s hard cut at
       **both** doors — a raw coordinate over never-visited ground refused, an anchor this session cannot

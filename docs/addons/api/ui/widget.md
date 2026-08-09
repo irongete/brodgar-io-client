@@ -29,8 +29,9 @@ A Widget is opaque, facade-safe userdata: no raw widget crosses into Lua and one
 **interned per addon**, so two lookups of the same live widget are the *same* Lua value:
 
 ```lua
-hafen.ui():at(m.x, m.y) == hafen.ui():at(m.x, m.y)     -- true
-hafen.ui():inventory() == hafen.ui():node(invId)       -- true: one widget, one object
+local m = hafen.ui():mouse()
+hafen.ui():at(m:x(), m:y()) == hafen.ui():at(m:x(), m:y())   -- true
+hafen.ui():inventory() == hafen.ui():node(invId)             -- true: one widget, one object
 ```
 
 `==` **is** the identity test, so there is no `:same()`. You can key a table by a Widget, stash one across
@@ -257,8 +258,9 @@ addon reloads is released by teardown.
 local g = hafen.ui():mouse():grab()
 
 g:on("Move", function(ev)
-  hafen.world():screenToWorld(ev:x(), ev:y(), function(w)
-    if w then ghost:move(hafen.world():snapPlace(w.x, w.y, ev:shift()).x, w.y) end
+  local fine = ev:shift()                                  -- SHIFT picks the fine grid
+  hafen.world():screenToWorld(ev:x(), ev:y(), function(p)  -- p is a Position, a frame later
+    if p then ghost:position(hafen.world():snapPlace(p, fine)) end
   end)
 end)
 
