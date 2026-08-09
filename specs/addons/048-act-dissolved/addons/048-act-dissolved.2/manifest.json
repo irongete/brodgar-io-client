@@ -1,0 +1,9 @@
+{
+  "name": "048.2 — the Hand: hafen.player():hand()",
+  "id": "048-act-dissolved.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 048.2: the cursor becomes an object on the character — nil when you carry nothing, carrying hand:item() and the protected hand:use(target, mods) — and hafen.ui():hand() / hafen.act():useItemOn are retired naming it. Run it twice: once empty-handed, once holding something.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

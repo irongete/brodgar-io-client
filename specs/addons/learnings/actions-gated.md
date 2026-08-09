@@ -199,3 +199,20 @@
   lookup — so a Gob handle for an id that was never in view (handles are never nil) still answers the
   *permission* error rather than "this gob is gone". That is D-213's order, and it is the one property of a
   protected verb a read-only suite can prove without a world.
+- **(048.2) The held-item gesture names no held item, and that is what decides where the verb lives.**
+  [`DTarget.Interact`](../../../src/haven/DTarget.java:70) is an `ItemEvent` whose `src` **is** the `ItemDrag`, so
+  every `itemact` on the wire means *whatever is on the cursor*. Three senders, three shapes, one verb name:
+  [`WItem.iteminteract`](../../../src/haven/WItem.java:199) sends `item.wdgmsg("itemact", ui.modflags())` — **one**
+  argument; [`MapView.iteminteract`](../../../src/haven/MapView.java:2239) sends `{pc, mc.floor(posres), modflags}`
+  — **three** — and extends it with `inf.clickargs()` when the hit resolves to an object — **eight**. They are
+  distinguishable by ARGUMENT COUNT alone, which is what let a read-only suite assert all three (see
+  `testing-tooling.md`). The eight-arg form is the one no addon could send before 048.2: `act():useItemOn` built
+  the three-arg shape only, so *apply the waterskin to that plant* had no door.
+- **(048.2) A take does NOT move the item widget — it destroys one and the server sends another.**
+  [`GameUI.addchild`](../../../src/haven/GameUI.java:976) with place `"hand"` `add`s a **new** `GItem` under the
+  HUD and pushes it onto `hand`; the container's `GItem` is destroyed by its own message. So the Item entity for
+  the cursor is a different interned object from the one the inventory handed back a moment earlier, and
+  `hand:item() == thatItem` is **false** — an identity claim across a take is a claim about the engine that does
+  not hold. Compare `:res()` instead. (This is the same recycling hazard `LuaItem` keys on object identity to
+  avoid; here it cuts the other way, and 048.2's tasks.md had written the claim from the API's shape rather than
+  the engine's.)

@@ -886,8 +886,9 @@ final class CharApi {
      * so the <b>section object IS that thing</b> (§2.1): {@code hafen.player()} hands back the addon's single
      * <b>Player object</b>, and {@code hafen.player():gob()} is the composition anchor for every per-gob read of
      * the player (position/health/moving/facing/…), plus {@code :move(p)}, which walks the character and is the
-     * Player's first write (048.1) — a verb with no per-gob equivalent, since the server accepts a walk command
-     * only for your own character. Player forwards <b>nothing</b> — a {@code player:pos()}
+     * Player's first write (048.1), and {@code :hand()}, the cursor (048.2, {@link LuaHand}) — two verbs with no
+     * per-gob equivalent, since the server accepts a walk command only for your own character and no other gob
+     * has a cursor. Player forwards <b>nothing</b> — a {@code player:pos()}
      * living beside {@code player:gob():position()} is exactly the dual style D-013 forbids — and
      * {@code exists}/{@code id} are dropped: {@code player:gob()} (nil before entering the world) and
      * {@code gob:id()} already answer both. It is a per-addon singleton (cached on {@link Addon#playerObj}), so
@@ -953,6 +954,16 @@ final class CharApi {
                 return owner.playerObj;                          // the Player, so a move chains
             }
         });
+        // hand() — the cursor, as a Hand object, or nil when nothing is on it (048.2). Like :move it is not a
+        // forwarded Gob method: no other gob has a cursor, so there is nothing on Gob for this to duplicate
+        // (D-046). The nil is the point — it is what makes the held-item gesture guardable, where the two
+        // verbs it replaces fired blind with an empty cursor. What it hands back carries hand:item() and the
+        // protected hand:use(target, mods); see LuaHand.
+        methods.set("hand", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaHand.of(owner);
+            }
+        });
         final LuaTable pmt = new LuaTable();
         // A section object's vocabulary is CLOSED: an unknown verb throws naming what does exist, exactly as
         // Section.meta and LuaCollection do for every other section. Pointing __index straight at the methods
@@ -960,7 +971,7 @@ final class CharApi {
         // to call a nil value" — the failure the whole grammar exists to delete, and the one Player would have
         // been alone in keeping, since the section object here IS the one thing the section contains (§2.1).
         pmt.set(LuaValue.INDEX, Retired.closedIndex("hafen.player()", methods,
-            "the section object is the character itself: :gob() :name() :move(p) :worldToScreen(p)"));
+            "the section object is the character itself: :gob() :name() :move(p) :hand() :worldToScreen(p)"));
         pmt.set("__name", LuaValue.valueOf("Player"));
         pmt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -979,7 +990,7 @@ final class CharApi {
     // hafen.items is a HARD CUT (029.3, D-013). In Hafen there is no inventory model outside the widget tree —
     // GameUI.maininv is an Inventory exactly like a chest's — so a section of its own only preserved the
     // player-inventory privilege the Widget entity removes. Items are now a RELATION on their container:
-    // hafen.ui():inventory():items() / hafen.ui():equipment():items() / hafen.ui():hand(), and :items() answers on ANY
+    // hafen.ui():inventory():items() / hafen.ui():equipment():items() / hafen.player():hand():item(), and :items() answers on ANY
     // container widget (a chest, a cupboard, another player's equipory) with nothing hidden. `find` had no
     // replacement built for it: it was a name/res substring filter over one array, which is a Lua one-liner over
     // :items(). What a container hands back is the Item entity ({@link LuaItem}), keyed on the item widget.

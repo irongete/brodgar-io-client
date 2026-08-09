@@ -27,7 +27,7 @@ import java.util.Set;
 
 /**
  * An <b>Item object</b> — one thing inside a container ({@code widget:items()}) or on the cursor
- * ({@code hafen.ui():hand()}), with what the client knows about it: its resource, its display name, a
+ * ({@code hafen.player():hand():item()}), with what the client knows about it: its resource, its display name, a
  * stack count, wear, quality, and where it is sitting.
  *
  * <p><b>The intern key is the item widget's own identity, and that is the whole point of this type.</b>
@@ -37,8 +37,8 @@ import java.util.Set;
  * item, and a write made through it would land on whatever now holds the id. That is the failure this
  * whole entity exists to delete, so the handle holds the {@link GItem} <b>object</b>: it is the item it
  * was, for as long as anyone holds it, and when the item moves or is consumed the object is simply gone
- * ({@code :exists()} false) rather than repointed. {@link ActApi} resolves a gated verb through this
- * object and never through the number.
+ * ({@code :exists()} false) rather than repointed. A protected verb resolves through this object and never
+ * through the number.
  *
  * <p><b>A stale Item still answers.</b> {@code Widget.destroy()} unlinks the item without clearing it, so
  * {@code :res()}, {@code :name()}, {@code :num()} and {@code :quality()} go on reading the thing it was —
@@ -227,7 +227,7 @@ public final class LuaItem {
         LuaItem h = resolve(self);
         if(h == null)
             throw new LuaError("item:" + method + "() — use a COLON call on an Item object"
-                + " (widget:items()[i], or hafen.ui():hand())");
+                + " (widget:items()[i], or hafen.player():hand():item())");
         return h;
     }
 

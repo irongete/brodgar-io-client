@@ -1443,3 +1443,22 @@
   call on a real entity that reaches the gate — proving *gate before live-object lookup* both headlessly and
   in-game, where asserting it on the player's own gob could not distinguish the two orders. Generalises to any
   entity whose `:get` interns rather than searches.
+
+- **(048.2) A suite cannot SEND a protected verb, but it can WATCH one — and that turns the last `[manual]`
+  eyeball into `[pass]` lines.** `hafen.event():action():on(msg, fn)` fires at the `UI.wdgmsg` choke point with
+  the arguments **fully resolved**, and subscribing is an observe surface, so a suite declaring no permissions
+  may arm it. The maintainer fires the `:lua` one-liner (the console owner declares everything) and the suite
+  asserts what went out. 048.2 keyed the record by `#ev:args()` — 1 / 3 / 8 distinguish the item, ground and gob
+  forms of `itemact` — so `:t048-2 sent` could prove the gob form carried `Gob.GobClick.clickargs` verbatim and
+  aimed at the object's own position, which is the feature's whole new capability and was otherwise a human
+  judging a screen. Arming the recorder at **file scope** is not "a suite starting itself" (TESTING.md): it
+  prints nothing, writes nothing and races nothing — the 043.2 `GobRemoved` precedent, and a send cannot be
+  observed after the fact.
+- **(048.2) A `[manual]` line aimed by RESOURCE FILTER can miss, and the miss reads exactly like the feature
+  failing.** `hafen.world():gob():nearest("terobjs/plants")` answered nil with no plant nearby, so
+  `hand:use(nil)` correctly refused with *target is required* — and that is what came back in the verification
+  log for the one line proving the task's headline capability. Nothing was wrong. Round two aimed with
+  `nearest(function(o) return not o:isPlayer() end)`, which cannot come back empty in a populated world, and
+  moved the real claim into an assertion (above) so the aim no longer has to be lucky. This is 043.1's *a
+  fixture that can be missed turns a green feature into a verification round*, one step out from a shipped asset
+  to the live world: **a manual line must not depend on a fixture the world may not have.**

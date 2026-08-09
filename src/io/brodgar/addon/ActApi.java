@@ -43,7 +43,8 @@ final class ActApi {
     private ActApi() {}
 
     /**
-     * Build {@code hafen.act()} (the protected MapView/menu/flower/item verbs) for {@code owner}. From installHafen.
+     * Build {@code hafen.act()} (what is left of the protected MapView/menu/flower/item verbs) for {@code owner}.
+     * From installHafen.
      * A plain section object, and the <b>spatial</b> verbs take a {@link LuaPosition} rather than a pair of
      * numbers: a place in this API is a type now, so handing one a widget's pixel position <i>throws</i> where it
      * used to walk the character somewhere wrong.
@@ -59,17 +60,11 @@ final class ActApi {
         // 048.1: moveTo and clickGob have LEFT — a verb lives with what it changes, so walking the character is
         // hafen.player():move(p) and clicking an object is gob:click(button, mods). Both old spellings throw
         // from Retired naming their replacement; the section stays mounted for the verbs still here (D-117).
-        // useItemOn(p [, mods]) — use the item on your cursor on the GROUND at a Position: the MapView
-        // "itemact". With nothing on the cursor the server ignores it. mods optional (0 default).
-        act.set("useItemOn", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "act", "useItemOn");
-                AddonManager.requireActions(owner, "hafen.act():useItemOn");
-                Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.act():useItemOn", "p");
-                actUseItemOn(rc.x, rc.y, a.arg(3).optint(0));
-                return LuaValue.NIL;
-            }
-        });
+        // 048.2: useItemOn has LEFT too, and it took the whole held-item gesture with it. The cursor is an
+        // object now — hafen.player():hand(), nil when you are carrying nothing — and hafen.player():hand()
+        // :use(target, mods) applies what you hold to an Item, a Position or a Gob. The Gob arm is a message
+        // this verb could not send: it aimed only at bare ground, where the client's own iteminteract extends
+        // the args with the object's click args when the hit resolves to one.
         // place(p, angle [, button [, mods]]) — place the object currently on your cursor at a Position,
         // rotated by `angle` RADIANS (the MapView "place"; the engine encodes angle as round(angle*32768/PI)).
         // With nothing being placed the server ignores it. button 1 = confirm (default); mods 0 default.
@@ -139,7 +134,7 @@ final class ActApi {
             }
         });
         // item(item, verb [, n]) — the protected item verbs. `item` = an Item OBJECT you got from a READ: a member of
-        // a container's :items(), or hafen.ui():hand(). It is the object and never a widget id, because the server
+        // a container's :items(), or hafen.player():hand():item(). It is the object and never a widget id, because the server
         // re-uses an id: acting on the number would move whatever holds it now. The entity carries its own item
         // widget, so a moved/used one raises a guiding error (nothing is sent) rather than driving a stranger. Then
         // it sends exactly the GItem.wdgmsg a click on the item sends (WItem.mousedown / iteminteract) — so the
@@ -148,8 +143,11 @@ final class ActApi {
         //   "drop"     drop it on the ground; `n` = how many of a stack (default -1 = the whole stack/item).
         //   "transfer" move it to the linked container (an open container / your inventory); `n` as for drop.
         //   "iact"     right-click / activate it (its default context action: eat, open, light, …).
-        //   "itemact"  apply the item on your cursor ONTO this item (e.g. pour a waterskin onto a plant).
-        // `n` is ignored for take/iact/itemact (no count). iact/itemact send no modifiers; for a MODIFIED item
+        // 048.2: "itemact" is GONE from here — applying what is on your cursor ONTO this item is
+        // hafen.player():hand():use(item, mods), because the gesture originates from the CURSOR and the message
+        // carries no reference to the held item, so this door could send it with an empty cursor. The verb
+        // string throws naming that replacement rather than falling into the unknown-verb list.
+        // `n` is ignored for take/iact (no count). iact sends no modifiers; for a MODIFIED item
         // interaction use the escape hatch: hafen.act():raw(item:handle(), "iact", {x=0,y=0}, mods) — where the
         // number is read off the item at the moment it is sent, not stashed.
         act.set("item", new VarArgFunction() {
@@ -159,7 +157,7 @@ final class ActApi {
                 LuaValue verb = a.arg(3);
                 if(!verb.isstring())
                     throw new LuaError("hafen.act():item(item, verb): verb must be a string"
-                        + " (\"take\", \"drop\", \"transfer\", \"iact\" or \"itemact\")");
+                        + " (\"take\", \"drop\", \"transfer\" or \"iact\")");
                 actItem(a.arg(2), verb.tojstring(), a.arg(4).optint(-1));
                 return LuaValue.NIL;
             }
@@ -274,26 +272,13 @@ final class ActApi {
         return new Coord2d(x, y).floor(OCache.posres);
     }
 
-    // -- 4d: the rest of the MapView action verbs (useItemOn / place / select) + raw --------------------------
+    // -- 4d: the rest of the MapView action verbs (place / select) + raw -------------------------------------
     // Each is the same kind of send — a Widget.wdgmsg from the MapView, exactly what the matching mouse gesture
-    // produces (MapView.iteminteract / mousedown-place / Selector.mmouseup). They share one world→Coord encoding
+    // produces (mousedown-place / Selector.mmouseup). They share one world→Coord encoding
     // (moveClickCoord = Coord2d.floor(posres)) and a dummy screen coord (pc = the current mouse, meaningless for
     // a programmatic action but part of the wire shape). The arg-array BUILDERS below are pure (no live state)
     // so they are headless-testable; the act* SENDERS grab the live MapView, fill pc, and wdgmsg.
-
-    /** The MapView {@code "itemact"} args (use held item on the ground at world x,y). Pure/testable. */
-    static Object[] itemactArgs(Coord pc, double x, double y, int mods) {
-        return new Object[] {pc, moveClickCoord(x, y), mods};
-    }
-
-    /** {@code hafen.act():useItemOn} backing — apply the cursor item to the ground at world (x, y). */
-    private static void actUseItemOn(double x, double y, int mods) {
-        MapView m = AddonManager.view;
-        if(m == null)
-            throw new LuaError("hafen.act():useItemOn: no map view (not in the world yet)");
-        Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;
-        m.wdgmsg("itemact", itemactArgs(pc, x, y, mods));
-    }
+    // 048.2: the MapView "itemact" left with useItemOn — its three wire shapes are LuaHand's pure builders now.
 
     /** The MapView {@code "place"} angle encoding: radians → the server's {@code round(angle*32768/PI)}. Pure. */
     static int placeAngle(double radians) {
@@ -435,7 +420,8 @@ final class ActApi {
     // moved/used one is a guiding error and never a write aimed at whatever now owns its recycled server id.
     // (That id used to BE the reference, which is the hazard this replaced: it is reused.) Then we send the SAME
     // GItem.wdgmsg the corresponding click sends
-    // (WItem.mousedown: take/drop/transfer/iact; WItem.iteminteract: itemact) — the client stays server-
+    // (WItem.mousedown: take/drop/transfer/iact — 048.2 moved WItem.iteminteract's "itemact" onto the Hand,
+    // which is the receiver the gesture actually originates from) — the client stays server-
     // authoritative. The coord these messages carry is the intra-item grab point; Coord.z (the item's corner)
     // is a faithful, deterministic substitute for a programmatic action. The arg BUILDER is pure/testable; the
     // sender resolves the live GItem and wdgmsgs. Runs on the UI thread (addon callback / REPL / timer), like
@@ -444,8 +430,11 @@ final class ActApi {
     /**
      * The {@link GItem} {@code wdgmsg} args for an item {@code verb}, or {@code null} for an unknown verb.
      * {@code n} is the stack count for {@code drop}/{@code transfer} ({@code -1} = the whole stack). The others
-     * carry no count: {@code take} is a bare grab; {@code iact}/{@code itemact} send modifiers {@code 0} (a
-     * modified interaction goes through {@code hafen.act():raw}). Pure/testable — the grab coord is a fixed corner.
+     * carry no count: {@code take} is a bare grab; {@code iact} sends modifiers {@code 0} (a modified
+     * interaction goes through {@code hafen.act():raw}). Pure/testable — the grab coord is a fixed corner.
+     *
+     * <p>048.2: {@code "itemact"} is no longer one of them — it is
+     * {@code hafen.player():hand():use(item, mods)}, and {@link #actItem} refuses the string by name.
      */
     static Object[] itemVerbArgs(String verb, int n) {
         switch(verb) {
@@ -453,7 +442,6 @@ final class ActApi {
             case "drop":     return new Object[] {Coord.z, n};
             case "transfer": return new Object[] {Coord.z, n};
             case "iact":     return new Object[] {Coord.z, 0};   // mods 0 — plain right-click / activate
-            case "itemact":  return new Object[] {0};            // mods 0 — apply the held item onto this one
             default:         return null;
         }
     }
@@ -472,7 +460,7 @@ final class ActApi {
         LuaItem h = LuaItem.resolve(item);
         if(h == null) {
             throw new LuaError("hafen.act():item(item, verb): item must be an Item object from a container's"
-                + " :items() or from hafen.ui():hand(). A widget id is not an item reference: the server"
+                + " :items() or from hafen.player():hand():item(). A widget id is not an item reference: the server"
                 + " re-uses one, so acting on a number moves whatever holds it now.");
         }
         return LuaItem.live(h);
@@ -480,10 +468,15 @@ final class ActApi {
 
     /** {@code hafen.act():item} backing — resolve the item's own widget and send the verb's wdgmsg. */
     private static void actItem(LuaValue item, String verb, int n) {
+        if(verb.equals("itemact"))
+            throw new LuaError("hafen.act():item(item, \"itemact\") is now"
+                + " hafen.player():hand():use(item, mods) — the gesture originates from the item ON THE"
+                + " CURSOR and the message names no held item, so it belongs to the Hand, which is nil when"
+                + " nothing is held. The other verbs are still here.");
         Object[] args = itemVerbArgs(verb, n);
         if(args == null)
             throw new LuaError("hafen.act():item(item, verb): verb must be one of \"take\", \"drop\","
-                + " \"transfer\", \"iact\", \"itemact\" (got \"" + verb + "\")");
+                + " \"transfer\", \"iact\" (got \"" + verb + "\")");
         GItem g = resolveItem(item);
         if(g == null)
             throw new LuaError("hafen.act():item: this item is gone — it was moved, used or consumed, or you"

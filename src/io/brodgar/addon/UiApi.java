@@ -277,8 +277,8 @@ final class UiApi {
         //   :size(w, h)      -- resize the content (+ repack a window's chrome) + chain
         //   :pack()          -- shrink the chrome to fit (no-op for a bare widget) + chain
         //   :destroy()       -- remove it and drop it from the addon's owned registry
-        // Otherwise READ-ONLY: to ACT on the GAME, read a server-bound widget's :id() and pass it to the gated
-        // hafen.act():raw (D-025) — no new action surface, no new gate (reading the tree is ungated client-side data).
+        // Otherwise READ-ONLY: to ACT on the GAME, read a server-bound widget's :id() and pass it to the protected
+        // hafen.act():raw (D-025) — no new action surface, no new gate (reading the tree is unprotected client data).
         m.set("root", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "ui", "root");
@@ -318,21 +318,23 @@ final class UiApi {
         // walks children topmost-first, skips !visible(), descends by xlate (so SCROLL offsets are honoured) +
         // rect-intersect, and honours checkhit at the leaf (non-rectangular hit areas) — so it resolves EXACTLY the
         // widget a real click would hit (a naive pos..pos+size rect test is wrong under scroll / custom hit shapes).
-        // Walk :parent() up from the hit for the full stack. Read-only, ungated (client-side data, never reaches the
-        // server); acting still goes through the gated hafen.act():raw on a server-bound :id().
+        // Walk :parent() up from the hit for the full stack. Read-only, unprotected (client data, never reaches the
+        // server); acting still goes through the protected hafen.act():raw on a server-bound :id().
         m.set("mouse", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "ui", "mouse");
                 return LuaMouse.of(owner);
             }
         });
-        // :inventory() / :equipment() / :hand() — 029.3, what replaced the hafen.items section (hard cut).
-        // The first two are LOOKUPS, not a section of their own: they hand back the Widget entity for the player's
-        // backpack (GameUI.maininv) and Equipory, so the items are read the same way as any other container's —
-        // hafen.ui():inventory():items() — and every other widget verb answers on them too. nil before the HUD is up.
-        // hand() answers the SAME Item object those lists are made of: the cursor item is still a server-bound item
-        // widget, so it interns, it is addressable by the gated verbs, and it goes stale exactly as any other does.
-        // What it lacks is a container, so it is the one item whose :cell() is nil and whose :slots() is empty.
+        // :inventory() / :equipment() — 029.3, what replaced the hafen.items section (hard cut). They are
+        // LOOKUPS, not a section of their own: they hand back the Widget entity for the player's backpack
+        // (GameUI.maininv) and Equipory, so the items are read the same way as any other container's —
+        // hafen.ui():inventory():items() — and every other widget verb answers on them too. nil before the HUD
+        // is up.
+        //   048.2: :hand() has LEFT. The cursor is not a container and never was a widget lookup — it is the
+        // one place that carries a verb of its own (apply what you are holding), so it became an object on the
+        // character it belongs to: hafen.player():hand(), nil while the cursor is empty, and the Item is
+        // hafen.player():hand():item(). Retired names its replacement.
         m.set("inventory", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "ui", "inventory");
@@ -343,15 +345,6 @@ final class UiApi {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "ui", "equipment");
                 return LuaWidget.of(owner, CharApi.equipory());
-            }
-        });
-        m.set("hand", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Section.self(self, "ui", "hand");
-                GameUI g = gui();
-                if((g == null) || (g.vhand == null))
-                    return LuaValue.NIL;
-                return LuaItem.of(owner, g.vhand.item);
             }
         });
         m.set("at", new VarArgFunction() {
@@ -1816,7 +1809,7 @@ final class UiApi {
      * Put every gob {@code a} resized back to its original size ({@code :reload}/disable) — the twin of
      * {@link #teardownGobOverlays} and, like it, one walk of the object cache at a rare moment. Nothing an
      * addon that is no longer running left distorted stays distorted, which is what makes a purely visual
-     * write on the game's own objects safe to leave ungated.
+     * write on the game's own objects safe to leave unprotected.
      *
      * <p>A gob scaled by a <i>different</i> addon is untouched: the size records who wrote it, and a gob has
      * one size, so teardown reverts only what this addon last set. Under {@code synchronized(ui)} like its

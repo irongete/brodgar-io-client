@@ -19,7 +19,8 @@
 -- Sub-commands:
 --   :walker walk        -- hafen.player():move: walk ~2 tiles south
 --   :walker click       -- gob:click(3): RIGHT-click the nearest object (opens its context menu — safe/cancelable)
---   :walker use         -- useItemOn: use the item on your cursor on the ground under you (no-op if empty-handed)
+--   :walker use         -- hafen.player():hand():use(p): apply what is on your cursor to the ground under you
+--                          (the Hand is nil when you carry nothing, so this now says so instead of firing blind)
 --   :walker sel         -- select: area-select the ~3x3 tiles around you (drives tile-area tools)
 --   :walker place       -- place: drop the object on your cursor at your feet facing north (no-op if not placing)
 --   :walker raw         -- raw: send the same walk "click" straight to the MapView (the escape hatch)
@@ -32,7 +33,8 @@
 --                          FlowerMenuOpened, hafen.flowermenu():select(caption) / :select(position) / :cancel().
 --   :walker item [verb] -- item: act on your FIRST inventory item, addressed by the Item OBJECT (from a
 --                          read). Default 'take' lifts it to your cursor (safe/reversible: click an empty slot to
---                          undo). Pass a verb: take|drop|transfer|iact|itemact.
+--                          undo). Pass a verb: take|drop|transfer|iact, or itemact, which is now
+--                          hafen.player():hand():use(item) -- apply what you hold onto that item.
 --   :walker speed [n]   -- speed:current(n): select movement speed n=0..3 (crawl/walk/run/sprint; default 2=run). Reversible.
 --   :walker craft [all] -- craft.make: press Craft on the OPEN recipe (add 'all' for Craft All). CONSUMES ingredients!
 --   :walker bar <n>     -- slot:use: activate slot n (raw 0-based index; read hafen.actionbar():get(n) first)
@@ -66,11 +68,12 @@ hafen.slash():register("walker", function(args)
 
   if sub == "help" then
     hafen.log():write(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | petal | item | speed | craft | bar | setbar | menugrid | kin")
-    hafen.log():write("   walk=hafen.player():move  click=gob:click(3)  use=useItemOn  sel=select  place=place  raw=raw escape hatch")
+    hafen.log():write("   walk=hafen.player():move  click=gob:click(3)  use=hafen.player():hand():use(p)  sel=select  place=place  raw=raw escape hatch")
     hafen.log():write("   menu=hafen.act():menu(path...)  e.g. ':walker menu lo cs' = log out to char select (reversible)")
     hafen.log():write("   flower=hafen.act():flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
     hafen.log():write("   petal <label...>|n <k>|cancel=hafen.flowermenu():select/:cancel  arms the NEXT menu you open, picked from FlowerMenuOpened")
-    hafen.log():write("   item [verb]=hafen.act():item(firstInvItem, verb)  default take (lifts to cursor); take|drop|transfer|iact|itemact")
+    hafen.log():write("   item [verb]=hafen.act():item(firstInvItem, verb)  default take (lifts to cursor); take|drop|transfer|iact")
+    hafen.log():write("   item itemact=hafen.player():hand():use(firstInvItem)  apply what you HOLD onto that item (048.2)")
     hafen.log():write("   -- 4g per-subsystem protected verbs (own namespace, same permission):")
     hafen.log():write("   speed [n]=hafen.speed():current(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
     hafen.log():write("   craft [all]=hafen.craft():current():make(all)  press Craft on the OPEN recipe (CONSUMES ingredients; 'all'=Craft All)")
@@ -106,8 +109,13 @@ hafen.slash():register("walker", function(args)
     hafen.log():write((":walker click -> right-clicked %s (id %d) -- its context menu should open"):format(g:name() or "?", g:id()))
 
   elseif sub == "use" then
-    hafen.act():useItemOn(p)                           -- apply the cursor item to the ground under you
-    hafen.log():write(":walker use -> useItemOn at your feet (hold something on your cursor first, else the server ignores it)")
+    -- 048.2: the held-item gesture belongs to the CURSOR, which is an object now -- and it is nil when you
+    -- are carrying nothing, so the call that used to fire blind is guardable for the first time.
+    local hand = hafen.player():hand()
+    if not hand then hafen.log():write(":walker use -> nothing on your cursor (take an item first, then retry)"); return end
+    hand:use(p)                                        -- apply what you are holding to the ground under you
+    hafen.log():write((":walker use -> hafen.player():hand():use(p) at your feet [holding: %s]")
+      :format(hand:item() and (hand:item():name() or hand:item():res()) or "?"))
 
   elseif sub == "sel" then
     hafen.act():select(p:offset(-11, -11), p:offset(11, 11))   -- ~3x3 tiles centred on you
@@ -198,7 +206,7 @@ hafen.slash():register("walker", function(args)
 
   elseif sub == "item" then
     -- 4f: item verbs act on the Item OBJECT itself -- you get one from a READ (widget:items() on any
-    -- container, or hafen.ui():hand()). Deliberately not a number: the server re-uses an item's widget id, so
+    -- container, or hafen.player():hand():item()). Deliberately not a number: the server re-uses an item's widget id, so
     -- a verb aimed at a number would move whatever holds it now. The object carries its own item, so a moved
     -- or eaten one errors (item:exists() is false) and nothing is sent. Demo: act on the FIRST inventory item;
     -- default 'take' is the
@@ -208,6 +216,15 @@ hafen.slash():register("walker", function(args)
     local inv = invw and invw:items() or {}            -- array of Item objects, live while the item is
     local it = inv[1]
     if not it then hafen.log():write(":walker item -> your inventory is empty (put something in it, then retry)"); return end
+    if verb == "itemact" then
+      -- 048.2: "itemact" LEFT hafen.act():item -- the gesture originates from the item ON THE CURSOR, so it
+      -- is a verb on the Hand. hafen.act():item could send it with an empty cursor; this cannot.
+      local hand = hafen.player():hand()
+      if not hand then hafen.log():write(":walker item itemact -> nothing on your cursor (take something first)"); return end
+      hand:use(it)                                        -- apply what you hold ONTO the first inventory item
+      hafen.log():write((":walker item -> hafen.player():hand():use('%s')"):format(it:name() or it:res() or "?"))
+      return
+    end
     hafen.act():item(it, verb)                            -- protected; resolves the item's own widget, sends `verb`
     hafen.log():write((":walker item -> hafen.act():item('%s' [handle %s], '%s')")
       :format(it:name() or it:res() or "?", tostring(it:handle()), verb))

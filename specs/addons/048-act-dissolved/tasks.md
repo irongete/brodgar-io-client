@@ -100,9 +100,27 @@ nothing is invented and the whole cost is the move plus its retirement.
 
 ---
 
-## 048.2 — the Hand: `hafen.player():hand()`, `:item()`, `:use(target, mods)`
+## 048.2 — the Hand: `hafen.player():hand()`, `:item()`, `:use(target, mods)` ✅ 29/29 pass (9 + 15 + 5), 0 fail, 6 manual confirmed
 
 The only task that mints an object, and the one that closes a capability gap.
+
+> **Closed 2026-08-10.** The Hand ships as a **per-addon singleton** (the `LuaMouse`/Player shape, cached on
+> `Addon.handObj`): it wraps no engine value and re-reads `GameUI.vhand` per call, so `==` is free and there is
+> nothing to tear down. `hand:use` dispatches by type onto an Item, a Position or a Gob, the gate first
+> (**D-213**), and a Hand held across a drop follows **D-217** — `:item()` answers nil, `:use` raises. The move
+> is recorded as **D-218**: *a gesture the client itself cannot produce is not a capability to preserve*, and
+> the receiver must BE the message's implicit subject and be absent whenever the subject is.
+> Four things the next tasks inherit. **`hand:item() == theInventoryItem` across a take is FALSE** — this
+> task's own *Suite proves* line above claimed it, and the engine disagrees: `GameUI.addchild` place `"hand"`
+> builds a **new** `GItem` and the container's is destroyed, so the claim was written from the API's shape
+> rather than the engine's. 048.3 must not repeat it for its stale-Item checks. **Every argument refusal on a
+> protected verb is invisible to its own suite** — the gate is first, so no-target / `42` / `"x"` all answer
+> the permission error; assert *that*, and leave the argument message to a `[manual]` `:lua` line. **An
+> undeclared suite can still assert the WIRE**: `hafen.event():action():on(msg, fn)` records the resolved
+> arguments as they go out, so `:t048-2 sent` proved the gob form carried `Gob.GobClick.clickargs` verbatim —
+> 048.4's `place`/`sel` and 048.6's `send` can do the same instead of ending on an eyeball. And **a `[manual]`
+> line must not be aimed by a resource filter**: `nearest("terobjs/plants")` came back nil in round one, so
+> the headline capability reported *target is required* and read exactly like a defect.
 
 **Build**
 - `hafen.player():hand()` → a **Hand**, or **`nil`** when nothing is on the cursor (mirroring

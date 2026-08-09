@@ -155,8 +155,11 @@ final class Retired {
             + " it moves");
         act("clickGob", "hafen.act():clickGob(gob, button, mods) is now gob:click(button, mods) — the verb"
             + " lives on the object it clicks");
-        put("hafen.act.useItemOn", "hafen.act.useItemOn(x, y, mods) is now hafen.act():useItemOn(p, mods),"
-            + " where p is a Position");
+        act("useItemOn", "hafen.act():useItemOn(p, mods) is now hafen.player():hand():use(p, mods) — the"
+            + " gesture belongs to what is ON THE CURSOR, and hafen.player():hand() is nil when nothing is,"
+            + " so it can no longer be sent blind. The target is an Item, a Position or a Gob:"
+            + " hafen.player():hand():use(gob) applies the held item to that object, which this verb could"
+            + " not do");
         put("hafen.act.place", "hafen.act.place(x, y, angle, button, mods) is now"
             + " hafen.act():place(p, angle, button, mods), where p is a Position");
         put("hafen.act.select", "hafen.act.select(x1, y1, x2, y2, mods) is now"
@@ -264,7 +267,13 @@ final class Retired {
         put("hafen.ui.mouse", "hafen.ui.mouse() is now hafen.ui():mouse()");
         put("hafen.ui.inventory", "hafen.ui.inventory() is now hafen.ui():inventory()");
         put("hafen.ui.equipment", "hafen.ui.equipment() is now hafen.ui():equipment()");
-        put("hafen.ui.hand", "hafen.ui.hand() is now hafen.ui():hand()");
+        // 048.2: the cursor LEFT hafen.ui() for the character it belongs to, so this row stopped being a
+        // re-spelling and became a move — under both field reads (D-216), the dotted pre-039 one and the
+        // colon call every shipped addon actually wrote.
+        moved("ui", "hand", "hafen.ui():hand() is now hafen.player():hand():item() — the cursor became an"
+            + " object of its own (a Hand) because it carries a verb no Item can: hand:use(target, mods)"
+            + " applies what you are holding to an Item, a Position or a Gob. hafen.player():hand() is nil"
+            + " while the cursor is empty, which is the guard the old read could not give you");
         put("hafen.ui.on", "hafen.ui.on(selector, event, fn) is now hafen.ui():on(selector, event, fn)");
 
         // ---- the three UI builders: no config table survives, so each key is a setter on what you get back --
@@ -462,8 +471,13 @@ final class Retired {
      * otherwise answer — so both carry the same message naming the verb's new home.
      */
     private static void act(String verb, String message) {
-        put("hafen.act." + verb, message);
-        put("hafen.act():" + verb, message);
+        moved("act", verb, message);
+    }
+
+    /** {@link #act} for any section: the dotted field read and the colon call both carry {@code message}. */
+    private static void moved(String section, String verb, String message) {
+        put("hafen." + section + "." + verb, message);
+        put("hafen." + section + "():" + verb, message);
     }
 
     /** Register the plain {@code hafen.<section>.<verb>(…)} → {@code hafen.<section>():<verb>(…)} rows. */

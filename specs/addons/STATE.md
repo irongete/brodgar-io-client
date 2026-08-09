@@ -2,17 +2,23 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`048-act-dissolved`](048-act-dissolved/), 1 of 8** — the one section grouped by PERMISSION rather than by what
+**ACTIVE: [`048-act-dissolved`](048-act-dissolved/), 2 of 8** — the one section grouped by PERMISSION rather than by what
 it acts on is being dissolved (**D-187** generalised as **D-215**: a verb lives with what it CHANGES, not with what it
 COSTS — a permission is not a namespace). Every verb moves onto the thing it changes (the whole map is
 [spec.md](048-act-dissolved/spec.md)), while `:flower`, `:menu` and `:enabled` are DELETED — 047 and 023 own those doors
-already (open **D-103** obligations; no path door is built). `gated` → **protected**, `pag:use()` gains its gate. **The
-docs tier is 048.8's whole job**, so until then `docs/addons/api/act.md` still teaches verbs that have moved.
+already (open **D-103**; no path door is built). `gated` → **protected**, `pag:use()` gains its gate. **The docs tier is
+048.8's whole job**, so until then `docs/addons/api/act.md` still teaches verbs that have moved.
 **048.1 DONE, 13/13**: `hafen.player():move(p)` and `gob:click(button, mods)` ship — same messages, same gate, on the
-things they change; `walker` ported. The section stays mounted while it empties (**D-117**) and a moved verb is retired
-under **BOTH** field reads (**D-216**) — the colon spelling `hafen.act():moveTo` is the only one a shipped addon reaches,
-and it had no coverage at all. A departed gob makes the click **RAISE** where every read answers nil and `gob:scale` is
-inert (**D-217**).
+things they change. The section stays mounted while it empties (**D-117**) and a moved verb is retired under **BOTH**
+field reads (**D-216**) — the colon spelling is the only one a shipped addon reaches, and it had no coverage at all. A
+departed gob makes the click **RAISE** where every read answers nil and `gob:scale` is inert (**D-217**).
+**048.2 DONE, 29/29**: the cursor is an **object** — `hafen.player():hand()`, **nil** while you carry nothing, with
+`:item()` and the protected `:use(target, mods)` dispatching onto an Item, a Position or a **Gob** (that arm being
+`MapView.iteminteract`'s `clickargs` extension, a message no addon could send). What it *drops* is firing the gesture
+with an empty cursor: **D-218** — a gesture the client itself cannot produce is not a capability to preserve, and the
+receiver must BE the message's implicit subject (`itemact` names no held item — `DTarget.Interact`'s `src` IS the
+`ItemDrag`) and absent whenever the subject is. `hafen.ui():hand()` and `act():useItemOn` retired,
+`act():item(x, "itemact")` throws naming the Hand. A take builds a **new** `GItem`, so no Item identity survives it.
 
 **[`047-flowermenu`](047-flowermenu/) is CLOSED, 3 of 3** — `hafen.flowermenu()` **is** the open radial menu: unprotected
 `:list()`/`:count()`/`:gob()` · protected `:select(label|n)`/`:cancel()` · `FlowerMenuOpened`/`FlowerMenuClosed`. The reads
@@ -20,29 +26,17 @@ hand back bare **strings** in ring order and answer `{}`/`0`/`nil` with no menu 
 (**D-103**). *Every Opened is followed by exactly one Closed* is kept **structurally** (**D-212**) — a weak map keyed on
 the menu, all three ending doors calling one `closed()` — with Opened at the **END** of `added()`, the only complete
 moment; the write half drives `FlowerMenu.choose(Petal)` and, unlike the reads, **REFUSES** (**D-213**, gate before
-argument check). **`:gob()` is a CORRELATION** (**D-214**): a press records `(gob, UI.lcc)`, which moves on every press
-*before* dispatch, so equality proves nothing else was clicked between. 26/26 · 19/19 · 15/15.
+argument check). **`:gob()` is a CORRELATION** (**D-214**): a press records `(gob, UI.lcc)`. 26/26 · 19/19 · 15/15.
 
-**[`046-gob-scale`](046-gob-scale/) is CLOSED, 1 of 1** — a **native** gob answers `:scale`: client-local, purely visual,
-in place, and the first client-local write on a handle that had been read-only. A `GobScale extends GAttrib implements
-Gob.SetupMod` on the engine's own `Gob` propagates it through `Gob.ctick`'s per-tick `GobState` compare with **zero
-`haven` edits**, and the `Location.scale(k)` is minted once per VALUE — the mechanism, not an optimisation: `Location`
-has no `equals` (**D-210**). Writing `1` removes the attrib, the size ends with the loaded object, and an addon that
-stops running leaves nothing distorted (`UiApi.teardownGobScales`). Validation is the one divergence from the vr siblings
-(**D-211**): they clamp, a direct argument refuses `0`, a negative, a non-number.
+**[`046-gob-scale`](046-gob-scale/) is CLOSED, 1 of 1** — a **native** gob answers `:scale`: client-local, purely visual, in place, and the first client-local write on a read-only handle. A `GobScale extends GAttrib implements Gob.SetupMod` propagates through `Gob.ctick`'s per-tick `GobState` compare with **zero `haven` edits**, and `Location.scale(k)` is minted once per VALUE — the mechanism, not an optimisation: `Location` has no `equals` (**D-210**). Writing `1` removes the attrib and a stopped addon leaves nothing distorted (`UiApi.teardownGobScales`). Validation is the one divergence from the vr siblings (**D-211**): they clamp, a direct argument refuses `0`/negative/non-number.
 
-**[`045-durable-places`](045-durable-places/) is CLOSED, 3 of 3** — a thing you stand at a **point** is at that point
-tomorrow, and after a cave. A free `hafen.vr()` entity's place is its **durable anchor** (grid id + the offset inside it)
-and the session coordinate a derived cache, because that space is re-based whenever the map is dropped: `:info()` is the
-place and `:x()` this session's answer to it (**D-207**); a place with no durable form is refused at both doors, one this
-session cannot **locate** is legal (**D-208**), and **the second event** (**D-209**, a guarded `// addon:` line at
-`MiniMap.tick`'s `sessloc`, tested on `(seg, tc)`) is the only `haven` edit.
+**[`045-durable-places`](045-durable-places/) is CLOSED, 3 of 3** — a thing you stand at a **point** is at that point tomorrow, and after a cave. A free `hafen.vr()` entity's place is its **durable anchor** (grid id + the offset inside it) and the session coordinate a derived cache, because that space is re-based whenever the map is dropped: `:info()` is the place and `:x()` this session's answer (**D-207**); a place with no durable form is refused at both doors, one this session cannot **locate** is legal (**D-208**), and **the second event** (**D-209**, at `MiniMap.tick`) is the only edit.
 
 **[`044-spatial-ui`](044-spatial-ui/) is CLOSED, 9 of 9**: `hafen.vr():widget()` — a Widget, yours or the client's own,
 standing as a quad under the one rule **transparency**, which is why its surface is a real UI **root** it is reparented
 into (`cupboard` the example). Along the way: a thing at a POINT is in the scene only while the ground under it is DRAWN
 (**D-206**); an upward walk out of a standing panel crosses to **the record** (**D-204**); a window **announces its
-removal before it unlinks** (**D-205**); culling and input are both the four projected corners (**D-203**/**D-195**).
+removal before it unlinks** (**D-205**); culling and input are the four projected corners (**D-203**/**D-195**).
 **A 040.10 defect is still NOT fixed**: `dropdown:size(w, h)` leaves its drop arrow outside its box. And
 [`043-vr-namespace`](043-vr-namespace/) **closed 5/5** before it — pure reorganization: `hafen.vr()` absorbed
 `hafen.ghost()`/`hafen.render()`, made the **anchor an argument**, emptied `gob:overlay()` of the world, and turned `:billboard(b)` into **`:facing(mode)`** (**D-184**–**D-190**).

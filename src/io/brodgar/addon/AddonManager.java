@@ -1899,7 +1899,7 @@ public final class AddonManager {
         // out of scope here. The audio section is hafen.sound and nothing else.
 
         // hafen.items is GONE (029.3, hard cut D-013). Items are a RELATION on their container now:
-        // hafen.ui():inventory():items() / hafen.ui():equipment():items() / hafen.ui():hand(), and widget:items()
+        // hafen.ui():inventory():items() / hafen.ui():equipment():items() / hafen.player():hand():item(), and widget:items()
         // answers on ANY container — a chest, a cupboard — with its window visible and interactive. What it hands
         // back is an interned LuaItem keyed on the item WIDGET (039.14): a server widget id is recycled, so an
         // entity keyed on the number would silently start naming a different item and a protected write through it

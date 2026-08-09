@@ -196,7 +196,8 @@ end
 -- 1c-3: read the inventory / equipment / cursor. 029.3 HARD-CUT hafen.items: items are a RELATION on their
 -- container now, so the backpack and the equipory are looked up as WIDGETS (hafen.ui():inventory() /
 -- hafen.ui():equipment(), the same entity every other hafen.ui entry point hands back) and asked for :items().
--- The cursor item comes back the same way: hafen.ui():hand() is one of those Item objects too.
+-- The cursor comes back as a HAND (048.2): hafen.player():hand() is nil while it is empty, and the Item it
+-- carries -- hafen.player():hand():item() -- is one of those same Item objects.
 -- Item NAMES come from resolved item info, which (like the inventory widget itself) can stream in a beat after
 -- enter-world, so this is read twice — immediately and after a short delay — like the map reads above.
 -- 4f (read side): an Item is what the gated hafen.act():item(item, verb) verb takes -- the object, never its
@@ -206,7 +207,8 @@ local function readInv(tag)
   local invw, eqw = hafen.ui():inventory(), hafen.ui():equipment()   -- Widget objects, or nil before the HUD is up
   local inv = invw and invw:items() or {}   -- array of Item objects (:res/:name/:num/:wear/:quality/:cell)
   local eq = eqw and eqw:items() or {}      -- the worn items, each once, whatever number of slots it fills
-  local hand = hafen.ui():hand()              -- an Item object, or nil (nothing on the cursor)
+  local cursor = hafen.player():hand()        -- a Hand object, or nil (nothing on the cursor)
+  local hand = cursor and cursor:item()       -- the Item it carries (048.2: hafen.ui():hand() is gone)
   local first = inv[1]
   hafen.log():write(("[%s] inventory=%d item(s), first=%s x%s q=%s handle=%s")
     :format(tag, #inv, first and tostring(first:name() or first:res()) or "nil",
@@ -796,14 +798,14 @@ local function readWidgets(tag)
   -- ONE TYPE FROM EVERY DOOR + INTERNING. root() / node(id) / at(x,y) / inventory() / equipment() and the creation
   -- doors all hand back the same entity, and two lookups of ONE live widget are the SAME Lua value. node(id) is the
   -- round-trip that proves it across doors: take the inventory's own :id() back through the id door. hand() is the
-  -- deliberate exception -- the cursor item is not a widget, so it stays an Item snapshot.
+  -- deliberate exception -- the cursor is not a widget, so it is a Hand of its own (048.2, hafen.player():hand()).
   local inv, eq = hafen.ui():inventory(), hafen.ui():equipment()
   local byId = (inv and inv:id()) and hafen.ui():node(inv:id()) or nil
   local m = hafen.ui():mouse()
   local at = m and hafen.ui():at(m:x(), m:y()) or nil
   hafen.log():write(("[%s] widget doors: root=%s inv=%s eq=%s at(mouse)=%s hand=%s | node(id)==inv=%s root()==root=%s at()==at=%s")
     :format(tag, tostring(root), tostring(inv), tostring(eq), tostring(at),
-            tostring(hafen.ui():hand() and "item" or nil),
+            tostring(hafen.player():hand() and "item" or nil),
             tostring((inv ~= nil) and (byId == inv)), tostring(hafen.ui():root() == root),
             tostring((at == nil) or (hafen.ui():at(m:x(), m:y()) == at))))
   -- OWNED vs BORROWED. A throwaway widget of our own (destroyed at the end of this check) exercises the writes; the

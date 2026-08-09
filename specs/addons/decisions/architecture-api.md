@@ -2220,3 +2220,29 @@ staleness, name the liveness test (`gob:exists()`), and state that **nothing was
 message alone knows there is nothing to undo.
 **See.** [D-210](#d-210), [D-114](#d-114), [D-012](#d-012), [D-138](#d-138),
 [048-act-dissolved](../048-act-dissolved/spec.md).
+
+---
+
+### D-218 — a gesture the CLIENT ITSELF cannot produce is not a capability to preserve ✅ (048.2, 2026-08-10)
+**Decision.** The held-item verbs move onto the **Hand** — `hafen.player():hand()`, which is `nil` whenever the
+cursor is empty — and the reach they lose in the move is not restored anywhere. `hafen.act():useItemOn(p)` and
+`hafen.act():item(x, "itemact")` could both fire the gesture with **nothing held**; `hand:use(target, mods)` has
+no receiver in that state, by construction. The same move ADDS the arm that was genuinely missing:
+`hand:use(gob)`, the `MapView.iteminteract` extension no addon could send.
+**Rationale.** `itemact` is dispatched through [`DTarget.Interact`](../../../src/haven/DTarget.java:70), an
+`ItemEvent` whose `src` **is** the `ItemDrag`. The gesture *originates* from the held item, so the message names
+no held item at all — on the wire it means *whatever is on the cursor*. A door that sends it with an empty
+cursor therefore expresses nothing: there is no click, drag or keystroke that produces those bytes in that
+state, the server has nothing to apply them to, and nothing comes back to say so. That is not extra capability
+being taken away; it is a call that was always silent, and could not be guarded because the API had no way to
+ask *am I holding something*. Making the receiver nil answers the question and deletes the call in one move.
+**Consequences.** It settles WHERE such a verb goes, which was the whole question here. Not on Item — the
+message names no subject, so `someInventoryItem:use(p)` would send an action about whatever is on the cursor
+instead. Not on a section — a section object is always there and always callable, which is exactly the state
+that cannot be represented. It goes on **the one object that cannot exist while the gesture is impossible**, and
+`if h then h:use(x) end` is the guard that falls out. Generalises: *when a message has an implicit subject, the
+receiver must BE that subject, and must be absent whenever the subject is.* The activation reading
+(`hand:use()` = use what I hold) is refused for the same reason — no message stands behind it — and
+`hand:item():use()` is the one way to say it ([D-013](#d-013)).
+**See.** [D-215](#d-215), [D-217](#d-217), [D-213](#d-213), [D-013](#d-013), [D-046](#d-046),
+[048-act-dissolved](../048-act-dissolved/spec.md).

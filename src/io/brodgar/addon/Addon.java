@@ -263,7 +263,7 @@ public final class Addon {
      * Live <b>widgets this addon has stood in the 3D world</b> ({@code hafen.vr():widget()}, 044): each is one of
      * the addon's own UI surfaces drawn into an offscreen texture and hung on a virtual {@link haven.Gob} — the
      * fourth kind on the same client-only entity core as {@link #ghosts}, {@link #sprites} and {@link #objects},
-     * and ungated for the same reason (nothing here reaches the server; only where a button is drawn changed).
+     * and unprotected for the same reason (nothing here reaches the server; only where a button is drawn changed).
      * Teardown ({@link VrApi#teardownSurfaces}) destroys each, which puts the widget back where it stood from
      * (D-070's rule for the borrowed case, the default parent for an owned one) and frees the surface's texture,
      * so a reload/disable/relogin leaves neither an orphaned widget nor GPU memory. Copy-on-write: a firing
@@ -385,7 +385,7 @@ public final class Addon {
      * per-addon metatable. Same contract as {@link #gobs} — per-addon so no
      * Lua value crosses a sandbox boundary (D-017) and the whole cache dies with this {@link Addon} on
      * {@code :reload}/disable; nothing to tear down (weak entries, and a handle holds only an int id). It
-     * carries the {@link Addon} because the gated Kin verbs check the {@code actions} permission against it.
+     * carries the {@link Addon} because the protected Kin verbs check the {@code actions} permission against it.
      */
     final LuaKin.Cache kins = new LuaKin.Cache(this);
 
@@ -395,7 +395,7 @@ public final class Addon {
      * {@link java.lang.ref.ReferenceQueue} and the per-addon metatable. Same contract as {@link #gobs} and
      * {@link #kins} — per-addon so no Lua value crosses a sandbox boundary (D-017) and the whole cache dies
      * with this {@link Addon} on {@code :reload}/disable; nothing to tear down (weak entries, and a handle
-     * holds only the int index). It carries the {@link Addon} because the gated {@code slot:use} verb checks
+     * holds only the int index). It carries the {@link Addon} because the protected {@code slot:use} verb checks
      * the {@code actions} permission against it.
      */
     final LuaSlot.Cache slots = new LuaSlot.Cache(this);
@@ -488,10 +488,10 @@ public final class Addon {
      */
     /**
      * This addon's <b>Item interning cache</b> (spec {@code 039-uniform-api} §4.8): {@code widget:items()},
-     * {@code hafen.ui():hand()} and {@code EquipChanged}, keyed by the <b>item widget's identity</b>. That key
-     * is the decision the type exists for: the server addresses an item by a widget id it recycles, so a cache
-     * keyed on the number would hand a stashed handle back pointing at whatever now holds it — and a gated
-     * write through that handle would move the wrong item. Keyed on the object, a departed item is departed
+     * {@code hafen.player():hand():item()} and {@code EquipChanged}, keyed by the <b>item widget's identity</b>.
+     * That key is the decision the type exists for: the server addresses an item by a widget id it recycles, so
+     * a cache keyed on the number would hand a stashed handle back pointing at whatever now holds it — and a
+     * protected write through that handle would move the wrong item. Keyed on the object, a departed item is departed
      * ({@code :exists()} false) and can never become another one. Same contract as {@link #gobs} — per-addon
      * so no Lua value crosses a sandbox boundary (D-017), weak-valued, dead with this {@link Addon} on
      * {@code :reload}/disable.
@@ -638,6 +638,15 @@ public final class Addon {
      * call), so there is nothing to tear down.
      */
     LuaValue mouseObj;
+
+    /**
+     * The single {@code hafen.player():hand()} object for this addon ({@link LuaHand}, 048.2) — the cursor,
+     * built lazily and cached so {@code hafen.player():hand() == hafen.player():hand()}, the same singleton
+     * shape as {@link #mouseObj}. It wraps no engine value (its verbs read {@code GameUI.vhand} on every
+     * call), so a cached Hand cannot go stale and there is nothing to tear down: {@code hafen.player():hand()}
+     * simply answers {@code nil} while the cursor is empty and hands this object back while it is not.
+     */
+    LuaValue handObj;
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per
