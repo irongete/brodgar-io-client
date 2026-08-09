@@ -22,7 +22,8 @@
 --
 -- HOW IT PROVES IT WITHOUT ASKING YOU TO WALK. The drawn terrain reaches at most about 75 tiles from you, so
 -- the suite stands one of each kind 3 tiles away (drawn ground, by definition -- you are standing on it) and
--- another of each 400 tiles away (ground no client has drawn), and asks each one. Then it moves one of the
+-- another of each well past the drawn terrain (since 045.1: the nearest ground out there this character has
+-- actually walked, so the place is durable and merely not drawn), and asks each one. Then it moves one of the
 -- far ones onto your own ground and back off it, which is the same re-check the terrain streaming in and out
 -- drives, reached through the other door.
 --
@@ -62,7 +63,22 @@ end
 local T = 11                              -- world units per tile
 local RES = "gfx/terobjs/arch/logcabin"   -- a .res every client has (the docs' own example)
 local NEAR = 3 * T                        -- ground you are standing on
-local FAR = 400 * T                       -- ground no client has drawn: the terrain reaches ~75 tiles at most
+
+-- (Edited by 045.1, stated in its tasks.md rather than discovered.) The far set used to be a flat
+-- p:offset(400*T, 400*T) -- a raw coordinate over ground nobody has recorded, which since 045.1 is refused at
+-- :add and at :position(p): what a free entity holds is a DURABLE place, and that point has none. What this
+-- task needs of it is unchanged -- ground well past the ~75 tiles the terrain draws -- so it now asks for the
+-- nearest place out there that this character HAS walked: durable, and simply not drawn.
+local function farPlace(p)
+  local dirs = { {1,0}, {0,1}, {-1,0}, {0,-1}, {1,1}, {-1,1}, {1,-1}, {-1,-1} }
+  for _, d in ipairs({ 120, 160, 200, 260, 320, 400 }) do
+    for _, v in ipairs(dirs) do
+      local q = p:offset(v[1] * d * T, v[2] * d * T)
+      if q:durable() then return q end
+    end
+  end
+  return nil
+end
 
 local icon, mesh                          -- this suite's own assets (hafen.asset, loaded once at Load)
 local S                                   -- everything a run is holding
@@ -165,8 +181,15 @@ local function run(args)
   S = { built = {}, live0 = counters().live }   -- what the rest of the client is holding, before we add ours
   local p = me:position()
   S.p = p
+  S.farp = farPlace(p)
+  if S.farp == nil then
+    check(false, "this character has recorded ground 120-400 tiles out in at least one of eight directions,"
+          .. " which is what a place past the drawn terrain is made of since 045.1",
+          "nothing durable found out there -- walk a few screens from here and run ':t044-9' again")
+    return summary()
+  end
   S.near = standAll(p:offset(NEAR, 0), S.built)
-  S.far = standAll(p:offset(FAR, FAR), S.built)
+  S.far = standAll(S.farp, S.built)
   -- ...and one ANCHORED to you, which the rule must not touch: its place is a gob's, so it lives and dies
   -- exactly as that gob does (D-102) and the ground under it is never a question of its own.
   local aw = hafen.ui():widget():size(40, 20)
@@ -187,7 +210,8 @@ phase2 = function()
 
   local fd, fn = drawnList(S.far)
   check(noneDrawn(S.far) and allExist(S.far),
-        "...and all four placed 400 tiles out, over ground no client has drawn, are NOT in the scene -- while"
+        "...and all four placed well past the drawn terrain, over ground that is not being drawn, are NOT in the"
+        .. " scene -- while"
         .. " every one of them still :exists(). That is the whole change: a client-only gob is in no OCache,"
         .. " so nothing ever removed it and it went on drawing over the void; now the terrain's own cut map"
         .. " answers, and a thing with no ground under it is simply not drawn",
@@ -261,7 +285,7 @@ phase3 = function()
         ("drawn=%s exists=%s visible=%s"):format(tostring(S.far.sprite:drawn()),
           tostring(S.far.sprite:exists()), tostring(S.far.sprite:visible())))
 
-  S.far.sprite:position(S.p:offset(FAR, FAR))
+  S.far.sprite:position(S.farp)
   check(not S.far.sprite:drawn(),
         "...and putting it back out over nothing takes it out again, so the two directions are one rule and"
         .. " not a one-way trip: a free entity is in the scene exactly while the ground under it is drawn",

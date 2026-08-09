@@ -224,7 +224,7 @@ final class VrApi {
                         + " \"gfx/terobjs/arch/logcabin\"), got " + rv.typename() + " — an image or a model this"
                         + " addon ships is hafen.vr():sprite():add(asset, p) / :object():add(asset, p)");
                 Anchor an = anchorArg(a, "hafen.vr():ghost():add");
-                return born(makeGhost(owner, an.spec(), rv.tojstring(), an.tgt), "hafen.vr():ghost():add");
+                return born(makeGhost(owner, an.spec(), rv.tojstring(), an.tgt, an.place), "hafen.vr():ghost():add");
             }
 
             public boolean destroyable() {
@@ -279,7 +279,7 @@ final class VrApi {
                 Anchor an = anchorArg(a, "hafen.vr():sprite():add");
                 LuaTable spec = an.spec();
                 spec.set("image", img);
-                return born(makeSprite(owner, spec, an.tgt), "hafen.vr():sprite():add");
+                return born(makeSprite(owner, spec, an.tgt, an.place), "hafen.vr():sprite():add");
             }
 
             public boolean destroyable() {
@@ -317,7 +317,7 @@ final class VrApi {
                 Anchor an = anchorArg(a, "hafen.vr():object():add");
                 LuaTable spec = an.spec();
                 spec.set("model", mdl);
-                return born(makeObject(owner, spec, an.tgt), "hafen.vr():object():add");
+                return born(makeObject(owner, spec, an.tgt, an.place), "hafen.vr():object():add");
             }
 
             public boolean destroyable() {
@@ -364,7 +364,7 @@ final class VrApi {
             public LuaValue addMember(Varargs a) {
                 LuaValue wv = Args.required(a, 2, "hafen.vr():widget():add", "w");
                 Anchor an = anchorArg(a, "hafen.vr():widget():add");
-                return born(makeWidget(owner, an.spec(), wv, an.tgt), "hafen.vr():widget():add");
+                return born(makeWidget(owner, an.spec(), wv, an.tgt, an.place), "hafen.vr():widget():add");
             }
 
             public boolean destroyable() {
@@ -408,10 +408,17 @@ final class VrApi {
         final Coord2d rc;
         /** The gob id it follows, or {@code 0} when it stands where it was put. */
         final long tgt;
+        /**
+         * <b>The durable place a free entity will hold</b> (045.1) — the grid id and the offset within it that
+         * {@link #rc} above was derived from. {@code null} when the entity follows a gob, whose place is the
+         * gob's and is nothing of its own to keep.
+         */
+        final LuaPosition.Anchor place;
 
-        Anchor(Coord2d rc, long tgt) {
+        Anchor(Coord2d rc, long tgt, LuaPosition.Anchor place) {
             this.rc = rc;
             this.tgt = tgt;
+            this.place = place;
         }
 
         /** The options table the {@code make*} bodies read the placement out of (their one shared shape). */
@@ -434,6 +441,11 @@ final class VrApi {
      * <p>Exactly two things are a place for one of these: a <b>Position</b> and a <b>Gob</b>. Anything else is
      * refused naming <i>both</i> — the mistake is not knowing which shape is wanted, so a message that names one
      * of them teaches half the verb.
+     *
+     * <p><b>The Position branch asks for a DURABLE place</b> (045.1), which is one of the two doors that changed
+     * — {@link LuaPosition#anchorArg} rather than {@code worldArg}: what a thing standing in the world keeps is
+     * the anchor, and a raw coordinate over ground nobody has recorded has none. The coordinate is then derived
+     * from that anchor here, so what enters the scene and what the entity holds cannot disagree at birth.
      */
     private static Anchor anchorArg(Varargs a, String verb) {
         LuaValue v = Args.required(a, 3, verb, "anchor");
@@ -446,14 +458,15 @@ final class VrApi {
                     + " at a point with " + verb + "(what, p))");
             Coord2d rc;
             synchronized(g) { rc = g.rc; }
-            return new Anchor((rc == null) ? Coord2d.z : rc, lg.id);
+            return new Anchor((rc == null) ? Coord2d.z : rc, lg.id, null);
         }
         if(LuaPosition.resolve(v) == null)
             throw new LuaError(verb + ": the anchor is a Position OR a Gob — a Position (gob:position(),"
                 + " hafen.world():position(x, y)) stands it at that point, a Gob"
                 + " (hafen.world():gob():get(id), hafen.player():gob()) makes it follow that object. Got "
                 + v.typename());
-        return new Anchor(LuaPosition.worldArg(a, 3, verb, "p"), 0L);
+        LuaPosition.Anchor place = LuaPosition.anchorArg(a, 3, verb, "p");
+        return new Anchor(LuaPosition.hereArg(place, verb, "p"), 0L, place);
     }
 
     // ---- ANCHORED, AND FREE: the index that lets an anchored entity die with its gob (043.2) ------------------
@@ -490,7 +503,7 @@ final class VrApi {
      * ground that is not drawn simply does not enter the scene (044.9) — and the cut arriving is what puts it
      * there, rather than a bounded {@link Resolve} retry chain on the {@code Loading} the add would have thrown.
      */
-    private static void entityRegister(LuaWorldEntity e) {
+    private static void entityRegister(LuaWorldEntity e, LuaPosition.Anchor place) {
         if(e.followTgt != 0) {
             Long k = Long.valueOf(e.followTgt);
             synchronized(anchored) {
@@ -501,7 +514,15 @@ final class VrApi {
             }
             return;
         }
-        synchronized(e) { e.grounded = groundDrawn(e.rc); }
+        synchronized(e) {
+            // 045.1: the free half of the index is also where the free half of the PLACE lands — one line after
+            // the split that already says which anchor this is, so "a free entity holds a durable place" is a
+            // fact of construction rather than a rule four creators have to remember.
+            e.anchorGrid = place.id;
+            e.agx = place.x;
+            e.agy = place.y;
+            e.grounded = groundDrawn(e.rc);
+        }
         synchronized(free) { free.add(e); }
     }
 
@@ -642,7 +663,8 @@ final class VrApi {
      * is no second creator and no flag saying which one called. Returns {@code null} when there is no map view
      * (not in the world). Every other option is read from {@code opts} exactly as before.
      */
-    private static LuaGhost makeGhost(final Addon owner, LuaValue opts, final String resName, long tgt) {
+    private static LuaGhost makeGhost(final Addon owner, LuaValue opts, final String resName, long tgt,
+                                     LuaPosition.Anchor place) {
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
@@ -666,7 +688,7 @@ final class VrApi {
         if(onclickv.isfunction())
             gh.onClick = onclickv;
         owner.ghosts.add(gh);
-        entityRegister(gh);                            // 043.2: so it dies with the gob it follows (D-102),
+        entityRegister(gh, place);                     // 043.2: so it dies with the gob it follows (D-102),
                                                        //   or 044.9: with the ground under it when it is free
         LuaValue handle = ghostHandle(gh);
         gh.handle = handle;
@@ -695,7 +717,12 @@ final class VrApi {
                 Coord2d rc0; double a0;
                 synchronized(gh) {
                     if(gh.dead) return;
-                    rc0 = gh.rc; a0 = gh.a;
+                    // 045.1: the place may have stopped resolving while the resource streamed in (the map was
+                    // dropped under it). The gob is still built — at the origin, as a placeholder it never
+                    // stands at — because shows() is false with no coordinate, so it cannot enter the scene
+                    // from here; the ground drain moves it and puts it in when the place resolves again.
+                    rc0 = (gh.rc == null) ? Coord2d.z : gh.rc;
+                    a0 = gh.a;
                 }
                 GhostGob gob = new GhostGob(g, rc0);      // V2/V3: a Gob subclass whose obstate adds the click surface + look
                 gob.a = a0;
@@ -706,7 +733,8 @@ final class VrApi {
                     gob.alpha = gh.alpha;                    // V3: reflect the desired look before the first scene add
                     gob.tint = gh.tint;
                     gob.scale = gh.scale;                    // V6: reflect the desired scale before the first scene add
-                    gob.move(gh.rc, gh.a);                   // apply any :move that landed while we were building
+                    if(gh.rc != null)
+                        gob.move(gh.rc, gh.a);               // apply any :move that landed while we were building
                     gh.gob = gob;
                     gh.mv = mv;
                     applyEntityFollow(gh, gob);              // ANCHOR: if follow= was given, start tracking the gob now
@@ -749,10 +777,13 @@ final class VrApi {
                         + " to that gob is " + kind + ":offset(x, y, z) (world units, z up); its own facing is"
                         + " still " + kind + ":rotate(a); a " + kind + " that stands still is placed with"
                         + " hafen.vr():" + kind + "():add(what, p)");
-                Coord2d rc = LuaPosition.worldArg(a, 2, kind + ":position", "p");
+                // 045.1: the SECOND of the two doors that ask for a durable place — a thing is moved to a
+                // place it can go on holding, or it is not moved. The coordinate follows from the anchor.
+                LuaPosition.Anchor place = LuaPosition.anchorArg(a, 2, kind + ":position", "p");
+                Coord2d rc = LuaPosition.hereArg(place, kind + ":position", "p");
                 Double ang = Args.passed(a, 3)
                     ? Double.valueOf(number(a, 3, kind + ":position", "a")) : null;
-                moveEntity(e, rc, ang);
+                moveEntity(e, place, rc, ang);
                 return self;
             }
         });
@@ -794,7 +825,7 @@ final class VrApi {
                 if(av == null) {
                     synchronized(e) { return LuaValue.valueOf(e.a); }
                 }
-                moveEntity(e, null, Double.valueOf(number(a, 2, kind + ":rotate", "a")));
+                moveEntity(e, null, null, Double.valueOf(number(a, 2, kind + ":rotate", "a")));
                 return self;
             }
         });
@@ -935,19 +966,28 @@ final class VrApi {
     }
 
     /**
-     * Move an entity and/or turn it: {@code rc} null keeps where it stands, {@code ang} null keeps its facing.
-     * A live gob is repositioned now; one whose visual is still streaming in just has its desired transform
-     * updated, and the create applies it at publish.
+     * Move an entity and/or turn it: {@code place}/{@code rc} null keeps where it stands, {@code ang} null keeps
+     * its facing. A live gob is repositioned now; one whose visual is still streaming in just has its desired
+     * transform updated, and the create applies it at publish.
+     *
+     * <p><b>The place and the coordinate are written together</b> (045.1) — {@code place} is what the entity
+     * keeps and {@code rc} is that place resolved in this session, so a mover that had only one of the two would
+     * be writing half a position. {@code :rotate(a)} passes neither and is untouched by any of it.
      */
-    private static void moveEntity(LuaWorldEntity e, Coord2d rc, Double ang) {
+    private static void moveEntity(LuaWorldEntity e, LuaPosition.Anchor place, Coord2d rc, Double ang) {
         synchronized(e) {
             if(e.dead)
                 return;                                // gone: a write to something that ended is a moment, not a mistake
+            if(place != null) {
+                e.anchorGrid = place.id;
+                e.agx = place.x;
+                e.agy = place.y;
+            }
             if(rc != null)
                 e.rc = rc;
             if(ang != null)
                 e.a = ang.doubleValue();
-            if(e.gob != null)
+            if((e.gob != null) && (e.rc != null))      // 045.1: no coordinate ⇒ nothing to move it to (and it is out of the scene)
                 e.gob.move(e.rc, e.a);
             // 044.9: it may have been put down on ground that is drawn, or off the far edge of it. Asked
             // AFTER the gob has been moved, because attaching it reads the map where the gob now is; and
@@ -1066,7 +1106,7 @@ final class VrApi {
      */
     private static void retryAdd(LuaWorldEntity e) throws Loading {
         synchronized(e) {
-            if(e.dead || !shows(e) || (e.gob == null) || (e.mv == null))
+            if(e.dead || !shows(e) || (e.gob == null) || (e.mv == null) || (e.rc == null))
                 return;                                // gone, hidden again (its own or its section's), or detached while we waited
             e.slot = e.mv.addClientGob(e.gob);
             e.gob.move(e.rc, e.a);                      // apply any :position/:rotate that landed while pending
@@ -1096,7 +1136,7 @@ final class VrApi {
      * that gob id; {@code 0} stands it where it was put (043.2). Returns {@code null} when there is no map view
      * (not in the world).
      */
-    private static LuaObject makeObject(Addon owner, LuaValue opts, long tgt) {
+    private static LuaObject makeObject(Addon owner, LuaValue opts, long tgt, LuaPosition.Anchor place) {
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
@@ -1115,7 +1155,7 @@ final class VrApi {
             ob.onClick = onclickv;
         ob.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         owner.objects.add(ob);
-        entityRegister(ob);                            // 043.2/044.9: dies with its gob, or hides with its ground
+        entityRegister(ob, place);                     // 043.2/044.9/045.1: dies with its gob, or holds its own place
         LuaValue handle = objectHandle(ob);
         ob.handle = handle;
         // Build the gob + visual, then publish atomically. No defer: the glTF geometry is already parsed (R3), so
@@ -1194,7 +1234,7 @@ final class VrApi {
      * that gob id (a {@link FollowMoving} applied before the gob enters the scene); {@code tgt == 0} stands it
      * where it was put (043.2). Returns {@code null} when there is no map view (not in the world).
      */
-    private static LuaSprite makeSprite(Addon owner, LuaValue opts, long tgt) {
+    private static LuaSprite makeSprite(Addon owner, LuaValue opts, long tgt, LuaPosition.Anchor place) {
         final MapView mv = view;
         final Glob g = glob();
         if((mv == null) || (g == null))
@@ -1213,7 +1253,7 @@ final class VrApi {
             sp.onClick = onclickv;
         sp.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         owner.sprites.add(sp);
-        entityRegister(sp);                            // 043.2/044.9: dies with its gob, or hides with its ground
+        entityRegister(sp, place);                     // 043.2/044.9/045.1: dies with its gob, or holds its own place
         LuaValue handle = spriteHandle(sp);
         sp.handle = handle;
         // Build the gob + visual OUTSIDE the sprite lock (no scene mutation yet), then publish atomically. No defer:
@@ -1381,7 +1421,8 @@ final class VrApi {
      * <p>Returns {@code null} when there is no map view (not in the world) — checked before anything is touched,
      * so a call made too early leaves the widget exactly where it was.
      */
-    private static LuaWidgetEntity makeWidget(Addon owner, LuaValue opts, LuaValue wv, long tgt) {
+    private static LuaWidgetEntity makeWidget(Addon owner, LuaValue opts, LuaValue wv, long tgt,
+                                              LuaPosition.Anchor place) {
         final MapView mv = view;
         final Glob g = glob();
         final UI u = ui;
@@ -1400,7 +1441,7 @@ final class VrApi {
         we.prevPos = new Coord(content.c);
         we.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         owner.surfaces.add(we);
-        entityRegister(we);                            // 044.2/044.9: dies with its gob, or hides with its ground
+        entityRegister(we, place);                     // 044.2/044.9/045.1: dies with its gob, or holds its own place
         we.handle = widgetHandle(we);
         synchronized(u) {
             u.root.add(surf, Coord.z);                 // in the tree: liveness, ticking and focus all keep resolving
@@ -1727,8 +1768,10 @@ final class VrApi {
      * world is up.
      */
     private static boolean groundDrawn(Coord2d rc) {
+        if(rc == null)
+            return false;                              // 045.1: no coordinate this session ⇒ no ground under it (rc == null ⇒ !grounded)
         MapView mv = view;
-        if((mv == null) || (rc == null))
+        if(mv == null)
             return true;
         try {
             return mv.grounddrawn(rc);
@@ -1781,11 +1824,26 @@ final class VrApi {
      * Re-read the ground under one free entity and put it in or out of the scene if the answer changed. Takes the
      * entity monitor itself; a no-op when the answer is the same, which is what it is on all but the handful of
      * ticks a cut actually appears or disappears on.
+     *
+     * <p><b>And it re-derives the coordinate first</b> (045.1). The entity holds a durable place; the session
+     * coordinate is a cache of where that place is <i>right now</i>, and the server re-bases the whole
+     * coordinate space whenever it drops the map — which is the same moment every cut leaves the scene, so the
+     * event that says the ground moved is the event that says the numbers did. Deriving it here and nowhere
+     * else keeps the two in one step: the coordinate is refreshed, then the ground is asked about the refreshed
+     * one. A place this session cannot locate leaves {@code rc} null, and null is not drawn.
      */
     private static void reground(LuaWorldEntity e) {
         synchronized(e) {
             if(e.dead || (e.followTgt != 0))
                 return;
+            Coord2d rc = LuaPosition.worldOf(e.anchorGrid, e.agx, e.agy);
+            if((rc != null) && !rc.equals(e.rc)) {
+                e.rc = rc;
+                if(e.gob != null)
+                    e.gob.move(e.rc, e.a);             // the space moved under it: same place, new numbers
+            } else if(rc == null) {
+                e.rc = null;
+            }
             boolean g = groundDrawn(e.rc);
             if(g == e.grounded)
                 return;
@@ -1803,8 +1861,8 @@ final class VrApi {
      * create reads the flags when it does) or when it is already in. Caller holds the entity monitor.
      */
     private static void attachScene(LuaWorldEntity e) {
-        if((e.gob == null) || (e.mv == null) || (e.slot != null))
-            return;
+        if((e.gob == null) || (e.mv == null) || (e.slot != null) || (e.rc == null))
+            return;                                    // 045.1: rc == null ⇒ !grounded ⇒ !shows(e), stated here too
         try {
             // 044.9: position/facing FIRST, then the add. Adding a gob builds its Placement, and building
             // one reads the map at the gob's CURRENT point — so a re-attach that follows a :position(p) has
@@ -1924,7 +1982,8 @@ final class VrApi {
             try {
                 e.mv.removeClientGob(e.gob, e.slot);
                 e.slot = e.mv.addClientGob(e.gob);
-                e.gob.move(e.rc, e.a);                 // re-assert position/facing after the re-add
+                if(e.rc != null)
+                    e.gob.move(e.rc, e.a);             // re-assert position/facing after the re-add
             } catch(RuntimeException ex) {
                 /* the entity's scene is gone (e.g. a REPL entity changed after a relog) — fields set, no scene op */
             }
@@ -1960,12 +2019,26 @@ final class VrApi {
      * One position verb, one type (039.2/039.3), so the answer goes straight to {@code hafen.act():moveTo} or into
      * {@code hafen.store} without conversion; the facing and size that used to ride in the same table are
      * {@code :rotate()} and {@code :scale()}.
+     *
+     * <p><b>A free entity answers with the place it HOLDS</b> (045.1) — the anchor form, the grid id and the
+     * offset within it — while an anchored one answers with the gob's live coordinate, because that is what its
+     * place is. One Position type carries both forms and every verb reads either (039), so this is not two
+     * answers: it is the same answer told from the side that is true for that entity. It is also what makes the
+     * asymmetry a reader can rely on — {@code :info()} reads the same across a walk into a cave and back, while
+     * {@code :x()} is only ever this session's answer and is free to differ (or to be nil, in the cave).
      */
     static LuaValue entityPosition(Addon owner, LuaWorldEntity e) {
-        Coord2d rc;
+        long grid; double gx, gy;
+        Coord2d rc = null;
+        boolean stands;
         synchronized(e) {
-            rc = entityWorldPos(e);
+            stands = (e.followTgt == 0);
+            grid = e.anchorGrid; gx = e.agx; gy = e.agy;
+            if(!stands)
+                rc = entityWorldPos(e);
         }
+        if(stands)
+            return LuaPosition.ofAnchor(owner, grid, gx, gy);
         return (rc == null) ? LuaValue.NIL : LuaPosition.of(owner, rc);
     }
 

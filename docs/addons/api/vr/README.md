@@ -62,6 +62,14 @@ Anything else raises, naming both forms. The place is an argument rather than a 
 because the scene resolves the tile under a thing as it enters it, so **one with no place cannot be built at
 all**.
 
+**A Position anchor has to be a place that can be kept.** What one standing at a point holds is the
+[durable](../world.md#the-position-type) form of that place — the grid the ground belongs to, and where
+inside that grid the point sits — because a plain world coordinate is this session's answer and nothing
+more: the client re-bases those numbers whenever the server drops the map. Ground nobody has ever walked
+has no durable form at all, so `:add(what, p)` and `e:position(p)` refuse such a place rather than stand
+something on a number that will stop meaning anywhere. `p:durable()` is the same question asked ahead of
+time.
+
 ```lua
 hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)     -- a plan on the ground
 hafen.vr():sprite():add(icon, prey):offset(0, 0, 14)       -- a marker floating over a creature
@@ -107,8 +115,10 @@ Each kind then adds the one or two verbs only it has — [`g:res`](ghosts.md#the
 **`:position` and `:offset` are the two halves of "where", one for each anchor.** A thing that follows a gob
 has the gob's place, so writing `:position(p)` on it would be undone on the next frame — it raises instead,
 naming `:offset`. A thing that stands still is offset from nothing, so `:offset` on it raises naming
-`:position`. The **read** side of `:position()` always answers, and for one that follows it is the gob's
-live point.
+`:position`. The **read** side of `:position()` always answers: for one that follows it is the gob's live
+point, and for one that stands still it is the place being held — so `:info()` on it reads back the same
+grid and offset for as long as it stands there, while `:x()` and `:y()` stay this session's answer to where
+that is.
 
 `:tint(nil)` stays legal: "no tint" is a real value, not an accident.
 

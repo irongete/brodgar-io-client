@@ -1,0 +1,9 @@
+{
+  "name": "045.1 — a free entity holds its durable place",
+  "id": "045-durable-places.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 045.1: what a hafen.vr() entity standing at a POINT keeps is the durable anchor — the server's grid id plus the offset in it — while its session coordinate is derived from it; a place with no durable form is refused at :add and at :position(p), naming why.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

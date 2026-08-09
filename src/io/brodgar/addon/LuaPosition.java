@@ -123,12 +123,28 @@ public final class LuaPosition {
         return MapApi.gridUL(MapApi.gridInfoIn(MapApi.mapfile(), id));
     }
 
+    /**
+     * <b>The session world coordinate of a durable place</b>, or {@code null} while this session cannot locate
+     * that grid — a place recorded in another segment, and every place at all while the player is in a cave.
+     * Public to the package because a free world entity holds its anchor and derives its coordinate from it
+     * (045.1), so the derivation the anchor form does for itself is the derivation the entity re-runs whenever
+     * the world moves under it.
+     */
+    static Coord2d worldOf(long gridId, double gx, double gy) {
+        Coord2d ul = ulOf(gridId);
+        return (ul == null) ? null : Coord2d.of(ul.x + gx, ul.y + gy);
+    }
+
+    /** {@link #worldOf(long, double, double)} for an {@link Anchor} that has already been derived. */
+    static Coord2d worldOf(Anchor an) {
+        return worldOf(an.id, an.x, an.y);
+    }
+
     /** This Position's session world coordinate, or {@code null} when this session cannot locate it. */
     Coord2d world() {
         if(located)
             return Coord2d.of(wx, wy);
-        Coord2d ul = ulOf(gridId);
-        return (ul == null) ? null : Coord2d.of(ul.x + gx, ul.y + gy);
+        return worldOf(gridId, gx, gy);
     }
 
     /** This Position's durable anchor, or {@code null} for ground the character has never visited. */
@@ -181,12 +197,48 @@ public final class LuaPosition {
     static Coord2d worldArg(Varargs a, int i, String verb, String param) {
         LuaPosition p = posArg(a, i, verb, param);
         Coord2d rc = p.world();
-        if(rc == null) {
-            throw new LuaError(verb + ": " + param + " is a place this session cannot reach — it was recorded"
-                + " in another part of the world, so it has no coordinate here (p:x() reports it as nil)");
-        }
+        if(rc == null)
+            throw new LuaError(verb + ": " + param + " " + UNREACHABLE);
         return rc;
     }
+
+    /**
+     * <b>The durable place a verb that HOLDS one needs</b> (045.1), or a refusal naming why this Position has
+     * none. The other door, {@link #worldArg}, asks for a coordinate <i>here and now</i> — which is the right
+     * question for walking somewhere or reading the terrain, and the wrong one for a thing that has to still be
+     * where it was put tomorrow: a session coordinate is re-based every time the server drops the map, so a
+     * place kept as one quietly stops naming anywhere. What can be kept is the anchor, and ground nobody has
+     * ever recorded has none — the client cannot invent a grid id, so that place is refused rather than pinned
+     * to a number that will lie.
+     */
+    static Anchor anchorArg(Varargs a, int i, String verb, String param) {
+        LuaPosition p = posArg(a, i, verb, param);
+        Anchor an = p.anchor();
+        if(an == null) {
+            throw new LuaError(verb + ": " + param + " is a place with no durable form — it is a raw coordinate"
+                + " over ground this character has never been over, so there is no grid id to hold it by, and a"
+                + " session coordinate on its own is re-based whenever the map is dropped (walking into a cave"
+                + " or a house), which would leave the thing standing on a number that has stopped meaning"
+                + " anywhere. p:durable() says whether a place can be held; ground you have walked can");
+        }
+        return an;
+    }
+
+    /**
+     * The session coordinate of an already-durable place, or the same refusal {@link #worldArg} raises: the
+     * place is keepable but this session cannot locate that grid (it was recorded in another part of the
+     * world). Split out so both doors say it in one voice.
+     */
+    static Coord2d hereArg(Anchor an, String verb, String param) {
+        Coord2d rc = worldOf(an);
+        if(rc == null)
+            throw new LuaError(verb + ": " + param + " " + UNREACHABLE);
+        return rc;
+    }
+
+    private static final String UNREACHABLE =
+        "is a place this session cannot reach — it was recorded in another part of the world, so it has no"
+        + " coordinate here (p:x() reports it as nil)";
 
     // ---- the per-addon metatable -------------------------------------------------------------------
 

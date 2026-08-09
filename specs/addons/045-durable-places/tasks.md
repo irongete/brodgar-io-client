@@ -3,7 +3,7 @@
 Three tasks: 045.1 changes what a free entity holds, 045.2 makes the world moving under it an event, 045.3
 writes it down. Each ships its own suite per [`TESTING.md`](../TESTING.md).
 
-- [ ] **045.1 — A free entity holds its anchor, and a place with no durable form is refused**
+- [x] **045.1 — A free entity holds its anchor, and a place with no durable form is refused** ✅ 14/14
       The anchor fields land on `LuaWorldEntity` beside `rc`; `rc` becomes the derived session coordinate
       (nullable) and carries the invariant `rc == null ⇒ not drawn`. `LuaPosition.anchorArg` lands beside
       `worldArg` and replaces it at **exactly two** call sites — `VrApi.anchorArg`'s Position branch and

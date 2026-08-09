@@ -156,3 +156,41 @@ on a tile that may never arrive (D-127's honest case, answered better).
 half), [D-189](architecture-api.md) (a switch is a SECOND boolean, never a write over the thing's own),
 [D-203](rendering.md) (the test was already being computed), D-127 above (the create-over-unstreamed-ground case whose retry this replaces), [ghosts.md](../learnings/ghosts.md),
 [world-3d.md](../../codebase/world-3d.md).
+
+### D-207 — a thing standing at a POINT holds its DURABLE place, and the session coordinate is a cache derived from it ✅ (045.1, 2026-08-09)
+**Decision.** What a client-only entity anchored to a **point** keeps is the durable form of that place —
+the server's grid id plus the offset inside that grid — and its session world coordinate becomes a value
+the layer **derives** from it and is free to recompute, or to have none of. Both forms already live in one
+`Position` type (D-109), so nothing is invented; what changed is which of the two the entity keeps. One
+anchored to a **gob** is untouched: its place is that gob's and it has nothing of its own to hold.
+**Rationale.** (Found in-game verifying 044.9.) A session coordinate is re-based whenever the server drops
+the map — walking into a cave or a house — and the same numbers then name different ground. An entity
+holding one went on holding a number that had quietly stopped meaning anywhere, so a thing put down where
+you wanted it was somewhere else after a cave and back. There is nothing to re-base *from* once the grids
+are gone: the anchor is the only part of a place that survives the drop, so it has to be the part that is
+kept. Keeping both and preferring the world one "while it is still valid" was rejected — two sources of
+truth, and *valid* has no test.
+**So the read splits, and the asymmetry IS the contract.** `<entity>:position()` answers the anchor form
+for one that stands still and the gob's live point for one that follows. `:info()` therefore reads the same
+grid and offset across a walk, while `:x()`/`:y()` are only ever this session's answer to where that is —
+free to differ, and (once a place this session cannot locate is legal) free to be nil.
+**A place with no DURABLE form is refused, at both doors that hold one.** `LuaPosition.anchorArg` replaces
+`worldArg` at exactly two call sites — the `Position` branch of a `:add(what, anchor)` and
+`<entity>:position(p)` — while the eight verbs that act *here and now* (`moveTo`, `place`, `select`,
+`useItemOn`, `marker():add`, `snapPlace`, `worldToScreen`) keep asking for a coordinate, which is the right
+question for them. Ground nobody has ever recorded has no grid id and the client cannot invent one, so that
+place is refused naming why rather than accepted as an entity pinned to a number that will lie. Hard cut,
+no warning tier: the silent version is the failure this decision exists to delete.
+**The derivation rides an event that already exists.** `rc` is recomputed in 044.9's ground drain, one step
+in front of its ground test (D-206) — the moment every cut leaves the scene is the moment the coordinate
+space is re-based, so the event that says the ground moved is the event that says the numbers did. No
+sweep, no per-frame poll (D-181), and no `Resolve` chain: "the player has not walked there" is not a
+blocker that clears (042.12).
+**`rc` becoming nullable is safe because of one invariant**: no coordinate means not grounded, so
+`shows()` is false, so no scene path is ever reached with it — an entity with no place has no slot, and the
+create that would have used it is the one the drain runs when the place resolves again.
+**See.** D-206 above (the ground rule this extends, and the drain it rides),
+D-127 above (a thing that cannot exist without a place takes it on the constructor — the refusal this
+re-aims), [D-109](architecture-api.md) (a value with two forms derives, never converts — the one type this rests on),
+[D-106](architecture-api.md) (a tap raises a flag, the tick does the work),
+[ghosts.md](../learnings/ghosts.md), [world-reads.md](../learnings/world-reads.md).

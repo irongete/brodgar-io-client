@@ -258,3 +258,22 @@
   arrives. It read as "moving it onto drawn ground does not draw it". Order is `gob.move` → `addClientGob`,
   everywhere. Rule: *any scene add is a map read at the gob's CURRENT point — set the point before the add,
   never after.*
+- **(045.1) "Far away" is not the same as "not recorded", and a suite that needs a place past the drawn
+  terrain has to ask which it wants.** 044.9's suite stood its far set at a flat `p:offset(400*T, 400*T)`,
+  reading that as "ground no client has drawn". Once a placement demands a **durable** place, that same
+  point is two different things depending on the character: ground it has walked (durable, and simply not
+  drawn — the state the rule is about) or ground nobody has (no grid id at all — a refusal). Neither is
+  reachable by picking a distance, because `MapFile` is per character and persists across sessions, so a
+  well-played character has hundreds of tiles recorded in every direction and a fresh one has none. What
+  works is to **probe**: walk outward in eight directions from ~120 tiles (comfortably past the ~50–75 the
+  terrain draws) and take the first `p:durable()` that answers, reporting the distance found on the pass
+  line. The maintainer's run found one at the first step. Rule: *a test that needs ground with a property
+  asks the client which ground has it; distance is not a proxy for what has been explored.*
+- **(045.1) Making a derived coordinate nullable costs nothing IF one invariant carries it.** `rc` on a
+  free entity became "the anchor resolved in this session, or null while it cannot be" — and every scene
+  path stayed untouched because `rc == null` forces `grounded` false, which forces `shows()` false, and
+  every attach/publish/retry already asks `shows()` first. The two places that needed a line were the ones
+  that run **before** that gate: the deferred ghost create (build the gob at a placeholder point — it
+  cannot enter the scene from there anyway) and `moveEntity`'s `gob.move` on a rotate-only call. Rule:
+  *before making a field nullable, find the boolean that is already false whenever it would be null — if
+  there is one, the null is free; if there is not, you are adding a state, not a value.*

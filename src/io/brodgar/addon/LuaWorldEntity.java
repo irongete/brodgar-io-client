@@ -41,6 +41,8 @@ import org.luaj.vm2.LuaValue;
  * asked for, and it is the third boolean {@code VrApi.shows} ANDs: a free entity is in the scene only while the
  * ground under it is drawn. Nothing the addon writes ever touches it, which is why {@code :visible()} keeps
  * reading back exactly what it was told while the thing itself waits out a walk to the far side of the map.
+ * Since 045.1 it is false whenever there is no coordinate at all ({@link #rc} null) — the same sentence said
+ * about a place this session cannot locate rather than one it can see is bare.
  *
  * <p><b>Ownership (P2).</b> The entity is bridge-owned: it lives only in its addon's owned-resource registry
  * ({@link Addon#ghosts} / {@link Addon#sprites}). There is no global tick/poll list, because it is a passive
@@ -56,15 +58,36 @@ import org.luaj.vm2.LuaValue;
 public abstract class LuaWorldEntity {
     final Addon owner;
 
-    Coord2d rc;                    // target/current world position (login-relative), guarded by this
+    /**
+     * <b>The SESSION coordinate this entity is drawn at — derived, and nullable</b> (045.1). For a free entity
+     * it is {@link #anchorGrid}/{@link #agx}/{@link #agy} resolved against this session's map, recomputed
+     * whenever the world moves under it, and {@code null} while this session cannot locate that grid at all
+     * (every overworld place, while the player is in a cave). For an anchored one it is the target's point at
+     * create and is never null. <b>The invariant is {@code rc == null ⇒ !grounded}</b> (see {@link #grounded}),
+     * which is what makes the null safe: nothing on a scene path is reached without {@code VrApi.shows}, and
+     * that is false the moment the coordinate is gone. Guarded by {@code this}.
+     */
+    Coord2d rc;
     double  a;                     // target/current facing (radians), guarded by this
+
+    /**
+     * <b>WHERE A FREE ENTITY IS, durably</b> (045.1): the server's own grid id plus the offset within that grid
+     * — the same pair a {@code Position}'s {@code :info()} publishes, and the only form of a place that
+     * survives the map being dropped. It is what the entity <i>holds</i>; {@link #rc} is what it currently
+     * derives from it. Meaningless when {@link #followTgt} is set, because an anchored entity's place is its
+     * gob's and has nothing of its own to keep. Plain fields rather than a {@code LuaPosition.Anchor}, so the
+     * word "anchor" here can never be read as the other one (the gob an entity follows). Guarded by
+     * {@code this}; written at create and by {@code :position(p)}, never derived from {@link #rc}.
+     */
+    long    anchorGrid;
+    double  agx, agy;
 
     boolean clickable;             // V2: opt-in pick-selectability (mirrored onto the GhostGob's flag); guarded by this
     float   alpha = 1f;            // V3: desired opacity 0..1 (1 = opaque); mirrored onto the GhostGob; guarded by this
     Color   tint;                  // V3: desired colour-overlay tint, or null; mirrored onto the GhostGob; guarded by this
     float   scale = 1f;            // V6: desired uniform scale (1 = original size); mirrored onto the GhostGob; guarded by this
     boolean hidden;                // V3: :hide() removed the scene slot (gob kept); :show() re-adds it; guarded by this
-    boolean grounded = true;       // 044.9: is the ground under it drawn? FREE entities only; guarded by this
+    boolean grounded = true;       // 044.9: is the ground under it drawn? FREE entities only; false whenever rc == null (045.1); guarded by this
     LuaValue onClick;              // V2: per-entity click callback fn(handle, button, x, y), or null; set at create
 
     long    followTgt;             // ANCHOR: the gob id this entity follows, or 0 = free (not anchored); set at create only
