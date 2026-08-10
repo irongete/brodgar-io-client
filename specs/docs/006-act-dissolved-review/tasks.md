@@ -27,7 +27,7 @@
       checked with the checker falsified both ways (bad path, cross-page anchor, same-page anchor, a
       break inside a wrapped link).
 
-- [ ] 006.4 — **The sweep and the close.** §12's seven checks over the **whole** tree, each re-derived
+- [x] 006.4 — **The sweep and the close.** §12's seven checks over the **whole** tree, each re-derived
       rather than copied: links and anchors, `wc -l`, headings, the retired-name derivation with its
       generators expanded, symbols both ways (the backward colon-verb sweep, every unregistered verb
       named and accounted for), §2's change-note constructions read rather than counted, the

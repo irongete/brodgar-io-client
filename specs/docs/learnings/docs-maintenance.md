@@ -540,3 +540,21 @@
   pointing at `references.md`, and `docs/addons/README.md`'s "the three pages every other page assumes"
   sentence, which still handed the references to `conventions`. None is a broken link, so the link sweep is
   green through all of it. Grep the **link text** against the target's page name, not only the targets.
+
+- **(006.4) The backward verb sweep's registration set is built from a literal, so a computed registration
+  reads as an invented verb.** §7 tests every colon verb the tier uses against `grep 'set("<verb>"'` over
+  `src/io/brodgar/addon/`. That regex can only see a **string literal**. `ev:sender()` is registered as
+  `m.set(noun, …)` where `noun` is `"sender"` or `"target"` chosen by the event's shape
+  (`LuaEvent.java:443`), so the sweep reports it unregistered and a reader who trusts the count deletes a
+  live verb from the docs. The sweep's output is a **list to account for**, never a list to act on: chase
+  each name into the file that owns it. The same pass also flags an **example addon's** own handle verbs
+  (`gz:setMode`/`:mode`/`:isDragging`/`:detach`, defined in `addons/planner/gizmo.lua`) and Lua stdlib on a
+  string literal (`("  "):rep(n)`, `("%-5s"):format(…)`) — neither is a tier verb and neither is a defect.
+
+- **(006.4) A grep-derived row count of `Retired.java` is wrong twice over, and the second way is quieter.**
+  005.4 already knew that `section(…)` and the loops generate rows no literal grep sees. The one that bit
+  here is `act(verb, msg)` and `moved(section, verb, msg)`, which each register **two** spellings — the
+  dotted field read and the `hafen.<sec>():<verb>` call. Expanding only `put(` + `section(` + the three
+  literal-array loops gives 158; adding the two-spelling helpers gives the true **180 `NAMES` + 4 `KEYS`**.
+  158 looks like a perfectly plausible table, which is exactly why the count has to be *derived from every
+  generator* and cross-checked against the previous sweep's figure rather than eyeballed for sanity.

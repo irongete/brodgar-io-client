@@ -10,8 +10,8 @@ for _, it in ipairs(hafen.ui():inventory():items()) do
   hafen.log():write((it:name() or it:res() or "?") .. " x" .. (it:num() or 1))
 end
 
-local h = hafen.player():hand()                               -- the cursor, or nil while it is empty
-local cursor = h and h:item()                                 -- the item on it
+local h = hafen.player():hand()                -- the cursor, or nil while it is empty
+local cursor = h and h:item()                  -- the item on it
 ```
 
 ## Read

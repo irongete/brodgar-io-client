@@ -211,7 +211,11 @@ lives in git and in `specs/`.
   `grep -rnoE '[\w)\]]:(\w+)\('` over `docs/`, each verb tested with `grep -rn 'set("<verb>"'` over
   `src/io/brodgar/addon/`. A verb the tier calls and nothing registers is a defect either way round — a
   retirement nobody re-pointed, or a name a page invented, which no retired-name list could ever carry
-  (005.1). **What that sweep cannot see, stated rather than pretended**: a verb retired on one entity and
+  (005.1). Its output is a list to **account for**, not to act on: `set("<verb>"` matches a string literal,
+  so a verb registered under a **computed** name reads as unregistered though it is live — `ev:sender()` is
+  `m.set(noun, …)`, with `noun` picked by the event's shape (006.4). An example addon's own handle verbs and
+  Lua stdlib on a string literal come back the same way. Chase each name into the file that owns it.
+  **What that sweep cannot see, stated rather than pretended**: a verb retired on one entity and
   live on another. `widget:onClick` is retired while `sprite:onClick` is live; `overlay:scale` is retired
   while `gob:scale` is live; `:position(`, `:destroy(`, `:show(`, `:text(`, `:alpha(`, `:tint(` and
   `:rotate(` are each in the table for one entity and registered for another. No spelling separates them,

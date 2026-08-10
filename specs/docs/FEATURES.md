@@ -39,9 +39,16 @@
   §10 callout pairs — **80 pages, 10,059 lines, 1,473 links, 0 broken**
   (`design/style-guide.md`, `design/information-architecture.md`, `decisions/docs-standard.md`
   D-015/D-016) — tasks 005.1..005.4
-- `006-act-dissolved-review` — ACTIVE — the two area-`addons` features that closed since `005`
-  (`047-flowermenu`, `048-act-dissolved`): the rehoused verbs checked against `src/`, the standard
-  brought onto the shipped adjective (`protected`/`unprotected`) with `hafen.act` on §7's list, the IA's
-  tree, the three ceiling pages split, and §12 over the whole tree. `049-css-selectors` is out of scope
-  (`design/style-guide.md`, `design/information-architecture.md`, `decisions/docs-standard.md`)
-  — tasks 006.1..006.4
+- `006-act-dissolved-review` — DONE — the two area-`addons` features that closed since `005`
+  (`047-flowermenu`, `048-act-dissolved`, a namespace deleted and ten verbs rehoused): the census both
+  ways (`census.md`, 20 of 20 surfaces, 170 verbs, 0 invented) and **three** wrong claims corrected
+  against `src/` on `api/types.md`, `api/ui/widget.md` and `api/gob.md`; the standard brought onto the
+  shipped adjective (**D-017** `protected`/`unprotected`) with `hafen.act` as §7's first **regex** entry,
+  `hafen\.act\b`, the bare name being a prefix of the live `hafen.actionbar`; the ceiling cleared by three
+  splits priced on **inbound anchors** (`conventions.md` 300 → 205 + `references.md`, `gob.md` 299 → 170 +
+  `overlay.md`, `ui/widget.md` 300 → 242 + `ui/mouse.md`; 21 links re-pointed) under **D-018**, a
+  directory under `api/` meaning a namespace; §12 over the whole tree with the link checker falsified
+  **five** ways and the refusal table re-expanded through its generators to 180 rows.
+  `049-css-selectors` stayed out of scope — **83 pages, 10,344 lines, 1,534 links, 0 broken**
+  (`design/style-guide.md`, `design/information-architecture.md`, `decisions/docs-standard.md`
+  D-017/D-018) — tasks 006.1..006.4

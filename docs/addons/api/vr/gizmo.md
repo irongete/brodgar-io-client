@@ -25,7 +25,7 @@ The gizmo is a **bundled Lua library over the world, overlay and widget-input pr
 [`screenToWorld`](../world.md#screen-to-world-and-placement-snapping),
 [`snapPlace`](../world.md#screen-to-world-and-placement-snapping) and
 [`snapAngle`](../world.md#screen-to-world-and-placement-snapping) to drag, and `:position`, `:rotate` and
-`:scale` to apply. It ships inside the `planner` addon, and its shape is:
+`:scale` to apply. It ships inside the **`planner`** addon, and its shape is:
 
 ```lua
 -- gizmo.lua installs one global: gizmo(target, opts) -> a gizmo handle.
