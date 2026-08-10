@@ -52,7 +52,7 @@ import java.util.Set;
  * handle interned on Java identity would silently write to an orphan after the first swap (D-063 — the key is
  * what the engine publishes).
  *
- * <p><b>The writes are ungated</b>, as {@code hafen.radar}'s were: they change a client-local display setting,
+ * <p><b>The writes are unprotected</b>, as {@code hafen.radar}'s were: they change a client-local display setting,
  * nothing the server sees. They persist per character through {@code Settings.dsave()}, debounced, exactly as
  * the settings window's checkboxes do — so a broad sweep rewrites configuration the user set by hand.
  *

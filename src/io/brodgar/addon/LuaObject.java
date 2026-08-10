@@ -7,7 +7,7 @@ import haven.Coord2d;
  * {@code hafen.vr():object():add(asset, p)}. A {@link LuaWorldEntity} whose visual is a custom glTF model (an
  * addon's own {@code .glb}/{@code .gltf}, parsed to baked geometry by {@link Gltf} and loaded via
  * {@code hafen.asset}) standing in the 3D world — the mesh sibling of a {@link LuaSprite} (a PNG quad) and
- * of a {@link LuaGhost} (a {@code .res} game model). Client-only ⇒ <b>SAFE-tier, NOT gated</b> (D-034): it never
+ * of a {@link LuaGhost} (a {@code .res} game model). Client-only ⇒ <b>SAFE-tier, NOT protected</b> (D-034): it never
  * reaches the server and grants no gameplay advantage.
  *
  * <p><b>Mesh visual (R3a).</b> The visual is a {@link MeshSprite} → {@code SprDrawable} — a resource-free

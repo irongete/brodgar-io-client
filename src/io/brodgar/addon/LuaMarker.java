@@ -35,7 +35,7 @@ import java.util.Map;
  * position verb, and nothing to convert.
  *
  * <p><b>The collection is {@code hafen.map():marker()}</b> — {@code :list} / {@code :count} / {@code :find}
- * over the canonical filter, {@code :nearest(filter)}, and the two ungated writes {@code :add(name, p)} /
+ * over the canonical filter, {@code :nearest(filter)}, and the two unprotected writes {@code :add(name, p)} /
  * {@code :remove(m)}. A pin is created <b>bare</b> and configured with {@code m:color(...)} /
  * {@code m:onMap(b)}; those two are also reads, arity being the verb, and both persist immediately.
  *

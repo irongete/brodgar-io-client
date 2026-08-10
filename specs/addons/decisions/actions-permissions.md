@@ -142,3 +142,30 @@ so a `mods` parameter could only lie about the keys physically held.
 **See.** [D-028](#d-028), [D-213](#d-213), [D-215](architecture-api.md#d-215),
 [D-103](architecture-api.md#d-103) (the absorbed mechanism whose old door, `hafen.act():menu`, this task
 closed), [048-act-dissolved](../048-act-dissolved/spec.md), [023-menugrid-oop](../023-menugrid-oop/spec.md).
+
+---
+
+### D-220 — a feature-detection verb whose answer is a fact about the CALLER is deleted, not relocated ✅ (048.7, 2026-08-10)
+**Decision.** `hafen.act():enabled()` — *may this addon act?* — is **deleted**, and nothing replaces it anywhere.
+It is the one verb of the dissolved section that was not moved onto the thing it changes, because it changed
+nothing and read nothing: `AddonManager.actionsGranted(owner)` was literally `owner.manifest.usesActions()`. The
+backing method went with it. The permission model is untouched — `"permissions": ["actions"]`, per addon,
+default-disabled, consent at enable time.
+**Rationale.** A feature probe earns its place when the answer lives somewhere the caller cannot see: a client
+version, a server capability, a user switch. This one's answer lived in the caller's **own manifest.json**, a
+file the addon author wrote and ships beside the code asking the question. **D-028** had already removed the
+global master switch it was originally built to report — with that gone, the only caller it could ever answer
+`false` was one that did not declare, which is a fact its author can read without calling anything. And its
+existence made the guard look load-bearing: `walker` opened every sub-command with `if not
+hafen.act():enabled() then …`, a branch that could not be taken. Deleting it is also what makes the section
+**dissolvable** rather than merely smaller — it was the last unprotected member of `hafen.act()`, so with it
+gone there is nothing left that a permission-shaped grouping could still be said to hold together.
+**Consequences.** An addon that may not act learns it **per verb**, from the refusal `requireActions` already
+raises, which names the verb rather than the tier — strictly more specific than the boolean, and impossible to
+forget to check. The retirement row says exactly this, so a ported addon is told the question answered itself.
+The same reasoning does not reach the `network` allowlist: `hafen.http` asks about *hosts*, and which hosts a
+request will need is not always static in the manifest — this decision is about an answer that is a **constant**
+of the caller, not about feature probes in general.
+**See.** [D-027](#d-027), [D-028](#d-028), [D-215](architecture-api.md#d-215) (the dissolution this completes),
+[D-103](architecture-api.md#d-103) (the sibling deletion in the same task: `act():flower`, whose door
+`hafen.flowermenu():select` already owned), [048-act-dissolved](../048-act-dissolved/spec.md).

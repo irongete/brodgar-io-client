@@ -292,7 +292,7 @@ public final class LuaPagina {
         // NO ARGUMENTS on purpose: PagButton.use never reads Interaction.modflags — it builds the message from
         // ui.modflags() live — so a mods parameter could only lie about the keyboard state (plan.md has the
         // trace).
-        // 048.5: PROTECTED (D-027/D-028). This verb commits a real server action and shipped ungated only
+        // 048.5: PROTECTED (D-027/D-028). This verb commits a real server action and shipped unprotected only
         // because 023 predated the tier being applied per subsystem; a verb that acts is behind the "actions"
         // permission wherever it lives. The gate runs FIRST, before the live-entry lookup (D-213), so an addon
         // that may not act at all is told THAT rather than "not in the menu". The menugrid READS are untouched.

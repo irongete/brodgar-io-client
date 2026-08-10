@@ -152,7 +152,7 @@ public class AddonPanel extends OptWnd.Panel {
             String meta = ai.name
                 + ((ai.version != null) ? ("  v" + ai.version) : "")
                 + ((ai.author != null) ? ("  " + ai.author) : "")
-                + (ai.declaresActions ? "  [actions]" : "")    // D-027: this addon can drive the character (gated)
+                + (ai.declaresActions ? "  [actions]" : "")    // D-027: this addon can drive the character (protected)
                 + (ai.declaresNetwork() ? "  [net]" : "");     // D-037: this addon can reach the declared hosts
             Label nm = add(new Label(meta), UI.scale(new Coord(22, 3)));
             // Tooltip: the description plus, for a network addon, exactly which hosts it may reach (§5.3) — the

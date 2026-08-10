@@ -6,7 +6,7 @@ import haven.Coord2d;
  * A client-only world <b>sprite</b> (spec {@code 17-custom-rendering.md}, R2) — the Java half of
  * {@code hafen.vr():sprite():add(asset, p)}. A {@link LuaWorldEntity} whose visual is a custom PNG (an
  * addon's own file, decoded to a {@link haven.TexI} by {@code hafen.asset}) standing in the 3D world as a
- * textured quad — the non-{@code .res} sibling of a {@link LuaGhost}. Client-only ⇒ <b>SAFE-tier, NOT gated</b>
+ * textured quad — the non-{@code .res} sibling of a {@link LuaGhost}. Client-only ⇒ <b>SAFE-tier, NOT protected</b>
  * (D-034), like a HUD overlay or a ghost: it never reaches the server and grants no gameplay advantage.
  *
  * <p><b>Fixed quad (R2a).</b> The visual is a {@code TexI}-textured 4-vertex {@code TRIANGLE_STRIP} standing

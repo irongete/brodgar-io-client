@@ -61,7 +61,7 @@ import java.util.Map;
  * static: no Lua value crosses a sandbox boundary and the cache dies whole with the {@link Addon} on
  * {@code :reload}.
  *
- * <p><b>Ungated</b> (no {@code requireActions}): playback is client-local and sends nothing to the server.
+ * <p><b>Unprotected</b> (no {@code requireActions}): playback is client-local and sends nothing to the server.
  *
  * <p><b>What is playing (024.2) lives in the {@link Cache}, not in the handle.</b> The clips a name has in the
  * air are keyed by that <i>name</i> in the owning addon's {@link Live} map, so every handle for {@code "sfx/x"}
@@ -322,7 +322,7 @@ public final class LuaSound {
                 return t;
             }
         });
-        // play([volume]) — fire the clip once into the UI sfx channel, return SELF so it chains. UNGATED:
+        // play([volume]) — fire the clip once into the UI sfx channel, return SELF so it chains. UNPROTECTED:
         // client-local, nothing reaches the server. Volume is an ARGUMENT, never entity state (the Sound is
         // interned and shared) — omitted = 1.0, outside 0..1 is an error naming the method. A name that does
         // not resolve is silent here: the resolve happens later, on a loader thread.

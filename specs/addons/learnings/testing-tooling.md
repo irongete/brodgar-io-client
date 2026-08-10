@@ -1536,3 +1536,17 @@
   send. Also: run the probe under **two** manifests (`Manifest.test` declares nothing, `Manifest.internal`
   declares everything) — with the gate first (D-213) the undeclared run proves the ORDER and the declared run
   proves the messages, and neither can be seen from the other.
+- **(048.7) A retirement message is a CLAIM about the API, so assert it rather than trusting it.** A `Retired`
+  row is prose that tells a stranded caller where to go, and nothing in the engine checks that the destination
+  exists — a typo, or a verb renamed after the row was written, produces a message that sends a porting author to
+  a door that is not there, and every test still passes because the throw *did* happen. 048.7's suite reads back
+  every replacement its section message names, off the very handles the message spells
+  (`hafen.player().move`, `hafen.world().place`, `hafen.flowermenu().select`, …, plus `gob:click` on
+  `hafen.world():gob():get(-1)`, which interns rather than searches and so is a receiver with no world behind it),
+  and fails naming any that is not a function. Eight doors, one `[pass]` line. Worth doing wherever a message
+  names an API rather than describing one — which is every row in that table.
+- **(048.7) A deletion-only task has no `[manual]` line, and that is a property worth checking for.** Everything
+  048.7 shipped is an absence — a section gone, two verbs gone, a helper moved — and an absence is exactly what a
+  program can assert: the throw, its message, and the continued presence of the neighbours. The suite came back
+  10/10 headless and 10/10 in-game with zero human steps. If a task that only deletes still wants a `[manual]`
+  line, the line is usually asking a human to confirm something the API can be asked directly.

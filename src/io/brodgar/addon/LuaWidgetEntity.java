@@ -8,7 +8,7 @@ import haven.Widget;
 /**
  * A <b>widget standing in the 3D world</b> (spec {@code 044-spatial-ui}, task 044.1) — the Java half of
  * {@code hafen.vr():widget():add(w, p)}, and the fourth kind on the client-only world-entity core beside a
- * {@link LuaGhost}, a {@link LuaSprite} and a {@link LuaObject}. Client-only ⇒ <b>ungated</b> like its three
+ * {@link LuaGhost}, a {@link LuaSprite} and a {@link LuaObject}. Client-only ⇒ <b>unprotected</b> like its three
  * siblings: standing a widget changes where it is drawn and nothing else — the clicks that reach the server
  * are still the ones the user makes with their own hand.
  *
@@ -29,7 +29,7 @@ import haven.Widget;
  * same record: it is re-homed, not adopted, so it stays bound to its server id and goes on filling with items
  * while it stands, and the record is what puts it back on the flat UI when the entity ends. That is the whole of
  * what standing a borrowed widget is — the same layer-that-restores as {@code widget:position(x, y)} and
- * {@code widget:replace(view)}, and ungated for the same reason: the clicks that reach the server are still the
+ * {@code widget:replace(view)}, and unprotected for the same reason: the clicks that reach the server are still the
  * ones the user makes with their own hand.
  */
 public final class LuaWidgetEntity extends LuaWorldEntity {

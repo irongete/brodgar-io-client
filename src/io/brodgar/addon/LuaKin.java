@@ -47,7 +47,7 @@ import java.util.Map;
  * are live.
  *
  * <p><b>Writes</b> ({@code :rename}/{@code :group(g)}/{@code :endKin}/{@code :forget}, and the collection's
- * {@code :add}) keep the {@code requireActions} gating (D-027/D-028) and drive the client's own
+ * {@code :add}) keep the {@code requireActions} gate (D-027/D-028) and drive the client's own
  * {@link BuddyWnd.Buddy} methods (wrap-not-reimplement, D-009); each returns <b>self</b> so they chain.
  * {@code :group} is one name for the pair: {@code kin:group()} reads it and {@code kin:group(g)} writes it.
  *
@@ -87,7 +87,7 @@ public final class LuaKin {
     /**
      * One addon's Kin interning cache and metatable (its {@link Addon#kins}). Weak values + a
      * {@link ReferenceQueue} drained on every access; the Kin metatable is built once, lazily. Holds its
-     * {@link Addon} because the gated write verbs need the owner to check the {@code actions} permission
+     * {@link Addon} because the protected write verbs need the owner to check the {@code actions} permission
      * against.
      */
     static final class Cache {
@@ -162,7 +162,7 @@ public final class LuaKin {
     /**
      * The method set. Each reader re-resolves the buddy and answers {@code nil} once it is off the roster;
      * {@code :id()} is the exception (it answers from the handle alone, so it still works for a forgotten
-     * kin). The writers are {@code actions}-gated and return <b>self</b> so they chain.
+     * kin). The writers are {@code actions}-protected and return <b>self</b> so they chain.
      */
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
@@ -188,7 +188,7 @@ public final class LuaKin {
                 return ((b == null) || (b.name == null)) ? LuaValue.NIL : LuaValue.valueOf(b.name);
             }
         });
-        // group() reads, group(g) WRITES (gated) — one name for the pair the old setGroup made two. The
+        // group() reads, group(g) WRITES (protected) — one name for the pair the old setGroup made two. The
         // SERVER accepts 0..254 (the client's own 8-colour palette is only what it can DRAW); validate the
         // real range here, before resolving, so the message is the same with or without a live Kin window.
         m.set("group", new VarArgFunction() {
@@ -256,7 +256,7 @@ public final class LuaKin {
                 return (other == null) ? LuaValue.NIL : LuaGob.of(owner, other.id);
             }
         });
-        // -- gated writes (D-027/D-028): drive the client's own Buddy methods (D-009), return self ------
+        // -- protected writes (D-027/D-028): drive the client's own Buddy methods (D-009), return self ------
         m.set("rename", new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue name) {
                 AddonManager.requireActions(owner, "kin:rename");
@@ -390,7 +390,7 @@ public final class LuaKin {
     /**
      * {@code hafen.kin()} — the roster, as the {@link LuaCollection} the section object IS: {@code :get(idOrName)}
      * addresses one kin, {@code :list}/{@code :count}/{@code :find} read the roster in the Kin window's sort
-     * order, and the gated {@code :add(secret)} is the "Add kin" field. No Kin window yet (pre-HUD, or
+     * order, and the protected {@code :add(secret)} is the "Add kin" field. No Kin window yet (pre-HUD, or
      * mid-{@code :reload}) ⇒ an empty roster, never an error.
      *
      * <p>A <b>string</b> filter matches the kin's <b>name</b> as a substring; a kin the window has not named
@@ -431,7 +431,7 @@ public final class LuaKin {
             }
 
             // add(secret) — the Kin window's "Add kin" field: kinning needs the other player's HEARTH SECRET
-            // (no add-by-name message exists). Gated. It hands back the COLLECTION rather than a Kin, because
+            // (no add-by-name message exists). Protected. It hands back the COLLECTION rather than a Kin, because
             // there is no Kin yet: the server decides whether the secret is valid and the roster changes on a
             // later tick, which is what KinChanged reports.
             public LuaValue addMember(Varargs a) {

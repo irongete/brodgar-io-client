@@ -42,7 +42,8 @@ import org.luaj.vm2.LuaValue;
  *
  * <p><b>Not bound to a server id</b> — an AddonWidget cannot {@code wdgmsg} the server (its
  * {@code wdgmsg} falls through to {@code ui.root} and is dropped). That is correct for custom UI; game
- * interaction goes through {@code hafen.act} (Phase 4). The addon never sees this object: it holds an
+ * interaction goes through {@code widget:send(msg, ...)} on a <b>bound</b> widget. The addon never sees this
+ * object: it holds an
  * opaque handle built in {@link AddonManager}, and the bridge owns the widget for teardown
  * (registered in {@link Addon}'s owned-resource registry, destroyed on reload/disable, principle P2).
  *
@@ -59,7 +60,7 @@ import org.luaj.vm2.LuaValue;
  * <b>neutral descriptor</b> {@code {kind="pagina", res="<name>"}}, wrapped (041.4) in an {@code ev} fired on
  * {@code "Drop"} — {@code :x()}/{@code :y()} (widget-local px), {@code :thing()} the descriptor,
  * {@code :preventDefault()} in place of the old truthy-return consume (R3). A resource name is plain data
- * (already all over the read API), so this stays <b>ungated</b>; firing the dropped action is out of scope
+ * (already all over the read API), so this stays <b>unprotected</b>; firing the dropped action is out of scope
  * (the deferred menu-ability primitive).
  *
  * <p><b>D-040's per-callback {@code mods} table is retired with the slots it rode on</b> (041.3): the input

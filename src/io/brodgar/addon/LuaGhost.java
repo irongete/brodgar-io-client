@@ -11,7 +11,7 @@ import haven.Resource;
  * ({@code ResDrawable}), added to the MapView's {@code basic} scene via {@link haven.MapView#addClientGob} —
  * exactly what the engine's own placement preview ({@code MapView.Plob}) does. Because it never reaches the
  * server (no {@code wdgmsg}) and is invisible to {@code OCache} and every read API, it is <b>SAFE-tier, NOT
- * gated</b> (D-029): a pure visualization, like a HUD overlay. The motivating use is city/base planning — lay
+ * protected</b> (D-029): a pure visualization, like a HUD overlay. The motivating use is city/base planning — lay
  * out ghost buildings over the real terrain.
  *
  * <p>The transform ({@code :move}/{@code :rotate}/{@code :scale}), look ({@code :alpha}/{@code :tint}),

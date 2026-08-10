@@ -1,105 +1,38 @@
 package io.brodgar.addon;
 
-import haven.FlowerMenu;
 import haven.GameUI;
-import haven.Indir;
-import haven.Loading;
 import haven.Makewindow;
-import haven.MiniMap;
-import haven.Resource;
 import haven.Speedget;
-import haven.Window;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
-import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
-
-import java.util.ArrayList;
-import java.util.List;
 
 
 /**
- * The protected automation subsystem (Phase 4: {@code hafen.act}) + crafting read/make ({@code hafen.craft}) +
- * movement speed ({@code hafen.speed}). Every act verb is a {@link haven.Widget#wdgmsg} from a bound widget
- * (literally what a player click sends, so the client stays server-authoritative), protected by
- * {@code requireActions} (the declared per-addon permission). No lifecycle/tick/teardown state — these are
- * invoked only from Lua callbacks. Not instantiable.
+ * Crafting read/make ({@code hafen.craft}) + movement speed ({@code hafen.speed}) — the two sections this file
+ * still installs. Each carries a protected write ({@code craft():current():make(all)},
+ * {@code speed():current(n)}) behind {@code requireActions}, the declared per-addon permission. No
+ * lifecycle/tick/teardown state — these are invoked only from Lua callbacks. Not instantiable.
+ *
+ * <p><b>{@code hafen.act()} is gone</b> (048). It was the one section grouped by PERMISSION rather than by what
+ * it acts on, and 048 dissolved it verb by verb onto the things each verb changes: walking the character is
+ * {@code hafen.player():move(p)} and clicking an object {@code gob:click(button, mods)} (048.1); the held-item
+ * gesture is {@code hafen.player():hand():use(target, mods)}, on a cursor that is <i>nil</i> when it is empty
+ * (048.2); what you can do TO an item is on the item — {@code item:use/:take/:drop/:transfer} (048.3); placing
+ * and area-selecting are {@code hafen.world():place/:select}, beside the {@code snapPlace}/{@code snapAngle}
+ * that prepare their arguments (048.4); a menu action is {@code hafen.menugrid():get(name):use()}, which gained
+ * the same permission (048.5); the escape hatch is {@code widget:send(msg, ...)}, where the receiver IS the
+ * target (048.6); and a petal is {@code hafen.flowermenu():select(label|n)} (048.7, which also deleted
+ * {@code enabled()} — a running addon that declared {@code "actions"} is granted, so the question answered
+ * itself). Every one of those spellings, and {@code hafen.act} itself, throws from {@link Retired} naming its
+ * new home.
  */
 final class ActApi {
     private ActApi() {}
-
-    /**
-     * Build {@code hafen.act()} (what is left of it) for {@code owner}. From installHafen.
-     *
-     * <p>A plain section object that is <b>emptying</b> (D-117): 048 moves every verb onto the thing it changes,
-     * one task at a time, and the section stays mounted for whatever has not moved yet so that no verb ever
-     * works under two names. What is left here is {@code enabled} and {@code flower};
-     * 048.7 deletes the section itself once they are gone. Every spelling that has already left throws from
-     * {@link Retired}, naming its new home.
-     */
-    static void installAct(LuaTable hafen, final Addon owner) {
-        LuaTable act = new LuaTable();
-        act.set("enabled", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Section.self(self, "act", "enabled");
-                return LuaValue.valueOf(AddonManager.actionsGranted(owner));
-            }
-        });
-        // 048.1: moveTo and clickGob have LEFT — a verb lives with what it changes, so walking the character is
-        // hafen.player():move(p) and clicking an object is gob:click(button, mods). Both old spellings throw
-        // from Retired naming their replacement; the section stays mounted for the verbs still here (D-117).
-        // 048.2: useItemOn has LEFT too, and it took the whole held-item gesture with it. The cursor is an
-        // object now — hafen.player():hand(), nil when you are carrying nothing — and hafen.player():hand()
-        // :use(target, mods) applies what you hold to an Item, a Position or a Gob. The Gob arm is a message
-        // this verb could not send: it aimed only at bare ground, where the client's own iteminteract extends
-        // the args with the object's click args when the hit resolves to one.
-        // 048.4: place and select have LEFT — they are the world's first protected verbs now
-        // (hafen.world():place(p, angle, button, mods) and hafen.world():select(p1, p2, mods)), which puts
-        // place directly beside the hafen.world():snapPlace(p) / :snapAngle(a) that exist to prepare its two
-        // arguments and until now sat a whole section away from it. Same messages, same gate, on the thing
-        // they change; their pure arg builders went with them.
-        // 048.6: raw(target, msg, ...) has LEFT, and it took a whole ADDRESS SPACE with it rather than
-        // rehousing one. The escape hatch is widget:send(msg, ...) now, where the receiver IS the target — so
-        // raw's private target vocabulary (a numeric server widget id, or the tokens "mapview"/"gameui"/"root"
-        // resolved through a lookup this file borrowed from the hook tier) had nothing left to address. Every
-        // one of them was already an ordinary handle: hafen.ui():node(id), hafen.ui():find("@MapView"),
-        // hafen.ui():find("@GameUI"). Same wdgmsg, same "bound widgets only" rule, same marshalling.
-        // 048.5: menu(path...) is GONE, and nothing took its place. 023-menugrid-oop already absorbed the
-        // mechanism — hafen.menugrid() addresses the entries it holds, and hafen.menugrid():get("Dig"):use()
-        // (or get("paginae/act/dig"):use() by resource name) is the door — so this was the old one D-103
-        // requires closing. The pagina-PATH address space goes with it by maintainer directive: a second,
-        // path-shaped way to say the same thing is exactly the dual style D-013 refuses, and paths were never
-        // a stable address space anyway (server-fetched, content-defined, resolvable only while loaded).
-        // pag:use() gained the "actions" gate in the same task, so nothing that acted behind a permission
-        // stopped doing so.
-        // flower(label) — select a petal of the OPEN radial context menu (FlowerMenu) by its label (the petal
-        // name, matched case-insensitively), driving the client's own FlowerMenu.choose (wrap-not-reimplement,
-        // D-009: reuses the client's selection, including its client-side petals). Returns true if a matching
-        // petal was chosen, false if no flower menu is open or no petal matched (never throws for those — an
-        // addon can just test the result). The classic use is automation: an addon right-clicks a target
-        // (gob:click(3)) and then auto-picks a petal — while a flower menu is open it grabs the mouse +
-        // keyboard, so a programmatic pick (from a timer / event) is the only way to select without a click.
-        act.set("flower", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "act", "flower");
-                AddonManager.requireActions(owner, "hafen.act():flower");
-                LuaValue label = Args.required(a, 2, "hafen.act():flower", "label");
-                if(!label.isstring())
-                    throw new LuaError("hafen.act():flower(label): label must be a string (a petal name)");
-                return LuaValue.valueOf(actFlower(label.tojstring()));
-            }
-        });
-        // 048.3: item(item, verb [, n]) has LEFT, and with it the last of the five verb strings. What you can do
-        // TO an item is on the item now — item:use(mods) (was "iact"), item:take(), item:drop(n),
-        // item:transfer(n) — and applying what is on your cursor onto one is hafen.player():hand():use(item).
-        // A fifth argument was never a vocabulary: it was a switch statement standing where four verb names go.
-        Section.install(hafen, "act", act);
-    }
 
     /**
      * Build {@code hafen.craft()} for {@code owner}. From installHafen. A section of <b>one verb</b>:
@@ -191,70 +124,24 @@ final class ActApi {
                         + " hafen.speed():current(n)");
     }
 
-    // ---- actions tier (Phase 4: hafen.act) -------------------------------------------------------
-    // The PROTECTED automation surface (gate: requireActions / the declared per-addon permission, above). Every
-    // verb is a Widget.wdgmsg from a bound widget — literally what a player click would send, so the client stays
-    // server-authoritative (an addon can do only what a player could do; the permission is about user control,
-    // not a client exploit — spec 12). Runs on the UI thread (addon callback / REPL); wdgmsg queues to the
-    // session, and a 2d action-hook sees the send (it is a real action) — the 2d re-entrancy guard prevents a
-    // hook-issued verb from looping.
-    //
-    // 048.1: the two CLICK verbs are gone from here. Walking the character is hafen.player():move(p) (CharApi)
-    // and clicking an object is gob:click(button, mods) (LuaGob) — each sends the same message it always did,
-    // from the thing it changes.
-    // 048.2: the MapView "itemact" left with useItemOn — its three wire shapes are LuaHand's pure builders now.
-    // 048.4: place and select left for hafen.world() (WorldApi), and took placeArgs/placeAngle/selArgs with
-    // them — still pure, still headless-testable, just beside the verbs that send them. moveClickCoord went
-    // with them too: it had one caller left, and what it spelled (Coord2d.floor(OCache.posres)) is what both
-    // LuaHand and WorldApi now write inline at the one line that needs it.
-    // 048.6: raw left for LuaWidget as widget:send(msg, ...), and its target resolution was DELETED rather
-    // than moved — with the receiver as the target there is nothing to resolve. The hook-token lookup it
-    // borrowed (HookApi.isKnownTarget/hookTarget) went with it: raw was its last caller.
-    //
-    // -- 4e: the flower verb ---------------------------------------------------------------------------
-    // flower goes through the OPEN FlowerMenu's own choose (wrap-not-reimplement, D-009 — reuses the client's
-    // petal selection, including its client-side petals). It runs on the UI thread (addon callback / REPL /
-    // timer), like the MapView verbs did, and locates its target by walking the live widget tree
-    // (FlowerMenuApi.open(), the finder hafen.flowermenu() owns since 047.1). It is non-throwing on "no menu /
-    // no match" (returns false); reading a menu's petals, the two menu events and the 047.2 write half
-    // (hafen.flowermenu():select(label|n) / :cancel(), which REFUSE naming what is open) live in that section.
-    // The two doors coexist by maintainer directive until 048.7 closes this one.
-    // 048.5: the menu path builder went with act():menu — GameUI.act is the client's own by-path door and no
-    // hafen.* verb opens it any more.
-
-    /** Index of the first petal name equal to {@code label} (case-insensitive), or {@code -1}. Pure/testable. */
-    static int flowerPetalIndex(String[] names, String label) {
-        if(names == null)
-            return -1;
-        for(int i = 0; i < names.length; i++) {
-            if((names[i] != null) && names[i].equalsIgnoreCase(label))
-                return i;
-        }
-        return -1;
-    }
-
-    /**
-     * {@code hafen.act():flower} backing — select the open flower menu's petal whose name equals {@code label}
-     * (case-insensitive), via the client's own {@link FlowerMenu#choose}. Returns whether a petal matched.
-     */
-    private static boolean actFlower(String label) {
-        FlowerMenu fm = FlowerMenuApi.open();     // 047.1: the finder lives with the section now (D-103)
-        if(fm == null)
-            return false;                        // no menu open
-        FlowerMenu.Petal[] opts = fm.opts;
-        if(opts == null)
-            return false;
-        int idx = flowerPetalIndex(FlowerMenuApi.names(fm), label);
-        if(idx < 0)
-            return false;                        // no petal matched
-        fm.choose(opts[idx]);                    // wrap-not-reimplement: the client's own petal selection
-        return true;
-    }
-
-    // 048.3: the item verbs are GONE from here. They were the one half of this section that did not even act on
-    // world coords — each acted on a specific item, addressed by the Item ENTITY — so they are four verbs on
-    // LuaItem now (item:use / :take / :drop / :transfer), sending the same GItem.wdgmsgs from the thing they
-    // change. Their pure arg builders went with them.
+    // ---- what the actions tier left behind (048) --------------------------------------------------
+    // Nothing. The PROTECTED automation surface is still exactly what it always was — a Widget.wdgmsg from a
+    // bound widget, literally what a player click would send, so the client stays server-authoritative (an addon
+    // can do only what a player could do; the permission is about user control, not a client exploit — spec 12)
+    // — but every one of those sends now leaves from the thing it changes rather than from a section named for
+    // the permission they shared. The last two verbs went in 048.7:
+    //   enabled() is DELETED rather than moved. AddonManager.actionsGranted(owner) was literally
+    // owner.manifest.usesActions() — a static fact about the CALLER's own manifest file — and D-028 had already
+    // removed the global switch it was built to report, so the only caller it could ever answer `false` was one
+    // that can read the same answer in its own manifest.json. A feature-detection verb whose answer is a fact
+    // about the caller is not a feature detector.
+    //   flower(label) is DELETED because 047.2 already built the better door: hafen.flowermenu():select(label|n)
+    // RAISES where flower returned a bare false, takes a ring position as well as a caption, and has :cancel()
+    // beside it. actFlower had been delegating to FlowerMenuApi since 047.1, so what stood here was the old door
+    // D-103 requires closing — and its one pure helper (the case-insensitive petal lookup) moved to its single
+    // remaining caller, FlowerMenuApi.petalIndex.
+    // The two surviving halves of this file — hafen.craft() and hafen.speed() — never belonged to that section:
+    // they are named for what they act on, which is the shape 048 gave the other nine verbs.
 
     // ---- movement speed (A7: hafen.speed()) ------------------------------------------------------
     // The speed selector is a Speedget widget (crawl/walk/run/sprint) the server places under the HUD.

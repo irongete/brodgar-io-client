@@ -145,12 +145,26 @@ final class Retired {
         put("hafen.world.placeAngle", "hafen.world.placeAngle() is gone — it read the same setting as"
             + " hafen.client():options():interface():angGran(), which also writes it (in DEGREES per step)");
 
-        // ---- hafen.act: R1 throughout, and the spatial verbs take Positions ----------------------------
-        section("act", "enabled", "flower");
-        // ---- 048.1: hafen.act() is being DISSOLVED -- a verb lives with WHAT IT CHANGES, not with what it -----
-        // ---- costs (D-187 generalised), so the section that grouped nine unrelated verbs by their PERMISSION
-        // ---- is emptying one task at a time. A moved verb is registered by act() below, under BOTH spellings:
-        // ---- the pre-039 dotted one and the colon call that is what a shipped addon actually wrote.
+        // ---- 048: hafen.act() is DISSOLVED -- a verb lives with WHAT IT CHANGES, not with what it costs -------
+        // ---- (D-187 generalised), so the one section grouped by its PERMISSION emptied one task at a time and
+        // ---- 048.7 removed the section itself. hafen.act is a SECTION name, so this row hangs off the hafen
+        // ---- table's own __index (hafenIndex()) and is what reading `hafen.act` at all -- bare, or on the way to
+        // ---- any sub-spelling -- throws, instead of the "attempt to call a nil value" a plain deletion leaves.
+        // ---- It NAMES ALL TEN replacements, because it is the row every one of them is now reached through.
+        put("hafen.act", "hafen.act() is gone: every verb moved to what it changes — hafen.player():move(p) walks"
+            + " and hafen.player():hand():use(target, mods) applies what you are holding (nil cursor = nil hand),"
+            + " gob:click(button, mods) clicks an object, item:use(mods) / :take() / :drop(n) / :transfer(n) act"
+            + " on an item, hafen.world():place(p, angle, button, mods) / :select(p1, p2, mods) act on the world,"
+            + " hafen.menugrid():get(name):use() fires a menu action and widget:send(msg, ...) is the escape"
+            + " hatch. hafen.act():flower(label) is hafen.flowermenu():select(label|n), which raises instead of"
+            + " answering false and takes a ring position too; hafen.act():enabled() is gone — a running addon"
+            + " that declared \"actions\" is granted, and that is a fact its own manifest.json already states."
+            + " The permission itself is unchanged: \"permissions\": [\"actions\"], per addon, D-027/D-028");
+        // ---- ...and every verb keeps its OWN row, under BOTH spellings: the pre-039 dotted one and the colon
+        // ---- call a shipped addon actually wrote (D-216). The section row above shadows them all now -- reading
+        // ---- `hafen.act` throws before any verb name is looked at -- but Retired is pure data generated from
+        // ---- the before/after inventory, and a spelling that moved with no row is a porting error nobody is
+        // ---- told about. The rows are the inventory; which __index happens to fire first is not.
         act("moveTo", "hafen.act():moveTo(p) is now hafen.player():move(p) — the verb lives on the character"
             + " it moves");
         act("clickGob", "hafen.act():clickGob(gob, button, mods) is now gob:click(button, mods) — the verb"
@@ -181,6 +195,16 @@ final class Retired {
             + " \"gameui\" is hafen.ui():find(\"@GameUI\") and \"root\" is hafen.ui():root(). Bound widgets"
             + " only, exactly as before — widget:id() is nil on one your addon built — and the arguments"
             + " marshal unchanged");
+        act("flower", "hafen.act():flower(label) is now hafen.flowermenu():select(label|n) — the radial menu"
+            + " owns its own petal selection (047), and that door is strictly better: it RAISES naming what is"
+            + " open where this answered a bare false, it takes the petal's 1-based ring position as well as"
+            + " its caption, and it has hafen.flowermenu():cancel() beside it. Pick from a FlowerMenuOpened"
+            + " handler rather than a guessed timer — hafen.flowermenu():list() is the ring");
+        act("enabled", "hafen.act():enabled() is gone: it answered whether THIS addon declared the \"actions\""
+            + " permission, which is a fact about your own manifest.json rather than anything the client"
+            + " decides (D-028 removed the global switch it was built to report). If your addon is running and"
+            + " declared \"permissions\": [\"actions\"], it is granted; if it did not, every protected verb says"
+            + " so by name when you call it");
 
         // ---- 040.7: a text entry's content is WRITTEN through :value(s), the one door -- entry:text(s) would --
         // ---- be a second way to write the same property, which the area's one-door rule does not allow. The
@@ -480,12 +504,16 @@ final class Retired {
     }
 
     /**
-     * Register one verb that has <b>left</b> {@code hafen.act()} (048), under the <b>two</b> spellings a caller
-     * can reach it by. They are two different reads and each has its own {@code __index}: {@code hafen.act.moveTo}
-     * is a field on the section's callable table ({@link #sectionIndex}), while {@code hafen.act():moveTo} is a
-     * field on the section OBJECT ({@code Section.meta}, keyed with the {@code "():"} spelling). Only the second
-     * is what a shipped addon wrote, and it is the one a generic <i>"hafen.act() has no verb 'moveTo'"</i> would
-     * otherwise answer — so both carry the same message naming the verb's new home.
+     * Register one verb that <b>left</b> {@code hafen.act()} (048), under the <b>two</b> spellings a caller could
+     * reach it by. They were two different reads with their own {@code __index}: {@code hafen.act.moveTo} is a
+     * field on the section's callable table ({@link #sectionIndex}), while {@code hafen.act():moveTo} is a field
+     * on the section OBJECT ({@code Section.meta}, keyed with the {@code "():"} spelling) — the one a shipped
+     * addon actually wrote, and the one a generic <i>"hafen.act() has no verb 'moveTo'"</i> would otherwise have
+     * answered. Both carry the same message naming the verb's new home.
+     *
+     * <p>Since 048.7 the section itself is retired, so its own row fires first and these are unreachable in
+     * practice. They stay because this table is the feature's before/after <b>inventory</b> — the guarantee that
+     * no spelling moved without one — and because the section row is the only thing in front of them.
      */
     private static void act(String verb, String message) {
         moved("act", verb, message);

@@ -20,8 +20,9 @@ public final class Manifest {
     public final List<SavedVar> savedVariables;
     /**
      * Declared permissions (spec 12 / D-027) — capabilities the addon must ask for before the bridge grants
-     * them. Currently the only permission is {@code "actions"} (the gated write/automation tier, `hafen.act.*`
-     * + the per-subsystem gated verbs). An array so it can grow into finer categories later
+     * them. Currently the only permission is {@code "actions"} (the protected write/automation tier — every
+     * verb that drives the character, each on the thing it changes). An array so it can grow into finer
+     * categories later
      * ({@code "actions.move"}, {@code "actions.items"}, …) without a format change.
      */
     public final List<String> permissions;
@@ -40,7 +41,7 @@ public final class Manifest {
         return permissions.contains("actions");
     }
 
-    /** Whether this addon declared a non-empty {@code network} block (grants gated {@code hafen.http}) — D-037. */
+    /** Whether this addon declared a non-empty {@code network} block (grants the protected {@code hafen.http}) — D-037. */
     public boolean usesNetwork() {
         return !network.isEmpty();
     }
@@ -110,7 +111,7 @@ public final class Manifest {
         List<String> none = Collections.emptyList();
         List<SavedVar> novars = Collections.emptyList();
         // The engine-internal owner (the :lua REPL) is the trusted operator console → it declares every
-        // permission, so its hafen.act.* verbs are granted (D-027; D-028 — per-addon, no global switch).
+        // permission, so every protected verb is granted to it (D-027; D-028 — per-addon, no global switch).
         List<String> allperms = Collections.singletonList("actions");
         // The REPL is the trusted operator console → allow-all network too (private IPs stay blocked).
         List<String> allnet = Collections.singletonList("*");

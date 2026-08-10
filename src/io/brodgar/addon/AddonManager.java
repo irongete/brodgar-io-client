@@ -180,8 +180,9 @@ public final class AddonManager {
     static final Map<String, String> autoDisabledWarn = new ConcurrentHashMap<String, String>();
 
     // -- write-actions permission (spec 12-security-and-permissions / D-010 / D-025 / D-027; refined by D-028):
-    // the ONE protected surface. Every hafen.act.* verb (and the per-subsystem *(protected action)* verbs — speed.set,
-    // craft.make, actionbar.use, kin.* — arriving in later Phase-4 slices) DRIVES the character by sending a
+    // the ONE protected surface. Every protected verb — player:move, hand:use, gob:click, the four item verbs,
+    // world:place/:select, pag:use, widget:send, speed:current(n), craft:make, slot:use, the kin writes,
+    // flowermenu:select/:cancel — DRIVES the character by sending a
     // player-action wdgmsg — it acts on the user's behalf (moves them, uses items, interacts with the world),
     // which is powerful, so it is a PER-ADDON permission granted to an addon that DECLARED "actions" in its
     // manifest ("permissions": ["actions"]) — requireActions throws a guiding Lua error otherwise. The read/UI/
@@ -199,15 +200,12 @@ public final class AddonManager {
 
     // ------------------------------------------------------------- write-actions permission
 
-    /**
-     * Whether {@code owner} may call an action verb: it DECLARED the {@code "actions"} permission (D-027; D-028 —
-     * per-addon only, no global switch). A running write addon is one the user already opted into — write addons
-     * are disabled by default and enabling one goes through the AddOns-panel consent dialog (slice 4c) — so the
-     * manifest declaration is the only per-verb check.
-     */
-    static boolean actionsGranted(Addon owner) {
-        return (owner != null) && owner.manifest.usesActions();
-    }
+    // 048.7: actionsGranted(owner) is DELETED with hafen.act():enabled(), its only caller. It was literally
+    // owner.manifest.usesActions() — a static fact about the CALLING addon's own manifest file — and D-028 had
+    // already removed the global switch it was built to report, so the one caller it could answer `false` was an
+    // addon that can read the same answer in its own manifest.json. A feature-detection verb whose answer is a
+    // fact about the caller detects nothing. The gate itself (requireActions, below) is untouched: the model is
+    // D-027/D-028 exactly as before, only the read of it is gone.
 
     /**
      * Gate an action verb (D-027; D-028): the calling addon must have DECLARED the {@code "actions"} permission in
@@ -1903,7 +1901,7 @@ public final class AddonManager {
         // answers on ANY container — a chest, a cupboard — with its window visible and interactive. What it hands
         // back is an interned LuaItem keyed on the item WIDGET (039.14): a server widget id is recycled, so an
         // entity keyed on the number would silently start naming a different item and a protected write through it
-        // would move the wrong thing. hafen.act():item takes the object and never the number.
+        // would move the wrong thing. The four item verbs are ON the object (048.3) and never take a number.
 
         // hafen.char.* — character attributes (Glob.getcattr; a zero-info entry is reported as nil),
         // plus learning points (CharWnd.exp) and encumbrance/weight (CharWnd.enc) — public live fields
@@ -2063,27 +2061,24 @@ public final class AddonManager {
         // the button does) — supply the target with the MapView verbs.
         CharApi.installActionbar(hafen, owner);
 
-        // hafen.act():* — the PROTECTED write-actions surface (spec 12 / D-010 / D-025 / D-027; D-028), the ONLY part of
-        // hafen.* that DRIVES the character: it sends player-action wdgmsgs to the server. Everything else observes;
-        // this acts. A verb runs only when THIS addon declared the "actions" permission in its manifest (else
-        // requireActions throws a guiding error) — a PER-ADDON permission (D-028: no global master switch; the tier
-        // is always available at the system level). The user opts in per addon: a write addon is disabled by default
-        // and enabling it goes through the AddOns-panel consent dialog (slice 4c), so a running addon is one the user
-        // permitted. It stays server-authoritative: an addon can only send what a player click could send.
-        //   enabled()   -> bool; is THIS addon allowed to act (did it declare the "actions" permission)? Reports
-        //                  WITHOUT throwing, so an addon can adapt (no pcall needed).
-        //   raw(target,msg,…) -> the escape hatch (any wdgmsg from a bound widget), plus menu/flower.
-        // The per-subsystem protected verbs (speed.set, craft.make, slot:use, the kin writes) share this same gate
-        // (requireActions(owner, …)).
-        //   048 DISSOLVES this section — a verb lives with what it CHANGES, not with what it COSTS, so each task
-        // moves its own verbs out and the section stays mounted only for the ones that have not gone yet (D-117).
-        // Walking the character is hafen.player():move(p) and clicking an object is gob:click(button, mods)
-        // (048.1); the held-item gesture is hafen.player():hand():use(target, mods) (048.2); what you can do TO an
-        // item is item:use/:take/:drop/:transfer (048.3); and placing/area-selecting are hafen.world():place(p,
-        // angle, button, mods) / :select(p1, p2, mods) (048.4), beside the snapPlace/snapAngle that prepare
-        // place's arguments. Same messages, same gate, on the things they act on; every old spelling throws from
-        // Retired naming the new one.
-        ActApi.installAct(hafen, owner);
+        // 048.7: there is NO hafen.act() to install any more. The PROTECTED write-actions tier (spec 12 / D-010 /
+        // D-025 / D-027; D-028) is unchanged as a permission — a verb runs only when THIS addon declared
+        // "actions" in its manifest (else requireActions throws a guiding error), a PER-ADDON permission with no
+        // global master switch, opted into at enable time through the AddOns panel's consent dialog, and still
+        // server-authoritative: an addon can only send what a player click could send. What changed is WHERE the
+        // verbs live. A verb belongs with what it CHANGES, not with what it COSTS — a permission is not a
+        // namespace — so 048 dissolved the one section that was grouped by its gate, verb by verb:
+        //   hafen.player():move(p) walks and gob:click(button, mods) clicks (048.1); hafen.player():hand() is the
+        // cursor and :use(target, mods) applies what you hold to an Item, a Position or a Gob (048.2); an item
+        // answers item:use/:take/:drop/:transfer (048.3); hafen.world():place / :select stand beside the
+        // snapPlace/snapAngle that prepare their arguments (048.4); a menu entry is
+        // hafen.menugrid():get(name):use(), which gained this same permission (048.5); the escape hatch is
+        // widget:send(msg, ...), where the receiver IS the target (048.6); and a petal is
+        // hafen.flowermenu():select(label|n) (048.7, which also deleted act():enabled() — see actionsGranted
+        // above). Same messages, same gate, on the things they act on; hafen.act and every one of its ten verb
+        // names throw from Retired naming the new home.
+        // The per-subsystem protected verbs that always lived on their own subsystem (speed:current(n),
+        // craft:make, slot:use, pag:use, the kin writes, flowermenu:select) share the one gate, requireActions.
 
         // hafen.ui — custom client-side UI (spec 07, Phase 2a). window(opts) = a draggable, titled window;
         // widget(opts) = a bare rectangle (no chrome). opts: size={w,h}, pos={x,y}, parent="root"|"gameui",
@@ -2091,7 +2086,8 @@ public final class AddonManager {
         // onMouseMove(x,y) / onWheel(x,y,amount) / onClose (window). Returns a handle:
         //   :move(x,y)  :show()  :hide()  :visible()  :pack()  :size(w,h)  :destroy()
         // The widget is bridge-owned (P2) and torn down on reload/disable. Client-side only: it cannot
-        // wdgmsg the server (that is hafen.act, Phase 4). See AddonWidget for the callback plumbing.
+        // wdgmsg the server — that is widget:send(msg, ...) on a BOUND widget, 048.6. See AddonWidget for the
+        // callback plumbing.
         UiApi.installUi(hafen, owner);
 
         // hafen.asset(path) — the ONE loader for the files THIS addon ships (spec 028-asset-loader). A CALLABLE

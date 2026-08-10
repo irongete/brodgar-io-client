@@ -199,7 +199,7 @@ final class LuaHttp {
     /**
      * Validate one hop before connecting: scheme must be http/https, the host must be in the addon's allowlist
      * (enforced on <b>every</b> hop when {@code redirect} — so a redirect can't escape the declared hosts; the
-     * first hop was already gated at call, re-checked here as defense-in-depth), and no resolved address may be
+     * first hop was already checked at call, re-checked here as defense-in-depth), and no resolved address may be
      * private/loopback/link-local (§5.2). Returns {@code null} when the hop is allowed, else the failure Result.
      */
     private static Result validateHop(LuaHttpRequest r, URL u, boolean redirect) {

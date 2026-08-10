@@ -45,7 +45,7 @@ import static io.brodgar.addon.AddonManager.*;
  *       the <b>server</b> published. That id is the only thing the live and recorded halves share, so this
  *       door and {@code hafen.world():grid()} hand back the <b>same interned object</b>: one Grid entity, two
  *       doors, each answering {@code nil} for what its own half does not have.</li>
- *   <li>{@code :marker()} — the pins ({@link LuaMarker}), the old {@code hafen.markers}, with the two ungated
+ *   <li>{@code :marker()} — the pins ({@link LuaMarker}), the old {@code hafen.markers}, with the two unprotected
  *       writes and the {@code MarkersChanged} notify (event-driven since 042.11) that reports them.</li>
  *   <li>{@code :icon()} — the minimap icon registry ({@link LuaIconCat}; the engine has no "radar", it has
  *       {@link GobIcon.Settings} — D-061). {@code :get(res)} beside {@code :list(filter)} <b>deletes</b> the

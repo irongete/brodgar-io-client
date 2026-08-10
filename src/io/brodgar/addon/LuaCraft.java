@@ -36,7 +36,7 @@ import java.util.Map;
  * fields. So {@code :inputs()}, {@code :outputs()}, {@code :qualityInputs()} and {@code :tools()} are plain
  * arrays of plain tables, which is what the grammar reserves for a value.
  *
- * <p><b>{@code :make(all)} is the gated verb</b> and it is the recipe's own: it presses the window's Craft
+ * <p><b>{@code :make(all)} is the protected verb</b> and it is the recipe's own: it presses the window's Craft
  * button, or Craft All, exactly as a click would — so it consumes the ingredients like a manual craft.
  *
  * <p><b>Threading.</b> The input, output and quality lists are swapped wholesale off the UI thread and the
@@ -157,7 +157,7 @@ public final class LuaCraft {
         m.set("qualityInputs", reses("qualityInputs", true));
         // tools() — the tools you must have with you for the recipe to work.
         m.set("tools", reses("tools", false));
-        // make([all]) — the GATED verb: press Craft, or Craft All. It consumes the ingredients, exactly as
+        // make([all]) — the PROTECTED verb: press Craft, or Craft All. It consumes the ingredients, exactly as
         // clicking the button does, and it chains on self like every other write in the API.
         m.set("make", new VarArgFunction() {
             public Varargs invoke(Varargs a) {

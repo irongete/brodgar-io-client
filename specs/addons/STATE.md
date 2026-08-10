@@ -2,40 +2,41 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`048-act-dissolved`](048-act-dissolved/), 6 of 8** — the one section grouped by PERMISSION rather than by what it
-acts on is being dissolved (**D-187** generalised as **D-215**: a verb lives with what it CHANGES, not with what it COSTS — a
-permission is not a namespace). Every verb moves onto the thing it changes ([spec.md](048-act-dissolved/spec.md) is the map),
-while `:flower`, `:menu` and `:enabled` are DELETED — 047 and 023 own those doors already (**D-103**; no path door is built).
-`gated` → **protected**. **The docs tier is 048.8's whole job**, so `docs/addons/api/act.md` still teaches verbs that moved.
-**048.1 DONE, 13/13**: `hafen.player():move(p)` and `gob:click(button, mods)` — same messages, same gate, on the things they
-change. The section stays mounted while it empties (**D-117**), a moved verb is retired under **BOTH** field reads (**D-216**),
-and a departed gob makes the click **RAISE** where every read answers nil (**D-217**).
-**048.2 DONE, 29/29**: the cursor is an **object** — `hafen.player():hand()`, **nil** while you carry nothing, with `:item()`
-and the protected `:use(target, mods)` onto an Item, a Position or a **Gob** (`MapView.iteminteract`'s `clickargs` extension, a
-message no addon could send). **D-218**: the receiver must BE the message's implicit subject and absent whenever it is.
-**048.3 DONE, 14/14**: what you can do TO an item is **on the item** — `item:use(mods)` (the `iact` gesture), `:take()`,
-`:drop(n)`, `:transfer(n)`: protected, chaining, each refusing a **stale** handle without sending; `act():item` deleted whole.
-**Only `:use` takes `mods`** — on a real click the keys select the COUNT (`WItem.mousedown`), so `n` IS the modifier.
-**048.4 DONE, 11/11 + 11/11**: `hafen.world():place(p, angle, button, mods)` and `:select(p1, p2, mods)` — the world's first
-protected verbs, `place` now three lines from the `snapPlace`/`snapAngle` that prepare its arguments. The SUITE's lesson: a wire
-recorder must identify its OWN sends, so the run **clears** the buffer and asserts an **exact count**.
-**048.5 DONE, 10/10**: `pag:use()` — ungated since 023 — carries the `actions` gate (**D-219**: a verb that COMMITS a real
+**ACTIVE: [`048-act-dissolved`](048-act-dissolved/), 7 of 8** — the one section grouped by PERMISSION rather than by what it
+acts on **is dissolved** (**D-187** generalised as **D-215**: a verb lives with what it CHANGES, not with what it COSTS — a
+permission is not a namespace). Every verb moved onto the thing it changes ([spec.md](048-act-dissolved/spec.md) is the map),
+while `:flower`, `:menu` and `:enabled` were DELETED — 047 and 023 owned those doors already (**D-103**; no path door is built).
+`gated` → **protected** across `src/`. **The docs tier is 048.8's whole job**, so `docs/addons/api/act.md` still teaches verbs
+that moved and 117 `gated`s remain under `docs/`.
+**048.1 DONE, 13/13**: `hafen.player():move(p)` · `gob:click(button, mods)`. The section stays mounted while it empties
+(**D-117**), a moved verb retires under **BOTH** field reads (**D-216**), a departed gob makes the click **RAISE** (**D-217**).
+**048.2 DONE, 29/29**: the cursor is an **object** — `hafen.player():hand()`, **nil** while you carry nothing, `:item()` and the
+protected `:use(target, mods)` onto an Item, a Position or a **Gob** (`iteminteract`'s `clickargs`, a message no addon could
+send). **D-218**: the receiver must BE the message's implicit subject and absent whenever it is.
+**048.3 DONE, 14/14**: `item:use(mods)` (`iact`) · `:take()` · `:drop(n)` · `:transfer(n)`, each refusing a **stale** handle
+without sending; `act():item` deleted whole. **Only `:use` takes `mods`** — elsewhere the keys select the COUNT, so `n` IS it.
+**048.4 DONE, 11/11 + 11/11**: `hafen.world():place(p, angle, button, mods)` and `:select(p1, p2, mods)`, `place` now three
+lines from the `snapPlace`/`snapAngle` that prepare it. A wire recorder must identify its OWN sends: **clear + exact count**.
+**048.5 DONE, 10/10**: `pag:use()` — unprotected since 023 — carries the `actions` gate (**D-219**: a verb that COMMITS a real
 server action is protected wherever it lives), and `hafen.act():menu` is deleted with **no path door** anywhere. Gating a
 **shipped** verb owes a grep of every installed caller first; the gate goes on the WRITE half only, and the assertion that
 guards that is *the reads still answer this same undeclared addon in the same run*.
-**048.6 DONE, 10/10 + 3/3**: `widget:send(msg, ...)` — the escape hatch on the widget itself, so `act():raw`'s private
-target vocabulary (a bare id, `"mapview"`/`"gameui"`/`"root"`) is **deleted** rather than rehoused: each is already an
-ordinary handle, which the suite ASSERTS rather than argues. `HookApi`'s token lookup died with it. A message name is
-`type() != TSTRING` — **a coerced number that leaves the client is never a forgivable misread** — and an unbound sender
-must be refused by us, because `UI.rawWdgmsg` drops it in silence.
+**048.6 DONE, 10/10 + 3/3**: `widget:send(msg, ...)` — the escape hatch on the widget itself, so `act():raw`'s private target
+vocabulary (a bare id, `"mapview"`/`"gameui"`/`"root"`) is **deleted** rather than rehoused: each is already an ordinary handle,
+which the suite ASSERTS rather than argues (`HookApi`'s token lookup died with it). A message name is `type() != TSTRING` —
+**a coerced number that leaves the client is never a forgivable misread** — and an unbound sender must be refused by us,
+because `UI.rawWdgmsg` drops it in silence.
+**048.7 DONE, 10/10**: **the section itself is gone** — `installAct` deleted whole, `actFlower` with it, `actionsGranted` with
+`act():enabled()`, its only caller (**D-220**: a feature-detection verb whose answer is a fact about the CALLER's own manifest
+is deleted, not relocated — and it was the last unprotected member, which is what made the section *dissolvable* rather than
+merely smaller); `act():flower` went the way of `:menu`, `hafen.flowermenu():select` raising where it answered false. The
+**section-level `Retired` row SHADOWS all ten verb rows** (`hafen.act.moveTo` is two reads and the first throws), so that one
+message carries every verb's clause and the rows under it document the migration rather than dispatch it. 048.8 inherits: a
+private helper does **not** always die with its verb (`flowerPetalIndex` had a second caller since 047.2 → `FlowerMenuApi
+.petalIndex`), and the `gated` sweep is **not** one substitution — `\bgated\b` matches inside *propagating*/*delegating*, and
+over half the true hits are the `hasSub`/flag sense that must stay.
 
-**[`047-flowermenu`](047-flowermenu/) is CLOSED, 3 of 3** — `hafen.flowermenu()` **is** the open radial menu: unprotected
-`:list()`/`:count()`/`:gob()` · protected `:select(label|n)`/`:cancel()` · `FlowerMenuOpened`/`FlowerMenuClosed`. The reads
-hand back bare **strings** in ring order and answer `{}`/`0`/`nil` with no menu up; the finder moved out of `ActApi`
-(**D-103**). *Every Opened is followed by exactly one Closed* is kept **structurally** (**D-212**) — a weak map keyed on the
-menu, every ending door calling one `closed()`, Opened at the **END** of `added()`. The write half drives
-`FlowerMenu.choose(Petal)` and, unlike the reads, **REFUSES** (**D-213**, gate before argument check); **`:gob()` is a
-CORRELATION** (**D-214**): a press records `(gob, UI.lcc)`. 26/26 · 19/19 · 15/15.
+**[`047-flowermenu`](047-flowermenu/) is CLOSED, 3 of 3** — `hafen.flowermenu()` **is** the open radial menu: unprotected `:list()`/`:count()`/`:gob()` · protected `:select(label|n)`/`:cancel()` · `FlowerMenuOpened`/`FlowerMenuClosed`. The reads hand back bare **strings** in ring order and answer `{}`/`0`/`nil` with no menu up; the finder moved out of `ActApi` (**D-103**). *Every Opened is followed by exactly one Closed* is kept **structurally** (**D-212**) — a weak map keyed on the menu, every ending door calling one `closed()`, Opened at the **END** of `added()`. The write half drives `FlowerMenu.choose(Petal)` and, unlike the reads, **REFUSES** (**D-213**, gate before argument check); **`:gob()` is a CORRELATION** (**D-214**): a press records `(gob, UI.lcc)`. 26/26 · 19/19 · 15/15.
 
 **[`046-gob-scale`](046-gob-scale/) is CLOSED, 1 of 1** — a **native** gob answers `:scale`: client-local, purely visual, in place, and the first client-local write on a read-only handle. A `GobScale extends GAttrib implements Gob.SetupMod` propagates through `Gob.ctick`'s per-tick `GobState` compare with **zero `haven` edits**, and `Location.scale(k)` is minted once per VALUE — the mechanism, not an optimisation: `Location` has no `equals` (**D-210**). Writing `1` removes the attrib and a stopped addon leaves nothing distorted (`UiApi.teardownGobScales`). Validation is the one divergence from the vr siblings (**D-211**): they clamp, a direct argument refuses `0`/negative/non-number.
 

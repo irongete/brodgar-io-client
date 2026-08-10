@@ -29,15 +29,17 @@ import java.util.WeakHashMap;
  * at, and the menu claims it once when it opens. Everything the correlation cannot vouch for answers
  * {@code nil} — an inventory item's menu, the Kin window's, one the player's next click intervened on.
  *
- * <p><b>The write half is gated</b> (047.2): {@code :select(label|n)} and {@code :cancel()} commit a choice, so
+ * <p><b>The write half is protected</b> (047.2): {@code :select(label|n)} and {@code :cancel()} commit a choice, so
  * they sit behind the per-addon {@code actions} permission like every other write, and they drive
  * {@link FlowerMenu#choose} rather than re-encoding {@code wdgmsg("cl", num)} (D-009) — which is the only reason
  * a client-side petal keeps handling itself. They are also the one half that <b>throws</b> instead of answering:
  * see {@link #required}.
  *
- * <p><b>The finder lives here</b> and {@code ActApi} calls it (D-103, one mechanism one door): the single open
- * menu is the first {@link FlowerMenu} in a recursive walk of the UI root, which is exact rather than
- * approximate because an open menu grabs mouse <i>and</i> keyboard, so only one is ever really up.
+ * <p><b>The finder lives here</b>, and since 048.7 it is the only thing that does (D-103, one mechanism one
+ * door): the single open menu is the first {@link FlowerMenu} in a recursive walk of the UI root, which is
+ * exact rather than approximate because an open menu grabs mouse <i>and</i> keyboard, so only one is ever
+ * really up. {@code ActApi} used to borrow it for {@code hafen.act():flower(label)}, the older door onto the
+ * same {@code choose}; that verb is gone and {@link #select} is the one way onto a petal.
  *
  * <p><b>The events.</b> Three {@code // addon:} seams in {@link FlowerMenu} drive them, and the choice of seam
  * is the design: {@code added()}'s <i>end</i> is the only point where the petal set is complete (the fork's
@@ -117,7 +119,7 @@ final class FlowerMenuApi {
         // gob() — the game object the open menu was opened ON, or nil. A CORRELATION, not something the server
         // sends (see ClickToken): the answer is the gob the press that put this ring up resolved to, and it is
         // nil for a menu opened from an inventory item, for the Kin window's own menu, and whenever any other
-        // press intervened. Ungated: it names what is already on screen.
+        // press intervened. Unprotected: it names what is already on screen.
         menu.set("gob", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "flowermenu", "gob");
@@ -130,7 +132,7 @@ final class FlowerMenuApi {
         });
         // select(label | n) — pick a petal of the OPEN menu, exactly as a click on it does: by its caption
         // (matched exactly, case-insensitively) or by its 1-based position on the ring, the same index :list()
-        // hands back and the same number the menu's own 1..9 keys use. GATED (D-027): it commits a choice.
+        // hands back and the same number the menu's own 1..9 keys use. PROTECTED (D-027): it commits a choice.
         menu.set("select", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "flowermenu", "select");
@@ -139,7 +141,7 @@ final class FlowerMenuApi {
                 return LuaValue.NIL;
             }
         });
-        // cancel() — close the open menu with nothing chosen, exactly as Esc and a click away do. GATED: it
+        // cancel() — close the open menu with nothing chosen, exactly as Esc and a click away do. PROTECTED: it
         // takes the player's menu off the screen, which is as much a commitment as picking from it.
         menu.set("cancel", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -205,14 +207,30 @@ final class FlowerMenuApi {
         return (u == null) ? null : u.lcc;
     }
 
-    // ---- the write half (gated) ------------------------------------------------------------------
+    // ---- the write half (protected) --------------------------------------------------------------
     // select/cancel go through FlowerMenu.choose(Petal) and NEVER re-encode wdgmsg("cl", num) — the client's
     // own method is the door (D-009, wrap-not-reimplement), which is what makes a CLIENT-SIDE petal (the fork's
     // voice Mute/Unmute, BuddyWnd's whole kin menu) handle itself instead of being wrongly sent to the server.
     // Unlike the read half these THROW rather than answering: a menu lives for about a second, so "there was
     // nothing to pick" is a race the addon has to hear about, and the refusal names what IS open so the caller
-    // can see the spelling it missed. (hafen.act():flower(label) keeps its own non-throwing false — it is the
-    // older door onto the same choose, and this feature does not change it.)
+    // can see the spelling it missed. (048.7 deleted hafen.act():flower(label), the older door onto the same
+    // choose, which answered a bare false instead — so the raise is now the only answer there is.)
+
+    /**
+     * Index of the first petal name equal to {@code label} (case-insensitive), or {@code -1}. Pure/testable.
+     *
+     * <p>It lived in {@code ActApi} while {@code hafen.act():flower(label)} did too, and moved here with 048.7
+     * when that verb was deleted: {@link #selectOn} is its only caller now, so the helper sits beside it.
+     */
+    static int petalIndex(String[] names, String label) {
+        if(names == null)
+            return -1;
+        for(int i = 0; i < names.length; i++) {
+            if((names[i] != null) && names[i].equalsIgnoreCase(label))
+                return i;
+        }
+        return -1;
+    }
 
     /**
      * The open menu, or a refusal naming {@code verb} — the "no menu is open" door both write verbs take.
@@ -268,7 +286,7 @@ final class FlowerMenuApi {
                     + names.length + " on the open menu — " + offers(names));
             idx--;
         } else if(key.type() == LuaValue.TSTRING) {
-            idx = ActApi.flowerPetalIndex(names, key.tojstring());
+            idx = petalIndex(names, key.tojstring());
             if(idx < 0)
                 throw new LuaError(verb + "(\"" + key.tojstring() + "\"): no petal is labelled that (the match"
                     + " is the whole caption, case-insensitive) — the open menu offers " + offers(names));

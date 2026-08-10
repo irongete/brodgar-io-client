@@ -120,7 +120,7 @@ final class VrApi {
         // default 1) or the wheel's amount. It hands back whether a panel took it — false meaning the point was
         // on none, which is the moment the client's own world click goes on exactly as it always did. This is
         // the client's path from the map view INWARD and stops there: it cannot move the character and it never
-        // reaches the server, so it is ungated like the rest of the section.
+        // reaches the server, so it is unprotected like the rest of the section.
         m.set("pointer", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "vr", "pointer");
@@ -1575,7 +1575,7 @@ final class VrApi {
      * <p><b>Provenance is no longer one of them</b> (044.6). Standing the client's own windows is what this
      * feature exists for, and it is the same family of write as {@code widget:position(x, y)},
      * {@code widget:visible(false)} and {@code widget:replace(view)}: a layer over the client's state, never a
-     * write into it — so it is <b>ungated</b>, and {@link LuaWidgetEntity#destroyed()} gives the window back
+     * write into it — so it is <b>unprotected</b>, and {@link LuaWidgetEntity#destroyed()} gives the window back
      * where it stood from when the entity ends. What a borrowed widget does NOT bring with it is the hide
      * record's toggle ownership (D-069): standing does not hide anything, so the client's own toggle goes on
      * doing exactly the right thing to a window that is standing in the world, and the menu tick goes on

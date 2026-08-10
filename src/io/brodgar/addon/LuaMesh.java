@@ -9,7 +9,7 @@ import org.luaj.vm2.LuaValue;
  * {@code hafen.asset("chair.glb")} (028.1; was {@code hafen.render.model}). A <b>glTF 2.0 static mesh</b> ({@code .glb}/{@code .gltf}) read from the
  * addon's own folder and parsed by {@link Gltf} into baked, H&amp;H-local geometry — the mesh-data sibling of a
  * {@link LuaImage} (which wraps a PNG in a {@code TexI}). Because it is client-side geometry that never reaches the
- * server and grants no gameplay advantage, it is <b>SAFE-tier, NOT gated</b> (D-034) — like a world ghost.
+ * server and grants no gameplay advantage, it is <b>SAFE-tier, NOT protected</b> (D-034) — like a world ghost.
  *
  * <p><b>Handle, not a ref.</b> A model has no server identity, so it is addressed by a bridge-owned <b>handle</b>
  * (built by {@link AssetApi}) exposing the shared asset verbs, {@code :bounds()} &rarr; {@code {min={x,y,z}, max={x,y,z},

@@ -13,7 +13,7 @@ import haven.render.Pipe;
  *
  * <p><b>Client-local and purely visual.</b> Nothing here goes on the wire and nothing here changes what the
  * gob <i>is</i> — its hitbox on the server, what it collides with, what a click sends. It is the same footing
- * {@code gob:overlay()} stands on, which is why it is ungated like that one.
+ * {@code gob:overlay()} stands on, which is why it is unprotected like that one.
  *
  * <p><b>The op is CACHED, and the cache is the mechanism rather than an optimisation.</b> {@code Gob.ctick}
  * rebuilds a {@code GobState} every tick and pushes it to the render slots only when {@code Utils.eq} says it

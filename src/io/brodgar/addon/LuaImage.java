@@ -11,7 +11,7 @@ import org.luaj.vm2.LuaValue;
  * folder and wrapped in a {@link TexI} — the very substrate the engine's {@code .res} images already run on
  * ({@code Resource.Image} does {@code new TexI(ImageIO.read(...))}), exposed directly without the {@code .res}
  * container. Because it is a client-side texture that never reaches the server and grants no gameplay
- * advantage, it is <b>SAFE-tier, NOT gated</b> (D-034) — like a HUD overlay or a world ghost.
+ * advantage, it is <b>SAFE-tier, NOT protected</b> (D-034) — like a HUD overlay or a world ghost.
  *
  * <p><b>Handle, not a ref.</b> An image has no server identity, so it is addressed by a bridge-owned
  * <b>handle</b> (built by {@link AssetApi}) exposing the shared asset verbs, {@code :size()} &rarr; {@code {w,h}} and

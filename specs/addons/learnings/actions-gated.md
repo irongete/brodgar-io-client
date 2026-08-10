@@ -258,3 +258,35 @@
   `hafen.ui():root()` already name all four. That claim is a one-line suite check (each resolves, and each
   `:id()` is a number) rather than a paragraph in a spec — and it is the check that licenses the deletion, so
   it belongs in the task's own suite. The token lookup then had no callers left and went with it.
+- **(048.7) A SECTION-level retired row shadows every verb row under it — so the section message has to carry
+  what all of them would have said.** `Retired` keys a retired section as `"hafen.act"` off the `hafen` table's
+  own `__index`, and a verb as `"hafen.act.<verb>"` / `"hafen.act():<verb>"` off the section's callable table and
+  section object. The moment the section row exists, **neither verb row is reachable**: `hafen.act.moveTo` is two
+  reads, and the first one throws. That is not a bug to route around — a section that is gone cannot hand back a
+  table for the second read — but it inverts where the porting help has to live. So the section message NAMES ALL
+  TEN replacements, one clause each, and it is the only message any ported call site will ever see. The per-verb
+  rows still ship, because this table is the feature's before/after **inventory** and a spelling that moved with
+  no row is a porting error nobody is told about; what changed is that they are documentation of the migration
+  rather than a dispatch table. Generalises: *when the last verb leaves a section, the section's own row inherits
+  every verb's obligation* — write it before deleting the mount, not after someone reports "attempt to call a nil
+  value".
+- **(048.7) "Delete the helper with the verb" is a claim to GREP, not to assume — a pure helper outlives its
+  verb when a sibling adopted it.** 048.7's plan said to delete `ActApi.flowerPetalIndex` along with `actFlower`.
+  It had a second caller: `FlowerMenuApi.selectOn`, which had quietly started using it in 047.2 because the two
+  verbs matched a petal caption by exactly the same rule. Deleting it would have been caught by the compiler, but
+  the useful half is the shape: **047 had already absorbed the mechanism and left the helper behind in the old
+  file** — the same D-103 residue as the door itself. It moved to its one remaining caller as
+  `FlowerMenuApi.petalIndex`. Rule for the rest of a dissolution: for every private helper a task means to delete,
+  grep the package for it first; the ones that survive are exactly the ones an earlier task already reused, and
+  they belong beside the caller that kept them, not in the file being emptied.
+- **(048.7) Renaming an ADJECTIVE across a package is a search problem with two false-positive classes, and a
+  blanket substitution corrupts both.** *gated* → *protected* looked like one `perl -pi -e`. It is not.
+  (a) `\bgated\b` without word boundaries matches inside **propagating**, **delegating**, **investigating** —
+  three real hits in `src/io/brodgar/` alone. (b) Word boundaries are not enough either: over half the genuine
+  occurrences are a **different sense of the word** — `gated on that flag`, `Gating on gui().parent != null`, the
+  `hasSub` gate every event emitter documents, `gated only by the grab field`. Those describe a conditional, not a
+  permission, and renaming them to "protected" would have made eight comments say something false. The sweep that
+  works is: word-boundary grep, subtract the known non-permission senses by hand, blanket-rename only the
+  remaining files, then re-grep and confirm every survivor is deliberate. Identifiers were never in scope
+  (`requireActions`, `declaresActions`, `ActionsConsentWnd`): the permission is still called `"actions"`, which is
+  not the word being renamed.

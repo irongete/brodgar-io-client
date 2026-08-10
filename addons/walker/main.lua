@@ -3,18 +3,21 @@
 -- It DECLARES "permissions": ["actions"] in its manifest, so it is DISABLED BY DEFAULT when first discovered
 -- (write-actions are a PER-ADDON permission, opt-in per addon — D-027/D-028). To use it, enable it in
 -- Options > AddOns: because it can act on your behalf, the panel asks you to CONFIRM first (the consent dialog,
--- slice 4c). Once you enable it and Reload UI it loads like any addon, and hafen.act():enabled() is true here
--- (it declared the permission). There is NO global switch (D-028): the permission is granted purely by YOUR
--- enabling this one addon. hafen.act is the ONE part of hafen.* that DRIVES the character: it sends
--- player-action wdgmsgs to the server (everything else only observes). It stays server-authoritative — an addon
--- can only send what a player click could send; the permission exists so YOU control which addons act for you.
+-- slice 4c). Once you enable it and Reload UI it loads like any addon, and every protected verb below is
+-- granted to it — that IS the permission, and there is nothing else to ask (048.7 deleted hafen.act():enabled()
+-- for exactly that reason: a running addon that declared "actions" is granted, and its own manifest.json says
+-- so). There is NO global switch (D-028): the permission is granted purely by YOUR enabling this one addon.
+-- A protected verb DRIVES the character: it sends a player-action wdgmsg to the server (everything else in
+-- hafen.* only observes). It stays server-authoritative — an addon can only send what a player click could
+-- send; the permission exists so YOU control which addons act for you.
 -- Kept SEPARATE from the always-on read-only `hello` regression harness (which declares no permissions).
 --
--- Slice 4d adds the rest of the MapView action verbs; slice 4e adds flower (048.5 deleted its `menu` twin);
--- the ITEM verbs are on the Item itself (048.3: item:use/:take/:drop/:transfer); slice 4g adds the
--- PER-SUBSYSTEM protected verbs that live in
--- their own namespace (not hafen.act()): hafen.speed():current(n), the Craft's :make, the Slot's :use, and
--- the kin verbs on the Kin object (hafen.kin():add(secret) and kin:rename/:group/:endKin/:forget)
+-- 048 DISSOLVED hafen.act(): a verb lives with WHAT IT CHANGES, not with what it COSTS, so every demo below
+-- calls the verb on the thing it acts on — hafen.player():move / :hand():use, gob:click, the four item verbs,
+-- hafen.world():place / :select, hafen.menugrid():get(name):use(), widget:send,
+-- hafen.flowermenu():select — beside the ones that always lived on their own subsystem
+-- (hafen.speed():current(n), the Craft's :make, the Slot's :use, and the kin verbs on the Kin object:
+-- hafen.kin():add(secret) and kin:rename/:group/:endKin/:forget)
 -- — all behind the SAME "actions" permission.
 -- Each is a DELIBERATE, opt-in trigger — a `:walker <sub>` command — so nothing acts unless you ask.
 -- Sub-commands:
@@ -27,8 +30,8 @@
 --                          (no-op if you are not placing anything — the server just ignores it)
 --   :walker send        -- widget:send: send the same walk "click" from the MapView widget itself (the escape
 --                          hatch; the receiver IS the target, so there are no target tokens any more)
---   :walker flower <l>  -- flower: RIGHT-click the nearest object, then auto-select its petal named <l> after a
---                          brief delay (a flower menu grabs input, so a timed pick is the only programmatic way).
+--   :walker flower <l>  -- the whole automation loop in one command: arm hafen.flowermenu():select(<l>), then
+--                          RIGHT-click the nearest object so the ring it opens picks itself.
 --   :walker petal <l...>|n <k>|cancel
 --                       -- the radial menu's OWN write half: arm the NEXT menu you open and, from inside
 --                          FlowerMenuOpened, hafen.flowermenu():select(caption) / :select(position) / :cancel().
@@ -50,12 +53,13 @@
 --                       -- kin:group/:rename a named kin (reversible), OR the two-step drop: endkin = End
 --                          kinship (stays memorized), then forget = drop the memorized kin from the list
 
-hafen.log():write("walker loaded -- write-actions demo (4d MapView verbs + 4e flower + the item verbs + 4g speed/craft/bar/setbar/kin + menugrid)")
+hafen.log():write("walker loaded -- write-actions demo (the world verbs + the item verbs + the radial menu + speed/craft/bar/setbar/kin/menugrid)")
 
--- At login, confirm we're granted (we only load once YOU enabled us, and we declared the permission).
+-- At login, say so. There is nothing to ASK: we are running and we declared "permissions": ["actions"], which
+-- is the whole of the grant (048.7 deleted hafen.act():enabled(), whose answer was this same fact).
 hafen.event():on("EnterWorld", function()
-  hafen.log():write(("walker: write-actions %s -- run  :walker  for the list of action demos")
-    :format(hafen.act():enabled() and "GRANTED" or "NOT granted"))
+  hafen.log():write("walker: write-actions GRANTED (this addon declared \"actions\" and you enabled it)"
+    .. " -- run  :walker  for the list of action demos")
 end)
 
 local SOUTH = 22   -- world units ~ 2 tiles (tilesz = 11) to the south
@@ -64,14 +68,14 @@ local SOUTH = 22   -- world units ~ 2 tiles (tilesz = 11) to the south
 -- the first instead of stacking a second picker onto the same menu.
 local petalSub = nil
 
--- One command with sub-verbs, each exercising one protected hafen.act() MapView verb.
+-- One command with sub-verbs, each exercising exactly one protected verb on the thing it changes.
 hafen.slash():register("walker", function(args)
   local sub = args[1] or "help"
 
   if sub == "help" then
     hafen.log():write(":walker sub-commands -> walk | click | use | sel | place | send | flower | petal | item | speed | craft | bar | setbar | menugrid | kin")
     hafen.log():write("   walk=hafen.player():move  click=gob:click(3)  use=hafen.player():hand():use(p)  sel=hafen.world():select  place=hafen.world():place  send=widget:send escape hatch")
-    hafen.log():write("   flower=hafen.act():flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
+    hafen.log():write("   flower <label>=arm hafen.flowermenu():select(label), then gob:click(3) the nearest object  e.g. ':walker flower Harvest'")
     hafen.log():write("   petal <label...>|n <k>|cancel=hafen.flowermenu():select/:cancel  arms the NEXT menu you open, picked from FlowerMenuOpened")
     hafen.log():write("   item [verb] [n]=item:use/:take/:drop(n)/:transfer(n) on your first inventory item  default take (lifts to cursor)")
     hafen.log():write("   item itemact=hafen.player():hand():use(firstInvItem)  apply what you HOLD onto that item (048.2)")
@@ -85,12 +89,9 @@ hafen.slash():register("walker", function(args)
     return
   end
 
-  -- Every verb is protected: bail with a clear hint if this addon somehow isn't granted (it declared the perm,
-  -- so this only trips if you edited the manifest). enabled() never throws, so no pcall is needed.
-  if not hafen.act():enabled() then
-    hafen.log():write((":walker %s -> write-actions not granted (enable this addon + confirm the consent dialog)."):format(sub))
-    return
-  end
+  -- No "am I granted?" guard here any more (048.7). It read hafen.act():enabled(), whose answer was a fact
+  -- about THIS FILE's own manifest.json — if the permission were missing, every verb below would say so by
+  -- name, which is both more specific and impossible to forget to check.
 
   local me = hafen.player():gob()                    -- the Gob OBJECT for your character (nil before enter-world)
   local p = me and me:position()                     -- a POSITION: computable (p:offset) and durable (p:info)
@@ -149,28 +150,34 @@ hafen.slash():register("walker", function(args)
   -- ':walker menugrid <name>' below is the demo the docs point at.
 
   elseif sub == "flower" then
-    -- A flower menu grabs the mouse+keyboard while open, so you can't type a command to pick a petal by hand.
-    -- The programmatic route: right-click a target (opens its flower after a server round-trip), then a TIMER
-    -- auto-selects the petal by label. Give the label you expect (e.g. 'Harvest' on a bush, 'Pick' on a plant).
+    -- The whole automation loop, composed from two protected verbs: ARM the pick, then make the ring open.
+    -- 048.7 deleted hafen.act():flower(label), which fired on a guessed TIMER after the right-click and could
+    -- only answer a bare false when the guess was wrong. FlowerMenuOpened is not a guess -- it fires at the
+    -- exact moment the petal set is complete -- so the order inverts: subscribe FIRST, then right-click.
+    -- ':walker petal' below arms the same one-shot and leaves the right-click to you.
     local label = args[2]
     if not label then
-      hafen.log():write(":walker flower <label> -> right-clicks the nearest object, then auto-picks that petal (e.g. ':walker flower Harvest').")
+      hafen.log():write(":walker flower <label> -> right-clicks the nearest object and auto-picks that petal (e.g. ':walker flower Harvest').")
       return
     end
     local g = hafen.world():gob():nearest(function(g) return not g:isPlayer() end)
     if not g then hafen.log():write(":walker flower -> no object nearby"); return end
-    g:click(3)                                         -- button 3 = RIGHT-click => opens its flower menu (after a round-trip)
-    hafen.log():write((":walker flower -> right-clicked %s (id %d); auto-picking petal '%s' in 0.5s..."):format(g:name() or "?", g:id(), label))
-    hafen.timer():after(0.5, function()
-      local ok = hafen.act():flower(label)               -- returns true iff a matching petal was selected
-      hafen.log():write((":walker flower -> hafen.act():flower('%s') => %s"):format(
-        label, ok and "chosen" or "no such petal / no menu open (right-click gave a direct action, or retry)"))
+    if petalSub then petalSub:off() end                  -- only ever ONE armed picker, shared with ':walker petal'
+    petalSub = hafen.event():on("FlowerMenuOpened", function(petals)
+      if petalSub then petalSub:off(); petalSub = nil end -- one-shot, and disarmed BEFORE we act
+      local ok, err = pcall(function() hafen.flowermenu():select(label) end)
+      hafen.log():write((":walker flower -> hafen.flowermenu():select('%s') on [%s] => %s"):format(
+        label, table.concat(petals, ", "), ok and "chosen" or tostring(err)))
     end)
+    g:click(3)                                         -- button 3 = RIGHT-click => opens its flower menu (after a round-trip)
+    hafen.log():write((":walker flower -> armed select('%s'), then right-clicked %s (id %d) -- the ring picks itself when it opens"):format(
+      label, g:name() or "?", g:id()))
 
   elseif sub == "petal" then
-    -- 047.2: the radial menu's OWN write half. hafen.act():flower(label) fires blind on a timer -- it has no way
-    -- to know a menu came up, so the delay is a guess. The section does know: the pick happens from INSIDE
-    -- FlowerMenuOpened, the earliest moment there is, during the opening animation that swallows real clicks.
+    -- 047.2: the radial menu's OWN write half, armed here and fired by YOUR right-click (':walker flower' above
+    -- composes the same one-shot with the click). The pick happens from INSIDE FlowerMenuOpened, the earliest
+    -- moment there is, during the opening animation that swallows real clicks -- a menu grabs the mouse and
+    -- keyboard while it is up, so nothing you type can reach the client then.
     -- It picks by caption or by the petal's 1-based position on the ring, and :cancel() closes it as Esc does.
     local what = args[2]
     if not what then
@@ -221,7 +228,7 @@ hafen.slash():register("walker", function(args)
     local name = it:name() or it:res() or "?"
     if verb == "itemact" then
       -- 048.2: "itemact" was never an item verb at all -- the gesture originates from the item ON THE CURSOR,
-      -- so it is a verb on the Hand. hafen.act():item could send it with an empty cursor; this cannot.
+      -- so it is a verb on the Hand. hafen.act():item(x, "itemact") could send it with an empty cursor; this cannot.
       local hand = hafen.player():hand()
       if not hand then hafen.log():write(":walker item itemact -> nothing on your cursor (take something first)"); return end
       hand:use(it)                                        -- apply what you hold ONTO the first inventory item
@@ -248,9 +255,9 @@ hafen.slash():register("walker", function(args)
       hafen.log():write("   (take lifts the item onto your cursor -- left-click an empty inventory slot to put it back)")
     end
 
-  -- 4g: per-subsystem protected verbs. These live in their OWN namespace (hafen.speed/craft/actionbar/kin) — on the
-  -- OBJECT itself where the subsystem is OOP (a Slot, a Kin) — not
-  -- under hafen.act(), but share the exact same "actions" permission gate (requireActions) as the verbs above.
+  -- The verbs that were never in hafen.act() to begin with: they already lived on their own subsystem
+  -- (hafen.speed/craft/actionbar/kin) — on the OBJECT itself where the subsystem is OOP (a Slot, a Kin) —
+  -- which is the shape 048 then gave every verb above. Same "actions" permission, same requireActions gate.
   elseif sub == "speed" then
     -- speed:current(n): pick a movement speed 0..3, the write half of the one name that reads it. Fully reversible (just set another), so a safe default is fine.
     local n = tonumber(args[2]) or 2                   -- default 2 = run

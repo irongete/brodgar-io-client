@@ -424,7 +424,24 @@ subclassed** in this fork, so `hafen.ui():find("@MapView")` reaches it. Verified
 
 ---
 
-## 048.7 — the two deletions, and the end of the section
+## 048.7 — the two deletions, and the end of the section ✅ 10/10 pass, 0 fail, 0 manual
+
+> **Closed 2026-08-10.** `hafen.act()` is gone: `installAct` deleted whole, `AddonManager.actionsGranted` with it
+> (`enabled()` was its only caller), `actFlower` with it, and the section-level `Retired` row is what a ported
+> call site now hits. **D-220**: a feature-detection verb whose answer is a fact about the CALLER's own manifest
+> is deleted, not relocated — and it was the section's last unprotected member, which is what made the section
+> dissolvable rather than merely smaller. Three things 048.8 inherits. **The section row SHADOWS all ten verb
+> rows** — `hafen.act.moveTo` is two reads and the first one throws — so the section message carries every verb's
+> clause, and the per-verb rows now document the migration rather than dispatch it; the suite's sweep asserts all
+> ten *through that one read*, which is the only read a shipped addon can make. **A helper does not always die
+> with its verb**: `flowerPetalIndex` had a second caller (`FlowerMenuApi.selectOn`, since 047.2), so it moved to
+> that caller as `FlowerMenuApi.petalIndex` — grep every private helper a dissolution means to delete, because
+> the survivors are exactly the ones an earlier task already reused. And **the `gated` sweep is not one
+> substitution**: `\bgated\b` matches inside *propagating*/*delegating*, and over half the true hits are a
+> different sense entirely (`gated on that flag`, the `hasSub` gate) that must stay. Also: `walker`'s `flower`
+> sub-command was PORTED rather than removed (unlike 048.5's `menu`, which had no replacement) — it arms
+> `hafen.flowermenu():select` on a one-shot `FlowerMenuOpened` and *then* right-clicks, inverting the old
+> guessed-timer order.
 
 **Build**
 - **Delete `act():flower`.** Not moved: `hafen.flowermenu():select(label|n)` already supersedes it

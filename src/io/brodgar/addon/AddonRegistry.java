@@ -384,7 +384,7 @@ public final class AddonRegistry {
         public final int apiVersion;
         public final boolean enabled;          // persisted enabled state (the checkbox) — NOT the live-loaded state
         public final boolean loaded;           // currently running this session
-        public final boolean declaresActions;  // declares the "actions" write permission (D-027: default-disabled, master-gated)
+        public final boolean declaresActions;  // declares the "actions" write permission (D-027: default-disabled, consent at enable)
         public final List<String> networkHosts; // declared network allowlist (N2a / D-037); empty = no network
         public final String error;             // load/runtime error, or null
         public final String warning;           // session warning (e.g. auto-disabled by the CPU watchdog), or null

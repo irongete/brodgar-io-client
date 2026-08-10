@@ -1,0 +1,9 @@
+{
+  "name": "048.7 — the two deletions, and the end of the section",
+  "id": "048-act-dissolved.7",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 048.7: hafen.act() is gone as a SECTION -- flower and enabled are deleted rather than moved, all ten verb names throw naming their replacement, and ActApi's surviving halves (hafen.craft, hafen.speed) plus hafen.flowermenu() still answer.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
