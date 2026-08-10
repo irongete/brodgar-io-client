@@ -272,6 +272,12 @@ lives in git and in `specs/`.
   `:root(` or `:all(` instead would read non-zero on a healthy tree, which is `:offset(`'s failure
   exactly.
 
+  **A refused *grammar* spelling is not a retired name and earns no entry here (D-019).** A selector the
+  parser rejects — `inventory[title=…]`, `*[title=…]`, bare `[title=…]`, `window[text=…]` — was never a
+  spelling of anything, so it has no row in `Retired.java` to derive from, and the family is open: a guard on
+  one member reads zero while `button[title=…]` walks past it. What guards those is §12's parse run, and the
+  page that refuses one writes it in **prose backticks**, where a boundary belongs.
+
 - **A boundary is allowed, and it is present tense.** A capability the reader would reasonably
   expect and that deliberately does not exist stays on the page, phrased as what the design does
   and why — never as a change: "There is no `hafen.music`: this server sends no music the client
@@ -350,7 +356,13 @@ offenders listed — that report *is* the task's verification material:
 5. **Symbols, both directions** — every `hafen.*` name the task wrote exists in `src/`; and the
    backward sweep of §7, every colon verb the tier uses against the registration set, with each
    unregistered verb named and accounted for. That is what catches an invented verb, which no
-   retired-name list can.
+   retired-name list can. **Where the task touched a page carrying a selector**, add the third
+   direction (D-019): every selector string in a **fenced** block — `hafen.ui():find`/`:all`/`:on`,
+   `:rule(…)`, a sheet-data key — driven through the real `Selector.parse`, all parsing, falsified by
+   planting a refused spelling in a fence *and* a valid one (the over-report). Notation is
+   concretised (`[title=…]` → `[title=X]`) or it cannot be parsed at all. A variable-receiver
+   `w:find("…")` and every prose backtick are **listed and read**, not asserted: a collection filter
+   and Lua's `string.find` share the first spelling, and the second is where a refusal is quoted.
 6. **Wording** — §2's change-note constructions, every hit read rather than counted.
 7. Any engine gap or wrong behaviour found is **filed to the owning area**, named in the report,
    and never fixed here.

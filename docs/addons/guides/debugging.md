@@ -75,9 +75,10 @@ Four causes cover almost all of it:
   [event or a timer](events-and-timers.md).
 - **The hotkey is unbound.** An addon hotkey starts with no key at all, by design. Look in
   Options ▸ Keybindings for your addon's section.
-- **The selector matches nothing — or too much.** `hafen.ui():find(sel)` answers `nil` when nothing
-  matches, and **raises** where two or more do, rather than picking one for you. Try it in `:lua`, name the
-  one you mean with a [chain](../api/ui/selectors.md#the-grammar), and check the widget with the inspector.
+- **The selector matches nothing — or too much.** That is
+  [what the two lookups promise](../api/ui/selectors.md#one-or-all-of-them): `nil` when nothing matches, and
+  an **error** where two or more do, rather than one picked for you. Try it in `:lua`, name the one you mean
+  with a [chain](../api/ui/selectors.md#the-grammar), and check the widget with the inspector.
 - **The handler threw.** Look at the console: an isolated error is a logged line, not a stopped client.
 
 ## When it is slow

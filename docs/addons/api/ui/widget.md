@@ -105,24 +105,10 @@ below turns on, so you send from the nearest server-bound ancestor rather than f
 | `:find(selector)` | Widget \| nil | the **one** match inside this widget's subtree, itself included, or `nil` |
 | `:all(selector)` | array | **every** match inside it, in tree order — an empty array, never `nil` |
 
-Same [grammar](selectors.md), same errors and the same [strictness](selectors.md#one-or-all-of-them) as the
-section's own lookups: `:find` raises where two or more match, `:all` always answers. What the widget decides
-is which widgets are *candidates* — itself and everything below it — so an ancestor step may still name a
-widget above it, as in CSS.
-
-```lua
-hafen.ui():on("window[title=Cupboard]", "appear", function(w)
-  local grid = w:find("inventory")               -- THIS cupboard's grid, whatever else is open
-  hafen.log():write(("%d item(s)"):format(#grid:items()))
-end)
-```
-
-That is what these two are for. A root-anchored `hafen.ui():find("window[title=Cupboard] inventory")` asks a
-question with no single answer while two cupboards are open; the widget the callback handed you has one.
-
-> Unlike every read above, **both refuse on a widget that has left the tree** instead of answering `nil` or
-> an empty array. "Nothing matched" and "the thing you were searching is gone" are different answers, and a
-> handle kept across a window's lifetime is where they get confused. `:exists()` is the question to ask.
+These are [`hafen.ui():find` and `:all`](selectors.md#one-or-all-of-them) with a narrower scope, and they
+answer the same way. Their whole contract — the strict `find`, the absence case, what the scope decides and
+the refusal on a widget that has left the tree — is stated once, under
+[inside one widget](selectors.md#inside-one-widget).
 
 ## Subscribing
 

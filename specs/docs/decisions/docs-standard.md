@@ -352,3 +352,34 @@ The tree gains a second type page at the top of `api/`, which the reference inde
 own beside `Gob`. A future `hafen.overlay` would be a collision — there is none, and `overlay` is on no
 retired list — so the guard is the same one every path answers to: the index lists every leaf, and a name
 that stops being true is caught by the sweep that reads the index against the tree.
+
+### D-019 — A refused *grammar* spelling gets no §7 entry; the guard is the parser, run over fenced blocks
+
+**Context (007.3).** `049` shipped four refusals the tier has to teach: `inventory[title=…]`, `*[title=…]`,
+bare `[title=…]` and `window[text=…]` all raise, and `selectors.md` quotes the first as the boundary it
+exists to state. 007.1 found the failure this guards against — `keys.md` listed the refused `[title=…]` as a
+valid tree key, and no grep in §7 could have seen it. The question D-013 leaves open is whether a §7 entry
+exists for any of the four. Measured against D-013's two halves: `inventory[title=` reads **1** on the
+healthy tree and the hit is the boundary sentence, so it fails (a); bare `[title=` reads **53**, of which 44
+are the legal `window[title=`, so it fails (a) harder; `*[title=` reads 0 and catches `*[title=Cupboard]`,
+but a planted `button[title=Cupboard]` reads **0** — it guards one member of an open family (`button`,
+`chat`, `label`, `inventory`, `*`, bare), which is 006.1's false zero; only `window[text=` clears both
+halves, and it is the one nobody would get wrong.
+
+**Decision.** None of the four is admitted, and no refused **grammar** spelling ever is. §7's list is
+*derived* from `Retired.java` (D-015) and a parse error has no row there: it is not a name that moved, it is
+a string the grammar never accepted, so hand-adding one puts a remembered entry back into a derived list.
+What catches a reintroduction instead is the **parser itself**, run blind over the tier: every selector
+string in a **fenced** block — `hafen.ui():find`/`:all`/`:on`, `:rule(…)` and a sheet-data key — is driven
+through `Selector.parse`, and every one must parse. A fenced block is a claim (001.5). A refused spelling is
+admissible **only in prose backticks**, which is where §7 already puts a boundary, and where the tier is
+*required* to write it. Style guide §12's symbol check carries the rule.
+
+**Consequences.** The check reads zero on the healthy tree, catches every refused spelling rather than four,
+and cannot be defeated by one nobody thought of — where a name list can. It costs a compile against
+`Selector.java`, which is why it is scoped to a task that touches a page carrying a selector rather than to
+every docs task. Two positions stay outside the assertion and are **listed to be read**: a variable-receiver
+`w:find("…")`, because a collection filter and Lua's `string.find` share that exact spelling (the split
+007.2 had to make by hand), and prose backticks. That boundary is the same one §7 already draws for
+`:offset(` and `entry:text(` — where no spelling separates two live meanings, none is admitted, and the
+page's own accuracy pass is what catches the rest.

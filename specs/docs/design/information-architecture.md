@@ -45,12 +45,14 @@ subject, and pages small enough to be re-read.
 
 ## 3. The tree
 
-83 pages, 10,344 lines, average ~125. Nothing is over the 300-line ceiling and nothing is within 10
-lines of it: the largest are `api/types.md` and `api/event.md` at 286, then `api/world.md` at 271.
+83 pages, 10,457 lines, average ~126, and 1,548 internal links with none broken. Nothing is over the
+300-line ceiling and nothing is within 10 lines of it: the largest are `api/types.md` and `api/event.md`
+at 286, then `api/world.md` at 271 and `api/ui/widget.md` at 257.
 `conventions`, `gob` and `ui/widget` each shed a subject to a page of its own — `references`,
 `overlay` and `ui/mouse`. Both totals and every size are one command away
-(`find docs -name '*.md' | xargs wc -l`) and are re-derived at each close rather than carried
-forward — a size written down here is a measurement, and it rots.
+(`find docs -name '*.md' | xargs wc -l`), the link total needs a checker that reads a page whole
+rather than line by line, and all four are re-derived at each close rather than carried
+forward — a figure written down here is a measurement, and it rots.
 
 ```text
 docs/README.md                     the site root, one screen

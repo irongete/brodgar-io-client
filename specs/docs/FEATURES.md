@@ -52,10 +52,17 @@
   `049-css-selectors` stayed out of scope — **83 pages, 10,344 lines, 1,534 links, 0 broken**
   (`design/style-guide.md`, `design/information-architecture.md`, `decisions/docs-standard.md`
   D-017/D-018) — tasks 006.1..006.4
-- `007-css-selectors-review` — ACTIVE — area `addons`' `049-css-selectors` (the descendant combinator,
-  the four operators, `[text=]`, CSS-pure attributes, a raising `find`, the scoped `w:find`/`w:all`):
-  the census both ways over the parser and its three consumers, the ten pages `049` wrote checked
-  against `src/`, the **fifteen** it never opened read against the new grammar, the negatives sweep
-  `049.5` started, `find`'s contract stated once, the refused spellings settled against D-013, and the
-  tree's figures and §12 re-derived whole-tree
-  (`design/style-guide.md`, `design/information-architecture.md`) — tasks 007.1..007.3
+- `007-css-selectors-review` — DONE — area `addons`' `049-css-selectors` (the descendant combinator, the
+  four operators, `[text=]`, CSS-pure attributes, a raising `find`, the scoped `w:find`/`w:all`): the census
+  both ways (`census.md`, 62 rows, 0 invented) and **eleven** corrections on six pages, the one no grep
+  could reach being `keys.md` teaching the **refused** `[title=…]` as a valid tree key; the **fifteen** pages
+  `049` never opened read whole, twelve clean, and the negatives sweep finished — **19 negatives, 17 true**,
+  the two false ones widening *role* to *selector* on both halves of one pair; `items.md`'s legal-but-
+  **ambiguous** `find("window[title=Chest]")` turned into an `appear` subscription; `find`'s contract stated
+  once on `api/ui/selectors.md`, with `api/ui/widget.md`'s near-verbatim restatement reduced to its table
+  and a pointer; the refused spellings settled as **D-019** — none admitted, because a *grammar* refusal has
+  no row in `Retired.java` to derive from and the family is open, so the guard is the **parser over fenced
+  blocks** (56/56, falsified six ways) — and §12 whole-tree with `Retired.java` counted **by reflection**
+  (180 + 4, unchanged since 006) and 25 plants caught — **83 pages, 10,457 lines, 1,548 links, 0 broken**
+  (`design/style-guide.md` §7/§12, `design/information-architecture.md` §3,
+  `decisions/docs-standard.md` D-019) — tasks 007.1..007.3

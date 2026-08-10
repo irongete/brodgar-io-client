@@ -95,10 +95,10 @@ Three properties make it a convention rather than a lookup helper:
   [render site](ui/style/surfaces.md) and restyles it, while every other selector — a role that names a
   widget rather than a site, and anything carrying a class, a refiner or a second step — resolves against
   the live tree. `w:role()` reports a widget's role, or an honest `nil`.
-- **The verb says how many**: `hafen.ui():find(sel)` is one widget — and refuses where the selector names
-  several, rather than picking one — `hafen.ui():all(sel)` is all of them, and `hafen.ui():root()` is the
-  root of the tree. Both verbs are also methods on a widget, searching inside it
-  ([`w:find`](ui/widget.md#searching-inside-one-widget)).
+- **The verb says how many**: `hafen.ui():find(sel)` is one widget — and
+  [refuses where the selector names several](ui/selectors.md#one-or-all-of-them), rather than picking one —
+  `hafen.ui():all(sel)` is all of them, and `hafen.ui():root()` is the root of the tree. Both verbs are also
+  methods on a widget, searching inside it ([`w:find`](ui/widget.md#searching-inside-one-widget)).
 
 The grammar, the role table and the two rules worth knowing first — a space is the *descendant
 combinator*, and you hold your result rather than re-selecting every frame — are in

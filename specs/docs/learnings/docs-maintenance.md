@@ -613,3 +613,29 @@
   "Inventory"; a container's caption comes from the server and repeats). Classify every strict-lookup
   example both ways; the ones that fail the second question are fixed by the subscription that hands over
   each match in turn, not by a better caption.
+
+- **(007.3) A refusal in a *grammar* has no row in the refusal table, so §7 cannot derive a guard for it.**
+  `Retired.java` maps names that **moved**; `inventory[title=…]` never was a name, so no derivation reaches
+  it and a hand-added entry puts a remembered spelling back into a derived list (D-015's exact failure).
+  Worse, the family is open: `*[title=` reads zero on the healthy tree *and* zero against a planted
+  `button[title=Cupboard]`, which is 006.1's false zero wearing a green tick. Of the four `049` refuses,
+  only `window[text=` clears both halves of D-013 — and `inventory[title=` reads **1** because the page
+  that teaches the refusal has to write it. **When a guard would have to enumerate a family, guard with the
+  thing that already decides membership** — here the parser (D-019).
+
+- **(007.3) Split the tier by *where* a string sits before asserting anything about it.** Driving every
+  selector in `docs/` through `Selector.parse` is only usable once fenced blocks and prose backticks are
+  separated: a fenced block is a claim (001.5) and must parse, while prose is where the standard *requires*
+  a refusal to be quoted, so a blanket assertion fails on the tier's best sentences. Falsify the split
+  itself, not just the check — plant a refused spelling in a fence (caught, exit 1), a valid one (total
+  moves, failures stay 0) and a refused one in prose (fence count unchanged, the read-list moves). A third
+  bucket stays unassertable and is named rather than pretended: `w:find("…")` on a variable receiver, where
+  a collection filter and Lua's `string.find` share the exact spelling.
+
+- **(007.3) Expanding a generator by regex under-counts silently; reflect on the built map instead.** §12
+  asks for `Retired.java`'s row count so a table that grew is visible. A static pass over `put(`/`act(`/
+  `moved(`/`section(` call sites reads **160**; the real map holds **180**, because two `for` loops
+  (`:237`, `:401`) register the `overlay:*` and `sprite`/`object`/`ghost:*` verb families and a third
+  generator's own body has to be excluded by line range or it reads as a row. A ten-line reflective main
+  over the private `NAMES`/`KEYS` fields answers exactly, cannot drift as the file grows a fourth
+  generator, and is what makes "unchanged since the last sweep" a fact rather than a hope.

@@ -47,7 +47,7 @@
       strings driven through the real `Selector.parse` (falsified 4 ways); `>`, `:hover`, `:first-child`
       and `,` all raise, so `style/README.md`'s four-way boundary holds. Links 1546/0, falsified five ways.
 
-- [ ] **007.3 — the standard, the figures, and §12 whole-tree.**
+- [x] **007.3 — the standard, the figures, and §12 whole-tree.**
       Settle the refused spellings against D-013 — `inventory[title=…]`, `*[title=…]`, bare
       `[title=…]`, `window[text=…]` — either admitting a spelling into §7 with its falsification in
       the same task (004.2), or recording as **D-019** why none exists and what catches a
@@ -60,6 +60,27 @@
       and one plant per entry; symbols both ways with every unregistered colon verb accounted for
       (a computed registration reads unregistered and is live — 006.4); §2's change-note
       constructions read, not counted.
+      **Closed.** **None of the four is admitted, and no refused *grammar* spelling ever is (D-019)**: §7 is
+      derived from `Retired.java` (D-015) and a parse error has no row there. Measured against D-013 —
+      `inventory[title=` reads **1** (the boundary sentence it exists to write), bare `[title=` **53** (44
+      legal), `*[title=` **0** both clean *and* against a planted `button[title=Cupboard]`, an open family
+      and 006.1's false zero with a green tick; only `window[text=` clears both halves, and it is the one
+      nobody gets wrong. **The guard is the parser**: every selector string in a **fenced** block driven
+      through the real `Selector.parse` — **56/56**, falsified six ways (each of the four planted in a fence
+      → exit 1; a valid one → the total moves, failures stay 0; a refused one in **prose** → the fence count
+      is unchanged and the read-list moves). `w:find("…")` on a variable receiver (3) and prose backticks
+      (66, 12 refused and each read) are listed, never asserted. `find`'s contract now lives once on
+      `selectors.md`; `widget.md` had restated the model near-verbatim — plus a stale-refusal blockquote its
+      own line 42 already carried — and keeps its two-row table with a pointer; `references.md` and
+      `debugging.md` link it. Collection `:find(filter)`, 14 hits, untouched. §12 whole-tree: **1,548 links,
+      0 broken**, falsified five ways including a broken *and* a valid wrapped link · 0 pages over 300 ·
+      headings clean four ways · `Retired.java` **180 `NAMES` + 4 `KEYS`**, counted by reflection after a
+      regex expansion read 160 (two `for` loops register the world-entity verb families), unchanged since
+      006.4, every §7 entry at zero with **25 plants caught and removed** · symbols both ways (32 sections /
+      148 verbs forward, `hafen.music` the deliberate boundary; 301 colon verbs over 2,681 sites backward,
+      **7 unregistered all accounted for** — Lua stdlib on a literal, `gizmo.lua`'s own handle verbs, and
+      `LuaEvent.java:443`'s computed `m.set(noun, …)`) · §2's constructions read, 6 hits, all substring or
+      runtime state · 110/100 columns clean. Figures: **83 pages, 10,457 lines, avg ~126, 1,548 links**.
 
 **Filed, not fixed** (all three tasks): an engine or API defect goes to area `addons` — named in the
 report and appended to `STATE.md`'s open list. Nothing under `src/` or `addons/` is touched here.
