@@ -369,3 +369,12 @@
   RAISED (not just refused via `pcall`), gate it so it fires the minimum number of times the assertion needs,
   independent of how many frames/ticks elapse before the suite reads the result — the log the maintainer pastes
   back is part of the deliverable, not a side channel, and noise in it reads as a symptom whether or not it is.
+- **(049.5) When a feature ships its pages task by task, what the closing docs task actually finds is in the
+  pages the feature NEVER touched.** 049.1/049.2/049.4 each rewrote their own pages the day they landed (a
+  shipped page teaching a selector that ERRORS could not wait four tasks), so `selectors.md`, `widget.md`,
+  `replace.md` and `keys.md` were already right. All three stale spots were **boundary lists** — "Where it
+  stops", "What it does not reach" — on pages nobody had reason to open: `theming.md` and `style/README.md`
+  still promised *no descendant selectors*, and `style/README.md` also *no specificity arithmetic beyond the
+  four parts*, which a chain sums over. A boundary list is a standing claim that the NEXT capability
+  falsifies, and it is invisible to any grep aimed at the new syntax, because it is written in the negative.
+  Grep the tier for the thing you just BUILT being denied, not only for the spelling you retired.

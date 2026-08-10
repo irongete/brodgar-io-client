@@ -1,0 +1,9 @@
+{
+  "name": "049.5 — the docs tier for CSS selectors",
+  "id": "049-css-selectors.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 049.5: every selector the reference quotes parses, every spelling it marks refused refuses naming its replacement, and the behavioural claims those pages make hold -- the four operators, [res=] exact vs [res*=], the space as descendant, strict find, the scoped doors and a chain used as a stylesheet key.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

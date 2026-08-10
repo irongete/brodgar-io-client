@@ -1624,3 +1624,24 @@
   correctly withheld. That answered half the claim and proved a *different* rule (strict `find` holding), and a
   second, precisely-aimed hover (an empty Inventory slot) closed the other half. Name a concrete target in the
   step — "an empty slot in your Inventory" — not a category.
+- **(049.5) A DOCS task's own claim is testable, and the way to test it is to slice the list out of the
+  shipping suite.** "The reference teaches no selector that errors" is an assertion, not a proofread: put the
+  quoted strings in the suite between banner comments, slice that section (032.2/035.4/049.4) under plain LuaJ,
+  and hand every one to the REAL `Selector.parse` from a same-package probe. 38/38 parse and 6/6 refusals hold
+  before the client starts, and the in-game suite then re-runs the identical list through `hafen.ui():all` —
+  which is the door to drive, NOT `find`: `:all` raises for exactly one reason (a parse error), where `find`
+  also raises on an ambiguous but perfectly legal selector, so a `find` sweep conflates two verdicts. The
+  slice also fixes the drift a hand-copied list has: one list, checked headlessly and in-game.
+- **(049.5) Deciding WHAT counts as a quoted selector is the hard half, and the rule is "a string the page
+  tells you to WRITE".** The tier quotes three shapes that look alike: real selectors, prose fragments naming a
+  refiner KEY (`[title=]`, `[res=]` — these do not parse, and `[title=<value>]` bare is actually *refused*),
+  and metavariables standing for a name the reader supplies (`selector`, `@Class`, a bare ellipsis in the role
+  slot). Only the first is swept. A placeholder **value** (`window[title=<ellipsis>]`) IS swept, because a
+  value is free text and that spelling has to parse. Write the rule into the suite's comment — the next docs
+  task re-derives the list and will otherwise re-litigate it.
+- **(049.5) The `grep` a Python `subprocess` finds on this box is NOT the Git Bash grep, and it is wrong in
+  BOTH directions.** A falsification driver written in Python reported 921 hits for the §7 dotted regex on a
+  healthy tree (true answer: 0) and 0 hits for a planted `"OnLoad"` (true answer: 1) — over-reporting and
+  under-reporting in the same run, which is the worst possible checker. Re-run in the shell and both come out
+  right. §12's greps are shell commands: run them in the Bash tool. Python is fine for the link/anchor walker,
+  which reads the files itself and shells out to nothing.

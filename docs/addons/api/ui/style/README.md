@@ -199,10 +199,12 @@ rather than from code.
   widget *is* — its role, class, caption, resource — not what it is momentarily doing, and per-state styling
   would need the client to publish those states at every site. Your own widgets can of course draw
   themselves differently in `onDraw`.
-- **Relationships between widgets in the grammar.** No descendant selectors, no `window > button`, no
-  pseudo-classes, no specificity arithmetic beyond [the four parts](keys.md#tree-keys). What a rule does
-  reach without saying so is the whole **subtree** of the widget it matches — the one containment
-  relationship the sheet has, and it comes from the draw pass rather than from the grammar.
+- **Every relationship except containment.** A key may be a [chain](keys.md#tree-keys) — a space is the
+  descendant combinator, so `window[title=Cupboard] label` names the labels in one window and nowhere else
+  — but there is no `window > button` (direct child), no pseudo-class, no sibling combinator and no
+  comma-separated list of keys. What a rule reaches *without* saying so is the whole **subtree** of the
+  widget it matches: that one comes from the draw pass rather than from the grammar, which is why it also
+  covers a widget built inside that window later.
 - **Motion.** A rule is a state, not a transition: nothing tweens, eases or animates, and installing a sheet
   moves things in one frame. Animation is a per-frame job, and the reason this system costs nothing per
   frame is that it does not have one.

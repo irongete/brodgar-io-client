@@ -87,7 +87,7 @@
       an argument for `:nth-child`, not a defect), and the Inventory grid gave
       `find("window[title=Inventory] inventory@Inventory")`, 1 match, where flat `inventory` matches 4.
 
-- [ ] **049.5 — the docs tier.** *Reduced by 049.1 and again by 049.2*: 049.1 rewrote `api/ui/selectors.md`
+- [x] **049.5 — the docs tier.** *Reduced by 049.1 and again by 049.2*: 049.1 rewrote `api/ui/selectors.md`
       around the combinator/operators/two-disjoint-keys and fixed every example on five other pages that the new
       grammar would have made RAISE — a shipped page teaching a selector that errors could not wait four
       tasks — and 049.2 shipped **strict `find`** and the scoped **`w:find`/`w:all`** on their own pages the
@@ -100,3 +100,16 @@
       **Suite must prove:** every selector string quoted in the docs parses (drive the page's examples
       through `hafen.ui():find` in a `pcall` and assert none raises a parse error).
       **`[manual]`:** none beyond the §12 report.
+      **Shipped 13/13, 0 manual.** The inspector's pages were already right — 049.4's close wrote them, as
+      049.1/049.2 wrote theirs the day they landed. What was actually left sat in the pages the feature never
+      opened, and all three were **boundary lists** written in the negative, invisible to any grep aimed at the
+      new syntax: `guides/theming.md` and `ui/style/README.md` still promised *no descendant selectors*, and
+      the latter also *no specificity arithmetic beyond the four parts*, which a chain sums over (rewritten as
+      **Every relationship except containment**: chain in, `>`/pseudo-class/sibling/`,` out). `guides/
+      debugging.md` gained 049.2's new failure — `find` **raising** on two or more — inside the existing
+      bullet, so "Four causes" stays true. The suite drives `:all`, not `find`: `:all` raises for exactly one
+      reason, a parse error, where `find` also raises on an ambiguous but legal selector. Its 38-string list is
+      sliced by banner comments and pre-checked headlessly against the REAL `Selector.parse` (38/38 + 6/6
+      refusals + 2 falsifications), so one list is checked twice rather than hand-copied. §12: 1537 links / 0
+      broken, falsified four ways plus a valid wrapped link; 184 `Retired.java` rows re-derived, every grep 0,
+      seven plants caught; 301 colon verbs with 7 accounted for; 6 wording hits, none a change-note.

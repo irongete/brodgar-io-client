@@ -37,6 +37,8 @@ Two kinds, both written in the same grammar:
   It is how you restyle a *family* of surfaces at once.
 - A **[tree key](../api/ui/style/keys.md#tree-keys)** is an ordinary selector, and it styles the widgets it
   matches, plus everything inside them: `"window[title=Inventory]"` dresses that window and its contents.
+  A key can be a **chain**, so one rule reaches one part of one window: `"window[title=Inventory] label"`
+  is that window's rows and nobody else's.
 
 [surfaces](../api/ui/style/surfaces.md) says what each of the client's own surfaces is and how it behaves
 under a rule, and [what each key accepts](../api/ui/style/keys.md#what-each-key-accepts) says which
@@ -95,8 +97,8 @@ persists tables.
 
 ## Where it stops
 
-The sheet restyles; it does not rebuild. There is no hover or pressed state, no descendant selectors, no
-animation, and no re-flowing of what a client window puts inside itself — that last one is
+The sheet restyles; it does not rebuild. There is no hover or pressed state, no animation, and no
+re-flowing of what a client window puts inside itself — that last one is
 [replacing](../api/ui/replace.md) the window, not styling it.
 [Where the skinning system ends](../api/ui/style/README.md#where-the-skinning-system-ends) states the
 whole boundary and why each part of it is a decision rather than a gap.
