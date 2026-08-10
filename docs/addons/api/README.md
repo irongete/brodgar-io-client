@@ -1,12 +1,13 @@
 # hafen API reference
 
 Every `hafen.*` namespace, one page each, and a directory of pages where a namespace is large. Start with
-the conventions — how you address a thing, what a read gives back, what a write costs — then take the name
+the conventions — how the API is spelled, what a read gives back, what a write costs — then take the name
 you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [conventions](conventions.md) | references, snapshots vs handles, filters, coordinates, colours, `nil`, threading, and the actions permission |
+| [conventions](conventions.md) | the grammar, snapshots vs handles, filters, coordinates, colours, `nil`, threading, and the actions permission |
+| [references](references.md) | every kind of thing a verb takes: a Gob, a kin, a slot, an asset, an item, a widget, a selector |
 | [data types](types.md) | every snapshot shape a read hands back, field by field |
 | [`hafen.event`](event.md) | the bus, and the catalogue of everything the client tells you about |
 
@@ -15,7 +16,8 @@ you came for from the tables below. Every page in the tree is listed here.
 | Page | What it holds |
 |---|---|
 | [`hafen.world`](world.md) | the live world: every object loaded, the terrain, and a position that survives the coordinates moving under it |
-| [Gob](gob.md) | one object in the world — `hafen.world():gob():get(id)` gives a Gob you read with methods, `gob:scale(k)` says how big it is drawn, and `gob:overlay()` attaches things to it |
+| [Gob](gob.md) | one object in the world — `hafen.world():gob():get(id)` gives a Gob you read with methods, and `gob:scale(k)` says how big it is drawn |
+| [Overlay](overlay.md) | what is drawn at a gob: the game's own, the labels and painters you attach, and what you stood there |
 | [`hafen.map`](map/README.md) | the hub: the map you have explored, kept on disk, and the order to read these pages in |
 | [segments and grids](map/grids.md) | the shape of the database, the one Grid entity both halves hand back, and storing a place |
 | [overlays](map/overlays.md) | the recorded claim and province masks, and the switches that draw them |
@@ -68,7 +70,8 @@ The verbs that act are on the pages of what they change — [`hafen.player`](pla
 | [display controls](ui/controls/display.md) | a label, a picture, a separator and a progress bar |
 | [interactive controls](ui/controls/interactive.md) | a button, a text entry, a checkbox, a radio, a slider, a scroll and a scrollbar |
 | [lists](ui/lists.md) | a list, dropdown or menu of rows, and the row source they share with a radio |
-| [the Widget object](ui/widget.md) | what every widget answers, which writes owned and borrowed ones take, subscribing on one, and the mouse and its grab |
+| [the Widget object](ui/widget.md) | what every widget answers, which writes owned and borrowed ones take, subscribing on one, tooltips and focus |
+| [the mouse](ui/mouse.md) | where the pointer is, what is under it, the modifier keys, and the grab that makes a drag yours |
 | [selectors](ui/selectors.md) | naming a widget: the grammar, roles, hit-testing, and the inspector |
 | [items](ui/items.md) | the items inside a container, while the window stays live |
 | [native widgets](ui/native.md) | placing and hiding the client's own widgets, and the restore that comes with it |

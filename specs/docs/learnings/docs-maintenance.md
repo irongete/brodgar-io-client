@@ -509,3 +509,34 @@
   above.`). Budget for it: fixing accuracy before splitting is the expensive order, and the alternative —
   letting a page go to 301 "because the split task will fix it" — breaks §9 at a task boundary, which is
   precisely what the standard forbids.
+
+- **(006.3) Price a split by its inbound anchors before you choose the seam, and count the *page* links
+  separately from the *anchor* links.** The two numbers behave differently: an anchor link breaks when the
+  heading moves to another page, while a bare page link breaks only if the **page itself** moves. `gob.md`
+  carried 66 inbound links — 45 bare, 21 anchored — so turning it into `api/gob/README.md` would have cost
+  all 66 plus every outbound link in the page re-based one level deeper, while cutting a section out of it
+  cost 11. The cheapest cut by anchor count is not automatically the right one (`ui/widget.md`'s was `Owned
+  vs borrowed` at 6, and the mouse at 7 was taken instead because it is the only *different subject* on the
+  page) — but you cannot make that trade until both numbers are on the table. `--inbound <page>` grouped by
+  anchor is the whole tool.
+
+- **(006.3) Promoting `###` to `##` preserves the slug, so a split only ever changes the *page* half of a
+  target.** Every re-point in this task was mechanical: `gob.md#overlays` → `overlay.md`,
+  `conventions.md#asset-a-file-your-addon-ships` → `references.md#asset-a-file-your-addon-ships`,
+  `widget.md#the-grab` → `mouse.md#the-grab`. Match on the target **suffix** (`t == old or
+  t.endswith('/' + old)`) and rewrite only the prefix-preserving part, and the same rule fixes `../gob.md`,
+  `api/gob.md` and `gob.md` in one pass without knowing any page's depth.
+
+- **(006.3) A link checker must be falsified in four directions, and the fourth is the one that hides.**
+  Bad path, cross-page anchor and same-page anchor are the obvious three; the fourth is a link whose **text
+  wraps across a newline**, which a line-oriented regex silently skips — and a checker that skips links
+  reports zero broken for the wrong reason. Plant one with a bad anchor and confirm the *total* rises by one
+  as well as the broken count, then plant a **valid** wrapped link and confirm it reports clean: that second
+  plant is the over-reporting direction §12 asks for, and it is the failure mode that actually happened in
+  001.1. This tree holds exactly 2 genuinely wrapped links, so the check cannot be inferred from the count.
+
+- **(006.3) The prose that a move leaves false is rarely inside the page that moved.** Three of them here
+  were *link text* that had stopped describing its target — two See-also rows reading `[conventions]` while
+  pointing at `references.md`, and `docs/addons/README.md`'s "the three pages every other page assumes"
+  sentence, which still handed the references to `conventions`. None is a broken link, so the link sweep is
+  green through all of it. Grep the **link text** against the target's page name, not only the targets.

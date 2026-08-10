@@ -109,7 +109,7 @@ end
 
 It keeps its **own** facing and scale, so `:rotate` and `:scale` still work on it, and it **dies with the
 gob**: a felled tree takes the image on it with it. It is listed at that gob by
-[`gob:overlay():list()`](../gob.md#overlays) as a read-only entry, so "what is drawn at this gob?" has one
+[`gob:overlay():list()`](../overlay.md) as a read-only entry, so "what is drawn at this gob?" has one
 complete answer — but you address it through this collection, which is the one that placed it.
 
 > **Gizmo.** A sprite is transformable by the [gizmo](gizmo.md) for free: it exposes the same `:position`,

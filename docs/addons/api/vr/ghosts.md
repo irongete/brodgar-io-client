@@ -126,14 +126,14 @@ relog, retrying as the map streams in.
 You can drag a ghost along the terrain, snapping exactly as placing a real building does, using three
 primitives and then `g:position(p)`:
 
-1. [the mouse's grab](../ui/widget.md#the-grab) captures the pointer, so the camera stays put.
+1. [the mouse's grab](../ui/mouse.md#the-grab) captures the pointer, so the camera stays put.
 2. [`hafen.world():screenToWorld`](../world.md#screen-to-world-and-placement-snapping) turns the cursor
    pixel into a ground Position.
 3. [`hafen.world():snapPlace`](../world.md#screen-to-world-and-placement-snapping) snaps it to the placement
    grid, with Shift for the fine grid.
 
 `planner` wires these into a move mode: select a ghost, take the grab, and it follows the cursor snapped
-to the grid until you click to drop it. See [the grab](../ui/widget.md#the-grab) for the drag pattern in
+to the grid until you click to drop it. See [the grab](../ui/mouse.md#the-grab) for the drag pattern in
 full, and [the gizmo](gizmo.md) for drag handles that do the same job with no code of your own.
 
 ## See also

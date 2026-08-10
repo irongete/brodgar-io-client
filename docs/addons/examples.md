@@ -119,7 +119,7 @@ and read-only: dragging an item is your own hand, not the addon's.
 
 ## tagger
 
-[`gob:overlay()`](api/gob.md#overlays) from both ends. `:tagger` puts a green name and a ring over every
+[`gob:overlay()`](api/overlay.md) from both ends. `:tagger` puts a green name and a ring over every
 player body — a `text` and a `draw` record at the gob's projected **screen** point — and `:tagger pin`
 floats a PNG 18 world units over the nearest object, this time a [sprite](api/vr/sprites.md) standing in the
 world with the gob as its anchor, its setters chaining

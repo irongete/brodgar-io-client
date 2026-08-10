@@ -230,7 +230,7 @@ which also depends on where the camera is pointing.
 
 - [`hafen.asset`](../asset.md) — the one door for the images and meshes these collections take
 - [`hafen.world`](../world.md#the-position-type) — the Position type, and placement snapping
-- [`gob:overlay()`](../gob.md#overlays) — what is drawn *at* a gob, including these read-only
+- [`gob:overlay()`](../overlay.md) — what is drawn *at* a gob, including these read-only
 - [the Widget object](../ui/widget.md) — what a standing widget goes on answering, unchanged
 - [drawing](../ui/drawing.md) — the same images, drawn on screen instead
 - [events](../event.md#world-ghosts-and-sprites) — `GhostClicked`, `SpriteClicked` and `ObjectClicked`

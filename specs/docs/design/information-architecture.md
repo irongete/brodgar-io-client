@@ -31,6 +31,10 @@ subject, and pages small enough to be re-read.
 3. **Over the ceiling, a namespace becomes a directory** `api/<namespace>/` whose `README.md` is
    its hub. The same recursion applies inside: a sub-subject needing more than one page becomes
    its own directory with a hub (`api/ui/style/`, `api/client/profiling/`).
+   **At the top level of `api/`, a directory means a namespace** (D-018). A page named for a
+   *type* rather than a namespace — `gob.md`, `overlay.md`, which the index writes `[Gob]` and
+   `[Overlay]` — splits into a **sibling type page**, never into a directory: `hafen.gob` is
+   retired, so `api/gob/` would name a namespace that does not exist.
 4. **A hub gives the reading order**; the index gives the flat map. `api/README.md` lists **every
    leaf page**, nested ones included — that is what keeps every page two clicks from
    `docs/addons/README.md`.
@@ -41,9 +45,10 @@ subject, and pages small enough to be re-read.
 
 ## 3. The tree
 
-80 pages, 10,059 lines, average ~126. Nothing is over the 300-line ceiling; the four with no
-headroom left are `api/conventions.md` (exactly 300), `api/gob.md`, `api/types.md` and
-`api/ui/widget.md`. Both totals and every size are one command away
+83 pages, 10,344 lines, average ~125. Nothing is over the 300-line ceiling and nothing is within 10
+lines of it: the largest are `api/types.md` and `api/event.md` at 286, then `api/world.md` at 271.
+`conventions`, `gob` and `ui/widget` each shed a subject to a page of its own — `references`,
+`overlay` and `ui/mouse`. Both totals and every size are one command away
 (`find docs -name '*.md' | xargs wc -l`) and are re-derived at each close rather than carried
 forward — a size written down here is a measurement, and it rots.
 
@@ -69,12 +74,15 @@ docs/addons/guides/README.md       the task index
                                                profiler, reading the log
 
 docs/addons/api/README.md          the reference index: every leaf page
-                   /conventions.md  the vocabulary: references, snapshots, filters,
-                                    coordinates, colours, nil, threading, the permission
+                   /conventions.md  the grammar: sections, verbs, collections, nil,
+                                    snapshots, filters, coordinates, colours,
+                                    threading, the permission
+                   /references.md   every kind of thing a verb takes: gob, kin, slot,
+                                    menugrid, sound, asset, item, widget, selector
                    /types.md        every snapshot shape
                    /event.md        the one bus, the door onto it, and the catalogue
 
-                   /gob.md /world.md
+                   /gob.md /overlay.md /world.md
                    /player.md /time.md /char.md /study.md /party.md /buff.md /meter.md
                    /kin.md /speed.md /craft.md /quest.md /wound.md /fight.md
                    /actionbar.md /flowermenu.md /menugrid.md
@@ -101,7 +109,9 @@ docs/addons/api/README.md          the reference index: every leaf page
                       /lists.md         the row-source controls: list, dropdown,
                                         menu, grid, table
                       /widget.md        the Widget object: reads, owned vs borrowed,
-                                        subscribing, the mouse and its grab
+                                        subscribing, send, tooltips and focus
+                      /mouse.md         the pointer: where it is, what is under it, the
+                                        modifiers, and the grab
                       /selectors.md     naming a widget, roles, hit-testing,
                                         the inspector
                       /items.md         the items inside a container
@@ -144,8 +154,8 @@ docs/addons/api/README.md          the reference index: every leaf page
 - **`api/map/README.md`**: the ground itself (`grids`) → what covered it (`overlays`) → what it looks
   like (`drawings`) → what you and the server put on it (`markers`, `icons`).
 - **`api/ui/README.md`**: draw your own UI (`custom` → `drawing`) · put the client's own widgets in it
-  instead (`controls/` → `lists`) · point at the client's UI (`selectors` → `widget` → `items`) · change it
-  (`native` → `replace`) · restyle it (`style/`).
+  instead (`controls/` → `lists`) · point at the client's UI (`selectors` → `widget` → `items` →
+  `mouse`) · change it (`native` → `replace`) · restyle it (`style/`).
 - **`api/ui/controls/README.md`**: what a control is and the roster → the ones that only show
   (`display`) → the ones the user drives (`interactive`) → the ones with rows (`lists`).
 - **`api/ui/style/README.md`**: what a sheet is → `keys` (which widgets) → `surfaces` (what they

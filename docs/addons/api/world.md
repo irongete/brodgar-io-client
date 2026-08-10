@@ -203,7 +203,7 @@ end)
 ```
 
 `(sx, sy)` are game-window pixels, the space `worldToScreen` returns. During a drag, feed it the cursor
-coords from [the mouse's grab](ui/widget.md#the-grab) and coalesce — issue the next raycast only after the
+coords from [the mouse's grab](ui/mouse.md#the-grab) and coalesce — issue the next raycast only after the
 previous `fn` fired — so at most one is in flight per frame.
 
 **`snapPlace(p, fine)`** snaps a Position exactly as placing a building does, honouring the live

@@ -36,8 +36,9 @@ inside it, [controls](controls/README.md) puts the client's own buttons in it in
 [lists](lists.md) does the same for a list, a dropdown or a menu of rows.
 
 **Point at the client's UI** — [selectors](selectors.md) names a widget, [widget](widget.md) reads it,
-[items](items.md) reads what is inside a container. At a screen point, `hafen.ui():at(x, y)` is what is
-under it and [`hafen.ui():tipAt(x, y)`](widget.md#tooltips-and-focus) is whose tooltip would speak for it.
+[items](items.md) reads what is inside a container, [mouse](mouse.md) says where the pointer is. At a
+screen point, `hafen.ui():at(x, y)` is what is under it and
+[`hafen.ui():tipAt(x, y)`](widget.md#tooltips-and-focus) is whose tooltip would speak for it.
 
 **Change the client's UI** — [native](native.md) moves and hides one, [replace](replace.md) waits for a
 window and puts yours in its place.
@@ -55,6 +56,7 @@ and layout.
 | [widget](widget.md) | the Widget object: every read, and which writes answer on a widget you do not own |
 | [selectors](selectors.md) | naming a widget: the grammar, the roles, the inspector, hit-testing |
 | [items](items.md) | the items inside a container, and the three subscriptions on it |
+| [mouse](mouse.md) | the pointer: where it is, what is under it, the modifiers, and the grab |
 | [native](native.md) | moving and hiding the client's own widgets, and what comes back |
 | [replace](replace.md) | watching for a widget, and standing your own window in its place |
 | [drawing](drawing.md) | the `g` wrapper: text, shapes, images, and the raster cache behind them |
@@ -66,5 +68,5 @@ and layout.
 - [`hafen.asset`](../asset.md) — the images and fonts your addon ships
 - [the Widget object](widget.md#send-a-message-protected-actions) — sending a message from a bound widget
 - [widgets in the world](../vr/widgets.md) — any of this, drawn in the 3D scene instead of on the screen
-- [conventions](../conventions.md#widget-a-piece-of-the-ui) — where a Widget sits among the other references
+- [references](../references.md#widget-a-piece-of-the-ui) — where a Widget sits among the other references
 - [events](../event.md) — the bus, for everything that is not a widget subscription

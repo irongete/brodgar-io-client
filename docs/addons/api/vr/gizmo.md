@@ -21,7 +21,7 @@ resource is needed.
 The gizmo is a **bundled Lua library over the world, overlay and widget-input primitives**, not a
 `hafen.*` function: [a HUD overlay](../ui/custom.md#overlays) to draw,
 [input subscriptions](../ui/widget.md#subscribing) to pick a handle,
-[the grab](../ui/widget.md#the-grab) with
+[the grab](../ui/mouse.md#the-grab) with
 [`screenToWorld`](../world.md#screen-to-world-and-placement-snapping),
 [`snapPlace`](../world.md#screen-to-world-and-placement-snapping) and
 [`snapAngle`](../world.md#screen-to-world-and-placement-snapping) to drag, and `:position`, `:rotate` and
@@ -48,5 +48,5 @@ so give the gizmo one that stands at a point.
 
 - [`hafen.vr`](README.md) — the section whose entities the gizmo drives
 - [`hafen.world`](../world.md#screen-to-world-and-placement-snapping) — the snapping every handle uses
-- [the mouse and its grab](../ui/widget.md#the-mouse) — the capture primitive behind a drag
+- [the mouse and its grab](../ui/mouse.md) — the capture primitive behind a drag
 - [drawing](../ui/drawing.md) — how the handles themselves are painted

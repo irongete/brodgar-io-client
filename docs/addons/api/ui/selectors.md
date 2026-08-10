@@ -103,7 +103,7 @@ once, keep it, and use `:exists()` when you need to know it is still there.
 
 ## Hit-testing
 
-[`hafen.ui():mouse():over()`](widget.md#the-mouse) and `hafen.ui():at(x, y)` answer *what widget is under
+[`hafen.ui():mouse():over()`](mouse.md) and `hafen.ui():at(x, y)` answer *what widget is under
 a point*. Both **mirror the engine's own pointer dispatch**: they walk children topmost-first, skip
 invisible widgets, follow scroll offsets and honour non-rectangular hit areas, so they return exactly the
 widget a real click would hit. A naive position-plus-size rectangle test is *wrong* inside scrolled lists
@@ -134,5 +134,5 @@ client-side data; sending a message from the resolved widget still goes through 
 - [style](style/keys.md) — the same selector, used as a rule's key
 - [replace](replace.md#watching-for-a-widget) — waiting for a widget instead of polling for it
 - [native](native.md) — moving and hiding what you named
-- [conventions](../conventions.md#selector-naming-a-piece-of-the-ui) — where selectors sit among the
+- [references](../references.md#selector-naming-a-piece-of-the-ui) — where selectors sit among the
   other reference kinds

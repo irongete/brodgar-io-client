@@ -20,7 +20,7 @@ if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items
 | `hafen.ui():node(id)` | the widget for a **server widget id**, or `nil` if it does not resolve |
 | `hafen.ui():at(x, y)` | the **deepest** widget under a root-coord point — see [hit-testing](selectors.md#hit-testing) |
 | `hafen.ui():tipAt(x, y)` | the widget whose **tooltip** the client would show at that point, or `nil` — see [tooltips](#tooltips-and-focus) |
-| `hafen.ui():mouse()` | the pointer — not a Widget, see [the mouse](#the-mouse) below |
+| `hafen.ui():mouse()` | the pointer — not a Widget, see [the mouse](mouse.md) |
 | `hafen.ui():inventory()` | your main backpack grid, a container like any other |
 | `hafen.ui():equipment()` | your worn-equipment grid |
 | [`hafen.player():hand()`](../player.md#the-hand) | the cursor, and the [`Item`](items.md#the-item-object) on it |
@@ -229,67 +229,9 @@ true for the text entry you are typing into, and true for the window around it, 
 through on the way. It is read-only — focus follows the click, and a verb that stole it would be a second
 way to do what clicking already does.
 
-## The mouse
-
-`hafen.ui():mouse()` is the pointer, not a Widget — the section's one thing **is** the object, the same
-shape [`hafen.player()`](../player.md) has:
-
-```lua
-local m = hafen.ui():mouse()
-m:x()  m:y()                  -- where the cursor is, in root coords
-m:over()                      -- the deepest Widget under it, or nil
-m:shift() m:ctrl() m:alt()    -- the live modifier keys
-```
-
-| Verb | Returns |
-|---|---|
-| `m:x()` / `m:y()` | the cursor position, in root coords |
-| `m:over()` | the deepest [Widget](#read) under the cursor, or `nil` |
-| `m:shift()` / `m:ctrl()` / `m:alt()` | whether that modifier key is down, right now |
-| `m:grab()` | take the pointer — see below |
-
-`hafen.ui():at(x, y)` still answers for an arbitrary point; `m:over()` is exactly `hafen.ui():at(m:x(),
-m:y())`, kept as one call for the case every addon reaches for. Reading the mouse is unprotected client-side
-data.
-
-### The grab
-
-A modal press-drag-release capture: while it is held the map view neither pans nor clicks, so a drag
-leaves the camera put. It is what the [gizmo](../vr/gizmo.md) is built on.
-
-```lua
-local g = hafen.ui():mouse():grab()   -- bare: from here the pointer is yours
-
-g:on("Move", function(ev) end)        -- ev:x() ev:y() ev:shift() ev:ctrl() ev:alt()
-g:on("Up",   function(ev) end)        -- …plus ev:button(); fires once and auto-releases
-
-g:release()                           -- hand it back early
-```
-
-`:grab()` takes no arguments and hands back an emitter with the same `:on(key, fn)`/`sub:off()` shape as
-everything else, closed to `Move` and `Up`. The instant you take it: every move reaches you wherever the
-cursor goes, even off-window; the map stops panning; clicks stop reaching the game; and no other widget
-sees the pointer. `g:release()` ends it early, and `Up` ends it automatically. A grab still open when your
-addon reloads is released by teardown.
-
-```lua
-local g = hafen.ui():mouse():grab()
-
-g:on("Move", function(ev)
-  local fine = ev:shift()                                  -- SHIFT picks the fine grid
-  hafen.world():screenToWorld(ev:x(), ev:y(), function(p)  -- p is a Position, a frame later
-    if p then ghost:position(hafen.world():snapPlace(p, fine)) end
-  end)
-end)
-
-g:on("Up", function(ev) hafen.log():write("dropped with button " .. ev:button()) end)
-```
-
-Pair it with [`hafen.world():screenToWorld`](../world.md#screen-to-world-and-placement-snapping) and
-`snapPlace` to drag something along the ground.
-
 ## See also
 
+- [the mouse](mouse.md) — the pointer, what is under it, and the grab that makes a drag yours
 - [controls](controls/README.md) — the client's own controls, built and owned by your addon
 - [lists](lists.md) — the row-source controls, a scrolling list among them
 - [custom](custom.md) — a surface you paint, and its four extra subscription keys

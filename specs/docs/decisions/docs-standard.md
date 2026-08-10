@@ -328,3 +328,27 @@ current map. The rename costs nothing at page level, because the shipping featur
 already; what it closes is the standard, which is the only copy a later task or a later area reads before
 writing. `hafen.http`'s `network` allowlist is stated on its own page rather than as a heading annotation,
 so §6 stops offering `gated: network` as a form no page uses.
+
+### D-018 — A directory under `api/` is a namespace; a type page that outgrows the ceiling splits into a sibling
+
+**Context (006.3).** Three pages sat at 300/300/299 and had to shed a subject. Two of them —
+`api/conventions.md` and `api/ui/widget.md` — split into siblings without a question. `api/gob.md` did not:
+IA rule 3 says an over-the-ceiling **namespace** becomes `api/<namespace>/` with a `README.md` hub, and
+`gob.md`'s 136-line `Overlays` section is exactly the sub-subject that rule is written for. But `gob` is not
+a namespace — `hafen.gob` is **retired**, on §7's own bare-name list — and every top-level directory in the
+tree today (`map`, `ui`, `vr`, `client`) is a live one. `api/gob/README.md` would have been the first
+top-level directory naming a namespace that does not exist, and it would have moved all **66** inbound links
+plus every outbound link in the page, re-based one level deeper.
+
+**Decision.** At the top level of `api/`, a **directory means a namespace**. A page named for a *type* rather
+than a namespace — `gob.md` is the standing example, and the index writes it `[Gob]`, not `` [`hafen.gob`] ``
+— splits into a **sibling type page**: `api/overlay.md`, `[Overlay]`. Rule 3's recursion is unchanged for
+sub-subjects *inside* an existing namespace directory (`ui/style/`, `ui/controls/`), where the enclosing
+directory already carries the namespace. The seam itself is still chosen by subject (D-001) and priced by
+**inbound anchors** before the cut, not by the size of the candidate.
+
+**Consequences.** 45 bare `gob.md` links stayed put and 21 were re-pointed in total across the three splits.
+The tree gains a second type page at the top of `api/`, which the reference index carries as a row of its
+own beside `Gob`. A future `hafen.overlay` would be a collision — there is none, and `overlay` is on no
+retired list — so the guard is the same one every path answers to: the index lists every leaf, and a name
+that stops being true is caught by the sweep that reads the index against the tree.

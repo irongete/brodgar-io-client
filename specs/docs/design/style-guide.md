@@ -295,6 +295,11 @@ lives in git and in `specs/`.
 - **Split by subject, never by line count.** A 300-line page that is one subject beats two
   150-line halves of one. If a page is over the ceiling and cannot be split by subject, it is
   named in the IA with the reason; nothing goes over 350.
+- **Price the seam by its inbound anchors before choosing it, not by the size of the candidate**
+  (006.3). Count the *page* links and the *anchor* links separately: an anchor link breaks when
+  the heading moves to another page, a bare page link only when the page itself moves. Promoting
+  `###` to `##` keeps the slug, so a split changes only the *page* half of every target. Where
+  the new page goes is the IA's rule 3 — and D-018, for a page named after a type.
 - **No floor.** A 20-line reference page is correct when the namespace is 20 lines' worth; what
   makes it findable is the index, not padding.
 - The split rule, applied: a page is too big when its opening sentence has to say "and".
@@ -324,8 +329,13 @@ No tooling ships (AREA.md), so these are ad-hoc `grep`/`awk` runs, reported as c
 offenders listed — that report *is* the task's verification material:
 
 1. **Links and anchors** over every page the task touched **and every page linking into them** —
-   count checked, zero broken. Falsify in both directions: plant one break, confirm it is caught,
-   remove it. An over-reporting checker is the failure mode that actually happened.
+   count checked, zero broken. Falsify in **four** directions and confirm the *total* moves with the
+   broken count each time: a bad path, a cross-page anchor, a same-page anchor, and a link whose text
+   **wraps across a newline**, which a line-oriented checker skips silently and so reports zero for the
+   wrong reason (006.3). Then plant a *valid* wrapped link and confirm it reads clean — an
+   over-reporting checker is the failure mode that actually happened. Remove every plant.
+   A move also leaves **link text** stale where no link is broken: grep the text against its target's
+   page name, not only the targets.
 2. **Size** — `wc -l` on every page touched, none over 300.
 3. **Headings** — no em dash, no `#####`, no internal codes.
 4. **Retired names** — §7's list, **derived again** from `Retired.java` rather than copied from the

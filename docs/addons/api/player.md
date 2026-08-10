@@ -26,7 +26,7 @@ only what has no per-gob equivalent.
 from any other gob, with no id comparison. None of these reads is protected.
 
 `worldToScreen` takes a place in the world and answers **plain pixels**, relative to the map view, which
-is what a [gob overlay](gob.md#overlays) or a HUD overlay wants. What comes back is not a Position: a
+is what a [gob overlay](overlay.md) or a HUD overlay wants. What comes back is not a Position: a
 pixel is not a place in the world, and only the direction that has an answer will type-check. It answers
 `nil` before the map view exists, and for a point the view cannot project; anything that is not a
 Position going in is an error. The inverse is

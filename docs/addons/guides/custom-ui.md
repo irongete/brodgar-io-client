@@ -69,7 +69,7 @@ hafen.ui():overlay():onDraw(function(g, w, h)            -- over the whole HUD; 
 end)
 ```
 
-Over a **game object** the verb is on the object — [`gob:overlay()`](../api/gob.md#overlays) — and you
+Over a **game object** the verb is on the object — [`gob:overlay()`](../api/overlay.md) — and you
 name the gob rather than describing a set of them:
 
 ```lua

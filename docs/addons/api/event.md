@@ -63,7 +63,7 @@ handlers cheap: they run on the UI thread on every frame.
 |---|---|---|
 | `GobAdded` | [Gob](gob.md) | a game object enters the world or your view |
 | `GobRemoved` | [Gob](gob.md) | a game object leaves |
-| `GobOverlayAdded` | `ev` — `:gob()` `:key()` `:native()` | something is attached to a game object — see [`gob:overlay()`](gob.md#overlays) |
+| `GobOverlayAdded` | `ev` — `:gob()` `:key()` `:native()` | something is attached to a game object — see [`gob:overlay()`](overlay.md) |
 | `GobOverlayRemoved` | `ev` — `:gob()` `:key()` `:native()` | something attached to a game object goes away |
 
 Prefer these over scanning [`hafen.world():gob():list`](world.md) every frame. `ev:gob()` is a live
@@ -73,7 +73,7 @@ you need its name, index it on `GobAdded`.
 ### Overlays coming and going
 
 `GobOverlayAdded` and `GobOverlayRemoved` cover both halves of what
-[`gob:overlay()`](gob.md#overlays) reads.
+[`gob:overlay()`](overlay.md) reads.
 
 | `ev` on `GobOverlayAdded`/`GobOverlayRemoved` | Description |
 |---|---|
@@ -103,7 +103,7 @@ The rules below make these predictable:
   under it does not.
 - **The game's overlays are counted by key.** Several of them may share one resource and collapse to one
   key, so a second one of that resource arriving is not an add — read
-  [`ov:count()`](gob.md#overlays) for the multiplicity.
+  [`ov:count()`](overlay.md) for the multiplicity.
 
 When a gob leaves, **yours** on it are reported gone *before* that gob's own `GobRemoved`, so a handler
 already reads the truth. The game's are not: the client drops a departing gob whole rather than taking its

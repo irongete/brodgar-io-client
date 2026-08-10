@@ -117,7 +117,7 @@ before their first tick. `hafen.ui():overlay()` **mints** one rather than handin
 painter has no key, so there would be nothing to address into.
 
 This is the **HUD**. To paint over a **game object** instead, the verb is on the object:
-[`gob:overlay()`](../gob.md#overlays) — you name the gob it hangs on, so nothing is searched per
+[`gob:overlay()`](../overlay.md) — you name the gob it hangs on, so nothing is searched per
 frame. To stand something in the **world** rather than over it, use [`hafen.vr`](../vr/README.md) — your
 own images and models, the game's own props, or [this very window](../vr/widgets.md), drawn out there
 instead of on the screen.

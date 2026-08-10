@@ -19,7 +19,7 @@
       adjective, leaving D-010/D-014 as written. Report: every page changed with its `wc -l`, the four
       §7 greps at zero re-derived from `Retired.java` with the row count stated as what it is.
 
-- [ ] 006.3 — **The ceiling.** `conventions.md` (300), `ui/widget.md` (300) and `gob.md` (299) split by
+- [x] 006.3 — **The ceiling.** `conventions.md` (300), `ui/widget.md` (300) and `gob.md` (299) split by
       subject, the seam chosen after counting each candidate's **inbound anchors**. Every link into a
       moved heading re-pointed in the same task; `api/README.md` lists every new leaf and
       `docs/addons/README.md`'s glance table stays true; the two-click reachability re-measured as a
