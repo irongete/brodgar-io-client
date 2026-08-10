@@ -41,8 +41,10 @@ view of engine state, not an owned resource, and there is nothing to tear down.
 
 **Staleness.** A widget that leaves the tree — window closed, server destroy, relog — is *stale*: every
 read answers `nil` or empty, every client-side write is a silent no-op that still chains, and `:exists()`,
-the one read that always answers, is `false`. Only [`send`](#send-a-message-protected-actions) raises on
-a stale widget; guard on `:exists()` only when "is it still there?" is the question you are asking.
+the one read that always answers, is `false`. Two things raise on a stale widget instead:
+[`send`](#send-a-message-protected-actions), and the [two searches](#searching-inside-one-widget) — which
+have a subtree to search and no longer have it. Guard on `:exists()` when "is it still there?" is the
+question you are asking.
 
 ## Read
 
@@ -59,7 +61,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:position()` | `{x=, y=}` | position within the parent, in widget-local px — [`:position(x, y)` moves it](native.md) |
 | `:size()` | `{x=, y=}` | size; for a window its **outer** box |
 | `:visible()` | boolean | whether it is visible — [`:visible(b)` writes it](native.md) |
-| `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, Window, TextEntry), else `nil` — [`:text(s)` writes it on a control you built](controls/README.md#setters) |
+| `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, CheckBox, Window, TextEntry), else `nil` — [`:text(s)` writes it on a control you built](controls/README.md#setters) |
 | `:tooltip()` | string \| nil | the line that appears when the pointer rests on it, or `nil` — [`:tooltip(s)` writes it on a control you built](#tooltips-and-focus) |
 | `:focused()` | boolean | whether a keystroke would reach this widget — see [focus](#tooltips-and-focus) |
 | `:image()` | table \| nil | the faces of a [control](controls/interactive.md#a-caption-or-a-picture) that shows pictures, as `{up=, down=, hover=}`, else `nil` |

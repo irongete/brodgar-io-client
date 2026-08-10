@@ -558,3 +558,27 @@
   literal-array loops gives 158; adding the two-spelling helpers gives the true **180 `NAMES` + 4 `KEYS`**.
   158 looks like a perfectly plausible table, which is exactly why the count has to be *derived from every
   generator* and cross-checked against the previous sweep's figure rather than eyeballed for sanity.
+
+- **(007.1) A form written with an ellipsis is a claim no check can read — concretise it before you drive
+  it.** `ui/style/keys.md` listed the valid tree keys as `@Class`, `[title=…]`, `[text=…]`, `[res=…]` and a
+  chain. Three of those four parse; bare `[title=…]` is a **parse error** (`[title=]` is legal only in a
+  `window` step, `Selector.java:299`), so the page taught a key the engine refuses. Nothing could have
+  caught it: it is not a symbol, the link sweep never reads it, and driving the string *as written* is
+  impossible — `…` is not a value. Filling it in (`[title=Cupboard]`) and handing it to the real parser
+  found it in one run, while the other three concretised twins came back `OK` — which is what made the
+  single refusal a finding rather than a hunch. **Wherever a page lists example *shapes* of a grammar, the
+  ellipsis is the unchecked part**: expand each shape to a real value and drive it, exactly as 001.5's rule
+  drives every symbol in a fence.
+
+- **(007.1) "The page was written the day the code landed" is not evidence — and a shipping task's close
+  note is the same source one step further out (005.2).** `049` wrote ten pages as its tasks landed, which
+  is the best case this standard asks of a feature, and this census still found **eleven** wrong or
+  incomplete claims across six of them. Three came from `049.4`'s own close note read as prose: it says the
+  inspector "offers every selector that matches", while `addons/widgetstack/main.lua:179-239` enumerates
+  candidates from the widget's own role, class, attribute and `[res=]` alone — `*` matches every widget and
+  is never offered. A page describing a **shipped addon** is therefore checked against that addon's
+  `main.lua`, never against the task that shipped it: 005.2's rule (a spec repeating a claim duplicates it)
+  gains a second member, and the close note is the more tempting one, because it reads as a report rather
+  than as a design. The other eight were the ordinary kind — a universal sentence the same feature
+  falsified two sections below (`widget.md`'s "only `send` raises", `selectors.md`'s "every lookup walks
+  the whole tree"), which is 006.1's finding holding on the pages a feature *did* open.

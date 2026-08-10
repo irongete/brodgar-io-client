@@ -50,8 +50,9 @@ lifetime is exactly where they get confused. Ask [`:exists()`](widget.md#read) i
 
 ## The grammar
 
-It is CSS. A selector is one or more **steps** separated by spaces, and each step is a role (or `*`)
-followed by any of the refiners, in any order and each at most once.
+It is CSS. A selector is one or more **steps** separated by spaces, and a step is a role (or `*`), any of the
+refiners, or both — in any order, each refiner at most once. Refiners alone are a step (`@Equipory`,
+`[res*=gfx/hud]`); the one that needs a role is `[title=]`, and the role it needs is `window`.
 
 | Part | Meaning |
 |---|---|
@@ -59,7 +60,7 @@ followed by any of the refiners, in any order and each at most once.
 | a **role** | what the widget *is* — see [the table below](#roles) |
 | `@Class` | its class name, the same string `:type()` reports |
 | `[title=…]` | a **window's own caption**; only valid in a step whose role is `window` |
-| `[text=…]` | the words a widget **displays** — a button's caption, a label, an entry's contents |
+| `[text=…]` | the words a widget **displays** — a button's caption, a label, a checkbox's label, an entry's contents |
 | `[res=…]` | its resource name (`:res()`) |
 
 **A space is the descendant combinator**, exactly as in CSS: `window[title=Cupboard] inventory` is the
@@ -112,7 +113,8 @@ Reach those with `*`, `@Class`, `[res=]`, or by anchoring a chain on the window 
   Writing the refiner on the inner step instead (`inventory[title=Cupboard]`) is **refused**, and the error
   hands you the spelling above: under CSS rules it would parse and then silently never match, which is a
   worse answer than an error. For the same reason `[text=]` is refused *on* a `window` — a window's words
-  are its caption, and that is `[title=]`.
+  are its caption, and that is `[title=]` — and no `[text=]` matches a window even when the step says `*`,
+  so the two keys never name the same thing.
 - **`@Class` is the class name, not a base class.** `@Window` matches a plain `Window`, not a `CharWnd`.
   Use the `window` role for "any window". The client builds most widgets as anonymous subclasses, and both
   `@Class` and `:type()` report the nearest **named** class, so this is the name you actually see.
@@ -121,8 +123,8 @@ Reach those with `*`, `@Class`, `[res=]`, or by anchoring a chain on the window 
 
 `[res=]` is the *stable* key: a resource name never changes with the client's language, where a caption
 can. But only some widgets have one — **items** (`gfx/invobjs/…`), **meters** (`gfx/hud/meter/hp`), and
-widgets whose code ships inside a resource (`ui/rchan`, `ui/vlg`). **Windows do not**: the client's windows
-are plain Java classes with no resource behind them. So in practice, `[res=]` for items and meters,
+widgets whose code ships inside a resource (`ui/rchan`, `ui/vlg`). **Most windows carry none**: the client's
+own windows are plain Java classes with nothing behind them. So in practice, `[res=]` for items and meters,
 `[title=]` for windows. [`w:res()`](widget.md#read) tells you what a widget actually carries.
 
 A resource name is a path, so `*=` is usually the operator you want: `[res*=gfx/hud/meter]` catches every
@@ -132,15 +134,17 @@ meter, where `[res=gfx/hud/meter]` matches nothing, because no widget's resource
 
 Nobody guesses a widget's role. The bundled **`widgetstack`** addon answers it by hovering: its bottom
 panel reports the hovered widget's **role** (or an honest `nil`), its **class**, its own `[title=]` or
-`[text=]` — whichever key its role takes — its `[res=]`, and its **anchor**, the nearest enclosing window
-written as the first step of a chain. Under those it lists **every selector that actually matches it**, most
-specific first, with how many widgets each one matches and where this one falls among them.
+`[text=]` — whichever key its role takes — its `[res=]`, and its **anchor**, the nearest enclosing
+**captioned** window, written as the first step of a chain. Under those it lists **every selector it can
+build from those parts and then resolve back to this widget**, most specific first, with how many widgets
+each one matches and where this one falls among them.
 
 Chains come first, because they are what name **one** widget. Hovering the grid in your Inventory offers
 `window[title=Inventory] inventory@Inventory`, matching exactly that grid, where the flat `inventory` matches
 every container on screen. The panel offers [the operators](#the-grammar) too, wherever they say something
-`=` cannot: `[res*=…]` on the last segment of a resource path, and `[text^=…]` on the part of a caption
-before its first digit — the form that keeps matching when a counter ticks over.
+`=` cannot: `[res*=…]` on the last segment of a resource path, and the `^=` form of the widget's own key on
+the part of its value before the first digit — `[title^=…]` on a window, `[text^=…]` on anything else, the
+form that keeps matching when a counter ticks over.
 
 The bottom line is ready to paste into `:lua` — it is `hafen.ui():find("…")` when the selector matches this
 widget and **nothing else**, and `hafen.ui():all("…")[i]` when it matches more. Every offered selector is
@@ -162,9 +166,10 @@ re-hovers.
 
 ## Hold the result
 
-Every lookup walks the whole tree — `:find` too, since it cannot know a match is the only one until it has
-looked everywhere. Once per event, or once when the hover changes, that is nothing;
-sixty times a second it is a real slice of your frame budget. Because widgets are
+Every lookup walks its whole scope — the client's tree for `hafen.ui():find` and `:all`, one widget's
+subtree for [the pair on a widget](#inside-one-widget) — and `:find` walks all of it too, since it cannot
+know a match is the only one until it has looked everywhere. Once per event, or once when the hover changes,
+that is nothing; sixty times a second it is a real slice of your frame budget. Because widgets are
 [interned](widget.md), holding the result costs nothing and the objects stay `==`-comparable — so select
 once, keep it, and use `:exists()` when you need to know it is still there.
 

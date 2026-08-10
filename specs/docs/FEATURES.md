@@ -52,3 +52,10 @@
   `049-css-selectors` stayed out of scope — **83 pages, 10,344 lines, 1,534 links, 0 broken**
   (`design/style-guide.md`, `design/information-architecture.md`, `decisions/docs-standard.md`
   D-017/D-018) — tasks 006.1..006.4
+- `007-css-selectors-review` — ACTIVE — area `addons`' `049-css-selectors` (the descendant combinator,
+  the four operators, `[text=]`, CSS-pure attributes, a raising `find`, the scoped `w:find`/`w:all`):
+  the census both ways over the parser and its three consumers, the ten pages `049` wrote checked
+  against `src/`, the **fifteen** it never opened read against the new grammar, the negatives sweep
+  `049.5` started, `find`'s contract stated once, the refused spellings settled against D-013, and the
+  tree's figures and §12 re-derived whole-tree
+  (`design/style-guide.md`, `design/information-architecture.md`) — tasks 007.1..007.3

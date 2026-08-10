@@ -36,10 +36,10 @@ stay native under one rule. [surfaces](surfaces.md) describes each one and its g
 
 ## Tree keys
 
-Any other valid selector — `@Class`, `[title=…]`, `[text=…]`, `[res=…]`, a chain of steps, or a role that
-classifies a *widget* rather than a site (`window`, `inventory`) — is a **tree key**. Every tree rule that matches a widget is folded
-into one style, and [`widget:style()`](README.md#restyle-one-widget) reads the result back, `nil` when
-nothing names it.
+Any other valid selector — `@Class`, `window[title=…]`, `[text=…]`, `[res=…]`, a chain of steps, or a role
+that classifies a *widget* rather than a site (`window`, `inventory`) — is a **tree key**. Every tree rule
+that matches a widget is folded into one style, and
+[`widget:style()`](README.md#restyle-one-widget) reads the result back, `nil` when nothing names it.
 
 ```lua
 hafen.ui():sheet():rule("window[title=Cupboard]"):color(200, 180, 140):sheet():install()

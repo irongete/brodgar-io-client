@@ -91,9 +91,10 @@ Three properties make it a convention rather than a lookup helper:
   [`hafen.ui():on(sel, "appear", fn)`](ui/replace.md#watching-for-a-widget) — so waiting for a window and
   then reading it are one vocabulary.
 - **One string, two resolutions.** The same selector is also the key of a
-  [stylesheet](ui/style/README.md): a **role** names a render *site* and restyles it
-  ([the site keys](ui/style/surfaces.md)), while every other selector resolves against the live tree.
-  `w:role()` reports a widget's role, or an honest `nil`.
+  [stylesheet](ui/style/README.md): a bare role the client *draws at* names a
+  [render site](ui/style/surfaces.md) and restyles it, while every other selector — a role that names a
+  widget rather than a site, and anything carrying a class, a refiner or a second step — resolves against
+  the live tree. `w:role()` reports a widget's role, or an honest `nil`.
 - **The verb says how many**: `hafen.ui():find(sel)` is one widget — and refuses where the selector names
   several, rather than picking one — `hafen.ui():all(sel)` is all of them, and `hafen.ui():root()` is the
   root of the tree. Both verbs are also methods on a widget, searching inside it
