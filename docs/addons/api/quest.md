@@ -21,7 +21,7 @@ end
 
 Before the log has built — a beat after `EnterWorld` — `:list()` is an empty array, `:count()` is `0`
 and `:selected()` is `nil`. `:selected()` is also `nil` whenever the player has nothing open. Nothing
-here throws and nothing is gated.
+here throws and nothing is protected.
 
 The [filter](conventions.md#the-filter-argument) matches a quest's title or its resource name, and a
 predicate receives the Quest object.

@@ -6,7 +6,7 @@ Read and manage the Kin window, your buddy list. `hafen.kin()` **is** the roster
 for _, k in ipairs(hafen.kin():list()) do                -- :list() is the array
   hafen.log():write(k:name() .. " [" .. k:group() .. "]" .. (k:online() and " online" or ""))
 end
-hafen.kin():get("Bob"):group(3):rename("Bobby")          -- gated, chainable
+hafen.kin():get("Bob"):group(3):rename("Bobby")          -- protected, chainable
 ```
 
 | Call | Returns |
@@ -47,7 +47,7 @@ The first three are called on the collection, the rest on a `Kin`.
 | `kin:info()` | [`KinEntry`](types.md#kinentry) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
 
 Every reader answers `nil` once the kin is off the roster, except `:id()` and `:exists()`. No reader
-throws, and none is gated.
+throws, and none is protected.
 
 **`:get` addresses, `:find` searches.** A **number** is a buddy id and always hands back an object, so
 an id you read out of a saved file can be held before the roster streams in — `:exists()` is the
@@ -90,12 +90,13 @@ local mine = hafen.world():gob():list(function(g) return g:kin() == k end)
 > whose gob has not streamed in — you cannot tell which. `gob:kin()` is `nil` for a gob that is not one
 > of your kin *and* for one that is not a player at all.
 
-## Write (gated: `actions`)
+## Write (protected: `actions`)
 
 Each verb returns what it was called on — the `Kin`, or the collection for `add` — so they chain.
 `add` hands back the collection rather than a new `Kin`, because there is none yet: the server decides
 whether the secret is valid and the roster changes a beat later, as a `KinChanged`. Called
-from an addon that did not declare the permission, each raises an error; see [`hafen.act`](act.md).
+from an addon that did not declare the permission, each raises an error; see
+[the actions permission](conventions.md#the-actions-permission).
 
 | Method | Description |
 |---|---|
@@ -114,12 +115,13 @@ which the kin is memorized but still listed, then `kin:forget()` drops the memor
 remove an active kin, call both.
 
 There is no add-by-name. Kinning needs a shared hearth secret, or the right-click "Add as kin" petal,
-which is [`hafen.act`](act.md)'s `clickGob` followed by `flower`.
+which is [`gob:click(3)`](gob.md#write-protected-actions) followed by
+[`hafen.flowermenu():select`](flowermenu.md#write-protected-actions).
 
 ## See also
 
 - [Gob](gob.md) — the object side of `kin:gob()`
-- [`hafen.act`](act.md) — the permission every write verb here shares
+- [actions and permissions](../guides/actions-and-permissions.md) — the permission these writes share
 - [`KinEntry`](types.md#kinentry) — the snapshot shape `:info()` returns
 - [`hafen.party`](party.md) — the other roster, which carries no names
 - [events](event.md#roster-quests-markers) — `KinChanged`

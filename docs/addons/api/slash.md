@@ -2,7 +2,7 @@
 
 Register a `:name`-style console command, so the user can drive your addon by typing at it. This is
 WoW's `SlashCmdList` pattern: the addon names a command, the engine routes it, and your function gets
-the words that followed. `hafen.slash()` is **ungated** — it adds a way to call your own code.
+the words that followed. `hafen.slash()` is **unprotected** — it adds a way to call your own code.
 
 ```lua
 hafen.slash():register("greet", function(args)

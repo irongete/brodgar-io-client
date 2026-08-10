@@ -4,7 +4,7 @@ One **sheet** says what the client looks like: a [selector](../selectors.md) nam
 properties are setters, and installing the sheet applies the lot — live, and owned by the addon that
 installed it. Reach for it to restyle the client's own surfaces — text, chrome, or where its windows sit.
 To draw your *own* pixels, use [custom](../custom.md) and [drawing](../drawing.md) instead; nothing here is
-gated.
+protected.
 
 ```lua
 local body = hafen.asset():get("fonts/Inter.ttf"):derive():size(12)
@@ -24,7 +24,7 @@ lands on it. Then the property pages: [text](text.md) for `font` and `color`, [c
 `border` and `pad`, [geometry](geometry.md) for `position`, `size` and `anchor`. This page holds the sheet
 itself, the per-widget level, the cascade they all resolve through, and the edge of the system.
 
-## The sheet (ungated)
+## The sheet (unprotected)
 
 | Call | Returns | Description |
 |---|---|---|

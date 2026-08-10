@@ -56,7 +56,7 @@ The [shared vocabulary](README.md#one-vocabulary-four-kinds) — `:position`, `:
 
 A panel's world size comes from the widget's own pixels, at **a hundred pixels to the tile**, so a default
 `hafen.ui():window()` stands about two tiles across and keeps its aspect exactly. `:scale` adjusts it from
-there, and a string [filter](README.md#the-collections-ungated) over the collection matches the widget's
+there, and a string [filter](README.md#the-collections-unprotected) over the collection matches the widget's
 caption — the "Cupboard" window is found by its title, which is what anybody looking for it knows.
 
 **A panel is composited, not cut out.** A window frame that is translucent on screen is translucent in the
@@ -123,7 +123,7 @@ whether a panel took it; `false` means the point was on none, which is the momen
 click goes through untouched. `x:screen` answers `nil` when the panel is not being drawn or is
 behind the camera.
 
-Both are ungated: this is the client's path from the map view inward, it cannot move the character, and
+Both are unprotected: this is the client's path from the map view inward, it cannot move the character, and
 nothing reaches the server.
 
 ## Focus, popups and tooltips
@@ -140,7 +140,7 @@ reach a widget, on a panel in the world exactly as on the flat UI.
 show at a screen point, panels in the world included, so a tooltip over a standing widget resolves to that
 widget and not to the map behind it.
 
-## Standing the client's own windows (ungated)
+## Standing the client's own windows (unprotected)
 
 Point `:add` at one of the client's windows and it stands, unchanged and still server-bound: it goes on
 filling with items, its buttons still reach the server, and items drag into and out of it while it hangs in
@@ -148,7 +148,7 @@ the world. Its own shortcuts come with it — the shift-wheel bulk transfer on a
 as it does on screen, because a widget that asks the tree which HUD it belongs to is answered with the one it
 was standing out of. This is the same family of write as [`w:position(x, y)`](../ui/native.md) and
 [`w:replace(view)`](../ui/replace.md) — a layer over the client's state, never a write into it — and it is
-ungated for the same reason: the clicks that reach the server are the ones the user makes with their own
+unprotected for the same reason: the clicks that reach the server are the ones the user makes with their own
 hand, and only where the button is drawn has changed.
 
 **One rule covers both provenances: standing a widget records where it was, and removing it puts it back

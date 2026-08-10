@@ -19,7 +19,7 @@ keep the handle, hand the *handle* to whatever uses it. The use sites take a han
 passing a path string to a [sprite](vr/sprites.md) or an [object](vr/models.md) is an error that
 points you back here.
 
-> **Ungated.** An asset is a client-side file *you shipped*: it never reaches the server and grants no
+> **Unprotected.** An asset is a client-side file *you shipped*: it never reaches the server and grants no
 > gameplay advantage, so it needs no `actions` permission, like a [HUD overlay](ui/custom.md#overlays) or a
 > [ghost](vr/ghosts.md).
 
@@ -189,7 +189,7 @@ Everything below raises a `pcall`-able error naming `hafen.asset`, and each shap
 
 `hafen.asset` loads **local files only**. A remote asset would mean an async load in a synchronous API, an
 untrusted binary going into the font and texture paths, and a per-user tracking channel; fetching *data*
-over HTTP is [`hafen.http`](http.md), which is gated by a manifest allowlist.
+over HTTP is [`hafen.http`](http.md), which is protected by a manifest allowlist.
 
 The client already owns every `.res` in the game, and those are **addressed by name** rather than loaded
 from your folder: they have no sandbox to pass, no cache of yours to fill and no lifetime to manage. This

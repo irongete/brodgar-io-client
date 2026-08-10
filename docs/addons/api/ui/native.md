@@ -1,7 +1,7 @@
 # hafen.ui: placing and hiding the client's own widgets
 
 Three writes answer on a widget you do not own: `:position(x, y)` moves it, `:size(w, h)` resizes it and
-`:visible(false)` takes it off screen. All three are **ungated** — they are client-side placement, not an
+`:visible(false)` takes it off screen. All three are **unprotected** — client-side placement, not an
 action — and all three record what they found, so everything is given back when your addon goes away.
 
 ```lua
@@ -17,7 +17,7 @@ than sit on top of it. See [owned vs borrowed](widget.md#owned-vs-borrowed) for 
 [Standing one in the 3D world](../vr/widgets.md) is a fourth write of the same family, restoring under the
 same rule.
 
-## Moving and resizing (ungated)
+## Moving and resizing (unprotected)
 
 `w:position(x, y)` and `w:size(w, h)` move the client's own widgets, and they move them for real: the verb
 writes the same field your own drag writes, so what you place is what you click. There is no draw-time

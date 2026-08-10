@@ -2,7 +2,7 @@
 
 Subscribe to something the client does, instead of polling for it every frame. `hafen.event()` is where
 you subscribe when there is no widget or control to hold — a client-wide fact, or a message stream any
-widget can produce. `hafen.event()` is **ungated**: subscribing observes, and cancelling stops the
+widget can produce. `hafen.event()` is **unprotected**: subscribing observes, and cancelling stops the
 client's own behaviour. The one thing here that reaches the server is
 [intercepting an outbound action](#intercepting-an-outbound-action), where `ev:resend()` and `ev:send(t)`
 issue that same message in place of the one the widget was about to send.

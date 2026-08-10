@@ -2,7 +2,7 @@
 
 `hafen.client():options()` opens the settings the client's **Options window** edits, plus the hotkey
 registry. Reach for it to read or change what the user has configured — one handle per Options panel.
-Everything here is ungated.
+Everything here is unprotected.
 
 ```lua
 local opts = hafen.client():options()

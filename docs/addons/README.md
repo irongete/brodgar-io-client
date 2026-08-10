@@ -41,10 +41,10 @@ One page per namespace, and a directory where a namespace is large. The
 | **World** | [`world`](api/world.md) · [Gob](api/gob.md) · [`map`](api/map/README.md) |
 | **Character** | [`player`](api/player.md) · [`time`](api/time.md) · [`char`](api/char.md) · [`study`](api/study.md) · [`party`](api/party.md) · [`buff`](api/buff.md) · [`meter`](api/meter.md) |
 | **Subsystems** | [`kin`](api/kin.md) · [`speed`](api/speed.md) · [`craft`](api/craft.md) · [`quest`](api/quest.md) · [`wound`](api/wound.md) · [`fight`](api/fight.md) · [`actionbar`](api/actionbar.md) |
-| **Acting** | [`act`](api/act.md) *(gated)* · [`menugrid`](api/menugrid.md) · [`flowermenu`](api/flowermenu.md) |
+| **Acting** | [`menugrid`](api/menugrid.md) · [`flowermenu`](api/flowermenu.md), and the protected verbs on [`player`](api/player.md), [Gob](api/gob.md), [`world`](api/world.md) and [items](api/ui/items.md) |
 | **UI** | [`ui`](api/ui/README.md) · [the stylesheet](api/ui/style/README.md) · [`font`](api/font.md) · [`client`](api/client/README.md) |
 | **Your own content** | [`asset`](api/asset.md) · [`vr`](api/vr/README.md) |
-| **Data and network** | [`json`](api/json.md) · [`http`](api/http.md) *(gated by your manifest)* |
+| **Data and network** | [`json`](api/json.md) · [`http`](api/http.md) *(protected by your manifest)* |
 | **Infrastructure** | [`event`](api/event.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash`](api/slash.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |
 
 The three pages every other page assumes are [conventions](api/conventions.md), how you address a thing

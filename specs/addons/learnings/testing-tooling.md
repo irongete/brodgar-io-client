@@ -1550,3 +1550,25 @@
   program can assert: the throw, its message, and the continued presence of the neighbours. The suite came back
   10/10 headless and 10/10 in-game with zero human steps. If a task that only deletes still wants a `[manual]`
   line, the line is usually asking a human to confirm something the API can be asked directly.
+- **(048.8) Python IS on this box now — but a `python -c "…"` with unescaped backticks silently corrupts the
+  file it edits.** 033.3's note ("there is no Python on this machine, `python -c` exits 0 having done nothing")
+  no longer holds: a ~60-line link/anchor checker and a Retired.java key-deriver both ran and were falsified end
+  to end. The new trap is the shell, not the interpreter: inside a **double-quoted** `-c` string, bash runs
+  every backtick pair as a command substitution, so a markdown replacement full of `` `w:tooltip()` `` produced
+  a doubled fragment in the written file and an "unexpected EOF" from bash *after* the write. `<<'EOF'` heredocs
+  fought the same apostrophes. The reliable shape is: **write the script to the scratchpad with the Write tool
+  and run `python <path>`** — no quoting layer at all. Grep the result for the artifact (`grep -rn '``[a-zA-Z]'`)
+  before trusting a bulk edit.
+- **(048.8) A docs sweep's checker must be falsified in the same run that reports zero, and so must every
+  retired-name guard.** Link checker: 1500 links, 0 broken — then plant one missing file and one missing anchor,
+  confirm both are caught, remove them. Retired names: derive the key set from `Retired.java` again (a small
+  regex extractor over `put`/`moved`/`act`/`section` calls gave 159 rows, 8 section-level), then plant a retired
+  spelling in a page and confirm the grep fires. **`grep -F` on a section name that is a PREFIX of a live one is
+  a guard that cries wolf**: `hafen.act` hits `hafen.actionbar` 19 times, so it is admissible only as the regex
+  `hafen\.act\b` — D-013's "admit the spelling that reads zero on a healthy tree" applied to a prefix collision
+  rather than to an ordinary English word.
+- **(048.8) A suite whose receivers need a session must report what it SKIPPED, not pass quietly.** The 033.3
+  probe reaches a docs suite fine (`owner.error == null`, command registered) but has no inventory item, no
+  `@MapView`, no menugrid and no UI root, so six of sixteen protected-verb refusals had no receiver at all.
+  Guarding each entry with `receiver ~= nil` and printing `10 of 16` plus the skipped names turned a green line
+  that proved nothing into a red one that named why — and in-game the same line read `16 of 16`.

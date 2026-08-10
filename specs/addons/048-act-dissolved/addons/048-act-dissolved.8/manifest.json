@@ -1,0 +1,9 @@
+{
+  "name": "048.8 — the docs tier",
+  "id": "048-act-dissolved.8",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 048.8: every hafen.* name the reference pages now teach resolves live, every protected verb they mark refuses an addon without the permission, the reads they call unprotected still answer, and every spelling the deleted page taught throws.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

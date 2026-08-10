@@ -1,6 +1,6 @@
 # hafen.http: external HTTP requests
 
-Fetch data from a URL outside the game. `hafen.http()` is **gated by your manifest**: an addon reaches the
+Fetch data from a URL outside the game. `hafen.http()` is **protected by your manifest**: an addon reaches the
 network only if it declares a `network` block, and only the hosts that block lists — the declaration
 *is* the allowlist. Pair it with [`hafen.json`](json.md) to read a JSON API.
 
@@ -149,4 +149,4 @@ inside it is logged, never propagated.
 
 - [`hafen.json`](json.md) — parsing a response body, and encoding a request one
 - [`hafen.store`](store.md) — persisting tokens and cached results
-- [`hafen.act`](act.md) — the other gated tier, and how a permission is declared
+- [actions and permissions](../guides/actions-and-permissions.md) — the other protected tier

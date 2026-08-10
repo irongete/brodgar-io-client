@@ -47,7 +47,7 @@ arrive in a second server message — so every reader may answer `nil`. That is 
 | `buff:exists()` | boolean | whether this buff is still on the bar — always answers |
 | `buff:info()` | [`Buff`](types.md#buff) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
 
-Nothing on this page is gated and nothing throws once you hold a `Buff`. There is no write side: the
+Nothing on this page is protected and nothing throws once you hold a `Buff`. There is no write side: the
 buff bar is a display of server state, and clicking a buff icon sends a message no buff is known to act
 on, so there is nothing to expose.
 

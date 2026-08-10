@@ -61,7 +61,7 @@ across repeated sweeps without touching ids. See [identity](gob.md#identity).
 ## The Position type
 
 A **Position** is a place. It is the one position type in the API, and every spatial verb takes one:
-`gob:position()`, `hafen.act():moveTo(p)`, `hafen.world():tile(p)`. It exists because a place has to be
+`gob:position()`, `hafen.player():move(p)`, `hafen.world():tile(p)`. It exists because a place has to be
 two things at once — a point you can do arithmetic on, and something you can save — and a plain `{x, y}`
 table can only ever be one of them.
 
@@ -129,7 +129,7 @@ hafen.store():get("spot").home = hafen.player():gob():position()   -- a declared
 
 -- next session
 local home = hafen.store():get("spot").home
-if home and home:x() then hafen.act():moveTo(home) end
+if home and home:x() then hafen.player():move(home) end
 ```
 
 > **There is no global position, and grid ids are strings.** Raw world coordinates are not comparable
@@ -153,13 +153,13 @@ A **lattice cell** is an index, not a place, and keeps its own name: `grid:segme
 
 **Screen pixels are not Positions** either. A widget's `:position()`, `:rootPos()` and
 [`worldToScreen`](player.md) answer plain `{x, y}` **pixels**. A screen point has no durable form because
-the screen is not a place — and handing one to `hafen.act():moveTo()` raises, rather than walking you
+the screen is not a place — and handing one to `hafen.player():move()` raises, rather than walking you
 somewhere wrong.
 
 ## Terrain and coordinates
 
 Terrain reads take a Position and return `nil` when the map for that spot has not streamed in yet; the
-lattice conversions are pure arithmetic and always answer. Nothing here is gated, and nothing throws on a
+lattice conversions are pure arithmetic and always answer. Nothing here is protected, and nothing throws on a
 point that is simply off-map.
 
 ```lua
@@ -227,6 +227,38 @@ local c = ghost:position()
 local a = hafen.world():snapAngle(math.atan2(p:y() - c:y(), p:x() - c:x()), ev:shift())
 ghost:rotate(a)
 ```
+
+## Write (protected: `actions`)
+
+Two verbs change the world rather than read it, and both send exactly the message the matching mouse
+gesture sends. Each hands the section back, so a run of writes chains.
+
+### `hafen.world():place(p, angle, button, mods)`
+
+Place the object **currently on your cursor** at a [Position](#the-position-type), rotated by `angle`
+**radians**. `button` is optional and defaults to `1` (confirm); `mods` is optional and defaults to `0`
+(Shift = 1, Ctrl = 2, Alt = 4, added together).
+
+`p` and `angle` are both required — a missing or non-number `angle` raises, and so does a `p` that is not
+a Position. To land where a real building would, prepare both arguments with
+[`snapPlace`](#screen-to-world-and-placement-snapping) and `snapAngle` above.
+
+```lua
+local p = hafen.world():snapPlace(hafen.player():gob():position())
+hafen.world():place(p, hafen.world():snapAngle(0))
+```
+
+> **With nothing on your cursor the server ignores it, and nothing comes back to say so.** Placement is
+> started by the server, so the client has no reader that could tell you whether something is being
+> placed; there is no verb here that answers it either.
+
+### `hafen.world():select(p1, p2, mods)`
+
+Area-select the tile rectangle spanned by two Positions — what drives the tile-area tools. Each corner is
+floored to the **tile** it falls in, the same conversion [`p:tileCoord()`](#the-position-type) exposes, so
+the two Positions name whole tiles rather than a sub-tile rectangle. `mods` is optional, `0` by default.
+
+Both raise before you are in the world, and for a Position this session cannot locate.
 
 ## See also
 

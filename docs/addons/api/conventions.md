@@ -112,8 +112,8 @@ A verb takes an explicit **reference** to the thing it acts on, and it re-resolv
 `hafen.world():gob()` is the collection of loaded game objects and everything on it hands back a
 [**Gob**](gob.md) whose methods read the live one; `hafen.player():gob()` is your own. Every method
 re-resolves, so it answers `nil` once the gob is gone while `:id()` still answers. Anywhere a single gob
-is addressed — [`hafen.act():clickGob`](act.md), [`gob:overlay()`](gob.md#overlays) — you pass the Gob
-itself, never an id.
+is addressed — [`gob:overlay()`](gob.md#overlays), [`hafen.player():hand():use(gob)`](player.md#the-hand)
+— you pass the Gob itself, never an id.
 
 ### Kin: a roster entry
 
@@ -152,8 +152,8 @@ loads as a *new* object. Wherever a local file is used — a sprite's `:add(imag
 An item has no stable content id, so an [`Item`](ui/items.md#the-item-object) is interned on the item
 itself and **not** on `:handle()`, the server widget id it is addressed by on the wire: that number is
 re-used, so a reference built on it would quietly stop naming this item and start naming its
-replacement. One you keep therefore answers *the same item* or *gone*, and the gated
-[`hafen.act():item`](act.md#hafenactitemitem-verb-n) takes the object rather than the number.
+replacement. One you keep therefore answers *the same item* or *gone*, and the
+[protected verbs](ui/items.md#write-protected-actions) are on the item itself rather than on a number.
 
 ### Widget: a piece of the UI
 
@@ -163,8 +163,8 @@ native one you name with `hafen.ui():find(selector)`, `node(id)`, `at(x, y)` or 
 [Widget](ui/widget.md). It is interned per addon, so `hafen.ui():at(x, y) == hafen.ui():at(x, y)` and `==`
 is the identity test; it re-reads the tree on every call and answers `nil` or empty, with `:exists()`
 false, once its widget is gone. What you may *write* depends on whether your addon created it — see
-[owned vs borrowed](ui/widget.md#owned-vs-borrowed). A **server widget id**, `:id()`, is the number the
-gated [`hafen.act():raw`](act.md) takes.
+[owned vs borrowed](ui/widget.md#owned-vs-borrowed). A **server widget id**, `:id()`, is what makes one
+*bound*, which is what the protected [`widget:send`](ui/widget.md#send-a-message-protected-actions) needs.
 
 Its write verbs answer for **your** addon: what you wrote comes back unchanged, and what you drop
 leaves another addon's alone. [`w:replace(view)`](ui/replace.md) installs a stand-in and
@@ -274,27 +274,27 @@ Every `hafen.*` call, every event handler, every timer and every draw callback r
 thread**. You never need locks, and you must never block: a long-running handler stalls the client, and
 the sandbox's instruction watchdog aborts a runaway one.
 
-## Gating: the actions permission
+## The actions permission
 
-Everything in the API observes except one section, [`hafen.act()`](act.md), which **drives the
-character** by sending actions to the server. The same gate covers the per-subsystem write verbs that
-do the same thing from their own page: `hafen.speed():current(n)`, `craft:make`, `slot:use`, `slot:res(name)`,
-and the kin verbs `hafen.kin():add`, `kin:rename`, `kin:group(g)`, `kin:endKin` and `kin:forget`.
+A verb that **sends the server an action the player could have performed** is **protected**: it runs only
+if **your** addon declared `"permissions": ["actions"]` in its [manifest](../runtime.md#the-manifest) and
+the user enabled it. Such an addon is disabled the first time the client sees it and enabling it raises a
+consent dialog; one that never declared it gets an error naming the verb, before anything is sent.
 
-A gated verb runs only if the addon **declared** `"permissions": ["actions"]` in its manifest and the
-user enabled the addon — such an addon is disabled by default, and enabling it raises a consent
-dialog. An undeclared addon calling one gets an error naming the verb. `hafen.act():enabled()` reports
-the grant without throwing.
+**A protected verb lives with the thing it changes**, never in a section of its own: walking is on the
+character, clicking is on the gob, moving an item is on the item — so the page you look a verb up on is
+where you meet the permission, under a heading reading **Write (protected: `actions`)**. The whole set page
+by page, what the permission does not buy and how to write an addon that acts are in
+[actions and permissions](../guides/actions-and-permissions.md).
 
-Writing is not the same as being gated. A verb that changes something **client-local** — a map marker,
-a minimap icon flag, a sound, your own window — sends nothing to the server and needs no permission;
-its page says so on the group heading. [`hafen.http`](http.md) has a gate of its own, a `network`
-host allowlist in the manifest.
+Everything else observes, or writes **client-local** only — a map marker, a minimap icon flag, a sound,
+your own window — which sends nothing to the server and needs no permission, so its group heading says
+`(unprotected)`. [`hafen.http`](http.md) declares separately, a `network` host allowlist in the manifest.
 
 ## See also
 
 - [data types](types.md) — every snapshot shape the readers return
 - [events](event.md) — the bus, and what each event hands your handler
-- [`hafen.act`](act.md) — the gated tier, and the permission itself
+- [actions and permissions](../guides/actions-and-permissions.md) — the protected tier in full
 - [the Position type](world.md#the-position-type) — the one place type every spatial verb takes
 - [`hafen.ui`](ui/README.md) — where selectors, widgets and the stylesheet are documented in full

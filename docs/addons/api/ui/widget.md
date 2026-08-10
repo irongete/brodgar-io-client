@@ -23,7 +23,7 @@ if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items
 | `hafen.ui():mouse()` | the pointer — not a Widget, see [the mouse](#the-mouse) below |
 | `hafen.ui():inventory()` | your main backpack grid, a container like any other |
 | `hafen.ui():equipment()` | your worn-equipment grid |
-| `hafen.ui():hand()` | the [`Item`](items.md#the-item-object) on the cursor, or `nil` |
+| [`hafen.player():hand()`](../player.md#the-hand) | the cursor, and the [`Item`](items.md#the-item-object) on it |
 
 A Widget is opaque, facade-safe userdata: no raw widget crosses into Lua and one cannot be forged. It is
 **interned per addon**, so two lookups of the same live widget are the *same* Lua value:
@@ -79,7 +79,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:style()` | table \| nil | the style this widget [resolves to](style/README.md#the-cascade), or `nil` when nothing names it |
 | `:rule()` | Rule | **your own** [level of the cascade](style/README.md#restyle-one-widget) on this widget: its properties are setters, `:info()` reads them back and `:remove()` drops them |
 
-Reading the tree is ungated client-side data.
+Reading the tree is unprotected client-side data.
 
 ```lua
 -- dump the client's full nested tree from the :lua console
@@ -91,10 +91,9 @@ hafen.ui():root():walk(function(n, d)
 end)
 ```
 
-**`:id()` is the pivot for acting.** To *act*, read a **server-bound** widget's `:id()` and pass it to the
-gated [`hafen.act():raw(id, msg, …)`](../act.md) with the message a client-side button would have sent. A
-message from an unbound widget is dropped, so you never target the button itself but its nearest
-server-bound ancestor.
+**`:id()` is what makes a widget *bound*.** A widget the server placed has one; one your addon built does
+not, and a message from it would be dropped — the difference [`:send`](#send-a-message-protected-actions)
+below turns on, so you send from the nearest server-bound ancestor rather than from the button itself.
 
 ## Subscribing
 
@@ -164,12 +163,11 @@ provoke the error.
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |
 | `:rule()` | restyle it and its subtree through your own level | **works**, same |
 
-None of these writes is gated: they are client-side state, and every one of them restores.
+None of these writes is protected: they are client-side state, and every one of them restores.
 
 **Arity is the verb.** `w:position()` reads, `w:position(x, y)` writes and `w:position(nil)` drops your
 write; `w:size()` and `w:visible()` are the same shape, and so is every setter on `w:rule()`. That is why
-there is no
-`:move()`, no `:show()` and no `:hide()`: a value belongs in the argument, not in the verb's name.
+there is no `:move()`, no `:show()` and no `:hide()`: a value belongs in the argument, not the verb's name.
 
 **Replacement is the one place where the read has a name of its own.** `w:replace(view)` is an *act* and
 the thing standing in is a *replacement*, so the two do not share a spelling: `w:replacement()` reads,
@@ -182,16 +180,35 @@ looking at addon A's window holds a *borrowed* widget, which is the correct answ
 **A widget's place is on the screen, not in the world.** `:position()` and `:rootPos()` answer in pixels
 and hand back a plain `{x=, y=}` table, never a [Position](../world.md#the-position-type). The verb is the
 same word because the question is the same one — *where is this thing, in the space it lives in* — and the
-object you ask says which space that is, so a spatial verb like `hafen.act():moveTo` refuses a widget's
-coordinates instead of walking you somewhere that merely has the same two numbers.
+object says which space, so [`hafen.player():move`](../player.md#write-protected-actions) refuses a
+widget's coordinates instead of walking you somewhere that merely has the same two numbers.
+
+## Send a message (protected: `actions`)
+
+### `widget:send(msg, ...)`
+
+Send an arbitrary widget message, for what the typed verbs do not cover — the message a client-side button
+would have sent, from the widget the server knows. `msg` must be a **string**: a number is refused rather
+than coerced, because a message name leaving the client is not a thing to guess at. Trailing arguments
+marshal the way an [`action`](../event.md#intercepting-an-outbound-action) `ev:args()` is read: a
+`{x=, y=}` table becomes a coordinate, and numbers, strings and booleans pass through. Returns the Widget.
+
+```lua
+hafen.ui():find("@MapView"):send("click", {x = 0, y = 0}, {x = 0, y = 0}, 1, 0)
+```
+
+**Bound widgets only.** One your addon built has no server id, so there is nobody to deliver to and the
+client would drop the message without a word; `send` refuses it instead, naming that, and [`:id()`](#read)
+answers the same question first. It **raises on a stale widget** too, where every other write here is a
+silent no-op. The receiver **is** the target, so there is no address argument and no vocabulary of names:
+the map view and the HUD are ordinary [selectors](selectors.md), as above.
 
 ## Tooltips and focus
 
-`w:tooltip()` is the line that appears when the pointer rests on a widget. It answers on **any** widget, the
-client's own included, and never throws: a plain string as it was given, the text of one of the client's own
-keybound tips (the shortcut it appends is the keymap's, not the text's), or `nil` where there is none.
-`w:tooltip(s)` writes it on a control you built — like `:text(s)`, and for the same reason — and `""` clears
-it.
+`w:tooltip()` is the line that appears when the pointer rests on a widget. It answers on **any** widget,
+the client's own included, and never throws: a plain string as it was given, the text of one of the
+client's own keybound tips (the shortcut it appends is the keymap's, not the text's), or `nil` where there
+is none. `w:tooltip(s)` writes it on a control you built — like `:text(s)` — and `""` clears it.
 
 **Which widget's tooltip the client would actually *show* at a point is a different question**, because a
 tooltip is inherited from whatever ancestor carries one, so it is not always the widget under the pointer:
@@ -232,7 +249,7 @@ m:shift() m:ctrl() m:alt()    -- the live modifier keys
 | `m:grab()` | take the pointer — see below |
 
 `hafen.ui():at(x, y)` still answers for an arbitrary point; `m:over()` is exactly `hafen.ui():at(m:x(),
-m:y())`, kept as one call for the case every addon reaches for. Reading the mouse is ungated client-side
+m:y())`, kept as one call for the case every addon reaches for. Reading the mouse is unprotected client-side
 data.
 
 ### The grab
@@ -281,5 +298,3 @@ Pair it with [`hafen.world():screenToWorld`](../world.md#screen-to-world-and-pla
 - [replace](replace.md) — standing your own window in place of a native one
 - [items](items.md) — `:items()` and the container subscriptions
 - [style](style/README.md) — `:rule()`, `:style()` and the cascade they sit in
-- [widgets in the world](../vr/widgets.md) — standing one of these in the 3D scene, unchanged
-- [events](../event.md) — everything that is not a widget or the pointer

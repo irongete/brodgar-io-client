@@ -25,7 +25,7 @@ if s then hafen.log():write("used " .. s:used() .. "/" .. s:maxActions() .. " ac
 | `hafen.fight():target()` | `Opponent` \| nil | who you are fighting |
 
 `:maneuver():list()` and `:deck()` answer empty and `:summary()` answers `nil` until the tab has built;
-`:target()` is `nil` whenever you are not in a fight. Nothing throws and nothing is gated; there is no
+`:target()` is `nil` whenever you are not in a fight. Nothing throws and nothing is protected; there is no
 write side, and no combat event — read on demand.
 
 A string [filter](conventions.md#the-filter-argument) over the maneuvers matches the resource name **and**

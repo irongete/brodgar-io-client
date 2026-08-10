@@ -1,7 +1,7 @@
 # hafen.ui: your own windows and overlays
 
 Three builders make a surface of your own — a window with chrome, a bare rectangle, or a painter over the
-whole HUD. Each is built **bare** and configured by chained setters. All three are ungated, and all three
+whole HUD. Each is built **bare** and configured by chained setters. All three are unprotected, and all three
 are torn down with your addon.
 
 This page is about the surfaces you **paint**. To put one of the client's own controls in one instead of

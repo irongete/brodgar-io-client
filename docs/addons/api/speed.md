@@ -25,18 +25,19 @@ All three answer `nil` before the HUD's speed widget exists, which is until a be
 `EnterWorld`. None throws. `name()` with no argument is the speed you are on; `name(nil)` is an error
 rather than a shorthand for it.
 
-## Write (gated: `actions`)
+## Write (protected: `actions`)
 
 | Method | Description |
 |---|---|
 | `hafen.speed():current(n)` | select speed `n`, `0..3`; returns the section, so writes chain |
 
 Called from an addon that did not declare the permission, it raises an error; see
-[`hafen.act`](act.md). It also raises one for an `n` outside `0..3`, and before the speed selector
-exists. Within that range it drives the client's own control and sends exactly what a click would, so
+[the actions permission](conventions.md#the-actions-permission). It also raises one for an `n` outside
+`0..3`, and before the speed selector exists. Within that range it drives the client's own control and
+sends exactly what a click would, so
 the server decides whether the speed is currently allowed — a locked sprint is refused there, silently.
 
 ## See also
 
-- [`hafen.act`](act.md) — the permission this write shares
+- [actions and permissions](../guides/actions-and-permissions.md) — the permission this write shares
 - [Gob](gob.md) — `gob:speed()`, the speed a body is actually moving at

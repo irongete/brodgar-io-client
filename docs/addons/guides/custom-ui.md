@@ -1,7 +1,7 @@
 # Custom UI
 
 Your own pixels: a window the user can drag, a bare rectangle, or a layer painted over the HUD and the 3D
-world. All of it is ungated, and all of it disappears cleanly when your addon does. To restyle the
+world. All of it is unprotected, and all of it disappears cleanly when your addon does. To restyle the
 *client's* surfaces instead of drawing your own, see [theming](theming.md).
 
 ## A window

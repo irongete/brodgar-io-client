@@ -41,7 +41,7 @@ local mark = hafen.map():marker():find("Camp")
 if mark then hafen.store():get("cfg").camp = mark:position() end   -- survives the relog
 ```
 
-## Write (ungated)
+## Write (unprotected)
 
 | Call | Returns | Description |
 |---|---|---|
@@ -62,9 +62,9 @@ print(pin:color().g, pin:onMap())                    -- 200  true
 `:color` also takes a colour value straight back out of a read, so `a:color(b:color())` copies one.
 Writing either property on a system marker is refused: those are the server's own pins.
 
-> **These verbs write, and they need no permission.** Unlike the [`hafen.act`](../act.md) tier, adding,
-> removing and recolouring markers is not gated: it edits the user's own on-disk map database, which is
-> client-local and reversible by hand. Remove only what your addon added.
+> **These verbs write, and they need no permission.** Unlike a verb that reaches the server, adding,
+> removing and recolouring markers is not protected: it edits the user's own on-disk map database, which
+> is client-local and reversible by hand. Remove only what your addon added.
 
 The [`MarkersChanged`](../event.md#roster-quests-markers) event, payload the marker count, fires on any
 add, remove or edit, including ones the player makes.

@@ -1,22 +1,37 @@
 # Actions and permissions
 
 Reading the game needs no permission. **Acting** on it — walking, clicking an object, using an item,
-picking a menu entry — is the one gated tier in the API, and this guide is about getting through the gate
-and about what is on the near side of it.
+picking a menu entry — is the one protected tier in the API, and this guide is about getting through the
+gate and about what is on the near side of it.
 
-## What is gated, and what is not
+## What is protected, and what is not
 
-Gated is exactly one thing: sending the server an action the player could have performed.
-[`hafen.act`](../api/act.md) is that surface, together with the write verbs that live in their own
-namespaces — [`hafen.speed():current(n)`](../api/speed.md), [`craft:make`](../api/craft.md),
-[`slot:use` and `slot:res(name)`](../api/actionbar.md), and the roster verbs on [`hafen.kin`](../api/kin.md).
+Protected is exactly one thing: sending the server an action the player could have performed. There is no
+section that collects those verbs — **each one lives with the thing it changes**, so you meet the
+permission on the page you looked the verb up on, under a heading reading `Write (protected: actions)`.
+That is the whole set:
 
-Everything else writes only to your own client, and none of it is gated. That is worth stating, because
+| Verb | What it sends |
+|---|---|
+| [`hafen.player():move(p)`](../api/player.md#write-protected-actions) | walk to a place |
+| [`hafen.player():hand():use(target, mods)`](../api/player.md#the-hand) | apply what is on your cursor to an item, a place or an object |
+| [`gob:click(button, mods)`](../api/gob.md#write-protected-actions) | click an object, left or right |
+| [`item:use`, `:take`, `:drop`, `:transfer`](../api/ui/items.md#write-protected-actions) | act on an item in a container |
+| [`hafen.world():place`, `:select`](../api/world.md#write-protected-actions) | place what you are holding; area-select tiles |
+| [`pag:use()`](../api/menugrid.md#use-protected-actions) | fire an action from the action menu |
+| [`hafen.flowermenu():select`, `:cancel`](../api/flowermenu.md#write-protected-actions) | pick a petal of the open radial menu |
+| [`hafen.speed():current(n)`](../api/speed.md#write-protected-actions) | change the movement speed |
+| [`craft:make`](../api/craft.md#write-protected-actions) | press Craft in the open recipe window |
+| [`slot:use`, `slot:res(name)`](../api/actionbar.md#write-protected-actions) | fire a hotbar slot, or assign one |
+| [the roster verbs](../api/kin.md#write-protected-actions) | add, rename, re-group and forget a kin |
+| [`widget:send(msg, ...)`](../api/ui/widget.md#send-a-message-protected-actions) | the escape hatch: any message, from a bound widget |
+
+Everything else writes only to your own client, and none of it is protected. That is worth stating, because
 several of them look like writes:
 
-| Ungated write | What it changes |
+| Unprotected write | What it changes |
 |---|---|
-| [`hafen.map():marker():add`](../api/map/markers.md#write-ungated) | your own map database |
+| [`hafen.map():marker():add`](../api/map/markers.md#write-unprotected) | your own map database |
 | [`cat:show(on)`](../api/map/icons.md#the-iconcat-object) | which icons your minimap draws |
 | [`w:position`, `w:size`, `w:visible`](../api/ui/native.md) | where the client's own windows sit |
 | [`w:replace(view)`](../api/ui/replace.md) | which window a client toggle opens |
@@ -45,30 +60,28 @@ So a write addon that is running is one the user knowingly turned on — there i
 and no way for an addon to grant itself the tier by being installed. Its row in the panel carries an
 `[actions]` badge from the moment it is discovered, and a bulk **Enable all** skips it.
 
-A gated verb called by an addon that did not declare the permission raises an error naming the verb. It is
+A protected verb called by an addon that did not declare the permission raises an error naming the verb. It is
 not a silent no-op, and it is not a crash.
 
 ## Writing an addon that acts
 
 ```lua
 hafen.slash():register("gotree", function()
-  if not hafen.act():enabled() then
-    hafen.log():write("this addon needs the actions permission")
-    return
-  end
   local tree = hafen.world():gob():nearest("terobjs/tree")
   if tree then
-    hafen.act():moveTo(tree:position())
+    hafen.player():move(tree:position())
+    tree:click(3)                              -- and open its radial menu
   end
 end)
 ```
 
 Three habits, in the order they bite:
 
-- **Branch on [`hafen.act():enabled()`](../api/act.md), not on a `pcall`.** It answers before you are in the
-  world and never throws, so it is the one call you can make at load time to find out where you stand.
-- **Act from `EnterWorld` onwards.** Every verb except `enabled` needs a live map view and throws before
-  there is one, so an action fired from a file body is an error rather than an early start.
+- **Your manifest is the answer to "may I act?"** An addon that declared the permission and is running was
+  granted it, so there is nothing to test at run time and nothing to branch on. If you are writing a file
+  that may ship either way, read your own `manifest.json` rather than provoking the error.
+- **Act from `EnterWorld` onwards.** Every verb here needs a live map view or a live object and throws
+  before there is one, so an action fired from a file body is an error rather than an early start.
 - **Make the user ask.** Bind actions to a [hotkey or a command](hotkeys-and-commands.md) rather than to a
   timer. An addon that acts on its own the moment it loads is the one thing a permission dialog cannot
   really warn about, and the bundled write example is deliberately built the other way round.

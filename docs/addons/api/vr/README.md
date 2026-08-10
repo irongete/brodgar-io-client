@@ -4,7 +4,7 @@
 one of the game's own props, your addon's own PNG, your addon's own glTF model, a whole window drawn out
 there instead of on the screen. What separates one of these from a real game object is not where it is,
 since both are in the world, but **whose** it is: nothing here ever reaches the server, so nothing here is
-gated.
+protected.
 
 ```lua
 local p = hafen.player():gob():position()
@@ -17,15 +17,15 @@ local rabbit = hafen.world():gob():nearest("rabbit")
 hafen.vr():sprite():add(icon, rabbit)                      -- following a game object
 ```
 
-> **Ungated.** These are visualizations with no server id: the server never learns one exists and none of
+> **Unprotected.** These are visualizations with no server id: the server never learns one exists and none of
 > them grants a gameplay advantage, so they need no `actions` permission and no consent dialog. They sit
-> alongside [a HUD overlay](../ui/custom.md#overlays), not [`hafen.act`](../act.md). Committing a *real*
-> build is still the gated [`hafen.act():place`](../act.md).
+> alongside [a HUD overlay](../ui/custom.md#overlays), not beside a verb that acts. Committing a *real*
+> build is still the protected [`hafen.world():place`](../world.md#write-protected-actions).
 
 Everything here is **bridge-owned**: every entity your addon stands is torn down automatically on reload,
 disable and relogin, leaking neither a scene slot nor a GPU texture.
 
-## The collections (ungated)
+## The collections (unprotected)
 
 | Call | What it holds |
 |---|---|
@@ -125,7 +125,7 @@ coordinate.
 
 **A look value outside its range is brought into it.** `:scale` holds to `0.01..100` and `:alpha` to `0..1`,
 so `:scale(0)` gives the smallest size these take rather than an error. Resizing a **game** object is
-[`gob:scale(k)`](../gob.md#size-ungated), and that one refuses a `0` or a negative instead of clamping it.
+[`gob:scale(k)`](../gob.md#size-unprotected), and that one refuses a `0` or a negative instead of clamping it.
 
 **A [standing widget](widgets.md) is the one kind that is not a picture, so it answers a click as a widget.**
 Three kinds have `:onClick(fn)`, because "it was clicked" is the whole of what a picture has to say; a panel

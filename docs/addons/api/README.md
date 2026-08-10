@@ -6,7 +6,7 @@ you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [conventions](conventions.md) | references, snapshots vs handles, filters, coordinates, colours, `nil`, threading, gating |
+| [conventions](conventions.md) | references, snapshots vs handles, filters, coordinates, colours, `nil`, threading, and the actions permission |
 | [data types](types.md) | every snapshot shape a read hands back, field by field |
 | [`hafen.event`](event.md) | the bus, and the catalogue of everything the client tells you about |
 
@@ -49,9 +49,12 @@ you came for from the tables below. Every page in the tree is listed here.
 
 ## Acting
 
+The verbs that act are on the pages of what they change — [`hafen.player`](player.md), [Gob](gob.md),
+[`hafen.world`](world.md), [items](ui/items.md) and [the Widget object](ui/widget.md) — under a
+`Write (protected: actions)` heading. Two catalogues have a page of their own:
+
 | Page | What it holds |
 |---|---|
-| [`hafen.act`](act.md) | drive the character — move, click, use items, pick menu entries. Gated by the `actions` permission |
 | [`hafen.menugrid`](menugrid.md) | the action menu: every action the character knows, and invoking one |
 | [`hafen.flowermenu`](flowermenu.md) | the radial menu a right-click puts up: its petals, the object it belongs to, picking one, and when one opens and closes |
 

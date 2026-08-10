@@ -3,14 +3,15 @@
 `widget:items()` is a **relation**, exactly like `:children()`: it answers with the
 [`Item`](#the-item-object) objects inside *that* widget — your backpack, a chest, a cupboard, an
 equipment grid — while the window stays visible and interactive. Nothing is hidden and nothing is
-registered. Reading is ungated.
+registered. Reading is unprotected.
 
 ```lua
 for _, it in ipairs(hafen.ui():inventory():items()) do
   hafen.log():write((it:name() or it:res() or "?") .. " x" .. (it:num() or 1))
 end
 
-local cursor = hafen.ui():hand()                              -- the item on the cursor, or nil
+local h = hafen.player():hand()                               -- the cursor, or nil while it is empty
+local cursor = h and h:item()                                 -- the item on it
 ```
 
 ## Read
@@ -18,7 +19,7 @@ local cursor = hafen.ui():hand()                              -- the item on the
 | Method | Returns | Description |
 |---|---|---|
 | `widget:items()` | [`Item`](#the-item-object)`[]` | the items inside this widget, in the container's own order |
-| `hafen.ui():hand()` | [`Item`](#the-item-object) \| nil | the item on the cursor |
+| [`hafen.player():hand():item()`](../player.md#the-hand) | [`Item`](#the-item-object) \| nil | the item on the cursor |
 
 - The search is **deep**, so a whole window answers for the grid inside it: `hafen.ui():node(chestId):items()`
   works whether you point at the window or at its `Inventory` child.
@@ -40,7 +41,7 @@ local cursor = hafen.ui():hand()                              -- the item on the
 | `:quality()` | number \| nil | the quality the tooltip shows; `nil` for an item that has none |
 | `:cell()` | table \| nil | the `{x, y}` grid cell it sits in, for an item in a container that has cells |
 | `:slots()` | string[] | the equipment slots it fills, by name; empty for anything not worn |
-| `:handle()` | number \| nil | its server widget id, for [`hafen.act():raw`](../act.md); `nil` once it is gone |
+| `:handle()` | number \| nil | its server widget id, the number it is addressed by on the wire; `nil` once it is gone |
 | `:exists()` | boolean | is this still a live item |
 | `:info()` | table | the [snapshot](../types.md#item) — every read above in one table |
 
@@ -51,8 +52,41 @@ eaten or is consumed does not become something else — it goes **stale**: `:res
 `:num()` still say what it was, `:exists()` is false, and `:cell()`, `:slots()` and `:handle()` are
 empty, because where it is is exactly what it no longer has.
 
-> The gated [`hafen.act():item`](../act.md#hafenactitemitem-verb-n) takes the object. A stale one raises
-> an error and sends nothing, rather than moving whatever took its place.
+> The verbs below take the object, never the number. A stale one raises an error and sends nothing,
+> rather than moving whatever took its place.
+
+## Write (protected: `actions`)
+
+What you can do **to** an item is on the item. Each sends exactly what the matching click sends, and each
+hands the Item back, so a run of verbs chains.
+
+| Method | Description |
+|---|---|
+| `item:use(mods)` | activate it: its default right-click action — eat, open, light, … |
+| `item:take()` | pick it up onto the cursor, or unequip a worn item |
+| `item:drop(n)` | drop it on the ground |
+| `item:transfer(n)` | move it to the linked container, or to your inventory |
+
+```lua
+local first = hafen.ui():inventory():items()[1]
+if first then first:take() end
+```
+
+`n` is how many of a stack to move; it is optional and defaults to `-1`, meaning all of it. `mods` is
+optional and defaults to `0`: Shift = 1, Ctrl = 2, Alt = 4, added together. `take` takes **no arguments**
+at all, and an argument to it raises.
+
+**Only `use` carries modifiers, and that is the wire rather than a style.** `take`, `drop` and `transfer`
+have no modifier field in them: on a real click the modifier keys select the *count* — shift transfers
+one, ctrl drops one — so `n` states that directly and is the whole of it. Do not look for a `mods` beside
+it.
+
+All four raise on a **stale** item, and send nothing: an item that moved, was used or was consumed is not
+the item that took its place. Re-read the container and retry.
+
+Applying what you are carrying **onto** an item is the cursor's verb, not the item's:
+[`hafen.player():hand():use(item)`](../player.md#the-hand). On an arbitrary item that gesture would name
+whatever happens to be on the cursor rather than the receiver, which is why it lives on the hand.
 
 ## The container lifecycle
 
@@ -97,7 +131,7 @@ guess. Open it and read that widget.
 ## See also
 
 - [`Item`](../types.md#item) — the snapshot `:info()` hands back
-- [`hafen.act():item`](../act.md#hafenactitemitem-verb-n) — the gated verb that moves one
+- [`hafen.player`](../player.md#the-hand) — the cursor: what it carries, and applying it to something
 - [widget](widget.md) — the object `:items()` is a method on
 - [replace](replace.md#watching-for-a-widget) — waiting for a container to open in the first place
 - [events](../event.md#character-and-status) — `EquipChanged` and the other global lists

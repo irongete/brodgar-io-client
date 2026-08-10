@@ -24,7 +24,7 @@ list:on("Changed", function(row) hafen.log():write("picked " .. row) end)
 | `hafen.ui():table()` | [Widget](widget.md) | rows laid out in named columns |
 
 Built bare and configured by chained setters, [the same shape](controls/README.md#builders) every other
-control has — the arming rule included. None of it is gated, the same as any other control.
+control has — the arming rule included. None of it is protected, the same as any other control.
 
 ## Rows (list, dropdown, menu)
 

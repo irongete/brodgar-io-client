@@ -1,7 +1,7 @@
 # hafen.log: printing a line
 
 Print a line from your addon. It goes to the in-game console, the same place the client's own notices
-appear, and to the terminal the client was started from. `hafen.log()` is **ungated**, and it is the
+appear, and to the terminal the client was started from. `hafen.log()` is **unprotected**, and it is the
 first tool you reach for when an addon is not doing what you expected.
 
 ```lua

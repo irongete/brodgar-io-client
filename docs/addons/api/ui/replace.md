@@ -1,7 +1,7 @@
 # hafen.ui: watching for a widget, and replacing it
 
 Two verbs, and they are meant to be used together: `hafen.ui():on` waits for a part of the client's UI to
-appear, and `widget:replace` stands your own window in its place. Both are ungated, and both are undone
+appear, and `widget:replace` stands your own window in its place. Both are unprotected, and both are undone
 when your addon goes away. The bundled **`bags`** addon is this pair end to end.
 
 ```lua
@@ -52,7 +52,7 @@ the window itself — such a candidate is re-checked for a short while rather th
 These are widget subscriptions rather than bus events: there is no `WidgetCreated` on
 [`hafen.event()`](../event.md), because you say *which* widget you care about.
 
-## Replacing a native window (ungated)
+## Replacing a native window (unprotected)
 
 Replacing is a **verb on the widget**. The read has a name of its own, because putting a view in place
 is an *act* and the thing standing there is a *replacement*:

@@ -20,7 +20,7 @@ if hafen.time():isNight() then hafen.log():write("it's dark out") end
 
 `clock()` answers as soon as a session is up. The astronomy readers answer `nil` until the first
 astronomy update arrives from the server, which is a beat after entering the world. Nothing here throws
-and nothing is gated.
+and nothing is protected.
 
 There is no `TimeChanged` event: the clock moves every frame, so read it when you need it, or poll it
 on a [timer](timer.md).

@@ -25,7 +25,7 @@ crash, and why the console is the first place to look.
 
 `:lua <expression>` evaluates against the live API and prints the result as JSON. It is the fastest way to
 find out what a verb actually answers, and it runs as your own console rather than as addon code, so
-nothing is sandboxed and every gated verb works there.
+nothing is sandboxed and every protected verb works there.
 
 ```text
 :lua hafen.world():gob():count("terobjs/tree")

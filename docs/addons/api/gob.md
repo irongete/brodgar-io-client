@@ -62,7 +62,23 @@ None of them throws.
 data, since [`hafen.json`](json.md) can encode a plain table and a Gob object cannot. For reading,
 prefer the methods — they are always fresh, while a snapshot is frozen at the moment you took it.
 
-## Size (ungated)
+## Write (protected: `actions`)
+
+### `gob:click(button, mods)`
+
+Click the object — exactly the click a left- or right-click on it sends, so the server sees what it would
+have seen from the player. Returns the Gob, so a click chains.
+
+`button` is optional and defaults to `1` (left: select, interact); `3` is right, the one that opens the
+[radial menu](flowermenu.md). `mods` is optional and defaults to `0`: Shift = 1, Ctrl = 2, Alt = 4, added
+together. It aims at the **whole object** rather than at a part of it, so a composite body part or a
+specific sub-mesh is not addressable.
+
+Unlike every read here, a gob that is **gone raises** — as does one that has no position yet, and a call
+made before you are in the world. A click is a message about one specific object, and there is nothing
+honest to send about an object that has left; nothing goes out in either case.
+
+## Size (unprotected)
 
 `gob:scale(k)` draws the object `k` times its size — the herb you keep walking past, the boar you want to
 see coming, the cupboard you are lining up. It is the same read/write pair every
@@ -102,8 +118,8 @@ painted there — the game's own (a fire's flame, a crop's growth stage), your o
 whatever you have [standing in the world](vr/README.md) anchored to it — and the key is your own name for
 one of yours.
 
-It is **ungated**, the attach included: what you paint at a gob is your own drawing, and it changes nothing
-the server, the client or another addon owns — the same footing as
+It is **unprotected**, the attach included: what you paint at a gob is your own drawing, and it changes
+nothing the server, the client or another addon owns — the same footing as
 [a HUD overlay](ui/custom.md#overlays).
 
 | Call | Returns | Description |
@@ -149,9 +165,8 @@ it.
 
 **`ov:offset` means exactly one thing: pixels.** An overlay is painted at a projected point, so that is the
 only unit it could be in, and a third argument raises. There is no `ov:clickable` and no `ov:onClick`: the
-thing under an overlay is the gob, and clicking a gob is the client's own —
-[`hafen.act():clickGob`](act.md). There is no `ov:move` either: an overlay's position **is** its gob's, and
-what you set is the offset.
+thing under an overlay is the gob, and clicking a gob is [`gob:click`](#gobclickbutton-mods) above. There
+is no `ov:move` either: an overlay's position **is** its gob's, and what you set is the offset.
 
 ### A thing you stood at the gob is listed here, read-only
 
@@ -271,19 +286,14 @@ it with a colon: `gob:position()`. `tostring(gob)` gives `Gob(<id>)`.
 
 ## Passing a Gob to the rest of the API
 
-Anything that acts on a gob takes the **Gob object**, not an id:
-
-```lua
-hafen.act():clickGob(tree, 3)
-me:overlay():add("tag"):text("here")
-hafen.vr():sprite():add(icon, me):offset(0, 0, 18)
-```
+Anything that acts on a gob takes the **Gob object**, not an id: `me:overlay():add("tag"):text("here")`,
+`hafen.player():hand():use(tree)`, `hafen.vr():sprite():add(icon, me):offset(0, 0, 18)`.
 
 ## See also
 
 - [`hafen.world`](world.md) — finding the gobs you want to read
 - [`hafen.vr`](vr/README.md) — standing something in the world and anchoring it to a gob
 - [`hafen.kin`](kin.md) — the roster side of `gob:kin()`
-- [`hafen.act`](act.md) — clicking a gob and walking to it
+- [`hafen.player`](player.md#write-protected-actions) — walking to a gob, and the cursor you aim at one
 - [`GobInfo`](types.md#gobinfo) — the shape `:info()` returns
 - [events](event.md#world) — reacting to gobs appearing and leaving instead of polling

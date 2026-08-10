@@ -42,7 +42,7 @@ local live = hafen.sound():list()
 for i = 1, #live do live[i]:stop() end   -- silence everything this addon started
 ```
 
-## Play and stop (ungated)
+## Play and stop (unprotected)
 
 | Function | Returns | Description |
 |---|---|---|

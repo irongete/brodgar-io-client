@@ -56,7 +56,7 @@ loudly instead of pinning silently at full.
 
 ## See also
 
-- [controls](README.md) — the shared model: `:parent`, `:position`, gating, owned vs borrowed
+- [controls](README.md) — the shared model: `:parent`, `:position`, permissions, owned vs borrowed
 - [interactive](interactive.md) — the controls that take a click or a drag
 - [widget](../widget.md) — everything a control answers before it adds anything of its own
 - [style](../style/README.md) — the rules that dress it

@@ -2,7 +2,7 @@
 
 `hafen.vr():object():add(asset, anchor)` stands a glTF model **in the 3D world** — the mesh sibling of a
 [sprite](sprites.md) and a [ghost](ghosts.md), on the same client-only world-entity core: a game object with
-no server id, so nothing reaches the server and nothing here is gated.
+no server id, so nothing reaches the server and nothing here is protected.
 
 ```lua
 local mdl                                          -- upvalue

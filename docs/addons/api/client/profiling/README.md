@@ -2,7 +2,7 @@
 
 `hafen.client():profiling()` is the read surface over the client's frame profiler — the same per-frame CPU
 and GPU trees the client's own profile windows draw, not a second profiler. Reach for it to answer "where
-did this frame go", in your own addon or across the whole client. Ungated.
+did this frame go", in your own addon or across the whole client. Unprotected.
 
 ```lua
 local p = hafen.client():profiling()

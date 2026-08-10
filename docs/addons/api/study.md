@@ -22,7 +22,7 @@ answers an empty array.
 | `hafen.study():summary()` | `{lp, attention, cost}` \| nil | live totals across the slots |
 
 A string [filter](conventions.md#the-filter-argument) matches the resource name **and** the display name.
-`:summary()` answers `nil` until the window has built. Neither throws and neither is gated.
+`:summary()` answers `nil` until the window has built. Neither throws and neither is protected.
 
 **There is no `:get`, and that is the shape rather than an omission.** A study slot has no key: the same
 curiosity can sit in two slots at once, and the window has no index the server addresses. So a string is

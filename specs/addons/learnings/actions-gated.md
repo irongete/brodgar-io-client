@@ -290,3 +290,17 @@
   remaining files, then re-grep and confirm every survivor is deliberate. Identifiers were never in scope
   (`requireActions`, `declaresActions`, `ActionsConsentWnd`): the permission is still called `"actions"`, which is
   not the word being renamed.
+- **(048.8) The `:lua` console can never demonstrate a GATE — it demonstrates a verb firing.** Its owner is
+  `Manifest.internal`, *the trusted operator console*, which declares every permission, so a `[manual]` line
+  that asks the maintainer to run a protected verb from the console and expect a permission error is asking for
+  something that cannot happen: `hafen.craft():current():make()` came back `Craft(Bug Collection)` (the button
+  pressed, the server then refusing for want of ingredients). That is the right thing to prove from the console
+  — the verb resolves and acts — and it is why the feature's own rule reads *the firing demo is a `[manual]`
+  `:lua` one-liner* while *a protected verb is proven BY ITS REFUSAL inside the suite*, which declares nothing.
+  Refusal and firing are two different addons' jobs; do not write one's expectation into the other's line.
+- **(048.8) Renaming the tier's adjective under `docs/` is TWO substitutions and six moved anchors.** `ungated`
+  contains `gated`, so `\bgated\b` leaves every negated form standing — it became `unprotected`, the word `src/`
+  already used. And the annotation lives *in group headings* (`## Write (gated: actions)`, `## Size (ungated)`),
+  so every rename moved an anchor (`#write-gated-actions` → `#write-protected-actions`, …) and six inbound links
+  had to move in the same task. A heading rename is the one docs edit that breaks links with nothing to grep for
+  afterwards except the links themselves.

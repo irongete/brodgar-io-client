@@ -1,7 +1,7 @@
 # hafen.client: keybindings
 
 `hafen.client():options():keybindings()` is the client's hotkey registry: declare your addon's hotkeys, and
-read or remap any binding, yours or the client's own. Ungated.
+read or remap any binding, yours or the client's own. Unprotected.
 
 ```lua
 local keys = hafen.client():options():keybindings()

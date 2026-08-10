@@ -12,7 +12,7 @@ win:on("Draw", function(ev) ev:g():text("this text is in my font", 6, 6) end)
 ```
 
 There is **no shared cross-addon registry**: a handle is a value your addon keeps, and another addon cannot
-look it up. No name collisions, no coupling. Everything here is client-side, cosmetic and **ungated**.
+look it up. No name collisions, no coupling. Everything here is client-side, cosmetic and **unprotected**.
 
 ## Where a font comes from
 

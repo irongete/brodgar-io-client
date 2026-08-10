@@ -1,7 +1,7 @@
 # Hotkeys and commands
 
 Two ways for the user to invoke your addon by hand: a key they press, and a command they type. Both are
-ungated, both are registered by name, and both are cleaned up when your addon reloads.
+unprotected, both are registered by name, and both are cleaned up when your addon reloads.
 
 ## A hotkey
 

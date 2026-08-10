@@ -51,7 +51,7 @@ optional.
 | `num` | number | stack count (absent for a non-stack) |
 | `wear` | number | 0..100 wear or progress percentage (absent when 0) |
 | `quality` | number | the quality the tooltip shows (absent for an item that has none) |
-| `handle` | number | its server widget id, for [`hafen.act():raw`](act.md) (absent once the item is gone) |
+| `handle` | number | its server widget id, the number it is addressed by on the wire (absent once the item is gone) |
 | `cell` | table | the `{x, y}` grid cell it sits in (absent for a worn or cursor item) |
 | `slots` | string[] | the equipment slots it fills, by name (absent when it is not worn) |
 

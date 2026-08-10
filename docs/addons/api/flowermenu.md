@@ -23,7 +23,7 @@ end)
 | `hafen.flowermenu():gob()` | the object the ring was opened on, or `nil` |
 
 None of them throws, ever: no menu being open is the ordinary state of the game rather than an error, and
-all three answer before you have entered the world. All three are ungated.
+all three answer before you have entered the world. All three are unprotected.
 
 ## Which object the menu belongs to
 
@@ -80,7 +80,7 @@ this one*; passing anything raises an error pointing at `:select`, which is how 
 makes "the open menu" a well-defined thing. If it ever does, these verbs answer for the first one the
 client is holding.
 
-## Write (gated: `actions`)
+## Write (protected: `actions`)
 
 | Method | Description |
 |---|---|
@@ -88,7 +88,8 @@ client is holding.
 | `hafen.flowermenu():select(n)` | pick the petal at position `n` on the ring, counting from `1` |
 | `hafen.flowermenu():cancel()` | close the menu with nothing chosen, exactly as Esc does |
 
-Called from an addon that did not declare the permission, each raises an error; see [`hafen.act`](act.md).
+Called from an addon that did not declare the permission, each raises an error; see
+[the actions permission](conventions.md#the-actions-permission).
 
 A string is always a caption and a number is always a position, so
 `hafen.flowermenu():select("3")` picks the petal captioned `3` and never the third one.
@@ -145,7 +146,6 @@ console command or a hotkey cannot be the thing that reacts to a menu. A handler
 
 ## See also
 
-- [Gob](gob.md) — what `:gob()` hands you, and everything you can ask it
-- [`hafen.act`](act.md) — the permission `:select` and `:cancel` share with every other write
+- [Gob](gob.md) — what `:gob()` hands you, and `gob:click(3)`, the right-click that puts the ring up
 - [`hafen.menugrid`](menugrid.md) — the *other* menu: the catalogue of everything your character can do
 - [`hafen.event`](event.md#the-radial-menu) — the bus these two events sit on, and every other key

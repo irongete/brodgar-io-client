@@ -26,7 +26,7 @@ immediate read answers `nil` or an empty array. Read on a short timer, or on the
 | `hafen.char():weight()` | number \| nil | carried weight, the encumbrance figure |
 
 Each collection is the same object every call, so a panel that reads the sheet every frame allocates
-nothing to do it. Nothing on this page throws once the sheet is up, and nothing is gated: the character
+nothing to do it. Nothing on this page throws once the sheet is up, and nothing is protected: the character
 sheet is a display of server state, and every change to it is an action taken elsewhere.
 
 ## Attributes

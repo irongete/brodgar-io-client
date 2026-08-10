@@ -2,7 +2,7 @@
 
 `hafen.vr():sprite():add(asset, anchor)` stands a PNG **in the 3D world**, on the same client-only
 world-entity core a [ghost](ghosts.md) uses: a game object with no server id, so nothing reaches the server
-and nothing here is gated.
+and nothing here is protected.
 
 ```lua
 local icon = hafen.asset():get("icon.png")

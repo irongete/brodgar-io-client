@@ -1,7 +1,7 @@
 # Reading the world
 
 Everything around your character is a **game object** — a tree, a boulder, an animal, another player's
-body — and reading them is ungated: no permission, no declaration, nothing to ask for. This guide finds
+body — and reading them is unprotected: no permission, no declaration, nothing to ask for. This guide finds
 objects, reads one, and asks what the ground under them is.
 
 ## Find the objects you want

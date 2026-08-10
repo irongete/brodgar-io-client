@@ -21,7 +21,7 @@ hotkey or type their command — so having them all on costs you an untouched lo
 | [`widgetstack`](../../addons/widgetstack/main.lua) | what a widget is, and how to name it |
 | [`profiler`](../../addons/profiler/main.lua) | where the frame went |
 | [`optionstest`](../../addons/optionstest/main.lua) | reading and writing the client's own settings |
-| [`walker`](../../addons/walker/main.lua) | the gated write tier, one deliberate verb at a time |
+| [`walker`](../../addons/walker/main.lua) | the protected write tier, one deliberate verb at a time |
 | [`netdemo`](../../addons/netdemo/main.lua) | HTTP against a declared host allowlist |
 | [`hogtest`](../../addons/hogtest/main.lua) | what happens to an addon that burns the frame |
 
@@ -46,7 +46,7 @@ and puts a custom one in its place, drawing the **real** items at their real gri
 client keeps doing the work. The client's own Tab and menu button then drive your window.
 
 Dormant until its `toggle` hotkey arms the replacement; the view is read-only, since moving an item is the
-[gated tier](guides/actions-and-permissions.md).
+[protected tier](guides/actions-and-permissions.md).
 
 ## theme
 
@@ -166,12 +166,17 @@ round-trips: read, write something different, read back, put the original value 
 
 ## walker
 
-The [gated write tier](guides/actions-and-permissions.md) in one small addon: it declares
+The [protected write tier](guides/actions-and-permissions.md) in one small addon: it declares
 `"permissions": ["actions"]`, so it is disabled until you enable it and confirm the consent dialog. Nothing
-it does is automatic — every verb is a deliberate `:walker <sub>`: walking, clicking a gob, using an item
-on the ground, area-select, placing, a menu path, a flower petal, an item verb, and the write verbs that
-live in their own namespaces — [speed](api/speed.md), [crafting](api/craft.md) and the
-[action bar](api/actionbar.md).
+it does is automatic — every verb is a deliberate `:walker <sub>`, and each is met on the page of the thing
+it changes: [walking](api/player.md#write-protected-actions) and applying what is on your cursor,
+[clicking a gob](api/gob.md#write-protected-actions),
+[placing and area-select](api/world.md#write-protected-actions),
+[the item verbs](api/ui/items.md#write-protected-actions),
+[a menu action](api/menugrid.md#use-protected-actions), a [radial menu](api/flowermenu.md) petal, the raw
+[widget message](api/ui/widget.md#send-a-message-protected-actions), and the writes in their own
+namespaces — [speed](api/speed.md), [crafting](api/craft.md), the [action bar](api/actionbar.md) and the
+[roster](api/kin.md).
 
 `:walker petal` arms the next [radial menu](api/flowermenu.md) you open and picks from it — by caption,
 by position on the ring, or cancelling it — from inside the event that says the menu is up.

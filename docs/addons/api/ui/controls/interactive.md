@@ -142,7 +142,7 @@ to report, so every step just reports where it is now.
 
 ## See also
 
-- [controls](README.md) — the shared model: `:parent`, `:position`, gating, owned vs borrowed
+- [controls](README.md) — the shared model: `:parent`, `:position`, permissions, owned vs borrowed
 - [display](display.md) — the controls with nothing to click
 - [widget](../widget.md) — everything a control answers before it adds anything of its own
 - [style](../style/README.md) — the rules that dress it

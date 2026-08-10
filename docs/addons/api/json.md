@@ -1,6 +1,6 @@
 # hafen.json: parsing and encoding JSON
 
-Convert between JSON strings and Lua values. `hafen.json()` is **ungated** — it is pure computation, with
+Convert between JSON strings and Lua values. `hafen.json()` is **unprotected** — pure computation, with
 no I/O — and independent of the network: parse a string you loaded from [`hafen.store`](store.md) or
 got from anywhere, and encode a table to send or save.
 

@@ -1,7 +1,7 @@
 # hafen.store: saved variables
 
 Keep data across sessions. A **saved variable** is a Lua table you declare in your manifest; the engine
-restores it on load and writes it back to disk for you. `hafen.store` is **ungated** — it writes only
+restores it on load and writes it back to disk for you. `hafen.store` is **unprotected** — it writes only
 inside your addon's own save folder.
 
 ```lua

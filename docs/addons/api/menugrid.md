@@ -35,7 +35,7 @@ The two forms are not equals, and the split is by shape rather than by fallback:
 scans display names, and a display name never hijacks a resource lookup.
 
 - `:res()` is the **identity**. It is the intern key, it is known as soon as the resource is named, and
-  it is the same string [`slot:res(name)`](actionbar.md#write-gated-actions) takes.
+  it is the same string [`slot:res(name)`](actionbar.md#write-protected-actions) takes.
 - A **display name** needs the resource fully loaded, and it is **not unique** — several actions can
   share one, and the first match in catalogue order wins. Use it to explore, and `:res()` to address.
 
@@ -81,7 +81,7 @@ The first four are called on the collection, the rest on a `Pagina`.
 | `pag:info()` | [`Pagina`](types.md#pagina) \| nil | a plain-table **snapshot** of the same fields |
 
 Every reader except `:res()` and `:exists()` answers `nil` once the entry is gone, and also while its
-resource is still loading. No reader throws, and none is gated.
+resource is still loading. No reader throws, and none is protected.
 
 ### The tree
 
@@ -98,7 +98,7 @@ for _, cat in ipairs(hafen.menugrid():roots()) do
 end
 ```
 
-## Use (ungated)
+## Use (protected: `actions`)
 
 | Method | Description |
 |---|---|
@@ -108,21 +108,23 @@ It returns the `Pagina`, so it chains. `use` takes **no arguments**, deliberatel
 the message from the modifier keys physically held at that instant, so a `mods` parameter could only
 lie about them.
 
-> **`pag:use()` performs a real action and needs no permission.** Unlike the [`hafen.act`](act.md)
-> verbs, it is not gated — any enabled addon can call it.
+The reads above are not protected — enumerating the catalogue tells the server nothing. `use` commits a
+real action, so it is behind the [`actions` permission](conventions.md#the-actions-permission) like every
+other verb that does.
 
 `use` raises an error on a category, on an entry that is no longer in the menu, and on one whose
 resource has not finished loading; check `:exists()` first if you are holding a stashed handle. A
-ground-targeted action enters targeting mode, just as the click would, and the target is supplied with
-[`hafen.act`](act.md)'s map verbs.
+ground-targeted action enters targeting mode, just as the click would, and you supply the target with
+[`gob:click`](gob.md#write-protected-actions) or
+[`hafen.world():place`](world.md#write-protected-actions).
 
 Because it goes through the client's own button code, `use` sends the action **by path when it has one
 and by id when it does not** — so it reaches the id-only entries, such as server-pushed abilities, that
-no path can express and that [`hafen.act():menu`](act.md) therefore cannot invoke.
+no path can express. This is the one door onto a menu action: the entry addresses itself, by resource
+name or display name, and there is no path-shaped way in beside it.
 
 ## See also
 
-- [`hafen.act`](act.md) — the path-based door to the same menu, and the verbs that target an action
 - [`hafen.actionbar`](actionbar.md) — putting one of these resource names on the hotbar
 - [`Pagina`](types.md#pagina) — the snapshot shape `:info()` returns
 - [`hafen.craft`](craft.md) — the window a recipe action opens

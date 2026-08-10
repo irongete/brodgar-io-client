@@ -73,7 +73,7 @@ client's own button height, so setting only a width you like and leaving the hei
 you want — and a caption wider than the box is drawn clipped, not wrapped. A button with a picture comes at
 the size of that picture and normally wants no `:size` at all.
 
-None of this is gated: a control is your own UI, the same as [a surface you paint](../custom.md) instead —
+None of this is protected: a control is your own UI, just as [a surface you paint](../custom.md) is —
 every setter above is client-side state, and every one of it restores with your addon.
 
 ## Subscribing

@@ -7,7 +7,7 @@ use [sprites](sprites.md) and [models](models.md).
 
 `hafen.vr():ghost()` **is the collection** of the ghosts your addon has placed: `:add(res, anchor)` places
 one and hands it back, `:list(filter)` reads them, `:remove(g)` ends one — the whole
-[collection shape](README.md#the-collections-ungated).
+[collection shape](README.md#the-collections-unprotected).
 
 ```lua
 local p = hafen.player():gob():position()
@@ -23,7 +23,7 @@ resource name. The [anchor](README.md#the-anchor-is-an-argument) is a
 
 A ghost is **client-only**: a game object with **no server id**, so it is never sent to the server, the
 server never learns it exists, and it grants no gameplay advantage. It is a visualization, exactly like a
-HUD overlay — see [the section's gating note](README.md).
+HUD overlay — see [the section's permission note](README.md).
 
 The prop appears a beat after `:add`: the resource resolves on a loader thread, so `:add` returns a working
 ghost immediately while the visual streams in shortly after. Every verb works meanwhile — a `:position`
@@ -107,7 +107,7 @@ Both the per-ghost `:onClick` and the [`GhostClicked`](../event.md#world-ghosts-
 every click, and `GhostClicked` reaches only *your* addon, since a ghost is private to the addon that made
 it.
 
-> **Still ungated.** Clickability is pure client-side detection: the engine's pick pass returns the ghost
+> **Still unprotected.** Clickability is pure client-side detection: the engine's pick pass returns the ghost
 > and the bridge calls you, and nothing is sent to the server. A **non-clickable** ghost carries no pick
 > surface and never wins a pick, so it is click-through — clicks pass straight through it to the real object
 > or the ground behind it, and ordinary play is unaffected.
@@ -141,5 +141,5 @@ full, and [the gizmo](gizmo.md) for drag handles that do the same job with no co
 - [`hafen.vr`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [sprites](sprites.md) — your own image in the world, on the same core
 - [`hafen.world`](../world.md#the-position-type) — the Position type, and the snapping a drag uses
-- [`hafen.act():place`](../act.md) — committing a real build, which is gated
+- [`hafen.world():place`](../world.md#write-protected-actions) — committing a real build, protected
 - [events](../event.md#world-ghosts-and-sprites) — `GhostClicked`

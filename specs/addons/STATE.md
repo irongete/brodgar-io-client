@@ -2,39 +2,30 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`048-act-dissolved`](048-act-dissolved/), 7 of 8** — the one section grouped by PERMISSION rather than by what it
+**No feature is active.** `049-css-selectors` is planned (`FEATURES.md`) and not started.
+
+**[`048-act-dissolved`](048-act-dissolved/) is CLOSED, 8 of 8** — the one section grouped by PERMISSION rather than by what it
 acts on **is dissolved** (**D-187** generalised as **D-215**: a verb lives with what it CHANGES, not with what it COSTS — a
-permission is not a namespace). Every verb moved onto the thing it changes ([spec.md](048-act-dissolved/spec.md) is the map),
-while `:flower`, `:menu` and `:enabled` were DELETED — 047 and 023 owned those doors already (**D-103**; no path door is built).
-`gated` → **protected** across `src/`. **The docs tier is 048.8's whole job**, so `docs/addons/api/act.md` still teaches verbs
-that moved and 117 `gated`s remain under `docs/`.
-**048.1 DONE, 13/13**: `hafen.player():move(p)` · `gob:click(button, mods)`. The section stays mounted while it empties
-(**D-117**), a moved verb retires under **BOTH** field reads (**D-216**), a departed gob makes the click **RAISE** (**D-217**).
-**048.2 DONE, 29/29**: the cursor is an **object** — `hafen.player():hand()`, **nil** while you carry nothing, `:item()` and the
-protected `:use(target, mods)` onto an Item, a Position or a **Gob** (`iteminteract`'s `clickargs`, a message no addon could
-send). **D-218**: the receiver must BE the message's implicit subject and absent whenever it is.
-**048.3 DONE, 14/14**: `item:use(mods)` (`iact`) · `:take()` · `:drop(n)` · `:transfer(n)`, each refusing a **stale** handle
-without sending; `act():item` deleted whole. **Only `:use` takes `mods`** — elsewhere the keys select the COUNT, so `n` IS it.
-**048.4 DONE, 11/11 + 11/11**: `hafen.world():place(p, angle, button, mods)` and `:select(p1, p2, mods)`, `place` now three
-lines from the `snapPlace`/`snapAngle` that prepare it. A wire recorder must identify its OWN sends: **clear + exact count**.
-**048.5 DONE, 10/10**: `pag:use()` — unprotected since 023 — carries the `actions` gate (**D-219**: a verb that COMMITS a real
-server action is protected wherever it lives), and `hafen.act():menu` is deleted with **no path door** anywhere. Gating a
-**shipped** verb owes a grep of every installed caller first; the gate goes on the WRITE half only, and the assertion that
-guards that is *the reads still answer this same undeclared addon in the same run*.
-**048.6 DONE, 10/10 + 3/3**: `widget:send(msg, ...)` — the escape hatch on the widget itself, so `act():raw`'s private target
-vocabulary (a bare id, `"mapview"`/`"gameui"`/`"root"`) is **deleted** rather than rehoused: each is already an ordinary handle,
-which the suite ASSERTS rather than argues (`HookApi`'s token lookup died with it). A message name is `type() != TSTRING` —
-**a coerced number that leaves the client is never a forgivable misread** — and an unbound sender must be refused by us,
-because `UI.rawWdgmsg` drops it in silence.
-**048.7 DONE, 10/10**: **the section itself is gone** — `installAct` deleted whole, `actFlower` with it, `actionsGranted` with
-`act():enabled()`, its only caller (**D-220**: a feature-detection verb whose answer is a fact about the CALLER's own manifest
-is deleted, not relocated — and it was the last unprotected member, which is what made the section *dissolvable* rather than
-merely smaller); `act():flower` went the way of `:menu`, `hafen.flowermenu():select` raising where it answered false. The
-**section-level `Retired` row SHADOWS all ten verb rows** (`hafen.act.moveTo` is two reads and the first throws), so that one
-message carries every verb's clause and the rows under it document the migration rather than dispatch it. 048.8 inherits: a
-private helper does **not** always die with its verb (`flowerPetalIndex` had a second caller since 047.2 → `FlowerMenuApi
-.petalIndex`), and the `gated` sweep is **not** one substitution — `\bgated\b` matches inside *propagating*/*delegating*, and
-over half the true hits are the `hasSub`/flag sense that must stay.
+permission is not a namespace, and the adjective became **protected**/**unprotected** across `src/` and `docs/`). Every verb
+moved onto the thing it changes ([spec.md](048-act-dissolved/spec.md) is the map): `hafen.player():move(p)` and `gob:click`
+(048.1) · the cursor as an **object**, `hafen.player():hand()` **nil** while you carry nothing, with `:item()` and a protected
+`:use(target, mods)` onto an Item, a Position or a **Gob** — `iteminteract`'s `clickargs`, the one message no addon could send
+(048.2, **D-218**) · `item:use(mods)`/`:take()`/`:drop(n)`/`:transfer(n)`, each refusing a **stale** handle without sending,
+and only `:use` taking `mods` because elsewhere the keys select the COUNT (048.3) · `hafen.world():place`/`:select`, three
+lines from the `snapPlace`/`snapAngle` that prepare them (048.4) · `widget:send(msg, ...)`, which **deleted** `raw`'s private
+target vocabulary rather than rehousing it, each token being an ordinary handle the suite asserts (048.6). `pag:use()` gained
+the gate it never had (048.5, **D-219**), while `:menu`, `:flower` and `:enabled` were **deleted** — 023 and 047 owned the
+first two doors already (**D-103**; no path door is built) and the third only reported the caller's own manifest (**D-220**).
+048.7 removed the section itself, its **section-level `Retired` row shadowing all ten verb rows**; 048.8 finished the docs
+tier — `api/act.md` deleted, the permission stated once in `conventions.md` and in full in the actions guide, every verb on the
+page of what it changes, `gated`/`ungated` at 0 under `docs/`.
+Standing rules this feature left: a moved verb retires under **BOTH** field reads (**D-216**) · on a departed thing a
+client-local write is inert and a **server** write RAISES (**D-217**) · the gate runs before the argument check (**D-213**), so
+an argument refusal on a protected verb is invisible to a suite that declares nothing · an argument that **leaves the client**
+is never coerced (`type() != TSTRING`) · a wire recorder must identify its OWN sends (clear + exact count) · gating a
+**shipped** verb owes a grep of every installed caller first, and the gate goes on the WRITE half only · **`:lua` can never
+demonstrate a gate** — the console declares every permission, so it shows a verb *firing* · the adjective sweep is **two**
+substitutions (`ungated` carries `gated`) and every renamed group heading **moves an anchor**.
 
 **[`047-flowermenu`](047-flowermenu/) is CLOSED, 3 of 3** — `hafen.flowermenu()` **is** the open radial menu: unprotected `:list()`/`:count()`/`:gob()` · protected `:select(label|n)`/`:cancel()` · `FlowerMenuOpened`/`FlowerMenuClosed`. The reads hand back bare **strings** in ring order and answer `{}`/`0`/`nil` with no menu up; the finder moved out of `ActApi` (**D-103**). *Every Opened is followed by exactly one Closed* is kept **structurally** (**D-212**) — a weak map keyed on the menu, every ending door calling one `closed()`, Opened at the **END** of `added()`. The write half drives `FlowerMenu.choose(Petal)` and, unlike the reads, **REFUSES** (**D-213**, gate before argument check); **`:gob()` is a CORRELATION** (**D-214**): a press records `(gob, UI.lcc)`. 26/26 · 19/19 · 15/15.
 
@@ -53,6 +44,6 @@ over half the true hits are the `hasSub`/flag sense that must stay.
 ## The `hafen.*` surface — the docs tier IS the contract
 
 - **One grammar** (039 §2 · `docs/addons/api/conventions.md`): a section is CALLED and is a per-addon singleton, everything after it is a colon verb, **arity is the verb**, a set is a **collection**, every read hands back a live interned object with `:info()` as the only snapshot, an explicit `nil` raises except where a page documents a meaning for it, a builder is constructed bare and configured by chained setters, a place is a **Position**, and every retired spelling **throws naming its replacement**. Every notification is `X:on(key, fn)` → a `Sub`, `sub:off()` ends it (041); the per-verb surface is `docs/addons/api/` and is deliberately not copied here.
-- **Protected tier** (the adjective *gated* is being retired with 048, D-215): the write verbs, behind the per-addon `actions` permission with enable-time consent and no global switch (D-027/D-028); `hafen.http` carries its own `network` host allowlist. Everything else observes, or writes client-local only and says so on its page.
+- **Protected tier** (*gated* retired with 048, D-215; the manifest permission is still `"actions"`): the write verbs, behind the per-addon `actions` permission with enable-time consent and no global switch (D-027/D-028); `hafen.http` carries its own `network` host allowlist. Each verb is documented on the page of what it changes, under a `Write (protected: actions)` heading. Everything else observes, or writes client-local only and says `(unprotected)` on its page.
 - **Example addons** (14, installed, dormant until asked): frozen `hello`, `bags`, `theme`, `atlas`, `stockfilter`, `planner`, `cupboard`, `tagger`, `widgetstack`, `profiler`, `optionstest`, `walker`, `netdemo`, `hogtest` — each described in `docs/addons/examples.md`, each carrying one accurate paragraph in its manifest (D-142).
 - **Testing**: one self-checking suite per task, run by hand as `:t<NNN>-<X>` (`specs/addons/TESTING.md`). Lives in `addons/<NNN>-<feature>.<X>/` while in flight; `/end` archives it to `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/` once closed (D-183), so only the example addons and frozen `hello` stay loaded at login. The regression is never run in practice — each task's own suite carries forward whatever it depends on (`TESTING.md`).

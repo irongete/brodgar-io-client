@@ -39,7 +39,7 @@ your own folder and rejects everything outside it. The `savedata/` tree is writt
 | `description` | string | the panel row's tooltip |
 | `api_version` | number | the API level you target; recorded, and nothing rejects a mismatch |
 | `saved_variables` | array | the tables the engine persists — see [`hafen.store`](api/store.md) |
-| `permissions` | array of strings | `["actions"]` to declare the write tier — see [`hafen.act`](api/act.md) |
+| `permissions` | array of strings | `["actions"]` to declare the write tier — see [the actions permission](api/conventions.md#the-actions-permission) |
 | `network` | object | `{"hosts": [...]}`, the allowlist for [`hafen.http`](api/http.md) |
 | `dependencies` | array of strings | addon ids, recorded; the loader neither orders nor requires them |
 | `optional_dependencies` | array of strings | the same |
@@ -149,7 +149,7 @@ Press `:` to open the client's command line. Three commands drive the addon laye
 | `:lua <expression>` | evaluate Lua against the live API and print the result |
 
 `:lua` prints its result as JSON, prefixed `lua=`, in the console and in full on the terminal. It is your
-own console rather than shared addon code, so it is **not** sandboxed and every gated verb answers there:
+own console rather than shared addon code, so it is **not** sandboxed and every protected verb answers there:
 it is the fastest way to try a call before you write it, and the fastest way to break something. The
 instruction watchdog still applies, so a stray infinite loop aborts instead of freezing the client.
 
@@ -182,5 +182,5 @@ your login.
 - [getting started](getting-started.md) — the first addon, end to end
 - [debugging](guides/debugging.md) — the reload loop in practice, the inspector, and reading the log
 - [`hafen.store`](api/store.md) — the saved variables the manifest declares
-- [`hafen.act`](api/act.md) — the permission the manifest declares, and what it gates
+- [actions and permissions](guides/actions-and-permissions.md) — the permission the manifest declares
 - [the example addons](examples.md) — installed and running already, one per part of the API

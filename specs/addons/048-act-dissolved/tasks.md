@@ -490,9 +490,28 @@ subclassed** in this fork, so `hafen.ui():find("@MapView")` reaches it. Verified
 
 ---
 
-## 048.8 — the docs tier
+## 048.8 — the docs tier ✅ 10/10 pass, 0 fail, 2 manual confirmed
 
 The largest single chunk, and it cannot start until every new name is real.
+
+> **Closed 2026-08-10 — and the feature closes with it.** `api/act.md` is deleted (144 lines); the permission
+> is stated once in `conventions.md` §*The actions permission* and in full in
+> `guides/actions-and-permissions.md`, which carries the whole protected set as a table. Every verb is
+> documented on the page of what it changes, 110 `gated`/`ungated`/`gating` hits went to 0, and the 19 pages
+> that linked the dead page were repointed. 60 files, +388/-345. Four things a later docs sweep inherits.
+> **The adjective sweep is TWO substitutions, not one**: `ungated` contains `gated`, so `\bgated\b` leaves the
+> negated form standing — it became **`unprotected`**, matching `src/`. **Each renamed group heading MOVES AN
+> ANCHOR** (`#write-gated-actions` → `#write-protected-actions`, `#the-collections-ungated` → `-unprotected`);
+> six inbound links had to move with them, and a heading rename is the one edit that breaks links silently.
+> **`hafen.act` is the eighth whole-section retired name and is a PREFIX of a live one** — `grep -F hafen.act`
+> hits `hafen.actionbar` 19 times — so its admissible spelling is the regex `hafen\.act\b`, which is D-013's
+> rule (admit the spelling that reads zero on a healthy tree) applied to a prefix collision rather than to an
+> ordinary English word. And **`:lua` can never demonstrate a gate**: the console owner is `Manifest.internal`
+> and declares every permission, so the `[manual]` line that expected a permission error from
+> `hafen.craft():current():make()` got `Craft(Bug Collection)` back — the console shows a verb *firing*, which
+> is the right proof for a docs task and the wrong sentence to write in an *expect*. Also: redistributing one
+> page's content into six pushed `conventions.md`, `gob.md` and `ui/widget.md` over the 300-line ceiling, and
+> all three had to be trimmed back under it in the same task.
 
 **Read the standard before writing** (`AREA.md`): `specs/docs/design/style-guide.md` **§9–§12** and
 the one-liners from `grep "^### D-" specs/docs/decisions/docs-standard.md`. **§12 is the checklist

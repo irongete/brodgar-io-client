@@ -2,7 +2,7 @@
 
 Run a function later, once or repeatedly. Reach for a timer when the [event bus](event.md) has
 nothing to tell you — polling a value that has no change event, or waiting out the beat after
-`EnterWorld` during which character data is still streaming in. Timers are **ungated**, run on the UI
+`EnterWorld` during which character data is still streaming in. Timers are **unprotected**, run on the UI
 thread, and are cancelled for you on reload or disable.
 
 ```lua

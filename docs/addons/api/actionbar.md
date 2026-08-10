@@ -8,7 +8,7 @@ for _, slot in ipairs(hafen.actionbar():list()) do       -- every slot, occupied
     hafen.log():write(slot:index() .. ": " .. (slot:name() or slot:res()))
   end
 end
-hafen.actionbar():get(0):use()                           -- gated: activate the first slot
+hafen.actionbar():get(0):use()                           -- protected: activate the first slot
 ```
 
 | Call | Returns |
@@ -51,7 +51,7 @@ At login the occupied slots stream in a beat later, as a burst of `ActionbarChan
 | `slot:info()` | [`ActionbarSlot`](types.md#actionbarslot) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
 
 Every reader except `:index()` and `:empty()` answers `nil` for an empty slot. None of them throws, and
-none is gated.
+none is protected.
 
 > A slot's `cooldown` is present only for an ability with a meter, and it is a `0..1` **fraction, not
 > seconds**.
@@ -60,7 +60,7 @@ Subscribe to [`ActionbarChanged`](event.md#character-and-status), whose payload 
 changed `Slot` itself, to react to a slot being set, cleared or changed. It does **not** fire on a
 cooldown ticking, which would be every frame; read `:cooldown()` live off the object instead.
 
-## Write (gated: `actions`)
+## Write (protected: `actions`)
 
 | Method | Description |
 |---|---|
@@ -68,12 +68,12 @@ cooldown ticking, which would be every frame; read `:cooldown()` live off the ob
 | `slot:res(name)` | assign an action to the slot **by resource name**, exactly as dragging it off the menu grid does |
 
 Both return the `Slot`, so they chain. Called from an addon that did not declare the permission, each
-raises an error; see [`hafen.act`](act.md). `mods` is the optional modifier bitfield — Shift = 1,
-Ctrl = 2, Alt = 4.
+raises an error; see [the actions permission](conventions.md#the-actions-permission). `mods` is the
+optional modifier bitfield — Shift = 1, Ctrl = 2, Alt = 4.
 
 `use` raises an error on an empty slot, so check `:empty()` first. A ground-targeted ability enters
 targeting mode when used, just as clicking the button would; supply the target with
-[`hafen.act`](act.md)'s map verbs.
+[`gob:click`](gob.md#write-protected-actions) or [`hafen.world():place`](world.md#write-protected-actions).
 
 **`slot:res()` is one name for the pair**: with no argument it reads the slot's resource name, with one
 it assigns that action. The name it takes is the same string it reads back — so the way to learn a name
@@ -89,7 +89,7 @@ since those are session-local and opaque to addons.
 > when you need the new action.
 
 ```lua
-hafen.actionbar():get(0):res("gfx/hud/act/mine")         -- gated: put "Mine" on the first slot
+hafen.actionbar():get(0):res("gfx/hud/act/mine")         -- protected: put "Mine" on the first slot
 hafen.timer():after(0.5, function()
   hafen.actionbar():get(0):use()
 end)
@@ -98,6 +98,6 @@ end)
 ## See also
 
 - [`hafen.menugrid`](menugrid.md) — where the resource names the write takes come from
-- [`hafen.act`](act.md) — the permission both writes share, and the verbs that supply a target
+- [actions and permissions](../guides/actions-and-permissions.md) — the permission both writes share
 - [`ActionbarSlot`](types.md#actionbarslot) — the snapshot shape `:info()` returns
 - [events](event.md#character-and-status) — `ActionbarChanged`
