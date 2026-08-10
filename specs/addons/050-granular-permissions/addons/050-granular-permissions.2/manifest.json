@@ -1,0 +1,13 @@
+{
+  "name": "050.2 - the consent dialog enumerates",
+  "id": "050-granular-permissions.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 050.2: declares one group and one exact key so the consent dialog has both shapes to render, then READS the dialog and the panel row it was enabled through -- the entries listed, the marker's count, the tooltip -- and re-asserts the manifest-to-matcher-to-gate path all three are drawn from.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": [
+    "flowermenu.*",
+    "player.move"
+  ]
+}

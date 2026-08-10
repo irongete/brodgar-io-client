@@ -225,3 +225,25 @@ tier's name; every addon that declared before re-consents once, which is moot be
 its declaration in the same task.
 **See.** [D-028](#d-028), [D-228](#d-228), `learnings/actions-gated.md` (4b, the seen set this replaces; 4c, the
 bulk-enable bypass whose skip widened with the predicate).
+
+### D-230 — the consent dialog and the row marker are per declared ENTRY, and a re-prompt marks only what is new ✅ (050.2, 2026-08-11)
+**Decision.** Both user-facing halves of the catalogue render the **entries as written**, never the keys they
+resolve to. The consent dialog prints one plain-language line per entry — a `<prefix>.*` group as the single
+line it was written as, its members' catalogue lines joined — and the AddOns row marker becomes
+`[protected: N]` counting those same entries, with the entries themselves in the row tooltip, the shape `[net]`
+already uses for its hosts. An entry covering anything the user has not approved **for this addon** before is
+marked **NEW**, so a re-prompt (D-229's *declared ⊄ consented*) reads as an escalation; nothing is marked on a
+first prompt, where every line is new and saying so on each would say nothing. The list scrolls past about a
+dozen entries rather than being capped.
+**Rationale.** The point of replacing one coarse tier is that *the permission the user grants is the list they
+read*, and the list they read is the list the author wrote. Expanding `item.*` into four lines makes the dialog
+disagree with the manifest it is quoting; counting resolved keys in the marker makes the number disagree with
+the tooltip beside it. The NEW mark exists because D-229's re-prompt is otherwise indistinguishable from a
+dialog the user already dismissed once — which is precisely the state in which people click through.
+**Consequences.** `PermissionSet` grows the per-entry view the gate never needed (`grants(entry)`,
+`describe(entry)`, `isNew(entry, consented)`), all pure and therefore headless-testable, which is where the
+escalation is proven. A group is NEW as soon as **one** member is: the line stands for the whole entry, so a
+partially-approved group must still be marked or the widening hides inside it. Capping the rendered list was
+rejected — a dialog that hides part of what it is granting is worse than one that scrolls.
+**See.** [D-028](#d-028), [D-228](#d-228), [D-229](#d-229), `learnings/actions-gated.md` (the badge's count),
+`learnings/testing-tooling.md` (how a suite reads its own dialog).

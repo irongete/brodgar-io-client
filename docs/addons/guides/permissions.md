@@ -60,11 +60,17 @@ Two steps, and the second one is not yours:
    ```
 
 2. The user enables the addon. An addon that declares a permission key is **disabled the first time the
-   client sees it**, and enabling it in Options ▸ AddOns raises a consent dialog naming what it can do.
+   client sees it**, and enabling it in Options ▸ AddOns raises a consent dialog that lists, one plain
+   line each, exactly the entries you wrote — a group as the one line you wrote it as.
 
 So a write addon that is running is one the user knowingly turned on — there is no global switch to flip,
 and no way for an addon to grant itself a key by being installed. Its row in the panel carries a
-`[protected]` badge from the moment it is discovered, and a bulk **Enable all** skips it.
+`[protected: N]` badge counting those entries from the moment it is discovered, with the entries
+themselves in the row tooltip, and a bulk **Enable all** skips it.
+
+> **Asking for more re-asks.** What the user approved is remembered per addon, so a version of your addon
+> that adds a key is disabled again and prompts again, with the added entries marked in the dialog.
+> Dropping a key never re-prompts.
 
 A protected verb called by an addon that did not declare its key raises an error naming the verb and the
 key it needs. It is not a silent no-op, and it is not a crash.

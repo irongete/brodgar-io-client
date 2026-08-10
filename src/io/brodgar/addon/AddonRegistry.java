@@ -369,6 +369,16 @@ public final class AddonRegistry {
         return (sb.length() == 0) ? null : sb.toString();
     }
 
+    /**
+     * What the user has already approved for {@code id} — never {@code null}. The set the consent dialog marks
+     * its NEW entries against ({@link PermissionSet#isNew}), so a re-prompt says which line is the escalation
+     * instead of re-stating the whole list as if none of it had been seen.
+     */
+    public static Set<Permission> consentedKeys(String id) {
+        Set<Permission> ok = consentedMap().get(id);
+        return (ok == null) ? EnumSet.<Permission>noneOf(Permission.class) : ok;
+    }
+
     /** The persisted consent record: addon id → the catalogue keys the user approved for it. */
     private static Map<String, Set<Permission>> consentedMap() {
         Map<String, Set<Permission>> out = new LinkedHashMap<String, Set<Permission>>();

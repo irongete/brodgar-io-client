@@ -99,6 +99,59 @@ public final class PermissionSet {
         return (p != null) && granted.contains(p);
     }
 
+    /**
+     * The catalogue keys ONE declared entry grants — an exact key alone, or every member of a group. The
+     * per-entry view the user-facing half needs: the dialog renders one line per ENTRY, so it has to ask what
+     * that one line is granting rather than what the whole declaration is. Empty for an entry outside the
+     * catalogue, which {@link #parse} has already refused by the time anything here is asked.
+     */
+    public static Set<Permission> grants(String entry) {
+        EnumSet<Permission> out = EnumSet.noneOf(Permission.class);
+        if(entry == null)
+            return out;
+        if(entry.endsWith(".*")) {
+            String prefix = entry.substring(0, entry.length() - 2) + ".";
+            for(Permission p : Permission.values()) {
+                if(p.key.startsWith(prefix))
+                    out.add(p);
+            }
+        } else {
+            Permission p = Permission.byKey(entry);
+            if(p != null)
+                out.add(p);
+        }
+        return out;
+    }
+
+    /**
+     * What one declared entry lets the addon do, in the user's words — the consent dialog's line for it. An
+     * exact key is its own catalogue line; a <b>group</b> reads as its members joined, because the entry is the
+     * line the user reads and expanding {@code item.*} is not their job. In catalogue order (an {@link EnumSet}
+     * iterates by ordinal), so two addons declaring the same group read identically.
+     */
+    public static String describe(String entry) {
+        List<Permission> ps = new ArrayList<Permission>(grants(entry));
+        StringBuilder sb = new StringBuilder();
+        for(int i = 0; i < ps.size(); i++) {
+            if(i > 0)
+                sb.append((i == ps.size() - 1) ? " and " : ", ");
+            sb.append(ps.get(i).line);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Is this entry asking for something the user has <b>not</b> approved for this addon before? — the dialog's
+     * NEW marker, so a re-prompt reads as an escalation rather than as a repeat of a dialog they already
+     * dismissed once. A group is new as soon as ONE of its members is: the line the user reads stands for the
+     * whole entry, so marking it only when every member is new would hide exactly the widening the record
+     * exists to catch. An empty record (never consented) marks everything, which is a first prompt.
+     */
+    public static boolean isNew(String entry, Set<Permission> consented) {
+        Set<Permission> g = grants(entry);
+        return !g.isEmpty() && ((consented == null) || !consented.containsAll(g));
+    }
+
     /** Whether the addon declared nothing at all. */
     public boolean isEmpty() {
         return entries.isEmpty();

@@ -124,12 +124,15 @@ name, version and author, and a live status. The description is the row's toolti
 | `not loaded` | enabled, but not running — usually an enable that no reload has applied yet |
 | `error: …` | its manifest or its Lua failed; the message says how |
 | `auto-disabled (…)` | the CPU budget stopped it this session |
-| `[protected]` | it declared permission keys — it can act on your behalf |
+| `[protected: N]` | it asked for N permission entries — it can act on your behalf; the tooltip names them |
 | `[net]` | it declared network hosts; the tooltip names every host it may reach |
+
+The count is the entries the addon wrote, so a `<prefix>.*` group counts as the one line you read rather
+than as the keys it covers.
 
 **A checkbox is applied on the next reload**, never mid-session: ticking one and pressing **Reload UI** is
 the whole gesture, and a "changes pending" line says so until you do. **Enable all** turns on every addon
-that is not marked `[protected]`; a write addon is only ever enabled one at a time, through the consent
+that is not marked `[protected: N]`; a write addon is only ever enabled one at a time, through the consent
 dialog that ticking it raises. **Open addons folder** opens `addons/` in your file browser.
 
 An addon that declares a permission key is disabled the first time the client sees it, so a write addon

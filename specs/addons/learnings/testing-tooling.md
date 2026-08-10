@@ -1680,3 +1680,26 @@
   was the manual line's text, not the numbers, because the reachability logic was identical across both
   versions. When a pasted block disagrees with the file on disk, diff the prose of the lines before diffing the
   counts: wording changes every edit, counts do not.
+- **(050.2) A suite can OBSERVE its own consent dialog: re-ticking its own row raises it again.** The enable-time
+  dialog looked like the archetypal `[manual]` — it exists only before the addon is enabled, so the addon that
+  would read it is not running yet. It is not: enabling is applied on the next reload, so **unticking and
+  re-ticking the suite's own row while it is still loaded** raises the very dialog under test, live, with the
+  suite there to read it. Everything else is ordinary widget reads — `hafen.ui():all("window")` + `w:title()`
+  finds it, `wnd:all("label")` + `w:text()` reads its lines (a `Label` hands back its whole unwrapped string, so
+  a wrapped line is still one comparison), and `w:tooltip()` hands back what `settip` stored, which makes the
+  AddOns row's tooltip assertable too. Three `[manual]` lines became five automated checks on the 050.3 retry
+  timer. The leftover `[manual]` is only *close it with Enable, not Cancel* — Cancel would leave the suite
+  disabled for the next login.
+- **(050.2) `haven.Window` still cannot be built headlessly, but everything the window READS can be.** The
+  dialog itself is GL-bound (034.1), so the probe proves its inputs instead: `AddonRegistry.describeAddons()`
+  under `-Dhaven.addondir=addons -Dhaven.prefspec=<throwaway>` parses the REAL manifest off disk and hands back
+  the `AddonInfo` the row is built from (entry count, tooltip string), and a real `new haven.Label(meta)` +
+  `settip(RichText.Parser.quote(...), true)` drives `LuaWidget.role/text/tip` — the three reads the in-game
+  suite makes. What is left unproven is one string concatenation, which is the right amount to leave to the
+  in-game run. Remember to `removeNode()` the throwaway prefs node afterwards.
+- **(050.2) Drive a suite's retry window through the engine's own `runTimers(Addon)` rather than calling
+  `t.fn` directly (refines 050.3).** `AddonManager.runTimers(Addon)` and the `clock` field are private, but a
+  same-package probe reaches both by reflection: advance `clock` by the interval and invoke it, and the real
+  due/reschedule/one-shot arithmetic runs — so the probe measures the window the suite actually has (60 ticks
+  in, 60 ticks out) instead of a pulse count that only approximates it. `AddonManager.tick(dt)` is the wrong
+  door here: it drags in the whole frame (reload queue, arming, profiling, event drains) and wants a live `UI`.

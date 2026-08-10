@@ -28,9 +28,11 @@ import java.util.List;
  * <b>Open addons folder</b> controls and a "changes pending" hint.
  *
  * <p>The protected verbs are a <b>per-addon</b> permission (D-027; D-028 — no global master switch): an
- * addon that declares any of them shows the {@code [protected]} row marker, defaults to disabled, and
- * enabling it raises the {@link PermissionConsentWnd} consent dialog (via {@link #confirmEnablePermissions},
- * slice 4c) — so it only ever runs after the user knowingly grants it, for exactly the keys it asked for.
+ * addon that declares any of them shows the {@code [protected: N]} row marker with its declared entries in the
+ * row tooltip — the shape {@code [net]} already uses for its hosts, so how much an addon asked for is legible
+ * in the list and exactly what it asked for is one hover away — defaults to disabled, and enabling it raises
+ * the {@link PermissionConsentWnd} consent dialog (via {@link #confirmEnablePermissions}, slice 4c) — so it
+ * only ever runs after the user knowingly grants it, for exactly the keys it asked for.
  *
  * <p>It extends {@code OptWnd.Panel} (a non-static inner class) from this package via the qualified
  * {@code opt.super()} / {@code opt.new PButton(...)} forms; every widget it uses ({@link Scrollport},
@@ -51,9 +53,11 @@ public class AddonPanel extends OptWnd.Panel {
         Widget prev = add(new Label("AddOns"), 0, 0);
         prev = add(new Label("Enable or disable addons. Changes apply on reload."), prev.pos("bl").adds(0, 2));
         // D-027/D-028: the protected verbs are a PER-ADDON permission (no global switch). An addon that declares
-        // any carries the [protected] row marker, is disabled by default, and enabling it raises the consent
-        // dialog (confirmEnablePermissions / PermissionConsentWnd, slice 4c) — this line just points the user at that.
-        prev = add(new Label("An addon marked [protected] can act on your behalf; enabling one asks you to confirm."),
+        // any carries the [protected: N] row marker, is disabled by default, and enabling it raises the consent
+        // dialog (confirmEnablePermissions / PermissionConsentWnd, slice 4c) — this line just points the user at
+        // that, and says what the number and the hover are for.
+        prev = add(new Label("An addon marked [protected: N] asked for N permissions to act on your behalf"
+            + " (hover to read them); enabling one asks you to approve the list."),
             prev.pos("bl").adds(0, 2));
         list = add(new Scrollport(UI.scale(new Coord(360, 220))), prev.pos("bl").adds(0, 8));
         hint = add(new Label(""), list.pos("bl").adds(0, 6));
@@ -103,14 +107,17 @@ public class AddonPanel extends OptWnd.Panel {
      * screen and raised to the front — so it drags freely like any window, not clipped inside this panel) and
      * <b>records what was consented to</b> + enables the addon (persisted; applied on reload) + rebuilds the
      * rows <b>only</b> if the user confirms. The record is the door: consent is granted for the keys this
-     * manifest declared, so one that later asks for more is disabled again and asks again.
+     * manifest declared, so one that later asks for more is disabled again and asks again — and the dialog is
+     * handed that record as well as the declaration, so the re-prompt can mark what is NEW in it (050.2)
+     * rather than repeating a list the user has already read once.
      * One dialog at a time: re-ticking while a consent is already open is a no-op. Because it is top-level, it
      * is closed explicitly when this panel leaves the screen — see {@link #tick(double)}.
      */
     private void confirmEnablePermissions(String id, String name, PermissionSet declared) {
         if((consent != null) && (consent.parent != null))
             return;
-        consent = ui.root.adda(new PermissionConsentWnd(name, () -> { AddonRegistry.grantConsent(id, declared); rebuild(); }),
+        consent = ui.root.adda(new PermissionConsentWnd(name, declared, AddonRegistry.consentedKeys(id),
+                                                       () -> { AddonRegistry.grantConsent(id, declared); rebuild(); }),
                                ui.root.sz.div(2), 0.5, 0.5);
         consent.raise();
     }
@@ -165,18 +172,27 @@ public class AddonPanel extends OptWnd.Panel {
             String meta = ai.name
                 + ((ai.version != null) ? ("  v" + ai.version) : "")
                 + ((ai.author != null) ? ("  " + ai.author) : "")
-                + (ai.declaresPermissions() ? "  [protected]" : "")  // D-027: this addon asked for protected verbs
+                // D-027 (050.2): this addon asked for N protected entries — the COUNT, because "it can act on
+                // your behalf" is the one thing the marker used to say about an addon wanting to change the
+                // movement speed and one wanting to send any message the client can. A group is one entry, the
+                // same one line the consent dialog renders for it; the entries themselves are in the tooltip.
+                + (ai.declaresPermissions() ? ("  [protected: " + ai.permissions.size() + "]") : "")
                 + (ai.declaresNetwork() ? "  [net]" : "");     // D-037: this addon can reach the declared hosts
             Label nm = add(new Label(meta), UI.scale(new Coord(22, 3)));
-            // Tooltip: the description plus, for a network addon, exactly which hosts it may reach (§5.3) — the
-            // user sees the servers it talks to BEFORE enabling it. For a broken manifest it is the REASON,
-            // first and whole (an unknown permission key names the valid ones), because a row that says only
-            // "manifest error" sends the author to the terminal for something the panel already knows.
+            // Tooltip: the description plus, for a declaring addon, exactly which permissions it asked for and
+            // which hosts it may reach (§5.3) — the user sees what it wants to do and the servers it talks to
+            // BEFORE enabling it, where the row itself only has room for how many. For a broken manifest it is
+            // the REASON, first and whole (an unknown permission key names the valid ones), because a row that
+            // says only "manifest error" sends the author to the terminal for something the panel already knows.
             StringBuilder tip = new StringBuilder();
             if(broken)
                 tip.append(ai.manifestError);
             if(ai.description != null)
                 tip.append(ai.description);
+            if(ai.declaresPermissions()) {
+                if(tip.length() > 0) tip.append("\n\n");
+                tip.append("Permissions: ").append(ai.permissions.toString());
+            }
             if(ai.declaresNetwork()) {
                 if(tip.length() > 0) tip.append("\n\n");
                 tip.append("Network hosts: ").append(String.join(", ", ai.networkHosts));

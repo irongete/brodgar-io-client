@@ -344,3 +344,15 @@
   row that can never load. A manifest that does not parse leaves nothing to enable whatever the persisted bit
   says, so it renders unticked and inert — but the condition has to be *broken manifest*, not *not loaded*: an
   addon you just ticked and have not reloaded yet reads "not loaded" with a ticked box, and that one is right.
+- **(050.2) A permission badge's number has to count what the tooltip beside it lists, or the row contradicts
+  itself.** `[protected: N]` is the DECLARED ENTRIES, not the catalogue keys they grant: a suite declaring
+  `["flowermenu.*", "player.move"]` reads `[protected: 2]` while granting three keys, and the tooltip names the
+  same two strings the manifest holds. Counting resolved keys would have been just as easy and would have put a
+  `3` next to a two-item list. Same rule one layer up: the consent dialog renders one line per entry, a group as
+  the single line it was written as, so the dialog, the tooltip, the marker and the manifest all quote one text.
+- **(050.2) A re-prompt that looks identical to the first prompt is a dialog people click through.** D-229 makes
+  a widened manifest ask again, but "ask again" rendered as the same list the user already approved teaches them
+  the dialog is noise. Marking the entries not covered by the consent record — and marking NOTHING on a first
+  prompt, where every line is new — is what makes the second dialog say *this is more than last time*. A group
+  counts as new the moment ONE member is outside the record, or the added key hides inside a line that was
+  already approved.

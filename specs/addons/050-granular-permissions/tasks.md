@@ -20,7 +20,7 @@
       its manifest, `:reload`, and confirm it came back **disabled**; then misspell one, `:reload`,
       read the panel's reason, and put both back.
 
-- [ ] **050.2 — the consent dialog enumerates, and the row says how much.** The consent window (renamed
+- [x] **050.2 — the consent dialog enumerates, and the row says how much.** The consent window (renamed
       with everything else) renders one plain-language line per declared entry (a wildcard as its
       group) instead of the three fixed labels, sized so a dozen entries still fit, and **marks the
       entries the user has not consented to before** so a re-prompt reads as an escalation rather
