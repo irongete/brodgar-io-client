@@ -22,8 +22,9 @@
 --   :walker click       -- gob:click(3): RIGHT-click the nearest object (opens its context menu — safe/cancelable)
 --   :walker use         -- hafen.player():hand():use(p): apply what is on your cursor to the ground under you
 --                          (the Hand is nil when you carry nothing, so this now says so instead of firing blind)
---   :walker sel         -- select: area-select the ~3x3 tiles around you (drives tile-area tools)
---   :walker place       -- place: drop the object on your cursor at your feet facing north (no-op if not placing)
+--   :walker sel         -- hafen.world():select: area-select the ~3x3 tiles around you (drives tile-area tools)
+--   :walker place       -- hafen.world():place: drop the object on your cursor at your feet facing north
+--                          (no-op if you are not placing anything — the server just ignores it)
 --   :walker raw         -- raw: send the same walk "click" straight to the MapView (the escape hatch)
 --   :walker menu <t...> -- menu: invoke a menu/pagina action by path (e.g. ':walker menu lo cs' = log out to
 --                          character select — reversible). Path tokens are content-defined, so YOU supply them.
@@ -70,7 +71,7 @@ hafen.slash():register("walker", function(args)
 
   if sub == "help" then
     hafen.log():write(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | petal | item | speed | craft | bar | setbar | menugrid | kin")
-    hafen.log():write("   walk=hafen.player():move  click=gob:click(3)  use=hafen.player():hand():use(p)  sel=select  place=place  raw=raw escape hatch")
+    hafen.log():write("   walk=hafen.player():move  click=gob:click(3)  use=hafen.player():hand():use(p)  sel=hafen.world():select  place=hafen.world():place  raw=raw escape hatch")
     hafen.log():write("   menu=hafen.act():menu(path...)  e.g. ':walker menu lo cs' = log out to char select (reversible)")
     hafen.log():write("   flower=hafen.act():flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
     hafen.log():write("   petal <label...>|n <k>|cancel=hafen.flowermenu():select/:cancel  arms the NEXT menu you open, picked from FlowerMenuOpened")
@@ -120,12 +121,16 @@ hafen.slash():register("walker", function(args)
       :format(hand:item() and (hand:item():name() or hand:item():res()) or "?"))
 
   elseif sub == "sel" then
-    hafen.act():select(p:offset(-11, -11), p:offset(11, 11))   -- ~3x3 tiles centred on you
+    -- 048.4: the two world writes live on the world now. The corners are Positions and the selection is the
+    -- TILE rectangle they span, so ±11 world units either way is the ~3x3 tiles centred on you.
+    hafen.world():select(p:offset(-11, -11), p:offset(11, 11))
     hafen.log():write(":walker sel -> area-selected the ~3x3 tiles around you (visible only with a tile-area tool active)")
 
   elseif sub == "place" then
-    hafen.act():place(p, 0)                            -- angle 0 rad = north; no-op unless something is on your cursor
-    hafen.log():write(":walker place -> place at your feet facing north (start building something first, else nothing happens)")
+    -- ...and place lands beside the snapPlace/snapAngle that exist to prepare its two arguments, which is the
+    -- whole reason it moved: snap the point the way the client's own building placement does, then place there.
+    hafen.world():place(hafen.world():snapPlace(p), 0)  -- angle 0 rad = north; no-op unless something is on your cursor
+    hafen.log():write(":walker place -> hafen.world():place(snapPlace(here), 0) at your feet facing north (start building something first, else nothing happens)")
 
   elseif sub == "raw" then
     -- The escape hatch: send the walk "click" straight to the MapView, building the wire args by hand.

@@ -1,16 +1,11 @@
 package io.brodgar.addon;
 
-import haven.Coord;
-import haven.Coord2d;
 import haven.FlowerMenu;
 import haven.GameUI;
 import haven.Indir;
 import haven.Loading;
 import haven.Makewindow;
-import haven.MapView;
-import haven.MCache;
 import haven.MiniMap;
-import haven.OCache;
 import haven.Resource;
 import haven.Speedget;
 import haven.UI;
@@ -41,11 +36,13 @@ final class ActApi {
     private ActApi() {}
 
     /**
-     * Build {@code hafen.act()} (what is left of the protected MapView/menu/flower/item verbs) for {@code owner}.
-     * From installHafen.
-     * A plain section object, and the <b>spatial</b> verbs take a {@link LuaPosition} rather than a pair of
-     * numbers: a place in this API is a type now, so handing one a widget's pixel position <i>throws</i> where it
-     * used to walk the character somewhere wrong.
+     * Build {@code hafen.act()} (what is left of it) for {@code owner}. From installHafen.
+     *
+     * <p>A plain section object that is <b>emptying</b> (D-117): 048 moves every verb onto the thing it changes,
+     * one task at a time, and the section stays mounted for whatever has not moved yet so that no verb ever
+     * works under two names. What is left here is {@code enabled}, {@code raw}, {@code menu} and {@code flower};
+     * 048.7 deletes the section itself once they are gone. Every spelling that has already left throws from
+     * {@link Retired}, naming its new home.
      */
     static void installAct(LuaTable hafen, final Addon owner) {
         LuaTable act = new LuaTable();
@@ -63,31 +60,11 @@ final class ActApi {
         // :use(target, mods) applies what you hold to an Item, a Position or a Gob. The Gob arm is a message
         // this verb could not send: it aimed only at bare ground, where the client's own iteminteract extends
         // the args with the object's click args when the hit resolves to one.
-        // place(p, angle [, button [, mods]]) — place the object currently on your cursor at a Position,
-        // rotated by `angle` RADIANS (the MapView "place"; the engine encodes angle as round(angle*32768/PI)).
-        // With nothing being placed the server ignores it. button 1 = confirm (default); mods 0 default.
-        act.set("place", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "act", "place");
-                AddonManager.requireActions(owner, "hafen.act():place");
-                Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.act():place", "p");
-                double ang = WorldApi.number(a, 3, "hafen.act():place", "angle");
-                actPlace(rc.x, rc.y, ang, a.arg(4).optint(1), a.arg(5).optint(0));
-                return LuaValue.NIL;
-            }
-        });
-        // select(p1, p2 [, mods]) — area-select the tile rectangle spanned by two Positions: the MapView "sel"
-        // (world → tile, the same conversion p:tileCoord() exposes). Drives tile-area tools.
-        act.set("select", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "act", "select");
-                AddonManager.requireActions(owner, "hafen.act():select");
-                Coord2d p1 = LuaPosition.worldArg(a, 2, "hafen.act():select", "p1");
-                Coord2d p2 = LuaPosition.worldArg(a, 3, "hafen.act():select", "p2");
-                actSelect(p1.x, p1.y, p2.x, p2.y, a.arg(4).optint(0));
-                return LuaValue.NIL;
-            }
-        });
+        // 048.4: place and select have LEFT — they are the world's first protected verbs now
+        // (hafen.world():place(p, angle, button, mods) and hafen.world():select(p1, p2, mods)), which puts
+        // place directly beside the hafen.world():snapPlace(p) / :snapAngle(a) that exist to prepare its two
+        // arguments and until now sat a whole section away from it. Same messages, same gate, on the thing
+        // they change; their pure arg builders went with them.
         // raw(target, msg, ...) — the escape hatch: send an arbitrary wdgmsg from a BOUND widget. target = a
         // server widget id (number; e.g. widget:id()) or a token "mapview"/"gameui". The trailing args are
         // marshalled exactly like the action/message hooks (a {x=,y=} table ↔ Coord; numbers/strings/bools
@@ -238,56 +215,16 @@ final class ActApi {
     //
     // 048.1: the two CLICK verbs are gone from here. Walking the character is hafen.player():move(p) (CharApi)
     // and clicking an object is gob:click(button, mods) (LuaGob) — each sends the same message it always did,
-    // from the thing it changes. What is left below is the MapView verbs later tasks in 048 move out.
-
-    /** The world "click" destination Coord for a move to world (x, y) — MapView floors world coords to posres. */
-    static Coord moveClickCoord(double x, double y) {
-        return new Coord2d(x, y).floor(OCache.posres);
-    }
-
-    // -- 4d: the rest of the MapView action verbs (place / select) + raw -------------------------------------
-    // Each is the same kind of send — a Widget.wdgmsg from the MapView, exactly what the matching mouse gesture
-    // produces (mousedown-place / Selector.mmouseup). They share one world→Coord encoding
-    // (moveClickCoord = Coord2d.floor(posres)) and a dummy screen coord (pc = the current mouse, meaningless for
-    // a programmatic action but part of the wire shape). The arg-array BUILDERS below are pure (no live state)
-    // so they are headless-testable; the act* SENDERS grab the live MapView, fill pc, and wdgmsg.
+    // from the thing it changes.
     // 048.2: the MapView "itemact" left with useItemOn — its three wire shapes are LuaHand's pure builders now.
-
-    /** The MapView {@code "place"} angle encoding: radians → the server's {@code round(angle*32768/PI)}. Pure. */
-    static int placeAngle(double radians) {
-        return (int)Math.round(radians * 32768 / Math.PI);
-    }
-
-    /** The MapView {@code "place"} args ({@code {rc, angleInt, button, mods}}). Pure/testable. */
-    static Object[] placeArgs(double x, double y, double angle, int button, int mods) {
-        return new Object[] {moveClickCoord(x, y), placeAngle(angle), button, mods};
-    }
-
-    /** {@code hafen.act():place} backing — place the cursor object at world (x, y) rotated by {@code angle} rad. */
-    private static void actPlace(double x, double y, double angle, int button, int mods) {
-        MapView m = AddonManager.view;
-        if(m == null)
-            throw new LuaError("hafen.act():place: no map view (not in the world yet)");
-        m.wdgmsg("place", placeArgs(x, y, angle, button, mods));
-    }
-
-    /**
-     * The MapView {@code "sel"} args ({@code {tc1, tc2, mods}}) — world corners floored to TILE coords, the
-     * same conversion {@code p:tileCoord()} exposes ({@code Coord2d.floor(MCache.tilesz)}). Pure/testable.
-     */
-    static Object[] selArgs(double x1, double y1, double x2, double y2, int mods) {
-        Coord tc1 = Coord2d.of(x1, y1).floor(MCache.tilesz);
-        Coord tc2 = Coord2d.of(x2, y2).floor(MCache.tilesz);
-        return new Object[] {tc1, tc2, mods};
-    }
-
-    /** {@code hafen.act():select} backing — area-select the tile rectangle between world corners. */
-    private static void actSelect(double x1, double y1, double x2, double y2, int mods) {
-        MapView m = AddonManager.view;
-        if(m == null)
-            throw new LuaError("hafen.act():select: no map view (not in the world yet)");
-        m.wdgmsg("sel", selArgs(x1, y1, x2, y2, mods));
-    }
+    // 048.4: place and select left for hafen.world() (WorldApi), and took placeArgs/placeAngle/selArgs with
+    // them — still pure, still headless-testable, just beside the verbs that send them. moveClickCoord went
+    // with them too: it had one caller left, and what it spelled (Coord2d.floor(OCache.posres)) is what both
+    // LuaHand and WorldApi now write inline at the one line that needs it.
+    //
+    // -- 4d: what is left of the MapView action verbs — raw ---------------------------------------------------
+    // The escape hatch outlives the typed verbs above it because it is not about the map at all: it sends an
+    // arbitrary wdgmsg from any BOUND widget, and 048.6 moves it onto the widget itself.
 
     /**
      * {@code hafen.act():raw} backing — send an arbitrary wdgmsg from a bound widget. {@code a.arg1()} = the

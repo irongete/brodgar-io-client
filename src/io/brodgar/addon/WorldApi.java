@@ -9,6 +9,7 @@ import haven.Gob;
 import haven.MapFile;
 import haven.MapView;
 import haven.MCache;
+import haven.OCache;
 import haven.Resource;
 import haven.UI;
 import haven.Utils;
@@ -44,9 +45,16 @@ import static io.brodgar.addon.AddonManager.*;
  *
  * <p><b>Every spatial verb takes a {@link LuaPosition}</b> rather than a pair of numbers, and the four position
  * verbs the API used to have — {@code gridPos}, {@code fromGridPos}, {@code marker:anchor()} and the plain
- * {@code {x, y}} table — collapse into it. {@code placeGrid()}/{@code placeAngle()} are cut outright: they read
- * the same two {@link MapView} fields as {@code options():interface():posGran()}/{@code :angGran()}, which also
- * write them, and the two doors did not even agree on units.
+ * {@code {x, y}} table — collapse into it. The Lua verbs {@code hafen.world.placeGrid()} /
+ * {@code hafen.world.placeAngle()} are cut outright: they read the same two {@link MapView} fields as
+ * {@code options():interface():posGran()}/{@code :angGran()}, which also write them, and the two doors did not
+ * even agree on units. (The {@link #placeAngle} below is a different thing entirely — 048.4's pure encoder for
+ * the {@code "place"} message's angle field.)
+ *
+ * <p><b>And the world has two PROTECTED verbs</b> (048.4): {@code :place(p, angle, button, mods)} and
+ * {@code :select(p1, p2, mods)}, which arrived from the dissolving {@code hafen.act()} — a verb lives with what
+ * it CHANGES, and both change the world. {@code place} in particular lands beside the {@code snapPlace} /
+ * {@code snapAngle} that exist to prepare its two arguments and until now sat a whole section away from it.
  */
 final class WorldApi {
     private WorldApi() {}
@@ -189,6 +197,56 @@ final class WorldApi {
                 Section.self(a.arg1(), "world", "snapAngle");
                 double ang = number(a, 2, "hafen.world():snapAngle", "a");
                 return LuaValue.valueOf(snapPlaceAngle(ang, a.arg(3).toboolean()));
+            }
+        });
+        // ---- the two PROTECTED verbs (048.4) ---------------------------------------------------------
+        // They arrived from hafen.act(), the one section that grouped its verbs by PERMISSION rather than by
+        // what they act on. Both change the world, so both live here — and `place` lands directly beside the
+        // snapPlace/snapAngle that exist to prepare its two arguments. Each sends exactly the MapView wdgmsg
+        // the matching mouse gesture produces (mousedown's place branch / Selector.mmouseup), so the client
+        // stays server-authoritative: an addon can only send what a player could.
+        //   The gate runs FIRST — before the receiver and the arguments are looked at (D-213) — so an addon
+        // that never declared "actions" is told THAT rather than "angle must be a number". Each hands the
+        // section back, so a run of writes chains like every other setter in the API.
+
+        // place(p, angle [, button [, mods]]) — place the object currently ON YOUR CURSOR at a Position,
+        // rotated by `angle` RADIANS (hafen.world():snapAngle(a) hands you one already snapped to the client's
+        // own placement grid; the wire encoding round(angle*32768/PI) is the server's, not radians).
+        // button 1 = confirm (default), mods 0 default.
+        //   Placement is SERVER-INITIATED — what sits on the cursor is a Plob the server put there — so with
+        // nothing being placed the message is simply ignored, and nothing comes back to say so. This verb
+        // cannot tell you whether it did anything, and there is no read here that could: the client's own
+        // MapView.placing is private.
+        m.set("place", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                AddonManager.requireActions(owner, "hafen.world():place");
+                Section.self(self, "world", "place");
+                Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.world():place", "p");
+                double ang = number(a, 3, "hafen.world():place", "angle");
+                MapView mv = view;
+                if(mv == null)
+                    throw new LuaError("hafen.world():place: no map view (not in the world yet)");
+                mv.wdgmsg("place", placeArgs(rc, ang, a.arg(4).optint(1), a.arg(5).optint(0)));
+                return self;
+            }
+        });
+        // select(p1, p2 [, mods]) — area-select the tile rectangle spanned by two Positions: the MapView
+        // "sel" a drag with a tile-area tool sends. The corners are floored to TILE coords — the same
+        // conversion p:tileCoord() exposes — so the two Positions name the tiles they fall in, not a
+        // sub-tile rectangle. mods 0 default. Drives tile-area tools.
+        m.set("select", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                AddonManager.requireActions(owner, "hafen.world():select");
+                Section.self(self, "world", "select");
+                Coord2d p1 = LuaPosition.worldArg(a, 2, "hafen.world():select", "p1");
+                Coord2d p2 = LuaPosition.worldArg(a, 3, "hafen.world():select", "p2");
+                MapView mv = view;
+                if(mv == null)
+                    throw new LuaError("hafen.world():select: no map view (not in the world yet)");
+                mv.wdgmsg("sel", selArgs(p1, p2, a.arg(4).optint(0)));
+                return self;
             }
         });
         Section.install(hafen, "world", m);
@@ -360,6 +418,33 @@ final class WorldApi {
      */
     private static Coord2d here(Varargs a, int i, String verb) {
         return LuaPosition.posArg(a, i, verb, "p").world();
+    }
+
+    // ---- the two wire shapes, pure so they are testable without a session --------------------------
+    // They moved here from ActApi with the verbs that send them (048.4) and stayed pure: they hold no live
+    // state, so the encoding can be asserted without being in the world. Both floor a world Coord2d, and the
+    // two lattices they floor to are the whole difference between the messages — "place" lands at a POINT
+    // (posres, the server's ~1/93-of-a-tile position grid) and "sel" names TILES (MCache.tilesz).
+
+    /**
+     * The MapView {@code "place"} angle encoding: radians → the server's {@code round(angle*32768/PI)}. Not
+     * to be confused with the retired Lua verb {@code hafen.world.placeAngle()}, which read a client setting.
+     */
+    static int placeAngle(double radians) {
+        return (int)Math.round(radians * 32768 / Math.PI);
+    }
+
+    /** The MapView {@code "place"} args ({@code {rc, angleInt, button, mods}}), {@code rc} floored to posres. */
+    static Object[] placeArgs(Coord2d rc, double angle, int button, int mods) {
+        return new Object[] {rc.floor(OCache.posres), placeAngle(angle), button, mods};
+    }
+
+    /**
+     * The MapView {@code "sel"} args ({@code {tc1, tc2, mods}}) — the world corners floored to TILE coords,
+     * the same conversion {@code p:tileCoord()} exposes ({@code Coord2d.floor(MCache.tilesz)}).
+     */
+    static Object[] selArgs(Coord2d p1, Coord2d p2, int mods) {
+        return new Object[] {p1.floor(MCache.tilesz), p2.floor(MCache.tilesz), mods};
     }
 
     /** A required number argument, refusing an explicit nil like every other write does (§2.9). */

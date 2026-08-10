@@ -244,10 +244,25 @@ faithful, deterministic substitute for a programmatic action):
 
 ---
 
-## 048.4 — `hafen.world():place(p, angle, button, mods)` and `:select(p1, p2, mods)`
+## 048.4 — `hafen.world():place(p, angle, button, mods)` and `:select(p1, p2, mods)` ✅ 11/11 + 11/11 pass, 0 fail, 4 manual confirmed
 
 The world's first protected verbs. `place` lands beside the `snapPlace`/`snapAngle` that exist to
 prepare its arguments and today sit a page away from it.
+
+> **Closed 2026-08-10.** Both ship, both refuse an undeclared addon naming the verb, both old spellings throw
+> under BOTH field reads (D-216), and `snapPlace`/`snapAngle` still answer beside them. Each **returns the
+> section** so a run of writes chains (`hafen.speed():current(n)`'s precedent), and the gate runs before
+> `Section.self` — the D-213 order the whole feature uses, not the old `act` verbs' receiver-first one.
+> `moveClickCoord` died here: `placeArgs` was its last caller, and 048.1 had already predicted that
+> `Coord2d.floor(OCache.posres)` inline is what its callers now spell.
+> Two things the next tasks inherit. **A wire recorder must identify its OWN sends**: `"place"` and `"sel"` are
+> messages a *player* also sends, so reading "the last two" asserted this task's claims against a building the
+> maintainer placed by hand and reported it as a broken angle encoding. The run now **clears** the buffer and
+> `sent` asserts **exactly two** of each, so a stray gesture reports itself by count — 048.6's `send` should copy
+> that shape, not 048.2's index-from-the-end. And **a `[manual]` line must not ask for a fixture whose setup
+> pollutes the evidence**: *start building something first* is what put that placement on the wire, and with an
+> empty cursor the server ignores `"place"` while the wire is asserted all the same. Also: a `:lua` chunk
+> beginning with `local` is a statement, so it echoes nothing — never write a `lua= …` expectation for one.
 
 **Build**
 - `place(p, angle, button, mods)` — `p` a Position, `angle` in **radians** (required, a number),

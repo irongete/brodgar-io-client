@@ -1,0 +1,9 @@
+{
+  "name": "048.4 — hafen.world():place / :select",
+  "id": "048-act-dissolved.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 048.4: the world's first protected verbs — place(p, angle, button, mods) and select(p1, p2, mods) — refuse an undeclared addon naming the verb, hafen.act():place / :select throw naming them under both field reads, the snapPlace/snapAngle they joined still answer, and what the two firings put on the wire is asserted rather than eyeballed.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

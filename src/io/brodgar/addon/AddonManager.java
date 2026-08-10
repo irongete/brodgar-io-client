@@ -2072,15 +2072,17 @@ public final class AddonManager {
         // permitted. It stays server-authoritative: an addon can only send what a player click could send.
         //   enabled()   -> bool; is THIS addon allowed to act (did it declare the "actions" permission)? Reports
         //                  WITHOUT throwing, so an addon can adapt (no pcall needed).
-        //   useItemOn/place/select (4d) -> the MapView action verbs; all send a Widget.wdgmsg from the MapView,
-        //                  sharing one world→Coord encoding (moveClickCoord) and a dummy screen coord (the
-        //                  current mouse pos, like MiniMap.mvclick when you click the minimap to walk), and each
-        //                  takes Positions. raw(target,msg,…) is the escape hatch (any wdgmsg from a bound widget).
+        //   raw(target,msg,…) -> the escape hatch (any wdgmsg from a bound widget), plus menu/flower.
         // The per-subsystem protected verbs (speed.set, craft.make, slot:use, the kin writes) share this same gate
         // (requireActions(owner, …)).
-        //   048.1: moveTo and clickGob have LEFT this section — a verb lives with what it CHANGES, so walking the
-        // character is hafen.player():move(p) and clicking an object is gob:click(button, mods). Same messages,
-        // same gate, on the thing they act on; both old spellings throw from Retired naming the new one.
+        //   048 DISSOLVES this section — a verb lives with what it CHANGES, not with what it COSTS, so each task
+        // moves its own verbs out and the section stays mounted only for the ones that have not gone yet (D-117).
+        // Walking the character is hafen.player():move(p) and clicking an object is gob:click(button, mods)
+        // (048.1); the held-item gesture is hafen.player():hand():use(target, mods) (048.2); what you can do TO an
+        // item is item:use/:take/:drop/:transfer (048.3); and placing/area-selecting are hafen.world():place(p,
+        // angle, button, mods) / :select(p1, p2, mods) (048.4), beside the snapPlace/snapAngle that prepare
+        // place's arguments. Same messages, same gate, on the things they act on; every old spelling throws from
+        // Retired naming the new one.
         ActApi.installAct(hafen, owner);
 
         // hafen.ui — custom client-side UI (spec 07, Phase 2a). window(opts) = a draggable, titled window;

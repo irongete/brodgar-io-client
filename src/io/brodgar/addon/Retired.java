@@ -165,10 +165,12 @@ final class Retired {
             + " hafen.player():hand():use(item) (was \"itemact\"). A verb string was never a vocabulary,"
             + " and only \"iact\" ever carried modifiers — for take/drop/transfer the modifier keys select"
             + " the COUNT, which n states directly");
-        put("hafen.act.place", "hafen.act.place(x, y, angle, button, mods) is now"
-            + " hafen.act():place(p, angle, button, mods), where p is a Position");
-        put("hafen.act.select", "hafen.act.select(x1, y1, x2, y2, mods) is now"
-            + " hafen.act():select(p1, p2, mods), where p1 and p2 are Positions");
+        act("place", "hafen.act():place(p, angle, button, mods) is now"
+            + " hafen.world():place(p, angle, button, mods), beside the hafen.world():snapPlace(p) that"
+            + " prepares its Position and the hafen.world():snapAngle(a) that prepares its angle — which is"
+            + " still in RADIANS");
+        act("select", "hafen.act():select(p1, p2, mods) is now hafen.world():select(p1, p2, mods) — p1 and p2"
+            + " are still Positions, and the selection is still the tile rectangle they span");
 
         // ---- 040.7: a text entry's content is WRITTEN through :value(s), the one door -- entry:text(s) would --
         // ---- be a second way to write the same property, which the area's one-door rule does not allow. The

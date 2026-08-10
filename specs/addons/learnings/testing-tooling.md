@@ -1482,3 +1482,27 @@
   delete the class afterwards; a `-cp` naming a scratchpad directory alongside `build/classes` is exactly the
   `;`-separated path MSYS mangles (see the Windows/Git-Bash entry above), and the failure reads as
   `ClassNotFoundException` on a class that is plainly on disk.
+- **(048.4) A wire recorder must IDENTIFY its own sends, not read "the last two" — when the message is one a
+  PLAYER also sends.** 048.2's recorder trick generalises, but its indexing does not. `"place"` and `"sel"` are
+  exactly what building and dragging a tile-area tool put on the wire, so the maintainer following a `[manual]`
+  line that said *start building something so an object is on your cursor* placed it for real, and the last two
+  recorded `"place"` messages were **theirs** (angle `-16384`, dx `-2048`). The suite asserted this task's claims
+  against a stranger's send and reported it as a broken angle encoding — a red line naming the one thing that
+  was provably correct (the pure builders had been checked headlessly: `0 → 0`, `π/2 → 16384`, dx exactly 1024).
+  `"itemact"` had hidden this: 048.2 keyed by `#ev:args()`, and a player *can* fire itemact, but the run happened
+  to be clean. The fix is two lines and makes the buffer self-describing: **the main run CLEARS the recorder, and
+  the `sent` run asserts there are EXACTLY N** — a stray hand gesture then reports itself by count
+  (*"3 recorded — a place you did BY HAND is in there too"*) instead of silently becoming the evidence. And the
+  fixture went with it: the firing line now says *with NOTHING on your cursor*, because with an empty cursor the
+  server ignores `"place"` and the wire is what is being asserted anyway; the visual "watch it land" moved to its
+  own `[manual]` line **after** `sent` is green. That is 048.2's *a manual line must not depend on a fixture the
+  world may not have*, one turn further: **a manual line must not ask for a fixture whose setup pollutes the
+  evidence.** Rule: before recording a `wdgmsg`, ask whether a human at the keyboard can send the same name — if
+  yes, bound the window (clear + exact count) rather than indexing from the end.
+- **(048.4) `:lua local p = …; f(p)` echoes NOTHING, so never write a `lua= …` expectation for a chunk that
+  starts with a statement.** The console evaluates the line and prints `lua= <value>` only when there is a value;
+  a chunk beginning with `local` is a statement, not an expression, so a perfectly successful two-call firing
+  prints nothing at all. 048.4's `[manual]` line claimed `each answers lua= "hafen.world()"` (true of the verb —
+  it does hand the section back so writes chain) and the maintainer correctly saw silence. Either write the
+  expectation as *no error, and nothing echoed*, or make the line an expression (`:lua tostring(f(p))`) if the
+  return value is the thing under test.
