@@ -141,5 +141,5 @@ full, and [the gizmo](gizmo.md) for drag handles that do the same job with no co
 - [`hafen.vr`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [sprites](sprites.md) — your own image in the world, on the same core
 - [`hafen.world`](../world.md#the-position-type) — the Position type, and the snapping a drag uses
-- [`hafen.world():place`](../world.md#write-protected-actions) — committing a real build, protected
+- [`hafen.world():place`](../world.md#write-protected) — committing a real build, protected
 - [events](../event.md#world-ghosts-and-sprites) — `GhostClicked`

@@ -149,4 +149,4 @@ inside it is logged, never propagated.
 
 - [`hafen.json`](json.md) — parsing a response body, and encoding a request one
 - [`hafen.store`](store.md) — persisting tokens and cached results
-- [actions and permissions](../guides/actions-and-permissions.md) — the other protected tier
+- [permissions](../guides/permissions.md) — the other protected tier

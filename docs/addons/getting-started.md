@@ -206,7 +206,7 @@ data that outlives the session.
 ## Where to go next
 
 - [the guides](guides/README.md) — one page per task: reading the world, events and timers, custom UI,
-  saved data, hotkeys and commands, actions and permissions, theming, debugging
+  saved data, hotkeys and commands, permissions, theming, debugging
 - [the API reference](api/README.md) — every `hafen.*` verb, one page per namespace
 - [the runtime](runtime.md) — the manifest in full, the sandbox, the budgets, the AddOns panel and the
   console commands

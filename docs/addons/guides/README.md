@@ -14,7 +14,7 @@ assume you have a folder that loads.
 | [custom UI](custom-ui.md) | a window, an overlay, and painting your own pixels |
 | [saved data](saved-data.md) | keep settings and layouts across sessions |
 | [hotkeys and commands](hotkeys-and-commands.md) | let the user invoke your addon by hand |
-| [actions and permissions](actions-and-permissions.md) | drive the character, and what that costs you |
+| [permissions](permissions.md) | drive the character, and what that costs you |
 | [theming](theming.md) | restyle the client's own surfaces, and ship a theme as a file |
 | [debugging](debugging.md) | the reload loop, the inspector, the log and the profiler |
 

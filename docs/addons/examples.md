@@ -46,7 +46,7 @@ and puts a custom one in its place, drawing the **real** items at their real gri
 client keeps doing the work. The client's own Tab and menu button then drive your window.
 
 Dormant until its `toggle` hotkey arms the replacement; the view is read-only, since moving an item is the
-[protected tier](guides/actions-and-permissions.md).
+[protected tier](guides/permissions.md).
 
 ## theme
 
@@ -168,15 +168,15 @@ round-trips: read, write something different, read back, put the original value 
 
 ## walker
 
-The [protected write tier](guides/actions-and-permissions.md) in one small addon: it declares
-`"permissions": ["actions"]`, so it is disabled until you enable it and confirm the consent dialog. Nothing
+The [protected write tier](guides/permissions.md) in one small addon: it declares a permission key for
+every verb it fires, so it is disabled until you enable it and confirm the consent dialog. Nothing
 it does is automatic — every verb is a deliberate `:walker <sub>`, and each is met on the page of the thing
-it changes: [walking](api/player.md#write-protected-actions) and applying what is on your cursor,
-[clicking a gob](api/gob.md#write-protected-actions),
-[placing and area-select](api/world.md#write-protected-actions),
-[the item verbs](api/ui/items.md#write-protected-actions),
-[a menu action](api/menugrid.md#use-protected-actions), a [radial menu](api/flowermenu.md) petal, the raw
-[widget message](api/ui/widget.md#send-a-message-protected-actions), and the writes in their own
+it changes: [walking](api/player.md#write-protected) and applying what is on your cursor,
+[clicking a gob](api/gob.md#write-protected),
+[placing and area-select](api/world.md#write-protected),
+[the item verbs](api/ui/items.md#write-protected),
+[a menu action](api/menugrid.md#use-protected), a [radial menu](api/flowermenu.md) petal, the raw
+[widget message](api/ui/widget.md#send-a-message-protected), and the writes in their own
 namespaces — [speed](api/speed.md), [crafting](api/craft.md), the [action bar](api/actionbar.md) and the
 [roster](api/kin.md).
 

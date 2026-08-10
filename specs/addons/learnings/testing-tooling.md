@@ -1667,3 +1667,16 @@
   was all green, and the manifest came back as `["item.*", "gob.click"]`. The next headless run reddened on
   *the suite's premise* rather than on anything real. Re-run the probe after a verification round and read the
   first failing line as a question about the working tree before reading it as a regression.
+- **(050.3) A probe can PULSE the suite's own timers, which is the only way to reach a deferred `finish()`
+  headlessly.** A suite that retries its checks on `hafen.timer():every(1, ...)` prints one line and returns
+  under the 033.3 recipe: there is no client tick loop, so the watcher never fires and the block never
+  assembles. The addon's timer list is public (`owner.timers`, each an `AddonManager.Timer` with a `fn` and an
+  `alive` flag), so the probe just calls `t.fn.call()` in a loop until the list drains or a pulse cap is hit —
+  40 pulses outran a 30-tick window. That turned the whole deferred path, timeout branch and `[manual]`
+  fallback included, into something checkable before the maintainer ever logged in, and it caught the
+  guide-snippet line hard-failing at `2/6` when the receivers never appeared.
+- **(050.3) A stale `[manual]` wording in a pasted log is the reload telling on itself.** Two rounds were spent
+  reading counts that "had not moved" when the block was in fact the PREVIOUS `main.lua`'s output — the give-away
+  was the manual line's text, not the numbers, because the reachability logic was identical across both
+  versions. When a pasted block disagrees with the file on disk, diff the prose of the lines before diffing the
+  counts: wording changes every edit, counts do not.

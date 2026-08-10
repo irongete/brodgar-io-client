@@ -378,3 +378,14 @@
   four parts*, which a chain sums over. A boundary list is a standing claim that the NEXT capability
   falsifies, and it is invisible to any grep aimed at the new syntax, because it is written in the negative.
   Grep the tier for the thing you just BUILT being denied, not only for the spelling you retired.
+- **(050.3) A suite should WAIT for a receiver it cannot conjure, not ask the maintainer to arrange one first.**
+  Two of 22 gate checks needed server-driven receivers — an item on the cursor, an open recipe — and the
+  `[manual]` line demanded both be standing *before* `:t050-3` was typed. That is unexecutable in practice: the
+  arrangement has to survive opening the console, and the maintainer reasonably made it and undid it before the
+  read ever happened, so two rounds came back at 20/22 with the line reworded and nothing learned. Retrying the
+  unresolved pairs on a one-second timer for a bounded window inverts it — run the command, then produce the
+  world at your own pace, and the block prints itself the moment the last pair resolves. Zero manual lines,
+  zero reloads, and the window closing is not a failure: score every line over what the run REACHED, so an
+  absent receiver is reported as skipped and can never redden a claim it was not evidence for. The rule this
+  generalises: `[manual]` is for what a program cannot *observe*, not for what it cannot *cause* — if the
+  suite can recognise the state once it exists, it can wait for it instead of specifying it.

@@ -56,7 +56,7 @@ An item has no stable content id, so an [`Item`](ui/items.md#the-item-object) is
 itself and **not** on `:handle()`, the server widget id it is addressed by on the wire: that number is
 re-used, so a reference built on it would quietly stop naming this item and start naming its
 replacement. One you keep therefore answers *the same item* or *gone*, and the
-[protected verbs](ui/items.md#write-protected-actions) are on the item itself rather than on a number.
+[protected verbs](ui/items.md#write-protected) are on the item itself rather than on a number.
 
 ## Widget: a piece of the UI
 
@@ -67,7 +67,7 @@ native one you name with `hafen.ui():find(selector)`, `node(id)`, `at(x, y)` or 
 is the identity test; it re-reads the tree on every call and answers `nil` or empty, with `:exists()`
 false, once its widget is gone. What you may *write* depends on whether your addon created it — see
 [owned vs borrowed](ui/widget.md#owned-vs-borrowed). A **server widget id**, `:id()`, is what makes one
-*bound*, which is what the protected [`widget:send`](ui/widget.md#send-a-message-protected-actions) needs.
+*bound*, which is what the protected [`widget:send`](ui/widget.md#send-a-message-protected) needs.
 
 Its write verbs answer for **your** addon: what you wrote comes back unchanged, and what you drop
 leaves another addon's alone. [`w:replace(view)`](ui/replace.md) installs a stand-in and

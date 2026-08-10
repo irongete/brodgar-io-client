@@ -60,7 +60,7 @@ Subscribe to [`ActionbarChanged`](event.md#character-and-status), whose payload 
 changed `Slot` itself, to react to a slot being set, cleared or changed. It does **not** fire on a
 cooldown ticking, which would be every frame; read `:cooldown()` live off the object instead.
 
-## Write (protected: `actions`)
+## Write (protected)
 
 | Method | Description |
 |---|---|
@@ -68,12 +68,12 @@ cooldown ticking, which would be every frame; read `:cooldown()` live off the ob
 | `slot:res(name)` | assign an action to the slot **by resource name**, exactly as dragging it off the menu grid does |
 
 Both return the `Slot`, so they chain. Called from an addon that did not declare the permission, each
-raises an error; see [the actions permission](conventions.md#the-actions-permission). `mods` is the
+raises an error; see [the permission model](conventions.md#the-permission-model). `mods` is the
 optional modifier bitfield — Shift = 1, Ctrl = 2, Alt = 4.
 
 `use` raises an error on an empty slot, so check `:empty()` first. A ground-targeted ability enters
 targeting mode when used, just as clicking the button would; supply the target with
-[`gob:click`](gob.md#write-protected-actions) or [`hafen.world():place`](world.md#write-protected-actions).
+[`gob:click`](gob.md#write-protected) or [`hafen.world():place`](world.md#write-protected).
 
 **`slot:res()` is one name for the pair**: with no argument it reads the slot's resource name, with one
 it assigns that action. The name it takes is the same string it reads back — so the way to learn a name
@@ -98,6 +98,6 @@ end)
 ## See also
 
 - [`hafen.menugrid`](menugrid.md) — where the resource names the write takes come from
-- [actions and permissions](../guides/actions-and-permissions.md) — the permission both writes share
+- [permissions](../guides/permissions.md) — the permission both writes share
 - [`ActionbarSlot`](types.md#actionbarslot) — the snapshot shape `:info()` returns
 - [events](event.md#character-and-status) — `ActionbarChanged`

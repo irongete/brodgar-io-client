@@ -42,7 +42,7 @@ view of engine state, not an owned resource, and there is nothing to tear down.
 **Staleness.** A widget that leaves the tree — window closed, server destroy, relog — is *stale*: every
 read answers `nil` or empty, every client-side write is a silent no-op that still chains, and `:exists()`,
 the one read that always answers, is `false`. Two things raise on a stale widget instead:
-[`send`](#send-a-message-protected-actions), and the [two searches](#searching-inside-one-widget) — which
+[`send`](#send-a-message-protected), and the [two searches](#searching-inside-one-widget) — which
 have a subtree to search and no longer have it. Guard on `:exists()` when "is it still there?" is the
 question you are asking.
 
@@ -95,7 +95,7 @@ end)
 ```
 
 **`:id()` is what makes a widget *bound*.** A widget the server placed has one; one your addon built does
-not, and a message from it would be dropped — the difference [`:send`](#send-a-message-protected-actions)
+not, and a message from it would be dropped — the difference [`:send`](#send-a-message-protected)
 below turns on, so you send from the nearest server-bound ancestor rather than from the button itself.
 
 ## Searching inside one widget
@@ -195,10 +195,10 @@ looking at addon A's window holds a *borrowed* widget, which is the correct answ
 **A widget's place is on the screen, not in the world.** `:position()` and `:rootPos()` answer in pixels
 and hand back a plain `{x=, y=}` table, never a [Position](../world.md#the-position-type). The verb is the
 same word because the question is the same one — *where is this thing, in the space it lives in* — and the
-object says which space, so [`hafen.player():move`](../player.md#write-protected-actions) refuses a
+object says which space, so [`hafen.player():move`](../player.md#write-protected) refuses a
 widget's coordinates instead of walking you somewhere that merely has the same two numbers.
 
-## Send a message (protected: `actions`)
+## Send a message (protected)
 
 ### `widget:send(msg, ...)`
 

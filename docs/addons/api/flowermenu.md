@@ -80,7 +80,7 @@ this one*; passing anything raises an error pointing at `:select`, which is how 
 makes "the open menu" a well-defined thing. If it ever does, these verbs answer for the first one the
 client is holding.
 
-## Write (protected: `actions`)
+## Write (protected)
 
 | Method | Description |
 |---|---|
@@ -89,7 +89,7 @@ client is holding.
 | `hafen.flowermenu():cancel()` | close the menu with nothing chosen, exactly as Esc does |
 
 Called from an addon that did not declare the permission, each raises an error; see
-[the actions permission](conventions.md#the-actions-permission).
+[the permission model](conventions.md#the-permission-model).
 
 A string is always a caption and a number is always a position, so
 `hafen.flowermenu():select("3")` picks the petal captioned `3` and never the third one.

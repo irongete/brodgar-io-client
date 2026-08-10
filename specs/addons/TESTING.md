@@ -75,6 +75,13 @@ format: nothing needs interpreting.
 - `[manual]` is only for what a program genuinely cannot do — press a key, judge how something
   looks, confirm a server-side effect, drive a gated action on the maintainer's real character.
   Everything else is a missing assertion, not a manual step.
+- **`[manual]` is for what the suite cannot OBSERVE, not for what it cannot CAUSE (050.3).** Where a check
+  needs a receiver only the server can produce — an item on the cursor, an open recipe, a populated menu —
+  do not ask for it to be standing *before* the command: an arrangement that must survive opening the
+  console gets made and undone before the read ever happens. **Retry the unresolved checks on a one-second
+  timer for a bounded window**, so the maintainer runs the command and *then* produces the world at their
+  own pace; the block prints itself the moment the last one resolves. Score every line over what the run
+  REACHED, so the window closing is a skip and never a `[fail]`.
 - **Re-assert whatever your own proof rests on, however old it is.** A suite is read alone and must convince
   alone, so a check another task's suite also makes is not a duplicate to delete — it is *this* task's
   premise, stated where it can fail. What does not belong here is coverage of a prior feature none of this

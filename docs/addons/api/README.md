@@ -6,7 +6,7 @@ you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [conventions](conventions.md) | the grammar, snapshots vs handles, filters, coordinates, colours, `nil`, threading, and the actions permission |
+| [conventions](conventions.md) | the grammar, snapshots vs handles, filters, coordinates, colours, `nil`, threading, and the permission model |
 | [references](references.md) | every kind of thing a verb takes: a Gob, a kin, a slot, an asset, an item, a widget, a selector |
 | [data types](types.md) | every snapshot shape a read hands back, field by field |
 | [`hafen.event`](event.md) | the bus, and the catalogue of everything the client tells you about |
@@ -53,7 +53,7 @@ you came for from the tables below. Every page in the tree is listed here.
 
 The verbs that act are on the pages of what they change — [`hafen.player`](player.md), [Gob](gob.md),
 [`hafen.world`](world.md), [items](ui/items.md) and [the Widget object](ui/widget.md) — under a
-`Write (protected: actions)` heading. Two catalogues have a page of their own:
+`Write (protected)` heading. Two catalogues have a page of their own:
 
 | Page | What it holds |
 |---|---|

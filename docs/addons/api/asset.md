@@ -20,7 +20,7 @@ passing a path string to a [sprite](vr/sprites.md) or an [object](vr/models.md) 
 points you back here.
 
 > **Unprotected.** An asset is a client-side file *you shipped*: it never reaches the server and grants no
-> gameplay advantage, so it needs no `actions` permission, like a [HUD overlay](ui/custom.md#overlays) or a
+> gameplay advantage, so it needs no permission at all, like a [HUD overlay](ui/custom.md#overlays) or a
 > [ghost](vr/ghosts.md).
 
 ## The types

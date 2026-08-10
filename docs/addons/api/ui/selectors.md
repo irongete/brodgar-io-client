@@ -198,7 +198,7 @@ The guard is the point: `Update` fires every frame, but the walk and the relayou
 hovered widget changes** — and because widgets are interned, that guard is a plain `==`, which covers
 "still hovering nothing" too, since `nil == nil`. Reading the cursor and the geometry is unprotected
 client-side data; sending a message from the resolved widget still goes through the protected
-[`widget:send`](widget.md#send-a-message-protected-actions).
+[`widget:send`](widget.md#send-a-message-protected).
 
 ## See also
 

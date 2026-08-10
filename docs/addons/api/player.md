@@ -38,7 +38,7 @@ Position going in is an error. The inverse is
 The hp, stamina and energy bars are not here. They are a HUD slot the server fills rather than
 per-player state, so they live in [`hafen.meter`](meter.md).
 
-## Write (protected: `actions`)
+## Write (protected)
 
 ### `hafen.player():move(p)`
 
@@ -73,7 +73,7 @@ end
 |---|---|---|
 | `hafen.player():hand()` | Hand \| nil | the cursor while something is on it, `nil` while it is empty |
 | `hand:item()` | [`Item`](ui/items.md#the-item-object) \| nil | what you are carrying |
-| `hand:use(target, mods)` | the Hand | **protected: `actions`** — apply what you are carrying to `target` |
+| `hand:use(target, mods)` | the Hand | **protected** — apply what you are carrying to `target` |
 
 The two reads are not protected and neither throws. `hafen.player():hand()` hands back the same object
 every call, so `==` works and there is nothing to release; it is the *cursor* rather than a snapshot of
@@ -100,7 +100,7 @@ returns the Hand, so a run of uses chains.
 
 > **`use()` with no target raises**, naming the three types, and it is not how you activate what you are
 > holding. Every held-item action targets something; activating is
-> [`hafen.player():hand():item():use()`](ui/items.md#write-protected-actions).
+> [`hafen.player():hand():item():use()`](ui/items.md#write-protected).
 
 It raises with an empty cursor, with no map view, and for a target that has gone — an item that was moved,
 used or consumed, or a gob that left view. Nothing is sent in any of those cases.

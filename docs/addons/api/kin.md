@@ -90,13 +90,13 @@ local mine = hafen.world():gob():list(function(g) return g:kin() == k end)
 > whose gob has not streamed in — you cannot tell which. `gob:kin()` is `nil` for a gob that is not one
 > of your kin *and* for one that is not a player at all.
 
-## Write (protected: `actions`)
+## Write (protected)
 
 Each verb returns what it was called on — the `Kin`, or the collection for `add` — so they chain.
 `add` hands back the collection rather than a new `Kin`, because there is none yet: the server decides
 whether the secret is valid and the roster changes a beat later, as a `KinChanged`. Called
 from an addon that did not declare the permission, each raises an error; see
-[the actions permission](conventions.md#the-actions-permission).
+[the permission model](conventions.md#the-permission-model).
 
 | Method | Description |
 |---|---|
@@ -115,13 +115,13 @@ which the kin is memorized but still listed, then `kin:forget()` drops the memor
 remove an active kin, call both.
 
 There is no add-by-name. Kinning needs a shared hearth secret, or the right-click "Add as kin" petal,
-which is [`gob:click(3)`](gob.md#write-protected-actions) followed by
-[`hafen.flowermenu():select`](flowermenu.md#write-protected-actions).
+which is [`gob:click(3)`](gob.md#write-protected) followed by
+[`hafen.flowermenu():select`](flowermenu.md#write-protected).
 
 ## See also
 
 - [Gob](gob.md) — the object side of `kin:gob()`
-- [actions and permissions](../guides/actions-and-permissions.md) — the permission these writes share
+- [permissions](../guides/permissions.md) — the permission these writes share
 - [`KinEntry`](types.md#kinentry) — the snapshot shape `:info()` returns
 - [`hafen.party`](party.md) — the other roster, which carries no names
 - [events](event.md#roster-quests-markers) — `KinChanged`

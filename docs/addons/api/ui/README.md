@@ -18,7 +18,7 @@ not two.
 Everything here is client-side and **unprotected**, and everything is bridge-owned: a window you create, an
 overlay you install, a sheet you apply and a widget you moved are all given back on `:reload` or disable.
 Client-side UI cannot send actions to the server; the one door that does is the protected
-[`widget:send`](widget.md#send-a-message-protected-actions).
+[`widget:send`](widget.md#send-a-message-protected).
 
 ```lua
 local clock = hafen.ui():window():title("Clock"):size(160, 40):position(50, 50)
@@ -66,7 +66,7 @@ and layout.
 
 - [`hafen.font`](../font.md) — the handles a `font` property and a `g:text` call take
 - [`hafen.asset`](../asset.md) — the images and fonts your addon ships
-- [the Widget object](widget.md#send-a-message-protected-actions) — sending a message from a bound widget
+- [the Widget object](widget.md#send-a-message-protected) — sending a message from a bound widget
 - [widgets in the world](../vr/widgets.md) — any of this, drawn in the 3D scene instead of on the screen
 - [references](../references.md#widget-a-piece-of-the-ui) — where a Widget sits among the other references
 - [events](../event.md) — the bus, for everything that is not a widget subscription

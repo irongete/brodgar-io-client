@@ -1,0 +1,9 @@
+{
+  "name": "050.3 — the tier's name leaves the reference",
+  "id": "050-granular-permissions.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 050.3: every verb the reference marks protected refuses when undeclared and names the very key this task recorded for it, the keys the permissions guide's own declaration snippet asks for are real, and the verbs its unprotected table lists are not gated. Declares nothing, so it is enabled by default and every check is a refusal.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

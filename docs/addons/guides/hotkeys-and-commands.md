@@ -68,5 +68,5 @@ addon with a window has — see [the examples](../examples.md).
 a login nothing, and the user finds out what it does when they ask. Wire the work behind the trigger rather
 than behind `EnterWorld`.
 
-**Next:** [actions and permissions](actions-and-permissions.md) — the one tier that needs more than a
+**Next:** [permissions](permissions.md) — the one tier that needs more than a
 declaration.

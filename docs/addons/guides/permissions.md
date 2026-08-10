@@ -1,4 +1,4 @@
-# Actions and permissions
+# Permissions
 
 Reading the game needs no permission. **Acting** on it — walking, clicking an object, using an item,
 picking a menu entry — is the one protected tier in the API, and this guide is about getting through the
@@ -8,23 +8,23 @@ gate and about what is on the near side of it.
 
 Protected is exactly one thing: starting an action the player could have performed. There is no
 section that collects those verbs — **each one lives with the thing it changes**, so you meet the
-permission on the page you looked the verb up on, under a heading reading `Write (protected: actions)`.
+permission on the page you looked the verb up on, under a heading reading `Write (protected)`.
 That is the whole set:
 
 | Verb | What it sends |
 |---|---|
-| [`hafen.player():move(p)`](../api/player.md#write-protected-actions) | walk to a place |
+| [`hafen.player():move(p)`](../api/player.md#write-protected) | walk to a place |
 | [`hafen.player():hand():use(target, mods)`](../api/player.md#the-hand) | apply what is on your cursor to an item, a place or an object |
-| [`gob:click(button, mods)`](../api/gob.md#write-protected-actions) | click an object, left or right |
-| [`item:use`, `:take`, `:drop`, `:transfer`](../api/ui/items.md#write-protected-actions) | act on an item in a container |
-| [`hafen.world():place`, `:select`](../api/world.md#write-protected-actions) | place what you are holding; area-select tiles |
-| [`pag:use()`](../api/menugrid.md#use-protected-actions) | fire an action from the action menu |
-| [`hafen.flowermenu():select`, `:cancel`](../api/flowermenu.md#write-protected-actions) | pick a petal of the open radial menu |
-| [`hafen.speed():current(n)`](../api/speed.md#write-protected-actions) | change the movement speed |
-| [`craft:make`](../api/craft.md#write-protected-actions) | press Craft in the open recipe window |
-| [`slot:use`, `slot:res(name)`](../api/actionbar.md#write-protected-actions) | fire a hotbar slot, or assign one |
-| [the roster verbs](../api/kin.md#write-protected-actions) | add, rename, re-group and forget a kin |
-| [`widget:send(msg, ...)`](../api/ui/widget.md#send-a-message-protected-actions) | the escape hatch: any message, from a bound widget |
+| [`gob:click(button, mods)`](../api/gob.md#write-protected) | click an object, left or right |
+| [`item:use`, `:take`, `:drop`, `:transfer`](../api/ui/items.md#write-protected) | act on an item in a container |
+| [`hafen.world():place`, `:select`](../api/world.md#write-protected) | place what you are holding; area-select tiles |
+| [`pag:use()`](../api/menugrid.md#use-protected) | fire an action from the action menu |
+| [`hafen.flowermenu():select`, `:cancel`](../api/flowermenu.md#write-protected) | pick a petal of the open radial menu |
+| [`hafen.speed():current(n)`](../api/speed.md#write-protected) | change the movement speed |
+| [`craft:make`](../api/craft.md#write-protected) | press Craft in the open recipe window |
+| [`slot:use`, `slot:res(name)`](../api/actionbar.md#write-protected) | fire a hotbar slot, or assign one |
+| [the roster verbs](../api/kin.md#write-protected) | add, rename, re-group and forget a kin |
+| [`widget:send(msg, ...)`](../api/ui/widget.md#send-a-message-protected) | the escape hatch: any message, from a bound widget |
 
 Everything else writes only to your own client, and none of it is protected. That is worth stating, because
 several of them look like writes:
@@ -52,21 +52,22 @@ whether it happens — the player's own click did that.
 
 Two steps, and the second one is not yours:
 
-1. Your manifest declares it.
+1. Your manifest declares a key per verb you call. A `<prefix>.*` entry stands for every key under that
+   prefix, so the line below asks for walking, clicking, and all four item verbs.
 
    ```json
-   "permissions": ["actions"]
+   "permissions": ["player.move", "gob.click", "item.*"]
    ```
 
-2. The user enables the addon. An addon that declares `actions` is **disabled the first time the client
-   sees it**, and enabling it in Options ▸ AddOns raises a consent dialog naming what it can do.
+2. The user enables the addon. An addon that declares a permission key is **disabled the first time the
+   client sees it**, and enabling it in Options ▸ AddOns raises a consent dialog naming what it can do.
 
 So a write addon that is running is one the user knowingly turned on — there is no global switch to flip,
-and no way for an addon to grant itself the tier by being installed. Its row in the panel carries an
-`[actions]` badge from the moment it is discovered, and a bulk **Enable all** skips it.
+and no way for an addon to grant itself a key by being installed. Its row in the panel carries a
+`[protected]` badge from the moment it is discovered, and a bulk **Enable all** skips it.
 
-A protected verb called by an addon that did not declare the permission raises an error naming the verb. It is
-not a silent no-op, and it is not a crash.
+A protected verb called by an addon that did not declare its key raises an error naming the verb and the
+key it needs. It is not a silent no-op, and it is not a crash.
 
 ## Writing an addon that acts
 
@@ -99,7 +100,7 @@ game rules, and a refused action is refused server-side with nothing to catch.
 
 ## Network is a separate declaration
 
-Reaching outside the client is not part of `actions` and does not use `permissions` at all: a
+Reaching outside the client is none of these keys and does not use `permissions` at all: a
 [`network` block](../api/http.md#declaring-network-access) in the manifest lists the hosts your addon may
 talk to, and that list **is** the allowlist — anything else is refused at the call. A network addon loads
 normally, and the AddOns panel shows a `[net]` badge with the exact hosts in the row's tooltip, so the user

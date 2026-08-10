@@ -34,7 +34,7 @@
       re-prompt marks that one as new.
       <!-- extra context: `src/haven/Window.java` — the dialog's chrome and `pack()` -->
 
-- [ ] **050.3 — the tier's name leaves `docs/`.** The mechanical half, landing the docs tier consistent
+- [x] **050.3 — the tier's name leaves `docs/`.** The mechanical half, landing the docs tier consistent
       with itself: every `Write (protected: …)` heading becomes `## Write (protected)`, every inbound
       anchor follows, `guides/actions-and-permissions.md` becomes `guides/permissions.md` with its 12
       inbound links and their link TEXT, and `conventions.md`'s section anchor moves. The sweep is

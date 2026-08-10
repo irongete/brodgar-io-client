@@ -35,7 +35,7 @@ The two forms are not equals, and the split is by shape rather than by fallback:
 scans display names, and a display name never hijacks a resource lookup.
 
 - `:res()` is the **identity**. It is the intern key, it is known as soon as the resource is named, and
-  it is the same string [`slot:res(name)`](actionbar.md#write-protected-actions) takes.
+  it is the same string [`slot:res(name)`](actionbar.md#write-protected) takes.
 - A **display name** needs the resource fully loaded, and it is **not unique** — several actions can
   share one, and the first match in catalogue order wins. Use it to explore, and `:res()` to address.
 
@@ -98,7 +98,7 @@ for _, cat in ipairs(hafen.menugrid():roots()) do
 end
 ```
 
-## Use (protected: `actions`)
+## Use (protected)
 
 | Method | Description |
 |---|---|
@@ -109,14 +109,14 @@ the message from the modifier keys physically held at that instant, so a `mods` 
 lie about them.
 
 The reads above are not protected — enumerating the catalogue tells the server nothing. `use` commits a
-real action, so it is behind the [`actions` permission](conventions.md#the-actions-permission) like every
+real action, so it is behind the [permission model](conventions.md#the-permission-model) like every
 other verb that does.
 
 `use` raises an error on a category, on an entry that is no longer in the menu, and on one whose
 resource has not finished loading; check `:exists()` first if you are holding a stashed handle. A
 ground-targeted action enters targeting mode, just as the click would, and you supply the target with
-[`gob:click`](gob.md#write-protected-actions) or
-[`hafen.world():place`](world.md#write-protected-actions).
+[`gob:click`](gob.md#write-protected) or
+[`hafen.world():place`](world.md#write-protected).
 
 Because it goes through the client's own button code, `use` sends the action **by path when it has one
 and by id when it does not** — so it reaches the id-only entries, such as server-pushed abilities, that

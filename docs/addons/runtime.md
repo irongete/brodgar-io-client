@@ -39,7 +39,7 @@ your own folder and rejects everything outside it. The `savedata/` tree is writt
 | `description` | string | the panel row's tooltip |
 | `api_version` | number | the API level you target; recorded, and nothing rejects a mismatch |
 | `saved_variables` | array | the tables the engine persists — see [`hafen.store`](api/store.md) |
-| `permissions` | array of strings | `["actions"]` to declare the write tier — see [the actions permission](api/conventions.md#the-actions-permission) |
+| `permissions` | array of strings | one key per protected verb you call — see [the permission model](api/conventions.md#the-permission-model) |
 | `network` | object | `{"hosts": [...]}`, the allowlist for [`hafen.http`](api/http.md) |
 | `dependencies` | array of strings | addon ids, recorded; the loader neither orders nor requires them |
 | `optional_dependencies` | array of strings | the same |
@@ -124,17 +124,17 @@ name, version and author, and a live status. The description is the row's toolti
 | `not loaded` | enabled, but not running — usually an enable that no reload has applied yet |
 | `error: …` | its manifest or its Lua failed; the message says how |
 | `auto-disabled (…)` | the CPU budget stopped it this session |
-| `[actions]` | it declared the write tier — it can act on your behalf |
+| `[protected]` | it declared permission keys — it can act on your behalf |
 | `[net]` | it declared network hosts; the tooltip names every host it may reach |
 
 **A checkbox is applied on the next reload**, never mid-session: ticking one and pressing **Reload UI** is
 the whole gesture, and a "changes pending" line says so until you do. **Enable all** turns on every addon
-that is not marked `[actions]`; a write addon is only ever enabled one at a time, through the consent
+that is not marked `[protected]`; a write addon is only ever enabled one at a time, through the consent
 dialog that ticking it raises. **Open addons folder** opens `addons/` in your file browser.
 
-An addon that declares `actions` is disabled the first time the client sees it, so a write addon never runs
-because it was merely installed. After that its state is yours — see
-[actions and permissions](guides/actions-and-permissions.md).
+An addon that declares a permission key is disabled the first time the client sees it, so a write addon
+never runs because it was merely installed. After that its state is yours — see
+[permissions](guides/permissions.md).
 
 ## The console commands
 
@@ -182,5 +182,5 @@ your login.
 - [getting started](getting-started.md) — the first addon, end to end
 - [debugging](guides/debugging.md) — the reload loop in practice, the inspector, and reading the log
 - [`hafen.store`](api/store.md) — the saved variables the manifest declares
-- [actions and permissions](guides/actions-and-permissions.md) — the permission the manifest declares
+- [permissions](guides/permissions.md) — the permission the manifest declares
 - [the example addons](examples.md) — installed and running already, one per part of the API

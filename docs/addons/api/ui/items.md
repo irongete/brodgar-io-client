@@ -55,7 +55,7 @@ empty, because where it is is exactly what it no longer has.
 > The verbs below take the object, never the number. A stale one raises an error and sends nothing,
 > rather than moving whatever took its place.
 
-## Write (protected: `actions`)
+## Write (protected)
 
 What you can do **to** an item is on the item. Each sends exactly what the matching click sends, and each
 hands the Item back, so a run of verbs chains.

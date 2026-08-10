@@ -18,9 +18,9 @@ hafen.vr():sprite():add(icon, rabbit)                      -- following a game o
 ```
 
 > **Unprotected.** These are visualizations with no server id: the server never learns one exists and none of
-> them grants a gameplay advantage, so they need no `actions` permission and no consent dialog. They sit
+> them grants a gameplay advantage, so they need no permission and no consent dialog. They sit
 > alongside [a HUD overlay](../ui/custom.md#overlays), not beside a verb that acts. Committing a *real*
-> build is still the protected [`hafen.world():place`](../world.md#write-protected-actions).
+> build is still the protected [`hafen.world():place`](../world.md#write-protected).
 
 Everything here is **bridge-owned**: every entity your addon stands is torn down automatically on reload,
 disable and relogin, leaking neither a scene slot nor a GPU texture.

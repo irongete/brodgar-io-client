@@ -62,7 +62,7 @@ None of them throws.
 data, since [`hafen.json`](json.md) can encode a plain table and a Gob object cannot. For reading,
 prefer the methods — they are always fresh, while a snapshot is frozen at the moment you took it.
 
-## Write (protected: `actions`)
+## Write (protected)
 
 ### `gob:click(button, mods)`
 
@@ -165,6 +165,6 @@ Anything that acts on a gob takes the **Gob object**, not an id: `me:overlay():a
 - [`hafen.world`](world.md) — finding the gobs you want to read
 - [Overlay](overlay.md) — everything drawn at a gob, and the labels and painters you add
 - [`hafen.kin`](kin.md) — the roster side of `gob:kin()`
-- [`hafen.player`](player.md#write-protected-actions) — walking to a gob, and the cursor you aim at one
+- [`hafen.player`](player.md#write-protected) — walking to a gob, and the cursor you aim at one
 - [`GobInfo`](types.md#gobinfo) — the shape `:info()` returns
 - [events](event.md#world) — reacting to gobs appearing and leaving instead of polling

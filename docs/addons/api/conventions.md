@@ -179,18 +179,19 @@ Every `hafen.*` call, every event handler, every timer and every draw callback r
 thread**. You never need locks, and you must never block: a long-running handler stalls the client, and
 the sandbox's instruction watchdog aborts a runaway one.
 
-## The actions permission
+## The permission model
 
 A verb that **starts an action the player could have performed** is **protected**: it runs only
-if **your** addon declared `"permissions": ["actions"]` in its [manifest](../runtime.md#the-manifest) and
-the user enabled it. Such an addon is disabled the first time the client sees it and enabling it raises a
-consent dialog; one that never declared it gets an error naming the verb, before anything is sent.
+if **your** addon declared that verb's own permission key in its
+[manifest](../runtime.md#the-manifest) and the user enabled it. Such an addon is disabled the first time
+the client sees it and enabling it raises a consent dialog; one that never declared the key gets an error
+naming the verb, before anything is sent.
 
 **A protected verb lives with the thing it changes**, never in a section of its own: walking is on the
 character, clicking is on the gob, moving an item is on the item — so the page you look a verb up on is
-where you meet the permission, under a heading reading **Write (protected: `actions`)**. The whole set page
+where you meet the permission, under a heading reading **Write (protected)**. The whole set page
 by page, what the permission does not buy and how to write an addon that acts are in
-[actions and permissions](../guides/actions-and-permissions.md).
+[permissions](../guides/permissions.md).
 
 Everything else observes, or writes **client-local** only — a map marker, an icon flag, a sound — and
 needs no permission, so its group heading says `(unprotected)`. Nor does replacing an action the client
@@ -201,5 +202,5 @@ is already sending. [`hafen.http`](http.md) declares separately, a `network` hos
 - [references](references.md) — every kind of thing a verb takes, and how you name one
 - [data types](types.md) — every snapshot shape the readers return
 - [events](event.md) — the bus, and what each event hands your handler
-- [actions and permissions](../guides/actions-and-permissions.md) — the protected tier in full
+- [permissions](../guides/permissions.md) — the protected tier in full
 - [the Position type](world.md#the-position-type) — the one place type every spatial verb takes

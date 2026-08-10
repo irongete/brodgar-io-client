@@ -228,7 +228,7 @@ local a = hafen.world():snapAngle(math.atan2(p:y() - c:y(), p:x() - c:x()), ev:s
 ghost:rotate(a)
 ```
 
-## Write (protected: `actions`)
+## Write (protected)
 
 Two verbs change the world rather than read it, and both send exactly the message the matching mouse
 gesture sends. Each hands the section back, so a run of writes chains.

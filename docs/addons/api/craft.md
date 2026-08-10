@@ -44,7 +44,7 @@ byproduct.
 There is no `CraftChanged` event, because a recipe changes only when the player opens one. To notice
 that, watch for the window with [`hafen.ui():on`](ui/replace.md): `hafen.ui():on("window", "appear", fn)`.
 
-## Write (protected: `actions`)
+## Write (protected)
 
 | Method | Description |
 |---|---|
@@ -53,10 +53,10 @@ that, watch for the window with [`hafen.ui():on`](ui/replace.md): `hafen.ui():on
 It presses the recipe's own button, so it **consumes the ingredients** exactly as a click would. Called
 from an addon that did not declare the permission it raises an error naming that permission, and it also
 refuses on a recipe that is no longer the open one. It returns the Craft, so writes chain. See
-[the actions permission](conventions.md#the-actions-permission), and the **`walker`** addon for a demo.
+[the permission model](conventions.md#the-permission-model), and the **`walker`** addon for a demo.
 
 ## See also
 
 - [`Craft` and `CraftSpec`](types.md#craft-and-craftspec) — the snapshot shapes
-- [items](ui/items.md#write-protected-actions) — moving the ingredients into the window
+- [items](ui/items.md#write-protected) — moving the ingredients into the window
 - [`hafen.menugrid`](menugrid.md) — how a recipe window gets opened in the first place
