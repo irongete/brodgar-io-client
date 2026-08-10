@@ -39,3 +39,9 @@
   §10 callout pairs — **80 pages, 10,059 lines, 1,473 links, 0 broken**
   (`design/style-guide.md`, `design/information-architecture.md`, `decisions/docs-standard.md`
   D-015/D-016) — tasks 005.1..005.4
+- `006-act-dissolved-review` — ACTIVE — the two area-`addons` features that closed since `005`
+  (`047-flowermenu`, `048-act-dissolved`): the rehoused verbs checked against `src/`, the standard
+  brought onto the shipped adjective (`protected`/`unprotected`) with `hafen.act` on §7's list, the IA's
+  tree, the three ceiling pages split, and §12 over the whole tree. `049-css-selectors` is out of scope
+  (`design/style-guide.md`, `design/information-architecture.md`, `decisions/docs-standard.md`)
+  — tasks 006.1..006.4

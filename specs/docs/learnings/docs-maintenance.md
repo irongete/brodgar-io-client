@@ -458,3 +458,27 @@
   a passing number.** Reproduce a known-good POSITIVE with the exact command line you are about to trust,
   every time the shell, the flags or the tool changes — and prefer `-E` over `-F` here, since the crash is
   in the `-i -F -r` combination.
+
+- **(006.1) The false-zero has a twin: a grep that reads NON-zero for the wrong reason, and both come from
+  the same missing boundary.** 005.4's rule was *write the plant the way a page would actually write it*.
+  Its mirror is *read the hits before believing the count*. `hafen.act` is retired and reads **19** over
+  `docs/` — every one of them `hafen.actionbar`, a live section the retired name is a **prefix** of; the
+  guard is admissible only as `hafen\.act\b`. `gated` is the retired adjective and reads **2** — both
+  inside the word *propagated*, so `\bgated\b` is the spelling and the bare one would have sent a later
+  sweep hunting two sentences that are correct English. Neither trap is visible from the pattern: it takes
+  one `grep` without `| wc -l`. **A retired name that is a prefix or an infix of a live one is a regex
+  entry, never a literal**, and the §7 list should say which entries those are so nobody "simplifies" them
+  back.
+
+- **(006.1) What a move breaks is not the moved row — it is the receiving page's own universal sentence,
+  written before the verb arrived.** All three wrong claims this census found are page-level
+  generalisations that were true when written and that `048` falsified by adding one verb:
+  `ui/widget.md:42` "every write is a silent no-op" (001.4, before `widget:send` raised on a stale
+  widget), `gob.md:108` "a write does nothing, like every other method here" (046.1, before `gob:click`
+  raised), and `types.md:43`, which still names a spelling the engine now throws on (039.14). Each is
+  contradicted by its own page 60–130 lines away, because the shipping task wrote a correct new section
+  and never re-read the paragraphs above it — which is exactly the half no shipping task can do for
+  itself. The cheap check, run per page a feature wrote into: grep the **whole** page for its universal
+  quantifiers (*every* · *all* · *none* · *never* · *like every other*) and re-read each one against the
+  verbs the page now carries. A "whole set" claim in a guide is the same shape and is checkable the same
+  way — `requireActions(owner, "<verb>")` is the roster, and it reads 22.
