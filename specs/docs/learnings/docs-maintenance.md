@@ -582,3 +582,34 @@
   than as a design. The other eight were the ordinary kind — a universal sentence the same feature
   falsified two sections below (`widget.md`'s "only `send` raises", `selectors.md`'s "every lookup walks
   the whole tree"), which is 006.1's finding holding on the pages a feature *did* open.
+
+- **(007.2) `grep -iF` aborts on this toolchain, and an aborted grep reads as a clean sweep.** GNU grep 3.0
+  under Git-Bash core-dumps on `-i` combined with `-F` — single word or multi-word, it makes no difference.
+  Piped into `wc -l` or `head` the crash goes to stderr and the count comes back **0**, so a guard grep
+  written that way reports every page clean while reading nothing at all. It leaves a `grep.exe.stackdump`
+  in the working directory as the only trace, which is easy to mistake for someone else's litter. §7's own
+  greps are `grep -rnF` without `-i` and are unaffected — but an ad-hoc sweep reaches for `-i` by reflex.
+  This is 006.1's false zero with a new cause: **falsify a grep by planting a hit before believing its
+  zero**, whatever the pattern, because the tool itself is now one of the things that can be broken.
+
+- **(007.2) A boundary can be false by *widening its own subject*, and the widened form is the one that
+  reads as a rule.** `ui/style/keys.md` and `ui/style/surfaces.md` both said "no selector ever finds it"
+  about a window's chrome. The true fact is one word narrower — **no *role* classifies it** — and
+  `Window.chdeco` adds the deco as an ordinary child widget (`Window.java:145`), so `@DefaultDeco` finds it
+  and `ui/selectors.md` hands the reader that exact spelling two pages away. The slip is not staleness: it
+  is a category widened from `role` to `selector` on a page whose subject is *sites*, where the distinction
+  is precisely what the page exists to teach. The same bullet listed the close button among things nothing
+  classifies, while `DefaultDeco.cbtn` is an `IButton` and `LuaWidget.role` answers `button` for it.
+  **Read a negative back with its subject named as narrowly as the code makes it**, and check it against
+  the page that states the positive — the pair disagreed in the tier for as long as both existed.
+
+- **(007.2) After a verb turns strict, an example that still *parses* is only half-checked.** `049.2` made
+  `hafen.ui():find` raise on two or more matches, and every selector string in the tier still parsed
+  afterwards — including `ui/items.md`'s `find("window[title=Chest]")`, which raises the moment a second
+  chest is open. The tier had already written the counter-case down: `ui/replace.md` says "Two cupboards
+  can be open at once" and `ui/selectors.md` builds its whole callout on it. So the parser sweep answers
+  *is this legal*, and a second, unautomatable question remains — **is it unique against a real HUD** —
+  which is answered by naming the window in `src/` (`GameUI.java:961` builds exactly one captioned
+  "Inventory"; a container's caption comes from the server and repeats). Classify every strict-lookup
+  example both ways; the ones that fail the second question are fixed by the subscription that hands over
+  each match in turn, not by a better caption.

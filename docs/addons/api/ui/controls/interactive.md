@@ -33,7 +33,7 @@ btn:on("Pressed", refresh)
 
 The bare `:image()` reads the faces back as `{ up =, down =, hover = }`, exactly as you named them, and
 `nil` on a control that shows no picture. `:type()` tells the two buttons apart — `"Button"` and
-`"IButton"` — while `:role()` is `button` for both, so one selector still finds every button you built.
+`"IButton"` — while `:role()` is `button` for both, so one selector still matches every button you built.
 
 ## Text entry
 

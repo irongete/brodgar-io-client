@@ -100,12 +100,16 @@ usually the reason to hold one.
 | `ItemRemoved` | [`Item`](#the-item-object) | one leaves |
 | `Destroy` | — | this widget leaves the tree |
 
+Two chests can be open at once, so take each one as it opens rather than naming it from the root:
+
 ```lua
-local chest = hafen.ui():find("window[title=Chest]")
 local function label(item) return item:name() or item:res() or "?" end
-chest:on("ItemAdded",   function(item) hafen.log():write("in:  " .. label(item)) end)
-chest:on("ItemRemoved", function(item) hafen.log():write("out: " .. label(item)) end)
-chest:on("Destroy",     function() hafen.log():write("chest closed") end)
+
+hafen.ui():on("window[title=Chest]", "appear", function(chest)
+  chest:on("ItemAdded",   function(item) hafen.log():write("in:  " .. label(item)) end)
+  chest:on("ItemRemoved", function(item) hafen.log():write("out: " .. label(item)) end)
+  chest:on("Destroy",     function() hafen.log():write("chest closed") end)
+end)
 ```
 
 **The subscription is the registration.** A container nobody subscribed to is watched for nothing, so

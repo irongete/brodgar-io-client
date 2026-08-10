@@ -42,7 +42,7 @@ Selectors are guessed wrong more often than anything else in the API, so do not 
 **`widgetstack`** addon and hover: it reports the widget's [role](../api/ui/selectors.md#roles), its class,
 its own caption or displayed words, its `[res=]` and the captioned window it sits in, then offers **every
 selector it can build from those**, most specific first, each one resolved before it is shown and ready to
-paste into `:lua`. The lines it reaches for first are **chains** — the enclosing window, then the widget —
+paste into `:lua`. The lines it reaches for first are **chains** — the captioned window, then the widget —
 because a flat step usually matches several widgets and a chain matches the one you are pointing at. Its
 `freeze` hotkey holds the stack still while you move the mouse over to read it.
 

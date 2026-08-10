@@ -72,7 +72,7 @@ The verbs that act are on the pages of what they change — [`hafen.player`](pla
 | [lists](ui/lists.md) | a list, dropdown or menu of rows, and the row source they share with a radio |
 | [the Widget object](ui/widget.md) | what every widget answers, which writes owned and borrowed ones take, subscribing on one, tooltips and focus |
 | [the mouse](ui/mouse.md) | where the pointer is, what is under it, the modifier keys, and the grab that makes a drag yours |
-| [selectors](ui/selectors.md) | naming a widget: the grammar, roles, hit-testing, and the inspector |
+| [selectors](ui/selectors.md) | naming a widget: the grammar, the lookups, roles, hit-testing, and the inspector |
 | [items](ui/items.md) | the items inside a container, while the window stays live |
 | [native widgets](ui/native.md) | placing and hiding the client's own widgets, and the restore that comes with it |
 | [replace](ui/replace.md) | waiting for a widget to appear, and standing your own window in its place |

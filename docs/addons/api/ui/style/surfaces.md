@@ -23,10 +23,10 @@ s:rule("button"):remove()                            -- buttons fall back to the
 
 ## `window.title`
 
-The caption in a window's title bar, drawn by the window's **decoration** — which is why no selector ever
-finds it: hovering a window's frame gives you the decoration child, not the window. It is **embossed**, so
-it follows a `font` rule and a `color` rule is inert. Each **visible** window re-renders its caption on the
-frame after the rule moves.
+The caption in a window's title bar, drawn by the window's **decoration** rather than placed as a widget of
+its own — which is why it is a site and not a role. `window[title=…]` names the window that carries the
+caption, not the caption itself. It is **embossed**, so it follows a `font` rule and a `color` rule is
+inert. Each **visible** window re-renders its caption on the frame after the rule moves.
 
 ## `window.frame` and `panel`
 

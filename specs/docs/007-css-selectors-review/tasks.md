@@ -19,7 +19,7 @@
       copied as prose about the inspector; `widget.md` disagreed with itself on staleness. Also filed to
       area `addons`: `UiApi.java:257`'s `:text()` roster comment has been missing `CheckBox` since 040.4.
 
-- [ ] **007.2 — the fifteen pages `049` never opened, and the negatives.**
+- [x] **007.2 — the fifteen pages `049` never opened, and the negatives.**
       Read them whole — not grepped for the new syntax, which is already green. What is being hunted
       is the sentence a grammar change leaves false: a page-level generalisation about what a lookup
       answers, a `hafen.ui():find(…)` example that is legal but **ambiguous** against a real HUD, link
@@ -30,6 +30,22 @@
       **Report:** every page read, with clean stated as clean; the negatives found and their new
       wording; the prose-name and link-text greps with their hit counts read rather than counted;
       the `find` examples classified unique / ambiguous, with the ambiguous ones' fix.
+      **Closed.** The fifteen are derived, not remembered — `grep -rlni selector docs/` reads **25**, minus
+      `049`'s ten — and `items.md`/`runtime.md` were read too, carrying a lookup example without the word.
+      **Nineteen negatives about this surface exist across the tier; seventeen are true.** The two that were
+      not said the same thing on the two halves of one pair: `style/keys.md` and `style/surfaces.md` both
+      claimed "no selector ever finds it" of a window's chrome, where the true fact is one word narrower —
+      no *role* classifies it — while `Window.chdeco` adds the deco as an ordinary child (`Window.java:145`)
+      and `selectors.md` teaches `window[title=…] @DefaultDeco`. The same bullet called the close button
+      unclassified; `DefaultDeco.cbtn` is an `IButton` and `LuaWidget.role` answers `button`. Four more
+      corrections: `items.md`'s `find("window[title=Chest]")` was legal but **ambiguous** (the tier's own
+      `replace.md` says two containers can be open), now an `appear` subscription; `interactive.md`'s "one
+      selector still **finds** every button" → "matches"; `debugging.md`'s "the enclosing window" →
+      "captioned", agreeing with the line 007.1 had already fixed above it; `api/README.md`'s index row
+      omitted the lookups. **Twelve of the fifteen were clean and are reported as clean.** All 14 "the first
+      match"/"first that matches" hits are the collection verb, untouched and correct. 21/21 selector
+      strings driven through the real `Selector.parse` (falsified 4 ways); `>`, `:hover`, `:first-child`
+      and `,` all raise, so `style/README.md`'s four-way boundary holds. Links 1546/0, falsified five ways.
 
 - [ ] **007.3 — the standard, the figures, and §12 whole-tree.**
       Settle the refused spellings against D-013 — `inventory[title=…]`, `*[title=…]`, bare

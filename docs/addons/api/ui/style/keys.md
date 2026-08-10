@@ -53,11 +53,11 @@ captions, its rows, and any widget created inside it *later*. That is the same m
 [`widget:rule()`](README.md#restyle-one-widget) uses, so a tree rule reaches every surface a site key does,
 including text drawn by the game's own resource code.
 
-> **You cannot *select* a window's frame, but a rule that names the window still dresses it.** The chrome —
-> the border, the title bar's background, the close button — is a **child** of the window, not part of it,
-> and it classifies as nothing, so no selector ever finds it and `window.frame` names the **site** instead.
-> What a `["window…"]` tree rule reaches is both halves: its text, because the caption and everything else
-> is drawn inside the window's subtree, **and** its chrome, because a window's decoration asks *the window*
+> **No role names a window's frame, but a rule that names the window still dresses it.** The chrome — the
+> border and the title bar's background — is drawn by a **child** of the window rather than by the window
+> itself, and no role classifies that child, so `window.frame` names the **site** instead. What a
+> `["window…"]` tree rule reaches is both halves: its text, because the caption and everything else is
+> drawn inside the window's subtree, **and** its chrome, because a window's decoration asks *the window*
 > what style it resolved. That is how you theme one window rather than all of them.
 
 Three rules decide what one widget resolves to:
