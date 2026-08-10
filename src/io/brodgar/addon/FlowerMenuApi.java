@@ -30,7 +30,7 @@ import java.util.WeakHashMap;
  * {@code nil} — an inventory item's menu, the Kin window's, one the player's next click intervened on.
  *
  * <p><b>The write half is protected</b> (047.2): {@code :select(label|n)} and {@code :cancel()} commit a choice, so
- * they sit behind the per-addon {@code actions} permission like every other write, and they drive
+ * they sit behind their own per-addon {@code flowermenu.*} keys like every other write, and they drive
  * {@link FlowerMenu#choose} rather than re-encoding {@code wdgmsg("cl", num)} (D-009) — which is the only reason
  * a client-side petal keeps handling itself. They are also the one half that <b>throws</b> instead of answering:
  * see {@link #required}.
@@ -136,7 +136,7 @@ final class FlowerMenuApi {
         menu.set("select", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "flowermenu", "select");
-                AddonManager.requireActions(owner, "hafen.flowermenu():select");
+                AddonManager.requirePermission(owner, Permission.FLOWERMENU_SELECT);
                 select(Args.required(a, 2, "hafen.flowermenu():select", "key"));
                 return LuaValue.NIL;
             }
@@ -146,7 +146,7 @@ final class FlowerMenuApi {
         menu.set("cancel", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "flowermenu", "cancel");
-                AddonManager.requireActions(owner, "hafen.flowermenu():cancel");
+                AddonManager.requirePermission(owner, Permission.FLOWERMENU_CANCEL);
                 if(Args.passed(a, 2))
                     throw new LuaError("hafen.flowermenu():cancel() takes no arguments: there is one open"
                         + " menu and cancelling it chooses nothing — to pick a petal, use"

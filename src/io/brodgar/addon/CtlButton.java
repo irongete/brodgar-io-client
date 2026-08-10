@@ -38,7 +38,7 @@ import haven.GOut;
  * <p><b>It sends the server nothing.</b> The stock {@code Button(int, String)} constructor wires
  * {@code action = () -> wdgmsg("activate")}; this one takes the {@code Runnable} overload with {@code null} and
  * overrides {@code click()} outright, so a control is client-side by construction and acting on the game stays
- * the protected {@code actions} tier — the write verbs on the things they change.
+ * the protected tier — the write verbs on the things they change, each behind its own permission.
  */
 final class CtlButton extends Button implements Owned.Control, Controls.Press {
     /** The client's own look with no caption: a plain button, at a width {@code :size(w, h)} overrides. */

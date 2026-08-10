@@ -1645,3 +1645,25 @@
   under-reporting in the same run, which is the worst possible checker. Re-run in the shell and both come out
   right. §12's greps are shell commands: run them in the Bash tool. Python is fine for the link/anchor walker,
   which reads the files itself and shells out to nothing.
+
+- **(050.1) Build the probe's world instead of finding it: `-Dhaven.addondir` makes `describeAddons` headless.**
+  The AddOns panel's whole data path (`scanAddonDefaults` → `Manifest.load` → `AddonInfo`) is disk I/O over a
+  directory the probe can simply write: `Files.createDirectories(scratch/brokenaddon)` + a two-line
+  `manifest.json` with a misspelled permission key, `System.setProperty("haven.addondir", scratch)`, then read
+  the rows back. That turned *"the panel shows the reason naming the valid keys"* — an acceptance criterion that
+  had only ever been checked by hovering a row in-game — into 5 assertions, and it is what caught that the
+  reason was being discarded before it ever reached the row. Pair it with `-Dhaven.prefspec=<test node>` (the
+  1f-2 trick), because that path writes the disabled/consented prefs as it scans. Same shape as the
+  `-Dhaven.savedatadir` isolation 036.4 used for `hafen.store`.
+- **(050.1) Load the shipping suite under its OWN manifest, not `Manifest.internal`.** 033.3's recipe builds the
+  probe's `Addon` with `Manifest.internal(id)`, which declares **every** permission — fine while a suite
+  declared nothing, and exactly wrong for one whose subject is what it declared: every refusal it asserts would
+  pass and every grant would be the console owner's. `new Addon(Manifest.load(dir), dir, env)` runs the real
+  declaration, and because the gate is the first statement of each verb (D-213) the whole undeclared half is
+  reachable with **no session at all** — 13 of the 17 refusals were green before the client started. What needs
+  a live game is only what needs a live *object*: an Item, the cursor, an open recipe, a UI root.
+- **(050.1) A `[manual]` step is a code path too — the maintainer's run leaves the repo mid-experiment.** The
+  suite's own manual line asks for a key to be added to its manifest and then misspelled; the pasted-back log
+  was all green, and the manifest came back as `["item.*", "gob.click"]`. The next headless run reddened on
+  *the suite's premise* rather than on anything real. Re-run the probe after a verification round and read the
+  first failing line as a question about the working tree before reading it as a regression.

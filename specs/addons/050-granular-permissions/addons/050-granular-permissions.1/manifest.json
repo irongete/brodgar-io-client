@@ -1,0 +1,13 @@
+{
+  "name": "050.1 — the catalogue, the matcher, the gate",
+  "id": "050-granular-permissions.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 050.1: declares a deliberate subset -- the group 'item.*' and the exact key 'player.move' -- and proves the matcher on both sides without sending anything, plus that no refusal names the retired tier.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": [
+    "item.*",
+    "player.move"
+  ]
+}

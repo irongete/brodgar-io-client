@@ -206,7 +206,7 @@ final class WorldApi {
         // the matching mouse gesture produces (mousedown's place branch / Selector.mmouseup), so the client
         // stays server-authoritative: an addon can only send what a player could.
         //   The gate runs FIRST — before the receiver and the arguments are looked at (D-213) — so an addon
-        // that never declared "actions" is told THAT rather than "angle must be a number". Each hands the
+        // that never declared "world.place" is told THAT rather than "angle must be a number". Each hands the
         // section back, so a run of writes chains like every other setter in the API.
 
         // place(p, angle [, button [, mods]]) — place the object currently ON YOUR CURSOR at a Position,
@@ -220,7 +220,7 @@ final class WorldApi {
         m.set("place", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requireActions(owner, "hafen.world():place");
+                AddonManager.requirePermission(owner, Permission.WORLD_PLACE);
                 Section.self(self, "world", "place");
                 Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.world():place", "p");
                 double ang = number(a, 3, "hafen.world():place", "angle");
@@ -238,7 +238,7 @@ final class WorldApi {
         m.set("select", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requireActions(owner, "hafen.world():select");
+                AddonManager.requirePermission(owner, Permission.WORLD_SELECT);
                 Section.self(self, "world", "select");
                 Coord2d p1 = LuaPosition.worldArg(a, 2, "hafen.world():select", "p1");
                 Coord2d p2 = LuaPosition.worldArg(a, 3, "hafen.world():select", "p2");

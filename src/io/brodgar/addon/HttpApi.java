@@ -102,7 +102,7 @@ final class HttpApi {
     /**
      * Gate a network verb (D-037): the addon must have DECLARED a {@code network} block whose {@code hosts}
      * allowlist matches {@code host}, or this throws a guiding Lua error <b>synchronously at call</b> (same
-     * instant feedback as {@code requireActions}). The declaration IS the allowlist — a host not listed is
+     * instant feedback as {@code requirePermission}). The declaration IS the allowlist — a host not listed is
      * refused before any I/O. (The resolved IP's private/loopback check happens later, on the pool thread.)
      */
     private static void requireNetwork(Addon owner, String host, String verb) {

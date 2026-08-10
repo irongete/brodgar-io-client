@@ -163,7 +163,7 @@ public final class LuaCraft {
             public Varargs invoke(Varargs a) {
                 LuaValue me = a.arg1();
                 LuaCraft h = handle(me, "make");
-                AddonManager.requireActions(owner, "hafen.craft():current():make");
+                AddonManager.requirePermission(owner, Permission.CRAFT_MAKE);
                 LuaValue all = Args.written(a, 2, "hafen.craft():current():make", "all");
                 Makewindow mw = live(h);
                 if(mw == null)

@@ -935,12 +935,12 @@ final class CharApi {
         // makes an off-screen destination legal. It is not a forwarded Gob method and so does not bend D-046:
         // the server accepts a walk command only for your OWN character, so there is no gob:move() beside it,
         // and gob:moving() is a property of a gob rather than an imperative on the player.
-        //   The verb is PROTECTED (the per-addon "actions" permission), and the gate runs FIRST — before the
+        //   The verb is PROTECTED (the per-addon "player.move" permission), and the gate runs FIRST — before the
         // argument is looked at and before the map view is: an addon that never declared the permission is told
         // that, rather than being told its Position is wrong (D-213).
         methods.set("move", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                requireActions(owner, "hafen.player():move");
+                requirePermission(owner, Permission.PLAYER_MOVE);
                 Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.player():move", "p");
                 MapView m = view;
                 if(m == null)

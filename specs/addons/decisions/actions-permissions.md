@@ -169,3 +169,59 @@ of the caller, not about feature probes in general.
 **See.** [D-027](#d-027), [D-028](#d-028), [D-215](architecture-api.md#d-215) (the dissolution this completes),
 [D-103](architecture-api.md#d-103) (the sibling deletion in the same task: `act():flower`, whose door
 `hafen.flowermenu():select` already owned), [048-act-dissolved](../048-act-dissolved/spec.md).
+
+### D-228 — the permission is PER VERB, keyed `<section>.<verb>`, declared exactly or by a `<prefix>.*` group ✅ (050.1, 2026-08-10)
+**Decision.** The single coarse tier becomes a **catalogue of 22 keys**, one per protected verb, named after the
+section the verb LIVES on — `gob.click`, `item.transfer`, `menugrid.use` for `pag:use()`, `actionbar.use` for
+`slot:use()`, and the one nested case `player.hand.use`. A manifest declares an **exact key** or a
+`<prefix>.*` **group** matched on the key's own dot segments (`item.*` reaches every `item.<verb>` and can never
+reach `itemx.y`); an entry that is neither **throws at load**, listing the whole vocabulary, so the addon fails
+to load and the AddOns panel shows the reason. The bare `"*"` parses **nowhere** — the trusted `:lua` REPL owner
+is built from the catalogue's own `values()`, so the allow-all shape has no spelling a disk manifest could reach
+for. One `Permission` constant carries the key, the Lua spelling of the verb, and the plain-language line the
+consent dialog renders, so the gate's refusal, the manifest validator, the internal owner and the dialog all
+read one list instead of four that can drift. D-028's model is untouched: per-addon, default-disabled,
+enable-with-consent, no global switch, server-authoritative.
+**Rationale.** With one tier the consent dialog can only make one blanket statement — it over-warns about an
+addon that wants to change the movement speed and under-warns about one that wants `widget:send`. **What the
+user grants has to be the list they read**, and that is only possible if the declaration names verbs. Naming
+each key after what the verb CHANGES is D-215 applied to the declaration itself: a permission is not a
+namespace, so `pag:use()` asks for `menugrid.use` and not for something called after the tier. Accepting an
+unknown key silently (the old behaviour) is the exact failure the catalogue exists to delete: a typo would grant
+nothing and fail at the first call, in-game, on the user's real character. Groups exist because an addon that
+does all four item verbs should read as one line in the dialog, not four — and they match on segments, not
+characters, so a group can never widen by accident.
+**Consequences.** Adding a protected verb is one catalogue entry plus one gate call; there is no second list to
+update. The gate takes a constant instead of a verb string, so a call site wired to the wrong key is a
+*compile-time-typed* mistake that a suite can still catch by reading the key back out of the refusal — which is
+what `:t050-1` does for all 22. The refusal names the verb, the key, the manifest line to add and the group that
+also grants it. `walker` declares 11 entries covering all 22 keys; a suite may declare a deliberate subset, and
+that subset IS its proof (below). An **exact** key is not a prefix: `player.move` does not grant
+`player.hand.use`, which is the one bug in this design worth planting a falsification for.
+**See.** [D-027](#d-027), [D-028](#d-028), [D-215](architecture-api.md#d-215), [D-213](#d-213) (the gate runs
+before the argument check, which is what lets a suite prove a grant without acting),
+[D-229](#d-229), [050-granular-permissions](../050-granular-permissions/spec.md).
+
+### D-229 — the persisted record says WHAT the user consented to, not THAT they were asked ✅ (050.1, 2026-08-10)
+**Decision.** The pref that made the default-disable happen exactly once stops recording ids and starts
+recording, per addon, the **set of keys the user approved** (`addons/permissions.consented`). The whole policy is
+one line: **declared ⊆ consented → the user's choice stands; otherwise disable and let the consent dialog ask
+again.** An addon declaring nothing is never touched; one asking for **less** than it was granted never
+re-prompts; a never-consented declaration is not contained by an empty record, which is exactly the
+disabled-by-default a newly discovered addon gets. The record is **additive per addon** and written only where
+consent is GIVEN, so the policy itself is pure and read-only — headless-testable, and it only ever ADDS to the
+disabled set, keeping change detection a size compare. The consented set holds **resolved** keys, so swapping
+`item.use` for `item.*` reads as the widening it is whatever the entry count says.
+**Rationale.** With one permission, recording only *that this addon was defaulted once* was harmless: declared →
+declared could not change what was granted. With 22 keys it is a **silent escalation** — an addon the user
+enabled for `item.*` could ship a new manifest asking for `widget.send` and keep running, which is the same
+shape as the bulk-enable bypass 4c closed. Re-prompting on *any* declaration change would be cheaper but re-asks
+when an addon DROPS a permission, which trains the user to click the dialog away.
+**Consequences.** The enabled bit can still be flipped from anywhere, but the **grant** happens only in the
+consent dialog — so every other path (the panel's bulk enable, the console's `:addons enable`) is fail-closed by
+construction: the next scan simply defaults the addon back to disabled. The console's enable says so rather than
+letting the following `:reload` look broken. The pref key changed with the model, so nothing carries the retired
+tier's name; every addon that declared before re-consents once, which is moot because every one of them changed
+its declaration in the same task.
+**See.** [D-028](#d-028), [D-228](#d-228), `learnings/actions-gated.md` (4b, the seen set this replaces; 4c, the
+bulk-enable bypass whose skip widened with the predicate).

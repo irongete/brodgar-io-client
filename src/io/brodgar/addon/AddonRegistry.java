@@ -12,6 +12,7 @@ import org.luaj.vm2.LuaValue;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -25,7 +26,7 @@ import static io.brodgar.addon.AddonManager.*;
 /**
  * The addon **registry + load/enable/reload management** — distinct from the {@code hafen.*} runtime bridge.
  * Owns **discovery + loading** from {@code addons/} on disk ({@link #loadAll}), the persisted **enabled set**
- * ({@link #isEnabled}/{@link #setEnabled} + the D-027 write-addon default-disable), the addon-layer **reload**
+ * ({@link #isEnabled}/{@link #setEnabled} + the D-027 default-disable of a permission-declaring addon), the addon-layer **reload**
  * ({@link #reload} — teardown-all + re-load, no relog), per-addon **teardown** ({@link #teardown}, orchestrating
  * every subsystem's cleanup), and the **AddOns options-panel API** ({@link #describeAddons}/{@link #liveStatus}/
  * {@link AddonInfo} — consumed by {@code io.brodgar.addon.ui.AddonPanel}). {@link AddonManager} keeps the runtime
@@ -38,7 +39,13 @@ public final class AddonRegistry {
     private static final String PREF_DISABLED = "addons/disabled";
     private static volatile boolean reloadNeeded;        // enabled set changed since the last (re)load
     private static volatile int reloadGen;               // bumped by each completed reload() (the AddOns panel watches it)
-    private static final String PREF_ACTIONS_SEEN = "addons/actions.seen";    // write-addon ids we have applied the default-disable to
+    /**
+     * What the user has CONSENTED to, per addon: {@code "<id>=<key>,<key>,…"} rows of catalogue keys they
+     * approved in the enable-time dialog. The record is what the default policy compares a manifest against
+     * (declared ⊆ consented → the user's choice stands), so a manifest that later asks for MORE is disabled
+     * and asked again instead of silently escalating. Additive per addon — asking for less never re-prompts.
+     */
+    private static final String PREF_CONSENTED = "addons/permissions.consented";
 
     // ------------------------------------------------------------- discovery + loading
 
@@ -57,7 +64,7 @@ public final class AddonRegistry {
     static void loadAll() {
         reloadNeeded = false;         // whatever is on disk now IS the applied enabled set
         autoDisabledWarn.clear();     // a (re)load gives every addon a fresh start (drop session warnings)
-        scanAddonDefaults();          // D-027: default-disable newly-discovered write addons; refresh the write-addon cache
+        scanAddonDefaults();          // D-027: default-disable any addon asking for permissions the user has not consented to
         File dir = addonDir();
         log("addons dir: " + dir);
         File[] subs = dir.listFiles(File::isDirectory);
@@ -65,9 +72,9 @@ public final class AddonRegistry {
             log("no addons/ directory");
             return;
         }
-        // D-006: honor the persisted enabled set (skip disabled). A write-declaring addon is disabled by default
+        // D-006: honor the persisted enabled set (skip disabled). A permission-declaring addon is disabled by default
         // (D-027/D-028) until the user enables it through the AddOns-panel consent dialog (slice 4c); once enabled
-        // it loads like any other addon (there is no global actions switch to also satisfy — D-028).
+        // it loads like any other addon (there is no global switch to also satisfy — D-028).
         Set<String> disabled = disabledSet();
         for(File sub : subs) {
             if(!new File(sub, "manifest.json").isFile())
@@ -278,58 +285,145 @@ public final class AddonRegistry {
     }
 
     /**
-     * Scan {@link #addonDir()} and apply the write-addon default (disabled-by-default, opt-in per addon —
-     * D-027/D-028): a discovered addon that declares the {@code "actions"} permission and has NOT been seen before
-     * is added to the persisted disabled set (and to a persisted "seen" set so it is defaulted exactly once — a
-     * later scan then respects whatever the user has since chosen, i.e. the enable made through the consent
-     * dialog). Cheap disk I/O (a handful of small manifests); call on a (re)load / panel build, not per frame. The
-     * pure policy is {@link #applyActionsDefaults} (headless-testable).
+     * Scan {@link #addonDir()} and apply the declaring-addon default (disabled-by-default, opt-in per addon —
+     * D-027/D-028): a discovered addon whose declared permissions are NOT all covered by what the user has
+     * consented to is added to the persisted disabled set, so it comes back asking again. Cheap disk I/O (a
+     * handful of small manifests); call on a (re)load / panel build, not per frame. The pure policy is
+     * {@link #applyPermissionDefaults} (headless-testable).
      */
     private static void scanAddonDefaults() {
         File dir = addonDir();
         File[] subs = dir.listFiles(File::isDirectory);
         if(subs == null)
             return;
-        Map<String, Boolean> declares = new LinkedHashMap<String, Boolean>();
+        Map<String, Set<Permission>> declares = new LinkedHashMap<String, Set<Permission>>();
         for(File sub : subs) {
             if(!new File(sub, "manifest.json").isFile())
                 continue;
             try {
-                declares.put(sub.getName(), Manifest.load(sub.toPath()).usesActions());
+                declares.put(sub.getName(), Manifest.load(sub.toPath()).permissions.granted());
             } catch(Exception e) {
                 /* a broken manifest surfaces as an error row elsewhere; no default to apply here */
             }
         }
-        List<String> seenL = Utils.getprefsl(PREF_ACTIONS_SEEN, new String[0]);
-        Set<String> seen = (seenL == null) ? new LinkedHashSet<String>() : new LinkedHashSet<String>(seenL);
         Set<String> disabled = disabledSet();
-        int seenBefore = seen.size(), disBefore = disabled.size();   // applyActionsDefaults only ADDS to both
-        applyActionsDefaults(seen, disabled, declares);
-        if(seen.size() != seenBefore)
-            Utils.setprefsl(PREF_ACTIONS_SEEN, seen);
+        int disBefore = disabled.size();          // applyPermissionDefaults only ADDS
+        applyPermissionDefaults(consentedMap(), disabled, declares);
         if(disabled.size() != disBefore)
             Utils.setprefsl(PREF_DISABLED, disabled);
     }
 
     /**
-     * The pure write-addon default policy (no I/O — D-027/D-028): for each entry in {@code declares} that is a
-     * write addon (value {@code true}) and NOT already in {@code seen}, mark it seen and add it to {@code disabled}
-     * (disabled-by-default — write addons are opt-in per addon; enabling one goes through the consent dialog). A
-     * write addon already in {@code seen} is left to the user's enable/disable choice; read addons are ignored
-     * entirely. {@code seen} and {@code disabled} are mutated in place (additions only). Returns the ids of ALL
-     * write addons in {@code declares}. Headless-testable.
+     * The pure default policy (no I/O — D-027/D-028), one line: <b>declared ⊆ consented → the user's choice
+     * stands; otherwise disable and let the consent dialog ask again.</b> An addon declaring NOTHING is never
+     * touched (it is an ordinary read-only addon, enabled like any other), and one that asks for LESS than it
+     * was granted never re-prompts — the record is additive per addon, so change detection is a containment
+     * test rather than a diff. A never-consented declaration is not contained by an empty record, which is
+     * exactly the disabled-by-default a newly discovered addon gets. {@code disabled} is mutated in place
+     * (additions only); {@code consented} is read, never written — consent is recorded where it is GIVEN
+     * ({@link #grantConsent}). Returns the ids of every declaring addon in {@code declares}. Headless-testable.
      */
-    static Set<String> applyActionsDefaults(Set<String> seen, Set<String> disabled, Map<String, Boolean> declares) {
-        Set<String> writeIds = new LinkedHashSet<String>();
-        for(Map.Entry<String, Boolean> e : declares.entrySet()) {
-            if(!Boolean.TRUE.equals(e.getValue()))
-                continue;
+    static Set<String> applyPermissionDefaults(Map<String, Set<Permission>> consented, Set<String> disabled,
+                                               Map<String, Set<Permission>> declares) {
+        Set<String> declaringIds = new LinkedHashSet<String>();
+        for(Map.Entry<String, Set<Permission>> e : declares.entrySet()) {
+            Set<Permission> declared = e.getValue();
+            if((declared == null) || declared.isEmpty())
+                continue;                        // declares nothing: never touched
             String id = e.getKey();
-            writeIds.add(id);
-            if(seen.add(id))          // first time we've seen this addon AS a write addon → default it disabled
-                disabled.add(id);
+            declaringIds.add(id);
+            Set<Permission> ok = consented.get(id);
+            if((ok == null) || !ok.containsAll(declared))
+                disabled.add(id);                // never consented, or now asking for more → ask again
         }
-        return writeIds;
+        return declaringIds;
+    }
+
+    /**
+     * The permissions {@code id} declares that the user has NOT consented to, comma-separated, or {@code null}
+     * if there are none (it declares nothing, or everything it asks for is already granted). What the console's
+     * enable reports: the enabled bit can be flipped from anywhere, but the grant happens only in the consent
+     * dialog, so any other path leaves the addon to be defaulted back to disabled on the next scan.
+     */
+    public static String consentPending(String id) {
+        File dir = new File(addonDir(), id);
+        if(!new File(dir, "manifest.json").isFile())
+            return null;
+        PermissionSet declared;
+        try {
+            declared = Manifest.load(dir.toPath()).permissions;
+        } catch(Exception e) {
+            return null;                         // a broken manifest is reported as an error row, not here
+        }
+        if(declared.isEmpty())
+            return null;
+        Set<Permission> ok = consentedMap().get(id);
+        StringBuilder sb = new StringBuilder();
+        for(Permission p : declared.granted()) {
+            if((ok != null) && ok.contains(p))
+                continue;
+            if(sb.length() > 0)
+                sb.append(", ");
+            sb.append(p.key);
+        }
+        return (sb.length() == 0) ? null : sb.toString();
+    }
+
+    /** The persisted consent record: addon id → the catalogue keys the user approved for it. */
+    private static Map<String, Set<Permission>> consentedMap() {
+        Map<String, Set<Permission>> out = new LinkedHashMap<String, Set<Permission>>();
+        List<String> rows = Utils.getprefsl(PREF_CONSENTED, new String[0]);
+        if(rows == null)
+            return out;
+        for(String row : rows) {
+            int eq = row.indexOf('=');
+            if(eq < 0)
+                continue;
+            Set<Permission> keys = EnumSet.noneOf(Permission.class);
+            for(String k : row.substring(eq + 1).split(",")) {
+                Permission p = Permission.byKey(k.trim());
+                if(p != null)                    // a key this build no longer has grants nothing
+                    keys.add(p);
+            }
+            out.put(row.substring(0, eq), keys);
+        }
+        return out;
+    }
+
+    /** Write the consent record back, one {@code "<id>=<key>,<key>"} row per addon. */
+    private static void persistConsent(Map<String, Set<Permission>> consented) {
+        List<String> rows = new ArrayList<String>();
+        for(Map.Entry<String, Set<Permission>> e : consented.entrySet()) {
+            StringBuilder sb = new StringBuilder(e.getKey()).append('=');
+            boolean first = true;
+            for(Permission p : e.getValue()) {
+                if(!first)
+                    sb.append(',');
+                sb.append(p.key);
+                first = false;
+            }
+            rows.add(sb.toString());
+        }
+        Utils.setprefsl(PREF_CONSENTED, rows);
+    }
+
+    /**
+     * Record the user's consent for {@code id} (the keys {@code declared} asks for) and enable the addon — the
+     * one door the AddOns panel's consent dialog confirms through. The record is <b>additive</b>: approving a
+     * smaller declaration later never narrows it, so an addon that drops a permission is not re-prompted, while
+     * one that adds a key is (the new key is not in the record until this runs again).
+     */
+    public static void grantConsent(String id, PermissionSet declared) {
+        if((id == null) || id.isEmpty())
+            return;
+        Map<String, Set<Permission>> consented = consentedMap();
+        Set<Permission> cur = consented.get(id);
+        Set<Permission> merged = (cur == null) ? EnumSet.noneOf(Permission.class) : EnumSet.copyOf(cur);
+        if(merged.addAll(declared.granted()) || (cur == null)) {
+            consented.put(id, merged);
+            persistConsent(consented);
+        }
+        setEnabled(id, true);
     }
 
     /** The loaded addon with this id, or {@code null} if none is loaded (disabled, missing, or errored). */
@@ -384,18 +478,32 @@ public final class AddonRegistry {
         public final int apiVersion;
         public final boolean enabled;          // persisted enabled state (the checkbox) — NOT the live-loaded state
         public final boolean loaded;           // currently running this session
-        public final boolean declaresActions;  // declares the "actions" write permission (D-027: default-disabled, consent at enable)
+        public final PermissionSet permissions; // the protected keys it declared (D-027: default-disabled, consent at enable)
         public final List<String> networkHosts; // declared network allowlist (N2a / D-037); empty = no network
         public final String error;             // load/runtime error, or null
+        /**
+         * Why the {@code manifest.json} itself could not be read — the parser's own message (an unknown
+         * permission key lists the whole vocabulary), or {@code null} when the manifest is fine. Distinct from
+         * {@link #error}, which also carries a LOADED addon's Lua error: this addon has no manifest at all, so
+         * there is nothing to enable and nothing the enabled bit can mean. The panel shows the reason and
+         * renders the row unticked.
+         */
+        public final String manifestError;
         public final String warning;           // session warning (e.g. auto-disabled by the CPU watchdog), or null
 
         AddonInfo(String id, String name, String version, String author, String description,
-                  int apiVersion, boolean enabled, boolean loaded, boolean declaresActions,
-                  List<String> networkHosts, String error, String warning) {
+                  int apiVersion, boolean enabled, boolean loaded, PermissionSet permissions,
+                  List<String> networkHosts, String error, String manifestError, String warning) {
             this.id = id; this.name = name; this.version = version; this.author = author;
             this.description = description; this.apiVersion = apiVersion; this.enabled = enabled;
-            this.loaded = loaded; this.declaresActions = declaresActions;
-            this.networkHosts = networkHosts; this.error = error; this.warning = warning;
+            this.loaded = loaded; this.permissions = permissions;
+            this.networkHosts = networkHosts; this.error = error; this.manifestError = manifestError;
+            this.warning = warning;
+        }
+
+        /** Whether this addon declared any protected permission (it is then opt-in, behind the consent dialog). */
+        public boolean declaresPermissions() {
+            return (permissions != null) && !permissions.isEmpty();
         }
 
         /** Whether this addon declared a non-empty {@code network} allowlist (shows the network badge). */
@@ -411,7 +519,7 @@ public final class AddonRegistry {
      * per frame — use {@link #liveStatus(String)} for the cheap per-frame status refresh.
      */
     public static List<AddonInfo> describeAddons() {
-        scanAddonDefaults();          // D-027: reflect the write-addon default (+ refresh the cache) for any new addon
+        scanAddonDefaults();          // D-027: reflect the default-disable for any new or newly-widened declaration
         List<AddonInfo> out = new ArrayList<AddonInfo>();
         File dir = addonDir();
         File[] subs = dir.listFiles(File::isDirectory);
@@ -424,9 +532,13 @@ public final class AddonRegistry {
                 continue;
             String id = sub.getName();
             Manifest m = null;
-            try { m = Manifest.load(sub.toPath()); } catch(Exception e) { /* keep an id-only row */ }
+            String mferr = null;
+            // Keep the parser's OWN message: it is the only place the reason exists (an unknown permission key
+            // lists the whole vocabulary), and the panel is where the author reads it — the terminal log is not
+            // an answer to "why is this row broken".
+            try { m = Manifest.load(sub.toPath()); } catch(Exception e) { mferr = reason(e); }
             Addon loaded = findLoaded(id);
-            String error = (loaded != null) ? loaded.error : ((m == null) ? "manifest error" : null);
+            String error = (loaded != null) ? loaded.error : mferr;
             out.add(new AddonInfo(id,
                 (m != null) ? m.name : id,
                 (m != null) ? m.version : null,
@@ -435,12 +547,19 @@ public final class AddonRegistry {
                 (m != null) ? m.apiVersion : 0,
                 !disabled.contains(id),
                 loaded != null,
-                (m != null) && m.usesActions(),
+                (m != null) ? m.permissions : PermissionSet.NONE,
                 (m != null) ? m.network : java.util.Collections.<String>emptyList(),
                 error,
+                mferr,
                 autoDisabledWarn.get(id)));
         }
         return out;
+    }
+
+    /** A thrown manifest problem as one readable line (some exceptions carry no message of their own). */
+    private static String reason(Exception e) {
+        String msg = e.getMessage();
+        return ((msg == null) || msg.isEmpty()) ? e.toString() : msg;
     }
 
     /**

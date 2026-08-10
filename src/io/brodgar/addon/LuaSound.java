@@ -61,7 +61,7 @@ import java.util.Map;
  * static: no Lua value crosses a sandbox boundary and the cache dies whole with the {@link Addon} on
  * {@code :reload}.
  *
- * <p><b>Unprotected</b> (no {@code requireActions}): playback is client-local and sends nothing to the server.
+ * <p><b>Unprotected</b> (no {@code requirePermission}): playback is client-local and sends nothing to the server.
  *
  * <p><b>What is playing (024.2) lives in the {@link Cache}, not in the handle.</b> The clips a name has in the
  * air are keyed by that <i>name</i> in the owning addon's {@link Live} map, so every handle for {@code "sfx/x"}

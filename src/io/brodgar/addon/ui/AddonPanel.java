@@ -11,6 +11,7 @@ import haven.UI;
 import haven.Widget;
 
 import io.brodgar.addon.AddonRegistry;
+import io.brodgar.addon.PermissionSet;
 import io.brodgar.addon.AddonRegistry.AddonInfo;
 
 import java.util.ArrayList;
@@ -26,10 +27,10 @@ import java.util.List;
  * (loaded / disabled / error / auto-disabled) — plus global <b>Reload UI</b>, <b>Enable all</b>, and
  * <b>Open addons folder</b> controls and a "changes pending" hint.
  *
- * <p>Write-actions are a <b>per-addon</b> permission (D-027; D-028 — no global master switch): an addon
- * that declares {@code "actions"} shows the {@code [actions]} row marker, defaults to disabled, and
- * enabling it raises the {@link ActionsConsentWnd} consent dialog (via {@link #confirmEnableActions},
- * slice 4c) — so it only ever runs after the user knowingly grants it.
+ * <p>The protected verbs are a <b>per-addon</b> permission (D-027; D-028 — no global master switch): an
+ * addon that declares any of them shows the {@code [protected]} row marker, defaults to disabled, and
+ * enabling it raises the {@link PermissionConsentWnd} consent dialog (via {@link #confirmEnablePermissions},
+ * slice 4c) — so it only ever runs after the user knowingly grants it, for exactly the keys it asked for.
  *
  * <p>It extends {@code OptWnd.Panel} (a non-static inner class) from this package via the qualified
  * {@code opt.super()} / {@code opt.new PButton(...)} forms; every widget it uses ({@link Scrollport},
@@ -43,16 +44,16 @@ public class AddonPanel extends OptWnd.Panel {
     private final Label hint;
     private final List<Row> rows = new ArrayList<Row>();
     private int builtGen = Integer.MIN_VALUE;
-    private ActionsConsentWnd consent;   // the live enable-time write-actions consent dialog (4c), or null/destroyed
+    private PermissionConsentWnd consent;   // the live enable-time permission consent dialog (4c), or null/destroyed
 
     public AddonPanel(OptWnd opt, OptWnd.Panel back) {
         opt.super();
         Widget prev = add(new Label("AddOns"), 0, 0);
         prev = add(new Label("Enable or disable addons. Changes apply on reload."), prev.pos("bl").adds(0, 2));
-        // D-027/D-028: write-actions are a PER-ADDON permission (no global switch). An addon that declares
-        // "actions" carries the [actions] row marker, is disabled by default, and enabling it raises the consent
-        // dialog (confirmEnableActions / ActionsConsentWnd, slice 4c) — this line just points the user at that.
-        prev = add(new Label("An addon marked [actions] can act on your behalf; enabling one asks you to confirm."),
+        // D-027/D-028: the protected verbs are a PER-ADDON permission (no global switch). An addon that declares
+        // any carries the [protected] row marker, is disabled by default, and enabling it raises the consent
+        // dialog (confirmEnablePermissions / PermissionConsentWnd, slice 4c) — this line just points the user at that.
+        prev = add(new Label("An addon marked [protected] can act on your behalf; enabling one asks you to confirm."),
             prev.pos("bl").adds(0, 2));
         list = add(new Scrollport(UI.scale(new Coord(360, 220))), prev.pos("bl").adds(0, 8));
         hint = add(new Label(""), list.pos("bl").adds(0, 6));
@@ -84,29 +85,32 @@ public class AddonPanel extends OptWnd.Panel {
 
     /**
      * Bulk-enable every discovered addon (applied on the next reload), then reflect the checkboxes.
-     * D-027 (4c): write-declaring addons are <b>skipped</b> — they stay opt-in per addon behind the
-     * enable-time consent gate ({@link #confirmEnableActions}), so a bulk "Enable all" can never turn
-     * one on without the user knowingly consenting to it.
+     * D-027 (4c): permission-declaring addons are <b>skipped</b> — they stay opt-in per addon behind the
+     * enable-time consent gate ({@link #confirmEnablePermissions}), so a bulk "Enable all" can never turn
+     * one on without the user knowingly consenting to it. The skip widens with the predicate: it is now
+     * "declared ANY key", so a bulk enable cannot grant one either.
      */
     private void enableAll() {
         for(AddonInfo ai : AddonRegistry.describeAddons())
-            if(!ai.declaresActions)
+            if(!ai.declaresPermissions())
                 AddonRegistry.setEnabled(ai.id, true);
         rebuild();
     }
 
     /**
-     * D-027 (4c): the enable-time consent gate for a write-declaring addon. Pops an
-     * {@link ActionsConsentWnd} as a <b>top-level floating window</b> (a {@code ui.root} child, centered on
+     * D-027 (4c): the enable-time consent gate for a permission-declaring addon. Pops an
+     * {@link PermissionConsentWnd} as a <b>top-level floating window</b> (a {@code ui.root} child, centered on
      * screen and raised to the front — so it drags freely like any window, not clipped inside this panel) and
-     * enables the addon (persisted; applied on reload) + rebuilds the rows <b>only</b> if the user confirms.
+     * <b>records what was consented to</b> + enables the addon (persisted; applied on reload) + rebuilds the
+     * rows <b>only</b> if the user confirms. The record is the door: consent is granted for the keys this
+     * manifest declared, so one that later asks for more is disabled again and asks again.
      * One dialog at a time: re-ticking while a consent is already open is a no-op. Because it is top-level, it
      * is closed explicitly when this panel leaves the screen — see {@link #tick(double)}.
      */
-    private void confirmEnableActions(String id, String name) {
+    private void confirmEnablePermissions(String id, String name, PermissionSet declared) {
         if((consent != null) && (consent.parent != null))
             return;
-        consent = ui.root.adda(new ActionsConsentWnd(name, () -> { AddonRegistry.setEnabled(id, true); rebuild(); }),
+        consent = ui.root.adda(new PermissionConsentWnd(name, () -> { AddonRegistry.grantConsent(id, declared); rebuild(); }),
                                ui.root.sz.div(2), 0.5, 0.5);
         consent.raise();
     }
@@ -128,21 +132,30 @@ public class AddonPanel extends OptWnd.Panel {
     private final class Row extends Widget {
         final String id;
         private final Label status;
+        private final String manifestError;   // why this row has no manifest at all, or null
 
         Row(AddonInfo ai) {
             super(UI.scale(new Coord(360, 18)));
             final String rid = ai.id;
-            final boolean writes = ai.declaresActions;   // D-027: enabling this addon needs consent (4c)
+            final boolean writes = ai.declaresPermissions();   // D-027: enabling this addon needs consent (4c)
+            final PermissionSet declared = ai.permissions;
             final String aname = ai.name;
+            // A manifest that does not parse leaves NOTHING to enable: the addon cannot load whatever the
+            // persisted bit says, so the box is shown unticked and does not answer — a ticked box beside a row
+            // that will never load is the panel claiming a state the client cannot reach.
+            final boolean broken = (ai.manifestError != null);
+            this.manifestError = ai.manifestError;
             add(new CheckBox("") {
-                    { a = ai.enabled; }
+                    { a = ai.enabled && !broken; }
                     public void set(boolean v) {
-                        if(v && writes) {
-                            // Enabling a write-declaring addon: ask for consent first, and leave the box
+                        if(broken) {
+                            return;
+                        } else if(v && writes) {
+                            // Enabling a permission-declaring addon: ask for consent first, and leave the box
                             // unticked (a stays false) until the user confirms in the dialog — which then
-                            // enables it and rebuilds the rows. Disabling (v=false) and read-only addons
-                            // fall straight through with no prompt.
-                            confirmEnableActions(rid, aname);
+                            // records the grant, enables it and rebuilds the rows. Disabling (v=false) and
+                            // read-only addons fall straight through with no prompt.
+                            confirmEnablePermissions(rid, aname, declared);
                         } else {
                             AddonRegistry.setEnabled(rid, v);
                             a = v;
@@ -152,12 +165,16 @@ public class AddonPanel extends OptWnd.Panel {
             String meta = ai.name
                 + ((ai.version != null) ? ("  v" + ai.version) : "")
                 + ((ai.author != null) ? ("  " + ai.author) : "")
-                + (ai.declaresActions ? "  [actions]" : "")    // D-027: this addon can drive the character (protected)
+                + (ai.declaresPermissions() ? "  [protected]" : "")  // D-027: this addon asked for protected verbs
                 + (ai.declaresNetwork() ? "  [net]" : "");     // D-037: this addon can reach the declared hosts
             Label nm = add(new Label(meta), UI.scale(new Coord(22, 3)));
             // Tooltip: the description plus, for a network addon, exactly which hosts it may reach (§5.3) — the
-            // user sees the servers it talks to BEFORE enabling it.
+            // user sees the servers it talks to BEFORE enabling it. For a broken manifest it is the REASON,
+            // first and whole (an unknown permission key names the valid ones), because a row that says only
+            // "manifest error" sends the author to the terminal for something the panel already knows.
             StringBuilder tip = new StringBuilder();
+            if(broken)
+                tip.append(ai.manifestError);
             if(ai.description != null)
                 tip.append(ai.description);
             if(ai.declaresNetwork()) {
@@ -176,7 +193,11 @@ public class AddonPanel extends OptWnd.Panel {
         }
 
         private void refresh() {
-            status.settext(AddonRegistry.liveStatus(id));
+            // liveStatus is the cheap per-frame read and does no manifest I/O, so it can only report
+            // "not loaded" for an addon whose manifest is the thing that failed. The row read it once at
+            // build time and keeps it: the reason is in the tooltip, the label just says which kind of row
+            // this is.
+            status.settext((manifestError != null) ? "manifest error (hover)" : AddonRegistry.liveStatus(id));
         }
 
         public void tick(double dt) {

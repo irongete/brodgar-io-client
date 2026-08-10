@@ -57,7 +57,7 @@ import java.util.Set;
  * <p><b>What you can do TO an item is on the item</b> (048.3): {@code :use(mods)} activates it (the
  * {@code iact} gesture — eat, open, light), {@code :take()} lifts it onto the cursor or unequips it, and
  * {@code :drop(n)} / {@code :transfer(n)} move it, {@code n} defaulting to the whole stack. All four are
- * <b>protected</b> by the per-addon {@code actions} permission, all four hand the Item back so they chain,
+ * <b>protected</b> by the per-addon {@code item.*} keys, all four hand the Item back so they chain,
  * and all four <b>refuse a stale one</b>: the handle is the item it was, so a verb through it can only reach
  * <i>that</i> item or nothing, and nothing is sent rather than a write landing on whatever took its place.
  *
@@ -249,7 +249,7 @@ public final class LuaItem {
         // the GItem.wdgmsg the matching click sends (WItem.mousedown), so the client stays server-
         // authoritative, and each hands the Item back so a run of verbs chains.
         //   The gate runs FIRST — before the argument check and before the live item is looked up (D-213),
-        // so an addon that never declared "actions" is told THAT rather than "this item is gone".
+        // so an addon that never declared "item.use" is told THAT rather than "this item is gone".
 
         // use([mods]) — the "iact" gesture: activate it (eat, open, light), what a right-click on the item
         // does. mods optional (0 default; Shift=1 Ctrl=2 Alt=4). iact is one of the two item messages that
@@ -257,7 +257,7 @@ public final class LuaItem {
         m.set("use", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requireActions(owner, "item:use");
+                AddonManager.requirePermission(owner, Permission.ITEM_USE);
                 int mods = count(a, 2, "item:use", "mods", 0);
                 target(self, "use").wdgmsg("iact", iactArgs(mods));
                 return self;
@@ -268,7 +268,7 @@ public final class LuaItem {
         m.set("take", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requireActions(owner, "item:take");
+                AddonManager.requirePermission(owner, Permission.ITEM_TAKE);
                 noArgs(a, "item:take");
                 target(self, "take").wdgmsg("take", takeArgs());
                 return self;
@@ -278,7 +278,7 @@ public final class LuaItem {
         m.set("drop", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requireActions(owner, "item:drop");
+                AddonManager.requirePermission(owner, Permission.ITEM_DROP);
                 int n = count(a, 2, "item:drop", "n", -1);
                 target(self, "drop").wdgmsg("drop", countArgs(n));
                 return self;
@@ -289,7 +289,7 @@ public final class LuaItem {
         m.set("transfer", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requireActions(owner, "item:transfer");
+                AddonManager.requirePermission(owner, Permission.ITEM_TRANSFER);
                 int n = count(a, 2, "item:transfer", "n", -1);
                 target(self, "transfer").wdgmsg("transfer", countArgs(n));
                 return self;

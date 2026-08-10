@@ -15,7 +15,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 /**
  * Crafting read/make ({@code hafen.craft}) + movement speed ({@code hafen.speed}) — the two sections this file
  * still installs. Each carries a protected write ({@code craft():current():make(all)},
- * {@code speed():current(n)}) behind {@code requireActions}, the declared per-addon permission. No
+ * {@code speed():current(n)}) behind {@code requirePermission}, each with its own declared per-addon key. No
  * lifecycle/tick/teardown state — these are invoked only from Lua callbacks. Not instantiable.
  *
  * <p><b>{@code hafen.act()} is gone</b> (048). It was the one section grouped by PERMISSION rather than by what
@@ -27,7 +27,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  * that prepare their arguments (048.4); a menu action is {@code hafen.menugrid():get(name):use()}, which gained
  * the same permission (048.5); the escape hatch is {@code widget:send(msg, ...)}, where the receiver IS the
  * target (048.6); and a petal is {@code hafen.flowermenu():select(label|n)} (048.7, which also deleted
- * {@code enabled()} — a running addon that declared {@code "actions"} is granted, so the question answered
+ * {@code enabled()} — a running addon is granted exactly what it declared, so the question answered
  * itself). Every one of those spellings, and {@code hafen.act} itself, throws from {@link Retired} naming its
  * new home.
  */
@@ -68,7 +68,7 @@ final class ActApi {
      * Build {@code hafen.speed()} (movement-speed read + protected write, A7) for {@code owner}. From installHafen.
      * The {@code get}/{@code set} pair collapses onto <b>one name</b> whose arity is the verb (R2):
      * {@code :current()} reads the selected speed and {@code :current(n)} selects it and chains. The read half
-     * is unprotected and the write half keeps the {@code actions} permission it always had.
+     * is unprotected and the write half keeps the permission it always had, now the {@code speed.current} key.
      */
     static void installSpeed(LuaTable hafen, final Addon owner) {
         LuaTable speed = new LuaTable();
@@ -83,7 +83,7 @@ final class ActApi {
                     Speedget s = speedget();
                     return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s.cur);
                 }
-                AddonManager.requireActions(owner, "hafen.speed():current");
+                AddonManager.requirePermission(owner, Permission.SPEED_CURRENT);
                 if(!n.isnumber())
                     throw new LuaError("hafen.speed():current(n): n must be a number"
                         + " (0=crawl 1=walk 2=run 3=sprint)");
@@ -124,14 +124,14 @@ final class ActApi {
                         + " hafen.speed():current(n)");
     }
 
-    // ---- what the actions tier left behind (048) --------------------------------------------------
+    // ---- what the protected tier left behind (048) --------------------------------------------------
     // Nothing. The PROTECTED automation surface is still exactly what it always was — a Widget.wdgmsg from a
     // bound widget, literally what a player click would send, so the client stays server-authoritative (an addon
     // can do only what a player could do; the permission is about user control, not a client exploit — spec 12)
     // — but every one of those sends now leaves from the thing it changes rather than from a section named for
     // the permission they shared. The last two verbs went in 048.7:
     //   enabled() is DELETED rather than moved. AddonManager.actionsGranted(owner) was literally
-    // owner.manifest.usesActions() — a static fact about the CALLER's own manifest file — and D-028 had already
+    // a read of the CALLER's own manifest file — a static fact about it — and D-028 had already
     // removed the global switch it was built to report, so the only caller it could ever answer `false` was one
     // that can read the same answer in its own manifest.json. A feature-detection verb whose answer is a fact
     // about the caller is not a feature detector.

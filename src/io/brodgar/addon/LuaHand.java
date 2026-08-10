@@ -117,12 +117,12 @@ final class LuaHand {
         });
         // use(target [, mods]) — apply what you are holding TO something. mods optional (0 default; Shift=1
         // Ctrl=2 Alt=4), and unlike the verb this replaces the modifiers are yours to state rather than
-        // hardcoded 0. PROTECTED by the per-addon "actions" permission, and the gate runs FIRST — before the
+        // hardcoded 0. PROTECTED by the per-addon "player.hand.use" permission, and the gate runs FIRST — before the
         // target is looked at and before the cursor is (D-213). Hands the Hand back, so a use chains.
         m.set("use", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requireActions(owner, USE);
+                AddonManager.requirePermission(owner, Permission.PLAYER_HAND_USE);
                 handle(self, "use");
                 if(!Args.passed(a, 2) || a.arg(2).isnil())
                     throw new LuaError(USE + "(target, mods): target is required — you apply what you are"

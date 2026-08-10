@@ -1,8 +1,8 @@
 -- Example addon + standing REGRESSION HARNESS. It exercises the READ / UI / event tiers of hafen.* and re-runs
 -- them on every login, so one login re-checks every prior slice. It is READ-ONLY (declares no permissions), so it
 -- is default-enabled and needs no consent (D-027/D-028) — the gated WRITE tier (hafen.act: moveTo, …) now lives in
--- the separate, opt-in `walker` addon, which DECLARES "permissions": ["actions"] and is therefore disabled by
--- default; enabling it in Options > AddOns raises a consent dialog (write-actions are a per-addon permission — no
+-- the separate, opt-in `walker` addon, which DECLARES a "permissions" key per protected verb and is therefore disabled by
+-- default; enabling it in Options > AddOns raises a consent dialog (a permission is per-addon — no
 -- global switch).
 -- Built on V1+V2+V3: CLIENT-ONLY WORLD GHOSTS — hafen.vr():ghost():add(res, p) places a virtual prop (a Gob
 -- NO server id) in the 3D world; it never reaches the server and grants no advantage, so it is SAFE-tier, NOT
@@ -371,7 +371,7 @@ end
 -- what gives the game index back.
 -- Reads live per call: :empty()/:res()/:name()/:cooldown() (0..1 on ability slots only, not seconds).
 -- The hotbar streams in a beat after enter-world like the rest of the HUD, so scan at now (often empty)
--- and +3s (populated). The write verbs (:use, and :res(name) since 022) are gated on "actions" — hello
+-- and +3s (populated). The write verbs (:use, and :res(name) since 022) need the "actionbar.*" keys — hello
 -- declares none, so it only CHECKS that the write refuses; ':walker setbar <n> <res>' is the working demo.
 local function readActionbar(tag)
   local bar = hafen.actionbar():list()
@@ -395,7 +395,7 @@ local function readActionbar(tag)
     local info = first and first:info()
     local ok = pcall(function() return hafen.actionbar():get(144) end)  -- 144 is one past the last index
     local flat = hafen.actionbar                              -- the namespace is callable-ONLY: no fields
-    -- 022: the WRITE half of slot:res(name) is gated on "actions" (D-027/D-028) and hello declares NO permissions,
+    -- 022: the WRITE half of slot:res(name) needs "actionbar.res" (D-027/D-028) and hello declares NO permissions,
     -- so calling it must ERROR before anything reaches the server -- the bar is left untouched. That refusal
     -- IS the check here; the working write lives in the opt-in `walker` addon (':walker setbar <n> <res>').
     local okSet = pcall(function() return hafen.actionbar():get(0):res("gfx/hud/act/mine") end)
@@ -751,7 +751,7 @@ end
 -- PHASE 4a/4b/4c: the gated WRITE-ACTIONS tier (hafen.act():moveTo, …) is exercised by the separate, opt-in
 -- `walker` addon (see addons/walker/), NOT here. hello is the always-on READ-ONLY regression harness (declares no
 -- permissions), so it is default-enabled and needs no consent. A write-declaring addon is instead disabled by
--- default and enabling it raises a consent dialog — write-actions are a PER-ADDON permission with no global switch
+-- default and enabling it raises a consent dialog — a permission is PER-ADDON, with no global switch
 -- (D-027/D-028). See docs/addons/phase-4c-enable-consent-dialog.md.
 
 -- 3b/029.3: CONTAINER READS + EVENTS, with NOTHING HIDDEN. hafen.ui.adopt is GONE (029.2) and with it the whole

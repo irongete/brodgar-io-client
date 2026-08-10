@@ -1,11 +1,12 @@
--- Walker — the WRITE-ACTIONS demo addon (dormant, opt-in).
+-- Walker — the PROTECTED-VERB demo addon (dormant, opt-in).
 --
--- It DECLARES "permissions": ["actions"] in its manifest, so it is DISABLED BY DEFAULT when first discovered
--- (write-actions are a PER-ADDON permission, opt-in per addon — D-027/D-028). To use it, enable it in
+-- It DECLARES a "permissions" list in its manifest -- one key per protected verb it fires, some written as a
+-- "<prefix>.*" group -- so it is DISABLED BY DEFAULT when first discovered (a permission is PER-ADDON and
+-- opt-in — D-027/D-028). To use it, enable it in
 -- Options > AddOns: because it can act on your behalf, the panel asks you to CONFIRM first (the consent dialog,
 -- slice 4c). Once you enable it and Reload UI it loads like any addon, and every protected verb below is
 -- granted to it — that IS the permission, and there is nothing else to ask (048.7 deleted hafen.act():enabled()
--- for exactly that reason: a running addon that declared "actions" is granted, and its own manifest.json says
+-- for exactly that reason: a running addon is granted what it declared, and its own manifest.json says
 -- so). There is NO global switch (D-028): the permission is granted purely by YOUR enabling this one addon.
 -- A protected verb DRIVES the character: it sends a player-action wdgmsg to the server (everything else in
 -- hafen.* only observes). It stays server-authoritative — an addon can only send what a player click could
@@ -18,7 +19,7 @@
 -- hafen.flowermenu():select — beside the ones that always lived on their own subsystem
 -- (hafen.speed():current(n), the Craft's :make, the Slot's :use, and the kin verbs on the Kin object:
 -- hafen.kin():add(secret) and kin:rename/:group/:endKin/:forget)
--- — all behind the SAME "actions" permission.
+-- — each behind its OWN permission key, every one of them declared in the manifest.
 -- Each is a DELIBERATE, opt-in trigger — a `:walker <sub>` command — so nothing acts unless you ask.
 -- Sub-commands:
 --   :walker walk        -- hafen.player():move: walk ~2 tiles south
@@ -53,12 +54,12 @@
 --                       -- kin:group/:rename a named kin (reversible), OR the two-step drop: endkin = End
 --                          kinship (stays memorized), then forget = drop the memorized kin from the list
 
-hafen.log():write("walker loaded -- write-actions demo (the world verbs + the item verbs + the radial menu + speed/craft/bar/setbar/kin/menugrid)")
+hafen.log():write("walker loaded -- protected-verb demo (the world verbs + the item verbs + the radial menu + speed/craft/bar/setbar/kin/menugrid)")
 
--- At login, say so. There is nothing to ASK: we are running and we declared "permissions": ["actions"], which
+-- At login, say so. There is nothing to ASK: we are running and we declared our keys, which
 -- is the whole of the grant (048.7 deleted hafen.act():enabled(), whose answer was this same fact).
 hafen.event():on("EnterWorld", function()
-  hafen.log():write("walker: write-actions GRANTED (this addon declared \"actions\" and you enabled it)"
+  hafen.log():write("walker: protected verbs GRANTED (this addon declared their keys and you enabled it)"
     .. " -- run  :walker  for the list of action demos")
 end)
 
@@ -257,7 +258,7 @@ hafen.slash():register("walker", function(args)
 
   -- The verbs that were never in hafen.act() to begin with: they already lived on their own subsystem
   -- (hafen.speed/craft/actionbar/kin) — on the OBJECT itself where the subsystem is OOP (a Slot, a Kin) —
-  -- which is the shape 048 then gave every verb above. Same "actions" permission, same requireActions gate.
+  -- which is the shape 048 then gave every verb above. Same permission model, same requirePermission gate.
   elseif sub == "speed" then
     -- speed:current(n): pick a movement speed 0..3, the write half of the one name that reads it. Fully reversible (just set another), so a safe default is fine.
     local n = tonumber(args[2]) or 2                   -- default 2 = run
@@ -314,7 +315,7 @@ hafen.slash():register("walker", function(args)
     -- 023: pag:use(): fire an ACTION MENU entry -- exactly what left-clicking that button in the 4x4 grid
     -- does. The key splits by SHAPE: a '/' makes it a resource name ("paginae/act/dig"), anything else a
     -- display name ("Dig"). Display names can contain spaces, so join the rest of the args back together.
-    -- 048.5: PROTECTED now (it always committed a real action), which is why this addon declares "actions"
+    -- 048.5: PROTECTED now (it always committed a real action), which is why this addon declares "menugrid.use"
     -- and is also the door that replaced hafen.act():menu(path...).
     local key = table.concat(args, " ", 2)
     if key == "" then

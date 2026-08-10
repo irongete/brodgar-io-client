@@ -549,7 +549,7 @@ public final class LuaWidget {
         // hafen.ui():find("@GameUI") for the HUD (@Class resolves through typeName, and MapView is not
         // subclassed in this fork). The trailing args marshal exactly as the two message streams do
         // (LuaMarshal.toJava: a {x=,y=} table becomes a Coord; numbers, strings and booleans pass through).
-        //   PROTECTED by the per-addon "actions" permission, and the gate runs FIRST (D-213) — before the
+        //   PROTECTED by the per-addon "widget.send" permission, and the gate runs FIRST (D-213) — before the
         // message name is looked at and before the widget is resolved, so an addon that never declared it is
         // told THAT rather than that it mistyped an argument.
         //   BOUND WIDGETS ONLY. A widget with no server id — one this addon built — has nothing for the server
@@ -561,7 +561,7 @@ public final class LuaWidget {
         m.set("send", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requireActions(owner, "widget:send");
+                AddonManager.requirePermission(owner, Permission.WIDGET_SEND);
                 LuaValue msgv = Args.required(a, 2, "widget:send", "msg");
                 // TSTRING rather than isstring(): in Lua a NUMBER answers isstring() (the coercion), so the
                 // laxer test would quietly put "42" on the wire as a message name — which is exactly the

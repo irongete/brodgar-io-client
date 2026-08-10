@@ -158,8 +158,9 @@ final class Retired {
             + " hafen.menugrid():get(name):use() fires a menu action and widget:send(msg, ...) is the escape"
             + " hatch. hafen.act():flower(label) is hafen.flowermenu():select(label|n), which raises instead of"
             + " answering false and takes a ring position too; hafen.act():enabled() is gone — a running addon"
-            + " that declared \"actions\" is granted, and that is a fact its own manifest.json already states."
-            + " The permission itself is unchanged: \"permissions\": [\"actions\"], per addon, D-027/D-028");
+            + " is granted what it declared, and that is a fact its own manifest.json already states."
+            + " The model is unchanged, its granularity is not: every protected verb has its own key"
+            + " (\"permissions\": [\"player.move\", \"item.*\"]), per addon, D-027/D-028");
         // ---- ...and every verb keeps its OWN row, under BOTH spellings: the pre-039 dotted one and the colon
         // ---- call a shipped addon actually wrote (D-216). The section row above shadows them all now -- reading
         // ---- `hafen.act` throws before any verb name is looked at -- but Retired is pure data generated from
@@ -187,8 +188,8 @@ final class Retired {
             + " are still Positions, and the selection is still the tile rectangle they span");
         act("menu", "hafen.act():menu(path...) is gone: a menu action is invoked through the entry itself —"
             + " hafen.menugrid():get(\"Dig\"):use(), or get(\"paginae/act/dig\"):use() by resource name. There"
-            + " is no path-based door: the menu grid addresses the entries it HOLDS, and pag:use() now carries"
-            + " the same \"actions\" permission this verb did");
+            + " is no path-based door: the menu grid addresses the entries it HOLDS, and pag:use() is now"
+            + " protected in its own right, by the \"menugrid.use\" permission");
         act("raw", "hafen.act():raw(target, msg, ...) is now widget:send(msg, ...) — the RECEIVER is the"
             + " target, so the target vocabulary is gone rather than rehoused: a numeric widget id is the"
             + " widget it named (hafen.ui():node(id)), \"mapview\" is hafen.ui():find(\"@MapView\"),"
@@ -200,11 +201,11 @@ final class Retired {
             + " open where this answered a bare false, it takes the petal's 1-based ring position as well as"
             + " its caption, and it has hafen.flowermenu():cancel() beside it. Pick from a FlowerMenuOpened"
             + " handler rather than a guessed timer — hafen.flowermenu():list() is the ring");
-        act("enabled", "hafen.act():enabled() is gone: it answered whether THIS addon declared the \"actions\""
+        act("enabled", "hafen.act():enabled() is gone: it answered whether THIS addon declared the write"
             + " permission, which is a fact about your own manifest.json rather than anything the client"
-            + " decides (D-028 removed the global switch it was built to report). If your addon is running and"
-            + " declared \"permissions\": [\"actions\"], it is granted; if it did not, every protected verb says"
-            + " so by name when you call it");
+            + " decides (D-028 removed the global switch it was built to report). A protected verb is granted"
+            + " to an addon that declared that verb's own key (or the group covering it); if yours did not,"
+            + " the verb says so by name, and names the key, when you call it");
 
         // ---- 040.7: a text entry's content is WRITTEN through :value(s), the one door -- entry:text(s) would --
         // ---- be a second way to write the same property, which the area's one-door rule does not allow. The
@@ -429,7 +430,7 @@ final class Retired {
         // ---- hafen.speed: the get/set pair collapses onto one name whose arity is the verb ----------------
         put("hafen.speed.get", "hafen.speed.get() is now hafen.speed():current()");
         put("hafen.speed.set", "hafen.speed.set(n) is now hafen.speed():current(n) — one name reads the speed"
-            + " and writes it, and the write still needs the 'actions' permission");
+            + " and writes it, and the write still needs the 'speed.current' permission");
         section("speed", "max", "name");
 
         // ---- hafen.store: the ONE section whose access pattern changed, not just its spelling -------------
@@ -486,7 +487,7 @@ final class Retired {
             + " c:qualityInputs()/:tools() the rest, and c:info() is the old snapshot");
         put("hafen.craft.make", "hafen.craft.make(all) is now hafen.craft():current():make(all) — the button"
             + " belongs to the recipe. hafen.craft():current() is nil while no recipe is open, so test it"
-            + " first; it still needs the 'actions' permission");
+            + " first; it still needs the 'craft.make' permission");
 
         // ---- the Item entity: the snapshot's two PLACE fields become the two verbs that say which you meant ----
         // The rest of the old table's keys (`res`, `name`, `num`, `wear`, `handle`) are live verbs, so a dotted

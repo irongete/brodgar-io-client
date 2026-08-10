@@ -304,3 +304,43 @@
   so every rename moved an anchor (`#write-gated-actions` → `#write-protected-actions`, …) and six inbound links
   had to move in the same task. A heading rename is the one docs edit that breaks links with nothing to grep for
   afterwards except the links themselves.
+
+- **(050.1) A per-verb permission is only provable by a suite that can REACH each verb — and three of the
+  twenty-two need world state the suite may not create.** The refusal is a property of the call site, so
+  asserting that site N carries key N means actually calling all 22. Most objects can be minted from nothing:
+  `hafen.world():gob():get(-1)` and `hafen.kin():get(-1)` hand back a handle for an id that was never there,
+  `hafen.actionbar():get(0)` is a fixed array, and the section verbs (`world:place/:select`,
+  `flowermenu:select/:cancel`, `kin:add`, `speed:current`, `player:move`) need no receiver at all. Three do not:
+  `hafen.player():hand()` is **nil** with an empty cursor, `hafen.craft():current()` is nil with no recipe open,
+  and an Item needs something in a container. So the suite asserts what is reachable, counts it
+  (`17/17`), and reports the rest as a `[manual]` re-run naming exactly what to put in reach — never a `[fail]`,
+  which would read as a broken feature when it is an empty inventory. Write the reachability table first: it is
+  what decides whether a claim is an assertion or a precondition.
+- **(050.1) A suite that DECLARES a subset proves the grant by reaching an ARGUMENT refusal, and every such
+  call must be deliberately malformed.** D-213 puts the gate first, so an argument error can only be read by a
+  caller the gate let through — that is the whole trick, and it is what lets a granted verb be proven with
+  nothing sent to the server. The discipline it demands is that the suite never writes a *valid* call: `it:use("x")`
+  (mods must be a number), `it:take(1)` (takes no arguments), `it:drop("x")`, `it:transfer("x")`,
+  `hafen.player():move{x=,y=}` (not a Position). One valid form among them and the suite acts on the
+  maintainer's character.
+- **(050.1) The sharp bug in a key/group matcher is an EXACT key matched as a prefix, and only a nested key can
+  catch it.** `player.move` and `player.hand.use` share a first segment, so a matcher comparing prefixes where
+  it should compare keys leaks the held-item gesture to an addon that only asked to walk. Nothing else in the
+  catalogue is nested, so that one pair is the entire falsification surface — declare `player.move` exactly, and
+  assert `player.hand.use` still refuses. Planting it reddened 3 headless checks and (in-game) the one suite
+  line; planting a *wrong gate constant* instead reddened 2 different lines. Two mechanisms, two signatures.
+- **(050.1) When a grant moves behind a dialog, the fail-closed paths still have to SAY so.** With consent
+  recorded per addon (D-229), `:addons enable <id>` can flip the bit but the next scan defaults the addon back
+  to disabled — correct, and completely opaque: the console reports success and the reload silently skips it.
+  The console now names the keys still pending and points at the panel. Generalises 4c's "gate the silent bypass
+  too": once the bypasses are fail-closed, the remaining bug is that they look like they worked.
+- **(050.1) A row whose MANIFEST failed cannot report it through a per-frame status read, and its checkbox is
+  lying.** `AddonRegistry.liveStatus(id)` is deliberately I/O-free (it runs every frame), so for an addon whose
+  manifest is the thing that failed it can only answer *"not loaded"* — and the panel's `describeAddons` was
+  throwing the parser's message away as a bare `"manifest error"`, which `liveStatus` then overwrote. The reason
+  existed only in the terminal, and the acceptance criterion was *the panel shows the reason*. The fix is to
+  carry the parser's own message into `AddonInfo.manifestError`, read it once at row-build time, and put the
+  whole thing in the tooltip. The second half was reported the same minute: the checkbox stayed **ticked** on a
+  row that can never load. A manifest that does not parse leaves nothing to enable whatever the persisted bit
+  says, so it renders unticked and inert — but the condition has to be *broken manifest*, not *not loaded*: an
+  addon you just ticked and have not reloaded yet reads "not loaded" with a ticked box, and that one is right.

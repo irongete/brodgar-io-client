@@ -168,10 +168,17 @@ run, before a verification round is spent on it.
 ```
 
 - `id` **must** equal the folder name. `version` starts at `1.0.0` and only moves if the suite does.
-- **A suite is READ-ONLY: never declare `permissions`.** A write-declaring addon is disabled by
-  default (D-027/D-028) and would silently drop out of the regression. Test a gated verb by asserting
-  that the **gate refuses**; the firing demo belongs in an example addon (`walker`) or a `[manual]`
-  line.
+- **A suite MAY declare the permissions its own task needs to prove.** A declaring addon is
+  disabled by default, so the maintainer enables it and approves its consent dialog by hand — and
+  **that enable-and-approve IS part of the verification**, not an obstacle to it. Declare the
+  narrowest set the claim needs, and make the undeclared half a check too: a key the suite did not
+  ask for must still refuse. (Most suites declare nothing because they have nothing to prove there.)
+- **A task is verified by its OWN suite and nothing else.** Never ask the maintainer to run, enable
+  or look at any other addon — not another task's suite (D-085), and not one of the installed
+  demos either. The reason is the same in both cases: a premise held elsewhere sits where a failure
+  cannot point at it. If the proof needs such a premise, restate it here; and if a shipped addon has
+  to CHANGE for this task, that is ordinary affected code for the plan's file list — never an
+  acceptance criterion, never a `[manual]` line.
 - **Never mutate persistent state** — real client settings, map markers, another addon's saved
   variables. A suite runs on the maintainer's real character, as often as they care to ask.
 

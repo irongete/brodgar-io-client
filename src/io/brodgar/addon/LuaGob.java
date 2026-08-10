@@ -315,14 +315,14 @@ public final class LuaGob {
         // (0 default; Shift=1 Ctrl=2 Alt=4, matching the keybind syntax). It sends the bare gob-click encoding
         // {…, 0, gobid, gobrc, 0, -1} — a generic "the WHOLE object", faithful for world objects
         // (trees/containers/…); a specific sub-mesh or composite body part is not targeted (deferred).
-        //   PROTECTED by the per-addon "actions" permission, and the gate runs FIRST — before the gob is even
+        //   PROTECTED by the per-addon "gob.click" permission, and the gate runs FIRST — before the gob is even
         // looked up (D-213), so an addon that never declared it is told that rather than "no such gob". Unlike
         // every read here, a gob that is GONE throws: a click is a message about a specific object, and there is
         // no such thing as sending it to nothing. Hands the Gob back, so a click chains.
         m.set("click", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requireActions(owner, "gob:click");
+                AddonManager.requirePermission(owner, Permission.GOB_CLICK);
                 LuaGob h = handle(self, "click");
                 MapView mv = AddonManager.view;
                 if(mv == null)

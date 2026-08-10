@@ -2,7 +2,7 @@
 --
 -- It DECLARES a "network" block in its manifest, so it may reach ONLY the hosts listed there
 -- (api.github.com, localtest.me) — the declaration IS the allowlist (D-037). A network addon loads
--- normally (unlike a write/"actions" addon, which is disabled by default); the AddOns panel shows a
+-- normally (unlike an addon declaring protected permissions, which is disabled by default); the AddOns panel shows a
 -- [net] badge and the exact hosts so you see which servers it talks to BEFORE enabling it.
 --
 -- hafen.http() is ASYNC by necessity (a blocking request can't run on the UI thread): every call returns

@@ -47,7 +47,7 @@ import java.util.Map;
  * are live.
  *
  * <p><b>Writes</b> ({@code :rename}/{@code :group(g)}/{@code :endKin}/{@code :forget}, and the collection's
- * {@code :add}) keep the {@code requireActions} gate (D-027/D-028) and drive the client's own
+ * {@code :add}) keep the {@code requirePermission} gate (D-027/D-028, the {@code kin.*} keys) and drive the client's own
  * {@link BuddyWnd.Buddy} methods (wrap-not-reimplement, D-009); each returns <b>self</b> so they chain.
  * {@code :group} is one name for the pair: {@code kin:group()} reads it and {@code kin:group(g)} writes it.
  *
@@ -87,7 +87,7 @@ public final class LuaKin {
     /**
      * One addon's Kin interning cache and metatable (its {@link Addon#kins}). Weak values + a
      * {@link ReferenceQueue} drained on every access; the Kin metatable is built once, lazily. Holds its
-     * {@link Addon} because the protected write verbs need the owner to check the {@code actions} permission
+     * {@link Addon} because the protected write verbs need the owner to check the {@code kin.*} permissions
      * against.
      */
     static final class Cache {
@@ -162,7 +162,7 @@ public final class LuaKin {
     /**
      * The method set. Each reader re-resolves the buddy and answers {@code nil} once it is off the roster;
      * {@code :id()} is the exception (it answers from the handle alone, so it still works for a forgotten
-     * kin). The writers are {@code actions}-protected and return <b>self</b> so they chain.
+     * kin). The writers are protected by their {@code kin.*} keys and return <b>self</b> so they chain.
      */
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
@@ -199,7 +199,7 @@ public final class LuaKin {
                     BuddyWnd.Buddy b = buddy(self, "group");
                     return (b == null) ? LuaValue.NIL : LuaValue.valueOf(b.group);
                 }
-                AddonManager.requireActions(owner, "kin:group");
+                AddonManager.requirePermission(owner, Permission.KIN_GROUP);
                 if(!group.isnumber())
                     throw new LuaError("kin:group(group): group must be a number (0.." + MAXGROUP + ")");
                 int g = group.toint();
@@ -259,7 +259,7 @@ public final class LuaKin {
         // -- protected writes (D-027/D-028): drive the client's own Buddy methods (D-009), return self ------
         m.set("rename", new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue name) {
-                AddonManager.requireActions(owner, "kin:rename");
+                AddonManager.requirePermission(owner, Permission.KIN_RENAME);
                 if(!name.isstring())
                     throw new LuaError("kin:rename(name): name must be a string");
                 require(self, "rename").chname(name.tojstring());     // wdgmsg("nick", id, name)
@@ -269,7 +269,7 @@ public final class LuaKin {
         // endKin() = END KINSHIP (step 1): ends the kinship; the kin stays memorized in the list.
         m.set("endKin", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                AddonManager.requireActions(owner, "kin:endKin");
+                AddonManager.requirePermission(owner, Permission.KIN_END);
                 require(self, "endKin").endkin();                     // "End kinship" → wdgmsg("rm", id)
                 return self;
             }
@@ -277,7 +277,7 @@ public final class LuaKin {
         // forget() = FORGET (step 2): drops a memorized (un-kinned) kin from the list entirely.
         m.set("forget", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                AddonManager.requireActions(owner, "kin:forget");
+                AddonManager.requirePermission(owner, Permission.KIN_FORGET);
                 require(self, "forget").forget();                     // "Forget" → wdgmsg("rm", id)
                 return self;
             }
@@ -435,7 +435,7 @@ public final class LuaKin {
             // there is no Kin yet: the server decides whether the secret is valid and the roster changes on a
             // later tick, which is what KinChanged reports.
             public LuaValue addMember(Varargs a) {
-                AddonManager.requireActions(owner, "hafen.kin():add");
+                AddonManager.requirePermission(owner, Permission.KIN_ADD);
                 LuaValue secret = Args.required(a, 2, "hafen.kin():add", "secret");
                 if(!secret.isstring())
                     throw new LuaError("hafen.kin():add(secret): secret must be a string (the other player's"

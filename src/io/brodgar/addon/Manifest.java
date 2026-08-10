@@ -19,13 +19,14 @@ public final class Manifest {
     /** Saved-variable declarations (name + scope) the engine persists/restores — see {@link SavedVar}. */
     public final List<SavedVar> savedVariables;
     /**
-     * Declared permissions (spec 12 / D-027) — capabilities the addon must ask for before the bridge grants
-     * them. Currently the only permission is {@code "actions"} (the protected write/automation tier — every
-     * verb that drives the character, each on the thing it changes). An array so it can grow into finer
-     * categories later
-     * ({@code "actions.move"}, {@code "actions.items"}, …) without a format change.
+     * Declared permissions (spec 12 / D-027) — the protected verbs this addon asks for, one key per verb from
+     * the {@link Permission} catalogue ({@code "permissions": ["item.*", "player.move"]}), or a
+     * {@code <prefix>.*} group. Parsed and validated at load: an unknown key or the bare {@code "*"} throws,
+     * so the addon fails to load rather than silently being granted nothing. What the user consented to is
+     * recorded per addon, so a manifest that later asks for more is disabled and asked again
+     * ({@code AddonRegistry}).
      */
-    public final List<String> permissions;
+    public final PermissionSet permissions;
     /**
      * The {@code network} block's host allowlist (N2a / D-037): the hosts this addon may reach via
      * {@code hafen.http.*}. A capability-with-config gets its own manifest block (like {@code saved_variables}),
@@ -36,9 +37,9 @@ public final class Manifest {
      */
     public final List<String> network;
 
-    /** Whether this addon declared the {@code "actions"} (write/automation) permission — see D-027. */
-    public boolean usesActions() {
-        return permissions.contains("actions");
+    /** Whether this addon declared any protected permission at all (it is then opt-in — D-027/D-028). */
+    public boolean declaresPermissions() {
+        return !permissions.isEmpty();
     }
 
     /** Whether this addon declared a non-empty {@code network} block (grants the protected {@code hafen.http}) — D-037. */
@@ -88,7 +89,7 @@ public final class Manifest {
     private Manifest(String id, String name, String version, String author, String description,
                      int apiVersion, List<String> files, List<String> dependencies,
                      List<String> optionalDependencies, List<SavedVar> savedVariables,
-                     List<String> permissions, List<String> network) {
+                     PermissionSet permissions, List<String> network) {
         this.id = id;
         this.name = name;
         this.version = version;
@@ -112,7 +113,9 @@ public final class Manifest {
         List<SavedVar> novars = Collections.emptyList();
         // The engine-internal owner (the :lua REPL) is the trusted operator console → it declares every
         // permission, so every protected verb is granted to it (D-027; D-028 — per-addon, no global switch).
-        List<String> allperms = Collections.singletonList("actions");
+        // Built from the catalogue rather than from a bare "*", which parses nowhere: the allow-all shape has
+        // no spelling a disk manifest could reach for.
+        PermissionSet allperms = PermissionSet.all();
         // The REPL is the trusted operator console → allow-all network too (private IPs stay blocked).
         List<String> allnet = Collections.singletonList("*");
         return new Manifest(id, id, "0", "brodgar", "engine-internal owner", 1, none, none, none, novars, allperms, allnet);
@@ -122,7 +125,8 @@ public final class Manifest {
     static Manifest test(String id) {
         List<String> none = Collections.emptyList();
         List<SavedVar> novars = Collections.emptyList();
-        return new Manifest(id, id, "0", "brodgar", "probe owner", 1, none, none, none, novars, none, none);
+        return new Manifest(id, id, "0", "brodgar", "probe owner", 1, none, none, none, novars,
+                            PermissionSet.NONE, none);
     }
 
     /** Read and validate {@code <dir>/manifest.json}. Throws with a clear message on any problem. */
@@ -149,7 +153,7 @@ public final class Manifest {
                             str(m, "version", false), str(m, "author", false),
                             str(m, "description", false), intv(m, "api_version", 1),
                             files, strlist(m, "dependencies"), strlist(m, "optional_dependencies"),
-                            savedvars(m), strlist(m, "permissions"), networkhosts(m));
+                            savedvars(m), PermissionSet.parse(strlist(m, "permissions")), networkhosts(m));
     }
 
     /**

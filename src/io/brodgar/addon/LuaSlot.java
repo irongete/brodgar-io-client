@@ -50,7 +50,7 @@ import java.util.Map;
  * {@code :empty()}). A string filter matches a slot's <b>resource name</b>, so {@code :list("act/")} is the
  * populated ability slots.
  *
- * <p><b>Writes</b> ({@code :use}, {@code :res(name)}) keep the {@code requireActions} gate (D-027/D-028) and
+ * <p><b>Writes</b> ({@code :use}, {@code :res(name)}) keep the {@code requirePermission} gate (D-027/D-028) and
  * go through the client's own paths (wrap-not-reimplement, D-009): {@code :use} drives {@code Belt.act},
  * {@code :res(name)} sends the very {@code wdgmsg("setbelt", n, "res", name)} a drag from the menu grid sends
  * ({@code GameUI.Belt.dropthing}). Both return <b>self</b> so they chain, and {@code :res()} with no argument
@@ -94,7 +94,7 @@ public final class LuaSlot {
     /**
      * One addon's Slot interning cache and metatable (its {@link Addon#slots}). Weak values + a
      * {@link ReferenceQueue} drained on every access; the metatable is built once, lazily. Holds its
-     * {@link Addon} because the protected {@code :use} verb needs the owner to check the {@code actions}
+     * {@link Addon} because the protected {@code :use} verb needs the owner to check the {@code actionbar.use}
      * permission against.
      *
      * <p>A bounded 144-entry map would not strictly need weak values, but the shape is kept identical to
@@ -172,7 +172,7 @@ public final class LuaSlot {
     /**
      * The method set. Every reader re-resolves {@code belt[index]} and answers {@code nil} for an empty slot
      * (or before the HUD exists); {@code :index()} and {@code :empty()} are the two that always answer.
-     * {@code :use} and {@code :set} are {@code actions}-protected and return <b>self</b> so they chain.
+     * {@code :use} and {@code :res} are protected by the {@code actionbar.*} keys and return <b>self</b> so they chain.
      */
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
@@ -211,7 +211,7 @@ public final class LuaSlot {
                     Resource r = CharApi.actionbarResObj(belt(self, "res"));
                     return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r.name);
                 }
-                AddonManager.requireActions(owner, "slot:res");
+                AddonManager.requirePermission(owner, Permission.ACTIONBAR_RES);
                 int n = handle(self, "res").index;
                 if(!rv.isstring())
                     throw new LuaError("slot:res(resourceName): expected a resource name string, got "
@@ -248,7 +248,7 @@ public final class LuaSlot {
         m.set("use", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requireActions(owner, "slot:use");
+                AddonManager.requirePermission(owner, Permission.ACTIONBAR_USE);
                 int n = handle(self, "use").index;
                 GameUI g = AddonManager.gui();
                 if(g == null)

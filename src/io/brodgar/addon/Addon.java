@@ -385,7 +385,7 @@ public final class Addon {
      * per-addon metatable. Same contract as {@link #gobs} — per-addon so no
      * Lua value crosses a sandbox boundary (D-017) and the whole cache dies with this {@link Addon} on
      * {@code :reload}/disable; nothing to tear down (weak entries, and a handle holds only an int id). It
-     * carries the {@link Addon} because the protected Kin verbs check the {@code actions} permission against it.
+     * carries the {@link Addon} because the protected Kin verbs check their {@code kin.*} permissions against it.
      */
     final LuaKin.Cache kins = new LuaKin.Cache(this);
 
@@ -396,7 +396,7 @@ public final class Addon {
      * {@link #kins} — per-addon so no Lua value crosses a sandbox boundary (D-017) and the whole cache dies
      * with this {@link Addon} on {@code :reload}/disable; nothing to tear down (weak entries, and a handle
      * holds only the int index). It carries the {@link Addon} because the protected {@code slot:use} verb checks
-     * the {@code actions} permission against it.
+     * its {@code actionbar.*} permissions against it.
      */
     final LuaSlot.Cache slots = new LuaSlot.Cache(this);
 

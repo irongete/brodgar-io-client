@@ -179,43 +179,50 @@ public final class AddonManager {
     // surfaced in the AddOns panel and cleared on the next (re)load so the addon gets a fresh start.
     static final Map<String, String> autoDisabledWarn = new ConcurrentHashMap<String, String>();
 
-    // -- write-actions permission (spec 12-security-and-permissions / D-010 / D-025 / D-027; refined by D-028):
-    // the ONE protected surface. Every protected verb — player:move, hand:use, gob:click, the four item verbs,
-    // world:place/:select, pag:use, widget:send, speed:current(n), craft:make, slot:use, the kin writes,
+    // -- the permissions tier (spec 12-security-and-permissions / D-010 / D-025 / D-027; refined by D-028):
+    // the protected surface. Every protected verb — player:move, hand:use, gob:click, the four item verbs,
+    // world:place/:select, pag:use, widget:send, speed:current(n), craft:make, slot:use/:res, the kin writes,
     // flowermenu:select/:cancel — DRIVES the character by sending a
     // player-action wdgmsg — it acts on the user's behalf (moves them, uses items, interacts with the world),
-    // which is powerful, so it is a PER-ADDON permission granted to an addon that DECLARED "actions" in its
-    // manifest ("permissions": ["actions"]) — requireActions throws a guiding Lua error otherwise. The read/UI/
-    // event tiers are unaffected.
-    //   D-028: there is NO global master switch (D-027's was dropped). The action tier is ALWAYS available at the
-    //   system level; the user's control is entirely PER-ADDON: a write-declaring addon is DISABLED BY DEFAULT
-    //   (opt-in; a persisted "seen" set distinguishes a new one from one the user deliberately chose — handled in
-    //   scanAddonDefaults) and enabling it in the AddOns panel raises a CONSENT DIALOG (slice 4c). So a running
-    //   write addon is, by construction, one the user knowingly permitted — which is why requireActions need only
-    //   re-check the manifest declaration, with no runtime switch. It stays server-authoritative regardless: an
-    //   addon can only ever send what a player click could send.
+    // which is powerful, so each is a PER-ADDON permission granted only to an addon that DECLARED that verb's
+    // own KEY in its manifest ("permissions": ["gob.click", "item.*"]) — requirePermission throws a guiding Lua
+    // error otherwise. The keys are the Permission catalogue; the read/UI/event tiers are unaffected.
+    //   The declaration is per VERB, not one blanket tier: what the user grants is the list they read in the
+    //   consent dialog, so an addon that wants to move the character cannot also send raw widget messages.
+    //   D-028: there is NO global master switch (D-027's was dropped). The tier is ALWAYS available at the
+    //   system level; the user's control is entirely PER-ADDON: a declaring addon is DISABLED BY DEFAULT
+    //   (opt-in; the persisted CONSENTED set — what the user approved, per addon — distinguishes a new
+    //   declaration from one they deliberately chose, handled in scanAddonDefaults) and enabling it in the
+    //   AddOns panel raises a CONSENT DIALOG (slice 4c). So a running declaring addon is, by construction, one
+    //   the user knowingly permitted for exactly these keys — which is why requirePermission need only re-check
+    //   the manifest declaration, with no runtime switch. It stays server-authoritative regardless: an addon
+    //   can only ever send what a player click could send.
 
     private AddonManager() {
     }
 
-    // ------------------------------------------------------------- write-actions permission
+    // ------------------------------------------------------------- the permission gate
 
-    // 048.7: actionsGranted(owner) is DELETED with hafen.act():enabled(), its only caller. It was literally
-    // owner.manifest.usesActions() — a static fact about the CALLING addon's own manifest file — and D-028 had
-    // already removed the global switch it was built to report, so the one caller it could answer `false` was an
-    // addon that can read the same answer in its own manifest.json. A feature-detection verb whose answer is a
-    // fact about the caller detects nothing. The gate itself (requireActions, below) is untouched: the model is
-    // D-027/D-028 exactly as before, only the read of it is gone.
+    // 048.7: actionsGranted(owner) is DELETED with hafen.act():enabled(), its only caller. It was literally a
+    // static fact about the CALLING addon's own manifest file — and D-028 had already removed the global switch
+    // it was built to report, so the one caller it could answer `false` was an addon that can read the same
+    // answer in its own manifest.json. A feature-detection verb whose answer is a fact about the caller detects
+    // nothing. The gate itself (requirePermission, below) is untouched in shape: the model is D-027/D-028
+    // exactly as before, only its granularity — and the read of it is still gone.
 
     /**
-     * Gate an action verb (D-027; D-028): the calling addon must have DECLARED the {@code "actions"} permission in
-     * its manifest, or this throws a guiding Lua error. The user's consent is enforced at ENABLE time by the AddOns
-     * panel's consent dialog (a running write addon is already permitted), so there is no separate runtime switch.
+     * Gate a protected verb (D-027; D-028): the calling addon must have DECLARED this verb's own catalogue key
+     * in its manifest — exactly, or through the group that covers it — or this throws a guiding Lua error
+     * naming the verb and the key it needs. The user's consent is enforced at ENABLE time by the AddOns panel's
+     * consent dialog (a running declaring addon is already permitted for what it declared), so there is no
+     * separate runtime switch. Always the FIRST statement of the verb it guards (D-213).
      */
-    static void requireActions(Addon owner, String verb) {
-        if((owner == null) || !owner.manifest.usesActions())
-            throw new LuaError(verb + ": this addon did not declare the \"actions\" permission — add"
-                + " \"permissions\": [\"actions\"] to its manifest.json (D-027: write-actions must be declared).");
+    static void requirePermission(Addon owner, Permission perm) {
+        if((owner == null) || !owner.manifest.permissions.has(perm))
+            throw new LuaError(perm.lua + ": this addon did not declare the \"" + perm.key + "\" permission —"
+                + " add \"permissions\": [\"" + perm.key + "\"] to its manifest.json (or the group \""
+                + perm.group() + ".*\"). A protected verb is granted per key, and the user approves the list"
+                + " when they enable the addon.");
     }
 
     static {
@@ -231,7 +238,16 @@ public final class AddonManager {
         Console.setscmd("addons", (cons, args) -> {
             if((args.length >= 3) && "enable".equals(args[1])) {
                 AddonRegistry.setEnabled(args[2], true);
-                log("addon '" + args[2] + "' enabled (pending — run :reload to apply)");
+                // The console can flip the enabled bit, but it cannot GRANT: a declaration the user has not
+                // consented to is defaulted back to disabled on the next scan (D-027/D-028, and the same
+                // reason "Enable all" skips one). Say so here rather than letting the reload look broken.
+                String pending = AddonRegistry.consentPending(args[2]);
+                if(pending != null)
+                    log("addon '" + args[2] + "' asks for " + pending + " — enable it in Options > AddOns"
+                        + " instead: the consent dialog is the only way to grant a permission, so it stays"
+                        + " disabled until you approve it there");
+                else
+                    log("addon '" + args[2] + "' enabled (pending — run :reload to apply)");
             } else if((args.length >= 3) && "disable".equals(args[1])) {
                 AddonRegistry.setEnabled(args[2], false);
                 log("addon '" + args[2] + "' disabled (pending — run :reload to apply)");
@@ -1902,7 +1918,7 @@ public final class AddonManager {
         // reliably available. :worldToScreen(p) takes a POSITION and answers MAP-VIEW-relative pixels as a plain
         // {x, y} — deliberately not a Position, because a pixel is not a place in the world.
         //   :move(p) (048.1) is the Player's first WRITE and the one thing here that is not a read: it walks the
-        // character to a Position, protected by the "actions" permission. It does not bend D-046 — Player carries
+        // character to a Position, protected by the "player.move" permission. It does not bend D-046 — Player carries
         // what has no per-gob equivalent, and the server accepts a walk command only for your own character, so
         // there is no gob:move() this could have been forwarded from.
         CharApi.installPlayer(hafen, owner);
@@ -1963,7 +1979,7 @@ public final class AddonManager {
         // A Kin wraps only the buddy id and re-resolves through buddywnd().find(id) every call (D-012), so
         // it tracks renames/regroups/online flips; see LuaKin. Subscribe to KinChanged (a Kin[] payload, minted
         // per subscribing addon by fireKin) for a kin added/removed, renamed/regrouped, or flipping
-        // online/offline. The PROTECTED verbs (requireActions) drive BuddyWnd.Buddy's own methods (D-009):
+        // online/offline. The PROTECTED verbs (the "kin.*" keys) drive BuddyWnd.Buddy's own methods (D-009):
         //   :add(secret)   — kinning needs the other player's HEARTH SECRET (wdgmsg("bypwd", secret), the
         //                  Kin window's "Add kin" field); there is no add-by-NAME message.
         //   kin:endKin()   = END KINSHIP (Buddy.endkin) — ends the kinship; the kin STAYS in the list, now
@@ -1979,7 +1995,7 @@ public final class AddonManager {
         // crawl/walk/run/sprint toggle at the bottom of the HUD). :current() returns the CURRENT speed as 0..3
         // (0=crawl 1=walk 2=run 3=sprint), or nil if the widget isn't up yet, and :current(n) SELECTS speed n —
         // the get/set pair collapsed onto one name whose arity is the verb (R2). The write is the PROTECTED verb
-        // (4g, requireActions): it drives the client's own Speedget.set (wrap-not-reimplement, D-009 →
+        // (4g, "speed.current"): it drives the client's own Speedget.set (wrap-not-reimplement, D-009 →
         // wdgmsg("set", n)), exactly what clicking/hotkeying that speed does, and it returns the section so a
         // run of writes chains. :max() returns the highest speed currently SELECTABLE (0..3) — speeds 0..max()
         // are available, higher ones are disabled (e.g. sprint locked); nil if not up. :name([n]) is the display
@@ -2088,15 +2104,15 @@ public final class AddonManager {
         // snapshot). Subscribe to ActionbarChanged{slot} (fired when a slot's content changes — a
         // set/clear/drag or its data resolving, event-driven off the belt uimsg/notify, never per frame;
         // the payload is that Slot). slot:use([mods]) is the PROTECTED write verb (4g,
-        // requireActions) — exactly a LEFT-click on that action-bar button (GameUI belt act →
+        // "actionbar.use") — exactly a LEFT-click on that action-bar button (GameUI belt act →
         // wdgmsg("belt", n, …)); mods is an optional modifier bitfield (0 default; Shift=1 Ctrl=2 Alt=4,
         // matching the keybind syntax). A ground-targeted ability then enters targeting mode (as clicking
         // the button does) — supply the target with the MapView verbs.
         CharApi.installActionbar(hafen, owner);
 
-        // 048.7: there is NO hafen.act() to install any more. The PROTECTED write-actions tier (spec 12 / D-010 /
-        // D-025 / D-027; D-028) is unchanged as a permission — a verb runs only when THIS addon declared
-        // "actions" in its manifest (else requireActions throws a guiding error), a PER-ADDON permission with no
+        // 048.7: there is NO hafen.act() to install any more. The PROTECTED tier (spec 12 / D-010 /
+        // D-025 / D-027; D-028) is unchanged as a model — a verb runs only when THIS addon declared that verb's
+        // own key in its manifest (else requirePermission throws a guiding error), a PER-ADDON permission with no
         // global master switch, opted into at enable time through the AddOns panel's consent dialog, and still
         // server-authoritative: an addon can only send what a player click could send. What changed is WHERE the
         // verbs live. A verb belongs with what it CHANGES, not with what it COSTS — a permission is not a
@@ -2111,7 +2127,8 @@ public final class AddonManager {
         // above). Same messages, same gate, on the things they act on; hafen.act and every one of its ten verb
         // names throw from Retired naming the new home.
         // The per-subsystem protected verbs that always lived on their own subsystem (speed:current(n),
-        // craft:make, slot:use, pag:use, the kin writes, flowermenu:select) share the one gate, requireActions.
+        // craft:make, slot:use, pag:use, the kin writes, flowermenu:select) share the one gate,
+        // requirePermission — each asking for its own key out of the Permission catalogue.
 
         // hafen.ui — custom client-side UI (spec 07, Phase 2a). window(opts) = a draggable, titled window;
         // widget(opts) = a bare rectangle (no chrome). opts: size={w,h}, pos={x,y}, parent="root"|"gameui",

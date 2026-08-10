@@ -8,17 +8,18 @@ import haven.Widget;
 import haven.Window;
 
 /**
- * The <b>enable-time write-actions consent dialog</b> (task 4c; {@code decisions.md} D-027, and the
- * "exact wording and placement of the write-actions permission notice" the security spec
+ * The <b>enable-time permission consent dialog</b> (task 4c; {@code decisions.md} D-027, and the
+ * "exact wording and placement of the permission notice" the security spec
  * {@code 12-security-and-permissions.md} left open). When the user ticks the enable checkbox of an
- * addon that declared the {@code "actions"} permission in the {@link AddonPanel}, this confirm appears
+ * addon that declared any protected permission in the {@link AddonPanel}, this confirm appears
  * first and spells out that the addon will be able to act on the player's behalf. The addon is enabled
  * (persisted; applied on reload, D-006) <b>only</b> if the user clicks <b>Enable</b> — <b>Cancel</b> or
- * the close box leaves it disabled.
+ * the close box leaves it disabled, and confirming records what was consented to, so a manifest that
+ * later asks for MORE comes back and asks again.
  *
- * <p>This is the base for a future per-category breakdown ("moves your character / interacts with
- * objects / …") derived from the addon's declared permission list; today the sole declared category is
- * the coarse {@code "actions"}, so the notice is the single general statement below.
+ * <p>The declared keys are what the user is granting; enumerating them one plain-language line each
+ * (from the {@code Permission} catalogue) is 050.2's half. Today the notice is the general statement
+ * below, which is true of every key in the catalogue.
  *
  * <p>Pure {@code haven}-public composition (a {@link Window} of {@link Label}s + {@link Button}s), so it
  * lives in the addon package like {@link AddonPanel}. It is a <b>top-level floating window</b> (added to
@@ -28,7 +29,7 @@ import haven.Window;
  * binding, its close box is redirected to a plain {@code destroy()} (there is no {@code wdgmsg("close")}
  * to send — cf. the 2a {@code hafen.ui():window()}).
  */
-public class ActionsConsentWnd extends Window {
+public class PermissionConsentWnd extends Window {
     private static final int WRAP = UI.scale(340);
 
     /**
@@ -36,7 +37,7 @@ public class ActionsConsentWnd extends Window {
      * @param onConfirm run once, on the UI thread, if the user clicks <b>Enable</b> (persist-enable the
      *                  addon + refresh the panel). Never run on Cancel / close.
      */
-    public ActionsConsentWnd(String addonName, Runnable onConfirm) {
+    public PermissionConsentWnd(String addonName, Runnable onConfirm) {
         super(Coord.z, "Enable " + addonName + "?", true);
         Widget prev = add(new Label("“" + addonName + "” wants permission to act on your behalf.", WRAP), 0, 0);
         prev = add(new Label("If you enable it, it will be able to move your character, use items, and interact" +

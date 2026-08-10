@@ -60,7 +60,7 @@ import java.util.Set;
  * grid state. A <b>category</b> errors instead of sending an empty {@code "act"}, pointing at
  * {@code :children()}. There is no {@code mods} parameter because {@code PagButton.use} ignores
  * {@code Interaction.modflags} and reads {@code ui.modflags()} live, so one could only lie. It commits a real
- * server action, so since 048.5 it sits behind the per-addon {@code actions} permission like every other verb
+ * server action, so since 048.5 it sits behind the per-addon {@code menugrid.use} permission like every other verb
  * that does — the READS beside it stay open.
  *
  * <p><b>Userdata + per-addon interning</b> (D-017 / D-045), identical to its three predecessors: the handle
@@ -293,12 +293,12 @@ public final class LuaPagina {
         // ui.modflags() live — so a mods parameter could only lie about the keyboard state (plan.md has the
         // trace).
         // 048.5: PROTECTED (D-027/D-028). This verb commits a real server action and shipped unprotected only
-        // because 023 predated the tier being applied per subsystem; a verb that acts is behind the "actions"
+        // because 023 predated the tier being applied per subsystem; a verb that acts is behind the "menugrid.use"
         // permission wherever it lives. The gate runs FIRST, before the live-entry lookup (D-213), so an addon
         // that may not act at all is told THAT rather than "not in the menu". The menugrid READS are untouched.
         m.set("use", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                AddonManager.requireActions(owner, "pag:use");
+                AddonManager.requirePermission(owner, Permission.MENUGRID_USE);
                 String res = handle(self, "use").res;
                 MenuGrid.Pagina p = live(res);
                 if(p == null)
