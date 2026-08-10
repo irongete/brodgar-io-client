@@ -25,6 +25,8 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 
@@ -66,18 +68,22 @@ final class UiApi {
     // replaced onWidgetCreate. A FLAT global list (a subscription watches the whole tree, not one keyed target),
     // consulted at the placement seam and at the removal seam (dispatchSelectorRemoved, 042.9, event-driven —
     // no more per-tick poll); globally empty = a near-zero fast path, so a client with no subscription pays one
-    // isEmpty() per widget placement/removal. `pending` is the BOUNDED re-check: a widget that matched a selector's
-    // structure (role/class, fixed for its life) but not its [title=]/[res=] refiner may simply not have its
-    // caption yet, so it is re-offered — since 042.9, whenever a window's caption changes rather than on a fixed
-    // countdown (markCaptionChanged/drainSelectorCaptionCheck) — for up to RECHECK_TICKS re-checks and then
-    // dropped. Cost scales with widget creation, not with frames (a per-tick diff of the whole tree was the
-    // discarded alternative). Owned copies live on each Addon for teardown; removing the last subscription (or
-    // tearing an addon down) also clears `pending`, or a stalled late-refiner entry would outlive every listener
-    // with nothing left to drain it. Session-scoped (cleared per init).
+    // isEmpty() per widget placement/removal. `pending` is the PLACEMENT-scoped re-check: a widget that matched a
+    // selector's structure (role/class, fixed for its life) but not its [title=]/[res=] refiner may simply not
+    // have its caption or its resource yet, so it is re-offered — since 042.9, whenever a window's caption changes
+    // rather than on a fixed countdown — for up to RECHECK_TICKS re-checks and then dropped. Since 049.3 it is no
+    // longer the only path: the caption seam records the WINDOW (`capChanged`) and the drain re-offers that
+    // window's whole SUBTREE, because with the descendant combinator a [title=] sits on an ancestor step and what
+    // starts matching is a widget below it, possibly one placed long ago. `pending` stays because a [res=] refiner
+    // resolves with no event of its own and that sweep is all it has. Both end in the same offer(), so a widget
+    // reachable through both fires exactly once (`matched` is the dedup). Cost scales with widget creation and
+    // caption changes, not with frames (a per-tick diff of the whole tree was the discarded alternative). Owned
+    // copies live on each Addon for teardown; removing the last subscription (or tearing an addon down) clears
+    // both queues, or a stalled entry would outlive every listener with nothing left to drain it. Session-scoped.
     // THREADING: the placement seam runs on a Loader thread but inside AddWidget.run's synchronized(ui). The
     // removal seam and the caption re-check both run from AddonManager.tick, on the UI thread under
-    // synchronized(ui) (AddonRoot's class doc) — the caption uimsg tap itself does NOT hold that monitor
-    // (UI.java:730-732), which is why it only sets a flag (markCaptionChanged) rather than touching `pending` or
+    // synchronized(ui) (AddonRoot's class doc) — the caption seam itself (Window.chcap) does NOT hold that monitor
+    // (UI.java:730-732), which is why it only appends a Widget (markCaptionChanged) rather than walking the tree or
     // calling Lua inline (P5) — so the UI monitor guards every actual reader/writer here and each subscription's
     // `matched` map needs no lock of its own.
     private static final List<LuaSelectorWatch> selectorWatches = new CopyOnWriteArrayList<LuaSelectorWatch>();
@@ -201,8 +207,9 @@ final class UiApi {
         //                 against what you kept at appear; do not count on being able to read it.
         // Both are about the TREE, not visibility: a window the client merely hides (the inventory's Tab toggle)
         // never left, so it fires neither. One event per call — subscribe twice to watch both. A [title=]/[res=]
-        // selector still fires exactly once for a window whose caption lands a tick late (the placement seam
-        // re-checks such a candidate for a bounded number of ticks). Returns a handle with :remove(); auto-removed
+        // selector still fires exactly once for a window whose caption lands late — and that holds for a CHAIN
+        // ("window[title=Cupboard] inventory"), whose caption lands on the ANCESTOR step: the caption seam
+        // re-offers the renamed window's whole subtree (049.3). Returns a handle with :remove(); auto-removed
         // on reload/disable (P2), which fires nothing — a reload is not a destroy.
         m.set("on", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -767,7 +774,7 @@ final class UiApi {
         widgetSubsWatching.clear();    // 041.4: last session's widgets are gone; nothing left to watch
         selectorWatches.clear();      // 030.2: the tree of the session just ended; nothing matches any more
         pending.clear();
-        capDirty = false;             // 042.9: and no stale re-check is owed to a tree that no longer exists
+        capChanged.clear();           // 042.9/049.3: and no re-check is owed to a tree that no longer exists
         if(consoleOwner != null) {
             consoleOwner.hiddenNative.clear();   // 029.2: last session's widgets are gone; nothing left to restore
             consoleOwner.movedNative.clear();    // 036.1: ...nor is there anything left to put back where it was
@@ -1069,39 +1076,88 @@ final class UiApi {
         }
     }
 
-    // 042.9: a window's caption changed (from CharApi.dispatchUimsg, which runs on whatever thread applied the
-    // uimsg — a Loader thread, OUTSIDE synchronized(ui): UI.java:730-732 closes the monitor before calling
-    // AddonManager.onUimsg). recheckPending reads widget state (matchLive, Selector.matches) and can call Lua
-    // (record -> callLua), so it must never run from that thread (P5) — this flag is the whole marshal: set here,
-    // read and cleared on the tick (UI thread, under synchronized(ui) per AddonRoot's class doc).
-    private static volatile boolean capDirty;
+    // 042.9/049.3: a window's caption changed (from the caption seam, AddonManager.onCaptionChanged <- Window.chcap,
+    // which runs on whatever thread wrote it — a Loader thread applying a uimsg, OUTSIDE synchronized(ui):
+    // UI.java:730-732 closes the monitor before calling AddonManager.onUimsg — or the UI thread for an addon's own
+    // widget:title(…)). Everything the re-check does reads widget state (matchLive, Selector.matches, the subtree
+    // walk) and can call Lua (record -> callLua), so none of it may run from that thread (P5) — this queue is the
+    // whole marshal: appended here, drained on the tick (UI thread, under synchronized(ui) per AddonRoot's class
+    // doc). The WINDOW is what is recorded, not a bare flag: with 049's combinator a [title=] sits on an ancestor
+    // step, so what may start matching is a widget somewhere BELOW the window whose caption landed.
+    private static final Queue<Widget> capChanged = new ConcurrentLinkedQueue<Widget>();
 
     /**
-     * Mark that some window's caption changed (from {@link CharApi#dispatchUimsg}, window "cap" message, 042.9).
-     * Touches nothing but the flag — no widget read, no Lua — so it is safe to call off the UI thread.
+     * Record that {@code w}'s caption changed (the caption seam, {@link AddonManager#onCaptionChanged}, 049.3).
+     * Appends one reference — no widget read, no tree walk, no Lua — so it is safe on any thread. Free unless some
+     * live subscription actually carries a late refiner: with none, no caption can make anything newly match, and
+     * the shipped example addons all subscribe on a bare role.
      */
-    static void markCaptionChanged() {
-        capDirty = true;
+    static void markCaptionChanged(Widget w) {
+        if(w == null)
+            return;
+        for(LuaSelectorWatch s : selectorWatches) {
+            if(s.alive && s.sel.late()) {     // pure (the parsed selector's own shape) — no widget read, any thread
+                capChanged.add(w);
+                return;
+            }
+        }
     }
 
     /**
-     * Tick-side drain (UI thread, {@link AddonManager#tick}): if a caption changed since the last tick, re-check
-     * every pending widget once. Re-checking the whole {@link #pending} list rather than tracking which widget's
-     * caption actually changed is deliberate — a window's caption is not the only way a {@code [res=]} refiner can
-     * resolve, and the list is short-lived and bounded by construction ({@link #RECHECK_TICKS}), so sweeping it is
-     * cheap. Gated on both the flag and {@link #pending} being non-empty, so an idle client — or one with no
-     * late-refiner selector at all — pays only the flag check and one {@code isEmpty()}.
+     * Tick-side drain (UI thread, {@link AddonManager#tick}) — the caption half of the {@code appear} event, in
+     * two parts, both of which end in the same {@link #offer} and so dedup against the same {@code matched} map:
+     *
+     * <ul>
+     *   <li><b>The captioned window's own subtree</b> (049.3). {@code window[title=Cupboard] inventory} names the
+     *       grid, not the window, so the widget that starts matching when the caption lands is one below the one
+     *       that changed — and it may have been placed long before, which is more than the placement-scoped list
+     *       below can promise. Walking the subtree of the window that actually changed is exact, and costs a walk
+     *       of one window per caption rather than anything per frame.</li>
+     *   <li><b>The placement-scoped list</b> ({@link #pending}, 030.2), swept whole rather than by which caption
+     *       moved: a {@code [res=]} refiner resolves asynchronously with no event of its own, so this is the only
+     *       thing that ever re-checks one, and the list is short-lived and bounded by construction
+     *       ({@link #RECHECK_TICKS}).</li>
+     * </ul>
+     *
+     * <p>Gated so an idle client — or one with no subscription at all — pays two {@code isEmpty()} calls.
      */
     static void drainSelectorCaptionCheck() {
-        if(!capDirty)
-            return;
-        capDirty = false;
-        if(selectorWatches.isEmpty() || pending.isEmpty())
+        if(capChanged.isEmpty())
             return;
         UI u = ui;
-        if((u == null) || (u.root == null))
+        if((u == null) || (u.root == null) || selectorWatches.isEmpty()) {
+            capChanged.clear();       // no tree, or nothing left watching: the recorded windows are owed nothing
             return;
+        }
+        for(int n = capChanged.size(); n > 0; n--) {
+            Widget w = capChanged.poll();
+            if(w == null)
+                break;
+            if(w.hasparent(u.root))   // inclusive of the root itself; a window removed before the tick is offered
+                offerSubtree(u, w);   //   nothing, because a widget out of the tree matches nothing any more
+        }
         recheckPending(u);
+    }
+
+    /**
+     * Offer {@code w} and everything below it to every {@code late()} subscription that has not matched it yet —
+     * the caption seam's own re-check (049.3). Inclusive of {@code w} itself, because a one-step
+     * {@code window[title=Cupboard]} is the same event seen at depth zero.
+     */
+    private static void offerSubtree(UI u, Widget w) {
+        offer(w, u.widgetid(w));
+        for(Widget c = w.child; c != null; c = c.next)
+            offerSubtree(u, c);
+    }
+
+    /** One candidate against every live subscription whose refiner could only just have resolved. */
+    private static void offer(Widget wdg, int id) {
+        for(LuaSelectorWatch w : selectorWatches) {   // copy-on-write: a handler may subscribe/remove here
+            if(!w.alive || w.matched.containsKey(wdg))
+                continue;
+            if(w.sel.late() && w.sel.matches(wdg))
+                record(w, wdg, id);
+        }
     }
 
     /**
@@ -1120,12 +1176,7 @@ final class UiApi {
             }
             if(--p.ticks <= 0)
                 pending.remove(p);
-            for(LuaSelectorWatch w : selectorWatches) {
-                if(!w.alive || w.matched.containsKey(p.wdg))
-                    continue;
-                if(w.sel.late() && w.sel.matches(p.wdg))
-                    record(w, p.wdg, p.id);
-            }
+            offer(p.wdg, p.id);
         }
     }
 
@@ -1140,9 +1191,11 @@ final class UiApi {
         w.matched.clear();
         selectorWatches.remove(w);
         owner.selectorWatches.remove(w);
-        if(selectorWatches.isEmpty())
+        if(selectorWatches.isEmpty()) {
             pending.clear();          // 042.9: last subscription gone — nothing left to re-check, and nothing
-    }                                 //   would ever drain these Widget refs again otherwise (no poll left to do it)
+            capChanged.clear();       //   would ever drain these Widget refs again otherwise (no poll left to do it)
+        }
+    }
 
     /**
      * Drop every selector subscription this addon owns (reload/disable, P2). Nothing is fired: a {@code :reload} is
@@ -1158,8 +1211,10 @@ final class UiApi {
         }
         selectorWatches.removeAll(a.selectorWatches);
         a.selectorWatches.clear();
-        if(selectorWatches.isEmpty())
+        if(selectorWatches.isEmpty()) {
             pending.clear();          // 042.9: same as removeSelectorWatch — nothing left to own the re-check
+            capChanged.clear();
+        }
     }
 
     /**

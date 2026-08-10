@@ -22,9 +22,11 @@ import java.util.Map;
  *
  * <p><b>Every subscription tracks what it matched</b> ({@link #matched}), whichever event it carries. For
  * {@code disappear} that set IS the question. For {@code appear} it is the dedup: a candidate carrying a
- * {@code [title=]}/{@code [res=]} refiner is re-checked for a bounded number of ticks after placement (a
- * {@code .res} window can receive its caption a tick late), and the tracked set is what keeps that re-check from
- * firing a second time for a widget that already matched. The set is pruned at the same removal seam that fires
+ * {@code [title=]}/{@code [res=]} refiner is re-checked after placement (a {@code .res} window can receive its
+ * caption a tick late), from two triggers since 049.3 — the placement-scoped list and the caption seam's walk of
+ * the renamed window's subtree — and the tracked set is what keeps a widget both reach from firing twice. The
+ * subtree walk is what a <b>chain</b> needs: {@code window[title=Cupboard] inventory} names the grid, so the
+ * caption that decides it lands on the grid's <i>ancestor</i>. The set is pruned at the same removal seam that fires
  * {@code disappear} (event-driven since 042.9), so it holds only live widgets — a dead one is dropped the moment
  * it is removed, never held as a pin.
  *
@@ -41,6 +43,11 @@ import java.util.Map;
  * already open still sees it. That is what makes this a discovery primitive rather than a creation feed:
  * {@code onWidgetCreate} could not fire for a widget that already existed, which is exactly the {@code :reload}
  * case an addon hits every time it is edited.
+ *
+ * <p><b>The selector is a CHAIN</b> since 049. Nothing here changed for it: {@link Selector#matchesStructure} and
+ * {@link Selector#late} already answer over every step ({@code late()} is the OR — one step's caption is enough to
+ * make the whole selector worth re-checking), and both events remain about the widget the LAST step names. What did
+ * change is which widget the deciding attribute sits on; see the dedup paragraph above.
  *
  * <p><b>Threading.</b> The {@code appear} raised at placement runs inside {@code AddWidget.run}'s
  * {@code synchronized(ui)} block (on a Loader thread, under the monitor the tick and draw hold), so its Lua never

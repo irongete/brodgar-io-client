@@ -102,3 +102,16 @@ matters solely for cross-addon side effects through the client), or **implement 
 refuse an addon whose hard dependency is missing or errored, and surface that as an error row + an
 `:addons` status, the way a manifest error already is). Whichever wins, `runtime.md`'s manifest table and
 `docs/addons/examples.md` need one line changed with it.
+
+## The layout half of the caption seam still has no widget — `Layout`, `Sheet.lateLayoutCandidate`
+049.3 turned "some caption moved" into an event carrying the **window** (D-227), and both cached consumers
+now act on its subtree: the `appear` subscriptions re-offer it, the stylesheet drops the cached styles under
+it. The third consumer was left on the old contract — `Layout.markCaptionChanged()` still takes no argument
+and still only wakes `Layout.pending`, the list a widget joins **at placement** and ages out of after
+`haven.addon.selrecheck` caption events. So `sheet:rule("window[title=Equipment] @Foo"):position(…)` lays the
+descendant out when the caption lands promptly and does nothing when a window is captioned later or renamed
+into the rule — the exact failure 049.3 fixed one consumer along, in the half that *moves* widgets rather
+than draws them. The fix is the same shape and about ten lines (take the widget, re-`apply` its subtree when
+`Sheet.anyLateLayout`), and the cost question is the one difference worth thinking about: `Layout.apply`
+writes `c`/`sz` and follows anchors to `MAXDEPTH`, where dropping a cache entry does not. Not urgent — no
+shipped addon or example carries a late layout rule — but it is a documented rule quietly not applying.

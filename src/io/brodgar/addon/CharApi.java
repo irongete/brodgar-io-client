@@ -87,15 +87,11 @@ final class CharApi {
                 }
             }
         }
-        if(msg == "cap") {
-            // 042.9/042.10: a window's caption just landed — a selector's or a layout rule's [title=]/[res=]
-            // refiner may now resolve. This tap runs on whatever thread applied the message (a Loader thread,
-            // OUTSIDE synchronized(ui) — UI.java:730-732), so it may only set a flag; the tick's
-            // UiApi.drainSelectorCaptionCheck()/Layout.drainPendingCaption() do the actual widget read + any
-            // Lua call, on the UI thread (P5, gotcha 1).
-            UiApi.markCaptionChanged();
-            Layout.markCaptionChanged();
-        }
+        // 049.3: the "cap" branch that used to sit here is GONE. A caption change is announced at the caption
+        // seam instead (Window.chcap -> AddonManager.onCaptionChanged), which is strictly better on three counts:
+        // it carries the WINDOW (a chain's [title=] sits on an ancestor step, so its consumers need to know
+        // WHICH subtree to re-ask about), it is the moment the field is actually written rather than the moment
+        // a message naming it was applied, and it catches an addon's own widget:title("…") write too.
     }
 
     /** Session init: re-register the change-detection adapters, each with a fresh cache (from AddonManager.init). */

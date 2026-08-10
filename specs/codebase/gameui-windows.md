@@ -56,6 +56,17 @@ to its content **before your call returns** (`pack()` = `resize(contentsz())`). 
 **A fading-out window already reads `visible() == false`**, so a menu tick reads one directly, no debounce; and
 [`RootWidget`](src/haven/RootWidget.java:41) sets `focusctl` — why `parent.setfocus(w)` terminates.
 
+## The caption is a public field with ONE post-construction writer
+
+| What | Where |
+|---|---|
+| `public String cap` | [:78](src/haven/Window.java:78) — set by the ctor from `args[1]` ([`create`](src/haven/Window.java:90)), so a window built with a caption has it before any child is placed |
+| `chcap(String)` — the **only** later write | [:127](src/haven/Window.java:127). Both paths funnel here: the server's `uimsg "cap"` ([:434](src/haven/Window.java:434), which maps `""` → `null`) and any client-side title change. No subclass overrides it, and no other class assigns `cap` (`BAttrWnd`'s and `Polity`'s `cap` are unrelated fields) |
+| It fires **outside** the `ui` monitor, and nothing else announces it | `uimsg` is applied on a Loader thread and [`UI`](src/haven/UI.java:730) closes `synchronized(this)` before the addon tap, so anything hung here may only record — no widget read, no tree walk. There is no tree event for a caption; the fork's `// addon:` line at the end of `chcap` is the seam (049.3, `AddonManager.onCaptionChanged`) |
+
+`cap` is **not** the `Deco`-rendered `Text` — that is `Deco.cap`, re-rendered by
+[`checkcap`](src/haven/Window.java:253) on `cap.text != wnd.cap` ([ui-chrome.md](ui-chrome.md)).
+
 ## The addon seams (031, 035, 036)
 
 All `// addon:` edits sit **inside existing method bodies** — no visibility change, no new call site — and go

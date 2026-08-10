@@ -485,12 +485,19 @@ public final class AddonManager {
 
             // 1c''. Selector subscriptions (030.2, event-driven since 042.9): `disappear` is fully driven by the
             //       removal seam above (drainRemovedWidgets, via UiApi.dispatchSelectorRemoved) — nothing to do
-            //       here for it. The [title=]/[res=] refiner's bounded re-check is woken by the caption uimsg
-            //       (CharApi.dispatchUimsg -> UiApi.markCaptionChanged), but that tap runs OFF the UI thread
-            //       (gotcha 1) and so only sets a flag; the actual re-check (widget reads + any Lua) happens here,
-            //       on the UI thread, gated on that flag — an idle client, or one with nothing pending, pays one
-            //       boolean read.
+            //       here for it. The [title=]/[res=] refiner's re-check is woken by the caption seam
+            //       (Window.chcap -> onCaptionChanged -> UiApi.markCaptionChanged), but that seam runs OFF the UI
+            //       thread (gotcha 1) and so only records the window; the actual re-check (widget reads + any Lua)
+            //       happens here, on the UI thread — an idle client, or one with no subscription at all, pays one
+            //       isEmpty(). Since 049.3 the captioned window's own SUBTREE is re-offered as well, because a
+            //       chain's [title=] sits on an ancestor step and what starts matching is a widget below it.
             UiApi.drainSelectorCaptionCheck();
+
+            // 1c''''. The stylesheet's per-widget resolution cache (049.3): the same caption seam, one consumer
+            //         along. A chain tree key (["window[title=Cupboard] label"]) makes a widget's style depend on
+            //         an ANCESTOR's caption, so a settled answer below a renamed window is an answer to a question
+            //         that changed. Drops those cache entries; the next draw re-folds them.
+            Sheet.drainCaptionInvalidation();
 
             // 1c'''. Layout (036.2, event-driven since 042.10): the late [title=]/[res=] refiner's bounded
             //        re-check is woken by the same caption uimsg as the line above (CharApi.dispatchUimsg ->
@@ -1227,6 +1234,32 @@ public final class AddonManager {
         // whatever thread reached remove().
         VrApi.markContentGone(w);
         removedWidgets.add(w);
+    }
+
+    // ------------------------------------------------------------- caption changes (049.3)
+
+    /**
+     * The <b>caption seam</b> — the core edit at the end of {@code Window.chcap} (049.3), and the one place a
+     * window's caption changes after construction. Both paths reach it: the server's {@code "cap"} uimsg
+     * ({@code Window.uimsg}) and an addon's own {@code widget:title("…")}.
+     *
+     * <p><b>Why it moved here from the uimsg tap</b> (042.9's {@code CharApi.dispatchUimsg}, which set two flags
+     * and forgot which window it was about). {@code [title=]} is a selector attribute, so with 049's descendant
+     * combinator a caption landing on a window can start — or stop — a match on that window <b>and on every
+     * widget below it</b> ({@code window[title=Cupboard] label}). Both consumers that cache an answer need the
+     * <i>widget</i> to know what to re-ask about, and only this seam carries it. It also catches an addon's own
+     * title write, which the uimsg tap never saw.
+     *
+     * <p><b>Must not touch Lua, and must read no widget state.</b> {@code chcap} runs on whatever thread applied
+     * the message — a Loader thread, <b>outside</b> {@code synchronized(ui)} (UI.java:730-732) — or on the UI
+     * thread for an addon's write. So each consumer only records the window here; the tree walks and any Lua run
+     * on the tick, on the UI thread (P5), from {@link UiApi#drainSelectorCaptionCheck} and
+     * {@link Sheet#drainCaptionInvalidation}.
+     */
+    public static void onCaptionChanged(Widget w) {
+        UiApi.markCaptionChanged(w);      // 030.2/049.3: an appear subscription's chain may now resolve below w
+        Layout.markCaptionChanged();      // 036.2: ...and so may a late layout rule's [title=] refiner
+        Sheet.markCaptionChanged(w);      // 049.3: ...and w's subtree's cached styles are answers to a stale question
     }
 
     /**

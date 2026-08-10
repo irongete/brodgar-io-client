@@ -1587,3 +1587,19 @@
   may match ABOVE the scope) over a hand-built tree of bare `Widget`s plus a `haven.Label`. The refusal MESSAGE is
   worth pinning the same way — reflect into the private helper that raises it and assert the exact substrings the
   Lua suite will later grep for, so a reworded error never fails in-game first.
+
+- **(049.3) A HOLLOW `UI` is enough to drive anything that only synchronizes on it and reads `root` — and a
+  real `haven.Window` builds headless.** The standing note is "a real `UI` needs a real `Audio.Root`, don't
+  build one", and "a suite that builds windows cannot be dry-run" (034.1). Both stay true of the *suite*, but
+  the engine mechanism under it is reachable: `Unsafe.allocateInstance(UI.class)`, reflect-set `root` to
+  anything non-null, reflect-set `AddonManager.ui`, and any drain whose whole use of the UI is
+  `synchronized(u)` + `u.root` runs. With the res jars on the classpath (`lib/ext/*.jar`) `new Window(Coord,
+  cap)` constructs, so a real `Window` → `Label` tree can be built and matched. One trap: the probe's tree root
+  needs `public void setfocus(Widget w) {}` overridden, because `Window.added()` calls `parent.setfocus(this)`
+  and the root has no parent. That turned 049.3's stylesheet half from "in-game only" into 8 headless checks
+  including a **negative control** — the strongest evidence available before a login.
+- **(049.3) Plant into the file the checker reads, not a copy — and back the file up FIRST.** The four-way
+  link falsification (§12) means appending plants to a real page; `cp page.md $SCRATCH/page.bak` before the
+  first plant and restoring from that backup is what makes "remove every plant" verifiable
+  (`grep -c PLANT` = 0) instead of hand-edited. Same recipe for the retired-name guards: one line carrying a
+  plant for every guard family at once, confirm each reads 1, restore, confirm each reads 0.

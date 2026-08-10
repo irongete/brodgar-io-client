@@ -33,7 +33,7 @@
       `find`s in frozen `hello` — including the root-anchored chain inside its own `appear` callback, now
       `w:find("inventory")` — plus `theme`'s key read from a FILE, which is the dangerous class.
 
-- [ ] **049.3 — the other two consumers: subscriptions and stylesheet keys.**
+- [x] **049.3 — the other two consumers: subscriptions and stylesheet keys.**
       `LuaSelectorWatch`'s `matchesStructure`/`late()` widen over the chain; the placement seam's
       bounded re-check must fire when a **late caption lands on an ancestor step**, which is now the
       common case. `Sheet.siteOf` answers "tree key" for any multi-step selector, and the per-widget
@@ -44,6 +44,19 @@
       not never; a `hafen.ui.skin` chain key styles the descendant and not its siblings, and re-folds
       when the ancestor's caption lands late.
       **`[manual]`:** open and close a Cupboard twice; the counts printed match the claims above.
+      **Shipped 14/14, 0 manual.** The `[manual]` never fired: the suite scans the live HUD for a window with a
+      UNIQUE caption and a label inside, and asserted the chain against the client's own **"Character Sheet"** —
+      25 labels, exactly its own. Neither named consumer needed the widening the task expected (049.1's `walk`
+      already covers `matchesStructure`/`late()`, and `bare()` already makes every chain a tree key); what was
+      missing sat on the other side of both — **the seam that says a caption moved carried no widget**. It moved
+      to `Window.chcap` and now hands over the WINDOW (**D-227**), so both caches act on its **subtree**: `appear`
+      re-offers every widget below it, the sheet drops every cached style below it. That also fixed the reverse
+      the old cache never saw (a rule that WAS matching and should stop) and catches an addon's own `w:title(s)`,
+      which the uimsg tap never did — which is what made the whole thing provable without the server. The
+      placement-scoped list stays for `[res=]`, which resolves with no moment of its own; both paths end in one
+      `offer()`, so a match still fires exactly once. Pre-checked headlessly 8/8 against a real `Window`+`Label`
+      tree under a hollow `UI`, negative control included. Docs: `ui/replace.md`'s late-caption paragraph and
+      `ui/style/keys.md`'s chain bullet, both of which would otherwise have understated it.
 
 - [ ] **049.4 — the inspector teaches the new grammar.**
       `widgetstack`'s selector panel builds **combinator** candidates (the enclosing window as the

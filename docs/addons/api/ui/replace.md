@@ -48,9 +48,13 @@ Four things are worth knowing:
   in the tree, readable, for the length of that animation. Match it against what you kept at `appear`, and
   keep the data you need from there.
 
-A `[title=]` or `[res=]` selector still fires exactly once for a window whose caption arrives a tick after
-the window itself — such a candidate is re-checked for a short while rather than dropped. That covers a
-chain too, where the late caption lands on an ancestor step rather than on the widget you asked for.
+**A caption that arrives late fires, and so does one that changes.** `[title=]` matches a window whose
+caption lands after the window itself, and it matches from the moment a window's caption *becomes* the one
+you named — a title your own addon writes included. On a chain the caption lands on an **ancestor** step
+rather than on the widget you asked for, so the widgets under that window are offered again and
+`window[title=Cupboard] inventory` fires for the grid. However it was reached, a match fires **once**: a
+widget already handed to you is never handed over twice. `[res=]` has no such moment, because a resource
+resolves on its own schedule, so a `[res=]` candidate is re-checked for a short while after placement.
 
 These are widget subscriptions rather than bus events: there is no `WidgetCreated` on
 [`hafen.event()`](../event.md), because you say *which* widget you care about.

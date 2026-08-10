@@ -16,7 +16,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * One addon's <b>stylesheet</b> as the engine holds it — the applied form of {@code hafen.ui():sheet()}
@@ -830,9 +832,16 @@ final class Sheet {
      * answer a stock client always gives). Cache-first: a hit is a map lookup, and matching happens only on a miss
      * or when the rules have changed — the whole reason resolution is stored per widget rather than redone.
      *
-     * <p><b>Call under the {@code ui} monitor</b>: matching reads the tree (a {@code [title=]} walks to the
-     * enclosing window). It never resolves a subtree or scans anything but this one widget, so it cannot turn into
-     * a match storm.
+     * <p><b>Call under the {@code ui} monitor</b>: matching reads the tree — since 049 a chain key walks this
+     * widget's ANCESTORS, bounded by the tree's depth. It still resolves nothing but this one widget and scans no
+     * subtree, so it cannot turn into a match storm; what an ancestor step costs is a walk up, once per fold.
+     *
+     * <p><b>A negative answer settles, and an ancestor's caption re-opens it</b> (049.3). The countdown below is
+     * for an attribute that has not landed <i>yet</i>; a caption that changes later — a rename, or one arriving
+     * after the countdown ran out — reaches this cache through {@link #markCaptionChanged} instead, which drops
+     * the renamed window's whole subtree. Both directions matter: a chain rule can start matching a descendant, and
+     * a rule that <i>was</i> matching stops, which the "a positive answer stands until the rules change" line below
+     * would otherwise never notice.
      */
     static Resolved styleOf(Widget w) {
         if(!anyStyle || (w == null))
@@ -959,6 +968,67 @@ final class Sheet {
         out.size = size;
         out.sizeOwner = sizeOwner;
         return out;
+    }
+
+    // ---- the caption seam: an ancestor's caption is part of a descendant's answer (049.3) ------------
+
+    /**
+     * Windows whose caption changed since the last tick (the caption seam, {@link AddonManager#onCaptionChanged}
+     * &larr; {@code Window.chcap}). Appended off the UI thread and drained on it — {@link #drainCaptionInvalidation}
+     * walks the tree, which is a {@code ui}-monitor read. Strong references, held for at most one tick; a window
+     * destroyed in between is simply walked (or not) and dropped, since invalidating a cache entry for a dead
+     * widget costs nothing and the map's keys are weak anyway.
+     */
+    private static final Queue<Widget> capChanged = new ConcurrentLinkedQueue<Widget>();
+
+    /**
+     * Record that {@code w}'s caption changed (049.3). Appends one reference — no widget read, no tree walk — so it
+     * is safe on whatever thread wrote the caption. Free unless some installed tree rule actually carries a late
+     * refiner: with none, no cached answer can depend on a caption. Installing one is not a race to lose, because
+     * {@link #rulesChanged} bumps {@code treegen} and so invalidates every cached entry by itself.
+     */
+    static void markCaptionChanged(Widget w) {
+        if((w == null) || !anyLate)
+            return;
+        capChanged.add(w);
+    }
+
+    /**
+     * Tick-side drain (UI thread, {@link AddonManager#tick}): drop the cached resolution of every renamed window
+     * <b>and of everything below it</b>, so the next draw folds them again.
+     *
+     * <p><b>The subtree is the point.</b> Before 049 a caption could only decide the style of the window carrying
+     * it, and the negative-answer countdown in {@link #styleOf} covered the one case that mattered (a caption
+     * landing a tick or two after the window was first drawn). A chain key — {@code ["window[title=Cupboard]
+     * label"]} — makes an ancestor's caption part of a <i>descendant's</i> answer, and the cache has no ancestor
+     * walk to notice that with. Walking down from the window that actually changed is the exact answer to "whose
+     * cached style could this have changed", and it costs one walk per rename rather than anything per frame.
+     */
+    static void drainCaptionInvalidation() {
+        if(capChanged.isEmpty())
+            return;
+        UI u = AddonManager.ui;
+        if((u == null) || (u.root == null)) {
+            capChanged.clear();       // the tree those windows belonged to is gone; so is anything cached for it
+            return;
+        }
+        synchronized(u) {
+            synchronized(Sheet.class) {          // ui -> Sheet.class, the order every other reader takes
+                for(int n = capChanged.size(); n > 0; n--) {
+                    Widget w = capChanged.poll();
+                    if(w == null)
+                        break;
+                    invalidateSubtree(w);
+                }
+            }
+        }
+    }
+
+    /** Drop {@code w}'s cached resolution and every one below it. Caller holds {@code ui} and {@code Sheet.class}. */
+    private static void invalidateSubtree(Widget w) {
+        cache.remove(w);
+        for(Widget c = w.child; c != null; c = c.next)
+            invalidateSubtree(c);
     }
 
     /**

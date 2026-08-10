@@ -71,7 +71,9 @@ Three rules decide what one widget resolves to:
 - **A chain reaches everything *inside* that window.** `window[title=Cupboard] *` matches every widget below
   a window captioned `Cupboard` — the same
   [descendant combinator](../selectors.md#the-grammar) every selector uses —
-  while `window[title=Cupboard]` matches only the window itself.
+  while `window[title=Cupboard]` matches only the window itself. **A chain follows a rename**: when a
+  window's caption changes, everything below it is resolved again, so a chain starts styling a window that
+  has just been given the caption it names, and stops styling one that no longer carries it.
 - **A site key is not a widget's style.** `*` and the other site keys resolve where they *draw*, so
   `widget:style()` never reports one: a window contains buttons, labels and chat, each drawn at its own
   site, and answering with one of them would be a guess.

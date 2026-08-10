@@ -1553,3 +1553,30 @@ refuses where they do not.**
 it is stated on the page rather than left to be discovered. `:exists()` remains the question that always
 answers, so the guard is available to anyone who wants the empty-ish behaviour back.
 **See.** [D-224](#d-224), [D-225](#d-225), [D-060](architecture-api.md#d-060), [D-041](#d-041).
+
+### D-227 — A change to an ANCESTOR's attribute is announced at the write, carries the widget, and re-opens the SUBTREE
+
+**Decision.** A window's caption change is announced from `Window.chcap` — the single post-construction
+write — through one facade that hands the **window itself** to every consumer, and both consumers that cache
+an answer act on that window's whole **subtree**: the selector subscriptions re-offer every widget below it
+to `appear`, and the stylesheet drops every cached resolution below it. The two flags the uimsg tap used to
+set are gone with the tap.
+**Rationale.** Until the descendant combinator existed, `[title=]` could only decide the match of the window
+carrying it, so a flag saying "some caption moved" was enough and the consumers could re-ask about the
+handful of widgets they were already watching. A chain moves the deciding attribute onto an **ancestor** of
+the widget the answer is about, and neither cache has an ancestor walk to notice that with — a subscription's
+placement-scoped list holds the wrong widgets, and the style cache lets a negative answer settle and never
+re-folds it. Walking down from the widget that actually changed is the exact set of answers the change could
+have altered, and it is available only at the write: the message tap knew a caption had moved but not whose.
+Announcing at the write also catches the caption an **addon** sets itself, which the message tap never saw,
+and it fixes the reverse direction the old cache never noticed at all — a rule that *was* matching and should
+now stop. Generalise: **where a cached answer depends on an ancestor, the invalidation is an event carrying
+that ancestor, and its blast radius is the subtree.**
+**Consequences.** One `// addon:` line in `Window.chcap` replaces a branch in the message tap, and the same
+seam feeds three consumers. Cost is a walk of one window per caption change and nothing per frame; a client
+with no late-refiner subscription and no late tree rule appends nothing to either queue. The placement-scoped
+re-check **stays** for `[res=]`, which resolves asynchronously with no moment of its own to hang an event on
+— both paths end in one `offer()`, so the tracked set still makes a match fire exactly once however it was
+reached. What is not covered is the layout half: it gets the announcement but not the widget, so a *layout*
+chain rule still re-applies only within its placement window.
+**See.** [D-221](#d-221), [D-224](#d-224), [D-068](#d-068), [D-088](#d-088), [D-181](#d-181).

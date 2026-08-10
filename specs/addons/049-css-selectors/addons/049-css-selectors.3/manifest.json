@@ -1,0 +1,9 @@
+{
+  "name": "049.3 — the chain's other two consumers",
+  "id": "049-css-selectors.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 049.3: a chain selector through the appear/disappear subscriptions and the stylesheet's tree keys — a chain key is always a TREE key, it styles the descendant and not its siblings, and a caption landing on an ANCESTOR step re-opens both a settled style and a subscription that had not matched.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

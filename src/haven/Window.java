@@ -126,6 +126,7 @@ public class Window extends Widget {
 
     public void chcap(String cap) {
 	this.cap = cap;
+	io.brodgar.addon.AddonManager.onCaptionChanged(this);   // addon: 049.3 -- the ONE caption seam: a window's caption is a selector attribute ([title=]), so changing it can start or stop a match on this window AND on everything below it
     }
 
     public void chdeco(Deco deco) {

@@ -956,3 +956,22 @@
   second match existed, and was deleted rather than kept "for the fast path": there is no fast path, since the
   answer depends on the whole tree. That is the real price of the rule, and the docs line *hold your result; do
   not re-select every frame* stops being advice at the same moment.
+
+- **(049.3) The style cache lets a NEGATIVE answer settle, so "it re-folded" is not proof the invalidation
+  works — settle it first.** `Sheet.styleOf` re-matches a widget that resolved to nothing for
+  `haven.addon.stylerecheck` (20) more folds and then stops asking. Every visible widget is folded once per
+  frame, so a caption landing a tick or two after placement is caught by that countdown alone — which means a
+  test that opens a window, renames it and reads the style back passes **with or without** an invalidation
+  seam. Drive the widget's own read 25 times first (`w:style()` goes through the same counter as the draw), and
+  only then change the caption: that is the difference between asserting the countdown and asserting the seam.
+  The negative control is cheap and worth running — comment the seam out, confirm the line goes red.
+- **(049.3) A widget an ADDON builds never enters the client's placement seam, so `appear` reaches it only
+  through the registration scan or a caption change.** `UI.AddWidget.run` is the only caller of
+  `AddonManager.onWidgetPlaced`, and an addon's window is added with a plain `Widget.add` — so a suite cannot
+  drive the placement half of `hafen.ui():on(sel, "appear", fn)` at all. What it CAN drive: the D-068 scan
+  (subscribe after building), the removal seam (`Widget.remove` is on every path, so `:destroy()` fires
+  `disappear`), and — since the caption seam is `Window.chcap` — the late-caption half, because `w:title(s)`
+  goes through `chcap` exactly as the server's `"cap"` uimsg does. Removal does NOT recurse: destroying an
+  addon-built window fires the seam for the window only, while the server's `UI.destroy(int)` walks
+  `shadowchildren` and destroys each child by id, so a real container close fires `disappear` for descendants
+  and a client-side one does not.
