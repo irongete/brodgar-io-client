@@ -11,7 +11,7 @@ hafen.ui():find("window[title=Cupboard] inventory")   -- the grid inside that wi
 hafen.ui():find("window[title=Foo] button[text=Close]")  -- one exact widget, named in one string
 hafen.ui():find("@Equipory")                          -- by widget class
 hafen.ui():all("*[res*=gfx/hud/meter]")               -- by resource name, matched as a substring
-hafen.ui():root()                                     -- no selector at all: the root of the whole tree
+hafen.ui():root()                                     -- no selector at all: the whole tree's root
 ```
 
 ## One, or all of them
@@ -131,12 +131,25 @@ meter, where `[res=gfx/hud/meter]` matches nothing, because no widget's resource
 ## The inspector
 
 Nobody guesses a widget's role. The bundled **`widgetstack`** addon answers it by hovering: its bottom
-panel reports the hovered widget's **role** (or an honest `nil`), its **class**, its `[title=]` and its
-`[res=]`, and then **every selector that actually matches it**, most specific first, with how many widgets
-each one matches and where this one falls among them. The bottom line is ready to paste into `:lua` — it is
-`hafen.ui():find("…")` when the selector matches this widget and **nothing else**, and
-`hafen.ui():all("…")[i]` when it matches more. Every offered selector is resolved before it is offered, so it
-always hands back the widget you were pointing at.
+panel reports the hovered widget's **role** (or an honest `nil`), its **class**, its own `[title=]` or
+`[text=]` — whichever key its role takes — its `[res=]`, and its **anchor**, the nearest enclosing window
+written as the first step of a chain. Under those it lists **every selector that actually matches it**, most
+specific first, with how many widgets each one matches and where this one falls among them.
+
+Chains come first, because they are what name **one** widget. Hovering the grid in your Inventory offers
+`window[title=Inventory] inventory@Inventory`, matching exactly that grid, where the flat `inventory` matches
+every container on screen. The panel offers [the operators](#the-grammar) too, wherever they say something
+`=` cannot: `[res*=…]` on the last segment of a resource path, and `[text^=…]` on the part of a caption
+before its first digit — the form that keeps matching when a counter ticks over.
+
+The bottom line is ready to paste into `:lua` — it is `hafen.ui():find("…")` when the selector matches this
+widget and **nothing else**, and `hafen.ui():all("…")[i]` when it matches more. Every offered selector is
+resolved before it is offered, so it always hands back the widget you were pointing at.
+
+Some widgets cannot be named alone, and the panel says so rather than inventing a key: nine identical
+attribute rows in one window differ in nothing the grammar can see, so an index is the best line there is.
+The header counts the tree walks the last hover cost and how many of them were chains, since a chain
+candidate costs one walk more than the flat step it extends.
 
 Click a row, or run `:selector`, to log the line: chat-log text is selectable, which is how it reaches your
 editor. Freeze the stack first with `widgetstack`'s `freeze` hotkey, or moving the mouse to the window

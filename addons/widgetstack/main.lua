@@ -13,19 +13,31 @@
 --                         is wrong there). Walk :parent() up from the hit for the full stack.
 --   w:rootPos()        -> { x=, y= }   the widget's top-left in root coords, for the highlight box
 --
--- 030.3 -- THE SELECTOR INSPECTOR (the bottom panel). A selector system without one is unusable: nobody guesses
--- a widget's role. For the hovered widget the panel shows its role (or an honest nil), its class, the [title=]
--- key (the ENCLOSING window's caption -- 030.1's rule, not the widget's own text) and its [res=], and then
--- every selector built from those parts that ACTUALLY matches it, most specific first, each with how many
--- widgets it matches and this one's index among them. The bottom line is ready to paste into `:lua`.
+-- 030.3 / 049.4 -- THE SELECTOR INSPECTOR (the bottom panel). A selector system without one is unusable: nobody
+-- guesses a widget's role. For the hovered widget the panel shows its role (or an honest nil), its class, its OWN
+-- [title=]/[text=] and its [res=], then the ANCHOR STEP -- the nearest enclosing window -- and then every selector
+-- built from those parts that ACTUALLY matches it, most specific first, each with how many widgets it matches and
+-- this one's index among them. The bottom line is ready to paste into `:lua`.
+--   * 049.4 -- THE GRAMMAR IS CSS, so an attribute tests the widget its step is WRITTEN ON: [title=] is a WINDOW's
+--     own caption (and is a parse error anywhere else), [text=] is the words any other widget displays. Reaching
+--     the enclosing window -- what [title=] used to do by walking UP the tree -- is now a step of its own in front,
+--     separated by a space: the descendant combinator. So the panel builds CHAIN candidates
+--     (`window[title=Cupboard] button[text=Close]`), which is what names ONE widget while two Cupboards are open.
+--   * The operators come with it. [res=] is EXACT now (it used to be an implicit substring), so the panel offers
+--     [res*=<last path segment>] beside it -- that is the migration form. And where a value has a stable stem
+--     before its first digit ("Hunger: 87%"), it offers [text^=Hunger:], the form that keeps matching when the
+--     tail moves; the walk below decides which of the two is actually true.
 --   * The list is SELF-VALIDATING: each candidate is resolved with hafen.ui():all() and kept only if the hovered
 --     widget is in the result. So nothing is ever offered that does not resolve -- which is exactly the claim
---     the offered line makes.
+--     the offered line makes. A candidate that does not even PARSE is dropped by the same pcall.
 --   * `hafen.ui():find("sel")` is offered only where the candidate matches this widget and NOTHING else;
 --     otherwise the line is `hafen.ui():all("sel")[i]`, because find() refuses an ambiguous answer rather than
---     handing back whichever widget the walk met first.
+--     handing back whichever widget the walk met first. The offered line is the most specific candidate that
+--     names it ALONE, falling back to the most specific of all -- a chain usually IS the one that names it alone.
 --   * "*" is deliberately omitted: it matches every widget, so it says nothing and it is the one walk that
 --     interns the whole tree.
+--   * THE PRICE IS REPORTED: a chain candidate costs one more tree walk than the flat candidate it extends, so
+--     the header line says how many walks the last rebuild cost and how many of them were chains.
 -- Click any panel row (or run `:selector`) to LOG the line -- chat-log text is selectable, which is how it
 -- leaves the client. Freeze first (the "freeze" hotkey), or moving the mouse to the window re-hovers.
 --
@@ -68,16 +80,84 @@ local function trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
 
 local function ellipsis(s, n) return (#s <= n) and s or (s:sub(1, n - 2) .. "..") end
 
--- The caption [title=] resolves against: the nearest enclosing WINDOW's, counting the widget itself (030.1).
--- A bare widget the engine wraps in a titled window -- an Inventory inside a Hidewnd "Cupboard" -- has no
--- caption of its own, so this is what makes `inventory[title=Cupboard]` the selector it looks like.
-local function windowTitle(w)
-  local n = w
+-- A value goes into [key=value] EXACTLY as it was read. The parser trims whatever it finds between "=" and "]",
+-- so a value with its own leading or trailing space could never match itself; one carrying "]" cannot be written
+-- at all; an empty one is a parse error. None of the three is offered -- better no candidate than one built to be
+-- thrown away by the walk below.
+local function writable(s)
+  if not s or s:find("]", 1, true) then return nil end
+  if (s == "") or (s ~= trim(s)) then return nil end
+  return s
+end
+
+-- The forms of ONE attribute key -- 049.1's operators, offered where they say something the exact form does not.
+-- The exact form is brittle wherever the tail moves (a count, a percentage, a quantity), so where the value has a
+-- stable stem before its first digit the ^= form is offered beside it, one weight below: less specific, but the
+-- one still matching a second later. The walk decides which is true; a form that does not resolve is dropped.
+-- (The stem IS trimmed, unlike an exact value: "Hunger: 87%" gives [text^=Hunger:], which the parser reads back
+-- as written and which really is a prefix of the text.)
+local function attrForms(key, val, wgt)
+  local forms = { { s = ("[%s=%s]"):format(key, val), wgt = wgt } }
+  local stem = val:match("^(%D-)%d")
+  stem = stem and writable(trim(stem))
+  if stem and (stem ~= val) then
+    forms[#forms + 1] = { s = ("[%s^=%s]"):format(key, stem), wgt = wgt - 1 }
+  end
+  return forms
+end
+
+-- [res=] is EXACT since 049.1 (it was an implicit substring), which is the one migration nothing can catch: the
+-- old spelling still parses and simply stops matching. So the contains form is offered by name, on the last path
+-- segment -- that is the shape the old substring behaviour actually had.
+local function resForms(res)
+  local forms = { { s = ("[res=%s]"):format(res), wgt = 8 } }   -- the stable key (D-063): most specific
+  local tail = writable(res:match("([^/]+)$"))
+  if tail and (tail ~= res) then
+    forms[#forms + 1] = { s = ("[res*=%s]"):format(tail), wgt = 6 }
+  end
+  return forms
+end
+
+-- THE ANCHOR STEP (049.4): the nearest enclosing window that has a caption to be named by, written as a step of
+-- its own to go in FRONT of the target's, separated by a space. This is what [title=] used to say by walking up
+-- the tree; the combinator says it honestly, and it is what tells two open Cupboards apart.
+--   Strictly enclosing: a window's OWN caption is its own step's [title=], not a chain in front of itself. An
+-- uncaptioned window is skipped rather than ending the search -- the space is descendant at ANY depth, so a
+-- window further up still anchors the chain.
+local function anchorStep(w)
+  local n = w:parent()
   while n do
-    if n:role() == "window" then return n:text() end
+    if n:role() == "window" then
+      local cap = writable(n:text())
+      if cap then return { s = ("window[title=%s]"):format(cap), wgt = 5, cap = cap } end   -- role 1 + title 4
+    end
     n = n:parent()
   end
   return nil
+end
+
+-- Enumerate every step a set of keys can write. Each grammar KEY contributes at most ONE refiner to a step --
+-- "[res=x][res*=y]" is refused as "given more than once" -- so this is a mixed-radix counter over
+-- (absent + each form), not a bitmask over parts. Keys are visited in the order the grammar wants them written:
+-- role, then @Class, then the brackets. A key marked `req` has no absent slot.
+local function stepCands(keys)
+  local out, n = {}, 1
+  for i = 1, #keys do n = n * (#keys[i].forms + (keys[i].req and 0 or 1)) end
+  for code = 0, n - 1 do
+    local c, s, score = code, "", 0
+    for i = 1, #keys do
+      local k = keys[i]
+      local r = #k.forms + (k.req and 0 or 1)
+      local pick = (c % r) + (k.req and 1 or 0)
+      c = math.floor(c / r)
+      if pick > 0 then
+        s = s .. k.forms[pick].s
+        score = score + k.forms[pick].wgt
+      end
+    end
+    if s ~= "" then out[#out + 1] = { s = s, score = score } end
+  end
+  return out
 end
 
 -- The ready-to-paste line for one candidate. hafen.ui():find(sel) answers only where there IS one answer, so it is
@@ -88,54 +168,73 @@ local function pasteLine(c)
   return ('hafen.ui():all("%s")[%d]'):format(c.sel, c.idx)
 end
 
--- Build the selector report for `w`: its parts, every combination of them that really matches it (verified by
--- resolving it), sorted most-specific-first, and the best one. Costs one hafen.ui():all() walk per combination
--- (at most 15, usually 3 or 7) -- which is why it runs on a hover CHANGE, never per frame.
+-- The walk budget. Candidates are RANKED before a single walk is paid for, so what the cap drops is always the
+-- least specific tail of the list -- never the line the panel is about to offer. It is a safety net rather than
+-- a policy: the widest real widget (a role, a class, a text with a moving tail and a res) builds 36.
+local MAXWALKS = 36
+
+-- Build the selector report for `w`: its parts, its anchor, every candidate built from those that really matches
+-- it (verified by resolving it), most-specific-first, and the one to offer. Costs one hafen.ui():all() walk per
+-- candidate walked -- which is why it runs on a hover CHANGE, never per frame, and why the count is reported.
 local function selectorsFor(w)
-  local rep = { role = w:role(), cls = w:type(), res = w:res(), walks = 0, cands = {} }
+  local rep = { role = w:role(), cls = w:type(), res = w:res(), walks = 0, chains = 0, cands = {} }
   if rep.cls == "?" then rep.cls = nil end                  -- no named ancestor: nothing to write after "@"
-  local title = windowTitle(w)
-  if title then title = trim(title) end
-  rep.title = title
 
-  -- The writable parts, in the order the grammar wants them: role first, then the refiners. A value carrying
-  -- "]" cannot be written inside [..], so it is simply not offered (better than offering a selector that
-  -- would not parse).
-  local parts = {}
-  if rep.role then parts[#parts + 1] = { s = rep.role, wgt = 1 } end
-  if rep.cls  then parts[#parts + 1] = { s = "@" .. rep.cls, wgt = 2 } end
-  if title and (title ~= "") and not title:find("]", 1, true) then
-    parts[#parts + 1] = { s = ("[title=%s]"):format(title), wgt = 4 }
-  end
-  if rep.res and not rep.res:find("]", 1, true) then
-    parts[#parts + 1] = { s = ("[res=%s]"):format(rep.res), wgt = 8 }  -- the stable key (D-063): most specific
-  end
+  -- The widget's OWN attribute (049.1): a window is named by its caption, everything else by what it displays.
+  rep.own = writable(w:text())
+  rep.ownKey = (rep.role == "window") and "title" or "text"
 
-  for mask = 1, (2 ^ #parts) - 1 do
-    local s, score = "", 0
-    for i = 1, #parts do
-      if math.floor(mask / 2 ^ (i - 1)) % 2 == 1 then
-        s = s .. parts[i].s
-        score = score + parts[i].wgt
-      end
+  -- The role is REQUIRED wherever the widget has one, which halves the enumeration and loses nothing: the role
+  -- is derived from the same Java class @Class names, so `@Label` and `label@Label` match the very same widgets
+  -- and a role-less twin of a candidate is only a vaguer way to say it. It is also load-bearing for [title=],
+  -- which is a parse error off the window role -- caption and role always travel together.
+  local keys = {}
+  if rep.role then keys[#keys + 1] = { req = true, forms = { { s = rep.role, wgt = 1 } } } end
+  if rep.cls then keys[#keys + 1] = { forms = { { s = "@" .. rep.cls, wgt = 2 } } } end
+  if rep.own then keys[#keys + 1] = { forms = attrForms(rep.ownKey, rep.own, 4) } end
+  local resv = writable(rep.res)
+  if resv then keys[#keys + 1] = { forms = resForms(resv) } end
+
+  rep.anchor = anchorStep(w)
+
+  -- Every step, flat and (where there is an anchor) chained. A chain scores its anchor's specificity on top, so
+  -- it outranks the flat candidate it extends -- which is right twice over: CSS says so, and it is the one that
+  -- names a single widget while a second window of the same caption is open.
+  local all = {}
+  for _, c in ipairs(stepCands(keys)) do
+    all[#all + 1] = { s = c.s, score = c.score, chain = false }
+    if rep.anchor then
+      all[#all + 1] = { s = rep.anchor.s .. " " .. c.s, score = c.score + rep.anchor.wgt, chain = true }
     end
+  end
+  table.sort(all, function(a, b)
+    if a.score ~= b.score then return a.score > b.score end
+    return #a.s < #b.s
+  end)
+  rep.dropped = math.max(0, #all - MAXWALKS)
+
+  for i = 1, math.min(#all, MAXWALKS) do
+    local c = all[i]
     rep.walks = rep.walks + 1
-    local ok, hits = pcall(function() return hafen.ui():all(s) end)   -- a malformed candidate is dropped
+    if c.chain then rep.chains = rep.chains + 1 end
+    local ok, hits = pcall(function() return hafen.ui():all(c.s) end)  -- a candidate that will not parse is dropped
     if ok and hits then
       local idx
-      for i = 1, #hits do
-        if hits[i] == w then idx = i; break end             -- interned entities: `==` IS the identity test
+      for k = 1, #hits do
+        if hits[k] == w then idx = k; break end             -- interned entities: `==` IS the identity test
       end
       if idx then                                            -- keep ONLY selectors that demonstrably match
-        rep.cands[#rep.cands + 1] = { sel = s, score = score, count = #hits, idx = idx }
+        rep.cands[#rep.cands + 1] = { sel = c.s, score = c.score, count = #hits, idx = idx, chain = c.chain }
       end
     end
   end
-  table.sort(rep.cands, function(a, b)
-    if a.score ~= b.score then return a.score > b.score end
-    return #a.sel < #b.sel
-  end)
-  rep.offer = rep.cands[1]
+  -- `all` was sorted before the walks, so `cands` is already most-specific-first. The OFFER is the most specific
+  -- candidate that names this widget ALONE -- the one that can be pasted as find() -- falling back to the most
+  -- specific of all when nothing is unique.
+  for i = 1, #rep.cands do
+    if rep.cands[i].count == 1 then rep.offer = rep.cands[i]; break end
+  end
+  rep.offer = rep.offer or rep.cands[1]
   return rep
 end
 
@@ -145,7 +244,7 @@ local openInspector       -- forward decl (it recurses: a child/parent click ope
 local inspCascade = 0     -- cascade new inspector windows so they don't land exactly on top of each other
 
 -- Inspector layout constants (shared by its Draw + MouseDown handlers so a click maps to the same row it drew).
-local I_W, I_H       = 380, 344
+local I_W, I_H       = 470, 344       -- 049.4: wide enough for a chain candidate on one line
 local I_ROLE_Y       = 62         -- role / res
 local I_SEL_Y        = 76         -- the widget's selector (resolved ONCE, when the window opens)
 local I_PARENT_Y     = 92         -- the clickable "parent" link row
@@ -185,7 +284,7 @@ openInspector = function(node)
       g:color(200, 200, 255)
       g:text(("role: %s    res: %s"):format(st_sel.role or "nil", st_sel.res or "-"), 6, I_ROLE_Y)
       g:color(150, 230, 150)
-      g:text(st_sel.offer and ellipsis(pasteLine(st_sel.offer), 56) or "(no selector matches it)", 6, I_SEL_Y)
+      g:text(st_sel.offer and ellipsis(pasteLine(st_sel.offer), 70) or "(no selector matches it)", 6, I_SEL_Y)
       g:color()
       -- parent link (clickable)
       local p = n:parent()
@@ -289,12 +388,13 @@ end)
 
 local PANEL_Y0  = STACK_Y0 + STACK_MAXROWS * LINE + 8   -- 184
 local P_CLASS   = PANEL_Y0
-local P_TITLE   = PANEL_Y0 + LINE
+local P_OWN     = PANEL_Y0 + LINE                        -- the widget's OWN [title=]/[text=] (049.1)
 local P_RES     = PANEL_Y0 + 2 * LINE
-local P_HEAD    = PANEL_Y0 + 46
-local SEL_Y0    = PANEL_Y0 + 62
+local P_ANCHOR  = PANEL_Y0 + 3 * LINE                    -- 049.4: the chain's first step
+local P_HEAD    = PANEL_Y0 + 60
+local SEL_Y0    = PANEL_Y0 + 76
 local SEL_MAXROWS = 7                                    -- role+class+[title=] is 7 combinations: it fits whole
-local SEL_COUNT_X = 320                                  -- the right-hand "n matches, #i" column
+local SEL_COUNT_X = 400                                  -- the right-hand "n matches, #i" column
 
 local function drawPanel(g, w, h)
   g:color(90, 90, 90); g:frect(6, PANEL_Y0 - 8, w - 12, 1); g:color()      -- divider
@@ -305,9 +405,20 @@ local function drawPanel(g, w, h)
   g:color(230, 230, 160)
   g:text(("class: %s    role: %s"):format(insp.cls or "?", insp.role or "nil (nothing classifies it)"), 6, P_CLASS)
   g:color()
-  g:text(("[title=] %s   (the ENCLOSING window's caption)")
-    :format((insp.title and insp.title ~= "") and ("'" .. insp.title .. "'") or "-"), 6, P_TITLE)
+  -- Its OWN attribute, and it says WHICH key that is: since 049.1 a window is named by [title=] (its caption)
+  -- and everything else by [text=] (the words it displays), and writing either on the other step is a parse error.
+  g:text(("[%s=]  %s   (%s)"):format(
+    insp.ownKey,
+    insp.own and ("'" .. insp.own .. "'") or "-",
+    (insp.ownKey == "title") and "its OWN caption" or "the words IT displays"), 6, P_OWN)
   g:text(("[res=]   %s"):format(insp.res or "-  (most windows carry no resource)"), 6, P_RES)
+  -- The anchor step: the enclosing window, written in FRONT with a space. Not an attribute of this widget.
+  g:color(180, 200, 255)
+  g:text(("anchor:  %s   (%s)"):format(
+    insp.anchor and ellipsis(insp.anchor.s, 44) or "-",
+    insp.anchor and "the enclosing window: the chain's first step"
+                 or "no captioned window encloses it: flat candidates only"), 6, P_ANCHOR)
+  g:color()
 
   g:color(170, 170, 170)
   g:text(('selectors that match it, most specific first ("*" omitted):'), 6, P_HEAD)
@@ -316,10 +427,10 @@ local function drawPanel(g, w, h)
   for i = 1, math.min(n, SEL_MAXROWS) do
     local c = insp.cands[i]
     local y = SEL_Y0 + (i - 1) * LINE
-    if i == 1 then g:color(150, 230, 150) end
-    g:text(ellipsis(c.sel, 46), 10, y)              -- the count column starts at SEL_COUNT_X; do not run into it
+    if c == insp.offer then g:color(150, 230, 150) end
+    g:text(ellipsis(c.sel, 58), 10, y)              -- the count column starts at SEL_COUNT_X; do not run into it
     g:text(("%d match%s, #%d"):format(c.count, (c.count == 1) and "" or "es", c.idx), SEL_COUNT_X, y)
-    if i == 1 then g:color() end
+    if c == insp.offer then g:color() end
   end
   -- The offer FLOATS right under the list rather than sitting at a fixed y: most widgets have 3 candidates,
   -- and anchoring it to the bottom left the panel looking empty. Clicking anywhere below the rows still logs
@@ -347,8 +458,12 @@ local function drawStack(g, w, h)
   g:color(0, 0, 0, 160); g:frect(0, 0, w, h); g:color()            -- translucent backdrop
   local shown = math.min(#rows, STACK_MAXROWS)
   local above = #rows - shown                                      -- clipped at the ROOT end, never the leaf
-  g:text(("under cursor  (rebuilds: %d, selector walks: %d%s%s)")
-    :format(rebuilds, walks,
+  -- The price, reported (049.4): every candidate costs one tree walk, and a CHAIN candidate is one more than the
+  -- flat one it extends. `+n unwalked` is the cap doing its job -- the ranking spent the budget on the top of the
+  -- list, so what went unwalked is always the least specific tail.
+  g:text(("under cursor  (rebuilds: %d, selector walks: %d (%d chain)%s%s%s)")
+    :format(rebuilds, walks, insp and insp.chains or 0,
+            (insp and (insp.dropped > 0)) and (", +" .. insp.dropped .. " unwalked") or "",
             (above > 0) and (", +" .. above .. " above") or "",
             frozen and ", FROZEN" or ""), 6, 4)
   if #rows == 0 then
@@ -412,7 +527,7 @@ hafen.event():on("EnterWorld", function()
   if not win then
     win = hafen.ui():window()
       :title("Widget Stack")
-      :size(470, 412)
+      :size(580, 442)                 -- 049.4: a chain candidate is a long line, and the panel grew a row
       :position(60, 60)
     -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so none of these can sit mid-chain above.
     win:on("Draw", function(ev) drawStack(ev:g(), ev:w(), ev:h()) end)
@@ -437,13 +552,16 @@ end)
 -- SELECTABLE, which is how the string actually gets out of the client and into your addon.
 hafen.slash():register("selector", function(args)
   if not insp then hafen.log():write(":selector -> nothing hovered yet (move the mouse over the UI)"); return end
-  hafen.log():write((":selector -> class=%s role=%s title=%s res=%s")
-    :format(insp.cls or "?", insp.role or "nil",
-            (insp.title and insp.title ~= "") and ("'" .. insp.title .. "'") or "-", insp.res or "-"))
+  hafen.log():write((":selector -> class=%s role=%s [%s=] %s res=%s anchor=%s")
+    :format(insp.cls or "?", insp.role or "nil", insp.ownKey,
+            insp.own and ("'" .. insp.own .. "'") or "-", insp.res or "-",
+            insp.anchor and insp.anchor.s or "-"))
+  hafen.log():write(("  (%d selector walks, %d of them chains%s)")
+    :format(insp.walks, insp.chains, (insp.dropped > 0) and (", +" .. insp.dropped .. " unwalked") or ""))
   for i = 1, #insp.cands do
     local c = insp.cands[i]
     hafen.log():write(("  %s%s   (%d match%s, this one is #%d)")
-      :format((i == 1) and "* " or "  ", c.sel, c.count, (c.count == 1) and "" or "es", c.idx))
+      :format((c == insp.offer) and "* " or "  ", c.sel, c.count, (c.count == 1) and "" or "es", c.idx))
   end
   if insp.offer then hafen.log():write(pasteLine(insp.offer)) end
 end)

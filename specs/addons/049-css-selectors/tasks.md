@@ -58,7 +58,7 @@
       tree under a hollow `UI`, negative control included. Docs: `ui/replace.md`'s late-caption paragraph and
       `ui/style/keys.md`'s chain bullet, both of which would otherwise have understated it.
 
-- [ ] **049.4 — the inspector teaches the new grammar.**
+- [x] **049.4 — the inspector teaches the new grammar.**
       `widgetstack`'s selector panel builds **combinator** candidates (the enclosing window as the
       anchor step + the hovered widget as the target), offers `[text=]` and the operators, keeps its
       self-validation (`:all()` must resolve the candidate back to this very widget), and offers a
@@ -70,6 +70,22 @@
       **Suite must prove:** the panel's offered line, pasted into `:lua`, returns the hovered widget
       (`==`); no offered candidate raises; a candidate offered as `find` resolves to exactly one.
       **`[manual]`:** hover a button in a Cupboard; the offered line is a chain and pasting it works.
+      **Shipped 13/13, 1 manual (answered).** The bug was worse than "does not build chains": the panel resolves
+      each candidate through `:all()` and pcall-drops what fails, so it **could not tell a miss from a parse
+      error** — since 049.1 every candidate it built for a widget inside a titled window raised and vanished, and
+      the panel quietly stopped offering its best line. `windowTitle` is deleted; the enclosing window is now an
+      `anchorStep` (nearest **strictly** enclosing captioned one), and the target step carries the widget's OWN
+      `[title=]`/`[text=]` by role. Enumeration became **mixed-radix over grammar KEYS**, not a bitmask over parts
+      — two forms of one key (`[res=]`/`[res*=]`) cannot co-occur — and the **role is required** wherever there is
+      one, since `@Label` and `label@Label` match the identical set (−20% candidates, and it is what makes
+      `[title=]` legal at all). The offer is the most specific candidate that names the widget **ALONE**, which is
+      what lets a `find(...)` line be offered at all. Since no cross-addon channel exists, the suite restates the
+      rules and sweeps the **live tree**: 629/629 candidates parse and resolve back, 197/197 unique ones are
+      `find`-able. Pre-checked by slicing the shipping builder out of `main.lua` behind a **recording** stub and
+      handing all 98 strings to the real `Selector.parse`. The `[manual]` was answered twice: an `Attr` row gave a
+      9-match chain with `find` correctly withheld (nine identical rows differ in nothing the grammar can see —
+      an argument for `:nth-child`, not a defect), and the Inventory grid gave
+      `find("window[title=Inventory] inventory@Inventory")`, 1 match, where flat `inventory` matches 4.
 
 - [ ] **049.5 — the docs tier.** *Reduced by 049.1 and again by 049.2*: 049.1 rewrote `api/ui/selectors.md`
       around the combinator/operators/two-disjoint-keys and fixed every example on five other pages that the new

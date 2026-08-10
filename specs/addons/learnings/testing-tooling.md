@@ -1603,3 +1603,24 @@
   first plant and restoring from that backup is what makes "remove every plant" verifiable
   (`grep -c PLANT` = 0) instead of hand-edited. Same recipe for the retired-name guards: one line carrying a
   plant for every guard family at once, confirm each reads 1, restore, confirm each reads 0.
+
+- **(049.4) When a suite cannot reach the code under test, test the RULES over the client's own live tree.**
+  Addon sandboxes are per-addon and there is no cross-addon channel, so no suite can call `widgetstack`'s
+  candidate builder. What a suite *can* do is restate the rules and sweep every widget the client has:
+  build the most specific candidate for each, assert it parses and that `:all()` hands the widget back, then
+  assert that every candidate matching exactly one is `find`-able and returns that very widget. 629/629 and
+  197/197 on a live HUD — far stronger than any fixture, and it fails on precisely the class of bug the
+  builder can have. The panel's *drawing* is then the only honest `[manual]`.
+- **(049.4) A stub that RECORDS instead of resolving turns a Lua builder into a string generator you can hand
+  to the real parser.** Slice the shipping section out of `main.lua` by its own banner comments (032.2/035.4),
+  run it under plain LuaJ with a `hafen.ui():all(s)` that appends `s` to a global table and returns `{}` — the
+  self-validation then keeps nothing, which is the point: the question is what gets WRITTEN. A same-package
+  Java probe reads that table back off the `Globals` and feeds each string to `Selector.parse`, so "every
+  candidate the inspector builds parses" is one assertion over the real grammar with no UI, no GL and no
+  client. 98/98 in a second, and it caught the enumeration bug before the fixture was even finished.
+- **(049.4) Ask the `[manual]` for the branch you cannot predict, and expect the maintainer to hover the wrong
+  thing — that is data, not a miss.** The line said "hover a button or a label inside a captioned window"; the
+  hover landed on a `Attr` row, which has no text at all, and returned a 9-match chain with the `find` form
+  correctly withheld. That answered half the claim and proved a *different* rule (strict `find` holding), and a
+  second, precisely-aimed hover (an empty Inventory slot) closed the other half. Name a concrete target in the
+  step — "an empty slot in your Inventory" — not a category.

@@ -1,0 +1,9 @@
+{
+  "name": "049.4 — the inspector teaches the new grammar",
+  "id": "049-css-selectors.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 049.4: the candidate rules widgetstack's selector panel now follows — the retired [title=] spelling is a parse error, a chain names one widget where the flat step names several, the operators say what the exact form cannot, and every candidate built from a live widget's own parts parses and resolves back to it.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

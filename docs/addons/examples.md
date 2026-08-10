@@ -141,7 +141,8 @@ browsable window for any of them: type, id, position, size, text, [role](api/ui/
 resource, parent and children. Its selector panel answers the question the
 [selector grammar](api/ui/selectors.md) is useless without — what is this widget, and how do I name
 it? — by offering every selector that matches, each one resolved before it is shown and ready to paste
-into `:lua`.
+into `:lua`. It builds **chains**, anchoring on the window a widget sits in, because that is usually what
+names one widget rather than several; and it reports what the answer cost, in tree walks.
 
 `:widgetstack` toggles it, `:selector` logs the current line, and the `freeze` hotkey holds the stack still
 while you move the mouse to read it.

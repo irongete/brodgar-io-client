@@ -40,9 +40,11 @@ point of the console, and the reason to keep `:reload` in reach.
 
 Selectors are guessed wrong more often than anything else in the API, so do not guess. Enable the bundled
 **`widgetstack`** addon and hover: it reports the widget's [role](../api/ui/selectors.md#roles), its class,
-the caption of the window it sits in and its `[res=]`, then offers **every selector that matches it**, most specific first, each
-one resolved before it is shown and ready to paste into `:lua`. Its `freeze` hotkey holds the stack still
-while you move the mouse over to read it.
+its own caption or displayed words, its `[res=]` and the window it sits in, then offers **every selector that
+matches it**, most specific first, each one resolved before it is shown and ready to paste into `:lua`. The
+lines it reaches for first are **chains** — the enclosing window, then the widget — because a flat step
+usually matches several widgets and a chain matches the one you are pointing at. Its `freeze` hotkey holds
+the stack still while you move the mouse over to read it.
 
 Two answers that surprise people, both from [the inspector's own page](../api/ui/selectors.md): hovering a
 window's frame gives you the frame, not the window, because the chrome is a widget of its own; and most

@@ -975,3 +975,26 @@
   addon-built window fires the seam for the window only, while the server's `UI.destroy(int)` walks
   `shadowchildren` and destroys each child by id, so a real container close fires `disappear` for descendants
   and a client-side one does not.
+- **(049.4) A tool that pcall-drops a candidate it cannot resolve cannot tell "does not match" from "does not
+  parse" — so a grammar change degrades it in SILENCE.** `widgetstack`'s selector panel resolves each candidate
+  through `hafen.ui():all()` and keeps only the ones the hovered widget comes back in; that self-validation is
+  what makes every offered line true, and it is also what hid 049.1 from it. The moment `[title=]` became a
+  window's own caption, every candidate the panel built for a widget *inside* a titled window
+  (`button[title=Cupboard]`) started raising at parse time and being swallowed — the panel simply stopped
+  offering its single most useful line, with no error anywhere. Generalisation: a self-validating builder needs
+  its refusals separated from its misses, or it reports "nothing matched" for a spelling that no longer exists.
+- **(049.4) Enumerating candidates for a CSS-shaped grammar is a MIXED-RADIX counter, not a bitmask.** A bitmask
+  over parts is right only while every part is independently present-or-absent; the moment a key has two forms
+  (`[res=full]` vs `[res*=tail]`, `[text=]` vs `[text^=]`) a mask writes both into one step, which is refused as
+  "given more than once". Counting in radix `(1 + forms per key)` per key, keys visited in the order the grammar
+  wants them written, produces exactly the legal steps and nothing else.
+- **(049.4) The role is implied by `@Class`, so a role-less twin of a candidate is only a vaguer spelling of it.**
+  Both come off the same Java class — `@Label` and `label@Label` match the identical set — so requiring the role
+  wherever a widget has one drops ~20% of the enumeration and loses no reachable widget. It is also load-bearing
+  rather than cosmetic: `[title=]` is a parse error off the `window` role, so caption and role have to travel
+  together anyway.
+- **(049.4) Some widgets genuinely cannot be named alone, and an inspector must say so rather than invent a key.**
+  The nine attribute rows of the Character Sheet are one class, no role, no text, no res, one enclosing window:
+  every selector the grammar can write matches all nine. The honest answer is the index form (`:all(sel)[i]`),
+  which is exactly what strict `find` (049.2) forces — and the case is a standing argument for `:nth-child`,
+  not a defect in the builder.
