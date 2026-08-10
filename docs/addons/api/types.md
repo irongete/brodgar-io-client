@@ -40,9 +40,9 @@ always fresh. [`hafen.world`](world.md) and the `GobAdded`/`GobRemoved` events h
 
 From [`item:info()`](ui/items.md#the-item-object), the one snapshot escape hatch. Any widget's
 [`:items()`](ui/items.md) — your backpack (`hafen.ui():inventory()`), your worn gear
-(`hafen.ui():equipment()`), a chest, a cupboard — and [`hafen.ui():hand()`](ui/widget.md) for the cursor
-item hand you a live [`Item` object](ui/items.md#the-item-object), not this table. Every field is
-optional.
+(`hafen.ui():equipment()`), a chest, a cupboard — and [`hafen.player():hand()`](player.md#the-hand) for
+the cursor item hand you a live [`Item` object](ui/items.md#the-item-object), not this table. Every field
+is optional.
 
 | Field | Type | Notes |
 |---|---|---|

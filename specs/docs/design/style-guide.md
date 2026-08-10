@@ -53,7 +53,7 @@ uses it, if there is one.
 What it answers, in one line. Arguments and returns as a table when there is more than one.
 What it gives back when the data is not there.
 
-## Write (gated: `actions`)               <- gating in the group heading, always present
+## Write (protected: `actions`)           <- the permission in the group heading, always present
 ### `hafen.speed():current(n)`
 
 ## See also                               <- required, 2-5 links, last section
@@ -63,17 +63,16 @@ What it gives back when the data is not there.
 *contains*, not how finely it is cut. A verb whose whole contract fits one row lives in the group's
 **table** — that is §6's rule and it is the default, and it is what most namespaces are. A verb that
 needs an argument table, its own error cases or an example gets a `###` call heading. One page may use
-both. The **gating annotation sits on the group heading and only on a write group**:
-`## Write (gated: \`actions\`)` or `## Write (ungated)`. **A group is a write group when its verbs change
-something, wherever the change lands** (D-010): a client-local change — a map marker, an icon flag, a
-sound — is a write and its heading says `(ungated)`, which is exactly where "no permission" is
-information. `## Read` stays plain — a read is ungated by construction, and annotating every reader
-buries the write that is surprisingly ungated. **A subscription and your own drawing are not writes**
+both. The **permission annotation sits on the group heading and only on a write group**:
+`## Write (protected: \`actions\`)` or `## Write (unprotected)`. **A group is a write group when its verbs
+change something, wherever the change lands** (D-010): a client-local change — a map marker, an icon flag,
+a sound — is a write and its heading says `(unprotected)`, which is exactly where "no permission" is
+information. `## Read` stays plain — a read is unprotected by construction, and annotating every reader
+buries the write that is surprisingly unprotected. **A subscription and your own drawing are not writes**
 (`hafen.ui():on`, `widget:on("ItemAdded", fn)`, `hafen.ui():overlay()`, the `g:` verbs): they change no
-state at all, so
-their group heading stays plain and the page's opening lines say the namespace is ungated. That also
-keeps their anchors stable — an annotation appended to a heading *is* an anchor change, and 001.4 broke
-18 inbound links that way before the sweep caught it.
+state at all, so their group heading stays plain and the page's opening lines say the namespace is
+unprotected. That also keeps their anchors stable — an annotation appended to a heading *is* an anchor
+change, and 001.4 broke 18 inbound links that way before the sweep caught it.
 
 **Guide** (`guides/**`) — one *task* per page, start to finish, and it **never restates a
 signature**: it shows the shape of the solution and links each verb to its reference page. A
@@ -93,10 +92,10 @@ carries no explanation that its pages do not carry.
   reference page's verb detail. **`#####` and deeper are forbidden** — a page needing them is two
   pages.
 - **Call headings** are the fully qualified call in backticks and nothing else:
-  `### \`hafen.act():moveTo(p)\``, `### \`gob:name()\``. No arrows, no return types, no prose —
+  `### \`hafen.player():move(p)\``, `### \`gob:name()\``. No arrows, no return types, no prose —
   the return goes in the first line below. This keeps anchors short and predictable.
 - **A call heading carries its parameters, without `[ ]`** (D-007):
-  `### \`hafen.act():clickGob(gob, button, mods)\``, never `(gob [, button [, mods]])`. Which
+  `### \`hafen.world():place(p, angle, button, mods)\``, never `(p, angle [, button [, mods]])`. Which
   parameters are optional is stated in the line below or in the argument table.
 - **Topic headings** are sentence case; a subtitle uses a colon: `## Selectors: naming a widget`.
 - **No em dash in any heading, ever** — and no other deleted character between two spaces. ` — `
@@ -140,10 +139,11 @@ notes were wrong). So:
   "all three verbs" — say "the types below". A count is a fact that goes stale silently and
   cannot be checked by grep; `asset.md`'s "identical for all three types" sat 25 lines under a
   heading reading "The four types" (D-12).
-- **Every verb states its gating**, including the ungated ones: `ungated`, `gated: actions`, or
-  `gated: network`. A map marker's `:add`, an icon's `:show(on)` and a sound's `:play` write and are
-  *not* gated, while the actions guide tells the reader the permission gates the per-subsystem writes
-  (D-3). Silence is not a statement.
+- **Every verb states its permission**, including the unprotected ones: `unprotected` or
+  `protected: actions`. A map marker's `:add`, an icon's `:show(on)` and a sound's `:play` write and are
+  *not* protected, while the actions guide tells the reader what the permission covers and what it does
+  not (D-3). `hafen.http` is the one namespace that declares separately — a `network` host allowlist —
+  and it states that on its own page. Silence is not a statement.
 - **Every verb states its absence case** — what it returns when the thing is not there (usually
   `nil`, per `conventions.md`) — and whether it can throw, and on what.
 - **A measured figure stays out; a documented cap or budget stays in** (D-008). The test is who owns
@@ -175,9 +175,9 @@ lives in git and in `specs/`.
   has a shelf life (004.2), and a *derived* name can collide with a live spelling exactly as a
   hand-written one can.
 
-  **The `hafen.*` half is one expression and seven names.** Every retired verb spelling is *dotted*,
-  because the grammar is that a section is **called** — so one regex covers all of them, and covers a
-  dotted spelling of a section the table has no row for:
+  **The `hafen.*` half is one expression, seven names and one regex.** Every retired verb spelling is
+  *dotted*, because the grammar is that a section is **called** — so one regex covers all of them, and
+  covers a dotted spelling of a section the table has no row for:
 
   ```text
   grep -rnE 'hafen\.[a-z]+\.[a-zA-Z]' docs/
@@ -189,6 +189,19 @@ lives in git and in `specs/`.
   hafen.events   hafen.quests   hafen.wounds   hafen.gob
   hafen.hook     hafen.ghost    hafen.render
   ```
+
+  **The eighth section is the first entry that needs a regex of its own.** `hafen.act` is a *prefix* of a
+  live spelling, `hafen.actionbar`, so `grep -rnF hafen.act` reads 19 lines on a healthy tree and every
+  one of them is legitimate — the bare name fails D-013's first half. What is admitted is the bounded
+  form, which reads zero and still catches a reintroduction:
+
+  ```text
+  grep -rnE 'hafen\.act\b' docs/
+  ```
+
+  Its verbs need no entry of their own. The table holds each of them twice, and both spellings are
+  covered: `hafen.act.moveTo` is dotted, so the expression above carries it, and `hafen.act():moveTo`
+  begins with `hafen.act`, so the bounded form does.
 
   **The entity half is guarded backwards, not by a name list.** A retired entity verb is keyed
   `<entity>:<verb>` — `widget:onClick`, `gob:pos`, `overlay:scale` — and the entity is a *variable* at
@@ -316,10 +329,10 @@ offenders listed — that report *is* the task's verification material:
 2. **Size** — `wc -l` on every page touched, none over 300.
 3. **Headings** — no em dash, no `#####`, no internal codes.
 4. **Retired names** — §7's list, **derived again** from `Retired.java` rather than copied from the
-   last report: the dotted regex, the seven sections, the event keys, the hand-written residue and
-   the three admitted spellings, each at zero, and the falsification (plant one, confirm it is
-   caught, remove it). A count of the table's rows goes in the report, so a table that grew since
-   the last sweep is visible.
+   last report: the dotted regex, the seven bare sections, `hafen\.act\b`, the event keys, the
+   hand-written residue and the three admitted spellings, each at zero, and the falsification (plant
+   one, confirm it is caught, remove it). A count of the table's rows goes in the report, so a table
+   that grew since the last sweep is visible.
 5. **Symbols, both directions** — every `hafen.*` name the task wrote exists in `src/`; and the
    backward sweep of §7, every colon verb the tier uses against the registration set, with each
    unregistered verb named and accounted for. That is what catches an invented verb, which no

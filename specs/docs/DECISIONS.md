@@ -7,9 +7,10 @@
 > entry to its `decisions/<category>.md` file; add a line here only when a new category file
 > is created.
 
-- `decisions/docs-standard.md` — D-001..D-016 — the page standard and the shape of the tree: the
+- `decisions/docs-standard.md` — D-001..D-017 — the page standard and the shape of the tree: the
   300-line ceiling, one namespace per path, who owns the stylesheet, headings and anchors, the rule
-  that `docs/` never links `specs/`, verb granularity and gating annotations, which numbers may
+  that `docs/` never links `specs/`, verb granularity and the permission annotation, which numbers may
   appear on a page, how an example addon is cited, which index owns the flat leaf list, how a
   retired name earns its place on the §7 list, that the list is derived from the engine's own
-  refusal table, and that a word-ban voice rule must read zero before it may be a grep
+  refusal table, that a word-ban voice rule must read zero before it may be a grep, and that the
+  standard reads in the shipped `protected` / `unprotected` adjective

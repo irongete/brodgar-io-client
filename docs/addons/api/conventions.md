@@ -276,7 +276,7 @@ the sandbox's instruction watchdog aborts a runaway one.
 
 ## The actions permission
 
-A verb that **sends the server an action the player could have performed** is **protected**: it runs only
+A verb that **starts an action the player could have performed** is **protected**: it runs only
 if **your** addon declared `"permissions": ["actions"]` in its [manifest](../runtime.md#the-manifest) and
 the user enabled it. Such an addon is disabled the first time the client sees it and enabling it raises a
 consent dialog; one that never declared it gets an error naming the verb, before anything is sent.
@@ -287,9 +287,9 @@ where you meet the permission, under a heading reading **Write (protected: `acti
 by page, what the permission does not buy and how to write an addon that acts are in
 [actions and permissions](../guides/actions-and-permissions.md).
 
-Everything else observes, or writes **client-local** only — a map marker, a minimap icon flag, a sound,
-your own window — which sends nothing to the server and needs no permission, so its group heading says
-`(unprotected)`. [`hafen.http`](http.md) declares separately, a `network` host allowlist in the manifest.
+Everything else observes, or writes **client-local** only — a map marker, an icon flag, a sound — and
+needs no permission, so its group heading says `(unprotected)`. Nor does replacing an action the client
+is already sending. [`hafen.http`](http.md) declares separately, a `network` host allowlist in the manifest.
 
 ## See also
 

@@ -105,7 +105,7 @@ types reset their own transform — the same ones that ignore a ghost's rotation
 
 `k` must be a number greater than zero, and finite. `0` collapses the object to a point and a negative one
 turns it inside out, so both raise naming the rule; `gob:scale(1)` is the original size and leaves nothing
-behind. Once the gob is gone the read answers `nil` and a write does nothing, like every other method here.
+behind. Once the gob is gone the read answers `nil` and a write does nothing, bar the click above.
 
 > **The size ends with the loaded object.** Walk far enough away for it to unload and it comes back the
 > size the game draws it at. Re-apply it from [`GobAdded`](event.md#world) if you want it kept — and a

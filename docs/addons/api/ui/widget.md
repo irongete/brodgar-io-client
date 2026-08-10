@@ -39,9 +39,9 @@ frames and compare it next frame. Holding one does not keep the widget or its de
 view of engine state, not an owned resource, and there is nothing to tear down.
 
 **Staleness.** A widget that leaves the tree — window closed, server destroy, relog — is *stale*: every
-read answers `nil` or empty, every write is a silent no-op that still chains, and `:exists()`, the one read
-that always answers, is `false`. A stashed object is therefore always safe to call; guard on `:exists()`
-only when "is it still there?" is the question you are actually asking.
+read answers `nil` or empty, every client-side write is a silent no-op that still chains, and `:exists()`,
+the one read that always answers, is `false`. Only [`send`](#send-a-message-protected-actions) raises on
+a stale widget; guard on `:exists()` only when "is it still there?" is the question you are asking.
 
 ## Read
 

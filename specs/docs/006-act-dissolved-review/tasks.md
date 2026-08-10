@@ -10,7 +10,7 @@
       target vocabulary) at zero under `docs/`. **Corrects nothing** — 006.2 writes.
       <!-- extra context: `specs/addons/048-act-dissolved/` (all eight task reports), `specs/addons/047-flowermenu/` -->
 
-- [ ] 006.2 — **The corrections, and the standard.** Fix every WRONG row 006.1 found, in the page's own
+- [x] 006.2 — **The corrections, and the standard.** Fix every WRONG row 006.1 found, in the page's own
       voice and without a change-note. Then the standard: `style-guide.md` §3/§6 and the IA's two
       `ungated` lines take `protected`/`unprotected`; §7's whole-section list gains `hafen.act` as
       `hafen\.act\b`, with the falsification (plant, catch, remove) and the note that it is the first

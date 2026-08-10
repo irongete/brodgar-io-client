@@ -6,7 +6,7 @@ gate and about what is on the near side of it.
 
 ## What is protected, and what is not
 
-Protected is exactly one thing: sending the server an action the player could have performed. There is no
+Protected is exactly one thing: starting an action the player could have performed. There is no
 section that collects those verbs — **each one lives with the thing it changes**, so you meet the
 permission on the page you looked the verb up on, under a heading reading `Write (protected: actions)`.
 That is the whole set:
@@ -42,6 +42,11 @@ several of them look like writes:
 
 Subscribing, drawing and reading are not writes at all. The line is the server: if nothing leaves the
 client, there is no permission to ask for.
+
+One pair reaches the server without the permission, which is why the line above is *starting* an action
+rather than sending one. [`ev:resend()` and `ev:send(t)`](../api/event.md#intercepting-an-outbound-action)
+re-issue a message the client was already about to send, in place of it: you choose the arguments, not
+whether it happens — the player's own click did that.
 
 ## Declaring it
 

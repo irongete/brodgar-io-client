@@ -304,3 +304,27 @@ seven real change-notes (`api/act.md`'s "used to walk you somewhere wrong", `ui/
 and two "as it always did", `vr/widgets.md`'s two, `client/profiling/attribution.md`'s "has always") and
 left 243 correct present-tense sentences alone. The admissibility test D-013 wrote for a retired-name entry
 is now the standard's general rule for any grep-checkable prohibition, wherever it appears.
+
+### D-017 — The permission's adjective is `protected` / `unprotected`, everywhere the standard spells it
+
+**Context (006.2).** Area `addons`' `048-act-dissolved` renamed the tier's own adjective across `src/` and
+`docs/`: a write group heading now reads `## Write (protected: \`actions\`)` or `## Write (unprotected)`,
+and both spellings read **0** under `docs/`. The standard did not follow. Style guide §3's reference
+skeleton still showed `## Write (gated: \`actions\`)`, §6's per-verb bullet still demanded "its gating"
+in `ungated` / `gated: actions`, and the IA's tree still annotated `markers` with "the ungated writes" —
+so the file a docs task is checked against taught a heading no page in the tree carries, which is the
+shape of drift D-015 found in §7's name list: a standard nobody re-derived after the thing it describes
+moved.
+
+**Decision.** The standard reads in the shipped adjective. Style guide §3 (the skeleton and the write-group
+rule), §6 (the per-verb bullet) and the IA's §3 tree say `protected` / `unprotected`; the concept noun is
+**the permission**, not "gating", which is the word `docs/` itself uses (`conventions.md`'s "The actions
+permission"). **D-006, D-010 and D-014 are not rewritten**: a decision records what was decided in the
+words it was decided in, and a later one supersedes it — the D-015 / D-016 precedent. Their `gated` /
+`ungated` bodies are read as this entry's earlier spelling.
+
+**Consequences.** §5.3 and §6 of the IA keep theirs too, being the record of one migration rather than the
+current map. The rename costs nothing at page level, because the shipping feature carried every heading
+already; what it closes is the standard, which is the only copy a later task or a later area reads before
+writing. `hafen.http`'s `network` allowlist is stated on its own page rather than as a heading annotation,
+so §6 stops offering `gated: network` as a form no page uses.

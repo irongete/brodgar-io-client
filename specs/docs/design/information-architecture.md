@@ -26,8 +26,8 @@ subject, and pages small enough to be re-read.
    task per page), `api/` (one namespace per page). A guide never restates a signature; a
    reference page never teaches a workflow.
 2. **One namespace, one path.** A namespace under the ceiling is `api/<namespace>.md`, named
-   exactly as it is spelled in Lua: `hafen.buff` → `api/buff.md`, `hafen.act` → `api/act.md`. A
-   reader who knows the name can type the path.
+   exactly as it is spelled in Lua: `hafen.buff` → `api/buff.md`, `hafen.flowermenu` →
+   `api/flowermenu.md`. A reader who knows the name can type the path.
 3. **Over the ceiling, a namespace becomes a directory** `api/<namespace>/` whose `README.md` is
    its hub. The same recursion applies inside: a sub-subject needing more than one page becomes
    its own directory with a hub (`api/ui/style/`, `api/client/profiling/`).
@@ -70,14 +70,14 @@ docs/addons/guides/README.md       the task index
 
 docs/addons/api/README.md          the reference index: every leaf page
                    /conventions.md  the vocabulary: references, snapshots, filters,
-                                    coordinates, colours, nil, threading, gating
+                                    coordinates, colours, nil, threading, the permission
                    /types.md        every snapshot shape
                    /event.md        the one bus, the door onto it, and the catalogue
 
                    /gob.md /world.md
                    /player.md /time.md /char.md /study.md /party.md /buff.md /meter.md
                    /kin.md /speed.md /craft.md /quest.md /wound.md /fight.md
-                   /actionbar.md /act.md /menugrid.md
+                   /actionbar.md /flowermenu.md /menugrid.md
                    /asset.md /font.md
                    /http.md /json.md /timer.md /store.md /log.md /slash.md /sound.md
 
@@ -86,13 +86,13 @@ docs/addons/api/README.md          the reference index: every leaf page
                        /grids.md        segments, grids, and saving an anchor
                        /overlays.md     the recorded masks, and the display toggles
                        /drawings.md     grid images: levels, ownership, the cache
-                       /markers.md      the Marker object, its Position, the ungated writes
+                       /markers.md      the Marker object, its Position, the unprotected writes
                        /icons.md        the icon registry and the IconCat object
 
                    /ui/README.md        hub and reading order
                       /custom.md        your own windows, widgets and overlays
                       /controls/README.md  hub: what a control is, the roster,
-                                        the shared setters, gating in prose (D-014)
+                                        the shared setters, the permission in prose (D-014)
                                /display.md     the passive controls: label, picture,
                                                 separator, progress bar
                                /interactive.md the controls the user drives: button,

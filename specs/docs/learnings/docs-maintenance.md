@@ -482,3 +482,30 @@
   quantifiers (*every* · *all* · *none* · *never* · *like every other*) and re-read each one against the
   verbs the page now carries. A "whole set" claim in a guide is the same shape and is checkable the same
   way — `requireActions(owner, "<verb>")` is the roster, and it reads 22.
+
+- **(006.2) Re-derive a table by expanding it, and prove the expander against the last figure that was
+  recorded.** §12's retired-name count is only useful if it is comparable to the previous sweep's, and a
+  literal `grep -c 'put('` is not: `Retired.java` generates rows from `section(…)`, `moved(…)`, `act(…)`
+  and three array loops, so the count depends entirely on how you expand them. The move that makes the
+  number trustworthy is to run the expander on the **pre-feature** version of the file first: this one
+  reproduces D-015's 93/75/4 exactly, which is what licenses reporting today's 180 `NAMES` rows + 4
+  `KEYS` as growth rather than as a differently-counted number. Cheap, and it is the only thing standing
+  between "the table grew by 12" and two incompatible counting rules.
+
+- **(006.2) §2's change-note grep is mostly substring noise, and that is why the rule says read every
+  hit.** The tree reads **6** hits and **0** are change-notes — but four are not even close calls, they
+  are substrings of ordinary words: `ref`**`used to`**`o`, `used to`+`gether`, and "what it **was called**
+  on" (the receiver, not a rename). Only two are the construction at all, and both are runtime state
+  ("where the target used to stand", "what you used to hold"). So the hit count drifts upward as the tree
+  grows and tells you nothing; D-016's "3 hits tree-wide" was never a budget. Add `\b` where the
+  construction allows it, and never treat a rising count as a regression without opening it.
+
+- **(006.2) A correction on a page at the ceiling has to be line-neutral, and the true sentence is
+  usually longer than the false one.** Every wrong claim this task fixed was a universal that had to gain
+  an exception clause — `bar the click above`, `every client-side write`, `Nor does replacing an action
+  the client is already sending` — and three of the five pages sat at 300/300/299. Correcting them means
+  rewrapping the surrounding paragraph and cutting real words elsewhere in it, one character at a time
+  (`; the click above is the exception.` came out at **111** columns and had to become `, bar the click
+  above.`). Budget for it: fixing accuracy before splitting is the expensive order, and the alternative —
+  letting a page go to 301 "because the split task will fix it" — breaks §9 at a task boundary, which is
+  precisely what the standard forbids.
